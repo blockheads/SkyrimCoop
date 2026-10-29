@@ -69,6 +69,8 @@ JoinStatus Ended(std::string_view aReason) noexcept
     status.Reason = aReason;
     if (aReason == "kicked")
         status.Message = "The host removed you from the session.";
+    else if (aReason == "host_left")
+        status.Message = "The host ended the session.";
     else
     {
         status.Message = "Lost connection to the host.";

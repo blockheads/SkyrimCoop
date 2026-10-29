@@ -2,6 +2,7 @@
 
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
+#include <Structs/PlayerKnowledge.h>
 #include <Structs/Tints.h>
 #include <Wire/Buffer.h>
 
@@ -75,6 +76,7 @@ struct PlayerRecord
     std::vector<GameId> Words;
     // Own permanent totals (base + permanent modifier), excluding temporary effects and damage.
     std::vector<Value> PermanentValues;
+    PlayerKnowledge Knowledge;
 
     bool operator==(const PlayerRecord& acRhs) const noexcept;
 

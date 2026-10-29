@@ -598,3 +598,18 @@ TEST_CASE("Melee staggers come from the attacker's owner and go to the victim al
     session.Receive(kPeer, stagger);
     CHECK(session.Outbox.empty());
 }
+
+TEST_CASE("A quest one per player: the game that learned it tells every other", "[HostAuthority][SystemQuests]")
+{
+    Session session;
+    SystemQuestsRequest learned;
+    learned.Quests = {GameId(0, 0xEAFD5)}; // PlayerVampireQuest, entered by the peer's disease
+    session.Receive(kPeer, learned);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifySystemQuests>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->Quests == learned.Quests);
+    }
+    CHECK(session.SentTo<NotifySystemQuests>(kPeer).empty());
+}

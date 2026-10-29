@@ -582,14 +582,17 @@ ActorValues Actor::GetEssentialActorValues() const noexcept
 {
     ActorValues actorValues;
 
-    int essentialValues[] = {ActorValueInfo::kHealth, ActorValueInfo::kStamina, ActorValueInfo::kMagicka};
-    for (auto i : essentialValues)
-    {
-        float value = EngineVirtual(actorValueOwner).GetValue(i);
-        actorValues.ActorValuesList.insert({i, value});
-        float maxValue = EngineVirtual(actorValueOwner).GetPermanentValue(i);
-        actorValues.ActorMaxValuesList.insert({i, maxValue});
-    }
+    const auto cAdd = [&](int32_t aIndex) {
+        actorValues.ActorValuesList.insert({aIndex, EngineVirtual(actorValueOwner).GetValue(aIndex)});
+        actorValues.ActorMaxValuesList.insert({aIndex, EngineVirtual(actorValueOwner).GetPermanentValue(aIndex)});
+    };
+    for (const int32_t cIndex : {ActorValueInfo::kHealth, ActorValueInfo::kStamina, ActorValueInfo::kMagicka})
+        cAdd(cIndex);
+    // A player's skills too: its copy stands in for it in the host's conditions (a persuade's Speech); later changes
+    // follow by the value relay.
+    if (formID == 0x14)
+        for (int32_t index = ActorValueInfo::kOneHanded; index <= ActorValueInfo::kEnchanting; ++index)
+            cAdd(index);
 
     return actorValues;
 }
@@ -1357,6 +1360,13 @@ void HookUpdateAI(Actor* apThis, float aDelta)
         // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
         if (!apThis->IsDead())
             apThis->StartDeferredKill();
+        else if (ActorState::LifeStateOf(apThis->actorState.flags1) == ActorState::kLifeDying &&
+                 apThis->LiesInRagdoll() && !apThis->IsInKillMove())
+        {
+            // Copies skip native death upkeep; a ragdoll must leave kDying before NPC activation permits looting.
+            POINTER_SKYRIMSE(void(Actor*, uint32_t), s_setLifeState, 37612);
+            s_setLifeState(apThis, ActorState::kLifeDead);
+        }
 
         AIProcess* pProcess = apThis->currentProcess;
         if (pProcess && pProcess->processLevel == 0)

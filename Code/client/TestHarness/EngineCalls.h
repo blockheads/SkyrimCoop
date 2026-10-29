@@ -542,6 +542,9 @@ bool PickDialogue(uint32_t aIndex) noexcept;
 // The actor starts a conversation with the player, as a ForceGreet package ends (Actor::SetDialogueWithPlayer
 // 37200 with force greet, through its hook).
 bool ForceGreet(uint32_t aActorFormId) noexcept;
+// The line the speaker would say for the topic to the player, judged for that player (a guest's character: as if it
+// were the player, JudgedFor); none: no such forms. Its value: the line's form id, 0 for none.
+std::optional<uint32_t> GetJudgedLine(uint32_t aTopic, uint32_t aSpeaker, uint32_t aPlayer) noexcept;
 // Whether the line is marked said (TESTopicInfo +0x3A), and setting it back (none: no such line).
 std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept;
 // The player's actor value (a skill's level) and that skill's experience toward its next level.

@@ -18,6 +18,7 @@
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
+#include <Papyrus/GuestScripts.h>
 #include <Services/TransportService.h>
 
 #include <World.h>
@@ -109,6 +110,13 @@ void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
     POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
     if (apInfo && apInfo->timeUntilReset)
         (s_rememberSaid.Get())(this, apInfo);
+}
+
+void PlayerCharacter::SetAIDriven(bool aDriven) noexcept
+{
+    using TSetAIDriven = void(PlayerCharacter*, bool);
+    POINTER_SKYRIMSE(TSetAIDriven, s_setAiDriven, 40586);
+    s_setAiDriven.Get()(this, aDriven);
 }
 
 void PlayerCharacter::Revive() noexcept
@@ -379,6 +387,12 @@ static uintptr_t HookProcessQueuedTravel(PlayerCharacter* apPlayer)
 {
     const auto& cTarget = apPlayer->queuedTarget;
     if (!cTarget.Valid || !World::Get().GetTransport().IsOnline())
+    {
+        s_pendingTravel.reset();
+        return RealProcessQueuedTravel(apPlayer);
+    }
+    // Another game's party call moved this player (a story's MoveTo on each player): its own move, it leads no one.
+    if (GuestScripts::TakeMirroredMove())
     {
         s_pendingTravel.reset();
         return RealProcessQueuedTravel(apPlayer);

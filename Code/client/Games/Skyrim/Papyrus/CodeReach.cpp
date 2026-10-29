@@ -239,6 +239,8 @@ Facts Read(uintptr_t aFunction, const Range& acModule, bool aThroughCells, const
                     if (!cIsRead(address) && !cAddPart(address) && cIsCall)
                         facts.Callees.push_back(address);
                 }
+                else if (instruction.mnemonic == ZYDIS_MNEMONIC_LEA && !cNoteObject(address))
+                    facts.Addressed.push_back(address);
                 else if (!cNoteObject(address) && aThroughCells && acModule.Contains(address))
                 {
                     const std::optional<uintptr_t> cHeld = acCode.HeldBy(address);

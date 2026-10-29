@@ -17,6 +17,9 @@
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
 #include <Events/ScriptAnimationEvent.h>
+#include <Events/StoryEvents.h>
+#include <FormIds.h>
+#include <SessionIds.h>
 #include <Events/UpdateEvent.h>
 #include <World.h>
 #include <Services/TransportService.h>
@@ -42,6 +45,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<ActivateEvent, &HostService::OnActivate>(m_connections, m_dispatcher, this);
     Listen<ScriptAnimationEvent, &HostService::OnScriptAnimation>(m_connections, m_dispatcher, this);
     Listen<ContainerChangeEvent, &HostService::OnContainerChange>(m_connections, m_dispatcher, this);
+    Listen<CopyLocationChangeEvent, &HostService::OnCopyLocationChange>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
@@ -67,6 +71,13 @@ void HostService::OnContainerChange(const ContainerChangeEvent& acEvent) noexcep
     // Actors' items are their owner's (InventoryService); the engine keeps containers' only.
     if (IsHosting())
         m_pEngine->RecordItems(acEvent.ContainerId, acEvent.ItemId);
+}
+
+void HostService::OnCopyLocationChange(const CopyLocationChangeEvent& acEvent) const noexcept
+{
+    const auto cId = Utils::GetSessionIdByFormId(acEvent.ActorId);
+    if (IsHosting() && cId)
+        m_pAuthority->CharacterMoved(*cId, ToSession(acEvent.OldLocationId).value_or(GameId{}), ToSession(acEvent.LocationId).value_or(GameId{}));
 }
 
 void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept
@@ -192,9 +203,11 @@ void HostService::MakeAuthority() noexcept
     };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
+    game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
     game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
         return m_pEngine->CreateItem(acItem, acPlacement);
     };
+    game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t aPlayer) { return m_pEngine->TransferContainer(acRequest, aPlayer); };
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };

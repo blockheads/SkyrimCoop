@@ -18,6 +18,8 @@
 #include <Events/ReferenceJumpEvent.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
+#include <Services/ContainerTransfers.h>
+#include <Interface/UI.h>
 #include <ExtraData/ExtraDataList.h>
 #include <ExtraData/ExtraCharge.h>
 #include <ExtraData/ExtraCount.h>
@@ -1194,9 +1196,30 @@ void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, E
     World::Get().GetRunner().Trigger(InventoryChangeEvent(apRef->formID, std::move(item)));
 }
 
+bool ProposeContainerTransfer(TESObjectREFR* apSource, TESObjectREFR* apTarget, TESBoundObject* apItem,
+                              int32_t aCount, ExtraDataList* apExtra, ITEM_REMOVE_REASON aReason)
+{
+    auto* pUI = UI::Get();
+    if (ScopedInventoryOverride::IsOverriden() || !apSource || !apTarget || !apItem ||
+        !pUI || !pUI->GetMenuOpen("ContainerMenu"))
+        return false;
+    Inventory::Entry item;
+    item.BaseId = ToSession(apItem->formID).value_or(GameId{});
+    if (apExtra)
+        TESObjectREFR::GetItemFromExtraData(item, apExtra);
+    item.Count = aCount;
+    return ContainerTransfers::Propose(World::Get(), apSource->formID, apTarget->formID, std::move(item),
+                                      aReason == ITEM_REMOVE_REASON::kSteal);
+}
+
 BSPointerHandle<TESObjectREFR>*
 HookRemoveInventoryItem(TESObjectREFR* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate)
 {
+    if (ProposeContainerTransfer(apThis, apMoveToRef, apItem, aCount, apExtraList, aReason))
+    {
+        *apResult = {};
+        return apResult;
+    }
     if (!ScopedInventoryOverride::IsOverriden())
         SendRemoval(apThis, apItem, aCount, apExtraList);
 
@@ -1239,6 +1262,12 @@ BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::D
                                                         TESObjectREFR* apDropRef)
 {
     TESObjectREFR* pOwner = apRef ? apRef : apThis ? apThis->parent : nullptr;
+    if (!ScopedItemRemovalOverride::IsOverriden() &&
+        ProposeContainerTransfer(pOwner, apMoveToRef, apItem, aCount, apExtraList, aReason))
+    {
+        *apResult = {};
+        return apResult;
+    }
     if (pOwner && apItem && aCount > 0 && !ScopedInventoryOverride::IsOverriden() && !ScopedItemRemovalOverride::IsOverriden())
         SendRemoval(pOwner, apItem, aCount, apExtraList);
     return RealRemoveFromInventory(apThis, apResult, apRef, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apDropRef);

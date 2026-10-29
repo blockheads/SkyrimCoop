@@ -113,6 +113,7 @@ void SteamService::Leave() noexcept
         PumpTunnels();
     }
     m_joinedTransport = false;
+    PumpTunnels(); // the host's final session notice too
     for (const auto& cPeer : m_status.Peers)
     {
         CloseTunnel(cPeer.Connection);

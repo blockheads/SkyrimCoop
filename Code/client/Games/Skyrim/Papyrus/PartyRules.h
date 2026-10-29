@@ -88,7 +88,9 @@ struct CallFacts
     bool Hosting = false;
     bool Guest = false;    // this game is a guest in a session
     bool OwnQuest = false; // its object is a quest of this guest's own
-    bool PlayerInCall = false; // this game's player (0x14) is its object or an argument
+    bool PlayerInCall = false;  // this game's player (0x14) is its object or an argument
+    bool InSystemQuest = false; // a system quest's script calls it: this game's instance, for its own player
+    bool SystemObject = false;  // its object is a system quest or one of its globals: each game's own
 };
 
 enum class Destination : uint8_t
@@ -111,6 +113,19 @@ struct Routing
 };
 // Where a call runs (docs/design/party-calls.md). Another game's call (mirrored) runs here only.
 [[nodiscard]] Routing RouteOf(const CallFacts& acFacts) noexcept;
+
+// A system quest (docs/design/system-quests.md): one instance per game, for that game's own player. A script calling
+// into aCallee's function (a quest, or one of its aliases' quest) makes it one when the caller is this game's
+// player's script or effect, or another system quest's; not its own quest's call, nor a guest's own quest.
+[[nodiscard]] bool LearnsSystemQuest(uint32_t aCallee, uint32_t aCallerQuest, bool aCallerOnPlayer, bool aCallerSystem,
+                                     bool aCalleeOwn) noexcept;
+// Whether a function of aClass is one the quest's own script declares, not the engine's base scripts' (Quest.SetStage
+// is a script function over SetCurrentStageID: a call of it is the quest's world, not its instance's).
+[[nodiscard]] bool IsQuestScriptFunction(std::string_view aClass) noexcept;
+// Where a call into a system quest's function runs, from outside it: a player's own action on that player's game (a
+// guest's, sent there from the host); the story's or no player's on every game, each on its own player. One returning
+// a value is answered here, unless it goes to a guest's game.
+[[nodiscard]] Routing RouteOfSystemCall(uint32_t aCause, bool aStory, bool aGuestCause, bool aHosting, bool aReturnsValue) noexcept;
 
 // A player a question may be asked of (rule 3): 0x14 or a guest's character, with its distance to the reference the
 // question measures from, or whether it is in the location the asking script names.

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <unordered_map>
-#include <vector>
 #include <NoCopyMove.h>
 
 namespace Hooks
@@ -12,8 +10,6 @@ namespace Hooks
 
         void SetEnabled(bool aEnabled) noexcept { m_enabled = aEnabled; Update(); }
         [[nodiscard]] bool IsEnabled() const noexcept { return m_enabled; }
-        void SetToggleKeys(std::initializer_list<unsigned long> aKeys) noexcept;
-        [[nodiscard]] bool IsToggleKey(unsigned int aKey) const noexcept;
 
         void Acquire() const noexcept;
         void Unacquire() const noexcept;
@@ -25,10 +21,8 @@ namespace Hooks
 
     private:
 
-        DInputHook() noexcept;
+        DInputHook() noexcept = default;
         ~DInputHook() = default;
-
-        std::unordered_set<unsigned long> m_toggleKeys;
 
         bool m_enabled{ false };
     };

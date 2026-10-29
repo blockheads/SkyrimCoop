@@ -26,6 +26,7 @@
 #include <Structs/Vector2_NetQuantize.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
+#include <Structs/SystemQuestState.h>
 
 #include <numbers>
 #include <limits>
@@ -711,6 +712,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendRequest.Step = 7;
         sendRequest.Choices = true;
         sendRequest.Options = {option, option};
+        sendRequest.Players = {{2, {option}}, {5, {}}}; // the guests' own lists: one line, and none
         NotifyDialogueList sendList, recvList;
         sendList.Conversation = 3;
         sendList.Step = 8;
@@ -736,6 +738,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         recvOpen.DeserializeRaw(reader);
 
         CHECK((recvRequest.Conversation == 3 && recvRequest.Step == 7 && recvRequest.Choices && recvRequest.Options == sendRequest.Options));
+        CHECK(recvRequest.Players == sendRequest.Players);
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
         CHECK(recvOpen.Greeting == sendOpen.Greeting);
@@ -1554,6 +1557,31 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
     }
 }
 
+TEST_CASE("Container transfers keep their direction, actor and exact stack on the wire", "[encoding.items]")
+{
+    ContainerTransferRequest request;
+    request.Container = GameId(0, 0x1A001);
+    request.Item.BaseId = GameId(0, 0x12EB7);
+    request.Item.ExtraHealth = 1.3f;
+    request.Item.ExtraEnchantId = GameId(0, 0x4605A);
+    request.Item.ExtraEnchantCharge = 500;
+    request.Item.ExtraName = "Old Friend";
+    for (int32_t count : {3, -2})
+    {
+        request.Item.Count = count;
+        request.ContainerActorId = count > 0 ? 12 : 0;
+        request.Steal = count > 0;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        request.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == request.GetOpcode());
+        CHECK(static_cast<const ContainerTransferRequest&>(*decoded) == request);
+    }
+}
+
 TEST_CASE("The party's gold goes to every game", "[encoding.items]")
 {
     NotifyPartyGold sent;
@@ -1566,6 +1594,38 @@ TEST_CASE("The party's gold goes to every game", "[encoding.items]")
     REQUIRE(decoded);
     REQUIRE(decoded->GetOpcode() == kNotifyPartyGold);
     CHECK(static_cast<const NotifyPartyGold&>(*decoded) == sent);
+}
+
+TEST_CASE("The quests one per player go to the host and from it to every game", "[encoding.quests]")
+{
+    Payloads::SystemQuests quests;
+    quests.Quests = {GameId{0, 0xEAFD5}, GameId{2, 0x71D2}};
+    SECTION("a guest's learned quest")
+    {
+        SystemQuestsRequest sent;
+        static_cast<Payloads::SystemQuests&>(sent) = quests;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kSystemQuestsRequest);
+        CHECK(static_cast<const SystemQuestsRequest&>(*decoded) == sent);
+    }
+    SECTION("the host's list")
+    {
+        NotifySystemQuests sent;
+        static_cast<Payloads::SystemQuests&>(sent) = quests;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kNotifySystemQuests);
+        CHECK(static_cast<const NotifySystemQuests&>(*decoded) == sent);
+    }
 }
 
 TEST_CASE("A player-made enchantment is the same item in every game", "[encoding.items]")
@@ -1658,11 +1718,12 @@ TEST_CASE("Follower trade grants and releases retain the NPC session id", "[enco
     CHECK(static_cast<const FollowerTradeClosedRequest&>(*received).NpcId == close.NpcId);
 }
 
-TEST_CASE("Player perk snapshots retain ranks through messages and spawns", "[encoding.perks]")
+TEST_CASE("Player perk snapshots retain ranks and added spells through messages and spawns", "[encoding.perks]")
 {
     ActorPerksRequest request;
     request.SessionId = 37;
     request.Content.Ranks = {{GameId(0, 0xCC799), 2}, {GameId(3, 0x812), 1}};
+    request.Content.Spells = {GameId(0, 0x12FD0), GameId(3, 0x813)};
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     request.Serialize(writer);
@@ -1698,4 +1759,41 @@ TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude
     const auto decoded = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
+}
+
+TEST_CASE("A guest's craft reaches the host as its story event", "[encoding.story]")
+{
+    StoryEventRequest request;
+    request.Event.Type = StoryEvent::kCraft;
+    request.Event.Workbench = GameId(0, 0x1A2B3);
+    request.Event.Location = GameId(0, 0x18A56);
+    request.Event.Created = GameId(2, 0x1397E);
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<StoryEventRequest>(std::move(message)) == request);
+}
+
+TEST_CASE("A player's own system quests are kept in its record", "[encoding.quests]")
+{
+    SystemQuestState state;
+    SystemQuestState::Quest& vampire = state.Quests.emplace_back();
+    vampire.Id = GameId{0, 0xEAFD5};
+    vampire.Variables = {{"PlayerVampireQuestScript", "::VampireStatus_var", int32_t{2}},
+                         {"PlayerVampireQuestScript", "::LastFeedTime_var", 31.5f},
+                         {"PlayerVampireQuestScript", "::CureRace_var", ScriptForm{0, GameId{0, 0x13746}}},
+                         {"PlayerVampireQuestScript", "::Unset_var", std::monostate{}}};
+    vampire.Timers = {{"RegisterForUpdateGameTime", 12.f}};
+    state.Globals = {{GameId{0, 0xEAFD6}, 1.f}};
+    const std::string cBlob = state.Encode();
+    const auto cDecoded = SystemQuestState::Decode(cBlob);
+    REQUIRE(cDecoded);
+    CHECK(*cDecoded == state);
+    CHECK(cDecoded->Find(GameId{0, 0xEAFD5}) != nullptr);
+    CHECK(cDecoded->Find(GameId{0, 0x1}) == nullptr);
+    CHECK_FALSE(SystemQuestState::Decode(""));
+    CHECK_FALSE(SystemQuestState::Decode(std::string("\x07", 1)));
 }

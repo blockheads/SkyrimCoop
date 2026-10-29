@@ -1,4 +1,5 @@
 #pragma once
+#include <Messages/ContainerTransferRequest.h>
 #include <Messages/FollowerMessages.h>
 
 #include <Messages/Message.h>
@@ -13,6 +14,7 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/StoryEventRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/RequestRespawn.h>

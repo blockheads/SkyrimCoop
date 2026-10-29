@@ -414,6 +414,48 @@ SCENARIO("Where a native's call runs", "[party][route]")
     THEN("a native nothing reaches runs here") CHECK(RouteOf({.Cause = kGuest, .Hosting = true}) == Routing{});
 }
 
+SCENARIO("A story's move, idle or AI drive on the player runs on each game's own player", "[party][route][cutscenes]")
+{
+    const Reach cBody{Call::kBody};
+    GIVEN("the story's call on this game's player (MQ206's Game.GetPlayer().MoveTo, SetPlayerAIDriven)")
+    {
+        const CallFacts cFacts{.Reach = cBody, .Target = Target::kThisPlayer, .TargetId = kThisPlayer, .Hosting = true};
+        THEN("it runs here and on every other game, each on its own player")
+        CHECK(RouteOf(cFacts) == Routing{.To = Destination::kEveryGame, .Mark = true, .MarkFor = kThisPlayer});
+        THEN("a stage a guest's action set is the story's too")
+        {
+            CallFacts story = cFacts;
+            story.Cause = kGuest;
+            story.Story = true;
+            CHECK(RouteOf(story).To == Destination::kEveryGame);
+        }
+    }
+    GIVEN("the story's call naming a guest's character")
+    {
+        const CallFacts cFacts{.Reach = cBody, .Target = Target::kGuestCharacter, .TargetId = kGuest, .Cause = kGuest,
+                               .Story = true, .GuestCause = true, .Hosting = true};
+        THEN("every game runs it on its own player, the host's too; never on the copy here")
+        CHECK(RouteOf(cFacts) == Routing{.To = Destination::kEveryGame, .Original = false, .ThisPlayer = true, .Mark = true,
+                                         .MarkFor = kGuest});
+    }
+    GIVEN("a guest's own moment on the host (a lever moving its character)")
+    {
+        const CallFacts cFacts{.Reach = cBody, .Target = Target::kGuestCharacter, .TargetId = kGuest, .Cause = kGuest,
+                               .GuestCause = true, .Hosting = true};
+        THEN("its game moves its own player; the copy follows its owner")
+        CHECK(RouteOf(cFacts) == Routing{.To = Destination::kCauseGame, .Original = false});
+    }
+    THEN("the host's player's own moment stays here")
+    CHECK(RouteOf({.Reach = cBody, .Target = Target::kThisPlayer, .TargetId = kThisPlayer, .Cause = kThisPlayer, .Hosting = true}) ==
+          Routing{});
+    THEN("a body's own script (an effect's, a beast form's) moves its player here")
+    CHECK(RouteOf({.Reach = cBody, .Target = Target::kThisPlayer, .TargetId = kThisPlayer, .Body = true, .Hosting = true}) == Routing{});
+    THEN("an NPC moved by the story is the host's world's")
+    CHECK(RouteOf({.Reach = cBody, .Hosting = true}) == Routing{});
+    THEN("another game's mirrored move runs here only")
+    CHECK(RouteOf({.Reach = cBody, .Target = Target::kThisPlayer, .TargetId = kThisPlayer, .Cause = kHostsGame}) == Routing{});
+}
+
 // docs/design/party-calls.md, "A box's answer": a story's message box on the guest closes with the host's answer.
 SCENARIO("Another game's latent call here ends with its original's result", "[party][messages]")
 {

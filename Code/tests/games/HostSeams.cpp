@@ -4,14 +4,20 @@
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
+#include <Messages/ContainerTransferRequest.h>
+#include <Games/Overrides.h>
 
 #include <Bridges/HostEngine.h>
 #include <Bridges/IActorBridge.h>
 #include <Messages/ReferencesMoveRequest.h>
+#include <Messages/Relayed.h>
+#include <ScriptValues.h>
 #include <FormIds.h>
 #include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
+#include <Events/StoryEvents.h>
+#include <SessionIds.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
@@ -40,6 +46,8 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 {
     Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
+    Listen<CopyLocationChangeEvent, &HostService::OnCopyLocationChange>(m_connections, m_dispatcher, this);
+    Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
@@ -115,25 +123,28 @@ void HostService::MakeAuthority() noexcept
     game.ReadGlobals = [&engine] {
         std::vector<HostGlobal> globals;
         for (const auto& [cId, cValue] : engine.Globals)
-            globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
+            if (!engine.SystemQuestList.IsGlobal(cId)) // as HostEngine: each player's own
+                globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
         return globals;
     };
     game.TakeGlobalChanges = [&engine] {
         std::vector<HostGlobal> globals;
         for (const uint32_t cId : std::exchange(engine.GlobalWrites, {}))
-            globals.push_back({.Id = GameId{0, cId}, .Value = engine.Globals.at(cId)});
+            if (!engine.SystemQuestList.IsGlobal(cId))
+                globals.push_back({.Id = GameId{0, cId}, .Value = engine.Globals.at(cId)});
         return globals;
     };
     game.ReadQuests = [&engine] {
         std::vector<QuestState> quests;
         for (const auto& [cId, cQuest] : engine.Quests)
-            quests.push_back(cQuest);
+            if (!engine.SystemQuestList.Contains(cId))
+                quests.push_back(cQuest);
         return quests;
     };
     game.TakeQuestChanges = [&engine] {
         std::vector<QuestState> quests;
         for (const uint32_t cId : engine.QuestWrites.Take())
-            if (const auto it = engine.Quests.find(cId); it != engine.Quests.end())
+            if (const auto it = engine.Quests.find(cId); it != engine.Quests.end() && !engine.SystemQuestList.Contains(cId))
                 quests.push_back(it->second);
         return quests;
     };
@@ -141,11 +152,33 @@ void HostService::MakeAuthority() noexcept
     game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return engine.CellState(acCell, acChanged);
     };
+    game.RaiseStoryEvent = [&engine](const StoryEvent& acEvent) { engine.StoriesRaised.push_back(acEvent); };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };
     game.SetItems = [&engine](const ObjectChange& acItems) {
         engine.SetItems(FormIdOf(acItems.Object), FormIdOf(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
+    };
+    game.TransferContainer = [&engine](const ContainerTransferRequest& acRequest, uint32_t aPlayer) {
+        Inventory::Entry moved = acRequest.Item;
+        const uint32_t cPlayer = Utils::GetFormIdBySessionId(aPlayer);
+        const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
+        const uint32_t cItem = FormIdOf(moved.BaseId);
+        const bool cTake = moved.Count > 0;
+        const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
+        moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);
+        if (moved.Count)
+        {
+            ScopedInventoryOverride _;
+            engine.GetsItem(cPlayer, moved);
+            Inventory::Entry other = moved;
+            other.Count = -other.Count;
+            if (acRequest.ContainerActorId)
+                engine.GetsItem(cContainer, other);
+            else
+                engine.SetItems(cContainer, cItem, engine.References.at(cContainer).Items[cItem] - moved.Count);
+        }
+        return moved;
     };
     game.CreateItem = [&engine](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
         return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
@@ -235,6 +268,23 @@ void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const
 {
     if (IsHosting())
         m_pAuthority->DifficultyChanged(acEvent.Difficulty);
+}
+
+void HostService::OnCopyLocationChange(const CopyLocationChangeEvent& acEvent) const noexcept
+{
+    const auto cId = Utils::GetSessionIdByFormId(acEvent.ActorId);
+    if (IsHosting() && cId)
+        m_pAuthority->CharacterMoved(*cId, ToSession(acEvent.OldLocationId).value_or(GameId{}), ToSession(acEvent.LocationId).value_or(GameId{}));
+}
+
+// As HostService::OnWorldCall: a guest's script's call made here for it (GlobalCall::QueueCall in a stack run for it).
+void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
+{
+    if (acMessage.To != CallTo::kHost || !IsHosting())
+        return;
+    const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
+    if (const auto cCall = Utils::ToLocalCall(acMessage.Call); cGuest && cCall)
+        m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest);
 }
 
 void HostService::OnGameSaving(const GameSavingEvent&) const noexcept

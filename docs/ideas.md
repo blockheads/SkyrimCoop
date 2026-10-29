@@ -49,18 +49,15 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Sync
 
-- **Per-player system quests (mod support, 2026-10-21).** Under "only the host decides", every quest's
-  scripts run on the host only, so a quest that tracks one player's body (Frostfall's exposure system,
-  needs mods, vanilla `PlayerVampireQuest`) tracks only the host's player: a guest never gets cold or hungry
-  on its own. Later, an opt-in list of such quests that also run on each guest's game for its own player,
-  with the globals their scripts name kept per game (left out of the host's global sync). The list first,
-  shipped for known mods; then found by a heuristic (no stages, objectives or aliases but the player's) or
-  from the compiled scripts (`.pex`: which natives, on what). Their world writes (a campfire, harvesting) go
-  to the host as a guest's actions. Notes: `docs/research/guest-scripts-and-mods.md`. First piece built
-  2026-10-23: a quest the guest's own scripts start (an MCM toggle, an item, an effect) is the guest's
-  (`docs/design/world-state-sync.md`, "A guest's own quests"). A mod's quest that starts itself is not, yet;
-  test with a real survival mod (Frostfall, Sunhelm) to see which way they start and whether the host's quest
-  and global sync overwrite the guest's state.
+- **Per-player system quests: the rest (mod support).** Built 2026-10-28 for quests a player's own script calls
+  into (`docs/design/system-quests.md`; vanilla's `PlayerVampireQuest` first). Left: a survival mod's quest that
+  only runs on its own timers (Frostfall's exposure, needs mods) is never entered, so it stays the host's; test with
+  a real survival mod (Frostfall, Sunhelm) for how its quests are entered, and keep an instance's alias scripts and
+  stages in the record when one needs them. Notes: `docs/research/guest-scripts-and-mods.md`.
+- **A reward after a scene goes to the player whose pick started it** (2026-10-28). A pick that starts a scene loses
+  its player at the scene: its end's stage runs with no cause, so `Game.GetPlayer()` there is the host's player
+  (VC01: the pick, the dawn ritual's scene, stage 195, stage 200's `VampireCure`). Carrying the cause through
+  `Scene.Start` as the story would give such a reward to the picker; not needed for the cure, which is the party's.
 - **Switch a guest's own weather choice off** (2026-10-20). Today a guest's game keeps picking its own weather
   (the region's climate, cell changes, scripts), and `GuestWeather` checks every frame and forces the
   host's back (`GuestEngine::HoldWeather`). Cleaner: while a guest, stop the game choosing at all, so the

@@ -5,6 +5,7 @@
 #include <Structs/GameId.h>
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <NoCopyMove.h>
 
@@ -23,8 +24,8 @@ struct HostNetwork;
 
 /**
  * @brief One conversation for the party, run by the host's game: whoever starts it, the host's game says its
- * lines and builds each step's list, which every game's menu shows. Any player picks from it: the host's game says
- * that option as if its player had, and the chat names who picked what (its script runs for the picker:
+ * lines and builds each step's list for each player, judged for its character. Any player picks from its own list:
+ * the host's game says that option, and the chat names who picked what (its script runs for the picker:
  * party-model.md, rule 2). Games report lists, picks, joins and exits; this decides which pick is said
  * and when it ends: once nobody is in it (docs/design/shared-dialogue.md).
  */
@@ -57,6 +58,8 @@ private:
         std::vector<ConnectionId_t> Players;
         // The host's game's list for this step; none yet after a pick.
         std::optional<DialogueOptions> Options;
+        // Each other player's own list for the step, by player id (none for a player: the host's).
+        std::map<uint32_t, DialogueOptions> PlayerOptions;
         bool Choices{};
 
         [[nodiscard]] bool Has(ConnectionId_t aPlayer) const noexcept
@@ -77,6 +80,8 @@ private:
     [[nodiscard]] Conversation* Current(uint32_t aId, uint32_t aStep) noexcept;
     // The start that player asked for will not happen; a chat line says why, when given.
     void Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* acpWhy) noexcept;
+    // That game's list for the step (null: none shown yet).
+    [[nodiscard]] const DialogueOptions* OptionsFor(ConnectionId_t aPlayer) const noexcept;
     // The step's list to that game, once the host's game has shown it.
     void SendList(ConnectionId_t aPlayer) noexcept;
     // Ends it, telling every game but aExcept (0: all of them).

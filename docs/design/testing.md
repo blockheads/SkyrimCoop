@@ -419,7 +419,9 @@ a corpse twitching) are readouts and checks, so a scenario fails naming them in 
 - The camera (harness `camera`): mode, position, direction, what its view ray meets, whom it follows and whether a
   ray from their head reaches it (`camera_sees_followed`: a wall, floor or ceiling between fails; an actor does not).
 - A body (status `pose`, every actor): its feet above the floor under it, its 3D root, skeleton root, pelvis and head
-  above that floor. Compared owner against copy, and checked after every scenario for players (`body_problems`:
+  above that floor, read off the third-person body others see (`Get3D1(false)`: in first person the player's
+  current 3D is its first-person model, whose pelvis follows the camera's pitch, 88 above the feet looking down at
+  an NPC). Compared owner against copy, and checked after every scenario for players (`body_problems`:
   floating, sunk, a skeleton lifted off its feet, lying while it should stand). Status `ragdoll`: bodies awake and
   the fastest one's speed.
 - Motion over time (`RagdollTrace`, the harness's `body_trace`): each ragdoll body and the bone it moves, each frame,

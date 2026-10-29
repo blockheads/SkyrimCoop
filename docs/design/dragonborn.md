@@ -136,7 +136,8 @@ each guest: PartyNatives::Run(call): GlobalCall::QueueCall, mirrored -> the nati
 ## For feature 3 (quest rewards)
 
 Built on the same calls: [quest-rewards.md](quest-rewards.md). Its natives' engine functions are rows of the progression table (party-calls.md); vampirism
-(feature 8, `Actor.SetRace` and its spells) will be more rows and their route.
+(feature 8, [vampirism.md](vampirism.md)) added `Actor.SetRace`'s row; its quest is each player's own
+([system-quests.md](system-quests.md)).
 
 ## Tests
 

@@ -1,6 +1,10 @@
 #include <CoSave.h>
 
+#include <FormIds.h>
+#include <Papyrus/SystemQuests.h>
 #include <Services/SaveService.h>
+#include <Wire/Buffer.h>
+#include <Messages/Payloads.h>
 #include <World.h>
 #include <Followers/Records.h>
 
@@ -37,6 +41,9 @@ constexpr uint32_t Tag(const char (&acTag)[5]) noexcept
 constexpr uint32_t kUniqueId = Tag("SKCP");
 constexpr uint32_t kCharacters = Tag("CHAR");
 constexpr uint32_t kFollowers = Tag("FOLL");
+// The quests one per player (docs/design/system-quests.md), by session id.
+constexpr uint32_t kSystemQuests = Tag("SYSQ");
+constexpr uint32_t kSystemQuestsVersion = 1;
 
 SerializationInterface* s_pInterface = nullptr;
 uint32_t s_handle = 0;
@@ -46,8 +53,34 @@ SaveService* Saves() noexcept
     return entt::locator<World>::has_value() ? World::Get().ctx().find<SaveService>() : nullptr;
 }
 
+// The list as the games send it (Payloads::SystemQuests).
+std::string EncodeSystemQuests() noexcept
+{
+    Payloads::SystemQuests list;
+    for (const uint32_t cQuest : SystemQuests::All())
+        if (const auto cId = ToSession(cQuest))
+            list.Quests.push_back(*cId);
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    list.SerializePayload(writer);
+    return {reinterpret_cast<const char*>(buffer.GetData()), writer.Size()};
+}
+
+void DecodeSystemQuests(std::string_view aData) noexcept
+{
+    Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(aData.data()), aData.size()));
+    Payloads::SystemQuests list;
+    list.DeserializePayload(reader);
+    for (const GameId& cId : list.Quests)
+        if (const uint32_t cQuest = ToGame(cId))
+            SystemQuests::Learn(cQuest, false);
+}
+
 void OnSave(SerializationInterface* apInterface)
 {
+    const std::string cQuests = EncodeSystemQuests();
+    if (!apInterface->WriteRecord(kSystemQuests, kSystemQuestsVersion, cQuests.data(), static_cast<uint32_t>(cQuests.size())))
+        spdlog::error("CoSave: the quests one per player were not written");
     if (SaveService* pSaves = Saves())
     {
         const std::string cData = pSaves->WriteCoSave();
@@ -63,13 +96,16 @@ void OnLoad(SerializationInterface* apInterface)
 {
     SaveService* pSaves = Saves();
     uint32_t type = 0, version = 0, length = 0;
-    while (pSaves && apInterface->GetNextRecordInfo(&type, &version, &length))
+    while (apInterface->GetNextRecordInfo(&type, &version, &length))
     {
-        if (type != kCharacters && type != kFollowers)
+        const bool cOurs = type == kSystemQuests ? version == kSystemQuestsVersion : (type == kCharacters || type == kFollowers) && pSaves;
+        if (!cOurs)
             continue;
         std::string data(length, '\0');
         apInterface->ReadRecordData(data.data(), length);
-        if (type == kCharacters)
+        if (type == kSystemQuests)
+            DecodeSystemQuests(data);
+        else if (type == kCharacters)
             pSaves->ReadCoSave(data, version);
         else
             Followers::Decode(pSaves->GetFollowerAnchors(), data, version, [apInterface](uint32_t aOld, uint32_t& aNew) {
@@ -80,6 +116,7 @@ void OnLoad(SerializationInterface* apInterface)
 
 void OnRevert(SerializationInterface*)
 {
+    SystemQuests::Clear();
     if (SaveService* pSaves = Saves())
         pSaves->RevertCoSave();
 }

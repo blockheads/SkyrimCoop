@@ -15,6 +15,7 @@ struct UpdateEvent;
 struct ActivateEvent;
 struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
+struct CopyLocationChangeEvent;
 struct DifficultyChangeEvent;
 struct GameSavingEvent;
 struct GameLoadedEvent;
@@ -39,6 +40,7 @@ struct HostService
     // Listens on aPort, or the next free one above it.
     bool StartHosting(uint16_t aPort = 10578) noexcept;
     void StopHosting() noexcept;
+    void AnnounceEnd() const noexcept;
 
     [[nodiscard]] bool IsHosting() const noexcept { return m_pNetwork != nullptr; }
     // Null when not hosting.
@@ -59,6 +61,8 @@ protected:
     void OnActivate(const ActivateEvent& acEvent) noexcept;
     void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
+    // A guest's character changed location here: the host's rules raise its story event (HostStory).
+    void OnCopyLocationChange(const CopyLocationChangeEvent& acEvent) const noexcept;
     void OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept;
     // The host's save is being written: the guests' records take their characters' places first.
     void OnGameSaving(const GameSavingEvent&) const noexcept;

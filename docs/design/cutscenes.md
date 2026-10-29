@@ -111,11 +111,22 @@ mid-cutscene: the host's controls come back). A script's call is driven by the h
 modifiers, shake). Controls: with nothing sent, the party scenarios fail at the other game's step; with no world call,
 the last fails.
 
-## Not yet (step 2)
+## Step 2: each player's own character (built 2026-10-27)
 
-- **Each player's own character in the scene:** what the scene does to its player's body (`MoveTo`, idles,
-  packages with `SetPlayerAIDriven`, furniture, camera-attached `VisualEffect`s, 2D sounds) on each other game to
-  its own player. The Greybeards (`MQ105`) and the Elder Scroll (`ElderScrollScript`) are the test cases. A scene
-  with room for one keeps it its player's; the others watch.
+What a story does to its player's body, each game does to its own player (`party-calls.md`, "A body's move, idle or AI
+drive"): `MoveTo`, `PlayIdle`, `SetPlayerAIDriven`, `SetVehicle`, `SetRestrained`, read from their code (the Body row).
+An engine scene casting the player (MQ105's Greybeards) is played by each guest's own player: it runs the host's
+player's scene package until the scene lets it go (`GuestScene`). A guest's own moment on the host moves its own
+player there (`kCauseGame`). The mirrored move leads no party travel. Scenarios (from late saves, `--tag late-save`):
+`elder-scroll-vision-reaches-party` (`LateAfterElderKnowledge`, MQ206), `greybeards-scene-casts-party`
+(`LateAfterDragonRising`, MQ105 stage 270).
+
+Not yet:
+
+- **Camera-attached `VisualEffect`s and 2D sounds** a story plays on the player: a show (every game's) when they go
+  through the show row; not checked per scene.
+- **`Debug.SendAnimationEvent` on the player**: its graph event is a virtual call on its argument, which the reader
+  does not follow (`docs/bugs.md`).
+- **Several players at one marker** stand on one spot; checked placement beside the marker only if play shows it bad.
 - **A cutscene's player leaving:** its game's own cutscene goes on there; the others get back what it held
   (built 2026-10-23). Its fades and music stay on them until its script would have ended them.

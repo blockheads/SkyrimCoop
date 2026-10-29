@@ -33,6 +33,7 @@ struct BodyFrames;
 struct BodyRests;
 struct BodyPushes;
 struct PartyGold;
+struct SystemQuests;
 } // namespace Payloads
 
 template <class TPayload, auto cOpcode> struct Relayed;
@@ -93,3 +94,6 @@ using NotifyActorPerks = Relayed<Payloads::ActorPerks, kNotifyActorPerks>;
 
 using MeleeStaggerRequest = Relayed<Payloads::MeleeStagger, kMeleeStaggerRequest>;
 using NotifyMeleeStagger = Relayed<Payloads::MeleeStagger, kNotifyMeleeStagger>;
+
+using SystemQuestsRequest = Relayed<Payloads::SystemQuests, kSystemQuestsRequest>;
+using NotifySystemQuests = Relayed<Payloads::SystemQuests, kNotifySystemQuests>;

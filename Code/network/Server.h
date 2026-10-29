@@ -30,8 +30,11 @@ namespace Net
             Kicked,
             Banned,
             BadConnection,
-            TimedOut
+            TimedOut,
+            SessionEnded
         };
+
+        void SetDisconnectReason(EDisconnectReason aReason) noexcept { m_disconnectReason = aReason; }
 
         virtual void OnUpdate() = 0;
         virtual void OnConsume(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId) = 0;
@@ -62,6 +65,7 @@ namespace Net
 
         void SynchronizeClientClocks(ConnectionId_t aSpecificConnection = 0) noexcept;
 
+        EDisconnectReason m_disconnectReason{Quit};
         ENetHost* m_pHost;
         std::unordered_map<ConnectionId_t, ENetPeer*> m_peers;
 

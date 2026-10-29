@@ -53,9 +53,15 @@ struct TESActiveEffectApplyRemove
 };
 static_assert(offsetof(TESActiveEffectApplyRemove, usActiveEffectUniqueID) == 0x10 && offsetof(TESActiveEffectApplyRemove, bIsApplied) == 0x12);
 
+// CommonLibSSE-NG TESActorLocationChangeEvent: a reference moved to a new location (MoveRefToNewSpace 19799, 37313,
+// PlayerCharacter::SetParentCell).
 struct TESActorLocationChangeEvent
 {
+    TESObjectREFR* actor;  // 00 (NiPointer)
+    TESForm* oldLocation;  // 08
+    TESForm* newLocation;  // 10
 };
+static_assert(sizeof(TESActorLocationChangeEvent) == 0x18);
 
 struct TESBookReadEvent
 {

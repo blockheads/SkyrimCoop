@@ -4,6 +4,7 @@
 #include <Messages/JoinMessages.h>
 #include <Messages/CrimeMessages.h>
 #include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/StoryEventRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/BodyFrame.h>
 #include <Structs/GameVersions.h>
@@ -14,6 +15,8 @@
 #include <Followers/State.h>
 #include <functional>
 #include <optional>
+
+struct ContainerTransferRequest;
 
 // The host's physics bodies since the last read (docs/design/physics-sync.md): those awake, read now, and those that
 // fell asleep, where they rest.
@@ -81,12 +84,16 @@ struct HostGame
     // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with
     // extra data as given (and it goes out as the host's change).
     std::function<void(const ObjectChange& acItems)> SetItems;
+    // Native transfer between a container and the guest's copy; returns the signed amount actually moved.
+    std::function<Inventory::Entry(const ContainerTransferRequest&, uint32_t aPlayer)> TransferContainer;
     // A guest's drop: the host's game makes the item (its count and extra data) there, the party's one reference; its
     // created id, none while that cell is not loaded here, an empty id when it cannot be made (no such item here).
     std::function<std::optional<GameId>(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement)> CreateItem;
     // A guest picks up the party's loose item: taken out of the host's world (the deletion goes out), what it held;
     // none when it is gone (another player was first).
     std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;
+    // A guest's story event, queued in the host's story manager and judged for the guest's character (HostStory).
+    std::function<void(const StoryEvent& acEvent)> RaiseStoryEvent;
     // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine
     // refused to save (HostSaveTransfer tries again next update).
     std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;

@@ -8,6 +8,7 @@ struct DisconnectedEvent
     enum class Cause
     {
         kLeft,   // this game closed it (leaving, a join's load, the host stopping its own route)
+        kHostLeft, // the host intentionally ended the session
         kKicked, // the host removed this game
         kLost,   // it dropped: a timeout, the host's game going away
     };

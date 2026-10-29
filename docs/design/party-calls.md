@@ -23,6 +23,30 @@ a native is called (HookNativeCalled 104651)
                 player (Mark), and on the host's own player too when it named a guest's character (ThisPlayer)
 ```
 
+## The model (2026-10-28)
+
+Two questions decide every call; the rule below is their answer per kind.
+
+```text
+HOME: where does what it touches live?
+  the world (NPCs, refs, story quests, globals)          -> the host
+  a player (body, items, skills, screen, its system
+            quests and their globals)                     -> that player's game
+SUBJECT: who is "the player" in the script?
+  this game's player   its own body's scripts, a system quest's own calls, a guest's own scripts
+  a guest              on the host, the guest whose action started it (rule 2)
+  the party            the host's scripts with nobody's action (a timer, the story); only the host spreads
+
+write: the world -> the host;  a player -> the subject's game (the party: every game, each its own)
+read:  on the home game the real thing; on the host about a guest, its copy, a full stand-in for its player
+       (items, factions, race, looks, level, perks, skills; dialogue conditions judged for it: shared-dialogue.md)
+```
+
+Where a kind bends it, the rule says so: rewards are the party's whoever's action ran them, controls are the party's
+only if they took movement (read after they ran), a show is every game's, a question with no cause is asked of the
+nearest player, and a story's spell or faction on a guest's character runs on the copy too (`OnCopy`: the copy's
+mirror of its player is seconds behind, and the story's next condition reads it at once).
+
 ## What a native reaches: read from its code
 
 Once per native, `NativeReach::CallOf` reads its C++ function with Zydis (`CodeReach`). It records:
@@ -41,8 +65,9 @@ Each of these is looked up in one engine table, `NativeReach::EngineSinks`:
 | Screen | fade 52847, image-space 18570 18573 18575 18577, `ShakeCamera` 33012, camera 50790 50796 50838, music 35145 35146, rumble 68528; the movie player read (412214); messages (rule 5): the HUD's `SendHUDMessage::ShowHUDMessage` 52933, `Debug.MessageBox`'s box 52269, `Message.Show`'s box 442726, `HelpMessageManager` 51587 |
 | Show | `ApplyArtObject` 22769, `ApplyEffectShader` 19872, their stops 41396 41395, sub-graph event 63372 |
 | Progress, any script's but a body's | `SetPlayerKnows` 14639 (words), `IncrementSkillFromPapyrus` 55616, `PlayerCharacter::AddPerk` 40681 / `RemovePerk` 40682 (vtable 0x7D8 / 0x7E0), `ActorValueOwner::ModActorValue` 38467 with modifier 0 (the permanent one; +0xB8, slot 0x30), the player's perk points (field 0xB09) |
-| Progress, the story's | `PlayerCharacter::AddSkillExperience` 40488 (vtable 0x7B8) |
+| Progress, the story's | `PlayerCharacter::AddSkillExperience` 40488 (vtable 0x7B8), `Actor::SwitchRace` 37925 (`Actor.SetRace`: never on a copy; a copy takes its player's race with its looks) |
 | Progress, the story's, kept on a guest's character | `Actor::AddSpell` 38716, `TaskQueueInterface::QueueRemoveSpell` 36962, `Actor::SetFactionRank` 37677, `Actor::RemoveFromFaction` 37688 |
+| Body (ranked after items, before the controls) | `PlayerCharacter::SetAIDriven` 40586, `PlayIdle`'s and `PlayIdleWithTarget`'s call 55105 (to `AIProcess::SetupSpecialIdle`), `SetVehicle`'s 37903, `Actor::SetRestrained` 37488; and an object a native takes the address of: `SkyrimScript::MoveToFunctor`'s vtable 218380 (`MoveTo`, `MoveToNode` queue one, `SkyrimVM::QueuePostRenderCall` 53955, and the move runs after the frame) |
 
 A second reading answers whether a global native acts on this game's player: its code, three calls deep, reaches a
 per-player object (`NativeReach::ReachesThisPlayer`; `docs/re/systems/papyrus-guest-scripts.md`). It is read only
@@ -73,12 +98,20 @@ row of its own.
 
 ```text
 mirrored (another game's call, run here)                         -> here
-a guest's game, World, not a quest of its own                     -> host (skipped here)
+in a system quest's script (system-quests.md)                     -> here (this game's own instance), but on a
+                                                                     guest a World change not to the quest itself
+                                                                     or its globals -> host
+a guest's game, World, not a quest of its own nor a system quest's -> host (skipped here)
 Progress, the host, on a player (0x14 or a guest's character), not a body's script,
   a reward, or the story's (Whose: no player's action, or a stage it set)
     on this game's player                                         -> every game
     on a guest's character                                        -> every game; this player too; the original
                                                                      only when kept on the copy (factions, spells)
+Body, on a player (its self, or a global's), not a body's script:
+  the story's, on the host                                        -> every game, each on its own player; on a guest's
+                                                                     character: not here (its owner moves it), this
+                                                                     player too
+  a guest's moment on its character (the host)                    -> that guest's game
 Controls, Screen, Show: the story's (a show: whoever's action)    -> every game (the player marked: the story's)
   controls: shared only if it took movement (read after it ran: ShareOf)
 a native on the player (a global reaching it), or a controls or screen call (a method too: a lever's Message.Show),
@@ -88,7 +121,58 @@ otherwise                                                         -> here
 ```
 
 Another game's progression call run here raises `PlayerProgressEvent`, so a guest's record is sent again
-(`GuestRecord`).
+(`GuestRecord`), and so does a system quest's native (its instance changed).
+
+A call into a system quest's script function is decided where it is made, not per native: a player's own action on
+that player's game, the story's on every game (`GuestScripts::HookScriptCalled` on `ScriptFunction::Call` 105466,
+`PartyRules::RouteOfSystemCall`; [system-quests.md](system-quests.md)).
+
+## A body's move, idle or AI drive (cutscenes.md step 2, built 2026-10-27)
+
+A story's call on the player's body runs on every game's own player: MQ206's `Game.GetPlayer().MoveTo(Alias_TimeWound)`
+moves each player into the Elder Scroll's vision by its own `MoveTo`, a story's `PlayIdle` on the player plays on each.
+Read from the code like the rest: `MoveTo` calls no move, it takes the address of `MoveToFunctor`'s vtable to queue
+one, so the reader records the objects a native takes the address of (`lea`) beside the functions it calls
+(`CodeReach`, `Facts::Addressed`, `Sinks::Objects`). Not read yet: `Debug.SendAnimationEvent`, a virtual call on its
+argument's graph holder (`docs/bugs.md`).
+
+A body's call ends where it runs: another game's `MoveTo` copy waits for its own move, never its original's result
+(`Scope::Ran`).
+
+**A mirrored move leads no one.** On a guest, the story's `MoveTo` mirrored there queues its player's move like a door
+does, and party travel (`PlayerCharacter.cpp`, `HookProcessQueuedTravel` 40438) would announce it as the guest leading
+the party, pulling the host back after its own next move. The functor carries its stack's cause as a cast's does
+(`GuestScripts`: tagged at 53955 under a mirrored cause, its call 56101 runs under it), and a move it queues is marked;
+`HookProcessQueuedTravel` announces no marked move (`GuestScripts::TakeMirroredMove`, one check in party travel's code).
+GameTests `cutscene_flows.cpp`: the vision and back, the host travels twice, not four times.
+
+**An engine scene casting the player** (MQ105's Greybeards: packages on the player alias, no natives): the host's
+player's AI state carries its package and scene (`AiStateService`); on a guest, while another player's character is
+in a scene, this game's own player runs that package AI-driven (`GuestScene`: `PlayerCharacter::SetAIDriven` 40586,
+`ActorPackage::InitFromPackage` 38959), until the scene lets the host's player go. A package whose furniture the copy
+already holds is left to the engine's reservation (measured in `greybeards-scene-casts-party`).
+
+## A player's story events (party-model.md rule 4, built 2026-10-27)
+
+```text
+a guest's character changes location on the host (TESActorLocationChangeEvent, MoveRefToNewSpace 19799 / 37313)
+  StoryEvents' sink (host: HostEngine starts it) -> CopyLocationChangeEvent -> HostService -> HostAuthority
+  HostStory: a guest's character -> HostGame::RaiseStoryEvent -> HostEngine -> StoryEvents::RaiseLocationChange
+    CLOC queued (32288, AddEvent_Impl 32359), its id remembered with the character
+a guest crafts (its own menu): BGSStoryEvent's build from the raw event (32330) sees this game's CRFT
+  -> PlayerCraftEvent -> GuestWorldState -> StoryEventRequest -> HostStory -> RaiseStoryEvent -> CRFT queued, the same
+the story manager processes an event (ProcessEvent 32372, hooked; StoryEvents::Judge)
+  raised for a character, or a KILL whose killer (member 1) is another player's character:
+    the node and quest visitors (32429 +0x19D, 32430 +0x3F) build ConditionCheckParams (29871) with that character,
+    not (g_thePlayer, g_thePlayer)
+  a CLOC: one per party arrival (PartyArrivals): a player arriving where another player already is is the party's
+    arrival already, processed as none (repeatable WIGreeting, BardSongStarter start once)
+```
+
+The host's own player's arrival is processed the same way, so whichever player the story manager sees first in a
+location starts its quests, judged for that player. Tests: HostAuthorityTests `story_tests.cpp`, ClientTests
+`party_arrivals_tests.cpp`, GameTests `story_flows.cpp`; Skyrim `guest-story-starts-no-quest`,
+`guest-location-change-starts-story`, `guest-craft-raises-story`.
 
 ## Messages (party-model.md rule 5, built 2026-10-27)
 

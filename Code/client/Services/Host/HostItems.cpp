@@ -1,4 +1,9 @@
 #include <Services/Host/HostItems.h>
+#include <Services/Host/HostCharacters.h>
+#include <Services/Host/HostPurse.h>
+#include <Messages/ContainerTransferRequest.h>
+#include <Messages/RequestInventoryChanges.h>
+#include <Messages/NotifyInventoryChanges.h>
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
@@ -7,11 +12,14 @@
 
 #include <algorithm>
 
-HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
+    , m_characters(acCharacters)
+    , m_purse(acPurse)
     , m_game(acGame)
 {
+    aAuthority.On(*this, &HostItems::OnContainerTransfer);
     aAuthority.On(*this, &HostItems::OnDrop);
     aAuthority.On(*this, &HostItems::OnPickUp);
 }
@@ -99,4 +107,34 @@ void HostItems::Grant(ConnectionId_t aPlayer, const GameId& acObject, uint32_t a
     granted.Tag = aTag;
     granted.Item = acItem;
     m_network.Send(aPlayer, granted);
+}
+
+void HostItems::OnContainerTransfer(const ContainerTransferRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const uint32_t cPlayer = m_characters.PlayerCharacterOf(aSender);
+    if (aSender == m_players.Host() || !cPlayer || !m_game.TransferContainer || !acRequest.Item.Count ||
+        acRequest.Item.Count == INT32_MIN || (acRequest.ContainerActorId &&
+        (m_characters.IsPlayerCharacter(acRequest.ContainerActorId) || m_characters.OwnerOf(acRequest.ContainerActorId) != m_players.Host())))
+        return;
+    Inventory::Entry moved = m_game.TransferContainer(acRequest, cPlayer);
+    if (!moved.Count)
+        return;
+    RequestInventoryChanges change;
+    change.SessionId = cPlayer;
+    change.Item = moved;
+    if (!m_purse.Change(change, m_players.Host()))
+    {
+        NotifyInventoryChanges notify;
+        notify.SessionId = cPlayer;
+        notify.Item = moved;
+        m_players.SendToOthers(notify, m_players.Host());
+    }
+    if (acRequest.ContainerActorId)
+    {
+        NotifyInventoryChanges container;
+        container.SessionId = acRequest.ContainerActorId;
+        moved.Count = -moved.Count;
+        container.Item = std::move(moved);
+        m_players.SendToOthers(container, m_players.Host());
+    }
 }

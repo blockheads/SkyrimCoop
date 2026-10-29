@@ -42,6 +42,10 @@ public:
     // Game.QueryStat; party-model.md, rule 2), as a script's call does; aOnReturn is told what it returned. False: a
     // form it names is not here.
     bool RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn = {}) noexcept;
+    // This game's player plays a part the host's player plays in an engine scene (cutscenes.md step 2): AI-driven, it
+    // runs that package. False: no such package here. Ended: its controls take it back.
+    bool RunScenePackage(const GameId& acPackage) noexcept;
+    void EndScenePackage() noexcept;
     // Sets it as Papyrus' GlobalVariable.SetValue (55923) does; false for none or a constant.
     bool SetGlobal(const GlobalValue& acGlobal) noexcept;
     // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save

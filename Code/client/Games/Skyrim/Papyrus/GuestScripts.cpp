@@ -3,13 +3,21 @@
 #include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Papyrus/ScriptTags.h>
+#include <Papyrus/OwnEvents.h>
+#include <Papyrus/PartyNatives.h>
+#include <Papyrus/SystemQuests.h>
+#include <Papyrus/GlobalCall.h>
 
 #include <Actor.h>
+#include <Events/PlayerProgressEvent.h>
+#include <Events/RoutedCallEvent.h>
+#include <Forms/TESQuest.h>
 #include <Forms/TESForm.h>
 #include <Games/EngineNames.h>
 #include <Games/ActorExtension.h>
 #include <HookSwitch.h>
 #include <Misc/BSScript.h>
+#include <PlayerCharacter.h>
 #include <Services/HostService.h>
 #include <World.h>
 
@@ -63,6 +71,11 @@ using TNativeCalled = BSScript::CallResult(BSScript::IFunction*, BSScript::Stack
 TNativeCalled* RealNativeCalled = nullptr;
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4);
 
+// System quests: a script calls a script's function (Internal::ScriptFunction::Call, 105466, the same vtable slot as
+// 104651; the VM pushed the callee's frame first, and kCompleted returns from it unrun).
+TNativeCalled* RealScriptCalled = nullptr;
+BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4);
+
 // Tagging: a script finished (Stack::~Stack, 104480).
 using TStackEnded = void*(BSScript::Stack*);
 TStackEnded* RealStackEnded = nullptr;
@@ -88,6 +101,15 @@ TCastRun* RealCastRun = nullptr;
 void* s_castRun = nullptr; // the original, as CastFunctor's vtable names it
 BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResult);
 
+// A party call's MoveTo another game sent (56199) queues a MoveToFunctor after the frame (SkyrimVM::QueuePostRenderCall,
+// 53955); its call (56101, vtable slot 1) queues the player's move, marked so party travel leads no one with it.
+TFunctorQueued* RealPostRenderQueued = nullptr;
+bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor);
+TCastRun* RealMoveRun = nullptr;
+void* s_moveRun = nullptr;
+BSScript::Variable* HookMoveRun(DelayFunctor* apThis, BSScript::Variable* apResult);
+std::atomic<bool> s_mirroredMove{false};
+
 // Ownership: ExtraDataList::SetOwnerForm (11609) ignores a temporary form, which a guest's character's base is.
 using TSetOwnerForm = void(void*, TESForm*);
 TSetOwnerForm* RealSetOwnerForm = nullptr;
@@ -109,14 +131,18 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(104943, &RealCallQueued, HookCallQueued);
     HOOK_ID(104848, &RealStackCreated, HookStackCreated);
     HOOK_ID(104651, &RealNativeCalled, HookNativeCalled);
+    HOOK_ID(105466, &RealScriptCalled, HookScriptCalled);
     HOOK_ID(104480, &RealStackEnded, HookStackEnded);
     HOOK_ID(53954, &RealFunctorQueued, HookFunctorQueued);
     HOOK_ID(55744, &RealCastRun, HookCastRun);
+    HOOK_ID(53955, &RealPostRenderQueued, HookPostRenderQueued);
+    HOOK_ID(56101, &RealMoveRun, HookMoveRun);
     HOOK_ID(11609, &RealSetOwnerForm, HookSetOwnerForm);
     HOOK_ID(24075, &RealSetRelationship, HookSetRelationship);
     HOOK_ID(24084, &RealGetRelationship, HookGetRelationship);
     // Hooks install later: this is still the engine's own address.
     s_castRun = reinterpret_cast<void*>(RealCastRun);
+    s_moveRun = reinterpret_cast<void*>(RealMoveRun);
 });
 
 constexpr uint32_t cPlayerFormId = kThisPlayer;
@@ -312,15 +338,23 @@ bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
     BSScript::Stack* pStack = appStack ? *appStack : nullptr;
+    const char* cpNative = apThis->GetName().AsAscii();
     Cause cause;
     uint32_t& guest = cause.Player;
     if (pStack && s_tags.Any())
     {
         cause = CauseOf(pStack);
-        const char* cpName = apThis->GetName().AsAscii();
-        if (auto* pScript = cpName && pStack->pTop ? pStack->pTop->self.GetObject() : nullptr)
-            NativeCalled(s_tags, cpName, pScript->GetHandle(), cause);
+        if (auto* pScript = cpNative && pStack->pTop ? pStack->pTop->self.GetObject() : nullptr)
+            NativeCalled(s_tags, cpNative, pScript->GetHandle(), cause);
     }
+    // A system quest's registration, kept for its player's record.
+    if (SystemQuests::Any() && cpNative && pStack && pStack->pTop && FindTimerNative(cpNative))
+        if (auto* pScript = pStack->pTop->self.GetObject())
+        {
+            const BSScript::Variable* cpInterval = apThis->GetParamCount() ? pStack->pTop->GetStackFrameVariable(0, pStack->pTop->GetPageForFrame()) : nullptr;
+            SystemQuests::TimerCalled(OwnEvents::QuestOf(pScript->GetHandle()), cpNative,
+                                      cpInterval && cpInterval->type == BSScript::Variable::kFloat ? cpInterval->data.f : 0.f);
+        }
     Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
     const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
     PartyNatives::Scope cRoute(apThis, pStack, apVm, guest, cause.Story);
@@ -361,6 +395,63 @@ BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Sta
     return result;
 }
 
+// A call into a system quest's function runs on the instance of the player behind it (PartyRules::RouteOfSystemCall); a
+// call from this game's player's own script or another system quest's makes the quest one (docs/design/system-quests.md).
+BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
+{
+    BSScript::Stack* pStack = appStack ? *appStack : nullptr;
+    BSScript::StackFrame* pFrame = pStack ? pStack->pTop : nullptr;
+    auto* pSelf = pFrame ? pFrame->self.GetObject() : nullptr;
+    const char* cpClass = pSelf ? apThis->GetObjectTypeName().AsAscii() : nullptr;
+    const uint32_t cCallee = cpClass && PartyRules::IsQuestScriptFunction(cpClass) ? OwnEvents::QuestOf(pSelf->GetHandle()) : 0;
+    const BSScript::StackFrame* cpCaller = cCallee ? pFrame->pPrevious : nullptr;
+    auto* pCaller = cpCaller ? cpCaller->self.GetObject() : nullptr;
+    const uint64_t cCallerHandle = pCaller ? pCaller->GetHandle() : 0;
+    const uint32_t cCallerQuest = OwnEvents::QuestOf(cCallerHandle);
+    if (!cCallee || cCallee == cCallerQuest)
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
+
+    const bool cOnPlayer = OwnEvents::IsAboutPlayer(cCallerHandle);
+    const bool cCallerSystem = cCallerQuest && SystemQuests::Is(cCallerQuest);
+    if (PartyRules::LearnsSystemQuest(cCallee, cCallerQuest, cOnPlayer, cCallerSystem, PlayerNatives::IsOwnQuest(cCallee)) &&
+        !SystemQuests::Is(cCallee) && Cast<TESQuest>(TESForm::GetById(cCallee)))
+        SystemQuests::Learn(cCallee, true);
+    if (!SystemQuests::Is(cCallee))
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
+    World::Get().GetRunner().Trigger(PlayerProgressEvent{}); // its state is this player's record's
+    if (!cpCaller)
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4); // its own event
+
+    const Cause cCause = CauseOf(pStack);
+    const bool cReturns = apThis->GetReturnType().type != BSScript::Variable::kEmpty;
+    const PartyRules::Routing cRouting =
+        PartyRules::RouteOfSystemCall(cCause.Player, cCause.Story, IsGuestCharacter(cCause.Player), IsHosting(), cReturns);
+    if (cRouting.To == PartyRules::Destination::kHere)
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
+    auto call = GlobalCall::ReadCall(apThis, *pFrame);
+    if (!call)
+    {
+        spdlog::warn("GuestScripts: {}.{} into system quest {:X} carries what the session cannot: run here", apThis->GetObjectTypeName().AsAscii(),
+                     apThis->GetName().AsAscii(), cCallee);
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
+    }
+    if (cRouting.To == PartyRules::Destination::kCauseGame)
+    {
+        spdlog::info("GuestScripts: {}.{} into system quest {:X} is guest {:X}'s: its game runs it", call->Class, call->Function, cCallee, cCause.Player);
+        return PlayerNatives::SendToGuest(apThis, *pStack, apVm, cCause.Player, std::move(*call));
+    }
+    spdlog::info("GuestScripts: {}.{} into system quest {:X} is the story's: every game runs it on its own player", call->Class, call->Function,
+                 cCallee);
+    PartyRules::MarkEachPlayer(*call, cRouting.MarkFor);
+    if (cRouting.ThisPlayer && !PartyNatives::Run(PartyRules::OnThisPlayer(*call), 0))
+        spdlog::warn("GuestScripts: {}.{} could not be queued on this game's player", call->Class, call->Function);
+    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)});
+    if (cRouting.Original)
+        return RealScriptCalled(apThis, appStack, apLogger, apVm, aArg4);
+    pStack->returnValue.Clear();
+    return BSScript::CallResult::kCompleted;
+}
+
 bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
 {
     DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
@@ -371,6 +462,28 @@ bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
     if (cTagged && !cQueued)
         s_tags.TakeFunctor(pFunctor);
     return cQueued;
+}
+
+bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor)
+{
+    DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
+    const bool cTagged = PartyRules::IsMirrored(t_nativeGuest) && pFunctor && static_cast<void**>(pFunctor->pVtable)[1] == s_moveRun;
+    if (cTagged)
+        s_tags.TagFunctor(pFunctor, t_nativeGuest);
+    const bool cQueued = RealPostRenderQueued(apThis, appFunctor);
+    if (cTagged && !cQueued)
+        s_tags.TakeFunctor(pFunctor);
+    return cQueued;
+}
+
+BSScript::Variable* HookMoveRun(DelayFunctor* apThis, BSScript::Variable* apResult)
+{
+    const uint32_t cCause = s_tags.Any() ? s_tags.TakeFunctor(apThis) : 0;
+    BSScript::Variable* pResult = RealMoveRun(apThis, apResult);
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (PartyRules::IsMirrored(cCause) && pPlayer && pPlayer->queuedTarget.Valid)
+        s_mirroredMove = true;
+    return pResult;
 }
 
 // The cast runs for the guest whose script called Spell.Cast: its effect on that guest is the host's world's.
@@ -430,6 +543,11 @@ void* HookStackEnded(BSScript::Stack* apThis)
     return RealStackEnded(apThis);
 }
 } // namespace
+
+bool TakeMirroredMove() noexcept
+{
+    return s_mirroredMove.exchange(false);
+}
 
 uint32_t NativeGuest() noexcept
 {

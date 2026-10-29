@@ -492,6 +492,10 @@ a copy getting up apart from its owner shows it at another time, and knockdown-s
 death-spectate-guest failed once after these changes (the host's copy of the dead guest 16 units from its body; it
 passed before the physics work): not looked into.
 
+A ragdoll driver's graph need not be an actor's (2026-10-28): a loaded Long Bow's comes through the drive-to-pose
+hooks (`CopyRagdollPhysics.cpp`) too, and reading its holder as an actor crashed the client in
+`dialogue-ends-on-travel`; the holder is now cast (`Cast<Actor>`) first. Only Skyrim shows it (the fake has no graphs).
+
 ## What a cell load sends
 
 ```

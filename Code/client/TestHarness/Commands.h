@@ -24,6 +24,7 @@ struct Command
 std::span<const Command> StagingCommands();
 std::span<const Command> InputCommands();
 std::span<const Command> WorldCommands();
+std::span<const Command> KnowledgeCommands();
 std::span<const Command> CrimeCommands();
 std::span<const Command> SessionCommands();
 // The engine's change records (ChangeLog.h).

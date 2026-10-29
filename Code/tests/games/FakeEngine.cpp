@@ -4,6 +4,7 @@
 #include "FakeEngine.h"
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
+#include <Events/StoryEvents.h>
 
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
@@ -31,7 +32,11 @@
 #include <Events/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
 #include <Papyrus/PartyNatives.h>
+#include <Papyrus/SystemQuests.h>
+#include <Events/SystemQuestLearnedEvent.h>
+#include <ScriptValues.h>
 #include <array>
+#include <cstdio>
 #include <Games/Overrides.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/MenuEvent.h>
@@ -106,7 +111,7 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"Actor", "RemovePerk", cReward},        {"Actor", "ModActorValue", cReward}, {"Actor", "ForceActorValue", cReward},
         {"Game", "AdvanceSkill", cStory},        {"Actor", "AddSpell", cStoryOnCopy}, {"Actor", "RemoveSpell", cStoryOnCopy},
         {"Actor", "AddToFaction", cStoryOnCopy}, {"Actor", "SetFactionRank", cStoryOnCopy},
-        {"Actor", "RemoveFromFaction", cStoryOnCopy},
+        {"Actor", "RemoveFromFaction", cStoryOnCopy}, {"Actor", "SetRace", cStory},
         {"VisualEffect", "", {Call::kShow}},     {"EffectShader", "", {Call::kShow}}, {"Actor", "PlaySubGraphAnimation", {Call::kShow}},
         {"Game", "ShakeCamera", {Call::kScreen}},
         {"Debug", "Notification", {Call::kScreen}},  {"Debug", "MessageBox", {Call::kScreen}}, {"Message", "Show", {Call::kScreen}},
@@ -114,6 +119,9 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"Actor", "ShowBarterMenu", {Call::kPlayerMenu}},
         {"ObjectReference", "GetDistance", {Call::kQuestion}}, {"Actor", "HasLOS", {Call::kQuestion}},
         {"Game", "DisablePlayerControls", {Call::kControls}}, {"Game", "EnablePlayerControls", {Call::kControls}},
+        {"GlobalVariable", "SetValue", {Call::kWorld}},
+        {"ObjectReference", "MoveTo", {Call::kBody}}, {"Actor", "PlayIdle", {Call::kBody}},
+        {"Game", "SetPlayerAIDriven", {Call::kBody}},
     };
     for (const Row& cRow : cRows)
         if (SameName(acCall.Class, cRow.Class) && (cRow.Function.empty() || SameName(acCall.Function, cRow.Function)))
@@ -144,7 +152,9 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
                            .GuestCause = cIsGuestCharacter(aCause),
                            .Hosting = !IsGuest,
                            .Guest = IsGuest,
-                           .PlayerInCall = cIsPlayer(acCall.Self) || std::ranges::any_of(acCall.Arguments, cIsPlayer)};
+                           .PlayerInCall = cIsPlayer(acCall.Self) || std::ranges::any_of(acCall.Arguments, cIsPlayer),
+                           .InSystemQuest = m_inSystemQuest,
+                           .SystemObject = cpSelf && (SystemQuestList.Contains(cSelf) || SystemQuestList.IsGlobal(cSelf))};
     const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
     if (cReach.Kind == Call::kQuestion)
     {
@@ -159,10 +169,12 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     if (m_openedBox && IsMirrored(aCause))
         if (const auto cEnded = Copies.Started(PlayerOf(aCause), m_openedBox))
             AnswerBox(m_openedBox, std::get<int32_t>(*cEnded));
-    if (InSession && cReach.Kind == Call::kProgress)
+    if (InSession && (cReach.Kind == Call::kProgress || m_inSystemQuest))
         World::Get().GetRunner().Trigger(PlayerProgressEvent{});
     if (cRouting.To == Destination::kCauseGame)
         World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .Call = acCall});
+    if (cRouting.To == Destination::kHost)
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kHost, .Call = acCall});
     if (cRouting.To != Destination::kEveryGame)
         return;
     if (cReach.Kind == Call::kControls && ShareOf(Call::kControls, aCause, aStory, asked) != Share::kParty)
@@ -171,7 +183,7 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     if (cRouting.Mark)
         MarkEachPlayer(call, cRouting.MarkFor);
     if (cRouting.ThisPlayer)
-        Queue(OnThisPlayer(call), MirroredTag(0));
+        PartyNatives::Run(OnThisPlayer(call), 0);
     if (m_openedBox)
         LatentOriginals.insert(m_openedBox);
     World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call)});
@@ -239,6 +251,10 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
     {
     case Call::kPlayerMenu: BarterMerchant = aSelf; return 0;
     case Call::kProgress: TakeProgress(acCall, aSelf); return 0;
+    case Call::kWorld:
+        if (acCall.Function == "SetValue" && !acCall.Arguments.empty())
+            SetGlobal(aSelf, std::get<float>(acCall.Arguments[0]));
+        return 0;
     case Call::kShow:
     {
         // An effect form's call on the actor it names, or the actor's own sub-graph animation.
@@ -280,6 +296,28 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
         Controls = cEnable ? Controls | flags : Controls & ~flags;
         World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
         return cAsked;
+    }
+    case Call::kBody:
+    {
+        const auto* cpForm = acCall.Arguments.empty() ? nullptr : std::get_if<LocalForm>(&acCall.Arguments[0]);
+        if (acCall.Function == "MoveTo" && cpForm)
+        {
+            // To the reference: a marker, or an actor (MoveTo_Impl; the player's queues a travel).
+            const auto cMarker = References.find(cpForm->FormId);
+            const auto cActor = Actors.find(cpForm->FormId);
+            const uint32_t cCell = cMarker != References.end() ? cMarker->second.Cell : cActor != Actors.end() ? cActor->second.Cell : 0;
+            const glm::vec3 cAt = cMarker != References.end() ? cMarker->second.Position
+                                  : cActor != Actors.end()   ? glm::vec3(cActor->second.Position[0], cActor->second.Position[1], cActor->second.Position[2])
+                                                             : glm::vec3{};
+            m_mirroredMove = aSelf == kPlayer && IsMirrored(aCause); // GuestScripts' mark (HookMoveRun)
+            MoveActorTo(aSelf, cCell, cAt.x, cAt.y, cAt.z);
+            m_mirroredMove = false;
+        }
+        else if (acCall.Function == "PlayIdle" && cpForm)
+            Idles[aSelf].push_back(cpForm->FormId);
+        else if (acCall.Function == "SetPlayerAIDriven" && !acCall.Arguments.empty())
+            AiDriven = std::get<bool>(acCall.Arguments[0]);
+        return 0;
     }
     default: return 0;
     }
@@ -380,7 +418,103 @@ void FakeEngine::RunQueued()
 {
     auto queued = std::exchange(m_queued, {});
     for (const auto& [cCall, cCause] : queued)
-        RunScript(cCall, cCause);
+    {
+        const auto* cpSelf = std::get_if<LocalForm>(&cCall.Self);
+        if (cpSelf && QuestFunctions.contains({cpSelf->FormId, cCall.Function}))
+            CallsQuest(cCall, cCause, false, false);
+        else
+            RunScript(cCall, cCause);
+    }
+}
+
+void FakeEngine::CallsQuest(const LocalCall& acCall, uint32_t aCause, bool aStory, bool aFromBody)
+{
+    const auto* cpQuest = std::get_if<LocalForm>(&acCall.Self);
+    const uint32_t cQuest = cpQuest ? cpQuest->FormId : 0;
+    const auto it = QuestFunctions.find({cQuest, acCall.Function});
+    if (it == QuestFunctions.end())
+        return;
+    const bool cOwnFunction = IsQuestScriptFunction(acCall.Class); // not Quest.SetStage's wrapper
+    if (cOwnFunction && LearnsSystemQuest(cQuest, 0, aFromBody, m_inSystemQuest, false))
+        SystemQuests::Learn(cQuest, true);
+    if (!cOwnFunction || !SystemQuestList.Contains(cQuest))
+    {
+        it->second(*this, acCall, aCause);
+        return;
+    }
+    const auto cIsGuestCharacter = [this](uint32_t aActor) {
+        const auto cIt = Actors.find(aActor);
+        return !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
+    };
+    const Routing cRouting = InSession ? RouteOfSystemCall(aCause, aStory, cIsGuestCharacter(aCause), !IsGuest, false) : Routing{};
+    if (cRouting.To == Destination::kCauseGame)
+    {
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .Call = acCall});
+        return;
+    }
+    if (cRouting.To == Destination::kEveryGame)
+    {
+        LocalCall call = acCall;
+        MarkEachPlayer(call, cRouting.MarkFor);
+        if (cRouting.ThisPlayer)
+            PartyNatives::Run(OnThisPlayer(call), 0);
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(call)});
+        if (!cRouting.Original)
+            return;
+    }
+    if (InSession)
+        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
+    const bool cOuter = std::exchange(m_inSystemQuest, true);
+    it->second(*this, acCall, aCause);
+    m_inSystemQuest = cOuter;
+}
+
+void FakeEngine::FiresQuestTimer(uint32_t aQuest, const std::string& acFunction)
+{
+    // Its own event: this game's player's (WorldEvents' gate delivers it as this player's).
+    CallsQuest({.Class = "Quest", .Function = acFunction, .Self = LocalForm{aQuest}}, kPlayer);
+}
+
+std::string FakeEngine::ReadSystemQuests() const
+{
+    SystemQuestState state;
+    for (const uint32_t cQuest : SystemQuestList.All())
+    {
+        SystemQuestState::Quest& quest = state.Quests.emplace_back(SystemQuestState::Quest{GameId(0, cQuest)});
+        if (const auto cIt = QuestVariables.find(cQuest); cIt != QuestVariables.end())
+            for (const auto& [cName, cValue] : cIt->second)
+                quest.Variables.push_back({"Script", cName, Utils::ToScriptValue(cValue)});
+        if (const auto cIt = QuestTimers.find(cQuest); cIt != QuestTimers.end())
+            for (const auto& [cEvent, cTimer] : cIt->second)
+                quest.Timers.push_back(cTimer);
+    }
+    for (const uint32_t cGlobal : SystemQuestList.Globals())
+        state.Globals.push_back({GameId(0, cGlobal), Globals.contains(cGlobal) ? Globals.at(cGlobal) : 0.f});
+    return state.Encode();
+}
+
+void FakeEngine::ApplySystemQuests(std::string_view aState)
+{
+    const auto cState = SystemQuestState::Decode(aState);
+    for (const uint32_t cQuest : SystemQuestList.All())
+    {
+        // As SystemQuests::ApplyState: the save's instance (the host's player's) goes; this player's comes back, or
+        // its scripts start over.
+        QuestVariables.erase(cQuest);
+        QuestTimers.erase(cQuest);
+        const SystemQuestState::Quest* cpKept = cState ? cState->Find(GameId(0, cQuest)) : nullptr;
+        if (!cpKept)
+            continue;
+        for (const SystemQuestState::Variable& cVariable : cpKept->Variables)
+            if (const auto cValue = Utils::ToLocalValue(cVariable.Value))
+                QuestVariables[cQuest][cVariable.Name] = *cValue;
+        for (const SystemQuestState::Timer& cTimer : cpKept->Timers)
+            QuestTimers[cQuest][cTimer.Native] = cTimer;
+    }
+    if (cState)
+        for (const SystemQuestState::Global& cGlobal : cState->Globals)
+            if (SystemQuestList.IsGlobal(cGlobal.Id.BaseId))
+                Globals[cGlobal.Id.BaseId] = cGlobal.Value;
 }
 
 FakeEngine& FakeEngine::Current() noexcept
@@ -923,7 +1057,10 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     // Outdoors its parent cell follows where it stands.
     if (it->second.WorldSpace)
         if (const uint32_t cCell = CellAt(it->second.WorldSpace, {aPosition[0], aPosition[1], aPosition[2]}))
-            it->second.Cell = cCell;
+        {
+            const uint32_t cFrom = std::exchange(it->second.Cell, cCell);
+            CellChanged(aFormId, cFrom);
+        }
     return true;
 }
 
@@ -1027,12 +1164,23 @@ uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
     return cId;
 }
 
+namespace
+{
+// The race a player's appearance data holds (PlayerSwitchesRace writes "race <id>"), 0 for none.
+uint32_t RaceInLooks(const std::string& acAppearance)
+{
+    uint32_t race = 0;
+    return std::sscanf(acAppearance.c_str(), "race %X", &race) == 1 ? race : 0;
+}
+} // namespace
+
 // A player's copy: a temporary NPC made from their appearance, and an actor of it.
 uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t, float aWeight) noexcept
 {
     const uint32_t cBase = NewTemporary();
     Npcs[cBase].Weight = aWeight;
     Npcs[cBase].Looks = acAppearance;
+    Npcs[cBase].Race = RaceInLooks(acAppearance);
     return SpawnActorFromNpc(cBase);
 }
 
@@ -1068,6 +1216,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;
+    CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
     if (aFormId != kPlayer && it->second.Created && !it->second.Persistent && !Attached.contains(it->second.Cell))
@@ -1077,7 +1226,8 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     }
     if (aFormId == kPlayer)
     {
-        if (World::Get().GetTransport().IsOnline())
+        // Party travel announces it (PlayerCharacter.cpp's 40438), but another game's party call's move.
+        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove)
             World::Get().GetRunner().Trigger(PlayerTravelQueuedEvent{
                 it->second.WorldSpace, it->second.WorldSpace ? 0u : it->second.Cell, {aX, aY, aZ}, Heading});
         World::Get().ctx().at<FakeDialogue&>().End();
@@ -1085,6 +1235,17 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
         Teleported = true;
         ++Travels;
     }
+}
+
+void FakeEngine::CellChanged(uint32_t aFormId, uint32_t aFrom)
+{
+    const Actor& cActor = Actors.at(aFormId);
+    const auto cLocation = [&](uint32_t aCell) {
+        const auto it = Locations.find(aCell);
+        return it != Locations.end() ? it->second : 0u;
+    };
+    if (cActor.Copy && cActor.Player && cLocation(aFrom) != cLocation(cActor.Cell))
+        World::Get().GetRunner().Trigger(CopyLocationChangeEvent{aFormId, cLocation(aFrom), cLocation(cActor.Cell)});
 }
 
 void FakeEngine::Exterior(uint32_t aWorldSpace, uint32_t aFirstCell, int32_t aRadius)
@@ -1179,10 +1340,23 @@ void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventor
         it->second.Items = acInventory;
 }
 
+// As Actor::GetEssentialActorValues: the pools, and this game's player's skills (6 to 23).
 ActorValues FakeEngine::GetActorEssentialValues(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
-    return it != Actors.end() ? it->second.Values : ActorValues{};
+    if (it == Actors.end())
+        return {};
+    const auto cEssential = [aFormId](uint32_t aIndex) {
+        return (aIndex >= kHealth && aIndex <= kStamina) || (aFormId == kPlayer && aIndex >= 6 && aIndex <= 23);
+    };
+    ActorValues values;
+    for (const auto& [cIndex, cValue] : it->second.Values.ActorValuesList)
+        if (cEssential(cIndex))
+            values.ActorValuesList[cIndex] = cValue;
+    for (const auto& [cIndex, cValue] : it->second.Values.ActorMaxValuesList)
+        if (cEssential(cIndex))
+            values.ActorMaxValuesList[cIndex] = cValue;
+    return values;
 }
 
 // Each value listed; the others stay.
@@ -1282,6 +1456,64 @@ void GiveBackControls(std::optional<uint32_t> aSource) noexcept
     }
 }
 } // namespace PartyNatives
+
+// SystemQuests' seam: this game's list and instances (FakeEngine's).
+namespace SystemQuests
+{
+bool Learn(uint32_t aQuest, bool aTell) noexcept
+{
+    auto& engine = FakeEngine::Current();
+    if (!aQuest || !engine.SystemQuestList.Learn(aQuest))
+        return false;
+    if (const auto it = engine.QuestGlobals.find(aQuest); it != engine.QuestGlobals.end())
+        engine.SystemQuestList.SetGlobals(aQuest, it->second);
+    if (aTell)
+        World::Get().GetRunner().Trigger(SystemQuestLearnedEvent{aQuest});
+    return true;
+}
+
+bool Any() noexcept
+{
+    return FakeEngine::Current().SystemQuestList.Any();
+}
+
+bool Is(uint32_t aQuest) noexcept
+{
+    return FakeEngine::Current().SystemQuestList.Contains(aQuest);
+}
+
+bool IsGlobal(uint32_t aGlobal) noexcept
+{
+    return FakeEngine::Current().SystemQuestList.IsGlobal(aGlobal);
+}
+
+std::vector<uint32_t> All() noexcept
+{
+    return FakeEngine::Current().SystemQuestList.All();
+}
+
+void Clear() noexcept
+{
+    FakeEngine::Current().SystemQuestList.Clear();
+}
+
+void TimerCalled(uint32_t aQuest, std::string_view aNative, float aInterval) noexcept
+{
+    auto& engine = FakeEngine::Current();
+    if (engine.SystemQuestList.Contains(aQuest))
+        engine.QuestTimers[aQuest][std::string(aNative)] = {std::string(aNative), aInterval};
+}
+
+std::string ReadState() noexcept
+{
+    return FakeEngine::Current().ReadSystemQuests();
+}
+
+void ApplyState(std::string_view aState) noexcept
+{
+    FakeEngine::Current().ApplySystemQuests(aState);
+}
+} // namespace SystemQuests
 
 namespace
 {
@@ -1729,6 +1961,14 @@ void FakeEngine::TakeProgress(const LocalCall& acCall, uint32_t aActor)
             WordsUnlocked.insert(cForm);
         return;
     }
+    if (cIs("SetRace"))
+    {
+        if (cPlayer)
+            PlayerSwitchesRace(cForm);
+        else
+            Npcs[Actors.at(aActor).Base].Race = cForm;
+        return;
+    }
     if (cIs("AddToFaction") || cIs("SetFactionRank"))
         Factions[aActor][cForm] = ArgumentOf<int32_t>(acCall, 1);
     else if (cIs("RemoveFromFaction"))
@@ -1805,6 +2045,25 @@ void FakeEngine::SetsFaction(uint32_t aActor, uint32_t aFaction, int32_t aRank, 
     RunScript(call, aCause, aStory, BodyQuests.contains(aQuest));
 }
 
+Perks FakeEngine::GetPlayerPerks() const noexcept
+{
+    Perks perks{Player.Perks};
+    if (const auto it = AddedSpells.find(kPlayer); it != AddedSpells.end())
+        for (const uint32_t cSpell : it->second)
+            if (const auto cId = ToSession(cSpell))
+                perks.Spells.push_back(*cId);
+    return perks;
+}
+
+void FakeEngine::SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept
+{
+    ActorPerks[aFormId] = acPerks.Ranks;
+    auto& spells = AddedSpells[aFormId];
+    spells.clear();
+    for (const GameId& cId : acPerks.Spells)
+        spells.insert(ToGame(cId));
+}
+
 void FakeEngine::AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32_t aCause, bool aStory, uint32_t aQuest)
 {
     RunScript({.Class = "Actor", .Function = aAdded ? "AddSpell" : "RemoveSpell", .Self = LocalForm{aActor}, .Arguments = {LocalForm{aSpell}}},
@@ -1832,6 +2091,10 @@ PlayerRecord FakeEngine::ReadPlayer() const noexcept
         for (const uint32_t cSpell : cSpells->second)
             if (std::ranges::find(record.Spells, GameId(0, cSpell)) == record.Spells.end())
                 record.Spells.push_back(GameId(0, cSpell));
+    // As JoinBridge: its own system quests' instances.
+    record.Extras.erase(SystemQuestState::kExtra);
+    if (SystemQuestList.Any())
+        record.Extras[SystemQuestState::kExtra] = ReadSystemQuests();
     return record;
 }
 
@@ -1865,6 +2128,9 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Player.Cell = {};
     Player.WorldSpace = {};
     Player.Position = {};
+    const auto cQuests = acRecord.Extras.find(SystemQuestState::kExtra);
+    ApplySystemQuests(cQuests != acRecord.Extras.end() ? cQuests->second : std::string{});
+    Player.Extras.erase(SystemQuestState::kExtra);
 }
 
 std::optional<IJoinBridge::SaveFiles> FakeEngine::SaveNow(const std::string& acName) noexcept
@@ -1896,6 +2162,7 @@ void FakeEngine::RunMainLoop() noexcept
             Wire::Buffer::Writer writer(&buffer);
             // The save holds where its player stands.
             PlayerRecord player = ReadPlayer();
+            player.Knowledge = Knowledge;
             const Actor& cPlayer = Actors.at(kPlayer);
             player.Cell = GameId(0, cPlayer.Cell);
             player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
@@ -1957,7 +2224,20 @@ void FakeEngine::RunMainLoop() noexcept
     for (const PlayerRecord::Value& cValue : saved.Values)
         if (cValue.Index == 133)
             Souls[kPlayer] = cValue.Base;
+    // The save's system quests: its list (the co-save's) and their instances, the saving game's player's (the VM's).
+    SystemQuestList.Clear();
+    QuestVariables.clear();
+    QuestTimers.clear();
+    if (const auto cQuests = saved.Extras.find(SystemQuestState::kExtra); cQuests != saved.Extras.end())
+        if (const auto cState = SystemQuestState::Decode(cQuests->second))
+        {
+            for (const SystemQuestState::Quest& cQuest : cState->Quests)
+                SystemQuests::Learn(cQuest.Id.BaseId, false);
+            ApplySystemQuests(cQuests->second);
+        }
+    saved.Extras.erase(SystemQuestState::kExtra);
     Player = saved;
+    Knowledge = saved.Knowledge;
     Player.Items = {};
     Player.Cell = {};
     Player.Position = {};
@@ -2349,6 +2629,7 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
         return false;
     auto& base = Npcs.at(GetActorBaseFormId(aFormId));
     base.Looks = acAppearance;
+    base.Race = RaceInLooks(acAppearance);
     base.Weight = aWeight;
     return true;
 }

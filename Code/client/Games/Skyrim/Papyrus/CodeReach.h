@@ -14,8 +14,9 @@
 namespace NativeReach
 {
 // What a native's own code calls: the controls (ControlMap::ToggleControls) or the screen (fades, camera, shakes,
-// music, video), the party's (docs/design/cutscenes.md); the world (a quest's stage), the host's to change; or what a
-// reference shows (an art object, an effect shader, a sub-graph animation), every game's (docs/design/dragonborn.md).
+// music, video), the party's (docs/design/cutscenes.md); the world (a quest's stage), the host's to change; what a
+// reference shows (an art object, an effect shader, a sub-graph animation), every game's (docs/design/dragonborn.md); or
+// what moves or drives an actor's body (a move, an idle, AI driving), each player's own in the story's scenes.
 enum class Call : uint8_t
 {
     kNone,
@@ -26,6 +27,7 @@ enum class Call : uint8_t
     kProgress, // a player's progression (docs/design/dragonborn.md, "The party's calls")
     kItem,     // an actor's items: each player's own, never the party's (docs/design/party-model.md, "Items")
     kQuestion, // where a reference is: asked of the party with no player's action behind it (party-model.md rule 3)
+    kBody,     // moves, poses or drives an actor's body (cutscenes.md step 2)
     kPlayerMenu, // a menu on another actor (barter): opened on the game of the player whose action asked for it
 };
 
@@ -106,6 +108,7 @@ struct Facts
     std::vector<VirtualCall> Virtuals;
     std::vector<uint32_t> PlayerWrites; // offsets written in the player's object
     std::vector<uint32_t> SelfReads;    // offsets read from the native's self
+    std::vector<uintptr_t> Addressed;   // the engine's objects it takes the address of (lea): a functor's vtable it queues
 };
 
 // The engine's functions a native's call ends in (a virtual one as the player's vtable resolves it), and the player's
@@ -120,6 +123,7 @@ struct Sinks
     std::unordered_map<uintptr_t, Sink> Functions;
     std::unordered_map<uint32_t, Sink> PlayerFields;
     std::unordered_map<uint32_t, Sink> SelfFields; // read by a getter: a native making no call
+    std::unordered_map<uintptr_t, Sink> Objects;   // addressed: a functor's vtable (its call runs after the native)
 };
 
 // A function without unwind data (a leaf) is read until it returns, or this far.
@@ -134,11 +138,11 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
 // The native's own calls (not its callees': Actor.Kill reaches the controls deep in SetLifeState) of the engine's
 // functions acSinks names, a player's field it writes, or a screen object it reads. A virtual call is resolved by
 // aResolve (none: unknown). Progression comes first, then the world, items (an equip's HUD message is no screen's), the
-// controls, the screen, a show, a question (a getter's field: only for a native making no call).
+// body, the controls, the screen, a show, a question (a getter's field: only for a native making no call).
 template <class TResolve>
 [[nodiscard]] Reach ClassifyCall(const Facts& acFacts, const Sinks& acSinks, TResolve&& aResolve) noexcept
 {
-    Reach progress, world, item, playerMenu, controls, screen, show, question;
+    Reach progress, world, item, playerMenu, body, controls, screen, show, question;
     if (acFacts.ReadsScreen)
         screen.Kind = Call::kScreen;
     const auto cNote = [&](const Sink& acSink) {
@@ -146,6 +150,7 @@ template <class TResolve>
          : acSink.Is.Kind == Call::kWorld  ? world
          : acSink.Is.Kind == Call::kItem   ? item
          : acSink.Is.Kind == Call::kPlayerMenu ? playerMenu
+         : acSink.Is.Kind == Call::kBody   ? body
          : acSink.Is.Kind == Call::kControls ? controls
          : acSink.Is.Kind == Call::kShow   ? show
          : acSink.Is.Kind == Call::kQuestion ? question
@@ -162,11 +167,14 @@ template <class TResolve>
     for (const uint32_t cField : acFacts.PlayerWrites)
         if (const auto it = acSinks.PlayerFields.find(cField); it != acSinks.PlayerFields.end())
             cNote(it->second);
+    for (const uintptr_t cObject : acFacts.Addressed)
+        if (const auto it = acSinks.Objects.find(cObject); it != acSinks.Objects.end())
+            cNote(it->second);
     if (acFacts.Callees.empty() && acFacts.Virtuals.empty())
         for (const uint32_t cField : acFacts.SelfReads)
             if (const auto it = acSinks.SelfFields.find(cField); it != acSinks.SelfFields.end())
                 cNote(it->second);
-    for (const Reach* cpReach : {&progress, &world, &item, &playerMenu, &controls, &screen, &show, &question})
+    for (const Reach* cpReach : {&progress, &world, &item, &playerMenu, &body, &controls, &screen, &show, &question})
         if (cpReach->Kind != Call::kNone)
             return *cpReach;
     return {};

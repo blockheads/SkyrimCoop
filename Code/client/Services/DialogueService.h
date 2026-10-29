@@ -42,6 +42,8 @@ struct DialogueService
         virtual void OnPickSent() noexcept {}
         // An actor's line runs its script (any thread): the player character it runs for (0: this game's).
         virtual uint32_t LineFor(uint32_t /*aSpeakerFormId*/) noexcept { return 0; }
+        // The engine builds a list (any thread): the other players' characters to judge it for too.
+        virtual std::vector<uint32_t> Judged() noexcept { return {}; }
         virtual void OnOpen(const NotifyDialogueOpen&) noexcept {}
         virtual void OnPicked(const NotifyDialoguePicked&, uint32_t /*aTopic*/, uint32_t /*aInfo*/, bool /*aOwnPick*/) noexcept {}
         virtual void OnClosed() noexcept {}

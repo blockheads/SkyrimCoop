@@ -14,11 +14,14 @@
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
+#include <Services/Guest/GuestScene.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
+#include <Messages/Relayed.h>
+#include <ScriptValues.h>
 #include <World.h>
 #include <ScriptValues.h>
 #include <Messages/Relayed.h>
@@ -30,6 +33,18 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
 }
 
 GuestEngine::~GuestEngine() noexcept = default;
+
+bool GuestEngine::RunScenePackage(const GameId& acPackage) noexcept
+{
+    FakeEngine::Current().AiDriven = true;
+    FakeEngine::Current().ScenePackage = FormIdOf(acPackage);
+    return true;
+}
+
+void GuestEngine::EndScenePackage() noexcept
+{
+    FakeEngine::Current().AiDriven = false;
+}
 // Never read here (TakeOwnBodies is the fake's), but GuestEngine holds one.
 PhysicsBodies::PhysicsBodies(bool) noexcept {}
 
@@ -57,7 +72,10 @@ void GuestEngine::ReleaseWeather() noexcept
 
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 {
-    FakeEngine::Current().Globals[FormIdOf(acGlobal.Id)] = acGlobal.Value;
+    FakeEngine& engine = FakeEngine::Current();
+    if (engine.SystemQuestList.IsGlobal(FormIdOf(acGlobal.Id)))
+        return false; // as GuestEngine: this player's own
+    engine.Globals[FormIdOf(acGlobal.Id)] = acGlobal.Value;
     return true;
 }
 
@@ -65,6 +83,8 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
 {
     auto& engine = FakeEngine::Current();
     const uint32_t cId = FormIdOf(acQuest.Id);
+    if (engine.SystemQuestList.Contains(cId))
+        return;
     engine.Quests[cId] = acQuest;
     m_pendingAliases[cId] = acQuest;
     RetryQuestAliases();
@@ -290,7 +310,8 @@ struct GuestSeam::Guest
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Hands(aWorld, Engine),
-          Wait(aWorld, aWorld.GetDispatcher(), Engine)
+          Wait(aWorld, aWorld.GetDispatcher(), Engine),
+          Scene(aWorld, aWorld.GetDispatcher(), Engine)
     {
     }
 
@@ -302,6 +323,7 @@ struct GuestSeam::Guest
     GuestRecord Record;
     GuestHands Hands;
     GuestWait Wait;
+    GuestScene Scene;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)

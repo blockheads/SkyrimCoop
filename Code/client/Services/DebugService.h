@@ -41,7 +41,6 @@ protected:
     void OnDraw() noexcept;
 
 private:
-    void PlaceActorInWorld() noexcept;
     void DisplayEntities() noexcept;
     void DisplayEntityPanel(entt::entity aEntity) noexcept;
     void DisplayFormComponent(FormIdComponent& aFormComponent) const noexcept;
@@ -74,8 +73,6 @@ private:
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
     World& m_world;
-
-    std::vector<GamePtr<Actor>> m_actors;
 
     uint32_t m_formId = 0;
 

@@ -488,3 +488,17 @@ void Payloads::PartyGold::DeserializePayload(Wire::Buffer::Reader& aReader) noex
 {
     Gold = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
 }
+
+void Payloads::SystemQuests::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Quests.size());
+    for (const GameId& cQuest : Quests)
+        cQuest.Serialize(aWriter);
+}
+
+void Payloads::SystemQuests::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Quests.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    for (GameId& quest : Quests)
+        quest.Deserialize(aReader);
+}

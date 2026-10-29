@@ -119,6 +119,13 @@ const Sinks& EngineSinks() noexcept
     POINTER_SKYRIMSE(void, s_queueRemoveSpell, 36962);    // TaskQueueInterface::QueueRemoveSpell
     POINTER_SKYRIMSE(void, s_setFactionRank, 37677);      // Actor::SetFactionRank (Papyrus SetFactionRank, AddToFaction)
     POINTER_SKYRIMSE(void, s_removeFromFaction, 37688);   // Actor::RemoveFromFaction
+    POINTER_SKYRIMSE(void, s_switchRace, 37925);          // Actor::SwitchRace (Actor.SetRace): never on a copy
+    // An actor's body moved, posed or driven (cutscenes.md step 2).
+    POINTER_SKYRIMSE(void, s_moveToFunctor, 218380);      // SkyrimScript::MoveToFunctor's vtable: MoveTo, MoveToNode queue one
+    POINTER_SKYRIMSE(void, s_playIdle, 55105);            // PlayIdle's and PlayIdleWithTarget's call (AIProcess::SetupSpecialIdle)
+    POINTER_SKYRIMSE(void, s_setAiDriven, 40586);         // PlayerCharacter::SetAIDriven
+    POINTER_SKYRIMSE(void, s_setVehicle, 37903);          // Actor.SetVehicle's call
+    POINTER_SKYRIMSE(void, s_setRestrained, 37488);       // Actor::SetRestrained
     static const Sinks s_sinks = [] {
         constexpr uint32_t cPerkPoints = 0xB09; // PlayerCharacter's perk points (Game.AddPerkPoints writes it)
         Sinks sinks;
@@ -144,9 +151,14 @@ const Sinks& EngineSinks() noexcept
             cAdd(*pFunction, cReward);
         cAdd(s_modActorValue, cReward, 0);
         cAdd(s_addSkillExperience, cStory);
+        cAdd(s_switchRace, cStory);
         for (const auto* pFunction : {&s_addSpell, &s_queueRemoveSpell, &s_setFactionRank, &s_removeFromFaction})
             cAdd(*pFunction, cStoryOnCopy);
         sinks.PlayerFields[cPerkPoints] = {cReward};
+        for (const auto* pFunction : {&s_playIdle, &s_setAiDriven, &s_setVehicle, &s_setRestrained})
+            cAdd(*pFunction, {Call::kBody});
+        if (const auto cVtable = reinterpret_cast<uintptr_t>(s_moveToFunctor.GetPtr()))
+            sinks.Objects[cVtable] = {{Call::kBody}};
         for (const auto* pFunction : {&s_getDistance, &s_getCurrentLocation, &s_hasLineOfSight, &s_detectionLevel, &s_lightLevel})
             cAdd(*pFunction, {Call::kQuestion});
         for (const uint32_t cField : {0x54u, 0x58u, 0x5Cu, 0x60u}) // TESObjectREFR's position and parentCell
@@ -343,7 +355,7 @@ Reach CallOf(BSScript::IFunction* apFunction) noexcept
     }
     if (call.Kind == Call::kQuestion && apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
         call = {}; // an action reading a place (a move), no question
-    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "player menu"};
+    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "body", "player menu"};
     if (call.Kind != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
                       cNames[static_cast<size_t>(call.Kind)]);

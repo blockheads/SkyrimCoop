@@ -14,6 +14,9 @@ void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept;
 // The guest a native running on this thread runs for (a script they started), or 0. This game's player (0x14) for
 // a script it caused: always on a guest, in a session on the host.
 uint32_t NativeGuest() noexcept;
+// Whether the player's queued move is another game's party call's (a story's MoveTo mirrored here, cutscenes.md step
+// 2), once: party travel announces no such move.
+[[nodiscard]] bool TakeMirroredMove() noexcept;
 // Whether a native is running on this thread (what is queued now is its script's, not the engine's event).
 bool InNative() noexcept;
 // The script that called the running native (its VM handle, 0 for none).

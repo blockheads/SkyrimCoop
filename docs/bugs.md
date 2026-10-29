@@ -7,6 +7,43 @@ delete the entry and say where the evidence went. Unfinished work and unexplaine
 visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
 [native-bugs.md](design/native-bugs.md).
 
+## Party scripts
+
+- **A reference a guest's own script creates is that game's alone** (2026-10-28, party-scripts-2). `PlaceAtMe` is not
+  a world change to the router, so a guest's own script (its system quest's `VampireChange`: the change's hidden
+  `XMarker`, placed and disabled) makes a reference only its game has; the world check sees it on the guest alone
+  (`vampirism-is-each-players` fails on it). Sending it to the host would hand the guest's script None for the
+  reference it goes on to use.
+  - Start: whether a reference a guest's own script makes is its game's own (the world check and world sync leave it),
+    or the host's made for it and sent back.
+  - Test: a `vampirism_flows.cpp` case where `VampireChange` places a marker on the guest.
+
+- **The guest's game can crash as the host's werewolf turns back** (2026-10-28, party-scripts-2). In
+  `host-beast-form-stays-host` the client crashed in its copy's graph update (hkbBehaviorGraph 58360, after the
+  copy refused `IdleWerewolfTransformation`), once in the heap (bhkThreadMemorySource) on dev's DLL, and one run
+  ended with the copy still on the transform's idle and the werewolf's values.
+  - Start: what the copy's graph holds when the owner's race changes back (the respawn from its new base data).
+  - Test: a `GameTests` race switch back with the copy mid-transform, once the fake keeps a copy's graph state.
+
+- **A story's `Debug.SendAnimationEvent` on the player plays on the host's player only** (2026-10-27,
+  party-scripts-2). The Body row reads a native's calls and the functors it queues; this native's graph event is a
+  virtual call (`IAnimationGraphManagerHolder` slot 1) on its argument's graph holder, which the code reader does not
+  follow (it knows the self and this game's player only).
+  - Start: `CodeReach`'s registers know the arguments' registers too (r9 on, for a global), and resolve a virtual
+    call on an argument that is a reference against the player's graph holder vtable.
+  - Test: `code_reach_tests.cpp` with `SendAnimationEvent`'s bytes (0x140A073F0), then a `cutscene_flows.cpp` case.
+
+- **A guest's copy can stay "getting up" after the guest leaves a crafting station** (2026-10-27, party-scripts-2).
+  After the client closed the cooking spit's Crafting Menu, its player went from sit state 4 (want to stand) to 0, while
+  the host's copy went from 0 to 4 and stayed there (twice in four tries, both after the menu was closed with a box
+  still up or mid-craft; `guest-craft-raises-story`'s own path passed twice clean). The baseline then refuses the next
+  scenario ("state.sit_sleep: client (owner) 0 vs host copy 4"). `furniture-client-player` (moveto and activate out)
+  passes, so it is the crafting menu's exit.
+  - Reproduce: client at QASmoke's spit (0x101973), E, E, Tab while the "create this item?" box is up; read
+    `sit_state` on both games.
+  - Start: what the owner's graph sends on a crafting furniture's exit, and whether the copy's replay (copies run no
+    AI) can finish an exit it began. A `copy_flows.cpp` case once the fake has the furniture states.
+
 ## Party travel
 
 Party travel was accepted for v1.0.0 testing by the user on 2026-10-27. Jail cleanup, horse packages, physics
@@ -20,6 +57,12 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   `.worktrees/party-travel/build/final-native-lock.log` and `build/regression-final-native.log`.
   - Start: reproduce the pair on unchanged dev and inspect quest/AI lock ordering; that baseline comparison
     has not been performed. This is not evidence that the new destination announcement itself holds these locks.
+  - Baseline (2026-10-28, party-scripts-2): dev's own DLL (`e4085691`) reports the same pair in `dive-host-player`
+    (`SkyrimSE.exe+0x1823d0 > +0x3d1507 vs +0x3cdf46 > +0x1820ef`), untagged because its first reporter had none of
+    our frames. The pair: an AI job's package conditions (`ExtraAliasInstanceArray` 12721, then `GetIsAliasRef` and
+    `TESQuest::sub_25066`) against the guest's quest sync forcing an alias on the main thread
+    (`GuestEngine::ApplyFills` -> `TESQuest::ForceRefIntoAlias` 25052 -> `ExtraAliasInstanceArray` 12718). Whether it is
+    tagged ours depends on which thread reports it first (`HookUpdateAI`, `HookCheckForNewPackage` count as ours).
 
 ## Plugin compatibility
 

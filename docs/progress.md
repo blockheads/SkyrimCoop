@@ -11,7 +11,10 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-24 (join flow stages 4 to 6; a new character's join tested end to end).
+Last updated 2026-10-28: the party-scripts-2 and v1-session-items work is integrated into dev, uncommitted.
+The combined fast tests and Windows plugin build pass. Review findings and verification limits:
+[integration review](v1-integration-review-2026-10-28.md). Agreed remaining work:
+[v1 checklist](v1-playtest-todo.md). Earlier worktree references below record where each feature was built.
 
 ## Direct authority migration
 
@@ -1345,6 +1348,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Open 2026-10-27: a duo booted from a late save never connects** (`duo --save LateAfterElderKnowledge`, twice):
+  both games load it, the client joins, and neither shows the other in 30 s; the client's log shows it creating a host
+  of its own ("port 10578 is in use, trying 10579"). The late-save scenarios (`--tag late-save`:
+  `elder-scroll-vision-reaches-party`, `greybeards-scene-casts-party`) wait on it. Logs: `coop-test/runs/20261027-185548-duo`.
 - **Open 2026-10-24: the race menu's Weight slider, driven by harness keys, moves but the base's weight does not.**
   `ChangeWeight` (`sub_1409524D0`) writes `TESNPC+0x1FC` only when the value differs from what the menu stored; with
   D presses the slider reached its top in one step and the weight stayed (50, or 75 once). Not understood;
@@ -1519,8 +1526,21 @@ What the first playtest build has besides what works today (the table above):
    player-made enchantment comparing unequal across games (chests rebuilt such stacks on every sync), a drop the
    host's game cannot make (now told, stays the dropper's), and a pickup in the frame its drop was made.
 7. **Followers:** on dev, uncommitted ([followers.md](design/followers.md), 2026-10-27): shared vanilla slots; recruiter/latest Follow picker controls native pathing; death/disconnect fallback and return; host save bindings and picker inventory. V1 keeps vanilla Wait → Follow. Native acceptance and remaining travel/favor/combat checks are recorded in the design.
-8. **Vampirism and diseases on guests** (`party-model.md`, "Still open").
-9. **Cutscenes, step 2:** each player's own character in a scene.
+8. **Vampirism:** each player's own, the infection and the hunger (the user, 2026-10-28). Built 2026-10-28
+   (`.worktrees/party-scripts-2`, uncommitted) on per-player system quests, [system-quests.md](design/system-quests.md):
+   a call from a player's own script into a quest's function makes the quest one per player on every game (told
+   through the host, kept in the save's co-save); a call into one runs on the instance of the player behind it, the
+   story's on every game (the cure cures every vampire); its stage and its scripts' globals stay out of the world sync;
+   a guest's instance is kept in its record. Hooked at the call itself (`ScriptFunction::Call`, 105466). It replaced
+   the shared vampirism built earlier the same day ([vampirism.md](design/vampirism.md)). Tiers 1-2 pass. Skyrim
+   `vampirism-is-each-players`: see the run in the session's report.
+9. **Cutscenes, step 2:** each player's own character in a scene. Built 2026-10-27 (`.worktrees/party-scripts-2`,
+   uncommitted): a Body row in the router's engine table (moves, idles, AI drive, read from code, a queued functor's
+   vtable too), so a story's call on the player's body runs on each game's own player and a guest's moment on its
+   own game; a mirrored move leads no party travel (one check in party travel's `HookProcessQueuedTravel`); each
+   guest's player plays the host's player's part in an engine scene (`GuestScene`). Tiers 1-2 pass; Skyrim scenarios
+   from late saves: [cutscenes.md](design/cutscenes.md), "Step 2". `Debug.SendAnimationEvent` not read yet
+   (`docs/bugs.md`).
 10. **Mounts:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): host/guest riding, exterior border crossing, dismount and disconnect; a following rider's horse accompanies it and native travel's implicit dismount returns ownership at the horse's latest position. [Party travel](design/party-travel.md).
 11. **The party is the Dragonborn** ([dragonborn.md](design/dragonborn.md); built 2026-10-27 with feature 3,
     merged into dev uncommitted): a word of power a script teaches or unlocks every player has; every soul
@@ -1546,9 +1566,14 @@ What the first playtest build has besides what works today (the table above):
     on every game, a player's own on its game, a story's box answered by the host with the others' copies closing
     (`story-message-reaches-party`, `story-box-host-answers`; a guest's lever's box is the guest's now:
     `relief-takes-client-relics`). Rule 3 built: a quest's question about the player asks the party (yes/no: any
-    player; else the player nearest what it names; `timer-asks-party-position`). Next: rule 4 (a guest's story
-    events), then features 8 and 9 (plan: `build/prompts/party-scripts.md`, design in party-calls.md).
-13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass. Jail cleanup and the physics release lock now have fixes; native bug regression evidence and the remaining AI/quest lock report are in [native-bugs.md](design/native-bugs.md) and `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
+    player; else the player nearest what it names; `timer-asks-party-position`). Rule 4 built 2026-10-27
+    (`.worktrees/party-scripts-2`, uncommitted; party-calls.md, "A player's story events"): a guest's location change
+    is raised on the host for its character (the host's engine reports the copy's), a guest's craft is sent to the
+    host and raised there, and the story manager's visitors judge the guest's character while one of its events runs
+    (a copy's kill too); a party arriving together is one arrival. HostAuthorityTests, ClientTests, GameTests; Skyrim
+    `guest-story-starts-no-quest`, `guest-location-change-starts-story`, `guest-craft-raises-story` pass. A copy can
+    stay getting up after its guest leaves the crafting menu (`docs/bugs.md`).
+13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are deferred known issues in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
 14. **Small visible bugs** (built 2026-10-27, merged into dev uncommitted): the same resurrected NPC
     copy draws and attacks again; a brought character gets checked placement beside the host; a copy's base level
     follows its owner; instant FX Persist effects flash; looks update the existing actor and base. Fast tests were
@@ -1598,39 +1623,37 @@ What the first playtest build has besides what works today (the table above):
     pops fixed (never placed where its owner lies, eased off its ragdoll). Left for after 1.0 (`docs/bugs.md`): a
     copy getting up on its own timing, a little shaking while it lies, and a revived player knocked down stays getting up.
 
+18. **Dialogue judged for each player** (built 2026-10-28, `.worktrees/party-scripts-2`, uncommitted;
+    [shared-dialogue.md](design/shared-dialogue.md), "The rule"): the host's engine judges every topic of a step for
+    each player's character too (`JudgedFor`: conditions on PlayerRef, a PlayerRef parameter, `GetPC*`, intimidate and
+    bribe rewritten for the character), and each game's menu shows its own list; the host's game says the picker's
+    line. Copies now carry their player's skills from the spawn, and its added spells with its perks (GameTests
+    `perk_flows.cpp`; `HasSpell` reads them through `Actor::VisitSpells` 38781). Tiers 1-2 pass; Skyrim `dialogue-line-judged-for-guest`
+    (fails as expected with the hook off), `dialogue-options-are-each-players` (Lucan's claw), and the dialogue tag.
+    Known gap: a guest with an empty own list leaves. Harness fixes found on the way: the after-scenario body check
+    read a first-person player's first-person model (`dialogue-refused-start`, `-picker-gets-speech-experience`
+    failed on it, dev too), and a spawned NPC recruited by a scenario's "Follow me" pick stayed in the follower slot
+    once deleted (every `follower-*` fixture after it failed): `remove_host_npc` dismisses it first.
+
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation
 mods, mod sync).
 
-## Product pieces not started
+## Product status and remaining delivery work
 
-The join flow these build toward is in `docs/design/join-flow.md` (agreed 2026-10-13); its "Build
-order" says what comes during the migration and what after.
+The earlier "Product pieces not started" list was obsolete. Steam lobbies/invites and the P2P transport,
+game/build/plugin-order checks, main-menu returning-character joins, host save transfer and character co-save
+records are implemented. The join UI shows progress/refusals/end reasons; ordinary leave, kick, host exit and
+exhausted reconnects now clean up and return to the main menu. Difficulty follows the host's actual setting.
+See `docs/design/join-flow.md`, `Code/client/Ui/README.md` and the integration review above for evidence and limits.
 
-- Joining through a Steam invite (the core value: host clicks host, a friend joins). Started work is
-  shelved in two git stashes: `Code/client/Steam/` lobby and session (2026-10-11), and a Steam
-  probe and launcher with tests (2026-10-10). Not built or tested in the current tree.
-- Identical installs: the plugin list and load order checked against the host's game (section 3a),
-  then a manifest of every file (`join-flow.md`, stage 3).
-- Mod sync: making a friend's install match the host's, and with it whether a launcher is needed at
-  all. Open: research spike `docs/research/mod-sync-spike.md` (for an agent working alone), findings
-  to `docs/research/mod-sync.md`. 1.0 at least lists the differences with links.
-- Updating our mod to the host's build (download, restart, a resident loader picks the new build).
-- Joining from the main menu: connect and gate with no save loaded; the host sends its save (save
-  transfer) and the friend's game loads it, as their character (`join-flow.md`, stages 4 to 6).
-- Host-stored characters: every player's character in the host's save (its SKSE co-save); new players
-  make one. Only the host saves; a friend's game cannot save while connected.
-- The plugin's file interface (`request`, `status`, `events`, `manifest`) and the error model (state
-  with stable reason codes, events as chat system lines); the harness moves onto the files.
-- The join screen: built 2026-10-24 (the UI workbench's box, wired to `JoinService`: steps, refusals,
-  Copy and Back with the mouse; `Code/client/Ui/README.md`). Open: a Host button in game, a co-op entry
-  at the main menu, the `ended` state for a session ending in game.
-- Session settings from the host: its real difficulty (forced to Master today), a settings screen.
-- In-game screens besides the party panel: player list with kick, settings.
-- A launcher: not decided; the mod sync spike answers whether one is needed. Steam research and a
-  launcher prototype are shelved in `git stash` ("steam/launcher work"); next Steam step: the
-  two-account test (`join-flow.md`, "Steam"). Side note: AOL-style buddy list, global chat and
-  per-session chat rooms.
+- **V1 delivery:** a reproducible `test_harness=n` player package with UI/assets/dependencies, clean-install
+  validation and current setup instructions. The README still needs its deleted-server/launcher description cleaned up.
+- **V1 acceptance:** the agreed upstream fixes/features and library checks in [v1-playtest-todo.md](v1-playtest-todo.md),
+  the unresolved host-reload freeze, and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
+- **Later scope:** automatic mod/file syncing or self-updating, a launcher if needed for those features,
+  player-list/kick/settings screens and the other items explicitly outside 1.0 above. V1 entry uses Steam invites
+  and Skyrim's own save/character flow; no additional Host Game or character-library screen is required.
 
 ## Infrastructure (done)
 

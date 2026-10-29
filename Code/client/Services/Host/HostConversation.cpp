@@ -98,6 +98,12 @@ std::optional<std::vector<IDialogueBridge::Option>> HostConversation::OnListBuil
     return std::nullopt;
 }
 
+std::vector<uint32_t> HostConversation::Judged() noexcept
+{
+    std::scoped_lock lock(m_judgedLock);
+    return m_judged;
+}
+
 void HostConversation::OnOpen(const NotifyDialogueOpen&) noexcept
 {
     m_picker = 0;
@@ -136,6 +142,13 @@ void HostConversation::OnClosed() noexcept
 
 void HostConversation::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
 {
+    {
+        std::vector<uint32_t> judged;
+        for (const auto& [cPlayer, cCharacter] : OtherPlayers())
+            judged.push_back(cCharacter);
+        std::scoped_lock lock(m_judgedLock);
+        m_judged = std::move(judged);
+    }
     auto& transport = m_dialogue.Transport();
     // Opened, or this game's player turned to another NPC: a new conversation for everyone.
     if (aSpeaker && aSpeaker != m_speaker)
@@ -175,6 +188,16 @@ uint32_t HostConversation::CharacterOf(uint32_t aPlayerId) const noexcept
     return 0;
 }
 
+std::vector<std::pair<uint32_t, uint32_t>> HostConversation::OtherPlayers() const noexcept
+{
+    std::vector<std::pair<uint32_t, uint32_t>> players;
+    auto view = m_world.view<PlayerComponent, FormIdComponent>();
+    for (const entt::entity cEntity : view)
+        if (const uint32_t cCharacter = view.get<FormIdComponent>(cEntity).Id; cCharacter && cCharacter != 0x14)
+            players.emplace_back(view.get<PlayerComponent>(cEntity).Id, cCharacter);
+    return players;
+}
+
 void HostConversation::SendOptions() noexcept
 {
     auto& bridge = m_dialogue.Bridge();
@@ -185,16 +208,25 @@ void HostConversation::SendOptions() noexcept
     request.Conversation = m_dialogue.Conversation();
     request.Step = m_dialogue.Step();
     request.Choices = bridge.IsChoices();
-    for (const auto& cOption : bridge.GetOptions())
-    {
-        DialogueOption& option = request.Options.emplace_back();
-        option.Topic = ToSession(cOption.Topic).value_or(GameId{});
-        option.Info = ToSession(cOption.Info).value_or(GameId{});
-        if (cOption.Quest)
-            option.Quest = ToSession(cOption.Quest).value_or(GameId{});
-        option.Text = cOption.Text;
-    }
-    spdlog::info("Dialogue: step {} of conversation {}: {} options{}", request.Step, request.Conversation,
-                 request.Options.size(), request.Choices ? ", a line's choices" : "");
+    const auto cToMessage = [](const std::vector<IDialogueBridge::Option>& acOptions) {
+        DialogueOptions options;
+        for (const auto& cOption : acOptions)
+        {
+            DialogueOption& option = options.emplace_back();
+            option.Topic = ToSession(cOption.Topic).value_or(GameId{});
+            option.Info = ToSession(cOption.Info).value_or(GameId{});
+            if (cOption.Quest)
+                option.Quest = ToSession(cOption.Quest).value_or(GameId{});
+            option.Text = cOption.Text;
+        }
+        return options;
+    };
+    request.Options = cToMessage(bridge.GetOptions());
+    // Each other player's own list, judged for its character in the same build (one not judged yet gets the host's).
+    for (const auto& [cPlayer, cCharacter] : OtherPlayers())
+        if (const auto cOwn = bridge.GetOptionsFor(cCharacter))
+            request.Players.push_back({cPlayer, cToMessage(*cOwn)});
+    spdlog::info("Dialogue: step {} of conversation {}: {} options{}, {} players' own", request.Step, request.Conversation,
+                 request.Options.size(), request.Choices ? ", a line's choices" : "", request.Players.size());
     m_dialogue.Transport().Send(request);
 }

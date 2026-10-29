@@ -34,7 +34,8 @@ struct DialogueOpenedRequest final : RequestMessage
     GameId Greeting{}; // host-selected INFO; copies have no arrest/alarm AI to select it
 };
 
-// The host's game showed a step's list: its options in menu order (Choices: a line's choices).
+// The host's game showed a step's list: its options in menu order (Choices: a line's choices), and each other
+// player's own list for the step (Players), judged for its character.
 struct DialogueOptionsRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kDialogueOptionsRequest;
@@ -47,6 +48,7 @@ struct DialogueOptionsRequest final : RequestMessage
     uint32_t Step{};
     bool Choices{};
     DialogueOptions Options{};
+    std::vector<PlayerDialogueOptions> Players{};
 };
 
 // A game's player picked an option of the step's list (its topic and line); Text, as its menu showed it.
@@ -132,7 +134,7 @@ struct NotifyDialogueOpen final : NotifyMessage
     GameId Greeting{};
 };
 
-// The host's list for a step: every game's menu shows these options (Choices: a line's choices).
+// A player's list for a step, judged for its character by the host's engine (Choices: a line's choices).
 struct NotifyDialogueList final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialogueList;

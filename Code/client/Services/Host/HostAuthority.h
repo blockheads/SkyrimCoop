@@ -17,6 +17,7 @@
 #include <Services/Host/HostRecords.h>
 #include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/HostSession.h>
+#include <Services/Host/HostStory.h>
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWait.h>
 #include <Services/Host/HostCrime.h>
@@ -55,6 +56,7 @@ struct ActivateRequest;
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
  * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
+ * HostStory (a guest's story events),
  * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
  * rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
  */
@@ -110,6 +112,11 @@ struct HostAuthority
     void DifficultyChanged(uint32_t aDifficulty) const noexcept;
     // The host's game is saving: the guests' records take their characters' places (HostRecords).
     void Saving() const noexcept { m_records.OnSaving(); }
+    // The host's game shows a character change location (HostStory: a guest's is raised for it).
+    void CharacterMoved(uint32_t aSessionId, const GameId& acOldLocation, const GameId& acLocation) const noexcept
+    {
+        m_story.CharacterMoved(aSessionId, acOldLocation, acLocation);
+    }
     // A session id for one of the host's actors (HostCharacters).
     [[nodiscard]] uint32_t NewCharacterId() noexcept { return m_characters.NewCharacterId(); }
 
@@ -166,6 +173,7 @@ private:
     HostDialogue m_dialogue;
     HostPlayerNatives m_playerNatives;
     HostRecords m_records;
+    HostStory m_story;
     HostDeath m_death;
     HostFollowers m_followers;
     bool m_reloading{};

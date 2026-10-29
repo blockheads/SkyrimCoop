@@ -152,6 +152,8 @@ struct PlayerCharacter : Actor
     void RememberSaid(const TESTopicInfo* apInfo) noexcept;
     float GetSkillExperience(Skills::Skill aSkill) const noexcept { return (*pSkills)->skills[aSkill].xp; }
 
+    // Its AI drives it, as Game.SetPlayerAIDriven does (40586): it runs its package, its controls let go of it.
+    void SetAIDriven(bool aDriven) noexcept;
     // Back from a real death (docs/design/death.md, "Real death"): alive, every permanent effect cast again, its
     // skeleton out of the death ragdoll and the camera its own.
     void Revive() noexcept;

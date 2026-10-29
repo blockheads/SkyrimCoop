@@ -114,13 +114,14 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_purse(m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
-    , m_items(*this, aNetwork, m_players, m_game)
+    , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_game)
     , m_physics(*this, aNetwork, m_players, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
+    , m_story(*this, m_players, m_characters, m_game)
     , m_death(*this, aNetwork, m_players, m_characters, m_game)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
 {
@@ -157,6 +158,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
     Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
     // A script's call one game sends to others (party-calls.md): HostPlayerNatives.
+    // A quest one per player, learned by one game (system-quests.md): every other learns it.
+    Relay<SystemQuestsRequest, NotifySystemQuests>(FromAnyone);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     On(*this, &HostAuthority::OnActivate);

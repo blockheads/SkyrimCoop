@@ -3,6 +3,7 @@
 #include <Games/Memory.h>
 #include <iterator>
 #include <cstddef>
+#include <vector>
 #include <Interface/IMenu.h>
 
 template <class T> struct GameArray
@@ -110,6 +111,23 @@ template <class T> struct BSTSmallArray
             pData = data;
 
         return pData[aIndex];
+    }
+
+    // Replaces the items; the capacity's top bit says they sit inline (one pointer, CommonLib BSTSmallArrayHeapAllocator<8>).
+    void Assign(const std::vector<T*>& acItems) noexcept
+    {
+        const uint32_t cCount = static_cast<uint32_t>(acItems.size());
+        if (cCount > static_cast<uint32_t>(capacity & 0x7FFFFFFF))
+        {
+            auto** pItems = static_cast<T**>(Memory::Allocate(sizeof(T*) * cCount));
+            if (capacity >= 0)
+                Memory::Free(data);
+            data = pItems;
+            capacity = static_cast<int32_t>(cCount);
+        }
+        auto** pData = capacity >= 0 ? data : reinterpret_cast<T**>(&data);
+        std::copy(acItems.begin(), acItems.end(), pData);
+        size = cCount;
     }
 };
 

@@ -138,6 +138,38 @@ void JoinsWithWorld(Party& aParty, World& aHost, World& aGuest, const char* acpS
 }
 } // namespace
 
+SCENARIO("A guest brings and restores its own learned knowledge instead of the host's", "[records][knowledge]")
+{
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    auto& hostEngine = Party::Engine(host);
+    auto& guestEngine = Party::Engine(guest);
+    hostEngine.Knowledge = {.Present = true, .Ingredients = {{GameId(0, 0x77E1C), 8, 7}},
+                           .Enchantments = {GameId(0, 0x10FB95)}};
+    PlayerKnowledge own{.Present = true, .Ingredients = {{GameId(0, 0x77E1C), 1, 1}},
+                        .Enchantments = {GameId(0, 0x10FB96)}};
+    SECTION("a character with its own learned effects") {}
+    SECTION("a new character that has learned nothing") { own = {.Present = true}; }
+    guestEngine.Knowledge = own;
+    JoinsWithWorld(party, host, guest, "the guest brings its knowledge into the host's world");
+    CHECK(guestEngine.Knowledge == own);
+    const auto cKey = KeyOf(guest);
+    party.Until([&] { return Records(host).Find(cKey) && Records(host).Find(cKey)->Knowledge == own; },
+                "the host keeps the guest's knowledge");
+    own.Ingredients = {{GameId(0, 0x77E1C), 5, 2}};
+    guestEngine.Knowledge = own;
+    party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"InventoryMenu", false}); });
+    party.Until([&] { return Records(host).Find(cKey)->Knowledge == own; }, "the host receives newly learned knowledge");
+    ToMainMenu(party, guest);
+    guestEngine.Knowledge = {};
+    JoinsWithWorld(party, host, guest, "a fresh guest restores its saved knowledge");
+    CHECK(guestEngine.Knowledge == own);
+    CHECK(hostEngine.Knowledge.Enchantments == std::vector<GameId>{GameId(0, 0x10FB95)});
+}
+
 SCENARIO("A guest's character reaches the host's save, and loading that save brings it back", "[records]")
 {
     Party party(1, Plugins, false);

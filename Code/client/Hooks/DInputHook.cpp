@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <unordered_set>
 
 namespace Hooks
 {
@@ -82,29 +83,11 @@ namespace Hooks
 
         const auto result = IDirectInputDevice8_GetDeviceData(m_pDevice, dataSize, outData, outDataLen, flags);
 
-        DIDEVICEINSTANCEA instanceInfo;
-        instanceInfo.dwSize = sizeof(instanceInfo);
-        if (IDirectInputDevice8_GetDeviceInfo(m_pDevice, &instanceInfo) != DI_OK)
-        {
-            return result;
-        }
-
         if (input.IsEnabled())
         {
             *outDataLen = 0;
 
             return result;
-        }
-
-        if (instanceInfo.guidInstance == GUID_SysKeyboard)
-        {
-            for (DWORD i = 0; i < *outDataLen; ++i)
-            {
-                if (input.IsToggleKey(outData[i].dwOfs) && outData[i].dwData & 0x80)
-                {
-                    DInputHook::Get().SetEnabled(true);
-                }
-            }
         }
 
         return result;
@@ -181,26 +164,6 @@ namespace Hooks
         HOOK_IAT(DirectInput8Create, "dinput8.dll");
         // Store original prologue to restore later
         std::memcpy(s_realDirectInput8CreatePrologue.data(), GetOriginalFunctionPrologue(), kDirectInput8CreatePrologueSize);
-    }
-
-    DInputHook::DInputHook() noexcept
-    {
-        SetToggleKeys({ DIK_F2, DIK_RCONTROL });
-    }
-
-    void DInputHook::SetToggleKeys(std::initializer_list<unsigned long> aKeys) noexcept
-    {
-        m_toggleKeys.clear();
-
-        for (auto key : aKeys)
-        {
-            m_toggleKeys.insert(key);
-        }
-    }
-
-    bool DInputHook::IsToggleKey(unsigned int aKey) const noexcept
-    {
-        return m_toggleKeys.count(aKey) > 0;
     }
 
     void DInputHook::Acquire() const noexcept

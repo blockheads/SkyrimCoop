@@ -36,6 +36,9 @@ public:
         /// An actor's line starts or ends, running its script (any thread): the player character its script runs
         /// for (0: this game's player).
         std::function<uint32_t(uint32_t aSpeakerFormId)> LineFor;
+        /// The engine builds a list (any thread): the other players' characters it judges each line for too, as if
+        /// each were the player (GetOptionsFor).
+        std::function<std::vector<uint32_t>()> Judged;
     };
 
     virtual ~IDialogueBridge() = default;
@@ -49,6 +52,9 @@ public:
     virtual bool IsMenuOpen() const noexcept = 0;
     /// The options the menu shows, in order.
     virtual std::vector<Option> GetOptions() const noexcept = 0;
+    /// A character's own list from the engine's last build, judged for it (the Judged filter): the topics of the
+    /// menu's list it gets a line for, in their order, then those only it gets. None: not judged in that build.
+    virtual std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept = 0;
     /// Whether the list is a line's choices (35287 sets rootTopicInfo), not the speaker's topics.
     virtual bool IsChoices() const noexcept = 0;
     /// The greeting selected by this game's engine; copies use the host's selected INFO.
@@ -80,7 +86,7 @@ public:
     /// tested), and an open menu not showing them already shows them and takes a pick (aChoices: slid in as a line's
     /// choices). False: no conversation, or a personal menu defers the refresh.
     virtual bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept = 0;
-    /// Says the list's option with this topic and line, as clicking it does; the list built again since (random
-    /// lines), the topic's option (false: no conversation, or no option for the topic).
+    /// Says this topic's line, as clicking its option does: the list's option with it, else one built for it (a line
+    /// judged for another player's character). False: no conversation, or no such line.
     virtual bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept = 0;
 };

@@ -745,6 +745,16 @@ nlohmann::json InfoSaid(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"said", *cSaid}};
 }
 
+// {"cmd": "judged_line", "topic": id, "speaker": id, "player": id}: the line the speaker would say for the topic,
+// judged for that player (a guest's character as the player); 0 for none.
+nlohmann::json JudgedLine(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cLine = EngineCalls::GetJudgedLine(acRequest.value("topic", 0u), acRequest.value("speaker", 0u), acRequest.value("player", 0x14u));
+    if (!cLine)
+        return Error("no such topic, speaker or player");
+    return {{"ok", true}, {"line", *cLine}};
+}
+
 // {"cmd": "dialogue_pick", "index": n}: says the conversation's option n, as clicking it does (no menu needed).
 nlohmann::json DialoguePick(Harness&, const nlohmann::json& acRequest)
 {
@@ -882,6 +892,7 @@ constexpr Command cCommands[] = {
     {"papyrus_result", false, &PapyrusResult},
     {"dialogue", true, &Dialogue},
     {"dialogue_pick", true, &DialoguePick},
+    {"judged_line", true, &JudgedLine},
     {"item_count", true, &ItemCount},
     {"skill", true, &Skill},
     {"force_greet", true, &ForceGreet},

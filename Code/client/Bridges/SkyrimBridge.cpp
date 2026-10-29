@@ -1802,6 +1802,11 @@ Perks SkyrimBridge::GetPlayerPerks() const noexcept
                         it->Rank = std::max(it->Rank, pRank->rank);
                 }
     std::ranges::sort(perks.Ranks, {}, [](const auto& acRank) { return std::pair(acRank.Id.ModId, acRank.Id.BaseId); });
+    if (auto* pPlayer = PlayerCharacter::Get())
+        for (uint32_t i = 0; i < pPlayer->addedSpells.size; ++i)
+            if (const SpellItem* cpSpell = pPlayer->addedSpells.Get(i))
+                if (const auto cId = ToSession(cpSpell->formID))
+                    perks.Spells.push_back(*cId);
     return perks;
 }
 
@@ -1809,8 +1814,16 @@ void SkyrimBridge::SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept
 {
     MainLoopTasks::Queue([aFormId, acPerks] {
         Actor* pActor = GetActor(aFormId);
-        auto* pBase = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
-        if (!pActor || !pActor->GetExtension()->IsOtherPlayer() || !pBase || !pBase->IsTemporary())
+        if (!pActor || !pActor->GetExtension()->IsOtherPlayer())
+            return;
+        // The owner's added spells, for HasSpell: written, not AddSpell'd (38716 casts an ability, the owner's to apply).
+        std::vector<SpellItem*> spells;
+        for (const GameId& cId : acPerks.Spells)
+            if (auto* pSpell = Cast<SpellItem>(TESForm::GetById(ToGame(cId))))
+                spells.push_back(pSpell);
+        pActor->addedSpells.Assign(spells);
+        auto* pBase = Cast<TESNPC>(pActor->baseForm);
+        if (!pBase || !pBase->IsTemporary())
             return;
         std::vector<PerkRankData> ranks;
         for (const auto& cRank : acPerks.Ranks)

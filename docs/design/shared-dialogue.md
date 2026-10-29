@@ -1,8 +1,8 @@
 # Shared dialogue
 
-**Status (2026-10-22):** built, the host's list for everyone ("Decided 2026-10-22" below): `HostDialogue`, the
-client side split by role (`DialogueService`, `HostConversation`, `GuestDialogue`, `DialogueBridge`), the harness
-and the scenarios. Step sync (each guest's engine building its own list) was built the night before and replaced.
+**Status (2026-10-28):** built, each player's own list judged on the host's game for that player's character ("Decided
+2026-10-28" below); before it, the host's list for everyone (2026-10-22). `HostDialogue`, the client side split by role
+(`DialogueService`, `HostConversation`, `GuestDialogue`, `DialogueBridge`), `JudgedFor`, the harness and the scenarios.
 
 One conversation for the whole party (`party-model.md`, "Dialogue"). Engine findings and the in-game
 experiments it rests on: `docs/re/systems/dialogue.md`. Agreed 2026-10-14, the join rules changed 2026-10-18,
@@ -24,13 +24,13 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   NPC (the copy, on a peer) and press E: the menu opens on the conversation as it stands. The host joins its
   own background conversation the same way. Nobody is moved for a conversation, and first and third person
   stay each player's own.
-- **Every menu shows the host's list** (decided 2026-10-22, replacing each player's own options): the options the
-  host's engine built for the step, with its lines, judged for the host's player (its Speech, gold, race, quests).
-  Brenuin's "Here. Have a gold piece." is on every menu when the host carries gold, on none when only a guest
-  does. Each player moves their own highlight.
-- **Anyone picks, and speaks for the party:** the host's game says that option as if its player had picked it
-  (its line, its script, the host's gold for a room). The other menus keep their list until the next one, and
-  everyone's chat names the pick: `Lydia: Here. Have a gold piece.` Then every menu shows the host's next list.
+- **Each menu shows its player's own list** (decided 2026-10-28): the host's engine builds the step's list once with
+  the real quests and NPC, and judges every topic for each player's character there (its items, Speech, race,
+  factions, perks; the host's for its own). Lucan's claw line is on the menu of the player holding the claw. Gold is
+  the party's purse, so Brenuin's coin is on every menu or none. Each player moves their own highlight.
+- **Anyone picks from its list, and speaks for the party:** the host's game says that line, the picker's own (its
+  script runs for the picker). The other menus keep their list until the next one, and everyone's chat names the
+  pick: `Lydia: Here. Have a gold piece.` Then every menu shows its own next list.
 - **One conversation at a time.** Talking to another NPC while one is open does nothing (a chat line says
   someone is talking). An NPC's force greet waits too.
 - **An NPC that starts a conversation greets the party** (decided 2026-10-19): NPCs run their AI on the host's
@@ -61,15 +61,37 @@ its picker (its items, gold, Speech experience and training the picker's), refus
 
 ## The rule
 
-**The host's game judges and acts** (decided 2026-10-22). Its engine builds each list with the real quests,
-aliases and NPC, for its player, and says each pick with its own line and script. A guest's menu is a screen:
-it shows the host's options and sends picks. This replaced "judge where the player is, act where the world is"
-(2026-10-19), where each game's engine judged its own player's lines: a guest's engine judged quest topics
-against quest state it does not run (aliases, running quests), and a pick could carry a line the host's menu
-never offered. The cost: options are the host's player's (a Speech check uses the host's Speech). Fitting the
-party model (the party is the Dragonborn: quests and identity are shared); a skill override for the picker
-is a later piece if wanted. Items and gold are each player's own, so an item or gold condition asks the host's
-inventory too (Lucan's claw in a guest's bag offers no hand-in).
+**The host's game judges for each player, and acts** (decided 2026-10-28, the user: Speech checks are the picker's).
+Its engine builds each list with the real quests, aliases and NPC, and judges every topic's line for its own player
+and for each other player's character there, as if it were the player (`JudgedFor`, below). It says each pick with
+the picker's line and script. A guest's menu is a screen: it shows its own list and sends picks.
+
+```text
+the host's engine builds the step's list (35287 -> AddTopic 35303 per topic)
+  its own player's line                       -> the host's menu, as ever
+  each other player's character: JudgedFor(character) { TESTopic 25544(topic, speaker, character) }
+      the line it gets, its text rendered as the engine's (built and destroyed)
+  each character's list: the host's topics it has a line for, in the host's (sorted) order, then those only it has
+show (52857) -> DialogueOptionsRequest { host's list, Players: [{player, list}] }
+HostDialogue: each game its own list; a pick must be on the picker's list (topic and line)
+the host's game says the pick: its listed option, else one built for that line (DialogueBridge::PickOption)
+```
+
+The character stands in for its player: its copy carries the player's items, factions, race, looks, level, perks
+(`PerkService`) and skills (its spawn's values, then the value relay). What reads the player outside the line's
+subject and target is rewritten for the character while it is judged (`docs/re/systems/conditions.md`, "Judged for a
+character"): a condition run on PlayerRef or a quest alias holding the player, a PlayerRef parameter, the `GetPC*`
+functions, and the intimidate and bribe checks (which read `g_thePlayer` inside the engine).
+
+Kept the host's for everyone: which topics are offered at all (the speaker's exclusive branch, one rumor per list) and
+the said-line history (say-once lines and reset hours: the user, "say once: sure"). Limits: a guest whose own list is
+empty has its menu end (the engine's fill ends a list with nothing to show). A condition on the player's spells
+(`HasSpell`) reads the copy's added spells, which carry its player's (`PerkService`).
+
+History: "judge where the player is, act where the world is" (2026-10-19) let each game's engine judge its own player's
+lines, but a guest's engine judged quest topics against quest state it does not run; the host's list for everyone
+(2026-10-22) fixed that at the cost of every condition being the host's player's (Lucan's claw in a guest's bag offered
+no hand-in). Judging on the host for the character keeps the host's quest state and gives each player its own.
 
 **Only the host's game runs the conversation; every other game is a screen** (decided 2026-10-19). A guest's
 engine never picks, says a line or runs a fragment.
@@ -108,11 +130,11 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    tokens locally, such as showing a 0-gold arrest fine (BSString::Set 439876).
 4. **Pick.** `TopicClicked` (51509) is hooked on every game. A pick sends `DialoguePickRequest` (conversation,
    step, the option's topic and line, its text); a guest's own menu does not say it. `HostDialogue` takes the
-   first pick of a step that is an option of the host's list (topic and line both) and sends
+   first pick of a step that is an option of the picker's own list (topic and line both) and sends
    `NotifyDialoguePicked` (the next step, topic, line, the picker) to everyone, and a chat line
    (`kPlayerChat`: the picker's name, the option's text, through `ChatText` as chat). The host's game says it
-   unless its own menu did (`DialogueBridge::PickOption`: the listed option, as a click). Any other pick (a stale
-   step, one from a guest's menu before the host's list arrived) is not said, and the picker gets the step's
+   unless its own menu did (`DialogueBridge::PickOption`: the listed option as a click, else one built for the
+   picker's line). Any other pick (a stale step, one from a guest's menu before its list arrived) is not said, and the picker gets the step's
    list back (`HostDialogue::SendList`), so no menu stays in the picked state. The other menus keep their list
    until the next step's.
 5. **The line's script.** Each line's fragment is queued in `TESTopicInfo::Begin` (25616), at its start and
@@ -148,7 +170,7 @@ Built (2026-10-14), for any copy, not only in a conversation (the copy contract'
 - A copy speaks and shows only its owner's lines: `HookSpeakSoundFunction` (37542) and `HookShowSubtitle`
   (52626) refuse the engine's own on a copy; `NotifyDialogue` and `NotifySubtitle` call the originals.
   Without them a peer's menu on a copy greeted with the peer's own line.
-- Its engine never picks: a pick goes to the host. Its menu shows the host's list
+- Its engine never picks: a pick goes to the host. Its menu shows its list from the host
   (`DialogueBridge::ShowList`: each option built from its topic and line by the `Dialogue` constructor 35254, no
   conditions tested, the list replaced with `MenuTopicManager::SetOptions`), and gets voice ready (52858), so it
   takes a pick 750 ms later, as after a line. Until the host's list arrives it shows its own engine's; a pick from
@@ -167,8 +189,8 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `NotifyDialogueStart` | host → host's game | NPC session id |
 | `DialogueOpenedRequest` | host's game → host | NPC session id |
 | `NotifyDialogueOpen` | host → all | conversation, NPC session id |
-| `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → all | conversation, step, choices, options (topic, info, quest, text) |
-| `DialoguePickRequest` / `NotifyDialoguePicked` | game → host → all | an option of the host's list (topic, line), its text / the next step, topic, line, picker; a pick not in the list is not said |
+| `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → each game | conversation, step, choices, options (topic, info, quest, text); the request also each other player's own list (`Players`) |
+| `DialoguePickRequest` / `NotifyDialoguePicked` | game → host → all | an option of the picker's list (topic, line), its text / the next step, topic, line, picker; a pick not in its list is not said |
 | `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerChat`, the picker's name, the option's text |
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
@@ -219,6 +241,16 @@ Hooks, each checked against its community name and IDA:
    walking off (no distance rule: travel, the NPC unloading or a goodbye end it), the
    host busy (a menu or combat does not stop a start; a fighting or dead NPC does), a menu that never opens
    (left after 60 frames), a click as the list changes (the list comes back), lines said recently (above).
+
+## Decided 2026-10-28: each player's list, judged on the host
+
+The host's list for everyone made every condition the host's player's. Judging each topic on the host for each
+player's character keeps one list builder and the host's quest state, and gives each player its own items, Speech,
+race and factions. Scenarios: `dialogue-line-judged-for-guest` (Lucan's claw line judged for the client's character
+reads its bag; with `SKYRIMCOOP_DISABLE_HOOKS=JudgedFor` it reads the host's), `dialogue-options-are-each-players` (the
+client holding the claw gets Lucan's line for it, the host his line for a player without it; the client picks it, the
+host's game says the client's line and the claw leaves the client's bag). GameTests `dialogue_flows.cpp`,
+HostAuthorityTests "each player gets its own list".
 
 ## Decided 2026-10-22: the host's list, not each engine's
 

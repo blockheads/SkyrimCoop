@@ -1,6 +1,14 @@
 #include <Services/SessionService.h>
 
 #include <Events/DisconnectedEvent.h>
+#include <Events/ConnectedEvent.h>
+#include <Events/MenuEvent.h>
+#include <Events/UpdateEvent.h>
+#include <Services/HostService.h>
+#include <Services/JoinService.h>
+#include <Services/SteamService.h>
+#include <Services/TransportService.h>
+#include <World.h>
 #include <Events/SessionNoticeEvent.h>
 
 #include <Messages/NotifyPlayerJoined.h>
@@ -9,8 +17,11 @@
 #include <Messages/DeathMessages.h>
 
 SessionService::SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-    : m_dispatcher(aDispatcher)
+    : m_world(aWorld), m_dispatcher(aDispatcher)
 {
+    Listen<MenuEvent, &SessionService::OnMenu>(m_connections, aDispatcher, this);
+    Listen<UpdateEvent, &SessionService::OnUpdate>(m_connections, aDispatcher, this);
+    Listen<ConnectedEvent, &SessionService::OnConnected>(m_connections, aDispatcher, this);
     Listen<NotifyPlayerJoined, &SessionService::OnPlayerJoined>(m_connections, aDispatcher, this);
     Listen<NotifyPlayerLeft, &SessionService::OnPlayerLeft>(m_connections, aDispatcher, this);
     Listen<NotifyPlayerLevel, &SessionService::OnPlayerLevel>(m_connections, aDispatcher, this);
@@ -49,4 +60,62 @@ void SessionService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept
 void SessionService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_players.clear();
+}
+
+void SessionService::OnConnected(const ConnectedEvent&) noexcept
+{
+    m_ending = m_finished = m_pending = false;
+    m_endReason.clear();
+}
+
+void SessionService::End(std::string aReason) noexcept
+{
+    if (m_ending)
+        return;
+    m_ending = m_pending = true;
+    m_endReason = std::move(aReason);
+}
+
+void SessionService::QuitToMainMenu() noexcept
+{
+    if (!m_ending)
+        m_endReason.clear();
+    m_ending = true;
+    Finish(false);
+}
+
+void SessionService::OnMenu(const MenuEvent& acEvent) noexcept
+{
+    if (acEvent.Opening && acEvent.Menu == "Main Menu" &&
+        (m_world.GetTransport().IsConnected() || m_world.GetHostService().IsHosting() ||
+         m_world.ctx().at<JoinService>().IsJoining()))
+        QuitToMainMenu();
+}
+
+void SessionService::OnUpdate(const UpdateEvent&) noexcept
+{
+    if (m_pending)
+        Finish(true);
+}
+
+void SessionService::Finish(bool aReturnToMenu) noexcept
+{
+    if (m_finished)
+        return;
+    m_finished = true;
+    m_pending = false;
+    auto& host = m_world.GetHostService();
+    auto& join = m_world.ctx().at<JoinService>();
+    // The final character record needs the Steam identity until the transport closes.
+    if (host.IsHosting())
+        host.AnnounceEnd();
+    m_world.GetTransport().Close();
+    host.StopHosting();
+    auto& steam = m_world.ctx().at<SteamService>();
+    steam.EndRejoin();
+    steam.Leave();
+    join.Cancel(m_endReason);
+    auto& bridge = m_world.ctx().at<IJoinBridge&>();
+    if (aReturnToMenu && !bridge.IsAtMainMenu())
+        bridge.ReturnToMainMenu();
 }

@@ -7,6 +7,8 @@ namespace
 {
 // A conversation never shows more; anything past it is a corrupt message.
 constexpr uint64_t kMaxOptions = 64;
+// A party is at most four players.
+constexpr uint64_t kMaxPlayers = 8;
 } // namespace
 
 void DialogueOption::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -38,4 +40,26 @@ void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& 
     aOptions.clear();
     for (uint64_t i = 0; i < cCount && i < kMaxOptions; ++i)
         aOptions.emplace_back().Deserialize(aReader);
+}
+
+void SerializePlayerOptions(Wire::Buffer::Writer& aWriter, const std::vector<PlayerDialogueOptions>& acPlayers) noexcept
+{
+    Serialization::WriteVarInt(aWriter, acPlayers.size());
+    for (const auto& cPlayer : acPlayers)
+    {
+        Serialization::WriteVarInt(aWriter, cPlayer.PlayerId);
+        SerializeDialogueOptions(aWriter, cPlayer.Options);
+    }
+}
+
+void DeserializePlayerOptions(Wire::Buffer::Reader& aReader, std::vector<PlayerDialogueOptions>& aPlayers) noexcept
+{
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    aPlayers.clear();
+    for (uint64_t i = 0; i < cCount && i < kMaxPlayers; ++i)
+    {
+        auto& player = aPlayers.emplace_back();
+        player.PlayerId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
+        DeserializeDialogueOptions(aReader, player.Options);
+    }
 }

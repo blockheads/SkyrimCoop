@@ -381,6 +381,50 @@ SCENARIO("A player's progression, read from the engine functions a native ends i
     THEN("progression comes before the world") CHECK(cOf({.Callees = {kSetStage, cAddSpell}}) == cStoryOnCopy);
 }
 
+SCENARIO("A player's body moved or driven, read from what a native calls or queues", "[reach][cutscenes]")
+{
+    // The real natives (1.6.1170) and the engine's code they end in (NativeReach.cpp's body rows).
+    constexpr uintptr_t cSetAiDriven = 0x140742D90;   // PlayerCharacter::SetAIDriven (40586)
+    constexpr uintptr_t cSetRestrained = 0x140675070; // Actor::SetRestrained (37488)
+    constexpr uintptr_t cMoveToFunctor = 0x141928BF8; // SkyrimScript::MoveToFunctor's vtable (218380)
+    const Sinks cBody{.Functions = {{cSetAiDriven, {{Call::kBody}}}, {cSetRestrained, {{Call::kBody}}}, {kSetStage, {{Call::kWorld}}}},
+                      .Objects = {{cMoveToFunctor, {{Call::kBody}}}}};
+
+    WHEN("Game.SetPlayerAIDriven: mov rcx, the player; movzx edx, r9b; a tail jump to SetAIDriven")
+    {
+        const Facts cFacts = ReadNative(0x140A12750, "488b0da14d7702410fb6d1e93006d3ff");
+        THEN("it calls SetAIDriven: the body's") CHECK(ClassifyCall(cFacts, cBody).Kind == Call::kBody);
+    }
+    WHEN("Actor.SetRestrained: SetRestrained, then StopMovement when restrained")
+    {
+        const Facts cFacts = ReadNative(0x1409EA8F0, "48895c2408574883ec20410fb6d1498bc8410fb6d9498bf8e863a7c8ff84db7408488bcfe8678dcaff"
+                                                     "488b5c24304883c4205fc3");
+        THEN("the body's") CHECK(ClassifyCall(cFacts, cBody).Kind == Call::kBody);
+    }
+    WHEN("ObjectReference.MoveTo: it calls no move, it queues a MoveToFunctor for after the frame")
+    {
+        const Facts cFacts = ReadNative(
+            0x140A2D980,
+            "488bc457415641574883ec5048c740d8feffffff488958084889681048897020498bd9498bf08bea488bf94533f64180781a3e4d0f44f04c"
+            "3b05da9c7002410f94c7498bc8e866348bff84c00f84b5010000488b464080781a570f84a70100004584ff7430498b0633d2498bceff90c8"
+            "04000084c0741e488b0741b902000000448bc5488d15b68cee00488bcfff5010e98f0100004885db0f8460010000488d4b70488d94248000"
+            "0000e8c11c73ff8b05678f6c01398424800000007516488d542430488bcbe875208cff8b08898c2480000000833d7537bc02027413488d15"
+            "6c37bc02488d0d7537bc02e8106c29004533c94533c0418d5140488d0d5f37bc02e83a662900488bd848894424484885c00f849f00000048"
+            "8d542434488bcee81c208cffc7430800000000896b0c488d0d43b1ef0048890b8b008943108b842480000000894314f30f10842490000000"
+            "f30f114318f30f108c2498000000f30f114b1cf30f108424a0000000f30f114320f30f100d9f518402f30f114b24f30f100596518402f30f"
+            "114328f30f100d8d518402f30f114b2c0fb68424a8000000884330c643310048897b384885ff7408f0ff4708eb0233db48895c24384885db"
+            "7404f0ff4308488d542438488b0d1edf6c01e86959f9ff0fb6d8488b4c24384885c97415bafffffffff00fc1510883fa0175064c8b0141ff"
+            "100fb6c3eb3e488d159bddef00eb07488d15228bee00c744242002000000448bcd4c8bc7488bcee86ca2f8ff488b1fe834c3faff4c8bc08b"
+            "d5488bcfff9358010000b001488b5c2470488b6c2478488bb424880000004883c450415f415e5fc3");
+        THEN("it takes the functor's vtable: the body's")
+        {
+            CHECK(std::ranges::find(cFacts.Addressed, cMoveToFunctor) != cFacts.Addressed.end());
+            CHECK(ClassifyCall(cFacts, cBody).Kind == Call::kBody);
+        }
+    }
+    THEN("the world comes before the body") CHECK(ClassifyCall({.Callees = {cSetAiDriven, kSetStage}}, cBody).Kind == Call::kWorld);
+}
+
 SCENARIO("Reaching this game's player through calls", "[reach]")
 {
     // A chain of functions 1 -> 2 -> ... -> 6; aReader reads the player.

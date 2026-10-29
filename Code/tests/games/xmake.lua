@@ -8,6 +8,7 @@ target("GameTests")
     add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp")
     add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
+              "../../client/Services/Generic/SystemQuestService.cpp",
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
               "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp",
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
@@ -18,6 +19,7 @@ target("GameTests")
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Generic/BodyService.cpp",
               "../../client/Services/Guest/GuestHands.cpp", "../../client/Services/Guest/GuestWait.cpp",
+              "../../client/Services/Guest/GuestScene.cpp",
               "../../client/Services/Generic/MapService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp",
@@ -28,7 +30,8 @@ target("GameTests")
               "../../client/Services/CharacterRecords.cpp",
               "../../client/Services/SaveTransfer.cpp", "../../client/Services/Generic/JoinService.cpp",
               "../../client/Services/Guest/GuestRecord.cpp")
-    add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp")
+    add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp",
+              "../../client/Services/ContainerTransfers.cpp")
     add_includedirs(".", "../../client", "../../client/Games/Skyrim")
     -- The shared specs, which coop_test.py runs in Skyrim too.
     add_defines("COOP_SPECS_DIR=\"$(projectdir)/Code/tests/specs\"")

@@ -6,6 +6,7 @@
 #include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyNatives.h>
 #include <Papyrus/PlayerNatives.h>
+#include <Papyrus/SystemQuests.h>
 #include <RunningGame.h>
 
 #include <atomic>
@@ -27,7 +28,9 @@ bool IsOwnEvent(uint64_t aHandle, const BSFixedString& acEvent, const void* apCa
 {
     const char* cpEvent = acEvent.AsAscii();
     const OwnEvents::SentEvent cEvent{aHandle, cpEvent ? cpEvent : "", RunningGame::IsScriptExtenderCode(apCaller)};
-    return OwnEvents::IsOwnEvent(cEvent, PlayerNatives::IsOwnQuest, GuestScripts::RegisteredBy);
+    // A system quest is every game's own (docs/design/system-quests.md).
+    const auto cOwnQuest = [](uint32_t aQuest) { return PlayerNatives::IsOwnQuest(aQuest) || SystemQuests::Is(aQuest); };
+    return OwnEvents::IsOwnEvent(cEvent, cOwnQuest, GuestScripts::RegisteredBy);
 }
 
 // Internal::VirtualMachine::SendEvent (104800, vtable slot 0x24, SKSE's QueueEvent): every event to a handle's

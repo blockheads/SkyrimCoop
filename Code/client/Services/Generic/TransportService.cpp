@@ -215,7 +215,7 @@ void TransportService::OnDisconnected(EDisconnectReason aReason)
     using Cause = DisconnectedEvent::Cause;
     DisconnectedEvent event;
     event.WasGuest = m_connected && !m_closingRoute;
-    event.Why = m_closing ? *m_closing : aReason == kKicked ? Cause::kKicked : aReason == kAborted ? Cause::kLeft : Cause::kLost;
+    event.Why = m_closing ? *m_closing : aReason == kHostLeft ? Cause::kHostLeft : aReason == kKicked ? Cause::kKicked : aReason == kAborted ? Cause::kLeft : Cause::kLost;
     m_connected = false;
     // A refusal stays what the attempt ended with; why a session ended comes with leaving and kicks.
     if (m_joinStatus.Current != JoinStatus::State::kRefused)

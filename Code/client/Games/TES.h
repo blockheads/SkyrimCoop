@@ -13,6 +13,8 @@ struct BSTempEffect;
 struct TESObjectREFR;
 struct TESGlobal;
 struct TESQuest;
+struct EnchantmentItem;
+struct IngredientItem;
 
 struct GridCellArray
 {
@@ -155,16 +157,22 @@ struct ModManager
     Mod* GetByName(const char* acpName) const noexcept;
     TESObjectCELL* GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept;
 
-    // formArrays (CommonLibSSE-NG TESDataHandler, 0x10 + 0x18 * form type): GLOB 0x09, QUST 0x4D.
+    // TESDataHandler::formArrays: GLOB 0x09, ENCH 0x15, INGR 0x1E, QUST 0x4D (CommonLibSSE-NG).
     uint8_t pad0[0xE8];
     GameArray<TESGlobal*> globals;
-    uint8_t pad100[0x748 - 0x100];
+    uint8_t pad100[0x208 - 0x100];
+    GameArray<EnchantmentItem*> enchantments;
+    uint8_t pad220[0x2E0 - 0x220];
+    GameArray<IngredientItem*> ingredients;
+    uint8_t pad2F8[0x748 - 0x2F8];
     GameArray<TESQuest*> quests;
     uint8_t pad760[0xD60 - 0x760];
     GameList<Mod> mods;
 };
 
 static_assert(offsetof(ModManager, globals) == 0xE8);
+static_assert(offsetof(ModManager, enchantments) == 0x208);
+static_assert(offsetof(ModManager, ingredients) == 0x2E0);
 static_assert(offsetof(ModManager, quests) == 0x748);
 static_assert(offsetof(ModManager, mods) == 0xD60);
 

@@ -108,3 +108,9 @@ void HostService::OnGameLoadFailed(const GameLoadFailedEvent& acEvent) noexcept
     for (const auto& [cConnection, cRequest] : std::exchange(m_reloadJoins, {}))
         m_pNetwork->Send(cConnection, failed);
 }
+
+void HostService::AnnounceEnd() const noexcept
+{
+    if (m_pAuthority)
+        m_pNetwork->SetDisconnectReason(Net::Server::SessionEnded);
+}

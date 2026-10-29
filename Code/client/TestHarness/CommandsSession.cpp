@@ -8,6 +8,8 @@
 #include <Services/SteamService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/SessionService.h>
+#include <Structs/SystemQuestState.h>
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IPlayerBridge.h>
 
@@ -78,6 +80,12 @@ nlohmann::json SteamLeave(Harness&, const nlohmann::json&)
     return Ok();
 }
 
+nlohmann::json LeaveSession(Harness&, const nlohmann::json&)
+{
+    World::Get().GetSessionService().End();
+    return Ok();
+}
+
 // {"cmd": "join_world", "port": N}: joins the session on that port with the host's world, from this game (its character
 // comes along) or from the main menu, as the join screen will. The host across a network namespace link
 // (SKYRIMCOOP_JOIN_HOST), loopback otherwise.
@@ -90,6 +98,11 @@ nlohmann::json JoinWorld(Harness&, const nlohmann::json& acRequest)
 
 nlohmann::json Describe(const PlayerRecord& acRecord)
 {
+    nlohmann::json ingredients = nlohmann::json::object(), enchantments = nlohmann::json::array();
+    for (const auto& cIngredient : acRecord.Knowledge.Ingredients)
+        ingredients[std::format("{:X}:{:X}", cIngredient.Id.ModId, cIngredient.Id.BaseId)] = cIngredient.Effects;
+    for (const auto& cEnchantment : acRecord.Knowledge.Enchantments)
+        enchantments.push_back(std::format("{:X}:{:X}", cEnchantment.ModId, cEnchantment.BaseId));
     nlohmann::json perks = nlohmann::json::array(), spells = nlohmann::json::array(), skills = nlohmann::json::array();
     for (const auto& cPerk : acRecord.Perks)
         perks.push_back(std::format("{:X}:{:X}", cPerk.Id.ModId, cPerk.Id.BaseId));
@@ -115,9 +128,30 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
         const std::string cId = std::format("{:X}:{:X}", cItem.BaseId.ModId, cItem.BaseId.BaseId);
         items[cId] = items.value(cId, 0) + cItem.Count;
     }
+    // Its own system quests' instances (docs/design/system-quests.md): numbers, bools and the registrations' natives.
+    nlohmann::json systemQuests = nlohmann::json::object();
+    if (const auto cExtra = acRecord.Extras.find(SystemQuestState::kExtra); cExtra != acRecord.Extras.end())
+        if (const auto cState = SystemQuestState::Decode(cExtra->second))
+            for (const auto& cQuest : cState->Quests)
+            {
+                nlohmann::json variables = nlohmann::json::object();
+                for (const auto& cVariable : cQuest.Variables)
+                    std::visit(
+                        [&]<class T>(const T& acValue) {
+                            if constexpr (std::is_same_v<T, int32_t> || std::is_same_v<T, float> || std::is_same_v<T, bool>)
+                                variables[cVariable.Name] = acValue;
+                        },
+                        cVariable.Value);
+                nlohmann::json timers = nlohmann::json::array();
+                for (const auto& cTimer : cQuest.Timers)
+                    timers.push_back(cTimer.Native);
+                systemQuests[std::format("{:X}:{:X}", cQuest.Id.ModId, cQuest.Id.BaseId)] = {{"variables", variables}, {"timers", timers}};
+            }
     return {{"key", acRecord.Key}, {"name", acRecord.Name}, {"level", acRecord.Level}, {"base_bytes", acRecord.Base.size()},
             {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
-            {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words}};
+            {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words},
+            {"ingredient_effects", ingredients}, {"enchantments", enchantments}, {"knowledge_present", acRecord.Knowledge.Present},
+            {"system_quests", systemQuests}};
 }
 
 // {"cmd": "player_record"}: this game's player's character as the join flow reads it (IJoinBridge::ReadPlayer), and
@@ -126,6 +160,7 @@ nlohmann::json PlayerRecordOf(Harness&, const nlohmann::json&)
 {
     auto& world = World::Get();
     PlayerRecord record = world.ctx().at<IJoinBridge&>().ReadPlayer();
+    record.Knowledge = world.ctx().at<IJoinBridge&>().ReadKnowledge();
     record.Key = world.ctx().at<JoinService>().PlayerKey();
     return {{"ok", true}, {"record", Describe(record)}};
 }
@@ -153,6 +188,7 @@ constexpr Command cCommands[] = {
     {"records", false, &Records},
     {"steam_host", false, &SteamHost},
     {"steam_leave", false, &SteamLeave},
+    {"leave_session", false, &LeaveSession},
     {"steam_invite", false, &SteamInvite},
     {"disconnect", false, &Disconnect},
     {"kick", false, &Kick},

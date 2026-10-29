@@ -91,7 +91,7 @@ namespace Net
             // Disconnect all peers
             for (auto& [id, peer] : m_peers)
             {
-                enet_peer_disconnect(peer, static_cast<enet_uint32>(EDisconnectReason::Quit));
+                enet_peer_disconnect(peer, static_cast<enet_uint32>(m_disconnectReason));
             }
 
             // Sends the disconnects now, without waiting on the game's frame for an answer.

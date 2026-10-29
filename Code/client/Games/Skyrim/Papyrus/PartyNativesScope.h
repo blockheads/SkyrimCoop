@@ -33,7 +33,8 @@ class Scope
     Scope& operator=(const Scope&) = delete;
 
     // The native ran here with aResult in aStack: a latent party call's original keys its copies by its stack (the
-    // host's box), and another game's latent call here starts waiting for its original's result.
+    // host's box), and another game's latent call here starts waiting for its original's result; a body's call (a
+    // MoveTo) ends where it runs.
     void Ran(BSScript::CallResult aResult, uint32_t aStackId) noexcept;
 
     // A question with no player's action is put to these players, in order (rule 3; PartyRules::PlayersToAsk): a
@@ -58,6 +59,7 @@ class Scope
     std::optional<LocalCall> m_onThisPlayer;
     std::optional<BSScript::CallResult> m_result;
     bool m_progressed = false; // a progression call runs here: this player's record changes
+    bool m_body = false;       // a body's move or idle: each game's copy waits for its own (a MoveTo), never the original
     std::vector<uint32_t> m_asks;
 
     [[nodiscard]] PartyRules::CallFacts FactsOf(BSScript::IFunction* apFunction, const BSScript::Stack& acStack) const noexcept;

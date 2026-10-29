@@ -161,6 +161,34 @@ host). Natives with a self are not read: they act on what they are given (below,
 act on whoever they are given; a stored player given to them in a guest's stack is that guest's character (above,
 "A player in the frame").
 
+## Calls into a quest (system quests, 2026-10-28)
+
+`docs/design/system-quests.md` decides a call into a quest's script function where it is made, not per native.
+
+- **The hook:** `BSScript::Internal::ScriptFunction::Call` (105466, 0x141479510), the same `IFunction` vtable slot
+  (0xF, `+0x78`) as `NativeFunctionBase::Call` (104651), the same signature (`Stack**`, logger, VM, in-a-tasklet). Its
+  own body only checks the stack: 4 with no stack or a stack whose `+0x58` is 0, 1 (kSetupForVM) in a tasklet, else 3
+  or 2 by `sub_104852`.
+- **Its caller** is the VM's one dispatcher (`sub_14144E370`, IDA's name), for natives and script functions alike. It
+  pushes the callee's frame first (`sub_141432650`), then calls slot 0xF and acts on the result:
+  - 0 (kCompleted): `VirtualMachine::sub_104854`, the return from the frame a native's completion takes, with
+    `Stack::returnValue`. So a hook can end a script function's call unrun.
+  - 1: the code runs.
+  - 2 (kInProgress): nothing; the stack waits, as for a latent native, until `ReturnFromLatent` (104807).
+  - 3: the frame popped (`sub_141432410`), then a retry; 4: popped.
+- **`Quest.SetStage`, `GetStage` and the like are script functions** over the natives (`SetCurrentStageID`,
+  `GetCurrentStageID`): the hook sees them as calls into a quest, with `Quest` as their object type. Measured: a
+  system quest's `VC01.SetStage(25)` made VC01 one per player, and a player alias's `GetStage` on the Dawnfang
+  control quest made it one, until calls of the engine's base scripts (`Quest`, `Form`, the alias types) were left out
+  (`PartyRules::IsQuestScriptFunction`).
+- **A handle's bound scripts:** `IVirtualMachine::ForEachBoundObject` (vtable slot 0x1B, 0x1414465F0) visits each
+  script bound to a handle under the VM's attached-scripts lock (`+0x93A0`): it calls the functor's slot 1,
+  `Visit(Object*, bool conditional)`, which returns 1 to go on. CommonLibSSE-NG declares the functor only. An object's
+  variables follow it, its base script's first (`Object::GetVariable`); `Object::GetHandle` (104247) only spins on
+  the object's own flag (`+0x28`), so reading handles in the visitor takes no other lock.
+- **A reset:** `IVirtualMachine::ResetAllBoundObjects` (slot 0x1E, 0x141446A70) resets each object bound to the handle
+  (`sub_1414233B0`) and queues it to be set up again (`+0x9428`), as a quest's reset does.
+
 ## Tests
 
 Unpatched vanilla scripts, the client acting on its own game; checked on the host.

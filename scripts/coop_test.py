@@ -1436,7 +1436,8 @@ def copy_follows_host(npc, what, timeout=10):
 
 
 def remove_host_npc(npc):
-    """Takes a spawned NPC out of the scene for good."""
+    """Takes a spawned NPC out of the scene for good, out of the follower slot first (a follower picked "Follow me")."""
+    dismiss_follower(npc)
     console_on("", f"{npc:08X}.disable")
     console_on("", f"{npc:08X}.markfordelete")
 
@@ -1704,6 +1705,9 @@ def disconnect_client():
 
 def rejoin_client():
     """The client joins the host's running session again."""
+    if game_state("client").get("main_menu"):
+        joins_with_world("rejoins from the main menu")
+        return
     select_instance("")
     port = ((read_status() or {}).get("session") or {}).get("port")
     if not port:
@@ -1824,6 +1828,8 @@ def scenario_host_kicks_client():
              and ui_element("client", "join-message").get("text") == "The host removed you from the session.", 10)
     wait_for("[host] no longer lists the client", lambda: not game_state("").get("players"), 10)
     wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+    wait_for("[client] the kicked guest returns to the main menu",
+             lambda: game_state("client").get("main_menu"), 30)
     rejoin_client()
 
 
@@ -2135,11 +2141,11 @@ def client_quest_matches(quest, label):
 BANNERED_MARE = "WhiterunBanneredMare"
 
 
-def arrival_story_events(instance):
-    """The location change story events this game's player raised since the last call (harness story_trace),
-    as (old location, new location, event id)."""
+def arrival_story_events(instance, actor=0x14):
+    """The location change story events raised in that game for an actor (this game's player by default) since the
+    last call (harness story_trace), as (old location, new location, event id)."""
     select_instance(instance)
-    return (rpc({"cmd": "story_trace"}) or {}).get("captured", [])
+    return [event[:3] for event in (rpc({"cmd": "story_trace"}) or {}).get("captured", []) if event[3] == actor]
 
 
 def story_event_outcome(instance, event_id, since):
@@ -2177,6 +2183,144 @@ def scenario_guest_story_starts_no_quest():
             player_command(name, {"cmd": "story_trace", "on": False})
         both_go(HOME_CELL)
 
+
+
+def story_trace_read(instance):
+    """That game's story trace since the last read: the location changes raised there (old, new, event id, actor) and
+    the story manager's outcomes (event id, code, node or quest; STORY_NODE_PASSED, STORY_QUEST_STARTED)."""
+    select_instance(instance)
+    response = rpc({"cmd": "story_trace"}) or {}
+    return response.get("captured", []), response.get("outcomes", [])
+
+
+STORY_NODE_PASSED, STORY_QUEST_STARTED = 3, 8  # BGSStoryManager's log codes (32374)
+
+
+def story_processing_order(instance, event_ids, since):
+    """The order that game's story manager finished those events in, as [(event id, started a quest)]."""
+    return [(e["event"], e["started_quest"]) for e in engine_events(instance, since)[0]
+            if e["kind"] == "story_event_processed" and e["event"] in event_ids]
+
+
+def scenario_guest_location_change_starts_story():
+    """The client leads the party into the Bannered Mare (party-model.md rule 4). Its own game's story manager starts
+    nothing; the host's game raises the client's arrival for its character (its copy's location change) and judges it
+    for that character. The party arrives once: of the two arrivals the host's story manager sees, the copy's and its
+    own player's, the first it processes starts the arrival's quests (a node passes), the second starts none (the bard's
+    song and the greeting start once)."""
+    copy = player_copy("")
+    if copy is None:
+        raise TestFailure("[host] shows no copy of the client's character")
+    player_command("", {"cmd": "story_trace", "on": True})
+    story_trace_read("")
+    since = engine_events("")[1]
+    captured, outcomes = [], []
+    try:
+        before = {name: player_cell(name) for name in ("", "client")}
+        console_on("client", f"coc {BANNERED_MARE}")
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] arrived in {BANNERED_MARE}", lambda name=name: player_cell(name) not in (None, before[name]), 60)
+
+        def arrivals():
+            more_captured, more_outcomes = story_trace_read("")
+            captured.extend(more_captured)
+            outcomes.extend(more_outcomes)
+            return {who: [e[2] for e in captured if e[3] == who] for who in (copy, 0x14)}
+        wait_for("[host] its game raised the client's arrival for its character and its own player's arrival",
+                 lambda: all(arrivals().values()), 30)
+        ids = {who: found[-1] for who, found in arrivals().items()}
+        wait_for("[host] its story manager processed both arrivals",
+                 lambda: len(story_processing_order("", set(ids.values()), since)) == 2, 15)
+        order = story_processing_order("", set(ids.values()), since)
+        first, second = order
+        whose = {ids[copy]: "the client's character's", ids[0x14]: "its own player's"}
+        log(f"[host] processed {whose[first[0]]} arrival first, then {whose[second[0]]}")
+        if not first[1]:
+            raise TestFailure(f"[host] the party's arrival ({whose[first[0]]}, processed first) started no quest")
+        if second[1]:
+            raise TestFailure(f"[host] {whose[second[0]]} arrival started quests again: the party arrived twice")
+        arrivals()
+        if first[0] == ids[copy] and not any(o[0] == ids[copy] and o[1] == STORY_NODE_PASSED for o in outcomes):
+            raise TestFailure("[host] no story node passed for the client's character's arrival")
+    finally:
+        player_command("", {"cmd": "story_trace", "on": False})
+        both_go(HOME_CELL)
+
+
+# The cooking spit's one recipe a player holding only salt and raw beef can make (Skyrim.esm RecipeFoodBeefCooked).
+SALT_PILE, RAW_BEEF, COOKED_BEEF = 0x34CDF, 0x65C99, 0x721E8
+CRAFTING_LISTS = "_root.Menu.InventoryLists"  # CraftingMenu.swf: 1 categories only, 2 the recipes take the keys
+CRAFTING_LIST = "_root.Menu.ItemList"         # its recipe list (it does not wrap; UP_KEY, DOWN_KEY move it)
+CREATE_YES = 0                                # "Do you want to create this item?": Yes
+CRAFT_RAISED = re.compile(r"HostEngine: story event (\d+) \(craft\) raised for ([0-9A-F]+)")
+
+
+def scenario_guest_craft_raises_story():
+    """The client cooks beef at QASmoke's cooking spit: E opens its menu, E takes the recipe list, Up or Down to the one
+    recipe its salt and beef make, E and the box's Yes cook it. Its own game's story manager starts nothing for the craft (CRFT); it sends the craft to the host, whose game
+    raises it for the client's character and processes it."""
+    copy = player_copy("")
+    _, host_mark = log_trail("", 1 << 62)
+    _, client_mark = log_trail("client", 1 << 62)
+    since = engine_events("")[1]
+    player_command("client", {"cmd": "strip"})
+    for item in (SALT_PILE, RAW_BEEF):
+        console_on("client", f"player.additem {item:08X} 1")
+    try:
+        # Around the spit until its crosshair is on it (its fire stands in the way from some sides).
+        for bearing in (0, 90, 180, 270):
+            place_before("client", COOKING_SPIT, 90, bearing)
+            face("client", COOKING_SPIT)
+            if camera("client").get("crosshair") == COOKING_SPIT:
+                break
+        else:
+            raise TestFailure(f"[client] no side of the cooking spit puts the crosshair on it: {camera_report('client')}")
+        tap_key("client", ACTIVATE_KEY)
+        wait_for("[client] the cooking spit's menu opens", lambda: "Crafting Menu" in open_menus("client"), 10)
+        # E takes the recipe list (InventoryLists' state 2); it holds every recipe, the ones the player cannot make
+        # greyed (enabled 0): Up or Down to the one it can.
+        lists = lambda: menu_var("client", "Crafting Menu", f"{CRAFTING_LISTS}.currentState")
+        recipes = lambda path: menu_var("client", "Crafting Menu", f"{CRAFTING_LIST}.{path}")
+        wait_for("[client] the menu is in, its categories take the keys", lambda: lists() == 1, 5)
+        tap_key("client", ACTIVATE_KEY)
+        wait_for("[client] the recipe list takes the keys", lambda: lists() == 2, 5)
+        count = int(recipes("entryList.length") or 0)
+        target = next((i for i in range(count) if recipes(f"entryList.{i}.enabled")), None)
+        if target is None:
+            raise TestFailure(f"[client] none of the {count} recipes is one its salt and beef make")
+        for _ in range(count):
+            at = int(recipes("selectedIndex"))
+            if at == target:
+                break
+            tap_key("client", DOWN_KEY if at < target else UP_KEY)
+            wait_for("[client] the selection moves", lambda: int(recipes("selectedIndex")) != at, 3)
+        selected = lambda field: recipes(f"selectedEntry.{field}")
+        tap_key("client", ACTIVATE_KEY)
+        wait_for("[client] asks whether to create it", lambda: "MessageBoxMenu" in open_menus("client"), 5)
+        presses_box_button("client", CREATE_YES)
+        wait_for(f"[client] cooked {selected('text')}", lambda: item_count("client", 0x14, COOKED_BEEF) == 1, 5)
+        wait_for("[client] sent its craft to the host",
+                 lambda: any("GuestWorldState: crafted" in line["text"] for line in log_trail("client", client_mark)[0]), 5)
+
+        def raised():
+            for line in log_trail("", host_mark)[0]:
+                found = CRAFT_RAISED.search(line["text"])
+                if found:
+                    return int(found.group(1)), int(found.group(2), 16)
+            return None
+        wait_for("[host] its game raised the client's craft", lambda: raised() is not None, 10)
+        event_id, character = raised()
+        if character != copy:
+            raise TestFailure(f"[host] the craft was raised for {character:08X}, not the client's character {copy:08X}")
+        wait_for(f"[host] its story manager processed the craft (event {event_id})",
+                 lambda: story_event_outcome("", event_id, since) is not None, 15)
+    finally:
+        for _ in range(5):
+            if "Crafting Menu" not in open_menus("client"):
+                break
+            tap_key("client", TAB_KEY)
+            wait_for("[client] the menu closes", lambda: "Crafting Menu" not in open_menus("client"), 3)
+        wait_for("[client] stands up from the cooking spit", lambda: sit_state("client", 0x14) == 0, 10)
 
 # Scripts the host's game runs alone: vanilla ones a guest used to run too (docs/research/guest-scripts-and-mods.md).
 CRITTER_SPAWNER = 0x6B45C  # critterSpawnDragonflies24x7: CritterSpawn's OnLoad places 2 dragonflies (05:00-20:00)
@@ -3686,6 +3830,24 @@ def in_conversation(instance, speaker):
     return dialogue(instance).get("speaker") == speaker
 
 
+FOLLOWER_QUEST = 0x750BA  # DialogueFollower: its aliases 0 and 1 are the shared follower and animal slots
+
+
+def follower_in_slot(slot=0):
+    """The reference in the host's shared follower (0) or animal (1) slot (0: none)."""
+    rows = player_command("", {"cmd": "quest", "quest": FOLLOWER_QUEST})["aliases"]
+    return next((r["ref"] for r in rows if r["id"] == slot), 0)
+
+
+def dismiss_follower(npc, slot=0):
+    """Dismisses the host's follower if it is that NPC (DialogueFollowerScript), emptying its slot."""
+    if follower_in_slot(slot) == npc:
+        player_command("", {"cmd": "papyrus_call", "class": "DialogueFollowerScript",
+                            "function": "DismissAnimal" if slot else "DismissFollower",
+                            "self": FOLLOWER_QUEST, "args": [] if slot else [0, 0]})
+        wait_for(f"[host] {npc:08X} leaves the follower slot", lambda: follower_in_slot(slot) != npc, 15)
+
+
 def scenario_dialogue_host_in_background():
     """The client talks to its copy with the host 800 units off: the host's game runs the conversation in the
     background (no menu, its player not turned, free to move) and shows her line on its HUD, while the client's
@@ -3743,6 +3905,7 @@ def scenario_dialogue_host_in_background():
         wait_for("[client] the menu closes", lambda: menu_closed("client"), 10)
         if not takes_input(""):
             raise TestFailure(f"[host] after the conversation, a menu is open: {(read_status() or {}).get('menus')}")
+        wait_for(f"[host] the follower line recruits {npc:08X}", lambda: follower_in_slot() == npc, 10)
     finally:
         close_dialogues()
         remove_host_npc(npc)
@@ -3796,6 +3959,156 @@ def scenario_dialogue_options_are_the_hosts():
         for name in ("", "client"):
             console_on(name, f"player.dispel {GIFT_OF_CHARITY:X}")  # the coin's blessing on the giver
         set_party_gold(gold, wait=False)
+
+
+# Lucan Valerius (his reference in the Riverwood Trader) and his golden claw (MS13): his claw topic's line for a player
+# without it tests GetItemCount on PlayerRef == 0; his lines for one holding it, >= 1.
+LUCAN = 0x13487
+GOLDEN_CLAW = 0x39647
+CLAW_TOPIC = 0x5D46F
+NO_CLAW_LINE = 0x8AFA2
+GOLDEN_CLAW_QUEST = 0x39645  # MS13
+
+
+def judged_line(instance, topic, speaker, player):
+    """The line the speaker would say for the topic, judged for that player on that game (0: none)."""
+    select_instance(instance)
+    response = rpc({"cmd": "judged_line", "topic": topic, "speaker": speaker, "player": player}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] judged_line: {response.get('error')}")
+    return response["line"]
+
+
+MAGELIGHT = 0x43323  # a spell a College line asks about with HasSpell, as Firebolt's do (0x12FD0, run on the target)
+
+
+def console_number(instance, command):
+    """The number a console command answers with, its last ("HasSpell >> 1.00", "Player misc stat value 1.00")."""
+    output = console_on(instance, command)
+    numbers = re.findall(r"-?\d+(?:\.\d+)?", " ".join(output))
+    if not numbers:
+        raise TestFailure(f"[{instance or 'host'}] no number answers `{command}`: {output}")
+    return float(numbers[-1])
+
+
+def has_spell(instance, actor, spell):
+    """Whether that game's actor knows the spell, as a condition reads it (the console's HasSpell)."""
+    return console_number(instance, f"{actor:08X}.hasspell {spell:08X}") == 1.0
+
+
+def scenario_copy_knows_learned_spell():
+    """A spell the client learns is known to its character on the host (PerkService carries the added spells with
+    the perks): a host condition judged for the client (a College line's HasSpell on the target) reads the client's.
+    It forgets it: the copy does too. The host's own player learns nothing."""
+    character = client_on_host()
+    try:
+        if has_spell("", character, MAGELIGHT):
+            raise TestFailure(f"[host] the client's character {character:08X} knows Magelight before the client does")
+        console_on("client", f"player.addspell {MAGELIGHT:X}")
+        wait_for(f"[host] the client's character {character:08X} knows the spell the client learned",
+                 lambda: has_spell("", character, MAGELIGHT), 10)
+        if has_spell("", 0x14, MAGELIGHT):
+            raise TestFailure("[host] its own player learned the client's spell")
+        console_on("client", f"player.removespell {MAGELIGHT:X}")
+        wait_for(f"[host] the client's character {character:08X} forgets it with the client",
+                 lambda: not has_spell("", character, MAGELIGHT), 10)
+    finally:
+        if has_spell("client", 0x14, MAGELIGHT):
+            console_on("client", f"player.removespell {MAGELIGHT:X}")
+
+
+def scenario_dialogue_line_judged_for_guest():
+    """The host judges a line for the player it is for (JudgedFor, shared-dialogue.md): Lucan's claw topic asks
+    whether the player holds the golden claw, a condition run on PlayerRef. Judged for the client's character on the
+    host, it reads that character's bag (the client's, which its copy carries), not the host's player's: with the claw
+    in the client's bag only, the client no longer gets the line for a player without it and the host still does;
+    with it in the host's only, the other way round."""
+    copy = player_copy("")
+    if not copy:
+        raise TestFailure("[host] shows no copy of the client's character")
+    started = not quest_running("", GOLDEN_CLAW_QUEST)
+    if started:
+        console_on("", "resetquest MS13")  # a stopped quest starts again only once reset
+        console_on("", "startquest MS13")
+        wait_for("[host] MS13 runs", lambda: quest_running("", GOLDEN_CLAW_QUEST), 10)
+
+    def holds(when, host_holds, client_holds):
+        got = (judged_line("", CLAW_TOPIC, LUCAN, 0x14), judged_line("", CLAW_TOPIC, LUCAN, copy))
+        if (got[0] != NO_CLAW_LINE, got[1] != NO_CLAW_LINE) != (host_holds, client_holds):
+            raise TestFailure(f"[host] {when}: Lucan's claw topic gives the host line {got[0]:X}, the client's "
+                              f"character {got[1]:X} ({NO_CLAW_LINE:X} is his line for a player without the claw)")
+
+    try:
+        holds("nobody holds the claw", False, False)
+        console_on("client", f"player.additem {GOLDEN_CLAW:X} 1")
+        wait_for(f"[host] copy {copy:08X} carries the client's claw", lambda: item_count("", copy, GOLDEN_CLAW) == 1, 10)
+        holds("the client holds the claw", False, True)
+        console_on("client", f"player.removeitem {GOLDEN_CLAW:X} 1")
+        wait_for(f"[host] copy {copy:08X} no longer carries it", lambda: not item_count("", copy, GOLDEN_CLAW), 10)
+        console_on("", f"player.additem {GOLDEN_CLAW:X} 1")
+        holds("the host holds the claw", True, False)
+    finally:
+        for name in ("", "client"):
+            if item_count(name, 0x14, GOLDEN_CLAW):
+                console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
+        if started:
+            console_on("", "stopquest MS13")
+
+
+# Lucan's lines for a player holding the claw (MS13 stage 60 done), choices of "Did something happen?" (39621).
+CLAW_FOUND_LINES = {0x5D471, 0x8AFA3, 0x8AFA4, 0x8AFA5, 0x8AFA6}
+LUCAN_TROUBLE_TOPIC = 0x39621
+
+
+def topic_info(instance, topic):
+    """The line that game's menu lists for the topic (None: not listed)."""
+    return next((o["info"] for o in dialogue(instance).get("options", []) if o["topic"] == topic), None)
+
+
+def scenario_dialogue_options_are_each_players():
+    """Each player's menu shows its own lines, judged for its character on the host (shared-dialogue.md, "The rule"):
+    the client holds Lucan's golden claw, the host does not. Talking to Lucan, the client's menu offers the line for a
+    player holding it and the host's his line for one without it. The client picks it: the host's game says the
+    client's line, its script runs for the client (rule 2), and the claw leaves the client's bag."""
+    started = not quest_running("", GOLDEN_CLAW_QUEST)
+    copy = stage_host_npc(LUCAN)
+    # His AI runs (a frozen speaker never finishes a line), restrained so his package does not walk him home.
+    console_on("", f"{LUCAN:08X}.setrestrained 1")
+    freeze("", LUCAN, False)
+    try:
+        if started:
+            console_on("", "resetquest MS13")
+            console_on("", "startquest MS13")
+            wait_for("[host] MS13 runs", lambda: quest_running("", GOLDEN_CLAW_QUEST), 10)
+        console_on("", "setstage MS13 60")
+        client_copy = player_copy("")
+        console_on("client", f"player.additem {GOLDEN_CLAW:X} 1")
+        wait_for("[host] the client's character carries the claw", lambda: item_count("", client_copy, GOLDEN_CLAW) == 1, 10)
+        place_before("", LUCAN, 110)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[host] the player talks to Lucan in the background", lambda: in_conversation("", LUCAN), 10)
+        wait_for("[client] its menu offers Lucan's trouble", lambda: lists_topic("client", LUCAN_TROUBLE_TOPIC), 30)
+        pick_with_keys("client", LUCAN_TROUBLE_TOPIC)
+        wait_for("[client] its choices offer a claw line for a player holding it",
+                 lambda: topic_info("client", CLAW_TOPIC) in CLAW_FOUND_LINES, 90)  # his answer is a long one
+        found = topic_info("client", CLAW_TOPIC)
+        if (info := topic_info("", CLAW_TOPIC)) != NO_CLAW_LINE:
+            raise TestFailure(f"[host] its choices have {info} for the claw topic, not Lucan's line for a player without it")
+        pick_with_keys("client", CLAW_TOPIC)
+        wait_for("[host] Lucan says his answer to the client's claw", lambda: dialogue("").get("current_info") == found, 10)
+        wait_for("[client] the claw leaves its bag", lambda: not item_count("client", 0x14, GOLDEN_CLAW), 20)
+        if item_count("", 0x14, GOLDEN_CLAW):
+            raise TestFailure("[host] its player was given the claw")
+    finally:
+        close_dialogues()
+        console_on("", f"{LUCAN:08X}.setrestrained 0")
+        release_host_npc(LUCAN)
+        for name in ("", "client"):
+            if item_count(name, 0x14, GOLDEN_CLAW):
+                console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
+        console_on("", "stopquest MS13")
 
 
 # The quest of Brenuin's coin topic (FavorJobsBeggars): running in a game is what lets its engine offer the topic.
@@ -3954,11 +4267,7 @@ UNGRIEN_PERSUADE_TOPIC = 0x369D1  # needs the player's Speech at SpeechEasy (25)
 
 def misc_stat(instance, name):
     """That game's player's misc stat (the console's GetPCMiscStat)."""
-    output = console_on(instance, f'getpcmiscstat "{name}"')
-    numbers = re.findall(r"-?\d+(?:\.\d+)?", " ".join(output))  # "Player misc stat value 1.00"
-    if not numbers:
-        raise TestFailure(f"[{instance or 'host'}] no value for misc stat {name}: {output}")
-    return round(float(numbers[-1]))
+    return round(console_number(instance, f'getpcmiscstat "{name}"'))
 
 
 def set_misc_stat(instance, name, value):
@@ -5416,10 +5725,14 @@ def death_spectate_respawn(victim, travel_down=False):
         draw(survivor)
         attack(survivor)
         wait_for("the standing player's blow kills the enemy", lambda: host_npc_state(npc).get("dead"), 8)
+        wait_on("client", "the enemy's copy dies too", lambda actors: actors.get(str(copy), {}).get("dead"), 5)
         wait_for("the party leaves combat",
                  lambda: death_state(victim).get("status", "").startswith("Respawning in"), 10)
         clear_since = time.monotonic()
         wait_for("the player respawns beside the standing party", lambda: not death_state(victim).get("down"), 14)
+        if not host_npc_state(npc).get("dead") or not actor_snapshot("client", copy).get("state", {}).get("dead"):
+            raise TestFailure(f"after the respawn the enemy is dead on the host: {bool(host_npc_state(npc).get('dead'))}, "
+                              f"its copy on the client: {bool(actor_snapshot('client', copy).get('state', {}).get('dead'))}")
         wait_for("the living player recovers engine state and controls",
                  lambda: not is_dead(player_snapshot(victim))
                  and (player_snapshot(victim).get("values") or {}).get("health", 0) > 0
@@ -6707,6 +7020,108 @@ def scenario_title_reaches_party():
         reset()
 
 
+# Dawnguard's TrapDiseaseSanguinareVampiris: the disease's script (three days, then it turns the player) without the
+# vanilla spell's 15% catch roll (GetRandomPercent on DisDamageHealthVampire), so it is caught every time
+SANGUINARE_VAMPIRIS = 0x020037E9
+PLAYER_VAMPIRE_QUEST = 0xEAFD5  # PlayerVampireQuest: VampireChange, VampireCure, the hunger
+AB_VAMPIRE_01 = 0x2E1C3         # AbVampire01: a stage 1 vampire's ability
+
+
+def own_race(instance):
+    """The race of that game's own player, as its game has it."""
+    select_instance(instance)
+    return next(((s.get("identity") or {}).get("race") for s in ((read_status() or {}).get("world") or {}).values()
+                 if s.get("role") == "own" and (s.get("identity") or {}).get("base") == 7), None)
+
+
+PLAYER_IS_VAMPIRE = 0xED06D  # PlayerIsVampire: the vampire quest's global, each player's own
+VC01 = 0x5C625               # Rising at Dawn, Falion's cure: its stage 200 calls VampireCure(Game.GetPlayer())
+
+
+def scenario_vampirism_is_each_players():
+    """Vampirism is each player's own (docs/design/system-quests.md): the client catches Sanguinare Vampiris (the
+    trap's, no catch roll); three days on (the host's clock run fast) its effect's script calls
+    PlayerVampireQuest.VampireChange, which makes the quest one per player on every game. The client turns, and the
+    host's copy of it; the host's player stays as it was; PlayerIsVampire is each game's own. Falion's cure (VC01's
+    stage 200, the story) runs on every game, each on its own player: the client is cured."""
+    def has_ability(name):
+        return f"0:{AB_VAMPIRE_01:X}" in player_command(name, {"cmd": "player_record"})["record"]["spells"]
+
+    races = {name: own_race(name) for name in ("", "client")}
+    if any(race == NORD_VAMPIRE_RACE or race is None for race in races.values()):
+        raise TestFailure(f"a player is a vampire already, or has no race: {races}")
+    try:
+        console_on("client", f"player.addspell {SANGUINARE_VAMPIRIS:X}")
+        wait_for("[client] the disease is on its player", lambda: SANGUINARE_VAMPIRIS in effect_spells("client"), 5)
+        console_on("", "set timescale to 10000")
+        wait_for("[client] its player turns into a vampire", lambda: own_race("client") not in (races["client"], None), 90)
+        console_on("", "set timescale to 20")
+        vampire = own_race("client")
+        log(f"the client's vampire race: {vampire:X}")
+        wait_for("[host] its copy of the client is a vampire", lambda: player_race_on_host("client") == vampire, 20)
+        wait_for("[client] its player has the vampire's ability", lambda: has_ability("client"), 10)
+        wait_for("[both] PlayerIsVampire is each player's own",
+                 lambda: global_value("client", PLAYER_IS_VAMPIRE) == 1 and global_value("", PLAYER_IS_VAMPIRE) == 0, 10)
+        if own_race("") != races[""] or has_ability(""):
+            raise TestFailure("[host] its player turned too: the vampire quest ran there for the client")
+        console_on("", "setstage VC01 200")
+        wait_for("[client] Falion's cure gives its player its race back",
+                 lambda: own_race("client") == races["client"] and not has_ability("client"), 30)
+        wait_for("[client] PlayerIsVampire is back to 0", lambda: global_value("client", PLAYER_IS_VAMPIRE) == 0, 10)
+        if own_race("") != races[""]:
+            raise TestFailure(f"[host] the cure changed its player's race: {own_race(''):X}")
+    finally:
+        console_on("", "set timescale to 20")
+        if SANGUINARE_VAMPIRIS in effect_spells("client"):  # turning removes it
+            console_on("client", f"player.removespell {SANGUINARE_VAMPIRIS:X}")
+        for name in ("", "client"):
+            if own_race(name) != races[name]:  # its own instance's cure, run there
+                script_call(name, "PlayerVampireQuestScript", "VampireCure", [{"form": 0x14}], on=PLAYER_VAMPIRE_QUEST)
+
+
+def scenario_vampirism_kept_across_rejoin():
+    """A guest's vampirism is kept in its record (system-quests.md, rule 5): the client turns, and the host's record
+    of it keeps its own PlayerVampireQuest instance (its hunger's status and registration). Its game starts again at
+    the main menu and joins with the host's world, whose save holds the host's player's instance: its player is the
+    vampire it was, its instance its own again (VampireStatus 1, PlayerIsVampire 1, the host's 0)."""
+    def kept_instance():
+        kept = kept_records("").get(key) or {}
+        return (kept.get("system_quests") or {}).get(f"0:{PLAYER_VAMPIRE_QUEST:X}") or {}
+
+    def status(name):
+        return script_var(name, PLAYER_VAMPIRE_QUEST, "PlayerVampireQuestScript", "VampireStatus")
+
+    races = {name: own_race(name) for name in ("", "client")}
+    if any(race == NORD_VAMPIRE_RACE or race is None for race in races.values()):
+        raise TestFailure(f"a player is a vampire already, or has no race: {races}")
+    key = player_record("client")["key"]
+    try:
+        console_on("client", f"player.addspell {SANGUINARE_VAMPIRIS:X}")
+        wait_for("[client] the disease is on its player", lambda: SANGUINARE_VAMPIRIS in effect_spells("client"), 5)
+        console_on("", "set timescale to 10000")
+        wait_for("[client] its player turns into a vampire", lambda: own_race("client") not in (races["client"], None), 90)
+        console_on("", "set timescale to 20")
+        vampire = own_race("client")
+        wait_for("[host] its record of the client keeps the client's vampire quest, at status 1 and registered",
+                 lambda: any("VampireStatus" in name and value == 1 for name, value in kept_instance().get("variables", {}).items())
+                 and "RegisterForUpdateGameTime" in kept_instance().get("timers", []), 30)
+        restart_client_at_main_menu()
+        joins_with_world("as a vampire")
+        wait_for("[client] its player is the vampire it was", lambda: own_race("client") == vampire, 30)
+        wait_for("[client] its instance is its own again", lambda: status("client") == 1, 20)
+        wait_for("[both] PlayerIsVampire is each player's own",
+                 lambda: global_value("client", PLAYER_IS_VAMPIRE) == 1 and global_value("", PLAYER_IS_VAMPIRE) == 0, 10)
+        if status("") != 0 or own_race("") != races[""]:
+            raise TestFailure(f"[host] its player's instance changed: status {status('')}, race {own_race(''):X}")
+    finally:
+        console_on("", "set timescale to 20")
+        if SANGUINARE_VAMPIRIS in effect_spells("client"):
+            console_on("client", f"player.removespell {SANGUINARE_VAMPIRIS:X}")
+        for name in ("", "client"):
+            if own_race(name) != races[name]:
+                script_call(name, "PlayerVampireQuestScript", "VampireCure", [{"form": 0x14}], on=PLAYER_VAMPIRE_QUEST)
+
+
 def scenario_marriage_is_the_partys():
     """A spouse is the party's (dragonborn.md): the wedding's fragment, run for the client
     (QF_RelationshipMarriageWeddin's Alias_LoveInterest.SetRelationshipRank(Game.GetPlayer(), 4)), sets the NPC's
@@ -6837,6 +7252,53 @@ def scenario_player_moment_stays_theirs():
             for name in ("", "client"):
                 player_script_call(name, "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
                 player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+
+
+# Step 2 (cutscenes.md): each player's own character in the story's scenes. Run on a duo booted from the late save.
+MQ206, MQ105 = 0x36193, 0x242BA  # Alduin's Bane, The Way of the Voice (Skyrim.esm)
+
+
+def needs_quest(quest, label, save):
+    """The duo was booted from the save the scenario needs: its quest is there to drive."""
+    if not quest_snapshot("", quest).get("flags", 0) & 1 and not quest_snapshot("", quest).get("done"):
+        raise TestFailure(f"{label} is not under way here: boot the duo with `duo --save {save}`")
+
+
+def mirrored_here(instance, mark, call):
+    """That game ran another game's party call `call` (Class.Function) on its own player since `mark`."""
+    return any(f"another game's script runs {call} here" in line["text"] for line in log_trail(instance, mark)[0])
+
+
+def scenario_elder_scroll_vision_reaches_party():
+    """(duo --save LateAfterElderKnowledge) MQ206's stage sends Game.GetPlayer() into the Elder Scroll's vision
+    (moveTo its marker): the story's call on the player, so each game's own player goes there by its own MoveTo. The
+    client's mirrored move leads no one: the host's game gets no party travel from it."""
+    needs_quest(MQ206, "Alduin's Bane", "LateAfterElderKnowledge")
+    _, host_mark = log_trail("", 1 << 62)
+    _, client_mark = log_trail("client", 1 << 62)
+    before = {name: my_position(name) for name in ("", "client")}
+    console_on("", "setstage MQ206 20")
+    wait_for("[host] its player moved", lambda: distance(my_position(""), before[""]) > 500, 60)
+    wait_for("[client] its own player ran the host's MoveTo", lambda: mirrored_here("client", client_mark, "ObjectReference.MoveTo"), 30)
+    wait_for("[client] stands where the host's player went", lambda: distance(my_position("client"), my_position("")) < 300, 60)
+    led = [line["text"] for line in log_trail("", host_mark)[0] if "Party travel to" in line["text"]]
+    if led:
+        raise TestFailure(f"[host] the client's mirrored move led the party: {led[:2]}")
+
+
+def scenario_greybeards_scene_casts_party():
+    """(duo --save LateAfterDragonRising) MQ105's stage 270 starts an engine scene that casts the host's player (a
+    package on its alias): each guest's own player runs the same package (GuestScene) while the scene holds the host's
+    player, and is its own again when the scene lets it go."""
+    needs_quest(MQ105, "The Way of the Voice", "LateAfterDragonRising")
+    scene = lambda name: ((player_snapshot(name).get("ai_state") or {}).get("scene") or 0)
+    package = lambda name: running_package(name, 0x14)
+    console_on("", "setstage MQ105 270")
+    wait_for("[host] a scene casts its player", lambda: scene("") != 0, 60)
+    wait_for(f"[client] its own player runs the host's player's scene package",
+             lambda: package("") and package("client") == package(""), 15)
+    wait_for("[host] the scene lets its player go", lambda: scene("") == 0, 180)
+    wait_for("[client] its player is its own again", lambda: package("client") != package("") or not package(""), 15)
 
 
 def scenario_player_stage_cutscene_reaches_party():
@@ -7321,6 +7783,9 @@ def scenario_chest_take_all():
             wait_for(f"[{'guest' if name else 'host'}] chest {chest:X} holds 2 sweetrolls",
                      lambda name=name: item_count(name, chest, SWEETROLL) == 2, 5)
         take_all("client", chest)
+        wait_for("[guest] the host grants Take All and empties the chest",
+                 lambda: item_count("client", chest, SWEETROLL) == 0 and
+                         item_count("client", 0x14, SWEETROLL) == held["client"][SWEETROLL] + 2, 5)
         if "ContainerMenu" in menus(""):
             raise TestFailure("[host] the guest's opening of the chest opened the host's menu")
         left = container_items("client", chest)
@@ -10133,6 +10598,8 @@ SCENARIOS = {
     "late-join-gets-globals": scenario_late_join_gets_globals,
     "quest-stage-reaches-guest": scenario_quest_stage_reaches_guest,
     "guest-story-starts-no-quest": scenario_guest_story_starts_no_quest,
+    "guest-location-change-starts-story": scenario_guest_location_change_starts_story,
+    "guest-craft-raises-story": scenario_guest_craft_raises_story,
     "guest-spawns-no-critters": scenario_guest_spawns_no_critters,
     "wildlife-takes-hosts-pick": scenario_wildlife_takes_hosts_pick,
     "guest-joins-by-invite": scenario_guest_joins_by_invite,
@@ -10165,6 +10632,9 @@ SCENARIOS = {
     "dialogue-host-in-background": scenario_dialogue_host_in_background,
     "dialogue-pick-reaches-host": scenario_dialogue_pick_reaches_host,
     "dialogue-options-are-the-hosts": scenario_dialogue_options_are_the_hosts,
+    "dialogue-line-judged-for-guest": scenario_dialogue_line_judged_for_guest,
+    "copy-knows-learned-spell": scenario_copy_knows_learned_spell,
+    "dialogue-options-are-each-players": scenario_dialogue_options_are_each_players,
     "dialogue-quest-option-from-host": scenario_dialogue_quest_option_from_host,
     "dialogue-pick-says-the-hosts-line": scenario_dialogue_pick_says_the_hosts_line,
     "natives-reach-matches-ida": scenario_natives_reach_matches_ida,
@@ -10266,6 +10736,8 @@ SCENARIOS = {
     "host-word-reaches-guest": scenario_host_word_reaches_guest,
     "dragon-soul-reaches-party": scenario_dragon_soul_reaches_party,
     "title-reaches-party": scenario_title_reaches_party,
+    "vampirism-is-each-players": scenario_vampirism_is_each_players,
+    "vampirism-kept-across-rejoin": scenario_vampirism_kept_across_rejoin,
     "marriage-is-the-partys": scenario_marriage_is_the_partys,
     "host-beast-form-stays-host": scenario_host_beast_form_stays_host,
     "cutscene-fade-reaches-party": scenario_cutscene_fade_reaches_party,
@@ -10276,6 +10748,8 @@ SCENARIOS = {
     "timer-asks-party-position": scenario_timer_asks_party_position,
     "player-moment-stays-theirs": scenario_player_moment_stays_theirs,
     "player-stage-cutscene-reaches-party": scenario_player_stage_cutscene_reaches_party,
+    "elder-scroll-vision-reaches-party": scenario_elder_scroll_vision_reaches_party,
+    "greybeards-scene-casts-party": scenario_greybeards_scene_casts_party,
     "guest-script-stage-reaches-host": scenario_guest_script_stage_reaches_host,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
@@ -10322,7 +10796,8 @@ SCENARIOS = {
 # What each scenario exercises, for running only the ones a change can affect:
 # `scenario --tag movement,spawn`. Full suites belong to release soaks. Scenarios tagged
 # `input` drive the real keyboard and mouse and run only when named or tagged. Scenarios tagged
-# `restart` restart a game (minutes): in the full suite, but in a tag run only with `--tag restart`.
+# `restart` restart a game (minutes): in the full suite, but in a tag run only with `--tag restart`. Scenarios tagged
+# `late-save` need the duo booted from their late save (`duo --save NAME`, in their docstring): only when named or tagged.
 TAGS = {
     "session-roster": {'session'},
     "party-panel": {'session', 'ui', 'reload'},
@@ -10338,6 +10813,8 @@ TAGS = {
     "late-join-gets-globals": {'world', 'session'},
     "quest-stage-reaches-guest": {'world', 'quest'},
     "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
+    "guest-location-change-starts-story": {'world', 'quest', 'cells', 'story'},
+    "guest-craft-raises-story": {'world', 'quest', 'story', 'menus'},
     "guest-spawns-no-critters": {'world', 'scripts', 'objects'},
     "wildlife-takes-hosts-pick": {'spawn', 'cells'},
     "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui', 'two-accounts'},
@@ -10370,6 +10847,9 @@ TAGS = {
     "dialogue-pick-reaches-host": {'dialogue', 'spawn'},
     "dialogue-quest-option-from-host": {'dialogue', 'spawn', 'quests'},
     "dialogue-options-are-the-hosts": {'dialogue', 'spawn'},
+    "dialogue-line-judged-for-guest": {'dialogue', 'quests'},
+    "copy-knows-learned-spell": {'dialogue', 'magic'},
+    "dialogue-options-are-each-players": {'dialogue', 'quests'},
     "dialogue-pick-says-the-hosts-line": {'dialogue', 'spawn'},
     "natives-reach-matches-ida": {'scripts'},
     "dialogue-picker-gets-speech-experience": {'dialogue', 'spawn'},
@@ -10464,6 +10944,8 @@ TAGS = {
     "host-word-reaches-guest": {'scripts', 'dragonborn'},
     "dragon-soul-reaches-party": {'scripts', 'spawn', 'dragonborn'},
     "title-reaches-party": {'scripts', 'magic', 'dragonborn'},
+    "vampirism-is-each-players": {'scripts', 'magic', 'dragonborn'},
+    "vampirism-kept-across-rejoin": {'magic', 'dragonborn', 'join', 'save'},
     "marriage-is-the-partys": {'scripts', 'spawn', 'dragonborn'},
     "host-beast-form-stays-host": {'scripts', 'magic', 'quests', 'dragonborn'},
     "cutscene-fade-reaches-party": {'scripts'},
@@ -10474,6 +10956,8 @@ TAGS = {
     "timer-asks-party-position": {'scripts'},
     "player-moment-stays-theirs": {'scripts'},
     "player-stage-cutscene-reaches-party": {'scripts', 'quests'},
+    "elder-scroll-vision-reaches-party": {'scripts', 'quests', 'travel', 'late-save'},
+    "greybeards-scene-casts-party": {'scripts', 'quests', 'ai', 'late-save'},
     "guest-script-stage-reaches-host": {'scripts', 'quests', 'world'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
@@ -10574,6 +11058,11 @@ SOURCE_TAGS = [
 
     # Each game's systems, including headers beside the Generic implementations.
     ("Code/client/Services/*InventoryService.*", {'inventory'}),
+    ("Code/client/Services/ContainerTransfers.*", {'inventory'}),
+    ("Code/client/Bridges/HostEngineContainers.cpp", {'inventory'}),
+    ("Code/client/Bridges/JoinKnowledge.cpp", {'inventory', 'save', 'join'}),
+    ("Code/encoding/Structs/PlayerKnowledge.h", {'inventory', 'save', 'join'}),
+    ("Code/client/TestHarness/Knowledge.cpp", {'inventory', 'save'}),
     ("Code/client/Services/*CharacterService.*", {'spawn', 'movement', 'animation', 'ai', 'dialogue', 'combat', 'cells'}),
     ("Code/client/Services/*ActorValueService.*", {'values'}),
     ("Code/client/Services/*CombatService.*", {'combat'}),
@@ -11727,6 +12216,9 @@ def with_accounts(names, requested=()):
 def scenario_names(requested, tag):
     names = requested or [name for name in SCENARIOS if "input" not in TAGS.get(name, set()) or tag]
     names = with_accounts(names, requested or [])
+    # A late save's scenario needs the duo booted from it: only when named, or asked for by `--tag late-save`.
+    if not tag or "late-save" not in tag.split(","):
+        names = [name for name in names if "late-save" not in TAGS.get(name, set()) or name in (requested or [])]
     if tag:
         wanted = set(tag.split(","))
         # Restarting a game takes minutes: only when named, or asked for by its tag.
@@ -12162,6 +12654,8 @@ def command_soak(args):
 
 
 def main():
+    from coop_v1 import register as register_v1
+    register_v1(SCENARIOS, TAGS)
     from coop_specs import register
     register(SCENARIOS, TAGS)
     from coop_followers import register as register_followers

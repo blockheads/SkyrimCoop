@@ -1,4 +1,5 @@
 #include <Bridges/HostEngine.h>
+#include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
 #include <AI/FollowerTargets.h>
 #include <SessionIds.h>
@@ -14,6 +15,7 @@
 #include <ActorValueEvents.h>
 #include <QuestEvents.h>
 #include <GlobalEvents.h>
+#include <Misc/StoryEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -33,6 +35,7 @@
 #include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
+#include <Utils.h>
 
 #include <algorithm>
 #include <cmath>
@@ -222,6 +225,7 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
     ActorValueEvents::Start();
     QuestEvents::Start();
     GlobalEvents::Start();
+    StoryEvents::Start();
     ModManager::WatchCreated(&OnCreated);
 }
 
@@ -241,6 +245,7 @@ HostEngine::~HostEngine() noexcept
     ActorValueEvents::Stop();
     QuestEvents::Stop();
     GlobalEvents::Stop();
+    StoryEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept
@@ -261,7 +266,8 @@ std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
     globals.reserve(pData->globals.length);
     for (TESGlobal* pGlobal : pData->globals)
     {
-        if (!pGlobal || pGlobal->IsConstant())
+        // A system quest's is each player's own (docs/design/system-quests.md).
+        if (!pGlobal || pGlobal->IsConstant() || SystemQuests::IsGlobal(pGlobal->formID))
             continue;
         if (const auto cId = ToSession(pGlobal->formID))
             globals.push_back({*cId, pGlobal->f, TimeData::IsCalendarGlobal(pGlobal->formID)});
@@ -273,7 +279,7 @@ std::vector<HostGlobal> HostEngine::TakeGlobalChanges() const noexcept
 {
     std::vector<HostGlobal> globals;
     for (const uint32_t cId : GlobalEvents::Take())
-        if (const auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(cId)); pGlobal && !pGlobal->IsConstant())
+        if (const auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(cId)); pGlobal && !pGlobal->IsConstant() && !SystemQuests::IsGlobal(cId))
             if (const auto cSessionId = ToSession(cId))
                 globals.push_back({*cSessionId, pGlobal->f, TimeData::IsCalendarGlobal(cId)});
     return globals;
@@ -288,7 +294,8 @@ std::vector<QuestState> HostEngine::ReadQuests() const noexcept
     quests.reserve(pData->quests.length);
     for (TESQuest* pQuest : pData->quests)
     {
-        if (const auto cId = pQuest ? ToSession(pQuest->formID) : std::nullopt)
+        // A system quest's instance is each player's own.
+        if (const auto cId = pQuest && !SystemQuests::Is(pQuest->formID) ? ToSession(pQuest->formID) : std::nullopt)
             quests.push_back(ReadQuest(*pQuest, *cId, m_created, m_pendingActorAliases));
     }
     return quests;
@@ -306,7 +313,7 @@ std::vector<QuestState> HostEngine::TakeQuestChanges() const noexcept
     });
     std::vector<QuestState> quests;
     for (const uint32_t cId : QuestEvents::Changes().Take())
-        if (auto* pQuest = Cast<TESQuest>(TESForm::GetById(cId)))
+        if (auto* pQuest = !SystemQuests::Is(cId) ? Cast<TESQuest>(TESForm::GetById(cId)) : nullptr)
             if (const auto cSessionId = ToSession(cId))
                 quests.push_back(ReadQuest(*pQuest, *cSessionId, m_created, m_pendingActorAliases));
     return quests;
@@ -358,6 +365,23 @@ void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLeve
         spdlog::info("HostEngine: took a guest's lock {:X} {} at {}", acObject.LogFormat(), aLocked ? "locked" : "unlocked", aLockLevel);
     else
         spdlog::warn("HostEngine: a guest's lock {:X}: no such object here", acObject.LogFormat());
+}
+
+void HostEngine::RaiseStoryEvent(const StoryEvent& acEvent) noexcept
+{
+    auto* pCharacter = Utils::GetBySessionId<Actor>(acEvent.Character);
+    if (!pCharacter)
+    {
+        spdlog::warn("HostEngine: a guest's story event for character {:X}: no such character here", acEvent.Character);
+        return;
+    }
+    const auto cForm = [](const GameId& acId) { return acId == GameId{} ? nullptr : TESForm::GetById(ToGame(acId)); };
+    const uint32_t cId = acEvent.Type == StoryEvent::kCraft
+                             ? StoryEvents::RaiseCraft(*pCharacter, Cast<TESObjectREFR>(cForm(acEvent.Workbench)), cForm(acEvent.Location),
+                                                       cForm(acEvent.Created))
+                             : StoryEvents::RaiseLocationChange(*pCharacter, cForm(acEvent.OldLocation), cForm(acEvent.Location));
+    spdlog::info("HostEngine: story event {} ({}) raised for {:X}", cId, acEvent.Type == StoryEvent::kCraft ? "craft" : "arrival",
+                 pCharacter->formID);
 }
 
 void HostEngine::SetItems(const ObjectChange& acItems) noexcept

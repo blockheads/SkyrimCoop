@@ -7,6 +7,7 @@
 #include <Hooks/Initializer.h>
 #include <Physics/BodyPrediction.h>
 #include <Physics/RagdollPending.h>
+#include <RTTI.h>
 #include <mutex>
 
 struct hkbContext;
@@ -61,7 +62,8 @@ void DriveToPose(TDriveToPose* apOriginal, hkbRagdollDriver* apDriver, float aDe
                        ? reinterpret_cast<BShkbAnimationGraph*>(reinterpret_cast<uint8_t*>(apDriver->character) -
                                                                 offsetof(BShkbAnimationGraph, character))
                        : nullptr;
-    Actor* pActor = pGraph ? pGraph->holder : nullptr;
+    // A graph's holder need not be an actor: a loaded Long Bow's ragdoll driver comes here too (a crash, 2026-10-28).
+    Actor* pActor = pGraph ? Cast<Actor>(static_cast<TESForm*>(pGraph->holder)) : nullptr;
     if (pActor && pActor->GetExtension()->IsCopy())
         ApplyBodies(*pActor, *apDriver);
 }

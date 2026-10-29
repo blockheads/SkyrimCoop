@@ -41,7 +41,12 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
     const Call cKind = acFacts.Reach.Kind;
     if (IsMirrored(acFacts.Cause))
         return {};
-    if (acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest)
+    // A system quest's instance acts for this game's player only; its world changes are still the host's to make.
+    if (acFacts.InSystemQuest)
+        return acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest && !acFacts.SystemObject
+                   ? Routing{.To = Destination::kHost, .Original = false}
+                   : Routing{};
+    if (acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest && !acFacts.SystemObject)
         return {.To = Destination::kHost, .Original = false};
     // Where the player is, with no player's action behind it: the party's (rule 3). Only the host's scripts.
     if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && !acFacts.Cause)
@@ -54,6 +59,19 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
         if (acFacts.Target == Target::kThisPlayer)
             return {.To = Destination::kEveryGame, .Mark = true, .MarkFor = acFacts.TargetId};
         return {.To = Destination::kEveryGame, .Original = cProgress.OnCopy, .ThisPlayer = true, .Mark = true, .MarkFor = acFacts.TargetId};
+    }
+    // A player's body moved, posed or driven: the story's on every game, each on its own player; a guest's moment on its
+    // own game (cutscenes.md step 2). Never a copy here: its owner moves it.
+    if (cKind == Call::kBody && acFacts.Target != Target::kNone && !acFacts.Body)
+    {
+        if (acFacts.Hosting && Whose(acFacts.Cause, acFacts.Story) == Share::kParty)
+        {
+            if (acFacts.Target == Target::kThisPlayer)
+                return {.To = Destination::kEveryGame, .Mark = true, .MarkFor = acFacts.TargetId};
+            return {.To = Destination::kEveryGame, .Original = false, .ThisPlayer = true, .Mark = true, .MarkFor = acFacts.TargetId};
+        }
+        if (acFacts.GuestCause && acFacts.Target == Target::kGuestCharacter)
+            return {.To = Destination::kCauseGame, .Original = false};
     }
     // The controls, the screen and shows: the party's for the story (cutscenes.md); a show whoever's action ran it.
     if (cKind == Call::kControls || cKind == Call::kScreen || cKind == Call::kShow)
@@ -91,6 +109,39 @@ std::vector<uint32_t> PlayersToAsk(bool aYesNo, std::optional<uint32_t> aPicked,
     std::vector<uint32_t> players{kThisPlayerFormId};
     players.insert(players.end(), acGuests.begin(), acGuests.end());
     return players;
+}
+
+bool LearnsSystemQuest(uint32_t aCallee, uint32_t aCallerQuest, bool aCallerOnPlayer, bool aCallerSystem, bool aCalleeOwn) noexcept
+{
+    return aCallee && aCallee != aCallerQuest && !aCalleeOwn && (aCallerOnPlayer || aCallerSystem);
+}
+
+bool IsQuestScriptFunction(std::string_view aClass) noexcept
+{
+    for (const std::string_view cBase : {"Quest", "Form", "Alias", "ReferenceAlias", "LocationAlias", "ScriptObject"})
+        if (SameName(aClass, cBase))
+            return false;
+    return !aClass.empty();
+}
+
+Routing RouteOfSystemCall(uint32_t aCause, bool aStory, bool aGuestCause, bool aHosting, bool aReturnsValue) noexcept
+{
+    switch (Whose(aCause, aStory))
+    {
+    case Share::kHere: return {};
+    case Share::kPlayer:
+        if (aGuestCause && aHosting)
+            return {.To = Destination::kCauseGame, .Original = false};
+        return {};
+    case Share::kParty:
+        if (!aHosting || aReturnsValue)
+            return {};
+        // Run for a guest (the story it set going), the original names its character: here on this game's player.
+        if (aGuestCause)
+            return {.To = Destination::kEveryGame, .Original = false, .ThisPlayer = true, .Mark = true, .MarkFor = aCause};
+        return {.To = Destination::kEveryGame, .Mark = true, .MarkFor = aCause};
+    }
+    return {};
 }
 
 LocalCall OnThisPlayer(LocalCall aCall) noexcept

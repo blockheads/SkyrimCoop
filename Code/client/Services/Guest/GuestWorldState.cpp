@@ -6,10 +6,12 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Events/LooseItemEvents.h>
+#include <Events/StoryEvents.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/DroppedItems.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/StoryEventRequest.h>
 #include <Services/TransportService.h>
 #include <Services/WorldStateLog.h>
 #include <World.h>
@@ -28,6 +30,7 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     Listen<NotifyItemDropped, &GuestWorldState::OnItemDroppedNotify>(m_connections, aDispatcher, this);
     Listen<ItemPickUpEvent, &GuestWorldState::OnItemPickUp>(m_connections, aDispatcher, this);
     Listen<NotifyPickUp, &GuestWorldState::OnPickUpNotify>(m_connections, aDispatcher, this);
+    Listen<PlayerCraftEvent, &GuestWorldState::OnCraft>(m_connections, aDispatcher, this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
@@ -102,6 +105,17 @@ void GuestWorldState::OnLockChange(const LockChangeEvent& acEvent) noexcept
     request.IsLocked = acEvent.IsLocked;
     request.LockLevel = acEvent.LockLevel;
     spdlog::info("GuestWorldState: proposed lock {:X} {} at {}", request.Id.LogFormat(), request.IsLocked ? "locked" : "unlocked", request.LockLevel);
+    m_world.GetTransport().Send(request);
+}
+
+void GuestWorldState::OnCraft(const PlayerCraftEvent& acEvent) noexcept
+{
+    StoryEventRequest request;
+    request.Event.Type = StoryEvent::kCraft;
+    request.Event.Workbench = ToSession(acEvent.WorkbenchId).value_or(GameId{});
+    request.Event.Location = ToSession(acEvent.LocationId).value_or(GameId{});
+    request.Event.Created = ToSession(acEvent.CreatedId).value_or(GameId{});
+    spdlog::info("GuestWorldState: crafted {:X}, sent to the host's story manager", acEvent.CreatedId);
     m_world.GetTransport().Send(request);
 }
 

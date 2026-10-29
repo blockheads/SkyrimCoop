@@ -53,3 +53,22 @@ ruled out conditions when the client's kill move did not start (`actor-ai-and-co
 the client").
 
 Not traced: the idle picker itself (which walks the tree and tests these), and what `unk20` holds.
+
+## Judged for a character (2026-10-28)
+
+`JudgedFor::Scope` (thread-local) makes the conditions evaluated on its thread judge a guest's character as the player:
+the story manager's events for a character (rule 4) and each player's dialogue lines. The hook on
+`TESConditionItem::IsTrue` (29924) passes every item through untouched outside a scope; inside one, the params'
+subject or target that is the player becomes the character, and an item reading the player another way is evaluated
+from a stack copy (`JudgedRules`):
+
+- run on a fixed reference that is the player, or a quest alias holding it: run on the character (`runOn` 2, its
+  handle);
+- a parameter that is the player: the character;
+- `GetPCIsClass/IsRace/IsSex/InFaction` (129 to 132), which read `g_thePlayer` themselves: their own function
+  (68 to 71) on the character;
+- `GetIntimidateSuccess` (655), `GetBribeSuccess` (654): worked out for the character (`dialogue.md`, "Judging a line
+  for another player"), compared by the item's opCode.
+
+`IsTrue` is on every condition's stack, on every thread: `LockOrder::IgnoreFrames` covers its pass-through, so an engine
+lock order seen there is not ours unless a judgement runs (`JudgedIsTrue`).

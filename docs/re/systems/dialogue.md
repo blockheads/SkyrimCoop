@@ -240,7 +240,9 @@ Speech ≥ a global (`SpeechEasy`…`SpeechVeryHard`) on the player, OR'd with `
 Articulation list; the Persuasion perk sets a quest stage that lowers the globals. Intimidate lines test
 `GetIntimidateSuccess` (655, `Actor::WillIntimidateSucceed` 37500: the player's Speech against the NPC's, times
 the player's level, perk entry 43). Bribe lines test `GetBribeSuccess` (654). Trainers' "train me" tests the
-base Speech (`GetBaseActorValue` 277). All of these are judged by the picker's own game.
+base Speech (`GetBaseActorValue` 277). Since 2026-10-28 all of these are judged on the host's game for the picker's
+character (shared-dialogue.md, "The rule"); intimidate and bribe read `g_thePlayer` inside the engine, so they are
+worked out for the character (below, "Judging a line for another player").
 
 **`TESContainer::GetItemCount` (14529) is `(container, item)`.** The inherited wrapper passed no item and read
 garbage (the host's gold as -140); fixed 2026-10-18. Its one caller is the harness `item_count`.
@@ -292,3 +294,23 @@ Checked in IDA on 1.6.1170 for the open items of `shared-dialogue.md`.
   line but a refusal (flags 0x10), and 40692 for one with reset hours. `TESTopicInfo` 25615 (the conditions)
   fails a say-once line (flags 0x4) with +0x3A set, so its topic offers its next line (Onmund's greetings, Hulda's
   College lines are say-once pairs).
+
+## Judging a line for another player (2026-10-28)
+
+For each player's own list (`shared-dialogue.md`, "The rule"). Checked in IDA on 1.6.1170.
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 35303 | 0x5e28e0 | `MenuTopicManager::AddTopic` | At +0x88 `mov r9, g_thePlayer; call 25544`: the player is an argument. Writes only `blockingBranches`' flag (+0xB0) on the manager besides the list. Called from 35287 (choices, the exclusive branch's topic), 35297 (a topic said now, front) and the speaker topics' visitors (35304, 0x1405E2860: one rumor per list, +0xB4) |
+| 25544 | 0x3e82f0 | `TESTopic` line lookup | Builds the quest's dialogue params with the speaker and the given player (`sub_14049F130`), tests each line with 25615 `(info, out, speaker, player)`; its reset-hours check (40694) reads `g_thePlayer` (the party's history) |
+| 35287 | 0x5e1830 | list build | Hooked: each other player's character gets its list from the same AddTopic calls (`DialogueBridge::HookBuildList`). The speaker's topics are sorted by 35276 (35327 with 35280) |
+| 35276 | 0x5e0190 | speaker's topics | Visits the blocking branches (+0x80), and the top-level ones (+0x98) only when no blocking topic was added (+0xB0); sets the speaker's exclusive branch (vfunc 0x4E) for a blocking one |
+| 37500 | 0x675b10 | `Actor::WillIntimidateSucceed` | `(npc)`: the player's Speech (`g_thePlayer` AV 17) over the NPC's, `fIntimidateSpeechcraftCurve`, times the player's level, perk entry 43 (`ApplyPerkEntries` 23526); against the NPC's level times `fIntimidateConfidenceMult*` by its confidence (`TESAIForm` 14457) |
+| 37499 / 37498 | 0x6759a0 / 0x675810 | bribe amount / success | Both levels, the Speech gap, `fBribe*`, perk entry 46 on `g_thePlayer`; success: the player's gold covers it |
+
+The game settings (Address Library IDs of their `Setting` objects): `fIntimidateSpeechcraftCurve` 370633, the confidence
+multipliers 370636 to 370648 (cowardly to foolhardy), `fBribeMoralityMult` 370630, `fBribeNPCLevelMult` 370618,
+`fBribeSpeechcraftMult` 370627, `fBribeCostCurve` 370624, `fBribeScale` 370621.
+
+In vanilla's 15,449 menu-topic lines (Skyrim.esm and the DLC): 1,301 test a condition run on PlayerRef, 617 the
+target (the player argument), 457 a PlayerRef parameter, 373 a `GetPC*` function, 65 intimidate and 57 bribe.

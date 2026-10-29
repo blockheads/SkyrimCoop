@@ -27,7 +27,7 @@ GuestRecord::GuestRecord(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
 
 void GuestRecord::OnLeaving(const SessionLeavingEvent&) noexcept
 {
-    if (m_changed)
+    if (m_changed && !m_bridge.IsAtMainMenu())
         Send();
 }
 
@@ -49,6 +49,7 @@ bool GuestRecord::Send() noexcept
 {
     PlayerRecordRequest request;
     request.Record = m_bridge.ReadPlayer();
+    request.Record.Knowledge = m_bridge.ReadKnowledge();
     request.Record.Key = m_world.ctx().at<JoinService>().PlayerKey();
     if (!m_world.GetTransport().Send(request))
         return false;

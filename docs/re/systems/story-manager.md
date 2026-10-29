@@ -41,3 +41,19 @@ queued start through `Update`'s first branch). Those go with step 5, a guest's w
 Scenario `guest-story-starts-no-quest`: both players arrive at the Bannered Mare. Each game raises its own
 arrival event (`CLOC`). The host's starts quests (the bard's song, the hold's radiant quests); the guest's
 is handled with none started. Before the gate the guest's started quests too.
+
+## A guest's story events judged for its character (2026-10-27)
+
+Party model rule 4 (`docs/design/party-calls.md`, "A player's story events"). Read in IDA 2026-10-27:
+
+- `BGSStoryEvent` (CommonLibSSE-NG, 0x38): id, the type's registered index, six members. Built from the raw event by
+  32330 (`(BGSStoryEvent*, index, raw)`, called only from `AddEvent_Impl`): a member typed as a handle or an int (type
+  0 or 3 in the registered type, 32352) takes 4 bytes of the raw event, any other 8.
+- Indexes: KILL 380067, CLOC 380069, CRFT 380076. KILL's raw event (`Actor::KillImpl` builds it, 32282): victim
+  handle, killer handle, location, relationship, crime: the killer is member 1.
+- `TESActorLocationChangeEvent` {actor, old, new} (dispatcher +0x108) is sent by `TESObjectREFR::MoveRefToNewSpace`
+  (19799) and 37313 for any reference, and by `PlayerCharacter::SetParentCell` after it queued its CLOC (`AddEvent_Impl`
+  first, then the script event).
+- The visitors' parameters: 32429 at +0x19D and 32430 at +0x3F call `ConditionCheckParams`'s constructor (29871:
+  params, subject, target, owner form) with `g_thePlayer` twice. `BGSStoryManager.cpp` swaps those two calls (checked
+  as calls to 29871 before patching) and passes the judged character while `ProcessEvent` runs one of its events.

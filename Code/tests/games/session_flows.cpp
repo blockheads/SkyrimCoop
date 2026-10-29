@@ -70,4 +70,5 @@ SCENARIO("The host's session drops for good: after its tries the guest's panel s
                     (JoinService::kReconnectSeconds + JoinService::kRetrySeconds) + 5)});
     CHECK(PanelOf(party.Guest()).Reason == "lost_connection");
     CHECK_FALSE(party.Guest().GetTransport().IsConnected());
+    party.Until([&] { return Party::Engine(party.Guest()).AtMainMenu; }, "the guest returns to the main menu");
 }

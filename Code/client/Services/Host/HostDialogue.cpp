@@ -89,6 +89,9 @@ void HostDialogue::OnOptions(const DialogueOptionsRequest& acRequest, Connection
     if (!pConversation || aSender != m_players.Host())
         return;
     pConversation->Options = acRequest.Options;
+    pConversation->PlayerOptions.clear();
+    for (const auto& cPlayer : acRequest.Players)
+        pConversation->PlayerOptions[cPlayer.PlayerId] = cPlayer.Options;
     pConversation->Choices = acRequest.Choices;
     for (const ConnectionId_t cPlayer : pConversation->Players)
         SendList(cPlayer);
@@ -102,12 +105,12 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
     const auto cIsListed = [&acRequest](const DialogueOption& acOption) {
         return acOption.Topic == acRequest.Topic && acOption.Info == acRequest.Info;
     };
-    if (!pConversation || !pConversation->Options || !pConversation->Has(aSender) ||
-        std::ranges::none_of(*pConversation->Options, cIsListed))
+    const DialogueOptions* pOptions = pConversation ? OptionsFor(aSender) : nullptr;
+    if (!pConversation || !pOptions || !pConversation->Has(aSender) || std::ranges::none_of(*pOptions, cIsListed))
     {
         spdlog::info("HostDialogue: {:x}'s pick of {:X} at step {} is not said ({})", aSender, acRequest.Topic.BaseId,
-                     acRequest.Step, !pConversation ? "another step or conversation" : !pConversation->Options ? "no list yet"
-                     : !pConversation->Has(aSender) ? "not in it" : "not in the list");
+                     acRequest.Step, !pConversation ? "another step or conversation" : !pOptions ? "no list yet"
+                     : !pConversation->Has(aSender) ? "not in it" : "not in its list");
         if (Conversation* pOpen = Current(acRequest.Conversation); pOpen && pOpen->Has(aSender))
             SendList(aSender);
         return;
@@ -124,6 +127,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
     pConversation->Options.reset();
+    pConversation->PlayerOptions.clear();
 
     // Every game, the host's too: its game says it unless its own menu did.
     m_players.SendToAll(picked);
@@ -178,15 +182,24 @@ void HostDialogue::Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* a
     m_network.Send(aPlayer, line);
 }
 
+const DialogueOptions* HostDialogue::OptionsFor(ConnectionId_t aPlayer) const noexcept
+{
+    if (!m_conversation || !m_conversation->Options)
+        return nullptr;
+    const auto it = m_conversation->PlayerOptions.find(m_players.PlayerIdOf(aPlayer));
+    return it != m_conversation->PlayerOptions.end() ? &it->second : &*m_conversation->Options;
+}
+
 void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
 {
-    if (!m_conversation || !m_conversation->Options || aPlayer == m_players.Host())
+    const DialogueOptions* pOptions = OptionsFor(aPlayer);
+    if (!pOptions || aPlayer == m_players.Host())
         return;
     NotifyDialogueList list;
     list.Conversation = m_conversation->Id;
     list.Step = m_conversation->Step;
     list.Choices = m_conversation->Choices;
-    list.Options = *m_conversation->Options;
+    list.Options = *pOptions;
     m_network.Send(aPlayer, list);
 }
 

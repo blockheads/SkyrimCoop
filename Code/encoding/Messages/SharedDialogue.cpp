@@ -42,6 +42,7 @@ void DialogueOptionsRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const n
     Serialization::WriteVarInt(aWriter, Step);
     Serialization::WriteBool(aWriter, Choices);
     SerializeDialogueOptions(aWriter, Options);
+    SerializePlayerOptions(aWriter, Players);
 }
 
 void DialogueOptionsRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -51,6 +52,7 @@ void DialogueOptionsRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
     Step = ReadId(aReader);
     Choices = Serialization::ReadBool(aReader);
     DeserializeDialogueOptions(aReader, Options);
+    DeserializePlayerOptions(aReader, Players);
 }
 
 void DialoguePickRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

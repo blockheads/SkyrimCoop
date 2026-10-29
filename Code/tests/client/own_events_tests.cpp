@@ -130,3 +130,32 @@ SCENARIO("A guest's own quests", "[own]")
     THEN("the host keeps no own quests") CHECK(!quests.Started(kQuestId, false, true, false, kThisPlayer));
     CHECK(!quests.Contains(0x12345));
 }
+
+SCENARIO("The quests one per player", "[own][system-quests]")
+{
+    constexpr uint32_t kVampireQuest = 0xEAFD5, kPlayerIsVampire = 0xEAFD6, kFeedReady = 0x2D6D1;
+    SystemQuestList quests;
+    THEN("none at first") CHECK((!quests.Contains(kVampireQuest) && !quests.IsGlobal(kPlayerIsVampire)));
+    WHEN("PlayerVampireQuest is learned")
+    {
+        CHECK(quests.Learn(kVampireQuest));
+        THEN("it is one, once") CHECK((quests.Contains(kVampireQuest) && !quests.Learn(kVampireQuest)));
+        THEN("its globals are still to read") CHECK(quests.WithoutGlobals() == std::vector<uint32_t>{kVampireQuest});
+        AND_WHEN("its scripts' globals are read")
+        {
+            quests.SetGlobals(kVampireQuest, {kPlayerIsVampire, kFeedReady});
+            THEN("they are each game's own") CHECK((quests.IsGlobal(kPlayerIsVampire) && quests.IsGlobal(kFeedReady)));
+            THEN("none is left to read") CHECK(quests.WithoutGlobals().empty());
+        }
+        AND_WHEN("a new game or a load starts")
+        {
+            quests.Clear();
+            THEN("it is no longer") CHECK((!quests.Contains(kVampireQuest) && quests.All().empty()));
+        }
+    }
+    THEN("globals of a quest not learned are not kept")
+    {
+        quests.SetGlobals(kVampireQuest, {kPlayerIsVampire});
+        CHECK(!quests.IsGlobal(kPlayerIsVampire));
+    }
+}

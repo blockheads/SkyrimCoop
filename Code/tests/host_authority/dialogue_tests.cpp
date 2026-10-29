@@ -439,6 +439,37 @@ TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "
     CHECK(cPicked[0]->Info == GameId(0, 0xB1));
 }
 
+TEST_CASE("Dialogue: each player gets its own list, and picks from it", "[HostAuthority][Dialogue]")
+{
+    // The host's game judged the step for each other player's character: the peer holds Lucan's claw (topic C's line
+    // C2), the other peer's own list was not judged (it gets the host's).
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    session.Receive(kOtherPeer, Join(talking.Id));
+    DialogueOptions own = Talking::Options();
+    own[2].Info = GameId(0, 0xC2);
+    own[2].Text = "I have your claw.";
+    own.erase(own.begin() + 1); // no Speech for the persuade line
+    DialogueOptionsRequest list;
+    list.Conversation = talking.Id;
+    list.Step = 1;
+    list.Options = Talking::Options();
+    list.Players = {{session.PlayerId(kPeer), own}};
+    session.Receive(kHost, list);
+    CHECK(talking.LastList(kPeer).Options == own);
+    CHECK(talking.LastList(kOtherPeer).Options == Talking::Options());
+
+    session.Outbox.clear();
+    talking.Pick(kPeer, 1, 0xB); // the host's persuade line: not on its list
+    talking.Pick(kPeer, 1, 0xC); // the host's line of its claw topic
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+    talking.Pick(kPeer, 1, 0xC, GameId(0, 0xC2));
+    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+    REQUIRE(cPicked.size() == 1);
+    CHECK(cPicked[0]->Info == GameId(0, 0xC2));
+}
+
 TEST_CASE("Dialogue: a pick before the host's list is not said", "[HostAuthority][Dialogue]")
 {
     // The guest's menu opens on its own engine's list before the host's arrives.

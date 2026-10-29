@@ -366,4 +366,16 @@ struct PartyGold
 
     uint32_t Gold{};
 };
+
+// The quests that are one per player (docs/design/system-quests.md), learned by a game whose player's own script
+// called into one: a guest's to the host, the host's whole list to every game.
+struct SystemQuests
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const SystemQuests&) const noexcept = default;
+
+    std::vector<GameId> Quests;
+};
 } // namespace Payloads

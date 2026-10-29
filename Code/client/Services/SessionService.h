@@ -5,6 +5,9 @@
 
 struct World;
 struct DisconnectedEvent;
+struct MenuEvent;
+struct UpdateEvent;
+struct ConnectedEvent;
 struct NotifyPlayerJoined;
 struct NotifyPlayerLeft;
 struct NotifyPlayerLevel;
@@ -30,6 +33,11 @@ struct SessionService
 
     NO_COPY_MOVE(SessionService);
 
+    // The native quit callback is already on the main thread; network exits finish next update.
+    void QuitToMainMenu() noexcept;
+    void End(std::string aReason = {}) noexcept;
+    [[nodiscard]] bool IsEnding() const noexcept { return m_ending; }
+
     // By player id.
     [[nodiscard]] const std::unordered_map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }
 
@@ -41,7 +49,17 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 
 private:
+    void OnMenu(const MenuEvent&) noexcept;
+    void OnUpdate(const UpdateEvent&) noexcept;
+    void OnConnected(const ConnectedEvent&) noexcept;
+    void Finish(bool aReturnToMenu) noexcept;
+
+    World& m_world;
     entt::dispatcher& m_dispatcher;
+    bool m_ending{};
+    bool m_finished{};
+    bool m_pending{};
+    std::string m_endReason;
     std::unordered_map<uint32_t, Player> m_players;
 
     std::vector<entt::scoped_connection> m_connections;

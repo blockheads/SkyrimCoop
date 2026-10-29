@@ -4,9 +4,12 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <mutex>
+#include <optional>
 #include <string_view>
 #include <unordered_set>
+#include <vector>
 
 // Which engine events are this game's own player's (WorldEvents' hook on SendEvent, 104800), and the quests a guest's
 // own scripts started (PlayerNatives), with no engine (docs/design/world-state-sync.md, "A guest's own quests";
@@ -86,5 +89,33 @@ class OwnQuests
     std::mutex m_lock;
     std::unordered_set<uint32_t> m_quests;
     std::atomic<bool> m_any{false}; // until then a read skips the lock
+};
+
+// The quests one per player (docs/design/system-quests.md): each game runs its own instance for its own player. And the
+// globals their scripts hold, each game's own value. Its lock is a leaf: the hooks read it with engine locks held.
+class SystemQuestList
+{
+  public:
+    // True when it is new here.
+    bool Learn(uint32_t aQuest) noexcept;
+    [[nodiscard]] bool Any() const noexcept
+    {
+        return m_any.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] bool Contains(uint32_t aQuest) noexcept;
+    [[nodiscard]] std::vector<uint32_t> All() noexcept;
+    // aQuest's globals, once read from its scripts; the ones it has none read for yet.
+    void SetGlobals(uint32_t aQuest, const std::vector<uint32_t>& acGlobals) noexcept;
+    [[nodiscard]] std::vector<uint32_t> WithoutGlobals() noexcept;
+    [[nodiscard]] bool IsGlobal(uint32_t aGlobal) noexcept;
+    [[nodiscard]] std::vector<uint32_t> Globals() noexcept;
+    // A new game, or a load starting: none (the save brings its own).
+    void Clear() noexcept;
+
+  private:
+    std::mutex m_lock;
+    std::map<uint32_t, std::optional<std::vector<uint32_t>>> m_quests; // quest -> its globals, once read
+    std::unordered_set<uint32_t> m_globals;
+    std::atomic<bool> m_any{false};
 };
 } // namespace OwnEvents

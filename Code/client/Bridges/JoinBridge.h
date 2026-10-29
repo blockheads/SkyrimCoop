@@ -13,6 +13,7 @@ public:
     static constexpr uint32_t kBaseFlags = 0x03000E36; // BaseData Attributes SpellList FullName NPCSkills Class Face Gender Race
 
     bool IsAtMainMenu() const noexcept override;
+    void ReturnToMainMenu() noexcept override;
     std::string PlayerId() noexcept override;
 
     std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
@@ -23,6 +24,8 @@ public:
 
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
+    PlayerKnowledge ReadKnowledge() const noexcept override;
+    void ApplyKnowledge(const PlayerKnowledge& acKnowledge) noexcept override;
     bool PlaceBesideHost() noexcept override;
 
 private:

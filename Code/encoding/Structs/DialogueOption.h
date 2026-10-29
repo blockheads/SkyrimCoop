@@ -19,5 +19,16 @@ struct DialogueOption
 
 using DialogueOptions = std::vector<DialogueOption>;
 
+// A player's own list for a step: the host's engine judged its lines for that player's character.
+struct PlayerDialogueOptions
+{
+    bool operator==(const PlayerDialogueOptions&) const noexcept = default;
+
+    uint32_t PlayerId{};
+    DialogueOptions Options{};
+};
+
 void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept;
 void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept;
+void SerializePlayerOptions(Wire::Buffer::Writer& aWriter, const std::vector<PlayerDialogueOptions>& acPlayers) noexcept;
+void DeserializePlayerOptions(Wire::Buffer::Reader& aReader, std::vector<PlayerDialogueOptions>& aPlayers) noexcept;

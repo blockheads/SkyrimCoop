@@ -300,7 +300,7 @@ namespace Net
                 m_clock.Reset();
                 m_connected = false;
 
-                // The server's code (Server::EDisconnectReason): 1 its game closed the session, 2 kicked, 3 banned.
+                // The server's code (Server::EDisconnectReason): 1 its game closed, 2 kicked, 3 banned, 6 the host ended the session.
                 EDisconnectReason reason = kNormal;
                 switch (event.data)
                 {
@@ -308,6 +308,7 @@ namespace Net
                 case 1: reason = kNormal; break;
                 case 2:
                 case 3: reason = kKicked; break;
+                case 6: reason = kHostLeft; break;
                 default: reason = kTimeout; break;
                 }
                 if (event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT)

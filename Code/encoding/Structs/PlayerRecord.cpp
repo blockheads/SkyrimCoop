@@ -41,7 +41,7 @@ bool PlayerRecord::operator==(const PlayerRecord& acRhs) const noexcept
            FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && LevelExperience == acRhs.LevelExperience && LevelThreshold == acRhs.LevelThreshold &&
            Skills == acRhs.Skills && PerkPoints == acRhs.PerkPoints && Perks == acRhs.Perks && Spells == acRhs.Spells && Values == acRhs.Values &&
            Items == acRhs.Items && Extras == acRhs.Extras && Cell == acRhs.Cell && WorldSpace == acRhs.WorldSpace && Position == acRhs.Position &&
-           Words == acRhs.Words && PermanentValues == acRhs.PermanentValues;
+           Words == acRhs.Words && PermanentValues == acRhs.PermanentValues && Knowledge == acRhs.Knowledge;
 }
 
 void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -98,6 +98,18 @@ void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     {
         Serialization::WriteVarInt(aWriter, cValue.Index);
         Serialization::WriteFloat(aWriter, cValue.Base);
+    }
+    Serialization::WriteVarInt(aWriter, Knowledge.Present ? 1 : 0);
+    if (Knowledge.Present)
+    {
+        Serialization::WriteVarInt(aWriter, Knowledge.Ingredients.size());
+        for (const auto& cIngredient : Knowledge.Ingredients)
+        {
+            cIngredient.Id.Serialize(aWriter);
+            Serialization::WriteVarInt(aWriter, cIngredient.Effects);
+            Serialization::WriteVarInt(aWriter, cIngredient.Uses);
+        }
+        WriteIds(aWriter, Knowledge.Enchantments);
     }
 }
 
@@ -164,5 +176,18 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
             value.Index = Serialization::ReadVarInt(aReader) & 0xFF;
             value.Base = Serialization::ReadFloat(aReader);
         }
+    }
+    Knowledge = {};
+    if (!aReader.Eof() && Serialization::ReadVarInt(aReader) == 1)
+    {
+        Knowledge.Present = true;
+        Knowledge.Ingredients.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+        for (auto& ingredient : Knowledge.Ingredients)
+        {
+            ingredient.Id.Deserialize(aReader);
+            ingredient.Effects = Serialization::ReadVarInt(aReader) & 0xF;
+            ingredient.Uses = Serialization::ReadVarInt(aReader) & 0xFFFF;
+        }
+        Knowledge.Enchantments = ReadIds(aReader);
     }
 }

@@ -18,9 +18,11 @@
 #include <Games/Skyrim/HitRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
+#include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyRules.h>
 #include <Services/Host/HostGame.h>
 #include <Structs/ScriptValue.h>
+#include <Structs/SystemQuestState.h>
 
 #include <glm/glm.hpp>
 
@@ -31,6 +33,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -43,6 +46,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
 
     uint32_t Controls = kAllControls; // ControlMap::enabledControls
     float ShakeSeconds = 0.f;         // the camera's shake left (Game.ShakeCamera), a frame a 60th of a second
+    // A script's calls on a body (cutscenes.md step 2): the idles each actor played (Actor.PlayIdle), and whether the
+    // player is AI-driven (Game.SetPlayerAIDriven). Its moves are travels (ObjectReference.MoveTo, MoveActorTo).
+    std::map<uint32_t, std::vector<uint32_t>> Idles;
+    bool AiDriven = false;
+    uint32_t ScenePackage{};
     PartyRules::ControlHolds Holds;   // PartyNatives' holds on this game
     bool InSession = false;
     uint32_t Difficulty = 3;
@@ -61,6 +69,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name
     bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
+    void ReturnToMainMenu() noexcept override { AtMainMenu = true; }
     std::string PlayerId() noexcept override;
     // As JoinBridge: a save or a load is made on the next main loop frame (RunMainLoop), never inside our update.
     std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
@@ -72,6 +81,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::map<std::string, SaveFiles> SavedFiles;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
+    PlayerKnowledge Knowledge; // native ingredient/enchantment forms, separate from the actor's state
+    PlayerKnowledge ReadKnowledge() const noexcept override { return Knowledge; }
+    void ApplyKnowledge(const PlayerKnowledge& acKnowledge) noexcept override
+    {
+        if (acKnowledge.Present)
+            Knowledge = acKnowledge;
+    }
     bool PlacementClear = true;
     uint32_t PlacementChecks = 0;
     bool PlaceBesideHost() noexcept override;
@@ -108,9 +124,27 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
     // goes to its copies, CallEndedEvent).
     void AnswerBox(uint32_t aStack, int32_t aButton);
-    // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall).
+    // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall): a quest's function
+    // (QuestFunctions) or a native.
     void Queue(LocalCall aCall, uint32_t aCause);
     void RunQueued();
+    // A script's call into a quest's function, its self (QuestFunctions, by the quest and the function's name), as
+    // GuestScripts' call hook takes it (docs/design/system-quests.md): one from this game's player's own script
+    // (aFromBody: its disease's effect) makes the quest a system quest; a call into one runs on the instance of the
+    // player behind it (PartyRules::RouteOfSystemCall), its natives that instance's (InSystemQuest).
+    using QuestFunction = std::function<void(FakeEngine&, const LocalCall&, uint32_t aCause)>;
+    std::map<std::pair<uint32_t, std::string>, QuestFunction> QuestFunctions;
+    void CallsQuest(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false, bool aFromBody = false);
+    // This game's system quests (SystemQuests' seam); the globals each quest's scripts hold; each instance's script
+    // variables and registrations (its timers fire through FiresQuestTimer).
+    mutable OwnEvents::SystemQuestList SystemQuestList; // its reads lock
+    std::map<uint32_t, std::vector<uint32_t>> QuestGlobals;
+    std::map<uint32_t, std::map<std::string, LocalValue>> QuestVariables;
+    std::map<uint32_t, std::map<std::string, SystemQuestState::Timer>> QuestTimers;
+    [[nodiscard]] std::string ReadSystemQuests() const;
+    void ApplySystemQuests(std::string_view aState);
+    // A registration of a system quest's instance fires (its event, as the VM sends it: this game's own).
+    void FiresQuestTimer(uint32_t aQuest, const std::string& acFunction);
     // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued; copies are drawn,
     // then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
     void Frame();
@@ -125,6 +159,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         std::vector<Inventory::Entry> Stacks; // those of them with extra data (an enchantment, tempering...)
         bool Door = false;
         bool Open = false; // a door's (BGSOpenCloseForm's open state)
+        glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
         bool operator==(const Reference&) const = default;
     };
@@ -148,6 +183,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks = {});
     // The host's game opens or closes a door (its player, a replayed activation): made and recorded.
     void SetOpen(uint32_t aDoor, bool aOpen);
+    // Each cell's location (BGSLocation), by cell. An actor moved into a cell of another location raises the engine's
+    // TESActorLocationChangeEvent (MoveRefToNewSpace), sent on for a player's copy (StoryEvents.cpp).
+    std::map<uint32_t, uint32_t> Locations;
+    // The story events the host's game queued for a guest's character (HostGame::RaiseStoryEvent).
+    std::vector<StoryEvent> StoriesRaised;
     // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
     std::map<uint32_t, float> Globals;
     std::set<uint32_t> GlobalWrites;
@@ -430,8 +470,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
-    Perks GetPlayerPerks() const noexcept override { return {Player.Perks}; }
-    void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override { ActorPerks[aFormId] = acPerks.Ranks; }
+    Perks GetPlayerPerks() const noexcept override;
+    void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
     {
         Staggers.emplace_back(aFormId, aHitterId, aMagnitude);
@@ -804,6 +844,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
   private:
     uint32_t m_nextStack = 1; // the stacks this game's boxes wait in
     uint32_t m_openedBox = 0; // the box the running script opened (Message.Show)
+    bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
@@ -827,7 +868,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
 
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
     RagdollPending m_pendingRagdolls;
+    bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;
+    // An actor's cell changed from aFrom: a player's copy in another location raises CopyLocationChangeEvent.
+    void CellChanged(uint32_t aFormId, uint32_t aFrom);
     // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its
     // last place loaded unload.
     void LoadAroundPlayer(uint32_t aFrom);

@@ -14,6 +14,7 @@ public:
     uint32_t GetSpeaker() const noexcept override;
     bool IsMenuOpen() const noexcept override;
     std::vector<Option> GetOptions() const noexcept override;
+    std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept override;
     bool IsChoices() const noexcept override;
     uint32_t GetGreeting() const noexcept override;
 

@@ -23,6 +23,8 @@
 #include <SaveLoadManager.h>
 #include <Utils.h>
 #include <MainLoopTasks.h>
+#include <Papyrus/SystemQuests.h>
+#include <Structs/SystemQuestState.h>
 #include <DragonSouls.h>
 
 #include <fstream>
@@ -94,6 +96,14 @@ bool JoinBridge::IsAtMainMenu() const noexcept
 {
     const UI* pUI = UI::Get();
     return pUI && pUI->GetMenuOpen("Main Menu");
+}
+
+void JoinBridge::ReturnToMainMenu() noexcept
+{
+    MainLoopTasks::Queue([] {
+        POINTER_SKYRIMSE(void(), s_quit, 55490); // papyrus::Game::QuitToMainMenu, no arguments read
+        s_quit();
+    });
 }
 
 // Kept beside the saves: My Games/Skyrim Special Edition/SkyrimCoop/player_id.
@@ -242,6 +252,9 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
                         record.Words.push_back(*cId);
 
     record.Items = pPlayer->GetActorInventory();
+    // Its own system quests' instances (docs/design/system-quests.md): the save's are the host's player's.
+    if (SystemQuests::Any())
+        record.Extras[SystemQuestState::kExtra] = SystemQuests::ReadState();
     return record;
 }
 
@@ -351,6 +364,8 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
         pPlayer->AddSpell(FormOf<SpellItem>(cId));
 
     pPlayer->SetActorInventory(acRecord.Items);
+    const auto cQuests = acRecord.Extras.find(SystemQuestState::kExtra);
+    SystemQuests::ApplyState(cQuests != acRecord.Extras.end() ? cQuests->second : std::string{});
     // The head again from the base's face and the tints (DoReset3D).
     pPlayer->QueueUpdate();
     // Where the host's save left this character; the save's player stands where the host's did.

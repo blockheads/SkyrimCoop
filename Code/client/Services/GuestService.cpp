@@ -14,6 +14,7 @@
 #include <Services/Guest/GuestWait.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
+#include <Services/Guest/GuestScene.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/HostService.h>
@@ -34,6 +35,7 @@ struct GuestService::Guest
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
         , Hands(aWorld, Engine)
         , Wait(aWorld, aDispatcher, Engine)
+        , Scene(aWorld, aDispatcher, Engine)
     {
     }
 
@@ -45,6 +47,7 @@ struct GuestService::Guest
     GuestRecord Record;
     GuestHands Hands;
     GuestWait Wait;
+    GuestScene Scene;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

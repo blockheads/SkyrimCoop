@@ -284,6 +284,14 @@ struct BSScript
         template <class T> T* GetObjectForHandle(uint64_t aHandle) { return (T*)(BSScript::IObjectHandlePolicy::Get()->GetObjectForHandle((uint32_t)T::Type, aHandle)); }
     };
 
+    // What IVirtualMachine::ForEachBoundObject calls for each script (CommonLibSSE-NG declares it only; the slots from
+    // 1414465F0): Visit returns 1 to go on.
+    struct IForEachScriptObjectFunctor
+    {
+        virtual ~IForEachScriptObjectFunctor() = default;
+        virtual uint32_t Visit(Object* apObject, bool aConditional) = 0;
+    };
+
     struct IVirtualMachine
     {
         virtual ~IVirtualMachine() = 0;
@@ -317,11 +325,13 @@ struct BSScript
         virtual void BindNativeMethod(IFunction* apFunction);
         virtual void sub_19();
         virtual void sub_1A();
-        virtual void sub_1B();
+        // Visits each script bound to the handle, under the VM's attached-scripts lock (1414465F0).
+        virtual void ForEachBoundObject(uint64_t aHandle, IForEachScriptObjectFunctor* apFunctor);
         // appResult: BSTSmartPointer<Object>&, so a found object comes with a reference to release.
         virtual bool FindBoundObject(uint64_t aHandle, const char* acpClassName, Object** appResult) const;
         virtual void sub_1D();
-        virtual void sub_1E();
+        // Resets each script bound to the handle and queues it to be set up again, as a quest's reset does (141446A70).
+        virtual void ResetAllBoundObjects(uint64_t aHandle);
         virtual void sub_1F();
         virtual void sub_20();
         virtual void sub_21();

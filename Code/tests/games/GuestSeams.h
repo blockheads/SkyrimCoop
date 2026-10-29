@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Messages/RelayedMessages.h>
+
 #include <entt/entt.hpp>
 #include <Messages/RelayedMessages.h>
 
@@ -24,7 +26,8 @@ struct GuestSeam
 
     void OnConnected(const ConnectedEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
-    void OnPlayerNative(const NotifyRoutedCall&) noexcept;
+    // As GuestService::OnPlayerNative: the host's script's call for this game's player runs here.
+    void OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept;
 
     World& m_world;
     std::unique_ptr<Guest> m_pGuest;

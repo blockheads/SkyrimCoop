@@ -19,6 +19,8 @@ public:
 
     // The main menu is up (no save loaded).
     [[nodiscard]] virtual bool IsAtMainMenu() const noexcept = 0;
+    // Return through the native quit flow, queued between frames.
+    virtual void ReturnToMainMenu() noexcept = 0;
     // This player's id, made once and kept in its files ("id:" and 16 hex digits).
     [[nodiscard]] virtual std::string PlayerId() noexcept = 0;
 
@@ -37,6 +39,8 @@ public:
     // Makes this game's player the record's character (the loaded save's player is another's), standing at the
     // record's place when it has one (a character kept in the host's save).
     virtual void ApplyPlayer(const PlayerRecord& acRecord) noexcept = 0;
+    [[nodiscard]] virtual PlayerKnowledge ReadKnowledge() const noexcept = 0;
+    virtual void ApplyKnowledge(const PlayerKnowledge& acKnowledge) noexcept = 0;
     // The loaded save left its player on the host's spot. Move beside it only after floor and clearance checks.
     // False while physics is unavailable or no spot is clear; leaves the player where it was.
     [[nodiscard]] virtual bool PlaceBesideHost() noexcept = 0;

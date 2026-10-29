@@ -5,6 +5,7 @@
 #include <Services/DialogueService.h>
 #include <Events/MenuEvent.h>
 #include "Party.h"
+#include <SessionIds.h>
 
 namespace
 {
@@ -65,6 +66,46 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
 
     party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye ends it on both games");
+}
+
+SCENARIO("Each player's menu shows its own lines, judged for its character on the host", "[dialogue]")
+{
+    // Lucan's claw topic: a line for a player holding the claw first, his line for one without it after (TESTopic's
+    // first line whose conditions pass; docs/design/shared-dialogue.md, "The rule").
+    const IDialogueBridge::Option cHasClaw{.Topic = 0x1004, .Info = 0x2005, .Text = "I have your claw."};
+    const IDialogueBridge::Option cNoClaw{.Topic = 0x1004, .Info = 0x2004, .Text = "About your claw..."};
+    const IDialogueBridge::Option cDeal{.Topic = 0x1005, .Info = 0x2006, .Text = "Let's make a deal."};
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    uint32_t holder = 0; // the character holding the claw, as the host's game knows it
+    for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
+    {
+        pTalk->Greeting = {cHasClaw, cNoClaw, cDeal, kGoodbye};
+        pTalk->After = {{cHasClaw.Topic, {kGoodbye}}, {kGoodbye.Topic, {}}};
+        pTalk->Needs[{cHasClaw.Topic, cHasClaw.Info}] = [&holder](uint32_t aPlayer) { return aPlayer == holder; };
+        pTalk->Needs[{cDeal.Topic, cDeal.Info}] = [](uint32_t aPlayer) { return aPlayer == 0x14; };
+    }
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of Lucan");
+    party.Agree("the games agree on Lucan");
+    uint32_t session = 0;
+    party.As(party.Guest(), [&] { session = *Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
+    party.As(party.Host(), [&] { holder = Utils::GetFormIdBySessionId(session); });
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Options == std::vector{cHasClaw, kGoodbye}; },
+                "the guest's menu has its claw line, not the host's deal");
+    THEN("the host's own list is judged for its player")
+    CHECK(hostTalk.Options == std::vector{cNoClaw, cDeal, kGoodbye});
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
+    party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the guest's pick");
+    THEN("it says the guest's own line of the topic, not its player's")
+    CHECK(hostTalk.Said == std::vector{cHasClaw});
 }
 
 SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")

@@ -46,6 +46,8 @@ struct JoinService
     // Joins the session at acEndpoint, from a game this player plays (its character comes along) or from the main
     // menu; false when this game is busy or in a session (one it hosts alone it leaves first).
     bool Join(const std::string& acEndpoint) noexcept;
+    // A terminal session exit; internal save loads never use this.
+    void Cancel(const std::string& acReason) noexcept;
     // A join is under way, from connecting until it joined or failed (a reconnect too).
     [[nodiscard]] bool IsJoining() const noexcept { return m_step != Step::kIdle; }
     // Reconnecting through a Steam tunnel made again: dials it (SteamService); false when not reconnecting.

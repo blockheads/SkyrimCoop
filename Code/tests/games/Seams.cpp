@@ -27,6 +27,7 @@
 #include <Services/CharacterService.h>
 #include <Services/CombatService.h>
 #include <Services/CutsceneService.h>
+#include <Services/SystemQuestService.h>
 #include <Services/DialogueService.h>
 #include <Services/HostService.h>
 #include <Services/InventoryService.h>
@@ -104,6 +105,7 @@ World::World()
     ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
@@ -134,6 +136,7 @@ World::~World()
     ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
     ctx().erase<DialogueService>();
+    ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();
     ctx().erase<AiStateService>();

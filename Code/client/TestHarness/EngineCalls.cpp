@@ -23,7 +23,9 @@
 #include <Forms/BGSLocation.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESQuest.h>
+#include <Forms/TESTopic.h>
 #include <Forms/TESTopicInfo.h>
+#include <Misc/JudgedFor.h>
 #include <Forms/TESWorldSpace.h>
 #include <Games/Misc/MenuTopicManager.h>
 #include <Games/FormState.h>
@@ -1525,6 +1527,18 @@ bool ForceGreet(uint32_t aActorFormId) noexcept
     return pActor && s_setDialogueWithPlayer.Get()(pActor, true, true, nullptr);
 }
 
+std::optional<uint32_t> GetJudgedLine(uint32_t aTopic, uint32_t aSpeaker, uint32_t aPlayer) noexcept
+{
+    auto* pTopic = Cast<TESTopic>(TESForm::GetById(aTopic));
+    auto* pSpeaker = Cast<TESObjectREFR>(TESForm::GetById(aSpeaker));
+    auto* pPlayer = Cast<TESObjectREFR>(TESForm::GetById(aPlayer));
+    if (!pTopic || !pSpeaker || !pPlayer)
+        return std::nullopt;
+    const JudgedFor::Scope cJudged(pPlayer == PlayerCharacter::Get() ? nullptr : pPlayer);
+    const TESTopicInfo* pLine = pTopic->LineFor(pSpeaker, pPlayer);
+    return pLine ? pLine->formID : 0;
+}
+
 std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept
 {
     auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
@@ -1629,10 +1643,11 @@ bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction,
 
 namespace
 {
-// A node of the reference's 3D by name (NiAVObject::GetObjectByName), in world space.
-std::optional<glm::vec3> NodePosition(TESObjectREFR* apRef, const BSFixedString& acName) noexcept
+// A node of the reference's 3D by name (NiAVObject::GetObjectByName), in world space: the 3D on screen (the
+// player's first-person one in first person), or the third-person body others see.
+std::optional<glm::vec3> NodePosition(TESObjectREFR* apRef, const BSFixedString& acName, bool aBody = false) noexcept
 {
-    NiNode* pRoot = apRef->GetNiNode();
+    NiAVObject* pRoot = aBody ? apRef->Get3D1(false) : apRef->GetNiNode();
     const NiAVObject* pNode = pRoot ? pRoot->GetByName(acName) : nullptr;
     if (!pNode)
         return std::nullopt;
@@ -1668,8 +1683,8 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
         return std::nullopt;
     static const BSFixedString s_pelvis("NPC Pelvis [Pelv]");
     static const BSFixedString s_head("NPC Head [Head]");
-    const auto cPelvis = NodePosition(pActor, s_pelvis);
-    const auto cHead = NodePosition(pActor, s_head);
+    const auto cPelvis = NodePosition(pActor, s_pelvis, true);
+    const auto cHead = NodePosition(pActor, s_head, true);
     if (!cPelvis || !cHead)
         return std::nullopt;
     // Down from above its feet (a body lying on its back starts in its own collision: passed through).
@@ -1681,10 +1696,10 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
         return std::nullopt;
     const float cFloorZ = cFloor->Point[2];
     static const BSFixedString s_skeleton("NPC Root [Root]");
-    NiNode* pRoot = pActor->GetNiNode();
+    const NiAVObject* pRoot = pActor->Get3D1(false);
     const float cRootZ = pRoot ? pRoot->world.translate.z : cFeet.z;
     return BodyPose{.FloorGap = cFeet.z - cFloorZ, .Root = cRootZ - cFloorZ,
-                    .Skeleton = NodePosition(pActor, s_skeleton).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
+                    .Skeleton = NodePosition(pActor, s_skeleton, true).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
                     .Pelvis = cPelvis->z - cFloorZ, .Head = cHead->z - cFloorZ, .Floor = cFloor->Reference};
 }
 

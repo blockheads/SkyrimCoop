@@ -126,7 +126,7 @@ struct TESObjectREFR : TESForm
     virtual void sub_6C();
     virtual void sub_6D();
     virtual void sub_6E();
-    virtual void sub_6F();
+    virtual NiAVObject* Get3D1(bool aFirstPerson); // the player's first- or third-person 3D, others' 3D
     virtual NiNode* GetNiNode();
     virtual void sub_71();
     virtual void sub_72();

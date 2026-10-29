@@ -13,11 +13,15 @@
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/MenuOpenCloseEvent.h>
 #include <Interface/UI.h>
+#include <Misc/JudgedFor.h>
 #include <Papyrus/GuestScripts.h>
 #include <PlayerCharacter.h>
 #include <RTTI.h>
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
+
+#include <map>
+#include <mutex>
 
 namespace
 {
@@ -36,6 +40,17 @@ bool s_hidden = false;
 bool s_keepConversation = false;
 // The options the open menu shows, when they came from another game (ShowList, the List filter).
 std::vector<IDialogueBridge::Option> s_shownElsewhere;
+// A list build's topics (AddTopic's), each with the line every other player's character gets for it (Judged).
+struct Judgement
+{
+    uint32_t Topic{};
+    std::map<uint32_t, IDialogueBridge::Option> Lines; // by character
+};
+thread_local const std::vector<uint32_t>* t_pJudged = nullptr;
+thread_local std::vector<Judgement> t_judgements;
+// Each character's own list from the last build (GetOptionsFor).
+std::mutex s_judgedLock;
+std::map<uint32_t, std::vector<IDialogueBridge::Option>> s_judged;
 
 // ---- Helpers ----
 
@@ -193,6 +208,80 @@ void HookTurnToSpeaker(PlayerCharacter* apThis)
         RealTurnToSpeaker(apThis);
 }
 
+// The list build (35287): clears the list, then AddTopics the said line's choices, the speaker's exclusive branch, or
+// its topics (35276). Each other player's character gets its own list from the same topics (AddTopic below): the menu's
+// topics it has a line for, in the menu's order (the engine sorts it), then those only it has.
+using TBuildList = uint64_t(MenuTopicManager*);
+TBuildList* RealBuildList = nullptr;
+
+uint64_t HookBuildList(MenuTopicManager* apThis)
+{
+    const std::vector<uint32_t> cCharacters = s_filters.Judged ? s_filters.Judged() : std::vector<uint32_t>{};
+    t_judgements.clear();
+    t_pJudged = cCharacters.empty() ? nullptr : &cCharacters;
+    const uint64_t cResult = RealBuildList(apThis);
+    t_pJudged = nullptr;
+
+    std::map<uint32_t, std::vector<IDialogueBridge::Option>> judged;
+    const std::vector<EngineOption*> cListed = apThis->Options();
+    for (const uint32_t cCharacter : cCharacters)
+    {
+        auto& list = judged[cCharacter];
+        std::vector<bool> used(t_judgements.size());
+        const auto cTake = [&](size_t aCall) {
+            const auto it = t_judgements[aCall].Lines.find(cCharacter);
+            if (used[aCall] || it == t_judgements[aCall].Lines.end())
+                return false;
+            used[aCall] = true;
+            list.push_back(it->second);
+            return true;
+        };
+        for (const EngineOption* pListed : cListed)
+            for (size_t i = 0; i < t_judgements.size(); ++i)
+                if (t_judgements[i].Topic == TopicOf(*pListed) && cTake(i))
+                    break;
+        for (size_t i = 0; i < t_judgements.size(); ++i)
+            cTake(i);
+    }
+    t_judgements.clear();
+    std::scoped_lock lock(s_judgedLock);
+    s_judged = std::move(judged);
+    return cResult;
+}
+
+// MenuTopicManager::AddTopic (35303): the speaker's line for the topic to this game's player (TESTopic 25544, at
+// +0x88), as an option in the list. In a build, the topic is judged for each other player's character too.
+using TAddTopic = EngineOption*(MenuTopicManager*, TESTopic*, void* apPrevious, bool aFront);
+TAddTopic* RealAddTopic = nullptr;
+
+EngineOption* HookAddTopic(MenuTopicManager* apThis, TESTopic* apTopic, void* apPrevious, bool aFront)
+{
+    EngineOption* pResult = RealAddTopic(apThis, apTopic, apPrevious, aFront);
+    TESObjectREFR* pSpeaker = t_pJudged && apTopic ? TESObjectREFR::GetByHandle(apThis->speaker) : nullptr;
+    if (!pSpeaker)
+        return pResult;
+    Judgement& judgement = t_judgements.emplace_back();
+    judgement.Topic = apTopic->formID;
+    for (const uint32_t cCharacter : *t_pJudged)
+    {
+        auto* pCharacter = FormAs<TESObjectREFR>(cCharacter);
+        TESTopicInfo* pLine = nullptr;
+        if (pCharacter)
+        {
+            const JudgedFor::Scope cJudged(pCharacter);
+            pLine = apTopic->LineFor(pSpeaker, pCharacter);
+        }
+        // Built as AddTopic builds it, for the text the menu would show (its tokens rendered); none without responses.
+        if (EngineOption* pBuilt = pLine ? apThis->BuildOption(apTopic, pLine) : nullptr)
+        {
+            const char* cpText = pBuilt->topicText.AsAscii();
+            judgement.Lines[cCharacter] = {apTopic->formID, pLine->formID, IdOf(pBuilt->parentQuest), cpText ? cpText : ""};
+            MenuTopicManager::Destroy(pBuilt);
+        }
+    }
+    return pResult;
+}
+
 // Asks the menu to show the list (52857), which the engine has just built (35287): after each line, and at the
 // start. The menu's fill then ends the conversation when nothing is left to say or a goodbye was said (51515).
 using TShowList = void(bool aNewList);
@@ -255,6 +344,8 @@ Hooks::Initializer s_dialogueHooks(
         HOOK_ID(52853, &RealShowMenu, HookShowMenu);
         HOOK_ID(40496, &RealTurnToSpeaker, HookTurnToSpeaker);
         HOOK_ID(52857, &RealShowList, HookShowList);
+        HOOK_ID(35287, &RealBuildList, HookBuildList);
+        HOOK_ID(35303, &RealAddTopic, HookAddTopic);
         HOOK_ID(35272, &RealMenuOpenClose, HookMenuOpenClose);
     });
 } // namespace
@@ -296,6 +387,13 @@ std::vector<IDialogueBridge::Option> DialogueBridge::GetOptions() const noexcept
         options.push_back({TopicOf(*pListed), InfoOf(*pListed), IdOf(pListed->parentQuest), cpText ? cpText : ""});
     }
     return options;
+}
+
+std::optional<std::vector<IDialogueBridge::Option>> DialogueBridge::GetOptionsFor(uint32_t aCharacterFormId) const noexcept
+{
+    std::scoped_lock lock(s_judgedLock);
+    const auto it = s_judged.find(aCharacterFormId);
+    return it != s_judged.end() ? std::optional(it->second) : std::nullopt;
 }
 
 bool DialogueBridge::IsChoices() const noexcept
@@ -394,14 +492,22 @@ bool DialogueBridge::PickOption(uint32_t aTopic, uint32_t aInfo) noexcept
     MenuTopicManager* pManager = Conversation();
     if (!pManager)
         return false;
-    // The option with this line, else the topic's (the list built again since: a topic with random lines).
-    const std::vector<EngineOption*> cOptions = pManager->Options();
-    const auto cIsTopic = [aTopic](const EngineOption* apOption) { return TopicOf(*apOption) == aTopic; };
-    auto it = std::ranges::find_if(cOptions, [&](const EngineOption* apOption) { return cIsTopic(apOption) && InfoOf(*apOption) == aInfo; });
-    if (it == cOptions.end())
-        it = std::ranges::find_if(cOptions, cIsTopic);
-    if (it == cOptions.end())
+    // The option with this line, else one built for it: a line judged for another player's character, or the
+    // topic's other line since the list was built (a topic with random lines).
+    std::vector<EngineOption*> options = pManager->Options();
+    const auto it = std::ranges::find_if(options, [&](const EngineOption* apOption) {
+        return TopicOf(*apOption) == aTopic && InfoOf(*apOption) == aInfo;
+    });
+    if (it != options.end())
+    {
+        pManager->Pick(static_cast<uint32_t>(it - options.begin()));
+        return true;
+    }
+    EngineOption* pBuilt = pManager->BuildOption(FormAs<TESTopic>(aTopic), FormAs<TESTopicInfo>(aInfo));
+    if (!pBuilt)
         return false;
-    pManager->Pick(static_cast<uint32_t>(it - cOptions.begin()));
+    options.push_back(pBuilt);
+    pManager->SetOptions(options);
+    pManager->Pick(static_cast<uint32_t>(options.size() - 1));
     return true;
 }

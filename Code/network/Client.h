@@ -17,7 +17,8 @@ namespace Net
             kKicked,
             kCannotResolve,
             kAborted,
-            kNormal
+            kNormal,
+            kHostLeft
         };
 
         struct Statistics

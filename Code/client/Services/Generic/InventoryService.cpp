@@ -1,4 +1,6 @@
 #include <Services/InventoryService.h>
+#include <Events/PlayerProgressEvent.h>
+#include <Bridges/IPlayerBridge.h>
 
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
@@ -154,6 +156,8 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
         ScopedInventoryOverride _;
 
         m_formBridge.ObjectAddOrRemoveItem(cObjectFormId, acMessage.Item);
+        if (cObjectFormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
+            m_dispatcher.trigger(PlayerProgressEvent{});
     }
 }
 

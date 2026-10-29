@@ -74,23 +74,6 @@ static void DrawBuildTag()
     ImGui::GetBackgroundDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), coord, ImColor(255.f, 0.f, 0.f), cBuildTag.c_str());
 }
 
-void __declspec(noinline) DebugService::PlaceActorInWorld() noexcept
-{
-    if (m_actors.size())
-        return;
-
-    const auto pPlayerBaseForm = static_cast<TESNPC*>(PlayerCharacter::Get()->baseForm);
-
-    auto pActor = Actor::Create(pPlayerBaseForm);
-
-    const Inventory inventory = PlayerCharacter::Get()->GetActorInventory();
-    pActor->SetActorInventory(inventory);
-
-    pActor->GetExtension()->SetPlayer(true);
-
-    m_actors.emplace_back(pActor);
-}
-
 DebugService::DebugService(entt::dispatcher& aDispatcher, World& aWorld, TransportService& aTransport, ImguiService& aImguiService)
     : m_dispatcher(aDispatcher)
     , m_transport(aTransport)
@@ -143,8 +126,6 @@ void DebugService::OnMoveActor(const MoveActorEvent& acEvent) noexcept
     moveData.position = acEvent.Position;
 }
 
-extern thread_local bool g_forceAnimation;
-
 void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     if (!BSGraphics::GetMainWindow()->IsForeground())
@@ -156,78 +137,11 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
         moveData.pActor = nullptr;
     }
 
-    static std::atomic<bool> s_f8Pressed = false;
-    static std::atomic<bool> s_f7Pressed = false;
-    static std::atomic<bool> s_f6Pressed = false;
-    static std::atomic<bool> s_f9Pressed = false;
-
     if (GetAsyncKeyState(VK_F3) & 0x01)
     {
         m_showDebugStuff = !m_showDebugStuff;
     }
 
-    if (GetAsyncKeyState(VK_F6))
-    {
-        if (!s_f6Pressed)
-        {
-            s_f6Pressed = true;
-
-            static char s_address[256] = "127.0.0.1:10578";
-            if (!m_transport.IsOnline())
-                m_transport.Connect(s_address);
-            else
-                m_transport.Close();
-        }
-    }
-    else
-        s_f6Pressed = false;
-
-    // F9 - Toggle P2P hosting
-    if (GetAsyncKeyState(VK_F9))
-    {
-        if (!s_f9Pressed)
-        {
-            s_f9Pressed = true;
-
-            auto& hostService = m_world.GetHostService();
-            if (hostService.IsHosting())
-            {
-                spdlog::info("[Debug] F9 pressed - Stopping hosting");
-                hostService.StopHosting();
-            }
-            else
-            {
-                spdlog::info("[Debug] F9 pressed - Starting hosting");
-                hostService.StartHosting();
-            }
-        }
-    }
-    else
-        s_f9Pressed = false;
-
-    if (GetAsyncKeyState(VK_F7))
-    {
-        if (!s_f7Pressed)
-        {
-            s_f7Pressed = true;
-
-            //
-        }
-    }
-    else
-        s_f7Pressed = false;
-
-    if (GetAsyncKeyState(VK_F8) & 0x01)
-    {
-        if (!s_f8Pressed)
-        {
-            s_f8Pressed = true;
-
-            //PlaceActorInWorld();
-        }
-    }
-    else
-        s_f8Pressed = false;
 }
 
 static bool g_enableConnectionWindow{false};

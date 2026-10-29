@@ -15,7 +15,7 @@ struct DisconnectedEvent;
 struct NotifyCharacterSpawn;
 struct NotifyRemoveCharacter;
 
-// Player perks remain personal; their copies hold the owner's ranks for native conditions and scripts.
+// Player perks and added spells remain personal; their copies hold the owner's for native conditions and scripts.
 struct PerkService
 {
     PerkService(entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aBridge) noexcept;

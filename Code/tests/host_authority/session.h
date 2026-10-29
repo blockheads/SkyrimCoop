@@ -150,6 +150,8 @@ struct Session
     {
         m_authority.Update(aTick, static_cast<double>(aTick - std::exchange(m_lastTick, aTick)) / 1000.0);
     }
+    // The host's game shows a character change location (its engine's TESActorLocationChangeEvent).
+    void CharacterMoved(uint32_t aSessionId, const GameId& acOld, const GameId& acNew) { m_authority.CharacterMoved(aSessionId, acOld, acNew); }
     // The host's player picks a difficulty (its game's DifficultyChangeEvent).
     void ChooseDifficulty(uint32_t aDifficulty)
     {
@@ -194,6 +196,7 @@ struct Session
     std::vector<QuestState> QuestChanges;
     std::vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
+    std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
     std::unordered_map<GameId, Inventory::Entry> Loose;              // the host's loose items it made for guests' drops
     uint32_t LooseMade = 0;
@@ -261,6 +264,7 @@ private:
         };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
+        game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };
         // A drop is made in a cell the host's game has loaded.
         game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) -> std::optional<GameId> {
             ++CreateCalls;

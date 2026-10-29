@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 struct TESObjectREFR;
+struct ContainerTransferRequest;
 
 /**
  * @brief The host's game as the host's rules read and change it (HostGame's engine side), in session ids.
@@ -54,6 +55,10 @@ public:
     // A guest's container change (kItems), accepted: the host's container holds that many, its stacks with extra data
     // as given, and the others get it.
     void SetItems(const ObjectChange& acItems) noexcept;
+    // A guest's take from or store into a container, moved here natively: what moved, signed as the request's count.
+    [[nodiscard]] Inventory::Entry TransferContainer(const ContainerTransferRequest&, uint32_t aPlayer) noexcept;
+    // A guest's story event queued in this game's story manager, judged for its character (party-model.md rule 4).
+    void RaiseStoryEvent(const StoryEvent& acEvent) noexcept;
     // A guest's drop (docs/design/dropped-items.md): made here with its count and extra data, where its cell is loaded;
     // its created id (it goes out with this game's created references); none while the cell is not loaded here, an empty
     // id when its base or cell is not in this game.

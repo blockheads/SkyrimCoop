@@ -24,9 +24,10 @@ Shared by the party:
 - Rewards: a quest's skill raise or a mod's quest experience reaches every player (experience itself
   is personal, see Experience).
 - Words of power, and every dragon soul gained (each player spends its own).
-- Identity changes: beast blood, vampirism, titles (Thane, Harbinger, Arch-Mage), marriage.
+- Identity changes: beast blood, titles (Thane, Harbinger, Arch-Mage), marriage. Vampirism is each player's own
+  (2026-10-28, [system-quests.md](system-quests.md)).
 
-Built 2026-10-27 but vampirism (feature 8): `dragonborn.md`. The story's changes to a player's factions and spells
+Built 2026-10-27: `dragonborn.md`. The story's changes to a player's factions and spells
 are the party's; a quest a player's body started (its beast form) is that player's moment.
 
 ## The clean line
@@ -76,7 +77,8 @@ numbers: `docs/research/player-events.md` (spikes, "Script scan"). Built: rules 
    player until one says yes; any other to the player nearest what the question or its script names.
 4. **A member's story events are judged for that member.** A peer's location change (or craft, or kill) is
    raised on the host for its copy, and the story manager tests its conditions against that copy, not the
-   host's player (its node and quest visitors, 32429 and 32430).
+   host's player (its node and quest visitors, 32429 and 32430). Built 2026-10-27 (`party-calls.md`, "A player's
+   story events"): a party arriving together is one arrival, judged for whoever the story manager sees first.
 5. **Messages go to everyone:** `Debug.Notification`, `Debug.MessageBox`, `Message.Show` on the host are
    shown on every game. Built 2026-10-27 (`party-calls.md`, "Messages"): the story's on every game, a player's own
    action's on its game; a story's box with buttons is the host's to answer, the others' copies close with its answer.
@@ -108,10 +110,10 @@ the host with its own data (tempering, enchantment, charge), two players wearing
 a shared stack, and carry weight would be one. Personal loot is also what co-op players expect. Shared, scripts
 and conditions would have been right whoever acted; with each player's own, three gaps stay:
 
-- **Conditions are the host's player's.** The host's engine builds a dialogue list for its player (shared
-  dialogue's rule), so an item condition asks the host's inventory: a guest holding Lucan's claw sees
-  no option to hand it in. The guest gives it to the host, or the host talks. (A gold condition is right for
-  everyone since the purse: every player carries the same.)
+- **Dialogue conditions are the picker's** (2026-10-28, replacing the host's player's): the host's engine judges each
+  topic for each player's character, which carries its player's items (shared-dialogue.md, "The rule"), so a guest
+  holding Lucan's claw gets the line to hand it in. Other conditions with no player's action behind them (a
+  package's, a quest's start) still ask the host's player.
 - **Items with no player's action behind them** (a timer, a stage set by the world) go to the host's player
   (rule 3), who shares them out.
 - **What a guest's script gives the player to own is the party's** (decided 2026-10-22, the user: "exactly right").
@@ -128,8 +130,8 @@ players see). To build: giving items between players. The shared purse came back
 ## Dialogue
 
 One shared conversation, run by the host's engine whoever started it. Everyone sees it in the engine's
-dialogue menu, each with their own options: the host's topics with that player's own lines (their factions,
-items, perks, race, Speech), and their own topics. Anyone picks and speaks for the party with their own line;
+dialogue menu, each with their own options, judged on the host's game for that player's character (their factions,
+items, perks, race, Speech; built 2026-10-28). Anyone picks and speaks for the party with their own line;
 the chat names who said what (2026-10-19). A picked line's script runs for the picker (rule 2): its items and gold,
 its Speech experience and its training menu are the picker's; barter, gifts and a follower's inventory should be
 too (later).
@@ -189,18 +191,18 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
   camera, fades, imagespace, music and shake.
 - A scene with room for one player only (Helgen's cart seat) keeps it its player's; the others watch (step 2).
 - Built, step 1 (2026-10-23): every script's call on the controls or the screen (fades, camera, shakes, music) runs
-  on every game, so the party sees every cutscene (`docs/design/cutscenes.md`). Step 2 is each player's own
-  character in it.
+  on every game, so the party sees every cutscene (`docs/design/cutscenes.md`). Step 2 (2026-10-27): a story's moves,
+  idles and AI drive on the player run on each game's own player, and each guest's player plays the host's player's
+  part in an engine scene (`party-calls.md`, "A body's move, idle or AI drive").
 
 ## Still open
 
 - **Engine checks for a copy:** the 55 measured functions (previous section), and crime, dialogue and item
   paths not measured yet.
 
-- **Race changes are translated, not copied:** vampirism turns the host's Nord into `NordRaceVampire`; a
-  Khajiit peer gets the vampire version of their own race.
-- **Diseases cross the line:** Sanguinare Vampiris lands on a body (a peer's), but turning is a quest that
-  watches the host's player, so a peer's infection never progresses. Either the host's infection turns the
-  party, or a body effect on any member counts as the party's.
+- **Vampirism (feature 8):** each player's own, the infection and the hunger (the user, 2026-10-28, replacing the
+  party's shared vampirism built that day), on per-player system quests ([system-quests.md](system-quests.md), built
+  2026-10-28). The story's cure cures every vampire and its gift turns every player (the user: "cure all vampires for
+  now").
 - **Catch-up for a player who rarely lands hits** (a healer, a talker): none by default. A later option
   if play shows the party drifting apart in level.

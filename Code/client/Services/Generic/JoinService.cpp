@@ -13,6 +13,7 @@
 #include <Messages/JoinMessages.h>
 #include <Services/Host/JoinRefusal.h>
 #include <Services/SaveService.h>
+#include <Services/SessionService.h>
 #include <Services/SteamService.h>
 #include <Services/TransportService.h>
 #include <World.h>
@@ -64,6 +65,7 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
     {
         // Its quest items belong to its own world's quests.
         m_brought = m_bridge.ReadPlayer();
+        m_brought->Knowledge = m_bridge.ReadKnowledge();
         m_brought->Items.RemoveByFilter([](const Inventory::Entry& acEntry) { return acEntry.IsQuestItem; });
     }
     spdlog::info("JoinService: joining {} as {}, {}", acEndpoint, PlayerKey(),
@@ -78,6 +80,17 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
         return false;
     }
     return true;
+}
+
+void JoinService::Cancel(const std::string& acReason) noexcept
+{
+    m_step = Step::kIdle;
+    m_save = {};
+    m_brought.reset();
+    m_joinedCharacter.reset();
+    m_partyReload = false;
+    m_tries = 0;
+    m_status = acReason.empty() ? JoinStatus{} : JoinRefusal::Ended(acReason);
 }
 
 void JoinService::To(Step aStep, JoinStatus::State aState) noexcept
@@ -209,6 +222,7 @@ void JoinService::Arrive() noexcept
     PlayerRecord character = *cpCharacter;
     m_world.ctx().at<SaveService>().GetRecords().ApplyStorySpells(character);
     m_bridge.ApplyPlayer(character);
+    m_bridge.ApplyKnowledge(character.Knowledge);
     m_brought.reset();
     if (!cpKept)
     {
@@ -229,6 +243,7 @@ void JoinService::JoinSession() noexcept
 void JoinService::OnConnected(const ConnectedEvent&) noexcept
 {
     m_joinedCharacter = m_bridge.ReadPlayer();
+    m_joinedCharacter->Knowledge = m_bridge.ReadKnowledge();
     m_partyReload = false;
     if (m_step == Step::kReconnecting)
     {
@@ -251,12 +266,17 @@ void JoinService::OnConnected(const ConnectedEvent&) noexcept
 void JoinService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
     using enum DisconnectedEvent::Cause;
+    if (m_world.GetSessionService().IsEnding())
+        return;
     if (m_step == Step::kIdle)
     {
-        if (acEvent.WasGuest && acEvent.Why == kKicked)
+        if (acEvent.WasGuest && acEvent.Why == kHostLeft)
+            m_world.GetSessionService().End("host_left");
+        else if (acEvent.WasGuest && acEvent.Why == kKicked)
         {
             m_status = JoinRefusal::Ended("kicked");
             m_dispatcher.trigger(SessionNoticeEvent{m_status.Message});
+            m_world.GetSessionService().End("kicked");
         }
         else if (acEvent.WasGuest && acEvent.Why == kLost)
             StartReconnect();
@@ -310,6 +330,7 @@ void JoinService::Retry() noexcept
     m_step = Step::kIdle;
     m_status = JoinRefusal::Ended("lost_connection");
     m_dispatcher.trigger(SessionNoticeEvent{"Couldn't reconnect to the host."});
+    m_world.GetSessionService().End("lost_connection");
 }
 
 void JoinService::OnPartyReload(const NotifyPartyReload&) noexcept

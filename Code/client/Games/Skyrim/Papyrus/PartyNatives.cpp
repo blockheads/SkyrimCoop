@@ -7,6 +7,8 @@
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/NativeReach.h>
 #include <Papyrus/PlayerNatives.h>
+#include <Papyrus/OwnEvents.h>
+#include <Papyrus/SystemQuests.h>
 
 #include <AI/Movement/PlayerControls.h>
 #include <Games/EngineNames.h>
@@ -265,7 +267,13 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
     facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cSelf);
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
     auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
-    facts.Body = BodyScripts::IsBody(pScript ? pScript->GetHandle() : 0);
+    const uint64_t cScript = pScript ? pScript->GetHandle() : 0;
+    facts.Body = BodyScripts::IsBody(cScript);
+    if (SystemQuests::Any())
+    {
+        facts.InSystemQuest = SystemQuests::Is(OwnEvents::QuestOf(cScript));
+        facts.SystemObject = !cStatic && (SystemQuests::Is(cSelf) || SystemQuests::IsGlobal(cSelf));
+    }
     EachValue(*acStack.pTop, [&facts](const BSScript::Variable& acValue) {
         facts.PlayerInCall = facts.PlayerInCall || FormIdOf(acValue) == PartyRules::kThisPlayerFormId;
     });
@@ -287,7 +295,9 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
         m_controls = ControlsCall{PartyRules::HolderOf(aCause)};
         m_pOuter = std::exchange(t_pCall, &*m_controls);
     }
-    m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress;
+    // A progression on this player, or a system quest's instance at work: this player's record changed.
+    m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress || cFacts.InSystemQuest;
+    m_body = cFacts.Reach.Kind == NativeReach::Call::kBody;
     const PartyRules::Routing cRouting = PartyRules::RouteOf(cFacts);
     if (cRouting.Ask)
     {
@@ -335,7 +345,7 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
 
 void Scope::Ran(BSScript::CallResult aResult, uint32_t aStackId) noexcept
 {
-    if (aResult != BSScript::CallResult::kInProgress)
+    if (aResult != BSScript::CallResult::kInProgress || m_body)
         return;
     if (m_event)
     {

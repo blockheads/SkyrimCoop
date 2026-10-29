@@ -44,6 +44,7 @@ void DialogueService::SetRole(Role* apRole) noexcept
         .Pick = [this](uint32_t aIndex) { return OnPickAsked(aIndex); },
         .List = [this]() { return m_pRole ? m_pRole->OnListBuilt() : std::nullopt; },
         .LineFor = [this](uint32_t aSpeakerFormId) { return m_pRole ? m_pRole->LineFor(aSpeakerFormId) : 0; },
+        .Judged = [this]() { return m_pRole ? m_pRole->Judged() : std::vector<uint32_t>{}; },
     });
 }
 

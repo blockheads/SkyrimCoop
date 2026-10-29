@@ -5,6 +5,7 @@
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
 #include <Bridges/IDialogueBridge.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -22,6 +23,9 @@ struct FakeDialogue final : IDialogueBridge
     uint32_t StartedGreeting{};
     std::function<void(const Option&)> OnSaid;
     uint32_t LastLineFor = 0;
+    // A line's conditions (by topic and info): the players it is said to (their character's form id here; 0x14 this
+    // game's player). A topic's first line that passes is the player's, as TESTopic 25544 picks; none listed: everyone.
+    std::map<std::pair<uint32_t, uint32_t>, std::function<bool(uint32_t aPlayer)>> Needs;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
 
@@ -81,6 +85,11 @@ struct FakeDialogue final : IDialogueBridge
     {
         return Options;
     }
+    std::optional<std::vector<Option>> GetOptionsFor(uint32_t aCharacterFormId) const noexcept override
+    {
+        const auto it = m_judged.find(aCharacterFormId);
+        return it != m_judged.end() ? std::optional(it->second) : std::nullopt;
+    }
     bool IsChoices() const noexcept override
     {
         return Choices;
@@ -136,16 +145,18 @@ struct FakeDialogue final : IDialogueBridge
         Choices = aChoices;
         return true;
     }
-    bool PickOption(uint32_t aTopic, uint32_t) noexcept override
+    // The listed option with this line, else that line built (as DialogueBridge::PickOption).
+    bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override
     {
         if (!Speaker)
             return false;
-        for (const auto& cOption : Options)
-            if (cOption.Topic == aTopic)
-            {
-                Say(cOption);
-                return true;
-            }
+        for (const auto* pList : {&Options, &m_source})
+            for (const auto& cOption : *pList)
+                if (cOption.Topic == aTopic && cOption.Info == aInfo)
+                {
+                    Say(cOption);
+                    return true;
+                }
         return false;
     }
 
@@ -165,14 +176,44 @@ struct FakeDialogue final : IDialogueBridge
         }
         Build(cNext->second);
     }
-    // The engine's list (52857): the List filter may show another in its place.
+    // A player's lines from the topics: each topic's first line that passes for it.
+    std::vector<Option> LinesFor(const std::vector<Option>& acTopics, uint32_t aPlayer) const
+    {
+        std::vector<Option> lines;
+        for (const auto& cOption : acTopics)
+        {
+            const auto cNeed = Needs.find({cOption.Topic, cOption.Info});
+            const bool cTaken = std::ranges::any_of(lines, [&](const Option& acLine) { return acLine.Topic == cOption.Topic; });
+            if (!cTaken && (cNeed == Needs.end() || cNeed->second(aPlayer)))
+                lines.push_back(cOption);
+        }
+        return lines;
+    }
+    // The engine's list (35287, then 52857): this game's player's, and each judged character's (the menu's topics it
+    // has a line for, in the menu's order, then those only it has: DialogueBridge's HookBuildList); the List filter may
+    // show another in its place.
     void Build(const std::vector<Option>& acOptions)
     {
-        Options = acOptions;
+        m_source = acOptions;
+        Options = LinesFor(acOptions, 0x14);
+        m_judged.clear();
+        for (const uint32_t cCharacter : m_filters.Judged ? m_filters.Judged() : std::vector<uint32_t>{})
+        {
+            const std::vector<Option> cOwn = LinesFor(acOptions, cCharacter);
+            auto& list = m_judged[cCharacter];
+            for (const auto& cListed : Options)
+                if (const auto it = std::ranges::find(cOwn, cListed.Topic, &Option::Topic); it != cOwn.end())
+                    list.push_back(*it);
+            for (const auto& cLine : cOwn)
+                if (std::ranges::find(Options, cLine.Topic, &Option::Topic) == Options.end())
+                    list.push_back(cLine);
+        }
         if (m_filters.List)
             if (auto shown = m_filters.List())
                 Options = std::move(*shown);
     }
 
     Filters m_filters;
+    std::vector<Option> m_source; // the topics of the last build
+    std::map<uint32_t, std::vector<Option>> m_judged;
 };

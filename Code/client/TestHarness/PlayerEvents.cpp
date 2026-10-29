@@ -1,7 +1,9 @@
 #include <HookSwitch.h>
 #include "Commands.h"
 
+#include <Actor.h>
 #include <Forms/TESForm.h>
+#include <Misc/StoryEvents.h>
 #include <MinHook.h>
 
 #include <array>
@@ -11,7 +13,7 @@
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
 
-// Spikes (docs/research/player-events.md) kept for measuring: forwarding a story event, and probes on the
+// Spikes (docs/research/player-events.md) kept for measuring: the story manager's trace, and probes on the
 // engine functions that read the player. The script-engine spikes became Games/Skyrim/Papyrus/GuestScripts.cpp.
 namespace TestHarness::PlayerEvents
 {
@@ -23,33 +25,20 @@ std::mutex s_lock;
 using TAddEvent = uint32_t(void*, uint32_t, const void*);
 TAddEvent* RealAddEvent = nullptr;
 
-// Spike 4: the location change story event (CLOC), as PlayerCharacter::SetParentCell builds it (32288).
-struct LocationChangeEvent
-{
-    uint32_t ActorHandle;  // 00
-    uint32_t Pad04;
-    TESForm* pOldLocation; // 08
-    TESForm* pNewLocation; // 10
-};
-static_assert(sizeof(LocationChangeEvent) == 0x18);
 bool s_traceStory = false;
-std::vector<std::array<uint32_t, 3>> s_capturedLocationChanges; // (old, new, event id) the player raised
-
-uint32_t LocationChangeIndex()
-{
-    POINTER_SKYRIMSE(uint32_t, s_index, 380069); // the CLOC event type's registered index
-    return *s_index.Get();
-}
+std::vector<std::array<uint32_t, 4>> s_capturedLocationChanges; // (old, new, event id, actor) raised here
+std::vector<std::array<uint32_t, 3>> s_outcomes;                 // (event id, code, node or quest) processed here
 
 uint32_t HookAddEvent(void* apThis, uint32_t aIndex, const void* apEvent)
 {
     const uint32_t cId = RealAddEvent(apThis, aIndex, apEvent);
     std::scoped_lock _{s_lock};
-    if (s_traceStory && apEvent && aIndex == LocationChangeIndex())
+    if (s_traceStory && apEvent && aIndex == StoryEvents::LocationChangeIndex())
     {
-        auto* pEvent = static_cast<const LocationChangeEvent*>(apEvent);
+        auto* pEvent = static_cast<const StoryEvents::LocationChange*>(apEvent);
+        const auto* pActor = TESObjectREFR::GetByHandle(pEvent->ActorHandle);
         s_capturedLocationChanges.push_back({pEvent->pOldLocation ? pEvent->pOldLocation->formID : 0,
-                                             pEvent->pNewLocation ? pEvent->pNewLocation->formID : 0, cId});
+                                             pEvent->pNewLocation ? pEvent->pNewLocation->formID : 0, cId, pActor ? pActor->formID : 0});
     }
     return cId;
 }
@@ -71,8 +60,13 @@ void HookStoryLog(void* apThis, int32_t aCode, const uint32_t* apEvent, TESForm*
                                             "node at max quests", "quest waiting for reset", "quest already run", "quest started",
                                             "quest failed conditions", "quest failed to fill aliases", "quest timed out filling aliases"};
     if (s_traceStory)
+    {
         spdlog::info("Story: event {:X} (type {}) {} {:X}", apEvent ? apEvent[0] : 0, apEvent ? apEvent[1] : 0,
                      aCode >= 0 && aCode < 12 ? cCodes[aCode] : "?", apForm && aCode >= 3 ? apForm->formID : 0);
+        std::scoped_lock _{s_lock};
+        if (apEvent && s_outcomes.size() < 4096)
+            s_outcomes.push_back({apEvent[0], static_cast<uint32_t>(aCode), apForm && aCode >= 3 ? apForm->formID : 0});
+    }
     RealStoryLog(apThis, aCode, apEvent, apForm, apNode, aAte, aA, aB);
 }
 
@@ -83,32 +77,33 @@ Hooks::Initializer s_storyHooks(
         HOOK_ID(32374, &RealStoryLog, HookStoryLog);
     });
 
-// {"cmd": "story_trace", "on": true}: log the story manager's outcomes and capture the player's CLOC events;
-// returns those captured since the last call as (old location, new location, event id).
+// {"cmd": "story_trace", "on": true}: log the story manager's outcomes and capture the CLOC events raised here;
+// returns those captured since the last call as (old location, new location, event id, actor), and each processed
+// event's outcomes (32374's codes: 3 node passed, 8 quest started) as (event id, code, node or quest).
 nlohmann::json StoryTrace(Harness&, const nlohmann::json& acRequest)
 {
     std::scoped_lock _{s_lock};
     s_traceStory = acRequest.value("on", s_traceStory);
     auto captured = nlohmann::json::array();
-    for (const auto& [cOld, cNew, cId] : s_capturedLocationChanges)
-        captured.push_back({cOld, cNew, cId});
+    for (const auto& [cOld, cNew, cId, cActor] : s_capturedLocationChanges)
+        captured.push_back({cOld, cNew, cId, cActor});
     s_capturedLocationChanges.clear();
-    return {{"ok", true}, {"captured", captured}};
+    auto outcomes = nlohmann::json::array();
+    for (const auto& [cId, cCode, cForm] : s_outcomes)
+        outcomes.push_back({cId, cCode, cForm});
+    s_outcomes.clear();
+    return {{"ok", true}, {"captured", captured}, {"outcomes", outcomes}};
 }
 
-// {"cmd": "story_raise_location_change", "actor": id, "old": id, "new": id}: raise a CLOC as the engine does.
+// {"cmd": "story_raise_location_change", "actor": id, "old": id, "new": id}: a location change raised for that actor
+// (judged for it, as the host raises a guest's).
 nlohmann::json StoryRaise(Harness&, const nlohmann::json& acRequest)
 {
-    auto* pActor = TESForm::GetById(acRequest.value("actor", 0u));
+    auto* pActor = Cast<Actor>(TESForm::GetById(acRequest.value("actor", 0u)));
     if (!pActor)
         return Error("no such actor");
-    using TBuild = LocationChangeEvent*(LocationChangeEvent*, TESForm*, TESForm*, TESForm*);
-    using TGetManager = void*();
-    POINTER_SKYRIMSE(TBuild, s_build, 32288);
-    POINTER_SKYRIMSE(TGetManager, s_getManager, 22790);
-    LocationChangeEvent event{};
-    s_build(&event, pActor, TESForm::GetById(acRequest.value("old", 0u)), TESForm::GetById(acRequest.value("new", 0u)));
-    const uint32_t cId = RealAddEvent(s_getManager.Get()(), LocationChangeIndex(), &event);
+    const uint32_t cId = StoryEvents::RaiseLocationChange(*pActor, TESForm::GetById(acRequest.value("old", 0u)),
+                                                         TESForm::GetById(acRequest.value("new", 0u)));
     return {{"ok", true}, {"event", cId}};
 }
 

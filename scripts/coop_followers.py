@@ -3,13 +3,10 @@ from contextlib import contextmanager
 import math
 import coop_test as ct
 
-QUEST = 0x750BA
 RECRUIT, FOLLOW, WAIT, DISMISS, TRADE = 0xB0EE6, 0x75083, 0x75084, 0x5C80C, 0x60020
 
 
-def alias(slot=0):
-    rows = ct.player_command("", {"cmd": "quest", "quest": QUEST})["aliases"]
-    return next((r["ref"] for r in rows if r["id"] == slot), 0)
+alias = ct.follower_in_slot
 
 
 def go_home():
@@ -71,10 +68,7 @@ def recruited(game="client", base=None, slot=0, topic=RECRUIT, outdoors=False, r
         if not ct.game_state("client").get("online"):
             ct.rejoin_client()
         ct.close_dialogues()
-        if alias(slot) == npc:
-            ct.player_command("", {"cmd": "papyrus_call", "class": "DialogueFollowerScript", "function": "DismissAnimal" if slot else "DismissFollower",
-                                  "self": QUEST, "args": [] if slot else [0, 0]})
-            ct.wait_for("the follower fixture releases its vanilla alias", lambda: alias(slot) != npc, 15)
+        ct.dismiss_follower(npc, slot)
         if reference:
             ct.player_command("", {"cmd": "move_actor", "actor": npc, "home": True})
             if original["disabled"]:

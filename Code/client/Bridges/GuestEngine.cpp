@@ -23,10 +23,13 @@
 #include <Forms/BGSLocation.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESPackage.h>
+#include <Games/ActorExtension.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
+#include <Papyrus/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/WorldEvents.h>
 #include <Utils.h>
@@ -239,10 +242,27 @@ bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::funct
     return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));
 }
 
+bool GuestEngine::RunScenePackage(const GameId& acPackage) noexcept
+{
+    auto* pPackage = Cast<TESPackage>(TESForm::GetById(ToGame(acPackage)));
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPackage || !pPlayer)
+        return false;
+    pPlayer->SetAIDriven(true);
+    pPlayer->PutOwnerPackage(pPackage);
+    return true;
+}
+
+void GuestEngine::EndScenePackage() noexcept
+{
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        pPlayer->SetAIDriven(false);
+}
+
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 {
     auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(ToGame(acGlobal.Id)));
-    if (!pGlobal || pGlobal->IsConstant())
+    if (!pGlobal || pGlobal->IsConstant() || SystemQuests::IsGlobal(pGlobal->formID))
         return false;
     pGlobal->f = acGlobal.Value;
     return true;
@@ -250,8 +270,9 @@ bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 
 void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
 {
+    // A system quest's instance is this player's own (docs/design/system-quests.md).
     auto* pQuest = Cast<TESQuest>(TESForm::GetById(ToGame(acQuest.Id)));
-    if (!pQuest)
+    if (!pQuest || SystemQuests::Is(pQuest->formID))
         return;
     TESQuest& quest = *pQuest;
 
