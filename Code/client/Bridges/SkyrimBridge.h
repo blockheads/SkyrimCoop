@@ -51,6 +51,7 @@ public:
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
     int32_t GetActorValueCount() const noexcept override;
@@ -82,7 +83,6 @@ public:
     void ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept override;
     uint32_t GetKillerFormId(uint32_t aFormId) const noexcept override;
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
-    ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
     Inventory GetActorInventory(uint32_t aFormId) const noexcept override;
     void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;

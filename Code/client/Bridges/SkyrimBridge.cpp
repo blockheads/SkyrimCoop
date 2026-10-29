@@ -335,6 +335,13 @@ float SkyrimBridge::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) con
     return 0.f;
 }
 
+float SkyrimBridge::GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    if (Actor* pActor = GetActor(aFormId))
+        return EngineVirtual(pActor->actorValueOwner).GetBaseValue(static_cast<uint32_t>(aIndex));
+    return 0.f;
+}
+
 void SkyrimBridge::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
 {
     Breadcrumbs::Record("SetActorValue", aFormId, static_cast<uint32_t>(aIndex));
@@ -1567,14 +1574,6 @@ TimeModel SkyrimBridge::GetGameTime() const noexcept
 // ---------------------------------------------------------------------------
 // IActorBridge — extended (Plan 03)
 // ---------------------------------------------------------------------------
-
-ActorValues SkyrimBridge::GetActorEssentialValues(uint32_t aFormId) const noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return {};
-    return pActor->GetEssentialActorValues();
-}
 
 void SkyrimBridge::SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept
 {

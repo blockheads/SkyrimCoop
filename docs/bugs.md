@@ -103,6 +103,12 @@ Retained changes and their evidence are in [native-bugs.md](design/native-bugs.m
     the client's copy (a bone turning back 3-5 times in a second, 1-16 flickers, a bone up to 21 units off its body).
     It is not the new clock: 1 of 4 passed on it, 0 of 4 on a build with the old fixed 300 ms and 10/s timing
     (scenario samples under `build/coop-test/runs/`, 2026-10-28 22:1x).
+- **A chest's lid can rest in another pose on the two games after its open is interrupted** (2026-10-28, live menus).
+  The host saving while a guest's chest menu opens, or the chest disabled while open, leaves its `DoorLeft` node turned
+  differently on the two games (the world check after `host-saves-with-guest-menu-open`, sometimes
+  `guest-menus-close-when-target-goes`). The items and the open state agree; only the lid's pose differs.
+  - Start: compare the lid's animation state on both games after the interruption (the chest's `BGSOpenCloseForm`
+    open state, `SetOpenState` 14287 in form-state.md) and replay the host's final open state.
 - **A killed wolf's body once took over 10 s to come to rest on the host** (2026-10-28, adaptive playback run).
   `client-melee-kill-credit` timed out at "[host] the wolf's body comes to rest" once in 20 scenarios and passed on
   the rerun. The host's own body: the copy clock does not play it.

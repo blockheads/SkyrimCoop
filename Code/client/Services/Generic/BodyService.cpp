@@ -79,12 +79,19 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_missing.clear();
 }
 
+entt::entity BodyService::CopyEntity(uint32_t aSessionId) const noexcept
+{
+    for (const auto cEntity : m_world.view<RemoteComponent>())
+        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
+            return cEntity;
+    return entt::null;
+}
+
 uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
 {
-    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
-        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
-            return m_world.get<FormIdComponent>(cEntity).Id;
-    return 0;
+    const auto cEntity = CopyEntity(aSessionId);
+    const auto* pFormId = cEntity != entt::null ? m_world.try_get<FormIdComponent>(cEntity) : nullptr;
+    return pFormId ? pFormId->Id : 0;
 }
 
 void BodyService::OnUpdate(const UpdateEvent&) noexcept
@@ -121,10 +128,8 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
 
 uint64_t BodyService::CopyTickOf(uint32_t aSessionId) noexcept
 {
-    for (const auto cEntity : m_world.view<RemoteComponent>())
-        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
-            return InterpolationSystem::PlaybackTick(m_world, cEntity);
-    return 0;
+    const auto cEntity = CopyEntity(aSessionId);
+    return cEntity != entt::null ? InterpolationSystem::PlaybackTick(m_world, cEntity) : 0;
 }
 
 void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept

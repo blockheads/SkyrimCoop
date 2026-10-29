@@ -65,6 +65,25 @@ manual save crashes. Clearing their flags alone is insufficient. The reference i
   duplicate queued saves; authority is checked again when the task runs. It never serializes the
   live VM from the journal's UI update. Other save callers retain their existing behavior.
 
+## What changes under a live menu (v1 checks, 2026-10-28)
+
+Skyrim Souls RE is the reference: `AutoCloseManager`, `ItemMenuUpdater`, `SaveHandler`.
+
+```text
+a chest's or merchant's menu (LiveMenuHooks.cpp):
+  kShow (ContainerMenu::ProcessMessage 51126, BarterMenu 50945): watch its target (handles 405962, 405823)
+  each frame (Main::UpdatePlayer 36581; barter gets no kUpdate): MenuAutoClose::Check
+    target disabled or deleted, an actor that dies, out of 400 units (or 100 past its closest if opened far): kHide
+another game changes the open chest (ApplyContainerItems / ApplyContainerContents):
+  SendInventoryUpdateMessage (52849) twice, whole list: the open list follows
+the host saves while a guest's menu is open: written, the menu keeps running
+```
+
+Tests: ClientTests `menu_auto_close_tests.cpp`; Skyrim `host-/guest-chest-list-follows-changes`,
+`host-/guest-menus-close-when-target-goes`, `host-saves-with-guest-menu-open` (`coop_menus.py`). A host's console save
+with its own container open is not a player's path (no quicksave or console in that menu); its journal save is
+`host-journal-save`.
+
 ## Validation
 
 Tier 1: personal-menu pause flags, preserved input/saving flags, case-insensitive names, offline

@@ -85,6 +85,9 @@ public:
     // --- Actor values ---
     virtual float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
     virtual float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
+    // Its base value, before every modifier (ActorValueOwner::GetBaseValue).
+    virtual float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
+    // Its base made aValue (a copy's: its owner's current value).
     virtual void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept = 0;
     virtual void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept = 0;
     virtual int32_t GetActorValueCount() const noexcept = 0;
@@ -157,7 +160,6 @@ public:
     virtual std::vector<uint32_t> GetLoadedActorFormIds() const noexcept = 0;
 
     // --- Actor values (bulk) ---
-    virtual ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept = 0;
 
     // --- Inventory (bulk) ---

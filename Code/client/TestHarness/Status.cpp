@@ -446,12 +446,12 @@ static nlohmann::json Copies()
             {"casting", CastingSpells(cFormId)},
             {"health", actors.GetActorValue(cFormId, 24 /* kHealth */)},
             {"dead", actors.IsActorDead(cFormId)}};
-        // Once the mod has moved it (two movement snapshots in).
-        if (const auto* pInterpolation = world.try_get<InterpolationComponent>(cEntity); pInterpolation && pInterpolation->TimePoints.size() >= 2)
-            copy["requested"] = {pInterpolation->Position.x, pInterpolation->Position.y, pInterpolation->Position.z};
-        // How far behind its owner it shows (CopyPlayback), and how often its owner sends it.
         if (const auto* pInterpolation = world.try_get<InterpolationComponent>(cEntity))
         {
+            // Once the mod has moved it (two movement snapshots in).
+            if (pInterpolation->TimePoints.size() >= 2)
+                copy["requested"] = {pInterpolation->Position.x, pInterpolation->Position.y, pInterpolation->Position.z};
+            // How far behind its owner it shows (CopyPlayback), and how often its owner sends it.
             const uint64_t cShown = InterpolationSystem::PlaybackTick(world, cEntity);
             copy["behind_ms"] = world.GetTick() > cShown ? world.GetTick() - cShown : 0;
             copy["send_interval_ms"] = pInterpolation->Playback.TargetInterval();

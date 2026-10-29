@@ -1653,6 +1653,12 @@ What the first playtest build has besides what works today (the table above):
     Tiers 1-2 (ClientTests `copy_clock_tests.cpp`, GameTests `copy_playback_flows.cpp`); Skyrim: 16 of 19
     movement/combat/knockdown/death/travel scenarios pass, the other three known and in `docs/bugs.md`; the guest's copy
     of the host's player shows about 140 ms behind (was 300).
+21. **v1 checks: permanent abilities and live menus** (2026-10-28, dev uncommitted). An ability's values reach a rejoined
+    player's copy (the spawn carries values held off their base; non-pool values are set as the base, not capped by
+    damage). Live chest and barter menus close when their target goes, dies or leaves (`MenuAutoClose`, Skyrim Souls'
+    rule), and an open chest's list follows another game's change (`SendInventoryUpdateMessage`). ClientTests
+    `menu_auto_close_tests.cpp`, GameTests `perk_flows.cpp` (rejoin); Skyrim `ability-stays-on-copy` and the
+    `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is in `docs/bugs.md`.
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation

@@ -24,6 +24,9 @@ class IActorBridge;
 // Owner writes send discrete values and death; regenerating pools are compared every 100 ms.
 struct ActorValueService
 {
+    // ActorValue::kDragonSouls: never synced, setting it shows "Dragon soul collected".
+    static constexpr uint32_t kDragonSouls = 133;
+
     ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
     ~ActorValueService() noexcept = default;
     NO_COPY_MOVE(ActorValueService);

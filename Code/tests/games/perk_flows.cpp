@@ -1,4 +1,5 @@
 #include "Party.h"
+#include <Events/ActorValueChangeEvent.h>
 
 #include <Events/PlayerProgressEvent.h>
 #include <SessionIds.h>
@@ -49,7 +50,8 @@ SCENARIO("A player's earned perks follow only its copies, initially and after ch
 SCENARIO("A player's skills are on its copies from their spawn", "[perks][values]")
 {
     // Joining applies a character's skills before it connects, so no change of them is relayed: the spawn carries
-    // them, or a host condition on the copy (a persuade's Speech) reads the copy's created base.
+    // them, or a host condition on the copy (a persuade's Speech) reads the copy's created base. Fortified past its
+    // maximum (62 of 60), the copy shows the owner's current value.
     constexpr uint32_t cSpeech = 17;
     Party party(2, [&](FakeEngine& aEngine) {
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x31D2E;
@@ -65,9 +67,44 @@ SCENARIO("A player's skills are on its copies from their spawn", "[perks][values
     uint32_t session = 0, cOnHost = 0;
     party.As(party.Guest(), [&] { session = *Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
     party.As(party.Host(), [&] { cOnHost = Utils::GetFormIdBySessionId(session); });
-    const auto& cValues = host.Actors.at(cOnHost).Values;
-    CHECK(cValues.ActorValuesList.at(cSpeech) == 62.f);
-    CHECK(cValues.ActorMaxValuesList.at(cSpeech) == 60.f);
+    CHECK(host.Actors.at(cOnHost).Values.ActorValuesList.at(cSpeech) == 62.f);
+}
+
+SCENARIO("A value a player's ability changes is on its copy again after a rejoin", "[perks][values]")
+{
+    // The Steed Stone's carry weight (Skyrim, ability-stays-on-copy): relayed when it changes, kept in the host's record
+    // of the player, so the copy made on its rejoin carries it too.
+    constexpr uint32_t cCarryWeight = 32;
+    Party party(1, [&](FakeEngine& aEngine) {
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x31D2E;
+        aEngine.LoadCell(0x31D2E);
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("the guest's player has its copy");
+    uint32_t session = 0;
+    const auto cCarried = [&] {
+        uint32_t copy = 0;
+        party.As(party.Guest(), [&] { session = Utils::GetSessionIdByFormId(FakeEngine::kPlayer).value_or(0); }); // a rejoin's new id
+        party.As(party.Host(), [&] { copy = Utils::GetFormIdBySessionId(session); });
+        const auto& cValues = host.Actors.contains(copy) ? host.Actors.at(copy).Values.ActorValuesList : decltype(host.Actors.at(copy).Values.ActorValuesList){};
+        return cValues.contains(cCarryWeight) ? cValues.at(cCarryWeight) : 0.f;
+    };
+    party.As(party.Guest(), [&] {
+        session = *Utils::GetSessionIdByFormId(FakeEngine::kPlayer);
+        guest.SetActorValue(FakeEngine::kPlayer, cCarryWeight, 300.f); // its base
+    });
+    party.Until([&] { return cCarried() == 300.f; }, "the host's copy carries the guest's base");
+    // The ability: a modifier over the base (the engine's ActiveEffect), its value relayed when it changes.
+    party.As(party.Guest(), [&] {
+        guest.Actors.at(FakeEngine::kPlayer).Values.ActorValuesList[cCarryWeight] = 400.f;
+        party.Guest().GetDispatcher().trigger(ActorValueChangeEvent{FakeEngine::kPlayer, cCarryWeight});
+    });
+    party.Until([&] { return cCarried() == 400.f; }, "the host's copy carries what the guest's player does");
+    party.Leave(party.Guest());
+    party.Until([&] { return host.CopiesOf().empty(); }, "the guest's copy goes with it");
+    party.Join(party.Guest());
+    party.Until([&] { return cCarried() == 400.f; }, "the copy made on its rejoin carries it too");
 }
 
 SCENARIO("A player's added spells follow its copies, initially and after changes", "[perks][magic]")

@@ -1126,6 +1126,16 @@ float FakeEngine::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const
     return cValue != cValues.end() ? cValue->second : 0.f;
 }
 
+// Its base (SetActorValue's), 0 until set.
+float FakeEngine::GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return 0.f;
+    const auto cBase = it->second.Bases.find(static_cast<uint32_t>(aIndex));
+    return cBase != it->second.Bases.end() ? cBase->second : 0.f;
+}
+
 void FakeEngine::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
@@ -1403,35 +1413,23 @@ void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventor
             entry.ExtraPoisonId = {}, entry.ExtraPoisonCount = 0;
 }
 
-// As Actor::GetEssentialActorValues: the pools, and this game's player's skills (6 to 23).
-ActorValues FakeEngine::GetActorEssentialValues(uint32_t aFormId) const noexcept
-{
-    const auto it = Actors.find(aFormId);
-    if (it == Actors.end())
-        return {};
-    const auto cEssential = [aFormId](uint32_t aIndex) {
-        return (aIndex >= kHealth && aIndex <= kStamina) || (aFormId == kPlayer && aIndex >= 6 && aIndex <= 23);
-    };
-    ActorValues values;
-    for (const auto& [cIndex, cValue] : it->second.Values.ActorValuesList)
-        if (cEssential(cIndex))
-            values.ActorValuesList[cIndex] = cValue;
-    for (const auto& [cIndex, cValue] : it->second.Values.ActorMaxValuesList)
-        if (cEssential(cIndex))
-            values.ActorMaxValuesList[cIndex] = cValue;
-    return values;
-}
-
-// Each value listed; the others stay.
+// Each value listed; the others stay. As Actor::SetActorValues: a pool's maximum and current; any other value's base
+// made the current one, its maximum with it.
 void FakeEngine::SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return;
+    const auto cPool = [](uint32_t aIndex) { return aIndex >= kHealth && aIndex <= kStamina; };
     for (const auto& [cIndex, cValue] : acValues.ActorMaxValuesList)
-        it->second.Values.ActorMaxValuesList[cIndex] = cValue;
+        if (cPool(cIndex))
+            it->second.Values.ActorMaxValuesList[cIndex] = cValue;
     for (const auto& [cIndex, cValue] : acValues.ActorValuesList)
+    {
         it->second.Values.ActorValuesList[cIndex] = cValue;
+        if (!cPool(cIndex))
+            it->second.Values.ActorMaxValuesList[cIndex] = cValue;
+    }
 }
 
 // Resurrect: alive, its pools full (its maximums kept), its death action over, reported as the Resurrect hook reports

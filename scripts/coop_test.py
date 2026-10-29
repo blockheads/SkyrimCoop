@@ -4053,6 +4053,48 @@ def scenario_copy_knows_learned_spell():
             console_on("client", f"player.removespell {MAGELIGHT:X}")
 
 
+# The Steed Stone's ability (doomSteedAbility, Skyrim.esm SPEL): doomSteedEffect raises carry weight (value 32).
+STEED_ABILITY, CARRY_WEIGHT = 0xE5F5E, 32
+
+
+def scenario_ability_stays_on_copy():
+    """A permanent ability the client takes (the Steed Stone's) is its character's on the host: the copy has the spell
+    (a host condition's HasSpell) and the client's carry weight, the host's own player neither. Both stay after the
+    party changes cell (the copy's 3D unloads and loads) and after the client rejoins; removed, both go from the copy."""
+    def holds(when):
+        copy = client_on_host()
+        wait_for(f"[host] the client's character has the Steed Stone {when}", lambda: has_spell("", copy, STEED_ABILITY), 10)
+        carried = actor_value("client", 0x14, CARRY_WEIGHT)
+        wait_for(f"[host] the client's character carries {carried:g}, as the client's own {when}",
+                 lambda: actor_value("", copy, CARRY_WEIGHT) == carried, 10)
+        return carried
+
+    before = actor_value("client", 0x14, CARRY_WEIGHT)
+    try:
+        console_on("client", f"player.addspell {STEED_ABILITY:X}")
+        if holds("once it takes it") <= before:
+            raise TestFailure(f"[client] the Steed Stone left its carry weight at {before:g}")
+        if has_spell("", 0x14, STEED_ABILITY):
+            raise TestFailure("[host] its own player took the client's ability")
+        both_go(BANNERED_MARE)
+        holds("in the Bannered Mare")
+        both_go(HOME_CELL)
+        holds("back home")
+        disconnect_client()
+        wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+        rejoin_client()
+        holds("after rejoining")
+        console_on("client", f"player.removespell {STEED_ABILITY:X}")
+        copy = client_on_host()
+        wait_for("[host] the client's character loses the Steed Stone with the client",
+                 lambda: not has_spell("", copy, STEED_ABILITY), 10)
+        wait_for(f"[host] the client's character carries {before:g} again",
+                 lambda: actor_value("", copy, CARRY_WEIGHT) == before, 10)
+    finally:
+        if has_spell("client", 0x14, STEED_ABILITY):
+            console_on("client", f"player.removespell {STEED_ABILITY:X}")
+
+
 def scenario_dialogue_line_judged_for_guest():
     """The host judges a line for the player it is for (JudgedFor, shared-dialogue.md): Lucan's claw topic asks
     whether the player holds the golden claw, a condition run on PlayerRef. Judged for the client's character on the
@@ -10914,6 +10956,7 @@ SCENARIOS = {
     "dialogue-options-are-the-hosts": scenario_dialogue_options_are_the_hosts,
     "dialogue-line-judged-for-guest": scenario_dialogue_line_judged_for_guest,
     "copy-knows-learned-spell": scenario_copy_knows_learned_spell,
+    "ability-stays-on-copy": scenario_ability_stays_on_copy,
     "dialogue-options-are-each-players": scenario_dialogue_options_are_each_players,
     "dialogue-quest-option-from-host": scenario_dialogue_quest_option_from_host,
     "dialogue-pick-says-the-hosts-line": scenario_dialogue_pick_says_the_hosts_line,
@@ -11134,6 +11177,7 @@ TAGS = {
     "dialogue-options-are-the-hosts": {'dialogue', 'spawn'},
     "dialogue-line-judged-for-guest": {'dialogue', 'quests'},
     "copy-knows-learned-spell": {'dialogue', 'magic'},
+    "ability-stays-on-copy": {'magic', 'v1'},
     "dialogue-options-are-each-players": {'dialogue', 'quests'},
     "dialogue-pick-says-the-hosts-line": {'dialogue', 'spawn'},
     "natives-reach-matches-ida": {'scripts'},

@@ -50,6 +50,20 @@ std::optional<ObjectChange> ReadContainerContents(const TESObjectREFR& acObject)
     return change;
 }
 
+namespace
+{
+// An open item menu on it lists what it holds now: the engine announces no change another game made. Its whole list,
+// twice: one update can leave removed entries (Skyrim Souls RE's ItemMenuUpdater; SendInventoryUpdateMessage 52849,
+// to the top menu, CommonLibSSE-NG).
+void ShowInItemMenus(TESObjectREFR& aObject) noexcept
+{
+    using TSend = void(TESObjectREFR*, const TESBoundObject*);
+    POINTER_SKYRIMSE(TSend, s_send, 52849);
+    s_send.Get()(&aObject, nullptr);
+    s_send.Get()(&aObject, nullptr);
+}
+} // namespace
+
 bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     if (aObject.formType != FormType::Reference || !aObject.GetContainer())
@@ -69,6 +83,7 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
                 stacks.push_back(cStack);
         SetContainerStacks(aObject, *pItem, cCount, stacks);
     }
+    ShowInItemMenus(aObject);
     return true;
 }
 
@@ -171,5 +186,8 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acChange.Item)));
-    return pItem && !Cast<Actor>(&aObject) && SetContainerStacks(aObject, *pItem, static_cast<int32_t>(acChange.Value), acChange.Stacks);
+    if (!pItem || Cast<Actor>(&aObject) || !SetContainerStacks(aObject, *pItem, static_cast<int32_t>(acChange.Value), acChange.Stacks))
+        return false;
+    ShowInItemMenus(aObject);
+    return true;
 }

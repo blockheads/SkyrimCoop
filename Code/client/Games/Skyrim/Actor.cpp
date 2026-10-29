@@ -584,25 +584,6 @@ Factions Actor::GetFactions() const noexcept
     return result;
 }
 
-ActorValues Actor::GetEssentialActorValues() const noexcept
-{
-    ActorValues actorValues;
-
-    const auto cAdd = [&](int32_t aIndex) {
-        actorValues.ActorValuesList.insert({aIndex, EngineVirtual(actorValueOwner).GetValue(aIndex)});
-        actorValues.ActorMaxValuesList.insert({aIndex, EngineVirtual(actorValueOwner).GetPermanentValue(aIndex)});
-    };
-    for (const int32_t cIndex : {ActorValueInfo::kHealth, ActorValueInfo::kStamina, ActorValueInfo::kMagicka})
-        cAdd(cIndex);
-    // A player's skills too: its copy stands in for it in the host's conditions (a persuade's Speech); later changes
-    // follow by the value relay.
-    if (formID == 0x14)
-        for (int32_t index = ActorValueInfo::kOneHanded; index <= ActorValueInfo::kEnchanting; ++index)
-            cAdd(index);
-
-    return actorValues;
-}
-
 float Actor::GetActorValue(uint32_t aId) const noexcept
 {
     return EngineVirtual(actorValueOwner).GetValue(aId);
@@ -725,11 +706,17 @@ void Actor::SetMagicEquipment(const MagicEquipment& acEquipment) noexcept
 
 void Actor::SetActorValues(const ActorValues& acActorValues) noexcept
 {
-    for (auto& value : acActorValues.ActorMaxValuesList)
-        ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, value.first, value.second);
-
-    for (auto& value : acActorValues.ActorValuesList)
-        ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, value.first, value.second);
+    // The pools: their maximum, then the damage below it. Every other value as the value relay sets it: its base made
+    // the owner's current value (a fortify above the maximum included, which damage cannot reach).
+    const auto cPool = [](uint32_t aId) { return aId >= ActorValueInfo::kHealth && aId <= ActorValueInfo::kStamina; };
+    for (const auto& [cId, cValue] : acActorValues.ActorMaxValuesList)
+        if (cPool(cId))
+            ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, cId, cValue);
+    for (const auto& [cId, cValue] : acActorValues.ActorValuesList)
+        if (cPool(cId))
+            ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, cId, cValue);
+        else
+            SetActorValue(cId, cValue);
 }
 
 void Actor::SetFactions(const Factions& acFactions) noexcept

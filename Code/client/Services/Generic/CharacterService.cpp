@@ -1361,7 +1361,22 @@ CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormI
 ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
 {
     ActorData actorData{};
-    actorData.InitialActorValues = m_actorBridge.GetActorEssentialValues(aFormId);
+    // Its pools; a player's skills and the values its abilities hold off their base (a rejoin's copy has them before
+    // any change is relayed; copy-contract.md). Never its dragon souls.
+    const bool cPlayer = aFormId == m_playerBridge.GetPlayerFormId();
+    for (int32_t index = 0; index < m_actorBridge.GetActorValueCount(); ++index)
+    {
+        const bool cPool = index >= 24 && index <= 26; // kHealth, kMagicka, kStamina
+        const bool cSkill = index >= 6 && index <= 23; // kOneHanded to kEnchanting
+        if (!cPool && (!cPlayer || index == static_cast<int32_t>(ActorValueService::kDragonSouls)))
+            continue;
+        const float cValue = m_actorBridge.GetActorValue(aFormId, index);
+        const float cMax = m_actorBridge.GetActorPermanentValue(aFormId, index);
+        if (!cPool && !cSkill && cValue == m_actorBridge.GetActorBaseValue(aFormId, index) && cMax == cValue)
+            continue;
+        actorData.InitialActorValues.ActorValuesList[index] = cValue;
+        actorData.InitialActorValues.ActorMaxValuesList[index] = cMax;
+    }
     actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);
     actorData.IsWeaponDrawn = HandsUp(m_actorBridge.GetWeaponState(aFormId));

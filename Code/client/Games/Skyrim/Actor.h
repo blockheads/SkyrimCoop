@@ -206,7 +206,6 @@ struct Actor : TESObjectREFR
     int32_t GetGoldAmount() const noexcept;
     uint16_t GetLevel() const noexcept;
     Factions GetFactions() const noexcept;
-    ActorValues GetEssentialActorValues() const noexcept;
     [[nodiscard]] bool IsDead() const noexcept;
     // It lies in its ragdoll, dead or knocked down (Actor::IsInRagdollState 37491): the engine keeps it on the ragdoll.
     [[nodiscard]] bool LiesInRagdoll() const noexcept;

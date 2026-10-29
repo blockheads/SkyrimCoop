@@ -301,6 +301,91 @@ def barter_speech(game):
         ct.both_go(ct.HOME_CELL)
 
 
+# Live menus (v1 checklist): what changes under an open menu while the world runs. Skyrim Souls RE is the reference
+# (AutoCloseManager closes a menu whose target goes, ItemMenuUpdater refreshes its lists, SaveHandler saves).
+ITEM_NAMES = ct.ITEM_LISTS + ".ItemsListHolder.List_mc.entryList"
+
+
+def listed(game, menu, name):
+    """Whether the open menu's item list shows an entry named `name`, as the player sees it."""
+    count = int(ct.menu_var(game, menu, ITEM_NAMES + ".length") or 0)
+    return any(name in str(ct.menu_var(game, menu, f"{ITEM_NAMES}.{i}.text") or "") for i in range(count))
+
+
+def open_chest(game, chest):
+    ct.place_before(game, chest, 100)
+    ct.activate_on(game, chest)
+    ct.wait_for(f"[{game or 'host'}] the chest's menu shows its lists",
+                lambda: ct.menu_var(game, "ContainerMenu", ct.ITEM_LISTS + ".currentState") in ct.LISTS_SHOWN, 5)
+
+
+def chest_list_follows(game):
+    """A player holds a chest's menu open while the other player's game takes the sweetrolls out of it: the open
+    list stops showing them (it is not left listing items that are gone)."""
+    other = "" if game else "client"
+    chest = ct.SMALL_CHEST
+    try:
+        ct.console_on("", f"{chest:X}.additem {ct.SWEETROLL:X} 2")
+        for name in ("", "client"):
+            ct.wait_for(f"[{name or 'host'}] the chest holds 2 sweetrolls",
+                        lambda name=name: ct.item_count(name, chest, ct.SWEETROLL) == 2, 5)
+        open_chest(game, chest)
+        ct.wait_for("the open list shows the sweetrolls", lambda: listed(game, "ContainerMenu", "Sweet Roll"), 5)
+        ct.console_on(other, f"{chest:X}.removeitem {ct.SWEETROLL:X} 2")
+        ct.wait_for(f"[{game or 'host'}] its chest holds none", lambda: ct.item_count(game, chest, ct.SWEETROLL) == 0, 5)
+        ct.wait_for("the open list no longer shows them", lambda: not listed(game, "ContainerMenu", "Sweet Roll"), 5)
+    finally:
+        if "ContainerMenu" in ct.menus(game):
+            ct.player_command(game, {"cmd": "menu", "name": "ContainerMenu", "show": False})
+        if extra := ct.item_count("", chest, ct.SWEETROLL):
+            ct.console_on("", f"{chest:X}.removeitem {ct.SWEETROLL:X} {extra}")
+
+
+def menus_close_when_target_goes(game):
+    """A menu on something that goes closes (Skyrim Souls' auto-close): barter with a merchant who walks off or dies,
+    a chest that is disabled. The host's game makes each change; the player's menu closes on its own."""
+    def barter(what, change):
+        npc, _, copy = ct.spawn_host_npc("00013BA1", restrained=True)  # Belethor
+        try:
+            target = copy if game else npc
+            ct.place_before(game, target, 110)
+            ct.player_script_call(game, "Actor", "ShowBarterMenu", on=target)
+            ct.wait_for(f"[{game or 'host'}] barter opens", lambda: "BarterMenu" in ct.menus(game), 10)
+            change(npc)
+            ct.wait_for(f"[{game or 'host'}] barter closes when the merchant {what}", lambda: "BarterMenu" not in ct.menus(game), 5)
+        finally:
+            close(game, "BarterMenu")
+            ct.remove_host_npc(npc)
+
+    # 700 units from the trading player (on the host, the copy of the guest's): inside QASmoke, past 400.
+    trader = "player" if not game else f"{ct.client_on_host():X}"
+    barter("moves away", lambda npc: ct.console_on("", f"{npc:X}.moveto {trader} 700 0 0"))
+    barter("dies", lambda npc: ct.console_on("", f"{npc:X}.kill"))
+    chest = ct.SMALL_CHEST
+    try:
+        open_chest(game, chest)
+        ct.console_on("", f"{chest:X}.disable")
+        ct.wait_for(f"[{game or 'host'}] the chest's menu closes when the chest is disabled",
+                    lambda: "ContainerMenu" not in ct.menus(game), 5)
+    finally:
+        if "ContainerMenu" in ct.menus(game):
+            ct.player_command(game, {"cmd": "menu", "name": "ContainerMenu", "show": False})
+        ct.console_on("", f"{chest:X}.enable")
+
+
+def save_with_menu_open(game):
+    """The host saves (console) while the guest's chest menu is open: the save is written, and the open menu still runs
+    and closes as usual. (A host's own save comes from the journal, a menu of its own: host-journal-save.)"""
+    try:
+        damage_stamina(game)
+        open_chest(game, ct.SMALL_CHEST)
+        saved = ct.save_game("", "menus-open")
+        ct.wait_for("[host] the save and co-save are written", ct.saves_written(saved), 20)
+        assert_live(game, "ContainerMenu")
+    finally:
+        close(game, "ContainerMenu")
+
+
 def register(scenarios, tags):
     for role, game in (("host", ""), ("guest", "client")):
         name = f"dialogue-{role}-barter-earns-speech"
@@ -320,4 +405,11 @@ def register(scenarios, tags):
         scenarios[name] = functools.partial(journal_save, game)
         tags[name] = {"menus", "ui", "save"}
     scenarios["offline-journal-pauses"] = offline_journal_pauses
+    for check, run in {"chest-list-follows-changes": chest_list_follows, "menus-close-when-target-goes": menus_close_when_target_goes}.items():
+        for role, game in (("host", ""), ("guest", "client")):
+            name = f"{role}-{check}"
+            scenarios[name] = functools.partial(run, game)
+            tags[name] = {"menus", "ui", "v1"}
+    scenarios["host-saves-with-guest-menu-open"] = functools.partial(save_with_menu_open, "client")
+    tags["host-saves-with-guest-menu-open"] = {"menus", "ui", "save", "v1"}
     tags["offline-journal-pauses"] = {"menus", "ui", "session"}

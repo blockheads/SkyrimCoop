@@ -66,6 +66,8 @@ private:
     [[nodiscard]] uint64_t CopyTickOf(uint32_t aSessionId) noexcept;
     [[nodiscard]] BodyPlayback& PlaybackOf(const BodyKey& acKey) noexcept { return acKey.Actor ? m_ragdolls : m_playback; }
     // This game's copy of that character (its form id), 0 for none.
+    // This game's entity for a copy, entt::null without one.
+    [[nodiscard]] entt::entity CopyEntity(uint32_t aSessionId) const noexcept;
     [[nodiscard]] uint32_t CopyOf(uint32_t aSessionId) const noexcept;
 
     World& m_world;

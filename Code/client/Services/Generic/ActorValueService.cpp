@@ -19,12 +19,6 @@
 
 #include <Bridges/IActorBridge.h>
 
-namespace
-{
-// ActorValue::kDragonSouls: never synced, setting it fires "Dragon soul collected".
-constexpr uint32_t cDragonSouls = 133;
-} // namespace
-
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
@@ -191,7 +185,7 @@ void ActorValueService::BroadcastActorValues() noexcept
         for (const uint32_t cIndex : it->second)
         {
             if (cIndex >= static_cast<uint32_t>(m_actorBridge.GetActorValueCount()) ||
-                (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == cDragonSouls))
+                (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == kDragonSouls))
                 continue;
             // Continuous pools go with their tick; their maxima still follow writes.
             if (cIndex < 24 || cIndex > 26)
@@ -410,7 +404,7 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
 void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) noexcept
 {
     for (const auto& [key, value] : acMessage.Values)
-        if (key != cDragonSouls)
+        if (key != kDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorValuesList[key] = value;
             if (key >= 24 && key <= 26)
@@ -431,7 +425,7 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 
     for (const auto& [key, value] : acMessage.Values)
     {
-        if (key == cDragonSouls)
+        if (key == kDragonSouls)
             continue;
 
         spdlog::debug("Actor value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
@@ -448,7 +442,7 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges& acMessage) noexcept
 {
     for (const auto& [key, value] : acMessage.Values)
-        if (key != cDragonSouls)
+        if (key != kDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorMaxValuesList[key] = value;
             if (key >= 24 && key <= 26)
@@ -469,7 +463,7 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
     for (const auto& [key, value] : acMessage.Values)
     {
-        if (key == cDragonSouls)
+        if (key == kDragonSouls)
             continue;
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);

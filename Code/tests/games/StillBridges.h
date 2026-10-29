@@ -570,6 +570,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept override
+    {
+        return {};
+    }
     uint32_t GetCombatTargetFormId(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -615,10 +619,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
         return {};
     }
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override
-    {
-        return {};
-    }
-    ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override
     {
         return {};
     }

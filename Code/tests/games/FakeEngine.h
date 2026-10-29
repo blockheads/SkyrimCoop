@@ -732,6 +732,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
                              const AnimationVariables& aVariables, bool aPlace) noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
     int32_t GetActorValueCount() const noexcept override { return 164; } // ActorValueInfo::kActorValueCount
@@ -769,7 +770,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
     Inventory GetActorInventory(uint32_t aFormId) const noexcept override;
     void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;
-    ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
     bool OpenFollowerInventory(uint32_t aNpcFormId) noexcept override;
     std::vector<Followers::State> PartyFollowers;

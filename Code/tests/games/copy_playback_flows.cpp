@@ -25,22 +25,27 @@ uint32_t HostPlayerCopy(FakeEngine& aGuest)
     return 0;
 }
 
+// aGame's entity for its copy aCopy, entt::null without one.
+entt::entity CopyEntity(World& aGame, uint32_t aCopy)
+{
+    for (const auto cEntity : aGame.view<InterpolationComponent, FormIdComponent>())
+        if (aGame.get<FormIdComponent>(cEntity).Id == aCopy)
+            return cEntity;
+    return entt::null;
+}
+
 // The time aGame shows its copy aCopy at, this frame.
 uint64_t CopyTick(World& aGame, uint32_t aCopy)
 {
-    for (const auto cEntity : aGame.view<RemoteComponent, FormIdComponent>())
-        if (aGame.get<FormIdComponent>(cEntity).Id == aCopy)
-            return InterpolationSystem::PlaybackTick(aGame, cEntity);
-    return 0;
+    const auto cEntity = CopyEntity(aGame, aCopy);
+    return cEntity != entt::null ? InterpolationSystem::PlaybackTick(aGame, cEntity) : 0;
 }
 
 // How often aCopy's owner sends it, as aGame measures (CopyPlayback's target interval), 0 without a copy.
 double SendInterval(World& aGame, uint32_t aCopy)
 {
-    for (const auto cEntity : aGame.view<InterpolationComponent, FormIdComponent>())
-        if (aGame.get<FormIdComponent>(cEntity).Id == aCopy)
-            return aGame.get<InterpolationComponent>(cEntity).Playback.TargetInterval();
-    return 0.0;
+    const auto cEntity = CopyEntity(aGame, aCopy);
+    return cEntity != entt::null ? aGame.get<InterpolationComponent>(cEntity).Playback.TargetInterval() : 0.0;
 }
 
 // Frames for aMs of wall time (the session's clock), the host's player walking along x at aSpeed a second.
