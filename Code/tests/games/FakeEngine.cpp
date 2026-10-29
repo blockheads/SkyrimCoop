@@ -36,6 +36,7 @@
 #include <Events/SystemQuestLearnedEvent.h>
 #include <ScriptValues.h>
 #include <array>
+#include <ranges>
 #include <cstdio>
 #include <Games/Overrides.h>
 #include <Events/GameLoadedEvent.h>
@@ -1244,8 +1245,18 @@ void FakeEngine::CellChanged(uint32_t aFormId, uint32_t aFrom)
         const auto it = Locations.find(aCell);
         return it != Locations.end() ? it->second : 0u;
     };
-    if (cActor.Copy && cActor.Player && cLocation(aFrom) != cLocation(cActor.Cell))
-        World::Get().GetRunner().Trigger(CopyLocationChangeEvent{aFormId, cLocation(aFrom), cLocation(cActor.Cell)});
+    if (aFormId == kPlayer && cLocation(aFrom) != cLocation(cActor.Cell))
+        RaisesStoryEvent(StoryEvent::TypeOf("CLOC"), {kPlayer, cLocation(aFrom), cLocation(cActor.Cell)});
+}
+
+void FakeEngine::RaisesStoryEvent(uint32_t aType, std::vector<uint64_t> aMembers)
+{
+    const auto it = std::ranges::find(StoryTypes, aType, &RegisteredStory::Id);
+    if (DecidesWorld || it == StoryTypes.end())
+        return;
+    OwnStoryEvent event{static_cast<uint32_t>(it - StoryTypes.begin())};
+    std::ranges::copy(aMembers | std::views::take(event.Members.size()), event.Members.begin());
+    World::Get().GetRunner().Trigger(event);
 }
 
 void FakeEngine::Exterior(uint32_t aWorldSpace, uint32_t aFirstCell, int32_t aRadius)

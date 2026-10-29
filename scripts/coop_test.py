@@ -2204,7 +2204,7 @@ def story_processing_order(instance, event_ids, since):
 
 def scenario_guest_location_change_starts_story():
     """The client leads the party into the Bannered Mare (party-model.md rule 4). Its own game's story manager starts
-    nothing; the host's game raises the client's arrival for its character (its copy's location change) and judges it
+    nothing; it sends its arrival (CLOC) to the host, whose game raises it for the client's character and judges it
     for that character. The party arrives once: of the two arrivals the host's story manager sees, the copy's and its
     own player's, the first it processes starts the arrival's quests (a node passes), the second starts none (the bard's
     song and the greeting start once)."""
@@ -2252,13 +2252,13 @@ SALT_PILE, RAW_BEEF, COOKED_BEEF = 0x34CDF, 0x65C99, 0x721E8
 CRAFTING_LISTS = "_root.Menu.InventoryLists"  # CraftingMenu.swf: 1 categories only, 2 the recipes take the keys
 CRAFTING_LIST = "_root.Menu.ItemList"         # its recipe list (it does not wrap; UP_KEY, DOWN_KEY move it)
 CREATE_YES = 0                                # "Do you want to create this item?": Yes
-CRAFT_RAISED = re.compile(r"HostEngine: story event (\d+) \(craft\) raised for ([0-9A-F]+)")
+CRAFT_RAISED = re.compile(r"HostEngine: story event (\d+) \(CRFT\) raised for ([0-9A-F]+)")
 
 
 def scenario_guest_craft_raises_story():
     """The client cooks beef at QASmoke's cooking spit: E opens its menu, E takes the recipe list, Up or Down to the one
-    recipe its salt and beef make, E and the box's Yes cook it. Its own game's story manager starts nothing for the craft (CRFT); it sends the craft to the host, whose game
-    raises it for the client's character and processes it."""
+    recipe its salt and beef make, E and the box's Yes cook it. Its own game's story manager starts nothing for the
+    craft (CRFT); it sends the craft to the host, whose game raises it for the client's character and processes it."""
     copy = player_copy("")
     _, host_mark = log_trail("", 1 << 62)
     _, client_mark = log_trail("client", 1 << 62)
@@ -2300,7 +2300,7 @@ def scenario_guest_craft_raises_story():
         presses_box_button("client", CREATE_YES)
         wait_for(f"[client] cooked {selected('text')}", lambda: item_count("client", 0x14, COOKED_BEEF) == 1, 5)
         wait_for("[client] sent its craft to the host",
-                 lambda: any("GuestWorldState: crafted" in line["text"] for line in log_trail("client", client_mark)[0]), 5)
+                 lambda: any("GuestWorldState: story event CRFT sent" in line["text"] for line in log_trail("client", client_mark)[0]), 5)
 
         def raised():
             for line in log_trail("", host_mark)[0]:

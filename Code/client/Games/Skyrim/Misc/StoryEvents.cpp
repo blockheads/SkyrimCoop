@@ -2,12 +2,14 @@
 #include <HookSwitch.h>
 
 #include <Actor.h>
-#include <Events/EventDispatcher.h>
 #include <Events/StoryEvents.h>
+#include <FormIds.h>
 #include <Games/ActorExtension.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Misc/PartyArrivals.h>
+#include <Misc/StoryEventRules.h>
+#include <SessionIds.h>
 #include <VersionDb.h>
 #include <World.h>
 
@@ -15,17 +17,26 @@
 #include <mutex>
 #include <unordered_map>
 
+BGSStoryEventManager* BGSStoryEventManager::Get() noexcept
+{
+    using TGet = BGSStoryEventManager*();
+    POINTER_SKYRIMSE(TGet, s_get, 22790);
+    return s_get.Get()();
+}
+
 namespace StoryEvents
 {
 namespace
 {
+using StoryEventRules::MemberType;
+
 constexpr uint32_t cPlayerId = 0x14;
 
 std::mutex s_lock;
 std::unordered_map<uint32_t, uint32_t> s_judgedFor; // an event raised for a character: id -> its form id
 PartyArrivals s_arrivals;
 thread_local bool s_raising = false;
-std::atomic<uint32_t> s_users{0};
+std::atomic<bool> s_sends{false};
 
 // The event types' registered indexes (QuestEvents.h).
 uint32_t KillIndex()
@@ -34,9 +45,10 @@ uint32_t KillIndex()
     return *s_index.Get();
 }
 
-uint32_t CraftIndex()
+// TESQuest::EnsureQuestStarted's (25003) queued start: the engine's, not a player's event.
+uint32_t QuestStartIndex()
 {
-    POINTER_SKYRIMSE(uint32_t, s_index, 380076);
+    POINTER_SKYRIMSE(uint32_t, s_index, 380097);
     return *s_index.Get();
 }
 
@@ -59,14 +71,34 @@ bool IsPlayer(uint32_t aFormId)
     return pActor && pActor->GetExtension()->IsOtherPlayer();
 }
 
+// A registered type's members' types (none: no such index here).
+std::optional<std::vector<MemberType>> TypesOf(uint32_t aIndex)
+{
+    const BGSStoryEventManager* pManager = BGSStoryEventManager::Get();
+    if (!pManager || aIndex >= pManager->registeredEvents.length)
+        return std::nullopt;
+    std::vector<MemberType> types;
+    if (const auto* pMembers = pManager->registeredEvents.data[aIndex].members)
+        for (uint32_t i = 0; i < pMembers->length && i < StoryEvent::kMaxMembers; ++i)
+            types.push_back(static_cast<MemberType>(pMembers->data[i].type));
+    return types;
+}
+
+std::optional<uint32_t> IndexOf(uint32_t aType)
+{
+    const BGSStoryEventManager* pManager = BGSStoryEventManager::Get();
+    for (uint32_t i = 0; pManager && i < pManager->registeredEvents.length; ++i)
+        if (pManager->registeredEvents.data[i].uniqueID == aType)
+            return i;
+    return std::nullopt;
+}
+
 uint32_t Add(uint32_t aIndex, const void* apEvent, const Actor& acJudged)
 {
-    using TGetManager = void*();
-    using TAddEvent = uint32_t(void*, uint32_t, const void*);
-    POINTER_SKYRIMSE(TGetManager, s_getManager, 22790); // BGSStoryEventManager::GetSingleton
-    POINTER_SKYRIMSE(TAddEvent, s_addEvent, 32359);     // BGSStoryEventManager::AddEvent_Impl
+    using TAddEvent = uint32_t(BGSStoryEventManager*, uint32_t, const void*);
+    POINTER_SKYRIMSE(TAddEvent, s_addEvent, 32359); // BGSStoryEventManager::AddEvent_Impl
     s_raising = true;
-    const uint32_t cId = s_addEvent(s_getManager.Get()(), aIndex, apEvent);
+    const uint32_t cId = s_addEvent(BGSStoryEventManager::Get(), aIndex, apEvent);
     s_raising = false;
     std::scoped_lock _{s_lock};
     // Events leave the queue within frames: a stale entry is one whose event never ran.
@@ -76,19 +108,18 @@ uint32_t Add(uint32_t aIndex, const void* apEvent, const Actor& acJudged)
     return cId;
 }
 
-// BGSStoryEvent from its raw event (32330), inside AddEvent_Impl: this game's player's crafts, for a guest's game to
-// send to the host (GuestWorldState).
+// BGSStoryEvent from its raw event (32330), inside AddEvent_Impl (its one caller): a guest's own events, for the host.
 using TBuildEvent = BGSStoryEvent*(BGSStoryEvent*, uint32_t, const void*);
 TBuildEvent* RealBuildEvent = nullptr;
 
 BGSStoryEvent* HookBuildEvent(BGSStoryEvent* apThis, uint32_t aIndex, const void* apRaw)
 {
     BGSStoryEvent* pEvent = RealBuildEvent(apThis, aIndex, apRaw);
-    if (!s_raising && apRaw && aIndex == CraftIndex())
+    if (pEvent && s_sends.load(std::memory_order_relaxed) && !s_raising && aIndex != QuestStartIndex())
     {
-        const auto* pCraft = static_cast<const CraftItem*>(apRaw);
-        World::Get().GetRunner().Trigger(PlayerCraftEvent{FormIdOf(TESObjectREFR::GetByHandle(pCraft->WorkbenchHandle)),
-                                                          FormIdOf(pCraft->pBenchLocation), FormIdOf(pCraft->pCreated)});
+        OwnStoryEvent own{aIndex};
+        std::copy(std::begin(pEvent->members), std::end(pEvent->members), own.Members.begin());
+        World::Get().GetRunner().Trigger(own);
     }
     return pEvent;
 }
@@ -99,20 +130,6 @@ Hooks::Initializer s_storyEventHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(32330, &RealBuildEvent, HookBuildEvent);
     });
-
-struct LocationSink final : BSTEventSink<TESActorLocationChangeEvent>
-{
-    BSTEventResult OnEvent(const TESActorLocationChangeEvent* apEvent, const EventDispatcher<TESActorLocationChangeEvent>*) override
-    {
-        auto* pActor = apEvent ? Cast<Actor>(apEvent->actor) : nullptr;
-        if (pActor && pActor->GetExtension()->IsOtherPlayer())
-            World::Get().GetRunner().Trigger(
-                CopyLocationChangeEvent{pActor->formID, FormIdOf(apEvent->oldLocation), FormIdOf(apEvent->newLocation)});
-        return BSTEventResult::kOk;
-    }
-};
-
-LocationSink s_locations;
 } // namespace
 
 uint32_t LocationChangeIndex() noexcept
@@ -121,22 +138,65 @@ uint32_t LocationChangeIndex() noexcept
     return *s_index.Get();
 }
 
-uint32_t RaiseLocationChange(Actor& aCharacter, TESForm* apOldLocation, TESForm* apNewLocation) noexcept
+void SetSends(bool aSends) noexcept
 {
-    using TBuild = LocationChange*(LocationChange*, TESObjectREFR*, TESForm*, TESForm*);
-    POINTER_SKYRIMSE(TBuild, s_build, 32288);
-    LocationChange event{};
-    s_build(&event, &aCharacter, apOldLocation, apNewLocation);
-    return Add(LocationChangeIndex(), &event, aCharacter);
+    s_sends.store(aSends, std::memory_order_relaxed);
 }
 
-uint32_t RaiseCraft(Actor& aCharacter, TESObjectREFR* apWorkbench, TESForm* apLocation, TESForm* apCreated) noexcept
+std::optional<StoryEvent> ToSend(const OwnStoryEvent& acEvent) noexcept
 {
-    CraftItem event{};
-    event.WorkbenchHandle = apWorkbench ? apWorkbench->GetHandle().handle.iBits : 0;
-    event.pBenchLocation = apLocation;
-    event.pCreated = apCreated;
-    return Add(CraftIndex(), &event, aCharacter);
+    const auto cTypes = TypesOf(acEvent.Index);
+    if (!cTypes)
+        return std::nullopt;
+    using StoryEventRules::Named;
+    const auto cReference = [](uint32_t aHandle) -> Named {
+        TESObjectREFR* pRef = TESObjectREFR::GetByHandle(aHandle);
+        if (!pRef)
+            return {};
+        if (pRef->formID == cPlayerId)
+            return {Named::kThisPlayer};
+        if (Cast<Actor>(pRef))
+            return {Named::kActor};
+        const auto cId = ToSession(pRef->formID);
+        return cId ? Named{Named::kObject, *cId} : Named{};
+    };
+    const auto cForm = [](uint64_t aForm) { return ToSession(FormIdOf(reinterpret_cast<const TESForm*>(aForm))); };
+    auto members = StoryEventRules::ToSend(*cTypes, acEvent.Members, cReference, cForm);
+    if (!members)
+        return std::nullopt;
+    StoryEvent event;
+    event.Type = BGSStoryEventManager::Get()->registeredEvents.data[acEvent.Index].uniqueID;
+    event.Members = std::move(*members);
+    return event;
+}
+
+uint32_t Raise(const StoryEvent& acEvent, Actor& aCharacter) noexcept
+{
+    const auto cIndex = IndexOf(acEvent.Type);
+    const auto cTypes = cIndex ? TypesOf(*cIndex) : std::nullopt;
+    if (!cTypes || acEvent.Members.size() > cTypes->size())
+        return 0;
+    std::vector<uint64_t> values;
+    for (size_t i = 0; i < acEvent.Members.size(); ++i)
+    {
+        const StoryEvent::Member& cMember = acEvent.Members[i];
+        if (!StoryEventRules::Fits((*cTypes)[i], cMember.Type))
+            return 0;
+        uint64_t& value = values.emplace_back();
+        switch (cMember.Type)
+        {
+        case StoryEvent::Member::kCharacter: value = aCharacter.GetHandle().handle.iBits; break;
+        case StoryEvent::Member::kReference:
+            if (auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(ToGame(cMember.Form))))
+                value = pRef->GetHandle().handle.iBits;
+            break;
+        case StoryEvent::Member::kForm: value = reinterpret_cast<uint64_t>(TESForm::GetById(ToGame(cMember.Form))); break;
+        case StoryEvent::Member::kInteger: value = cMember.Value; break;
+        default: break;
+        }
+    }
+    const auto cRaw = StoryEventRules::Layout(*cTypes, values);
+    return cRaw ? Add(*cIndex, cRaw->data(), aCharacter) : 0;
 }
 
 Verdict Judge(const BGSStoryEvent& acEvent) noexcept
@@ -178,21 +238,5 @@ void Done(uint32_t aId) noexcept
 {
     std::scoped_lock _{s_lock};
     s_judgedFor.erase(aId);
-}
-
-void Start() noexcept
-{
-    auto* pEvents = EventDispatcherManager::Get();
-    if (!pEvents || s_users++ != 0)
-        return;
-    pEvents->actorLocationChangeEvent.RegisterSink(&s_locations);
-}
-
-void Stop() noexcept
-{
-    auto* pEvents = EventDispatcherManager::Get();
-    if (!pEvents || !s_users || --s_users != 0)
-        return;
-    pEvents->actorLocationChangeEvent.UnRegisterSink(&s_locations);
 }
 } // namespace StoryEvents

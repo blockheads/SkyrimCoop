@@ -151,7 +151,6 @@ struct Session
         m_authority.Update(aTick, static_cast<double>(aTick - std::exchange(m_lastTick, aTick)) / 1000.0);
     }
     // The host's game shows a character change location (its engine's TESActorLocationChangeEvent).
-    void CharacterMoved(uint32_t aSessionId, const GameId& acOld, const GameId& acNew) { m_authority.CharacterMoved(aSessionId, acOld, acNew); }
     // The host's player picks a difficulty (its game's DifficultyChangeEvent).
     void ChooseDifficulty(uint32_t aDifficulty)
     {

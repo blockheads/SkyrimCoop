@@ -1761,13 +1761,13 @@ TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude
     CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
 }
 
-TEST_CASE("A guest's craft reaches the host as its story event", "[encoding.story]")
+TEST_CASE("A guest's story event reaches the host with its members", "[encoding.story]")
 {
+    using Member = StoryEvent::Member;
     StoryEventRequest request;
-    request.Event.Type = StoryEvent::kCraft;
-    request.Event.Workbench = GameId(0, 0x1A2B3);
-    request.Event.Location = GameId(0, 0x18A56);
-    request.Event.Created = GameId(2, 0x1397E);
+    request.Event.Type = StoryEvent::TypeOf("CRFT");
+    request.Event.Members = {{Member::kCharacter}, {Member::kReference, GameId(0, 0x1A2B3)}, {Member::kForm, GameId(2, 0x1397E)},
+                             {Member::kInteger, {}, 17}, {}};
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     request.Serialize(writer);

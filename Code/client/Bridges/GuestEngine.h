@@ -4,6 +4,7 @@
 #include <Messages/CellStateRequest.h>
 #include <Messages/DroppedItems.h>
 #include <Messages/Payloads.h>
+#include <Messages/StoryEventRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
@@ -16,6 +17,7 @@
 #include <unordered_set>
 #include <NoCopyMove.h>
 
+struct OwnStoryEvent;
 struct TESObjectREFR;
 struct TESQuest;
 
@@ -54,9 +56,13 @@ public:
     // An actor's alias can arrive before its spawn: retry just those fills, without replaying stages.
     void RetryQuestAliases() noexcept;
     // Off while a guest, the host's game deciding instead: its story manager starts no quest, its world's
-    // scripts do not react to its player (activations, triggers), and it rolls no leveled container or placed
-    // leveled item.
+    // scripts do not react to its player (activations, triggers), it rolls no leveled container or placed
+    // leveled item, its container menus' takes and stores are the host's (ContainerTransfers), and its story events
+    // go to the host's story manager (OwnStoryEvent).
     void SetDecidesWorld(bool aOn) noexcept;
+    // This game's story event as the session names it; none for one the host's game raises itself (it names another
+    // game's actor: a kill, an assault).
+    [[nodiscard]] std::optional<StoryEvent> ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept;
     // Makes the host's world object change here: activates the door (if it is as the host's was), plays the
     // animation, enables or disables the reference, sets its lock, makes the container hold that many. False: the
     // object, the activator or the item is not in this game.

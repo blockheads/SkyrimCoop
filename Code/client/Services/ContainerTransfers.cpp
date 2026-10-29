@@ -2,7 +2,6 @@
 #include <FormIds.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Services/ContainerTransfers.h>
-#include <Services/HostService.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
@@ -14,7 +13,7 @@ bool Propose(World& aWorld, uint32_t aSource, uint32_t aTarget, Inventory::Entry
 {
     const uint32_t cPlayer = aWorld.ctx().at<IPlayerBridge&>().GetPlayerFormId();
     if (!aSource || !aTarget || aItem.Count <= 0 || (aSource != cPlayer && aTarget != cPlayer) ||
-        !aWorld.GetTransport().IsOnline() || aWorld.GetHostService().IsHosting())
+        !aWorld.GetTransport().IsOnline())
         return false;
     const bool cTake = aTarget == cPlayer;
     const uint32_t cContainer = cTake ? aSource : aTarget;

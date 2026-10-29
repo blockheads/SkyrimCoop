@@ -7,6 +7,7 @@
 #include <Events/LockChangeEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/StoryEvents.h>
+#include <Misc/StoryEventRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/DroppedItems.h>
@@ -30,7 +31,7 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     Listen<NotifyItemDropped, &GuestWorldState::OnItemDroppedNotify>(m_connections, aDispatcher, this);
     Listen<ItemPickUpEvent, &GuestWorldState::OnItemPickUp>(m_connections, aDispatcher, this);
     Listen<NotifyPickUp, &GuestWorldState::OnPickUpNotify>(m_connections, aDispatcher, this);
-    Listen<PlayerCraftEvent, &GuestWorldState::OnCraft>(m_connections, aDispatcher, this);
+    Listen<OwnStoryEvent, &GuestWorldState::OnStoryEvent>(m_connections, aDispatcher, this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
@@ -108,14 +109,15 @@ void GuestWorldState::OnLockChange(const LockChangeEvent& acEvent) noexcept
     m_world.GetTransport().Send(request);
 }
 
-void GuestWorldState::OnCraft(const PlayerCraftEvent& acEvent) noexcept
+void GuestWorldState::OnStoryEvent(const OwnStoryEvent& acEvent) noexcept
 {
+    auto event = m_engine.ReadStoryEvent(acEvent);
+    if (!event)
+        return;
     StoryEventRequest request;
-    request.Event.Type = StoryEvent::kCraft;
-    request.Event.Workbench = ToSession(acEvent.WorkbenchId).value_or(GameId{});
-    request.Event.Location = ToSession(acEvent.LocationId).value_or(GameId{});
-    request.Event.Created = ToSession(acEvent.CreatedId).value_or(GameId{});
-    spdlog::info("GuestWorldState: crafted {:X}, sent to the host's story manager", acEvent.CreatedId);
+    request.Event = std::move(*event);
+    spdlog::info("GuestWorldState: story event {} sent to the host's story manager",
+                 StoryEventRules::TypeName(request.Event.Type));
     m_world.GetTransport().Send(request);
 }
 

@@ -11,14 +11,15 @@ void Plugins(FakeEngine& aEngine)
     aEngine.LoadCell(kCell);
 }
 
-// Native container-menu transfer: remove from the source, add to the recipient, then emit its engine events.
+// Native container-menu transfer: a guest's proposed to the host (TESObjectREFR's hook, off while the game decides its
+// world), else removed from the source, added to the recipient, then its engine events.
 void Transfer(World& aGame, int32_t aCount, uint32_t aItem = kSword)
 {
     auto& engine = Party::Engine(aGame);
     Inventory::Entry item;
     item.BaseId = GameId(0, aItem);
     item.Count = std::abs(aCount);
-    if (ContainerTransfers::Propose(aGame, aCount > 0 ? kChest : FakeEngine::kPlayer,
+    if (!engine.DecidesWorld && ContainerTransfers::Propose(aGame, aCount > 0 ? kChest : FakeEngine::kPlayer,
                                     aCount > 0 ? FakeEngine::kPlayer : kChest, item))
         return;
     engine.GetsItem(FakeEngine::kPlayer, aItem, aCount);

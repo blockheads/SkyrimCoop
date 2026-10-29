@@ -21,18 +21,20 @@ std::map<ConnectionId_t, uint32_t> Players(Session& aSession)
     return characters;
 }
 
+// A craft (CRFT): the workbench, its location, the item made.
 StoryEventRequest Craft()
 {
+    using Member = StoryEvent::Member;
     StoryEventRequest request;
-    request.Event.Type = StoryEvent::kCraft;
-    request.Event.Workbench = GameId(0, 0x1A2B3);
-    request.Event.Location = GameId(0, 0x18A56);
-    request.Event.Created = GameId(0, 0x1397E);
+    request.Event.Type = StoryEvent::TypeOf("CRFT");
+    request.Event.Members = {{Member::kReference, GameId(0, 0x1A2B3)},
+                             {Member::kForm, GameId(0, 0x18A56)},
+                             {Member::kForm, GameId(0, 0x1397E)}};
     return request;
 }
 } // namespace
 
-TEST_CASE("A guest's craft is raised in the host's game for its character", "[HostAuthority][Story]")
+TEST_CASE("A guest's story event is raised in the host's game for its character", "[HostAuthority][Story]")
 {
     Session session;
     const auto cCharacters = Players(session);
@@ -40,41 +42,21 @@ TEST_CASE("A guest's craft is raised in the host's game for its character", "[Ho
     session.Receive(kPeer, Craft());
     REQUIRE(session.StoriesRaised.size() == 1);
     const StoryEvent& cRaised = session.StoriesRaised[0];
-    CHECK(cRaised.Type == StoryEvent::kCraft);
+    CHECK(cRaised.Type == Craft().Event.Type);
     CHECK(cRaised.Character == cCharacters.at(kPeer));
-    CHECK(cRaised.Workbench == GameId(0, 0x1A2B3));
-    CHECK(cRaised.Location == GameId(0, 0x18A56));
-    CHECK(cRaised.Created == GameId(0, 0x1397E));
+    CHECK(cRaised.Members == Craft().Event.Members);
     // Nothing goes to the other games: the host's quests reach them as world state.
     CHECK(session.Outbox.empty());
 
-    // The host's own craft its engine raised already.
-    session.Receive(kHost, Craft());
-    CHECK(session.StoriesRaised.size() == 1);
-
-    // A guest names only its own events: an arrival is the host's game's to see.
+    // Any type the guest's game raised, its arrival too (CLOC: its character, from, to).
     StoryEventRequest arrival;
-    arrival.Event.Type = StoryEvent::kLocationChange;
-    arrival.Event.Location = GameId(0, 0x18A56);
+    arrival.Event.Type = StoryEvent::TypeOf("CLOC");
+    arrival.Event.Members = {{StoryEvent::Member::kCharacter}, {}, {StoryEvent::Member::kForm, GameId(0, 0x18A56)}};
     session.Receive(kOtherPeer, arrival);
-    CHECK(session.StoriesRaised.size() == 1);
-}
+    REQUIRE(session.StoriesRaised.size() == 2);
+    CHECK(session.StoriesRaised[1].Character == cCharacters.at(kOtherPeer));
 
-TEST_CASE("A guest's character arriving somewhere on the host is raised for it", "[HostAuthority][Story]")
-{
-    Session session;
-    const auto cCharacters = Players(session);
-    const uint32_t cNpc = session.Character(kHost);
-
-    session.CharacterMoved(cCharacters.at(kPeer), GameId(0, 0x1), GameId(0, 0x18A56));
-    REQUIRE(session.StoriesRaised.size() == 1);
-    CHECK(session.StoriesRaised[0].Type == StoryEvent::kLocationChange);
-    CHECK(session.StoriesRaised[0].Character == cCharacters.at(kPeer));
-    CHECK(session.StoriesRaised[0].OldLocation == GameId(0, 0x1));
-    CHECK(session.StoriesRaised[0].Location == GameId(0, 0x18A56));
-
-    // The host's player's arrival its engine raises; an NPC's is nobody's story.
-    session.CharacterMoved(cCharacters.at(kHost), GameId(0, 0x1), GameId(0, 0x18A56));
-    session.CharacterMoved(cNpc, GameId(0, 0x1), GameId(0, 0x18A56));
-    CHECK(session.StoriesRaised.size() == 1);
+    // The host's own events its engine raised already.
+    session.Receive(kHost, Craft());
+    CHECK(session.StoriesRaised.size() == 2);
 }

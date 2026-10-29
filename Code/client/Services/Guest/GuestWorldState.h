@@ -10,7 +10,7 @@ struct LockChangeEvent;
 struct ContainerChangeEvent;
 struct ItemDroppedEvent;
 struct ItemPickUpEvent;
-struct PlayerCraftEvent;
+struct OwnStoryEvent;
 struct NotifyItemDropped;
 struct NotifyPickUp;
 struct UpdateEvent;
@@ -22,7 +22,7 @@ class GuestEngine;
  * (docs/design/world-state-sync.md step 4). Its own story manager starts no quest meanwhile, and its world
  * scripts do not react to its player: the host's world scripts' doors and animations come from the host (step 5).
  * Its own lock and container changes are proposals the host's game takes (step 6). Each cell it loads asks for the
- * host's state there, what it missed while away included. Its player's crafts are the host's story events. Its
+ * host's state there, what it missed while away included. Its story events are the host's story manager's. Its
  * player's drops are made in the host's world, and its pickups of the party's loose items are the host's to grant
  * (docs/design/dropped-items.md).
  */
@@ -46,8 +46,8 @@ private:
     // This game's container changed (its player took or stored an item): its count now proposed to the host.
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
     void AskCellState(uint32_t aCellFormId) noexcept;
-    // This game's player crafted: its story event goes to the host's story manager (HostStory), this one's starts no quest.
-    void OnCraft(const PlayerCraftEvent& acEvent) noexcept;
+    // This game raised a story event: it goes to the host's story manager (HostStory), this one's starts no quest.
+    void OnStoryEvent(const OwnStoryEvent& acEvent) noexcept;
     // This game's player dropped an item: the host's game makes the party's, this one becomes its twin.
     void OnItemDropped(const ItemDroppedEvent& acEvent) noexcept;
     void OnItemDroppedNotify(const NotifyItemDropped& acMessage) noexcept;

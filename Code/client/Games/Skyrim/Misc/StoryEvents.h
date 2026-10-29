@@ -1,10 +1,14 @@
 #pragma once
 
+#include <Games/Primitives.h>
+#include <Messages/StoryEventRequest.h>
+#include <Misc/BSString.h>
+
 #include <cstdint>
+#include <optional>
 
 struct Actor;
-struct TESForm;
-struct TESObjectREFR;
+struct OwnStoryEvent;
 
 // A queued story event (CommonLibSSE-NG BGSStoryEvent), built from its raw event by 32330: each member a reference
 // handle or a number in its low 32 bits, or a form.
@@ -16,47 +20,51 @@ struct BGSStoryEvent
 };
 static_assert(sizeof(BGSStoryEvent) == 0x38);
 
-// The story events a player's character raises, and whom the story manager judges each for (party-model.md rule 4,
+// A registered event type's member (CommonLibSSE-NG BGSStoryEventMember).
+struct BGSStoryEventMember
+{
+    uint32_t type;     // 00, StoryEventRules::MemberType
+    uint32_t uniqueID; // 04
+    BSString name;     // 08
+};
+static_assert(sizeof(BGSStoryEventMember) == 0x18);
+
+// An event type the engine registers (CommonLibSSE-NG BGSRegisteredStoryEvent, a story node's ENAM).
+struct BGSRegisteredStoryEvent
+{
+    uint32_t uniqueID;                       // 00, four characters: 'CLOC'
+    uint32_t pad04;
+    GameArray<BGSStoryEventMember>* members; // 08
+    BSString name;                           // 10
+    bool immediate;                          // 20
+};
+static_assert(sizeof(BGSRegisteredStoryEvent) == 0x28);
+
+// CommonLibSSE-NG BGSStoryEventManager (22790): its event types, by their registered index.
+struct BGSStoryEventManager
+{
+    static BGSStoryEventManager* Get() noexcept;
+
+    GameArray<BGSRegisteredStoryEvent> registeredEvents; // 00
+};
+static_assert(offsetof(BGSStoryEventManager, registeredEvents) == 0);
+
+// A player's story events, and whom the story manager judges each for (party-model.md rule 4,
 // docs/re/systems/story-manager.md).
 namespace StoryEvents
 {
-// CLOC, as PlayerCharacter::SetParentCell builds it (32288).
-struct LocationChange
-{
-    uint32_t ActorHandle;  // 00
-    uint32_t Pad04;
-    TESForm* pOldLocation; // 08
-    TESForm* pNewLocation; // 10
-};
-static_assert(sizeof(LocationChange) == 0x18);
-
-// CRFT (CommonLibSSE-NG BGSCraftItemEvent).
-struct CraftItem
-{
-    uint32_t WorkbenchHandle; // 00
-    uint32_t Pad04;
-    TESForm* pBenchLocation;  // 08
-    TESForm* pCreated;        // 10
-};
-static_assert(sizeof(CraftItem) == 0x18);
-
-// KILL, as Actor::KillImpl builds it (32282).
-struct KillActor
-{
-    uint32_t VictimHandle; // 00
-    uint32_t KillerHandle; // 04
-    TESForm* pLocation;    // 08
-    uint32_t Relationship; // 10
-    uint32_t Crime;        // 14
-};
-static_assert(sizeof(KillActor) == 0x18);
-
 // CLOC's registered index (QuestEvents.h): what AddEvent_Impl (32359) is given for a location change.
 [[nodiscard]] uint32_t LocationChangeIndex() noexcept;
 
-// Queued as the engine queues its player's, judged for aCharacter (a guest's on the host): its id.
-uint32_t RaiseLocationChange(Actor& aCharacter, TESForm* apOldLocation, TESForm* apNewLocation) noexcept;
-uint32_t RaiseCraft(Actor& aCharacter, TESObjectREFR* apWorkbench, TESForm* apLocation, TESForm* apCreated) noexcept;
+// On while a guest: each story event this game raises is an OwnStoryEvent, for the host's story manager (the
+// engine's quest starts aside).
+void SetSends(bool aSends) noexcept;
+// Its members as the session names them; none for one naming another game's actor (that game raises its own: a kill,
+// an assault) or a type not here.
+[[nodiscard]] std::optional<StoryEvent> ToSend(const OwnStoryEvent& acEvent) noexcept;
+// Queued as the engine queues its player's, judged for aCharacter (a guest's on the host): its id, 0 when this game
+// has no such type or its members do not fit it.
+uint32_t Raise(const StoryEvent& acEvent, Actor& aCharacter) noexcept;
 
 // What the story manager does with an event it processes (BGSStoryManager.cpp): skipped (an arrival the party already
 // had, or its character gone), or judged for pJudged in place of this game's player (none: the player).
@@ -68,8 +76,4 @@ struct Verdict
 [[nodiscard]] Verdict Judge(const BGSStoryEvent& acEvent) noexcept;
 // The event left the queue (processed, not timed out).
 void Done(uint32_t aId) noexcept;
-
-// Other players' copies' location changes raised as CopyLocationChangeEvent, while anyone started them (HostEngine).
-void Start() noexcept;
-void Stop() noexcept;
 } // namespace StoryEvents

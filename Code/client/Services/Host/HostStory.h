@@ -23,12 +23,8 @@ struct HostStory
 
     NO_COPY_MOVE(HostStory);
 
-    // The host's game shows a character change location: a guest's is raised for it (the host's player's the engine
-    // raises itself).
-    void CharacterMoved(uint32_t aSessionId, const GameId& acOldLocation, const GameId& acLocation) const noexcept;
-
 private:
-    // A guest's own story event its game cannot see judged (a craft in its menu): raised for its character.
+    // A guest's own story event (any type its game raised): raised for its character.
     void OnStoryEvent(const StoryEventRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     const HostPlayers& m_players;

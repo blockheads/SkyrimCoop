@@ -16,7 +16,6 @@
 #include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
-#include <Events/StoryEvents.h>
 #include <SessionIds.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
@@ -46,7 +45,6 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 {
     Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
-    Listen<CopyLocationChangeEvent, &HostService::OnCopyLocationChange>(m_connections, m_dispatcher, this);
     Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
@@ -268,13 +266,6 @@ void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const
 {
     if (IsHosting())
         m_pAuthority->DifficultyChanged(acEvent.Difficulty);
-}
-
-void HostService::OnCopyLocationChange(const CopyLocationChangeEvent& acEvent) const noexcept
-{
-    const auto cId = Utils::GetSessionIdByFormId(acEvent.ActorId);
-    if (IsHosting() && cId)
-        m_pAuthority->CharacterMoved(*cId, ToSession(acEvent.OldLocationId).value_or(GameId{}), ToSession(acEvent.LocationId).value_or(GameId{}));
 }
 
 // As HostService::OnWorldCall: a guest's script's call made here for it (GlobalCall::QueueCall in a stack run for it).

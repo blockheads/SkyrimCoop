@@ -1,20 +1,12 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
-// A player's character's location changed in this game (TESActorLocationChangeEvent from
-// TESObjectREFR::MoveRefToNewSpace 19799, or 37313): another player's copy only.
-struct CopyLocationChangeEvent
+// This game raised a story event (BGSStoryEvent's build, 32330) while a guest: for the host's story manager
+// (StoryEvents::ToSend names its members for the session).
+struct OwnStoryEvent
 {
-    uint32_t ActorId{};
-    uint32_t OldLocationId{};
-    uint32_t LocationId{};
-};
-
-// This game's player crafted something: its story event (CRFT), as the engine queued it.
-struct PlayerCraftEvent
-{
-    uint32_t WorkbenchId{};
-    uint32_t LocationId{};
-    uint32_t CreatedId{};
+    uint32_t Index{};                    // its type's registered index here
+    std::array<uint64_t, 6> Members{};   // BGSStoryEvent::members
 };

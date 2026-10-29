@@ -4,6 +4,8 @@
 #include <Wire/Buffer.h>
 #include <Wire/Serialization.h>
 
+#include <memory>
+
 using Wire::Serialization;
 
 struct RequestMessage

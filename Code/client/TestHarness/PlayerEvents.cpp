@@ -2,6 +2,7 @@
 #include "Commands.h"
 
 #include <Actor.h>
+#include <FormIds.h>
 #include <Forms/TESForm.h>
 #include <Misc/StoryEvents.h>
 #include <MinHook.h>
@@ -25,6 +26,16 @@ std::mutex s_lock;
 using TAddEvent = uint32_t(void*, uint32_t, const void*);
 TAddEvent* RealAddEvent = nullptr;
 
+// CLOC's raw event, as PlayerCharacter::SetParentCell builds it (32288): its members' layout (StoryEventRules::Layout).
+struct LocationChange
+{
+    uint32_t ActorHandle;  // 00
+    uint32_t Pad04;
+    TESForm* pOldLocation; // 08
+    TESForm* pNewLocation; // 10
+};
+static_assert(sizeof(LocationChange) == 0x18);
+
 bool s_traceStory = false;
 std::vector<std::array<uint32_t, 4>> s_capturedLocationChanges; // (old, new, event id, actor) raised here
 std::vector<std::array<uint32_t, 3>> s_outcomes;                 // (event id, code, node or quest) processed here
@@ -35,7 +46,7 @@ uint32_t HookAddEvent(void* apThis, uint32_t aIndex, const void* apEvent)
     std::scoped_lock _{s_lock};
     if (s_traceStory && apEvent && aIndex == StoryEvents::LocationChangeIndex())
     {
-        auto* pEvent = static_cast<const StoryEvents::LocationChange*>(apEvent);
+        auto* pEvent = static_cast<const LocationChange*>(apEvent);
         const auto* pActor = TESObjectREFR::GetByHandle(pEvent->ActorHandle);
         s_capturedLocationChanges.push_back({pEvent->pOldLocation ? pEvent->pOldLocation->formID : 0,
                                              pEvent->pNewLocation ? pEvent->pNewLocation->formID : 0, cId, pActor ? pActor->formID : 0});
@@ -102,9 +113,14 @@ nlohmann::json StoryRaise(Harness&, const nlohmann::json& acRequest)
     auto* pActor = Cast<Actor>(TESForm::GetById(acRequest.value("actor", 0u)));
     if (!pActor)
         return Error("no such actor");
-    const uint32_t cId = StoryEvents::RaiseLocationChange(*pActor, TESForm::GetById(acRequest.value("old", 0u)),
-                                                         TESForm::GetById(acRequest.value("new", 0u)));
-    return {{"ok", true}, {"event", cId}};
+    const auto cLocation = [&](const char* acpKey) {
+        const auto cId = ToSession(acRequest.value(acpKey, 0u));
+        return cId ? StoryEvent::Member{StoryEvent::Member::kForm, *cId} : StoryEvent::Member{};
+    };
+    StoryEvent event;
+    event.Type = BGSStoryEventManager::Get()->registeredEvents.data[StoryEvents::LocationChangeIndex()].uniqueID;
+    event.Members = {{StoryEvent::Member::kCharacter}, cLocation("old"), cLocation("new")};
+    return {{"ok", true}, {"event", StoryEvents::Raise(event, *pActor)}};
 }
 
 // Spike 3: which engine functions that read the player singleton (g_thePlayer, 403521) run, and with a

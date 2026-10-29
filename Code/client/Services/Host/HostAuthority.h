@@ -112,11 +112,6 @@ struct HostAuthority
     void DifficultyChanged(uint32_t aDifficulty) const noexcept;
     // The host's game is saving: the guests' records take their characters' places (HostRecords).
     void Saving() const noexcept { m_records.OnSaving(); }
-    // The host's game shows a character change location (HostStory: a guest's is raised for it).
-    void CharacterMoved(uint32_t aSessionId, const GameId& acOldLocation, const GameId& acLocation) const noexcept
-    {
-        m_story.CharacterMoved(aSessionId, acOldLocation, acLocation);
-    }
     // A session id for one of the host's actors (HostCharacters).
     [[nodiscard]] uint32_t NewCharacterId() noexcept { return m_characters.NewCharacterId(); }
 

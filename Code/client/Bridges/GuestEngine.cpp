@@ -29,6 +29,7 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
+#include <Misc/StoryEvents.h>
 #include <Papyrus/SystemQuests.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/WorldEvents.h>
@@ -306,6 +307,13 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     WorldEvents::SetDelivered(aOn);
     ExtraContainerChanges::Data::SetRollsWorldContainers(aOn);
     TESObjectREFR::SetPicksLeveledBases(aOn);
+    TESObjectREFR::SetMovesContainerItems(aOn);
+    StoryEvents::SetSends(!aOn);
+}
+
+std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept
+{
+    return StoryEvents::ToSend(acEvent);
 }
 
 std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept

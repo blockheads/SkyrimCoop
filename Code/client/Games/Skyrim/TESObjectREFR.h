@@ -66,6 +66,8 @@ struct TESObjectREFR : TESForm
     // Off: a reference placed with a leveled base (ExtraLeveledItemBase, XLIB) keeps its placeholder when its cell
     // loads (the pick, 20232, skipped), its base coming from the host's pick.
     static void SetPicksLeveledBases(bool aPicks) noexcept;
+    // Off: a container menu's take or store is proposed to the host (ContainerTransfers) instead of moved here.
+    static void SetMovesContainerItems(bool aMoves) noexcept;
     static uint32_t* GetNullHandle() noexcept;
 
     static void GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept;

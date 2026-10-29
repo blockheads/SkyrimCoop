@@ -8,6 +8,8 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
+#include <Events/StoryEvents.h>
+#include <FormIds.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Games/Overrides.h>
 #include <Services/DialogueService.h>
@@ -51,6 +53,31 @@ PhysicsBodies::PhysicsBodies(bool) noexcept {}
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     FakeEngine::Current().DecidesWorld = aOn;
+}
+
+// As StoryEvents::ToSend: the fake's members name forms by their ids.
+std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept
+{
+    const FakeEngine& cEngine = FakeEngine::Current();
+    if (acEvent.Index >= cEngine.StoryTypes.size())
+        return std::nullopt;
+    using StoryEventRules::Named;
+    const auto cReference = [&cEngine](uint32_t aId) -> Named {
+        if (!aId)
+            return {};
+        if (aId == FakeEngine::kPlayer)
+            return {Named::kThisPlayer};
+        if (cEngine.Actors.contains(aId))
+            return {Named::kActor};
+        const auto cId = ToSession(aId);
+        return cId ? Named{Named::kObject, *cId} : Named{};
+    };
+    const auto cForm = [](uint64_t aId) { return ToSession(static_cast<uint32_t>(aId)); };
+    const auto& cType = cEngine.StoryTypes[acEvent.Index];
+    auto members = StoryEventRules::ToSend(cType.Members, acEvent.Members, cReference, cForm);
+    if (!members)
+        return std::nullopt;
+    return StoryEvent{.Type = cType.Id, .Members = std::move(*members)};
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept

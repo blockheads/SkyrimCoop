@@ -18,6 +18,7 @@
 #include <Games/Skyrim/HitRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
+#include <Misc/StoryEventRules.h>
 #include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyRules.h>
 #include <Services/Host/HostGame.h>
@@ -183,9 +184,23 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks = {});
     // The host's game opens or closes a door (its player, a replayed activation): made and recorded.
     void SetOpen(uint32_t aDoor, bool aOpen);
-    // Each cell's location (BGSLocation), by cell. An actor moved into a cell of another location raises the engine's
-    // TESActorLocationChangeEvent (MoveRefToNewSpace), sent on for a player's copy (StoryEvents.cpp).
+    // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
+    // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).
+    struct RegisteredStory
+    {
+        uint32_t Id{};
+        std::vector<StoryEventRules::MemberType> Members;
+    };
+    using enum StoryEventRules::MemberType;
+    std::vector<RegisteredStory> StoryTypes{
+        {StoryEvent::TypeOf("CLOC"), {kReference, kLocation, kLocation}},
+        {StoryEvent::TypeOf("SKIL"), {kInteger}},
+        {StoryEvent::TypeOf("KILL"), {kReference, kReference, kLocation}},
+    };
+    // This game raises a story event (AddEvent_Impl), its members as BGSStoryEvent holds them (a reference or a form by
+    // its form id here): while a guest, it goes to the host (StoryEvents' hook, off while the game decides its world).
+    void RaisesStoryEvent(uint32_t aType, std::vector<uint64_t> aMembers);
     // The story events the host's game queued for a guest's character (HostGame::RaiseStoryEvent).
     std::vector<StoryEvent> StoriesRaised;
     // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
@@ -870,7 +885,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     RagdollPending m_pendingRagdolls;
     bool m_inSystemQuest = false; // a system quest's function runs (CallsQuest): its natives are its instance's
     std::chrono::steady_clock::time_point m_lastFrame;
-    // An actor's cell changed from aFrom: a player's copy in another location raises CopyLocationChangeEvent.
+    // An actor's cell changed from aFrom: this game's player in another location raises CLOC.
     void CellChanged(uint32_t aFormId, uint32_t aFrom);
     // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its
     // last place loaded unload.

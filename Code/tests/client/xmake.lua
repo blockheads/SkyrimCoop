@@ -9,6 +9,7 @@ target("ClientTests")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
               "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp",
               "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",
+              "../../client/Games/Skyrim/Misc/StoryEventRules.cpp",
               "../../client/Physics/BodyPrediction.cpp", "../../client/Physics/BodySends.cpp", "../../client/Physics/BodyPlayback.cpp",
               "../../client/Physics/BodyRelevance.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")

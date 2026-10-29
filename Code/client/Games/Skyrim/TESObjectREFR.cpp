@@ -1196,12 +1196,14 @@ void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, E
     World::Get().GetRunner().Trigger(InventoryChangeEvent(apRef->formID, std::move(item)));
 }
 
+static std::atomic<bool> s_movesContainerItems{true};
+
 bool ProposeContainerTransfer(TESObjectREFR* apSource, TESObjectREFR* apTarget, TESBoundObject* apItem,
                               int32_t aCount, ExtraDataList* apExtra, ITEM_REMOVE_REASON aReason)
 {
     auto* pUI = UI::Get();
-    if (ScopedInventoryOverride::IsOverriden() || !apSource || !apTarget || !apItem ||
-        !pUI || !pUI->GetMenuOpen("ContainerMenu"))
+    if (s_movesContainerItems.load(std::memory_order_relaxed) || ScopedInventoryOverride::IsOverriden() || !apSource ||
+        !apTarget || !apItem || !pUI || !pUI->GetMenuOpen("ContainerMenu"))
         return false;
     Inventory::Entry item;
     item.BaseId = ToSession(apItem->formID).value_or(GameId{});
@@ -1368,6 +1370,11 @@ void* HookPickLeveledBase(TESObjectREFR* apThis)
 void TESObjectREFR::SetPicksLeveledBases(bool aPicks) noexcept
 {
     s_picksLeveledBases.store(aPicks, std::memory_order_relaxed);
+}
+
+void TESObjectREFR::SetMovesContainerItems(bool aMoves) noexcept
+{
+    s_movesContainerItems.store(aMoves, std::memory_order_relaxed);
 }
 
 static Hooks::Initializer s_objectReferencesHooks(

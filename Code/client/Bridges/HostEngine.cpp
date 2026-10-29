@@ -15,6 +15,7 @@
 #include <ActorValueEvents.h>
 #include <QuestEvents.h>
 #include <GlobalEvents.h>
+#include <Misc/StoryEventRules.h>
 #include <Misc/StoryEvents.h>
 #include <ContainerEvents.h>
 
@@ -225,7 +226,6 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
     ActorValueEvents::Start();
     QuestEvents::Start();
     GlobalEvents::Start();
-    StoryEvents::Start();
     ModManager::WatchCreated(&OnCreated);
 }
 
@@ -245,7 +245,6 @@ HostEngine::~HostEngine() noexcept
     ActorValueEvents::Stop();
     QuestEvents::Stop();
     GlobalEvents::Stop();
-    StoryEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept
@@ -375,13 +374,11 @@ void HostEngine::RaiseStoryEvent(const StoryEvent& acEvent) noexcept
         spdlog::warn("HostEngine: a guest's story event for character {:X}: no such character here", acEvent.Character);
         return;
     }
-    const auto cForm = [](const GameId& acId) { return acId == GameId{} ? nullptr : TESForm::GetById(ToGame(acId)); };
-    const uint32_t cId = acEvent.Type == StoryEvent::kCraft
-                             ? StoryEvents::RaiseCraft(*pCharacter, Cast<TESObjectREFR>(cForm(acEvent.Workbench)), cForm(acEvent.Location),
-                                                       cForm(acEvent.Created))
-                             : StoryEvents::RaiseLocationChange(*pCharacter, cForm(acEvent.OldLocation), cForm(acEvent.Location));
-    spdlog::info("HostEngine: story event {} ({}) raised for {:X}", cId, acEvent.Type == StoryEvent::kCraft ? "craft" : "arrival",
-                 pCharacter->formID);
+    const std::string cType = StoryEventRules::TypeName(acEvent.Type);
+    if (const uint32_t cId = StoryEvents::Raise(acEvent, *pCharacter))
+        spdlog::info("HostEngine: story event {} ({}) raised for {:X}", cId, cType, pCharacter->formID);
+    else
+        spdlog::warn("HostEngine: a guest's story event {}: no such type here, or its members do not fit it", cType);
 }
 
 void HostEngine::SetItems(const ObjectChange& acItems) noexcept

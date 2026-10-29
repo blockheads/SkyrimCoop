@@ -152,15 +152,19 @@ in a scene, this game's own player runs that package AI-driven (`GuestScene`: `P
 `ActorPackage::InitFromPackage` 38959), until the scene lets the host's player go. A package whose furniture the copy
 already holds is left to the engine's reservation (measured in `greybeards-scene-casts-party`).
 
-## A player's story events (party-model.md rule 4, built 2026-10-27)
+## A player's story events (party-model.md rule 4, built 2026-10-27, generic 2026-10-28)
 
 ```text
-a guest's character changes location on the host (TESActorLocationChangeEvent, MoveRefToNewSpace 19799 / 37313)
-  StoryEvents' sink (host: HostEngine starts it) -> CopyLocationChangeEvent -> HostService -> HostAuthority
-  HostStory: a guest's character -> HostGame::RaiseStoryEvent -> HostEngine -> StoryEvents::RaiseLocationChange
-    CLOC queued (32288, AddEvent_Impl 32359), its id remembered with the character
-a guest crafts (its own menu): BGSStoryEvent's build from the raw event (32330) sees this game's CRFT
-  -> PlayerCraftEvent -> GuestWorldState -> StoryEventRequest -> HostStory -> RaiseStoryEvent -> CRFT queued, the same
+a guest's game raises a story event, any type (CLOC, CRFT, SKIL, LEVL, a script's SCPT...)
+  BGSStoryEvent's build (32330, AddEvent_Impl's one call): StoryEvents' hook, on while a guest (SetDecidesWorld)
+    the engine's queued quest start (380097) aside -> OwnStoryEvent {index, members}
+  GuestWorldState -> GuestEngine::ReadStoryEvent -> StoryEventRules::ToSend, by the type's member list:
+    this game's player -> kCharacter, a world reference -> its id, a form/location/keyword -> its id, an integer
+    an event naming another actor (a copy here: a kill, an assault) -> not sent, the host's game raises its own
+  -> StoryEventRequest {type id 'CLOC', members}
+HostStory: a guest's -> its character -> HostGame::RaiseStoryEvent -> HostEngine -> StoryEvents::Raise
+  the type found by its id, the raw event laid out from its members (StoryEventRules::Layout), AddEvent_Impl,
+  its id remembered with the character
 the story manager processes an event (ProcessEvent 32372, hooked; StoryEvents::Judge)
   raised for a character, or a KILL whose killer (member 1) is another player's character:
     the node and quest visitors (32429 +0x19D, 32430 +0x3F) build ConditionCheckParams (29871) with that character,
@@ -171,7 +175,7 @@ the story manager processes an event (ProcessEvent 32372, hooked; StoryEvents::J
 
 The host's own player's arrival is processed the same way, so whichever player the story manager sees first in a
 location starts its quests, judged for that player. Tests: HostAuthorityTests `story_tests.cpp`, ClientTests
-`party_arrivals_tests.cpp`, GameTests `story_flows.cpp`; Skyrim `guest-story-starts-no-quest`,
+`party_arrivals_tests.cpp` and `story_event_rules_tests.cpp`, GameTests `story_flows.cpp`; Skyrim `guest-story-starts-no-quest`,
 `guest-location-change-starts-story`, `guest-craft-raises-story`.
 
 ## Messages (party-model.md rule 5, built 2026-10-27)

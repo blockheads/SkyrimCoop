@@ -53,7 +53,32 @@ Party model rule 4 (`docs/design/party-calls.md`, "A player's story events"). Re
   handle, killer handle, location, relationship, crime: the killer is member 1.
 - `TESActorLocationChangeEvent` {actor, old, new} (dispatcher +0x108) is sent by `TESObjectREFR::MoveRefToNewSpace`
   (19799) and 37313 for any reference, and by `PlayerCharacter::SetParentCell` after it queued its CLOC (`AddEvent_Impl`
-  first, then the script event).
+  first, then the script event). The host raised a guest's arrival from its copy's until 2026-10-28; the guest's own
+  CLOC is sent now, as any other event (below).
 - The visitors' parameters: 32429 at +0x19D and 32430 at +0x3F call `ConditionCheckParams`'s constructor (29871:
   params, subject, target, owner form) with `g_thePlayer` twice. `BGSStoryManager.cpp` swaps those two calls (checked
   as calls to 29871 before patching) and passes the judged character while `ProcessEvent` runs one of its events.
+
+## A guest's story events (generic, 2026-10-28)
+
+Every type travels the same way, read from the engine's own type table rather than one raw struct per type:
+
+- `BGSStoryEventManager` (22790): `registeredEvents` at +0, a `BSTArray` of `BGSRegisteredStoryEvent` (0x28: the
+  four-character `uniqueID` at +0, its `BSTArray<BGSStoryEventMember>*` at +8). 32330's lookup (0x52B5C0) is
+  `registeredEvents[index].members`. A member (0x18) has its type at +0: 0 reference, 1 form, 2 location, 3 integer,
+  4 keyword (CommonLibSSE-NG `BGSStoryEventMember::DATA_TYPE`).
+- 32330 walks those members over the raw event: a reference or integer takes 4 bytes, any other an 8-byte pointer,
+  the raw pointer first moved to its next 8-byte boundary (`test dil, 7`). Each lands in a 64-bit member. So a raw
+  event can be rebuilt from the member types alone (`StoryEventRules::Layout`, ClientTests).
+- 32330's only caller is `AddEvent_Impl` (0x52BD31, a byte scan of `.text`): hooking it sees each event once, as it
+  is queued. `AddEvent_Impl` holds the manager's `eventArrayLock` (+0x60) around it, so the hook only copies the
+  members and queues an `OwnStoryEvent`; handles are read on the next update.
+- The engine's queued quest start (`TESQuest::EnsureQuestStarted` 25003) is a story event of index 380097: a guest's
+  own scripts' starts stay its own, so it is not sent.
+- Kills and assaults are raised on both games (`docs/research/player-events.md`, spike 1): on the host with the
+  guest's character as the actor, on the guest for its copy of the host's NPC. A guest's event naming any actor
+  other than its player is the other game's to raise, and is not sent.
+
+The host raises a guest's event by its type id (the index of the same id in its own table), laid out from the
+sent members: the guest's player becomes its character's handle, a reference its handle here, a form its pointer.
+One whose members do not fit the type here is dropped with a warning.
