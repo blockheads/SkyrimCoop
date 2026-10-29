@@ -4,10 +4,10 @@
 the engine, scripts, defaults). Measures what a name-keyed variable sync would carry and what it must leave
 out (docs/design/graph-replication.md).
 
-    scripts/re/graph_compare.py [--seconds 20] [--delay 0.3] [--descriptor Master_Behavior]
+    scripts/re/graph_compare.py [--seconds 20] [--delay S] [--descriptor Master_Behavior]
 
 Samples every owned actor in both games with its copy in the other, the copy `--delay` after the owner
-(the playback delay). Run it while scenarios drive the games for the interesting part.
+(default: how far behind the copy's game shows it, `behind_ms` in its status). Run it while scenarios drive the games for the interesting part.
 """
 import argparse
 import collections
@@ -93,15 +93,22 @@ def pairs():
     return found
 
 
+def behind(game, copy):
+    """How far behind its owner the copy shows, seconds (CopyPlayback, the harness's behind_ms)."""
+    coop_test.select_instance(game)
+    return ((coop_test.read_status() or {}).get("actors", {}).get(str(copy), {}).get("behind_ms", 300)) / 1000
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--seconds", type=float, default=20)
-    parser.add_argument("--delay", type=float, default=0.3)
+    parser.add_argument("--delay", type=float)
     parser.add_argument("--descriptor", default="Master_Behavior")
     args = parser.parse_args()
     descriptor = descriptor_variables(args.descriptor)
     actors = pairs()
     written = {(game, fid): writers(game, fid) for game, fid, *_ in actors}
+    delays = {copy_fid: args.delay if args.delay is not None else behind(copy_game, copy_fid) for _, _, copy_game, copy_fid, _ in actors}
     # per (actor, class): Counter of mismatching names; samples per actor
     mismatch = collections.defaultdict(collections.Counter)
     samples = collections.Counter()
@@ -110,7 +117,7 @@ def main():
     while time.monotonic() < end:
         for game, fid, copy_game, copy_fid, name in actors:
             owner = variables(game, fid)
-            time.sleep(args.delay)
+            time.sleep(delays[copy_fid])
             copy = variables(copy_game, copy_fid)
             if not owner or not copy:
                 continue

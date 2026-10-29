@@ -1,5 +1,4 @@
 #include <Services/BodyService.h>
-#include <Services/CopyClock.h>
 
 #include <Bridges/IBodyBridge.h>
 #include <Components.h>
@@ -8,6 +7,7 @@
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
 #include <Services/WorldStateLog.h>
+#include <Systems/InterpolationSystem.h>
 #include <World.h>
 
 BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBridge& aBridge) noexcept
@@ -55,6 +55,8 @@ void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
     }
     m_playback.Add(acMessage.Tick, frames);
     m_ragdolls.Add(acMessage.Tick, ragdolls);
+    if (!ragdolls.empty())
+        m_world.GetCopyClock().OnSnapshot(acMessage.Tick, m_world.GetTransport().GetTick());
 }
 
 void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
@@ -92,8 +94,8 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
             Forget(cKey);
-    Show(m_playback, cTick > kDelayMs ? cTick - kDelayMs : 0);
-    Show(m_ragdolls, cTick > kCopyDelayMs ? cTick - kCopyDelayMs : 0);
+    Show(m_playback, [cAt = cTick > kDelayMs ? cTick - kDelayMs : 0](const BodyKey&) { return cAt; });
+    Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
         if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->first)) && m_bridge.Rest(it->second.second, 0))
@@ -117,11 +119,19 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
     }
 }
 
-void BodyService::Show(BodyPlayback& aPlayback, uint64_t aTick) noexcept
+uint64_t BodyService::CopyTickOf(uint32_t aSessionId) noexcept
 {
-    if (!aPlayback.Count() || !aTick)
+    for (const auto cEntity : m_world.view<RemoteComponent>())
+        if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
+            return InterpolationSystem::PlaybackTick(m_world, cEntity);
+    return 0;
+}
+
+void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept
+{
+    if (!aPlayback.Count())
         return;
-    for (const auto& cPose : aPlayback.At(aTick))
+    for (const auto& cPose : aPlayback.At(acTickOf))
     {
         const BodyKey& cKey = cPose.Body.Key;
         const uint32_t cCopy = cKey.Actor ? CopyOf(cKey.Actor) : 0;

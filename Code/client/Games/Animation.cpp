@@ -83,9 +83,9 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         }
 
         // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
-        pExtension->LatestAnimation = action;
+        pExtension->LatestAnimation.Write(action);
         if (apAction->action->formID == 0x132AF)
-            pExtension->LatestWeapEquipAnimation = action;
+            pExtension->LatestWeapEquipAnimation.Write(action);
 
         // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
         if (g_forceAnimation || cPlayersPartner)

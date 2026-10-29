@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Services/CopyClock.h>
 #include <Structs/AnimationVariables.h>
 #include <Systems/CopyEase.h>
 
@@ -23,4 +24,5 @@ struct InterpolationComponent
     std::list<TimePoint> TimePoints;
     glm::vec3 Position;
     CopyEase Ease;
+    CopyPlayback Playback; // its owner's time shown now: movement, actions and ragdoll alike
 };

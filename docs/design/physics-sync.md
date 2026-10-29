@@ -474,8 +474,8 @@ runs in `ragdoll-lies-as-host`, `knockdown-lies-as-host` and `kill-move-kills-gu
    to get up from where it was steered
 ```
 
-Also: a copy's ragdoll plays on the copies' clock (`Services/CopyClock.h`, kCopyDelayMs, as its movement); references
-stay at 100 ms.
+Also: a copy's ragdoll plays at its copy's time (`Services/CopyClock.h`, as its movement, [copy-clock.md](copy-clock.md));
+references stay at 100 ms.
 
 Readouts: `knockdown-smoke` (Lydia knocked down three times between the two players): `RagdollTrace.snaps` (a frame
 its skeleton jumps and comes back) and `compare` (the copy against its owner, its delay taken out: facing, getting

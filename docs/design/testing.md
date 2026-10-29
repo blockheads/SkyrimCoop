@@ -145,8 +145,8 @@ The actor checksum, `Party::Agree()` (`ActorDifferences`): every actor a game ow
 `LocalComponent`) has exactly one copy on every other game, flagged a copy, in the owner's cell within 64 units
 (`FollowOwner` leaves a copy that near where it is), dead or alive and enabled or disabled as the owner's actor; a
 guest's reference held for a host NPC that went (`HeldCopyComponent`) matches the host's reference the same way;
-no other actor anywhere is flagged a copy. It waits for agreement (copies trail their owner by the interpolation's
-300 ms) and fails listing what differs. The copy, travel and death flows end with it.
+no other actor anywhere is flagged a copy. It waits for agreement (copies trail their owner by their playback delay,
+[copy-clock.md](copy-clock.md)) and fails listing what differs. The copy, travel and death flows end with it.
 
 The flows added with it (2026-10-23), each checked by breaking the line it covers (rebuilt, the flow fails,
 restored):

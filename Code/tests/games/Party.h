@@ -34,9 +34,12 @@ using WorldPlugins = std::function<void(FakeEngine&)>;
 struct Party
 {
     // The host's game ("Dovahkiin") hosting (HostService) and aGuests guests ("Lydia", "Aela", "Serana"), joined
-    // unless aJoin is false; each game loaded acPlugins first.
-    explicit Party(size_t aGuests = 1, const WorldPlugins& acPlugins = {}, bool aJoin = true)
+    // unless aJoin is false; each game loaded acPlugins first. With acNet: the guests' line, else COOP_NET's.
+    explicit Party(size_t aGuests = 1, const WorldPlugins& acPlugins = {}, bool aJoin = true,
+                   const std::optional<NetConditions>& acNet = {})
     {
+        if (acNet)
+            m_net = *acNet;
         m_games.push_back(NewGame("Dovahkiin", acPlugins));
         As(Host(), [&] {
             REQUIRE(Host().GetHostService().StartHosting(Port()));

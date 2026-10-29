@@ -909,17 +909,13 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     // KillImpl (37896) performs the death animation, or RagdollInstant when told to ragdoll at once; a
     // copy's own actions are refused unless forced.
     const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
-    const ActionEvent cPrevious = pExtension->LatestAnimation;
-    pExtension->LatestAnimation.ActionId = 0;
+    const auto cAttempt = pExtension->LatestAnimation.BeginAttempt();
     EndDeferredKill();
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
     g_forceAnimation = false;
     World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
-    if (pExtension->LatestAnimation.ActionId == acAction.ActionId)
-        return true;
-    pExtension->LatestAnimation = cPrevious;
-    return false;
+    return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
 }
 
 void Actor::Reset() noexcept

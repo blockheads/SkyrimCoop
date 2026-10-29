@@ -1646,6 +1646,13 @@ What the first playtest build has besides what works today (the table above):
     actors. Tiers 1-2 (ClientTests, HostAuthorityTests, TPTests, GameTests `crafted_potion_flows.cpp`); Skyrim
     `guest-brewed-potion-reaches-host`, `guest-poison-coating-reaches-host` and ten item regressions pass;
     `crafted-potion-kept-across-rejoin` passes its potion steps and fails the known cover-plate difference after a rejoin.
+20. **Adaptive copy playback** (built 2026-10-28 on dev, uncommitted; [copy-clock.md](design/copy-clock.md)): copies
+    trail their owner by what the line needs instead of a fixed 300 ms (one game-wide clock steered toward the worst
+    lateness of the last 3 s, plus each copy's own send interval), movement, actions and ragdoll on that one time;
+    late snapshots carry a copy on for up to one interval. Players, mounts and fights are sent 30/s, other actors 10/s.
+    Tiers 1-2 (ClientTests `copy_clock_tests.cpp`, GameTests `copy_playback_flows.cpp`); Skyrim: 16 of 19
+    movement/combat/knockdown/death/travel scenarios pass, the other three known and in `docs/bugs.md`; the guest's copy
+    of the host's player shows about 140 ms behind (was 300).
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation
@@ -1658,6 +1665,11 @@ game/build/plugin-order checks, main-menu returning-character joins, host save t
 records are implemented. The join UI shows progress/refusals/end reasons; ordinary leave, kick, host exit and
 exhausted reconnects now clean up and return to the main menu. Difficulty follows the host's actual setting.
 See `docs/design/join-flow.md`, `Code/client/Ui/README.md` and the integration review above for evidence and limits.
+
+Animation action snapshots now copy and replace their owned strings/vectors under one mutex; refused death
+actions preserve newer actions and body resets. Fast concurrency/restoration tests and native checks pass.
+The original reload corruption and historical werewolf crash remain open; see the
+[stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
 
 - **V1 delivery:** a reproducible `test_harness=n` player package with UI/assets/dependencies, clean-install
   validation and current setup instructions. The README still needs its deleted-server/launcher description cleaned up.

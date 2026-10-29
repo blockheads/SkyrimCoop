@@ -126,9 +126,20 @@ BodyFrame BodyPlayback::Track::Show(uint64_t aTick, float aGravity) noexcept
 
 std::vector<BodyPlayback::Pose> BodyPlayback::At(uint64_t aTick, float aGravity) noexcept
 {
+    return At([aTick](const BodyKey&) { return aTick; }, aGravity);
+}
+
+std::vector<BodyPlayback::Pose> BodyPlayback::At(const TickOf& acTickOf, float aGravity) noexcept
+{
     std::vector<Pose> poses;
     for (auto it = m_tracks.begin(); it != m_tracks.end();)
     {
+        const uint64_t aTick = acTickOf(it->first);
+        if (!aTick)
+        {
+            ++it;
+            continue;
+        }
         Track& track = it->second;
         const uint64_t cRestTick = track.Rest ? track.Rest->first : 0;
         if (auto rest = track.TakeRest(aTick))

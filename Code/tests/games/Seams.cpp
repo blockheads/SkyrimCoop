@@ -20,6 +20,7 @@
 #include <Components/FormIdComponent.h>
 #include <Components/SpawnGraphStateComponent.h>
 #include <Components/WaitingFor3D.h>
+#include <Systems/InterpolationSystem.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
 #include <Services/PerkService.h>
@@ -169,11 +170,11 @@ void World::Update() noexcept
     const auto cNow = std::chrono::high_resolution_clock::now();
     const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
     m_lastFrameTime = cNow;
+    m_copyClock.Advance(GetTick());
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
-    // The real AnimationSystem replays a dying owner's action 300 ms behind its tick.
+    // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
     auto& engine = ctx().at<FakeEngine&>();
-    const uint64_t cTick = GetTransport().GetTick();
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
     {
         if (!engine.ActorExists(form.Id)) continue;
@@ -192,7 +193,7 @@ void World::Update() noexcept
         {
             if (DeathActions::IsDying(it->State1))
             {
-                if (engine.HoldDeathActions || cTick < it->Tick + 300)
+                if (engine.HoldDeathActions || InterpolationSystem::PlaybackTick(*this, cEntity) < it->Tick)
                 {
                     ++it;
                     continue;

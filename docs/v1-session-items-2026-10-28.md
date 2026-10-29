@@ -82,3 +82,47 @@ Evidence is retained in `.worktrees/v1-stability/build/stability-*.log`; the key
 The temporary allocation tracker reported no duplicate live allocation or unmatched free in its final nine-scenario run. A separate Windows probe completed 800,000 actor-value map pairs across eight threads, including cross-thread destruction, without errors. These diagnostics do not identify the originating write or rule out a timing-dependent defect; no allocator replacement, speculative recovery, or diagnostic instrumentation is retained. `scripts/net_check.sh` was not run.
 
 Native bindings checked against community layouts and the 1.6.1170 executable: `hkbVariableInfo` size `0x6`, type at `0x4`; graph metadata at `0x88`, its variable-info array at `0x20`; native manager scalar deleting destructor 63411 (`0xBA7200`, flag bit 1 frees the block). Casting hooks retain 34144 (`0x5B1290`), 34140 (`0x5B0B70`), 21622 (`0x332E80`), projectile launch 44108 (`0x7E46C0`) and `MagicTarget::AddTarget` 34526 (`0x5C3250`, data reference in RDX). `papyrus::Game::SetBeastForm` 55497 (`0xA0D3E0`) reads the entering flag from `R9B`; its forwarding signature is unchanged.
+
+## Concurrent animation snapshots
+
+Animation snapshots now support concurrent readers and writers safely. This change is integrated into the
+**dev working tree**, uncommitted for the user's review. `HookPerformAction` and the VM's
+`AnimationSystem::Update` wrote `ActorExtension::LatestAnimation`; save/spawn construction and harness status
+read it without shared synchronization. `ActionEvent` owns strings and three variable vectors. A focused test
+reproduces mixed snapshots under concurrent replacement; native overlap has not been captured.
+
+`AnimationActionState` now copies and replaces those buffers under one short mutex. Its callers release the mutex
+before any engine call. A death attempt retains a revision with its previous action: refusal restores that action
+only if no other action or body reset replaced it. The latest weapon-equip snapshot uses the same protection.
+All direct readers and writers now go through these operations.
+
+The focused tier-1 test failed on the original unsynchronized access (`stability-action-red.log`: a torn snapshot).
+It passes with the fix, along with acceptance/refusal, concurrent replacement and body-reset restoration checks
+(`stability-action-green.log`, 17 assertions). The full gate passes in `stability-snapshot-check.log`: ClientTests
+103 cases/916 assertions, HostAuthorityTests 181/1933, TPTests 26/302, GameTests 203/2119, harness/ragdoll
+comparisons, UI fixtures and the Windows DLL build.
+
+The production DLL, with no allocator instrumentation, passes both real Fus Ro Dah directions followed by three
+host reloads and three host Beast Form/reversion cycles (`stability-snapshot-native.log`). Reloads check continued
+frames and creation/sync/removal of another actor; reversions check the original human race on the guest's copy
+and continued updates on both games. These were direct scenario-function assertions, not a full-suite pass.
+A cold game start was used because the extension layout changed.
+
+The production DLL also passes all five checks through the normal scenario runner
+(`stability-snapshot-regressions.log`): `host-loads-party`, `host-beast-form-stays-host`,
+`death-stage-runs-once`, `death-host-npc` and `host-kill-move`. The test games were stopped and the
+shared duo reservation was released after each completed run.
+
+Earlier diagnostic captures (page guards, allocation ownership checks and a Windows test with 4,096 short-lived
+threads) did not identify the original corrupting write. The concurrent snapshot test establishes this defect,
+but it does not establish that it caused the earlier map/set corruption or historical intermittent Havok crash.
+A subsequent diagnostic build replaced the mutex with access-overlap detection and repeated the two shout checks
+and three reload/reversion pairs (`stability6-native.log`); it did not observe an overlapping access in Skyrim.
+That negative capture does not establish the original cause either. Those two readiness items remain open
+pending confirmation. No allocator replacement, recovery loop or temporary instrumentation is retained in
+production source.
+
+This follow-up was integrated only after the user's explicit request. Cleanup follows the repository's naming
+and formatting conventions, marks snapshot/attempt results `[[nodiscard]]`, and makes `ActionEvent` and
+`AnimationVariables` include their own standard-library dependencies. The earlier stability fixes and the
+newer dev changes were preserved. No commit, staging or push was performed.

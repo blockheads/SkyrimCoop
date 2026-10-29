@@ -1,6 +1,5 @@
 #include <Services/CharacterService.h>
 #include <MainLoopTasks.h>
-#include <Services/CopyClock.h>
 #include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
@@ -285,6 +284,7 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
 {
     m_playerId = acConnectedEvent.PlayerId;
     m_characterId = acConnectedEvent.CharacterId;
+    m_world.GetCopyClock().Reset();
 
     // Go through all the forms that were previously detected
     auto view = m_world.view<FormIdComponent>();
@@ -309,6 +309,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 {
     m_pendingLooks.clear();
     m_pendingSpawns.clear();
+    m_world.GetCopyClock().Reset();
     const auto cMounts = m_mountPersistence;
     for (const auto& [cFormId, cPersistent] : cMounts)
         ReleaseMount(cFormId);
@@ -545,6 +546,8 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept
 {
     auto view = m_world.view<RemoteComponent, InterpolationComponent, RemoteAnimationComponent>();
+    auto& clock = m_world.GetCopyClock();
+    clock.OnSnapshot(acMessage.Tick, m_transport.GetTick());
 
     for (const auto& [sessionId, update] : acMessage.Updates)
     {
@@ -575,10 +578,12 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
             place.CellId = movement.CellId;
             place.WorldSpaceId = movement.WorldSpaceId;
         }
+        interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
             interpolationComponent.TimePoints.clear();
             interpolationComponent.Position = movement.Position;
+            interpolationComponent.Playback.Snap(clock);
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
 
@@ -1366,24 +1371,36 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
 
 void CharacterService::RunLocalUpdates() noexcept
 {
-    constexpr auto cDelayBetweenSnapshots = 100ms;
+    // 30 a second for players, mounts and fights, whose copies are watched closely; 10 for the rest (copy-clock.md).
+    constexpr auto cFast = 33ms;
+    constexpr auto cSlow = 3 * cFast; // every third round
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastSnapshot < cDelayBetweenSnapshots)
+    if (now - m_lastSnapshot < cFast)
         return;
 
     m_lastSnapshot = now;
+    const uint32_t cPlayer = m_playerBridge.GetPlayerFormId();
 
     ReferencesMoveRequest message;
     message.Tick = m_transport.GetTick();
 
     auto animatedLocalView = m_world.view<LocalComponent, LocalAnimationComponent, FormIdComponent>();
 
+    std::unordered_set<uint32_t> waiting; // ours not due yet: their jumps go with their next snapshot
     for (auto entity : animatedLocalView)
     {
         auto& localComponent = animatedLocalView.get<LocalComponent>(entity);
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
+        const uint32_t cFormId = formIdComponent.Id;
+        const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
+        if (now - localComponent.LastSent < (cWatched ? cFast : cSlow))
+        {
+            waiting.insert(cFormId);
+            continue;
+        }
+        localComponent.LastSent = now;
 
         AnimationSystem::Serialize(m_world, message, localComponent, animationComponent, formIdComponent);
         const auto it = message.Updates.find(localComponent.Id);
@@ -1395,16 +1412,16 @@ void CharacterService::RunLocalUpdates() noexcept
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
         }
     }
-    m_jumped.clear(); // jumps of actors that are not ours
+    std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
 
-    m_transport.Send(message);
+    if (!message.Updates.empty())
+        m_transport.Send(message);
 }
 
 void CharacterService::RunRemoteUpdates() noexcept
 {
     // Behind the owners' time, to have points to interpolate between; a copy's ragdoll plays on the same clock.
     const auto currentTick = m_transport.GetTick();
-    const auto tick = currentTick > kCopyDelayMs ? currentTick - kCopyDelayMs : 0;
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
@@ -1418,6 +1435,7 @@ void CharacterService::RunRemoteUpdates() noexcept
     {
         auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);
         auto& interpolationComponent = interpolatedEntities.get<InterpolationComponent>(entity);
+        const uint64_t tick = InterpolationSystem::PlaybackTick(m_world, entity);
 
         auto& points = interpolationComponent.TimePoints;
         if (cLogDiagnostic)
@@ -1431,7 +1449,9 @@ void CharacterService::RunRemoteUpdates() noexcept
         const auto& second = *std::next(points.begin());
         glm::vec3 position{};
         glm::vec3 rotation{};
-        if (!InterpolationSystem::Interpolate(first, second, tick, position, rotation))
+        // Late snapshots: carried on for up to one send interval (Source's and Unity's short extrapolation).
+        const auto cAhead = std::min<uint64_t>(static_cast<uint64_t>(interpolationComponent.Playback.Interval()), 100);
+        if (!InterpolationSystem::Interpolate(first, second, tick, position, rotation, cAhead))
             continue;
         interpolationComponent.Position = position;
         if (pFormIdComponent)
@@ -1479,7 +1499,7 @@ void CharacterService::RunRemoteUpdates() noexcept
     {
         auto& formIdComponent = animatedView.get<FormIdComponent>(entity);
 
-        m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, tick);
+        m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
     }
 
     auto facegenView = m_world.view<FormIdComponent, FaceGenComponent>();

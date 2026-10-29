@@ -217,7 +217,7 @@ reverted attempt dropped sheathe calls).
 
 The owner's `HookPerformAction` records each action its engine **accepted**, with the graph
 variables just before it (a refused action is not sent; the player's input handlers retry every frame
-until the graph takes them). On the copy, `AnimationSystem::Update` replays it 300 ms behind with
+until the graph takes them). On the copy, `AnimationSystem::Update` replays it at the copy's time ([copy-clock.md](../../design/copy-clock.md)) with
 `ActorMediator::ForceAction` → `PerformComplexAction` (38953) → `NotifyAnimationGraph` (32901) →
 `BSAnimationGraphManager::NotifyAllGraphs` (63362). That sends the event to every graph of the actor
 and succeeds if any state machine has a transition for it from its current state. A refusal means

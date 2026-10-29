@@ -11990,7 +11990,7 @@ def find_desyncs():
     return problems
 
 
-# A copy legitimately trails its owner by the interpolation and replay delay (~0.3-0.5s): only a
+# A copy legitimately trails its owner by its playback delay (behind_ms, ~0.1-0.3s) and the replay: only a
 # difference that lasts the whole window is a desync. Most checks pass on the first sample.
 DESYNC_WINDOW = 0.8
 DESYNC_INTERVAL = 0.1

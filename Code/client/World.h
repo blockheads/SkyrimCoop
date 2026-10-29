@@ -10,6 +10,7 @@
 #include <memory>
 
 #include <RecipeBook.h>
+#include <Services/CopyClock.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
@@ -72,6 +73,8 @@ struct World : entt::registry
     auto& GetDispatcher() noexcept { return m_dispatcher; }
     // The player-made potions' recipes this game knows (ItemIds).
     RecipeBook& GetRecipes() noexcept { return m_recipes; }
+    // The copies' playback time, stepped once a frame before UpdateEvent.
+    CopyClock& GetCopyClock() noexcept { return m_copyClock; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -89,6 +92,7 @@ private:
     std::unique_ptr<IBodyBridge> m_pBodyBridge;
     std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
     RecipeBook m_recipes;
+    CopyClock m_copyClock;
     RunnerService m_runner;
     TransportService m_transport;
 

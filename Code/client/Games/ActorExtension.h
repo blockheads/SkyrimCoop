@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Structs/ActionEvent.h>
+#include <Games/Animation/ActionState.h>
 
 // Words: docs/design/glossary.md.
 struct ActorExtension
@@ -19,8 +19,8 @@ struct ActorExtension
     void SetCopy(bool aSet) noexcept;
     void SetPlayer(bool aSet) noexcept;
 
-    ActionEvent LatestAnimation{};
-    ActionEvent LatestWeapEquipAnimation{};
+    AnimationActionState LatestAnimation;
+    AnimationActionState LatestWeapEquipAnimation;
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back

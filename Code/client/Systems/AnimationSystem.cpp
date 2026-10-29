@@ -63,7 +63,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 aAnimationComponent.LastRanAction = spawnAction;
                 aAnimationComponent.Variables = spawnAction.Variables;
                 aAnimationComponent.VariablesTick = spawnAction.Tick;
-                apActor->GetExtension()->LatestAnimation = spawnAction;
+                apActor->GetExtension()->LatestAnimation.Write(spawnAction);
                 actions.pop_front();
             }
         }
@@ -82,7 +82,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         if (phase == ReplayStep::kTaken)
         {
             aAnimationComponent.LastRanAction = cAction;
-            apActor->GetExtension()->LatestAnimation = cAction;
+            apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
                 spdlog::debug("Copy {:X} took replayed action {:X} '{}' {} graph updates late", apActor->formID, cAction.ActionId,
                               cAction.EventName, step.Retries);
@@ -130,7 +130,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             {
                 spdlog::debug("Copy {:X} died with its owner's death action {:X} '{}'", apActor->formID, first.ActionId, first.EventName);
                 aAnimationComponent.LastRanAction = first;
-                apActor->GetExtension()->LatestAnimation = first;
+                apActor->GetExtension()->LatestAnimation.Write(first);
             }
             else
                 spdlog::debug("Copy {:X}: its kill did not play the owner's death action {:X} '{}'", apActor->formID,

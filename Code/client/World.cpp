@@ -197,6 +197,7 @@ void World::Update() noexcept
     // The engine's UI is made after the plugin loads: its menu events from the first frame it is there.
     MenuEvents::Start();
 
+    m_copyClock.Advance(GetTick());
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
     m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));

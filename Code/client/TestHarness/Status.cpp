@@ -5,6 +5,7 @@
 #include "Session.h"
 
 #include <World.h>
+#include <Systems/InterpolationSystem.h>
 #include <Services/JoinService.h>
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
@@ -448,9 +449,24 @@ static nlohmann::json Copies()
         // Once the mod has moved it (two movement snapshots in).
         if (const auto* pInterpolation = world.try_get<InterpolationComponent>(cEntity); pInterpolation && pInterpolation->TimePoints.size() >= 2)
             copy["requested"] = {pInterpolation->Position.x, pInterpolation->Position.y, pInterpolation->Position.z};
+        // How far behind its owner it shows (CopyPlayback), and how often its owner sends it.
+        if (const auto* pInterpolation = world.try_get<InterpolationComponent>(cEntity))
+        {
+            const uint64_t cShown = InterpolationSystem::PlaybackTick(world, cEntity);
+            copy["behind_ms"] = world.GetTick() > cShown ? world.GetTick() - cShown : 0;
+            copy["send_interval_ms"] = pInterpolation->Playback.TargetInterval();
+        }
         result[std::to_string(cFormId)] = std::move(copy);
     }
     return result;
+}
+
+// A guest's line to the host over the last second (enet, compressed and not); the host's own route counts nothing.
+static nlohmann::json LineStatus()
+{
+    const auto cStats = World::Get().GetTransport().GetStatistics();
+    return {{"sent_bytes", cStats.SentBytes}, {"recv_bytes", cStats.RecvBytes},
+            {"sent_uncompressed", cStats.UncompressedSentBytes}, {"recv_uncompressed", cStats.UncompressedRecvBytes}};
 }
 
 // The Steam account this game signed in as, from Skyrim's steam_api64 (flat API, SDK 1.5x); empty without Steam.
@@ -484,6 +500,8 @@ nlohmann::json BuildStatus(const Harness& acHarness)
     return {{"pid", GetCurrentProcessId()},
             {"heartbeat_ms", cUnixMs},
             {"actors", Copies()},
+            {"copy_clock", {{"network_ms", World::Get().GetCopyClock().Network()}, {"delay_ms", World::Get().GetCopyClock().Delay()}}},
+            {"line", LineStatus()},
             {"session", PollSession(acHarness.Files.Directory())},
             {"boot", {{"command", acHarness.Files.BootCommand()}, {"state", acHarness.Files.BootState()}}},
             {"console_id", acHarness.Files.ConsoleId()},

@@ -1911,7 +1911,7 @@ ActionEvent SkyrimBridge::GetActorLatestAnimation(uint32_t aFormId) const noexce
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return {};
-    return pActor->GetExtension()->LatestAnimation;
+    return pActor->GetExtension()->LatestAnimation.Read();
 }
 
 void SkyrimBridge::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept
@@ -1919,7 +1919,7 @@ void SkyrimBridge::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& 
     Breadcrumbs::Record("SetActorLatestAnimation", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
-        pActor->GetExtension()->LatestAnimation = acEvent;
+        pActor->GetExtension()->LatestAnimation.Write(acEvent);
 }
 
 void SkyrimBridge::ActorFixVampireLordModel(uint32_t aFormId) noexcept

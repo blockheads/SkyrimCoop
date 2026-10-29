@@ -3,6 +3,7 @@
 #include <Physics/BodyPrediction.h>
 
 #include <deque>
+#include <functional>
 #include <map>
 #include <optional>
 #include <vector>
@@ -43,6 +44,9 @@ public:
     void Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) noexcept;
     // The pose each body shows at aTick (the host's time, behind it): the moving ones each update, a rest once.
     [[nodiscard]] std::vector<Pose> At(uint64_t aTick, float aGravity = BodyPrediction::kGravity) noexcept;
+    // The same, each body at its own time (a copy's ragdoll at its copy's); 0 shows nothing for it yet.
+    using TickOf = std::function<uint64_t(const BodyKey&)>;
+    [[nodiscard]] std::vector<Pose> At(const TickOf& acTickOf, float aGravity = BodyPrediction::kGravity) noexcept;
     void Forget(const BodyKey& acKey) noexcept;
     // A release already applied locally: queued older frames must not restart its playback.
     void ForgetUntil(const BodyKey& acKey, uint64_t aTick) noexcept;

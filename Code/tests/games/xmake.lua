@@ -5,7 +5,8 @@ target("GameTests")
     set_group("Tests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
-    add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp", "../../client/RecipeBook.cpp", "../../client/ItemIds.cpp")
+    add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp", "../../client/RecipeBook.cpp", "../../client/ItemIds.cpp",
+              "../../client/Services/CopyClock.cpp")
     add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
               "../../client/Services/Generic/SystemQuestService.cpp",

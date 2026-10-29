@@ -165,7 +165,7 @@ void PlayerCharacter::Revive() noexcept
     if (PlayerCamera* pCamera = PlayerCamera::Get())
         pCamera->LeaveBleedout(false);
     // Its death action is over: a copy made now starts standing.
-    GetExtension()->LatestAnimation = {};
+    GetExtension()->LatestAnimation.Write({});
 }
 
 void PlayerCharacter::HoldDeathReload(bool aHold) noexcept

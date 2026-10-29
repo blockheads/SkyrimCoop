@@ -22,7 +22,7 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixe
   `host-beast-form-stays-host` the client crashed in its copy's graph update (hkbBehaviorGraph 58360, after the
   copy refused `IdleWerewolfTransformation`), once in the heap (bhkThreadMemorySource) on dev's DLL, and one run
   ended with the copy still on the transform's idle and the werewolf's values.
-  - Follow-up: graph bounds/types, descriptor invalidation and owner-value restoration are implemented; repeated native transitions pass, but the historical crash remains open. See [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up).
+  - Follow-up: graph bounds/types, descriptor invalidation and owner-value restoration are implemented; concurrent animation-snapshot protection is also implemented. Repeated native transitions pass, but the historical crash remains open. See [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up).
   - Start: what the copy's graph holds when the owner's race changes back (the respawn from its new base data).
   - Test: a `GameTests` race switch back with the copy mid-transform, once the fake keeps a copy's graph state.
 
@@ -64,6 +64,8 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
     `TESQuest::sub_25066`) against the guest's quest sync forcing an alias on the main thread
     (`GuestEngine::ApplyFills` -> `TESQuest::ForceRefIntoAlias` 25052 -> `ExtraAliasInstanceArray` 12718). Whether it is
     tagged ours depends on which thread reports it first (`HookUpdateAI`, `HookCheckForNewPackage` count as ours).
+  - 2026-10-28, adaptive playback run: `party-fast-travels` failed once on the client's lock audit with the same
+    family (`SkyrimSE.exe+0x3cdb45 > +0x182241 vs +0x1823d0 > +0x3d1507`), then passed on the rerun.
 
 ## Plugin compatibility
 
@@ -97,3 +99,11 @@ Retained changes and their evidence are in [native-bugs.md](design/native-bugs.m
   skeleton snap for one frame at knock state 5->6 (`build/check/evidence-audit/shadow-native.log`).
   - Start: inspect the native knock-state 5/6 handoff and per-bone trace. Compare visible owner/copy poses as well
     as body alignment; the owner's own get-up bones can also leave its physics bodies.
+  - 2026-10-28, adaptive playback ([copy-clock.md](design/copy-clock.md)): `knockdown-lies-as-host` fails most runs on
+    the client's copy (a bone turning back 3-5 times in a second, 1-16 flickers, a bone up to 21 units off its body).
+    It is not the new clock: 1 of 4 passed on it, 0 of 4 on a build with the old fixed 300 ms and 10/s timing
+    (scenario samples under `build/coop-test/runs/`, 2026-10-28 22:1x).
+- **A killed wolf's body once took over 10 s to come to rest on the host** (2026-10-28, adaptive playback run).
+  `client-melee-kill-credit` timed out at "[host] the wolf's body comes to rest" once in 20 scenarios and passed on
+  the rerun. The host's own body: the copy clock does not play it.
+  - Start: repeat `client-melee-kill-credit` and read the host's `BodyService` rest log for the wolf.

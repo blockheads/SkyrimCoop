@@ -49,7 +49,7 @@ void HookResurrect(Actor* apActor, bool aResetInventory)
         return;
     }
     const bool cWasDead = apActor->IsDead();
-    const auto cAction = apActor->GetExtension()->LatestAnimation;
+    const auto cAction = apActor->GetExtension()->LatestAnimation.Read();
     std::optional<uint64_t> tick;
     if (cAction.ActionId && DeathActions::IsDying(cAction.State1))
         tick = cAction.Tick;
