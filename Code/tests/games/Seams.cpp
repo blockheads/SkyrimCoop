@@ -4,6 +4,7 @@
 #include <MainLoopTasks.h>
 #include "FakeWait.h"
 #include "FakeCrime.h"
+#include "FakeBugReports.h"
 #include <Services/CrimeService.h>
 #include <Services/WaitService.h>
 #include <Services/BodyService.h>
@@ -29,6 +30,7 @@
 #include <Services/CombatService.h>
 #include <Services/CutsceneService.h>
 #include <Services/SystemQuestService.h>
+#include <Services/BugReportService.h>
 #include <Services/DialogueService.h>
 #include <Services/HostService.h>
 #include <Services/InventoryService.h>
@@ -82,7 +84,7 @@ World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
       m_pSteamBridge(std::make_unique<FakeSteam>()),
       m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
-      m_pCrimeBridge(std::make_unique<FakeCrime>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pCrimeBridge(std::make_unique<FakeCrime>()), m_pBugReportBridge(std::make_unique<FakeBugReports>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
@@ -107,6 +109,8 @@ World::World()
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
+    ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
@@ -137,6 +141,7 @@ World::~World()
     ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
     ctx().erase<DialogueService>();
+    ctx().erase<BugReportService>();
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();

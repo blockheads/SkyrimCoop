@@ -70,7 +70,9 @@
     X(ContainerTransferRequest)     \
     X(StoryEventRequest)            \
     X(SystemQuestsRequest)          \
-    X(RecipesRequest)
+    X(RecipesRequest)              \
+    X(BugReportRequest)            \
+    X(DialogueHighlightRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -142,7 +144,9 @@
     X(NotifyActorPerks)             \
     X(NotifyMeleeStagger)           \
     X(NotifySystemQuests)           \
-    X(NotifyRecipes)
+    X(NotifyRecipes)               \
+    X(NotifyBugReport)             \
+    X(NotifyDialogueHighlight)
 
 #define COOP_OPCODE(aName) k##aName,
 
@@ -159,3 +163,20 @@ enum NotifyOpcode : unsigned char
 };
 
 #undef COOP_OPCODE
+
+#define COOP_OPCODE_NAME(aName) #aName,
+
+// A message's name by its opcode, "?" past the list (bug reports' message trail).
+inline const char* RequestName(unsigned aOpcode) noexcept
+{
+    static constexpr const char* s_names[] = {COOP_REQUESTS(COOP_OPCODE_NAME)};
+    return aOpcode < kRequestOpcodeMax ? s_names[aOpcode] : "?";
+}
+
+inline const char* NotifyName(unsigned aOpcode) noexcept
+{
+    static constexpr const char* s_names[] = {COOP_NOTIFICATIONS(COOP_OPCODE_NAME)};
+    return aOpcode < kNotifyOpcodeMax ? s_names[aOpcode] : "?";
+}
+
+#undef COOP_OPCODE_NAME

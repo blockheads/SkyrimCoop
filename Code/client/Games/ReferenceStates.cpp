@@ -5,6 +5,8 @@
 #include <FormIds.h>
 
 #include <TESObjectREFR.h>
+#include <NetImmerse/NiNode.h>
+#include <NetImmerse/NiUpdateData.h>
 
 #include <cstring>
 #include <RTTI.h>
@@ -191,7 +193,12 @@ bool ReadGraph(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) n
 
 bool ApplyGraph(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    return aObject.LoadGraphs(acChange.Data);
+    if (!aObject.LoadGraphs(acChange.Data))
+        return false;
+    // Loading changes local bones; publish them to world transforms and collision (70251).
+    if (NiAVObject* p3D = aObject.GetNiNode())
+        p3D->Update(NiUpdateData::kDirty);
+    return true;
 }
 
 struct ReferenceState

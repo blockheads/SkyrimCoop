@@ -1,6 +1,7 @@
 #include "CrashHandler.h"
 #include "Breadcrumbs.h"
 #include "HeapHistory.h"
+#include <Diagnostics/Folders.h>
 #include <dbghelp.h>
 #include <Hooks/FunctionHook.h>
 #include <windows.h>
@@ -199,6 +200,8 @@ static TExitProcess RealExitProcess = nullptr;
 static void WINAPI HookExitProcess(UINT aExitCode)
 {
     spdlog::error("ExitProcess({}) called", aExitCode);
+    if (aExitCode == 0)
+        Diagnostics::CrashReports::MarkCleanExit(Diagnostics::Folders::RunMarks());
     CONTEXT context{};
     RtlCaptureContext(&context);
     LogBacktrace(context);

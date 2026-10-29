@@ -7,6 +7,7 @@
 #include "Status.h"
 
 #include <World.h>
+#include <Diagnostics/LogRing.h>
 #include <FormIds.h>
 #include <Forms/AlchemyItem.h>
 #include <ItemIds.h>
@@ -113,7 +114,7 @@ std::string FromHex(const std::string& acHex)
     return bytes;
 }
 
-// {"cmd": "graph_state", "actor": id}: the actor's graph state, hex, and the save's microseconds.
+// {"cmd": "graph_state", "actor": id}: an actor or object's graph state, hex, and the save's microseconds.
 nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
 {
     int64_t micros = 0;
@@ -123,7 +124,7 @@ nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"state", ToHex(cState)}, {"micros", micros}};
 }
 
-// {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor now.
+// {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor or object now.
 nlohmann::json LoadGraphState(Harness&, const nlohmann::json& acRequest)
 {
     int64_t micros = 0;
@@ -159,10 +160,15 @@ nlohmann::json GetEngineEvents(Harness& aHarness, const nlohmann::json& acReques
     return aHarness.Events.Since(acRequest.value("since", uint64_t(0)));
 }
 
-// {"cmd": "log_trail", "since": n}: the plugin's log lines (info and up) numbered n and later (LogTrail).
-nlohmann::json GetLogTrail(Harness& aHarness, const nlohmann::json& acRequest)
+// {"cmd": "log_trail", "since": n}: the plugin's log lines (info and up) numbered n and later (Diagnostics::LogRing).
+nlohmann::json GetLogTrail(Harness&, const nlohmann::json& acRequest)
 {
-    return aHarness.Logs.Since(acRequest.value("since", uint64_t(0)));
+    const auto& cRing = Diagnostics::PluginLog();
+    const uint64_t cNext = cRing.Next();
+    auto lines = nlohmann::json::array();
+    for (const auto& cLine : cRing.Since(acRequest.value("since", uint64_t(0))))
+        lines.push_back({{"seq", cLine.Seq}, {"time_ms", cLine.TimeMs}, {"level", cLine.Level}, {"text", cLine.Text}});
+    return {{"ok", true}, {"lines", lines}, {"next", cNext}};
 }
 
 // {"cmd": "graph_writers", "actor": id}: the variables the actor's graphs write themselves, by node.
@@ -263,7 +269,8 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
                 std::string key = cNode.Name;
                 for (int n = 2; pose.contains(key); ++n)
                     key = std::format("{}#{}", cNode.Name, n);
-                pose[key] = {{"position", cNode.Position}, {"rotate", cNode.Rotate}};
+                pose[key] = {{"position", cNode.Position}, {"rotate", cNode.Rotate},
+                             {"local_position", cNode.LocalPosition}, {"local_rotate", cNode.LocalRotate}};
             }
             ref["pose"] = pose;
         }

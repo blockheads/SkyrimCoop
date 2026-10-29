@@ -1,4 +1,5 @@
 #include <Bridges/SteamBridge.h>
+#include <PartySize.h>
 
 #include <steam/isteamnetworkingsockets.h>
 #include <steam/isteamnetworkingutils.h>
@@ -11,7 +12,7 @@ namespace
 {
 constexpr uint32_t kSkyrimAppId = 489830;
 constexpr int kLobbyTypeFriendsOnly = 1; // ELobbyType
-constexpr int kMaxMembers = 4;
+constexpr int kMaxMembers = kMaxPartyPlayers; // Steam's most for a lobby
 constexpr int kResultOk = 1; // EResult k_EResultOK; LobbyEnter_t's k_EChatRoomEnterResponseSuccess is 1 too
 
 // Callback payloads (isteammatchmaking.h, isteamfriends.h; Windows packs them to 8).

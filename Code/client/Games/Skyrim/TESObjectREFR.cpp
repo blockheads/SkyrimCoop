@@ -347,12 +347,7 @@ void TESObjectREFR::SetAngleOnAxis(char aAxis, float aDegrees) noexcept
     s_setAngleOnAxis(this, aAxis, aDegrees);
     // It sets the 3D's local rotation only: its world transforms follow, as MoveTo does (NiAVObject::Update, 70251).
     if (NiAVObject* p3D = GetNiNode())
-    {
-        using TUpdate = void(NiAVObject*, uint64_t*);
-        POINTER_SKYRIMSE(TUpdate, s_update, 70251);
-        uint64_t updateData = 0; // NiUpdateData: time 0, no flags
-        s_update.Get()(p3D, &updateData);
-    }
+        p3D->Update();
 }
 
 void TESObjectREFR::SetScale(float aScale) noexcept

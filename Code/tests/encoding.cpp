@@ -716,7 +716,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         NotifyDialogueList sendList, recvList;
         sendList.Conversation = 3;
         sendList.Step = 8;
-        sendList.Options = {option};
+        DialogueOption tagged = option;
+        tagged.Players = {2, 5}; // the merged list's: said only by these two
+        sendList.Options = {option, tagged};
         NotifyDialogueOpen sendOpen, recvOpen;
         sendOpen.Conversation = 4;
         sendOpen.NpcId = 0x21;
@@ -1851,4 +1853,66 @@ TEST_CASE("A player's own system quests are kept in its record", "[encoding.ques
     CHECK(cDecoded->Find(GameId{0, 0x1}) == nullptr);
     CHECK_FALSE(SystemQuestState::Decode(""));
     CHECK_FALSE(SystemQuestState::Decode(std::string("\x07", 1)));
+}
+
+TEST_CASE("A bug report goes to the host and from it to every game", "[encoding.bug_report]")
+{
+    Payloads::BugReport report;
+    report.Text = "the bandit froze mid-swing";
+    report.Id = "2026-10-29-2214-a3f";
+    report.By = "Lydia";
+    report.SessionTick = 123456789;
+    SECTION("a game's")
+    {
+        BugReportRequest sent;
+        sent.Text = report.Text;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kBugReportRequest);
+        CHECK(static_cast<const BugReportRequest&>(*decoded) == sent);
+    }
+    SECTION("the host's")
+    {
+        NotifyBugReport sent;
+        static_cast<Payloads::BugReport&>(sent) = report;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kNotifyBugReport);
+        CHECK(static_cast<const NotifyBugReport&>(*decoded) == sent);
+    }
+}
+
+TEST_CASE("A pick names who said it; the highlight goes to the others", "[encoding.dialogue]")
+{
+    NotifyDialoguePicked sent;
+    sent.Conversation = 3;
+    sent.Step = 4;
+    sent.Topic = GameId(0, 0x1F4E2);
+    sent.Info = GameId(0, 0x803);
+    sent.PlayerId = 2;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    DialogueHighlightRequest moved;
+    moved.Conversation = 3;
+    moved.Step = 4;
+    moved.Index = 2;
+    moved.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& cPicked = static_cast<const NotifyDialoguePicked&>(*decoded);
+    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info));
+    auto decodedMove = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedMove);
+    REQUIRE(decodedMove->GetOpcode() == kDialogueHighlightRequest);
+    CHECK(static_cast<const DialogueHighlightRequest&>(*decodedMove) == moved);
 }

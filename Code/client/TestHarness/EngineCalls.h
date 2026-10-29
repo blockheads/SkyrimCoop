@@ -4,6 +4,7 @@
 
 #include <Havok/Raycast.h>
 
+#include <Diagnostics/EngineReads.h>
 #include <Structs/Inventory.h>
 #include <Structs/ScriptValue.h>
 
@@ -17,6 +18,9 @@
 // go through the bridges, never through these.
 namespace TestHarness::EngineCalls
 {
+// The engine reads the player build uses too (bug reports).
+using namespace Diagnostics::EngineReads;
+
 // --- Console and menus ---
 
 // SKSE's AddUITask (SKSETaskInterface), for console commands run where typed ones run.
@@ -28,34 +32,15 @@ void ExecuteConsoleCommand(const char* acpLine) noexcept;
 void RunConsoleCommand(const std::string& acLine) noexcept;
 // Lifts the pauses of the lines queued last frame (they have run). Once a frame, before new commands.
 void EndConsolePauses() noexcept;
-bool IsMenuOpen(const char* acpMenu) noexcept;
 // Shows or hides a menu through the UI message queue, as the game does (the console: "Console").
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
-// Names of the open menus (what blocks input: popups, console, menus).
-std::vector<std::string> GetOpenMenus() noexcept;
-// UI's pause count and the flags of one open menu, for live-menu regressions.
-uint32_t GetMenuPauseCount() noexcept;
+// The flags of one open menu, for live-menu regressions.
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept;
 std::optional<bool> IsFirstPersonModelHidden() noexcept;
 std::optional<bool> IsLocalMapShown() noexcept;
 std::optional<bool> IsLocalMapReady() noexcept;
-// A kill cam plays: the game ignores the player's buttons until it ends.
-bool IsKillCamPlaying() noexcept;
-// How fast the game's clock runs (BSTimer, 1 normal): a kill cam, Slow Time or a bow zoom slow it.
-float GetGlobalTimeMultiplier() noexcept;
-// The marker the player placed on the map: where, and its worldspace (an interior's cell); none without one.
-struct MapMarker
-{
-    float X, Y, Z;
-    uint32_t WorldOrCell;
-};
-std::optional<MapMarker> GetPlayerMapMarker() noexcept;
-// The map is open and takes input (its controls are ready, as MapMenu::PlaceMarker 53113 requires).
-bool IsMapReady() noexcept;
 // Removes it, as the map's "Remove It" does (40536).
 void ClearPlayerMapMarker() noexcept;
-// The hours the open Sleep/Wait Menu's slider shows (its SWF's HoursSlider), none while it is closed or loading.
-std::optional<double> GetWaitMenuHours() noexcept;
 // A number or boolean (1/0) in an open menu's movie ("_root.Menu_mc.bFadedIn"); none: no such menu or value.
 std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept;
 // A string there (StartMenu's strCurrentState); none: no such menu or string.
@@ -87,15 +72,8 @@ bool AllowQuestRerun(uint32_t aQuestId) noexcept;
 // Fills the quest's reference alias with the reference, read from its plugin first when it is not in memory (indoors:
 // aParentId its cell; outdoors: its worldspace and grid cell); false if either is missing.
 bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint32_t aParentId, int16_t aGridX, int16_t aGridY) noexcept;
-// A global variable's value (TESGlobal 0x34), none for no such global.
-std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept;
-// The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
-float GetRawDaysPassed() noexcept;
 
 // --- Magic ---
-
-// The power or shout the actor has selected (Actor::equippedShout), 0 for none.
-uint32_t GetSelectedPower(uint32_t aFormId) noexcept;
 
 // --- Form state (world-state sync) ---
 
@@ -214,8 +192,6 @@ struct InputState
     bool IgnoreKeyboardMouse{};
 };
 std::optional<InputState> GetInputState() noexcept;
-// Where the menus' cursor points while it shows.
-std::optional<std::pair<float, float>> GetMenuCursor() noexcept;
 void ForcePlayerFirstPerson() noexcept;
 // Turns the player toward an actor, yaw and pitch, in first person (aimed spells fly where the camera
 // looks).
@@ -307,24 +283,11 @@ struct ReferenceState
         std::string Name;
         float Position[3];
         float Rotate[9]; // world rotation, row-major
+        float LocalPosition[3];
+        float LocalRotate[9];
     };
     std::vector<Node> Pose; // its 3D's named nodes: where any animation left them
-    struct Body
-    {
-        std::string Node;
-        bool InWorld; // added to the physics world
-        float Position[3];
-        // Its Havok body (docs/design/physics-sync.md): hkpMotion::MotionType (4 keyframed), awake (its island
-        // active), rotation (x, y, z, w) and velocity in game units.
-        uint8_t Motion{};
-        bool Awake{};
-        float Rotation[4]{};
-        float Velocity[3]{};
-        uint16_t Flags{};   // its bhkNiCollisionObject's
-        bool Offset{};      // a bhkRigidBodyT: placed apart from its node
-        bool HasBone{};     // the node it moves (TESHavokUtilities::FindCollidableObject 15870): what a person sees
-        float Bone[3]{};
-    };
+    using Body = Diagnostics::EngineReads::RagdollBody;
     std::vector<Body> Collision;                      // its 3D's physics bodies
     std::vector<std::pair<std::string, uint32_t>> Graph; // its active behavior graph's variables, raw
     std::vector<uint32_t> Effects;                    // effect shaders and art objects playing on it
@@ -332,25 +295,7 @@ struct ReferenceState
 // Every reference in the loaded cells: the interior, or the attached exterior grid (TES). With aDetails, each
 // one's pose, physics, graph and effects too (larger).
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
-// An actor's ragdoll bodies in the ragdoll's order (Havok/Ragdoll.h), each with its node empty; none for no such actor.
-std::optional<std::vector<ReferenceState::Body>> GetRagdoll(uint32_t aActorFormId) noexcept;
 
-// The effect shaders and art objects the engine is playing on the actor's body.
-std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
-// Those it plays at this game's camera on the actor's behalf (a script's VisualEffect attached to the camera).
-std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept;
-// The actor's base looks the race menu sets beside its race: female (TESActorBaseData flag 1) and weight
-// (TESNPC, 0 to 100). None: no such actor or no NPC base.
-struct BaseLooks
-{
-    bool Female{};
-    float Weight{};
-    uint16_t Level{};
-};
-std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept;
-// Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
-// shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
-std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;
 // Every reference effect playing on the reference or aimed at it (a VisualEffect's facing target): what shows, and
 // whether its art's model loaded, hangs in the scene and is hidden.
 struct ReferenceEffectReadout
@@ -368,26 +313,10 @@ struct ReferenceEffectReadout
     NiPoint3 Position{};
 };
 std::vector<ReferenceEffectReadout> GetReferenceEffects(uint32_t aFormId) noexcept;
-// The player may get on the mount now: what offers "Ride" and what InitiateMountPackage checks first (38706).
-bool PlayerCanRide(uint32_t aMountFormId) noexcept;
 // Sets the difficulty as the settings menu does (53310): iDifficulty, then PlayerCharacter::SetDifficulty (40563).
 void ChooseDifficulty(uint32_t aDifficulty) noexcept;
-// The actor whose health bar the HUD shows, or 0.
-uint32_t GetEnemyHealthTarget() noexcept;
-// The magic caster's state for a casting source (MagicCaster::State; 3 = charged), or -1.
-int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
-// A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
-bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
 // The actor is in a kill move, either half (Actor::IsInKillMove 38615).
 bool IsInKillMove(uint32_t aFormId) noexcept;
-// Its kill held off (a deferred kill, Character 38619) or queued on the task queue (ActorProcess 40011): either way it
-// stays alive at any health until that ends.
-struct KillState
-{
-    bool Deferred;
-    bool Queued;
-};
-KillState GetKillState(uint32_t aFormId) noexcept;
 // What decides a kill move for an attack (the ShouldAttackKill condition, 21744).
 struct KillMoveCheck
 {
@@ -423,76 +352,14 @@ struct IdleNode
     bool Passes;
 };
 std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormId, uint32_t aTargetFormId) noexcept;
-// Actor::soundCallBackSet: 3 queued, -1 playing (or none), 1/2 ending; -2 without the actor.
-int32_t GetVoiceLineState(uint32_t aFormId) noexcept;
-// Seconds left of the actor's voice line once it has started (Actor::fVoiceTimer), else -1.
-float GetVoiceTimer(uint32_t aFormId) noexcept;
-// The actor's AI process level (0 high .. 3 low), -1 without a process; and whether the engine updates its
-// AI at all (kProcessMe).
-int32_t GetProcessLevel(uint32_t aFormId) noexcept;
-// Its fade in or out (0: none; ActorProcess::GetFadeState 39451): nothing activates an actor while it fades.
-uint32_t GetFadeState(uint32_t aFormId) noexcept;
-// The voice line's sound (HighProcessData::soundHandles[0]): its id (-1 none), and its duration in ms
-// (BSSoundHandle::GetDuration, 0 until the audio system knows it).
-struct VoiceSound
-{
-    uint32_t Id = UINT32_MAX;
-    uint64_t DurationMs = 0;
-};
-VoiceSound GetVoiceSound(uint32_t aFormId) noexcept;
-bool IsProcessMe(uint32_t aFormId) noexcept;
-// The type of the actor's current package (TESPackage::packType: 27 do-nothing), -1 without one.
-int32_t GetPackageType(uint32_t aFormId) noexcept;
-// The form id of the package in the actor's running slot, as plugins read it inline (0: none).
-uint32_t GetRunningPackage(uint32_t aFormId) noexcept;
-// An actor's AI state as conditions and Papyrus read it (a copy answers its owner's), form ids, 0 for none.
-struct AiReadout
-{
-    uint32_t Package = 0;       // Actor::GetCurrentPackage (37399)
-    uint32_t PackageTarget = 0; // the running package's
-    uint32_t Scene = 0;         // Actor::GetCurrentScene (37247)
-    uint32_t Furniture = 0;     // MiddleProcess::occupiedFurniture
-    uint32_t FollowTarget = 0;  // AIProcess::followTarget
-    uint32_t Combat = 0;        // the condition GetCombatState (21740)
-    uint32_t CombatTarget = 0;  // Actor::currentCombatTarget
-};
-AiReadout GetAiReadout(uint32_t aFormId) noexcept;
-// A mount interaction (ExtraInteraction): a rider on its mount, or a mount with its rider (CommonLibSSE Actor::IsOnMount).
-bool HasMountInteraction(uint32_t aFormId) noexcept;
-// Its getting on or off animation plays: until it ends, a dismount is refused (Actor::Dismount 37906).
-bool IsGettingOnOrOffMount(uint32_t aFormId) noexcept;
 // Puts the package in the actor's running slot and sends its package event, as package evaluation would
 // (ActorPackage::InitFromPackage 38959, TESPackageEvent): staging on the owner, with the actor frozen so evaluation
 // does not replace it.
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
-// Actor::IsTalking (37266): what the condition IsTalking and the dialogue menu read.
-bool IsTalking(uint32_t aFormId) noexcept;
-// The condition IsInCombat on the actor (21576), as a dialogue line reads it: a copy answers its owner's.
-bool IsInCombat(uint32_t aFormId) noexcept;
 // The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // The condition GetFactionRank (21493) on the actor: -1 when not a member, as conditions read it.
 std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept;
-// The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
-bool IsSneaking(uint32_t aFormId) noexcept;
-// ActorState1::sitSleepState: 0 normal, 3 sitting, 7 sleeping (CommonLibSSE-NG SIT_SLEEP_STATE).
-uint8_t GetSitSleepState(uint32_t aFormId) noexcept;
-// ActorState1::knockState: 0 standing, 1 and 3 lying in the ragdoll, 6 getting up (CommonLibSSE-NG KNOCK_STATE_ENUM).
-uint8_t GetKnockState(uint32_t aFormId) noexcept;
-// The actor in water: how deep (Actor::GetSubmergedLevel, 0 dry .. 1; Actor::Update counts the head under at
-// 0.875), swimming (ActorState1), the head under (boolFlags kUnderwater) and for how long (underWaterTimer).
-struct Water
-{
-    float Submerged = 0.f;
-    bool Swimming = false;
-    bool HeadUnder = false;
-    float SecondsUnder = 0.f;
-};
-Water GetWater(uint32_t aFormId) noexcept;
-// The subtitle on screen over the actor (SubtitleManager), empty if none.
-std::string GetSubtitle(uint32_t aFormId) noexcept;
-// Whose subtitle the HUD shows now (SubtitleManager's current speaker), 0 for none.
-uint32_t GetSubtitleOnScreen() noexcept;
 // The actor's behaviour graph state as a spawn sends it (TESObjectREFR::SaveAnimationGraphState), and the
 // microseconds the save took; empty without the actor or its graphs. Measuring graph replication.
 std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept;
@@ -510,10 +377,6 @@ struct GraphWriter
     int32_t Index = -1;
 };
 std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept;
-// The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
-int32_t GetCharacterState(uint32_t aFormId) noexcept;
-// What the player holds with Activate (a grabbed physics object): its form id, 0 for nothing.
-uint32_t GetGrabbedObject() noexcept;
 // The player's conversation (MenuTopicManager): the speaker and the options in menu order.
 struct DialogueOption
 {
@@ -590,24 +453,8 @@ struct CameraView
 };
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
 
-// How an actor's body stands, as a person sees it: its feet's height above the floor under it (a ray down past its
-// own collision), and its pelvis and head nodes' (NPC Pelvis [Pelv], NPC Head [Head]) above that floor. Standing:
-// feet ~0, pelvis ~70, head ~120; lying: pelvis and head near the floor. None: no 3D, no floor found within 2000
-// units, or the frame's picks are spent.
-struct BodyPose
-{
-    float FloorGap{}; // its position above the floor: > 0 floats, < 0 sinks
-    float Root{};     // its 3D's root node (where its body is placed)
-    float Skeleton{}; // NPC Root [Root], under which the animation moves the bones
-    float Pelvis{};
-    float Head{};
-    uint32_t Floor{}; // what it stands on (CastRay's reference), 0 for the cell's own
-};
-std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept;
 // Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
 bool IsInRagdollState(uint32_t aFormId) noexcept;
-// The node a physics body moves (a ragdoll body's bone), in world space: TESHavokUtilities::FindCollidableObject 15870.
-bool BoneOf(const bhkWorldObject& acBody, float aPosition[3]) noexcept;
 
 // What a cutscene does to this game's screen: the enabled controls (ControlMap, UEFlag bits), the forms of the
 // image-space modifiers running (TES's list), and the camera's shake (strength and seconds left; 402622, 402623, set by

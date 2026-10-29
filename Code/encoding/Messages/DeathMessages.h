@@ -2,6 +2,7 @@
 
 // A player going down and coming back (docs/design/death.md): a player's game and the host's HostDeath.
 #include "Message.h"
+#include <PartySize.h>
 #include <Structs/GameId.h>
 #include <Structs/Vector3_NetQuantize.h>
 #include <Wire/Buffer.h>
@@ -48,8 +49,8 @@ struct PartyDeathPlayer
 struct NotifyPartyDeath final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyPartyDeath;
-    // At most a party's players on the wire (2-4 play).
-    static constexpr size_t kMaxPlayers = 8;
+    // At most a party's players on the wire.
+    static constexpr size_t kMaxPlayers = kMaxPartyPlayers;
 
     NotifyPartyDeath()
         : NotifyMessage(Opcode)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <PartySize.h>
 #include <network/ENetInterface.h>
 
 #include <optional>
@@ -21,7 +22,7 @@ struct HostSession
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    static constexpr uint32_t cMaxPlayers = 8;
+    static constexpr uint32_t cMaxPlayers = kMaxPartyPlayers;
 
     // Registers its rules with aAuthority.
     HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,

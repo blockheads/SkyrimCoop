@@ -143,9 +143,26 @@ struct FakeDialogue final : IDialogueBridge
             return false;
         Options = acOptions;
         Choices = aChoices;
+        Highlight = 0;
         return true;
     }
     // The listed option with this line, else that line built (as DialogueBridge::PickOption).
+    // The menu's highlight: the player moves it (W/S, the mouse), the service sets it.
+    std::optional<uint32_t> Highlight;
+    void PlayerHighlights(uint32_t aIndex)
+    {
+        if (MenuOpen && aIndex < Options.size())
+            Highlight = aIndex;
+    }
+    std::optional<uint32_t> GetHighlight() const noexcept override
+    {
+        return MenuOpen && !Options.empty() ? Highlight : std::nullopt;
+    }
+    void SetHighlight(uint32_t aIndex) noexcept override
+    {
+        if (MenuOpen && aIndex < Options.size())
+            Highlight = aIndex;
+    }
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override
     {
         if (!Speaker)

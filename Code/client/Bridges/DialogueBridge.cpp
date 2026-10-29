@@ -11,6 +11,8 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Interface/FxDelegateArgs.h>
+#include <Interface/GFxMovie.h>
+#include <Interface/IMenu.h>
 #include <Interface/MenuOpenCloseEvent.h>
 #include <Interface/UI.h>
 #include <Misc/JudgedFor.h>
@@ -510,4 +512,60 @@ bool DialogueBridge::PickOption(uint32_t aTopic, uint32_t aInfo) noexcept
     pManager->SetOptions(options);
     pManager->Pick(static_cast<uint32_t>(options.size() - 1));
     return true;
+}
+
+namespace
+{
+// The dialogue menu's SWF while it is open (docs/re/systems/dialogue.md, "The highlight").
+GFxMovie* DialogueMovie() noexcept
+{
+    UI* pUI = UI::Get();
+    IMenu* pMenu = pUI && pUI->GetMenuOpen("Dialogue Menu") ? pUI->FindMenuByName("Dialogue Menu") : nullptr;
+    return pMenu ? pMenu->uiMovie : nullptr;
+}
+
+std::optional<double> ReadNumber(const GFxMovie& acMovie, const char* acpPath) noexcept
+{
+    GFxValue value{};
+    if (!acMovie.GetVariable(&value, acpPath) || (value.type & GFxValue::kTypeMask) != GFxValue::kNumber)
+        return std::nullopt;
+    return value.value.number;
+}
+
+GFxValue Number(double aValue) noexcept
+{
+    GFxValue value{};
+    value.type = GFxValue::kNumber;
+    value.value.number = aValue;
+    return value;
+}
+} // namespace
+
+std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
+{
+    const GFxMovie* pMovie = DialogueMovie();
+    // Only while the list shows (eMenuState 1, TOPIC_LIST_SHOWN): the SWF keeps its last highlight while a line plays.
+    if (!pMovie || ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") != 1.0)
+        return std::nullopt;
+    const auto cIndex = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.selectedEntry.topicIndex");
+    return cIndex && *cIndex >= 0 ? std::optional(static_cast<uint32_t>(*cIndex)) : std::nullopt;
+}
+
+void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept
+{
+    GFxMovie* pMovie = DialogueMovie();
+    if (!pMovie)
+        return;
+    // As the keys do: scroll to the entry, select its position first (UpdateList draws with it), then recenter.
+    const GFxValue cIndex = Number(aIndex);
+    pMovie->Invoke("_root.DialogueMenu_mc.TopicList.SetSelectedTopic", nullptr, &cIndex, 1);
+    const auto cPosition = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.iScrollPosition");
+    if (!cPosition)
+        return;
+    pMovie->SetVariable("_root.DialogueMenu_mc.TopicList.iSelectedIndex", Number(*cPosition), 0);
+    GFxValue restore[2]{Number(*cPosition), {}};
+    restore[1].type = GFxValue::kBoolean;
+    restore[1].value.boolean = true;
+    pMovie->Invoke("_root.DialogueMenu_mc.TopicList.RestoreScrollPosition", nullptr, restore, 2);
+    pMovie->Invoke("_root.DialogueMenu_mc.TopicList.UpdateList", nullptr, nullptr, 0);
 }

@@ -2,6 +2,7 @@
 
 #include <Events/Listen.h>
 #include <Bridges/IDialogueBridge.h>
+#include <Messages/RelayedMessages.h>
 
 #include <optional>
 #include <NoCopyMove.h>
@@ -14,13 +15,14 @@ struct TransportService;
 struct NotifyDialogueOpen;
 struct NotifyDialoguePicked;
 struct NotifyDialogueClosed;
+struct NotifyDialogueList;
 
 /**
  * @brief This game's side of the party's conversation (HostDialogue decides; docs/design/shared-dialogue.md), the
- * part every game runs: the conversation it is in, joining it (its menu open on the NPC) and leaving it, and its
- * player's picks. The host's game runs the
- * conversation and builds each step's list (Services/Host/HostConversation), a guest's menu shows that list
- * (Services/Guest/GuestDialogue): each plugs in as the role while it exists.
+ * part every game runs: the conversation it is in, joining it (its menu open on the NPC) and leaving it, the party's
+ * list in its menu (every player's options, tagged with who can say them) and its player's picks, which the host's
+ * game says. The host's game runs the conversation and builds each step's lists (Services/Host/HostConversation), a
+ * guest's asks the host (Services/Guest/GuestDialogue): each plugs in as the role while it exists.
  */
 struct DialogueService
 {
@@ -34,18 +36,15 @@ struct DialogueService
         virtual bool OnTalk(uint32_t aActorFormId) noexcept = 0;
         // The conversation runs on this game without its menu (the host's).
         [[nodiscard]] virtual bool RunsWithoutMenu() const noexcept = 0;
-        // A pick from this game's menu is said elsewhere (a guest's): the menu does not say it.
-        [[nodiscard]] virtual bool SaysPicksElsewhere() const noexcept = 0;
         // The engine has built a list and shows it (any thread): the options to show instead (none: its own).
         virtual std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept { return std::nullopt; }
-        // This game's player picked from its menu, before its menu says it (if it does).
-        virtual void OnPickSent() noexcept {}
         // An actor's line runs its script (any thread): the player character it runs for (0: this game's).
         virtual uint32_t LineFor(uint32_t /*aSpeakerFormId*/) noexcept { return 0; }
         // The engine builds a list (any thread): the other players' characters to judge it for too.
         virtual std::vector<uint32_t> Judged() noexcept { return {}; }
         virtual void OnOpen(const NotifyDialogueOpen&) noexcept {}
-        virtual void OnPicked(const NotifyDialoguePicked&, uint32_t /*aTopic*/, uint32_t /*aInfo*/, bool /*aOwnPick*/) noexcept {}
+        // aOwnLine: this game's player says it.
+        virtual void OnPicked(const NotifyDialoguePicked&, uint32_t /*aTopic*/, uint32_t /*aInfo*/, bool /*aOwnLine*/) noexcept {}
         virtual void OnClosed() noexcept {}
         // Each update, after the shared part, with the menu's state and the speaker this game talks to.
         virtual void OnUpdate(bool /*aMenuOpen*/, uint32_t /*aSpeaker*/) noexcept {}
@@ -74,6 +73,8 @@ struct DialogueService
     void CloseMenu() noexcept;
     // The copy with this form id's session id (none: not a copy).
     [[nodiscard]] std::optional<uint32_t> CopySessionId(uint32_t aFormId) const noexcept;
+    // The party's list for the current step (none: not here yet).
+    [[nodiscard]] std::optional<std::vector<IDialogueBridge::Option>> PartyList() const noexcept;
 
 private:
     void OnUpdate(const UpdateEvent&) noexcept;
@@ -82,8 +83,14 @@ private:
     void OnOpen(const NotifyDialogueOpen& acMessage) noexcept;
     void OnPicked(const NotifyDialoguePicked& acMessage) noexcept;
     void OnClosed(const NotifyDialogueClosed& acMessage) noexcept;
-    // The player clicked an option: it goes to the host (true: this game's menu does not say it).
+    void OnList(const NotifyDialogueList& acMessage) noexcept;
+    void OnHighlight(const NotifyDialogueHighlight& acMessage) noexcept;
+    // This game's highlight moved: the others' menus follow; another's move shows here once its list does.
+    void SyncHighlight() noexcept;
+    // The player clicked an option: it goes to the host when it is the player's own (true: the menu never says it).
     bool OnPickAsked(uint32_t aIndex) noexcept;
+    // The party's list in an open menu, once per step.
+    void ShowPartyList() noexcept;
 
     World& m_world;
     TransportService& m_transport;
@@ -99,6 +106,15 @@ private:
     bool m_menuOpen{};
     bool m_bartering{};
     bool m_closing{}; // its close asked for, the menu still fading out
+    // The party's list for a step (this game's form ids, its names in the text), and which step its menu shows.
+    uint32_t m_listStep{};
+    std::vector<IDialogueBridge::Option> m_list;
+    std::vector<std::vector<uint32_t>> m_listPlayers; // each option's: who can say it (none: everyone)
+    bool m_listChoices{};
+    uint32_t m_shownStep{};
+    // The highlight this game last sent or showed, and another game's waiting for this menu's list (step, index).
+    std::optional<uint32_t> m_highlight;
+    std::optional<std::pair<uint32_t, uint32_t>> m_pendingHighlight;
 
     std::vector<entt::scoped_connection> m_connections;
 };

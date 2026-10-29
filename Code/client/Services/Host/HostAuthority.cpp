@@ -28,6 +28,7 @@
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/SendChatMessageRequest.h>
+#include <Diagnostics/ReportPaths.h>
 
 namespace
 {
@@ -174,6 +175,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
     On(*this, &HostAuthority::OnChatMessage);
+    On(*this, &HostAuthority::OnBugReport);
 
     m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
@@ -333,6 +335,19 @@ void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, Conne
     notify.MessageType = kPlayerChat;
     notify.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
     notify.ChatMessage = ChatText(acRequest.ChatMessage);
+    for (const ConnectionId_t cPlayer : m_players.Connections())
+        m_network.Send(cPlayer, notify);
+}
+
+// A player's /bug: named here, so every game writes its part under the same report.
+void HostAuthority::OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyBugReport notify;
+    notify.Text = ChatText(acRequest.Text);
+    notify.Id = Diagnostics::NewReportId();
+    notify.By = ChatText(m_players.PlayerNameOf(aSender));
+    notify.SessionTick = m_network.GetTick();
+    spdlog::info("Bug report {} from {}: {}", notify.Id, notify.By, notify.Text);
     for (const ConnectionId_t cPlayer : m_players.Connections())
         m_network.Send(cPlayer, notify);
 }

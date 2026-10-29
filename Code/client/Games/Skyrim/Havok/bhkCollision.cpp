@@ -138,12 +138,7 @@ void FollowBody(bhkNiCollisionObject& aCollision) noexcept
     aCollision.flags = cFlags;
     // Its children and bounds follow (NiAVObject::Update, 70251); its keyframed body is put where it already is.
     if (NiAVObject* pNode = aCollision.sceneObject)
-    {
-        using TUpdateNode = void(NiAVObject*, uint64_t*);
-        POINTER_SKYRIMSE(TUpdateNode, s_update, 70251);
-        uint64_t updateData = 0; // NiUpdateData: time 0, no flags
-        s_update.Get()(pNode, &updateData);
-    }
+        pNode->Update();
 }
 
 bool ReadBody(const bhkWorldObject& acBody, BodyRead& aRead) noexcept

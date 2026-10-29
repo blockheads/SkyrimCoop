@@ -1,3 +1,4 @@
+#include <Services/BugReportService.h>
 #include <Services/DeathService.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Ui/UiInput.h>
@@ -487,6 +488,16 @@ void UiService::UpdateChat() noexcept
 
 void UiService::RunChatCommand(const Rml::String& acLine) noexcept
 {
+    if (acLine == "/bug" || acLine.starts_with("/bug "))
+    {
+        m_world.ctx().at<BugReportService>().Report(acLine.size() > 5 ? acLine.substr(5) : "");
+        return;
+    }
+    if (acLine == "/export")
+    {
+        m_world.ctx().at<BugReportService>().Export();
+        return;
+    }
     char command[16]{};
     int hours = -1, minutes = -1;
     const int cRead = std::sscanf(acLine.c_str(), "/%15s %d %d", command, &hours, &minutes);
@@ -499,7 +510,7 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
     }
-    ShowSystemLine("Commands: /settime <hours> <minutes>");
+    ShowSystemLine("Commands: /bug <what happened>, /export, /settime <hours> <minutes>");
 }
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept

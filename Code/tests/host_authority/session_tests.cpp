@@ -170,19 +170,17 @@ TEST_CASE("Load order: what differs between the host's plugins and a player's", 
     }
 }
 
-TEST_CASE("Join: a full session refuses the next game", "[HostAuthority][Session]")
+TEST_CASE("Join: no party limit of ours: a twelfth player gets in", "[HostAuthority][Session]")
 {
     Session session;
-    // Three are in; five more fill it.
-    for (ConnectionId_t cConnection = 10; cConnection < 10 + HostSession::cMaxPlayers - 3; ++cConnection)
+    // Three are in; eight more, past the old limits (4 on Steam, 8 here).
+    for (ConnectionId_t cConnection = 10; cConnection < 18; ++cConnection)
         session.Join(cConnection, Join("Guard"));
     session.Outbox.clear();
 
     session.Receive(kNewcomer, Join("Serana"));
-    CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kSessionFull);
-    CHECK_FALSE(IsPlayer(session, kNewcomer));
-    CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
-    CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: the session is full."});
+    CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kAccepted);
+    CHECK(IsPlayer(session, kNewcomer));
 }
 
 TEST_CASE("Join: a player cannot join again", "[HostAuthority][Session]")

@@ -74,7 +74,8 @@ add_requires(
     "snappy 1.1.10",
     "enet6",
     "libuv v1.48.0",
-    "nlohmann_json v3.11.3"
+    "nlohmann_json v3.11.3",
+    "zlib v1.3.1" -- bug report zips (Diagnostics/Zip)
 )
 
 -- The SKSE plugin's (mem is header-only, vendored in Code/external/mem).

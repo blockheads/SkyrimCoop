@@ -15,6 +15,9 @@ struct NiAVObject : NiObjectNET
     virtual void sub_29();
     virtual NiAVObject* GetByName(const BSFixedString& acName); // 2A, GetObjectByName
 
+    // Its world transforms, children and bounds from its local transform (NiAVObject::Update, 70251).
+    void Update(uint32_t aFlags = 0) noexcept;
+
     // Rotation (row-major), position and scale, relative to the parent (local) or the world (CommonLibSSE-NG).
     struct Transform
     {

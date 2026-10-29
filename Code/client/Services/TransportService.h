@@ -63,6 +63,8 @@ struct TransportService : Client
 
     [[nodiscard]] bool IsOnline() const noexcept { return m_connected; }
     const uint32_t& GetLocalPlayerId() const noexcept { return m_localPlayerId; }
+    // This game's player's name as the session knows it (its character's).
+    [[nodiscard]] std::string GetLocalPlayerName() const noexcept;
     // The last attempt to join: under way, joined, or refused and why.
     [[nodiscard]] const JoinStatus& GetJoinStatus() const noexcept { return m_joinStatus; }
 

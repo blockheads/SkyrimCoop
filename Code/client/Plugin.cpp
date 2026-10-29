@@ -9,6 +9,8 @@
 
 #include <World.h>
 #include <PluginPaths.h>
+#include <Diagnostics/Folders.h>
+#include <Diagnostics/LogRing.h>
 #if COOP_TEST_HARNESS
 #include <TestHarness/TestHarness.h>
 #endif
@@ -31,6 +33,15 @@ Plugin::Plugin()
 
     auto logPath = PluginPaths::GetDirectory() / "logs";
 
+    // The last run's logs as it left them, before this run's log opens: a crash or freeze becomes a report.
+    // Not in test games (coop_test.py), which are killed after every run.
+    const auto cMarks = Diagnostics::Folders::RunMarks();
+    const bool cReports = GetEnvironmentVariableA("SKYRIMCOOP_NO_CRASH_REPORTS", nullptr, 0) == 0;
+    const auto cLastRun = cReports ? Diagnostics::CrashReports::CollectLastRun(cMarks, Diagnostics::Folders::Sources(), PluginPaths::InstanceSuffix())
+                                   : std::nullopt;
+    if (cReports)
+        Diagnostics::CrashReports::MarkRunning(cMarks);
+
     std::error_code ec;
     create_directory(logPath, ec);
 
@@ -39,7 +50,7 @@ Plugin::Plugin()
     auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console->set_pattern("%^[%H:%M:%S.%e] [%l] [tid %t] %$ %v");
 
-    auto logger = std::make_shared<spdlog::logger>("", spdlog::sinks_init_list{console, rotatingLogger});
+    auto logger = std::make_shared<spdlog::logger>("", spdlog::sinks_init_list{console, rotatingLogger, Diagnostics::MakePluginLogSink()});
     set_default_logger(logger);
     // e.g. SKYRIMCOOP_LOG_LEVEL=debug (set by scripts/coop_test.py)
     char level[16]{};
@@ -48,6 +59,13 @@ Plugin::Plugin()
     // Readable while the game runs (test harness, hangs); errors land before a crash dump.
     logger->flush_on(spdlog::level::warn);
     spdlog::flush_every(std::chrono::seconds(1));
+
+    // After a crash the zip to send is ready without starting a game (docs/design/bug-reports.md).
+    if (cLastRun)
+    {
+        spdlog::warn("The last run did not end cleanly: {}", cLastRun->string());
+        std::thread([] { Diagnostics::Folders::ExportNow(""); }).detach();
+    }
 }
 
 Plugin::~Plugin() = default;

@@ -72,7 +72,7 @@ original callback with a built `FxDelegateArgs` (`GFxValue{index}`, the menu, it
 | Start the host player's conversation with an NPC | `SetDialogueWithPlayer(npc, true, ...)` (19524). Limits (distance, the NPC's state) to measure in game |
 | Read the list | `dialogueList` after the menu's show/update (SmartTalk's hook point) |
 | Replace a peer's list | done: `MenuTopicManager::SetOptions` with options built from the host's list, then 52857 (below, "Building options") |
-| Read and set the cursor | Scaleform: `TopicList.selectedIndex` / `SetSelectedTopic` (the harness reads it; nothing sets it now) |
+| Read and set the cursor | Scaleform: `TopicList.selectedEntry.topicIndex` / `SetSelectedTopic` (`DialogueBridge::GetHighlight`, `SetHighlight`: the party's one highlight) |
 | Intercept a pick | swap `TopicClicked` in `Accept` (CHIM) |
 | Pick on the host | the original `TopicClicked(index)`, or 35269 + 35283 under the critical section |
 | A peer's option the host lacks | done: built with 35254 (below, "Building options") |
@@ -183,6 +183,14 @@ A pick is `MenuTopicManager::Pick`: the critical section, then 35269 and 35283, 
 the keyboard **E** (Activate, the menu's Accept) selects; Enter does nothing, in a normal conversation too
 (2026-10-18, both games, with `bAllowProgress` set and the list shown). The harness `dialogue` command reads
 `bAllowProgress`, `eMenuState` and `TopicList.selectedIndex` through `GFxMovie::GetVariable` (vfunc 0x11).
+
+**The highlight moving** (2026-10-29, `skyrimui` source in `reference/plugins/skyrimui`): nothing reaches the game. W
+and S call `CenteredScrollingList.moveSelectionUp/Down`, which set `iSelectedIndex` and dispatch `listMovedUp/Down`
+to the SWF's own listeners (`DialogueMenu.playListUpAnim`); the mouse goes through `doSetSelectedIndex`
+(`selectionChange`); the wheel recenters in `UpdateList` without an event. No `GameDelegate.call`, no `PlaySound`.
+`DialogueBridge::GetHighlight` reads `selectedEntry.topicIndex` while `eMenuState` is 1. A listener of ours inside the
+SWF would need `GFxMovie::CreateFunction` (vfunc 0x0F, as CHIM's bridge does) and object `GFxValue`s released through
+their object interface.
 
 **The highlight** (2026-10-18). The list (`DialogueCenteredList.as`) keeps it in `iSelectedIndex`, an index of its
 entries; each entry's `topicIndex` is its index in `dialogueList`, so

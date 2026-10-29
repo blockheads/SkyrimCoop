@@ -71,3 +71,24 @@ TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without c
     const std::string cFits = std::string(kChatMaxLength - 2, 'a') + "\xc3\xa9";
     CHECK(ChatText(cFits) == cFits);
 }
+
+TEST_CASE("Bug report: one report, named once, to every game with who typed it", "[HostAuthority][Chat]")
+{
+    Session session;
+
+    BugReportRequest report;
+    report.Text = "the bandit froze";
+    session.Receive(kPeer, report);
+    std::string id;
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifyBugReport>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->Text == "the bandit froze");
+        CHECK(cNotifies[0]->By == "Lydia");
+        CHECK_FALSE(cNotifies[0]->Id.empty());
+        if (id.empty())
+            id = cNotifies[0]->Id;
+        CHECK(cNotifies[0]->Id == id);
+    }
+}

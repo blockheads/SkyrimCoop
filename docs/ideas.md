@@ -277,3 +277,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 - **Copies' looks follow a record:** a record whose base changed (barber, RaceMenu, race change) refreshes the friend's
   copies on the other games.
 - **Delete the guest's `SkyrimCoopJoin` save** once loaded, so it does not sit in its load list.
+
+- **First-time join through the vanilla intro** (out of v1, 2026-10-29). v1's first-time join skips Helgen with Quick
+  Start - SE. Joining from the vanilla intro would bring a character made in the middle of Helgen's scene (bound
+  hands, prisoner clothes, MQ101 items): check what it carries, then let players choose the cutscene
+  (`docs/design/join-flow.md`, "First-time join").

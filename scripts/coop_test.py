@@ -19,6 +19,7 @@
   coop_test.py change-rate [names] [--seconds S]     the engine's change records per form type and flag (idle or scenarios)
   coop_test.py quest-walk QUEST --names-from SAVE    walk the host through a quest (duo booted with --save SAVE),
                                                       the client leaving and rejoining; how its quest compares each step
+  coop_test.py report ZIP... [--id ID] [--boot]       players' bug reports and crashes (coop_report.py)
   coop_test.py crash [--instance client]             newest crash per game: engine state (CrashLoggerSSE) + our last engine changes
   coop_test.py repro NAME [--heap-history] [--follow] cause a known crash (REPROS) and print its report;
                                                       --vanilla: the same recipe without our plugin (is it us?);
@@ -74,6 +75,7 @@ import subprocess
 import sys
 import time
 import uuid
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 STEAM_LIBRARY = Path("/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/SteamLibrary/steamapps/common")
@@ -253,6 +255,8 @@ def game_env():
     env.update(SteamAppId="489830", SteamGameId="489830", STEAM_COMPAT_DATA_PATH=str(PREFIX),
                STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), WINEDEBUG=env.get("WINEDEBUG", "-all"),
                SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"),
+               # `stop` kills the games: no crash report and zip from that at the next boot.
+               SKYRIMCOOP_NO_CRASH_REPORTS="1",
                # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
                SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
     if INSTANCE:
@@ -2835,9 +2839,16 @@ def scenario_guest_joins_from_main_menu_as_kept_character():
     if record["level"] != 11 or ARMSMAN not in record["perks"] or record["key"] != key:
         raise TestFailure(f"[client] plays another character than the host's save keeps: {record}")
     # The load replays the cell's animated objects' last animation (QASmoke's cover plates): they end where the host's are.
+    differences = {}
     def poses_agree():
-        return not any("pose" in fields for fields in world_differences(world_state(""), world_state("client")).values())
-    wait_for("[client] the loaded cell's animated objects end as the host's", poses_agree, 10)
+        nonlocal differences
+        differences = {form: fields["pose"] for form, fields in
+                       world_differences(world_state(""), world_state("client")).items() if "pose" in fields}
+        return not differences
+    try:
+        wait_for("[client] the loaded cell's animated objects end as the host's", poses_agree, 10)
+    except TestFailure as error:
+        raise TestFailure(f"{error}: {differences}") from None
 
 
 # The main menu's list (StartMenu.as in reference/plugins/skyrimui): entries carry an index, NEW's is 1; its state
@@ -4143,11 +4154,12 @@ def topic_info(instance, topic):
     return next((o["info"] for o in dialogue(instance).get("options", []) if o["topic"] == topic), None)
 
 
-def scenario_dialogue_options_are_each_players():
-    """Each player's menu shows its own lines, judged for its character on the host (shared-dialogue.md, "The rule"):
-    the client holds Lucan's golden claw, the host does not. Talking to Lucan, the client's menu offers the line for a
-    player holding it and the host's his line for one without it. The client picks it: the host's game says the
-    client's line, its script runs for the client (rule 2), and the claw leaves the client's bag."""
+def scenario_dialogue_options_are_the_partys():
+    """Every menu shows the party's list, each player's own line for a topic (shared-dialogue.md, "Decided 2026-10-29"):
+    the client holds Lucan's golden claw, the host does not. The client talks to Lucan and the host joins by talking
+    to him: both menus list the same topics in the same order, the client's with the line for a player holding the
+    claw, the host's with his line for one without it. The client presses it: the host's game says the client's line,
+    its script runs for the client (rule 2), and the claw leaves the client's bag."""
     started = not quest_running("", GOLDEN_CLAW_QUEST)
     copy = stage_host_npc(LUCAN)
     # His AI runs (a frozen speaker never finishes a line), restrained so his package does not walk him home.
@@ -4167,13 +4179,17 @@ def scenario_dialogue_options_are_each_players():
         activate_on("client", copy)
         wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
         wait_for("[host] the player talks to Lucan in the background", lambda: in_conversation("", LUCAN), 10)
+        activate_on("", LUCAN)
+        wait_for("[host] joins: its menu opens on Lucan", lambda: talking_to("", LUCAN), 10)
         wait_for("[client] its menu offers Lucan's trouble", lambda: lists_topic("client", LUCAN_TROUBLE_TOPIC), 30)
         pick_with_keys("client", LUCAN_TROUBLE_TOPIC)
         wait_for("[client] its choices offer a claw line for a player holding it",
                  lambda: topic_info("client", CLAW_TOPIC) in CLAW_FOUND_LINES, 90)  # his answer is a long one
+        wait_for("[host] its menu lists the same topics, in the same order",
+                 lambda: topics_shown("") == topics_shown("client"), 10)
         found = topic_info("client", CLAW_TOPIC)
         if (info := topic_info("", CLAW_TOPIC)) != NO_CLAW_LINE:
-            raise TestFailure(f"[host] its choices have {info} for the claw topic, not Lucan's line for a player without it")
+            raise TestFailure(f"[host] its menu has {info} for the claw topic, not Lucan's line for a player without it")
         pick_with_keys("client", CLAW_TOPIC)
         wait_for("[host] Lucan says his answer to the client's claw", lambda: dialogue("").get("current_info") == found, 10)
         wait_for("[client] the claw leaves its bag", lambda: not item_count("client", 0x14, GOLDEN_CLAW), 20)
@@ -4186,6 +4202,42 @@ def scenario_dialogue_options_are_each_players():
         for name in ("", "client"):
             if item_count(name, 0x14, GOLDEN_CLAW):
                 console_on(name, f"player.removeitem {GOLDEN_CLAW:X} 1")
+        console_on("", "stopquest MS13")
+
+
+def scenario_dialogue_highlight_is_shared():
+    """One highlight for the conversation (shared-dialogue.md, "Decided 2026-10-29"): the client talks to Lucan, the
+    host joins. The client presses S: the host's menu highlights the same option; the host presses W: the client's
+    follows back. The golden claw quest at its stage 60 gives Lucan several topics (without it he has one)."""
+    started = not quest_running("", GOLDEN_CLAW_QUEST)
+    copy = stage_host_npc(LUCAN)
+    console_on("", f"{LUCAN:08X}.setrestrained 1")
+    freeze("", LUCAN, False)
+    try:
+        if started:
+            console_on("", "resetquest MS13")
+            console_on("", "startquest MS13")
+            wait_for("[host] MS13 runs", lambda: quest_running("", GOLDEN_CLAW_QUEST), 10)
+        console_on("", "setstage MS13 60")
+        place_before("", LUCAN, 110)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        activate_on("", LUCAN)
+        wait_for("[host] joins: its menu opens on Lucan", lambda: talking_to("", LUCAN), 10)
+        for name in ("client", ""):
+            wait_for(f"[{name or 'host'}] the menu takes a pick", lambda name=name: menu_takes_pick(name), 30)
+        wait_for("both menus list the same topics", lambda: topics_shown("") == topics_shown("client") and len(topics_shown("")) >= 2, 10)
+        for mover, follower, key, name in (("client", "", DOWN_KEY, "S"), ("", "client", UP_KEY, "W")):
+            here = cursor(mover)
+            tap_key(mover, key)
+            wait_for(f"[{mover or 'host'}] {name} moves its highlight", lambda: cursor(mover) not in (0, here), 5)
+            moved = cursor(mover)
+            wait_for(f"[{follower or 'host'}] its menu highlights {moved:X} too", lambda: cursor(follower) == moved, 5)
+    finally:
+        close_dialogues()
+        console_on("", f"{LUCAN:08X}.setrestrained 0")
+        release_host_npc(LUCAN)
         console_on("", "stopquest MS13")
 
 
@@ -4709,16 +4761,19 @@ def player_race_on_host(instance):
                  if s.get("role") == "copy" and s.get("mod", {}).get("session_id") == sid), None)
 
 
-def scenario_dialogue_unanswered_question_ends_it():
-    """A question the host's player cannot answer ends the conversation for everyone, as it does in the game: the
-    list is the host's. Onmund's "Why aren't there many Nords at the College?" has one answer, for a player who is
-    not a Nord; the host is a Nord, the client a Breton for the scenario. The client asks it, the host joined by
-    talking: the host's engine has nothing to say, the conversation ends, and both menus close. His greetings, said
-    once in a game, are marked unsaid on both games before and after."""
+def scenario_dialogue_question_answered_by_who_can():
+    """A question only another player can answer is that player's to answer (shared-dialogue.md, "Decided
+    2026-10-29"): Onmund's "Why aren't there many Nords at the College?" has one answer, for a player who is not a
+    Nord; the host is a Nord, the client a Breton for the scenario. The client asks it, the host joined by talking:
+    both menus list the client's answer, named for it. The host presses it: nothing is said, and only the host's chat
+    says "I'm sorry <name>, you don't know how to say that." The client presses it: the host's game says the client's
+    line and the conversation goes on. His greetings, said once in a game, are marked unsaid before and after."""
     def unsay():
         for name in ("", "client"):
             for line in ONMUND_GREETINGS:
                 info_said(name, line, False)
+    sorry = lambda instance: [l["text"] for l in chat(instance).get("lines", [])
+                              if l.get("system") and l["text"].startswith("I'm sorry ")]
     npc, _, copy = spawn_host_npc(ONMUND, restrained=True)
     try:
         unsay()
@@ -4732,10 +4787,26 @@ def scenario_dialogue_unanswered_question_ends_it():
         activate_on("", npc)
         wait_for(f"[host] talking to {npc:08X} joins: the menu opens", lambda: talking_to("", npc), 10)
         pick_with_keys("client", ONMUND_FEW_NORDS)
-        wait_for("[host] nobody it lists can answer: the conversation ends", lambda: not dialogue("").get("speaker"), 60)
-        wait_for("[client] its menu closes", lambda: menu_closed("client"), 10)
-        if lists_topic("client", ONMUND_NOT_A_NORD):
-            raise TestFailure("[client] its menu offered its own player's answer, not the host's list")
+        for name in ("client", ""):
+            wait_for(f"[{name or 'host'}] its menu lists the client's answer, not being a Nord",
+                     lambda name=name: lists_topic(name, ONMUND_NOT_A_NORD), 60)
+        answer = topic_info("client", ONMUND_NOT_A_NORD)
+        text = next(t for topic, _, t in options_shown("") if topic == ONMUND_NOT_A_NORD)
+        if not text.endswith("]"):
+            raise TestFailure(f"[host] the client's answer is not named for it: {text!r}")
+        before = len(sorry(""))
+        pick_with_keys("", ONMUND_NOT_A_NORD)
+        wait_for("[host] its chat says its player does not know how to say it", lambda: len(sorry("")) > before, 5)
+        if not sorry("")[-1].endswith(", you don't know how to say that."):
+            raise TestFailure(f"[host] its chat line reads {sorry('')[-1]!r}")
+        if sorry("client"):
+            raise TestFailure("[client] its chat shows the host's refusal")
+        if dialogue("").get("current_info") == answer:
+            raise TestFailure("[host] its game said the client's answer for the host's press")
+        pick_with_keys("client", ONMUND_NOT_A_NORD)
+        wait_for("[host] Onmund answers the client's line", lambda: dialogue("").get("current_info") == answer, 10)
+        if not dialogue("").get("speaker"):
+            raise TestFailure("[host] the conversation ended")
         hold()
     finally:
         close_dialogues()
@@ -10547,6 +10618,50 @@ def scenario_guest_sets_time():
             raise TestFailure(f"[{name or 'host'}] shows the command as a chat line")
 
 
+def system_line(instance, prefix):
+    """The newest system line in the chat starting with prefix, or None."""
+    lines = [l["text"] for l in chat(instance).get("lines", []) if l.get("system") and l["text"].startswith(prefix)]
+    return lines[-1] if lines else None
+
+
+def scenario_bug_report_writes_every_game():
+    """The client types `/bug duo check`: both games say where they wrote their part of one report, each part has
+    its note, log, messages and snapshot, the host's the name of its save, kept once in reports/saves; the host's
+    /export zips them."""
+    say("client", "/bug duo check")
+    parts = {}
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] says its part is saved", lambda: system_line(name, "Bug report "), 10)
+        line = system_line(name, "Bug report ")
+        report_id, folder = re.match(r"Bug report (\S+) saved: (.*)$", line).groups()
+        parts[name] = (report_id, Path(folder))
+    if parts[""][0] != parts["client"][0]:
+        raise TestFailure(f"two report ids: {parts[''][0]} and {parts['client'][0]}")
+    for name, (_, folder) in parts.items():
+        wanted = ["note.txt", "log.txt", "messages.txt", "snapshot.json"] + (["save.txt"] if name == "" else [])
+        wait_for(f"[{name or 'host'}] its part has {', '.join(wanted)}", lambda: all((folder / f).exists() for f in wanted), 15)
+        if "duo check" not in (folder / "note.txt").read_text():
+            raise TestFailure(f"[{name or 'host'}] note.txt lacks the text")
+        if not (folder / "log.txt").read_text().strip():
+            raise TestFailure(f"[{name or 'host'}] log.txt is empty")
+        if not json.loads((folder / "snapshot.json").read_text()).get("world"):
+            raise TestFailure(f"[{name or 'host'}] snapshot.json has no actors")
+    save = parts[""][1].parent.parent / (parts[""][1] / "save.txt").read_text().strip()
+    if not save.exists():
+        raise TestFailure(f"[host] its report names {save}, which is not kept")
+    if (parts["client"][1] / "save.txt").exists():
+        raise TestFailure("[client] a guest's part names a save")
+    say("", "/export")
+    wait_for("[host] says where its zip is", lambda: system_line("", "Saved "), 30)
+    zip_path = Path(re.match(r"Saved (.*) \(path copied\)$", system_line("", "Saved ")).group(1))
+    with zipfile.ZipFile(zip_path) as archive:
+        names = archive.namelist()
+    if not any(n.endswith(f"{parts[''][0]}/host-" + parts[""][1].name.split("-", 1)[1] + "/note.txt") for n in names):
+        raise TestFailure(f"the host's zip lacks its part: {names[:20]}")
+    if f"reports/saves/{save.name}" not in names:
+        raise TestFailure(f"the host's zip lacks the report's save {save.name}")
+
+
 def scenario_late_join_gets_calendar():
     """The host waits a day: leaving, the client's own clock counts on from the host's days passed, not those of
     the save it loaded. The host waits again while the client is away: it joins with the host's days passed and date."""
@@ -10957,7 +11072,8 @@ SCENARIOS = {
     "dialogue-line-judged-for-guest": scenario_dialogue_line_judged_for_guest,
     "copy-knows-learned-spell": scenario_copy_knows_learned_spell,
     "ability-stays-on-copy": scenario_ability_stays_on_copy,
-    "dialogue-options-are-each-players": scenario_dialogue_options_are_each_players,
+    "dialogue-options-are-the-partys": scenario_dialogue_options_are_the_partys,
+    "dialogue-highlight-is-shared": scenario_dialogue_highlight_is_shared,
     "dialogue-quest-option-from-host": scenario_dialogue_quest_option_from_host,
     "dialogue-pick-says-the-hosts-line": scenario_dialogue_pick_says_the_hosts_line,
     "natives-reach-matches-ida": scenario_natives_reach_matches_ida,
@@ -10968,7 +11084,7 @@ SCENARIOS = {
     "dialogue-said-line-waits": scenario_dialogue_said_line_waits,
     "dialogue-ends-on-travel": scenario_dialogue_ends_on_travel,
     "dialogue-said-once-line": scenario_dialogue_said_once_line,
-    "dialogue-unanswered-question-ends-it": scenario_dialogue_unanswered_question_ends_it,
+    "dialogue-question-answered-by-who-can": scenario_dialogue_question_answered_by_who_can,
     "dialogue-npc-removed": scenario_dialogue_npc_removed,
     "dialogue-npc-starts": scenario_dialogue_npc_starts,
     "dialogue-several-questions-deep": scenario_dialogue_several_questions_deep,
@@ -11101,6 +11217,7 @@ SCENARIOS = {
     "host-wait-reaches-guest": scenario_host_wait_reaches_guest,
     "late-join-gets-calendar": scenario_late_join_gets_calendar,
     "guest-sets-time": scenario_guest_sets_time,
+    "bug-report-writes-every-game": scenario_bug_report_writes_every_game,
     "weather-follows-host": scenario_weather_follows_host,
     "form-state-round-trips": scenario_form_state_round_trips,
     "world-changes-reach-guest": scenario_world_changes_reach_guest,
@@ -11154,7 +11271,7 @@ TAGS = {
     "host-menu-loads-party": {'session', 'save', 'join'},
     "host-save-keeps-guest-character": {'session', 'save', 'join'},
     "guest-brings-character-into-hosts-world": {'session', 'save', 'join'},
-    "guest-joins-from-main-menu-as-kept-character": {'session', 'save', 'join'},
+    "guest-joins-from-main-menu-as-kept-character": {'session', 'save', 'join', 'v1'},
     "guest-makes-character-then-joins": {'session', 'save', 'join'},
     "guest-changes-looks-in-session": {'session', 'spawn', 'join'},
     "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
@@ -11178,7 +11295,8 @@ TAGS = {
     "dialogue-line-judged-for-guest": {'dialogue', 'quests'},
     "copy-knows-learned-spell": {'dialogue', 'magic'},
     "ability-stays-on-copy": {'magic', 'v1'},
-    "dialogue-options-are-each-players": {'dialogue', 'quests'},
+    "dialogue-options-are-the-partys": {'dialogue', 'quests'},
+    "dialogue-highlight-is-shared": {'dialogue'},
     "dialogue-pick-says-the-hosts-line": {'dialogue', 'spawn'},
     "natives-reach-matches-ida": {'scripts'},
     "dialogue-picker-gets-speech-experience": {'dialogue', 'spawn'},
@@ -11187,7 +11305,7 @@ TAGS = {
     "dialogue-said-line-waits": {'dialogue', 'spawn'},
     "dialogue-ends-on-travel": {'dialogue', 'spawn', 'travel'},
     "dialogue-said-once-line": {'dialogue', 'spawn'},
-    "dialogue-unanswered-question-ends-it": {'dialogue', 'spawn'},
+    "dialogue-question-answered-by-who-can": {'dialogue', 'spawn'},
     "dialogue-npc-removed": {'dialogue', 'spawn'},
     "dialogue-npc-starts": {'dialogue', 'spawn'},
     "dialogue-several-questions-deep": {'dialogue', 'spawn'},
@@ -11313,6 +11431,7 @@ TAGS = {
     "host-wait-reaches-guest": {'world'},
     "late-join-gets-calendar": {'world', 'session'},
     "guest-sets-time": {'world', 'ui'},
+    "bug-report-writes-every-game": {'ui', 'session', 'reports'},
     "weather-follows-host": {'world', 'cells'},
     "form-state-round-trips": {'world', 'objects', 'spawn'},
     "world-changes-reach-guest": {'world', 'objects', 'inventory'},
@@ -11336,6 +11455,10 @@ TAGS = {
 # All matching globs contribute; core asks for a full suite without selecting it.
 SOURCE_TAGS = [
     ("Code/client/Followers/*", {"followers"}),
+    ("Code/client/Diagnostics/*", {'reports'}),
+    ("Code/client/Bridges/*BugReportBridge.*", {'reports'}),
+    ("Code/client/Services/BugReportService.h", {'reports'}),
+    ("Code/client/Services/Generic/BugReportService.cpp", {'reports'}),
     ("Code/client/Services/FollowerService.h", {"followers"}),
     ("Code/client/Services/Generic/FollowerService.cpp", {"followers"}),
     ("Code/encoding/Messages/FollowerMessages.h", {"followers"}),
@@ -13107,6 +13230,8 @@ def main():
     walk.add_argument("--away", type=int, default=2, help="stages the host sets while the client is away (default 2)")
     walk.add_argument("--settle", type=float, default=3, help="seconds the client gets to match each step (default 3)")
     walk.add_argument("--details", type=int, default=30, help="end-of-walk differences listed (default 30)")
+    report = commands.add_parser("report", help="players' /export zips and bug reports: timeline, copy differences, crashes (coop_report.py)")
+    report.add_argument("rest", nargs=argparse.REMAINDER, help="coop_report.py's arguments")
     crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
     crash.add_argument("--instance", choices=["client"], help="only this game (default: both)")
     commands.add_parser("unsynced", help="the reference change flags the host had with no row to send them")
@@ -13153,6 +13278,10 @@ def main():
             command_change_rate(args)
         elif args.command == "quest-walk":
             command_quest_walk(args)
+        elif args.command == "report":
+            sys.path.insert(0, str(ROOT / "scripts"))
+            import coop_report
+            coop_report.main(args.rest)
         elif args.command == "crash":
             command_crash(args)
         elif args.command == "repro":

@@ -516,3 +516,35 @@ void Payloads::Recipes::DeserializePayload(Wire::Buffer::Reader& aReader) noexce
     for (Recipe& recipe : Known)
         recipe.Deserialize(aReader);
 }
+
+void Payloads::BugReport::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteString(aWriter, Text);
+    Serialization::WriteString(aWriter, Id);
+    Serialization::WriteString(aWriter, By);
+    Serialization::WriteVarInt(aWriter, SessionTick);
+}
+
+void Payloads::BugReport::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Text = Serialization::ReadString(aReader);
+    Id = Serialization::ReadString(aReader);
+    By = Serialization::ReadString(aReader);
+    SessionTick = Serialization::ReadVarInt(aReader);
+}
+
+void Payloads::DialogueHighlight::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Conversation);
+    Serialization::WriteVarInt(aWriter, Step);
+    Serialization::WriteVarInt(aWriter, Index);
+    Serialization::WriteVarInt(aWriter, PlayerId);
+}
+
+void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Conversation = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Step = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Index = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}

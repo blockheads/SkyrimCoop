@@ -100,3 +100,19 @@ Found by `guest-makes-character-then-joins` (2026-10-24):
   overlay masks (`0xB30`, `GetTints` prefers them): the head shows the overlay's colours (a vampire's pale skin,
   `0x7A86A7` on a Nord) while the save keeps the own masks. Copies are painted from what the head shows
   (`GetPlayerFaceTints`); the join record keeps the own masks (`JoinBridge::ReadPlayer`).
+
+## The VM drain is not a gameplay update (2026-10-29)
+
+Before serializing, `FreezeAndWait` (54015, `0x1409C9DB0`) sets the VM frozen through 53956, then
+calls `ProcessRegisteredUpdates` (53926) until the outstanding VM work drains. That call can run
+on the saving thread while the regular VM job is still in our update. `HookVMUpdate` must forward
+the native call but skip `Plugin::Update` while `SkyrimVM::isFrozen` (`+0x680`) is true.
+
+The global saving/loading flags are not sufficient: the failing single-save regression observes
+a frozen VM and two active plugin updates while those global flags are still clear. Running the
+full co-op update there races the shared registry, containers and network. The main-menu fallback
+stays separate; a frozen VM call still counts as a VM tick for that frame.
+
+`save-does-not-update-frozen-world` exercises this actual engine boundary and fails before the
+guard. The fake engine's save bridge does not simulate Skyrim's VM drain. See the
+[crash investigation](../crashes/2026-10-29-save-vm-reentry.md) for IDA evidence and red/green results.

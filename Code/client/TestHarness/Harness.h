@@ -6,7 +6,6 @@
 #include "ControlFiles.h"
 #include "EngineEvents.h"
 #include "InputTrace.h"
-#include "LogTrail.h"
 #include "PlayerInput.h"
 
 namespace TestHarness
@@ -22,7 +21,6 @@ struct Harness
     AnimationTrace Trace;
     BodyTrace Bodies;
     EngineEvents Events;
-    LogTrail Logs;
     InputTrace Inputs;
     bool CommandsStarted = false;
 };

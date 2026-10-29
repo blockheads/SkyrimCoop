@@ -40,6 +40,8 @@ struct SessionService
 
     // By player id.
     [[nodiscard]] const std::unordered_map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }
+    // A player's name, this game's own too ("?" for one not in the session).
+    [[nodiscard]] std::string NameOf(uint32_t aPlayerId) const noexcept;
 
 protected:
     void OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept;

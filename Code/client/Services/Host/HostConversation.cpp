@@ -48,12 +48,6 @@ bool HostConversation::OnTalk(uint32_t aActorFormId) noexcept
     return true;
 }
 
-void HostConversation::OnPickSent() noexcept
-{
-    m_pickerSpeaker = m_dialogue.Bridge().GetSpeaker();
-    m_picker = 0x14;
-}
-
 uint32_t HostConversation::LineFor(uint32_t aSpeakerFormId) noexcept
 {
     return aSpeakerFormId == m_pickerSpeaker ? m_picker.load() : 0;
@@ -111,22 +105,21 @@ void HostConversation::OnOpen(const NotifyDialogueOpen&) noexcept
     SendOptions();
 }
 
-void HostConversation::OnPicked(const NotifyDialoguePicked& acMessage, uint32_t aTopic, uint32_t aInfo, bool aOwnPick) noexcept
+void HostConversation::OnPicked(const NotifyDialoguePicked& acMessage, uint32_t aTopic, uint32_t aInfo, bool aOwnLine) noexcept
 {
     auto& bridge = m_dialogue.Bridge();
-    // Before its line begins: its script runs for the picker.
+    // Before its line begins: its script runs for the picker, the host's own player (0x14) or a guest's character.
     m_pickerSpeaker = bridge.GetSpeaker();
-    m_picker = aOwnPick ? 0x14 : CharacterOf(acMessage.PlayerId); // the host's own pick: its player's (0x14)
+    m_picker = aOwnLine ? 0x14 : CharacterOf(acMessage.PlayerId);
     m_awaitingList = true;
-    // Its own menu said its own pick.
-    if (aOwnPick || !bridge.GetSpeaker())
+    if (!bridge.GetSpeaker())
         return;
     if (!bridge.PickOption(aTopic, aInfo))
     {
-        // Nothing said: its list as it stands is the next step's.
+        // Nothing said: the engine's last list is the next step's.
         spdlog::warn("Dialogue: picked topic {:X} with info {:X} is not in the list here", aTopic, aInfo);
         m_awaitingList = false;
-        SendOptions();
+        ResendOptions();
         return;
     }
     spdlog::info("Dialogue: player {} picked topic {:X} (info {:X})", acMessage.PlayerId, aTopic, aInfo);
@@ -198,6 +191,15 @@ std::vector<std::pair<uint32_t, uint32_t>> HostConversation::OtherPlayers() cons
     return players;
 }
 
+void HostConversation::ResendOptions() noexcept
+{
+    if (!m_dialogue.Conversation() || !m_dialogue.Bridge().GetSpeaker())
+        return;
+    m_built.Conversation = m_dialogue.Conversation();
+    m_built.Step = m_dialogue.Step();
+    m_dialogue.Transport().Send(m_built);
+}
+
 void HostConversation::SendOptions() noexcept
 {
     auto& bridge = m_dialogue.Bridge();
@@ -229,4 +231,5 @@ void HostConversation::SendOptions() noexcept
     spdlog::info("Dialogue: step {} of conversation {}: {} options{}, {} players' own", request.Step, request.Conversation,
                  request.Options.size(), request.Choices ? ", a line's choices" : "", request.Players.size());
     m_dialogue.Transport().Send(request);
+    m_built = std::move(request);
 }

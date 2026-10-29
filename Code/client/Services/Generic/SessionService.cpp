@@ -76,6 +76,15 @@ void SessionService::End(std::string aReason) noexcept
     m_endReason = std::move(aReason);
 }
 
+std::string SessionService::NameOf(uint32_t aPlayerId) const noexcept
+{
+    const auto& cTransport = m_world.GetTransport();
+    if (aPlayerId == cTransport.GetLocalPlayerId())
+        return cTransport.GetLocalPlayerName();
+    const auto cPlayer = m_players.find(aPlayerId);
+    return cPlayer != m_players.end() ? cPlayer->second.Name : std::string("?");
+}
+
 void SessionService::QuitToMainMenu() noexcept
 {
     if (!m_ending)

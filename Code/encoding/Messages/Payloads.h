@@ -391,4 +391,32 @@ struct Recipes
 
     std::vector<Recipe> Known;
 };
+// A player's /bug (docs/design/bug-reports.md): the text to the host, which names the report and sends it to every
+// game, each writing its own part.
+struct BugReport
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const BugReport&) const noexcept = default;
+
+    std::string Text;
+    std::string Id;          // the host's: every game's part goes under it
+    std::string By;          // the player who typed it
+    uint64_t SessionTick{};  // the host's clock when it got it
+};
+// The conversation's one highlight (docs/design/shared-dialogue.md): a game's player moved it, every other menu in
+// the conversation shows it there. Index: the option's place in the step's merged list.
+struct DialogueHighlight
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const DialogueHighlight&) const noexcept = default;
+
+    uint32_t Conversation{};
+    uint32_t Step{};
+    uint32_t Index{};
+    uint32_t PlayerId{}; // the host's: who moved it
+};
 } // namespace Payloads

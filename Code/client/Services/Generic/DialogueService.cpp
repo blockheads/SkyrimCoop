@@ -4,7 +4,11 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Events/MenuEvent.h>
+#include <Events/SessionNoticeEvent.h>
+#include <Messages/Relayed.h>
 #include <Messages/SharedDialogue.h>
+#include <Services/PartyOptionText.h>
+#include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
@@ -22,6 +26,8 @@ DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, T
     Listen<NotifyDialogueOpen, &DialogueService::OnOpen>(m_connections, aDispatcher, this);
     Listen<NotifyDialoguePicked, &DialogueService::OnPicked>(m_connections, aDispatcher, this);
     Listen<NotifyDialogueClosed, &DialogueService::OnClosed>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueList, &DialogueService::OnList>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueHighlight, &DialogueService::OnHighlight>(m_connections, aDispatcher, this);
 }
 
 DialogueService::~DialogueService() noexcept
@@ -77,6 +83,84 @@ std::optional<uint32_t> DialogueService::CopySessionId(uint32_t aFormId) const n
         if (view.get<FormIdComponent>(cEntity).Id == aFormId)
             return view.get<RemoteComponent>(cEntity).Id;
     return std::nullopt;
+}
+
+std::optional<std::vector<IDialogueBridge::Option>> DialogueService::PartyList() const noexcept
+{
+    if (!m_conversation || !m_listStep || m_listStep != m_step)
+        return std::nullopt;
+    return m_list;
+}
+
+void DialogueService::OnList(const NotifyDialogueList& acMessage) noexcept
+{
+    if (acMessage.Conversation != m_conversation)
+        return;
+    m_listStep = acMessage.Step;
+    m_listChoices = acMessage.Choices;
+    m_list.clear();
+    m_listPlayers.clear();
+    const auto& cSession = m_world.GetSessionService();
+    for (const auto& cOption : acMessage.Options)
+    {
+        m_listPlayers.push_back(cOption.Players);
+        std::vector<std::string> names;
+        for (const uint32_t cPlayer : cOption.Players)
+            names.push_back(cSession.NameOf(cPlayer));
+        m_list.push_back({ToGame(cOption.Topic), ToGame(cOption.Info), cOption.Quest != GameId{} ? ToGame(cOption.Quest) : 0,
+                          PartyOptionText(cOption.Text, names)});
+    }
+    // The same step again (a pick that was not said, a player joining or leaving): its menu shows it again.
+    m_shownStep = 0;
+}
+
+void DialogueService::ShowPartyList() noexcept
+{
+    if (!m_listStep || m_listStep != m_step || m_shownStep == m_step)
+        return;
+    if (!m_bridge.ShowList(m_list, m_listChoices))
+        return;
+    m_shownStep = m_step;
+    m_highlight.reset();
+}
+
+void DialogueService::OnHighlight(const NotifyDialogueHighlight& acMessage) noexcept
+{
+    if (acMessage.Conversation == m_conversation)
+        m_pendingHighlight = std::pair{acMessage.Step, acMessage.Index};
+}
+
+void DialogueService::SyncHighlight() noexcept
+{
+    if (m_shownStep != m_step)
+        return;
+    if (m_pendingHighlight)
+    {
+        const auto [cStep, cIndex] = *m_pendingHighlight;
+        if (cStep != m_step)
+        {
+            if (cStep < m_step)
+                m_pendingHighlight.reset();
+            return;
+        }
+        m_pendingHighlight.reset();
+        m_bridge.SetHighlight(cIndex);
+        m_highlight = cIndex;
+        return;
+    }
+    const auto cHighlight = m_bridge.GetHighlight();
+    if (!cHighlight || cHighlight == m_highlight)
+        return;
+    const bool cFirst = !m_highlight;
+    m_highlight = cHighlight;
+    // A list just shown starts at its first option on every menu: nothing to tell.
+    if (cFirst && *cHighlight == 0)
+        return;
+    DialogueHighlightRequest moved;
+    moved.Conversation = m_conversation;
+    moved.Step = m_step;
+    moved.Index = *cHighlight;
+    m_transport.Send(moved);
 }
 
 void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
@@ -142,6 +226,11 @@ void DialogueService::OnUpdate(const UpdateEvent&) noexcept
     m_menuOpen = cOpen;
     m_closing = m_closing && cOpen;
     m_pRole->OnUpdate(cOpen, cSpeaker);
+    if (cOpen && m_joined)
+    {
+        ShowPartyList();
+        SyncHighlight();
+    }
 }
 
 void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
@@ -154,6 +243,10 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_menuOpen = false;
     m_closing = false;
     m_bartering = false;
+    m_listStep = 0;
+    m_shownStep = 0;
+    m_highlight.reset();
+    m_pendingHighlight.reset();
 }
 
 void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
@@ -163,6 +256,10 @@ void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_step = 1;
     m_joined = false;
     m_opening = false;
+    m_listStep = 0;
+    m_shownStep = 0;
+    m_highlight.reset();
+    m_pendingHighlight.reset();
     if (m_pRole)
         m_pRole->OnOpen(acMessage);
 }
@@ -174,13 +271,22 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
         spdlog::info("Dialogue: a click on option {} is not a pick (conversation {}, joined {})", aIndex, m_conversation, m_joined);
         return false;
     }
-    const bool cSwallow = m_pRole->SaysPicksElsewhere();
+    // Never said by this menu: the host's rule names who says it, and the host's game says that player's line.
     const auto cOptions = m_bridge.GetOptions();
     if (aIndex >= cOptions.size())
     {
         spdlog::warn("Dialogue: a click on option {} of a list of {}", aIndex, cOptions.size());
-        return cSwallow;
+        return true;
     }
+    // Another player's option: this player may highlight it, not say it; only its chat hears why.
+    if (m_shownStep == m_step)
+        if (const auto cListed = std::ranges::find(m_list, cOptions[aIndex].Topic, &IDialogueBridge::Option::Topic); cListed != m_list.end())
+            if (const uint32_t cMe = m_transport.GetLocalPlayerId(); !CanSay(m_listPlayers[cListed - m_list.begin()], cMe))
+            {
+                spdlog::info("Dialogue: option {} (topic {:X}) is another player's: not sent", aIndex, cOptions[aIndex].Topic);
+                m_world.GetDispatcher().trigger(SessionNoticeEvent{CannotSayText(m_world.GetSessionService().NameOf(cMe))});
+                return true;
+            }
     spdlog::info("Dialogue: picks option {} of step {}: topic {:X}, line {:X}", aIndex, m_step, cOptions[aIndex].Topic, cOptions[aIndex].Info);
     // Its menu's option, as the host's game listed it.
     DialoguePickRequest pick;
@@ -190,8 +296,7 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
     pick.Info = ToSession(cOptions[aIndex].Info).value_or(GameId{});
     pick.Text = cOptions[aIndex].Text;
     m_transport.Send(pick);
-    m_pRole->OnPickSent();
-    return cSwallow;
+    return true;
 }
 
 void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
@@ -199,9 +304,9 @@ void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
     if (acMessage.Conversation != m_conversation)
         return;
     m_step = acMessage.Step;
-    const bool cOwnPick = acMessage.PlayerId == m_transport.GetLocalPlayerId();
+    const bool cOwnLine = acMessage.PlayerId == m_transport.GetLocalPlayerId();
     if (m_pRole)
-        m_pRole->OnPicked(acMessage, ToGame(acMessage.Topic), ToGame(acMessage.Info), cOwnPick);
+        m_pRole->OnPicked(acMessage, ToGame(acMessage.Topic), ToGame(acMessage.Info), cOwnLine);
 }
 
 void DialogueService::OnClosed(const NotifyDialogueClosed& acMessage) noexcept

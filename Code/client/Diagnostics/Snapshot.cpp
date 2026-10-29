@@ -1,0 +1,484 @@
+#include "Snapshot.h"
+#include "EngineReads.h"
+
+#include <Services/DeathService.h>
+
+#include <World.h>
+#include <Systems/InterpolationSystem.h>
+#include <Services/JoinService.h>
+#include <Components.h>
+#include <Bridges/IActorBridge.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
+#include <Bridges/IWorldBridge.h>
+#include <Services/SessionService.h>
+#include <Services/TransportService.h>
+#include <Services/HostService.h>
+#include <Services/SteamService.h>
+#include <Ui/UiService.h>
+#include <Ui/UiInput.h>
+#include <Games/Skyrim/BSCore/LockOrder.h>
+#include <BuildVersion.h>
+#include <FormIds.h>
+
+namespace Diagnostics
+{
+// The client's frame timing: frames, stalls, the longest frame and update.
+nlohmann::json FrameStatus()
+{
+    if (!entt::locator<World>::has_value())
+        return {};
+    const auto& cStats = World::Get().GetFrameStats();
+    return {{"frames", cStats.Frames}, {"stalls", cStats.Stalls}, {"longest_frame_ms", cStats.LongestFrameMs},
+            {"longest_update_ms", cStats.LongestUpdateMs}};
+}
+
+nlohmann::json LockOrderStatus()
+{
+    const auto cStats = LockOrder::GetStats();
+    return {{"enabled", cStats.Enabled}, {"edges", cStats.Edges}, {"reports", LockOrder::GetReports()},
+            {"report_count", cStats.Reports}, {"too_deep", cStats.TooDeep}, {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}};
+}
+
+// Game form IDs of the items an actor has equipped (worn armor, weapons, spells).
+nlohmann::json EquippedItems(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    auto items = nlohmann::json::array();
+    for (const auto& entry : world.GetFormBridge().GetActorEquipment(aFormId).Entries)
+        if (entry.IsWorn())
+            items.push_back(ToGame(entry.BaseId));
+    return items;
+}
+
+// Spell being cast per casting source: [left hand, right hand, other, instant].
+nlohmann::json CastingSpells(uint32_t aFormId)
+{
+    auto& actors = World::Get().GetActorBridge();
+    return {actors.GetCastingSpellFormId(aFormId, 0), actors.GetCastingSpellFormId(aFormId, 1),
+            actors.GetCastingSpellFormId(aFormId, 2), actors.GetCastingSpellFormId(aFormId, 3)};
+}
+
+static nlohmann::json ActorRotation(uint32_t aFormId)
+{
+    float rotation[3]{};
+    World::Get().GetActorBridge().GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
+    return {rotation[0], rotation[1], rotation[2]};
+}
+
+// The session id the mod links this game actor to (-1 if none; ids start at 1), so the harness
+// can pair an owned actor with its copy in the other game.
+static int64_t SessionId(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    for (const auto entity : world.view<FormIdComponent>())
+    {
+        if (world.get<FormIdComponent>(entity).Id != aFormId)
+            continue;
+        if (const auto* pLocal = world.try_get<LocalComponent>(entity))
+            return pLocal->Id;
+        if (const auto* pRemote = world.try_get<RemoteComponent>(entity))
+            return pRemote->Id;
+    }
+    return -1;
+}
+
+static nlohmann::json TintsOf(const Tints& acTints)
+{
+    auto tints = nlohmann::json::array();
+    for (const auto& cTint : acTints.Entries)
+        tints.push_back({{"name", cTint.Name}, {"type", cTint.Type}, {"color", cTint.Color}, {"alpha", cTint.Alpha}});
+    return tints;
+}
+
+// What the actor is, to catch a copy built from the wrong record (e.g. a blank custom actor).
+static nlohmann::json Identity(uint32_t aFormId)
+{
+    auto& actors = World::Get().GetActorBridge();
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+                               {"race", actors.GetActorRaceFormId(aFormId)}};
+    if (const auto cLooks = EngineReads::GetBaseLooks(aFormId))
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
+    return identity;
+}
+
+// Active magic effects: abilities and worn enchantments are permanent (duration 0), spells and
+// hits are timed. Flags: 0x8000 inactive, 0x40000 dispelled.
+static nlohmann::json ActiveEffects(uint32_t aFormId)
+{
+    auto effects = nlohmann::json::array();
+    for (const auto& cEffect : World::Get().GetActorBridge().GetActorActiveEffects(aFormId))
+        effects.push_back({{"effect", cEffect.EffectFormId}, {"spell", cEffect.SpellFormId},
+                           {"caster", cEffect.CasterFormId}, {"magnitude", cEffect.Magnitude},
+                           {"duration", cEffect.Duration}, {"elapsed", cEffect.Elapsed}, {"flags", cEffect.Flags}});
+    return effects;
+}
+
+// What the actor's animation graph holds right now (the variables the animation sync carries),
+// as opposed to "animation", which is the last action the mod recorded.
+static nlohmann::json GraphVariables(uint32_t aFormId)
+{
+    AnimationVariables variables;
+    World::Get().GetActorBridge().ActorSaveAnimationVariables(aFormId, variables);
+    auto bools = nlohmann::json::array();
+    for (const bool cValue : variables.Booleans)
+        bools.push_back(cValue);
+    return {{"booleans", bools},
+            {"integers", std::vector<uint32_t>(variables.Integers.begin(), variables.Integers.end())},
+            {"floats", std::vector<float>(variables.Floats.begin(), variables.Floats.end())}};
+}
+
+// Everything this game knows about one actor, for the desync checker (coop_test.py desync): the
+// harness pairs an owner's snapshot with its copy's in the other game and reports every field
+// that differs. Add a field here and it is checked automatically.
+nlohmann::json ActorSnapshot(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    auto& actors = world.GetActorBridge();
+    float position[3]{};
+    actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
+
+    nlohmann::json mod = {{"session_id", SessionId(aFormId)}};
+    // The last action the actor's graph took: an owner's own, or a copy's accepted replay or forced action.
+    const ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
+    for (const auto entity : world.view<FormIdComponent>())
+    {
+        if (world.get<FormIdComponent>(entity).Id != aFormId)
+            continue;
+        auto components = nlohmann::json::array();
+        const auto has = [&](auto* apType, const char* apName) {
+            if (world.all_of<std::remove_pointer_t<decltype(apType)>>(entity))
+                components.push_back(apName);
+        };
+        has(static_cast<LocalComponent*>(nullptr), "Local");
+        has(static_cast<RemoteComponent*>(nullptr), "Remote");
+        has(static_cast<WaitingFor3D*>(nullptr), "WaitingFor3D");
+        has(static_cast<InterpolationComponent*>(nullptr), "Interpolation");
+        has(static_cast<LocalAnimationComponent*>(nullptr), "LocalAnimation");
+        has(static_cast<RemoteAnimationComponent*>(nullptr), "RemoteAnimation");
+        has(static_cast<FaceGenComponent*>(nullptr), "FaceGen");
+        has(static_cast<CacheComponent*>(nullptr), "Cache");
+        has(static_cast<ActorValuesComponent*>(nullptr), "ActorValues");
+        has(static_cast<PlayerComponent*>(nullptr), "Player");
+        mod["components"] = components;
+        if (const auto* pAnimation = world.try_get<RemoteAnimationComponent>(entity))
+        {
+            mod["animation_queue"] = pAnimation->TimePoints.size();
+            mod["animation_graph_ready"] = actors.IsAnimationGraphReady(aFormId);
+        }
+        if (const auto* pInterpolation = world.try_get<InterpolationComponent>(entity))
+            mod["interpolation_points"] = pInterpolation->TimePoints.size();
+        // A copy's head, painted from its owner's tints (FaceGenSystem): compared by the scenarios.
+        if (const auto* pFace = world.try_get<FaceGenComponent>(entity))
+            mod["face"] = {{"painted", pFace->Generated}, {"tints", TintsOf(pFace->FaceTints)}};
+        break;
+    }
+
+    // This game's player's head: the tints it shows (a vampire's overlay ones, else its own), as its copies get them.
+    if (aFormId == world.GetPlayerBridge().GetPlayerFormId())
+        mod["face"] = {{"tints", TintsOf(world.GetPlayerBridge().GetPlayerFaceTints())}};
+
+    // The voice line, shown and not compared: a copy's starts a little after its owner's, and the
+    // callback state can rest at 3 once a line is over (the audio system's late callback).
+    const auto cVoiceSound = EngineReads::GetVoiceSound(aFormId);
+    mod["voice"] = {{"callback", EngineReads::GetVoiceLineState(aFormId)}, {"seconds", EngineReads::GetVoiceTimer(aFormId)},
+                    {"sound", static_cast<int64_t>(static_cast<int32_t>(cVoiceSound.Id))}, {"duration_ms", cVoiceSound.DurationMs}};
+    mod["process_level"] = EngineReads::GetProcessLevel(aFormId);
+    mod["fade_state"] = EngineReads::GetFadeState(aFormId);
+    mod["process_me"] = EngineReads::IsProcessMe(aFormId);
+    mod["package_type"] = EngineReads::GetPackageType(aFormId);
+    mod["subtitle"] = EngineReads::GetSubtitle(aFormId);
+    // With the finished ones still fading out (one-shot hit visuals), shown and not compared: a flash is brief.
+    mod["visuals_shown"] = EngineReads::GetShownVisualFormIds(aFormId);
+    // At this game's camera (FXCameraAttachScript's fluff), shown and not compared: a copy has none.
+    mod["camera_visuals"] = EngineReads::GetCameraVisualFormIds(aFormId);
+    if (actors.IsActorMount(aFormId))
+        mod["player_can_ride"] = EngineReads::PlayerCanRide(aFormId);
+    // Water, shown and not compared: a copy's height follows its owner's a little late.
+    const auto cWater = EngineReads::GetWater(aFormId);
+    mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},
+                    {"seconds_under", cWater.SecondsUnder}};
+
+    const auto cAi = EngineReads::GetAiReadout(aFormId);
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+                               {"race", actors.GetActorRaceFormId(aFormId)},
+                               {"template_base", actors.GetActorNpcTemplateBaseFormId(aFormId)},
+                               {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
+                               {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}};
+    if (const auto cLooks = EngineReads::GetBaseLooks(aFormId))
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
+    // Its ragdoll now: how many bodies are awake and the fastest one's speed (a body still moving or jittering).
+    nlohmann::json ragdoll;
+    if (const auto cBodies = EngineReads::GetRagdoll(aFormId); cBodies && !cBodies->empty())
+    {
+        int awake = 0;
+        float fastest = 0.f;
+        for (const auto& cBody : *cBodies)
+        {
+            awake += cBody.Awake;
+            fastest = std::max(fastest, std::hypot(cBody.Velocity[0], cBody.Velocity[1], cBody.Velocity[2]));
+        }
+        ragdoll = {{"bodies", cBodies->size()}, {"awake", awake}, {"fastest", fastest}};
+    }
+    nlohmann::json pose; // null: no 3D or no floor found
+    if (const auto cPose = EngineReads::GetBodyPose(aFormId))
+        pose = {{"floor_gap", cPose->FloorGap}, {"root", cPose->Root}, {"skeleton", cPose->Skeleton}, {"pelvis", cPose->Pelvis},
+                {"head", cPose->Head}, {"floor", cPose->Floor}};
+    return {
+        {"identity", identity},
+        // How its body stands, compared: a copy stuck half down or floating differs from its owner.
+        {"pose", pose},
+        {"ragdoll", ragdoll},
+        {"placement", {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(aFormId)},
+                       {"cell", actors.GetActorParentCellFormId(aFormId)},
+                       {"riding", !actors.IsActorMount(aFormId) && EngineReads::HasMountInteraction(aFormId)},
+                       {"ridden", actors.IsActorMount(aFormId) && EngineReads::HasMountInteraction(aFormId)},
+                       {"getting_on_off", EngineReads::IsGettingOnOrOffMount(aFormId)},
+                       {"worldspace", actors.GetActorWorldSpaceFormId(aFormId)},
+                       {"has_3d", actors.ActorHas3D(aFormId)}, {"disabled", actors.IsActorDisabled(aFormId)}}},
+        {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},
+                   {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
+                   {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
+                   {"sneaking", EngineReads::IsSneaking(aFormId)},
+                   {"sit_sleep", EngineReads::GetSitSleepState(aFormId)},
+                   {"knock", EngineReads::GetKnockState(aFormId)},
+                   {"deferred_kill", EngineReads::GetKillState(aFormId).Deferred},
+                   {"kill_queued", EngineReads::GetKillState(aFormId).Queued},
+                   {"casting", CastingSpells(aFormId)},
+                   {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
+        {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
+                    {"stamina", actors.GetActorValue(aFormId, 26)},
+                    {"max_health", actors.GetActorPermanentValue(aFormId, 24)},
+                    {"max_magicka", actors.GetActorPermanentValue(aFormId, 25)},
+                    {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
+        {"equipment", EquippedItems(aFormId)},
+        {"effects", ActiveEffects(aFormId)},
+        {"visuals", EngineReads::GetPlayingVisualFormIds(aFormId)},
+        {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
+                       {"action", latest.ActionId}, {"idle", latest.IdleId},
+                       {"state1", latest.State1}, {"state2", latest.State2}}},
+        {"graph", GraphVariables(aFormId)},
+        {"mod", mod},
+        // AI runs only on the owner (a copy's is disabled), so this is shown, not compared.
+        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)},
+                {"running_package", EngineReads::GetRunningPackage(aFormId)}, {"package_target", cAi.PackageTarget}, {"furniture", cAi.Furniture}, {"follow_target", cAi.FollowTarget},
+                // A copy's own voice line state, which trails its owner's (not compared).
+                {"talking", EngineReads::IsTalking(aFormId)}}},
+        // The AI state every game reads 1:1: a copy holds its owner's (AiStateService), compared.
+        {"ai_state", {{"package", cAi.Package}, {"scene", cAi.Scene},
+                      {"combat", cAi.Combat}, {"combat_target", cAi.CombatTarget},
+                      {"in_combat", EngineReads::IsInCombat(aFormId)}}},
+    };
+}
+
+// Snapshots of every loaded actor, keyed by this game's form id. "role": "own" for actors this
+// game simulates (its player, and on the host every NPC), "copy" for actors mirrored from another.
+nlohmann::json WorldSnapshot()
+{
+    auto& actors = World::Get().GetActorBridge();
+    auto result = nlohmann::json::object();
+    std::vector<uint32_t> ids = actors.GetLoadedActorFormIds();
+    if (actors.ActorHas3D(0x14))
+        ids.push_back(0x14);
+    for (const uint32_t cFormId : ids)
+    {
+        auto snapshot = ActorSnapshot(cFormId);
+        snapshot["role"] = actors.IsActorCopy(cFormId) ? "copy" : "own";
+        snapshot["player"] = cFormId == 0x14 || actors.IsOtherPlayer(cFormId);
+        result[std::to_string(cFormId)] = std::move(snapshot);
+    }
+    return result;
+}
+
+// Loaded actors this game simulates itself (on the host: every NPC it owns), with health.
+nlohmann::json LocalActors()
+{
+    auto& actors = World::Get().GetActorBridge();
+    auto result = nlohmann::json::object();
+    for (const uint32_t cFormId : actors.GetLoadedActorFormIds())
+        if (!actors.IsActorCopy(cFormId))
+        {
+            float position[3]{};
+            actors.GetActorPosition(cFormId, position[0], position[1], position[2]);
+            result[std::to_string(cFormId)] = {{"health", actors.GetActorValue(cFormId, 24)},
+                                               {"dead", actors.IsActorDead(cFormId)},
+                                               {"position", {position[0], position[1], position[2]}},
+                                               {"session_id", SessionId(cFormId)},
+                                               {"identity", Identity(cFormId)}};
+        }
+    return result;
+}
+
+// Session-wide state each game holds: its clock, weather, the other players and connection.
+nlohmann::json GameStatus()
+{
+    auto& world = World::Get();
+    const auto& bridge = world.GetWorldBridge();
+    nlohmann::json players = nlohmann::json::array();
+    for (const auto& [cId, cPlayer] : world.GetSessionService().GetPlayers())
+        players.push_back({{"id", cId}, {"name", cPlayer.Name.c_str()}, {"host", cPlayer.IsHost}, {"level", cPlayer.Level}});
+    // The party panel as drawn: null when the UI is not up (no device yet, or no document).
+    nlohmann::json party = nullptr;
+    if (const auto* pUi = world.ctx().find<UiService>(); pUi && pUi->IsPartyPanelShown())
+    {
+        party = nlohmann::json::array();
+        for (const auto& cMember : pUi->GetPartyMembers())
+            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"level", cMember.Level}, {"health", cMember.Health}, {"color", cMember.Color}});
+    }
+    // The chat: every line received, whether its line is open and what is typed in it.
+    nlohmann::json chat = nullptr;
+    if (const auto* pUi = world.ctx().find<UiService>())
+    {
+        nlohmann::json lines = nlohmann::json::array();
+        for (const auto& cLine : pUi->GetChatLines())
+            lines.push_back({{"name", cLine.Name}, {"text", cLine.Text}, {"system", cLine.System}, {"color", cLine.Color}, {"perished", cLine.Perished}});
+        chat = {{"open", pUi->IsChatOpen()}, {"draft", pUi->GetChatDraft()}, {"lines", lines}};
+    }
+    // The last attempt to join, and if it was refused, why.
+    const auto& cJoin = world.ctx().at<JoinService>().GetStatus();
+    const nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message},
+                                 {"details", cJoin.Details}, {"progress", cJoin.Progress}, {"joining", world.ctx().at<JoinService>().IsJoining()}};
+    nlohmann::json cursor = nullptr;
+    if (const auto cCursor = EngineReads::GetMenuCursor())
+        cursor = {cCursor->first, cCursor->second};
+    // The player's map marker.
+    nlohmann::json mapMarker = nullptr;
+    if (const auto cMarker = EngineReads::GetPlayerMapMarker())
+        mapMarker = {{"position", {cMarker->X, cMarker->Y, cMarker->Z}}, {"world", cMarker->WorldOrCell}};
+    // The Sleep/Wait Menu's hours, while it is open.
+    nlohmann::json waitHours = nullptr;
+    if (const auto cHours = EngineReads::GetWaitMenuHours())
+        waitHours = *cHours;
+    constexpr uint32_t cGameDaysPassed = 0x39;
+    const auto* pPartyUi = world.ctx().find<UiService>();
+    const auto cHud = UiInput::GetHudVisibility();
+    const auto nullable = [](std::optional<bool> value) -> nlohmann::json {
+        return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
+    };
+    const auto& death = world.ctx().at<DeathService>();
+    const nlohmann::json hud = {{"menu_system_visible", cHud.MenuSystemVisible}, {"hud_menu_open", cHud.HudMenuOpen},
+        {"movie_ready", cHud.MovieReady}, {"blocking_menu", cHud.BlockingMenu},
+        {"root_visible", nullable(cHud.RootVisible)}, {"hud_clip_visible", nullable(cHud.HudClipVisible)},
+        {"health_clip_visible", nullable(cHud.HealthClipVisible)}, {"allows_party", cHud.AllowsParty()}};
+    return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
+                      {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()},
+                      {"days_passed", EngineReads::GetGlobalValue(cGameDaysPassed).value_or(0.f)}, {"raw_days", EngineReads::GetRawDaysPassed()}}},
+            {"wait_hours", waitHours}, {"menu_pause_count", EngineReads::GetMenuPauseCount()},
+            {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
+            {"players", players}, {"party_panel", party},
+            {"party_panel_visible", pPartyUi && pPartyUi->IsPartyPanelVisible()},
+            {"party_panel_opacity", pPartyUi ? pPartyUi->PartyPanelOpacity() : 0.f},
+            {"hud", hud},
+            {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineReads::IsMapReady()}, {"cursor", cursor},
+            {"death", {{"down", death.IsDown()},
+                       {"generation", death.DownGeneration()},
+                       {"spectating", death.Spectating()},
+                       {"name", death.SpectatingName()},
+                       {"status", death.Status()}}},
+            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()},
+            {"main_menu", EngineReads::IsMenuOpen("Main Menu")}};
+}
+
+
+// The copies this game shows of other games' actors (players and NPCs), read from the engine: where
+// the mod puts each one ("requested") and where the engine has it ("actual").
+nlohmann::json Copies()
+{
+    auto& world = World::Get();
+    auto& actors = world.GetActorBridge();
+    const auto cUnixMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    auto result = nlohmann::json::object();
+    for (const auto cEntity : world.view<FormIdComponent, RemoteComponent>())
+    {
+        const uint32_t cFormId = world.get<FormIdComponent>(cEntity).Id;
+        if (!actors.ActorExists(cFormId))
+            continue;
+        float position[3]{};
+        actors.GetActorPosition(cFormId, position[0], position[1], position[2]);
+        nlohmann::json copy = {
+            {"session_id", world.get<RemoteComponent>(cEntity).Id},
+            {"identity", Identity(cFormId)},
+            {"observed_ms", cUnixMs},
+            {"has_3d", actors.ActorHas3D(cFormId)},
+            {"actual", {position[0], position[1], position[2]}},
+            {"equipped", EquippedItems(cFormId)},
+            {"rotation", ActorRotation(cFormId)},
+            {"other_player", actors.IsOtherPlayer(cFormId)},
+            {"weapon_drawn", actors.IsWeaponDrawn(cFormId)},
+            {"casting", CastingSpells(cFormId)},
+            {"health", actors.GetActorValue(cFormId, 24 /* kHealth */)},
+            {"dead", actors.IsActorDead(cFormId)}};
+        if (const auto* pInterpolation = world.try_get<InterpolationComponent>(cEntity))
+        {
+            // Once the mod has moved it (two movement snapshots in).
+            if (pInterpolation->TimePoints.size() >= 2)
+                copy["requested"] = {pInterpolation->Position.x, pInterpolation->Position.y, pInterpolation->Position.z};
+            // How far behind its owner it shows (CopyPlayback), and how often its owner sends it.
+            const uint64_t cShown = InterpolationSystem::PlaybackTick(world, cEntity);
+            copy["behind_ms"] = world.GetTick() > cShown ? world.GetTick() - cShown : 0;
+            copy["send_interval_ms"] = pInterpolation->Playback.TargetInterval();
+        }
+        result[std::to_string(cFormId)] = std::move(copy);
+    }
+    return result;
+}
+
+// A guest's line to the host over the last second (enet, compressed and not); the host's own route counts nothing.
+nlohmann::json LineStatus()
+{
+    const auto cStats = World::Get().GetTransport().GetStatistics();
+    return {{"sent_bytes", cStats.SentBytes}, {"recv_bytes", cStats.RecvBytes},
+            {"sent_uncompressed", cStats.UncompressedSentBytes}, {"recv_uncompressed", cStats.UncompressedRecvBytes}};
+}
+
+// The Steam account this game signed in as, from Skyrim's steam_api64 (flat API, SDK 1.5x); empty without Steam.
+nlohmann::json SteamStatus()
+{
+    const HMODULE cSteam = GetModuleHandleW(L"steam_api64.dll");
+    if (!cSteam)
+        return nlohmann::json::object();
+    using TAccessor = void* (*)();
+    const auto pUser = reinterpret_cast<TAccessor>(GetProcAddress(cSteam, "SteamAPI_SteamUser_v021"));
+    const auto pFriends = reinterpret_cast<TAccessor>(GetProcAddress(cSteam, "SteamAPI_SteamFriends_v017"));
+    const auto pGetId = reinterpret_cast<uint64_t (*)(void*)>(GetProcAddress(cSteam, "SteamAPI_ISteamUser_GetSteamID"));
+    const auto pGetName = reinterpret_cast<const char* (*)(void*)>(GetProcAddress(cSteam, "SteamAPI_ISteamFriends_GetPersonaName"));
+    nlohmann::json status = nlohmann::json::object();
+    if (void* pSteamUser = pUser && pGetId ? pUser() : nullptr)
+        status["id"] = std::to_string(pGetId(pSteamUser));
+    if (void* pSteamFriends = pFriends && pGetName ? pFriends() : nullptr)
+        status["name"] = pGetName(pSteamFriends);
+    const auto& cSession = World::Get().ctx().at<SteamService>().GetStatus();
+    nlohmann::json peers = nlohmann::json::array();
+    for (const auto& cPeer : cSession.Peers)
+        peers.push_back({{"id", std::to_string(cPeer.Id)}, {"name", cPeer.Name}, {"relayed", cPeer.Relayed}});
+    status["session"] = {{"state", cSession.State}, {"error", cSession.Error}, {"lobby", std::to_string(cSession.Lobby)},
+                         {"host", std::to_string(cSession.Host)}, {"host_name", cSession.HostName}, {"peers", peers}};
+    return status;
+}
+
+nlohmann::json Report()
+{
+    auto& actors = World::Get().GetActorBridge();
+    nlohmann::json player = nullptr;
+    if (actors.ActorHas3D(0x14))
+    {
+        float position[3]{};
+        actors.GetActorPosition(0x14, position[0], position[1], position[2]);
+        player = {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(0x14)},
+                  {"cell", actors.GetActorParentCellFormId(0x14)}, {"worldspace", actors.GetActorWorldSpaceFormId(0x14)}};
+    }
+    return {{"player", player},
+            {"game", GameStatus()},
+            {"actors", Copies()},
+            {"world", WorldSnapshot()},
+            {"menus", EngineReads::GetOpenMenus()},
+            {"subtitle_on_screen", EngineReads::GetSubtitleOnScreen()},
+            {"kill_cam", EngineReads::IsKillCamPlaying()},
+            {"clock_speed", EngineReads::GetGlobalTimeMultiplier()},
+            {"copy_clock", {{"network_ms", World::Get().GetCopyClock().Network()}, {"delay_ms", World::Get().GetCopyClock().Delay()}}},
+            {"line", LineStatus()},
+            {"frames", FrameStatus()},
+            {"lock_order", LockOrderStatus()},
+            {"steam", SteamStatus()}};
+}
+} // namespace Diagnostics

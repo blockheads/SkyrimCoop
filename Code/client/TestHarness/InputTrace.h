@@ -2,7 +2,7 @@
 
 namespace TestHarness
 {
-// Each key or button press and release as the game dispatched it, one log line each (into LogTrail, so a failed
+// Each key or button press and release as the game dispatched it, one log line each (into the log ring, so a failed
 // scenario's digest shows it): the user event it mapped to, what each input sink did with it (continue or stop),
 // the menus open, and an item menu's list state (its lists drop input while they slide in).
 struct InputTrace

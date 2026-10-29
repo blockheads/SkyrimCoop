@@ -27,6 +27,7 @@ std::span<const Command> WorldCommands();
 std::span<const Command> KnowledgeCommands();
 std::span<const Command> CrimeCommands();
 std::span<const Command> SessionCommands();
+std::span<const Command> MemoryCommands();
 // The engine's change records (ChangeLog.h).
 std::span<const Command> ChangeLogCommands();
 std::span<const Command> QuestFragmentsCommands();

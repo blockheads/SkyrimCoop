@@ -27,4 +27,7 @@ public:
 
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept override;
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;
+
+    std::optional<uint32_t> GetHighlight() const noexcept override;
+    void SetHighlight(uint32_t aIndex) noexcept override;
 };

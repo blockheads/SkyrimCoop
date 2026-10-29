@@ -414,60 +414,142 @@ TEST_CASE("Dialogue: only a player in the conversation picks", "[HostAuthority][
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "[HostAuthority][Dialogue]")
+TEST_CASE("Dialogue: a pick is a topic of the party's list, said with its speaker's line", "[HostAuthority][Dialogue]")
 {
-    // Every menu shows the host's list; a pick that is not in it (a topic only the guest's engine offered, another
-    // line for a listed topic, a list its menu showed before the host's arrived) is not said, and the picker's menu
-    // gets the host's list again.
+    // A topic nobody in it has (one only the guest's engine offered) is not said, and the presser's menu gets the
+    // party's list again; a listed topic is said with its speaker's own line, whatever line the menu showed.
     Talking talking;
     auto& session = talking.session;
     session.Receive(kPeer, Join(talking.Id));
     talking.List(kHost, 1);
     session.Outbox.clear();
 
-    talking.Pick(kPeer, 1, 0xD);                    // not a topic of the host's list
-    talking.Pick(kPeer, 1, 0xB, GameId(0, 0xB2));   // the host's topic, another line
-    talking.Pick(kPeer, 1, 0xA, GameId{});          // no line
+    talking.Pick(kPeer, 1, 0xD);
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
-    CHECK(session.SentTo<NotifyDialoguePicked>(kOtherPeer).empty());
-    CHECK(session.SentTo<NotifyDialogueList>(kPeer).size() == 3);
+    CHECK(session.SentTo<NotifyDialogueList>(kPeer).size() == 1);
     CHECK(talking.LastList(kPeer).Step == 1);
 
-    talking.Pick(kPeer, 1, 0xB);
+    talking.Pick(kPeer, 1, 0xB, GameId(0, 0xB2));
     const auto cPicked = session.SentTo<NotifyDialoguePicked>(kOtherPeer);
     REQUIRE(cPicked.size() == 1);
     CHECK(cPicked[0]->Info == GameId(0, 0xB1));
 }
 
-TEST_CASE("Dialogue: each player gets its own list, and picks from it", "[HostAuthority][Dialogue]")
+namespace
 {
-    // The host's game judged the step for each other player's character: the peer holds Lucan's claw (topic C's line
-    // C2), the other peer's own list was not judged (it gets the host's).
+// The step's list from the host's game with the guests' own lists: the peer holds Lucan's claw (topic F, only its
+// list) and lacks the Speech for the persuade line (B); the other peer's own list was not judged (the host's).
+void PartyList(Talking& aTalking)
+{
+    auto& session = aTalking.session;
+    DialogueOptions own = Talking::Options();
+    own.erase(own.begin() + 1);
+    DialogueOption& claw = own.emplace_back();
+    claw.Topic = GameId(0, 0xF);
+    claw.Info = GameId(0, 0xF1);
+    claw.Text = "I have your claw.";
+    DialogueOptionsRequest list;
+    list.Conversation = aTalking.Id;
+    list.Step = 1;
+    list.Options = Talking::Options();
+    list.Players = {{session.PlayerId(kPeer), own}, {session.PlayerId(kOtherPeer), Talking::Options()}};
+    session.Receive(kHost, list);
+}
+} // namespace
+
+TEST_CASE("Dialogue: every menu shows the party's list, each option tagged with who has it", "[HostAuthority][Dialogue]")
+{
     Talking talking;
     auto& session = talking.session;
     session.Receive(kPeer, Join(talking.Id));
     session.Receive(kOtherPeer, Join(talking.Id));
-    DialogueOptions own = Talking::Options();
-    own[2].Info = GameId(0, 0xC2);
-    own[2].Text = "I have your claw.";
-    own.erase(own.begin() + 1); // no Speech for the persuade line
-    DialogueOptionsRequest list;
-    list.Conversation = talking.Id;
-    list.Step = 1;
-    list.Options = Talking::Options();
-    list.Players = {{session.PlayerId(kPeer), own}};
-    session.Receive(kHost, list);
-    CHECK(talking.LastList(kPeer).Options == own);
-    CHECK(talking.LastList(kOtherPeer).Options == Talking::Options());
+    PartyList(talking);
 
+    // The host's order, then the peer's own topic; everyone's untagged.
+    const auto& cList = talking.LastList(kPeer);
+    CHECK(talking.LastList(kOtherPeer).Options == cList.Options);
+    std::vector<uint32_t> topics;
+    for (const auto& cOption : cList.Options)
+        topics.push_back(cOption.Topic.BaseId);
+    CHECK(topics == std::vector<uint32_t>{0xA, 0xB, 0xC, 0xE, 0xF});
+    CHECK(cList.Options[0].Players.empty());
+    CHECK(cList.Options[1].Players == std::vector<uint32_t>{session.PlayerId(kOtherPeer)});
+    CHECK(cList.Options[4].Players == std::vector<uint32_t>{session.PlayerId(kPeer)});
+
+    // The host's menu opening adds it: everyone's options stay untagged, the persuade line is the host's too.
+    session.Receive(kHost, Join(talking.Id));
+    const auto& cWithHost = talking.LastList(kHost);
+    CHECK(cWithHost.Options[1].Players == std::vector<uint32_t>{session.PlayerId(kOtherPeer), session.PlayerId(kHost)});
+    CHECK(cWithHost.Options[0].Players.empty());
+}
+
+TEST_CASE("Dialogue: a player says only its own options; another's is refused, and only it is told why", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    session.Receive(kOtherPeer, Join(talking.Id));
+    session.Receive(kHost, Join(talking.Id));
+    PartyList(talking);
     session.Outbox.clear();
-    talking.Pick(kPeer, 1, 0xB); // the host's persuade line: not on its list
-    talking.Pick(kPeer, 1, 0xC); // the host's line of its claw topic
-    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
-    talking.Pick(kPeer, 1, 0xC, GameId(0, 0xC2));
-    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
-    REQUIRE(cPicked.size() == 1);
-    CHECK(cPicked[0]->Info == GameId(0, 0xC2));
+
+    SECTION("its own: said with its line, the chat names it")
+    {
+        talking.Pick(kPeer, 1, 0xF);
+        const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+        REQUIRE(cPicked.size() == 1);
+        CHECK((cPicked[0]->PlayerId == session.PlayerId(kPeer) && cPicked[0]->Info == GameId(0, 0xF1)));
+        const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer);
+        REQUIRE(cLines.size() == 1);
+        CHECK((cLines[0]->PlayerName == "Lydia" && cLines[0]->ChatMessage == "I have your claw."));
+    }
+    SECTION("the claw, pressed by a player without it: not said, its menu gets the list back, its chat says why")
+    {
+        talking.Pick(kOtherPeer, 1, 0xF);
+        CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+        CHECK(talking.LastList(kOtherPeer).Step == 1);
+        const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer);
+        REQUIRE(cLines.size() == 1);
+        CHECK(cLines[0]->MessageType == kSystemMessage);
+        CHECK(cLines[0]->ChatMessage == "I'm sorry Aela, you don't know how to say that.");
+        CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
+        CHECK(session.SentTo<NotifyChatMessageBroadcast>(kHost).empty());
+    }
+    SECTION("the persuade line, pressed by the player without the Speech: refused; then said by one who has it")
+    {
+        talking.Pick(kPeer, 1, 0xB);
+        CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+        talking.Pick(kOtherPeer, 1, 0xB);
+        const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+        REQUIRE(cPicked.size() == 1);
+        CHECK(cPicked[0]->PlayerId == session.PlayerId(kOtherPeer));
+    }
+}
+
+TEST_CASE("Dialogue: the highlight goes to the others in the conversation, for the current step", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    session.Receive(kHost, Join(talking.Id));
+    talking.List(kHost, 1);
+    session.Outbox.clear();
+
+    DialogueHighlightRequest moved;
+    moved.Conversation = talking.Id;
+    moved.Step = 1;
+    moved.Index = 3;
+    session.Receive(kPeer, moved);
+    const auto cAtHost = session.SentTo<NotifyDialogueHighlight>(kHost);
+    REQUIRE(cAtHost.size() == 1);
+    CHECK((cAtHost[0]->Index == 3 && cAtHost[0]->PlayerId == session.PlayerId(kPeer)));
+    CHECK(session.SentTo<NotifyDialogueHighlight>(kPeer).empty());
+    CHECK(session.SentTo<NotifyDialogueHighlight>(kOtherPeer).empty()); // not in it
+
+    moved.Step = 2; // an old or future step
+    session.Receive(kPeer, moved);
+    session.Receive(kOtherPeer, moved);
+    CHECK(session.SentTo<NotifyDialogueHighlight>(kHost).size() == 1);
 }
 
 TEST_CASE("Dialogue: a pick before the host's list is not said", "[HostAuthority][Dialogue]")

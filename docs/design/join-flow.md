@@ -90,8 +90,8 @@ No table is kept (3d, 2026-10-23).
 - **A new player brings a character from their own game.** They start a game of their own (Skyrim's character
   creation and every mod's: RaceMenu, Alternate Start) or load one of their saves, then join from it. Their game takes
   their character from its running player before it loads the host's save. That own save is used once: from then on
-  the host's save keeps the character. A friend at the main menu whom the host's save does not know is told to make a
-  character first.
+  the host's save keeps the character. A friend at the main menu whom the host's save does not know goes straight
+  into making one, then joins with it (first-time join, below).
 - **While playing, the friend's game keeps the record current.** It owns its player (direct authority), so the
   engine counts its experience, levels, perks and items as in a single player game; its game sends the character
   on joining, on its changes (a level, a perk, a menu closing, a race or look change) and on leaving. The host keeps
@@ -104,6 +104,29 @@ No table is kept (3d, 2026-10-23).
   are supported (`docs/ideas.md`).
 - Another host's world keeps its own record of the friend; changes made in the friend's own save after their first
   join do not reach the host's (bringing a character again is a later idea).
+
+#### First-time join (planned 2026-10-29, v1)
+
+A friend the host's save does not know accepts the invite at the main menu (or Steam starts the game from it). No
+choice to make and no screen of ours:
+
+```
+invite accepted, host answers no_character (no record, no character brought)
+  -> the lobby is kept as the pending join; a new game starts by itself
+       Quick Start - SE (in the playtest package): its "Skip the introduction?" box, yes goes straight to
+         character creation
+  -> the race menu, the name confirmed: the character is made
+  -> the pending join runs from this game: its character brought, the host's world loaded, placed beside the host
+next time: the invite loads the kept character (as built)
+```
+
+- The join after naming is the end of the intro on purpose: the rest of Helgen is the host's world's business.
+- Test: a GameTests flow (no record -> new game -> character made -> joined, the record kept), and the Skyrim
+  scenario `guest-makes-character-then-joins` from the invite at the main menu with Quick Start (the test games
+  have it).
+- v1 supports Quick Start's skip only. Joining from the vanilla intro (answering no, or without the mod: a character
+  made in the middle of Helgen's scene, bound hands, prisoner clothes, MQ101 items) is out of v1 scope and untested
+  (`docs/ideas.md`).
 
 #### Where the engine keeps the player (IDA 1.6.1170, 2026-10-24)
 

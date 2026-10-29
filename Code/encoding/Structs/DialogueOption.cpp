@@ -1,4 +1,5 @@
 #include <Structs/DialogueOption.h>
+#include <PartySize.h>
 #include <Wire/Serialization.h>
 
 using Wire::Serialization;
@@ -7,8 +8,7 @@ namespace
 {
 // A conversation never shows more; anything past it is a corrupt message.
 constexpr uint64_t kMaxOptions = 64;
-// A party is at most four players.
-constexpr uint64_t kMaxPlayers = 8;
+constexpr uint64_t kMaxPlayers = kMaxPartyPlayers;
 } // namespace
 
 void DialogueOption::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -17,6 +17,9 @@ void DialogueOption::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Info.Serialize(aWriter);
     Quest.Serialize(aWriter);
     Serialization::WriteString(aWriter, Text);
+    Serialization::WriteVarInt(aWriter, Players.size());
+    for (const uint32_t cPlayer : Players)
+        Serialization::WriteVarInt(aWriter, cPlayer);
 }
 
 void DialogueOption::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -25,6 +28,10 @@ void DialogueOption::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Info.Deserialize(aReader);
     Quest.Deserialize(aReader);
     Text = Serialization::ReadString(aReader);
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    Players.clear();
+    for (uint64_t i = 0; i < cCount && i < kMaxPlayers; ++i)
+        Players.push_back(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
 }
 
 void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept

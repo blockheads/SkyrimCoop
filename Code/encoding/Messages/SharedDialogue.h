@@ -163,7 +163,7 @@ struct NotifyDialoguePicked final : NotifyMessage
     uint32_t Step{};
     GameId Topic{};
     GameId Info{};
-    uint32_t PlayerId{}; // who picked
+    uint32_t PlayerId{}; // who pressed it and says it
 };
 
 // The conversation ended: every game closes its menu, the host's ends its conversation.

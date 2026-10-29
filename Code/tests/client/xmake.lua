@@ -5,7 +5,9 @@ target("ClientTests")
     set_group("Tests")
     set_languages("cxx23")
     add_files("*.cpp")
-    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp")
+    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
+              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
+              "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
               "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp",
               "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",
@@ -14,5 +16,5 @@ target("ClientTests")
               "../../client/Physics/BodyRelevance.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "zydis", "glm", "spdlog")
+    add_packages("catch2", "zydis", "glm", "spdlog", "zlib")
 target_end()

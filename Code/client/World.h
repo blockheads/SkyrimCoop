@@ -5,6 +5,7 @@
 #include <Bridges/IWaitBridge.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/ICrimeBridge.h>
+#include <Bridges/IBugReportBridge.h>
 #include <Bridges/ISteamBridge.h>
 
 #include <memory>
@@ -91,6 +92,7 @@ private:
     std::unique_ptr<IWaitBridge> m_pWaitBridge;
     std::unique_ptr<IBodyBridge> m_pBodyBridge;
     std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
+    std::unique_ptr<IBugReportBridge> m_pBugReportBridge;
     RecipeBook m_recipes;
     CopyClock m_copyClock;
     RunnerService m_runner;

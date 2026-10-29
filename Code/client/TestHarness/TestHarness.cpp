@@ -46,7 +46,6 @@ void Poll()
         if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return HandleCommand(harness, acRequest); }))
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
-    harness.Logs.Poll();
     harness.Inputs.Poll();
     harness.Commands.Poll();
     harness.Events.Poll();

@@ -55,14 +55,15 @@ target(name)
         "xbyak",
         "zydis",
         "nlohmann_json",
-        "snappy")
+        "snappy",
+        "zlib")
 
     -- mem is header-only; vendored copy
     add_includedirs("../external/mem", {public = false})
 
     -- ImGui (debug views), RmlUi (the in-game UI, Code/client/Ui)
     add_packages("imgui", "rmlui")
-    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32", "dxguid", "dinput8", "d3d11")
+    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32", "dxguid", "dinput8", "d3d11", "shell32")
 end
 
 

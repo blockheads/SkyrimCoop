@@ -1,6 +1,7 @@
 #pragma once
 
 #include <network/ENetInterface.h>
+#include <Messages/RelayedMessages.h>
 #include <Structs/DialogueOption.h>
 #include <Structs/GameId.h>
 
@@ -22,12 +23,26 @@ struct DialogueStartFailedRequest;
 
 struct HostNetwork;
 
+// One player's own list for the step, as the party's merge reads it.
+struct PartyDialogueList
+{
+    uint32_t PlayerId{};
+    const DialogueOptions* pOptions{};
+};
+
+// The party's list (docs/design/shared-dialogue.md): the host's options in its engine's order, then those only others
+// have, in aMembers' order; each topic once, with who has it (none: everyone). aBase: the host's game's list.
+[[nodiscard]] DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vector<PartyDialogueList>& acMembers);
+// The line a player says for that topic: its own list's (none: it does not know how to say it).
+[[nodiscard]] const DialogueOption* DialogueLineFor(const GameId& acTopic, const DialogueOptions& acOwn);
+
 /**
  * @brief One conversation for the party, run by the host's game: whoever starts it, the host's game says its
- * lines and builds each step's list for each player, judged for its character. Any player picks from its own list:
- * the host's game says that option, and the chat names who picked what (its script runs for the picker:
- * party-model.md, rule 2). Games report lists, picks, joins and exits; this decides which pick is said
- * and when it ends: once nobody is in it (docs/design/shared-dialogue.md).
+ * lines and builds each step's list for each player, judged for its character. Every menu shows the party's list
+ * (every player's options, tagged with who has them) and one highlight anyone moves; a player says only an option of
+ * its own list: the host's game says its line, its script run for it (party-model.md, rule 2). Games report lists,
+ * picks, highlights, joins and exits; this decides which pick is said and when it ends: once nobody is in it
+ * (docs/design/shared-dialogue.md).
  */
 struct HostDialogue
 {
@@ -45,6 +60,7 @@ struct HostDialogue
     void OnClose(const DialogueCloseRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnHighlight(const DialogueHighlightRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: it leaves the conversation.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
@@ -60,6 +76,8 @@ private:
         std::optional<DialogueOptions> Options;
         // Each other player's own list for the step, by player id (none for a player: the host's).
         std::map<uint32_t, DialogueOptions> PlayerOptions;
+        // The party's list for the step, for the players in it now.
+        DialogueOptions Merged;
         bool Choices{};
 
         [[nodiscard]] bool Has(ConnectionId_t aPlayer) const noexcept
@@ -80,9 +98,13 @@ private:
     [[nodiscard]] Conversation* Current(uint32_t aId, uint32_t aStep) noexcept;
     // The start that player asked for will not happen; a chat line says why, when given.
     void Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* acpWhy) noexcept;
-    // That game's list for the step (null: none shown yet).
+    // That game's own list for the step (null: none shown yet).
     [[nodiscard]] const DialogueOptions* OptionsFor(ConnectionId_t aPlayer) const noexcept;
-    // The step's list to that game, once the host's game has shown it.
+    // The players in it with their own lists, in the order they joined.
+    [[nodiscard]] std::vector<PartyDialogueList> Members() const noexcept;
+    // The party's list again, after a new list or a player joining or leaving, to every game in it.
+    void Merge() noexcept;
+    // The step's party list to that game, once the host's game has shown it.
     void SendList(ConnectionId_t aPlayer) noexcept;
     // Ends it, telling every game but aExcept (0: all of them).
     void End(ConnectionId_t aExcept = 0) noexcept;

@@ -1,5 +1,6 @@
 #include "Server.h"
 #include "ENetInterface.h"
+#include <PartySize.h>
 #include <thread>
 #include <algorithm>
 #include <Wire/Buffer.h>
@@ -51,7 +52,7 @@ namespace Net
         m_pHost = enet_host_create(
             bEnableDualStackIP ? ENET_ADDRESS_TYPE_ANY : addressType,
             &address,
-            128,  // Max 128 clients (kMaxPlayerCount from original code)
+            kMaxPartyPlayers, // a Steam lobby's most (PartySize.h)
             2,    // 2 channels (0 = reliable, 1 = unreliable)
             0,    // Unlimited incoming bandwidth
             0     // Unlimited outgoing bandwidth

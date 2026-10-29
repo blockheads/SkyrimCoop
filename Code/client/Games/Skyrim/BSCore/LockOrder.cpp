@@ -1,6 +1,7 @@
 #include <HookSwitch.h>
 
 #include "LockOrder.h"
+#include "LockOrderHistory.h"
 
 #include <HotReload/Handoff.h>
 #include <Hooks/SkseBranchPatch.h>
@@ -55,11 +56,11 @@ std::atomic<uint32_t> s_threadCount{0};
 thread_local ThreadSlot* t_slot = nullptr;
 thread_local bool t_reporting = false;
 
-// Observed "Outer held, then Inner taken" pairs, keyed by an ordered hash of the two locks.
+// Observed "Outer held, then Inner taken" pairs, keyed by the locks and both modes.
 struct Edge
 {
     std::atomic<uint64_t> Key;
-    std::atomic<uint8_t> Modes; // bit (outer mode * 2 + inner mode)
+    std::atomic<bool> Ready; // published after the observation's callers and thread
     std::atomic<bool> Reported;
     std::atomic<bool> ManyThreads; // seen on more than the first thread
     uint32_t ThreadId;
@@ -172,15 +173,16 @@ uint64_t EdgeKey(const void* apOuter, const void* apInner)
     return hash | 1;
 }
 
-Edge* FindEdge(const void* apOuter, const void* apInner)
+Edge* FindEdge(const void* apOuter, const void* apInner, uint8_t aOuterMode, uint8_t aInnerMode)
 {
-    const uint64_t cKey = EdgeKey(apOuter, apInner);
+    const uint64_t cKey = LockOrderHistory::Key(reinterpret_cast<uint64_t>(apOuter), reinterpret_cast<uint64_t>(apInner),
+                                               aOuterMode, aInnerMode);
     for (size_t probe = 0; probe < 64; ++probe)
     {
         Edge& edge = s_edges[(cKey + probe) & (cEdgeCapacity - 1)];
         const uint64_t cSeen = edge.Key.load(std::memory_order_acquire);
         if (cSeen == cKey)
-            return &edge;
+            return edge.Ready.load(std::memory_order_acquire) ? &edge : nullptr;
         if (cSeen == 0)
             return nullptr;
     }
@@ -197,7 +199,7 @@ void ResetEdges()
     for (Edge& edge : std::span(s_edges, cEdgeCapacity))
     {
         edge.Key.store(0, std::memory_order_relaxed);
-        edge.Modes.store(0, std::memory_order_relaxed);
+        edge.Ready.store(false, std::memory_order_relaxed);
         edge.Reported.store(false, std::memory_order_relaxed);
         edge.ManyThreads.store(false, std::memory_order_relaxed);
     }
@@ -229,8 +231,8 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
         return;
     if (s_edgeCount.load(std::memory_order_relaxed) > cEdgeCapacity / 2)
         ResetEdges();
-    const uint64_t cKey = EdgeKey(acOuter.Lock, apInner);
-    const auto cBit = static_cast<uint8_t>(1u << (acOuter.Mode * 2 + aInnerMode));
+    const uint64_t cKey = LockOrderHistory::Key(reinterpret_cast<uint64_t>(acOuter.Lock), reinterpret_cast<uint64_t>(apInner),
+                                               acOuter.Mode, aInnerMode);
     for (size_t probe = 0; probe < 64; ++probe)
     {
         Edge& edge = s_edges[(cKey + probe) & (cEdgeCapacity - 1)];
@@ -243,16 +245,15 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
                 edge.ThreadId = aThreadId;
                 edge.OuterCaller = acOuter.Caller;
                 edge.InnerCaller = aInnerCaller;
-                edge.Modes.fetch_or(cBit, std::memory_order_release);
+                edge.Ready.store(true, std::memory_order_release);
                 s_edgeCount.fetch_add(1, std::memory_order_relaxed);
                 return;
             }
         }
         if (seen == cKey)
         {
-            if ((edge.Modes.load(std::memory_order_relaxed) & cBit) == 0)
-                edge.Modes.fetch_or(cBit, std::memory_order_release);
-            if (edge.ThreadId != aThreadId && !edge.ManyThreads.load(std::memory_order_relaxed))
+            if (edge.Ready.load(std::memory_order_acquire) && edge.ThreadId != aThreadId &&
+                !edge.ManyThreads.load(std::memory_order_relaxed))
                 edge.ManyThreads.store(true, std::memory_order_relaxed);
             return;
         }
@@ -370,16 +371,13 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
             // Another thread took this lock first, then the one we hold: does each block the other?
             // One thread alone cannot deadlock on order (the loader takes extra-data locks in both
             // orders): the reverse order must come from another thread.
-            Edge* pReverse = FindEdge(apLock, cHeld.Lock);
-            if (!pReverse || (pReverse->ThreadId == cThreadId && !pReverse->ManyThreads.load(std::memory_order_relaxed)))
-                continue;
-            const uint8_t cModes = pReverse->Modes.load(std::memory_order_acquire);
             for (uint8_t theirHeld = 0; theirHeld < 2; ++theirHeld)
                 for (uint8_t theirWant = 0; theirWant < 2; ++theirWant)
                 {
-                    if ((cModes & (1u << (theirHeld * 2 + theirWant))) == 0)
-                        continue;
                     if (!Conflicts(theirWant, cHeld.Mode) || !Conflicts(aMode, theirHeld))
+                        continue;
+                    Edge* pReverse = FindEdge(apLock, cHeld.Lock, theirHeld, theirWant);
+                    if (!pReverse || (pReverse->ThreadId == cThreadId && !pReverse->ManyThreads.load(std::memory_order_relaxed)))
                         continue;
                     if (pReverse->Reported.exchange(true))
                         continue;

@@ -98,3 +98,23 @@ These are primarily implementation references. We use our own engine bindings ra
 6. Check permanent abilities across actor reloads, ordinary live-menu behavior and SSE Engine Fixes compatibility, and fix demonstrated failures before v1 playtest.
 
 For fixes, follow the repository's fastest reproducing test tier and native signature/layout checks. These recommendations do not turn every optional compatibility case into a v1 blocker, and do not reopen accepted ragdoll imperfections.
+
+## Recheck, 2026-10-29
+
+Official `dev` still ends at `25a0049` (2026-10-27, the baseline above; latest release 1.8.4); the community fork's
+newest work is name tags (future scope). Pull requests and branches the review did not name:
+
+- **#934 (merged), waypoint without a worldspace:** covered. `SkyrimBridge::SetPlayerWaypoint` refuses a missing or
+  non-worldspace/cell form (40535 reads its type unchecked).
+- **#929 (open), unresolvable magic equipment:** covered. `EquipSpell` 38896 returns on a null spell; a missing
+  enchantment logs and is skipped (`GetExtraDataFromItem`); the projectile launch guard was ported (CastingSafety).
+- **#935 (draft), death items on summons:** not ported. Our `HookAddDeathItems` skips copies only, so a summon's owner
+  still adds its death items and syncs them to a body that vanishes. Harmless traffic; a one-line `IsCommandedActor`
+  skip if it ever matters.
+- **#914 (closed, unmerged), beast appearance after leaving a beast form:** their event-ordering fix does not apply;
+  our beast-form path differs (copies restore owner values after the race switch). Covered by the werewolf item.
+- **Branches `feature-engineFixes`, `feat/sentry-crash-reporting`, `feat/potions`:** 2022-era and stale; nothing to take.
+
+Still open from this review: controller step timing (#901), null spell/shout list entries after deserialization
+(`43bfd173`), unattached exterior cell loading (community `cabc86bc`). Permanent slow time (`69fe8e67`) is not needed
+for vanilla.

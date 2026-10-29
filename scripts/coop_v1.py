@@ -276,8 +276,21 @@ def reload_host_save(name):
     ct.joins_with_world("rejoins the host's saved control world")
 
 
+def save_does_not_update_frozen_world():
+    """Saving drains a frozen VM: that drain must not run the full co-op world update."""
+    before = ct.player_command("", {"cmd": "memory_sites"})["updates"]
+    save = ct.save_game("", "SkyrimCoopUpdateFreeze")
+    ct.wait_for("the host save and co-save are written", ct.saves_written(save), 30)
+    after = ct.player_command("", {"cmd": "memory_sites"})["updates"]
+    if after["frozen"] != before["frozen"]:
+        raise ct.TestFailure(f"the save ran {after['frozen'] - before['frozen']} full world updates while the VM was frozen")
+    if after["update_overlaps"] != before["update_overlaps"]:
+        raise ct.TestFailure("full co-op world updates overlapped during the save")
+
+
 def register(scenarios, tags):
     entries = {
+        "save-does-not-update-frozen-world": (save_does_not_update_frozen_world, {"save", "v1"}),
         "guest-quits-to-main-menu": (guest_quits, {"session", "restart"}),
         "host-quits-to-main-menu": (host_quits, {"session", "restart"}),
         "guest-leaves-to-main-menu": (guest_leaves, {"session", "restart"}),

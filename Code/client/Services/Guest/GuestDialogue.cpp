@@ -13,7 +13,6 @@ GuestDialogue::GuestDialogue(World& aWorld, entt::dispatcher& aDispatcher, Dialo
     : m_world(aWorld)
     , m_dialogue(aDialogue)
 {
-    Listen<NotifyDialogueList, &GuestDialogue::OnList>(m_connections, aDispatcher, this);
     Listen<NotifyDialogueRefused, &GuestDialogue::OnRefused>(m_connections, aDispatcher, this);
     Listen<NotifyDialogue, &GuestDialogue::OnLine>(m_connections, aDispatcher, this);
     Listen<NotifySubtitle, &GuestDialogue::OnSubtitle>(m_connections, aDispatcher, this);
@@ -55,9 +54,6 @@ bool GuestDialogue::OnTalk(uint32_t aActorFormId) noexcept
 void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
     m_greeting = ToGame(acMessage.Greeting);
-    m_step = 0;
-    m_options.clear();
-    m_shownStep = 0;
     // The player who asked for it is in it, every player when the NPC greeted the party: its menu opens on its copy,
     // or it leaves.
     if (std::exchange(m_asked, 0) != acMessage.NpcId && !acMessage.Everyone)
@@ -78,32 +74,14 @@ void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_dialogue.Transport().Send(close);
 }
 
-void GuestDialogue::OnList(const NotifyDialogueList& acMessage) noexcept
-{
-    if (acMessage.Conversation != m_dialogue.Conversation())
-        return;
-    m_step = acMessage.Step;
-    m_choices = acMessage.Choices;
-    m_options.clear();
-    for (const auto& cOption : acMessage.Options)
-        m_options.push_back({ToGame(cOption.Topic), ToGame(cOption.Info),
-                             cOption.Quest != GameId{} ? ToGame(cOption.Quest) : 0, cOption.Text});
-    // The same step again: a pick of this game's that was not said; its menu takes a pick again.
-    m_shownStep = 0;
-}
-
 void GuestDialogue::OnClosed() noexcept
 {
     m_greeting = 0;
-    m_step = 0;
-    m_shownStep = 0;
 }
 
 std::optional<std::vector<IDialogueBridge::Option>> GuestDialogue::OnListBuilt() noexcept
 {
-    if (!m_dialogue.Conversation() || !m_step || m_step != m_dialogue.Step())
-        return std::nullopt;
-    return m_options;
+    return m_dialogue.PartyList();
 }
 
 void GuestDialogue::OnRefused(const NotifyDialogueRefused& acMessage) noexcept
@@ -120,16 +98,6 @@ void GuestDialogue::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
     else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation())
         ReplayGreeting();
     m_menuOpen = aMenuOpen;
-    if (aMenuOpen && m_dialogue.Joined())
-        ShowList();
-}
-
-void GuestDialogue::ShowList() noexcept
-{
-    if (!m_step || m_step != m_dialogue.Step() || m_shownStep == m_step)
-        return;
-    if (m_dialogue.Bridge().ShowList(m_options, m_choices))
-        m_shownStep = m_step;
 }
 
 void GuestDialogue::OnLine(const NotifyDialogue& acMessage) noexcept

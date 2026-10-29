@@ -7,6 +7,7 @@
 #include <Events/UpdateEvent.h>
 
 #include <World.h>
+#include <Diagnostics/MessageTrail.h>
 
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -123,6 +124,12 @@ void TransportService::Close(DisconnectedEvent::Cause aWhy) noexcept
     m_closing.reset();
 }
 
+std::string TransportService::GetLocalPlayerName() const noexcept
+{
+    const std::string cName = m_formBridge.GetFormName(m_playerBridge.GetPlayerBaseNpcFormId());
+    return cName.empty() ? "Some dragon boi" : cName;
+}
+
 uint64_t TransportService::GetTick() const noexcept
 {
     return m_pHostNetwork ? m_pHostNetwork->GetTick() : GetClock().GetCurrentTick();
@@ -136,6 +143,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
         Wire::Buffer buffer(1 << 16);
         Wire::Buffer::Writer writer(&buffer);
         acMessage.Serialize(writer);
+        Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Sent, RequestName(acMessage.GetOpcode()), 0, static_cast<uint32_t>(writer.Size()));
         m_pHostNetwork->Receive(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), kLocalConnectionId);
         return true;
     }
@@ -159,6 +167,7 @@ void TransportService::SendPacket(const RequestMessage& acMessage) const noexcep
     acMessage.Serialize(writer);
 
     Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Sent, RequestName(acMessage.GetOpcode()), 0, static_cast<uint32_t>(writer.Size()));
 
     Client::Send(&packet, acMessage.GetOpcode() == kPartyTravelRequest ? Net::kReliableNoNagle : Net::kReliable);
 }
@@ -193,6 +202,7 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
         return;
     }
 
+    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Received, NotifyName(pMessage->GetOpcode()), 0, aSize);
     m_messageHandlers[pMessage->GetOpcode()](pMessage);
 }
 
@@ -206,9 +216,7 @@ void TransportService::OnConnected()
     // null if discord is not active
     // TODO: think about user opt out
 
-    // Player identity — use bridge instead of direct SKSE calls
-    const std::string formName = m_formBridge.GetFormName(m_playerBridge.GetPlayerBaseNpcFormId());
-    request.Username = formName.empty() ? "Some dragon boi" : formName.c_str();
+    request.Username = GetLocalPlayerName();
 
     request.UserMods = RunningGame::Plugins(m_formBridge);
 

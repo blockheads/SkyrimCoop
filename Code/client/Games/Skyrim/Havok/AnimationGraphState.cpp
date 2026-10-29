@@ -129,7 +129,7 @@ struct AnimationStreamReader
 };
 
 // BShkbAnimationGraph::SaveState / LoadState (63601, 63602; our names).
-using TSaveGraphState = bool(BShkbAnimationGraph*, AnimationStreamWriter* apStream, bool aUnk);
+using TSaveGraphState = bool(BShkbAnimationGraph*, AnimationStreamWriter* apStream, bool aFullSave);
 using TLoadGraphState = bool(BShkbAnimationGraph*, AnimationStreamReader* apStream);
 
 // The format: per graph its project name (16-bit length, characters) and its state (32-bit length, bytes).
@@ -182,7 +182,7 @@ bool Save(BSAnimationGraphManager* apManager, std::string& aState) noexcept
         if (!pGraph)
             continue;
         AnimationStreamWriter writer;
-        // The flag is the save's option bit 4 (TESObjectREFR::SaveGame); a normal save passes it clear.
+        // This snapshot uses the unload path; a full save also keeps active clip times (20098 -> 65148).
         saved = s_saveGraphState(pGraph, &writer, false) && saved;
         const char* cpProject = pGraph->projectName ? pGraph->projectName : "";
         AppendBlock(aState, cpProject, std::strlen(cpProject), false);

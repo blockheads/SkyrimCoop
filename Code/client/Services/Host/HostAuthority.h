@@ -142,6 +142,7 @@ private:
     void OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A chat line goes to everyone, the sender too (its chat shows what it sent), under its name.
     void OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
 

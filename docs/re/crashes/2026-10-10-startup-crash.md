@@ -6,6 +6,11 @@ IDA. Fixed by building the client with clang-cl ([compiler-abi](../systems/compi
 "VM inactive" guard tried below used a wrong offset (0x690 is a counter on 1.6.1170; `isFrozen` is
 0x680) and was removed again: the client ticks every VM update, as before.
 
+**2026-10-29 follow-up:** the frozen-VM check is now restored at the verified `0x680` offset
+for a separate save-time re-entry defect. Its earlier removal did not resolve the compiler ABI
+crash and must not be read as evidence that frozen updates are safe. See
+[the save-drain investigation](2026-10-29-save-vm-reentry.md).
+
 **Symptom:** `scripts/coop_test.py launch` (fresh `coc QASmoke` start, 1.6.1170, Proton 10,
 SKSE 2.2.6). SKSE loads the plugin, `tp_client.log` reaches `SKSE is already active`, then:
 

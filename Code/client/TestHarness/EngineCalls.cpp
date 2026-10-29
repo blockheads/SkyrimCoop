@@ -170,12 +170,6 @@ void RunConsoleCommand(const std::string& acLine) noexcept
     ExecuteConsoleCommand(acLine.c_str());
 }
 
-bool IsMenuOpen(const char* acpMenu) noexcept
-{
-    const UI* pUI = UI::Get();
-    return pUI && pUI->GetMenuOpen(acpMenu);
-}
-
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept
 {
     using TAddMessage = void(void*, const BSFixedString*, uint32_t, void*);
@@ -185,22 +179,6 @@ void SetMenuShown(const char* acpMenu, bool aShown) noexcept
         return;
     const BSFixedString cName(acpMenu);
     s_addMessage.Get()(*queue.Get(), &cName, aShown ? UIMessage::kShow : UIMessage::kHide, nullptr);
-}
-
-std::vector<std::string> GetOpenMenus() noexcept
-{
-    std::vector<std::string> names;
-    if (UI* pUI = UI::Get())
-        for (IMenu* pMenu : pUI->menuStack)
-            if (const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu))
-                names.emplace_back(pName->AsAscii());
-    return names;
-}
-
-uint32_t GetMenuPauseCount() noexcept
-{
-    const UI* cpUI = UI::Get();
-    return cpUI ? cpUI->numPausesGame : 0;
 }
 
 std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
@@ -229,63 +207,6 @@ std::optional<bool> IsLocalMapReady() noexcept
     const auto* cpMap = pUI && pUI->GetMenuOpen("MapMenu") ? static_cast<const MapMenu*>(pUI->FindMenuByName("MapMenu")) : nullptr;
     return cpMap ? std::optional(cpMap->localMapControlsReady) : std::nullopt;
 }
-
-bool IsKillCamPlaying() noexcept
-{
-    const VATS* pVATS = VATS::Get();
-    return pVATS && pVATS->mode == VATS::kKillCam;
-}
-
-float GetGlobalTimeMultiplier() noexcept
-{
-    POINTER_SKYRIMSE(float, s_globalTimeMultiplier, 388442); // BSTimer's current multiplier
-    return *s_globalTimeMultiplier.Get();
-}
-
-namespace
-{
-enum class Visuals
-{
-    OnBody,   // playing on the actor's body
-    AtCamera, // playing at this game's camera, which follows the actor
-    Shown     // every one in the list, the finished ones fading out too
-};
-
-std::vector<uint32_t> VisualFormIds(uint32_t aFormId, Visuals aWhich) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    ProcessLists* pProcessLists = ProcessLists::Get();
-    if (!pActor || !pProcessLists)
-        return {};
-    const uint32_t cHandle = pActor->GetHandle().handle.iBits;
-    std::vector<uint32_t> result;
-    {
-        BSScopedLock<BSRecursiveLock> _(pProcessLists->magicEffectsLock);
-        for (uint32_t i = 0; pProcessLists->magicEffects.data && i < pProcessLists->magicEffects.length; ++i)
-        {
-            const auto* pEffect = Cast<ReferenceEffect>(pProcessLists->magicEffects[i]);
-            if (!pEffect || pEffect->hTarget != cHandle)
-                continue;
-            if (aWhich != Visuals::Shown)
-            {
-                const bool cAtCamera = pEffect->pController && pEffect->pController->EffectAttachesToCamera();
-                if (pEffect->bFinished || cAtCamera != (aWhich == Visuals::AtCamera))
-                    continue;
-            }
-            const TESForm* pForm = nullptr;
-            if (const auto* pShader = Cast<ShaderReferenceEffect>(pProcessLists->magicEffects[i]))
-                pForm = pShader->pEffectShader;
-            else if (const auto* pModel = Cast<ModelReferenceEffect>(pProcessLists->magicEffects[i]))
-                pForm = pModel->pArtObject;
-            if (pForm)
-                result.push_back(pForm->formID);
-        }
-    }
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    return result;
-}
-} // namespace
 
 std::vector<ReferenceEffectReadout> GetReferenceEffects(uint32_t aFormId) noexcept
 {
@@ -330,29 +251,6 @@ std::vector<ReferenceEffectReadout> GetReferenceEffects(uint32_t aFormId) noexce
     return result;
 }
 
-std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
-{
-    return VisualFormIds(aFormId, Visuals::OnBody);
-}
-
-std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept
-{
-    return VisualFormIds(aFormId, Visuals::AtCamera);
-}
-
-std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
-{
-    return VisualFormIds(aFormId, Visuals::Shown);
-}
-
-bool PlayerCanRide(uint32_t aMountFormId) noexcept
-{
-    using TCanRide = bool(Actor*, Actor*);
-    POINTER_SKYRIMSE(TCanRide, s_canRide, 38706);
-    Actor* pMount = GetActor(aMountFormId);
-    return pMount && PlayerCharacter::Get() && s_canRide(PlayerCharacter::Get(), pMount);
-}
-
 void ChooseDifficulty(uint32_t aDifficulty) noexcept
 {
     using TSetDifficulty = void(PlayerCharacter*, int32_t);
@@ -362,32 +260,6 @@ void ChooseDifficulty(uint32_t aDifficulty) noexcept
         return;
     *Settings::GetDifficulty() = static_cast<int32_t>(aDifficulty);
     s_setDifficulty(pPlayer, static_cast<int32_t>(aDifficulty));
-}
-
-uint32_t GetEnemyHealthTarget() noexcept
-{
-    // HUDMenu (1.6.1170): BSTArray<HUDObject*> objects at +0x40 (data, then size at +0x50). The
-    // EnemyHealth object keeps its actor's handle at +0x28 and its mode at +0x34 (0: none,
-    // 1: combat target, 2: damaged; EnemyHealth 51672).
-    UI* pUi = UI::Get();
-    IMenu* pHud = pUi ? pUi->FindMenuByName(BSFixedString("HUD Menu")) : nullptr;
-    if (!pHud)
-        return 0;
-    VersionDbPtr<void> enemyHealthVtable(215382);
-    const auto* pBytes = reinterpret_cast<const uint8_t*>(pHud);
-    auto* const* ppObjects = *reinterpret_cast<void* const* const*>(pBytes + 0x40);
-    const uint32_t cCount = *reinterpret_cast<const uint32_t*>(pBytes + 0x50);
-    for (uint32_t i = 0; ppObjects && i < cCount; ++i)
-    {
-        const auto* pObject = static_cast<const uint8_t*>(ppObjects[i]);
-        if (!pObject || *reinterpret_cast<void* const*>(pObject) != enemyHealthVtable.Get())
-            continue;
-        if (*reinterpret_cast<const int32_t*>(pObject + 0x34) == 0)
-            return 0;
-        const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(*reinterpret_cast<const uint32_t*>(pObject + 0x28));
-        return pTarget ? pTarget->formID : 0;
-    }
-    return 0;
 }
 
 void PlayerActivates(uint32_t aObjectFormId) noexcept
@@ -546,10 +418,16 @@ void ReadPose(const NiAVObject& acRoot, ReferenceState& aState) noexcept
         {
             auto& node = aState.Pose.emplace_back(ReferenceState::Node{cName});
             for (int axis = 0; axis < 3; ++axis)
+            {
                 node.Position[axis] = pObject->world.translate[axis];
+                node.LocalPosition[axis] = pObject->local.translate[axis];
+            }
             for (int row = 0; row < 3; ++row)
                 for (int column = 0; column < 3; ++column)
+                {
                     node.Rotate[row * 3 + column] = pObject->world.rotate[row][column];
+                    node.LocalRotate[row * 3 + column] = pObject->local.rotate[row][column];
+                }
         }
         if (const bhkNiCollisionObject* pCollision = pObject->collisionObject; pCollision && pCollision->body)
             if (const auto* pBody = Cast<bhkRigidBody>(pCollision->body) ? pCollision->body->referencedObject : nullptr)
@@ -598,35 +476,6 @@ void ReadGraph(TESObjectREFR& aRef, ReferenceState& aState) noexcept
     pManager->Release();
 }
 } // namespace
-
-std::optional<std::vector<ReferenceState::Body>> GetRagdoll(uint32_t aActorFormId) noexcept
-{
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
-    if (!pActor)
-        return std::nullopt;
-    std::vector<ReferenceState::Body> bodies;
-    for (const bhkWorldObject* pBody : RagdollBodiesOf(*pActor))
-    {
-        auto& body = bodies.emplace_back();
-        BodyRead read;
-        if (!pBody || !pBody->referencedObject || !ReadBody(*pBody, read))
-            continue;
-        body.InWorld = pBody->referencedObject->world != nullptr;
-        body.Motion = pBody->referencedObject->motionType;
-        body.Awake = read.Active;
-        for (int axis = 0; axis < 3; ++axis)
-        {
-            body.Position[axis] = read.Position[axis];
-            body.Velocity[axis] = read.LinearVelocity[axis];
-        }
-        body.Rotation[0] = read.Rotation.x;
-        body.Rotation[1] = read.Rotation.y;
-        body.Rotation[2] = read.Rotation.z;
-        body.Rotation[3] = read.Rotation.w;
-        body.HasBone = BoneOf(*pBody, body.Bone);
-    }
-    return bodies;
-}
 
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
 {
@@ -714,51 +563,6 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept
         ScopedUnequipOverride _;
         pActor->UnEquipAll();
     }
-}
-
-int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor || aCastingSource >= 4 || !pActor->casters[aCastingSource])
-        return -1;
-    return static_cast<int32_t>(pActor->casters[aCastingSource]->eState);
-}
-
-int32_t GetVoiceLineState(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor ? pActor->soundCallBackSet : -2;
-}
-
-float GetVoiceTimer(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor ? pActor->fVoiceTimer : 0.f;
-}
-
-int32_t GetProcessLevel(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->currentProcess ? pActor->currentProcess->processLevel : -1;
-}
-
-uint32_t GetFadeState(uint32_t aFormId) noexcept
-{
-    using TGetFadeState = uint32_t(AIProcess*);
-    POINTER_SKYRIMSE(TGetFadeState, s_getFadeState, 39451); // ActorProcess::GetFadeState
-    const Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->currentProcess ? s_getFadeState(pActor->currentProcess) : 0;
-}
-
-VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->highProcess)
-        return {};
-    BSSoundHandle* pHandle = &pActor->currentProcess->highProcess->soundHandles[0];
-    using TGetDuration = uint64_t(BSSoundHandle*);
-    POINTER_SKYRIMSE(TGetDuration, s_getDuration, 67630); // BSSoundHandle::GetDuration (CommonLib)
-    return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : (s_getDuration.Get())(pHandle)};
 }
 
 namespace
@@ -1002,20 +806,6 @@ bool PlayerStores(uint32_t aItemFormId, int32_t aCount, uint32_t aContainerFormI
     return true;
 }
 
-std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept
-{
-    const auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(aGlobalId));
-    if (!pGlobal)
-        return std::nullopt;
-    return pGlobal->f;
-}
-
-float GetRawDaysPassed() noexcept
-{
-    const TimeData* pTime = TimeData::Get();
-    return pTime ? pTime->rawDaysPassed : 0.f;
-}
-
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
 {
     auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
@@ -1062,12 +852,6 @@ bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint
     return true;
 }
 
-uint32_t GetSelectedPower(uint32_t aFormId) noexcept
-{
-    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    return pActor && pActor->equippedShout ? pActor->equippedShout->formID : 0;
-}
-
 std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::optional<uint32_t> aChangeFlags) noexcept
 {
     TESForm* pForm = TESForm::GetById(aFormId);
@@ -1091,28 +875,6 @@ bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& a
     return pForm && FormState::Load(*pForm, aChangeFlags, std::string(acData.data(), acData.size()));
 }
 
-bool IsProcessMe(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor && (pActor->flags1 & Actor::kProcessMe);
-}
-
-int32_t GetPackageType(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->currentPackage.package)
-        return -1;
-    return pActor->currentProcess->currentPackage.package->packType;
-}
-
-uint32_t GetRunningPackage(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->currentPackage.package)
-        return 0;
-    return pActor->currentProcess->currentPackage.package->formID;
-}
-
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
 {
     using TInitFromPackage = void(ActorPackage*, TESPackage*, TESObjectREFR* apTarget, Actor*);
@@ -1131,72 +893,6 @@ bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
         s_sendPackageEvent(&pEvents->packageEvent, &cEvent);
     }
     return true;
-}
-
-bool HasMountInteraction(uint32_t aFormId) noexcept
-{
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    return pActor && pActor->extraData.Contains(ExtraDataType::Interaction);
-}
-
-bool IsGettingOnOrOffMount(uint32_t aFormId) noexcept
-{
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    return pActor && (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT);
-}
-
-AiReadout GetAiReadout(uint32_t aFormId) noexcept
-{
-    AiReadout readout;
-    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    if (!pActor || !pActor->currentProcess)
-        return readout;
-    const TESPackage* pPackage = pActor->GetCurrentPackage();
-    readout.Package = pPackage ? pPackage->formID : 0;
-    const ActorPackage& cRunning = pActor->currentProcess->currentPackage;
-    if (pPackage && cRunning.package == pPackage)
-        if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cRunning.target))
-            readout.PackageTarget = pTarget->formID;
-    // Through the hooked function: a copy answers its owner's.
-    using TGetCurrentScene = TESForm*(Actor*);
-    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
-    if (const TESForm* pScene = s_getCurrentScene(pActor))
-        readout.Scene = pScene->formID;
-    if (const MiddleProcess* pMiddle = pActor->currentProcess->middleProcess)
-        if (const TESObjectREFR* pFurniture = TESObjectREFR::GetByHandle(pMiddle->occupiedFurniture))
-            readout.Furniture = pFurniture->formID;
-    if (const TESObjectREFR* pFollowed = TESObjectREFR::GetByHandle(pActor->currentProcess->followTarget))
-        readout.FollowTarget = pFollowed->formID;
-    // GameFunc::native::GetCombatState (subject, two parameters, the result), as a dialogue line reads it.
-    using TCondition = bool(TESObjectREFR*, void*, void*, double*);
-    POINTER_SKYRIMSE(TCondition, s_getCombatState, 21740);
-    double combat = 0.0;
-    s_getCombatState(pActor, nullptr, nullptr, &combat);
-    readout.Combat = static_cast<uint32_t>(combat);
-    if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
-        readout.CombatTarget = pTarget->formID;
-    return readout;
-}
-
-bool IsTalking(uint32_t aFormId) noexcept
-{
-    using TIsTalking = bool(Actor*);
-    POINTER_SKYRIMSE(TIsTalking, s_isTalking, 37266);
-    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    return pActor && s_isTalking(pActor);
-}
-
-bool IsInCombat(uint32_t aFormId) noexcept
-{
-    // The condition IsInCombat (21576: subject, two parameters, the result), which reads the actor's vfunc 0xE3.
-    using TCondition = bool(TESObjectREFR*, void*, void*, double*);
-    POINTER_SKYRIMSE(TCondition, s_isInCombat, 21576);
-    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    if (!pActor)
-        return false;
-    double result = 0.0;
-    s_isInCombat(pActor, nullptr, nullptr, &result);
-    return result == 1.0;
 }
 
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
@@ -1241,87 +937,10 @@ std::optional<int32_t> GetRelationshipRank(uint32_t aActor, uint32_t aOther) noe
     return static_cast<int32_t>(result);
 }
 
-Water GetWater(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return {};
-    using TGetSubmergedLevel = float(const Actor*, float, TESObjectCELL*);
-    POINTER_SKYRIMSE(TGetSubmergedLevel, s_getSubmergedLevel, 37448); // Actor::GetSubmergedLevel (CommonLib)
-    return {pActor->parentCell ? s_getSubmergedLevel.Get()(pActor, pActor->position.z, pActor->parentCell) : 0.f,
-            pActor->actorState.IsSwimming(), (pActor->flags2 & Actor::kUnderwater) != 0, pActor->fUnderWaterTimer};
-}
-
-std::string GetSubtitle(uint32_t aFormId) noexcept
-{
-    SubtitleManager* pManager = SubtitleManager::Get();
-    if (!pManager)
-        return {};
-    BSScopedLock<BSRecursiveLock> _{pManager->lock};
-    for (uint32_t i = 0; i < pManager->subtitles.length; ++i)
-    {
-        SubtitleInfo& info = pManager->subtitles.data[i];
-        const TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(info.speakerHandle);
-        if (pSpeaker && pSpeaker->formID == aFormId && info.text.AsAscii())
-            return info.text.AsAscii();
-    }
-    return {};
-}
-
-uint32_t GetSubtitleOnScreen() noexcept
-{
-    SubtitleManager* pManager = SubtitleManager::Get();
-    if (!pManager)
-        return 0;
-    const TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->currentSpeakerHandle);
-    return pSpeaker ? pSpeaker->formID : 0;
-}
-
-uint8_t GetSitSleepState(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    return pActor ? pActor->actorState.GetSitSleepState() : 0;
-}
-
-uint8_t GetKnockState(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor ? pActor->actorState.GetKnockState() : 0;
-}
-
-bool IsSneaking(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->actorState.IsSneaking();
-}
-
-bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return false;
-    BSFixedString name(acpName);
-    bool value = false;
-    EngineVirtual(pActor->animationGraphHolder).GetVariableBool(&name, &value);
-    return value;
-}
-
 bool IsInKillMove(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
     return pActor && pActor->IsInKillMove();
-}
-
-KillState GetKillState(uint32_t aFormId) noexcept
-{
-    const Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->currentProcess)
-        return {};
-    using TIsInDeferredKill = bool(const Actor*);
-    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
-    using TIsKillQueued = bool(const AIProcess*);
-    POINTER_SKYRIMSE(TIsKillQueued, s_isKillQueued, 40011);
-    return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
 }
 
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept
@@ -1389,12 +1008,13 @@ std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormI
 std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept
 {
     aMicroseconds = 0;
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pRef)
         return {};
+    auto* pActor = Cast<Actor>(pRef);
     std::string state;
     const auto cStart = std::chrono::steady_clock::now();
-    const bool cSaved = pActor->SaveAnimationGraphState(state);
+    const bool cSaved = pActor ? pActor->SaveAnimationGraphState(state) : pRef->SaveGraphs(state);
     aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
     return cSaved ? std::string(state.data(), state.size()) : std::string{};
 }
@@ -1402,12 +1022,13 @@ std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept
 bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicroseconds) noexcept
 {
     aMicroseconds = 0;
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pRef)
         return false;
+    auto* pActor = Cast<Actor>(pRef);
     const std::string cState(acState.data(), acState.size());
     const auto cStart = std::chrono::steady_clock::now();
-    const bool cLoaded = pActor->LoadAnimationGraphState(cState);
+    const bool cLoaded = pActor ? pActor->LoadAnimationGraphState(cState) : pRef->LoadGraphs(cState);
     aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
     return cLoaded;
 }
@@ -1447,25 +1068,6 @@ std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept
     }
     pManager->Release();
     return writers;
-}
-
-int32_t GetCharacterState(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return -1;
-    using TGetCharacterController = uint8_t*(Actor*);
-    POINTER_SKYRIMSE(TGetCharacterController, s_getCharacterController, 37258); // Actor::GetCharacterController
-    const uint8_t* pController = (s_getCharacterController.Get())(pActor);
-    // bhkCharacterController::context (hkpCharacterContext) at 0x1E0, its currentState at +0x20 (CommonLibSSE-NG).
-    return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
-}
-
-uint32_t GetGrabbedObject() noexcept
-{
-    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    const TESObjectREFR* pObject = pPlayer && pPlayer->grabbedObject ? TESObjectREFR::GetByHandle(pPlayer->grabbedObject) : nullptr;
-    return pObject ? pObject->formID : 0;
 }
 
 DialogueState GetDialogue() noexcept
@@ -1641,66 +1243,12 @@ bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction,
     return GlobalCall::QueueCall(cCall, std::move(aOnReturn));
 }
 
-namespace
-{
-// A node of the reference's 3D by name (NiAVObject::GetObjectByName), in world space: the 3D on screen (the
-// player's first-person one in first person), or the third-person body others see.
-std::optional<glm::vec3> NodePosition(TESObjectREFR* apRef, const BSFixedString& acName, bool aBody = false) noexcept
-{
-    NiAVObject* pRoot = aBody ? apRef->Get3D1(false) : apRef->GetNiNode();
-    const NiAVObject* pNode = pRoot ? pRoot->GetByName(acName) : nullptr;
-    if (!pNode)
-        return std::nullopt;
-    return glm::vec3(pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z);
-}
-} // namespace
-
-bool BoneOf(const bhkWorldObject& acBody, float aPosition[3]) noexcept
-{
-    using TFindCollidableObject = NiAVObject*(const void*);
-    POINTER_SKYRIMSE(TFindCollidableObject, s_findCollidableObject, 15870);
-    const NiAVObject* pNode = acBody.referencedObject ? s_findCollidableObject(acBody.referencedObject->collidable) : nullptr;
-    if (!pNode)
-        return false;
-    aPosition[0] = pNode->world.translate.x;
-    aPosition[1] = pNode->world.translate.y;
-    aPosition[2] = pNode->world.translate.z;
-    return true;
-}
-
 bool IsInRagdollState(uint32_t aFormId) noexcept
 {
     using TIsInRagdollState = bool(const Actor*);
     POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
     const Actor* pActor = GetActor(aFormId);
     return pActor && s_isInRagdollState.Get()(pActor);
-}
-
-std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return std::nullopt;
-    static const BSFixedString s_pelvis("NPC Pelvis [Pelv]");
-    static const BSFixedString s_head("NPC Head [Head]");
-    const auto cPelvis = NodePosition(pActor, s_pelvis, true);
-    const auto cHead = NodePosition(pActor, s_head, true);
-    if (!cPelvis || !cHead)
-        return std::nullopt;
-    // Down from above its feet (a body lying on its back starts in its own collision: passed through).
-    const glm::vec3 cFeet(pActor->position.x, pActor->position.y, pActor->position.z);
-    const float cFrom[3]{cFeet.x, cFeet.y, cFeet.z + 50.f};
-    const float cTo[3]{cFeet.x, cFeet.y, cFeet.z - 2000.f};
-    const auto cFloor = CastRay(cFrom, cTo, 30, aFormId);
-    if (!cFloor || !cFloor->Hit)
-        return std::nullopt;
-    const float cFloorZ = cFloor->Point[2];
-    static const BSFixedString s_skeleton("NPC Root [Root]");
-    const NiAVObject* pRoot = pActor->Get3D1(false);
-    const float cRootZ = pRoot ? pRoot->world.translate.z : cFeet.z;
-    return BodyPose{.FloorGap = cFeet.z - cFloorZ, .Root = cRootZ - cFloorZ,
-                    .Skeleton = NodePosition(pActor, s_skeleton, true).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
-                    .Pelvis = cPelvis->z - cFloorZ, .Head = cHead->z - cFloorZ, .Floor = cFloor->Reference};
 }
 
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept
@@ -1825,38 +1373,6 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     RawButtonEvent* pChain = &event;
     (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
     return true;
-}
-
-std::optional<MapMarker> GetPlayerMapMarker() noexcept
-{
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    TESObjectREFR* pMarker = pPlayer && pPlayer->playerMapMarker ? TESObjectREFR::GetByHandle(pPlayer->playerMapMarker) : nullptr;
-    if (!pMarker)
-        return std::nullopt;
-    // 40535 puts it in the worldspace's persistent cell, or in the interior cell.
-    const TESWorldSpace* pWorld = pMarker->GetWorldSpace();
-    const uint32_t cWorldOrCell = pWorld ? pWorld->formID : (pMarker->parentCell ? pMarker->parentCell->formID : 0);
-    return MapMarker{pMarker->position.x, pMarker->position.y, pMarker->position.z, cWorldOrCell};
-}
-
-bool IsMapReady() noexcept
-{
-    static const BSFixedString s_mapMenu("MapMenu");
-    UI* pUI = UI::Get();
-    const auto* pMap = pUI && pUI->GetMenuOpen(s_mapMenu) ? static_cast<const MapMenu*>(pUI->FindMenuByName(s_mapMenu)) : nullptr;
-    return pMap && pMap->controlsReady;
-}
-
-std::optional<double> GetWaitMenuHours() noexcept
-{
-    static const BSFixedString s_sleepWaitMenu("Sleep/Wait Menu");
-    UI* pUI = UI::Get();
-    IMenu* pMenu = pUI && pUI->GetMenuOpen(s_sleepWaitMenu) ? pUI->FindMenuByName(s_sleepWaitMenu) : nullptr;
-    GFxValue value{};
-    if (!pMenu || !pMenu->uiMovie || !pMenu->uiMovie->GetVariable(&value, "_root.SleepWaitMenu_mc.HoursSlider.value") ||
-        (value.type & GFxValue::kTypeMask) != GFxValue::kNumber)
-        return std::nullopt;
-    return value.value.number;
 }
 
 namespace
@@ -1986,15 +1502,6 @@ bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept
     return MapAndSend(s_event.header, s_event.userEvent);
 }
 
-std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept
-{
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    const auto* pNpc = pActor && pActor->baseForm ? Cast<TESNPC>(pActor->baseForm) : nullptr;
-    if (!pNpc)
-        return std::nullopt;
-    return BaseLooks{.Female = (pNpc->actorData.flags & TESActorBaseData::IS_FEMALE) != 0, .Weight = pNpc->weight, .Level = pNpc->actorData.level};
-}
-
 std::optional<InputState> GetInputState() noexcept
 {
     const auto* pMap = BSInputEnableManager::Get();
@@ -2004,16 +1511,6 @@ std::optional<InputState> GetInputState() noexcept
     for (uint32_t i = 0; i < pMap->contextStack.length; ++i)
         state.Contexts.push_back(pMap->contextStack.data[i]);
     return state;
-}
-
-std::optional<std::pair<float, float>> GetMenuCursor() noexcept
-{
-    static const BSFixedString s_cursorMenu("Cursor Menu");
-    UI* pUI = UI::Get();
-    const MenuCursor* pCursor = MenuCursor::Get();
-    if (!pUI || !pCursor || !pUI->GetMenuOpen(s_cursorMenu))
-        return std::nullopt;
-    return std::pair{pCursor->cursorPosX, pCursor->cursorPosY};
 }
 
 void ForcePlayerFirstPerson() noexcept

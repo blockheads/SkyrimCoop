@@ -7,9 +7,19 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 `docs/ideas.md`, engine findings in `docs/re/`, the words (host, guest, owner, copy, player) in
 `docs/design/glossary.md`.
 
-**Goal:** two to four friends play Skyrim together, the host's game is the only authority (direct
+**Goal:** friends play Skyrim together (up to a Steam lobby's 250 since 2026-10-29: `PartySize.h`), the host's game is the only authority (direct
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
+
+2026-10-29: party dialogue built (uncommitted): every menu shows every player's options tagged with who can say them,
+one shared highlight, a player says only its own options ([shared-dialogue.md](design/shared-dialogue.md)).
+Fast tiers and the Skyrim dialogue tag pass (the party list, the shared highlight, a question answered by the guest).
+
+2026-10-29: the v1 list ([v1-playtest-todo.md](v1-playtest-todo.md)) gained first-time join (Quick Start) and a
+save/load gate; the werewolf crash moved to `docs/bugs.md` (after v1). The party limit is a Steam lobby's 250 (`PartySize.h`,
+was 4 on Steam, 8 on the host); only up to 4 players have ever been tested.
+
+Bug reports from play (2026-10-29, uncommitted): `/bug`, `/export`, crash bundles at the next start and `coop_test.py report` ([bug-reports.md](design/bug-reports.md), [playtest.md](playtest.md)); the harness status and log trail now come from the shared `Code/client/Diagnostics/`. Fast tests pass; the plugin builds (test and player builds). `bug-report-writes-every-game` passed in Skyrim before screenshots were dropped and saves kept once per export; that change awaits a rerun on a free duo.
 
 Last updated 2026-10-28: the party-scripts-2 and v1-session-items work is integrated into dev, uncommitted. Crafted potions (v1 checklist) built in `.worktrees/crafted-potions`, uncommitted.
 The combined fast tests and Windows plugin build pass. Review findings and verification limits:
@@ -1080,16 +1090,23 @@ reconstruction and the additional plugin event relay. Barter Speech is implement
 Mod-dependent Experience work is outside v1.0.0. Evidence:
 [native-bugs.md](design/native-bugs.md); accepted reports: [bugs.md](bugs.md).
 
+- **A guest crashed once in `follower-trade-to-picker` (2026-10-29, party dialogue).** `Actor::UpdateInDialogue`
+  (37541) on a worker reached 39372, which dereferenced a null RCX; Lydia (`FF001E90`, the fixture's follower) was
+  already flagged deleted (the client prefix's `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced: the scenario passed
+  3 of 3 since. Lead (v1-engine-fixes' read, unconfirmed): the baseline between scenarios deletes the cell's NPCs
+  while queued dialogue work still holds her, so a fixture teardown race rather than play code. If it shows again,
+  check whether the baseline deletes an actor still in a conversation (and end the conversation first).
+
 - **Any added hook breaks `guest-brings-character-into-hosts-world` (found 2026-10-24, physics-sync).** With one more
   `HOOK_ID` (physics-sync's `PlayerHands` 79133, a `StartGrabObject` 40552 hook, or a test hook on 40557, which the
   join never calls) the scenario's own steps pass, but the baseline finds the host's player ~40 units off its spot
   (`left behind`); with `SKYRIMCOOP_DISABLE_HOOKS=PlayerHands` it passes 3 of 3. So not the hooks' code: something
   in hook installation (order or count) the stacked players' arrival depends on. Not traced yet (no overlapping
   `HOOK_ID` targets). Until then the scenario fails in the physics-sync worktree.
-- **A save load leaves QASmoke's animated cover plates (`ACTI 1BA5A`) at another pose** (2026-10-24): after
-  `guest-joins-from-main-menu-as-kept-character` the client's plates stay ~167° from the host's until the cell reloads;
-  a reference's animation state has no world-state row (`unsynced`: animation). The scenario now waits for the poses
-  and fails naming them.
+- **Fixed 2026-10-29: a save load left QASmoke's animated cover plates (`ACTI 1BA5A`) at another pose** (found
+  2026-10-24). The loaded graph's local bones matched but its world transforms were stale: `ApplyGraph` now updates the
+  3D after loading (NiAVObject::Update 70251), equal graph rows included
+  ([evidence](re/crashes/2026-10-29-lock-history-and-button-pose.md)).
 - **Fixed 2026-10-24: a player record's perks doubled on every join** (`JoinBridge::ApplyPlayer` added each kept perk
   again; `ReadPlayer` now lists a perk once). `guest-joins-from-main-menu-as-kept-character` also waits for the perk it
   adds before restarting (the record goes a few seconds after a change).
@@ -1674,13 +1691,20 @@ See `docs/design/join-flow.md`, `Code/client/Ui/README.md` and the integration r
 
 Animation action snapshots now copy and replace their owned strings/vectors under one mutex; refused death
 actions preserve newer actions and body resets. Fast concurrency/restoration tests and native checks pass.
-The original reload corruption and historical werewolf crash remain open; see the
-[stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
+The original reload corruption remains open (v1); the historical werewolf crash is out of v1 scope (2026-10-29,
+`docs/bugs.md`). See the [stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
 
-- **V1 delivery:** a reproducible `test_harness=n` player package with UI/assets/dependencies, clean-install
-  validation and current setup instructions. The README still needs its deleted-server/launcher description cleaned up.
+- **V1 delivery:** a reproducible `test_harness=n` player package with UI/assets/dependencies, Quick Start - SE,
+  clean-install validation and current setup instructions (with `docs/playtest.md`: `/bug`, `/export`). The README
+  still needs its deleted-server/launcher description cleaned up.
+- **V1 first-time join (planned 2026-10-29):** a friend the host's save does not know accepts the invite at the main
+  menu, a new game starts by itself, Quick Start skips the intro, and naming the character joins the host with it
+  ([join-flow.md](design/join-flow.md#first-time-join-planned-2026-10-29-v1)). Today such a friend is refused with
+  "start or load a game of your own". The vanilla intro is out of v1 (`docs/ideas.md`).
 - **V1 acceptance:** the agreed upstream fixes/features and library checks in [v1-playtest-todo.md](v1-playtest-todo.md),
-  the unresolved host-reload freeze, and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
+  the unresolved host-reload freeze with its save/load gate (save three ways, load three ways, then keep playing
+  minutes while checking frames, crashes, copies, follower and items; the current load scenarios stop at positions
+  matching), and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
 - **Later scope:** automatic mod/file syncing or self-updating, a launcher if needed for those features,
   player-list/kick/settings screens and the other items explicitly outside 1.0 above. V1 entry uses Steam invites
   and Skyrim's own save/character flow; no additional Host Game or character-library screen is required.

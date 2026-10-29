@@ -6,7 +6,9 @@
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/Relayed.h>
 #include <Messages/SharedDialogue.h>
+#include <Services/PartyOptionText.h>
 
 #include <algorithm>
 
@@ -23,6 +25,38 @@ HostDialogue::HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, con
     aAuthority.On(*this, &HostDialogue::OnClose);
     aAuthority.On(*this, &HostDialogue::OnJoin);
     aAuthority.On(*this, &HostDialogue::OnStartFailed);
+    aAuthority.On(*this, &HostDialogue::OnHighlight);
+}
+
+DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vector<PartyDialogueList>& acMembers)
+{
+    DialogueOptions merged;
+    const auto cAdd = [&](const DialogueOption& acOption) {
+        if (DialogueLineFor(acOption.Topic, merged))
+            return;
+        DialogueOption option = acOption;
+        option.Players.clear();
+        for (const auto& cMember : acMembers)
+            if (DialogueLineFor(acOption.Topic, *cMember.pOptions))
+                option.Players.push_back(cMember.PlayerId);
+        if (option.Players.empty())
+            return; // nobody in it has this one
+        if (option.Players.size() == acMembers.size())
+            option.Players.clear(); // everyone's
+        merged.push_back(std::move(option));
+    };
+    for (const auto& cOption : acBase)
+        cAdd(cOption);
+    for (const auto& cMember : acMembers)
+        for (const auto& cOption : *cMember.pOptions)
+            cAdd(cOption);
+    return merged;
+}
+
+const DialogueOption* DialogueLineFor(const GameId& acTopic, const DialogueOptions& acOwn)
+{
+    const auto cLine = std::ranges::find(acOwn, acTopic, &DialogueOption::Topic);
+    return cLine != acOwn.end() ? &*cLine : nullptr;
 }
 
 void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -93,50 +127,59 @@ void HostDialogue::OnOptions(const DialogueOptionsRequest& acRequest, Connection
     for (const auto& cPlayer : acRequest.Players)
         pConversation->PlayerOptions[cPlayer.PlayerId] = cPlayer.Options;
     pConversation->Choices = acRequest.Choices;
-    for (const ConnectionId_t cPlayer : pConversation->Players)
-        SendList(cPlayer);
+    Merge();
 }
 
 void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     Conversation* pConversation = Current(acRequest.Conversation, acRequest.Step);
-    // A pick that is not said (another player picked first, the list not shown yet, not one of its options): the
-    // picker's menu shows the current list again. While the NPC answers, the next list comes anyway.
-    const auto cIsListed = [&acRequest](const DialogueOption& acOption) {
-        return acOption.Topic == acRequest.Topic && acOption.Info == acRequest.Info;
-    };
-    const DialogueOptions* pOptions = pConversation ? OptionsFor(aSender) : nullptr;
-    if (!pConversation || !pOptions || !pConversation->Has(aSender) || std::ranges::none_of(*pOptions, cIsListed))
+    // A pick that is not said (another player picked first, the list not shown yet, not its own option) gets the
+    // picker's menu the current list again; one of another player's options also gets its chat the reason (its game
+    // told it already: this is the backstop).
+    const bool cListed = pConversation && pConversation->Options && DialogueLineFor(acRequest.Topic, pConversation->Merged);
+    const DialogueOptions* pOwn = pConversation ? OptionsFor(aSender) : nullptr;
+    const DialogueOption* pLine = cListed && pOwn && pConversation->Has(aSender) ? DialogueLineFor(acRequest.Topic, *pOwn) : nullptr;
+    if (!pLine)
     {
         spdlog::info("HostDialogue: {:x}'s pick of {:X} at step {} is not said ({})", aSender, acRequest.Topic.BaseId,
-                     acRequest.Step, !pConversation ? "another step or conversation" : !pOptions ? "no list yet"
-                     : !pConversation->Has(aSender) ? "not in it" : "not in its list");
+                     acRequest.Step, !pConversation ? "another step or conversation" : !pConversation->Options ? "no list yet"
+                     : !pConversation->Has(aSender) ? "not in it" : !cListed ? "not in the party's list" : "not its own option");
         if (Conversation* pOpen = Current(acRequest.Conversation); pOpen && pOpen->Has(aSender))
             SendList(aSender);
+        if (cListed && pConversation->Has(aSender))
+        {
+            NotifyChatMessageBroadcast line;
+            line.MessageType = kSystemMessage;
+            line.ChatMessage = ChatText(CannotSayText(m_players.PlayerNameOf(aSender)));
+            m_network.Send(aSender, line);
+        }
         return;
     }
-    const GameId info = acRequest.Info;
+    // Copied: the step's lists go below.
+    const GameId cInfo = pLine->Info;
+    const std::string cText = pLine->Text;
 
     NotifyDialoguePicked picked;
     picked.Conversation = pConversation->Id;
     picked.Step = pConversation->Step + 1;
     picked.Topic = acRequest.Topic;
-    picked.Info = info;
+    picked.Info = cInfo;
     picked.PlayerId = m_players.PlayerIdOf(aSender);
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
     pConversation->Options.reset();
     pConversation->PlayerOptions.clear();
+    pConversation->Merged.clear();
 
-    // Every game, the host's too: its game says it unless its own menu did.
+    // Every game, the host's too: the host's game says the line.
     m_players.SendToAll(picked);
 
-    // Who said what, in everyone's chat ("Lydia: Here. Have a gold piece.").
+    // Who said what, in everyone's chat ("Lydia: I found Lucan's claw.").
     NotifyChatMessageBroadcast line;
     line.MessageType = kPlayerChat;
     line.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
-    line.ChatMessage = ChatText(acRequest.Text);
+    line.ChatMessage = ChatText(cText);
     m_players.SendToAll(line);
 }
 
@@ -157,8 +200,21 @@ void HostDialogue::OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t a
     if (Conversation* pConversation = Current(acRequest.Conversation); pConversation && !pConversation->Has(aSender))
     {
         pConversation->Players.push_back(aSender);
-        SendList(aSender);
+        Merge();
     }
+}
+
+void HostDialogue::OnHighlight(const DialogueHighlightRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    Conversation* pConversation = Current(acRequest.Conversation, acRequest.Step);
+    if (!pConversation || !pConversation->Has(aSender))
+        return;
+    NotifyDialogueHighlight moved;
+    static_cast<Payloads::DialogueHighlight&>(moved) = acRequest;
+    moved.PlayerId = m_players.PlayerIdOf(aSender);
+    for (const ConnectionId_t cPlayer : pConversation->Players)
+        if (cPlayer != aSender)
+            m_network.Send(cPlayer, moved);
 }
 
 void HostDialogue::OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -190,16 +246,42 @@ const DialogueOptions* HostDialogue::OptionsFor(ConnectionId_t aPlayer) const no
     return it != m_conversation->PlayerOptions.end() ? &it->second : &*m_conversation->Options;
 }
 
+std::vector<PartyDialogueList> HostDialogue::Members() const noexcept
+{
+    std::vector<PartyDialogueList> members;
+    for (const ConnectionId_t cPlayer : m_conversation->Players)
+        if (const DialogueOptions* pOptions = OptionsFor(cPlayer))
+            members.push_back({m_players.PlayerIdOf(cPlayer), pOptions});
+    return members;
+}
+
+void HostDialogue::Merge() noexcept
+{
+    if (!m_conversation->Options)
+        return;
+    m_conversation->Merged = MergeDialogueLists(*m_conversation->Options, Members());
+    for (const ConnectionId_t cPlayer : m_conversation->Players)
+        SendList(cPlayer);
+}
+
 void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
 {
-    const DialogueOptions* pOptions = OptionsFor(aPlayer);
-    if (!pOptions || aPlayer == m_players.Host())
+    if (!m_conversation || !m_conversation->Options)
         return;
     NotifyDialogueList list;
     list.Conversation = m_conversation->Id;
     list.Step = m_conversation->Step;
     list.Choices = m_conversation->Choices;
-    list.Options = *pOptions;
+    list.Options = m_conversation->Merged;
+    // A topic it has shows its own line ("I have your claw." to the holder, "About your claw..." to the others).
+    if (const DialogueOptions* pOwn = OptionsFor(aPlayer))
+        for (DialogueOption& option : list.Options)
+            if (const DialogueOption* pOwnLine = DialogueLineFor(option.Topic, *pOwn))
+            {
+                option.Info = pOwnLine->Info;
+                option.Quest = pOwnLine->Quest;
+                option.Text = pOwnLine->Text;
+            }
     m_network.Send(aPlayer, list);
 }
 
@@ -213,8 +295,12 @@ void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 
 void HostDialogue::Leave(ConnectionId_t aPlayer) noexcept
 {
-    if (std::erase(m_conversation->Players, aPlayer) && m_conversation->Players.empty())
+    if (!std::erase(m_conversation->Players, aPlayer))
+        return;
+    if (m_conversation->Players.empty())
         End();
+    else
+        Merge(); // its options leave the party's list
 }
 
 HostDialogue::Conversation* HostDialogue::Current(uint32_t aId) noexcept

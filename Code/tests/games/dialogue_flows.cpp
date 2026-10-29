@@ -5,6 +5,7 @@
 #include <Services/DialogueService.h>
 #include <Events/MenuEvent.h>
 #include "Party.h"
+#include <Events/SessionNoticeEvent.h>
 #include <SessionIds.h>
 
 namespace
@@ -20,6 +21,14 @@ void Plugins(FakeEngine& aEngine)
     aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
     aEngine.LoadCell(kSmoke);
 }
+
+// The chat's system lines this game's player reads (SessionNoticeEvent).
+struct Notices
+{
+    explicit Notices(World& aGame) { aGame.GetDispatcher().sink<SessionNoticeEvent>().connect<&Notices::On>(*this); }
+    void On(const SessionNoticeEvent& acNotice) { Lines.push_back(acNotice.Text); }
+    std::vector<std::string> Lines;
+};
 
 FakeDialogue& Dialogue(World& aGame)
 {
@@ -68,13 +77,15 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye ends it on both games");
 }
 
-SCENARIO("Each player's menu shows its own lines, judged for its character on the host", "[dialogue]")
+SCENARIO("Every menu shows the party's list; a player says only its own options", "[dialogue]")
 {
     // Lucan's claw topic: a line for a player holding the claw first, his line for one without it after (TESTopic's
-    // first line whose conditions pass; docs/design/shared-dialogue.md, "The rule").
+    // first line whose conditions pass); the deal is the host's player's alone, the gift the holder's alone
+    // (docs/design/shared-dialogue.md, "The rule").
     const IDialogueBridge::Option cHasClaw{.Topic = 0x1004, .Info = 0x2005, .Text = "I have your claw."};
     const IDialogueBridge::Option cNoClaw{.Topic = 0x1004, .Info = 0x2004, .Text = "About your claw..."};
     const IDialogueBridge::Option cDeal{.Topic = 0x1005, .Info = 0x2006, .Text = "Let's make a deal."};
+    const IDialogueBridge::Option cGift{.Topic = 0x1006, .Info = 0x2007, .Text = "A gift for you."};
     Party party(1, Plugins);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
@@ -83,9 +94,10 @@ SCENARIO("Each player's menu shows its own lines, judged for its character on th
     uint32_t holder = 0; // the character holding the claw, as the host's game knows it
     for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
     {
-        pTalk->Greeting = {cHasClaw, cNoClaw, cDeal, kGoodbye};
-        pTalk->After = {{cHasClaw.Topic, {kGoodbye}}, {kGoodbye.Topic, {}}};
+        pTalk->Greeting = {cHasClaw, cNoClaw, cDeal, cGift, kGoodbye};
+        pTalk->After = {{cHasClaw.Topic, {kGoodbye}}, {cDeal.Topic, {kGoodbye}}, {cGift.Topic, {kGoodbye}}, {kGoodbye.Topic, {}}};
         pTalk->Needs[{cHasClaw.Topic, cHasClaw.Info}] = [&holder](uint32_t aPlayer) { return aPlayer == holder; };
+        pTalk->Needs[{cGift.Topic, cGift.Info}] = [&holder](uint32_t aPlayer) { return aPlayer == holder; };
         pTalk->Needs[{cDeal.Topic, cDeal.Info}] = [](uint32_t aPlayer) { return aPlayer == 0x14; };
     }
     uint32_t guard = 0;
@@ -95,17 +107,75 @@ SCENARIO("Each player's menu shows its own lines, judged for its character on th
     uint32_t session = 0;
     party.As(party.Guest(), [&] { session = *Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
     party.As(party.Host(), [&] { holder = Utils::GetFormIdBySessionId(session); });
+    const auto cTexts = [](const std::vector<IDialogueBridge::Option>& acOptions) {
+        std::vector<std::string> texts;
+        for (const auto& cOption : acOptions)
+            texts.push_back(cOption.Text);
+        return texts;
+    };
 
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
-    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Options == std::vector{cHasClaw, kGoodbye}; },
-                "the guest's menu has its claw line, not the host's deal");
-    THEN("the host's own list is judged for its player")
-    CHECK(hostTalk.Options == std::vector{cNoClaw, cDeal, kGoodbye});
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Options == std::vector{cHasClaw, kGoodbye, cGift}; },
+                "alone in it, the guest's menu has its own lines (the host's order, then its own)");
 
-    party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
-    party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the guest's pick");
-    THEN("it says the guest's own line of the topic, not its player's")
-    CHECK(hostTalk.Said == std::vector{cHasClaw});
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(guard); });
+    party.Until([&] { return hostTalk.MenuOpen && hostTalk.Options.size() == 4 && guestTalk.Options.size() == 4; },
+                "the host joins: both menus show the party's list");
+    THEN("each its own line of the claw topic, the other's options named")
+    {
+        CHECK(cTexts(hostTalk.Options)[0] == "About your claw...");
+        CHECK(cTexts(guestTalk.Options)[0] == "I have your claw.");
+        CHECK(hostTalk.Options[1].Text.starts_with("Let's make a deal. ["));
+        CHECK(guestTalk.Options[1].Text == hostTalk.Options[1].Text);
+        CHECK(cTexts(hostTalk.Options)[2] == "Goodbye.");
+        CHECK(hostTalk.Options[3].Text.starts_with("A gift for you. ["));
+    }
+
+    WHEN("the host presses the guest's gift")
+    {
+        Notices hostNotices(party.Host()), guestNotices(party.Guest());
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(3); });
+        for (int i = 0; i < 20; ++i)
+            party.Frame();
+        THEN("nothing is said; only the host's chat tells its player why")
+        {
+            CHECK(hostTalk.Said.empty());
+            REQUIRE(hostNotices.Lines.size() == 1);
+            CHECK(hostNotices.Lines[0].starts_with("I'm sorry "));
+            CHECK(hostNotices.Lines[0].ends_with(", you don't know how to say that."));
+            CHECK(guestNotices.Lines.empty());
+        }
+    }
+    WHEN("the guest presses its gift")
+    {
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(3); });
+        party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the gift");
+        THEN("it is the guest's line, its script run for the guest's character")
+        {
+            REQUIRE(hostTalk.Said.size() == 1);
+            CHECK((hostTalk.Said[0].Topic == cGift.Topic && hostTalk.Said[0].Info == cGift.Info));
+            CHECK(hostTalk.LastLineFor == holder);
+        }
+    }
+    WHEN("the guest presses the host's deal")
+    {
+        Notices guestNotices(party.Guest());
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
+        for (int i = 0; i < 20; ++i)
+            party.Frame();
+        THEN("nothing is said; the guest's chat tells it why")
+        {
+            CHECK(hostTalk.Said.empty());
+            CHECK(guestNotices.Lines.size() == 1);
+        }
+    }
+    WHEN("the guest presses the claw topic")
+    {
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
+        party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the guest's pick");
+        THEN("its own line of the topic, not the host's player's")
+        CHECK(hostTalk.Said == std::vector{cHasClaw});
+    }
 }
 
 SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")
@@ -193,7 +263,7 @@ SCENARIO("A picked barter line opens only the trader's game and its Speech stays
     CHECK(other.RewardExperience[17] == 0.f);
 }
 
-SCENARIO("The host's begin fragment knows its picker before the picked notification returns", "[dialogue][rewards]")
+SCENARIO("The host's own pick runs its fragment for its player", "[dialogue][rewards]")
 {
     Party party(1, Plugins);
     auto& host = Party::Engine(party.Host());
@@ -211,10 +281,49 @@ SCENARIO("The host's begin fragment knows its picker before the picked notificat
         host.RunScript({.Class = "Game", .Function = "AdvanceSkill", .Arguments = {std::string("Speechcraft"), 10.f}}, talk.LastLineFor);
     };
     party.As(party.Host(), [&] { talk.PlayerPicks(0); });
-    // As Skyrim: the fragment is queued synchronously, before the host processes NotifyDialoguePicked.
+    // Its menu does not say it: the host's rule names the speaker, then its game says the line.
+    party.Until([&] { return !talk.Said.empty(); }, "the host's game says its own pick");
     CHECK(talk.LastLineFor == FakeEngine::kPlayer);
     party.As(party.Host(), [&] { host.TeachesWord(0x13E22); });
     party.Until([&] { return guest.WordsKnown.contains(0x13E22); }, "the guest processed everything before the word marker");
     CHECK(host.RewardExperience[17] == 10.f);
     CHECK(guest.RewardExperience[17] == 0.f);
+}
+
+SCENARIO("One highlight for the conversation: a player moving it moves every menu's", "[dialogue]")
+{
+    Party party(2, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    FakeEngine& other = Party::Engine(party.Guest(1));
+    for (World* pGame : {&party.Host(), &party.Guest(), &party.Guest(1)})
+    {
+        Topics(*pGame);
+        Dialogue(*pGame).Greeting = {kNews, kMore, kGoodbye};
+    }
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && other.CopiesOf(kGuard).size() == 1; }, "every game has the guard");
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    FakeDialogue& otherTalk = Dialogue(party.Guest(1));
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Options.size() == 3; }, "the guest talks to the guard");
+    party.As(party.Guest(1), [&] { otherTalk.PlayerTalksTo(other.CopiesOf(kGuard)[0]); });
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(guard); });
+    party.Until([&] { return otherTalk.MenuOpen && hostTalk.MenuOpen && otherTalk.Options.size() == 3 && hostTalk.Options.size() == 3; },
+                "everyone joins");
+    for (int i = 0; i < 5; ++i)
+        party.Frame();
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerHighlights(2); });
+    party.Until([&] { return hostTalk.Highlight == 2u && otherTalk.Highlight == 2u; }, "every menu highlights Goodbye");
+    party.As(party.Host(), [&] { hostTalk.PlayerHighlights(1); });
+    party.Until([&] { return guestTalk.Highlight == 1u && otherTalk.Highlight == 1u; }, "the host moves everyone's to the next");
+    THEN("whoever presses E picks the highlighted option")
+    {
+        party.As(party.Guest(1), [&] { otherTalk.PlayerPicks(*otherTalk.Highlight); });
+        party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says it");
+        CHECK(hostTalk.Said[0].Topic == kMore.Topic);
+    }
 }

@@ -504,7 +504,8 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         return true;
     if (!pObject)
         return false;
-    if (aLoad && ReferenceStates::Matches(*pObject, acChange))
+    // Equal graph bytes can still have stale world transforms after the native save load.
+    if (aLoad && acChange.Type != ObjectChange::Kind::kGraph && ReferenceStates::Matches(*pObject, acChange))
         return true;
     switch (acChange.Type)
     {

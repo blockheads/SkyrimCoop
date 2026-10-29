@@ -3,7 +3,7 @@
 #include <Structs/GameId.h>
 #include <Wire/Buffer.h>
 
-// One option of the host's list for a step (docs/design/shared-dialogue.md).
+// One option of a step's list (docs/design/shared-dialogue.md); in the party's merged list, who can say it.
 struct DialogueOption
 {
     bool operator==(const DialogueOption&) const noexcept = default;
@@ -15,6 +15,8 @@ struct DialogueOption
     GameId Info{}; // the info said when picked
     GameId Quest{};
     std::string Text{};
+    // The merged list's: the players whose own list has it (none: everyone in the conversation).
+    std::vector<uint32_t> Players{};
 };
 
 using DialogueOptions = std::vector<DialogueOption>;

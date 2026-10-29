@@ -4,6 +4,7 @@
 #include "CrashHandler.h"
 #include "MainLoopTasks.h"
 #include <Interface/UI.h>
+#include <Misc/GameVM.h>
 
 #include <atomic>
 #if COOP_TEST_HARNESS
@@ -17,9 +18,7 @@ extern std::unique_ptr<Plugin> g_plugin;
 
 
 struct Main;
-struct VMContext; // SkyrimVM; isFrozen is at 0x680 (CommonLibSSE), unused here
-
-using TVMUpdate = int(VMContext*, float);
+using TVMUpdate = int(SkyrimVM*, float);
 using TMainLoop = short(Main*);
 using TVMDestructor = uintptr_t(void*);
 
@@ -29,11 +28,10 @@ static TVMDestructor* VMDestructor = nullptr;
 // The VM's update ran since the last main loop tick (it does not at the main menu).
 static std::atomic<bool> s_vmUpdated{false};
 
-int HookVMUpdate(VMContext* apThis, float a2)
+int HookVMUpdate(SkyrimVM* apThis, float a2)
 {
-    // Tick even while the VM is frozen (menus, pause): the embedded server must keep
-    // accepting connections. A 2026-10-10 startup crash blamed on this was the MinGW
-    // vtable ABI bug (docs/re/crashes/2026-10-10-startup-crash.md).
+    // FreezeAndWait (54015) drains this function during a save. Services must not run
+    // inside that drain, which can overlap their regular VM job.
     static bool s_loggedFirstUpdate = false;
     if (!s_loggedFirstUpdate)
     {
@@ -42,7 +40,8 @@ int HookVMUpdate(VMContext* apThis, float a2)
     }
 
     s_vmUpdated = true;
-    g_plugin->Update();
+    if (!apThis->isFrozen)
+        g_plugin->Update();
 
     return VMUpdate(apThis, a2);
 }

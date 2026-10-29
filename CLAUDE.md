@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SkyrimCoop**
 
-A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (2-4 players, drop-in via Steam invite). The entire toolchain builds and debugs natively on Linux, cross-compiling the Windows client DLL with clang-cl (MSVC ABI) and xwin's Windows SDK.
+A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (up to a Steam lobby's 250 players: `Code/encoding/PartySize.h`; drop-in via Steam invite). The entire toolchain builds and debugs natively on Linux, cross-compiling the Windows client DLL with clang-cl (MSVC ABI) and xwin's Windows SDK.
 
 **Core Value:** Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via Steam invite, and it just works.
 
@@ -92,6 +92,7 @@ Code/
 │   ├── Components/      # ECS components (LocalComponent, RemoteComponent, ...)
 │   ├── Systems/         # Interpolation, animation, rendering
 │   ├── Ui/              # The in-game UI (RmlUi)
+│   ├── Diagnostics/     # Bug reports (/bug, /export, crash bundles) and the readouts the harness shares
 │   ├── TestHarness/     # What scripts/coop_test.py drives; test builds only
 │   └── HotReload/       # Swapping a rebuilt DLL into a running game; test builds only
 ├── encoding/            # Messages (Messages/), shared structs (Structs/), the wire buffer (Wire/), opcodes

@@ -29,6 +29,8 @@
 #include <Bridges/BodyBridge.h>
 #include <Services/BodyService.h>
 #include <Bridges/CrimeBridge.h>
+#include <Bridges/BugReportBridge.h>
+#include <Services/BugReportService.h>
 #include <Services/CrimeService.h>
 #include <Services/WaitService.h>
 #include <Services/JoinService.h>
@@ -87,6 +89,7 @@ World::World()
     , m_pWaitBridge(std::make_unique<WaitBridge>())
     , m_pBodyBridge(std::make_unique<BodyBridge>())
     , m_pCrimeBridge(std::make_unique<CrimeBridge>())
+    , m_pBugReportBridge(std::make_unique<BugReportBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -118,6 +121,7 @@ World::World()
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
@@ -156,6 +160,7 @@ World::~World()
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
     ctx().erase<DialogueService>();
+    ctx().erase<BugReportService>();
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();
     ctx().erase<PerkService>();

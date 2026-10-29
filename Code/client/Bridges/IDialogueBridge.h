@@ -89,4 +89,11 @@ public:
     /// Says this topic's line, as clicking its option does: the list's option with it, else one built for it (a line
     /// judged for another player's character). False: no conversation, or no such line.
     virtual bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept = 0;
+
+    // The highlight (the menu's selected option).
+
+    /// The highlighted option's place in the list (none: no menu, or no list shown).
+    virtual std::optional<uint32_t> GetHighlight() const noexcept = 0;
+    /// Highlights the option at that place, as the keys would.
+    virtual void SetHighlight(uint32_t aIndex) noexcept = 0;
 };
