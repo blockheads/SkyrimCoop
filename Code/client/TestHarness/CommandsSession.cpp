@@ -9,6 +9,7 @@
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
 #include <Services/SessionService.h>
+#include <Services/BugReportService.h>
 #include <Structs/SystemQuestState.h>
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IPlayerBridge.h>
@@ -86,6 +87,13 @@ nlohmann::json LeaveSession(Harness&, const nlohmann::json&)
     return Ok();
 }
 
+// {"cmd": "bug_report", "text": "..."}: a player's /bug from this game: every game writes its part of the report.
+nlohmann::json BugReport(Harness&, const nlohmann::json& acRequest)
+{
+    World::Get().ctx().at<BugReportService>().Report(acRequest.value("text", std::string{}));
+    return Ok();
+}
+
 // {"cmd": "join_world", "port": N}: joins the session on that port with the host's world, from this game (its character
 // comes along) or from the main menu, as the join screen will. The host across a network namespace link
 // (SKYRIMCOOP_JOIN_HOST), loopback otherwise.
@@ -155,7 +163,11 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
             {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
             {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words},
             {"ingredient_effects", ingredients}, {"enchantments", enchantments}, {"knowledge_present", acRecord.Knowledge.Present},
-            {"system_quests", systemQuests}, {"recipes", recipes}};
+            {"system_quests", systemQuests}, {"recipes", recipes},
+            // Where a kept character arrives (JoinBridge::ApplyPlayer; none: the save's player spot).
+            {"cell", std::format("{:X}:{:X}", acRecord.Cell.ModId, acRecord.Cell.BaseId)},
+            {"worldspace", std::format("{:X}:{:X}", acRecord.WorldSpace.ModId, acRecord.WorldSpace.BaseId)},
+            {"position", acRecord.Position}};
 }
 
 // {"cmd": "player_record"}: this game's player's character as the join flow reads it (IJoinBridge::ReadPlayer), and
@@ -193,6 +205,7 @@ constexpr Command cCommands[] = {
     {"steam_host", false, &SteamHost},
     {"steam_leave", false, &SteamLeave},
     {"leave_session", false, &LeaveSession},
+    {"bug_report", false, &BugReport},
     {"steam_invite", false, &SteamInvite},
     {"disconnect", false, &Disconnect},
     {"kick", false, &Kick},

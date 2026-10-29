@@ -1,6 +1,7 @@
 #include <Events/GameLoadFailedEvent.h>
 #include <World.h>
 #include <Bridges/JoinBridge.h>
+#include <CreationStart.h>
 #include <Bridges/IActorBridge.h>
 
 #include <Breadcrumbs.h>
@@ -91,6 +92,10 @@ TESObjectCELL* PlaceCell(const PlayerRecord& acRecord) noexcept
     return acRecord.Cell ? FormOf<TESObjectCELL>(acRecord.Cell) : nullptr;
 }
 } // namespace
+
+bool JoinBridge::BeginCharacterCreation() noexcept { return CreationStart::Begin(); }
+void JoinBridge::CancelCharacterCreation() noexcept { CreationStart::Cancel(); }
+IJoinBridge::Creation JoinBridge::PollCharacterCreation() noexcept { return CreationStart::Poll(); }
 
 bool JoinBridge::IsAtMainMenu() const noexcept
 {

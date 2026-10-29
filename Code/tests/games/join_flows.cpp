@@ -5,9 +5,14 @@
 #include "Party.h"
 
 #include <Events/MenuEvent.h>
+#include <Events/UpdateEvent.h>
+#include <Events/NewGameEvent.h>
+#include <Events/GameLoadedEvent.h>
+#include <Messages/AuthenticationResponse.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/SessionService.h>
 
 namespace
 {
@@ -484,13 +489,14 @@ SCENARIO("A join that cannot finish says why", "[join]")
         CHECK(!Join(guest).IsJoining());
     }
 
-    WHEN("a friend the host's save does not know joins from the main menu")
+    WHEN("the bundled creation data is unavailable to an unknown friend at the main menu")
     {
         ToMainMenu(party, guest);
+        Party::Engine(guest).CreationAvailable = false;
         party.As(guest, [&] { Join(guest).Join(HostEndpoint(host)); });
         party.Until([&] { return Join(guest).GetStatus().Current == JoinStatus::State::kRefused; }, "the friend's game is refused",
                     [&] { return Describe(Join(guest).GetStatus()); });
-        CHECK(Join(guest).GetStatus().Reason == "no_character");
+        CHECK(Join(guest).GetStatus().Reason == "creation_unavailable");
         CHECK(Party::Engine(guest).Loaded.empty());
         CHECK(Party::Engine(host).Saves.empty());
     }
@@ -535,4 +541,171 @@ SCENARIO("A brought character lands beside the host after checked placement", "[
     const auto& cGuest = engine.Actors.at(FakeEngine::kPlayer);
     CHECK(std::hypot(cHost.Position[0] - cGuest.Position[0], cHost.Position[1] - cGuest.Position[1]) >= 100.f);
     CHECK(engine.PlacementChecks > 0);
+}
+
+SCENARIO("A guest that leaves and joins again arrives where it left, never on the host's spot", "[join][join-placement]")
+{
+    Party party(1, Plugins, false);
+    auto& host = party.Host();
+    auto& guest = party.Guest();
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    JoinsWithWorld(party, host, guest, "the guest brings its character into the host's world");
+    const auto cKey = KeyOf(guest);
+    party.Until([&] { return Records(host).Find(cKey) != nullptr; }, "the host's game keeps the guest's character");
+    const auto& cHost = Party::Engine(host).Actors.at(FakeEngine::kPlayer);
+    const auto cApart = [&] {
+        const auto& cGuest = Party::Engine(guest).Actors.at(FakeEngine::kPlayer);
+        return std::hypot(cHost.Position[0] - cGuest.Position[0], cHost.Position[1] - cGuest.Position[1]);
+    };
+
+    WHEN("it walks off, quits to the main menu and joins again (the host saves for it after it left)")
+    {
+        auto& walker = Party::Engine(guest).Actors.at(FakeEngine::kPlayer);
+        walker.Position[0] += 500.f;
+        const float cLeftAt = walker.Position[0];
+        party.Until(
+            [&] {
+                for (const uint32_t cCopy : Party::Engine(host).CopiesOf())
+                    if (std::abs(Party::Engine(host).Actors.at(cCopy).Position[0] - cLeftAt) < 1.f)
+                        return true;
+                return false;
+            },
+            "the host's copy of the guest walks with it");
+        // Its record changing after the save it was placed at must not lose its place (a record carries none).
+        Party::Engine(guest).Player.Level = 14;
+        party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"StatsMenu", false}); });
+        party.Until([&] { return Records(host).Find(cKey)->Level == 14; }, "the host has the guest's new level");
+        ToMainMenu(party, guest);
+        party.Until([&] { return host.GetSessionService().GetPlayers().empty(); }, "the host's game drops the guest that left");
+        CHECK(Records(host).Find(cKey)->Position[0] == Approx(cLeftAt));
+        JoinsWithWorld(party, host, guest, "the guest joins again as its kept character");
+        THEN("it stands where it left")
+        CHECK(std::abs(Party::Engine(guest).Actors.at(FakeEngine::kPlayer).Position[0] - cLeftAt) < 1.f);
+    }
+
+    WHEN("the host's save keeps its character without a place")
+    {
+        ToMainMenu(party, guest);
+        PlayerRecord placeless = *Records(host).Find(cKey);
+        party.As(host, [&] {
+            Records(host).Remove(cKey);
+            placeless.Cell = {};
+            placeless.WorldSpace = {};
+            placeless.Position = {};
+            Records(host).Put(placeless);
+        });
+        JoinsWithWorld(party, host, guest, "the guest joins again as its kept character");
+        THEN("checked placement puts it beside the host, not on the host's spot") CHECK(cApart() >= 100.f);
+    }
+}
+
+SCENARIO("An unknown friend creates a character as part of its original join", "[join][creation]")
+{
+    Party party(1, Plugins, false);
+    auto& host = party.Host();
+    auto& guest = party.Guest();
+    auto& engine = Party::Engine(guest);
+    ToMainMenu(party, guest);
+    const auto endpoint = HostEndpoint(host);
+    party.As(guest, [&] { REQUIRE(Join(guest).Join(endpoint)); });
+    party.Until([&] { return Join(guest).IsCreatingCharacter(); }, "the host asks the unknown friend to create a character");
+    CHECK(Join(guest).GetStatus().Current == JoinStatus::State::kCreatingCharacter);
+    CHECK(engine.CreationRequests == 1);
+    CHECK(engine.Loaded.empty());
+    CHECK(Party::Engine(host).Saves.empty());
+    CHECK_FALSE(guest.GetHostService().IsHosting());
+    party.As(guest, [&] {
+        CHECK_FALSE(Join(guest).Join(endpoint));
+        AuthenticationResponse duplicate;
+        duplicate.Type = AuthenticationResponse::ResponseType::kNoCharacter;
+        guest.GetDispatcher().trigger(duplicate);
+        guest.GetDispatcher().trigger(NewGameEvent{});
+        guest.GetDispatcher().trigger(MenuEvent{"Loading Menu", false});
+    });
+    CHECK(engine.CreationRequests == 1);
+    CHECK_FALSE(guest.GetHostService().IsHosting());
+    engine.AtMainMenu = false;
+    engine.CreationPhase = IJoinBridge::Creation::kCustomizing;
+    party.As(guest, [&] { guest.GetDispatcher().trigger(UpdateEvent{JoinService::kLoadSeconds * 4}); });
+    REQUIRE(Join(guest).IsJoining());
+    REQUIRE(engine.Loaded.empty());
+
+    SECTION("naming and setup finish, then its character joins and is kept for the next invite")
+    {
+        auto made = LydiasCharacter();
+        made.Name = "Rinara";
+        made.Knowledge = {.Present = true};
+        Plays(guest, made);
+        engine.Knowledge = {.Present = true};
+        engine.CreationPhase = IJoinBridge::Creation::kFinalizing;
+        party.Frame();
+        CHECK(engine.Loaded.empty());
+        CHECK(Party::Engine(host).Saves.empty());
+        engine.CreationPhase = IJoinBridge::Creation::kComplete;
+        party.Until([&] { return guest.GetTransport().IsOnline() && !Join(guest).IsJoining(); }, "creation automatically resumes the original join");
+        party.Until([&] { return engine.CountOf(FakeEngine::kPlayer, 0xF) == 0; }, "the host supplies the party purse");
+        CHECK(Character(engine.ReadPlayer()) == Character(WithGold(made, 0)));
+        CHECK(engine.Knowledge.Present);
+        party.Until([&] { return Records(host).Find(KeyOf(guest)) != nullptr; }, "the host keeps the new character");
+        ToMainMenu(party, guest);
+        JoinsWithWorld(party, host, guest, "the next invite uses the kept character");
+        CHECK(engine.Player.Name == "Rinara");
+        CHECK(engine.CreationRequests == 1);
+    }
+    SECTION("cancelling leaves the creator usable and never automatically joins")
+    {
+        party.As(guest, [&] { Join(guest).Cancel(""); });
+        Plays(guest, LydiasCharacter());
+        engine.CreationPhase = IJoinBridge::Creation::kComplete;
+        party.Frame();
+        CHECK_FALSE(Join(guest).IsJoining());
+        CHECK(engine.Player.Name == "Lydia");
+        CHECK(engine.Loaded.empty());
+        CHECK(Party::Engine(host).Saves.empty());
+    }
+    SECTION("losing the host leaves the creator usable and clears automatic joining")
+    {
+        party.As(guest, [&] { Join(guest).CreationHostLost(); });
+        CHECK(Join(guest).GetStatus().Reason == "lost_connection");
+        Plays(guest, LydiasCharacter());
+        engine.CreationPhase = IJoinBridge::Creation::kComplete;
+        party.Frame();
+        CHECK_FALSE(Join(guest).IsJoining());
+        CHECK(engine.Loaded.empty());
+    }
+    SECTION("finalization has the loading deadline")
+    {
+        engine.CreationPhase = IJoinBridge::Creation::kFinalizing;
+        party.As(guest, [&] { guest.GetDispatcher().trigger(UpdateEvent{JoinService::kLoadSeconds + 1}); });
+        CHECK(Join(guest).GetStatus().Reason == "creation_failed");
+        CHECK_FALSE(Join(guest).IsJoining());
+    }
+    SECTION("a failed final load keeps the created character available for retry")
+    {
+        Plays(guest, LydiasCharacter());
+        engine.CreationPhase = IJoinBridge::Creation::kComplete;
+        party.As(guest, [&] { guest.GetDispatcher().trigger(UpdateEvent{0.01}); });
+        party.Until([&] { return Join(guest).GetStatus().Current == JoinStatus::State::kReceivingWorld; }, "the finished character passes the host's gate");
+        party.As(host, [&] { host.GetHostService().StopHosting(); });
+        party.Until([&] { return !Join(guest).IsJoining(); }, "the interrupted transfer fails");
+        CHECK(engine.Player.Name == "Lydia");
+        CHECK(engine.CreationRequests == 1);
+        party.As(host, [&] { REQUIRE(host.GetHostService().StartHosting(static_cast<uint16_t>(std::stoi(endpoint.substr(endpoint.find(':') + 1))))); });
+        JoinsWithWorld(party, host, guest, "the created character can retry joining");
+        CHECK(engine.Player.Name == "Lydia");
+        CHECK(engine.CreationRequests == 1);
+    }
+}
+
+SCENARIO("Character startup has a deadline before the customization menu opens", "[join][creation]")
+{
+    Party party(1, Plugins, false);
+    auto& guest = party.Guest();
+    ToMainMenu(party, guest);
+    party.As(guest, [&] { REQUIRE(Join(guest).Join(HostEndpoint(party.Host()))); });
+    party.Until([&] { return Join(guest).IsCreatingCharacter(); }, "the bundled start is requested");
+    party.As(guest, [&] { guest.GetDispatcher().trigger(UpdateEvent{JoinService::kLoadSeconds + 1}); });
+    CHECK(Join(guest).GetStatus().Reason == "creation_failed");
+    CHECK(Party::Engine(guest).Loaded.empty());
 }

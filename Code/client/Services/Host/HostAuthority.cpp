@@ -187,6 +187,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_crime.Left(aConnection);
         m_session.OnPlayerLeft(aConnection);
         m_playerNatives.OnPlayerLeft(aConnection);
+        m_records.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);

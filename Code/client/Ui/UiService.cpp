@@ -389,7 +389,8 @@ void UiService::UpdateJoin() noexcept
         m_dismissed.reset();
 
     Ui::JoinModel next;
-    next.Visible = PanelShows(cStatus.Current) && !m_dismissed;
+    // Losing the host must not take the native creator's input; show the failure after naming finishes.
+    next.Visible = PanelShows(cStatus.Current) && !m_dismissed && !pJoinService->IsCreatingCharacter();
     next.State = ToString(cStatus.Current);
     next.Reason = cStatus.Reason;
     next.Message = cStatus.Message.empty() ? ProgressMessage(cStatus.Current) : cStatus.Message;

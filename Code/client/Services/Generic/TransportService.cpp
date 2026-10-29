@@ -318,6 +318,9 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
 
     // Refused: the join status says why.
     m_joinStatus = JoinRefusal::ForPlayer(acMessage, {BuildCommit(), RunningGame::GetVersions(), RunningGame::Plugins(m_formBridge)});
-    spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
+    if (acMessage.Type == AR::kNoCharacter)
+        spdlog::info("The host has no kept character; JoinService will open character creation if available");
+    else
+        spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
     m_dispatcher.trigger(acMessage);
 }

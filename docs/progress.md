@@ -1096,6 +1096,8 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   3 of 3 since. Lead (v1-engine-fixes' read, unconfirmed): the baseline between scenarios deletes the cell's NPCs
   while queued dialogue work still holds her, so a fixture teardown race rather than play code. If it shows again,
   check whether the baseline deletes an actor still in a conversation (and end the conversation first).
+  Since: the baseline ends conversations before deleting NPCs, and the play path (the host removing the NPC
+  mid-conversation) passes as `dialogue-npc-removed-mid-conversation`.
 
 - **Any added hook breaks `guest-brings-character-into-hosts-world` (found 2026-10-24, physics-sync).** With one more
   `HOOK_ID` (physics-sync's `PlayerHands` 79133, a `StartGrabObject` 40552 hook, or a test hook on 40557, which the

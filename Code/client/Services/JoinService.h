@@ -50,6 +50,10 @@ struct JoinService
     void Cancel(const std::string& acReason) noexcept;
     // A join is under way, from connecting until it joined or failed (a reconnect too).
     [[nodiscard]] bool IsJoining() const noexcept { return m_step != Step::kIdle; }
+    // Its player is in the bundled character start (no automatic hosting, even after a cancel).
+    [[nodiscard]] bool IsCreatingCharacter() const noexcept { return m_creatingCharacter; }
+    // Steam lost the host while the join's connection is closed for the character start.
+    void CreationHostLost() noexcept;
     // Reconnecting through a Steam tunnel made again: dials it (SteamService); false when not reconnecting.
     bool Redial(const std::string& acEndpoint) noexcept;
     [[nodiscard]] bool IsReconnecting() const noexcept { return m_step == Step::kReconnectWait || m_step == Step::kReconnecting; }
@@ -68,6 +72,7 @@ private:
         kIdle,
         kConnecting,
         kChecking,
+        kCreating,
         kReceiving,
         kLoading,
         kPlacing,
@@ -89,6 +94,8 @@ private:
     void To(Step aStep, JoinStatus::State aState) noexcept;
     // The save is loaded: this player's character on its player, then the usual join to the same host.
     void Arrive() noexcept;
+    void BeginCreation() noexcept;
+    void FinishCreation() noexcept;
     void JoinSession() noexcept;
     void Fail(const char* acpReason) noexcept;
     void Fail(JoinStatus aStatus) noexcept;
@@ -104,6 +111,10 @@ private:
     Step m_step{Step::kIdle};
     JoinStatus m_status;
     std::string m_endpoint;
+    std::string m_playerKey; // fixed before creation, through both authentications
+    bool m_fromMainMenu{};
+    bool m_creatingCharacter{};
+    std::optional<PlayerRecord> m_createdCharacter; // survives a failed final join for retry
     bool m_partyReload{};
     std::optional<PlayerRecord> m_joinedCharacter;
     std::optional<PlayerRecord> m_brought; // the character of the game the join started in

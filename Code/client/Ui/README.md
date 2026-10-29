@@ -63,7 +63,7 @@ box has a backdrop; the game outside it stays visible.
 Idle says “Waiting for a Steam invite.” There is no address form, marketing copy, step rail or
 manual Join/Host action in this panel. The UI follows state supplied by the session; it performs no
 Steam or network work. Character creation is owned by the game: the old creation fixture is removed
-and the overlay is suppressed for the compatibility `creating_character` state.
+and the overlay is suppressed during the bundled `creating_character` flow.
 
 Chat uses a 500dp-wide transparent text area, with no title bar, beveled frame, message background,
 Send visual or extra hints. Names are bold and individually colored; normal text
@@ -188,16 +188,15 @@ The game loads the party, chat and join documents.
 
 Skyrim owns its normal main menu and save/load screens. There are no added Host Game or Characters
 entries, custom save picker, character library/default-profile selector, standalone character export,
-or disposable character-creation world. Hosting setup stays with the session/Steam work.
+or character editor of ours. Hosting setup stays with the session/Steam work.
 
 Steam joining owns entry into the co-op flow. A player's existing character in the host's world is
-preferred. Making a new character uses Skyrim's normal New Game flow; the join service can bring the
-character from that loaded game. Campaign character records remain authoritative for returning
-players. The UI supplies connection/loading/refusal presentation and yields to Skyrim whenever its
+preferred. An unknown friend at the main menu enters the bundled creation room, customizes and names
+the character in Skyrim's native menu, then automatically joins. A character from an already loaded game can
+also come along. Campaign character records remain authoritative for returning players. The UI supplies connection/loading/refusal presentation and yields to Skyrim whenever its
 native character creator is active. It does not introduce another character-management route.
 
-The compatibility `creating_character` state keeps the join overlay hidden; there is no character creator
-of ours.
+The `creating_character` state keeps the join overlay hidden while Skyrim runs its native creator.
 
 `scripts/check-ui.sh` builds the native workbench and checks every party/chat/join fixture at 720p,
 1080p and 1440p. It uses private Xvfb displays and never starts, deploys, connects to, or stops Skyrim.

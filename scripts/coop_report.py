@@ -116,7 +116,10 @@ def differences(parts):
     """Where a copy differs from its owner, between the host's part and each guest's."""
     snapshots = {}
     for part in parts:
-        path = part / "snapshot.json"
+        # The game's status as the failure was raised (coop_test.py --until-fail), else its snapshot at the report.
+        path = part / "at-failure.json"
+        if not path.exists():
+            path = part / "snapshot.json"
         if path.exists():
             snapshots[part.name] = json.loads(path.read_text(errors="replace"))
     lines = []

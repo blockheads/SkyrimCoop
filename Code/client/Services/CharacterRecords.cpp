@@ -26,6 +26,12 @@ void CharacterRecords::Put(PlayerRecord aRecord) noexcept
 {
     if (aRecord.Key.empty())
         return;
+    if (const auto it = m_records.find(aRecord.Key); it != m_records.end())
+    {
+        aRecord.WorldSpace = it->second.WorldSpace;
+        aRecord.Cell = it->second.Cell;
+        aRecord.Position = it->second.Position;
+    }
     std::string key = aRecord.Key;
     m_records.insert_or_assign(std::move(key), std::move(aRecord));
 }

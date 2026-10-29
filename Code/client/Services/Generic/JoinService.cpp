@@ -35,6 +35,8 @@ JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
 
 std::string JoinService::PlayerKey() const noexcept
 {
+    if (!m_playerKey.empty())
+        return m_playerKey;
     if (const auto* pSteam = m_world.ctx().find<SteamService>())
         if (const auto cId = pSteam->JoinedAs())
             return std::format("steam:{}", cId);
@@ -48,6 +50,8 @@ const JoinStatus& JoinService::GetStatus() const noexcept
 
 bool JoinService::Join(const std::string& acEndpoint) noexcept
 {
+    if (m_creatingCharacter)
+        return false;
     // A game hosting alone (a new game or a save of its own) steps down to join.
     if (auto* pSteam = m_world.ctx().find<SteamService>(); pSteam && !IsJoining() && !pSteam->StepDown())
     {
@@ -60,8 +64,11 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
         return false;
     }
     m_partyReload = false;
-    m_brought.reset();
-    if (!m_bridge.IsAtMainMenu())
+    m_playerKey.clear();
+    m_playerKey = PlayerKey();
+    m_fromMainMenu = m_bridge.IsAtMainMenu();
+    m_brought = m_createdCharacter;
+    if (!m_fromMainMenu && !m_brought)
     {
         // Its quest items belong to its own world's quests.
         m_brought = m_bridge.ReadPlayer();
@@ -84,7 +91,9 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
 
 void JoinService::Cancel(const std::string& acReason) noexcept
 {
+    m_bridge.CancelCharacterCreation();
     m_step = Step::kIdle;
+    m_playerKey.clear();
     m_save = {};
     m_brought.reset();
     m_joinedCharacter.reset();
@@ -108,6 +117,7 @@ void JoinService::Fail(const char* acpReason) noexcept
 void JoinService::Fail(JoinStatus aStatus) noexcept
 {
     spdlog::error("JoinService: couldn't join ({}): {}", aStatus.Reason, aStatus.Message);
+    m_bridge.CancelCharacterCreation();
     const bool cConnected = m_world.GetTransport().IsConnected();
     m_step = Step::kIdle;
     m_status = std::move(aStatus);
@@ -118,6 +128,25 @@ void JoinService::Fail(JoinStatus aStatus) noexcept
 
 void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    const auto cCreation = m_bridge.PollCharacterCreation();
+    using Creation = IJoinBridge::Creation;
+    m_creatingCharacter = cCreation == Creation::kStarting || cCreation == Creation::kCustomizing || cCreation == Creation::kFinalizing;
+    if (m_step == Step::kCreating)
+    {
+        if (cCreation == Creation::kComplete)
+            return FinishCreation();
+        if (cCreation == Creation::kFailed || cCreation == Creation::kIdle)
+            return Fail("creation_failed");
+        if (cCreation == Creation::kCustomizing)
+        {
+            m_waited = 0.0; // there is no deadline on choosing a face or a name
+            return;
+        }
+        m_waited += acEvent.Delta;
+        if (m_waited > kLoadSeconds)
+            Fail("creation_failed");
+        return;
+    }
     if (m_step == Step::kIdle)
         return;
     m_waited += acEvent.Delta;
@@ -168,6 +197,8 @@ void JoinService::OnAuthentication(const AuthenticationResponse& acResponse) noe
     using enum AuthenticationResponse::ResponseType;
     if (m_step != Step::kConnecting && m_step != Step::kChecking && m_step != Step::kReceiving && m_step != Step::kJoining)
         return;
+    if (acResponse.Type == kNoCharacter && WantsWorld() && m_fromMainMenu && !m_brought)
+        return BeginCreation();
     if (acResponse.Type == kWorldFollows && m_step != Step::kJoining)
     {
         spdlog::info("JoinService: the host's gate passed; receiving its save");
@@ -178,6 +209,42 @@ void JoinService::OnAuthentication(const AuthenticationResponse& acResponse) noe
     if (acResponse.Type != kAccepted)
         Fail(m_world.GetTransport().GetJoinStatus().Current == JoinStatus::State::kRefused ? m_world.GetTransport().GetJoinStatus()
                                                                                         : JoinRefusal::Failed("transfer_failed"));
+}
+
+void JoinService::BeginCreation() noexcept
+{
+    To(Step::kCreating, JoinStatus::State::kCreatingCharacter);
+    m_creatingCharacter = true;
+    // The refused transport closes; Steam's identity, lobby and tunnel stay alive.
+    m_world.GetTransport().Close();
+    if (!m_bridge.BeginCharacterCreation())
+    {
+        m_creatingCharacter = false;
+        return Fail("creation_unavailable");
+    }
+    spdlog::info("JoinService: creating a character for {} at {}", PlayerKey(), m_endpoint);
+}
+
+void JoinService::FinishCreation() noexcept
+{
+    m_creatingCharacter = false;
+    m_createdCharacter = m_bridge.ReadPlayer();
+    m_createdCharacter->Knowledge = m_bridge.ReadKnowledge();
+    m_createdCharacter->Items.RemoveByFilter([](const Inventory::Entry& acEntry) { return acEntry.IsQuestItem; });
+    m_brought = m_createdCharacter;
+    m_fromMainMenu = false;
+    m_reached = false;
+    m_save = {};
+    To(Step::kConnecting, JoinStatus::State::kConnecting);
+    spdlog::info("JoinService: {} finished creation; resuming join to {}", m_brought->Name, m_endpoint);
+    if (!m_world.GetTransport().Connect(m_endpoint))
+        Fail("unreachable");
+}
+
+void JoinService::CreationHostLost() noexcept
+{
+    if (m_step == Step::kCreating)
+        Fail("lost_connection");
 }
 
 void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
@@ -224,7 +291,8 @@ void JoinService::Arrive() noexcept
     m_bridge.ApplyPlayer(character);
     m_bridge.ApplyKnowledge(character.Knowledge);
     m_brought.reset();
-    if (!cpKept)
+    // A new character, or a kept one without a place (it would stand on the save's player, the host's own spot).
+    if (!cpKept || !character.HasPlace())
     {
         To(Step::kPlacing, JoinStatus::State::kCreatingCharacter);
         return;
@@ -242,6 +310,7 @@ void JoinService::JoinSession() noexcept
 
 void JoinService::OnConnected(const ConnectedEvent&) noexcept
 {
+    m_createdCharacter.reset();
     m_joinedCharacter = m_bridge.ReadPlayer();
     m_joinedCharacter->Knowledge = m_bridge.ReadKnowledge();
     m_partyReload = false;
@@ -282,6 +351,9 @@ void JoinService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
             StartReconnect();
         return;
     }
+    // The refusal's connection is deliberately closed before the bundled start runs.
+    if (m_step == Step::kCreating && acEvent.Why == kLeft)
+        return;
     // Loading runs with no connection (ours closed on purpose); between tries there is none.
     if (m_step == Step::kLoading || m_step == Step::kReconnectWait)
         return;

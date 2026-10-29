@@ -105,28 +105,40 @@ No table is kept (3d, 2026-10-23).
 - Another host's world keeps its own record of the friend; changes made in the friend's own save after their first
   join do not reach the host's (bringing a character again is a later idea).
 
-#### First-time join (planned 2026-10-29, v1)
+<a id="first-time-join-planned-2026-10-29-v1"></a>
 
-A friend the host's save does not know accepts the invite at the main menu (or Steam starts the game from it). No
-choice to make and no screen of ours:
+#### First-time join (bundled start, 2026-10-29, v1)
+
+An unknown friend accepts an invite at the main menu, or Steam launches the game for the invite:
 
 ```
-invite accepted, host answers no_character (no record, no character brought)
-  -> the lobby is kept as the pending join; a new game starts by itself
-       Quick Start - SE (in the playtest package): its "Skip the introduction?" box, yes goes straight to
-         character creation
-  -> the race menu, the name confirmed: the character is made
-  -> the pending join runs from this game: its character brought, the host's world loaded, placed beside the host
-next time: the invite loads the kept character (as built)
+compatibility checks -> no_character -> bundled creation room
+  -> customize race, sex and appearance -> confirm name
+  -> finish racial spells and the starting kit -> capture the complete character
+  -> authenticate against the same host -> load its save -> restore character -> arrive beside host
+next invite -> load the kept character, without creation
 ```
 
-- The join after naming is the end of the intro on purpose: the rest of Helgen is the host's world's business.
-- Test: a GameTests flow (no record -> new game -> character made -> joined, the record kept), and the Skyrim
-  scenario `guest-makes-character-then-joins` from the invite at the main menu with Quick Start (the test games
-  have it).
-- v1 supports Quick Start's skip only. Joining from the vanilla intro (answering no, or without the mod: a character
-  made in the middle of Helgen's scene, bound hands, prisoner clothes, MQ101 items) is out of v1 scope and untested
-  (`docs/ideas.md`).
+- The plugin owns the start, enabled by default for first-time joins. Its bundled `SkyrimCoopStart.esp` supplies
+  an isolated room with base-game static scenery and lighting, without actors, quests, scripts or doors. No
+  third-party Quick Start installation, prompt interception, Hadvar/Ralof choice or intro quest is involved.
+- The engine's native cell startup is queued between frames from the main menu, followed by the native race
+  and naming menu. Ordinary New Game behavior is unchanged. The host's save supplies all story state.
+- Creation starts only after the normal compatibility checks return `no_character`. Retain the endpoint, Steam
+  identity and lobby, reject duplicate requests, and suppress automatic hosting of the temporary room.
+- Startup and finalization reuse the loading timeout. Customization and naming have no deadline. Completion
+  includes racial spells, inventory and knowledge before the existing transfer path captures the character.
+- Cancellation or losing the host clears automatic joining while leaving an open creator usable. Failed final
+  joining keeps the completed character available for retry. Missing bundled data leaves the player at the
+  main menu with an actionable explanation; it never falls through to the vanilla intro.
+- Steam launching a closed game uses the bundled `SkyrimCoopLauncher.exe` to preserve Steam's original
+  invite arguments through SKSE in the child's environment. The plugin reads that carrier at the main menu.
+  This is also required for returning-character launch invites; the standard SKSE loader drops OS arguments.
+- No network-message or character-save format changes. Reuse the `creating_character` presentation.
+- Acceptance: fast creation/timeout/cancel/compatibility/returning-character/Steam-launch tests; native
+  `guest-makes-character-then-joins` begins with joining and never manually starts New Game, answers start
+  prompts, or requests a second join. Verify appearance, spells, inventory, host copy, save and rejoin. Keep
+  direct transport results separate from real two-account Steam invite and launch-invite results.
 
 #### Where the engine keeps the player (IDA 1.6.1170, 2026-10-24)
 
@@ -236,7 +248,11 @@ the tunnel's loopback endpoint, and both connections go through it. A game Steam
 joins that lobby once its main menu is up.
 
 A brought character reconnects only after floor and clearance checks place it 120 units beside the save's player
-position. Missing physics waits; blocked bearings try others. Kept characters use their saved position. Details and
+position. Missing physics waits; blocked bearings try others. Kept characters use their saved position: the host's
+game stores it at each save and when the guest leaves (`HostRecords`), and a guest's own record never overwrites it
+(`CharacterRecords::Put`). A kept character without one is placed beside the host as a brought one is: the save's
+player spot is the host's own, and a copy standing in the host's player pushed it along (~40 units/s, fixed
+2026-10-29, `guest-arrival-leaves-host-in-place`). Details and
 regressions: [small-bugs.md](small-bugs.md), Joining beside the host.
 
 ### The character record
@@ -483,3 +499,11 @@ loaded save, which stays as test scaffolding until save transfer replaces it.
 7. Steam invites (after the two-account test).
 8. Layer 2 of the manifest; updating our plugin; mod sync as the spike decides.
 9. The AOL-style buddy list and chats.
+
+The launch-lobby reader checks Skyrim's OS command line, then Steam's
+[GetLaunchCommandLine](https://partner.steamgames.com/doc/api/ISteamApps#GetLaunchCommandLine).
+SKSE 2.2.6's `skse64_loader/main.cpp` calls `CreateProcess` with a null command line.
+For Steam `joinlobby` launches, Skyrim's Apps API did not return those OS parameters in the real test, so the
+bundled production launcher preserves them in `SKYRIMCOOP_LAUNCH_ARGS` before starting SKSE.
+The plugin checks its OS arguments, that inherited carrier, then the optional Steam Apps API.
+The installed Steam API exports `SteamAPI_SteamApps_v008` and `SteamAPI_ISteamApps_GetLaunchCommandLine`.

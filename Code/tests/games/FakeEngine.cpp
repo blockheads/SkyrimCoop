@@ -2192,7 +2192,7 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
         RewardStats[cValue.Index] = cValue.Base;
     Player.Words.clear();
     // As JoinBridge: at the record's place (kept in the host's save), else where the save put it, the host's spot.
-    if (acRecord.Cell)
+    if (acRecord.HasPlace())
     {
         cPlayer.Cell = acRecord.Cell.BaseId;
         std::ranges::copy(acRecord.Position, cPlayer.Position);

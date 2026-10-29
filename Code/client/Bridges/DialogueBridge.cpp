@@ -182,6 +182,7 @@ void HookTopicClicked(const FxDelegateArgs* apArgs)
 {
     const bool cIndexGiven = apArgs && apArgs->menu && apArgs->numArgs == 1 &&
                              (apArgs->args[0].type & GFxValue::kTypeMask) == GFxValue::kNumber;
+    spdlog::info("Dialogue: the menu's click on option {}", cIndexGiven ? static_cast<int64_t>(apArgs->args[0].value.number) : -1);
     if (cIndexGiven && s_filters.Pick && s_filters.Pick(static_cast<uint32_t>(apArgs->args[0].value.number)))
         return;
     RealTopicClicked(apArgs);
@@ -299,7 +300,11 @@ void HookShowList(bool aNewList)
         s_shownElsewhere.clear();
     // The open menu shows these already: filled again, it would take no pick for 750 ms.
     else if (pManager && !ReplaceOptions(*pManager, *cList))
+    {
+        spdlog::info("Dialogue: the engine's list (new {}): the menu shows the party's already", aNewList);
         return;
+    }
+    spdlog::info("Dialogue: the engine's list (new {}): the menu shows {}", aNewList, cList ? "the party's" : "its own");
     RealShowList(aNewList);
     if (pManager && s_hidden)
         EndWhenDone(*pManager);
@@ -313,6 +318,7 @@ void RefillMenu(bool aChoices) noexcept
     POINTER_SKYRIMSE(TVoiceReady, s_voiceReady, 52858);
     if (!IsMenuShown())
         return;
+    spdlog::info("Dialogue: the menu refills with the party's list (no pick for 750 ms)");
     RealShowList(aChoices);
     s_voiceReady.Get()();
 }
@@ -486,6 +492,8 @@ bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoice
         return false;
     if (ReplaceOptions(*pManager, acOptions))
         RefillMenu(aChoices);
+    else
+        spdlog::info("Dialogue: the party's list again, as the menu shows it: not refilled");
     return true;
 }
 

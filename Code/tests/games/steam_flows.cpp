@@ -222,7 +222,7 @@ SCENARIO("A host with friends in its game does not leave it for an invite", "[st
     CHECK(lydia.GetHostService().IsHosting());
 }
 
-SCENARIO("Steam starts a friend's game for an invite (+connect_lobby): at its main menu it joins that lobby", "[steam]")
+SCENARIO("A Steam invite at the main menu joins as a kept or newly created character", "[steam][creation]")
 {
     Party party(1, Plugins, false);
     World& host = party.Host();
@@ -230,8 +230,11 @@ SCENARIO("Steam starts a friend's game for an invite (+connect_lobby): at its ma
 
     party.As(host, [&] { REQUIRE(Steam(host).Host()); });
     party.Until([&] { return State(host).State == "hosting"; }, "the host's game makes its lobby and listens");
-    // Started by Steam with the lobby on its command line, it reaches its main menu.
-    Party::Steam(guest).LaunchLobby = State(host).Lobby;
+    const bool launchedForInvite = GENERATE(false, true);
+    if (launchedForInvite)
+        Party::Steam(guest).LaunchLobby = State(host).Lobby;
+    else
+        Party::Steam(guest).ChooseJoin(State(host).Lobby);
     Party::Engine(guest).AtMainMenu = true;
 
     WHEN("the host's save keeps the friend's character")
@@ -251,9 +254,36 @@ SCENARIO("Steam starts a friend's game for an invite (+connect_lobby): at its ma
 
     WHEN("the host's save does not know the friend")
     {
-        party.Until([&] { return guest.ctx().at<JoinService>().GetStatus().Current == JoinStatus::State::kRefused; },
-                    "the friend's game is told to make a character first");
-        CHECK(guest.ctx().at<JoinService>().GetStatus().Reason == "no_character");
+        auto& engine = Party::Engine(guest);
+        auto& join = guest.ctx().at<JoinService>();
+        party.Until([&] { return join.IsCreatingCharacter(); }, "the launch invite opens character creation");
+        const auto lobby = State(guest).Lobby;
+        const auto key = std::format("steam:{}", Party::Steam(guest).Id);
+        CHECK(join.PlayerKey() == key);
+        CHECK(engine.Loaded.empty());
+        engine.AtMainMenu = false;
+        engine.Player.Name = "Rinara";
+        engine.Player.Level = 1;
+        const bool hostLost = GENERATE(false, true);
+        if (hostLost)
+        {
+            engine.CreationPhase = IJoinBridge::Creation::kCustomizing;
+            Party::Steam(guest).Drop(State(guest).Peers.front().Connection);
+            party.Until([&] { return !join.IsJoining(); }, "Steam host loss clears the automatic join during customization");
+            CHECK(join.GetStatus().Reason == "lost_connection");
+            engine.CreationPhase = IJoinBridge::Creation::kComplete;
+            party.Frame();
+            CHECK(engine.Player.Name == "Rinara");
+            CHECK(engine.Loaded.empty());
+            return;
+        }
+        engine.CreationPhase = IJoinBridge::Creation::kComplete;
+        party.Until([&] { return guest.GetTransport().IsOnline() && !join.IsJoining(); }, "naming resumes joining through the retained Steam tunnel");
+        CHECK(State(guest).Lobby == lobby);
+        CHECK(join.PlayerKey() == key);
+        CHECK(engine.Player.Name == "Rinara");
+        CHECK(engine.CreationRequests == 1);
+        CHECK_FALSE(guest.GetHostService().IsHosting());
     }
 }
 

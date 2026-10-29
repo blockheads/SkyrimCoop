@@ -68,6 +68,25 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // The join flow's engine (IJoinBridge). A save carries this game's player as a record and the co-save; loading one
     // makes the player the save's (the host's) until JoinService applies the joining player's own.
     bool AtMainMenu = false;
+    bool CreationAvailable = true;
+    Creation CreationPhase = Creation::kIdle;
+    unsigned CreationRequests = 0;
+    bool BeginCharacterCreation() noexcept override
+    {
+        if (!CreationAvailable || CreationPhase != Creation::kIdle)
+            return false;
+        ++CreationRequests;
+        CreationPhase = Creation::kStarting;
+        return true;
+    }
+    void CancelCharacterCreation() noexcept override {}
+    Creation PollCharacterCreation() noexcept override
+    {
+        const auto phase = CreationPhase;
+        if (phase == Creation::kComplete || phase == Creation::kFailed)
+            CreationPhase = Creation::kIdle;
+        return phase;
+    }
     PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
     bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
     std::vector<std::string> Loaded; // the saves this game loaded, by name

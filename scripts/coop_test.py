@@ -117,10 +117,26 @@ def select_instance(name):
     VIRTUAL_DISPLAY = f":{base + (1 if name else 0)}"
 
 
+# --until-fail: each failure keeps both games' status as it was raised, before a scenario's own cleanup undoes it.
+STATUS_AT_FAILURE = False
+
+
 class TestFailure(RuntimeError):
     def __init__(self, *args):
         super().__init__(*args)
         self.time = time.time()  # wall clock, as the games' log lines: the failure digest cuts here
+        self.status = {}
+        global STATUS_AT_FAILURE
+        if STATUS_AT_FAILURE:
+            STATUS_AT_FAILURE, selected = False, INSTANCE  # a failure reading it does not read it again
+            try:
+                for name in ("", "client"):
+                    select_instance(name)
+                    with contextlib.suppress(Exception):
+                        self.status[name] = read_status()
+            finally:
+                select_instance(selected)
+                STATUS_AT_FAILURE = True
 
 
 def log(message):
@@ -465,7 +481,7 @@ def deploy_crash_logger():
 def crash_logs(name):
     """CrashLoggerSSE's logs for a game instance, oldest first."""
     directory = TEST_HOME / f"prefix-{name or 'host'}/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/SKSE"
-    return sorted(directory.glob("crash-*.log"))
+    return sorted(path for path in directory.glob("crash-*.log") if path.suffixes == [".log"])  # not the kept logs
 
 
 def plugin_log(name):
@@ -486,12 +502,22 @@ def settle_crash_log(crash_log, timeout=30):
         time.sleep(0.25)
 
 
+def kept_logs(crash_log):
+    """Both games' plugin logs kept beside a crash log (crash-<time>.host.log, .client.log): the next boot rewrites
+    them, and the other game's log shows what it sent before the crash."""
+    return {name: crash_log.with_suffix(f".{name or 'host'}.log") for name in ("", "client")}
+
+
 def crash_report(name, crash_log, ours=True):
     """The crash's report; with `ours`, our plugin's log adds the breadcrumbs and heap history."""
     settle_crash_log(crash_log)
+    kept = kept_logs(crash_log)
+    for game, path in kept.items():
+        if not path.exists() and plugin_log(game).exists():
+            shutil.copyfile(plugin_log(game), path)
     sys.path.insert(0, str(ROOT / "scripts/re"))
     import crash_report as report
-    return report.report(crash_log, plugin_log(name) if ours else None)
+    return report.report(crash_log, kept[name] if ours and kept[name].exists() else plugin_log(name) if ours else None)
 
 
 # Crashes seen before this run: wait_for fails at once on a new one, with its report.
@@ -604,19 +630,21 @@ def setup_display():
     log(f"Installed /etc/X11/{DUMMY_XORG_CONFIG}")
 
 
-# Quick Start - SE (Nexus, installed in the game's Data): a new game asks "Skip the introduction?" and opens the race
-# menu at once. Every test game loads it (the host refuses another load order); it acts only on a new game.
-QUICK_START = "Quick Start - SE.esp"
+# The room is bundled and enabled for every test game. It has no startup quest: only JoinService
+# opens it. The external Quick Start dependency previously auto-enabled in these prefixes is retired.
+BUNDLED_START = "SkyrimCoopStart.esp"
 
 
-def enable_quick_start():
-    """Turns Quick Start on in the selected game's Plugins.txt (a `*` marks a plugin on), if it is installed."""
+def enable_bundled_start():
+    source = ROOT / "GameFiles/Skyrim" / BUNDLED_START
+    target = GAME / "Data" / BUNDLED_START
+    if not target.exists() or target.read_bytes() != source.read_bytes():
+        shutil.copyfile(source, target)
     order = load_order_file()
     lines = order.read_text().splitlines() if order.exists() else []
-    if not (GAME / "Data" / QUICK_START).exists() or f"*{QUICK_START}" in lines:
-        return
+    lines = [line for line in lines if line.lstrip("*") not in (BUNDLED_START, "Quick Start - SE.esp")]
     order.parent.mkdir(parents=True, exist_ok=True)
-    order.write_text("\n".join([line for line in lines if line.lstrip("*") != QUICK_START] + [f"*{QUICK_START}"]) + "\n")
+    order.write_text("\n".join(lines + [f"*{BUNDLED_START}"]) + "\n")
 
 
 def prepare_prefix():
@@ -648,7 +676,7 @@ def prepare_prefix():
                             "AudioMenu": {"fAudioMasterVolume": "0.0000"},
                             # Subtitles on, as players have them (Low.ini turns them off).
                             "Interface": {"bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
-    enable_quick_start()
+    enable_bundled_start()
 
 
 # The plugin's command socket (CommandServer.cpp): one JSON line per request, answered within a
@@ -2431,8 +2459,9 @@ def client_accepts_steam_invite():
     the client's game is connected to the host over Steam."""
     host_id, guest_id = steam_accounts()
     select_instance("")
-    if not (rpc({"cmd": "steam_host"}) or {}).get("ok"):
-        raise TestFailure(f"[host] could not host on Steam: {steam_status('')}")
+    if steam_status("").get("session", {}).get("state") != "hosting":
+        if not (rpc({"cmd": "steam_host"}) or {}).get("ok"):
+            raise TestFailure(f"[host] could not host on Steam: {steam_status('')}")
     wait_for("[host] its lobby is made and it listens",
              lambda: steam_status("").get("session", {}).get("state") == "hosting", 30)
     lobby = steam_status("")["session"]["lobby"]
@@ -2766,6 +2795,49 @@ def restart_client_at_main_menu():
            new_run_dir("main-menu"))
 
 
+def scenario_guest_arrival_leaves_host_in_place():
+    """The client's game starts again at the main menu and joins with the host's world, as a friend joining: the host's
+    player stays where it stands. When it moves, the failure says when (the host's frames, harness body_trace) and
+    what the host's game logged around then (its copy of the client spawning, where)."""
+    start = player_snapshot("")["placement"]["position"]
+    select_instance("")
+    if not (rpc({"cmd": "body_trace", "refs": [0x14]}) or {}).get("ok"):
+        raise TestFailure("[host] the body trace did not start")
+    _, mark = log_trail("", 1 << 62)
+    frames = []
+    def take(stop=False):
+        select_instance("")
+        frames.extend((rpc({"cmd": "body_trace", **({"stop": True} if stop else {})}, timeout=10) or {}).get("entries", []))
+    try:
+        restart_client_at_main_menu()
+        joins_with_world("arrives")
+        if copy := player_copy(""):
+            select_instance("")
+            rpc({"cmd": "body_trace", "refs": [copy]})
+        arrived = time.time()
+        wait_for("[host] its frames cover 2 s after the arrival", lambda: take() or (frames and frames[-1]["t"] / 1e6 > arrived + 2), 10)
+    finally:
+        take(stop=True)
+    folder = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-guest-arrival"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "bodies.json").write_text(json.dumps(frames))
+    host = [f for f in frames if f["id"] == 0x14 and f.get("position")]
+    moves = [(b["t"] / 1e6, math.dist(a["position"], b["position"]), b["position"]) for a, b in zip(host, host[1:])
+             if math.dist(a["position"], b["position"]) > 0.1]
+    end = player_snapshot("")["placement"]["position"]
+    if math.dist(start[:2], end[:2]) > 10:
+        lines, _ = log_trail("", mark)
+        first = moves[0][0] if moves else time.time()
+        around = [f"{l['time_ms'] / 1000 - first:+.2f}s {l['text']}" for l in lines if abs(l["time_ms"] / 1000 - first) < 1.5]
+        traced = f"{len(host)} frames traced" + (f" from {[round(v) for v in host[0]['position']]} to "
+                                                 f"{[round(v) for v in host[-1]['position']]}" if host else "")
+        raise TestFailure(f"[host] its player moved {math.dist(start[:2], end[:2]):.0f} units while the client arrived "
+                          f"({[round(v) for v in start]} to {[round(v) for v in end]}; {traced}): "
+                          f"{len(moves)} frames moved, the first at {time.strftime('%H:%M:%S', time.localtime(first))} "
+                          f"({', '.join(f'{d:.1f}' for _, d, _ in moves[:8])} units); the host's log around it: "
+                          + " | ".join(around[-25:]) + f" (frames: {folder / 'bodies.json'})")
+
+
 def scenario_host_save_keeps_guest_character():
     """The host's game keeps the guest's character from the guest's game: from its joining, and on its changes (gold
     the guest picks up reaches the host's record within seconds); a save of the host's game writes it into the save's
@@ -2853,7 +2925,7 @@ def scenario_guest_joins_from_main_menu_as_kept_character():
 
 # The main menu's list (StartMenu.as in reference/plugins/skyrimui): entries carry an index, NEW's is 1; its state
 # is "MainConfirm" while "Start a new game?" waits.
-MAIN_LIST, MAIN_MENU_NEW = "_root.MenuHolder.Menu_mc.MainList", 1
+MAIN_LIST = "_root.MenuHolder.Menu_mc.MainList"
 MAIN_MENU_STATE = "_root.MenuHolder.Menu_mc.strCurrentState"
 # The race menu (RaceSexPanels.as): categories 0 race, 1 body, 2 head, 3 face, 4 eyes, 5 brow, 6 mouth, 7 hair; the
 # race list (_SubList1) and the category's sliders (_SubList2: the body's Sex first). The categories list keeps the
@@ -2867,11 +2939,9 @@ KHAJIIT_RACE = 0x13745
 NEW_CHARACTER_NAME = "Rinara"
 # Buttons the mouse clicks, in window pixels (measured on 1280x720): the boxes take only the mouse, the name box's
 # Enter is not mapped while text entry is on.
-SKIP_INTRO_YES = (596, 389)       # Quick Start's "Skip the introduction?"
 BODY_TAB = (782, 36)              # the race menu's "Body" category
 FINISH_NAMING_OK = (587, 389)     # "Finish and name your character?"
 NAME_ACCEPT = (580, 316)          # the name box's "Accept"
-BEFRIEND_HADVAR = (542, 489)      # Quick Start's "Who did you befriend...?"
 JOIN_BASE_FLAGS = 0x03000E36      # the base's sections a character takes along (JoinBridge kBaseFlags)
 NPC_SKILLS = 0x200                # the skills section: skills, offsets, health, magicka, stamina, ... (52 bytes)
 NPC_RACE = 0x2000000              # the race section: the race, then the original race (TESNPC::SaveGame 24777)
@@ -3000,35 +3070,24 @@ def clicks_box_button(what, button):
     wait_for(f"[client] {what}: the box is closed", lambda: "MessageBoxMenu" not in menus("client"), 10)
 
 
-def makes_new_character():
-    """At the main menu the client's player starts a new game (Quick Start skips the intro) and makes a character in
-    the race menu as a player does: Khajiit, female, with a war paint, a nose, eyes and hair of its own (styles_character),
-    named Rinara. Returns the player's identity."""
-    list_up = lambda: menu_var("client", "Main Menu", f"{MAIN_LIST}.selectedEntry.index") is not None
-    wait_for("[client] the main menu lists its entries", list_up, 30)
-    press_until("NEW is selected", DOWN_KEY,
-                Watch(lambda: menu_var("client", "Main Menu", f"{MAIN_LIST}.selectedEntry.index"), lambda i: i == MAIN_MENU_NEW))
-    tap_key("client", MENU_ACCEPT_KEY)
-    wait_for("[client] asks to start a new game",
-             lambda: menu_var("client", "Main Menu", MAIN_MENU_STATE) == "MainConfirm", 10)
-    tap_key("client", MENU_ACCEPT_KEY)
-    clicks_box_button("skips the introduction", SKIP_INTRO_YES)
-    wait_for("[client] the race menu opens", lambda: race_panel("_SubList1.selectedIndex") is not None, 60)
+def makes_new_character(race=KHAJIIT_RACE):
+    """Customize and name the creator opened by joining, without manual New Game or startup prompts."""
+    wait_for("[client] joining opens character creation", lambda: race_panel("_SubList1.selectedIndex") is not None, 90)
     identity = lambda: player_snapshot("client").get("identity") or {}
-    press_until("Khajiit is the race", UP_KEY, Watch(lambda: identity().get("race"), lambda r: r == KHAJIIT_RACE))
+    press_until("the chosen race is selected", UP_KEY, Watch(lambda: identity().get("race"), lambda r: r == race))
     move_cursor("client", BODY_TAB)
     click("client")
     wait_for("[client] the Body category is open", lambda: race_panel("_CategoriesList.selectedIndex") == BODY_CATEGORY, 10)
     press_until("female", MENU_RIGHT_KEY, Watch(lambda: identity().get("female"), bool))
     styles_character()
-    finishes_race_menu("finishes and names the character", NEW_CHARACTER_NAME)
-    clicks_box_button("picks who it escaped with", BEFRIEND_HADVAR)
-    wait_for("[client] plays the new character in its own world", lambda: RACE_MENU not in menus("client") and
-             identity().get("name") == NEW_CHARACTER_NAME and takes_input("client"), 60)
+    # Naming resumes joining immediately: capture the chosen face before confirming it.
     made = identity()
-    if made.get("race") != KHAJIIT_RACE or not made.get("female"):
-        raise TestFailure(f"[client] the race menu made another character: {made}")
-    return made
+    sections = {flag: form_save("client", 0x14, base=True, flags=flag)["data"]
+                for flag in (NPC_FACE, NPC_RACE, 0x1000000)}
+    tints = player_record("client")["tints"]
+    finishes_race_menu("finishes and names the character", NEW_CHARACTER_NAME)
+    made["name"] = NEW_CHARACTER_NAME
+    return made, sections, tints
 
 
 def shown(data):
@@ -3064,26 +3123,25 @@ def input_state(instance):
     return player_command(instance, {"cmd": "input_state"})
 
 
-def scenario_guest_makes_character_then_joins():
-    """A friend new to the host's save starts Skyrim, makes a new character (New, Quick Start skips the intro, the race
-    menu: Khajiit, female, war paint, a nose, eyes and hair of its own, named Rinara) and joins from that game. Its game loads the host's world and
-    is still that character, to the engine's own save bytes of its base; the host's copy of it saves the same bytes,
-    and the host keeps it (JoinService, JoinBridge, HostRecords). The client's game then starts again as the duo's."""
-    key = player_record("client")["key"]
+def scenario_guest_makes_character_then_joins(steam=False, race=KHAJIIT_RACE):
+    """An unknown friend joins first, then creates and names Rinara and arrives automatically. The host's
+    copy matches her chosen appearance, spells and inventory; another invite uses the kept character."""
+    key = f"steam:{steam_accounts()[1]}" if steam else player_record("client")["key"]
     select_instance("client")
     load_order = load_order_file().read_bytes()
     restart_client_at_main_menu()
     try:
         player_command("", {"cmd": "forget_record", "key": key})
-        made = makes_new_character()
-        sections = [1 << bit for bit in range(32) if JOIN_BASE_FLAGS & (1 << bit)]
-
-        def section(flag):
-            return form_save("client", 0x14, base=True, flags=flag)["data"]
-        base_sections = lambda: {flag: section(flag) for flag in sections}
-        mine = base_sections()
-        made_tints = player_record("client")["tints"]
-        joins_with_world("with its new character")
+        if steam:
+            client_accepts_steam_invite()
+        else:
+            player_command("client", {"cmd": "join_world", "port": session_port()})
+        made, mine, made_tints = makes_new_character(race)
+        sections = list(mine)
+        base_sections = lambda: {flag: form_save("client", 0x14, base=True, flags=flag)["data"] for flag in sections}
+        wait_for("[client] naming automatically joins the original host",
+                 lambda: game_state("client").get("online") and not join_status("client").get("joining"), 240)
+        wait_for("Each game shows the other player", both_see_each_other, 60)
         after = player_snapshot("client").get("identity") or {}
         for what in ("name", "race", "female", "weight"):
             if after.get(what) != made[what]:
@@ -3097,6 +3155,10 @@ def scenario_guest_makes_character_then_joins():
         if differ := [f"{flag:#x} ({shown(mine[flag])} -> {shown(now[flag])})" for flag in sections if now[flag] != mine[flag]]:
             raise TestFailure(f"[client] its base in the host's world saves other bytes than the character it made, "
                               f"in the sections of change flags {', '.join(differ)}")
+        kit = {"0:3C9FE": 1, "0:3CA00": 1}
+        actual_kit = {k: v for k, v in player_record("client")["items"].items() if k != "0:F"}
+        if actual_kit != kit:
+            raise TestFailure(f"[client] the starting kit changed: {actual_kit}, expected {kit}")
         select_instance("")
         copy = next(iter(other_players()), None)
         seen = ((read_status() or {}).get("actors") or {}).get(str(copy), {}).get("identity") or {}
@@ -3106,12 +3168,39 @@ def scenario_guest_makes_character_then_joins():
         if differ := copy_base_differences(copy):
             raise TestFailure(f"[host] its copy's base {copy:X} saves other bytes than the client's own, in the sections of "
                               f"change flags {differ}")
+        wait_for("[host] the copy carries the starting kit",
+                 lambda: item_count("", copy, 0x3C9FE) == 1 and item_count("", copy, 0x3CA00) == 1, 15)
+        race_spells = (0xAA01D, 0xAA01E) if race == KHAJIIT_RACE else (0x640B6,)
+        for spell in (0x12FCD, 0x12FCC, *race_spells):
+            if not has_spell("client", 0x14, spell) or not has_spell("", copy, spell):
+                raise TestFailure(f"starting spell {spell:X} did not survive arrival on both games")
         waits_until_same(f"[host] its copy {copy:X} wears the face the client made", lambda: copy_face_differences(copy), 15)
         wait_for("[host] keeps the character the client made",
                  lambda: (kept := kept_records("").get(key)) and kept["name"] == NEW_CHARACTER_NAME, 15)
+        checkpoint = save_game("", "SkyrimCoopNewCharacter")
+        wait_for("[host] saves the new character with its world", saves_written(checkpoint), 20)
+        restart_client_at_main_menu()
+        if steam:
+            client_accepts_steam_invite()
+            wait_for("[client] the next Steam invite loads its kept character",
+                     lambda: game_state("client").get("online") and not join_status("client").get("joining"), 240)
+        else:
+            joins_with_world("the next invite loads the kept character")
+        if (player_snapshot("client").get("identity") or {}).get("name") != NEW_CHARACTER_NAME:
+            raise TestFailure("the next invite did not restore the newly kept character")
     finally:  # the duo's character again, in QASmoke, joined
+        if steam:
+            steam_sessions_end()
         restart_client(load_order, dropped=bool(game_state("client").get("online")))
         rejoin_client()
+
+
+def scenario_first_time_join_by_invite():
+    scenario_guest_makes_character_then_joins(steam=True)
+
+
+def scenario_first_time_join_breton():
+    scenario_guest_makes_character_then_joins(race=0x13741)
 
 
 NORD_VAMPIRE_RACE = 0x88794
@@ -4902,10 +4991,20 @@ def scenario_dialogue_pick_reaches_host():
                            lambda: talking_to("client", copy) and dialogue("client").get("options"), 10)
         before = [o["topic"] for o in dialogue("").get("options", [])]
         wait_for("[host] its NPC's greeting is over", lambda: line_over("", npc), 30)
+        # The client's copy voices it a moment later; a press in the frame its greeting ends is lost (B3, docs/bugs.md).
+        wait_for("[client] its copy's greeting is over", lambda: line_over("client", copy), 30)
         wait_for("[client] the menu takes a pick", lambda: menu_takes_pick("client"), 10)
-        log(f"[client] picks {options[0]['text']!r}")
+        before = dialogue("client").get("swf")
+        log(f"[client] picks {options[0]['text']!r} (its menu's SWF: {before})")
         tap_key("client", ACTIVATE_KEY)
-        wait_for(f"[host] {npc:08X} says the picked line", lambda: line_playing("", npc), 10)
+        try:
+            wait_for(f"[host] {npc:08X} says the picked line", lambda: line_playing("", npc), 10)
+        except TestFailure as error:
+            # Where the press went: the SWF before it and now, and whether this game asked the host at all.
+            lines, _ = log_trail("client", 0)
+            asked = [l["text"] for l in lines if l["text"].startswith("Dialogue:")][-4:]
+            raise TestFailure(f"{error} (the client's SWF before the press {before}, now {dialogue('client').get('swf')}; "
+                              f"its last dialogue lines: {asked})") from None
         wait_for(f"[client] copy {copy:08X} voices it", lambda: line_playing("client", copy), 5)
         def followed():
             host, client = dialogue(""), dialogue("client")
@@ -4919,6 +5018,27 @@ def scenario_dialogue_pick_reaches_host():
     finally:
         close_dialogues()
         remove_host_npc(npc)
+
+
+def scenario_dialogue_npc_removed_mid_conversation():
+    """The client talks to its copy of the host's NPC, and the host's game removes the NPC mid-conversation (a quest
+    disabling it, the console's disable and markfordelete): the client's copy goes without crashing its game, its
+    menu closes and both games end the conversation."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        console_on("", f"{npc:08X}.disable")
+        console_on("", f"{npc:08X}.markfordelete")
+        wait_on("client", f"copy {copy:08X} removed", lambda actors: str(copy) not in actors)
+        wait_for("[client] its menu closes", lambda: menu_closed("client"), 10)
+        wait_for("[both] the conversation ends", lambda: not dialogue("").get("speaker") and not dialogue("client").get("speaker"), 10)
+        hold()
+    finally:
+        close_dialogues()
 
 
 def scenario_remove_host_npc():
@@ -5819,10 +5939,14 @@ def death_spectate_respawn(victim, travel_down=False):
             wait_for("the enemy's hit kills the player", lambda: death_state(victim).get("down"), 15)
         except TestFailure as failure:
             raise TestFailure(f"{failure} ({fight()})") from None
-        freeze("", npc)
+        # It turns on the standing player before it is frozen: a frozen actor has no AI to take a new target (it
+        # kept or dropped one by timing, B5 in docs/v1-open-issues-2026-10-29.md).
         if hidden_host:
             console_on("", "player.setav invisibility 0")
         console_on("", f"{npc:X}.startcombat {observer_target:X}")
+        wait_for("the enemy turns on the standing player",
+                 lambda: host_world(npc).get("ai", {}).get("combat_target") == observer_target, 5)
+        freeze("", npc)
         if not is_dead(player_snapshot(victim)):
             raise TestFailure("the downed player is not dead (essential, or bleeding out)")
         camera_sees_followed(victim, "the death camera")
@@ -5841,7 +5965,7 @@ def death_spectate_respawn(victim, travel_down=False):
                      lambda: death_state(victim).get("status") == "Party in combat", 5)
         except TestFailure as failure:
             raise TestFailure(f"{failure} (status {death_state(victim).get('status')!r}, the wolf's target "
-                              f"{host_npc_state(npc).get('ai', {}).get('combat_target')})") from None
+                              f"{host_world(npc).get('ai', {}).get('combat_target')})") from None
         started = time.monotonic()
         def still_down_in_combat():
             if not game_state(victim).get("online") or not death_state(victim).get("down"):
@@ -10936,6 +11060,10 @@ def reset_baseline():
     if game_state("client").get("online") is False:
         rejoin_client()
     home = load_home("")
+    # A conversation still running on an NPC about to go would be removed under it (the guest crash in 37541,
+    # 2026-10-29): the play path for that is dialogue-npc-removed-mid-conversation, not the baseline.
+    if any(dialogue(name).get("speaker") for name in ("", "client")):
+        close_dialogues()
     for name in ("", "client"):
         for npc in owned_npcs(name):
             console_on(name, f"{npc:08X}.disable")
@@ -11050,6 +11178,8 @@ SCENARIOS = {
     "guest-brings-character-into-hosts-world": scenario_guest_brings_character_into_hosts_world,
     "guest-joins-from-main-menu-as-kept-character": scenario_guest_joins_from_main_menu_as_kept_character,
     "guest-makes-character-then-joins": scenario_guest_makes_character_then_joins,
+    "first-time-join-by-invite": scenario_first_time_join_by_invite,
+    "first-time-join-breton": scenario_first_time_join_breton,
     "guest-changes-looks-in-session": scenario_guest_changes_looks_in_session,
     "death-stage-runs-once": scenario_death_stage_runs_once,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
@@ -11068,6 +11198,8 @@ SCENARIOS = {
     "dialogue-join-by-talking": scenario_dialogue_join_by_talking,
     "dialogue-host-in-background": scenario_dialogue_host_in_background,
     "dialogue-pick-reaches-host": scenario_dialogue_pick_reaches_host,
+    "dialogue-npc-removed-mid-conversation": scenario_dialogue_npc_removed_mid_conversation,
+    "guest-arrival-leaves-host-in-place": scenario_guest_arrival_leaves_host_in_place,
     "dialogue-options-are-the-hosts": scenario_dialogue_options_are_the_hosts,
     "dialogue-line-judged-for-guest": scenario_dialogue_line_judged_for_guest,
     "copy-knows-learned-spell": scenario_copy_knows_learned_spell,
@@ -11273,6 +11405,8 @@ TAGS = {
     "guest-brings-character-into-hosts-world": {'session', 'save', 'join'},
     "guest-joins-from-main-menu-as-kept-character": {'session', 'save', 'join', 'v1'},
     "guest-makes-character-then-joins": {'session', 'save', 'join'},
+    "first-time-join-by-invite": {'session', 'save', 'join', 'steam', 'two-accounts'},
+    "first-time-join-breton": {'session', 'save', 'join'},
     "guest-changes-looks-in-session": {'session', 'spawn', 'join'},
     "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
     "quest-completes-for-guest": {'world', 'quest'},
@@ -11290,6 +11424,8 @@ TAGS = {
     "dialogue-join-by-talking": {'dialogue', 'spawn'},
     "dialogue-host-in-background": {'dialogue', 'spawn'},
     "dialogue-pick-reaches-host": {'dialogue', 'spawn'},
+    "dialogue-npc-removed-mid-conversation": {'dialogue', 'spawn', 'v1'},
+    "guest-arrival-leaves-host-in-place": {'session', 'join', 'restart', 'v1'},
     "dialogue-quest-option-from-host": {'dialogue', 'spawn', 'quests'},
     "dialogue-options-are-the-hosts": {'dialogue', 'spawn'},
     "dialogue-line-judged-for-guest": {'dialogue', 'quests'},
@@ -12768,6 +12904,32 @@ def command_affected(args):
         print("No targeted scenarios to run.")
 
 
+def reports_folder(name):
+    """Where that game writes its bug report parts (Diagnostics::Folders::Reports)."""
+    return TEST_HOME / f"prefix-{name or 'host'}/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/SkyrimCoop/reports"
+
+
+def capture_failure(name, result, error):
+    """A failed scenario as a player's /bug from the host: each game still up writes its part (log, messages,
+    snapshot, the host's save) and its status as the failure was raised (at-failure.json, before the scenario's
+    cleanup), then coop_report.py reads them as one timeline. Returns the report's id."""
+    before = set(reports_folder("").glob("*"))
+    player_command("", {"cmd": "bug_report", "text": f"{name}: {result}"})
+    folder = wait_for("[host] the failure's bug report is written",
+                      lambda: next((p for p in set(reports_folder("").glob("*")) - before if any(p.glob("host-*/note.txt"))), None), 30)
+    with contextlib.suppress(TestFailure):
+        wait_for("[client] its part of the report is written",
+                 lambda: any((reports_folder("client") / folder.name).glob("guest-*/note.txt")), 15)
+    for game, status in error.status.items():
+        for part in (reports_folder(game) / folder.name).glob("*-*"):
+            if status:
+                (part / "at-failure.json").write_text(json.dumps(status))
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import coop_report
+    coop_report.main([str(reports_folder("")), str(reports_folder("client")), "--id", folder.name, "--since", "30"])
+    return folder.name
+
+
 def command_scenario(args):
     global HOLD
     HOLD = args.hold
@@ -12790,7 +12952,10 @@ def command_scenario(args):
                                                     if i not in TEST_ITEMS)})
         save_home()
     upgrade_home()
-    order = [name for _ in range(args.repeat) for name in names]
+    until_fail = getattr(args, "until_fail", 0)
+    global STATUS_AT_FAILURE
+    STATUS_AT_FAILURE = bool(until_fail)
+    order = [name for _ in range(until_fail or args.repeat) for name in names]
     seed = args.seed
     if args.shuffle:
         seed = args.seed if args.seed is not None else random.randrange(1 << 30)
@@ -12835,6 +13000,13 @@ def command_scenario(args):
         except TestFailure as error:
             result = f"FAIL ({error})"
             log(f"=== {name}: what each game saw\n" + failure_digest(marks, wall_start, error.time))
+            if until_fail:
+                report = capture_failure(name, result, error)
+                runs.append((name, time.monotonic() - scenario_start, result))
+                log(f"=== {name}: {result}\n=== --until-fail: failed on run {len(runs)} of up to {len(order)}; the games are "
+                    f"left as they failed (watch, look, world-diff), bug report {report} "
+                    f"(`coop_test.py report {reports_folder('')} {reports_folder('client')} --id {report}`)")
+                raise SystemExit(1)
         # Back to the baseline for the next one; what the reset cannot undo is this scenario's.
         leftovers = settle_baseline()
         if leftovers:
@@ -13183,6 +13355,9 @@ def main():
     scenario.add_argument("--shuffle", action="store_true", help="random order (scenarios must not depend on each other)")
     scenario.add_argument("--seed", type=int, help="with --shuffle: repeat a shuffled order")
     scenario.add_argument("--repeat", type=int, default=1, help="run the list N times")
+    scenario.add_argument("--until-fail", type=int, default=0, metavar="N",
+                          help="run the list up to N times, stopping at the first failure: both games write a bug report "
+                               "there (read back as one timeline) and stay as they failed")
     scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see TAGS)")
     scenario.add_argument("--fail-fast", action="store_true", help="stop at the first scenario that fails")
     scenario.add_argument("--dry-run", action="store_true", help="print the selection without contacting Skyrim")

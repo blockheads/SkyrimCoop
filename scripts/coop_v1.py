@@ -1,5 +1,6 @@
 """Native v1 exit and character-knowledge checks. All learning uses normal menu input."""
 import argparse
+import time
 
 import coop_test as ct
 
@@ -288,9 +289,54 @@ def save_does_not_update_frozen_world():
         raise ct.TestFailure("full co-op world updates overlapped during the save")
 
 
+def plays_on(after, seconds=60):
+    """The party plays on after a load: a wolf fights the guest's character on the host's game while every ~10 s both
+    games must still be advancing (no freeze; a crash fails any wait), with no lock-order report of ours; then the copies agree with
+    their owners and the players kept their items."""
+    items = {game: ct.player_record(game)["items"] for game in ("", "client")}
+    known = ct.lock_order_reports()
+    wolf, _, _ = ct.spawn_host_npc(ct.WOLF)
+    try:
+        ct.console_on("", f"{wolf:X}.startcombat {ct.client_on_host():X}")
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            for game in ("", "client"):
+                ct.console_on(game, "player.restoreav health 10000")
+            # Each round is 300 frames of both games (~5-10 s): a frozen game fails it.
+            frames = {game: ct.game_frame(game) for game in ("", "client")}
+            ct.wait_for(f"[both] keep playing after the {after}", lambda: all(ct.game_frame(game) > frame + 300
+                                                                            for game, frame in frames.items()), 20)
+            ours = [f"{game}: {report}" for sites, (game, report, mine) in ct.lock_order_reports().items()
+                    if mine and sites not in known]
+            if ours:
+                raise ct.TestFailure(f"lock order after the {after} (our code on the stack): " + " | ".join(ours))
+    finally:
+        ct.console_on("", f"{wolf:X}.kill")
+        ct.remove_host_npc(wolf)
+    if problems := ct.check_desync():
+        raise ct.TestFailure(f"desync after the {after}: " + " | ".join(problems))
+    for game, before in items.items():
+        if ct.player_record(game)["items"] != before:
+            raise ct.TestFailure(f"[{game or 'host'}] its items changed while playing on after the {after}")
+
+
+def save_load_gate():
+    """The reload-freeze gate (v1-playtest-todo.md): with a guest in, the host's game saves and loads each way a player
+    does (quicksave and quickload, a save loaded from the Load menu, a named save loaded by name, a party wipe back to
+    its checkpoint), and after each the party plays on through a fight, checked every ~10 s."""
+    for how, load in (("quickload", lambda: ct.host_loads_party(True)),
+                      ("Load menu", lambda: ct.host_loads_party(False, menu=True)),
+                      ("named load", lambda: ct.host_loads_party(False)),
+                      ("party wipe", ct.scenario_death_wipe_checkpoint)):
+        ct.log(f"=== gate: {how}")
+        load()
+        plays_on(how)
+
+
 def register(scenarios, tags):
     entries = {
         "save-does-not-update-frozen-world": (save_does_not_update_frozen_world, {"save", "v1"}),
+        "save-load-gate": (save_load_gate, {"save", "v1", "gate"}),
         "guest-quits-to-main-menu": (guest_quits, {"session", "restart"}),
         "host-quits-to-main-menu": (host_quits, {"session", "restart"}),
         "guest-leaves-to-main-menu": (guest_leaves, {"session", "restart"}),

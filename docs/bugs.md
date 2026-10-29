@@ -47,6 +47,27 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixe
   - Start: what the owner's graph sends on a crafting furniture's exit, and whether the copy's replay (copies run no
     AI) can finish an exit it began. A `copy_flows.cpp` case once the fake has the furniture states.
 
+## Dialogue
+
+- **A guest crashed once in a conversation whose NPC was deleted** (2026-10-29, party dialogue). In
+  `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
+  copy, already flagged deleted (client prefix `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced since; the play
+  path (`dialogue-npc-removed-mid-conversation`) passes and the scenario baseline now ends conversations first.
+  - Out of v1 scope (2026-10-29).
+  - Start: what 39372 reads at RCX; whether a copy removed after a trade (container menu closed, conversation still on
+    the engine) is the path.
+  - Test: a scenario that removes the NPC right after a follower trade, if it ever reproduces.
+
+- **A guest's dialogue press in the frame its greeting ends is lost** (2026-10-29, v1 triage). The guest's engine shows
+  its list again as its copy's greeting ends; the menu already shows the party's list, so that show is skipped
+  (`DialogueBridge` `HookShowList`; running it instead resets the 750 ms pick delay, worse). A press in that same frame
+  never reaches `TopicClicked` (the SWF stays `allow_progress` 1, state 1); a player presses again. 1 in ~5 runs while
+  `dialogue-pick-reaches-host` pressed as the host's greeting ended; 20 of 20 since it waits for the client's greeting.
+  - Out of v1 scope (2026-10-29): a one-frame window.
+  - Start: what the engine does at the greeting's end beyond `ShowList` (52857) that the skip leaves out; whether
+    vanilla drops a press in that frame too (`repro --vanilla`).
+  - Test: `dialogue-pick-reaches-host` without its wait for the client's greeting, `--until-fail 20`.
+
 ## Party travel
 
 Party travel was accepted for v1.0.0 testing by the user on 2026-10-27. Jail cleanup, horse packages, physics
@@ -84,6 +105,21 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
 The user accepted these three remaining reports for v1.0.0 on 2026-10-28. Further fixes are deferred.
 The audit removed unsuccessful pose reconstruction; existing native checks and failed traces remain.
 Retained changes and their evidence are in [native-bugs.md](design/native-bugs.md).
+
+- **A respawned guest can stay ragdolled, sunk into the floor** (2026-10-29, v1 triage). `death-spectate-guest` once
+  timed out on "the respawned player can walk again": the guest's player had its 18 ragdoll bodies awake and stood
+  49 units into the floor after its revive. 0 of 14 runs since.
+  - Out of v1 scope (2026-10-29).
+  - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
+    body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
+  - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
+
+- **Players read as kneeling after a follower trade** (2026-10-29, v1 triage). `follower-trade-to-picker` once failed
+  its afterwards check: both players' own bodies read kneeling (pelvis 32 and 44) while their copies stood, both in
+  first person. 1 of 2 runs.
+  - Out of v1 scope (2026-10-29): cosmetic.
+  - Start: whether it is an idle the copies do not replay or `body_problems` misreading a first-person player.
+  - Test: the same scenario's afterwards check.
 
 - **Brief get-up timing or facing differences.** Basic owner timing, get-up preparation/action and iGetUpType
   synchronization remain. All six regular physics/death/revival scenarios pass once in the reduced build

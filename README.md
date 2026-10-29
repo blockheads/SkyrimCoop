@@ -19,6 +19,16 @@ This simplifies:
 
 This is a work-in-progress fork. For build instructions, see CLAUDE.md.
 
+Install and enable the bundled [SkyrimCoopStart.esp](GameFiles/Skyrim/SkyrimCoopStart.esp) in both games along
+with the plugin. First-time invites open character creation automatically; confirming the name joins the host.
+Returning players use their kept character. External Quick Start is no longer required, and ordinary New Game
+behavior stays unchanged. The test runner installs and enables the bundled room automatically.
+
+For Steam to launch the game for an invite, its launcher must use the bundled `SkyrimCoopLauncher.exe` beside
+`skse64_loader.exe`. It preserves the invite arguments that SKSE otherwise drops. A manual installation can back
+up the original `SkyrimSELauncher.exe` and use a copy of `SkyrimCoopLauncher.exe` under that name; keep the backup
+for restoring the vanilla launcher. Launching an already running game needs no launcher substitution.
+
 For the Linux test workflow (two off-screen Skyrim instances, sync scenarios, swapping a
 rebuilt plugin into the running games), see the docstring of `scripts/coop_test.py`.
 

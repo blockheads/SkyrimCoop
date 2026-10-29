@@ -46,3 +46,18 @@ TEST_CASE("Truncated character counts and record lengths cannot load a co-save",
         CHECK(records.All().empty());
     }
 }
+
+TEST_CASE("A guest's new record keeps the place the host's game set", "[records][place]")
+{
+    CharacterRecords records;
+    PlayerRecord guest;
+    guest.Key = "guest";
+    records.Put(guest);
+    records.SetPlace("guest", GameId(0, 0x3C), GameId{}, {100.f, 200.f, 300.f});
+    guest.Level = 12;
+    records.Put(guest);
+    REQUIRE(records.Find("guest"));
+    CHECK(records.Find("guest")->Level == 12);
+    CHECK(records.Find("guest")->HasPlace());
+    CHECK(records.Find("guest")->Position == std::array<float, 3>{100.f, 200.f, 300.f});
+}

@@ -55,6 +55,10 @@ JoinStatus Failed(std::string_view aReason) noexcept
         status.Message = "The host's world didn't arrive or didn't load. Try joining again.";
     else if (aReason == "placement_failed")
         status.Message = "Couldn't find room beside the host. Ask the host to move to an open spot, then join again.";
+    else if (aReason == "creation_unavailable")
+        status.Message = "Character creation is unavailable. Install and enable the bundled SkyrimCoopStart.esp, then accept the invite again.";
+    else if (aReason == "creation_failed")
+        status.Message = "Character creation couldn't finish starting or preparing your character. Return to the main menu and try the invite again.";
     else if (aReason == "no_character")
         status.Message = "The host's game has no character of yours yet: start or load a game of your own, then join from it.";
     else
@@ -127,7 +131,7 @@ std::string ForHost(AuthenticationResponse::ResponseType aReason, const Authenti
     }
     case kSessionFull: return std::format("{} couldn't join: the session is full.", cName);
     case kTransferFailed: return std::format("{} couldn't join: your game could not save for them.", cName);
-    case kNoCharacter: return std::format("{} couldn't join: they have no character in your game yet (the first time, they join from a game of their own).", cName);
+    case kNoCharacter: return std::format("{} needs a new character before joining your game.", cName);
     default: return std::format("{} couldn't join.", cName);
     }
 }

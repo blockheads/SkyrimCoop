@@ -282,3 +282,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   Start - SE. Joining from the vanilla intro would bring a character made in the middle of Helgen's scene (bound
   hands, prisoner clothes, MQ101 items): check what it carries, then let players choose the cutscene
   (`docs/design/join-flow.md`, "First-time join").
+
+- **The bundled character start with mods (2026-10-29).** `CreationStart` gives a new character the prisoner tunic
+  and shoes (hard-coded) and its race's spells through vanilla's `MQ101QuestScript.AddRaceSpells` on MQ101 (3372B).
+  A mod that starts players differently (its own spells or kit outside MQ101's script) is not applied. When mods are
+  in scope: a mod-settings override for the kit and starting spells, or running the start mod's own setup.

@@ -12,6 +12,9 @@ public:
     // The player base's change flags a record carries: all but Factions (the party's) and the AI and outfits.
     static constexpr uint32_t kBaseFlags = 0x03000E36; // BaseData Attributes SpellList FullName NPCSkills Class Face Gender Race
 
+    bool BeginCharacterCreation() noexcept override;
+    void CancelCharacterCreation() noexcept override;
+    Creation PollCharacterCreation() noexcept override;
     bool IsAtMainMenu() const noexcept override;
     void ReturnToMainMenu() noexcept override;
     std::string PlayerId() noexcept override;

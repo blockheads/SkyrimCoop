@@ -48,13 +48,19 @@ void HostRecords::OnPlayerRecord(const PlayerRecordRequest& acRequest, Connectio
 
 void HostRecords::OnSaving() const noexcept
 {
-    if (!m_game.StorePlace)
+    m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player&) { StorePlace(aConnection); });
+}
+
+void HostRecords::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
+{
+    StorePlace(aPlayer);
+}
+
+void HostRecords::StorePlace(ConnectionId_t aPlayer) const noexcept
+{
+    const auto* cpPlayer = m_players.Find(aPlayer);
+    if (!m_game.StorePlace || !cpPlayer || cpPlayer->IsHost || cpPlayer->Key.empty())
         return;
-    m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
-        if (acPlayer.IsHost || acPlayer.Key.empty())
-            return;
-        if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aConnection)))
-            m_game.StorePlace(acPlayer.Key, cPlace->WorldSpaceId, cPlace->CellId,
-                              {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
-    });
+    if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aPlayer)))
+        m_game.StorePlace(cpPlayer->Key, cPlace->WorldSpaceId, cPlace->CellId, {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
 }

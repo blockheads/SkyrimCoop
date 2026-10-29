@@ -68,9 +68,11 @@ struct PlayerRecord
     // A blob per mod adapter, by name ("racemenu").
     std::map<std::string, std::string> Extras;
 
+    // Where the host's game last showed this character (none: the host's save has no place for it).
     GameId Cell{};
     GameId WorldSpace{};
     std::array<float, 3> Position{};
+    [[nodiscard]] bool HasPlace() const noexcept { return Cell || WorldSpace; }
 
     // The words of power this player has unlocked: its own, bought with its souls (docs/design/dragonborn.md). A record
     // an older build saved has none.

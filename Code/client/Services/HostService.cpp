@@ -200,20 +200,33 @@ void HostService::MakeAuthority() noexcept
     game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t aPlayer) { return m_pEngine->TransferContainer(acRequest, aPlayer); };
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
-    game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
-    game.StoreStorySpell = [this](const GameId& acSpell, bool aAdded) {
-        m_world.ctx().at<SaveService>().GetRecords().SetStorySpell(acSpell, aAdded);
+    // The records live in SaveService, which a world tearing down drops before its Steam lobby kicks the guests.
+    const auto cRecords = [this]() -> CharacterRecords* {
+        auto* pSaves = m_world.ctx().find<SaveService>();
+        return pSaves ? &pSaves->GetRecords() : nullptr;
     };
-    game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
+    game.StoreRecord = [cRecords](const PlayerRecord& acRecord) {
+        if (auto* pRecords = cRecords())
+            pRecords->Put(acRecord);
+    };
+    game.StoreStorySpell = [cRecords](const GameId& acSpell, bool aAdded) {
+        if (auto* pRecords = cRecords())
+            pRecords->SetStorySpell(acSpell, aAdded);
+    };
+    game.HasRecord = [cRecords](const std::string& acKey) {
+        const auto* pRecords = cRecords();
+        return pRecords && pRecords->Find(acKey) != nullptr;
+    };
     game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
         auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
         if (!files)
             return std::nullopt;
         return SaveTransfer::Split(SaveTransfer::Pack(*files));
     };
-    game.StorePlace = [this](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
-                             const std::array<float, 3>& acPosition) {
-        m_world.ctx().at<SaveService>().GetRecords().SetPlace(acKey, acWorldSpace, acCell, acPosition);
+    game.StorePlace = [cRecords](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
+                                 const std::array<float, 3>& acPosition) {
+        if (auto* pRecords = cRecords())
+            pRecords->SetPlace(acKey, acWorldSpace, acCell, acPosition);
     };
     game.PartyWipe = [this] { m_reloadRequested = true; };
     game.Versions = RunningGame::GetVersions();

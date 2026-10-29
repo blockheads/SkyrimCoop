@@ -411,6 +411,18 @@ and fast travel. The engine's `raw_days` remains cumulative and its sync is chec
 cannot rewind it, and setting `GameDaysPassed` alone is overwritten next frame. The per-process midnight counter
 also remains cumulative and is not exposed by the harness. No save load or forced guest calendar conceals this.
 
+A failure caught where it happened (2026-10-29):
+
+- `scenario NAMES --until-fail N`: runs the list up to N times and stops at the first failure without resetting.
+  Every game writes its part of a bug report there, as a player's `/bug` does (harness `bug_report`: log, messages,
+  snapshot, the host's save; docs/design/bug-reports.md), plus `at-failure.json`, its status as the failure was raised
+  (before the scenario's own cleanup removed its NPCs). The run prints `coop_report.py` on it: the last 30 s of both
+  games on one clock and the copies that differ from their owners. The games stay as they failed.
+- A game's crash keeps both games' plugin logs beside its crash log (`crash-<time>.host.log`, `.client.log`): the
+  next boot rewrites the plugin logs.
+- `body_trace` on a player shows when and how it moved, frame by frame (how `guest-arrival-leaves-host-in-place`
+  found a copy spawned inside the host's player pushing it at ~40 units/s).
+
 What a person sees, without a video (2026-10-26): problems seen on screen (a floating body, a camera in a wall,
 a corpse twitching) are readouts and checks, so a scenario fails naming them in numbers.
 

@@ -14,6 +14,13 @@ class IJoinBridge
 {
 public:
     using SaveFiles = SaveTransfer::SaveFiles;
+    enum class Creation { kIdle, kStarting, kCustomizing, kFinalizing, kComplete, kFailed };
+
+    // The bundled invite-only start. Poll also advances queued engine work; completion includes naming,
+    // racial spells and the starting kit. Cancellation lets a menu already open finish normally.
+    virtual bool BeginCharacterCreation() noexcept = 0;
+    virtual void CancelCharacterCreation() noexcept = 0;
+    [[nodiscard]] virtual Creation PollCharacterCreation() noexcept = 0;
 
     virtual ~IJoinBridge() = default;
 

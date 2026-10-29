@@ -17,6 +17,7 @@ struct CharacterRecords
     // The co-save's record version (SKSE's per-record version).
     static constexpr uint32_t kVersion = 3;
 
+    // A guest's record; the place stays the one the host's game set (SetPlace): a guest's record carries none.
     void Put(PlayerRecord aRecord) noexcept;
     [[nodiscard]] const PlayerRecord* Find(std::string_view aKey) const noexcept;
     [[nodiscard]] const std::map<std::string, PlayerRecord, std::less<>>& All() const noexcept { return m_records; }

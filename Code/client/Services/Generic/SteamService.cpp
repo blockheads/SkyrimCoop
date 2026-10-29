@@ -60,7 +60,7 @@ void SteamService::HostWorld() noexcept
     const bool cGuestElsewhere = m_world.GetTransport().IsOnline() && !m_world.GetHostService().IsHosting();
     // The host's save a main menu join loads is not this player's to host.
     const auto* pJoin = m_world.ctx().find<JoinService>();
-    if (cGuestElsewhere || (pJoin && pJoin->IsJoining()) || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
+    if (cGuestElsewhere || (pJoin && (pJoin->IsJoining() || pJoin->IsCreatingCharacter())) || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
         return;
     spdlog::info("Steam: a world of this player's is up; hosting");
     Host();
@@ -130,6 +130,8 @@ void SteamService::Leave() noexcept
 void SteamService::Fail(std::string aError) noexcept
 {
     spdlog::warn("Steam: {}", aError);
+    if (auto* pJoin = m_world.ctx().find<JoinService>())
+        pJoin->CreationHostLost();
     // A reconnect's try: JoinService's reconnect says how it ends.
     if (m_hosting)
         Notify("Steam session: " + aError);

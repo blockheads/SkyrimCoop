@@ -88,6 +88,7 @@ if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
 fi
 if (( DLL )); then
     step "build plugin" scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
+    step "build launcher" scripts/xmake-msvc.sh build -j8 SkyrimCoopLauncher
 fi
 
 if (( ${#FAILED[@]} )); then
