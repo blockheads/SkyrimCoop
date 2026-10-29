@@ -78,11 +78,11 @@ def recruited(game="client", base=None, slot=0, topic=RECRUIT, outdoors=False, r
         go_home()
 
 
-def follows(npc, member):
+def follows(npc, member, timeout=15):
     def matches():
         expected = member() if callable(member) else member
         return bool(expected) and ct.actor_state("", npc).get("ai", {}).get("follow_target") == expected
-    ct.wait_for("the follower's native pathing target is the requested member", matches, 15)
+    ct.wait_for("the follower's native pathing target is the requested member", matches, timeout)
 
 
 def guest_recruits():

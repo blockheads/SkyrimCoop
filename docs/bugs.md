@@ -90,6 +90,20 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   - 2026-10-28, adaptive playback run: `party-fast-travels` failed once on the client's lock audit with the same
     family (`SkyrimSE.exe+0x3cdb45 > +0x182241 vs +0x1823d0 > +0x3d1507`), then passed on the rerun.
 
+- **A guest's follower can stop following after being teleported and a fight** (2026-10-29, v1-gate, `save-load-gate`).
+  After the harness took the party to the inn and home with `coc` and put Lydia beside it with `move_actor` (she
+  unloads and loads again), a wolf fighting the guest's copy left her on `PlayerFollowerPackage` (5C84B) with no
+  package or follow target, never resolving it again (30 s+); she was never in combat herself. One
+  `evaluatepackage` resolves the copy again (our `FollowerTargets` resolve hook) and she follows. 3 of 3 when the door
+  round followed the Load-menu round, 0 of 2 started at the door, 1 of 1 recovered in a plain fight after one round
+  trip. Players have no `coc`/`move_actor`; the gate now runs the door last, so it no longer stages her before a
+  fight. A re-evaluation on her combat end did not help (no combat event of hers). Evidence: the gate4-6 and probe
+  logs of the v1-gate session (`FollowersDiag` lines: resolves keep arriving and are substituted).
+  - Start: a case without the harness teleport (a follower left behind that catches up, then a fight); then which
+    engine path writes the package target without 29846.
+- **The guest's copy of a follower once played another action** (2026-10-29, v1-gate). `save-load-gate`'s desync
+  check after the door round's fight: Lydia's `animation.action` on the host 522467 vs the client's copy 297. Once.
+
 ## Plugin compatibility
 
 - **Quest start/stop notification parity is deferred with mod work.** Vanilla guest journal, stage and completion
@@ -99,6 +113,16 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   - Start: investigate actual native notification sources with the intended consumer installed. Do not synthesize
     another stop from flag changes or add a timing-based duplicate filter. Native counters remain available through
     `quest_fragments`; journal/reward tests keep their vanilla stage and completion assertions.
+
+- **Movement-record flags on guest clutter after a vampire rejoin** (B8, deferred past v1 by the user 2026-10-29).
+  With all six fix mods, `vampirism-kept-across-rejoin` passes its behavior checks, then the world check finds only
+  movement-record change flags differing on three clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`), set
+  only on the guest; positions agree within the check's tolerance. Once, not seen on vanilla (2026-10-29: the scenario
+  passes with no world difference and `unsynced` reports every host change sent with a row). A guest's game refuses
+  every save, so its records never persist. Evidence: [mod-compatibility.md](mod-compatibility.md),
+  [lock-history follow-up](re/crashes/2026-10-29-lock-history-and-button-pose.md).
+  - Start: `coop_test.py unsynced` and `save-diff` right after the scenario on the six-mod profile; if the host
+    lacks a move the guest has, which engine path moved the clutter on the guest only.
 
 ## Physics and ragdolls
 

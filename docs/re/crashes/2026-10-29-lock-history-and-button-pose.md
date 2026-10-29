@@ -112,7 +112,7 @@ puzzle-ring restoration, both players' furniture animations, ability retention, 
 later copy, guest story events, crafted-potion retention across rejoin and checkpoint recovery.
 Vampirism retention/rejoin completes its behavior checks, then fails the world oracle on
 three clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`): only movement-record flags
-differ. This is retained as a failed check. The earlier host-arrival displacement is retained too.
+differ. Retained as a failed check, deferred past v1 ([bugs.md](../../bugs.md#plugin-compatibility)). The earlier host-arrival displacement is retained too.
 
 Both final games report zero frozen/saving/loading world updates and zero overlaps. The
 checker remains enabled, with the existing known-pattern list unchanged. This follow-up is

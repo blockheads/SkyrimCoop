@@ -133,3 +133,12 @@ Input: keyboard 0x13 'XButton' press; menus ContainerMenu (ContainerMenu lists 5
   `InventoryLists_mc.currentState` (`InventoryLists.as`) 1 or 2 shown, 3-5 sliding. Every sink passes the key on
   either way: the drop is in the menu's Flash. Seen 2026-10-21: R (Take All) at state 5 took nothing.
 
+
+## A key's press and release in one frame (2026-10-29)
+
+The harness sends each key event when its command arrives, so a scenario's release could follow its press within
+the same frame (2 ms apart). Every input sink passes both on, but a menu's movie does not take such a press:
+`first-time-join-breton` lost about one Up in three in the RaceSex menu's race list (`press_until`'s "the menu takes
+the press"); every press that worked was held about 16 ms. A real key is held for frames, so `tap_key` and `press_key`
+now let a key go only after the game draws a frame (`held_a_frame`). One more Up later went unconfirmed while held 84 ms: the RaceSex menu takes the press at once, but the engine puts
+the new race on later (it loads the body behind the fade), so `selects_race` waits for the list's highlight and then the race.

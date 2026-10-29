@@ -1696,17 +1696,17 @@ actions preserve newer actions and body resets. Fast concurrency/restoration tes
 The original reload corruption remains open (v1); the historical werewolf crash is out of v1 scope (2026-10-29,
 `docs/bugs.md`). See the [stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
 
-- **V1 delivery:** a reproducible `test_harness=n` player package with UI/assets/dependencies, Quick Start - SE,
-  clean-install validation and current setup instructions (with `docs/playtest.md`: `/bug`, `/export`). The README
-  still needs its deleted-server/launcher description cleaned up.
+- **V1 delivery:** `scripts/package.sh` builds the player zip (dev mode, no harness; plugin + PDB, UI, SkyrimCoopStart.esp,
+  SkyrimCoopLauncher.exe, `docs/install.md`, `docs/playtest.md`), byte-identical from the same build (2026-10-29).
+  `scripts/package_check.py` installs and boots it from a clean folder and prefix (PASS). The README now points to install.md; its old server/launcher
+  description below still needs cleaning up.
 - **V1 first-time join (planned 2026-10-29):** a friend the host's save does not know accepts the invite at the main
   menu, a new game starts by itself, Quick Start skips the intro, and naming the character joins the host with it
   ([join-flow.md](design/join-flow.md#first-time-join-planned-2026-10-29-v1)). Today such a friend is refused with
   "start or load a game of your own". The vanilla intro is out of v1 (`docs/ideas.md`).
 - **V1 acceptance:** the agreed upstream fixes/features and library checks in [v1-playtest-todo.md](v1-playtest-todo.md),
-  the unresolved host-reload freeze with its save/load gate (save three ways, load three ways, then keep playing
-  minutes while checking frames, crashes, copies, follower and items; the current load scenarios stop at positions
-  matching), and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
+  the unresolved host-reload freeze with its save/load gate (`save-load-gate`: five save/load ways with the door's
+  autosave, a follower kept through them, a minute of fighting after each; 3/3 on vanilla 2026-10-29, the mod profiles next), and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
 - **Later scope:** automatic mod/file syncing or self-updating, a launcher if needed for those features,
   player-list/kick/settings screens and the other items explicitly outside 1.0 above. V1 entry uses Steam invites
   and Skyrim's own save/character flow; no additional Host Game or character-library screen is required.

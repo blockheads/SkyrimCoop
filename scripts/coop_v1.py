@@ -2,6 +2,7 @@
 import argparse
 import time
 
+import coop_followers as followers
 import coop_test as ct
 
 
@@ -290,12 +291,12 @@ def save_does_not_update_frozen_world():
 
 
 def plays_on(after, seconds=60):
-    """The party plays on after a load: a wolf fights the guest's character on the host's game while every ~10 s both
-    games must still be advancing (no freeze; a crash fails any wait), with no lock-order report of ours; then the copies agree with
-    their owners and the players kept their items."""
+    """The party plays on after a load: a wolf, spawned where the host stands, fights the guest's character on the
+    host's game while every ~10 s both games must still be advancing (no freeze; a crash fails any wait), with no
+    lock-order report of ours; then the copies agree with their owners and the players kept their items."""
     items = {game: ct.player_record(game)["items"] for game in ("", "client")}
     known = ct.lock_order_reports()
-    wolf, _, _ = ct.spawn_host_npc(ct.WOLF)
+    wolf = ct.spawn_beside_host(ct.WOLF)
     try:
         ct.console_on("", f"{wolf:X}.startcombat {ct.client_on_host():X}")
         end = time.monotonic() + seconds
@@ -320,17 +321,71 @@ def plays_on(after, seconds=60):
             raise ct.TestFailure(f"[{game or 'host'}] its items changed while playing on after the {after}")
 
 
+def goes_with_follower(cell, npc):
+    """The party goes to the cell (the harness's coc, which takes no follower along) and the follower is put beside it."""
+    ct.both_go(cell)
+    ct.player_command("", {"cmd": "move_actor", "actor": npc, "position": ct.my_position("client")})
+    ct.wait_for("the follower is beside the party", lambda: ct.actor_place("", npc).get("cell") == ct.player_cell(""), 15)
+
+
+def door_autosave_loads(npc):
+    """The party walks out of the inn with the follower: the host's game autosaves at the load door, and that
+    autosave, loaded from the Load menu, restores the party outside."""
+    guest_level = ct.player_record("client")["level"]
+    goes_with_follower(ct.INN, npc)
+    ct.console_on("", "set gamehour to 12")
+    before, guest_cell = ct.save_files(""), ct.player_cell("client")
+    ct.travel("", lambda: ct.activate_on("", ct.INN_DOOR_INSIDE), ct.player_cell(""))
+    ct.follows("client", guest_cell)
+    autosave = ct.wait_for("the load door autosaves the host's game",
+                           lambda: sorted(n for n in ct.save_files("") - before if n.startswith("Autosave")), 30)[0]
+    ct.wait_for("the autosave and its co-save are written", ct.saves_written(ct.save_file("", autosave[:-4])), 15)
+    outside = ct.player_cell("")
+    follower_still_follows(npc, "door, before the load")
+    ct.moves_past_save(guest_level)
+    ct.load_latest_from_menu("")
+    ct.party_restored(guest_level)
+    if {ct.player_cell(game) for game in ("", "client")} != {outside}:
+        raise ct.TestFailure("the door's autosave did not restore the party outside the inn")
+    follower_still_follows(npc, "door autosave, outside")
+
+
+def follower_still_follows(npc, after, timeout=15):
+    """The follower recruited before the loads is still the party's, following the guest's new copy. After a fight
+    the engine's follower first ends combat (its line, then the package's target resolves again: ~10 s)."""
+    ct.log(f"=== gate: the follower after the {after}")
+    ct.wait_for("the follower is still in the follower slot, not waiting",
+                lambda: followers.alias() == npc and ct.actor_value("", npc, 95) == 0, 30)
+    try:
+        followers.follows(npc, lambda: ct.player_copy(""), timeout)
+        copy = ct.player_copy("")
+        ct.wait_for("the follower is with its guest", lambda: ct.actor_place("", npc).get("cell") ==
+                    ct.actor_place("", copy).get("cell"), 30)
+    except ct.TestFailure as failure:
+        place, ai = ct.actor_place("", npc), ct.actor_state("", npc).get("ai", {})
+        raise ct.TestFailure(f"{failure} (the follower in cell {place.get('cell')} at {place.get('position')}, "
+                             f"AI {ai}; the guest's copy {ct.player_copy('')} in cell "
+                             f"{ct.actor_place('', ct.player_copy('')).get('cell')})") from None
+
+
 def save_load_gate():
-    """The reload-freeze gate (v1-playtest-todo.md): with a guest in, the host's game saves and loads each way a player
-    does (quicksave and quickload, a save loaded from the Load menu, a named save loaded by name, a party wipe back to
-    its checkpoint), and after each the party plays on through a fight, checked every ~10 s."""
-    for how, load in (("quickload", lambda: ct.host_loads_party(True)),
-                      ("Load menu", lambda: ct.host_loads_party(False, menu=True)),
-                      ("named load", lambda: ct.host_loads_party(False)),
-                      ("party wipe", ct.scenario_death_wipe_checkpoint)):
-        ct.log(f"=== gate: {how}")
-        load()
-        plays_on(how)
+    """The reload-freeze gate (v1-playtest-todo.md): with a guest in and the follower it recruited, the host's game
+    saves and loads each way a player does (quicksave and quickload, a save loaded from the Load menu, the load door's
+    autosave, a named save loaded by name, a party wipe back to its checkpoint), and after each the party plays on
+    through a fight, checked every ~10 s, with the follower still following its guest."""
+    with followers.recruited() as (npc, _, _):
+        followers.follows(npc, lambda: ct.player_copy(""))
+        # The door last: the party ends outside the inn, and the fight after it is there.
+        for how, load in (("quickload", lambda: ct.host_loads_party(True)),
+                          ("Load menu", lambda: ct.host_loads_party(False, menu=True)),
+                          ("named load", lambda: ct.host_loads_party(False)),
+                          ("party wipe", ct.scenario_death_wipe_checkpoint),
+                          ("door autosave", lambda: door_autosave_loads(npc))):
+            ct.log(f"=== gate: {how}")
+            load()
+            follower_still_follows(npc, how)
+            plays_on(how)
+            follower_still_follows(npc, f"{how} and its fight", 30)
 
 
 def register(scenarios, tags):

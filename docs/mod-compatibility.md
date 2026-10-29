@@ -191,8 +191,8 @@ The final DLL, all six pinned mods, stock settings and Display Tweaks capped at 
 join, puzzle rings, both players' furniture animations, ability retention, effects on a later
 copy, guest location story events, potion retention across rejoin and checkpoint recovery pass.
 Vampirism retention/rejoin completes, but its postcheck finds movement-record flags on three
-clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`) only on the guest. This remains a
-failed check. A separate earlier standalone join passed the corrected pose assertion but failed
+clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`) only on the guest. That failed check is
+deferred past v1 ([bugs.md](bugs.md#plugin-compatibility), 2026-10-29). A separate earlier standalone join passed the corrected pose assertion but failed
 because arrival displaced the host about 50 units; its planned repetitions were skipped.
 
 Both final games report zero frozen/saving/loading updates and zero update overlaps. Evidence:

@@ -1407,6 +1407,18 @@ def spawn_host_npc(base, restrained=False):
     return npc, session_id, copy
 
 
+def spawn_beside_host(base):
+    """The host spawns an NPC where it stands, in any cell (spawn_host_npc's stage is the home cell's); returns it once
+    it has a session id and the client shows its copy."""
+    before = set(local_player("").get("local_actors", {}))
+    console_on("", f"player.placeatme {base} 1")
+    npc = int(next(iter(wait_for("[host] the new NPC spawns", lambda: set(local_player("").get("local_actors", {})) - before, 15))))
+    session_id = wait_for("[host] the new NPC gets a session id",
+                          lambda: (sid := host_npc_state(npc).get("session_id")) is not None and sid >= 0 and (sid,), 10)[0]
+    copy_of("client", session_id)
+    return npc
+
+
 def freeze(instance, actor, frozen=True):
     """Freezes (or thaws) the actor in that game: no AI, not pushed, players pass through it; it still takes hits."""
     player_command(instance, {"cmd": "freeze", "actor": actor, "frozen": frozen})
@@ -2553,6 +2565,7 @@ def press_key(instance, scan):
     """The player presses and releases a keyboard key (DirectInput scan code), through the game's input dispatch."""
     wait_for(f"[{instance or 'host'}] the game takes input", lambda: takes_input(instance), 10)
     player_command(instance, {"cmd": "key", "scan": scan, "down": True})
+    held_a_frame(instance)
     player_command(instance, {"cmd": "key", "scan": scan, "down": False})
 
 
@@ -2663,9 +2676,7 @@ def host_loads_party(quick, menu=False):
         name = f"HostLoadSelected_{int(time.time())}"
         checkpoint = save_game("", name)
         wait_for("the chosen save and its co-save are written", saves_written(checkpoint), 15)
-    console_on("client", f"player.setlevel {guest_level + 1}")
-    console_on("", "set gamehour to 17")
-    wait_for("the party moves beyond the chosen save", lambda: game_state("client").get("time", {}).get("hour", 0) > 16, 10)
+    moves_past_save(guest_level)
     if quick:
         press_key("", QUICKLOAD_KEY)
     elif menu:
@@ -2675,6 +2686,24 @@ def host_loads_party(quick, menu=False):
         newer = save_game("", name + "_newer")
         wait_for("the newer save is written", saves_written(newer), 15)
         console_on("", f"load {name}")
+    party_restored(guest_level)
+    for instance in ("", "client"):
+        if player_record(instance)["name"] != names[instance]:
+            raise TestFailure(f"[{instance or 'host'}] the load restored another player's character")
+        if distance(my_position(instance), positions[instance]) > 100:
+            raise TestFailure(f"[{instance or 'host'}] did not return to its saved place")
+
+
+def moves_past_save(guest_level):
+    """The party plays on beyond a save made at noon: later hour, the guest a level up."""
+    console_on("client", f"player.setlevel {guest_level + 1}")
+    console_on("", "set gamehour to 17")
+    wait_for("the party moves beyond the chosen save", lambda: game_state("client").get("time", {}).get("hour", 0) > 16, 10)
+
+
+def party_restored(guest_level):
+    """Both games are back in the noon save with the guest's saved level, show each other, keep updating and can
+    spawn a fresh actor."""
     def restored():
         return all(game_state(instance).get("online") and
                    abs(game_state(instance).get("time", {}).get("hour", 24) - 12) < 0.3
@@ -2684,15 +2713,9 @@ def host_loads_party(quick, menu=False):
     frames = {instance: game_frame(instance) for instance in ("", "client")}
     wait_for("both games keep updating after restoration",
              lambda: all(game_frame(instance) > frame + 180 for instance, frame in frames.items()), 15)
-    npc, _, _ = spawn_host_npc("0001A696")
-    remove_host_npc(npc)
+    remove_host_npc(spawn_beside_host("0001A696"))
     if player_record("client")["level"] != guest_level:
         raise TestFailure("the guest did not load its saved character: its later level survived")
-    for instance in ("", "client"):
-        if player_record(instance)["name"] != names[instance]:
-            raise TestFailure(f"[{instance or 'host'}] the load restored another player's character")
-        if distance(my_position(instance), positions[instance]) > 100:
-            raise TestFailure(f"[{instance or 'host'}] did not return to its saved place")
 
 
 JOURNAL_ROOT = "_root.QuestJournalFader.Menu_mc"
@@ -3070,11 +3093,24 @@ def clicks_box_button(what, button):
     wait_for(f"[client] {what}: the box is closed", lambda: "MessageBoxMenu" not in menus("client"), 10)
 
 
+def selects_race(race, identity):
+    """Up through the race list until the engine wears `race`. Each press must move the list's highlight (the menu took
+    it), then the engine must put that race on (it loads the race's body behind the fade)."""
+    for _ in range(12):
+        if identity().get("race") == race:
+            return
+        index, worn = race_panel("_SubList1.selectedIndex"), identity().get("race")
+        tap_key("client", UP_KEY)
+        wait_for("[client] the race list takes the press", lambda: race_panel("_SubList1.selectedIndex") != index, 5)
+        wait_for("[client] the engine puts on the highlighted race", lambda: identity().get("race") != worn, 15)
+    raise TestFailure(f"[client] race {race:X} not reached after 12 presses")
+
+
 def makes_new_character(race=KHAJIIT_RACE):
     """Customize and name the creator opened by joining, without manual New Game or startup prompts."""
     wait_for("[client] joining opens character creation", lambda: race_panel("_SubList1.selectedIndex") is not None, 90)
     identity = lambda: player_snapshot("client").get("identity") or {}
-    press_until("the chosen race is selected", UP_KEY, Watch(lambda: identity().get("race"), lambda r: r == race))
+    selects_race(race, identity)
     move_cursor("client", BODY_TAB)
     click("client")
     wait_for("[client] the Body category is open", lambda: race_panel("_CategoriesList.selectedIndex") == BODY_CATEGORY, 10)
@@ -10288,11 +10324,22 @@ def key(instance, code, down):
     player_command(instance, {"cmd": "key", "scan": code, "down": down})
 
 
+def held_a_frame(instance):
+    """Waits until the game draws a frame: a key let go in the frame it went down is never taken by a menu's movie
+    (the RaceSex menu's list missed such an Up)."""
+    frame, end = game_frame(instance), time.monotonic() + 5
+    while game_frame(instance) <= frame:  # quiet: one per keystroke
+        if time.monotonic() > end:
+            raise TestFailure(f"[{instance or 'host'}] the game drew no frame while a key was held")
+        time.sleep(0.005)
+
+
 def tap_key(instance, code, shift=False):
-    """A key pressed and let go, as the keyboard sends it (through the game's input dispatch)."""
+    """A key pressed and let go, as the keyboard sends it (through the game's input dispatch), held a frame."""
     if shift:
         key(instance, SHIFT_KEY, True)
     key(instance, code, True)
+    held_a_frame(instance)
     key(instance, code, False)
     if shift:
         key(instance, SHIFT_KEY, False)

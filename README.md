@@ -17,7 +17,8 @@ This simplifies:
 
 ## Getting Started
 
-This is a work-in-progress fork. For build instructions, see CLAUDE.md.
+This is a work-in-progress fork. To play: [docs/install.md](docs/install.md) (the playtest package, built by
+`scripts/package.sh`). For build instructions, see CLAUDE.md.
 
 Install and enable the bundled [SkyrimCoopStart.esp](GameFiles/Skyrim/SkyrimCoopStart.esp) in both games along
 with the plugin. First-time invites open character creation automatically; confirming the name joins the host.
