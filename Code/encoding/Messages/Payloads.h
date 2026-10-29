@@ -11,6 +11,7 @@
 #include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
+#include <Structs/Recipe.h>
 #include <Structs/ScriptValue.h>
 #include <Wire/Buffer.h>
 #include <optional>
@@ -377,5 +378,17 @@ struct SystemQuests
     bool operator==(const SystemQuests&) const noexcept = default;
 
     std::vector<GameId> Quests;
+};
+
+// Player-made potions' recipes (Recipe): before its first message naming one, a game not yet told gets it, a guest's
+// to the host and the host's to each guest (docs/design/crafted-potions.md).
+struct Recipes
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const Recipes&) const noexcept = default;
+
+    std::vector<Recipe> Known;
 };
 } // namespace Payloads

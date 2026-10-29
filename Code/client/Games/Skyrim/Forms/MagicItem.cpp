@@ -1,4 +1,6 @@
 #include "MagicItem.h"
+#include <FormIds.h>
+#include <Games/Memory.h>
 #include <Games/TES.h>
 #include <RTTI.h>
 #include <Utils.h>
@@ -110,4 +112,43 @@ EffectItem* MagicItem::GetEffect(const uint32_t aEffectId) noexcept
     }
 
     return nullptr;
+}
+
+std::optional<std::vector<Inventory::EffectItem>> MagicItem::SessionEffects() const noexcept
+{
+    std::vector<Inventory::EffectItem> effects;
+    for (const EffectItem* pEffect : listOfEffects)
+    {
+        const auto cSetting = pEffect && pEffect->pEffectSetting ? ToSession(pEffect->pEffectSetting->formID) : std::nullopt;
+        if (!cSetting)
+            return std::nullopt;
+        effects.push_back({pEffect->data.fMagnitude, pEffect->data.iArea, pEffect->data.iDuration, pEffect->fRawCost, *cSetting});
+    }
+    return effects;
+}
+
+NewEffects::~NewEffects() noexcept
+{
+    if (Array.data)
+        Memory::Free(Array.data);
+}
+
+bool NewEffects::Set(const std::vector<Inventory::EffectItem>& acEffects) noexcept
+{
+    Array.Resize(acEffects.size());
+    for (uint32_t i = 0; i < acEffects.size(); ++i)
+    {
+        const auto& cEffect = acEffects[i];
+        EffectItem item{};
+        item.data = {cEffect.Magnitude, cEffect.Area, cEffect.Duration};
+        item.fRawCost = cEffect.RawCost;
+        item.pEffectSetting = Cast<EffectSetting>(TESForm::GetById(ToGame(cEffect.EffectId)));
+        if (!item.pEffectSetting)
+        {
+            spdlog::error("NewEffects: effect {:X}:{:X} not in this game", cEffect.EffectId.ModId, cEffect.EffectId.BaseId);
+            return false;
+        }
+        Array[i] = item;
+    }
+    return true;
 }

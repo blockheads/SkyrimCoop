@@ -14,7 +14,7 @@ struct BSAnimationGraphManager
     void Release()
     {
         if (InterlockedDecrement(&refCount) == 0)
-            this->~BSAnimationGraphManager();
+            delete this;
     }
 
     volatile LONG refCount;
@@ -30,6 +30,8 @@ struct BSAnimationGraphManager
     uint32_t animationGraphIndex; // A8 - 5C
 
     std::map<uint32_t, std::string> DumpAnimationVariables(bool aPrintVariables);
+    BShkbAnimationGraph* GetGraph(int aForceIndex = -1) noexcept;
+    uint64_t GetProjectKey(int aForceIndex = -1) noexcept;
     uint64_t GetDescriptorKey(int aForceIndex = -1);
     uint32_t ReSendEvent(BSFixedString* apEventName);
 };

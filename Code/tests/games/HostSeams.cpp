@@ -155,13 +155,13 @@ void HostService::MakeAuthority() noexcept
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };
     game.SetItems = [&engine](const ObjectChange& acItems) {
-        engine.SetItems(FormIdOf(acItems.Object), FormIdOf(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
+        engine.SetItems(FormIdOf(acItems.Object), ItemForm(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
     };
     game.TransferContainer = [&engine](const ContainerTransferRequest& acRequest, uint32_t aPlayer) {
         Inventory::Entry moved = acRequest.Item;
         const uint32_t cPlayer = Utils::GetFormIdBySessionId(aPlayer);
         const uint32_t cContainer = acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId) : FormIdOf(acRequest.Container);
-        const uint32_t cItem = FormIdOf(moved.BaseId);
+        const uint32_t cItem = ItemForm(moved.BaseId);
         const bool cTake = moved.Count > 0;
         const int32_t cAvailable = cTake ? (acRequest.ContainerActorId ? engine.CountOf(cContainer, cItem) : engine.References.at(cContainer).Items[cItem]) : engine.CountOf(cPlayer, cItem);
         moved.Count = std::min(std::abs(moved.Count), cAvailable) * (cTake ? 1 : -1);

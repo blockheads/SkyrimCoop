@@ -3,6 +3,7 @@
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Structs/PlayerKnowledge.h>
+#include <Structs/Recipe.h>
 #include <Structs/Tints.h>
 #include <Wire/Buffer.h>
 
@@ -77,6 +78,8 @@ struct PlayerRecord
     // Own permanent totals (base + permanent modifier), excluding temporary effects and damage.
     std::vector<Value> PermanentValues;
     PlayerKnowledge Knowledge;
+    // The recipes of its player-made potions and poisons (Items' recipe ids), for its game to make them again.
+    std::vector<Recipe> Recipes;
 
     bool operator==(const PlayerRecord& acRhs) const noexcept;
 

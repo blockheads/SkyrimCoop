@@ -1,3 +1,4 @@
+#include <Games/Animation/GraphReference.h>
 
 #include <imgui.h>
 #include <EquipManager.h>
@@ -99,6 +100,7 @@ void DebugService::DrawAnimDebugView()
 
     BSAnimationGraphManager* pManager = nullptr;
     EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager);
+    GraphReference<BSAnimationGraphManager> graphReference(pManager);
 
     if (!pManager)
     {

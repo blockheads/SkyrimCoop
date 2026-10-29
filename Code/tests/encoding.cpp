@@ -1242,11 +1242,30 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         Inventory::Entry gold;
         gold.BaseId = GameId(0, 0xF);
         gold.Count = 1250;
-        record.Items.Entries = {sword, gold};
+        const Recipe cFortify{false, {{25.f, 0, 60, 30.f, GameId(0, 0x3EAF3)}, {10.f, 0, 30, 12.f, GameId(0, 0x3EB15)}}};
+        Inventory::Entry potions;
+        potions.BaseId = cFortify.Id(); // a player-made potion, by its recipe
+        potions.Count = 3;
+        record.Items.Entries = {sword, gold, potions};
+        record.Recipes = {cFortify};
         record.Cell = GameId(0, 0x31D2E);
         record.WorldSpace = GameId(0, 0x3C);
         record.Position = {1024.5f, -2048.25f, 64.f};
         roundTrip(request, RequestMessageFactory{});
+    }
+
+    SECTION("A record from before recipes has none, and reads whole")
+    {
+        PlayerRecord record;
+        record.Knowledge = {.Present = true};
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        record.Serialize(writer);
+        PlayerRecord read;
+        read.Recipes = {Recipe{true, {{1.f, 0, 1, 1.f, GameId(0, 1)}}}};
+        Wire::Buffer::Reader reader(std::span(buffer.GetData(), writer.Size() - 1));
+        read.Deserialize(reader);
+        CHECK(read == record);
     }
 
     SECTION("A record an older build saved has no words, and reads whole")
@@ -1625,6 +1644,42 @@ TEST_CASE("The quests one per player go to the host and from it to every game", 
         REQUIRE(decoded);
         REQUIRE(decoded->GetOpcode() == kNotifySystemQuests);
         CHECK(static_cast<const NotifySystemQuests&>(*decoded) == sent);
+    }
+}
+
+TEST_CASE("Player-made potions' recipes go to the host and from it to every game", "[encoding.recipes]")
+{
+    Payloads::Recipes recipes;
+    recipes.Known = {{false, {{25.f, 0, 60, 30.f, GameId(0, 0x3EAF3)}}}, {true, {{10.f, 0, 5, 20.f, GameId(0, 0x3EB42)}}}};
+    SECTION("a guest's")
+    {
+        RecipesRequest sent;
+        static_cast<Payloads::Recipes&>(sent) = recipes;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kRecipesRequest);
+        CHECK(static_cast<const RecipesRequest&>(*decoded) == sent);
+    }
+    SECTION("the host's")
+    {
+        NotifyRecipes sent;
+        static_cast<Payloads::Recipes&>(sent) = recipes;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kNotifyRecipes);
+        const auto& cDecoded = static_cast<const NotifyRecipes&>(*decoded);
+        CHECK(cDecoded == sent);
+        // The same ids after the trip: the poison flag and every effect field came through.
+        CHECK(cDecoded.Known[1].Id() == recipes.Known[1].Id());
+        CHECK(cDecoded.Known[1].IsPoison);
     }
 }
 

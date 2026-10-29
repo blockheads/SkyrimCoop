@@ -502,3 +502,17 @@ void Payloads::SystemQuests::DeserializePayload(Wire::Buffer::Reader& aReader) n
     for (GameId& quest : Quests)
         quest.Deserialize(aReader);
 }
+
+void Payloads::Recipes::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Known.size());
+    for (const Recipe& cRecipe : Known)
+        cRecipe.Serialize(aWriter);
+}
+
+void Payloads::Recipes::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Known.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+    for (Recipe& recipe : Known)
+        recipe.Deserialize(aReader);
+}

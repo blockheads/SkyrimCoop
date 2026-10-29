@@ -56,8 +56,6 @@
 #include <Magic/MagicTarget.h>
 #include <Effects/ActiveEffect.h>
 #include <Magic/EffectItem.h>
-#include <Structs/Skyrim/AnimationGraphDescriptor_WerewolfBehavior.h>
-#include <Structs/Skyrim/AnimationGraphDescriptor_VampireLordBehavior.h>
 #include <Systems/FaceGenSystem.h>
 #include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
@@ -1666,6 +1664,12 @@ bool SkyrimBridge::IsActorVampireLord(uint32_t aFormId) const noexcept
     return pActor->IsVampireLord();
 }
 
+bool SkyrimBridge::IsActorStillLoading(uint32_t aFormId) const noexcept
+{
+    const auto* pActor = GetActor(aFormId);
+    return pActor && pActor->IsStillLoading();
+}
+
 bool SkyrimBridge::IsActorDisabled(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -2275,11 +2279,8 @@ void SkyrimBridge::AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCaster
     if (pEffect->IsSlowEffect())
         pTarget = PlayerCharacter::Get();
 
-    // Set werewolf/vampire lord graph descriptor
-    if (pEffect->IsWerewolfEffect())
-        pTarget->GetExtension()->GraphDescriptorHash = AnimationGraphDescriptor_WerewolfBehavior::m_key;
-    if (pEffect->IsVampireLordEffect())
-        pTarget->GetExtension()->GraphDescriptorHash = AnimationGraphDescriptor_VampireLordBehavior::m_key;
+    if (pEffect->IsWerewolfEffect() || pEffect->IsVampireLordEffect())
+        pTarget->GetExtension()->GraphDescriptorHash = 0;
 
     MagicTarget::AddTargetData data{};
     data.pCaster = pCaster;

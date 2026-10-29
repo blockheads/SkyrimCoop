@@ -2,6 +2,8 @@
 
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/Message.h>
+#include <Messages/Relayed.h>
+#include <RecipeBook.h>
 #include <network/Packet.h>
 
 #include <spdlog/spdlog.h>
@@ -39,6 +41,7 @@ void HostNetwork::CloseRoute(ConnectionId_t aConnection) noexcept
         return;
     if (aConnection == m_hostConnection)
         m_hostConnection = 0;
+    m_recipesSent.erase(aConnection);
     OnDisconnection(aConnection, EDisconnectReason::Quit);
 }
 
@@ -56,6 +59,19 @@ void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aCo
 }
 
 void HostNetwork::Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, Net::EPacketFlags aFlags) const noexcept
+{
+    // The host's own game shares the book.
+    if (m_pRecipes && aConnection != m_hostConnection)
+    {
+        NotifyRecipes recipes;
+        recipes.Known = m_pRecipes->Unsent(m_recipesSent[aConnection]);
+        if (!recipes.Known.empty())
+            SendNow(aConnection, recipes, Net::kReliable);
+    }
+    SendNow(aConnection, acMessage, aFlags);
+}
+
+void HostNetwork::SendNow(ConnectionId_t aConnection, const NotifyMessage& acMessage, Net::EPacketFlags aFlags) const noexcept
 {
     Buffer buffer(1 << 20);
     Buffer::Writer writer(&buffer);
@@ -80,6 +96,7 @@ void HostNetwork::OnConnection(ConnectionId_t aConnection)
 void HostNetwork::OnDisconnection(ConnectionId_t aConnection, EDisconnectReason aReason)
 {
     spdlog::info("HostNetwork: connection {:x} ended ({})", aConnection, int(aReason));
+    m_recipesSent.erase(aConnection);
     if (m_disconnected)
         m_disconnected(aConnection);
 }

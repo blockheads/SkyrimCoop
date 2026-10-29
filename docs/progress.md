@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-28: the party-scripts-2 and v1-session-items work is integrated into dev, uncommitted.
+Last updated 2026-10-28: the party-scripts-2 and v1-session-items work is integrated into dev, uncommitted. Crafted potions (v1 checklist) built in `.worktrees/crafted-potions`, uncommitted.
 The combined fast tests and Windows plugin build pass. Review findings and verification limits:
 [integration review](v1-integration-review-2026-10-28.md). Agreed remaining work:
 [v1 checklist](v1-playtest-todo.md). Earlier worktree references below record where each feature was built.
@@ -1635,6 +1635,17 @@ What the first playtest build has besides what works today (the table above):
     read a first-person player's first-person model (`dialogue-refused-start`, `-picker-gets-speech-experience`
     failed on it, dev too), and a spawned NPC recruited by a scenario's "Follow me" pick stayed in the follower slot
     once deleted (every `follower-*` fixture after it failed): `remove_host_npc` dismisses it first.
+
+19. **Crafted potions and poisons** (built 2026-10-28, `.worktrees/crafted-potions`, uncommitted;
+    [crafted-potions.md](design/crafted-potions.md)): a player-made potion or poison is named in the session by its
+    recipe (one id for the same effects on every game), each game making its own form from the recipe
+    (`AddPotion`/`AddPoison`); the recipes reach each game before the first message naming one (`TransportService` and
+    `HostNetwork` send the book's new entries first) and are kept in the character record. Brewed potions reach the
+    brewer's copies, chests, drops and the host's pickup; a coated weapon keeps its poison. Found on the way: the alchemy
+    menu adds its potion with `TESObjectREFR::sub_19688`, which no hook saw (no copy got a brewed potion); hooked for
+    actors. Tiers 1-2 (ClientTests, HostAuthorityTests, TPTests, GameTests `crafted_potion_flows.cpp`); Skyrim
+    `guest-brewed-potion-reaches-host`, `guest-poison-coating-reaches-host` and ten item regressions pass;
+    `crafted-potion-kept-across-rejoin` passes its potion steps and fails the known cover-plate difference after a rejoin.
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation

@@ -1,4 +1,6 @@
 #include <Games/Memory.h>
+#include <Games/Animation/GraphReference.h>
+#include <Games/Animation/VariableSync.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
 #include <cstring>
@@ -32,6 +34,7 @@
 #include <ExtraData/ExtraWornLeft.h>
 #include <Forms/EnchantmentItem.h>
 #include <Forms/AlchemyItem.h>
+#include <ItemIds.h>
 #include <EquipManager.h>
 #include <DefaultObjectManager.h>
 #include <BSAnimationGraphManager.h>
@@ -160,12 +163,9 @@ using Wire::Serialization;
 // aCall with the reference's graph manager, held for it; false if it has none.
 template <class T> static bool WithGraphs(const TESObjectREFR& acRef, T&& aCall) noexcept
 {
-    BSAnimationGraphManager* pManager = nullptr;
-    if (!EngineVirtual(acRef.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
-        return false;
-    const bool cDone = aCall(pManager);
-    pManager->Release();
-    return cDone;
+    return WithGraphReference<BSAnimationGraphManager>(
+        [&](BSAnimationGraphManager** apManager) { return EngineVirtual(acRef.animationGraphHolder).GetBSAnimationGraph(apManager); },
+        std::forward<T>(aCall));
 }
 
 bool TESObjectREFR::SaveGraphs(std::string& aGraphs) const noexcept
@@ -209,153 +209,63 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
     return cLoaded;
 }
 
+// Called with the manager locked: its selected graph and descriptor must describe the same project.
+static const AnimationGraphDescriptor* DescriptorFor(BSAnimationGraphManager& aManager, Actor& aActor, int aIndex)
+{
+    auto* pExtension = aActor.GetExtension();
+    if (!pExtension)
+        return nullptr;
+    const auto cProject = aManager.GetProjectKey(aIndex);
+    if (VariableSync::NeedsDescriptor(pExtension->GraphDescriptorHash, pExtension->GraphDescriptorProjectKey, cProject))
+    {
+        pExtension->GraphDescriptorHash = aManager.GetDescriptorKey(aIndex);
+        pExtension->GraphDescriptorProjectKey = cProject;
+    }
+    auto* pDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(pExtension->GraphDescriptorHash);
+    return pDescriptor ? pDescriptor : BehaviorVarPatch(&aManager, &aActor);
+}
+
+static std::span<const hkbVariableInfo> VariableInfos(const hkbBehaviorGraph& acGraph)
+{
+    const auto* pData = acGraph.data;
+    return pData && pData->variableInfos.data && pData->variableInfos.size > 0
+               ? std::span<const hkbVariableInfo>(pData->variableInfos.data, pData->variableInfos.size)
+               : std::span<const hkbVariableInfo>{};
+}
+
+// An actor's graph aIndex (-1: the selected one) with its descriptor, its variable words and their types, the manager
+// locked while aWork runs.
+template <class T> static bool WithVariables(const TESObjectREFR& acRef, int aIndex, T&& aWork) noexcept
+{
+    return WithGraphs(acRef, [&](BSAnimationGraphManager* apManager) {
+        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
+        auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(&acRef));
+        const auto* pGraph = apManager->GetGraph(aIndex);
+        if (!pActor || !pGraph || !pGraph->behaviorGraph)
+            return false;
+        const auto* pBehavior = pGraph->behaviorGraph;
+        auto* pValues = pBehavior->animationVariables;
+        const auto* pDescriptor = DescriptorFor(*apManager, *pActor, aIndex);
+        if (!pDescriptor || !pValues || !pValues->data)
+            return false;
+        aWork(*pDescriptor, std::span<uint32_t>(pValues->data, pValues->size), VariableInfos(*pBehavior));
+        return true;
+    });
+}
+
 void TESObjectREFR::SaveAnimationVariables(AnimationVariables& aVariables) const noexcept
 {
-    BSAnimationGraphManager* pManager = nullptr;
-    if (EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager))
-    {
-        BSScopedLock<BSRecursiveLock> _{pManager->lock};
-
-        if (pManager->animationGraphIndex < pManager->animationGraphs.size)
-        {
-            auto* pActor = Cast<Actor>(this);
-            if (!pActor)
-                return;
-
-            const BShkbAnimationGraph* pGraph = nullptr;
-
-            if (pActor->formID == 0x14)
-                pGraph = pManager->animationGraphs.Get(0);
-            else
-                pGraph = pManager->animationGraphs.Get(pManager->animationGraphIndex);
-
-            if (!pGraph)
-                return;
-
-            if (!pGraph->behaviorGraph || !pGraph->behaviorGraph->stateMachine || !pGraph->behaviorGraph->stateMachine->name)
-                return;
-
-            auto* pExtendedActor = pActor->GetExtension();
-            if (pExtendedActor->GraphDescriptorHash == 0)
-            {
-                // Force third person graph to be used on player
-                if (pActor->formID == 0x14)
-                    pExtendedActor->GraphDescriptorHash = pManager->GetDescriptorKey(0);
-                else
-                    pExtendedActor->GraphDescriptorHash = pManager->GetDescriptorKey();
-            }
-
-            auto pDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(pExtendedActor->GraphDescriptorHash);
-
-            // Modded behavior check if descriptor wasn't found
-            if (!pDescriptor)
-                pDescriptor = BehaviorVarPatch(pManager, pActor);
-
-            if (!pDescriptor)
-                return;
-
-            const auto* pVariableSet = pGraph->behaviorGraph->animationVariables;
-
-            if (!pVariableSet)
-                return;
-
-            aVariables.Booleans.assign(pDescriptor->BooleanLookUpTable.size(), false);
-            aVariables.Floats.assign(pDescriptor->FloatLookupTable.size(), 0.f);
-            aVariables.Integers.assign(pDescriptor->IntegerLookupTable.size(), 0);
-
-            for (size_t i = 0; i < pDescriptor->BooleanLookUpTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->BooleanLookUpTable[i];
-
-                if (pVariableSet->data[idx] != 0)
-                    aVariables.Booleans[i] = true;
-            }
-
-            for (size_t i = 0; i < pDescriptor->FloatLookupTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->FloatLookupTable[i];
-
-                aVariables.Floats[i] = *reinterpret_cast<float*>(&pVariableSet->data[idx]);
-            }
-
-            for (size_t i = 0; i < pDescriptor->IntegerLookupTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->IntegerLookupTable[i];
-
-                aVariables.Integers[i] = *reinterpret_cast<uint32_t*>(&pVariableSet->data[idx]);
-            }
-        }
-
-        pManager->Release();
-    }
+    // The player's third-person graph (0), whichever is selected.
+    WithVariables(*this, formID == 0x14 ? 0 : -1, [&](const AnimationGraphDescriptor& acDescriptor, std::span<uint32_t> aWords, auto acInfos) {
+        aVariables = VariableSync::Read(acDescriptor, aWords, acInfos);
+    });
 }
 
 void TESObjectREFR::LoadAnimationVariables(const AnimationVariables& aVariables) const noexcept
 {
-    BSAnimationGraphManager* pManager = nullptr;
-    if (EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager))
-    {
-        BSScopedLock<BSRecursiveLock> _{pManager->lock};
-
-        if (pManager->animationGraphIndex < pManager->animationGraphs.size)
-        {
-            const auto* pGraph = pManager->animationGraphs.Get(pManager->animationGraphIndex);
-
-            if (!pGraph)
-                return;
-
-            if (!pGraph->behaviorGraph || !pGraph->behaviorGraph->stateMachine || !pGraph->behaviorGraph->stateMachine->name)
-                return;
-
-            auto* pActor = Cast<Actor>(this);
-            if (!pActor)
-                return;
-
-            auto* pExtendedActor = pActor->GetExtension();
-            if (pExtendedActor->GraphDescriptorHash == 0)
-                pExtendedActor->GraphDescriptorHash = pManager->GetDescriptorKey();
-
-            auto pDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(pExtendedActor->GraphDescriptorHash);
-
-            // Modded behavior check if descriptor wasn't found
-            if (!pDescriptor)
-                pDescriptor = BehaviorVarPatch(pManager, pActor);
-
-            if (!pDescriptor)
-                return;
-
-            const auto* pVariableSet = pGraph->behaviorGraph->animationVariables;
-
-            if (!pVariableSet)
-                return;
-
-            for (size_t i = 0; i < pDescriptor->BooleanLookUpTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->BooleanLookUpTable[i];
-
-                if (pVariableSet->size > idx)
-                {
-                    pVariableSet->data[idx] = aVariables.Booleans.size() > i ? aVariables.Booleans[i] : false;
-                }
-            }
-
-            for (size_t i = 0; i < pDescriptor->FloatLookupTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->FloatLookupTable[i];
-
-                *reinterpret_cast<float*>(&pVariableSet->data[idx]) = aVariables.Floats.size() > i ? aVariables.Floats[i] : 0.f;
-            }
-
-            for (size_t i = 0; i < pDescriptor->IntegerLookupTable.size(); ++i)
-            {
-                const auto idx = pDescriptor->IntegerLookupTable[i];
-
-                *reinterpret_cast<uint32_t*>(&pVariableSet->data[idx]) = aVariables.Integers.size() > i ? aVariables.Integers[i] : 0;
-            }
-        }
-
-        pManager->Release();
-    }
+    WithVariables(*this, -1, [&](const AnimationGraphDescriptor& acDescriptor, std::span<uint32_t> aWords, auto acInfos) {
+        VariableSync::Write(acDescriptor, aWords, acInfos, aVariables);
+    });
 }
 
 uint32_t TESObjectREFR::GetCellId() const noexcept
@@ -679,20 +589,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
 
         if (pExtraEnchantment->pEnchantment->formID & 0xFF000000)
         {
-            for (EffectItem* pEffectItem : pExtraEnchantment->pEnchantment->listOfEffects)
-            {
-                Utils::Assert(pEffectItem, "pEffectItem is null.");
-                if (!pEffectItem)
-                    continue;
-
-                Inventory::EffectItem effect;
-                effect.Magnitude = pEffectItem->data.fMagnitude;
-                effect.Area = pEffectItem->data.iArea;
-                effect.Duration = pEffectItem->data.iDuration;
-                effect.RawCost = pEffectItem->fRawCost;
-                effect.EffectId = ToSession(pEffectItem->pEffectSetting->formID).value_or(GameId{});
-                arEntry.EnchantData.Effects.push_back(effect);
-            }
+            arEntry.EnchantData.Effects = pExtraEnchantment->pEnchantment->SessionEffects().value_or(std::vector<Inventory::EffectItem>{});
 
             uint32_t objectId = ToGame(arEntry.BaseId);
             TESForm* pObject = TESForm::GetById(objectId);
@@ -714,7 +611,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         Utils::Assert(pExtraPoison->pPoison, "Null poison in ExtraPoison");
         if (pExtraPoison && pExtraPoison->pPoison)
         {
-            arEntry.ExtraPoisonId = ToSession(pExtraPoison->pPoison->formID).value_or(GameId{});
+            arEntry.ExtraPoisonId = ItemId(pExtraPoison->pPoison->formID).value_or(GameId{});
             arEntry.ExtraPoisonCount = pExtraPoison->uiCount;
         }
     }
@@ -782,9 +679,9 @@ void TESObjectREFR::SetItemExtraData(ExtraDataList& aList, const Inventory::Entr
             aList.SetEnchantmentData(pEnchantment, acEntry.ExtraEnchantCharge, acEntry.ExtraEnchantRemoveUnequip);
     }
 
-    // Poisons are plugins' forms (no player-made ones).
+    // A player-made poison by its recipe (ItemIds).
     if (acEntry.ExtraPoisonId != 0)
-        if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(ToGame(acEntry.ExtraPoisonId))))
+        if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(ItemForm(acEntry.ExtraPoisonId))))
             aList.SetPoison(pPoison, acEntry.ExtraPoisonCount);
 
     if (acEntry.ExtraHealth > 0.f)
@@ -821,7 +718,7 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
                 continue;
 
             Inventory::Entry entry;
-            entry.BaseId = ToSession(pGameEntry->form->formID).value_or(GameId{});
+            entry.BaseId = ItemId(pGameEntry->form->formID).value_or(GameId{});
             entry.Count = pGameEntry->count;
 
             inventory.Entries.push_back(std::move(entry));
@@ -840,7 +737,7 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
             continue;
 
         Inventory::Entry entry{};
-        entry.BaseId = ToSession(pGameEntry->form->formID).value_or(GameId{});
+        entry.BaseId = ItemId(pGameEntry->form->formID).value_or(GameId{});
         entry.Count = pGameEntry->count;
 
         for (ExtraDataList* pExtraDataList : *pGameEntry->dataList)
@@ -942,7 +839,7 @@ std::vector<uint32_t> TESObjectREFR::RemoveNonQuestItems(Inventory& aCurrentInve
     {
         if (entry.IsQuestItem)
         {
-            uint32_t gameId = ToGame(entry.BaseId);
+            uint32_t gameId = ItemForm(entry.BaseId);
             questEntries.emplace_back(gameId);
             continue;
         }
@@ -968,7 +865,7 @@ void TESObjectREFR::SetInventoryRetainingQuestItems(Inventory& aCurrentInventory
 
     for (const auto& entry : acSourceInventory.Entries)
     {
-        uint32_t gameId = ToGame(entry.BaseId);
+        uint32_t gameId = ItemForm(entry.BaseId);
 
         // If the item is not in the list of quest items, add it
         if (std::find(questItemIds.begin(), questItemIds.end(), gameId) == questItemIds.end())
@@ -982,7 +879,7 @@ void TESObjectREFR::SetInventoryRetainingQuestItems(Inventory& aCurrentInventory
 void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSettingInventory) noexcept
 {
 
-    uint32_t objectId = ToGame(arEntry.BaseId);
+    uint32_t objectId = ItemForm(arEntry.BaseId);
     TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
     if (!pObject)
     {
@@ -1168,7 +1065,7 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
     {
 
         Inventory::Entry item{};
-        item.BaseId = ToSession(apItem->formID).value_or(GameId{});
+        item.BaseId = ItemId(apItem->formID).value_or(GameId{});
         item.Count = aCount;
 
         if (apExtraData)
@@ -1186,7 +1083,7 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
 void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, ExtraDataList* apExtraList) noexcept
 {
     Inventory::Entry item{};
-    item.BaseId = ToSession(apItem->formID).value_or(GameId{});
+    item.BaseId = ItemId(apItem->formID).value_or(GameId{});
     if (apExtraList)
     {
         ScopedExtraDataOverride _;
@@ -1206,7 +1103,7 @@ bool ProposeContainerTransfer(TESObjectREFR* apSource, TESObjectREFR* apTarget, 
         !apTarget || !apItem || !pUI || !pUI->GetMenuOpen("ContainerMenu"))
         return false;
     Inventory::Entry item;
-    item.BaseId = ToSession(apItem->formID).value_or(GameId{});
+    item.BaseId = ItemId(apItem->formID).value_or(GameId{});
     if (apExtra)
         TESObjectREFR::GetItemFromExtraData(item, apExtra);
     item.Count = aCount;

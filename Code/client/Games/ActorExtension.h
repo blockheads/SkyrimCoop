@@ -22,6 +22,7 @@ struct ActorExtension
     ActionEvent LatestAnimation{};
     ActionEvent LatestWeapEquipAnimation{};
     size_t GraphDescriptorHash = 0;
+    uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back
     // in its running slot when the engine asks for a new one; scene and combat state are answered (CopyAiState.cpp).
     uint32_t OwnerPackageId = 0;

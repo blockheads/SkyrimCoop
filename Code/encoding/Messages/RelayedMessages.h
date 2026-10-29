@@ -34,6 +34,7 @@ struct BodyRests;
 struct BodyPushes;
 struct PartyGold;
 struct SystemQuests;
+struct Recipes;
 } // namespace Payloads
 
 template <class TPayload, auto cOpcode> struct Relayed;
@@ -97,3 +98,5 @@ using NotifyMeleeStagger = Relayed<Payloads::MeleeStagger, kNotifyMeleeStagger>;
 
 using SystemQuestsRequest = Relayed<Payloads::SystemQuests, kSystemQuestsRequest>;
 using NotifySystemQuests = Relayed<Payloads::SystemQuests, kNotifySystemQuests>;
+using RecipesRequest = Relayed<Payloads::Recipes, kRecipesRequest>;
+using NotifyRecipes = Relayed<Payloads::Recipes, kNotifyRecipes>;

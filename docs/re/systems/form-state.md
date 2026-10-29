@@ -105,9 +105,15 @@ What the change funnel (`AddChangeFlags`) does and does not see of a reference, 
   sequence, else the graph event), the open state's flags, and with snap the navmesh obstacle. Closing a door
   mid-swing (0.1 s after opening) left the host's own record open: its cell reloaded with the door open.
 - **`TESCellFullyLoadedEvent` {cell}** (`ScriptEventSourceHolder+0x210`) is sent once per cell load, interior or
-  exterior, by `sub_1402C3830` (no Address Library ID found): when the cell's loaded data (+0x130) counts no
+  exterior, by `sub_1402C3830` (19146, `SendFullyLoadedEvent`): when the cell's loaded data (+0x130) counts no
   references still loading (+0x16C, +0x170), it sends the event unless +0x17C says it was sent. The VM's sink
   (53964) walks the cell's references under the cell's lock (+0x120) for `OnCellLoad`.
+- **`kStillLoading` (`TESForm` flags +0x10, `0x200000`) clears before the reference's 3D loads** (2026-10-28,
+  disassembly). A cell's load (`TESObjectCELL` 18882) clears it per reference once `LoadStoredChanges` (35569) has
+  nothing pending; a deferred change load (35717) clears it, then hands the reference to its cell (19032) and on;
+  placing (13723, 22532, 56204) sets and clears it in one call. So `TESObjectLoadedEvent` comes after it: a spawn
+  waiting for it wakes on that event (`CharacterService::OnReferenceLoaded`), no per-frame check.
+  `TESCellFullyLoadedEvent` is sent by `TESObjectCELL::SendFullyLoadedEvent` (19146, reached indirectly).
 - **A cell's references stay in memory after it unloads**, `pcb` too (2026-10-21, QASmoke and the Sleeping Giant
   Inn): `TESForm::GetById` finds them, and a change applied while unloaded is there when the cell loads again.
 - **Opening a door with lock data re-sets its lock** (the console's `SetOpenState`): an `AddLockChange` and a

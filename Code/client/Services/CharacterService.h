@@ -27,6 +27,7 @@ struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
 struct FactionsChangeEvent;
 struct ReferenceJumpEvent;
+struct ReferenceLoadedEvent;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
 struct SpellCastEvent;
@@ -66,7 +67,7 @@ struct CharacterService
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
     void OnConnected(const ConnectedEvent& acConnectedEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept;
-    void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) const noexcept;
+    void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept;
     void OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
@@ -74,6 +75,8 @@ struct CharacterService
     void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;
     // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
+    // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
+    void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnMountEvent(const MountEvent& acEvent) noexcept;
     // The player's owned horse accompanies a tether move.
@@ -168,6 +171,7 @@ private:
     IPlayerBridge& m_playerBridge;
     std::unordered_set<uint32_t> m_discoveredActors;
     std::unordered_map<uint32_t, NotifyRespawn> m_pendingLooks;
+    std::unordered_map<uint32_t, NotifyCharacterSpawn> m_pendingSpawns;
     std::shared_ptr<std::atomic<bool>> m_alive{std::make_shared<std::atomic<bool>>(true)};
     bool m_looksQueued{};
     // This game's player in the session (ConnectedEvent): its player id and its character's session id.

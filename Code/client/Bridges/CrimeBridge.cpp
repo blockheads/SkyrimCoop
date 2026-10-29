@@ -5,6 +5,7 @@
 #include <ExtraData/ExtraCount.h>
 #include <ExtraData/ExtraOwnership.h>
 #include <FormIds.h>
+#include <ItemIds.h>
 #include <Forms/TESFaction.h>
 #include <Forms/TESObjectCELL.h>
 #include <Games/ActorExtension.h>
@@ -163,7 +164,7 @@ bool HookContainerTake(void* aMenu, ExtraContainerChanges::Entry* aEntry, uint32
     CrimeItem line;
     auto* value = &static_cast<CrimeEngine::ContainerMenu*>(aMenu)->StealValue;
     const auto before = *value;
-    line.Item.BaseId = ToSession(aEntry->form->formID).value_or(GameId{});
+    line.Item.BaseId = ItemId(aEntry->form->formID).value_or(GameId{});
     line.Taking = aTaking;
     if (aEntry->dataList)
         for (auto* extra : *aEntry->dataList)
@@ -649,7 +650,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
         uint64_t total{};
         for (const auto& line : aRequest.Items)
         {
-            auto* form = TESForm::GetById(ToGame(line.Item.BaseId));
+            auto* form = TESForm::GetById(ItemForm(line.Item.BaseId));
             if (!form || line.Item.Count <= 0)
                 return false;
             std::vector<GameList<ExtraDataList>> nodes(line.Owners.size());

@@ -12,7 +12,7 @@ std::map<uint32_t, std::string> BSAnimationGraphManager::DumpAnimationVariables(
     if (animationGraphIndex < animationGraphs.size)
     {
         const auto pGraph = animationGraphs.Get(animationGraphIndex);
-        if (pGraph)
+        if (pGraph && pGraph->hkxDB && pGraph->behaviorGraph)
         {
             const auto pDb = pGraph->hkxDB;
             const auto pBuckets = pDb->animationVariables.buckets;
@@ -52,17 +52,28 @@ std::map<uint32_t, std::string> BSAnimationGraphManager::DumpAnimationVariables(
     return variables;
 }
 
+BShkbAnimationGraph* BSAnimationGraphManager::GetGraph(int aForceIndex) noexcept
+{
+    const auto cIndex = aForceIndex == -1 ? animationGraphIndex : static_cast<uint32_t>(aForceIndex);
+    return cIndex < animationGraphs.size ? animationGraphs.Get(cIndex) : nullptr;
+}
+
+uint64_t BSAnimationGraphManager::GetProjectKey(int aForceIndex) noexcept
+{
+    const auto* pGraph = GetGraph(aForceIndex);
+    const auto* pName = pGraph ? pGraph->projectName : nullptr;
+    return pName ? Crc64(reinterpret_cast<const unsigned char*>(pName), std::strlen(pName)) : 0;
+}
+
 uint64_t BSAnimationGraphManager::GetDescriptorKey(int aForceIndex)
 {
     std::string variableNames{};
     variableNames.reserve(8192);
     std::map<uint32_t, const char*> variables;
 
-    if (animationGraphIndex < animationGraphs.size)
+    if (const auto pGraph = GetGraph(aForceIndex))
     {
-        const auto pGraph = aForceIndex == -1 ? animationGraphs.Get(animationGraphIndex) : animationGraphs.Get(aForceIndex);
-
-        if (pGraph)
+        if (pGraph->hkxDB && pGraph->behaviorGraph)
         {
             const auto pDb = pGraph->hkxDB;
             const auto pBuckets = pDb->animationVariables.buckets;

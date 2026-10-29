@@ -2,7 +2,7 @@
 
 The best pre-playtest ports are the animation bounds/type checks, animation-manager ownership fixes, casting/projectile null guards, and the actor-loading guard. Crafted potion/poison replication is the clearest ordinary gameplay feature worth bringing over. Adaptive playback is worthwhile but is a separate change to our shared movement/animation/body clock.
 
-This is a source review and proposed work queue. No runtime fixes were applied or Skyrim scenarios run for this review. The separately requested real Fus Ro Dah test is recorded in [v1-playtest-todo.md](v1-playtest-todo.md), unimplemented. `scripts/net_check.sh` was not run.
+This records the source review; no runtime fixes or Skyrim scenarios were part of that review. The animation, graph ownership, casting/projectile and spawn-readiness ports are now implemented, and native Fus Ro Dah scenarios are added. Current completion and validation are tracked in [v1-playtest-todo.md](v1-playtest-todo.md) and the [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up). `scripts/net_check.sh` was not run.
 
 User decisions, 2026-10-28: animation safety, graph ownership, casting/projectile guards, spawn readiness, crafted potion/poison replication and adaptive playback are all agreed v1 work. Permanent-ability persistence, live-menu behavior and SSE Engine Fixes compatibility must also be checked for v1, with any demonstrated failures fixed. These checks are not claims of reproduced bugs. The checklist is in [v1-playtest-todo.md](v1-playtest-todo.md).
 

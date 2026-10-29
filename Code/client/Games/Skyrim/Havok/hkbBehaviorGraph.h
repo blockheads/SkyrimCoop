@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Havok/hkbVariableValueSet.h>
+#include <Havok/hkbNode.h>
 
 struct hkEventContext;
 struct hkEventType;
@@ -46,7 +47,8 @@ struct hkbBehaviorGraph
 
     uint8_t pad8[0x80 - 0x8];
     hkbStateMachine* stateMachine;
-    uint8_t pad88[0x98 - 0x88];
+    hkbBehaviorGraphData* data; // 88
+    uint8_t pad90[0x98 - 0x90];
     Struct98* struct98; // 98
     uint8_t padA0[0xB8 - 0xA0];
     hkbSymbolIdMap* symbolIdMap; // B8
@@ -58,6 +60,7 @@ struct hkbBehaviorGraph
     uint8_t byte12E;
 };
 
+static_assert(offsetof(hkbBehaviorGraph, data) == 0x88);
 static_assert(offsetof(hkbBehaviorGraph, struct98) == 0x98);
 static_assert(offsetof(hkbBehaviorGraph, symbolIdMap) == 0xB8);
 static_assert(offsetof(hkbBehaviorGraph, animationVariables) == 0xD8);

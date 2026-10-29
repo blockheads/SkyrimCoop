@@ -147,11 +147,15 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
                     timers.push_back(cTimer.Native);
                 systemQuests[std::format("{:X}:{:X}", cQuest.Id.ModId, cQuest.Id.BaseId)] = {{"variables", variables}, {"timers", timers}};
             }
+    // Its player-made potions' recipes, by their session ids (crafted-potions.md).
+    nlohmann::json recipes = nlohmann::json::array();
+    for (const Recipe& cRecipe : acRecord.Recipes)
+        recipes.push_back(cRecipe.Id().BaseId);
     return {{"key", acRecord.Key}, {"name", acRecord.Name}, {"level", acRecord.Level}, {"base_bytes", acRecord.Base.size()},
             {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
             {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words},
             {"ingredient_effects", ingredients}, {"enchantments", enchantments}, {"knowledge_present", acRecord.Knowledge.Present},
-            {"system_quests", systemQuests}};
+            {"system_quests", systemQuests}, {"recipes", recipes}};
 }
 
 // {"cmd": "player_record"}: this game's player's character as the join flow reads it (IJoinBridge::ReadPlayer), and

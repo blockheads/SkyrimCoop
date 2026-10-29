@@ -69,7 +69,8 @@
     X(MeleeStaggerRequest)           \
     X(ContainerTransferRequest)     \
     X(StoryEventRequest)            \
-    X(SystemQuestsRequest)
+    X(SystemQuestsRequest)          \
+    X(RecipesRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -140,7 +141,8 @@
     X(NotifyFollowerTrade)          \
     X(NotifyActorPerks)             \
     X(NotifyMeleeStagger)           \
-    X(NotifySystemQuests)
+    X(NotifySystemQuests)           \
+    X(NotifyRecipes)
 
 #define COOP_OPCODE(aName) k##aName,
 

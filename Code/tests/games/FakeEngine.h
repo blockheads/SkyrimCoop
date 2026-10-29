@@ -18,9 +18,11 @@
 #include <Games/Skyrim/HitRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
+#include <ItemIds.h>
 #include <Misc/StoryEventRules.h>
 #include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyRules.h>
+#include <Structs/Recipe.h>
 #include <Services/Host/HostGame.h>
 #include <Structs/ScriptValue.h>
 #include <Structs/SystemQuestState.h>
@@ -201,6 +203,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game raises a story event (AddEvent_Impl), its members as BGSStoryEvent holds them (a reference or a form by
     // its form id here): while a guest, it goes to the host (StoryEvents' hook, off while the game decides its world).
     void RaisesStoryEvent(uint32_t aType, std::vector<uint64_t> aMembers);
+    // Player-made potions and poisons, by form id (BGSCreatedObjectManager's): one per recipe, ids this game's own.
+    std::map<uint32_t, Recipe> Brewed;
+    // This game's potion for a recipe, made if new (AddPotion: the engine's own when it has one).
+    uint32_t Brew(const Recipe& acRecipe);
+    // This game's player brews aCount at an alchemy lab (the menu's add to its inventory): the potion's form id.
+    uint32_t PlayerBrews(const Recipe& acRecipe, int32_t aCount);
     // The story events the host's game queued for a guest's character (HostGame::RaiseStoryEvent).
     std::vector<StoryEvent> StoriesRaised;
     // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
@@ -336,6 +344,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
+        bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
@@ -656,6 +665,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     uint32_t LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition = {});
     // An NPC placed in the plugins (the same form id in every game), in aCell at acPosition.
     void PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition);
+    // A reference still loading finishes: kStillLoading clears, then its 3D loads (TESObjectLoadedEvent).
+    void FinishLoading(uint32_t aFormId);
     // A hit of aDamage on an actor, as the engine's: at 0 health it dies, or goes down if essential; a copy is in
     // deferred kill and does neither (actor-ai-and-copies.md, "A copy is in deferred kill").
     void Hit(uint32_t aFormId, float aDamage);
@@ -725,6 +736,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
     int32_t GetActorValueCount() const noexcept override { return 164; } // ActorValueInfo::kActorValueCount
     bool IsActorDisabled(uint32_t aFormId) const noexcept override;
+    bool IsActorStillLoading(uint32_t aFormId) const noexcept override;
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;

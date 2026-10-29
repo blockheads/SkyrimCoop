@@ -1,6 +1,7 @@
 #include <Bridges/LooseItems.h>
 
 #include <FormIds.h>
+#include <ItemIds.h>
 
 #include <ExtraData/ExtraCount.h>
 #include <ExtraData/ExtraDataList.h>
@@ -17,7 +18,7 @@ std::optional<Inventory::Entry> ReadLooseItem(TESObjectREFR& aObject) noexcept
 {
     if (aObject.formType != FormType::Reference || !aObject.baseForm || !Cast<TESBoundObject>(aObject.baseForm))
         return std::nullopt;
-    const auto cBase = ToSession(aObject.baseForm->formID);
+    const auto cBase = ItemId(aObject.baseForm->formID);
     if (!cBase)
         return std::nullopt;
     Inventory::Entry item;
@@ -48,7 +49,7 @@ std::optional<ObjectChange::Placement> ReadPlacement(const TESObjectREFR& acObje
 
 TESObjectREFR* MakeLooseItem(const GameId& acBase, const Inventory::Entry* apItem, const ObjectChange::Placement& acPlacement) noexcept
 {
-    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(ToGame(acBase)));
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acBase)));
     auto* pCell = acPlacement.Cell ? Cast<TESObjectCELL>(TESForm::GetById(ToGame(acPlacement.Cell))) : nullptr;
     auto* pWorldSpace = acPlacement.WorldSpace ? Cast<TESWorldSpace>(TESForm::GetById(ToGame(acPlacement.WorldSpace))) : nullptr;
     ModManager* pManager = ModManager::Get();

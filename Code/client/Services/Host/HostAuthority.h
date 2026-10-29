@@ -137,6 +137,7 @@ private:
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's container change (its player took or stored an item): a proposal the host's world takes (step 6).
     void OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A chat line goes to everyone, the sender too (its chat shows what it sent), under its name.

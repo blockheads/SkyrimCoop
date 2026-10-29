@@ -21,6 +21,7 @@
 
 #include <Breadcrumbs.h>
 #include <FormIds.h>
+#include <ItemIds.h>
 
 #include <Forms/FormChanges.h>
 #include <Forms/BGSLocation.h>
@@ -185,7 +186,7 @@ std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
     if (aRef.formType != FormType::Reference || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
         return std::nullopt;
     const auto cObject = ToSessionOrCreated(aRef.formID);
-    const auto cItem = ToSession(aRef.baseForm->formID);
+    const auto cItem = ItemId(aRef.baseForm->formID);
     const auto cPlacement = ReadPlacement(aRef);
     if (!cObject || !cItem || !cPlacement)
         return std::nullopt;
@@ -389,7 +390,7 @@ void HostEngine::SetItems(const ObjectChange& acItems) noexcept
     {
         spdlog::info("HostEngine: took a guest's items {:X} holds {} of {:X} ({} with extra data)", acItems.Object.LogFormat(), acItems.Value,
                      acItems.Item.LogFormat(), acItems.Stacks.size());
-        RecordItems(cObjectId, ToGame(acItems.Item));
+        RecordItems(cObjectId, ItemForm(acItems.Item));
     }
     else
         spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acItems.Object.LogFormat(),

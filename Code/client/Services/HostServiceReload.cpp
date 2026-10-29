@@ -78,6 +78,7 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
 
 void HostService::InstallFrontDoor() noexcept
 {
+    m_pNetwork->SetRecipes(&m_world.GetRecipes());
     m_pNetwork->SetFrontDoor([this](const RequestMessage& acRequest, Net::ConnectionId_t aConnection) {
         if (m_reloadRequested && acRequest.GetOpcode() == kAuthenticationRequest)
         {

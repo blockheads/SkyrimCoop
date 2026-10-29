@@ -28,6 +28,9 @@ struct ActorValueService
     ~ActorValueService() noexcept = default;
     NO_COPY_MOVE(ActorValueService);
 
+    // SwitchRace recalculates the copy's values: restore its owner's latest values afterward.
+    void RestoreCopyValues(uint32_t aSessionId) noexcept;
+
 private:
     void OnLocalComponentAdded(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;

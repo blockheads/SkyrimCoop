@@ -1,5 +1,6 @@
 #include "ActorMagicCaster.h"
 #include <HookSwitch.h>
+#include <Games/Magic/CastingSafety.h>
 
 #include <Events/SpellCastEvent.h>
 #include <Events/InterruptCastEvent.h>
@@ -26,11 +27,16 @@ void HookSpellCast(ActorMagicCaster* apThis, bool abSuccess, int32_t auiTargetCo
 {
     spdlog::debug("HookSpellCast, abSuccess: {}, auiTargetCount: {}, apSpell: {:X}", abSuccess, auiTargetCount, (uint64_t)apSpell);
 
-    // TODO(cosideci): why is this here?
-    if (!abSuccess)
+    // SpellCast (34144) accepts a missing actor or spell and falls back to the current spell.
+    auto* pActor = apThis->pCasterActor;
+    auto* pExtension = CastingSafety::ExtensionOf(pActor);
+    auto* pSpell = CastingSafety::SpellFor(*apThis, apSpell);
+    if (!abSuccess || !pActor || !pSpell || !pExtension)
+    {
+        RealSpellCast(apThis, abSuccess, auiTargetCount, apSpell);
         return;
-
-    if (apThis->pCasterActor->GetExtension()->IsCopy())
+    }
+    if (pExtension->IsCopy())
         return;
 
     uint32_t targetFormId = 0;
@@ -44,24 +50,19 @@ void HookSpellCast(ActorMagicCaster* apThis, bool abSuccess, int32_t auiTargetCo
         }
     }
 
-    if (apSpell)
-    {
-        const uint32_t cCasterFormId = apThis->pCasterActor ? apThis->pCasterActor->formID : 0;
-        const bool cHasNiNode = apThis->pCasterActor && apThis->pCasterActor->GetNiNode() != nullptr;
-        const uint32_t cCastingSource = static_cast<uint32_t>(apThis->GetCastingSource());
-        const bool cIsDualCasting = apThis->GetIsDualCasting();
-        World::Get().GetRunner().Trigger(SpellCastEvent(cCasterFormId, apSpell->formID, targetFormId,
-                                                       cCastingSource, cIsDualCasting, cHasNiNode));
-    }
+    World::Get().GetRunner().Trigger(SpellCastEvent(pActor->formID, pSpell->formID, targetFormId,
+                                                   static_cast<uint32_t>(apThis->GetCastingSource()),
+                                                   apThis->GetIsDualCasting(), pActor->GetNiNode() != nullptr));
 
     RealSpellCast(apThis, abSuccess, auiTargetCount, apSpell);
 }
 
 void HookInterruptCast(ActorMagicCaster* apThis, bool abRefund)
 {
-    ActorExtension* pExtended = apThis->pCasterActor->GetExtension();
+    auto* pActor = apThis->pCasterActor;
+    ActorExtension* pExtended = CastingSafety::ExtensionOf(pActor);
 
-    if (pExtended->IsLocal())
+    if (pExtended && pExtended->IsLocal())
         World::Get().GetRunner().Trigger(InterruptCastEvent(apThis->pCasterActor->formID, apThis->eCastingSource));
 
     RealInterruptCast(apThis, abRefund);
@@ -71,7 +72,8 @@ void HookInterruptCast(ActorMagicCaster* apThis, bool abRefund)
 // (docs/re/systems/actor-ai-and-copies.md, "A copy's casts").
 static void MarkCopyCastFree(ActorMagicCaster* apCaster) noexcept
 {
-    if (apCaster->pCasterActor && apCaster->pCasterActor->GetExtension()->IsCopy())
+    const auto* pExtension = CastingSafety::ExtensionOf(apCaster->pCasterActor);
+    if (pExtension && pExtension->IsCopy())
         apCaster->uiFlags |= ActorMagicCaster::kSkipCheckCast;
 }
 

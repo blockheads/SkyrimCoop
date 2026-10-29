@@ -52,6 +52,7 @@
 #include <ExtraData/ExtraTextDisplayData.h>
 #include <Forms/EnchantmentItem.h>
 #include <Forms/AlchemyItem.h>
+#include <ItemIds.h>
 #include <Forms/TESObjectCELL.h>
 
 #include <Structs/Skyrim/AnimationGraphDescriptor_BHR_Master.h>
@@ -91,6 +92,11 @@ TCharacterDestructor* RealCharacterDestructor;
 
 static TRemoveSpell* RealRemoveSpell = nullptr;
 static TAddInventoryItem* RealAddInventoryItem = nullptr;
+// TESObjectREFR::sub_19688: an item straight into a reference's inventory changes (the alchemy menu's potion, 51354);
+// Actor::AddObjectToContainer (37525) calls it too, having reported its add already.
+using TAddToInventory = void(TESObjectREFR*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apFrom);
+static TAddToInventory* RealAddToInventory = nullptr;
+static thread_local bool t_addReported = false;
 static TPickUpObject* RealPickUpObject = nullptr;
 static TDropObject* RealDropObject = nullptr;
 static TSetPosition* RealSetPosition = nullptr;
@@ -1123,22 +1129,32 @@ void HookRegenerateActorValue(Actor* apThis, int32_t aActorValue, float aDelta)
     RealRegenerateActorValue(apThis, aActorValue, aDelta);
 }
 
+// An actor got an item: its inventory change, for its copies.
+static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraDataList* apExtraData, int32_t aCount) noexcept
+{
+    if (ScopedInventoryOverride::IsOverriden())
+        return;
+    Inventory::Entry item{};
+    item.BaseId = ItemId(acItem.formID).value_or(GameId{});
+    item.Count = aCount;
+    if (apExtraData)
+        TESObjectREFR::GetItemFromExtraData(item, apExtraData);
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(acActor.formID, std::move(item)));
+}
+
 void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
 {
-    if (!ScopedInventoryOverride::IsOverriden())
-    {
-
-        Inventory::Entry item{};
-        item.BaseId = ToSession(apItem->formID).value_or(GameId{});
-        item.Count = aCount;
-
-        if (apExtraData)
-            apThis->GetItemFromExtraData(item, apExtraData);
-
-        World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item)));
-    }
-
+    ReportAdd(*apThis, *apItem, apExtraData, aCount);
+    t_addReported = true;
     RealAddInventoryItem(apThis, apItem, apExtraData, aCount, apOldOwner);
+    t_addReported = false;
+}
+
+void HookAddToInventory(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apFrom)
+{
+    if (const auto* cpActor = Cast<Actor>(apThis); cpActor && apItem && !t_addReported)
+        ReportAdd(*cpActor, *apItem, apExtraData, aCount);
+    RealAddToInventory(apThis, apItem, apExtraData, aCount, apFrom);
 }
 
 void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2)
@@ -1147,7 +1163,7 @@ void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, b
     {
 
         Inventory::Entry item{};
-        item.BaseId = ToSession(apObject->baseForm->formID).value_or(GameId{});
+        item.BaseId = ItemId(apObject->baseForm->formID).value_or(GameId{});
         item.Count = aCount;
 
         if (apObject->GetExtraDataList())
@@ -1172,7 +1188,7 @@ void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, Ex
 {
 
     Inventory::Entry item{};
-    item.BaseId = ToSession(apObject->formID).value_or(GameId{});
+    item.BaseId = ItemId(apObject->formID).value_or(GameId{});
     item.Count = -aCount;
 
     if (apExtraData)
@@ -1193,7 +1209,7 @@ void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLoca
 {
     ExtraDataList* pExtraData = GetExtraDataFromItem(arEntry);
 
-    uint32_t objectId = ToGame(arEntry.BaseId);
+    uint32_t objectId = ItemForm(arEntry.BaseId);
     TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
     if (!pObject)
     {
@@ -1623,6 +1639,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37534, &RealShouldAttack, HookShouldAttack);
         HOOK_ID(37667, &RealComputeReaction, HookComputeReaction);
         HOOK_ID(37525, &RealAddInventoryItem, HookAddInventoryItem);
+        HOOK_ID(19688, &RealAddToInventory, HookAddToInventory);
         HOOK_ID(37521, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(40454, &RealDropObject, HookDropObject);
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);

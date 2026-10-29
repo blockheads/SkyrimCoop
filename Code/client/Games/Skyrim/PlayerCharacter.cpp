@@ -1,6 +1,7 @@
 #include <PlayerCharacter.h>
 
 #include <Forms/TESTopicInfo.h>
+#include <ItemIds.h>
 #include <Havok/Ragdoll.h>
 #include <HookSwitch.h>
 #include <Games/ActorExtension.h>
@@ -39,7 +40,6 @@
 #include <Forms/TESObjectCELL.h>
 #include <Interface/UI.h>
 
-#include <ModCompat/BehaviorVar.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
@@ -227,7 +227,7 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
     }
 
     Inventory::Entry item{};
-    item.BaseId = ToSession(apObject->baseForm->formID).value_or(GameId{});
+    item.BaseId = ItemId(apObject->baseForm->formID).value_or(GameId{});
     item.Count = aCount;
 
     if (apObject->GetExtraDataList() && !ScopedExtraDataOverride::IsOverriden())
@@ -261,9 +261,9 @@ void PlayerCharacter::PickUpGranted(TESObjectREFR& aObject, int32_t aCount) noex
 
 void HookSetBeastForm(void* apThis, void* apUnk1, void* apUnk2, bool aEntering)
 {
-    // The race switched back before (ShiftBack's SetRace): that respawned the copies (PlayerLooksChangeEvent).
+    // SetBeastForm (55497): the race changed back; its installed graph decides the descriptor.
     if (!aEntering)
-        PlayerCharacter::Get()->GetExtension()->GraphDescriptorHash = BehaviorVar::GetHumanoidHash();
+        PlayerCharacter::Get()->GetExtension()->GraphDescriptorHash = 0;
 
     RealSetBeastForm(apThis, apUnk1, apUnk2, aEntering);
 }

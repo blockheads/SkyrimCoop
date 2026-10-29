@@ -8,6 +8,8 @@
 
 #include <World.h>
 #include <FormIds.h>
+#include <Forms/AlchemyItem.h>
+#include <ItemIds.h>
 #include <Papyrus/GuestScripts.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -443,17 +445,29 @@ nlohmann::json ContainerItems(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"items", items}};
 }
 
+// {"cmd": "recipe", "form": id}: a player-made potion or poison's recipe, by its session id (the same in every game).
+nlohmann::json RecipeOf(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRecipe = AlchemyItem::RecipeOf(TESForm::GetById(acRequest.value("form", 0u)));
+    if (!cRecipe)
+        return Error("not a player-made potion or poison");
+    auto effects = nlohmann::json::array();
+    for (const auto& cEffect : cRecipe->Effects)
+        effects.push_back({{"effect", ToGame(cEffect.EffectId)}, {"magnitude", cEffect.Magnitude}, {"duration", cEffect.Duration}});
+    return {{"ok", true}, {"id", cRecipe->Id().BaseId}, {"poison", cRecipe->IsPoison}, {"effects", effects}};
+}
+
 // An item with its extra data as the commands read and write it: base and enchantment (and poison) form ids, health
 // (tempering, 1 none), enchantment charge, its name.
 nlohmann::json StackJson(const Inventory::Entry& acItem)
 {
-    return {{"item", ToGame(acItem.BaseId)},
+    return {{"item", ItemForm(acItem.BaseId)},
             {"count", acItem.Count},
             {"health", acItem.ExtraHealth},
             {"enchantment", acItem.ExtraEnchantId.ModId == 0xFFFFFFFF ? 0xFF000000 | acItem.ExtraEnchantId.BaseId : ToGame(acItem.ExtraEnchantId)},
             {"enchant_charge", acItem.ExtraEnchantCharge},
             {"charge", acItem.ExtraCharge},
-            {"poison", ToGame(acItem.ExtraPoisonId)},
+            {"poison", ItemForm(acItem.ExtraPoisonId)},
             {"poison_count", acItem.ExtraPoisonCount},
             {"soul", acItem.ExtraSoulLevel},
             {"name", acItem.ExtraName}};
@@ -920,6 +934,7 @@ constexpr Command cCommands[] = {
     {"form", true, &Form},
     {"form_known", true, &FormKnown},
     {"container_items", true, &ContainerItems},
+    {"recipe", true, &RecipeOf},
     {"ragdoll", true, &Ragdoll},
     {"ray", true, &Ray},
     {"surroundings", true, &Surroundings},

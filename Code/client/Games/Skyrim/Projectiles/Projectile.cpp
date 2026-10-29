@@ -1,4 +1,5 @@
 #include "Projectile.h"
+#include <Games/Magic/CastingSafety.h>
 #include <HookSwitch.h>
 #include <Games/Skyrim/Forms/TESObjectWEAP.h>
 #include <Games/Skyrim/Forms/MagicItem.h>
@@ -13,7 +14,6 @@
 #include <Hooks/Initializer.h>
 #include <Hooks/JitAssembly.h>
 #include <RTTI.h>
-#include <Utils.h>
 #include <VersionDb.h>
 
 using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
@@ -23,7 +23,7 @@ BSPointerHandle<Projectile>* Projectile::Launch(BSPointerHandle<Projectile>* apR
 {
     BSPointerHandle<Projectile>* result = RealLaunch(apResult, apLaunchData);
 
-    Utils::Assert(result, "No projectile handle returned.");
+    // Launch can fail, or return a handle whose deferred projectile is not available yet.
     if (!result)
     {
         spdlog::error("No projectile handle returned.");
@@ -33,7 +33,6 @@ BSPointerHandle<Projectile>* Projectile::Launch(BSPointerHandle<Projectile>* apR
     TESObjectREFR* pObject = TESObjectREFR::GetByHandle(result->handle.iBits);
     Projectile* pProjectile = Cast<Projectile>(pObject);
 
-    Utils::Assert(pProjectile, "No projectile found.");
     if (!pProjectile)
     {
         spdlog::error("No projectile found.");
@@ -64,8 +63,8 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
         Actor* pActor = Cast<Actor>(arData.pShooter);
         if (pActor)
         {
-            ActorExtension* pExtendedActor = pActor->GetExtension();
-            if (pExtendedActor->IsCopy())
+            ActorExtension* pExtendedActor = CastingSafety::ExtensionOf(pActor);
+            if (pExtendedActor && pExtendedActor->IsCopy())
             {
                 apThis->handle.iBits = 0;
                 return apThis;
@@ -102,20 +101,12 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     Event.DeferInitialization = arData.bDeferInitialization;
     Event.ForceConeOfFire = arData.bForceConeOfFire;
 
-    auto result = RealLaunch(apThis, arData);
-
-    Utils::Assert(result, "No projectile handle returned.");
-
-    TESObjectREFR* pObject = TESObjectREFR::GetByHandle(result->handle.iBits);
-    Projectile* pProjectile = Cast<Projectile>(pObject);
-
-    Utils::Assert(pProjectile, "No projectile found.");
-
-    Event.Power = pProjectile->fPower;
-
-    World::Get().GetRunner().Trigger(Event);
-
-    return result;
+    return CastingSafety::WithProjectile(RealLaunch(apThis, arData), [](uint32_t aHandle) {
+        return Cast<Projectile>(TESObjectREFR::GetByHandle(aHandle));
+    }, [&Event](Projectile* apProjectile) {
+        Event.Power = apProjectile->fPower;
+        World::Get().GetRunner().Trigger(Event);
+    });
 }
 
 static Hooks::Initializer s_projectileHooks(

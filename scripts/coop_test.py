@@ -2255,6 +2255,60 @@ CREATE_YES = 0                                # "Do you want to create this item
 CRAFT_RAISED = re.compile(r"HostEngine: story event (\d+) \(CRFT\) raised for ([0-9A-F]+)")
 
 
+def crafting_entries(instance, path):
+    """A crafting menu list's field (CRAFTING_LIST): its entries, the selection."""
+    return menu_var(instance, "Crafting Menu", f"{CRAFTING_LIST}.{path}")
+
+
+def open_crafting_station(instance, station, what):
+    """That game's player uses a crafting station as a player does: from a side whose crosshair is on it, E opens its
+    menu, E takes its item list (InventoryLists' state 2)."""
+    tag = "[host]" if instance == "" else "[guest]"
+    for bearing in (0, 90, 180, 270):
+        place_before(instance, station, 90, bearing)
+        face(instance, station)
+        if camera(instance).get("crosshair") == station:
+            break
+    else:
+        raise TestFailure(f"{tag} no side of the {what} puts the crosshair on it: {camera_report(instance)}")
+    tap_key(instance, ACTIVATE_KEY)
+    wait_for(f"{tag} the {what}'s menu opens", lambda: "Crafting Menu" in open_menus(instance), 10)
+    lists = lambda: menu_var(instance, "Crafting Menu", f"{CRAFTING_LISTS}.currentState")
+    wait_for(f"{tag} the menu is in, its categories take the keys", lambda: lists() == 1, 5)
+    tap_key(instance, ACTIVATE_KEY)
+    wait_for(f"{tag} the item list takes the keys", lambda: lists() == 2, 5)
+
+
+def select_crafting_entry(instance, target):
+    """Up or Down until the list's selection is at that index (the list does not wrap)."""
+    tag = "[host]" if instance == "" else "[guest]"
+    for _ in range(int(crafting_entries(instance, "entryList.length") or 0)):
+        at = int(crafting_entries(instance, "selectedIndex"))
+        if at == target:
+            return
+        tap_key(instance, DOWN_KEY if at < target else UP_KEY)
+        wait_for(f"{tag} the selection moves", lambda: int(crafting_entries(instance, "selectedIndex")) != at, 3)
+
+
+def leave_crafting_station(instance, what):
+    """Tab out of a crafting menu, answering its boxes with their first button (alchemy's "Created ... Discovered
+    effects" note and "Quit alchemy?"), and stand up."""
+    tag = "[host]" if instance == "" else "[guest]"
+    for _ in range(6):
+        menus = open_menus(instance)
+        if "Crafting Menu" not in menus:
+            break
+        if "MessageBoxMenu" in menus:
+            presses_box_button(instance, 0)
+            wait_for(f"{tag} the box closes", lambda: "MessageBoxMenu" not in open_menus(instance), 3)
+            continue
+        tap_key(instance, TAB_KEY)
+        wait_for(f"{tag} the menu closes or asks to quit",
+                 lambda: "Crafting Menu" not in open_menus(instance) or "MessageBoxMenu" in open_menus(instance), 3)
+    # An alchemy lab's exit animation runs past 10 s.
+    wait_for(f"{tag} stands up from the {what}", lambda: sit_state(instance, 0x14) == 0, 30)
+
+
 def scenario_guest_craft_raises_story():
     """The client cooks beef at QASmoke's cooking spit: E opens its menu, E takes the recipe list, Up or Down to the one
     recipe its salt and beef make, E and the box's Yes cook it. Its own game's story manager starts nothing for the
@@ -2267,38 +2321,20 @@ def scenario_guest_craft_raises_story():
     for item in (SALT_PILE, RAW_BEEF):
         console_on("client", f"player.additem {item:08X} 1")
     try:
-        # Around the spit until its crosshair is on it (its fire stands in the way from some sides).
-        for bearing in (0, 90, 180, 270):
-            place_before("client", COOKING_SPIT, 90, bearing)
-            face("client", COOKING_SPIT)
-            if camera("client").get("crosshair") == COOKING_SPIT:
-                break
-        else:
-            raise TestFailure(f"[client] no side of the cooking spit puts the crosshair on it: {camera_report('client')}")
-        tap_key("client", ACTIVATE_KEY)
-        wait_for("[client] the cooking spit's menu opens", lambda: "Crafting Menu" in open_menus("client"), 10)
-        # E takes the recipe list (InventoryLists' state 2); it holds every recipe, the ones the player cannot make
-        # greyed (enabled 0): Up or Down to the one it can.
-        lists = lambda: menu_var("client", "Crafting Menu", f"{CRAFTING_LISTS}.currentState")
-        recipes = lambda path: menu_var("client", "Crafting Menu", f"{CRAFTING_LIST}.{path}")
-        wait_for("[client] the menu is in, its categories take the keys", lambda: lists() == 1, 5)
-        tap_key("client", ACTIVATE_KEY)
-        wait_for("[client] the recipe list takes the keys", lambda: lists() == 2, 5)
-        count = int(recipes("entryList.length") or 0)
-        target = next((i for i in range(count) if recipes(f"entryList.{i}.enabled")), None)
+        open_crafting_station("client", COOKING_SPIT, "cooking spit")
+        # The list holds every recipe, the ones the player cannot make greyed (enabled 0): to the one it can.
+        count = int(crafting_entries("client", "entryList.length") or 0)
+        target = next((i for i in range(count) if crafting_entries("client", f"entryList.{i}.enabled")), None)
         if target is None:
             raise TestFailure(f"[client] none of the {count} recipes is one its salt and beef make")
-        for _ in range(count):
-            at = int(recipes("selectedIndex"))
-            if at == target:
-                break
-            tap_key("client", DOWN_KEY if at < target else UP_KEY)
-            wait_for("[client] the selection moves", lambda: int(recipes("selectedIndex")) != at, 3)
-        selected = lambda field: recipes(f"selectedEntry.{field}")
+        select_crafting_entry("client", target)
+        selected = lambda field: crafting_entries("client", f"selectedEntry.{field}")
         tap_key("client", ACTIVATE_KEY)
         wait_for("[client] asks whether to create it", lambda: "MessageBoxMenu" in open_menus("client"), 5)
         presses_box_button("client", CREATE_YES)
         wait_for(f"[client] cooked {selected('text')}", lambda: item_count("client", 0x14, COOKED_BEEF) == 1, 5)
+        # The menu adds it past AddObjectToContainer (TESObjectREFR::sub_19688): the copy carries it too.
+        wait_for("[host] its copy of the client carries the cooked beef", lambda: item_count("", copy, COOKED_BEEF) == 1, 10)
         wait_for("[client] sent its craft to the host",
                  lambda: any("GuestWorldState: story event CRFT sent" in line["text"] for line in log_trail("client", client_mark)[0]), 5)
 
@@ -2315,12 +2351,7 @@ def scenario_guest_craft_raises_story():
         wait_for(f"[host] its story manager processed the craft (event {event_id})",
                  lambda: story_event_outcome("", event_id, since) is not None, 15)
     finally:
-        for _ in range(5):
-            if "Crafting Menu" not in open_menus("client"):
-                break
-            tap_key("client", TAB_KEY)
-            wait_for("[client] the menu closes", lambda: "Crafting Menu" not in open_menus("client"), 3)
-        wait_for("[client] stands up from the cooking spit", lambda: sit_state("client", 0x14) == 0, 10)
+        leave_crafting_station("client", "cooking spit")
 
 # Scripts the host's game runs alone: vanilla ones a guest used to run too (docs/research/guest-scripts-and-mods.md).
 CRITTER_SPAWNER = 0x6B45C  # critterSpawnDragonflies24x7: CritterSpawn's OnLoad places 2 dragonflies (05:00-20:00)
@@ -2617,6 +2648,11 @@ def host_loads_party(quick, menu=False):
                    for instance in ("", "client")) and player_record("client")["level"] == guest_level
     wait_for("the whole party loads and rejoins in the saved world", restored, 120)
     wait_for("both games show their restored characters", both_see_each_other, 30)
+    frames = {instance: game_frame(instance) for instance in ("", "client")}
+    wait_for("both games keep updating after restoration",
+             lambda: all(game_frame(instance) > frame + 180 for instance, frame in frames.items()), 15)
+    npc, _, _ = spawn_host_npc("0001A696")
+    remove_host_npc(npc)
     if player_record("client")["level"] != guest_level:
         raise TestFailure("the guest did not load its saved character: its later level survived")
     for instance in ("", "client"):
@@ -5917,6 +5953,80 @@ def scenario_friendly_fire_host_firebolt():
     friendly_fire("", "firebolt")
 
 
+UNRELENTING_FORCE = 0x13E07
+UNRELENTING_FORCE_THREE = 0x13F3A
+UNRELENTING_FORCE_WORDS = (0x13E22, 0x13E23, 0x13E24)
+
+
+def fus_ro_dah_player(attacker):
+    """Use the real three-word shout on the other player; both games see the fall and recovery."""
+    recovery = actor_value(attacker, 0x14, 86)  # kShoutRecoveryMult
+    words = {(instance, word): word_state(instance, word)
+             for instance in ("", "client") for word in UNRELENTING_FORCE_WORDS}
+    try:
+        victim = "client" if attacker == "" else ""
+        copy = other_player(actors_on(attacker))
+        if copy is None:
+            raise TestFailure(f"[{attacker or 'host'}] no copy of the victim")
+        for word in UNRELENTING_FORCE_WORDS:
+            console_on(attacker, f"player.teachword {word:X}")
+            console_on(attacker, f"player.unlockword {word:X}")
+        console_on(attacker, f"player.addshout {UNRELENTING_FORCE:X}")
+        console_on(attacker, f"player.equipshout {UNRELENTING_FORCE:X}")
+        console_on(attacker, "player.setav shoutrecoverymult 0")
+        console_on(attacker, "player.restoreav health 10000")
+        console_on(victim, "player.restoreav health 10000")
+        place_before(attacker, copy, 300, bearing=90)  # shout toward the clear west end, away from QA clutter
+        wait_for("the three-word Unrelenting Force shout is equipped",
+                 lambda: local_player(attacker).get("selected_power") == UNRELENTING_FORCE, 5)
+        start = my_position(victim)
+        _, since = engine_events(attacker)
+        def knock(instance, actor):
+            return (actor_snapshot(instance, actor).get("state") or {}).get("knock", 0)
+        frame = game_frame(attacker)
+        press(attacker, "shout")
+        try:
+            wait_for("the shout button is held through a full three-word charge",
+                     lambda: game_frame(attacker) >= frame + 120, 5)
+        finally:
+            release(attacker, "shout")
+        wait_for("the native three-word shout is cast, rather than its weaker versions",
+                 lambda: any(e["kind"] == "spell_cast" and e.get("caster") == 0x14 and
+                             e.get("spell") == UNRELENTING_FORCE_THREE
+                             for e in engine_events(attacker, since)[0]), 5)
+        wait_for(f"[{victim or 'host'}] the victim's own player is knocked down",
+                 lambda: 0 < knock(victim, 0x14) <= 4, 5)
+        wait_for(f"[{attacker or 'host'}] the victim's copy is knocked down",
+                 lambda: 0 < knock(attacker, copy) <= 4, 5)
+        wait_for(f"[{victim or 'host'}] the shout displaces the victim",
+                 lambda: distance(my_position(victim)[:2], start[:2]) > 30, 5)
+        wait_for(f"[{victim or 'host'}] the victim gets up alive",
+                 lambda: not knock(victim, 0x14) and not is_dead(player_snapshot(victim)), 25)
+        wait_for("the copy gets up with its owner", lambda: not knock(attacker, copy), 5)
+        face(victim, other_player(actors_on(victim)))
+        before_walk = my_position(victim)
+        press(victim, "forward")
+        try:
+            wait_for("the recovered player can walk again",
+                     lambda: distance(my_position(victim)[:2], before_walk[:2]) > 30, 5)
+        finally:
+            release(victim, "forward")
+    finally:
+        console_on(attacker, f"player.setav shoutrecoverymult {recovery:g}")
+        for (instance, word), (known, unlocked) in words.items():
+            player_command(instance, {"cmd": "form_known", "form": word, "known": known, "unlocked": unlocked})
+
+
+def scenario_fus_ro_dah_host_hits_guest():
+    """The host's real three-word shout knocks the guest down on its own game and the host's copy."""
+    fus_ro_dah_player("")
+
+
+def scenario_fus_ro_dah_guest_hits_host():
+    """The guest's real three-word shout knocks the host down on its own game and the guest's copy."""
+    fus_ro_dah_player("client")
+
+
 def scenario_friendly_fire_kill():
     """The host's sword kills the guest: a real death on the guest's game (its copy dies with it), the guest spectates,
     and both chats name the killer."""
@@ -8056,6 +8166,156 @@ def scenario_chest_keeps_tempered_item():
         put_back_heirlooms(swords, held, carried)
 
 
+# Player-made potions and poisons (docs/design/crafted-potions.md): each game makes its own form, named by its recipe.
+ALCHEMY_LAB = 0x10196B                          # QASmoke's CraftingAlchemyWorkbench
+BLUE_MOUNTAIN_FLOWER, WHEAT = 0x77E1C, 0x4B0BA  # both Restore and Fortify Health: a potion of the two
+DEATHBELL, NIGHTSHADE = 0x516C8, 0x2F44C        # both Damage Health: a poison
+INGREDIENT_NAMES = {BLUE_MOUNTAIN_FLOWER: "Blue Mountain Flower", WHEAT: "Wheat", DEATHBELL: "Deathbell", NIGHTSHADE: "Nightshade"}
+CRAFT_KEY = 0x13                                # R: the crafting menu's Create (CraftingMenu.CRAFT_BUTTON)
+POISON_YES = 0                                  # "Do you want to poison the Iron Sword?": Yes
+
+
+def recipe_of(instance, form):
+    """A player-made potion or poison's recipe id in that game (the same in every game), else None."""
+    select_instance(instance)
+    reply = rpc({"cmd": "recipe", "form": form}) or {}
+    return reply.get("id") if reply.get("ok") else None
+
+
+def brewed(instance, holder=0x14):
+    """The player-made potions and poisons the holder has in that game, by recipe: {recipe id: count}."""
+    counts = collections.Counter()
+    for item, count in container_items(instance, holder).items():
+        if item >> 24 == 0xFF and (recipe := recipe_of(instance, item)) is not None:
+            counts[recipe] += count
+    return counts
+
+
+def form_of_recipe(instance, recipe, holder=0x14):
+    """That game's own form for the recipe among what the holder has, else None."""
+    return next((item for item in container_items(instance, holder) if item >> 24 == 0xFF and recipe_of(instance, item) == recipe), None)
+
+
+def loose_brewed(instance, recipe):
+    """The loose player-made potion of that recipe lying in that game's loaded cells, else None."""
+    for ref, fields in world_state(instance).items():
+        if fields["base"] >> 24 == 0xFF and not fields["flags"] & (FORM_DELETED | FORM_DISABLED) and recipe_of(instance, fields["base"]) == recipe:
+            return ref
+    return None
+
+
+def brew(instance, ingredients):
+    """That game's player brews at QASmoke's alchemy lab as a player does: E on each ingredient in the lab's list, R
+    creates. The made potion's form id."""
+    tag = "[host]" if instance == "" else "[guest]"
+    for item in ingredients:
+        console_on(instance, f"player.additem {item:08X} 1")
+    before = brewed(instance)
+    open_crafting_station(instance, ALCHEMY_LAB, "alchemy lab")
+    try:
+        for item in ingredients:
+            name = INGREDIENT_NAMES[item]
+            names = [str(crafting_entries(instance, f"entryList.{i}.text") or "")
+                     for i in range(int(crafting_entries(instance, "entryList.length") or 0))]
+            target = next((i for i, text in enumerate(names) if text.startswith(name)), None)
+            if target is None:
+                raise TestFailure(f"{tag} {name} is not among the ingredients: {', '.join(names)}")
+            select_crafting_entry(instance, target)
+            tap_key(instance, ACTIVATE_KEY)
+        wait_for(f"{tag} the chosen ingredients make something (Create)", lambda: menu_var(instance, "Crafting Menu", "_root.Menu._bCanCraft"), 5)
+        tap_key(instance, CRAFT_KEY)
+        made = wait_for(f"{tag} its player carries the brewed potion",
+                        lambda: next((recipe for recipe, count in brewed(instance).items() if count > before[recipe]), None), 10)
+        return form_of_recipe(instance, made)
+    finally:
+        leave_crafting_station(instance, "alchemy lab")
+
+
+def scenario_guest_brewed_potion_reaches_host():
+    """The guest brews a potion at QASmoke's alchemy lab through its menu. Each game makes its own form for it; the
+    session names it by its recipe. The host's copy of the guest carries it; the guest drops it, the host's world makes
+    it and its player picks it up; the host stores it in the small chest, and the guest's chest holds it too."""
+    copy = player_copy("")
+    chest = SMALL_CHEST
+    carried = {"": brewed(""), "client": brewed("client")}
+    recipe = None
+    try:
+        potion = brew("client", (BLUE_MOUNTAIN_FLOWER, WHEAT))
+        recipe = recipe_of("client", potion)
+        wait_for("[host] its copy of the guest carries the potion, as the host's own form for its recipe",
+                 lambda: brewed("", copy)[recipe] == carried["client"][recipe] + 1, 10)
+        dropped = player_command("client", {"cmd": "drop", "item": potion, "plain": True})["object"]
+        made = wait_for("[host] the potion lies in its world", lambda: loose_brewed("", recipe), 10)
+        player_command("", {"cmd": "activate", "object": made})
+        wait_for("[host] its player carries the potion", lambda: brewed("")[recipe] == carried[""][recipe] + 1, 10)
+        wait_for("[guest] its dropped potion is gone from its world", lambda: loose_brewed("client", recipe) is None, 10)
+        player_command("", {"cmd": "store", "item": form_of_recipe("", recipe), "container": chest, "plain": True})
+        wait_for(f"[guest] chest {chest:X} holds the potion", lambda: brewed("client", chest)[recipe] == 1, 10)
+    finally:
+        if recipe is not None:
+            for instance in ("", "client"):
+                for holder in (0x14, chest):
+                    if form := form_of_recipe(instance, recipe, holder):
+                        console_on(instance, f"{holder:X}.removeitem {form:X} 99" if holder != 0x14 else f"player.removeitem {form:X} 99")
+
+
+def scenario_guest_poison_coating_reaches_host():
+    """The guest brews a poison at the alchemy lab and coats its iron sword with it (a poison equipped, as the inventory
+    menu's Use: the weapon's ExtraPoison). It stores the sword in the small chest: the host's chest holds the sword with
+    the same poison, the host's own form for its recipe, and as many uses."""
+    chest = SMALL_CHEST
+    recipe = None
+    swords = item_count("", chest, IRON_SWORD) or 0
+    try:
+        console_on("client", f"player.additem {IRON_SWORD:08X} 1")
+        console_on("client", f"player.equipitem {IRON_SWORD:08X}")
+        poison = brew("client", (DEATHBELL, NIGHTSHADE))
+        recipe = recipe_of("client", poison)
+        # As the inventory menu's Use: the game asks whether to poison the weapon in hand.
+        console_on("client", f"player.equipitem {poison:08X}")
+        wait_for("[guest] asks whether to poison the sword", lambda: "MessageBoxMenu" in open_menus("client"), 5)
+        presses_box_button("client", POISON_YES)
+        coated = lambda instance, holder: [s for s in item_stacks(instance, holder)
+                                           if s["item"] == IRON_SWORD and s["poison"] and recipe_of(instance, s["poison"]) == recipe]
+        uses = wait_for("[guest] its sword carries the poison", lambda: (coated("client", 0x14) or [{}])[0].get("poison_count"), 10)
+        player_command("client", {"cmd": "store", "item": IRON_SWORD, "container": chest})
+        try:
+            stack = wait_for(f"[host] chest {chest:X} holds the sword with the guest's poison, the host's own form for it",
+                             lambda: (coated("", chest) or [None])[0], 10)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {item_stacks('', chest)}") from None
+        if stack["poison_count"] != uses:
+            raise TestFailure(f"[host] the sword's poison has {stack['poison_count']} uses, the guest's {uses}")
+    finally:
+        if (extra := (item_count("", chest, IRON_SWORD) or 0) - swords) > 0:
+            console_on("", f"{chest:X}.removeitem {IRON_SWORD:X} {extra}")
+        console_on("client", f"player.removeitem {IRON_SWORD:X} 1")
+        if recipe is not None and (form := form_of_recipe("client", recipe)):
+            console_on("client", f"player.removeitem {form:X} 99")
+
+
+def scenario_crafted_potion_kept_across_rejoin():
+    """A guest's brewed potions are kept in its record with their recipes (crafted-potions.md): the client brews one, and
+    the host's record of it holds the recipe. Its game starts again (a new process: no created forms, an empty recipe
+    book) at the main menu and joins with the host's world: its player carries the potion, made again from the
+    record's recipe, and the host's copy of it carries it too."""
+    key = player_record("client")["key"]
+    recipe = None
+    try:
+        potion = brew("client", (BLUE_MOUNTAIN_FLOWER, WHEAT))
+        recipe = recipe_of("client", potion)
+        wait_for("[host] its record of the client keeps the potion's recipe",
+                 lambda: recipe in (kept_records("").get(key) or {}).get("recipes", []), 30)
+        restart_client_at_main_menu()
+        joins_with_world("with its brewed potion")
+        wait_for("[client] its player carries the potion, made again from its recipe", lambda: brewed("client")[recipe] == 1, 30)
+        copy = player_copy("")
+        wait_for("[host] its copy of the client carries the potion", lambda: brewed("", copy)[recipe] == 1, 15)
+    finally:
+        if recipe is not None and (form := form_of_recipe("client", recipe)):
+            console_on("client", f"player.removeitem {form:X} 99")
+
+
 def guest_locks_taken(since):
     """The guests' lock proposals the host's game took since that trail number (its log trail)."""
     lines, _ = log_trail("", since)
@@ -9640,6 +9900,16 @@ def copy_race_on_host():
     return race_of("", copy) if copy else None
 
 
+def prepare_beast_form(instance):
+    # These QA characters receive the power directly, bypassing the Companions' original-race setup.
+    race = race_of(instance, 0x14)
+    if race == WEREWOLF_BEAST_RACE:
+        raise TestFailure(f"[{instance or 'host'}] Beast Form fixture is already a werewolf")
+    player_command(instance, {"cmd": "script_var", "object": COMPANIONS_HOUSEKEEPING,
+                              "script": "CompanionsHousekeepingScript", "var": "PlayerOriginalRace", "form": race})
+    script_var(instance, COMPANIONS_HOUSEKEEPING, "CompanionsHousekeepingScript", "PlayerIsWerewolfVirgin", 0)
+
+
 def scenario_client_beast_form_stays_client():
     """The client turns into a werewolf with Beast Form (the Shout key): its own character changes, the host
     shows it changed, and the host's own player does not (upstream's bug: the change effect's
@@ -9652,6 +9922,7 @@ def scenario_client_beast_form_stays_client():
     # The Companions' setup marks the first change as the rampage's: the power would only clear the mark.
     if script_var("client", COMPANIONS_HOUSEKEEPING, "CompanionsHousekeepingScript", "PlayerIsWerewolfVirgin", 0):
         raise TestFailure("[client] C00's PlayerIsWerewolfVirgin stays set")
+    prepare_beast_form("client")
     console_on("client", f"player.addspell {BEAST_FORM:X}")
     console_on("client", f"player.equipspell {BEAST_FORM:X} voice")
     since = 0
@@ -9708,12 +9979,16 @@ def scenario_host_beast_form_stays_host():
         raise TestFailure("[host] PlayerWerewolfQuest already runs: an earlier change never ended")
     if script_var("", COMPANIONS_HOUSEKEEPING, "CompanionsHousekeepingScript", "PlayerIsWerewolfVirgin", 0):
         raise TestFailure("[host] C00's PlayerIsWerewolfVirgin stays set")
+    host_race = race_of("", 0x14)
+    prepare_beast_form("")
     console_on("", f"player.addspell {BEAST_FORM:X}")
     console_on("", f"player.equipspell {BEAST_FORM:X} voice")
     try:
         wait_for("[host] Beast Form is the selected power", lambda: local_player("").get("selected_power") == BEAST_FORM, 5)
         tap("", "shout")
         wait_for("[host] the host is a werewolf", lambda: race_of("", 0x14) == WEREWOLF_BEAST_RACE, 30)
+        wait_for("[client] shows the host as a werewolf",
+                 lambda: race_of("client", other_player(actors_on("client"))) == WEREWOLF_BEAST_RACE, 20)
         wait_for("[host] its player is in the werewolf's faction",
                  lambda: faction_rank("", 0x14, PLAYER_WEREWOLF_FACTION) >= 0, 10)
         frame = game_frame("")
@@ -9727,6 +10002,11 @@ def scenario_host_beast_form_stays_host():
             console_on("", f"setstage {PLAYER_WEREWOLF_QUEST:X} 100")  # the quest's change back
             wait_for("[host] human again", lambda: race_of("", 0x14) != WEREWOLF_BEAST_RACE, 30)
             wait_for("[host] PlayerWerewolfQuest shuts down", lambda: not werewolf_running(""), 30)
+            wait_for("[client] shows the host's original human race again",
+                     lambda: race_of("client", other_player(actors_on("client"))) == host_race, 30)
+            frames = {instance: game_frame(instance) for instance in ("", "client")}
+            wait_for("both games keep updating after the race/graph transition",
+                     lambda: all(game_frame(instance) > frame + 120 for instance, frame in frames.items()), 10)
         console_on("", f"player.removespell {BEAST_FORM:X}")
         console_on("client", f"player.removefromfaction {PLAYER_WEREWOLF_FACTION:X}")
 
@@ -10699,6 +10979,8 @@ SCENARIOS = {
     "friendly-fire-guest-firebolt": scenario_friendly_fire_guest_firebolt,
     "friendly-fire-host-firebolt": scenario_friendly_fire_host_firebolt,
     "friendly-fire-kill": scenario_friendly_fire_kill,
+    "fus-ro-dah-host-hits-guest": scenario_fus_ro_dah_host_hits_guest,
+    "fus-ro-dah-guest-hits-host": scenario_fus_ro_dah_guest_hits_host,
     "kill-move-kills-guest": scenario_kill_move_kills_guest,
     "spectator-watches-kill-move": scenario_spectator_watches_kill_move,
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
@@ -10723,6 +11005,9 @@ SCENARIOS = {
     "guest-drop-reaches-host": scenario_guest_drop_reaches_host,
     "guest-pickup-race": scenario_guest_pickup_race,
     "chest-keeps-tempered-item": scenario_chest_keeps_tempered_item,
+    "guest-brewed-potion-reaches-host": scenario_guest_brewed_potion_reaches_host,
+    "guest-poison-coating-reaches-host": scenario_guest_poison_coating_reaches_host,
+    "crafted-potion-kept-across-rejoin": scenario_crafted_potion_kept_across_rejoin,
     "guest-loads-propose-no-locks": scenario_guest_loads_propose_no_locks,
     "load-door-not-replayed": scenario_load_door_not_replayed,
     "plate-counts-client": scenario_plate_counts_client,
@@ -10908,6 +11193,8 @@ TAGS = {
     "friendly-fire-guest-firebolt": {'combat', 'magic', 'values'},
     "friendly-fire-host-firebolt": {'combat', 'magic', 'values'},
     "friendly-fire-kill": {'combat', 'death', 'values'},
+    "fus-ro-dah-host-hits-guest": {'combat', 'magic', 'physics', 'v1'},
+    "fus-ro-dah-guest-hits-host": {'combat', 'magic', 'physics', 'v1'},
     "kill-move-kills-guest": {'combat', 'death', 'physics'},
     "spectator-watches-kill-move": {'combat', 'death', 'camera'},
     "melee-client-hits-host-npc": {'combat', 'values'},
@@ -10931,6 +11218,9 @@ TAGS = {
     "guest-drop-reaches-host": {'objects', 'inventory', 'physics'},
     "guest-pickup-race": {'objects', 'inventory'},
     "chest-keeps-tempered-item": {'objects', 'inventory'},
+    "guest-brewed-potion-reaches-host": {'objects', 'inventory', 'menus', 'potions'},
+    "guest-poison-coating-reaches-host": {'objects', 'inventory', 'menus', 'potions'},
+    "crafted-potion-kept-across-rejoin": {'join', 'save', 'inventory', 'menus', 'potions'},
     "guest-loads-propose-no-locks": {'objects', 'cells'},
     "load-door-not-replayed": {'objects', 'cells'},
     "plate-counts-client": {'objects', 'scripts', 'cells'},

@@ -95,6 +95,7 @@ public:
     bool IsActorDragon(uint32_t aFormId) const noexcept override;
     bool IsActorVampireLord(uint32_t aFormId) const noexcept override;
     bool IsActorDisabled(uint32_t aFormId) const noexcept override;
+    bool IsActorStillLoading(uint32_t aFormId) const noexcept override;
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;

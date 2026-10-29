@@ -2,6 +2,7 @@
 #include <Services/Host/HostAuthority.h>
 
 #include <Services/Host/HostNetwork.h>
+#include <RecipeBook.h>
 
 #include <algorithm>
 #include <cmath>
@@ -160,6 +161,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // A script's call one game sends to others (party-calls.md): HostPlayerNatives.
     // A quest one per player, learned by one game (system-quests.md): every other learns it.
     Relay<SystemQuestsRequest, NotifySystemQuests>(FromAnyone);
+    // A guest's player-made potions (crafted-potions.md): the host's book, which HostNetwork passes on.
+    On(*this, &HostAuthority::OnRecipes);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     On(*this, &HostAuthority::OnActivate);
@@ -285,6 +288,13 @@ void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t 
     const auto cOwner = m_characters.OwnerOf(acRequest.NpcId);
     if (cOwner == m_players.Host() && cOwner != aSender)
         m_network.Send(cOwner, ToNotify(acRequest));
+}
+
+void HostAuthority::OnRecipes(const RecipesRequest& acRequest, ConnectionId_t) const noexcept
+{
+    if (RecipeBook* pBook = m_network.GetRecipes())
+        for (const Recipe& cRecipe : acRequest.Known)
+            pBook->Learn(cRecipe);
 }
 
 void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept

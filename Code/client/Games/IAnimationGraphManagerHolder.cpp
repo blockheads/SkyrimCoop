@@ -1,6 +1,7 @@
 #include <Games/Animation/IAnimationGraphManagerHolder.h>
 
 #include <BSAnimationGraphManager.h>
+#include <Games/Animation/GraphReference.h>
 #include <VersionDb.h>
 
 bool IAnimationGraphManagerHolder::SetVariableFloat(BSFixedString* apVariable, float aValue)
@@ -13,11 +14,7 @@ bool IAnimationGraphManagerHolder::SetVariableFloat(BSFixedString* apVariable, f
 
 bool IAnimationGraphManagerHolder::IsReady()
 {
-    BSAnimationGraphManager* pAnimationGraph = nullptr;
-    const auto result = GetBSAnimationGraph(&pAnimationGraph);
-
-    if (pAnimationGraph)
-        pAnimationGraph->Release();
-
-    return result;
+    return WithGraphReference<BSAnimationGraphManager>(
+        [this](BSAnimationGraphManager** apManager) { return GetBSAnimationGraph(apManager); },
+        [](BSAnimationGraphManager*) { return true; });
 }

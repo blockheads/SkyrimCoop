@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include <RecipeBook.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
@@ -69,6 +70,8 @@ struct World : entt::registry
     IWorldBridge& GetWorldBridge() noexcept;
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }
+    // The player-made potions' recipes this game knows (ItemIds).
+    RecipeBook& GetRecipes() noexcept { return m_recipes; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -85,6 +88,7 @@ private:
     std::unique_ptr<IWaitBridge> m_pWaitBridge;
     std::unique_ptr<IBodyBridge> m_pBodyBridge;
     std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
+    RecipeBook m_recipes;
     RunnerService m_runner;
     TransportService m_transport;
 

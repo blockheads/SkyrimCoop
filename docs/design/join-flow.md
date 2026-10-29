@@ -117,7 +117,8 @@ No table is kept (3d, 2026-10-23).
   markers, teammates, camera). Loading another game's blob would bring that game's journal, so the record reads
   and writes the character parts through the engine's calls instead.
 - **Elsewhere:** words of power known (`WOOP` records: the party's), misc stats and favourites (global data 0, 109;
-  later), created items such as player-made potions (`0xFF` forms; later).
+  later). Player-made potions and poisons (`0xFF` forms) are in the record as recipe ids with `Recipes`
+  (`crafted-potions.md`).
 - Comparable projects: skymp writes the player base's record into a save and lets the engine load it; Skyrim Together
   has each player load their own save (each world its own, quests drift); character transfer and New Game Plus
   mods carry skills, gold and perks and drop items because they break quests. RaceMenu exposes

@@ -14,6 +14,7 @@ struct ImguiService;
 struct UpdateEvent;
 struct RequestMessage;
 struct AuthenticationResponse;
+struct NotifyMessage;
 
 struct World;
 class IPlayerBridge;
@@ -73,6 +74,12 @@ protected:
 
     // Packet handlers
     void HandleAuthenticationResponse(const AuthenticationResponse& acMessage) noexcept;
+    // The host's recipes (NotifyRecipes), learned here.
+    void HandleRecipes(const NotifyMessage& acMessage) noexcept;
+
+    // The recipes this game learned since it last told the host (RecipesRequest), sent before a message that may name one.
+    void SendRecipes() const noexcept;
+    void SendPacket(const RequestMessage& acMessage) const noexcept;
 
 private:
     World& m_world;
@@ -84,6 +91,7 @@ private:
     HostNetwork* m_pHostNetwork{nullptr};
     std::vector<std::vector<uint8_t>> m_localInbox;
     uint32_t m_localPlayerId;
+    mutable size_t m_recipesSent{}; // the host has had this many of the book's recipes
     JoinStatus m_joinStatus;
     std::string m_endpoint;
     std::optional<DisconnectedEvent::Cause> m_closing; // set while Close runs: the cause it gives

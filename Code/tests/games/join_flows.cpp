@@ -170,6 +170,39 @@ SCENARIO("A guest brings and restores its own learned knowledge instead of the h
     CHECK(hostEngine.Knowledge.Enchantments == std::vector<GameId>{GameId(0, 0x10FB95)});
 }
 
+SCENARIO("A character joining again keeps its brewed potions, made again from the record's recipes", "[records][potions]")
+{
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    auto& guestEngine = Party::Engine(guest);
+    JoinsWithWorld(party, host, guest, "the guest joins with the host's world");
+    const Recipe cFortify{false, {{25.f, 0, 60, 30.f, GameId(0, 0x3EAF3)}}};
+    party.As(guest, [&] {
+        guestEngine.PlayerBrews(cFortify, 2);
+        guest.GetDispatcher().trigger(MenuEvent{"InventoryMenu", false});
+    });
+    const auto cKey = KeyOf(guest);
+    party.Until([&] { const auto* cpRecord = Records(host).Find(cKey); return cpRecord && cpRecord->Recipes == std::vector{cFortify}; },
+                "the host keeps the guest's record with its potion's recipe");
+
+    // Back at the main menu, its game's created forms are gone (a save's load replaces them).
+    ToMainMenu(party, guest);
+    guestEngine.Brewed.clear();
+    JoinsWithWorld(party, host, guest, "the guest joins again from the main menu");
+    uint32_t made = 0;
+    party.As(guest, [&] { made = ItemForm(cFortify.Id()); });
+    CHECK(made != 0);
+    CHECK(guestEngine.Brewed.at(made) == cFortify);
+    int32_t carried = 0;
+    for (const auto& cEntry : guestEngine.Actors.at(FakeEngine::kPlayer).Items.Entries)
+        if (cEntry.BaseId == cFortify.Id())
+            carried += cEntry.Count;
+    CHECK(carried == 2);
+}
+
 SCENARIO("A guest's character reaches the host's save, and loading that save brings it back", "[records]")
 {
     Party party(1, Plugins, false);

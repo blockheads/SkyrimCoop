@@ -16,6 +16,7 @@
 #include <Events/HealthChangeEvent.h>
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
+#include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
@@ -533,6 +534,36 @@ uint32_t FormIdOf(const GameId& acId) noexcept
     return (acId.ModId << 24) | acId.BaseId;
 }
 
+// The engine's created potions (ItemIds): the fake's Brewed.
+std::optional<Recipe> CreatedItems::RecipeOf(uint32_t aFormId) noexcept
+{
+    const auto& cBrewed = FakeEngine::Current().Brewed;
+    const auto it = cBrewed.find(aFormId);
+    return it != cBrewed.end() ? std::optional(it->second) : std::nullopt;
+}
+
+uint32_t CreatedItems::Make(const Recipe& acRecipe) noexcept
+{
+    return FakeEngine::Current().Brew(acRecipe);
+}
+
+uint32_t FakeEngine::Brew(const Recipe& acRecipe)
+{
+    for (const auto& [cId, cRecipe] : Brewed)
+        if (cRecipe == acRecipe)
+            return cId;
+    const uint32_t cId = m_nextTemporary++;
+    Brewed.emplace(cId, acRecipe);
+    return cId;
+}
+
+uint32_t FakeEngine::PlayerBrews(const Recipe& acRecipe, int32_t aCount)
+{
+    const uint32_t cPotion = Brew(acRecipe);
+    GetsItem(kPlayer, cPotion, aCount);
+    return cPotion;
+}
+
 namespace
 {
 // A container's count of an item; none held is no entry, as the engine's lists keep it.
@@ -548,7 +579,7 @@ void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount)
 void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks)
 {
     SetCount(aReference, aItem, aCount);
-    std::erase_if(aReference.Stacks, [&](const Inventory::Entry& acStack) { return acStack.BaseId == SessionIdOf(aItem); });
+    std::erase_if(aReference.Stacks, [&](const Inventory::Entry& acStack) { return acStack.BaseId == ItemId(aItem); });
     for (auto& stack : aStacks)
         aReference.Stacks.push_back(std::move(stack));
 }
@@ -557,7 +588,7 @@ std::vector<Inventory::Entry> StacksOf(const FakeEngine::Reference& acReference,
 {
     std::vector<Inventory::Entry> stacks;
     for (const auto& cStack : acReference.Stacks)
-        if (cStack.BaseId == SessionIdOf(aItem))
+        if (cStack.BaseId == ItemId(aItem))
             stacks.push_back(cStack);
     return stacks;
 }
@@ -582,7 +613,7 @@ ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
 
 ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acReference, uint32_t aItem)
 {
-    ObjectChange row{.Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aContainer), .Item = SessionIdOf(aItem)};
+    ObjectChange row{.Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aContainer), .Item = ItemId(aItem).value_or(GameId{})};
     const auto it = acReference.Items.find(aItem);
     row.Value = it != acReference.Items.end() ? static_cast<uint32_t>(it->second) : 0;
     row.Stacks = StacksOf(acReference, aItem);
@@ -695,7 +726,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
         break;
     case ObjectChange::Kind::kItems:
-        SetCount(reference, FormIdOf(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
+        SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
     case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
     default: break;
@@ -761,6 +792,14 @@ void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, cons
 {
     Actors[aFormId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z},
                             .Essential = EssentialBases.contains(aBase)};
+}
+
+void FakeEngine::FinishLoading(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Initializing = false;
+    actor.Loaded = true;
+    World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
 }
 
 void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
@@ -1128,6 +1167,12 @@ void FakeEngine::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t a
         CheckHealth(aFormId, it->second);
 }
 
+bool FakeEngine::IsActorStillLoading(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.Initializing;
+}
+
 bool FakeEngine::IsActorDisabled(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
@@ -1347,8 +1392,15 @@ Inventory FakeEngine::GetActorInventory(uint32_t aFormId) const noexcept
 
 void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept
 {
-    if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Items = acInventory;
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    // As AddOrRemoveItem: an item with no form here is not added, a coating with no poison here is lost.
+    it->second.Items = acInventory;
+    std::erase_if(it->second.Items.Entries, [](const Inventory::Entry& acEntry) { return !::ItemForm(acEntry.BaseId); });
+    for (auto& entry : it->second.Items.Entries)
+        if (entry.ExtraPoisonId && !::ItemForm(entry.ExtraPoisonId))
+            entry.ExtraPoisonId = {}, entry.ExtraPoisonCount = 0;
 }
 
 // As Actor::GetEssentialActorValues: the pools, and this game's player's skills (6 to 23).
@@ -1530,7 +1582,7 @@ namespace
 {
 GameId ServerId(uint32_t aFormId)
 {
-    return ToSession(aFormId).value_or(GameId{});
+    return ItemId(aFormId).value_or(GameId{});
 }
 } // namespace
 
@@ -1594,7 +1646,7 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     std::vector<std::pair<uint32_t, uint32_t>> replaced; // item, slot
     for (const auto& cEntry : cActor->second.Items.Entries)
     {
-        const uint32_t cWornId = ToGame(cEntry.BaseId);
+        const uint32_t cWornId = ::ItemForm(cEntry.BaseId);
         const auto cWornForm = ItemForms.find(cWornId);
         if (cWornForm == ItemForms.end() || cWornId == aItem)
             continue;
@@ -1668,7 +1720,7 @@ Inventory FakeEngine::GetActorWornArmor(uint32_t aActorFormId) const noexcept
 {
     Inventory armor = GetActorEquipment(aActorFormId);
     std::erase_if(armor.Entries, [&](const Inventory::Entry& acEntry) {
-        return GetFormType(ToGame(acEntry.BaseId)) != kArmor;
+        return GetFormType(::ItemForm(acEntry.BaseId)) != kArmor;
     });
     return armor;
 }
@@ -1785,7 +1837,8 @@ std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, ui
 {
     if (!Attached.contains(aCell))
         return std::nullopt;
-    if (MissingForms.contains(ToGame(acItem.BaseId)))
+    // As MakeLooseItem: no form here for the item (a recipe this game was not told), none made.
+    if (const uint32_t cBase = ::ItemForm(acItem.BaseId); !cBase || MissingForms.contains(cBase))
         return GameId{};
     const uint32_t cId = PlaceLoose(aCell, acItem);
     RecordCreated(cId);
@@ -1838,10 +1891,15 @@ std::vector<Inventory::Entry> FakeEngine::EntriesOf(uint32_t aActor, uint32_t aI
 
 void FakeEngine::AddEntry(uint32_t aActor, const Inventory::Entry& acItem)
 {
+    // As AddOrRemoveItem: no form here for the item, nothing added; none for its coating's poison, no coating.
+    if (!::ItemForm(acItem.BaseId))
+        return;
     Inventory::Entry stack = acItem;
+    if (stack.ExtraPoisonId && !::ItemForm(stack.ExtraPoisonId))
+        stack.ExtraPoisonId = {}, stack.ExtraPoisonCount = 0;
     stack.ExtraWorn = stack.ExtraWornLeft = false;
     if (!stack.ContainsExtraData())
-        return AddItems(aActor, ToGame(acItem.BaseId), acItem.Count);
+        return AddItems(aActor, ::ItemForm(acItem.BaseId), acItem.Count);
     auto& entries = Actors.at(aActor).Items.Entries;
     const auto it = std::ranges::find_if(entries, [&](const Inventory::Entry& acEntry) { return acEntry.CanBeMerged(stack); });
     if (it == entries.end())
@@ -1858,9 +1916,11 @@ void FakeEngine::AddEntry(uint32_t aActor, const Inventory::Entry& acItem)
 int32_t FakeEngine::CountOf(uint32_t aActor, uint32_t aItem) const
 {
     int32_t count = 0;
+    // A brewed potion by its recipe (ItemIds).
+    const auto cBrewed = Brewed.find(aItem);
     if (const auto it = Actors.find(aActor); it != Actors.end())
         for (const auto& cEntry : it->second.Items.Entries)
-            if (cEntry.BaseId.BaseId == (aItem & 0x00FFFFFF))
+            if (cBrewed != Brewed.end() ? cEntry.BaseId == cBrewed->second.Id() : cEntry.BaseId.BaseId == (aItem & 0x00FFFFFF))
                 count += cEntry.Count;
     return count;
 }
@@ -1877,7 +1937,7 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // Added (a worn one equipped, as SetInventory's adds do) or removed.
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
-    const uint32_t cItem = ToGame(aItem.BaseId);
+    const uint32_t cItem = ::ItemForm(aItem.BaseId);
     AddEntry(aObjectFormId, aItem);
     if (aItem.Count > 0 && aItem.IsWorn())
     {
@@ -2088,6 +2148,7 @@ PlayerRecord FakeEngine::ReadPlayer() const noexcept
     const Actor& cPlayer = Actors.at(kPlayer);
     // As JoinBridge: what the player carries, from its inventory; no place. Its souls and the words it unlocked.
     record.Items = cPlayer.Items;
+    record.Recipes = World::Get().GetRecipes().Of(record.Items);
     std::erase_if(record.Values, [](const PlayerRecord::Value& acValue) { return acValue.Index == 133; });
     record.Values.push_back({133, Souls.contains(kPlayer) ? Souls.at(kPlayer) : 0.f});
     for (const auto& [cIndex, cValue] : RewardStats)
@@ -2115,6 +2176,8 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Player = acRecord;
     Player.Key.clear();
     Player.Items = {};
+    for (const Recipe& cRecipe : acRecord.Recipes)
+        World::Get().GetRecipes().Learn(cRecipe);
     cPlayer.Items = acRecord.Items;
     AddedSpells[kPlayer].clear();
     for (const auto& cSpell : acRecord.Spells)
@@ -2640,7 +2703,10 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
         return false;
     auto& base = Npcs.at(GetActorBaseFormId(aFormId));
     base.Looks = acAppearance;
-    base.Race = RaceInLooks(acAppearance);
+    const uint32_t cRace = RaceInLooks(acAppearance);
+    if (base.Race != cRace)
+        Actors.at(aFormId).Values = FullValues(); // SwitchRace recalculates values without a discrete value-write event.
+    base.Race = cRace;
     base.Weight = aWeight;
     return true;
 }

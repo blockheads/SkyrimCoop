@@ -5,7 +5,7 @@ target("ClientTests")
     set_group("Tests")
     set_languages("cxx23")
     add_files("*.cpp")
-    add_files("../../client/Services/CharacterRecords.cpp")
+    add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
               "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp",
               "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",

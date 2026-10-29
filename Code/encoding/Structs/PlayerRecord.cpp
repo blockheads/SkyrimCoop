@@ -41,7 +41,8 @@ bool PlayerRecord::operator==(const PlayerRecord& acRhs) const noexcept
            FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && LevelExperience == acRhs.LevelExperience && LevelThreshold == acRhs.LevelThreshold &&
            Skills == acRhs.Skills && PerkPoints == acRhs.PerkPoints && Perks == acRhs.Perks && Spells == acRhs.Spells && Values == acRhs.Values &&
            Items == acRhs.Items && Extras == acRhs.Extras && Cell == acRhs.Cell && WorldSpace == acRhs.WorldSpace && Position == acRhs.Position &&
-           Words == acRhs.Words && PermanentValues == acRhs.PermanentValues && Knowledge == acRhs.Knowledge;
+           Words == acRhs.Words && PermanentValues == acRhs.PermanentValues && Knowledge == acRhs.Knowledge &&
+           Recipes == acRhs.Recipes;
 }
 
 void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -111,6 +112,9 @@ void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
         }
         WriteIds(aWriter, Knowledge.Enchantments);
     }
+    Serialization::WriteVarInt(aWriter, Recipes.size());
+    for (const Recipe& cRecipe : Recipes)
+        cRecipe.Serialize(aWriter);
 }
 
 void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -189,5 +193,12 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
             ingredient.Uses = Serialization::ReadVarInt(aReader) & 0xFFFF;
         }
         Knowledge.Enchantments = ReadIds(aReader);
+    }
+    Recipes.clear();
+    if (!aReader.Eof())
+    {
+        Recipes.resize(Serialization::ReadVarInt(aReader) & 0xFFFF);
+        for (Recipe& recipe : Recipes)
+            recipe.Deserialize(aReader);
     }
 }

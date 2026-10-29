@@ -1,6 +1,7 @@
 #include <Bridges/ContainerItems.h>
 
 #include <FormIds.h>
+#include <ItemIds.h>
 
 #include <Actor.h>
 #include <ExtraData/ExtraContainerChanges.h>
@@ -12,14 +13,14 @@
 
 std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
-    if ((aObjectFormId >> 24) == 0xFF || (aItemFormId >> 24) == 0xFF)
+    if (IsCreatedForm(aObjectFormId))
         return std::nullopt;
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
     if (!pObject || Cast<Actor>(pObject))
         return std::nullopt;
     const auto cCount = pObject->GetContainerCount(Cast<TESBoundObject>(TESForm::GetById(aItemFormId)));
     const auto cObject = ToSession(aObjectFormId);
-    const auto cItem = ToSession(aItemFormId);
+    const auto cItem = ItemId(aItemFormId);
     if (!cCount || !cObject || !cItem)
         return std::nullopt;
     ObjectChange change{ObjectChange::Kind::kItems, *cObject};
@@ -39,7 +40,7 @@ std::optional<ObjectChange> ReadContainerContents(const TESObjectREFR& acObject)
     std::vector<ObjectChange::ItemCount> items;
     for (const auto& [pItem, cCount] : acObject.GetContainerItems())
     {
-        if (const auto cItem = ToSession(pItem->formID); cCount && cItem)
+        if (const auto cItem = ItemId(pItem->formID); cCount && cItem)
         {
             items.push_back({*cItem, cCount});
             std::ranges::move(ReadContainerStacks(acObject, *pItem), std::back_inserter(change.Stacks));
@@ -55,7 +56,7 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
         return false;
     std::vector<std::pair<TESBoundObject*, int32_t>> wanted;
     for (const auto& cItem : ObjectChange::UnpackContents(acChange.Data))
-        if (auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ToGame(cItem.Item))))
+        if (auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(cItem.Item))))
             wanted.emplace_back(pItem, cItem.Count);
     for (const auto& [pItem, cCount] : aObject.GetContainerItems())
         if (std::ranges::none_of(wanted, [pItem](const auto& acWanted) { return acWanted.first == pItem; }))
@@ -64,7 +65,7 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
     {
         std::vector<Inventory::Entry> stacks;
         for (const auto& cStack : acChange.Stacks)
-            if (ToGame(cStack.BaseId) == pItem->formID)
+            if (cStack.BaseId == ItemId(pItem->formID))
                 stacks.push_back(cStack);
         SetContainerStacks(aObject, *pItem, cCount, stacks);
     }
@@ -89,7 +90,7 @@ ExtraContainerChanges::Entry* FindEntry(const TESObjectREFR& acObject, const TES
 std::optional<Inventory::Entry> ReadStack(const TESBoundObject& acItem, ExtraDataList* apList) noexcept
 {
     Inventory::Entry stack;
-    stack.BaseId = ToSession(acItem.formID).value_or(GameId{});
+    stack.BaseId = ItemId(acItem.formID).value_or(GameId{});
     stack.Count = 1;
     TESObjectREFR::GetItemFromExtraData(stack, apList);
     stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
@@ -169,6 +170,6 @@ bool SetContainerStacks(TESObjectREFR& aObject, TESBoundObject& aItem, int32_t a
 
 bool ApplyContainerItems(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(acChange.Item)));
     return pItem && !Cast<Actor>(&aObject) && SetContainerStacks(aObject, *pItem, static_cast<int32_t>(acChange.Value), acChange.Stacks);
 }

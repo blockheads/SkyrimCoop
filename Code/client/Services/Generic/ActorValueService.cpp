@@ -19,6 +19,12 @@
 
 #include <Bridges/IActorBridge.h>
 
+namespace
+{
+// ActorValue::kDragonSouls: never synced, setting it fires "Dragon soul collected".
+constexpr uint32_t cDragonSouls = 133;
+} // namespace
+
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
@@ -185,7 +191,7 @@ void ActorValueService::BroadcastActorValues() noexcept
         for (const uint32_t cIndex : it->second)
         {
             if (cIndex >= static_cast<uint32_t>(m_actorBridge.GetActorValueCount()) ||
-                (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == 133))
+                (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == cDragonSouls))
                 continue;
             // Continuous pools go with their tick; their maxima still follow writes.
             if (cIndex < 24 || cIndex > 26)
@@ -404,10 +410,11 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
 void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) noexcept
 {
     for (const auto& [key, value] : acMessage.Values)
-        if (key >= 24 && key <= 26)
+        if (key != cDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorValuesList[key] = value;
-            m_copyPoolsPending.insert(acMessage.Id);
+            if (key >= 24 && key <= 26)
+                m_copyPoolsPending.insert(acMessage.Id);
         }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
 
@@ -424,8 +431,7 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 
     for (const auto& [key, value] : acMessage.Values)
     {
-        // Syncing dragon souls triggers "Dragon soul collected" event
-        if (key == 133 /* kDragonSouls */)
+        if (key == cDragonSouls)
             continue;
 
         spdlog::debug("Actor value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
@@ -442,10 +448,11 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges& acMessage) noexcept
 {
     for (const auto& [key, value] : acMessage.Values)
-        if (key >= 24 && key <= 26)
+        if (key != cDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorMaxValuesList[key] = value;
-            m_copyPoolsPending.insert(acMessage.Id);
+            if (key >= 24 && key <= 26)
+                m_copyPoolsPending.insert(acMessage.Id);
         }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
 
@@ -462,7 +469,7 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
     for (const auto& [key, value] : acMessage.Values)
     {
-        if (key == 133 /* kDragonSouls */)
+        if (key == cDragonSouls)
             continue;
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
@@ -470,6 +477,14 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
         if (key < 24 || key > 26)
             m_actorBridge.ForceActorValue(formId, 0 /* ForceMode::PERMANENT */, key, value);
     }
+}
+
+void ActorValueService::RestoreCopyValues(uint32_t aSessionId) noexcept
+{
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+    const auto it = m_copyValues.find(aSessionId);
+    if (it != m_copyValues.end() && cFormId && m_actorBridge.IsActorCopy(cFormId))
+        m_actorBridge.SetActorValues(cFormId, it->second);
 }
 
 void ActorValueService::ApplyCopyPools() noexcept

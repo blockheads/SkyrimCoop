@@ -1,6 +1,7 @@
 #include <Services/CharacterService.h>
 #include <MainLoopTasks.h>
 #include <Services/CopyClock.h>
+#include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
 
@@ -18,6 +19,7 @@
 #include <Events/PlayerDeathEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
+#include <Events/ReferenceLoadedEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 
@@ -85,6 +87,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyFactionsChanges, &CharacterService::OnFactionsChanges>(m_connections, m_dispatcher, this);
     Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
     Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
+    Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
     Listen<NotifyRemoveCharacter, &CharacterService::OnRemoveCharacter>(m_connections, m_dispatcher, this);
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
@@ -305,6 +308,7 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
 void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept
 {
     m_pendingLooks.clear();
+    m_pendingSpawns.clear();
     const auto cMounts = m_mountPersistence;
     for (const auto& [cFormId, cPersistent] : cMounts)
         ReleaseMount(cFormId);
@@ -332,8 +336,28 @@ CharacterService::~CharacterService() noexcept
     m_playerBridge.StopTeleportEvents();
 }
 
-void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) const noexcept
+void CharacterService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
 {
+    const auto it = std::ranges::find_if(m_pendingSpawns, [&](const auto& acPending) { return ToGame(acPending.second.FormId) == acEvent.FormId; });
+    if (it == m_pendingSpawns.end())
+        return;
+    const NotifyCharacterSpawn cSpawn = std::move(it->second);
+    m_pendingSpawns.erase(it);
+    OnCharacterSpawn(cSpawn);
+}
+
+void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept
+{
+    if (acMessage.FormId != GameId{})
+    {
+        const uint32_t cFormId = ToGame(acMessage.FormId);
+        if (cFormId && (!m_actorBridge.ActorExists(cFormId) || m_actorBridge.IsActorStillLoading(cFormId)))
+        {
+            m_pendingSpawns[acMessage.SessionId] = acMessage;
+            return;
+        }
+    }
+    m_pendingSpawns.erase(acMessage.SessionId);
     auto remoteView = m_world.view<RemoteComponent>();
     const auto remoteItor = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
 
@@ -603,6 +627,7 @@ void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) c
 void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept
 {
     m_pendingLooks.erase(acMessage.SessionId);
+    m_pendingSpawns.erase(acMessage.SessionId);
     auto view = m_world.view<RemoteComponent>();
 
     const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.SessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
@@ -749,6 +774,7 @@ void CharacterService::ApplyPendingLooks() noexcept
             ++it;
             continue;
         }
+        m_world.ctx().at<ActorValueService>().RestoreCopyValues(it->first);
         // A different race has a different variable layout; derive it from the rebuilt graph.
         m_actorBridge.SetAnimationGraphDescriptorHash(cFormId, 0);
         for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())

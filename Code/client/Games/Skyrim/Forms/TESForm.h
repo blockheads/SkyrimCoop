@@ -50,6 +50,7 @@ struct TESForm : BaseFormComponent
         DISABLED = 1 << 0xB,
         UNLOCKED = 1 << 0x10, // a word of power's (14640; Game.IsWordUnlocked 55502 reads it)
         IGNORE_FRIENDLY_HITS = 1 << 0x14,
+        STILL_LOADING = 1 << 0x15,
     };
 
     static TESForm* GetById(uint32_t aId);
@@ -127,6 +128,7 @@ struct TESForm : BaseFormComponent
             flags &= ~IGNORE_FRIENDLY_HITS;
     }
 
+    bool IsStillLoading() const noexcept { return (flags & STILL_LOADING) != 0; }
     bool IsDisabled() const noexcept { return (flags & DISABLED) != 0; }
     bool IsDeleted() const noexcept { return (flags & DELETED) != 0; }
     void SetPersistent() noexcept { flags |= PERSISTENT; }

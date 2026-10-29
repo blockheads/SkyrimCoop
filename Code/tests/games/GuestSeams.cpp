@@ -260,7 +260,7 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
         return std::nullopt;
     const auto cItem = it->second.Items.find(aItemFormId);
     ObjectChange change{
-        .Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aObjectFormId), .Item = SessionIdOf(aItemFormId)};
+        .Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aObjectFormId), .Item = ItemId(aItemFormId).value_or(GameId{})};
     change.Value = cItem != it->second.Items.end() ? static_cast<uint32_t>(cItem->second) : 0;
     for (const auto& cStack : it->second.Stacks)
         if (cStack.BaseId == change.Item)

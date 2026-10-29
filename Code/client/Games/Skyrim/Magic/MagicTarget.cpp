@@ -1,5 +1,6 @@
 #include "MagicTarget.h"
 #include <HookSwitch.h>
+#include <Games/Magic/CastingSafety.h>
 
 #include <Actor.h>
 #include <Games/ActorExtension.h>
@@ -7,8 +8,6 @@
 #include <Games/ActorExtension.h>
 #include "EffectItem.h"
 
-#include <Structs/Skyrim/AnimationGraphDescriptor_WerewolfBehavior.h>
-#include <Structs/Skyrim/AnimationGraphDescriptor_VampireLordBehavior.h>
 
 #include <Events/AddTargetEvent.h>
 #include <Events/HitEvent.h>
@@ -123,11 +122,9 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
 
     ActorExtension* pTargetActorEx = pTargetActor->GetExtension();
 
-    if (arData.pEffectItem->IsWerewolfEffect())
-        pTargetActorEx->GraphDescriptorHash = AnimationGraphDescriptor_WerewolfBehavior::m_key;
-
-    if (arData.pEffectItem->IsVampireLordEffect())
-        pTargetActorEx->GraphDescriptorHash = AnimationGraphDescriptor_VampireLordBehavior::m_key;
+    // The effect precedes the graph switch: derive the descriptor from the graph actually installed.
+    if (arData.pEffectItem->IsWerewolfEffect() || arData.pEffectItem->IsVampireLordEffect())
+        pTargetActorEx->GraphDescriptorHash = 0;
 
     if (ScopedSpellCastOverride::IsOverriden())
         return RealAddTarget(apThis, arData);
@@ -204,7 +201,8 @@ void HookAdjustForPerks(ActiveEffect* apThis, Actor* apCaster, MagicTarget* apTa
 
 bool HookHasPerk(Actor* apThis, TESForm* apPerk, void* apUnk1, double* afReturnValue)
 {
-    if (apThis && apThis->GetExtension()->IsOtherPlayer())
+    const auto* pExtension = CastingSafety::ExtensionOf(apThis);
+    if (pExtension && pExtension->IsOtherPlayer())
     {
         if (apPerk && apPerk->formID == 0x581f9)
         {

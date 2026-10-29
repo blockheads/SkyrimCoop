@@ -252,6 +252,7 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
                         record.Words.push_back(*cId);
 
     record.Items = pPlayer->GetActorInventory();
+    record.Recipes = World::Get().GetRecipes().Of(record.Items);
     // Its own system quests' instances (docs/design/system-quests.md): the save's are the host's player's.
     if (SystemQuests::Any())
         record.Extras[SystemQuestState::kExtra] = SystemQuests::ReadState();
@@ -363,6 +364,9 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     for (const GameId& cId : acRecord.Spells)
         pPlayer->AddSpell(FormOf<SpellItem>(cId));
 
+    // Its player-made potions are made here from their recipes (ItemIds).
+    for (const Recipe& cRecipe : acRecord.Recipes)
+        World::Get().GetRecipes().Learn(cRecipe);
     pPlayer->SetActorInventory(acRecord.Items);
     const auto cQuests = acRecord.Extras.find(SystemQuestState::kExtra);
     SystemQuests::ApplyState(cQuests != acRecord.Extras.end() ? cQuests->second : std::string{});

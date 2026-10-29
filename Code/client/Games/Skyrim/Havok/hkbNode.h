@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Havok/hkbVariableInfo.h>
+
 // Behaviour graph nodes as the variable writers walk reads them: Havok 2010.2 layouts (hkxcmd compat/,
 // CommonLibSSE-NG) checked in IDA. docs/design/graph-replication.md.
 
@@ -94,9 +96,12 @@ struct hkbBehaviorGraphData
 {
     void* vtable;
     uint64_t refCount;
-    uint8_t pad10[0x78 - 0x10];
+    uint8_t pad10[0x20 - 0x10];
+    hkArrayView<hkbVariableInfo> variableInfos; // 20
+    uint8_t pad30[0x78 - 0x30];
     hkbBehaviorGraphStringData* stringData; // 78
 };
+static_assert(offsetof(hkbBehaviorGraphData, variableInfos) == 0x20);
 static_assert(offsetof(hkbBehaviorGraphData, stringData) == 0x78);
 
 // Behaviour graph as a node: its root generator and its own variable names (sub-behaviours index

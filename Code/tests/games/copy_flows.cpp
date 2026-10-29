@@ -258,9 +258,22 @@ SCENARIO("A player's looks change on the existing copies", "[copies][copy-looks]
 
     WHEN("the host's player switches race")
     {
+        party.As(party.Host(), [&] {
+            host.ForceActorValue(FakeEngine::kPlayer, 0, FakeEngine::kHealth, 175.f);
+            host.ForceActorValue(FakeEngine::kPlayer, 2, FakeEngine::kHealth, 145.f);
+            host.ForceActorValue(FakeEngine::kPlayer, 0, 17, 65.f); // Speech learned since the first spawn
+            host.ForceActorValue(FakeEngine::kPlayer, 2, 17, 65.f);
+        });
+        party.Until([&] { return guest.GetActorValue(cGuestCopy, FakeEngine::kHealth) == 145.f &&
+                                guest.GetActorPermanentValue(cGuestCopy, FakeEngine::kHealth) == 175.f &&
+                                guest.GetActorValue(cGuestCopy, 17) == 65.f; },
+                    "the guest sees the host's values before switching race");
         party.As(party.Host(), [&] { host.PlayerSwitchesRace(kKhajiitRace); });
         party.Until([&] { return WearsLooks(party.Guest(), host); }, "the guest's existing copy wears the Khajiit looks");
         party.Agree("the games agree on the host's player");
+        CHECK(guest.GetActorPermanentValue(cGuestCopy, FakeEngine::kHealth) == 175.f);
+        CHECK(guest.GetActorValue(cGuestCopy, FakeEngine::kHealth) == 145.f);
+        CHECK(guest.GetActorValue(cGuestCopy, 17) == 65.f);
     }
     CHECK(PlayerCopy(host) == cHostCopy);
     CHECK(PlayerCopy(guest) == cGuestCopy);

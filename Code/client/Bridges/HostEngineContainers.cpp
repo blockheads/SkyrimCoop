@@ -2,6 +2,7 @@
 #include <Bridges/HostEngine.h>
 #include <ExtraData/ExtraContainerChanges.h>
 #include <FormIds.h>
+#include <ItemIds.h>
 #include <Games/Overrides.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <RTTI.h>
@@ -45,7 +46,7 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
         TESForm::GetById(acRequest.ContainerActorId ? Utils::GetFormIdBySessionId(acRequest.ContainerActorId)
                                                     : ToGame(acRequest.Container)));
     auto* pPlayer = Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(aPlayer)));
-    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ToGame(moved.BaseId)));
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(moved.BaseId)));
     if (!pContainer || !pPlayer || !pItem || !pContainer->GetContainer())
         return moved;
     const bool cTake = acRequest.Item.Count > 0;

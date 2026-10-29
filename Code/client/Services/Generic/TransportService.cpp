@@ -16,6 +16,7 @@
 #include <Messages/NotifyMessageFactory.h>
 #include <Services/Host/HostNetwork.h>
 #include <Messages/NotifySettingsChange.h>
+#include <Messages/Relayed.h>
 #include <network/Packet.h>
 
 #include <RunningGame.h>
@@ -63,6 +64,7 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
         const auto pRealMessage = CastUnique<AuthenticationResponse>(std::move(apMessage));
         HandleAuthenticationResponse(*pRealMessage);
     };
+    m_messageHandlers[NotifyRecipes::Opcode] = [this](std::unique_ptr<NotifyMessage>& apMessage) { HandleRecipes(*apMessage); };
 }
 
 // The host's game's in-process connection to its own network. Real connection ids are enet peer
@@ -140,20 +142,43 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 
     if (IsConnected())
     {
-        Wire::Buffer buffer(1 << 16);
-        Wire::Buffer::Writer writer(&buffer);
-        writer.WriteBits(0, 8); // Write first byte as packet needs it
-
-        acMessage.Serialize(writer);
-
-        Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
-
-        Client::Send(&packet, acMessage.GetOpcode() == kPartyTravelRequest ? Net::kReliableNoNagle : Net::kReliable);
-
+        SendRecipes();
+        SendPacket(acMessage);
         return true;
     }
 
     return false;
+}
+
+void TransportService::SendPacket(const RequestMessage& acMessage) const noexcept
+{
+    Wire::Buffer buffer(1 << 16);
+    Wire::Buffer::Writer writer(&buffer);
+    writer.WriteBits(0, 8); // Write first byte as packet needs it
+
+    acMessage.Serialize(writer);
+
+    Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+
+    Client::Send(&packet, acMessage.GetOpcode() == kPartyTravelRequest ? Net::kReliableNoNagle : Net::kReliable);
+}
+
+void TransportService::SendRecipes() const noexcept
+{
+    // Only once in the session: the host takes nothing before the authentication.
+    if (!IsOnline())
+        return;
+    RecipesRequest request;
+    request.Known = m_world.GetRecipes().Unsent(m_recipesSent);
+    if (!request.Known.empty())
+        SendPacket(request);
+}
+
+void TransportService::HandleRecipes(const NotifyMessage& acMessage) noexcept
+{
+    // The host gets them back with this game's own (it keeps each once).
+    for (const Recipe& cRecipe : static_cast<const NotifyRecipes&>(acMessage).Known)
+        m_world.GetRecipes().Learn(cRecipe);
 }
 
 void TransportService::OnConsume(const void* apData, uint32_t aSize)
@@ -173,6 +198,7 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
 
 void TransportService::OnConnected()
 {
+    m_recipesSent = 0;
     AuthenticationRequest request{};
     request.Version = BuildCommit();
     request.Game = RunningGame::GetVersions();

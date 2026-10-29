@@ -35,6 +35,7 @@ public:
 
     // --- Existence / identity ---
     virtual bool ActorExists(uint32_t aFormId) const noexcept = 0;
+    virtual bool IsActorStillLoading(uint32_t aFormId) const noexcept = 0;
     virtual bool IsActorDead(uint32_t aFormId) const noexcept = 0;
     virtual bool IsPlayerSummon(uint32_t aFormId) const noexcept = 0;
     virtual bool IsTemporaryActor(uint32_t aFormId) const noexcept = 0;

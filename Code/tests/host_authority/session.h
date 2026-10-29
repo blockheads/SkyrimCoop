@@ -8,6 +8,7 @@
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostNetwork.h>
+#include <RecipeBook.h>
 
 #include <Messages/Relayed.h>
 #include <Messages/ActivateRequest.h>
@@ -95,6 +96,7 @@ struct Session
     explicit Session(bool aFollowerKeys = false)
         : m_authority(m_network, Game())
     {
+        m_network.SetRecipes(&Recipes);
         const auto join = [&](ConnectionId_t aConnection, const char* acpName, uint16_t aLevel, const char* acpKey) {
             auto request = JoinRequest(acpName, aLevel);
             if (aFollowerKeys)
@@ -214,6 +216,8 @@ struct Session
     Followers::Anchors FollowerBindings;
     std::vector<Followers::Target> FollowerTargets;
     std::vector<Sent> Outbox;
+    // The host's game's recipes (HostService gives its World's).
+    RecipeBook Recipes;
 
 private:
     void Capture(ConnectionId_t aTo, const void* apData, uint32_t aSize)
