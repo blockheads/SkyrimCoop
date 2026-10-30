@@ -7,7 +7,7 @@ The six-mod, cap-60 profile hangs before joining, during the guest's startup
 loop stalled for ten seconds after seven ticks. No acceptance scenario has started.
 The bootstrap writes activation saves to record both games' actual master lists.
 
-Evidence in `.worktrees/v1-mod-profiles/build/`:
+Evidence (worktree removed 2026-10-30, not kept) was in the worktree `build/`:
 
 - `profiles/20261029-174123-playtest/`: exact files/settings, hashes, both prefix logs and final state.
 - `guest-startup-hang-{raw,symbolized}.txt` inside that profile: the complete watchdog dump.

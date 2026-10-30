@@ -1,0 +1,2238 @@
+{
+  "session-roster": {
+    "tags": [
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "party-panel": {
+    "tags": [
+      "reload",
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "party-shows-levels": {
+    "tags": [
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-client": {
+    "tags": [
+      "hands",
+      "inventory",
+      "session",
+      "spawn",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "host-rejoins": {
+    "tags": [
+      "session",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "host-kicks-client": {
+    "tags": [
+      "session",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "join-refused-shows-why": {
+    "tags": [
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "join-panel-shows-refusal": {
+    "tags": [
+      "join",
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "join-refused-plugins-differ": {
+    "tags": [
+      "restart",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "difficulty-follows-host": {
+    "tags": [
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "global-reaches-guest": {
+    "tags": [
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-gets-globals": {
+    "tags": [
+      "session",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-stage-reaches-guest": {
+    "tags": [
+      "quest",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-story-starts-no-quest": {
+    "tags": [
+      "cells",
+      "quest",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-location-change-starts-story": {
+    "tags": [
+      "cells",
+      "quest",
+      "story",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-craft-raises-story": {
+    "tags": [
+      "menus",
+      "quest",
+      "story",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-spawns-no-critters": {
+    "tags": [
+      "objects",
+      "scripts",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "wildlife-takes-hosts-pick": {
+    "tags": [
+      "cells",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-joins-by-invite": {
+    "tags": [
+      "session",
+      "spawn",
+      "steam",
+      "two-accounts",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "loaded-save-hosts-then-joins-friend": {
+    "tags": [
+      "session",
+      "steam",
+      "two-accounts",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-cannot-save": {
+    "tags": [
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-cannot-load": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "host-loads-party": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "host-quickloads-party": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "host-menu-loads-party": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "host-save-keeps-guest-character": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-brings-character-into-hosts-world": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-joins-from-main-menu-as-kept-character": {
+    "tags": [
+      "join",
+      "save",
+      "session",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-makes-character-then-joins": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "first-time-join-by-invite": {
+    "tags": [
+      "join",
+      "save",
+      "session",
+      "steam",
+      "two-accounts"
+    ],
+    "fixture": "baseline"
+  },
+  "first-time-join-breton": {
+    "tags": [
+      "join",
+      "save",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-changes-looks-in-session": {
+    "tags": [
+      "join",
+      "session",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "death-stage-runs-once": {
+    "tags": [
+      "quest",
+      "scripts",
+      "spawn",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-completes-for-guest": {
+    "tags": [
+      "quest",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-roles-match-host": {
+    "tags": [
+      "quest",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-fill-loads-on-guest": {
+    "tags": [
+      "quest",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-gets-quests": {
+    "tags": [
+      "quest",
+      "session",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "steady-state": {
+    "tags": [
+      "movement",
+      "session",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "move-host-npc": {
+    "tags": [
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-jumps-with-owner": {
+    "tags": [
+      "movement",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "remove-host-npc": {
+    "tags": [
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-ends-voice-line": {
+    "tags": [
+      "ai",
+      "dialogue"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-peer-starts": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-last-one-out-ends-it": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-nobody-moves": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-join-by-talking": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-host-in-background": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-pick-reaches-host": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-npc-removed-mid-conversation": {
+    "tags": [
+      "dialogue",
+      "spawn",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-arrival-leaves-host-in-place": {
+    "tags": [
+      "join",
+      "restart",
+      "session",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-options-are-the-hosts": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-line-judged-for-guest": {
+    "tags": [
+      "dialogue",
+      "quests"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-knows-learned-spell": {
+    "tags": [
+      "dialogue",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "ability-stays-on-copy": {
+    "tags": [
+      "magic",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-options-are-the-partys": {
+    "tags": [
+      "dialogue",
+      "quests"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-highlight-is-shared": {
+    "tags": [
+      "dialogue"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-quest-option-from-host": {
+    "tags": [
+      "dialogue",
+      "quests",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-pick-says-the-hosts-line": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "natives-reach-matches-ida": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-picker-gets-speech-experience": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-picker-trains": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-gold-is-one": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-refused-start": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-said-line-waits": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-ends-on-travel": {
+    "tags": [
+      "dialogue",
+      "spawn",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-said-once-line": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-question-answered-by-who-can": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-npc-removed": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-npc-starts": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-several-questions-deep": {
+    "tags": [
+      "dialogue",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "teleport-keeps-copies": {
+    "tags": [
+      "cells",
+      "movement",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-changes-cells": {
+    "tags": [
+      "cells",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-stacks-on-arrival": {
+    "tags": [
+      "cells"
+    ],
+    "fixture": "baseline"
+  },
+  "party-uses-door": {
+    "tags": [
+      "cells",
+      "objects",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-quick-travel": {
+    "tags": [
+      "cells",
+      "objects",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-fast-travels": {
+    "tags": [
+      "cells",
+      "spawn",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "party-loads-overlap": {
+    "tags": [
+      "cells",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-quest-teleport": {
+    "tags": [
+      "cells",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "party-travel-with-menu": {
+    "tags": [
+      "cells",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-rides-host-horse": {
+    "tags": [
+      "movement",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "host-rides-horse": {
+    "tags": [
+      "movement",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-rides-across-border": {
+    "tags": [
+      "cells",
+      "movement",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "mounted-guest-leaves": {
+    "tags": [
+      "movement",
+      "session",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "party-travel-mounted-guest": {
+    "tags": [
+      "cells",
+      "movement",
+      "spawn",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "party-travel-dead-guest": {
+    "tags": [
+      "cells",
+      "death",
+      "spawn",
+      "travel"
+    ],
+    "fixture": "baseline"
+  },
+  "sneak-host-player": {
+    "tags": [
+      "ai",
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "furniture-host-player": {
+    "tags": [
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "furniture-client-player": {
+    "tags": [
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "sneak-client-player": {
+    "tags": [
+      "ai",
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "dive-host-player": {
+    "tags": [
+      "ai",
+      "cells",
+      "dialogue",
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-leaves-water-with-owner": {
+    "tags": [
+      "cells",
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "dive-client-player": {
+    "tags": [
+      "ai",
+      "cells",
+      "dialogue",
+      "movement"
+    ],
+    "fixture": "baseline"
+  },
+  "cast-host-player": {
+    "tags": [
+      "hands",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "cast-client-player": {
+    "tags": [
+      "hands",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "quick-sheathe-host-player": {
+    "tags": [
+      "hands",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "quick-sheathe-client-player": {
+    "tags": [
+      "hands",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "hands-survive-reload-host-player": {
+    "tags": [
+      "hands",
+      "reload",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "hands-survive-reload-client-player": {
+    "tags": [
+      "hands",
+      "reload",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "health-host-player": {
+    "tags": [
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "health-client-player": {
+    "tags": [
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "health-host-npc": {
+    "tags": [
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "death-host-npc": {
+    "tags": [
+      "spawn",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "death-spectate-host": {
+    "tags": [
+      "combat",
+      "death",
+      "input",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "death-spectate-guest": {
+    "tags": [
+      "combat",
+      "death",
+      "input",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "death-wipe-checkpoint": {
+    "tags": [
+      "combat",
+      "death",
+      "join",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "friendly-fire-guest-sword": {
+    "tags": [
+      "combat",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "friendly-fire-host-sword": {
+    "tags": [
+      "combat",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "friendly-fire-guest-firebolt": {
+    "tags": [
+      "combat",
+      "magic",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "friendly-fire-host-firebolt": {
+    "tags": [
+      "combat",
+      "magic",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "friendly-fire-kill": {
+    "tags": [
+      "combat",
+      "death",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "fus-ro-dah-host-hits-guest": {
+    "tags": [
+      "combat",
+      "magic",
+      "physics",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "fus-ro-dah-guest-hits-host": {
+    "tags": [
+      "combat",
+      "magic",
+      "physics",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "kill-move-kills-guest": {
+    "tags": [
+      "combat",
+      "death",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "spectator-watches-kill-move": {
+    "tags": [
+      "camera",
+      "combat",
+      "death"
+    ],
+    "fixture": "baseline"
+  },
+  "melee-client-hits-host-npc": {
+    "tags": [
+      "combat",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "firebolt-client-hits-host-npc": {
+    "tags": [
+      "combat",
+      "magic",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "flames-client-hits-host-npc": {
+    "tags": [
+      "combat",
+      "magic",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "client-angers-host-ally": {
+    "tags": [
+      "combat",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "client-spell-kill-credit": {
+    "tags": [
+      "combat",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "xp-stays-personal": {
+    "tags": [
+      "combat"
+    ],
+    "fixture": "baseline"
+  },
+  "client-melee-kill-credit": {
+    "tags": [
+      "combat"
+    ],
+    "fixture": "baseline"
+  },
+  "host-kill-move": {
+    "tags": [
+      "animation",
+      "combat",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "client-kill-move": {
+    "tags": [
+      "animation",
+      "combat",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "clock-slows-for-everyone": {
+    "tags": [
+      "combat",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "burning-shows-on-copy": {
+    "tags": [
+      "combat",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-made-later-shows-effects": {
+    "tags": [
+      "magic",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-flashes-one-shot-effects": {
+    "tags": [
+      "magic",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-flashes-instant-effects": {
+    "tags": [
+      "magic",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "door-opens-for-both": {
+    "tags": [
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "chest-take-all": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "host-drop-reaches-guest": {
+    "tags": [
+      "inventory",
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-drop-reaches-host": {
+    "tags": [
+      "inventory",
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-pickup-race": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "chest-keeps-tempered-item": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-brewed-potion-reaches-host": {
+    "tags": [
+      "inventory",
+      "menus",
+      "objects",
+      "potions"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-poison-coating-reaches-host": {
+    "tags": [
+      "inventory",
+      "menus",
+      "objects",
+      "potions"
+    ],
+    "fixture": "baseline"
+  },
+  "crafted-potion-kept-across-rejoin": {
+    "tags": [
+      "inventory",
+      "join",
+      "menus",
+      "potions",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-loads-propose-no-locks": {
+    "tags": [
+      "cells",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "load-door-not-replayed": {
+    "tags": [
+      "cells",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "plate-counts-client": {
+    "tags": [
+      "cells",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "sword-box-asks-client": {
+    "tags": [
+      "cells",
+      "inventory",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "statue-fires-at-client": {
+    "tags": [
+      "cells",
+      "magic",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "ring-turns-for-client": {
+    "tags": [
+      "cells",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-gets-ring-pose": {
+    "tags": [
+      "cells",
+      "scripts",
+      "session",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "keyhole-asks-client": {
+    "tags": [
+      "cells",
+      "inventory",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "relief-takes-client-relics": {
+    "tags": [
+      "cells",
+      "inventory",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "words-reach-party": {
+    "tags": [
+      "dragonborn",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "host-word-reaches-guest": {
+    "tags": [
+      "dragonborn",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "dragon-soul-reaches-party": {
+    "tags": [
+      "dragonborn",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "title-reaches-party": {
+    "tags": [
+      "dragonborn",
+      "magic",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "vampirism-is-each-players": {
+    "tags": [
+      "dragonborn",
+      "magic",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "vampirism-kept-across-rejoin": {
+    "tags": [
+      "dragonborn",
+      "join",
+      "magic",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "marriage-is-the-partys": {
+    "tags": [
+      "dragonborn",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "host-beast-form-stays-host": {
+    "tags": [
+      "dragonborn",
+      "magic",
+      "quests",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "cutscene-fade-reaches-party": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-cutscene-reaches-host": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "screen-reaches-party": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "story-message-reaches-party": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "story-box-host-answers": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "timer-asks-party-position": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "player-moment-stays-theirs": {
+    "tags": [
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "player-stage-cutscene-reaches-party": {
+    "tags": [
+      "quests",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "elder-scroll-vision-reaches-party": {
+    "tags": [
+      "late-save",
+      "quests",
+      "scripts",
+      "travel"
+    ],
+    "fixture": "saved-story"
+  },
+  "greybeards-scene-casts-party": {
+    "tags": [
+      "ai",
+      "late-save",
+      "quests",
+      "scripts"
+    ],
+    "fixture": "saved-story"
+  },
+  "guest-script-stage-reaches-host": {
+    "tags": [
+      "quests",
+      "scripts",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shrine-blesses-client": {
+    "tags": [
+      "cells",
+      "magic",
+      "objects",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "vilkas-counts-client-hits": {
+    "tags": [
+      "combat",
+      "inventory",
+      "quests",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-runs-owners-package": {
+    "tags": [
+      "ai",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-in-owners-combat": {
+    "tags": [
+      "ai",
+      "combat"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-player-in-hosts-combat": {
+    "tags": [
+      "ai",
+      "combat"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-player-in-switched-combat": {
+    "tags": [
+      "ai",
+      "combat"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-holds-owners-factions": {
+    "tags": [
+      "ai",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "client-beast-form-stays-client": {
+    "tags": [
+      "magic",
+      "quests",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "chat-reaches-everyone": {
+    "tags": [
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "map-marker-reaches-everyone": {
+    "tags": [
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-time-reaches-client": {
+    "tags": [
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shared-wait-host": {
+    "tags": [
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shared-wait-guest": {
+    "tags": [
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shared-sleep-host": {
+    "tags": [
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shared-sleep-guest": {
+    "tags": [
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-sleep-fires-host-script": {
+    "tags": [
+      "quests",
+      "scripts",
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "shared-wait-cancel": {
+    "tags": [
+      "wait",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-wait-reaches-guest": {
+    "tags": [
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-gets-calendar": {
+    "tags": [
+      "session",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-sets-time": {
+    "tags": [
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "bug-report-writes-every-game": {
+    "tags": [
+      "reports",
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "weather-follows-host": {
+    "tags": [
+      "cells",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "form-state-round-trips": {
+    "tags": [
+      "objects",
+      "spawn",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "world-changes-reach-guest": {
+    "tags": [
+      "inventory",
+      "objects",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "physics-push-reaches-guest": {
+    "tags": [
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-cast-moves-host": {
+    "tags": [
+      "combat",
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-bump-moves-host": {
+    "tags": [
+      "movement",
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-throw-lands-on-host": {
+    "tags": [
+      "objects",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "ragdoll-lies-as-host": {
+    "tags": [
+      "death",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "knockdown-lies-as-host": {
+    "tags": [
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-knockdown-lies-on-host": {
+    "tags": [
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "knockdown-smoke": {
+    "tags": [
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "knockdown-front-and-back": {
+    "tags": [
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "late-join-gets-cell-state": {
+    "tags": [
+      "objects",
+      "session",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-opens-hosts-roll": {
+    "tags": [
+      "cells",
+      "inventory",
+      "objects",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "placed-leveled-items-are-hosts": {
+    "tags": [
+      "cells",
+      "objects",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "input-keyboard-draw": {
+    "tags": [
+      "hands",
+      "input"
+    ],
+    "fixture": "baseline"
+  },
+  "input-mouse-cast": {
+    "tags": [
+      "hands",
+      "input",
+      "magic"
+    ],
+    "fixture": "baseline"
+  },
+  "save-does-not-update-frozen-world": {
+    "tags": [
+      "save",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "save-load-gate": {
+    "tags": [
+      "gate",
+      "save",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-quits-to-main-menu": {
+    "tags": [
+      "restart",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "host-quits-to-main-menu": {
+    "tags": [
+      "restart",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-leaves-to-main-menu": {
+    "tags": [
+      "restart",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-container-take-keeps-extra-data": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-loots-corpse-once": {
+    "tags": [
+      "inventory",
+      "objects"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-ingredient-knowledge-rejoin": {
+    "tags": [
+      "inventory",
+      "restart",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "host-ingredient-knowledge-control": {
+    "tags": [
+      "inventory",
+      "restart",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-enchantment-knowledge-rejoin": {
+    "tags": [
+      "inventory",
+      "restart",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "host-enchantment-knowledge-control": {
+    "tags": [
+      "inventory",
+      "restart",
+      "save"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-guest-recruits": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-switches-anchor": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-trade-to-picker": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-anchor-disconnect": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-anchor-dies": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-anchor-saved": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-placed-anchor-saved": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-housecarl": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-hireling": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-dog": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "follower-travels-with-anchor": {
+    "tags": [
+      "dialogue",
+      "followers",
+      "npc"
+    ],
+    "fixture": "baseline"
+  },
+  "party-bounty-totals": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-pays-party-fine": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-theft-host-witnesses": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-container-theft-and-fine": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-pickpocket-party-alarm": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-assault-party-alarm": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-lockpick-party-alarm": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-trespass-state": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-crime-flags": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-guard-arrest-jail": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-guard-arrest-jail": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-guard-arrest-fine": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-guard-arrest-resist": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-murder-party-alarm": {
+    "tags": [
+      "crime",
+      "items",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-host-barter-earns-speech": {
+    "tags": [
+      "barter",
+      "dialogue",
+      "inventory",
+      "menus",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "dialogue-guest-barter-earns-speech": {
+    "tags": [
+      "barter",
+      "dialogue",
+      "inventory",
+      "menus",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "host-map-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-map-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-journal-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-journal-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-lockpicking-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-lockpicking-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-training-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-training-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-book-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-book-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-crafting-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-crafting-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-barter-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-barter-keeps-world-running": {
+    "tags": [
+      "menus",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "journals-keep-npcs-simulating": {
+    "tags": [
+      "menus",
+      "physics",
+      "ui",
+      "world"
+    ],
+    "fixture": "baseline"
+  },
+  "host-journal-save": {
+    "tags": [
+      "menus",
+      "save",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-journal-save": {
+    "tags": [
+      "menus",
+      "save",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "offline-journal-pauses": {
+    "tags": [
+      "menus",
+      "session",
+      "ui"
+    ],
+    "fixture": "baseline"
+  },
+  "host-chest-list-follows-changes": {
+    "tags": [
+      "menus",
+      "ui",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-chest-list-follows-changes": {
+    "tags": [
+      "menus",
+      "ui",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "host-menus-close-when-target-goes": {
+    "tags": [
+      "menus",
+      "ui",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "guest-menus-close-when-target-goes": {
+    "tags": [
+      "menus",
+      "ui",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "host-saves-with-guest-menu-open": {
+    "tags": [
+      "menus",
+      "save",
+      "ui",
+      "v1"
+    ],
+    "fixture": "baseline"
+  },
+  "revived-player-can-be-knocked-down": {
+    "tags": [
+      "combat",
+      "death",
+      "physics"
+    ],
+    "fixture": "baseline"
+  },
+  "melee-bash-staggers-hosts-victim": {
+    "tags": [
+      "animation",
+      "combat",
+      "inventory"
+    ],
+    "fixture": "baseline"
+  },
+  "melee-bash-staggers-guests-victim": {
+    "tags": [
+      "animation",
+      "combat",
+      "inventory"
+    ],
+    "fixture": "baseline"
+  },
+  "copy-perks-follow-native-removal": {
+    "tags": [
+      "rewards",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "offline-story-spells-and-personal-words": {
+    "tags": [
+      "rewards",
+      "scripts",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-created-actor-alias-reaches-guest": {
+    "tags": [
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-skills-turn-in-host": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-skills-turn-in-guest": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-perk-turn-in-host": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-perk-turn-in-guest": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-gold-turn-in-host": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-gold-turn-in-guest": {
+    "tags": [
+      "dialogue",
+      "quest",
+      "rewards",
+      "scripts",
+      "spawn"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-skill-input-reaches-party": {
+    "tags": [
+      "quest",
+      "rewards",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-explicit-rewards-reach-party": {
+    "tags": [
+      "quest",
+      "rewards",
+      "scripts"
+    ],
+    "fixture": "baseline"
+  },
+  "quest-rewards-kept-on-rejoin": {
+    "tags": [
+      "quest",
+      "rewards",
+      "scripts",
+      "session"
+    ],
+    "fixture": "baseline"
+  },
+  "player-equipment-host": {
+    "tags": [
+      "hands",
+      "inventory"
+    ],
+    "fixture": "baseline"
+  },
+  "player-equipment-guest": {
+    "tags": [
+      "hands",
+      "inventory"
+    ],
+    "fixture": "baseline"
+  },
+  "npc-equipment-lifecycle": {
+    "tags": [
+      "inventory"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:chest-items-reach-others": {
+    "tags": [
+      "inventory",
+      "objects",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:cutscene-controls-reach-party": {
+    "tags": [
+      "scripts",
+      "session",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:guest-joins-elsewhere": {
+    "tags": [
+      "cells",
+      "session",
+      "spawn",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:leaver-cutscene-gives-back": {
+    "tags": [
+      "scripts",
+      "session",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:lock-reaches-others": {
+    "tags": [
+      "objects",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:npc-death-reaches-copy": {
+    "tags": [
+      "spawn",
+      "spec",
+      "values"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:npc-disabled-copy-follows": {
+    "tags": [
+      "cells",
+      "spawn",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:npc-sent-home-copy-follows": {
+    "tags": [
+      "cells",
+      "spawn",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:overlapping-cutscenes-keep-controls": {
+    "tags": [
+      "scripts",
+      "spec"
+    ],
+    "fixture": "baseline"
+  },
+  "spec:restriction-stays-with-game": {
+    "tags": [
+      "scripts",
+      "spec"
+    ],
+    "fixture": "baseline"
+  }
+}

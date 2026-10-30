@@ -1,0 +1,2 @@
+[  47.6s] Recorded both players' baseline (home.json)
+[  47.6s] Both games keep running. Watch: `scripts/coop_test.py watch` (host) / `scripts/coop_test.py watch --instance client`; end with `scripts/coop_test.py stop`

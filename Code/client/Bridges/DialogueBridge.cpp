@@ -22,6 +22,7 @@
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
 
+#include <atomic>
 #include <map>
 #include <mutex>
 
@@ -42,6 +43,9 @@ bool s_hidden = false;
 bool s_keepConversation = false;
 // The options the open menu shows, when they came from another game (ShowList, the List filter).
 std::vector<IDialogueBridge::Option> s_shownElsewhere;
+// A show the List filter held (its aNewList, -1: none): the party's list, once here, is shown by it, since only the
+// engine's show (52857) takes the menu from its greeting to its list (a refill leaves it greeting; Tab then only skips).
+std::atomic<int8_t> s_heldShow{-1};
 // A list build's topics (AddTopic's), each with the line every other player's character gets for it (Judged).
 struct Judgement
 {
@@ -296,6 +300,15 @@ void HookShowList(bool aNewList)
     const auto cList = s_filters.List ? s_filters.List() : std::nullopt;
     if (cList && IsBartering())
         return;
+    // Held: the party's list for the step is not here yet; the menu keeps what it shows, its own list never.
+    if (cList && cList->empty())
+    {
+        if (pManager && !s_shownElsewhere.empty())
+            ReplaceOptions(*pManager, s_shownElsewhere);
+        spdlog::info("Dialogue: the engine's list (new {}): held for the party's", aNewList);
+        s_heldShow = aNewList;
+        return;
+    }
     if (!cList)
         s_shownElsewhere.clear();
     // The open menu shows these already: filled again, it would take no pick for 750 ms.
@@ -490,7 +503,13 @@ bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoice
     MenuTopicManager* pManager = Conversation();
     if (!pManager)
         return false;
-    if (ReplaceOptions(*pManager, acOptions))
+    const bool cReplaced = ReplaceOptions(*pManager, acOptions);
+    if (const int8_t cHeld = s_heldShow.exchange(-1); cHeld >= 0)
+    {
+        spdlog::info("Dialogue: the party's list, in the show the engine was held from");
+        RealShowList(cHeld != 0);
+    }
+    else if (cReplaced)
         RefillMenu(aChoices);
     else
         spdlog::info("Dialogue: the party's list again, as the menu shows it: not refilled");
@@ -557,6 +576,26 @@ std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
         return std::nullopt;
     const auto cIndex = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.selectedEntry.topicIndex");
     return cIndex && *cIndex >= 0 ? std::optional(static_cast<uint32_t>(*cIndex)) : std::nullopt;
+}
+
+void DialogueBridge::ShowPicked(const std::string& acText) noexcept
+{
+    GFxMovie* pMovie = DialogueMovie();
+    // As the SWF's onSelectionClick, without its TopicClicked: the list goes (TOPIC_CLICKED, 2), the picked line
+    // stays in its place (TextCopy_mc), and the next list shown (DoShowDialogueList) slides in.
+    if (!pMovie || ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") != 1.0)
+        return;
+    pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(2), 0);
+    GFxValue argument{};
+    argument.type = GFxValue::kString;
+    argument.value.string = "topicClicked";
+    pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
+    GFxValue visible{};
+    visible.type = GFxValue::kBoolean;
+    visible.value.boolean = true;
+    pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc._visible", visible, 0);
+    argument.value.string = acText.c_str();
+    pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc.textField.SetText", nullptr, &argument, 1);
 }
 
 void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept

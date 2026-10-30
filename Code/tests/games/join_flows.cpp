@@ -3,6 +3,7 @@
 // own brings its character into the host's save, a friend the host's save knows joins from the main menu as that
 // character (JoinService, HostSaveTransfer).
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/MenuEvent.h>
 #include <Events/UpdateEvent.h>
@@ -17,12 +18,6 @@
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 Inventory::Entry Item(uint32_t aBase, int32_t aCount, bool aQuest = false)
 {
@@ -145,7 +140,7 @@ void JoinsWithWorld(Party& aParty, World& aHost, World& aGuest, const char* acpS
 
 SCENARIO("A guest brings and restores its own learned knowledge instead of the host's", "[records][knowledge]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     Plays(host, HostsCharacter());
@@ -177,7 +172,7 @@ SCENARIO("A guest brings and restores its own learned knowledge instead of the h
 
 SCENARIO("A character joining again keeps its brewed potions, made again from the record's recipes", "[records][potions]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     Plays(host, HostsCharacter());
@@ -210,7 +205,7 @@ SCENARIO("A character joining again keeps its brewed potions, made again from th
 
 SCENARIO("A guest's character reaches the host's save, and loading that save brings it back", "[records]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     Plays(host, HostsCharacter());
@@ -295,7 +290,7 @@ SCENARIO("A guest's character reaches the host's save, and loading that save bri
 
 SCENARIO("A friend brings its character from a game of its own into the host's world, then joins from the main menu as it", "[join]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     Plays(host, HostsCharacter());
@@ -360,7 +355,7 @@ SCENARIO("A character joining again keeps its own souls and the words it unlocke
 {
     constexpr uint32_t kFus = 0x13E22;
     constexpr uint32_t kRo = 0x13E23;
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     FakeEngine& hostEngine = Party::Engine(host);
@@ -419,7 +414,7 @@ SCENARIO("A character joining again keeps its own souls and the words it unlocke
 SCENARIO("A returning character gets story spells granted and removed while it was away", "[join][dragonborn][story-spells]")
 {
     constexpr uint32_t kBeastForm = 0x92C48;
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     auto& hostEngine = Party::Engine(host);
@@ -477,7 +472,7 @@ TEST_CASE("Story spell state survives the co-save and older character-only saves
 
 SCENARIO("A join that cannot finish says why", "[join]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
 
@@ -516,7 +511,7 @@ SCENARIO("A join that cannot finish says why", "[join]")
 
 SCENARIO("A brought character lands beside the host after checked placement", "[join][join-placement]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     auto& host = party.Host();
     auto& guest = party.Guest();
     auto& engine = Party::Engine(guest);
@@ -545,7 +540,7 @@ SCENARIO("A brought character lands beside the host after checked placement", "[
 
 SCENARIO("A guest that leaves and joins again arrives where it left, never on the host's spot", "[join][join-placement]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     auto& host = party.Host();
     auto& guest = party.Guest();
     Plays(host, HostsCharacter());
@@ -602,7 +597,7 @@ SCENARIO("A guest that leaves and joins again arrives where it left, never on th
 
 SCENARIO("An unknown friend creates a character as part of its original join", "[join][creation]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     auto& host = party.Host();
     auto& guest = party.Guest();
     auto& engine = Party::Engine(guest);
@@ -700,7 +695,7 @@ SCENARIO("An unknown friend creates a character as part of its original join", "
 
 SCENARIO("Character startup has a deadline before the customization menu opens", "[join][creation]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     auto& guest = party.Guest();
     ToMainMenu(party, guest);
     party.As(guest, [&] { REQUIRE(Join(guest).Join(HostEndpoint(party.Host()))); });

@@ -1,0 +1,13 @@
+[   3.2s] === equip-host-player: PASS
+[   9.3s] === draw-host-player: PASS
+[  11.2s] === equip-client-player: PASS
+[  17.2s] === draw-client-player: PASS
+[  20.0s] === equip-host-npc: PASS
+[  24.5s] === repair-equipment-drift: PASS
+equip-host-player              1.9s  PASS
+draw-host-player               6.1s  PASS
+equip-client-player            1.9s  PASS
+draw-client-player             6.0s  PASS
+equip-host-npc                 2.8s  PASS
+repair-equipment-drift         4.5s  PASS
+total                         24.5s

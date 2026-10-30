@@ -1,16 +1,13 @@
 // The session (HostService, HostPlayers, JoinService): the host removes a guest, which can join again; a guest that
 // loses the host reconnects by itself, and says so when it can't.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Services/JoinService.h>
 
 namespace
 {
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x00031D2E;
-    aEngine.LoadCell(0x00031D2E);
-}
+
 
 // What that game's join panel shows (JoinService's status, else the transport's).
 const JoinStatus& PanelOf(World& aGame)
@@ -21,7 +18,7 @@ const JoinStatus& PanelOf(World& aGame)
 
 SCENARIO("The host kicks a guest: it leaves, its copy goes, and it can join again", "[session]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     party.Until([&] { return !host.CopiesOf().empty(); }, "the host's game has the guest's player");
 
@@ -41,7 +38,7 @@ SCENARIO("The host kicks a guest: it leaves, its copy goes, and it can join agai
 
 SCENARIO("The host's session drops and comes back: the guest reconnects by itself", "[session]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     World& host = party.Host();
     party.Agree("each game has the other's player");
     const uint16_t cPort = host.GetHostService().GetNetwork()->GetPort();
@@ -60,7 +57,7 @@ SCENARIO("The host's session drops and comes back: the guest reconnects by itsel
 
 SCENARIO("The host's session drops for good: after its tries the guest's panel says the connection was lost", "[session]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.Agree("each game has the other's player");
     party.As(party.Host(), [&] { party.Host().GetHostService().StopHosting(); });
     party.Until([&] { return PanelOf(party.Guest()).Current == JoinStatus::State::kEnded; },

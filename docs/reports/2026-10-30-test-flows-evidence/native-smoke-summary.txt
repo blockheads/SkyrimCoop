@@ -1,0 +1,9 @@
+[   2.8s] === session-roster: PASS
+[  11.5s] === late-join-client: PASS
+[  13.4s] === spec:leaver-cutscene-gives-back: PASS
+[  17.4s] === spec:npc-disabled-copy-follows: PASS
+session-roster                 1.5s  PASS
+late-join-client               8.7s  PASS
+spec:leaver-cutscene-gives-back   1.9s  PASS
+spec:npc-disabled-copy-follows   3.9s  PASS
+total                         17.3s

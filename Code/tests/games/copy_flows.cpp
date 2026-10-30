@@ -2,6 +2,7 @@
 // a guest's player gets a copy on the host's; each goes, or follows, when its owner's actor does. Each ends with the
 // actor checksum (Party::Agree).
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Components.h>
 #include <Events/DialogueEvent.h>
@@ -19,6 +20,8 @@ constexpr uint32_t kVilkas = 0x0001A695;   // an NPC placed in kSmoke (the same 
 constexpr uint32_t kVilkasBase = 0x0001A694;
 constexpr uint32_t kAela = 0x0001A697; // an NPC placed in kSinkhole
 constexpr uint32_t kAelaBase = 0x0001A696;
+constexpr uint32_t kWatchman = 0x000D8C56;      // a guard placed in kSmoke on a leveled base (each game's own temporary NPC)
+constexpr uint32_t kWatchmanBase = 0xFF000F00;
 
 // That game simulates the actor and owns it in the session (CharacterService's LocalComponent).
 bool OwnsHere(World& aGame, uint32_t aFormId)
@@ -38,24 +41,12 @@ bool HeldHere(World& aGame, uint32_t aFormId)
     return false;
 }
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
 constexpr uint32_t kNordVampireRace = 0x00088794;
 constexpr uint32_t kKhajiitRace = 0x00013745;
 constexpr uint32_t kBretonRace = 0x00013741;
 
 // That game's copy of the other game's player (a party of two), 0 while it has none.
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
+
 
 // The copies that game made, ever (each respawn makes a new one).
 size_t CopiesMade(const FakeEngine& acEngine)
@@ -104,7 +95,7 @@ struct LooksChanges
 // Each player in a look of their own: a Nord with a war paint, at Skyrim.esm's player's build.
 void PaintedPlayers(FakeEngine& aEngine)
 {
-    Plugins(aEngine);
+    SmokeWorld(aEngine);
     aEngine.Player.Base = "race 13746";
     aEngine.Player.FaceTints = PaintedTints(0x202020);
     aEngine.Player.Weight = 100.f;
@@ -113,22 +104,23 @@ void PaintedPlayers(FakeEngine& aEngine)
 // Each player at Skyrim.esm's player's build (weight 100), past a new NPC's 50.
 void HeavyPlayers(FakeEngine& aEngine)
 {
-    Plugins(aEngine);
+    SmokeWorld(aEngine);
     aEngine.Player.Weight = 100.f;
 }
 
 // The plugins' placed NPCs too: Vilkas in QASmoke, Aela in the sinkhole.
 void PlacedNpcs(FakeEngine& aEngine)
 {
-    Plugins(aEngine);
+    SmokeWorld(aEngine);
     aEngine.PlaceNpc(kVilkas, kVilkasBase, kSmoke, {100.f, 0.f, 0.f});
     aEngine.PlaceNpc(kAela, kAelaBase, kSinkhole, {-50.f, 20.f, 0.f});
+    aEngine.PlaceNpc(kWatchman, kWatchmanBase, kSmoke, {60.f, -40.f, 0.f});
 }
 } // namespace
 
 SCENARIO("An NPC the host's game loads gets a copy on the guest's game", "[copies]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -322,6 +314,21 @@ SCENARIO("The host's NPC goes away: its copy does what it does", "[copies]")
         party.Agree("the games agree on the disabled Vilkas");
     }
 
+    // A plugin's reference marked deleted on a guest was in both guest crashes loading the host's save
+    // (docs/re/crashes/2026-10-30-deleted-placed-ref-load.md): the host's save carries the deletion.
+    WHEN("the host deletes a placed NPC")
+    {
+        const uint32_t cPlaced = GENERATE(kVilkas, kWatchman);
+        party.Until([&] { return guest.IsActorCopy(cPlaced); }, "the guest's reference is the host's copy");
+        party.As(party.Host(), [&] { host.DisableActor(cPlaced, true); });
+        party.Until([&] { return guest.IsActorDisabled(cPlaced); }, "the guest's reference goes with the host's");
+        THEN("it is disabled, still a copy, and not deleted")
+        {
+            CHECK(guest.IsActorCopy(cPlaced));
+            CHECK_FALSE(guest.IsActorDeleted(cPlaced));
+        }
+    }
+
     WHEN("the host's guard walks out of the loaded cells")
     {
         party.As(party.Host(), [&] { host.MoveActorTo(guard, kSinkhole, 0.f, 0.f, 0.f); });
@@ -417,7 +424,7 @@ SCENARIO("A guest joins outdoors four cells from the host, out of its grid: it i
 
 SCENARIO("A player's level follows its owner on the existing copy", "[copies][copy-level]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) && PlayerCopy(guest); }, "both games have the other player's copy");

@@ -16,7 +16,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-import coop_test as c  # noqa: E402
+from coop_harness import Session  # noqa: E402
+
+c = Session()
 
 GAMES = ("", "client")
 FUNCTIONS = Path(__file__).with_name("player_singleton_functions.txt")  # IDA xrefs to g_thePlayer (403521)
@@ -29,8 +31,7 @@ def elapsed(seconds):
 
 
 def copy_on_host():
-    c.select_instance("")
-    return next(iter(c.other_players()))
+    return next(iter(c.other_players(_game=c.host)))
 
 
 def probe(batch):
@@ -41,15 +42,15 @@ def probe(batch):
 
     def window(label, run):
         with contextlib.redirect_stdout(sys.stderr):
-            c.select_instance("")
-            installed = c.rpc({"cmd": "player_probe", "ids": ids, "copy": copy_on_host()}, timeout=60)
+            _game = c.game("")
+            installed = _game.rpc({"cmd": "player_probe", "ids": ids, "copy": copy_on_host()}, timeout=60)
             out.setdefault("_installed", {"probes": installed["probes"], "failed": installed["failed"]})
             try:
                 run()
             except SystemExit:
                 out[label + " (failed)"] = True
-            c.select_instance("")
-            out[label] = c.rpc({"cmd": "player_probe_read"}, timeout=10)["counts"]
+            _game = c.game("")
+            out[label] = _game.rpc({"cmd": "player_probe_read"}, timeout=10)["counts"]
 
     def scenario(name):
         return lambda: c.command_scenario(argparse.Namespace(names=[name], tag=None, hold=0, repeat=1, shuffle=False,
@@ -57,8 +58,8 @@ def probe(batch):
 
     def boss_trigger():
         c.both_go("SoljundsSinkhole01")
-        c.select_instance("")
-        c.rpc({"cmd": "player_probe", "copy": copy_on_host()})
+        _game = c.game("")
+        _game.rpc({"cmd": "player_probe", "copy": copy_on_host()})
         c.console_on("client", "player.moveto 6AEBE")
         elapsed(8)
         c.both_go("QASmoke")
@@ -73,19 +74,19 @@ def probe(batch):
 def story(cell):
     with contextlib.redirect_stdout(sys.stderr):
         for game in GAMES:
-            c.select_instance(game)
-            c.rpc({"cmd": "story_trace", "on": True})
+            _game = c.game(game)
+            _game.rpc({"cmd": "story_trace", "on": True})
         c.both_go(cell)
         elapsed(3)
-        c.select_instance("client")
-        captured = c.rpc({"cmd": "story_trace"})["captured"]
+        _game = c.game("client")
+        captured = _game.rpc({"cmd": "story_trace"})["captured"]
         copy = copy_on_host()
-        raised = [c.rpc({"cmd": "story_raise_location_change", "actor": copy, "old": old, "new": new})["event"]
+        raised = [c.host.rpc({"cmd": "story_raise_location_change", "actor": copy, "old": old, "new": new})["event"]
                   for old, new, _ in captured]
         elapsed(3)
         for game in GAMES:
-            c.select_instance(game)
-            c.rpc({"cmd": "story_trace", "on": False})
+            _game = c.game(game)
+            _game.rpc({"cmd": "story_trace", "on": False})
         c.both_go("QASmoke")
     return {"captured": captured, "copy": copy, "raised_events": raised}
 
@@ -104,4 +105,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        c.close()

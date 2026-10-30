@@ -10,6 +10,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <string>
 #include <vector>
 
 struct FakeDialogue final : IDialogueBridge
@@ -34,6 +35,13 @@ struct FakeDialogue final : IDialogueBridge
     bool MenuCloseEnds = true;
     std::vector<Option> Options;
     bool Choices = false;
+    // The menu's SWF shows the list (eMenuState TOPIC_LIST_SHOWN): a click hides it (TOPIC_CLICKED) until a list is
+    // shown again.
+    bool ListShown = false;
+    // The line the menu shows picked while the NPC answers (the SWF's TextCopy_mc), empty with the list shown.
+    std::string PickedText;
+    // Lines take time (a voiced line): the next list waits for LineEnds, as the engine builds it after the line.
+    bool LinesTakeTime = false;
     std::vector<Option> Said; // every option said here, in order
 
     // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first, then Start.
@@ -59,9 +67,16 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (!MenuOpen || aIndex >= Options.size())
             return;
+        ListShown = false; // the SWF's onSelectionClick, before TopicClicked
+        PickedText = Options[aIndex].Text;
         if (m_filters.Pick && m_filters.Pick(aIndex))
             return;
         Say(Options[aIndex]);
+    }
+    // The speaker's line ends: the engine builds and shows its list (52857, after each line, a copy's too).
+    void LineEnds()
+    {
+        Build(std::exchange(m_next, std::nullopt).value_or(m_source));
     }
     // This game's player leaves the menu.
     void PlayerLeaves()
@@ -114,6 +129,7 @@ struct FakeDialogue final : IDialogueBridge
     bool ShowMenu() noexcept override
     {
         MenuOpen = Speaker != 0;
+        ListShown = MenuOpen && !Options.empty(); // the menu opens on the list (SHOW_GREETING, then the list)
         return MenuOpen;
     }
     void CloseMenu() noexcept override
@@ -130,6 +146,7 @@ struct FakeDialogue final : IDialogueBridge
     {
         Speaker = 0;
         MenuOpen = false;
+        ListShown = false;
         Options.clear();
     }
     bool ClearOrphaned() noexcept override
@@ -144,7 +161,16 @@ struct FakeDialogue final : IDialogueBridge
         Options = acOptions;
         Choices = aChoices;
         Highlight = 0;
+        ListShown = MenuOpen;
+        PickedText.clear();
         return true;
+    }
+    void ShowPicked(const std::string& acText) noexcept override
+    {
+        if (!MenuOpen || !ListShown)
+            return;
+        ListShown = false;
+        PickedText = acText;
     }
     // The listed option with this line, else that line built (as DialogueBridge::PickOption).
     // The menu's highlight: the player moves it (W/S, the mouse), the service sets it.
@@ -191,7 +217,10 @@ struct FakeDialogue final : IDialogueBridge
             End();
             return;
         }
-        Build(cNext->second);
+        if (LinesTakeTime)
+            m_next = cNext->second;
+        else
+            Build(cNext->second);
     }
     // A player's lines from the topics: each topic's first line that passes for it.
     std::vector<Option> LinesFor(const std::vector<Option>& acTopics, uint32_t aPlayer) const
@@ -212,25 +241,34 @@ struct FakeDialogue final : IDialogueBridge
     void Build(const std::vector<Option>& acOptions)
     {
         m_source = acOptions;
-        Options = LinesFor(acOptions, 0x14);
+        std::vector<Option> own = LinesFor(acOptions, 0x14);
         m_judged.clear();
         for (const uint32_t cCharacter : m_filters.Judged ? m_filters.Judged() : std::vector<uint32_t>{})
         {
             const std::vector<Option> cOwn = LinesFor(acOptions, cCharacter);
             auto& list = m_judged[cCharacter];
-            for (const auto& cListed : Options)
+            for (const auto& cListed : own)
                 if (const auto it = std::ranges::find(cOwn, cListed.Topic, &Option::Topic); it != cOwn.end())
                     list.push_back(*it);
             for (const auto& cLine : cOwn)
-                if (std::ranges::find(Options, cLine.Topic, &Option::Topic) == Options.end())
+                if (std::ranges::find(own, cLine.Topic, &Option::Topic) == own.end())
                     list.push_back(cLine);
         }
-        if (m_filters.List)
-            if (auto shown = m_filters.List())
-                Options = std::move(*shown);
+        std::vector<Option> before = std::exchange(Options, own); // the engine's list, as the filter reads it
+        auto shown = m_filters.List ? m_filters.List() : std::nullopt;
+        if (shown && shown->empty())
+        {
+            m_built = std::exchange(Options, std::move(before)); // held: the menu keeps what it shows (HookShowList)
+            return;
+        }
+        if (shown)
+            Options = std::move(*shown);
+        ListShown = MenuOpen;
     }
 
     Filters m_filters;
     std::vector<Option> m_source; // the topics of the last build
+    std::vector<Option> m_built;  // the engine's own list a held show left unshown
+    std::optional<std::vector<Option>> m_next; // after the line being said (LinesTakeTime)
     std::map<uint32_t, std::vector<Option>> m_judged;
 };

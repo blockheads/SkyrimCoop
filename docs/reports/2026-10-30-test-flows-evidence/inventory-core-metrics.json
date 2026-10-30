@@ -1,0 +1,47 @@
+{
+  "before": {
+    "cases": [
+      "Scenario: A player's equipment reaches its copy",
+      "Scenario: A host NPC's equipment reaches its copy",
+      "Scenario: An NPC's outfit put back on with no item change still dresses its copy",
+      "Scenario: A guest joining gets the host's player as it is dressed",
+      "Scenario: A player's drawn weapon reaches its copy",
+      "Scenario: A guest joining sees the host's player with its weapon drawn",
+      "Scenario: A player's items reach its copy and stay its own",
+      "Scenario: A host NPC's items reach its copy",
+      "Scenario: A guest joining later gets another guest's player as it is now",
+      "Scenario: What a player does right after its game announces it reaches its copy"
+    ],
+    "runs_seconds": [
+      0.115,
+      0.162,
+      0.126,
+      0.166,
+      0.127
+    ],
+    "median_seconds": 0.127,
+    "party_setups": 17,
+    "setup_count_basis": "Catch2 branch leaves in the two inventoried files; all remaining cases construct one Party"
+  },
+  "after": {
+    "cases": [
+      "Players carry, equip, swap, draw and remove their own items",
+      "A host NPC carries gold and equips its sword",
+      "Scenario: An NPC's outfit put back on with no item change still dresses its copy",
+      "Scenario: A guest joining gets the host's player as it is dressed",
+      "Scenario: A guest joining sees the host's player with its weapon drawn",
+      "Scenario: A guest joining later gets another guest's player as it is now",
+      "Scenario: What a player does right after its game announces it reaches its copy"
+    ],
+    "runs_seconds": [
+      0.066,
+      0.061,
+      0.063,
+      0.063,
+      0.06
+    ],
+    "median_seconds": 0.063,
+    "party_setups": 7,
+    "setup_count_basis": "Catch2 branch leaves in the two inventoried files; all remaining cases construct one Party"
+  }
+}

@@ -18,6 +18,7 @@ Builds, game installation and Proton prefixes are isolated under this worktreeâ€
 Only `build/coop-test/CHAT.md` and `DUO.md` link to the main checkoutâ€™s shared coordination files;
 both resolve to `/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SkyrimCoop-build/coop-test/`.
 The read-only compiler toolchain and engine references are reused.
+The worktree was removed 2026-10-30 and its `build/` evidence below was not kept.
 
 All seven cached dependency archives match the SHA-256 pins in
 [mod compatibility](../mod-compatibility.md#acquisition-and-configuration). The extraction trees

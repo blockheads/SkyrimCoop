@@ -2,6 +2,7 @@
 // a player who travels by itself leads, everyone else follows; the players' copies travel with the party, the
 // NPCs' stay with their cells.
 #include "Party.h"
+#include "Fixtures.h"
 #include "FakeDialogue.h"
 
 #include <Components.h>
@@ -16,12 +17,6 @@ constexpr uint32_t kSmoke = 0x00031D2E;    // where everyone starts
 constexpr uint32_t kSinkhole = 0x0009C5E1; // another interior
 constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kVilkas = 0x0001A695; // an NPC placed in kSmoke (the same reference in every game)
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 // The cells each game sees the party in: its own player's, and each player copy's.
 std::vector<std::string> PartyApart(Party& aParty, size_t aGames)
@@ -78,7 +73,7 @@ void CheckTogether(Party& aParty, size_t aGames)
 
 SCENARIO("The host travels: the guest follows, and the players' copies come along", "[travel]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.Until([&] { return Together(party, 2, kSmoke); }, "the party is together in QASmoke");
 
     party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSinkhole, {100.f, 200.f, 0.f}); });
@@ -96,7 +91,7 @@ SCENARIO("The host travels: the guest follows, and the players' copies come alon
 
 SCENARIO("A guest travels: the host and the other guest follow", "[travel]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     party.Until([&] { return Together(party, 3, kSmoke); }, "the party is together in QASmoke");
 
     party.As(party.Guest(0), [&] { Party::Engine(party.Guest(0)).PlayerTravels(kSinkhole, {5.f, 5.f, 0.f}); });
@@ -108,7 +103,7 @@ SCENARIO("A guest travels: the host and the other guest follow", "[travel]")
 
 SCENARIO("An NPC stays with its cell when the party leaves it", "[travel]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -140,7 +135,7 @@ SCENARIO("A placed NPC stays with its cell when the party leaves it, and is the 
          "[travel]")
 {
     Party party(1, [](FakeEngine& aEngine) {
-        Plugins(aEngine);
+        SmokeWorld(aEngine);
         aEngine.PlaceNpc(kVilkas, 0x0001A694, kSmoke, {100.f, 0.f, 0.f});
     });
     FakeEngine& host = Party::Engine(party.Host());
@@ -198,7 +193,7 @@ SCENARIO("A placed NPC stays with its cell when the party leaves it, and is the 
 
 SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it: the guest gets its copy", "[travel]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Agree("the games agree on the players");
@@ -222,7 +217,7 @@ SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it
 
 SCENARIO("A guest's native fast travel advances the party calendar once across midnight", "[travel][world]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     host.Calendar.Time = 23.f;
     host.Calendar.DaysPassed = 230;
@@ -244,7 +239,7 @@ SCENARIO("A guest's native fast travel advances the party calendar once across m
 
 SCENARIO("A queued guest travel starts the other games before its own arrival", "[travel]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
     const auto cTravels = Party::Engine(party.Guest()).Travels;
     party.As(party.Guest(), [&] {
@@ -262,7 +257,7 @@ SCENARIO("A queued guest travel starts the other games before its own arrival", 
 
 SCENARIO("A dead following player travels with the party and stays dead", "[travel][death]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     auto& guest = Party::Engine(party.Guest());
     party.Until([&] { return Together(party, 3, kSmoke); }, "the three players start together");
     party.Until([&] {
@@ -289,7 +284,7 @@ SCENARIO("A dead following player travels with the party and stays dead", "[trav
 
 SCENARIO("Party travel closes a following guest's dialogue and takes both guests along", "[travel][dialogue]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     party.Until([&] { return Together(party, 3, kSmoke); }, "the three players start together");
     uint32_t speaker = 0;
     party.As(party.Host(), [&] { speaker = Party::Engine(party.Host()).LoadNpc(kGuard, kSmoke); });

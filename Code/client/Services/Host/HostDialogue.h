@@ -31,10 +31,14 @@ struct PartyDialogueList
 };
 
 // The party's list (docs/design/shared-dialogue.md): the host's options in its engine's order, then those only others
-// have, in aMembers' order; each topic once, with who has it (none: everyone). aBase: the host's game's list.
+// have, in aMembers' order; each option once (SameOptionIn), with who has it (none: everyone), a topic's other lines right after its
+// first. aBase: the host's game's list. Every game in the conversation shows it alike.
 [[nodiscard]] DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vector<PartyDialogueList>& acMembers);
-// The line a player says for that topic: its own list's (none: it does not know how to say it).
-[[nodiscard]] const DialogueOption* DialogueLineFor(const GameId& acTopic, const DialogueOptions& acOwn);
+// The list's option that is this one: the same topic with the same line, or the same text (a topic's random lines
+// judged for two players are one option; Lucan's claw, two texts, two). None: a player's own list without it.
+[[nodiscard]] const DialogueOption* SameOptionIn(const DialogueOption& acOption, const DialogueOptions& acList);
+// That line of the topic in a list.
+[[nodiscard]] const DialogueOption* DialogueLineFor(const GameId& acTopic, const GameId& acInfo, const DialogueOptions& acOwn);
 
 /**
  * @brief One conversation for the party, run by the host's game: whoever starts it, the host's game says its

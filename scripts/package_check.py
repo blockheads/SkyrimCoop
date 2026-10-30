@@ -18,11 +18,16 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import coop_test as ct
+from coop_harness import Session
+from coop_harness.game import Game
+from coop_harness.common import ROOT, GAME as STEAM_GAME, RUNTIME, PROTON
+from coop_harness.errors import TestFailure
+from coop_harness.utilities import log
 
-HOME = ct.ROOT / "build/clean-install"
+ct = Session()
+
+HOME = ROOT / "build/clean-install"
 GAME = HOME / "game"
-STEAM_GAME = ct.GAME  # the Steam install the clean folder links
 # What a player installs before us (docs/install.md, step 1): SKSE's loader and runtime, Address Library.
 REQUIREMENTS = ["skse64_loader.exe", "skse64_1_6_1170.dll", "Data/SKSE/Plugins/versionlib-1-6-1170-0.bin"]
 OURS = ("SKSE", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe", "SkyrimSELauncher.exe")
@@ -56,41 +61,39 @@ def install(package):
 
 
 def main():
-    package = Path(sys.argv[1]) if len(sys.argv) > 1 else max((ct.ROOT / "build/package").glob("*.zip"),
+    package = Path(sys.argv[1]) if len(sys.argv) > 1 else max((ROOT / "build/package").glob("*.zip"),
                                                                  key=lambda path: path.stat().st_mtime)
-    ct.GAME, ct.PREFIX = GAME, HOME / "prefix"
-    ct.MY_GAMES = ct.PREFIX / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition"
-    ct.VIRTUAL_DISPLAY = ":105"
+    ct.host = Game("", install=GAME, prefix=HOME / "prefix", display=":105")
+    ct.games = (ct.host, ct.guest)
     if ct.prefix_processes():
         ct.stop_game()
-    shutil.rmtree(ct.PREFIX, ignore_errors=True)
+    shutil.rmtree(ct.host.prefix, ignore_errors=True)
     clean_game()
-    ct.enable_bundled_start = lambda: None  # the package's start is enabled by hand below, as a player does
-    ct.prepare_prefix()                     # a new prefix; windowed 1280x720, muted, no tutorials
+    ct.prepare_prefix(bundled_start=False)  # package start is enabled by hand below, as a player does
     install(package)
     ct.ensure_virtual_display()
     env = {key: value for key, value in ct.game_env().items()
            if key not in ("SKYRIMCOOP_UI_DIR", "SKYRIMCOOP_LOG_LEVEL", "SKYRIMCOOP_NO_CRASH_REPORTS")}
-    log = GAME / "Data/SKSE/Plugins/logs/tp_client.log"
-    ct.log(f"Booting {package.name} from {GAME} through SkyrimSELauncher.exe (SkyrimCoopLauncher)")
+    plugin_log = GAME / "Data/SKSE/Plugins/logs/tp_client.log"
+    log(f"Booting {package.name} from {GAME} through SkyrimSELauncher.exe (SkyrimCoopLauncher)")
     output = open(HOME / "proton.log", "w")
-    launcher = subprocess.Popen([str(ct.RUNTIME / "run"), "--", str(ct.PROTON / "proton"), "waitforexitandrun",
+    launcher = subprocess.Popen([str(RUNTIME / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
                                  str(GAME / "SkyrimSELauncher.exe")], env=env, cwd=GAME, stdout=output,
                                 stderr=subprocess.STDOUT, start_new_session=True)
     try:
-        ui = ct.wait_for("the plugin's UI is ready", lambda: log.exists() and next(
-            (line for line in log.read_text(errors="replace").splitlines() if "UI: RmlUi" in line), None), 240, launcher)
-        ct.log(ui)
+        ui = ct.wait_for("the plugin's UI is ready", lambda: plugin_log.exists() and next(
+            (line for line in plugin_log.read_text(errors="replace").splitlines() if "UI: RmlUi" in line), None), 240, launcher)
+        log(ui)
         installed = str(GAME / "Data/SKSE/Plugins/SkyrimCoop/ui")
         if not ui.rstrip().replace("\\", "/").endswith(installed):
-            raise ct.TestFailure(f"the UI does not come from the installed files ({installed})")
+            raise TestFailure(f"the UI does not come from the installed files ({installed})")
         time.sleep(30)  # the main menu, and any late failure
-        problems = [line for line in log.read_text(errors="replace").splitlines()
+        problems = [line for line in plugin_log.read_text(errors="replace").splitlines()
                     if "[error]" in line or "[critical]" in line]
         if launcher.poll() is not None or not ct.prefix_processes():
-            raise ct.TestFailure("the game exited")
+            raise TestFailure("the game exited")
         shot = HOME / "main-menu.png"
-        subprocess.run(["import", "-display", ct.VIRTUAL_DISPLAY, "-window", "root", str(shot)], check=False)
+        subprocess.run(["import", "-display", ct.host.display, "-window", "root", str(shot)], check=False)
         print(f"PASS: plugin loaded, UI from the package; {len(problems)} error lines; screenshot {shot}")
         for line in problems[:20]:
             print("  ", line)

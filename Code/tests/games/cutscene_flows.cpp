@@ -59,12 +59,12 @@ SCENARIO("A world script on the guest takes everyone's controls; the guest leave
     World& host = party.Host();
     World& guest = party.Guest();
 
-    WHEN("a world script on the guest takes the controls")
+    INFO("a world script on the guest takes the controls");
     {
         party.WorldScript(guest, DisablePlayerControls());
         party.Until([&] { return !Party::Engine(host).Has(kMovement); }, "the host's movement is taken");
 
-        THEN("both games' movement and fighting are taken, held by the guest's game on the host")
+        INFO("both games' movement and fighting are taken, held by the guest's game on the host");
         {
             CHECK(!Party::Engine(guest).Has(kMovement | kFighting));
             CHECK(!Party::Engine(host).Has(kFighting));
@@ -73,13 +73,13 @@ SCENARIO("A world script on the guest takes everyone's controls; the guest leave
                   0x541); // movement and jumping, fighting, menus: as Skyrim takes them
         }
 
-        AND_WHEN("the guest leaves mid-cutscene")
+        INFO("the guest leaves mid-cutscene");
         {
             party.Leave(guest);
             party.Until([&] { return Party::Engine(host).Has(kMovement | kFighting | kMainFour); },
                         "the host's controls come back");
 
-            THEN("nothing is held on the host") CHECK(Party::Engine(host).Holds.Held() == 0);
+            INFO("nothing is held on the host"); CHECK(Party::Engine(host).Holds.Held() == 0);
         }
     }
 }
@@ -93,16 +93,16 @@ SCENARIO("A world script on the host takes everyone's controls; the guest leaves
     party.WorldScript(host, DisablePlayerControls());
     party.Until([&] { return !Party::Engine(guest).Has(kMovement); }, "the guest's movement is taken");
 
-    WHEN("the guest leaves")
+    INFO("the guest leaves");
     {
         party.Leave(guest);
         party.Until([&] { return Party::Engine(guest).Has(kMovement | kFighting); }, "the guest's controls come back");
 
-        THEN("the host's cutscene still holds the host's") CHECK(!Party::Engine(host).Has(kMovement));
-        AND_WHEN("the host's script gives them back")
+        INFO("the host's cutscene still holds the host's"); CHECK(!Party::Engine(host).Has(kMovement));
+        INFO("the host's script gives them back");
         {
             party.WorldScript(host, EnablePlayerControls());
-            THEN("the host's come back") CHECK(Party::Engine(host).Has(kMovement | kFighting));
+            INFO("the host's come back"); CHECK(Party::Engine(host).Has(kMovement | kFighting));
         }
     }
 }

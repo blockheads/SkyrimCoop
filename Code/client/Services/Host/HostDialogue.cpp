@@ -32,12 +32,12 @@ DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vec
 {
     DialogueOptions merged;
     const auto cAdd = [&](const DialogueOption& acOption) {
-        if (DialogueLineFor(acOption.Topic, merged))
+        if (SameOptionIn(acOption, merged))
             return;
         DialogueOption option = acOption;
         option.Players.clear();
         for (const auto& cMember : acMembers)
-            if (DialogueLineFor(acOption.Topic, *cMember.pOptions))
+            if (SameOptionIn(acOption, *cMember.pOptions))
                 option.Players.push_back(cMember.PlayerId);
         if (option.Players.empty())
             return; // nobody in it has this one
@@ -45,17 +45,34 @@ DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vec
             option.Players.clear(); // everyone's
         merged.push_back(std::move(option));
     };
+    // Each of the host's topics in its order, with every line of it the players have (Lucan's claw: one each).
     for (const auto& cOption : acBase)
+    {
         cAdd(cOption);
+        for (const auto& cMember : acMembers)
+            for (const auto& cOwn : *cMember.pOptions)
+                if (cOwn.Topic == cOption.Topic)
+                    cAdd(cOwn);
+    }
     for (const auto& cMember : acMembers)
         for (const auto& cOption : *cMember.pOptions)
             cAdd(cOption);
     return merged;
 }
 
-const DialogueOption* DialogueLineFor(const GameId& acTopic, const DialogueOptions& acOwn)
+const DialogueOption* SameOptionIn(const DialogueOption& acOption, const DialogueOptions& acList)
 {
-    const auto cLine = std::ranges::find(acOwn, acTopic, &DialogueOption::Topic);
+    const auto cSame = std::ranges::find_if(acList, [&](const DialogueOption& acListed) {
+        return acListed.Topic == acOption.Topic && (acListed.Info == acOption.Info || acListed.Text == acOption.Text);
+    });
+    return cSame != acList.end() ? &*cSame : nullptr;
+}
+
+const DialogueOption* DialogueLineFor(const GameId& acTopic, const GameId& acInfo, const DialogueOptions& acOwn)
+{
+    const auto cLine = std::ranges::find_if(acOwn, [&](const DialogueOption& acOption) {
+        return acOption.Topic == acTopic && acOption.Info == acInfo;
+    });
     return cLine != acOwn.end() ? &*cLine : nullptr;
 }
 
@@ -136,9 +153,12 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
     // A pick that is not said (another player picked first, the list not shown yet, not its own option) gets the
     // picker's menu the current list again; one of another player's options also gets its chat the reason (its game
     // told it already: this is the backstop).
-    const bool cListed = pConversation && pConversation->Options && DialogueLineFor(acRequest.Topic, pConversation->Merged);
+    const DialogueOption* pListed = pConversation && pConversation->Options
+                                        ? DialogueLineFor(acRequest.Topic, acRequest.Info, pConversation->Merged) : nullptr;
+    const bool cListed = pListed != nullptr;
     const DialogueOptions* pOwn = pConversation ? OptionsFor(aSender) : nullptr;
-    const DialogueOption* pLine = cListed && pOwn && pConversation->Has(aSender) ? DialogueLineFor(acRequest.Topic, *pOwn) : nullptr;
+    // The picker's own line of that option: the listed one, or its own of the same text (a topic's random lines).
+    const DialogueOption* pLine = cListed && pOwn && pConversation->Has(aSender) ? SameOptionIn(*pListed, *pOwn) : nullptr;
     if (!pLine)
     {
         spdlog::info("HostDialogue: {:x}'s pick of {:X} at step {} is not said ({})", aSender, acRequest.Topic.BaseId,
@@ -273,15 +293,6 @@ void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
     list.Step = m_conversation->Step;
     list.Choices = m_conversation->Choices;
     list.Options = m_conversation->Merged;
-    // A topic it has shows its own line ("I have your claw." to the holder, "About your claw..." to the others).
-    if (const DialogueOptions* pOwn = OptionsFor(aPlayer))
-        for (DialogueOption& option : list.Options)
-            if (const DialogueOption* pOwnLine = DialogueLineFor(option.Topic, *pOwn))
-            {
-                option.Info = pOwnLine->Info;
-                option.Quest = pOwnLine->Quest;
-                option.Text = pOwnLine->Text;
-            }
     m_network.Send(aPlayer, list);
 }
 

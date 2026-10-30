@@ -1,0 +1,37 @@
+Filters: spec:harness-cleanup-control
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GameTests is a Catch v2.13.9 host application.
+Run with -? for options
+
+-------------------------------------------------------------------------------
+spec:harness-cleanup-control
+-------------------------------------------------------------------------------
+Code/tests/games/spec_runner.cpp:423
+...............................................................................
+
+Code/tests/games/spec_runner.cpp:359: FAILED:
+explicitly with messages:
+  harness-cleanup-control, step 1: {"do":"intentional-action-failure"}
+  harness-cleanup-control, step 1: {"do":"intentional-action-failure"}: no such
+  step
+
+Code/tests/games/spec_runner.cpp:359: FAILED:
+explicitly with messages:
+  harness-cleanup-control, step 1: {"do":"intentional-action-failure"}
+  harness-cleanup-control, cleanup 1: {"do":"intentional-cleanup-failure-one"}
+  harness-cleanup-control, cleanup 1: {"do":"intentional-cleanup-failure-one"}:
+  no such step
+
+Code/tests/games/spec_runner.cpp:359: FAILED:
+explicitly with messages:
+  harness-cleanup-control, step 1: {"do":"intentional-action-failure"}
+  harness-cleanup-control, cleanup 1: {"do":"intentional-cleanup-failure-one"}
+  harness-cleanup-control, cleanup 2: {"do":"intentional-cleanup-failure-two"}
+  harness-cleanup-control, cleanup 2: {"do":"intentional-cleanup-failure-two"}:
+  no such step
+
+===============================================================================
+test cases: 1 | 1 failed
+assertions: 5 | 2 passed | 3 failed
+

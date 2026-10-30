@@ -1,6 +1,7 @@
 // A copy's playback time (CopyClock, CopyPlayback; docs/design/copy-clock.md): as far behind its owner as the line
 // needs, moving on smoothly when snapshots come late.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
@@ -9,12 +10,6 @@ namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E; // the cell everyone stands in
 constexpr uint32_t kGuard = 0x0001A67C; // an NPC's base
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 // The guest's copy of the host's player, 0 before it has one.
 uint32_t HostPlayerCopy(FakeEngine& aGuest)
@@ -93,7 +88,7 @@ TEST_CASE("A copy whose next snapshot is late carries on its way a little, then 
 
 SCENARIO("A copy plays its owner's time as far behind as the line needs, not a fixed 300 ms", "[copies][copy-clock]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& guest = Party::Engine(party.Guest());
     party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
     Walk(party, std::chrono::milliseconds(1500), 100.f);
@@ -108,7 +103,7 @@ SCENARIO("A copy plays its owner's time as far behind as the line needs, not a f
 
 SCENARIO("Over a slow, jittery line a walking copy never steps back", "[copies][copy-clock]")
 {
-    Party party(1, Plugins, true, NetConditions{.DelayMs = 80, .JitterMs = 40, .Seed = 3});
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 80, .JitterMs = 40, .Seed = 3});
     auto& guest = Party::Engine(party.Guest());
     party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
     const uint32_t cCopy = HostPlayerCopy(guest);
@@ -129,7 +124,7 @@ SCENARIO("Over a slow, jittery line a walking copy never steps back", "[copies][
 
 SCENARIO("Players and fights are sent 30 times a second, other actors 10", "[copies][copy-clock]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t idle = 0, fighting = 0;

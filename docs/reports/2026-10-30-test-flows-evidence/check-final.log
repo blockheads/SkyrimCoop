@@ -1,0 +1,18 @@
+check: tiers 1-2
+  build ClientTests        ok      0s  
+  run ClientTests          ok      1s  All tests passed (1432 assertions in 134 test cases)
+  build HostAuthorityTests ok      0s  
+  run HostAuthorityTests   ok      0s  All tests passed (2016 assertions in 187 test cases)
+  build TPTests            ok      1s  
+  run TPTests              ok      0s  All tests passed (322 assertions in 29 test cases)
+  build GameTests          ok      0s  
+  run GameTests            ok     13s  All tests passed (2302 assertions in 227 test cases, 8 shards)
+  check harness lifecycle  ok      0s  
+  check harness comparisons ok      0s  
+  check late-save baseline ok      0s  
+  check ragdoll comparisons ok      0s  
+  build UiWorkbench        ok      1s  
+  check UI fixtures        ok      0s  
+  build plugin             ok      2s  
+  build launcher           ok      0s  
+check: passed in 18s

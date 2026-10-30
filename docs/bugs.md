@@ -58,6 +58,14 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixe
     the engine) is the path.
   - Test: a scenario that removes the NPC right after a follower trade, if it ever reproduces.
 
+- **The picked line overlaps in the claw conversation** (2026-10-30, the user, playing the duo). In
+  `dialogue-options-are-the-partys`, when an option is picked the dialogue text shows duplicated, overlapping. Not
+  captured. Likely `DialogueBridge::ShowPicked` writing the picked line into `TextCopy_mc` where the menu already
+  shows one (the claw topic lists two lines).
+  - Out of v1 scope (2026-10-30, the user): small and visual.
+  - Start: a screenshot of both menus at the pick (`coop_test.py screenshot`) in that scenario.
+  - Test: the scenario's pick, both screens.
+
 - **A guest's dialogue press in the frame its greeting ends is lost** (2026-10-29, v1 triage). The guest's engine shows
   its list again as its copy's greeting ends; the menu already shows the party's list, so that show is skipped
   (`DialogueBridge` `HookShowList`; running it instead resets the 750 ms pick delay, worse). A press in that same frame
@@ -138,12 +146,17 @@ Retained changes and their evidence are in [native-bugs.md](design/native-bugs.m
     body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
   - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
 
-- **Players read as kneeling after a follower trade** (2026-10-29, v1 triage). `follower-trade-to-picker` once failed
-  its afterwards check: both players' own bodies read kneeling (pelvis 32 and 44) while their copies stood, both in
-  first person. 1 of 2 runs.
-  - Out of v1 scope (2026-10-29): cosmetic.
-  - Start: whether it is an idle the copies do not replay or `body_problems` misreading a first-person player.
-  - Test: the same scenario's afterwards check.
+- **A revived guest's own body kneels in its next conversation** (2026-10-29, cause narrowed 2026-10-30). Once
+  thought to follow a follower trade: it follows a death. `follower-anchor-dies` then `follower-anchor-saved`
+  reproduces it: right after the revive the guest stands; at the next scenario's first conversation its own body
+  kneels (pelvis ~29, head ~55, like the bleedout pose), then stands again later. Once its death ragdoll was left
+  awake too (18 bodies). Only the guest sees it (third person); the host sees its copy standing. A later
+  conversation with no death first does not show it.
+  - Out of v1 scope (2026-10-30, the user): cosmetic, the guest's own view only, after a death.
+  - Start: the behavior graph's state after `PlayerCharacter::Revive` (it resets neither the graph nor its state
+    machine; the open revive item in [death.md](design/death.md)), and what the conversation sends the graph.
+  - Test: `scenario follower-anchor-dies follower-anchor-saved` (its mid-conversation body check), then a GameTests
+    revive flow once the fake keeps graph state.
 
 - **Brief get-up timing or facing differences.** Basic owner timing, get-up preparation/action and iGetUpType
   synchronization remain. All six regular physics/death/revival scenarios pass once in the reduced build

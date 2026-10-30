@@ -1,11 +1,13 @@
 """Getting-up skeletons follow their owner even when Skyrim blends away from physics."""
 import unittest
 
-from coop_test import RagdollTrace, TestFailure
+from coop_harness import Session
+from coop_harness.objects import RagdollTrace
+from coop_harness.errors import TestFailure
 
 
 def trace(copy_bones, copy_bodies):
-    result = RagdollTrace("fixture", {"": {1: "owner"}, "client": {2: "copy"}})
+    result = RagdollTrace(Session(), "fixture", {"": {1: "owner"}, "client": {2: "copy"}})
     result.folder = type("Folder", (), {"name": "fixture"})()
     for game, actor, shift, bones, bodies in (("", 1, 0, [50] * 5, [0] * 5),
                                               ("client", 2, 300_000, copy_bones, copy_bodies)):

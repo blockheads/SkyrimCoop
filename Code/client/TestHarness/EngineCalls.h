@@ -396,6 +396,7 @@ struct DialogueState
     int32_t SwfState = -1;
     int32_t Selected = -1;
     uint32_t CursorTopic = 0; // the highlighted option's topic (its entry's topicIndex in the list)
+    int32_t CursorIndex = -1; // the highlighted option's place in the list (two lines of a topic are two options)
     uint32_t CurrentInfo = 0; // MenuTopicManager's currentTopicInfo and lastTopicInfo, form ids
     uint32_t LastInfo = 0;
 };

@@ -308,7 +308,7 @@ workaround, not a completed classifier fix or verified Steam-award support. The 
 with that setting change is **not run**. Critter, topic-list and equipment profile differences
 remain unresolved; no individual dependency is blamed without an isolating comparison.
 
-Final evidence: `.worktrees/v1-mod-profiles/build/acceptance-{plan,summary}.json`,
+Final evidence (worktree removed 2026-10-30, not kept): `build/acceptance-{plan,summary}.json`,
 `acceptance-ledger.ndjson`, `comparison-ledger.ndjson`, `profile-index.json` (58 manifests),
 `final-check.log` and the linked report. Bootstrap errors, original/outer reports, adjacent logs,
 settings, active masters and DLL/PDB hashes remain retained. All owned games are stopped,

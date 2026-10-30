@@ -81,7 +81,10 @@ void GuestDialogue::OnClosed() noexcept
 
 std::optional<std::vector<IDialogueBridge::Option>> GuestDialogue::OnListBuilt() noexcept
 {
-    return m_dialogue.PartyList();
+    // In a conversation its menu shows only the party's list: until the step's arrives, its engine's show is held.
+    if (auto list = m_dialogue.PartyList())
+        return list;
+    return m_dialogue.Conversation() ? std::optional(std::vector<IDialogueBridge::Option>{}) : std::nullopt;
 }
 
 void GuestDialogue::OnRefused(const NotifyDialogueRefused& acMessage) noexcept

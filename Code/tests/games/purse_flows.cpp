@@ -1,26 +1,12 @@
 // The party's gold (docs/design/party-purse.md): one purse, the host's player's gold. Whoever's gold changes, and
 // whoever changed it, every player (each game's own and its copies) carries the purse after.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGold = 0x0000000F;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
-std::vector<uint32_t> PlayerCopies(const FakeEngine& acEngine)
-{
-    std::vector<uint32_t> copies;
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            copies.push_back(cId);
-    return copies;
-}
 
 // Every game's player and every copy of a player there carries aGold.
 bool AllCarry(Party& aParty, std::initializer_list<World*> aGames, int32_t aGold)
@@ -54,7 +40,7 @@ std::string Golds(std::initializer_list<World*> aGames)
 
 SCENARIO("Every player carries the party's gold, whoever's changed", "[purse]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     const auto cGames = {&party.Host(), &party.Guest()};
@@ -96,7 +82,7 @@ SCENARIO("Every player carries the party's gold, whoever's changed", "[purse]")
 
 SCENARIO("A guest joining carries the party's gold, not what it brought", "[purse]")
 {
-    Party party(2, Plugins, false);
+    Party party(2, SmokeWorld, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& first = Party::Engine(party.Guest(0));
     party.As(party.Host(), [&] { host.GetsItem(FakeEngine::kPlayer, kGold, 300); });

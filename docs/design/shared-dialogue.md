@@ -28,12 +28,16 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   NPC (the copy, on a peer) and press E: the menu opens on the conversation as it stands. The host joins its
   own background conversation the same way. Nobody is moved for a conversation, and first and third person
   stay each player's own.
-- **Every menu shows the party's list** (decided 2026-10-29): the host's engine builds the step's list once with the
-  real quests and NPC, and judges every topic for each player's character there (its items, Speech, race, factions,
-  perks; the host's for its own). The menus in the conversation show every one of their players' options, each topic
-  once, in the host's order then the others': a topic a player has shows that player's own line (Lucan's claw topic:
-  "I have your claw." to the holder, his line for one without it to the others); a topic only some have is tagged
-  with their names, `A gift for you. [Lydia]`.
+- **Every menu shows the party's list** (decided 2026-10-29; each line its own option since 2026-10-30, the user): the
+  host's engine builds the step's list once with the real quests and NPC, and judges every topic for each player's
+  character there (its items, Speech, race, factions, perks; the host's for its own). Every menu in the conversation
+  shows the same list: every line its players have, in the host's order then the others'. A topic with a line per
+  player shows each line, named for who has it (Lucan's claw: `I could help you get the claw back. [Host]`, then
+  `Wait, you mean this golden claw? [Guest]`); a line everyone has is not named. Replaced "a topic shows each player's
+  own line" (2026-10-29), which left the two menus different.
+- **A pick takes every menu's list away** (2026-10-30): every menu in it shows the pick, as the picker's does after
+  its click, while the NPC answers; then every menu shows the next list. A menu never shows its own engine's list in
+  a conversation: a guest's engine showing one (after its copy's line) waits for the party's.
 - **One highlight** (decided 2026-10-29): anyone moves it (W, S, the mouse), every menu in the conversation shows it
   there. Chaotic on purpose.
 - **Anyone highlights any option; a player says only its own:** pressing E on an option of its own list says it, its
@@ -188,8 +192,8 @@ Built (2026-10-14), for any copy, not only in a conversation (the copy contract'
 - Its engine never picks: a pick goes to the host. Its menu shows its list from the host
   (`DialogueBridge::ShowList`: each option built from its topic and line by the `Dialogue` constructor 35254, no
   conditions tested, the list replaced with `MenuTopicManager::SetOptions`), and gets voice ready (52858), so it
-  takes a pick 750 ms later, as after a line. Until the host's list arrives it shows its own engine's; a pick from
-  that is not in the host's list and is not said (the host sends its list back). Its engine still builds and
+  takes a pick 750 ms later, as after a line. Until the host's list for the step arrives its engine's own shows are
+  held (`GuestDialogue::OnListBuilt` returns an empty list; `HookShowList` keeps what the menu shows, 2026-10-30). Its engine still builds and
   shows lists of its own (at the open, after the copy's greeting): at that show (52857) the host's list for the
   step goes in their place (the `List` filter), and a menu already showing it is not filled again (a refill takes
   no pick for 750 ms, so a click then was lost).

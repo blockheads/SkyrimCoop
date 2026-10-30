@@ -1,6 +1,7 @@
 // Dropped items (docs/design/dropped-items.md): a loose item exists once in the party's world, the host's, with its
 // extra data; whoever picks it up gets it and it is gone for everyone. Chests keep their items' extra data too.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -63,14 +64,7 @@ void Settle(Party& aParty)
 }
 
 // That game's copies of other games' players.
-std::vector<uint32_t> PlayerCopies(const FakeEngine& acEngine)
-{
-    std::vector<uint32_t> copies;
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            copies.push_back(cId);
-    return copies;
-}
+
 } // namespace
 
 SCENARIO("The host's player drops an heirloom: the guest sees it with its extra data, picks it up, it is gone for everyone", "[items][loose]")

@@ -1,6 +1,7 @@
 // Magic across games (MagicService): a concentration spell's cast replays on the caster's copies (other spells
 // travel as projectiles, CombatService); a spell on another game's actor is applied by that actor's owner.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -9,24 +10,11 @@ constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kFlames = 0x00012FCD;
 constexpr uint32_t kFlamesEffect = 0x00013CA9; // FireDamageConcAimed
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
 } // namespace
 
 SCENARIO("A guest's Flames plays on its copy on the host's game", "[magic]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
@@ -44,7 +32,7 @@ SCENARIO("A guest's Flames plays on its copy on the host's game", "[magic]")
 
 SCENARIO("A guest's spell on a host NPC is the host's to apply", "[magic]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -71,7 +59,7 @@ SCENARIO("A guest's spell on a host NPC is the host's to apply", "[magic]")
 
 SCENARIO("A host NPC's burning shows on its copy", "[magic]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -91,7 +79,7 @@ SCENARIO("A host NPC's burning shows on its copy", "[magic]")
 
 SCENARIO("A host NPC fighting the guest's player fights it on the guest's game too", "[ai]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -114,7 +102,7 @@ SCENARIO("A host NPC fighting the guest's player fights it on the guest's game t
 
 SCENARIO("An instant FX Persist effect gone before the frame still flashes on copies", "[magic][instant-visuals]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     constexpr uint32_t cCure = 0xFBFF5;

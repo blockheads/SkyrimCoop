@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="GameTests" errors="0" failures="2" tests="2346" hostname="tbd" time="42.418" timestamp="2026-10-30T15:54:33Z">
+    <testcase classname="GameTests.global" name="Scenario: A host load restores the chosen save and every guest at its saved place" time="0.093" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's own loads are refused with a chat reason, including internal-looking names" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's own loads are refused with a chat reason, including internal-looking names/When: the guest leaves, its own loads work again" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A game joining a session refuses its own loads" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unreadable host save leaves the party playing and a later valid load succeeds" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest reconnecting after a failed host load is refused instead of joining the old world" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's /bug: every game writes its part under one id" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's /bug: every game writes its part under one id/Then: the host's part is the one with the save" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: /export: this game's files, named after its player, and a line saying where" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend accepts the host's Steam invite: its game joins the lobby and the host's session" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend accepts the host's Steam invite: its game joins the lobby and the host's session/Then: Steam shows the friend the invite" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend accepts the host's Steam invite: its game joins the lobby and the host's session/Then: each game knows the other" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend accepts the host's Steam invite: its game joins the lobby and the host's session/When: the host leaves" time="0.271" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend accepts the host's Steam invite: its game joins the lobby and the host's session/When: the connection between them drops while the host's lobby stays" time="0.019" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A Steam lobby that is no SkyrimCoop session is refused" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Each player loads a save and hosts; a friend accepts the host's invite and its game joins the host's" time="0.279" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Each player loads a save and hosts; a friend accepts the host's invite and its game joins the host's/Then: the friend's game no longer hosts, and each player is told" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player starts a new game: it hosts once its world is up, and steps down to join a friend's" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player starts a new game: it hosts once its world is up, and steps down to join a friend's/Then: not while it loads" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player starts a new game: it hosts once its world is up, and steps down to join a friend's/When: its player joins a friend's game from it (JoinService)" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player starts a new game: it hosts once its world is up, and steps down to join a friend's/When: its player joins a friend's game from it (JoinService)/Then: it stopped hosting first" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host with friends in its game does not leave it for an invite" time="0.012" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A Steam invite at the main menu joins as a kept or newly created character" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A Steam invite at the main menu joins as a kept or newly created character/When: the host's save keeps the friend's character" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A Steam invite at the main menu joins as a kept or newly created character/When: the host's save does not know the friend" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Steam's +connect_lobby is read from the game's command line" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest takes part of a stack and stores it again" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest taking container gold changes the party purse once" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host and guest taking the last chest item do not duplicate it" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two guests taking the last chest item do not duplicate it" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest loots a host NPC's inventory once" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's notification shows on every game" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's notification shows on every game/Then: each game shows it once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A message box a quest shows, from either game, shows on every game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's own action's notification stays on that player's game" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's own action's notification stays on that player's game/Then: the host never showed the guest's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A script equipping the player is no message of the party's" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's message box: the host answers, the guest's copy closes with its answer" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's message box: the host answers, the guest's copy closes with its answer/When: the host's player presses its second button/Then: the guest's copy got the host's answer" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's message box: the host answers, the guest's copy closes with its answer/When: the guest presses its own copy first/Then: the host's box still waits for the host" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's message box: the host answers, the guest's copy closes with its answer/When: the guest presses its own copy first/And when: the host answers/Then: the guest's own answer stands" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Another guest's AI state cannot interrupt the host's scene" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the guest takes everyone's controls; the guest leaves; the host gets them back" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the guest takes everyone's controls; the guest leaves; the host gets them back/When: a world script on the guest takes the controls/Then: both games' movement and fighting are taken, held by the guest's game on the host" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the guest takes everyone's controls; the guest leaves; the host gets them back/When: a world script on the guest takes the controls/And when: the guest leaves mid-cutscene/Then: nothing is held on the host" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the host takes everyone's controls; the guest leaves and gets its own back" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the host takes everyone's controls; the guest leaves and gets its own back/When: the guest leaves/Then: the host's cutscene still holds the host's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A world script on the host takes everyone's controls; the guest leaves and gets its own back/When: the guest leaves/And when: the host's script gives them back/Then: the host's come back" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two cutscenes at once: the first to end gives back only its own" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two cutscenes at once: the first to end gives back only its own/When: the host's cutscene ends first/Then: movement stays taken on both: the guest's cutscene holds it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A restriction stays with its game" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A restriction stays with its game/When: a world script on the host takes fighting only/Then: the guest can still fight" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's MoveTo on the player moves each game's own player; the mirrored move leads no one" time="0.015" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's MoveTo on the player moves each game's own player; the mirrored move leads no one/Then: the host travelled twice, its own moves: the guest's mirrored moves took no one along" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's idle on the player plays on each game's own player" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A story's idle on the player plays on each game's own player/Then: no copy played it: each copy follows its owner" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC dies: its copy dies with it" time="0.125" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC dies: its copy dies with it/When: the host's player kills the guard" time="0.120" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player joining, going down and leaving: every game's chat says so, going down in red" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player joining, going down and leaving: every game's chat says so, going down in red/Then: the guest's chat names nobody joining: the host was there already" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest stays down through combat, then respawns beside the standing host" time="0.459" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest stays down through combat, then respawns beside the standing host/When: combat ends, then starts again before ten seconds" time="0.248" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Healing cannot revive a downed player early" time="0.052" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player really dies: its copies die with it, it spectates once dead, and its game never reloads" time="0.195" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player really dies: its copies die with it, it spectates once dead, and its game never reloads/When: the party recovers" time="0.159" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player really dies: its copies die with it, it spectates once dead, and its game never reloads/When: the guest leaves while down" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player really dies: its copies die with it, it spectates once dead, and its game never reloads/When: the guest leaves while down/Then: its game's own death rules are back: the reload is not held" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Spectating follows a standing player's replacement copy" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A party wipe loads the previous host save and saved guest character" time="0.074" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A party wipe without a checkpoint reports failure and never revives in place" time="0.041" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A standing guest's combat holds a downed host" time="0.231" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Respawning a downed player does not give back a cutscene's controls" time="0.117" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Respawn uses the standing party's current location after travel" time="0.116" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Rebuilding a player's copy retains its owner's latest magicka" time="0.104" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Spectating is third person only: a view dropped into the watched player's head goes back out" time="0.116" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Spectating is third person only: a view dropped into the watched player's head goes back out/When: the guest stands again/Then: its own first person view is its to keep" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Either player starts a shared native wait across midnight" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A slow guest keeps the host behind the menu readiness barrier" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A shared wait is released on cancellation or engine refusal" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A shared wait is released on cancellation or engine refusal/The guest cancels the host's wait" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A shared wait is released on cancellation or engine refusal/The initiator cancels while the request is still in flight" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A shared wait holds the guest's clock between host steps" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Four players share one countdown and a departed guest gets solo waiting back" time="0.015" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest consumes each native step when several arrive in one frame" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest takes the host's cell rows again after a shared wait" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Only the completed shared rest defers its own record flags" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Only the completed shared rest defers its own record flags/An ordinary update applies immediately and supersedes the queued rest flags" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks how far the player is: the nearest player answers" time="0.069" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks how far the player is: the nearest player answers/When: no player's action is behind it/Then: it is the guest's distance, the nearer" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks how far the player is: the nearest player answers/When: the host's player's own action asks it/Then: it is the host's own distance" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks whether a guard sees the player: yes if it sees any player" time="0.070" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks whether a guard sees the player: yes if it sees any player/When: no player's action is behind it/Then: the guest in sight makes it yes, though the host is out of it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest's timer asks whether a guard sees the player: yes if it sees any player/When: the host's player's own action asks it/Then: only the host's own sight counts" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host travels: the guest follows, and the players' copies come along" time="0.036" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host travels: the guest follows, and the players' copies come along/Then: the guest stands where the host arrived" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest travels: the host and the other guest follow" time="0.039" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC stays with its cell when the party leaves it" time="0.036" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC stays with its cell when the party leaves it/When: the host leads the party away/And when: an NPC loads where the party is now/Then: the copy is in the sinkhole" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed NPC stays with its cell when the party leaves it, and is the host's copy again on its return" time="0.037" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed NPC stays with its cell when the party leaves it, and is the host's copy again on its return/When: the host leads the party away/Then: the guest's Vilkas stays in QASmoke, held as a copy" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed NPC stays with its cell when the party leaves it, and is the host's copy again on its return/When: the guest leads the party away: its arrival drops its copies before the host's game leaves/Then: the guest's Vilkas stays in QASmoke, held as a copy, and nothing the host left is sent it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC the host's game loads as a following guest's arrival reaches it: the guest gets its copy" time="0.037" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's native fast travel advances the party calendar once across midnight" time="0.039" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A queued guest travel starts the other games before its own arrival" time="0.039" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dead following player travels with the party and stays dead" time="0.123" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Party travel closes a following guest's dialogue and takes both guests along" time="0.039" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A mounted guest owns the horse until dismount or disconnect, then the host takes it back" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A mounted guest owns the horse until dismount or disconnect, then the host takes it back/When: the guest dismounts" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A mounted guest owns the horse until dismount or disconnect, then the host takes it back/When: the host travels while the guest rides" time="0.029" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A mounted guest owns the horse until dismount or disconnect, then the host takes it back/When: the guest disconnects while riding" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A horse's empty package is published when its rider becomes its owner" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host rides its own horse and both guests put their copies on it" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="The host dismounts without giving up its own horse" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's brewed potion reaches its copy on the host, the host's own form for its recipe" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's brewed potion reaches its copy on the host, the host's own form for its recipe/Then: the host made the potion for itself, under its own id" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest stores brewed potions in a chest; the host's game holds them and its player takes them" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest drops a brewed potion; the host's world makes it and its player picks it up" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's weapon coated with its brewed poison keeps the coating on its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's weapon coated with its brewed poison keeps the coating on its copy/Then: the host has the poison as its own" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining later gets the recipes of what the others carry" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's arrival is raised in the host's game for its character" time="0.038" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's arrival is raised in the host's game for its character/Then: the host's game raised it once, for the guest's character, from QASmoke's location to the sinkhole's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's arrival is raised in the host's game for its character/And: the guest's game raised none: its story manager starts no quest" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's arrival raises nothing for anyone: its engine raises its own" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Any story event a guest's game raises is the host's, but one naming another game's actor" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's sword on a host NPC: the host's game applies it, and the kill is the guest's" time="0.126" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's sword on a host NPC: the host's game applies it, and the kill is the guest's/Then: the guest's copy took nothing itself, and the guest sees the guard's health bar" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's fire bolt flies on the host's game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's fire bolt flies on the host's game/Then: the guest's own bolt is not sent back to it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's Flames plays on its copy on the host's game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's Flames plays on its copy on the host's game/Then: the guest's own cast is not sent back to it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's spell on a host NPC is the host's to apply" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's spell on a host NPC is the host's to apply/Then: the guard turns on the guest, and the guest's game applies nothing itself" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC's burning shows on its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC fighting the guest's player fights it on the guest's game too" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC fighting the guest's player fights it on the guest's game too/Then: the guest's player is in combat with it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An instant FX Persist effect gone before the frame still flashes on copies" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A follower already in the host's loaded world survives hosting" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Three players share a follower while its pathing anchor and trade inventory belong to their pickers" time="0.012" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest activates a follower copy and its owner's actor receives that activation once" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A saved temporary NPC discovered after a guest connects does not become a second follower" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest brings and restores its own learned knowledge instead of the host's" time="0.056" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A character joining again keeps its brewed potions, made again from the record's recipes" time="0.057" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back/Then: it is the guest's character, under its key, and the host's own player has no record" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back/When: the guest's character changes, then the host saves" time="0.173" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back/When: the guest's character changes, then the host saves/Then: the save's co-save holds the guest's character at the place of the host's copy of it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back/When: the guest's character changes, then the host saves/And when: the host's game loads it again later/Then: the guest's character is back" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's character reaches the host's save, and loading that save brings it back/When: a game sends a record under another player's key/Then: the host's game keeps nothing under that key" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/Then: the friend's game cannot save while it joins" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/Then: its game loaded the host's save once, and its player is the character it brought, where the save put it, without its own world's quest items, carrying the party's gold" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/When: its character levels up while it plays, then it leaves and joins again from the main menu" time="0.050" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/When: its character levels up while it plays, then it leaves and joins again from the main menu/Then: it plays the character the host's save keeps, at its new level, with the party's gold" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/When: it joins again from a game of its own with another character" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend brings its character from a game of its own into the host's world, then joins from the main menu as it/When: it joins again from a game of its own with another character/Then: the host's save's character wins over the one it brought" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A character joining again keeps its own souls and the words it unlocked; the party's words come with the host's save" time="0.056" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A character joining again keeps its own souls and the words it unlocked; the party's words come with the host's save/When: the host's script teaches another word while the friend is away, and the friend joins again from the main menu" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A character joining again keeps its own souls and the words it unlocked; the party's words come with the host's save/When: the host's script teaches another word while the friend is away, and the friend joins again from the main menu/Then: the friend's player knows both words, has Fus unlocked and no soul; the host's player keeps its own" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A character joining again keeps its own souls and the words it unlocked; the party's words come with the host's save/When: the host spends a soul while the friend is away" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A returning character gets story spells granted and removed while it was away" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Story spell state survives the co-save and older character-only saves still load" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A join that cannot finish says why" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A join that cannot finish says why/When: nothing listens at the address" time="0.150" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A join that cannot finish says why/When: the bundled creation data is unavailable to an unknown friend at the main menu" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A join that cannot finish says why/When: the host stops hosting while its save is on its way" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A join that cannot finish says why/When: the host stops hosting while its save is on its way/Then: its game can save again" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A brought character lands beside the host after checked placement" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A brought character lands beside the host after checked placement/there is room immediately" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A brought character lands beside the host after checked placement/joining waits until checked placement finds room" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest that leaves and joins again arrives where it left, never on the host's spot" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest that leaves and joins again arrives where it left, never on the host's spot/When: it walks off, quits to the main menu and joins again (the host saves for it after it left)" time="0.099" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest that leaves and joins again arrives where it left, never on the host's spot/When: it walks off, quits to the main menu and joins again (the host saves for it after it left)/Then: it stands where it left" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest that leaves and joins again arrives where it left, never on the host's spot/When: the host's save keeps its character without a place" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest that leaves and joins again arrives where it left, never on the host's spot/When: the host's save keeps its character without a place/Then: checked placement puts it beside the host, not on the host's spot" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join/naming and setup finish, then its character joins and is kept for the next invite" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join/cancelling leaves the creator usable and never automatically joins" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join/losing the host leaves the creator usable and clears automatic joining" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join/finalization has the loading deadline" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An unknown friend creates a character as part of its original join/a failed final load keeps the created character available for retry" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Character startup has a deadline before the customization menu opens" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest talks to a host NPC: the host's game runs the conversation, the guest picks its lines" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest talks to a host NPC: the host's game runs the conversation, the guest picks its lines/Then: the host's player plays on: its game's conversation runs without its menu" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options/Then: each its own line of the claw topic, the other's options named" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options/When: the host presses the guest's gift/Then: nothing is said; only the host's chat tells its player why" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options/When: the guest presses its gift/Then: it is the guest's line, its script run for the guest's character" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options/When: the guest presses the host's deal/Then: nothing is said; the guest's chat tells it why" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every menu shows the party's list; a player says only its own options/When: the guest presses the claw topic/Then: its own line of the topic, not the host's player's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Barter keeps a guest in the conversation with dialogue suspended" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest defers the next dialogue list until its personal menu closes" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A picked barter line opens only the trader's game and its Speech stays personal" time="0.013" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's own pick runs its fragment for its player" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: One highlight for the conversation: a player moving it moves every menu's" time="0.013" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: One highlight for the conversation: a player moving it moves every menu's/Then: whoever presses E picks the highlighted option" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Guests hold the host's difficulty and get their own back on leaving" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest reward reaches all four players as input, with each game's own multiplier once" time="0.014" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A quest reward reaches all four players as input, with each game's own multiplier once/When: the picker turns in a quest: the host's fragment grants AdvanceSkill's base amount" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Direct dialogue and book rewards share levels, perks, points and permanent stats once" time="0.016" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Direct dialogue and book rewards share levels, perks, points and permanent stats once/When: Amren grants skill levels before SetStage, or the Oghma grants five directly from its book" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A picked line's Speech and a body's buff do not reach the party" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A word of power any game's player learns, every player knows" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A word of power any game's player learns, every player knows/When: the host's own script teaches its player a word (no player's action behind it)/Then: each game learned it once, as the engine's own TeachWord (its HUD)" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A word of power any game's player learns, every player knows/When: a guest reads a word wall: the host's wall script runs Game.TeachWord for the guest's character/Then: it comes back to nobody: each game showed it once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon's soul reaches every player, whoever killed it; each spends its own" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon's soul reaches every player, whoever killed it; each spends its own/When: the guest kills a dragon: on the host, its death script absorbs the soul into the guest's character/Then: every player has one soul, each shown it as the engine's own gain; the copy's is shown nowhere" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon's soul reaches every player, whoever killed it; each spends its own/When: the guest kills a dragon: on the host, its death script absorbs the soul into the guest's character/And when: the host's script teaches a word and the guest spends its soul on it in the Magic menu/Then: the soul and the unlock are the guest's own" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon's soul reaches every player, whoever killed it; each spends its own/When: the host kills one/Then: the host's player has it once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The story's titles and beast blood reach every player; a player's beast form stays theirs" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The story's titles and beast blood reach every player; a player's beast form stays theirs/When: the guest's picked line sets the Companions' last stage: its fragment makes the guest's character Harbinger/Then: the host's player is too: the title is the party's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The story's titles and beast blood reach every player; a player's beast form stays theirs/When: the story gives the host's player Beast Form (C03's rampage, no player's action behind it)/And when: the host's player transforms: its body's quest makes it a werewolf for the night/Then: the guest's player stays itself" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The story's titles and beast blood reach every player; a player's beast form stays theirs/When: the guest's player's own script (a lever, its own action) adds it to a faction on the host/Then: it is not the party's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon dissolving shows on every game, though the guest's kill started it" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A dragon dissolving shows on every game, though the guest's kill started it/When: MQKillDragonScript.DeathSequence, run for the guest (its kill: a death is the story), plays the dragon's dissolve and the absorb into the killer/Then: each game ran each once: the dragon on its copy, the absorb on each game's own player" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Health lost and regained shows on the copies" time="0.102" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Health lost and regained shows on the copies/When: a host NPC is hurt" time="0.098" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A value write reads and sends only that value on the next update" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A copy restores its owner's pools on writes without an owner resend" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Converged pools stay quiet and discrete values are not scanned" time="2.205" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Pool packets received while a copy is absent apply when its 3D returns" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC the host's game loads gets a copy on the guest's game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC the host's game loads gets a copy on the guest's game/Then: one copy, in the cell, alive, and the host's guard is no copy" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC the host's game loads gets a copy on the guest's game/When: the host's guard goes (its cell unloads it) the frame the guest got its copy" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player gets a copy on the host's game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player gets a copy on the host's game/Then: each player's copy has its player's build (its weight, which the base's save data leaves out)" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's looks change on the existing copies" time="0.103" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's looks change on the existing copies/When: the guest's player catches vampirism: its race switches, its skin with it" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's looks change on the existing copies/When: the guest's player tries races in the race menu, then a new build and war paint, and closes it/Then: the existing copy changes once, when the menu closes" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's looks change on the existing copies/When: a same-race barber change waits for a save to finish, then removes the old tints" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's looks change on the existing copies/When: the host's player switches race" time="0.098" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC goes away: its copy does what it does" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC goes away: its copy does what it does/When: a quest moves the host's Vilkas to the sinkhole, which nobody has loaded/Then: it is the guest's reference still, held as a copy" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC goes away: its copy does what it does/When: the host's Vilkas is disabled/Then: still a copy" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC goes away: its copy does what it does/When: the host deletes a placed NPC" time="2.000" status="run">
+      <failure type="FAIL">
+FAILED:
+never happened: the guest's reference goes with the host's, 8882 frames
+at Code/tests/games/Party.h:215
+      </failure>
+    </testcase>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC goes away: its copy does what it does/When: the host deletes a placed NPC/Then: it is disabled, still a copy, and not deleted" time="0.000" status="run">
+      <failure message="!(guest.IsActorDeleted(cPlaced))" type="CHECK_FALSE">
+FAILED:
+  CHECK_FALSE( guest.IsActorDeleted(cPlaced) )
+with expansion:
+  !true
+at Code/tests/games/copy_flows.cpp:339
+      </failure>
+    </testcase>
+    <testcase classname="GameTests.global" name="Scenario: The host's NPC speaks while the guest's copy has no 3D yet: the copy stays silent" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joins while the party is elsewhere: it is brought there and gets every copy" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joins while the party is elsewhere: it is brought there and gets every copy/When: the guest joins" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joins while the party is elsewhere: it is brought there and gets every copy/When: the guest joins/Then: it has a copy of each of the host's actors, the guard dead" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joins outdoors four cells from the host, out of its grid: it is brought to the party" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's level follows its owner on the existing copy" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An immediate owner resurrection survives the delayed death replay" time="0.124" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A refused owner resurrection stays dead until the engine accepts revival" time="0.125" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A copy's refused resurrection follows its owner's confirmed revival" time="0.126" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A resurrected NPC copy draws and attacks on its living graph" time="0.234" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's map marker shows on everyone's map" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's map marker shows on everyone's map/Then: where it was placed" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's slowed clock slows everyone's" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest pulling a lever pulls it on the host's game, by its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest pulling a lever pulls it on the host's game, by its copy/Then: the locked gate's activation was a lockpick attempt, not passed on" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's sword on the host's player: the host's game applies it, and nobody turns on the guest" time="0.102" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's sword on the host's player: the host's game applies it, and nobody turns on the guest/Then: the guest's copy of the host took nothing itself, and the host's player ran no NPC's reaction" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's sword on a guest's player: the guest's game applies it" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's sword on another guest's player: the host passes it to that guest's game" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's fire bolt on the host's player burns the host's own player" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's fire bolt on the host's player burns the host's own player/Then: the effect landed on the host's player, from the guest's copy, with no NPC's reaction" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest killed by another guest: a real death, spectating, and every chat names the killer" time="0.016" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's melee stagger reaches the victim's owner once" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's weather holds on the guests' games" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's calendar runs on the guests' games" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/chest-items-reach-others" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/cutscene-controls-reach-party" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/guest-joins-elsewhere" time="0.070" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/leaver-cutscene-gives-back" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/lock-reaches-others" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/npc-death-reaches-copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/npc-disabled-copy-follows" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/npc-sent-home-copy-follows" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/overlapping-cutscenes-keep-controls" time="0.025" status="run"/>
+    <testcase classname="GameTests.global" name="Shared specs against the fake engine/restriction-stays-with-game" time="0.004" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/Then: Falion's quest, whose stage the vampire quest set, stays the story's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/Then: only the guest is a vampire: the host's player stays a human Nord" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/Then: its global is the guest's own, and stays so through the host's world state" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/And when: each game's timer fires (its own instance's)/Then: the host's player does not hunger" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/And when: each game's timer fires (its own instance's)/And when: the guest feeds on the host's NPC: the host runs the feed's fragment for it/Then: the host's instance did not run it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is its own/When: the guest's disease turns it/And when: the story cures (Falion's stage: no player's action)/Then: every player is its own race again, and no one is a vampire" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is kept across leaving and joining again" time="0.057" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is kept across leaving and joining again/When: the host turns too, and the friend leaves and joins again from the main menu" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's vampirism is kept across leaving and joining again/When: the host turns too, and the friend leaves and joins again from the main menu/Then: its instance is its own again, not the host's save's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend who was never a vampire joins a host who is: its instance starts over" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A friend who was never a vampire joins a host who is: its instance starts over/Then: the quest is one per player there too, and the friend's instance is not the host's save's" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's equipment reaches its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC's equipment reaches its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC's equipment reaches its copy/Then: the copy takes nothing it is not sent" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An NPC's outfit put back on with no item change still dresses its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining gets the host's player as it is dressed" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining gets the host's player as it is dressed/Then: its copy wears the sword and the armor" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's drawn weapon reaches its copy" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining sees the host's player with its weapon drawn" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="A copy whose next snapshot is late carries on its way a little, then holds" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="A copy whose next snapshot is late carries on its way a little, then holds/not without a limit" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="A copy whose next snapshot is late carries on its way a little, then holds/not while its owner lies in its ragdoll: its physics places it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A copy plays its owner's time as far behind as the line needs, not a fixed 300 ms" time="1.504" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Over a slow, jittery line a walking copy never steps back" time="5.296" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Players and fights are sent 30 times a second, other actors 10" time="1.505" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player drops an heirloom: the guest sees it with its extra data, picks it up, it is gone for everyone" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player drops an heirloom: the guest sees it with its extra data, picks it up, it is gone for everyone/Then: the guest's game waits for the host's answer" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest drops an heirloom: the host's world makes it, the dropper's own is its twin, the host picks it up" time="0.310" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest drops an heirloom: the host's world makes it, the dropper's own is its twin, the host picks it up/Then: the dropper still has the one it dropped" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two guests reach for one item: the first gets it, the other nothing" time="0.310" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two guests reach for one item: the first gets it, the other nothing/Then: and only one" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's drop where the host's game has no cell loaded waits; picked up again, it comes back" time="0.604" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's drop where the host's game has no cell loaded waits; picked up again, it comes back/Then: the host's game never makes it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's drop the host's game cannot make stays its own, picked up without asking" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's drop the host's game cannot make stays its own, picked up without asking/Then: its player picks it up at once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A chest keeps its items' extra data, the host's and a guest's" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player knocks a bucket off a table: the guest's flies with it and lies where the host's does" time="2.055" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player knocks a bucket off a table: the guest's flies with it and lies where the host's does/Then: the guest's is held by the host's, not simulated" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player knocks a bucket off a table: the guest's flies with it and lies where the host's does/Then: the plate nobody touched is left alone" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest whose game has not loaded the body skips the host's frames" time="1.783" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An owner's reliable rest waits while the engine cannot settle its body" time="0.104" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An owner's reliable rest waits while the engine cannot settle its body/a late moving frame cannot discard the deferred rest" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: An owner's reliable rest waits while the engine cannot settle its body/a newer moving frame supersedes the deferred rest" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player bumps the bucket: the host's is pushed alike, and both lie where the host's does" time="0.521" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player bumps the bucket: the host's is pushed alike, and both lie where the host's does/Then: the guest showed its own push, not the host's frames, and lies at the host's rest, simulated again" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's own blast throws a bucket the host's does not: it gets the host's pose back" time="2.405" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's own blast throws a bucket the host's does not: it gets the host's pose back/Then: a nudge that settles in place asks nothing" time="1.300" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player carries the plate and lets go: the host's follows its hands, then falls from there" time="0.988" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player carries the plate and lets go: the host's follows its hands, then falls from there/Then: the host's is held, a little behind the guest's hands" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player carries the plate and lets go: the host's follows its hands, then falls from there/Then: it flew on from the guest's hands on the host, and the guest showed its own fall until the host's rest" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A copy's body correction waits for the engine update that maps its bones" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC dies and ragdolls: its copy's body lies as the host's, bone by bone" time="1.710" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC dies and ragdolls: its copy's body lies as the host's, bone by bone/When: the guard dies on the host and its ragdoll falls before the copy's death replays/Then: the copy's ragdoll waits for its own death, then follows and lies as the host's" time="1.705" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC is knocked down alive: its copy goes down with it and lies as the host's, bone by bone" time="1.710" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A living ragdoll's reliable rest survives lost moving frames and is held until its owner gets up" time="0.127" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC knocked down hard: its copy stays on its own ragdoll while it lies" time="2.152" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC knocked down hard: its copy stays on its own ragdoll while it lies/Then: it stands until it falls, never rising toward its owner's pelvis first (knockdown-smoke)" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC knocked down hard: its copy stays on its own ragdoll while it lies/Then: it is moved where the engine moves an actor, so its skeleton never snaps (knockdown-smoke)" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's player dies and ragdolls: the host's and the other guest's copies lie as its body, bone by bone" time="1.648" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A reference alias clear alone reaches the guest" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A created actor's quest role waits for its copy, then clears when the host clears it" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A location alias clear alone reaches the guest" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Beast perk refunds reach the guest down to zero" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest quitting to the main menu leaves the session" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host quitting to the main menu ends the session for its guest" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A kicked guest returns to the main menu with its reason" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest leaving the session returns to the main menu and can join again" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest quitting keeps the character already received by the host" time="0.053" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's player picks a lock: it opens on the guest's game" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest picks a lock: the host's world takes it, and it comes back as the host's" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest picks a lock: the host's world takes it, and it comes back as the host's/Then: the host's game recorded it as its own change" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's world changing a lock is no proposal" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's world changing a lock is no proposal/When: the guest's world (a script, a cell load) locks the door, then its player picks the gate/Then: the host's door stays locked" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest takes gold from a chest: the host's chest holds what the guest's does" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A cell a guest never loaded: the host's changes there arrive when it loads it" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A cell a guest never loaded: the host's changes there arrive when it loads it/When: the guest loads the cell" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest away while the host changes things gets them when it joins again" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest away while the host changes things gets them when it joins again/When: it joins again, its loaded cells ask for the host's state" time="0.002" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two guests: one's proposal reaches the other through the host" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest opens a door: it opens on the host's game, and the host's closing reaches the guest" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's globals reach the guests: at the join and as they change" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Quest writes reach guests whole and coalesced on the next frame" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses to save and says why; the host's saves; the guest saves again once it left" time="0.003" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses to save and says why; the host's saves; the guest saves again once it left/Then: the guest's save is refused, and its chat says only the host saves" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses to save and says why; the host's saves; the guest saves again once it left/Then: the host's game saves" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses to save and says why; the host's saves; the guest saves again once it left/When: the guest leaves/Then: its game saves again" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses the engine's autosaves and says why once a session" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses the engine's autosaves and says why once a session/Then: none is written, and its chat says so once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses the engine's autosaves and says why once a session/When: it leaves and joins again" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest's game refuses the engine's autosaves and says why once a session/When: it leaves and joins again/Then: its chat says so again" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A death state waits for its exact owner action, in either arrival order" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A death state waits for its exact owner action, in either arrival order/the state arrives first and a refused replay falls back immediately" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A resurrection refused during dying retries on the copy's final death event" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Small hits are coalesced and flushed on the frame" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Resurrection before the delayed death action stays alive" time="0.126" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A newer death action is not undone by an older alive state" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A following player's copy applies the confirmed death after a refused native action" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Every player carries the party's gold, whoever's changed" time="0.007" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining carries the party's gold, not what it brought" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's earned perks follow only its copies, initially and after changes" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's skills are on its copies from their spawn" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A value a player's ability changes is on its copy again after a rejoin" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's added spells follow its copies, initially and after changes" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Host bounty reaches every guest and corrects a local overwrite" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Guest crime actions go to the host engine once and its judgment returns" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A reconnecting guest replaces stale bounty and receives its own lock decision" time="0.011" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Confiscation runs once on the chooser's game with its own stolen-item ownership" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Criminal flags reach the whole party and the host maintains only player-copy crime state" time="0.010" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guard's arrest greeting reaches both guests and their jail choice tethers the party" time="0.039" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host kicks a guest: it leaves, its copy goes, and it can join again" time="0.008" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host kicks a guest: it leaves, its copy goes, and it can join again/Then: the guest's panel says the host removed it, and it does not try to reconnect" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's session drops and comes back: the guest reconnects by itself" time="0.023" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: The host's session drops for good: after its tries the guest's panel says the connection was lost" time="0.035" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two placed wildlife copies take their owner's bases despite different local rolls" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: Two placed wildlife copies take their owner's bases despite different local rolls/When: the placed references have different local bases again before refreshed spawns arrive in reverse order" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed spawn waits for native initialization before applying the owner's state" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed spawn waits for native initialization before applying the owner's state/the latest spawn is applied when initialization ends" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed spawn waits for native initialization before applying the owner's state/a refresh waits too, then applies once" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed spawn waits for native initialization before applying the owner's state/leaving cancels a pending spawn" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A placed spawn waits for native initialization before applying the owner's state/removing a pending spawn cancels it" time="0.001" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's items reach its copy and stay its own" time="0.006" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's items reach its copy and stay its own/Then: the host's player has none of them" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's items reach its copy and stay its own/When: the guest's player draws a sword and drops it/Then: nor holds it" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A player's items reach its copy and stay its own/When: the host's player eats an apple of its own/Then: the guest's player has none" time="0.000" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A host NPC's items reach its copy" time="0.005" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: A guest joining later gets another guest's player as it is now" time="0.009" status="run"/>
+    <testcase classname="GameTests.global" name="Scenario: What a player does right after its game announces it reaches its copy" time="0.005" status="run"/>
+    <system-out/>
+    <system-err/>
+  </testsuite>
+</testsuites>

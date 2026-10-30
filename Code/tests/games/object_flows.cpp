@@ -1,6 +1,7 @@
 // Objects across games (ObjectService): an actor's activation of an object replays on the other games, by the
 // activator's copy; a locked one's is a lockpick attempt, not passed on.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -16,13 +17,7 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kGate] = {.Cell = kSmoke, .Locked = true, .LockLevel = 50};
 }
 
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
+
 } // namespace
 
 SCENARIO("A guest pulling a lever pulls it on the host's game, by its copy", "[objects]")

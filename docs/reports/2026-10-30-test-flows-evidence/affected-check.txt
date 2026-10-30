@@ -1,0 +1,1 @@
+SOURCE_TAGS covers all 1487 files under Code/ (excluding other Code/tests/).

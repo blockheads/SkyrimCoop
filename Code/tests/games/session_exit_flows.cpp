@@ -1,4 +1,5 @@
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/MenuEvent.h>
 #include <Services/JoinService.h>
@@ -7,16 +8,12 @@
 
 namespace
 {
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x00031D2E;
-    aEngine.LoadCell(0x00031D2E);
-}
+
 } // namespace
 
 SCENARIO("A guest quitting to the main menu leaves the session", "[session-exit]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.Agree("the players are present");
     party.As(party.Guest(), [&] {
         Party::Engine(party.Guest()).AtMainMenu = true;
@@ -30,7 +27,7 @@ SCENARIO("A guest quitting to the main menu leaves the session", "[session-exit]
 
 SCENARIO("The host quitting to the main menu ends the session for its guest", "[session-exit]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.Agree("the players are present");
     party.As(party.Host(), [&] {
         Party::Engine(party.Host()).AtMainMenu = true;
@@ -44,7 +41,7 @@ SCENARIO("The host quitting to the main menu ends the session for its guest", "[
 
 SCENARIO("A kicked guest returns to the main menu with its reason", "[session-exit]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.As(party.Host(),
              [&] { party.Host().GetHostService().KickPlayer(party.Guest().GetTransport().GetLocalPlayerId()); });
     party.Until([&] { return Party::Engine(party.Guest()).AtMainMenu; }, "the kicked guest returns to the main menu");
@@ -54,7 +51,7 @@ SCENARIO("A kicked guest returns to the main menu with its reason", "[session-ex
 
 SCENARIO("A guest leaving the session returns to the main menu and can join again", "[session-exit]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.As(party.Guest(), [&] { party.Guest().GetSessionService().End(); });
     party.Until([&] { return Party::Engine(party.Guest()).AtMainMenu; }, "leaving returns to the main menu");
     CHECK(party.Host().GetHostService().IsHosting());
@@ -66,7 +63,7 @@ SCENARIO("A guest leaving the session returns to the main menu and can join agai
 
 SCENARIO("A guest quitting keeps the character already received by the host", "[session-exit]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& game = party.Guest();
     const std::string cKey = game.ctx().at<JoinService>().PlayerKey();
     party.As(game, [&] {

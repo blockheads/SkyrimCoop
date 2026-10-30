@@ -31,7 +31,7 @@ up the original `SkyrimSELauncher.exe` and use a copy of `SkyrimCoopLauncher.exe
 for restoring the vanilla launcher. Launching an already running game needs no launcher substitution.
 
 For the Linux test workflow (two off-screen Skyrim instances, sync scenarios, swapping a
-rebuilt plugin into the running games), see the docstring of `scripts/coop_test.py`.
+rebuilt plugin into the running games), see [the testing guide](docs/design/testing.md).
 
 ## Acknowledgments
 

@@ -1,0 +1,7 @@
+[   7.4s] === player-equipment-host: PASS
+[  13.7s] === player-equipment-guest: PASS
+[  18.0s] === npc-equipment-lifecycle: PASS
+player-equipment-host          6.2s  PASS
+player-equipment-guest         6.2s  PASS
+npc-equipment-lifecycle        4.4s  PASS
+total                         18.0s

@@ -1,17 +1,14 @@
 // Saving in a session (SaveService; docs/design/join-flow.md, "Saving: only the host"): a guest's game refuses every
 // save and its chat says why; the host's game saves.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/SessionNoticeEvent.h>
 #include <Services/SaveService.h>
 
 namespace
 {
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x00031D2E;
-    aEngine.LoadCell(0x00031D2E);
-}
+
 
 struct Notices
 {
@@ -23,7 +20,7 @@ struct Notices
 
 SCENARIO("A guest's game refuses to save and says why; the host's saves; the guest saves again once it left", "[save]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     World& host = party.Host();
     World& guest = party.Guest();
     Notices guestNotices(guest);
@@ -51,7 +48,7 @@ SCENARIO("A guest's game refuses to save and says why; the host's saves; the gue
 
 SCENARIO("A guest's game refuses the engine's autosaves and says why once a session", "[save]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     World& guest = party.Guest();
     Notices guestNotices(guest);
 

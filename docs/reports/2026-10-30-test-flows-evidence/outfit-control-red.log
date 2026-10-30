@@ -1,0 +1,21 @@
+Filters: Scenario: An NPC's outfit put back on with no item change still dresses its copy
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GameTests is a Catch v2.13.9 host application.
+Run with -? for options
+
+-------------------------------------------------------------------------------
+Scenario: An NPC's outfit put back on with no item change still dresses its
+          copy
+-------------------------------------------------------------------------------
+Code/tests/games/equipment_flows.cpp:134
+...............................................................................
+
+Code/tests/games/Party.cpp:87: FAILED:
+explicitly with message:
+  never happened: the copy wears the outfit again, 10183 frames
+
+===============================================================================
+test cases: 1 | 1 failed
+assertions: 3 | 2 passed | 1 failed
+

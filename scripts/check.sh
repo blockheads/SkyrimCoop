@@ -80,6 +80,7 @@ for target in ClientTests HostAuthorityTests TPTests GameTests; do
         step "run $target" "build/linux/x86_64/debug/$target"
     fi
 done
+step "check harness lifecycle" python3 -m unittest discover -s scripts -p test_coop_harness.py
 step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
 step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py

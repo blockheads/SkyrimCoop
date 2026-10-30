@@ -1,5 +1,6 @@
 // Actor values across games (ActorValueService): an owner's health lost and regained shows on its copies.
 #include "Party.h"
+#include "Fixtures.h"
 #include <Events/ReferenceLoadedEvent.h>
 #include <Messages/Relayed.h>
 
@@ -8,24 +9,11 @@ namespace
 constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
 } // namespace
 
 SCENARIO("Health lost and regained shows on the copies", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
@@ -56,7 +44,7 @@ SCENARIO("Health lost and regained shows on the copies", "[values]")
 
 SCENARIO("A value write reads and sends only that value on the next update", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t guard = 0;
@@ -76,7 +64,7 @@ SCENARIO("A value write reads and sends only that value on the next update", "[v
 
 SCENARIO("A copy restores its owner's pools on writes without an owner resend", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t guard = 0;
@@ -110,7 +98,7 @@ SCENARIO("A copy restores its owner's pools on writes without an owner resend", 
 
 SCENARIO("Converged pools stay quiet and discrete values are not scanned", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host has the guest's player");
@@ -126,7 +114,7 @@ SCENARIO("Converged pools stay quiet and discrete values are not scanned", "[val
 
 SCENARIO("Pool packets received while a copy is absent apply when its 3D returns", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {}); });

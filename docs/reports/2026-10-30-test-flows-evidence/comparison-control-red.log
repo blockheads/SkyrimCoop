@@ -1,0 +1,15 @@
+F...
+======================================================================
+FAIL: test_equal_contents_with_different_inventory_delta_records (test_world_diff.ContainerComparison)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/Projects/SkyrimCoop/.worktrees/test-flows/scripts/test_world_diff.py", line 9, in test_equal_contents_with_different_inventory_delta_records
+    self.assertEqual(reference_differences({"items": {15: 3}, "changes": 0x40},
+AssertionError: {'changes': '0x40 vs 0x60 (bits 0x20)'} != {}
+- {'changes': '0x40 vs 0x60 (bits 0x20)'}
++ {}
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+FAILED (failures=1)

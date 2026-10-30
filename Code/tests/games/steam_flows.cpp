@@ -2,6 +2,7 @@
 // invites a friend; the friend's player accepts, its game joins the lobby, connects to the lobby's owner, and joins
 // the host's session through that connection (enet tunnelled over it).
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/GameLoadedEvent.h>
 #include <Events/MenuEvent.h>
@@ -14,12 +15,6 @@
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 SteamService& Steam(World& aGame)
 {
@@ -43,7 +38,7 @@ struct Notices
 
 SCENARIO("A friend accepts the host's Steam invite: its game joins the lobby and the host's session", "[steam]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
 
@@ -129,7 +124,7 @@ SCENARIO("A Steam lobby that is no SkyrimCoop session is refused", "[steam]")
 
 SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite and its game joins the host's", "[steam]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     Notices hostNotices(host), guestNotices(guest);
@@ -174,7 +169,7 @@ SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite
 
 SCENARIO("A player starts a new game: it hosts once its world is up, and steps down to join a friend's", "[steam]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
     party.As(host, [&] { REQUIRE(Steam(host).Host()); });
@@ -202,7 +197,7 @@ SCENARIO("A player starts a new game: it hosts once its world is up, and steps d
 
 SCENARIO("A host with friends in its game does not leave it for an invite", "[steam]")
 {
-    Party party(2, Plugins, false);
+    Party party(2, SmokeWorld, false);
     World& host = party.Host();
     World& lydia = party.Guest(0);
     World& aela = party.Guest(1);
@@ -224,7 +219,7 @@ SCENARIO("A host with friends in its game does not leave it for an invite", "[st
 
 SCENARIO("A Steam invite at the main menu joins as a kept or newly created character", "[steam][creation]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     World& host = party.Host();
     World& guest = party.Guest();
 

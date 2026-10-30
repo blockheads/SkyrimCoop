@@ -4,6 +4,7 @@
 #include "BodyTrace.h"
 #include "CommandServer.h"
 #include "ControlFiles.h"
+#include "DialogueTrace.h"
 #include "EngineEvents.h"
 #include "InputTrace.h"
 #include "PlayerInput.h"
@@ -20,6 +21,7 @@ struct Harness
     CommandServer Commands;
     AnimationTrace Trace;
     BodyTrace Bodies;
+    DialogueTrace Dialogue;
     EngineEvents Events;
     InputTrace Inputs;
     bool CommandsStarted = false;

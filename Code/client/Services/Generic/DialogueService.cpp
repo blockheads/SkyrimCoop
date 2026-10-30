@@ -280,7 +280,10 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
     }
     // Another player's option: this player may highlight it, not say it; only its chat hears why.
     if (m_shownStep == m_step)
-        if (const auto cListed = std::ranges::find(m_list, cOptions[aIndex].Topic, &IDialogueBridge::Option::Topic); cListed != m_list.end())
+        if (const auto cListed = std::ranges::find_if(m_list, [&](const IDialogueBridge::Option& acListed) {
+                return acListed.Topic == cOptions[aIndex].Topic && acListed.Info == cOptions[aIndex].Info;
+            });
+            cListed != m_list.end())
             if (const uint32_t cMe = m_transport.GetLocalPlayerId(); !CanSay(m_listPlayers[cListed - m_list.begin()], cMe))
             {
                 spdlog::info("Dialogue: option {} (topic {:X}) is another player's: not sent", aIndex, cOptions[aIndex].Topic);
@@ -304,6 +307,17 @@ void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
     if (acMessage.Conversation != m_conversation)
         return;
     m_step = acMessage.Step;
+    // Every menu in it shows the pick, as the picker's does after its click, until the next list.
+    if (m_menuOpen && m_joined)
+    {
+        const uint32_t cTopic = ToGame(acMessage.Topic), cInfo = ToGame(acMessage.Info);
+        const auto cPicked = std::ranges::find_if(m_list, [&](const IDialogueBridge::Option& acListed) {
+            return acListed.Topic == cTopic && acListed.Info == cInfo;
+        });
+        // The picker's own line of a shared option (a topic's random lines) is not listed: the topic's then.
+        const auto cTopicLine = std::ranges::find(m_list, cTopic, &IDialogueBridge::Option::Topic);
+        m_bridge.ShowPicked(cPicked != m_list.end() ? cPicked->Text : cTopicLine != m_list.end() ? cTopicLine->Text : std::string());
+    }
     const bool cOwnLine = acMessage.PlayerId == m_transport.GetLocalPlayerId();
     if (m_pRole)
         m_pRole->OnPicked(acMessage, ToGame(acMessage.Topic), ToGame(acMessage.Info), cOwnLine);

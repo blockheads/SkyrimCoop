@@ -17,7 +17,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 ### Constraints
 
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
-- **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the script docstring
+- **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
 - **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
@@ -25,16 +25,31 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **Mod compatibility**: Host's mod list is authoritative; clients must match to connect
 - **Platform**: Linux-first development, Windows compatibility maintained for end users
 
+### The bug-fix flow (the most important rule here)
+
+Every bug, in this order:
+
+1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would.
+2. **A smoke test that fails on it:** a `GameTests` flow (whole games in-process on the fake engine). If the fake
+   cannot show it, first teach the fake the engine fact Skyrim showed.
+   **Then free the duo** (stop your games, release `build/coop-test/DUO.md`): steps 2-4 need no Skyrim. If the smoke
+   test cannot show the bug yet, queue for the duo again only to learn the engine fact the fake lacks.
+3. **Unit tests** for the logic (`ClientTests`, `HostAuthorityTests`), then the fix.
+4. **The smoke test passes**, with `scripts/check.sh`.
+
+Iterate in tiers 1-2, not in Skyrim: the duo is shared and slow (one pair of games, minutes a run). So the duo is queued
+only to recreate a bug, write a scenario or build a feature; step 1's scenarios are rerun together in combined runs
+(before a push or merge, or at a cadence; another agent can do it). Every bug fixed this way leaves a fast test that
+keeps catching it, so the fast suite grows into the one that matters.
+
 ### Engineering rules
 
 - **Test code never widens production interfaces.** No harness methods on the bridges, services or engine structs; the harness reads engine state through its own `TestHarness/EngineCalls`, and production code calls the harness only through the gated entry points.
 - **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
-- **Every bug gets a test in the fastest tier that can show it.** A bug Skyrim finds (a scenario, a soak, play) is
-  fixed with a tier 1 test (`ClientTests`, `HostAuthorityTests`) or tier 2 flow (`GameTests`) that fails without the fix,
-  unless only Skyrim can show it; then a scenario, and what was learned goes into the fake engine
-  (`docs/design/testing.md`).
+- **Every bug follows the bug-fix flow** (above): a scenario shows it, a GameTests flow fails on it, unit tests and the
+  fix, the flow passes. The fake engine learns what Skyrim taught (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
 - **Host, guest, every game.** Code only the host runs lives in `Services/Host/` (rules, `HostAuthority`) and `Bridges/HostEngine`; code only a guest runs in `Services/Guest/` and `Bridges/GuestEngine`, made by `GuestService` on joining. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
@@ -93,7 +108,7 @@ Code/
 │   ├── Systems/         # Interpolation, animation, rendering
 │   ├── Ui/              # The in-game UI (RmlUi)
 │   ├── Diagnostics/     # Bug reports (/bug, /export, crash bundles) and the readouts the harness shares
-│   ├── TestHarness/     # What scripts/coop_test.py drives; test builds only
+│   ├── TestHarness/     # What scripts/coop_harness drives; test builds only
 │   └── HotReload/       # Swapping a rebuilt DLL into a running game; test builds only
 ├── encoding/            # Messages (Messages/), shared structs (Structs/), the wire buffer (Wire/), opcodes
 ├── network/             # The enet transport (Net::Server under HostNetwork, Net::Client under TransportService)

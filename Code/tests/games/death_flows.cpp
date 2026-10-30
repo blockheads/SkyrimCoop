@@ -1,6 +1,7 @@
 // Death and respawn across games (docs/design/copy-contract.md): a copy dies by its owner's death, never by its own
 // health; a player dies on its own game and is revived there, and the others spawn its copy again.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/SessionNoticeEvent.h>
 #include <Messages/NotifyRespawn.h>
@@ -42,13 +43,7 @@ struct ChatNotices
 };
 
 // aGame's copy of the other game's player, by form id (0: none).
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
+
 
 // aGame's dead player copies.
 size_t DeadPlayerCopies(const FakeEngine& acEngine)

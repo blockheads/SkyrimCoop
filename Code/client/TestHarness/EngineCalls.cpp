@@ -1107,7 +1107,10 @@ DialogueState GetDialogue() noexcept
         state.Selected = cRead("_root.DialogueMenu_mc.TopicList.selectedIndex");
         const int32_t cCursor = cRead("_root.DialogueMenu_mc.TopicList.selectedEntry.topicIndex");
         if (cCursor >= 0 && static_cast<size_t>(cCursor) < state.Options.size())
+        {
             state.CursorTopic = state.Options[cCursor].Topic;
+            state.CursorIndex = cCursor;
+        }
     }
     return state;
 }

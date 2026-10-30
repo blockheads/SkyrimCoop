@@ -1,5 +1,5 @@
 // The shared specs (Code/tests/specs/*.json) against the fake engine: the same files run in Skyrim
-// (docs/design/testing.md, "Shared specs"). One section per spec: `GameTests "[spec]" -c <name>` runs one.
+// (docs/design/testing.md, "Shared specs"). Each spec is a runtime-discovered Catch2 case: `GameTests "spec:<name>"`.
 #include "Party.h"
 
 #include <Structs/GridCellCoords.h>
@@ -361,21 +361,65 @@ struct SpecRun
 };
 } // namespace
 
-TEST_CASE("Shared specs against the fake engine", "[spec]")
+namespace
+{
+struct SpecInvoker final : Catch::ITestInvoker
+{
+    explicit SpecInvoker(std::filesystem::path aPath) : Path(std::move(aPath)) {}
+
+    void invoke() const override
+    {
+        std::ifstream file(Path);
+        const Json cSpec = Json::parse(file);
+        const std::string cName = cSpec.at("name").get<std::string>();
+        Party party(cSpec.value("guests", 1), QaSmoke);
+        SpecRun run{party, cName};
+        std::exception_ptr failure;
+        try
+        {
+            run.Run(cSpec.at("steps"), false);
+        }
+        catch (...)
+        {
+            failure = std::current_exception();
+        }
+        // REQUIRE/FAIL abort a step. Still attempt every cleanup step and preserve the action failure.
+        const auto cCleanup = cSpec.value("cleanup", Json::array());
+        for (size_t i = 0; i < cCleanup.size(); ++i)
+        {
+            try
+            {
+                run.Step(cCleanup[i], std::format("{}, cleanup {}: {}", cName, i + 1, cCleanup[i].dump()));
+            }
+            catch (...)
+            {
+                if (!failure)
+                    failure = std::current_exception();
+            }
+        }
+        // Party's destructor releases actors, worlds and transports even on assertion failures.
+        if (failure)
+            std::rethrow_exception(failure);
+    }
+
+    std::filesystem::path Path;
+};
+} // namespace
+
+void RegisterSpecs()
 {
     const auto cSpecs = Specs();
-    REQUIRE(!cSpecs.empty());
+    if (cSpecs.empty())
+        throw std::runtime_error("no shared specs found in " COOP_SPECS_DIR);
     for (const auto& cPath : cSpecs)
     {
         std::ifstream file(cPath);
         const Json cSpec = Json::parse(file);
-        const std::string cName = cSpec.at("name").get<std::string>();
-        DYNAMIC_SECTION(cName)
-        {
-            Party party(cSpec.value("guests", 1), QaSmoke);
-            SpecRun run{party, cName};
-            run.Run(cSpec.at("steps"), false);
-            run.Run(cSpec.value("cleanup", Json::array()), true);
-        }
+        const std::string cName = "spec:" + cSpec.at("name").get<std::string>();
+        std::string tags = "[spec]";
+        for (const auto& cTag : cSpec.value("tags", std::vector<std::string>{"scripts"}))
+            tags += "[" + cTag + "]";
+        Catch::getMutableRegistryHub().registerTest(Catch::makeTestCase(
+            new SpecInvoker(cPath), "", Catch::NameAndTags(cName, tags), Catch::SourceLineInfo(__FILE__, __LINE__)));
     }
 }

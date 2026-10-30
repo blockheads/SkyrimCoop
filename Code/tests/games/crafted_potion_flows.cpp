@@ -2,6 +2,7 @@
 // names it by its recipe, so it travels as any item does: to its brewer's copies, through chests, dropped, on a weapon.
 // A character record keeps them (join_flows.cpp).
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Services/ContainerTransfers.h>
 
@@ -35,14 +36,7 @@ Recipe Venom()
 }
 
 // That game's copies of other games' players.
-std::vector<uint32_t> PlayerCopies(const FakeEngine& acEngine)
-{
-    std::vector<uint32_t> copies;
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            copies.push_back(cId);
-    return copies;
-}
+
 
 // How many of a recipe's potions that game's actor carries.
 int32_t Holds(const FakeEngine& acEngine, uint32_t aActor, const Recipe& acRecipe)

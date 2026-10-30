@@ -414,10 +414,10 @@ TEST_CASE("Dialogue: only a player in the conversation picks", "[HostAuthority][
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a pick is a topic of the party's list, said with its speaker's line", "[HostAuthority][Dialogue]")
+TEST_CASE("Dialogue: a pick is a line of the party's list, the picker's own", "[HostAuthority][Dialogue]")
 {
     // A topic nobody in it has (one only the guest's engine offered) is not said, and the presser's menu gets the
-    // party's list again; a listed topic is said with its speaker's own line, whatever line the menu showed.
+    // party's list again; neither is a line of a listed topic that is not the picker's (each line is its own option).
     Talking talking;
     auto& session = talking.session;
     session.Receive(kPeer, Join(talking.Id));
@@ -430,6 +430,9 @@ TEST_CASE("Dialogue: a pick is a topic of the party's list, said with its speake
     CHECK(talking.LastList(kPeer).Step == 1);
 
     talking.Pick(kPeer, 1, 0xB, GameId(0, 0xB2));
+    CHECK(session.SentTo<NotifyDialoguePicked>(kOtherPeer).empty());
+
+    talking.Pick(kPeer, 1, 0xB);
     const auto cPicked = session.SentTo<NotifyDialoguePicked>(kOtherPeer);
     REQUIRE(cPicked.size() == 1);
     CHECK(cPicked[0]->Info == GameId(0, 0xB1));
@@ -481,6 +484,68 @@ TEST_CASE("Dialogue: every menu shows the party's list, each option tagged with 
     const auto& cWithHost = talking.LastList(kHost);
     CHECK(cWithHost.Options[1].Players == std::vector<uint32_t>{session.PlayerId(kOtherPeer), session.PlayerId(kHost)});
     CHECK(cWithHost.Options[0].Players.empty());
+}
+
+TEST_CASE("Dialogue: a topic with a line per player lists each line on every menu, named for who has it", "[HostAuthority][Dialogue]")
+{
+    // Lucan's claw (2026-10-30, the user): the holder's "I have your claw." and the others' line are two options of
+    // one topic, on every menu alike, the holder's right after the others'.
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    session.Receive(kHost, Join(talking.Id));
+    DialogueOptions own = Talking::Options();
+    own[0].Info = GameId(0, 0xA9);
+    own[0].Text = "I have your claw.";
+    DialogueOptionsRequest list;
+    list.Conversation = talking.Id;
+    list.Step = 1;
+    list.Options = Talking::Options();
+    list.Players = {{session.PlayerId(kPeer), own}};
+    session.Receive(kHost, list);
+
+    const auto& cList = talking.LastList(kPeer);
+    CHECK(talking.LastList(kHost).Options == cList.Options);
+    REQUIRE(cList.Options.size() == 5);
+    CHECK((cList.Options[0].Info == GameId(0, 0xA1) && cList.Options[0].Players == std::vector<uint32_t>{session.PlayerId(kHost)}));
+    CHECK((cList.Options[1].Info == GameId(0, 0xA9) && cList.Options[1].Players == std::vector<uint32_t>{session.PlayerId(kPeer)}));
+    CHECK(cList.Options[2].Players.empty());
+
+    session.Outbox.clear();
+    talking.Pick(kHost, 1, 0xA, GameId(0, 0xA9));
+    CHECK(session.SentTo<NotifyDialoguePicked>(kPeer).empty());
+    talking.Pick(kPeer, 1, 0xA, GameId(0, 0xA9));
+    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+    REQUIRE(cPicked.size() == 1);
+    CHECK((cPicked[0]->Info == GameId(0, 0xA9) && cPicked[0]->PlayerId == session.PlayerId(kPeer)));
+}
+
+TEST_CASE("Dialogue: a topic's random lines with one text are one option, said with each picker's own line", "[HostAuthority][Dialogue]")
+{
+    // A topic with random lines: judged for each player, the same prompt can come with another line. One option, for
+    // everyone; a pick says the picker's own line.
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    session.Receive(kHost, Join(talking.Id));
+    DialogueOptions own = Talking::Options();
+    own[0].Info = GameId(0, 0xA2); // "Tell me about A." again
+    DialogueOptionsRequest list;
+    list.Conversation = talking.Id;
+    list.Step = 1;
+    list.Options = Talking::Options();
+    list.Players = {{session.PlayerId(kPeer), own}};
+    session.Receive(kHost, list);
+
+    const auto& cList = talking.LastList(kPeer);
+    REQUIRE(cList.Options.size() == 4);
+    CHECK((cList.Options[0].Info == GameId(0, 0xA1) && cList.Options[0].Players.empty()));
+
+    session.Outbox.clear();
+    talking.Pick(kPeer, 1, 0xA);
+    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+    REQUIRE(cPicked.size() == 1);
+    CHECK(cPicked[0]->Info == GameId(0, 0xA2));
 }
 
 TEST_CASE("Dialogue: a player says only its own options; another's is refused, and only it is told why", "[HostAuthority][Dialogue]")

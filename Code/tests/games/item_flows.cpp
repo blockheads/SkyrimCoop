@@ -2,33 +2,19 @@
 // items stay its own (docs/design/party-model.md), its gold is the party's (purse_flows.cpp). Each ends with the actor checksum (Party::Agree), which
 // compares what each copy carries with its owner's actor.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Components.h>
 
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
-constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kGold = 0x0000000F;
 constexpr uint32_t kIronSword = 0x00012EB7;
-constexpr uint32_t kApple = 0x00064B31;
-constexpr uint32_t kLockpick = 0x0000000A;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 // That game's copies of other games' players.
-std::vector<uint32_t> PlayerCopies(const FakeEngine& acEngine)
-{
-    std::vector<uint32_t> copies;
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            copies.push_back(cId);
-    return copies;
-}
+
+
 
 bool Wears(const FakeEngine& acEngine, uint32_t aActor, uint32_t aItem)
 {
@@ -39,72 +25,9 @@ bool Wears(const FakeEngine& acEngine, uint32_t aActor, uint32_t aItem)
 }
 } // namespace
 
-SCENARIO("A player's items reach its copy and stay its own", "[items]")
-{
-    Party party(1, Plugins);
-    FakeEngine& host = Party::Engine(party.Host());
-    FakeEngine& guest = Party::Engine(party.Guest());
-    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; },
-                "each game has the other's player");
-    const auto cCopy = [&] { return PlayerCopies(host)[0]; };
-
-    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kLockpick, 10); });
-    party.Until([&] { return host.CountOf(cCopy(), kLockpick) == 10; }, "the host's copy of the guest carries its lockpicks");
-    THEN("the host's player has none of them") CHECK(host.CountOf(FakeEngine::kPlayer, kLockpick) == 0);
-    party.Agree("the games agree on the lockpicks");
-
-    WHEN("the guest's player breaks some")
-    {
-        party.As(party.Guest(), [&] { guest.LosesItem(FakeEngine::kPlayer, kLockpick, 4); });
-        party.Until([&] { return host.CountOf(cCopy(), kLockpick) == 6; }, "the copy carries what is left");
-        party.Agree("the games agree on the lockpicks left");
-    }
-
-    WHEN("the guest's player draws a sword and drops it")
-    {
-        party.As(party.Guest(), [&] {
-            guest.GetsItem(FakeEngine::kPlayer, kIronSword, 1);
-            guest.Equips(FakeEngine::kPlayer, kIronSword);
-        });
-        party.Until([&] { return Wears(host, cCopy(), kIronSword); }, "the copy holds the sword");
-        party.As(party.Guest(), [&] { guest.Drops(FakeEngine::kPlayer, kIronSword, 1); });
-        party.Until([&] { return host.CountOf(cCopy(), kIronSword) == 0; }, "the copy no longer has it");
-        THEN("nor holds it")
-        {
-            CHECK(!Wears(host, cCopy(), kIronSword));
-            party.Agree("the games agree on the empty hands");
-        }
-    }
-
-    WHEN("the host's player eats an apple of its own")
-    {
-        party.As(party.Host(), [&] {
-            host.GetsItem(FakeEngine::kPlayer, kApple, 2);
-            host.LosesItem(FakeEngine::kPlayer, kApple, 1);
-        });
-        party.Until([&] { return guest.CountOf(PlayerCopies(guest)[0], kApple) == 1; }, "the guest's copy has one");
-        THEN("the guest's player has none") CHECK(guest.CountOf(FakeEngine::kPlayer, kApple) == 0);
-        party.Agree("the games agree on the apple");
-    }
-}
-
-SCENARIO("A host NPC's items reach its copy", "[items]")
-{
-    Party party(1, Plugins);
-    FakeEngine& host = Party::Engine(party.Host());
-    FakeEngine& guest = Party::Engine(party.Guest());
-
-    uint32_t guard = 0;
-    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
-    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
-    party.As(party.Host(), [&] { host.GetsItem(guard, kGold, 25); });
-    party.Until([&] { return guest.CountOf(guest.CopiesOf(kGuard)[0], kGold) == 25; }, "the copy carries the gold");
-    party.Agree("the games agree on the guard's gold");
-}
-
 SCENARIO("A guest joining later gets another guest's player as it is now", "[items]")
 {
-    Party party(2, Plugins, false);
+    Party party(2, SmokeWorld, false);
     FakeEngine& first = Party::Engine(party.Guest(0));
     FakeEngine& second = Party::Engine(party.Guest(1));
     party.Join(party.Guest(0));
@@ -131,7 +54,7 @@ SCENARIO("A guest joining later gets another guest's player as it is now", "[ite
 
 SCENARIO("What a player does right after its game announces it reaches its copy", "[items]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Join(party.Guest());

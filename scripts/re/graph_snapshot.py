@@ -98,9 +98,9 @@ def parse_actor(data):
 
 def fetch(instance, actor):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    import coop_test
-    coop_test.select_instance(instance)
-    response = coop_test.rpc({"cmd": "graph_state", "actor": actor})
+    from coop_harness.game import Game
+    with Game(instance) as game:
+        response = game.rpc({"cmd": "graph_state", "actor": actor})
     if not response or not response.get("ok"):
         raise SystemExit(f"no graph state: {response}")
     return bytes.fromhex(response["state"]), response["micros"]

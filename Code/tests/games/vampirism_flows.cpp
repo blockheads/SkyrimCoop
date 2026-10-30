@@ -2,6 +2,7 @@
 // own instance of PlayerVampireQuest; each player hungers on its own; the story's cure cures them all; a guest's
 // vampirism is kept in its record.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Papyrus/SystemQuests.h>
 #include <Services/JoinService.h>
@@ -81,14 +82,6 @@ void VampireQuest(FakeEngine& aEngine)
 LocalCall VampireCall(const char* acpFunction, std::vector<LocalValue> aArguments = {LocalForm{FakeEngine::kPlayer}})
 {
     return {.Class = "PlayerVampireQuestScript", .Function = acpFunction, .Self = LocalForm{kVampireQuest}, .Arguments = std::move(aArguments)};
-}
-
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
 }
 
 uint32_t RaceOf(const FakeEngine& acEngine)

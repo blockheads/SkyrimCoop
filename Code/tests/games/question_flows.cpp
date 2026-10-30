@@ -2,22 +2,19 @@
 // rule 3; party-calls.md, "Questions"): a quest's timer measuring how far the player is from its marker answers for
 // the nearest player.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
+
 } // namespace
 
 SCENARIO("A quest's timer asks how far the player is: the nearest player answers", "[questions]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.Agree("the players are present");
@@ -49,7 +46,7 @@ SCENARIO("A quest's timer asks how far the player is: the nearest player answers
 
 SCENARIO("A quest's timer asks whether a guard sees the player: yes if it sees any player", "[questions]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.Agree("the players are present");

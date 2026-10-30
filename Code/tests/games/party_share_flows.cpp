@@ -1,6 +1,7 @@
 // The party is the Dragonborn (docs/design/dragonborn.md): words of power, dragon souls and the story's factions and
 // spells a player takes reach every player, whichever game's engine wrote them; a player's own moment stays theirs.
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -12,19 +13,9 @@ constexpr uint32_t kBeastForm = 0x92C48;     // the Companions' Beast Form power
 constexpr uint32_t kWerewolfQuest = 0x2BA16; // PlayerWerewolfQuest, started by the beast form's effect
 constexpr uint32_t kSmoke = 0x30A4F;          // QASmoke
 
-void Plugins(FakeEngine& aEngine)
+void TitleWorld(FakeEngine& aEngine)
 {
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
-// That game's copy of a player of another game (the first, with aSkip copies passed).
-uint32_t PlayerCopy(const FakeEngine& acEngine, size_t aSkip = 0)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player && aSkip-- == 0)
-            return cId;
-    return 0;
+    PlayerCell(aEngine, kSmoke);
 }
 
 float SoulsOf(FakeEngine& aEngine)
@@ -45,7 +36,7 @@ bool HasSpell(FakeEngine& aEngine, uint32_t aSpell)
 
 SCENARIO("A word of power any game's player learns, every player knows", "[dragonborn]")
 {
-    Party party(2, Plugins);
+    Party party(2, TitleWorld);
     World& host = party.Host();
     World& guest = party.Guest(0);
     World& other = party.Guest(1);
@@ -93,7 +84,7 @@ SCENARIO("A word of power any game's player learns, every player knows", "[drago
 
 SCENARIO("A dragon's soul reaches every player, whoever killed it; each spends its own", "[dragonborn]")
 {
-    Party party(2, Plugins);
+    Party party(2, TitleWorld);
     World& host = party.Host();
     World& guest = party.Guest(0);
     World& other = party.Guest(1);
@@ -149,7 +140,7 @@ SCENARIO("A dragon's soul reaches every player, whoever killed it; each spends i
 
 SCENARIO("The story's titles and beast blood reach every player; a player's beast form stays theirs", "[dragonborn]")
 {
-    Party party(1, Plugins);
+    Party party(1, TitleWorld);
     World& host = party.Host();
     World& guest = party.Guest();
     auto& hostEngine = Party::Engine(host);
@@ -199,7 +190,7 @@ SCENARIO("A dragon dissolving shows on every game, though the guest's kill start
 {
     constexpr uint32_t kDragon = 0x1CA03;          // EncDragon01Fire
     constexpr uint32_t kAbsorbEffect = 0x280C0;    // a VisualEffect (DragonAbsorbEffect's kind)
-    Party party(1, Plugins);
+    Party party(1, TitleWorld);
     World& host = party.Host();
     World& guest = party.Guest();
     auto& hostEngine = Party::Engine(host);

@@ -20,7 +20,9 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import coop_test  # noqa: E402
+from coop_harness.game import Game  # noqa: E402
+
+GAMES = {name: Game(name) for name in ("", "client")}
 import graph_snapshot  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,8 +37,7 @@ def descriptor_variables(name):
 
 
 def rpc(instance, request):
-    coop_test.select_instance(instance)
-    return coop_test.rpc(request, timeout=10.0) or {}
+    return GAMES[instance].rpc(request, timeout=10.0) or {}
 
 
 def writers(instance, actor):
@@ -80,8 +81,7 @@ def pairs():
     """(owner game, owner form id, copy game, copy form id, name) for every owned actor with a copy."""
     worlds = {}
     for game in ("", "client"):
-        coop_test.select_instance(game)
-        worlds[game] = (coop_test.read_status() or {}).get("world") or {}
+        worlds[game] = (GAMES[game].read_status() or {}).get("world") or {}
     found = []
     for game, world in worlds.items():
         copies = {s["mod"]["session_id"]: int(fid) for fid, s in worlds[OTHER[game]].items() if s.get("role") == "copy"}
@@ -95,8 +95,7 @@ def pairs():
 
 def behind(game, copy):
     """How far behind its owner the copy shows, seconds (CopyPlayback, the harness's behind_ms)."""
-    coop_test.select_instance(game)
-    return ((coop_test.read_status() or {}).get("actors", {}).get(str(copy), {}).get("behind_ms", 300)) / 1000
+    return ((GAMES[game].read_status() or {}).get("actors", {}).get(str(copy), {}).get("behind_ms", 300)) / 1000
 
 
 def main():
@@ -143,4 +142,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        for game in GAMES.values():
+            game.close()

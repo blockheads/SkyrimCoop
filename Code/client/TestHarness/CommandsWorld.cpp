@@ -743,7 +743,13 @@ nlohmann::json Dialogue(Harness&, const nlohmann::json&)
             {"last_info", cState.LastInfo},
             {"options", options},
             {"swf", {{"allow_progress", cState.AllowProgress}, {"state", cState.SwfState}, {"selected", cState.Selected},
-                     {"cursor", cState.CursorTopic}}}};
+                     {"cursor", cState.CursorTopic}, {"cursor_index", cState.CursorIndex}}}};
+}
+
+// {"cmd": "dialogue_trace"}: this game's conversation changes since the last take (DialogueTrace).
+nlohmann::json DialogueTraceCommand(Harness& aHarness, const nlohmann::json&)
+{
+    return {{"ok", true}, {"entries", aHarness.Dialogue.Take()}};
 }
 
 // {"cmd": "force_greet", "actor": id}: the actor starts a conversation with the player (its ForceGreet package).
@@ -912,6 +918,7 @@ constexpr Command cCommands[] = {
     {"papyrus_call", true, &PapyrusCall},
     {"papyrus_result", false, &PapyrusResult},
     {"dialogue", true, &Dialogue},
+    {"dialogue_trace", false, &DialogueTraceCommand},
     {"dialogue_pick", true, &DialoguePick},
     {"judged_line", true, &JudgedLine},
     {"item_count", true, &ItemCount},

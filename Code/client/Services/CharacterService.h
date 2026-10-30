@@ -129,9 +129,8 @@ private:
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
     // Where our actor is now, for its copies to follow when we stop simulating it.
     [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
-    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy. True
-    // when it was deleted.
-    bool FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
+    // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy.
+    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
 
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
     // An actor as it is now: where, its values, inventory and hands, and the action it last took.

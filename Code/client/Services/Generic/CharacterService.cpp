@@ -643,17 +643,17 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     const entt::entity cEntity = *itor;
     const auto* pFormIdComponent = m_world.try_get<FormIdComponent>(cEntity);
     const uint32_t cFormId = pFormIdComponent ? pFormIdComponent->Id : 0;
-    // A copy we spawned (temporary reference) goes with its owner's actor. Checking only for a temporary *base*
-    // kept copies of real NPC bases (e.g. a placed chicken) as frozen leftovers.
+    // A copy we spawned (temporary reference) goes with its owner's actor. A placed one, even on a leveled
+    // (temporary) base, is the plugin's: it follows its owner (FollowOwner).
     bool deleted = false;
-    if (cFormId && (m_actorBridge.IsActorTemporary(cFormId) || m_actorBridge.IsActorNpcTemporary(cFormId)))
+    if (cFormId && m_actorBridge.IsActorTemporary(cFormId))
     {
         m_actorBridge.DeleteActor(cFormId);
         deleted = true;
         spdlog::info("\tDeleted actor {:X}", cFormId);
     }
     else if (cFormId && m_actorBridge.IsActorCopy(cFormId))
-        deleted = FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+        FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
 
     DeleteRemoteEntityComponents(cEntity);
     // The engine reuses a deleted copy's form id for the next one: an entity left holding it
@@ -667,7 +667,7 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     }
 }
 
-bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
 {
     // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").
     m_world.emplace_or_replace<HeldCopyComponent>(aEntity);
@@ -680,28 +680,28 @@ bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
         {
             spdlog::warn("Copy {:X}: its owner's actor went to cell {:X} (worldspace {:X}), which this game lacks", aFormId,
                          acWhereabouts.CellId.BaseId, acWhereabouts.WorldSpaceId.BaseId);
-            return false;
+            return;
         }
         float x = 0.f, y = 0.f, z = 0.f;
         m_actorBridge.GetActorPosition(aFormId, x, y, z);
         const glm::vec3 cHere{x, y, z};
         if (m_actorBridge.GetActorParentCellFormId(aFormId) == cCellId && glm::distance(cHere, glm::vec3(acWhereabouts.Position)) < 64.f)
-            return false;
+            return;
         spdlog::info("Copy {:X} follows its owner's actor to cell {:X}", aFormId, cCellId);
         m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
         m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
-        return false;
+        return;
     }
     case ActorWhereabouts::State::kDisabled:
     case ActorWhereabouts::State::kDeleted:
-    {
-        const bool cDelete = acWhereabouts.Where == ActorWhereabouts::State::kDeleted;
-        spdlog::info("Copy {:X}: its owner's actor was {}", aFormId, cDelete ? "deleted" : "disabled");
-        m_actorBridge.DisableActor(aFormId, cDelete);
-        return cDelete;
-    }
+        // Disabled only: a guest deleting a plugin's reference crashed its next load (2026-10-30-deleted-placed-ref-load.md);
+        // the host's save carries the deletion.
+        spdlog::info("Copy {:X}: its owner's actor was {}", aFormId,
+                     acWhereabouts.Where == ActorWhereabouts::State::kDeleted ? "deleted" : "disabled");
+        m_actorBridge.DisableActor(aFormId, false);
+        return;
     default:
-        return false;
+        return;
     }
 }
 

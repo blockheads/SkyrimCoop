@@ -241,7 +241,8 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
 
 - **What happens.** The host's NPC leaves the host's game (walks out of the loaded area, is moved away, is
   disabled): the server removes it, and each client's `CharacterService::OnRemoveCharacter` deletes the copy
-  only if the client spawned it (a temporary reference: `IsActorTemporary`, `IsActorNpcTemporary`). A copy of a
+  only if the client spawned it (a temporary reference: `IsActorTemporary`; since 2026-10-30 not a placed reference on
+  a leveled base, `IsActorNpcTemporary`, which `DeleteActor` refused and left standing). A copy of a
   placed NPC (Vilkas, `0x1A695`) is the client's own reference from the game data: it only loses its copy
   components (`DeleteRemoteEntityComponents`) and stays where the copy last stood.
 - **What the client then has.** Its game treats that NPC as its own actor: the status lists it under the
@@ -263,7 +264,9 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
   (`CharacterService::ReadWhereabouts`: cell, worldspace, position and heading, or disabled, or deleted) and sends
   it with the removal (`RequestRemoveCharacter`/`NotifyRemoveCharacter::Whereabouts`, `ActorWhereabouts`). The
   guest's `FollowOwner` moves its reference there (skipped within 64 units in the same cell), or disables it
-  (deleted: disabled and marked deleted), and keeps it flagged a copy (`HeldCopyComponent`) until the host's next
+  (deleted too: only disabled since 2026-10-30, as a plugin's reference marked deleted on a guest preceded both guest
+  load crashes, [2026-10-30-deleted-placed-ref-load.md](../re/crashes/2026-10-30-deleted-placed-ref-load.md); the
+  host's save carries the deletion), and keeps it flagged a copy (`HeldCopyComponent`) until the host's next
   spawn of it or the session's end. A game reference dropped on an arrival is held the same way: before, it lost
   its copy flag and the guest ran that NPC's AI wherever it was left. The copy follows where the host's actor was
   at removal; an unloaded host NPC walking on (its schedule) is not followed until it is spawned again.

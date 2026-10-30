@@ -61,13 +61,31 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
 (`HookInitFromPackage`, ClientTests `[CopyPackage]`). Found, open:
 
 - Lydia's dialogue idle differs mid-conversation (`animation.idle` 1105592 on the host vs 1105590 on the copy).
-- Whiterun guards outdoors: the copy's `identity.name` reads "Imperial Soldier" (host "Whiterun Guard").
 - Outdoors: an Imperial Soldier's turn (`TurnRight` vs `turnStop`) and an Elk's `weapon_drawn` differ.
-- The guest's own player stays low (pelvis ~33, head ~54, no animation, in either camera) after a scenario stopped
-  mid-conversation; its copy stands. Likely the "players read as kneeling after a follower trade" entry in bugs.md.
-- Guest crash, twice, loading the host's save in `follower-anchor-saved` right after a failed trade scenario:
-  `TESObjectCELL::sub_19032+0x390` `call [rax+0x120]` under `LoadGame` (35600), none of our frames
-  (`crash-2026-10-30-09-25-02`, `09-34-28` in the client prefix).
+- Guest crash, twice, loading the host's save in `follower-anchor-saved` (`crash-2026-10-30-09-25-02`, `09-34-28`):
+  the harness cleanup had deleted the world's NPCs, the guest marked its copies deleted, and the load handed one
+  to a freed cell. Fixed 2026-10-30 without a reproduction (not reproduced in vanilla, the duo or the follower tag
+  again): a guest only disables a plugin's reference, and the cleanup deletes only what a scenario created
+  ([2026-10-30-deleted-placed-ref-load.md](re/crashes/2026-10-30-deleted-placed-ref-load.md)).
+- The guest's player "stays low" after it died and was brought back: `follower-anchor-dies` then
+  `follower-anchor-saved` reproduces it (2026-10-30). Right after the revive it stands; at the next scenario's first
+  conversation its own body kneels (pelvis ~29, head ~55, like the bleedout pose) and later stands again; once its
+  death ragdoll was left awake too (18 bodies). The host sees its copy standing. Likely the open revive item in
+  [death.md](design/death.md) (the behavior graph is not reset by a revive). A later conversation without a death
+  first does not show it. Not the trade. Out of v1 scope (the user, 2026-10-30): in [bugs.md](bugs.md).
+- Found 2026-10-30 (merged build): after the guest hands Lucan the claw (`dialogue-options-are-the-partys`, its
+  script run for the guest), the host's copy of the guest's player wears only one item: its armor and weapon gone
+  (`copy lacks 12E46, 12E4B, 12E4D, 13790`). Open.
+- Found 2026-10-30 (merged build): `guest-cannot-load` failed once on a lock-order report with our code on the stack
+  (`+0x3cdb45 > +0x1823d0 vs +0x182e91 > +0x3d1507`, client). Open; not related to this batch's changes as far as
+  read.
+- Dialogue's harness check found and the fixes closed: each menu its own claw line, a list a step behind after a
+  pick, a guest's menu blank while the NPC answered. The picked line overlapping in the claw conversation is in
+  bugs.md (out of v1).
+- Copies of leveled NPCs roll their own leveled entry: placed guards in QASmoke ("Whiterun Guard" vs "Imperial
+  Soldier") and a spawned "Bandit Chief" vs "Bandit Outlaw" (2026-10-30).
+- Found 2026-10-30 in the follower tag: Lydia's copy lacks a worn item (`10E2DE`) mid-trade; a Vigilant of
+  Stendarr's magicka differs (87 vs 57).
 
 ## Recent unresolved findings
 

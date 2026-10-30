@@ -5,6 +5,7 @@
 #include <Services/DialogueService.h>
 #include <Events/MenuEvent.h>
 #include "Party.h"
+#include "Fixtures.h"
 #include <Events/SessionNoticeEvent.h>
 #include <SessionIds.h>
 
@@ -15,12 +16,6 @@ constexpr uint32_t kGuard = 0x0001A67C;
 const IDialogueBridge::Option kNews{.Topic = 0x1001, .Info = 0x2001, .Text = "What's the news?"};
 const IDialogueBridge::Option kGoodbye{.Topic = 0x1002, .Info = 0x2002, .Text = "Goodbye."};
 const IDialogueBridge::Option kMore{.Topic = 0x1003, .Info = 0x2003, .Text = "Tell me more."};
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 // The chat's system lines this game's player reads (SessionNoticeEvent).
 struct Notices
@@ -46,7 +41,7 @@ void Topics(World& aGame)
 
 SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, the guest picks its lines", "[dialogue]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     Topics(party.Host());
@@ -86,7 +81,7 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
     const IDialogueBridge::Option cNoClaw{.Topic = 0x1004, .Info = 0x2004, .Text = "About your claw..."};
     const IDialogueBridge::Option cDeal{.Topic = 0x1005, .Info = 0x2006, .Text = "Let's make a deal."};
     const IDialogueBridge::Option cGift{.Topic = 0x1006, .Info = 0x2007, .Text = "A gift for you."};
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     FakeDialogue& hostTalk = Dialogue(party.Host());
@@ -119,22 +114,23 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
                 "alone in it, the guest's menu has its own lines (the host's order, then its own)");
 
     party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(guard); });
-    party.Until([&] { return hostTalk.MenuOpen && hostTalk.Options.size() == 4 && guestTalk.Options.size() == 4; },
-                "the host joins: both menus show the party's list");
-    THEN("each its own line of the claw topic, the other's options named")
+    party.Until([&] { return hostTalk.MenuOpen && hostTalk.Options.size() == 5 && guestTalk.Options == hostTalk.Options; },
+                "the host joins: both menus show the party's list, the same list");
+    THEN("both lines of the claw topic, each named for its player; the other's options named (2026-10-30, the user)")
     {
-        CHECK(cTexts(hostTalk.Options)[0] == "About your claw...");
-        CHECK(cTexts(guestTalk.Options)[0] == "I have your claw.");
-        CHECK(hostTalk.Options[1].Text.starts_with("Let's make a deal. ["));
-        CHECK(guestTalk.Options[1].Text == hostTalk.Options[1].Text);
-        CHECK(cTexts(hostTalk.Options)[2] == "Goodbye.");
-        CHECK(hostTalk.Options[3].Text.starts_with("A gift for you. ["));
+        const auto cTexts0 = cTexts(hostTalk.Options);
+        CHECK(cTexts0[0].starts_with("About your claw... ["));
+        CHECK(cTexts0[1].starts_with("I have your claw. ["));
+        CHECK(cTexts0[0] != cTexts0[1]);
+        CHECK(cTexts0[2].starts_with("Let's make a deal. ["));
+        CHECK(cTexts0[3] == "Goodbye.");
+        CHECK(cTexts0[4].starts_with("A gift for you. ["));
     }
 
     WHEN("the host presses the guest's gift")
     {
         Notices hostNotices(party.Host()), guestNotices(party.Guest());
-        party.As(party.Host(), [&] { hostTalk.PlayerPicks(3); });
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(4); });
         for (int i = 0; i < 20; ++i)
             party.Frame();
         THEN("nothing is said; only the host's chat tells its player why")
@@ -148,7 +144,7 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
     }
     WHEN("the guest presses its gift")
     {
-        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(3); });
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(4); });
         party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the gift");
         THEN("it is the guest's line, its script run for the guest's character")
         {
@@ -160,7 +156,7 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
     WHEN("the guest presses the host's deal")
     {
         Notices guestNotices(party.Guest());
-        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(2); });
         for (int i = 0; i < 20; ++i)
             party.Frame();
         THEN("nothing is said; the guest's chat tells it why")
@@ -169,18 +165,81 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
             CHECK(guestNotices.Lines.size() == 1);
         }
     }
-    WHEN("the guest presses the claw topic")
+    WHEN("the host presses the guest's line of the claw topic")
     {
-        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
-        party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the guest's pick");
-        THEN("its own line of the topic, not the host's player's")
-        CHECK(hostTalk.Said == std::vector{cHasClaw});
+        Notices hostNotices(party.Host());
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(1); });
+        for (int i = 0; i < 20; ++i)
+            party.Frame();
+        THEN("nothing is said: that line is the holder's")
+        {
+            CHECK(hostTalk.Said.empty());
+            CHECK(hostNotices.Lines.size() == 1);
+        }
     }
+    WHEN("each presses its own line of the claw topic")
+    {
+        const bool cGuestPicks = GENERATE(true, false);
+        party.As(cGuestPicks ? party.Guest() : party.Host(), [&] { (cGuestPicks ? guestTalk : hostTalk).PlayerPicks(cGuestPicks ? 1 : 0); });
+        party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says the pick");
+        THEN("its own line of the topic")
+        {
+            const auto& cOwn = cGuestPicks ? cHasClaw : cNoClaw;
+            REQUIRE(hostTalk.Said.size() == 1);
+            CHECK((hostTalk.Said[0].Topic == cOwn.Topic && hostTalk.Said[0].Info == cOwn.Info));
+        }
+    }
+}
+
+SCENARIO("A pick takes every menu's list away until the next one, which every menu shows alike", "[dialogue]")
+{
+    // dialogue-several-questions-deep (2026-10-30): after the host's pick the guest's menu kept the old list, then its
+    // engine showed its own once its copy's line ended, for the 27 s Andurs answered; the host's menu showed nothing.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    hostTalk.LinesTakeTime = true;
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.ListShown; }, "the guest's menu opens on the party's list");
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(guard); });
+    party.Until([&] { return party.Host().ctx().at<DialogueService>().Joined() && hostTalk.ListShown && guestTalk.ListShown &&
+                             guestTalk.Options == std::vector{kNews, kGoodbye} &&
+                             hostTalk.Options == guestTalk.Options; },
+                "both in it, both menus show the party's list", [&] {
+                    return std::format("host shown {} {} options, guest shown {} {} options, host menu {}", hostTalk.ListShown,
+                                       hostTalk.Options.size(), guestTalk.ListShown, guestTalk.Options.size(), hostTalk.MenuOpen);
+                });
+
+    party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
+    party.Until([&] { return !guestTalk.ListShown; }, "the host's pick takes the guest's list away too", [&] {
+        return std::format("host said {}, host shown {}, guest menu {}", hostTalk.Said.size(), hostTalk.ListShown, guestTalk.MenuOpen);
+    });
+    party.As(party.Guest(), [&] { guestTalk.LineEnds(); }); // its copy's line ends before the host's
+    for (int i = 0; i < 20; ++i)
+        party.Frame();
+    THEN("the guest's engine shows no list of its own while the NPC answers; both menus show the line picked")
+    {
+        CHECK(!guestTalk.ListShown);
+        CHECK(!hostTalk.ListShown);
+        CHECK(hostTalk.PickedText == kNews.Text);
+        CHECK(guestTalk.PickedText == hostTalk.PickedText);
+    }
+    party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+    party.Until([&] { return hostTalk.ListShown && guestTalk.ListShown && guestTalk.Options == std::vector{kMore, kGoodbye} &&
+                             hostTalk.Options == guestTalk.Options; },
+                "the NPC has answered: both menus show the next list");
 }
 
 SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     Topics(party.Host());
     Topics(party.Guest());
     auto& host = Party::Engine(party.Host());
@@ -204,7 +263,7 @@ SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[d
 
 SCENARIO("A guest defers the next dialogue list until its personal menu closes", "[dialogue][barter]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     Topics(party.Host());
     Topics(party.Guest());
     auto& host = Party::Engine(party.Host());
@@ -227,7 +286,7 @@ SCENARIO("A guest defers the next dialogue list until its personal menu closes",
 
 SCENARIO("A picked barter line opens only the trader's game and its Speech stays personal", "[dialogue][barter]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     auto& other = Party::Engine(party.Guest(1));
@@ -265,7 +324,7 @@ SCENARIO("A picked barter line opens only the trader's game and its Speech stays
 
 SCENARIO("The host's own pick runs its fragment for its player", "[dialogue][rewards]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     Topics(party.Host());
@@ -292,7 +351,7 @@ SCENARIO("The host's own pick runs its fragment for its player", "[dialogue][rew
 
 SCENARIO("One highlight for the conversation: a player moving it moves every menu's", "[dialogue]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     FakeEngine& other = Party::Engine(party.Guest(1));

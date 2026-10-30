@@ -1,0 +1,99 @@
+{
+  "base": "c755e622",
+  "branch": "test-flows",
+  "gate": {
+    "status": "PASS",
+    "cpp_cases": 577,
+    "cpp_assertions": 6072,
+    "game_cases": 227,
+    "game_assertions": 2302,
+    "python_tests": 30,
+    "windows_plugin_and_launcher": "PASS",
+    "ui_fixtures": "PASS"
+  },
+  "inventory_core": {
+    "before": {
+      "cases": [
+        "Scenario: A player's equipment reaches its copy",
+        "Scenario: A host NPC's equipment reaches its copy",
+        "Scenario: An NPC's outfit put back on with no item change still dresses its copy",
+        "Scenario: A guest joining gets the host's player as it is dressed",
+        "Scenario: A player's drawn weapon reaches its copy",
+        "Scenario: A guest joining sees the host's player with its weapon drawn",
+        "Scenario: A player's items reach its copy and stay its own",
+        "Scenario: A host NPC's items reach its copy",
+        "Scenario: A guest joining later gets another guest's player as it is now",
+        "Scenario: What a player does right after its game announces it reaches its copy"
+      ],
+      "runs_seconds": [
+        0.115,
+        0.162,
+        0.126,
+        0.166,
+        0.127
+      ],
+      "median_seconds": 0.127,
+      "party_setups": 17,
+      "setup_count_basis": "Catch2 branch leaves in the two inventoried files; all remaining cases construct one Party"
+    },
+    "after": {
+      "cases": [
+        "Players carry, equip, swap, draw and remove their own items",
+        "A host NPC carries gold and equips its sword",
+        "Scenario: An NPC's outfit put back on with no item change still dresses its copy",
+        "Scenario: A guest joining gets the host's player as it is dressed",
+        "Scenario: A guest joining sees the host's player with its weapon drawn",
+        "Scenario: A guest joining later gets another guest's player as it is now",
+        "Scenario: What a player does right after its game announces it reaches its copy"
+      ],
+      "runs_seconds": [
+        0.066,
+        0.061,
+        0.063,
+        0.063,
+        0.06
+      ],
+      "median_seconds": 0.063,
+      "party_setups": 7,
+      "setup_count_basis": "Catch2 branch leaves in the two inventoried files; all remaining cases construct one Party"
+    }
+  },
+  "native": {
+    "original_inventory": {
+      "passed": 6,
+      "seconds": 24.5,
+      "baseline_restorations": 7,
+      "npc_spawns": 2
+    },
+    "consolidated_inventory": {
+      "passed": 3,
+      "seconds": 18.0,
+      "baseline_restorations": 4,
+      "npc_spawns": 1
+    },
+    "retained_smoke": {
+      "passed": 4,
+      "seconds": 17.3
+    },
+    "duo_reserved": "2026-10-30 11:35\u201311:38 America/Chicago",
+    "duo_released": true,
+    "own_games_stopped": true
+  },
+  "discovery": {
+    "native_before": 295,
+    "native_after": 292,
+    "catch_before": 221,
+    "catch_after": 227,
+    "source_files_mapped": 1487,
+    "ledger_entries": 1036
+  },
+  "negative_controls": [
+    "outfit fix disabled fails / restored passes",
+    "inventory delta comparison fix disabled fails / restored passes",
+    "runtime-added spec reports fatal action and both fatal cleanup failures without rebuild"
+  ],
+  "production_diff": false,
+  "merged_into_dev": false,
+  "full_native_suite_run": false,
+  "net_check_run": false
+}

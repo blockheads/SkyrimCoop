@@ -1,4 +1,5 @@
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Games/DeathActions.h>
 #include <Messages/Relayed.h>
@@ -7,12 +8,6 @@ namespace
 {
 constexpr uint32_t kSmoke = 0x31D2E;
 constexpr uint32_t kGuard = 0x1A67C;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 uint32_t SessionOf(World& aGame, uint32_t aFormId)
 {
@@ -57,7 +52,7 @@ struct DeathLog
 
 void ResurrectOwner(bool aRefusedFirst, bool aCopyRefuses)
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t guard = 0;
@@ -159,7 +154,7 @@ SCENARIO("A copy's refused resurrection follows its owner's confirmed revival",
 
 SCENARIO("A resurrected NPC copy draws and attacks on its living graph", "[death][resurrect-animation]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t guard = 0;

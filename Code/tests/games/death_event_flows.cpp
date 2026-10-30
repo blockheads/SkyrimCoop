@@ -1,4 +1,5 @@
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/HealthChangeEvent.h>
@@ -9,12 +10,6 @@ namespace
 {
 constexpr uint32_t kSmoke = 0x31D2E;
 constexpr uint32_t kGuard = 0x1A67C;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 uint32_t SessionOf(World& aGame, uint32_t aFormId)
 {
@@ -27,7 +22,7 @@ uint32_t SessionOf(World& aGame, uint32_t aFormId)
 
 SCENARIO("A death state waits for its exact owner action, in either arrival order", "[death][values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {}); });
@@ -65,7 +60,7 @@ SCENARIO("A death state waits for its exact owner action, in either arrival orde
 
 SCENARIO("A resurrection refused during dying retries on the copy's final death event", "[death][values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {}); });
@@ -100,7 +95,7 @@ SCENARIO("A resurrection refused during dying retries on the copy's final death 
 
 SCENARIO("Small hits are coalesced and flushed on the frame", "[values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     uint32_t copy = 0;
     party.Until(
@@ -131,7 +126,7 @@ SCENARIO("Small hits are coalesced and flushed on the frame", "[values]")
 
 SCENARIO("Resurrection before the delayed death action stays alive", "[death][values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t guard = 0;
@@ -152,7 +147,7 @@ SCENARIO("Resurrection before the delayed death action stays alive", "[death][va
 
 SCENARIO("A newer death action is not undone by an older alive state", "[death][values]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {}); });
@@ -176,7 +171,7 @@ SCENARIO("A newer death action is not undone by an older alive state", "[death][
 
 SCENARIO("A following player's copy applies the confirmed death after a refused native action", "[death][travel]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     party.Agree("the players are present");
     auto& guest = Party::Engine(party.Guest());
     uint32_t copy = 0;

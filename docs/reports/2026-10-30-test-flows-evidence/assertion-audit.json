@@ -1,0 +1,14 @@
+{
+  "original_check_sites": 1590,
+  "current_check_sites": 1597,
+  "unmatched": [
+    {
+      "source": "scripts/coop_test.py:12925",
+      "check": "TestFailure(f\"unknown scenario(s) {unknown}; known: {', '.join(SCENARIOS)}\")"
+    },
+    {
+      "source": "scripts/coop_test.py:13044",
+      "check": "TestFailure(f\"{name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first\")"
+    }
+  ]
+}

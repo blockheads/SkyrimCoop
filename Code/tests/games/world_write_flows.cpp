@@ -1,4 +1,5 @@
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -6,12 +7,6 @@ constexpr uint32_t kSmoke = 0x31D2E;
 constexpr uint32_t kQuest = 0x36191;
 constexpr uint32_t kWerewolfPerks = 0x10001;
 constexpr uint32_t kVampirePerks = 0x10002;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 QuestState FilledQuest()
 {
@@ -41,7 +36,7 @@ void ClearAlias(bool aLocation)
     size_t games = 0;
     const QuestState cInitial = FilledQuest();
     Party party(1, [&](FakeEngine& aEngine) {
-        Plugins(aEngine);
+        SmokeWorld(aEngine);
         auto quest = cInitial;
         if (games++ != 0)
         {
@@ -96,7 +91,7 @@ SCENARIO("A reference alias clear alone reaches the guest", "[world][write-event
 
 SCENARIO("A created actor's quest role waits for its copy, then clears when the host clears it", "[world][actor-alias]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     uint32_t actor = 0;
@@ -142,7 +137,7 @@ SCENARIO("Beast perk refunds reach the guest down to zero", "[world][write-event
     }
     size_t games = 0;
     Party party(1, [&](FakeEngine& aEngine) {
-        Plugins(aEngine);
+        SmokeWorld(aEngine);
         const bool cHost = games++ == 0;
         aEngine.BeastPerkGlobals = {kWerewolfPerks, kVampirePerks};
         aEngine.Globals[kWerewolfPerks] = cHost ? 8.f : 0.f;

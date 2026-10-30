@@ -1,21 +1,18 @@
 // The host's clock and weather on the guests' games (HostClock and HostWeather, GuestClock and GuestWeather).
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
 const GameId kClear{0, 0x0010A23A}; // SkyrimClear
 const GameId kStorm{0, 0x0010A241}; // SkyrimStormRain
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x00031D2E;
-    aEngine.LoadCell(0x00031D2E);
-}
+
 } // namespace
 
 SCENARIO("The host's weather holds on the guests' games", "[world]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     host.Weather = kClear;
@@ -33,7 +30,7 @@ SCENARIO("The host's weather holds on the guests' games", "[world]")
 
 SCENARIO("The host's calendar runs on the guests' games", "[world]")
 {
-    Party party(1, Plugins, false);
+    Party party(1, SmokeWorld, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     host.Calendar.Day = 17;

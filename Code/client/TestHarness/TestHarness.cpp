@@ -56,6 +56,8 @@ void Poll()
         harness.Trace.Poll();
     if (harness.Bodies.Recording() && harness.Files.InWorld())
         harness.Bodies.Poll();
+    if (harness.Files.InWorld())
+        harness.Dialogue.Poll();
 
     const auto cNow = std::chrono::steady_clock::now();
     if (cNow < s_nextFilePoll)

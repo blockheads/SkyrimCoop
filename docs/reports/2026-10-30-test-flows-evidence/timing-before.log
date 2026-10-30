@@ -1,0 +1,87 @@
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.950] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502128920
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:50.958] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502129392
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.043] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502117816
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.051] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014502118288
+[2026-10-30 10:53:51.080] [error] Couldn't join the session (transfer_failed): The host's world didn't arrive or didn't load. Try joining again.
+[2026-10-30 10:53:51.080] [error] JoinService: couldn't join (transfer_failed): The host's world didn't arrive or didn't load. Try joining again.
+[2026-10-30 10:53:51.117] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:51.388] [error] JoinService: couldn't reconnect after 3 tries
+[2026-10-30 10:53:51.397] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:51.425] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:51.723] [error] JoinService: couldn't reconnect after 3 tries
+[2026-10-30 10:53:51.763] [error] JoinService: couldn't join (lost_connection): The connection to the host dropped while joining. Try again.
+[2026-10-30 10:53:51.783] [error] JoinService: couldn't join (lost_connection): The connection to the host dropped while joining. Try again.
+[2026-10-30 10:53:52.037] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:52.484] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:52.886] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:53.553] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:53.675] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:53.788] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:53.889] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:53.975] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:54.917] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.303] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.359] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.416] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.902] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.911] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:55.967] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.023] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.032] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.189] [error] JoinService: couldn't join (unreachable): Couldn't reach the host's game. Check the address, or that the host is still hosting.
+[2026-10-30 10:53:56.192] [error] JoinService: couldn't join (creation_unavailable): Character creation is unavailable. Install and enable the bundled SkyrimCoopStart.esp, then accept the invite again.
+[2026-10-30 10:53:56.195] [error] JoinService: couldn't join (lost_connection): The connection to the host dropped while joining. Try again.
+[2026-10-30 10:53:56.306] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.315] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.324] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:53:56.332] [error] JoinService: couldn't join (lost_connection): The connection to the host dropped while joining. Try again.
+[2026-10-30 10:53:56.335] [error] JoinService: couldn't join (creation_failed): Character creation couldn't finish starting or preparing your character. Return to the main menu and try the invite again.
+[2026-10-30 10:53:56.339] [error] JoinService: couldn't join (lost_connection): The connection to the host dropped while joining. Try again.
+[2026-10-30 10:53:56.343] [error] JoinService: couldn't join (creation_failed): Character creation couldn't finish starting or preparing your character. Return to the main menu and try the invite again.
+[2026-10-30 10:53:56.458] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014506262544
+[2026-10-30 10:53:59.150] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:02.163] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:02.171] [error] Actor to remove not found in form ids map FF000802
+[2026-10-30 10:54:02.242] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:02.401] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:32.670] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:32.682] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:33.037] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:33.070] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014506262544
+[2026-10-30 10:54:33.070] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014506262544
+[2026-10-30 10:54:33.070] [error] [SkyrimCoopNetworking] SERVER: Failed to send packet to client 103014506262544
+[2026-10-30 10:54:33.137] [error] Actor to remove not found in form ids map FF000801
+[2026-10-30 10:54:33.198] [error] JoinService: couldn't reconnect after 3 tries
+[2026-10-30 10:54:33.240] [error] Actor to remove not found in form ids map FF000801

@@ -1,6 +1,7 @@
 // Friendly fire (docs/design/friendly-fire.md): a player's hit or spell on another player's copy goes to that
 // player's game, which applies it to its real player; a teammate's kill is a real death, named in every chat.
 #include "Party.h"
+#include "Fixtures.h"
 
 #include <Events/SessionNoticeEvent.h>
 #include <Events/MeleeStaggerEvent.h>
@@ -12,12 +13,6 @@ namespace
 constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kFirebolt = 0x0001C789;
 constexpr uint32_t kFireboltEffect = 0x00012EF7;
-
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
 
 // aIn's copy of aOf's player (0: none yet).
 uint32_t CopyOfPlayer(Party& aParty, World& aIn, World& aOf)
@@ -65,7 +60,7 @@ void Strike(Party& aParty, World& aAttacker, World& aVictim, float aDamage)
 SCENARIO("A guest's sword on the host's player: the host's game applies it, and nobody turns on the guest",
          "[combat][friendly-fire]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     const float cFull = Health(host);
@@ -82,13 +77,13 @@ SCENARIO("A guest's sword on the host's player: the host's game applies it, and 
 
 SCENARIO("The host's sword on a guest's player: the guest's game applies it", "[combat][friendly-fire]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     Strike(party, party.Host(), party.Guest(), 25.f);
 }
 
 SCENARIO("A guest's sword on another guest's player: the host passes it to that guest's game", "[combat][friendly-fire]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     const float cHostFull = Health(host);
     Strike(party, party.Guest(), party.Guest(1), 20.f);
@@ -97,7 +92,7 @@ SCENARIO("A guest's sword on another guest's player: the host passes it to that 
 
 SCENARIO("A guest's fire bolt on the host's player burns the host's own player", "[magic][friendly-fire]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return CopyOfPlayer(party, party.Guest(), party.Host()) != 0; }, "the guest's game has the host's player");
@@ -119,7 +114,7 @@ SCENARIO("A guest's fire bolt on the host's player burns the host's own player",
 SCENARIO("A guest killed by another guest: a real death, spectating, and every chat names the killer",
          "[death][friendly-fire]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     FakeEngine& victim = Party::Engine(party.Guest(1));
     const ChatNotices cHostChat(party.Host());
     const ChatNotices cKillerChat(party.Guest());
@@ -144,7 +139,7 @@ SCENARIO("A guest killed by another guest: a real death, spectating, and every c
 
 SCENARIO("A player's melee stagger reaches the victim's owner once", "[friendly-fire][melee-stagger]")
 {
-    Party party(2, Plugins);
+    Party party(2, SmokeWorld);
     party.Agree("all players and copies are present");
     auto& attacker = Party::Engine(party.Guest());
     const bool cOtherGuest = GENERATE(false, true);

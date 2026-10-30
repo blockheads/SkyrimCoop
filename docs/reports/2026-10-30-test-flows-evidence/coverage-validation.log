@@ -1,0 +1,3 @@
+old native 295 new native 292 removed ['draw-client-player', 'draw-host-player', 'equip-client-player', 'equip-host-npc', 'equip-host-player', 'repair-equipment-drift'] added ['npc-equipment-lifecycle', 'player-equipment-guest', 'player-equipment-host']
+ledger 1036 rows all mapped
+all tag selections unique; all Session call targets resolve

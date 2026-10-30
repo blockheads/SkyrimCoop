@@ -1,6 +1,7 @@
 // Combat across games: a hit on another game's actor is a request its owner applies, with the kill credited to
 // the attacker (ActorValueService); a projectile replays from the shooter's copies (CombatService).
 #include "Party.h"
+#include "Fixtures.h"
 
 namespace
 {
@@ -8,24 +9,11 @@ constexpr uint32_t kSmoke = 0x00031D2E;
 constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kFirebolt = 0x0001C789;
 
-void Plugins(FakeEngine& aEngine)
-{
-    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
-    aEngine.LoadCell(kSmoke);
-}
-
-uint32_t PlayerCopy(const FakeEngine& acEngine)
-{
-    for (const uint32_t cId : acEngine.CopiesOf())
-        if (acEngine.Actors.at(cId).Player)
-            return cId;
-    return 0;
-}
 } // namespace
 
 SCENARIO("A guest's sword on a host NPC: the host's game applies it, and the kill is the guest's", "[combat]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
 
@@ -54,7 +42,7 @@ SCENARIO("A guest's sword on a host NPC: the host's game applies it, and the kil
 
 SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
 {
-    Party party(1, Plugins);
+    Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's player");
