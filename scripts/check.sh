@@ -81,6 +81,7 @@ for target in ClientTests HostAuthorityTests TPTests GameTests; do
     fi
 done
 step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
+step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py
 step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
 if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then

@@ -121,6 +121,28 @@ SCENARIO("A host NPC's equipment reaches its copy", "[equipment]")
     }
 }
 
+SCENARIO("An NPC's outfit put back on with no item change still dresses its copy", "[equipment]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] {
+        guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f});
+        host.GetsItem(guard, kSteelArmor, 1);
+        host.Equips(guard, kSteelArmor, 0);
+    });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && Wears(guest, guest.CopiesOf(kGuard)[0], kSteelArmor); },
+                "the guard's copy wears its armor");
+
+    // removeallitems: the armor comes off and out, each change raised; then the engine dresses it in its outfit again.
+    party.As(party.Host(), [&] { host.LosesItem(guard, kSteelArmor, 1); });
+    party.Until([&] { return !Wears(guest, guest.CopiesOf(kGuard)[0], kSteelArmor); }, "the copy takes the armor off");
+    party.As(party.Host(), [&] { host.OutfitPutsOn(guard, kSteelArmor); });
+    party.Until([&] { return Wears(guest, guest.CopiesOf(kGuard)[0], kSteelArmor); }, "the copy wears the outfit again");
+    party.Agree("the games agree on the dressed guard");
+}
+
 SCENARIO("A guest joining gets the host's player as it is dressed", "[equipment]")
 {
     Party party(1, Plugins, false);

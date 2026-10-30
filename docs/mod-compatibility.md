@@ -1,11 +1,19 @@
 # V1 fix-mod compatibility
 
-All shortlisted archives are acquired. The pre-fix matrix below reproduced load crashes. A
-[save-time VM re-entry race](re/crashes/2026-10-29-save-vm-reentry.md) is now fixed in the worktree;
-the post-fix combined run completes 27 cases without a crash (23 pass, four world/pose checks fail).
-No dependency-specific workaround was applied.
+Latest assessment (`2f38f777` plus the `v1-mod-profiles` fixes, merged into dev 2026-10-30):
+**131 pass / 24 fail / 0 not run** across all **155 required cases**. The confirmed
+synchronous-save deadlock and late-save harness fixture are fixed; final `scripts/check.sh`
+passes **567 C++ cases / 6,102 assertions**, nine late-baseline tests, comparisons/UI and
+Windows DLL/launcher builds. **The six-mod profile is not accepted for v1.** Extended follower,
+equipment/world-state, lock and setup failures remain. See the
+[final assessment and complete failure table](reports/2026-10-29-v1-mod-profiles.md#final-acceptance-and-recommendation).
 
-Latest focused follow-up: corrected lock diagnostics pass six repeated Engine Fixes cycles
+All shortlisted archives are acquired. The earlier pre-fix matrix below reproduced load crashes.
+A [save-time VM re-entry race](re/crashes/2026-10-29-save-vm-reentry.md) was fixed before this batch;
+that post-fix combined run completes 27 cases without a crash (23 pass, four world/pose checks fail).
+No dependency-specific workaround was applied in that earlier run.
+
+Earlier focused follow-up: corrected lock diagnostics pass six repeated Engine Fixes cycles
 (30/30), then the object-pose fix runs **14/15** with all six mods, no crashes. Main-menu join,
 potion rejoin, furniture and puzzle poses pass. The remaining check differs only on three clutter
 movement records after vampire rejoin. See [the final follow-up below](#final-object-pose-follow-up).
@@ -201,3 +209,110 @@ matching DLL/PDB: `build/graph-pose-final-binary/`. This focused run does not re
 27-case result or clear every retained death/marker failure. Windows, separate-account Steam,
 3–4-player play and the player package remain unverified. Games are stopped, profiles restored
 and the duo released. No merge into `dev`.
+
+## Merged-build investigation on `2f38f777`
+
+The isolated `v1-mod-profiles` follow-up verifies all seven documented archive hashes and
+passes the initial full build/fast gate (563 cases, 6,087 assertions). Its initial matrix
+uses `2f38f777` production source with the verified follower/door-autosave harness handoff.
+[Run details and evidence](reports/2026-10-29-v1-mod-profiles.md).
+
+The first Scrambled Bugs save/load gate is **0 pass / 1 fail / 2 not run**. All five loads
+and subsequent frame/liveness checks complete without a crash or freeze, but the final
+Riverwood NPC animation/scene comparison fails. Both games’ frozen/saving/loading/update
+overlap counters remain zero. Original reports, settings, hashes, active masters and saves
+are retained under `build/profiles/20261029-153928-scrambled/` in the new worktree.
+This is not a passing gate or an established Scrambled Bugs conflict. The no-extra-mod
+control also fails AI-state checks; a separate no-mod door-only control reproduces Cow/Frodnar
+animation mismatches. The specific stale scene field remains unresolved.
+
+The separately recorded USSEP, historical all-six and final-playtest gates each finish
+**0 pass / 1 fail / 2 not run**. USSEP fails on Lydia's ordinary/combat-override package
+after quickload. Both all-six profiles complete all five loads, then fail Riverwood NPC
+animation comparisons. No new crash, freeze or overlapping plugin update is observed.
+The other agent's proposed follower package-notification fix remains unverified and was
+reverted: its test failed at combat setup. Its later standard-bootstrap diagnostic did not
+reproduce the package write; no verified follower fix was imported. The user requested this
+Lydia issue fixed for v1. All failed gates remain retained. The
+original-DLL combined acceptance reaches **40 pass / 5 fail / 110 not run**, including the
+retained failed final-playtest gate. The six-mod, 60-FPS configuration remains a candidate.
+
+B6 follow-up: Bug Fixes SSE 10 completes **10/10** primary training repetitions, **2/2**
+detailed gold probes and **2/2** purse/barter checks. The same-DLL no-extra-mod primary
+control is **6 pass / 1 inventory-lock diagnostic fail / 3 not run**; two detailed training
+probes and purse/barter checks pass there too. Both profiles’ detailed probes show shared
+gold 140 → 2,140 → 1,890 (one 250-gold payment). The historical gold setup failure is
+unreproduced, with no compatibility workaround added. The new precise baseline inventory
+lock pair remains a failed diagnostic, retained and symbolized without an allowlist change.
+
+B9 follow-up: cap 60 totals **9 pass / 2 fail / 9 not run** (one body/floor postcheck,
+one charge-frame timeout during stalls). Cap 120 totals **13 pass / 1 fail / 6 not run**;
+the walking timeout lands under a native `FarmTable01` reference, with controls enabled
+and native Forward input dispatched. Movement remains blocked there and resumes after
+placement on clear ground. A fresh no-Display control also fails a body-height postcheck;
+no dependency-specific conflict is established. The nominal 120 cap measures only
+**55–76 updates/s**, so sustained 120 FPS remains untested. Full original-state, collision,
+body/input and measured-rate evidence is linked in the [run report](reports/2026-10-29-v1-mod-profiles.md).
+
+The fresh combined-profile vampire retention/rejoin passes. Immediately afterward, every
+host reference change has a row and the live worlds match. The requested save-file comparison
+cannot complete because the guest correctly refuses saving; that diagnostic limitation is
+recorded separately. This standalone pass does not erase the historical B8 failure.
+
+The next combined bootstrap exposes an actual early console-save hang. The
+[save-phase investigation](re/crashes/2026-10-29-synchronous-save-phase.md) establishes a
+native VM frozen-lock inversion: a synchronous save runs from the console queue after the
+VM worker starts. The fix defers device-2 saves to the existing frame boundary and preserves
+synchronous internal join saves. Its fast regression passes 4/4 (15 assertions) after failing
+under direct dispatch; full `scripts/check.sh` passes **567 cases / 6,102 assertions**, all
+comparisons/UI checks, the Windows DLL and launcher.
+
+Replacement DLL SHA-256: `28ed9f11e7a62287b2aa37620d2744a4c846986878e37838afea28c432bc0bff`.
+Both early activation saves and **7/7** explicit native save/load/menu/retention/rejoin checks
+pass. Four fresh affected profile gates subsequently complete startup saves, but each remains
+**0 pass / 1 fail / 2 not run** on separate fade, animation/body or Lydia-package checks. The
+historical all-six and final-playtest configurations are recorded as separate launches even
+though their dependency lists match. The [run report](reports/2026-10-29-v1-mod-profiles.md)
+links their original evidence. Final acceptance on this exact DLL completes **131 pass /
+24 fail / 0 not run**: ordinary cases **131/22/0**, both separately launched late scenes
+**0/2/0**. Earlier results and original failures remain separate history. No final profile
+is accepted. Four ordinary regressions pass again after the late-baseline harness correction.
+
+The candidate uses Engine Fixes **7.0.20** with preloader **7**, powerofthree's Tweaks
+**1.17.1 AE1170**, Scrambled Bugs **21**, Bug Fixes SSE **10**, SSE Display Tweaks **0.5.25**
+and USSEP **4.3.8a**, with supplied configurations except `FramerateLimit=60`.
+Display Tweaks retains `EnableVSync=true`, `VSyncPresentInterval=1`, `EnableTearing=false`.
+The merged first-time-join assets are enabled (`SkyrimCoopStart.esp` in both actual saved-game
+headers); the bundled start asset hash, complete active masters and all installed settings/file
+hashes are recorded in every profile manifest and snapshot. Skyrim is **1.6.1170**, SKSE
+**2.2.6**, Address Library is the **1.6.1170** data file, Crash Logger **1.25.0**.
+These versions/settings describe the tested candidate; its remaining failures have no new
+acceptance from this batch.
+
+The explicit vampire retention/rejoin, guest leave, container extra-data, corpse loot, Take All,
+tempered items, potion persistence, guest ingredient knowledge, both enchantment-knowledge
+cases and `guest-story-starts-no-quest` pass. Host ingredient behavior completes but its
+cover-plate pose check fails. Guest quit and host quit also retain world/cleanup failures.
+The Elder Scroll’s mirrored movement completes, then fails copied-equipment checks. The
+Greybeards case loads `LateAfterDragonRising`, stages the host in High Hrothgar and times out
+waiting for its host scene to start; guest scene behavior remains unverified. Existing late-save
+fixture failures are corrected with nine fast regressions while all native state assertions remain.
+
+A fresh comparison without extra fix mods passes **5/5** (native reach audit, persuade
+achievement routing, critter spawn, shared highlighting and party dialogue options). With all
+six mods still installed, changing only Engine Fixes `[Patches] bEnableAchievementsWithMods`
+to **false** passes the audit and persuade case **2/2**. Its patch removes the vanilla player
+read used by the co-op native classifier; this compatibility interaction is confirmed by the
+controlled setting comparison. Turning off that achievement-enabling feature is a narrow
+workaround, not a completed classifier fix or verified Steam-award support. The full matrix
+with that setting change is **not run**. Critter, topic-list and equipment profile differences
+remain unresolved; no individual dependency is blamed without an isolating comparison.
+
+Final evidence: `.worktrees/v1-mod-profiles/build/acceptance-{plan,summary}.json`,
+`acceptance-ledger.ndjson`, `comparison-ledger.ndjson`, `profile-index.json` (58 manifests),
+`final-check.log` and the linked report. Bootstrap errors, original/outer reports, adjacent logs,
+settings, active masters and DLL/PDB hashes remain retained. All owned games are stopped,
+profiles/settings/orders/control directories restored, the waiting entry removed and duo released.
+All changes remain uncommitted, with no merge into `dev`; `scripts/net_check.sh` was not run.
+Windows runtime, separate-account Steam, larger parties, packaging and sustained 120 FPS remain
+outside this batch’s acceptance claims.

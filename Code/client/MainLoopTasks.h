@@ -7,6 +7,8 @@
 namespace MainLoopTasks
 {
 void Queue(std::function<void()> aTask) noexcept;
+// Outside the drain, true means queued; inside it, returns the task's actual result.
+bool RunOrQueue(std::function<bool()> aTask) noexcept;
 // HookMainLoop only.
 void Run() noexcept;
 } // namespace MainLoopTasks

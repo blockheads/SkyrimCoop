@@ -17,6 +17,7 @@
 #include <Games/Overrides.h>
 #include <Games/Misc/Lock.h>
 #include <AI/AIProcess.h>
+#include <CopyPackage.h>
 #include <Magic/MagicCaster.h>
 #include <Sky/Sky.h>
 
@@ -100,6 +101,28 @@ bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
     return RealCheckForNewPackage(apThis, apActor, aUnk1);
 }
 
+// ActorPackage::InitFromPackage (38959), every package put in an actor's slot: a copy's running slot keeps its owner's
+// (CopyPackage). Its own game can pick one anyway, a follower alias's combat override (actor-ai-and-copies.md).
+using TInitFromPackage = void(ActorPackage*, TESPackage*, TESObjectREFR* apTarget, Actor*);
+static TInitFromPackage* RealInitFromPackage = nullptr;
+
+void HookInitFromPackage(ActorPackage* apThis, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* apActor)
+{
+    if (apActor && apPackage && apActor->currentProcess && apThis == &apActor->currentProcess->currentPackage)
+    {
+        const auto* pExtension = apActor->GetExtension();
+        const uint32_t cPut = CopyPackage::Put(pExtension->IsCopy(), pExtension->OwnerPackageId, apPackage->formID);
+        if (cPut != apPackage->formID)
+            if (auto* pOwners = Cast<TESPackage>(TESForm::GetById(cPut)))
+            {
+                spdlog::info("Copy {:X} keeps its owner's package {:X}, not {:X}", apActor->formID, cPut, apPackage->formID);
+                apPackage = pOwners;
+                apTarget = nullptr;
+            }
+    }
+    RealInitFromPackage(apThis, apPackage, apTarget, apActor);
+}
+
 // Packages the engine creates on the fly (movement blocked, flee, a ridden mount's DoNothing, ...) all arrive here,
 // with no TESPackageEvent: an owned actor's AI state goes out again.
 using TPutCreatedPackage = void(Actor*, TESPackage* apPackage, bool aRunOnce, bool aCreated, bool aAllowFromFurniture);
@@ -179,6 +202,7 @@ static Hooks::Initializer s_referencesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
+        HOOK_ID(38959, &RealInitFromPackage, HookInitFromPackage);
         HOOK_ID(39114, &RealCheckForNewPackage, HookCheckForNewPackage);
         HOOK_ID(51093, &RealSetCurrentPickREFR, HookSetCurrentPickREFR);
         HOOK_ID(37570, &RealPutCreatedPackage, HookPutCreatedPackage);

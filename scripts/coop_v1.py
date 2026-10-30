@@ -83,7 +83,7 @@ def guest_takes_extra_stack():
         ct.activate_on("client", chest)
         ct.wait_for("the chest's item list takes input",
                     lambda: ct.menu_var("client", "ContainerMenu", ct.ITEM_LISTS + ".currentState") == 2, 5)
-        select_entry("client", "ContainerMenu", ct.ITEM_LISTS + ".ItemsList", ct.HEIRLOOM["name"])
+        ct.select_entry("client", "ContainerMenu", ct.ITEM_LISTS + ".ItemsList", ct.HEIRLOOM["name"])
         ct.tap_key("client", ct.ACTIVATE_KEY)
         ct.wait_for("the guest receives the exact stack",
                     lambda: ct.heirlooms("client") == carried["client"] + 1 and ct.heirlooms("", chest) == stored, 10)
@@ -128,28 +128,6 @@ def knowledge(instance, form):
     return ct.player_command(instance, {"cmd": "knowledge", "form": form})
 
 
-def select_entry(instance, menu, listing, wanted):
-    """Walk a menu's actual highlight; fail if a named entry is absent."""
-    value = lambda suffix: ct.menu_var(instance, menu, listing + suffix)
-    matches = lambda text: bool(text) and text.lstrip("$").split(" (")[0].casefold() == wanted.lstrip("$").casefold()
-    count = value(".entryList.length")
-    if not isinstance(count, (float, int)):
-        raise ct.TestFailure(f"{menu}: no entries at {listing}")
-    names = [value(f".entryList.{i}.text") for i in range(int(count))]
-    target = next((i for i, text in enumerate(names) if matches(text)), None)
-    if target is None:
-        raise ct.TestFailure(f"{menu}: {wanted} is absent ({names})")
-    for _ in range(int(count) + 1):
-        selected = value(".selectedIndex")
-        text = value(".selectedEntry.text")
-        if matches(text):
-            return
-        ct.tap_key(instance, ct.DOWN_KEY if selected < target else ct.UP_KEY)
-        ct.wait_for(f"{menu}: the highlight moves toward {wanted}",
-                    lambda: value(".selectedIndex") != selected, 5)
-    raise ct.TestFailure(f"{menu}: {wanted} is absent")
-
-
 def learn_ingredient(instance):
     """Eat an ingredient whose first effect the player has not learned yet."""
     for form in (0x77E1C, 0x4B0BA, 0x727E0, 0x59B86):
@@ -165,11 +143,11 @@ def learn_ingredient(instance):
     ct.tap_key(instance, ct.ACTIVATE_KEY)
     ct.wait_for("Inventory opens", lambda: "InventoryMenu" in ct.menus(instance), 5)
     root = "_root.Menu_mc.InventoryLists_mc"
-    select_entry(instance, "InventoryMenu", root + ".CategoriesList", "$Ingredients")
+    ct.select_entry(instance, "InventoryMenu", root + ".CategoriesList", "$Ingredients")
     ct.tap_key(instance, ct.MENU_RIGHT_KEY)
     ct.wait_for("the ingredient list opens",
                 lambda: ct.menu_var(instance, "InventoryMenu", root + ".currentState") == 2, 5)
-    select_entry(instance, "InventoryMenu", root + ".ItemsList", before["name"])
+    ct.select_entry(instance, "InventoryMenu", root + ".ItemsList", before["name"])
     ct.tap_key(instance, ct.ACTIVATE_KEY)
     ct.wait_for("eating teaches the first ingredient effect", lambda: knowledge(instance, form)["effects"] & 1, 10)
     ct.tap_key(instance, 0x0F)
@@ -218,11 +196,11 @@ def learn_enchantment(instance):
     root = "_root.Menu.InventoryLists"
     ct.wait_for("the enchanting categories take input",
                 lambda: ct.menu_var(instance, "Crafting Menu", root + ".currentState") == 1, 10)
-    select_entry(instance, "Crafting Menu", root + ".CategoriesList", "$Disenchant")
+    ct.select_entry(instance, "Crafting Menu", root + ".CategoriesList", "$Disenchant")
     ct.tap_key(instance, ct.MENU_RIGHT_KEY)
     ct.wait_for("the disenchantment items take input",
                 lambda: ct.menu_var(instance, "Crafting Menu", root + ".currentState") == 2, 5)
-    select_entry(instance, "Crafting Menu", root + ".ItemsList", "V1 Fire Sword")
+    ct.select_entry(instance, "Crafting Menu", root + ".ItemsList", "V1 Fire Sword")
     ct.tap_key(instance, ct.ACTIVATE_KEY)
     ct.wait_for("the disenchantment confirmation opens", lambda: "MessageBoxMenu" in ct.menus(instance), 5)
     ct.presses_box_button(instance, 0)

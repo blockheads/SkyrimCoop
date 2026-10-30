@@ -16,7 +16,7 @@ production bug or a conflict with whichever mod was installed.
 | Save/load acceptance gate | Built: `save-load-gate` (quick, Load menu, named, wipe, door autosave; a follower kept through all of them; a minute of fighting after each) passes 3/3 on vanilla (2026-10-29, v1-gate). Still to run on the fix-mod profiles where the reload crashes were seen. |
 | Party-dialogue acceptance | Implemented, including the party's tagged options and shared highlight. Latest reported reruns: follower trade 3/3, party options 3/3, picked-line response 2/3. Retest the combined build and retain the intermittent failures below. |
 | Deleted-follower conversation safety | Confirm or rule out the suspected fixture teardown race. If ordinary play can delete/disable a conversation actor on this path, end the conversation safely and add a regression. It is now an explicit item in the v1 checklist. |
-| Final fix-mod profile | All six pinned mods have been acquired and tested. Latest focused combined run is 14/15 without crashes (the one failure, B8, is deferred to [bugs.md](bugs.md#plugin-compatibility)); it does not replace the earlier full 27-case run or Windows acceptance. Resolve or explicitly accept retained failures before recommending a profile. [Matrix](mod-compatibility.md). |
+| Final fix-mod profile | 2026-10-29 acceptance on the merged save fix (synchronous device-2 saves, [save-phase investigation](re/crashes/2026-10-29-synchronous-save-phase.md)): 131 pass / 24 fail / 0 not run of 155; the six-mod profile is not accepted for v1 ([report](reports/2026-10-29-v1-mod-profiles.md)). Earlier: all six pinned mods have been acquired and tested. Latest focused combined run is 14/15 without crashes (the one failure, B8, is deferred to [bugs.md](bugs.md#plugin-compatibility)); it does not replace the earlier full 27-case run or Windows acceptance. Resolve or explicitly accept retained failures before recommending a profile. [Matrix](mod-compatibility.md). |
 | Real multiplayer acceptance | Separate Steam accounts/invites and 3–4 players, including quests/dungeons, scenes, combat/death, save/rejoin and guest-to-guest Fus Ro Dah. Two local games using the direct session transport do not cover these. |
 | Clean player package | `scripts/package.sh` builds it (see the [todo](v1-playtest-todo.md)); [install.md](install.md) has the steps; `scripts/package_check.py` installs it into a clean folder and prefix and boots it (PASS 2026-10-29). Remaining: a joined session of two packaged games, and Windows. |
 | Easy playtest modlist installation | Still a publishing-stage task, after functionality and acceptance. Pin the tested files/settings and provide the agreed easy install for friends. |
@@ -51,6 +51,23 @@ rejoin, which hit the arrival push). Not run yet: the playtest mod profile, B8/B
 - **New, out of v1 scope ([bugs.md](bugs.md)): owners kneel after a follower trade.** `follower-trade-to-picker` failed its afterwards check once:
   both players' own bodies read kneeling (pelvis 32 and 44) while their copies stand, both in first person. Either an
   idle the copies do not replay, or the body check misreading a first-person player; not yet told apart.
+
+## New NPC desync checks (2026-10-30, v1-gate)
+
+Scenarios removed their spawned NPCs before the runner's desync check, so no spawned NPC was ever compared with its
+copy. `remove_host_npc` now checks every copy first, and `pick_with_keys` checks mid-conversation (one player talks).
+Fixed: a copy is given an item its owner equips without carrying it (an outfit put back on after `removeallitems`
+left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running package stays its owner's
+(`HookInitFromPackage`, ClientTests `[CopyPackage]`). Found, open:
+
+- Lydia's dialogue idle differs mid-conversation (`animation.idle` 1105592 on the host vs 1105590 on the copy).
+- Whiterun guards outdoors: the copy's `identity.name` reads "Imperial Soldier" (host "Whiterun Guard").
+- Outdoors: an Imperial Soldier's turn (`TurnRight` vs `turnStop`) and an Elk's `weapon_drawn` differ.
+- The guest's own player stays low (pelvis ~33, head ~54, no animation, in either camera) after a scenario stopped
+  mid-conversation; its copy stands. Likely the "players read as kneeling after a follower trade" entry in bugs.md.
+- Guest crash, twice, loading the host's save in `follower-anchor-saved` right after a failed trade scenario:
+  `TESObjectCELL::sub_19032+0x390` `call [rax+0x120]` under `LoadGame` (35600), none of our frames
+  (`crash-2026-10-30-09-25-02`, `09-34-28` in the client prefix).
 
 ## Recent unresolved findings
 

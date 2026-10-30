@@ -134,6 +134,7 @@ def trade_to_picker():
             if "ContainerMenu" in ct.open_menus(""):
                 raise ct.TestFailure("the guest's trade opened the host's inventory menu")
             ct.wait_for("the follower trade list takes input", lambda: ct.menu_var("client", "ContainerMenu", ct.ITEM_LISTS + ".currentState") in ct.LISTS_SHOWN, 5)
+            ct.select_entry("client", "ContainerMenu", ct.ITEM_LISTS + ".ItemsList", "Lockpick")
             ct.tap_key("client", ct.ACTIVATE_KEY)
             ct.wait_for("the guest receives the traded lockpicks", lambda: ct.item_count("client", 0x14, 0xA) > before["client"], 10)
             received = ct.item_count("client", 0x14, 0xA) - before["client"]

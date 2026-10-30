@@ -1634,6 +1634,8 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
         return;
     if (cActor->second.Copy && !ScopedEquipOverride::IsOverriden())
         return;
+    if (cActor->second.Copy && CountOf(aActor, aItem) <= 0)
+        return; // EquipManager::Equip: nothing to put on
     if (!cActor->second.Copy)
         World::Get().GetRunner().Trigger(
             EquipmentChangeEvent{.ActorId = aActor, .ItemId = aItem, .EquipSlotId = aSlot, .Count = 1});
@@ -1760,6 +1762,12 @@ void FakeEngine::GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
         World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
     }
     AddItems(aActor, aItem, aCount);
+}
+
+void FakeEngine::OutfitPutsOn(uint32_t aActor, uint32_t aItem)
+{
+    AddItems(aActor, aItem, 1);
+    Equips(aActor, aItem, 0);
 }
 
 void FakeEngine::GetsItem(uint32_t aActor, const Inventory::Entry& acItem)

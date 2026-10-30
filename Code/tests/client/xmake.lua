@@ -5,6 +5,7 @@ target("ClientTests")
     set_group("Tests")
     set_languages("cxx23")
     add_files("*.cpp")
+    add_files("../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp")
     add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
               "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")

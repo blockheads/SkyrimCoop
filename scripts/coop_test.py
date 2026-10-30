@@ -119,6 +119,8 @@ def select_instance(name):
 
 # --until-fail: each failure keeps both games' status as it was raised, before a scenario's own cleanup undoes it.
 STATUS_AT_FAILURE = False
+# A failure was raised in this scenario: its cleanup checks nothing more (the first failure is the one to read).
+FAILING = False
 
 
 class TestFailure(RuntimeError):
@@ -126,7 +128,8 @@ class TestFailure(RuntimeError):
         super().__init__(*args)
         self.time = time.time()  # wall clock, as the games' log lines: the failure digest cuts here
         self.status = {}
-        global STATUS_AT_FAILURE
+        global STATUS_AT_FAILURE, FAILING
+        FAILING = True
         if STATUS_AT_FAILURE:
             STATUS_AT_FAILURE, selected = False, INSTANCE  # a failure reading it does not read it again
             try:
@@ -1014,7 +1017,10 @@ def command_duo(args):
         # Both players spawn on the same spot: step the client aside so each can see the other.
         select_instance("")
         host_position = ((read_status() or {}).get("player") or {}).get("position")
-        if host_position:
+        if args.save:
+            wait_for("Late-save players see each other before placement", both_see_each_other, args.seconds)
+            place_before("client", player_copy("client"), 100)
+        elif host_position:
             select_instance("client")
             run_console(f"player.setpos x {host_position[0] + 200:.0f}")
             run_console(f"player.setpos y {host_position[1]:.0f}")
@@ -1480,7 +1486,10 @@ def copy_follows_host(npc, what, timeout=10):
 
 
 def remove_host_npc(npc):
-    """Takes a spawned NPC out of the scene for good, out of the follower slot first (a follower picked "Follow me")."""
+    """Takes a spawned NPC out of the scene for good, out of the follower slot first (a follower picked "Follow me").
+    First every copy must match its owner: the run's own desync check comes after the scenario has removed its NPCs."""
+    if not FAILING and (problems := check_desync()):
+        raise TestFailure(f"desync before removing {npc:08X}: " + " | ".join(problems))
     dismiss_follower(npc)
     console_on("", f"{npc:08X}.disable")
     console_on("", f"{npc:08X}.markfordelete")
@@ -4455,9 +4464,34 @@ def scenario_dialogue_said_line_waits():
             console_on("", f"player.{'additem' if change > 0 else 'removeitem'} f {abs(change)}")
 
 
+def select_entry(instance, menu, listing, wanted):
+    """Walk a menu's actual highlight; fail if a named entry is absent."""
+    value = lambda suffix: menu_var(instance, menu, listing + suffix)
+    matches = lambda text: bool(text) and text.lstrip("$").split(" (")[0].casefold() == wanted.lstrip("$").casefold()
+    count = value(".entryList.length")
+    if not isinstance(count, (float, int)):
+        raise TestFailure(f"{menu}: no entries at {listing}")
+    names = [value(f".entryList.{i}.text") for i in range(int(count))]
+    target = next((i for i, text in enumerate(names) if matches(text)), None)
+    if target is None:
+        raise TestFailure(f"{menu}: {wanted} is absent ({names})")
+    for _ in range(int(count) + 1):
+        selected = value(".selectedIndex")
+        text = value(".selectedEntry.text")
+        if matches(text):
+            return
+        tap_key(instance, DOWN_KEY if selected < target else UP_KEY)
+        wait_for(f"{menu}: the highlight moves toward {wanted}",
+                    lambda: value(".selectedIndex") != selected, 5)
+    raise TestFailure(f"{menu}: {wanted} is absent")
+
+
 def pick_with_keys(instance, topic):
     """That game's player moves the highlight to the topic (W, S) and picks it (E), once the menu takes a pick."""
     wait_for(f"[{instance or 'host'}] the menu takes a pick", lambda: menu_takes_pick(instance), 10)
+    # Mid-conversation, the speaker's copy must play what its owner does (only one player talks to it).
+    if not FAILING and (problems := check_desync()):
+        raise TestFailure("desync in the conversation: " + " | ".join(problems))
     while cursor(instance) != topic:
         here = cursor(instance)
         topics = [o["topic"] for o in dialogue(instance).get("options", [])]
@@ -10991,18 +11025,25 @@ def world_sync_problems():
 
 def reset_world(home):
     world = home["world"]
+    if world.get("live"):
+        wait_for("baseline: the guest follows the live story world", lambda: not world_sync_problems(), 10)
+        return
     console_on("", f"fw {world['weather']:X}")
     for field, global_name in (("year", "gameyear"), ("month", "gamemonth"), ("day", "gameday"),
                                ("hour", "gamehour"), ("scale", "timescale")):
         console_on("", f"set {global_name} to {world['time'][field]:.8f}")
 
 
-def record_world_home():
-    # Clear noon is the fixture; only the host is forced, and the guest follows normal sync.
+def record_world_home(preserve_current=False):
+    # Saved stories keep their weather and hour; empty test worlds use clear noon. The guest follows normal sync.
     time_ = calendar("")
-    world = {"weather": CLEAR_WEATHER, "time": {key: time_[key] for key in ("year", "month", "day", "hour", "scale")},
+    weather = game_state("").get("weather") if preserve_current else CLEAR_WEATHER
+    world = {"weather": weather, "time": {key: time_[key] for key in ("year", "month", "day", "hour", "scale")},
              "raw_days_at_record": time_.get("raw_days")}
-    world["time"]["hour"] = 12.0
+    if preserve_current:
+        world["live"] = True
+    else:
+        world["time"]["hour"] = 12.0
     reset_world({"world": world})
     wait_for("baseline: the guest follows the host's weather and calendar", lambda: not world_sync_problems(), 10)
     return world
@@ -11010,7 +11051,8 @@ def record_world_home():
 
 def save_home(cell_name=HOME_CELL):
     """Records the world fixture and each player's placement, equipment, level and maximum values."""
-    world = record_world_home()
+    populated = cell_name is None
+    world = record_world_home(preserve_current=populated)
     for name in ("", "client"):
         me = player_snapshot(name)
         placement = me.get("placement") or {}
@@ -11020,7 +11062,8 @@ def save_home(cell_name=HOME_CELL):
                 "equipment": sorted(i for i in me.get("equipment", []) if i not in TEST_ITEMS),
                 "level": game_state(name).get("level"), "cell": placement.get("cell"), "cell_name": cell_name,
                 "values": {value: me.get("values", {}).get(f"max_{value}") for value in PLAYER_VALUES},
-                "world": world}
+                "world": world, "npcs": sorted(owned_npcs(name)) if populated else [],
+                "copies": sorted(remote_npcs(actors_on(name))) if populated else []}
         atomic_write(CONTROL / HOME_FILE, json.dumps(home) + "\n")
     log("Recorded both players' baseline (home.json)")
 
@@ -11050,6 +11093,12 @@ def upgrade_home():
 
 def owned_npcs(instance):
     return [int(a) for a in local_player(instance).get("local_actors", {})]
+
+
+def baseline_npc_additions(actors, home, field):
+    """Story saves can load more placed actors; new test-created actors still need cleanup."""
+    return sorted(actor for actor in set(actors) - set(home.get(field, []))
+                  if not home["world"].get("live") or actor >= CREATED_ID)
 
 
 def foreign_in_hands(state, home):
@@ -11112,7 +11161,7 @@ def reset_baseline():
     if any(dialogue(name).get("speaker") for name in ("", "client")):
         close_dialogues()
     for name in ("", "client"):
-        for npc in owned_npcs(name):
+        for npc in baseline_npc_additions(owned_npcs(name), load_home(name), "npcs"):
             console_on(name, f"{npc:08X}.disable")
             console_on(name, f"{npc:08X}.markfordelete")
     for name in ("", "client"):
@@ -11132,6 +11181,8 @@ def check_baseline():
     """What differs from the baseline in either game (empty: a scenario can start)."""
     problems = []
     world = load_home("")["world"]
+    if world.get("live"):
+        problems.extend(world_sync_problems())
     for name in ("", "client"):
         game = name or "host"
         home = load_home(name)
@@ -11139,10 +11190,10 @@ def check_baseline():
         state = me.get("state") or {}
         values = me.get("values") or {}
         current = game_state(name)
-        if current.get("weather") != world["weather"]:
+        if not world.get("live") and current.get("weather") != world["weather"]:
             problems.append(f"{game}: weather {current.get('weather')}, baseline {world['weather']}")
         for field in ("year", "month", "day", "hour", "scale"):
-            if not close(current.get("time", {}).get(field), world["time"][field], 0.05):
+            if not world.get("live") and not close(current.get("time", {}).get(field), world["time"][field], 0.05):
                 problems.append(f"{game}: calendar {field} {current.get('time', {}).get(field)}, baseline {world['time'][field]}")
         if home.get("cell") and player_cell(name) != home["cell"]:
             problems.append(f"{game}: not in the baseline cell {home['cell']:X}")
@@ -11167,12 +11218,12 @@ def check_baseline():
         if not position or distance(position, home["position"]) > HOME_TOLERANCE:
             problems.append(f"{game}: player at {[round(v) for v in position or []]}, "
                             f"baseline {[round(v) for v in home['position']]}")
-        if npcs := owned_npcs(name):
+        if npcs := baseline_npc_additions(owned_npcs(name), home, "npcs"):
             problems.append(f"{game}: still owns NPCs {[f'{n:08X}' for n in npcs]}")
         actors = actors_on(name)
         if other_player(actors) is None:
             problems.append(f"{game}: does not show the other player")
-        if copies := remote_npcs(actors):
+        if copies := baseline_npc_additions(remote_npcs(actors), home, "copies"):
             problems.append(f"{game}: still shows NPC copies {[f'{n:08X}' for n in copies]}")
     if not problems:
         problems = check_desync(samples=1)
@@ -11941,6 +11992,7 @@ SOURCE_TAGS = [
     ("Code/client/Games/Form*", {'world', 'objects', 'spawn'}),
     ("Code/client/Games/IFormFactory.h", {'world', 'spawn'}),
     ("Code/client/Games/*References.*", {'spawn', 'movement', 'ai', 'objects'}),
+    ("Code/client/Games/Skyrim/CopyPackage.*", {'ai'}),
     ("Code/client/Games/*ReferenceStates.*", {'world', 'objects'}),
     ("Code/client/Games/BGSCreatedObjectManager.*", {'world', 'spawn', 'inventory'}),
     ("Code/client/Games/*SaveLoad.*", {'world', 'objects', 'spawn', 'reload'}),
@@ -12978,7 +13030,7 @@ def capture_failure(name, result, error):
 
 
 def command_scenario(args):
-    global HOLD
+    global HOLD, FAILING
     HOLD = args.hold
     names = scenario_names(args.names, args.tag)
     if getattr(args, "dry_run", False):
@@ -13026,6 +13078,7 @@ def command_scenario(args):
         scenario_start = time.monotonic()
         marks, wall_start = trail_marks(), time.time()
         CURRENT_STEP.update(description=None, time=wall_start)
+        FAILING = False
         try:
             known_locks = lock_order_reports()
             SCENARIOS[name]()

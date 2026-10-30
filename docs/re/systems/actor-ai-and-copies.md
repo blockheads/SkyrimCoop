@@ -174,6 +174,12 @@ change, a scene or dialogue ending), `HookCheckForNewPackage` gives it that one,
 lets it through. So `ShouldOnlyCheckPackage` is false for a copy as for any NPC with a package, and an
 unseen copy gets its upkeep too. This replaced a hook on 37277 that returned false for copies (2026-10-12).
 The package never runs: UpdateAI, where packages are picked and run, returns for copies.
+The guest's own game still put a follower alias's combat override (`PlayerFollowerCombatOverridePackage` 5C851) in a
+copy's running slot after a fight, with no message from the host (whose follower was back on `PlayerFollowerPackage`
+5C84B): `save-load-gate` read the copy on 5C851 on two profiles (v1-mod-profiles, 2026-10-29). Which call did it was not
+caught. `HookInitFromPackage` (38959, the call every package put in a slot goes through) now keeps a copy's running
+slot on its owner's package once known (`CopyPackage::Put`, ClientTests `[CopyPackage]`) and logs "keeps its owner's
+package" when it overrides one, naming what the engine wanted.
 `PutCreatedPackage` (37570) also skips its "stop interacting" step for types 26-28, so it does not stand a
 seated copy up. Checked: every copy holds type 27 (`copy-ends-voice-line` asserts it), and the full suite
 gives 33 pass / 6 fail, every failure one listed under "Still open" or the baseline's. The unseen case

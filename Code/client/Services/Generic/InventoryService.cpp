@@ -205,6 +205,7 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
     }
     else
     {
+        CarryForEquip(cActorFormId, acMessage.ItemId);
         // Unequip all armor first, since the game won't auto unequip armor
         if (m_formBridge.GetFormType(itemId) == static_cast<uint8_t>(26)) // FormType::Armor = 26
         {
@@ -298,6 +299,12 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
         if (!cCurrent.count({cItemId, cLeft}) && m_formBridge.FormExists(cItemId))
         {
             spdlog::info("Equipment reconcile {:X}: equip {:X}", cActorFormId, cItemId);
+            for (const auto& cEntry : acMessage.Equipment.Entries)
+                if (ToGame(cEntry.BaseId) == cItemId)
+                {
+                    CarryForEquip(cActorFormId, cEntry.BaseId);
+                    break;
+                }
             m_formBridge.ActorEquipItem(cActorFormId, cItemId, slotOf(cItemId, cLeft), 1);
         }
 }
@@ -382,6 +389,22 @@ uint32_t InventoryService::GoldOf(uint32_t aActorFormId) const noexcept
         if (cEntry.BaseId == Payloads::PartyGold::kGold)
             gold += cEntry.Count;
     return static_cast<uint32_t>(std::max<int64_t>(gold, 0));
+}
+
+// The owner wears it, so it has it: an item its engine gave back with no container event (an outfit put on again
+// after removeallitems) is added to the copy first. EquipManager::Equip does nothing for an item not carried.
+void InventoryService::CarryForEquip(uint32_t aActorFormId, const GameId& acItem) const noexcept
+{
+    if (!m_actorBridge.IsActorCopy(aActorFormId))
+        return;
+    for (const auto& cEntry : m_actorBridge.GetActorInventory(aActorFormId).Entries)
+        if (cEntry.BaseId == acItem && cEntry.Count > 0)
+            return;
+    Inventory::Entry carried;
+    carried.BaseId = acItem;
+    carried.Count = 1;
+    ScopedInventoryOverride _;
+    m_formBridge.ObjectAddOrRemoveItem(aActorFormId, carried);
 }
 
 void InventoryService::SetGold(uint32_t aActorFormId, uint32_t aGold) const noexcept

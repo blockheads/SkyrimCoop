@@ -848,6 +848,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
                                            {0x00012E4D, {kArmor, 0x1 | 0x2}}}; // Iron Helmet (head, hair)
     // The actor equips or unequips by itself (the player's menu, an NPC's AI), as EquipManager::Equip (38894) and
     // UnEquip (38901) through our hooks: a local actor's change is raised (EquipmentChangeEvent), a copy refuses it.
+    // Equip does nothing for an item a copy does not carry.
     void Equips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
     void Unequips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
@@ -862,6 +863,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // One with extra data (an enchantment, tempering...), its own stack.
     void GetsItem(uint32_t aActor, const Inventory::Entry& acItem);
     void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // The engine puts an NPC's outfit item back on after removeallitems: added with no InventoryChangeEvent (our item
+    // hooks never see it), then equipped as Equips does (save-load-gate, 2026-10-30: Lydia's copy lost her armor).
+    void OutfitPutsOn(uint32_t aActor, uint32_t aItem);
     // Dropped into the world, as HookDropObject: raised as a drop, the removal under ScopedInventoryOverride.
     void Drops(uint32_t aActor, uint32_t aItem, int32_t aCount);
     [[nodiscard]] int32_t CountOf(uint32_t aActor, uint32_t aItem) const;

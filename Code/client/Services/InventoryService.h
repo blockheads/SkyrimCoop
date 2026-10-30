@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 #include <Messages/RelayedMessages.h>
+#include <Structs/GameId.h>
 
 class IActorBridge;
 class IFormBridge;
@@ -70,6 +71,8 @@ struct InventoryService
      */
     void OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept;
 
+    // A copy about to equip an item it does not carry gets one, silently (its owner wears it).
+    void CarryForEquip(uint32_t aActorFormId, const GameId& acItem) const noexcept;
     // How much gold (Gold001) the actor carries, and setting it, silently (not sent).
     [[nodiscard]] uint32_t GoldOf(uint32_t aActorFormId) const noexcept;
     void SetGold(uint32_t aActorFormId, uint32_t aGold) const noexcept;
