@@ -1,4 +1,6 @@
 """Scenarios dialogue for the co-op harness."""
+import math
+
 from ..common import (
     ACTIVATE_KEY,
     AMREN,
@@ -221,10 +223,18 @@ def scenario_dialogue_host_in_background(ctx, *, _game=None):
             raise ctx.failure("[host] 800 units off, the dialogue menu opened")
         ctx.wait_for(f"[host] the HUD shows {npc:08X}'s line", lambda: ctx.subtitle_on_screen("") == npc, 10, _game=_game)
         start = ctx.my_position("")
-        ctx.console_on("", "player.setangle z 90")  # away from her: the host stands east of her
+        # Straight away from her: checked placement may not put the host on the asked bearing.
+        her = ((ctx.game("").read_status() or {}).get("player") or {}).get("local_actors", {}).get(str(npc), {}).get("position") or start
+        away = math.degrees(math.atan2(start[0] - her[0], start[1] - her[1])) % 360
+        ctx.console_on("", f"player.setangle z {away:.0f}")
         ctx.press("", "forward")  # the host takes input: no menu
         try:
             ctx.wait_for("[host] walks away from her", lambda: distance(ctx.my_position("")[:2], start[:2]) > 200, 10, _game=_game)
+        except TestFailure:
+            player = (ctx.game("").read_status() or {}).get("player") or {}
+            log(f"[host] started at {[round(v) for v in start]}, now at {[round(v) for v in player.get('position', [])]}, "
+                f"turned {player.get('rotation')}, NPC at {(player.get('local_actors') or {}).get(str(npc), {}).get('position')}")
+            raise
         finally:
             ctx.release("", "forward")
         # Waiting for a pick, with no menu: the conversation stays (600 frames, about 10 s).

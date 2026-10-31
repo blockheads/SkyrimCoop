@@ -8,6 +8,8 @@ Ordinary loot stays the finder's own. v1 (the user, 2026-10-30). First cut built
 
 Every player carries every party item. The party owns a count of each, as the purse does with gold
 (`party-purse.md`), and anything done to a party item is done to every player's copy.
+Gold is never a party item, even the story's (a quest's gold reward): it goes to the purse (2026-10-31,
+`quest-gold-turn-in-host`).
 
 ```text
 a party item comes in (the story gives it, a key or quest item picked up)

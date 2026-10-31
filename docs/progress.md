@@ -1162,6 +1162,10 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Fixed 2026-10-31: a quest's gold reward reached no one.** Party items took the story's gold (Lucan's 400) back
+  as "[P] Gold"; gold is the purse's (`PartyItems::ArrivesAsParty` excludes `0xF`). `quest-gold-turn-in-host` 3/3
+  (was 1/3), GameTests `[purse]`, ClientTests `[PartyItems]`. `dialogue-host-in-background` walked the host into a
+  wall (checked placement had moved it off the asked bearing): it now walks straight away from the NPC, 3/3.
 - **Done 2026-10-31: copies look where their owners do.** In dialogue an NPC's head turns to the talking player;
   its copy's never did (copies run no AI, which sets the headtrack slots), so dialogue animations drifted. The owner's
   six slots ride `ActorAiState::HeadTrack`, raised from an `Actor::ProcessTracking` (38009) hook and put into the

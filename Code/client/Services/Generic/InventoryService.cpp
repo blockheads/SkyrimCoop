@@ -92,7 +92,7 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     const bool cPlayer = acEvent.FormId == 0x14 || m_actorBridge.IsOtherPlayer(acEvent.FormId);
     const uint32_t cItemId = ToGame(acEvent.Item.BaseId);
     if (cPlayer && !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag) &&
-        PartyItems::ArrivesAsParty(m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven))
+        PartyItems::ArrivesAsParty(cItemId, m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven))
     {
         request.NewPartyItem = true;
         request.StoryGiven = acEvent.StoryGiven;

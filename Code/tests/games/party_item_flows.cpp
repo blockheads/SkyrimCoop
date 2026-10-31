@@ -222,3 +222,28 @@ SCENARIO("Tempering or enchanting a party item improves every player's copy", "[
     });
     party.Until([&] { return cImproved(1.2f, 0x4605A); }, "the host enchanted it: every copy is enchanted", cDescribe);
 }
+
+SCENARIO("A quest's gold reward goes to the party's purse, not a party item", "[party-items][purse]")
+{
+    // quest-gold-turn-in-host (Skyrim 2026-10-31): Lucan's 400 gold, given by the quest's script, was taken back as
+    // "[P] Gold", a new party item, and reached no one's purse.
+    constexpr uint32_t kGold = 0x0000000F;
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1; },
+                "each game has the other's player");
+    const int32_t cBefore = host.CountOf(FakeEngine::kPlayer, kGold);
+    const auto cTaggedGold = [](const FakeEngine& acEngine) {
+        return std::ranges::any_of(acEngine.EntriesOf(FakeEngine::kPlayer, kGold),
+                                   [](const auto& acEntry) { return acEntry.ExtraName.starts_with("[P] "); });
+    };
+
+    party.As(party.Host(), [&] { host.QuestGivesItem(FakeEngine::kPlayer, kGold, 400); });
+    party.Until([&] { return host.CountOf(FakeEngine::kPlayer, kGold) == cBefore + 400 &&
+                             guest.CountOf(FakeEngine::kPlayer, kGold) == cBefore + 400; },
+                "every player carries the reward as the party's gold",
+                [&] { return std::format("host {}, guest {}", host.CountOf(FakeEngine::kPlayer, kGold), guest.CountOf(FakeEngine::kPlayer, kGold)); });
+    CHECK_FALSE(cTaggedGold(host));
+    CHECK_FALSE(cTaggedGold(guest));
+}

@@ -35,6 +35,9 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   headtracked (progress.md, "copies look where their owners do"). Still open: an accepted replayed action can land
   in a different graph state, and nothing compares it (animation-replay-recovery.md); the proposed fix is to
   compare active states with the owner's snapshot after each replay and load it on a mismatch.
+- **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
+  ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
+  default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
   marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
   wolf refusal was an already-playing duplicate; the other refusals still need classification.

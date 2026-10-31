@@ -3,12 +3,15 @@
 
 #include <Games/PartyItems.h>
 
-TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot does not", "[PartyItems]")
+TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot and gold do not", "[PartyItems]")
 {
-    CHECK(PartyItems::ArrivesAsParty(PartyItems::cKeyFormType, false, false));
-    CHECK(PartyItems::ArrivesAsParty(41, true, false));  // a quest item
-    CHECK(PartyItems::ArrivesAsParty(41, false, true));  // a quest's script gave it
-    CHECK_FALSE(PartyItems::ArrivesAsParty(41, false, false)); // a weapon picked up
+    constexpr uint32_t cSword = 0x12EB7;
+    CHECK(PartyItems::ArrivesAsParty(0x3D5, PartyItems::cKeyFormType, false, false));
+    CHECK(PartyItems::ArrivesAsParty(cSword, 41, true, false));  // a quest item
+    CHECK(PartyItems::ArrivesAsParty(cSword, 41, false, true));  // a quest's script gave it
+    CHECK_FALSE(PartyItems::ArrivesAsParty(cSword, 41, false, false)); // a weapon picked up
+    // A quest's gold reward (Lucan's): the party's purse, every player's gold already (party-purse.md).
+    CHECK_FALSE(PartyItems::ArrivesAsParty(PartyItems::cGold, 32, false, true));
 }
 
 TEST_CASE("A party stack is a tagged or quest one; its tag goes in front once", "[PartyItems]")

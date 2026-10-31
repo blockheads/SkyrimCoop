@@ -12,6 +12,7 @@ namespace PartyItems
 {
 inline constexpr std::string_view cTag = "[P] ";
 inline constexpr uint8_t cKeyFormType = 45; // KEYM (FormType::KeyMaster)
+inline constexpr uint32_t cGold = 0xF;       // Gold001: the party's purse holds it (party-purse.md), never a party item
 
 // A stack the party owns: tagged, or a quest item (its alias's name stays; the quest marker shows it).
 [[nodiscard]] inline bool IsParty(const Inventory::Entry& acItem) noexcept
@@ -20,9 +21,9 @@ inline constexpr uint8_t cKeyFormType = 45; // KEYM (FormType::KeyMaster)
 }
 
 // An item arriving in a player's inventory is the party's: a key, a quest item, or the story's (a quest's script).
-[[nodiscard]] inline bool ArrivesAsParty(uint8_t aFormType, bool aQuestItem, bool aStoryGiven) noexcept
+[[nodiscard]] inline bool ArrivesAsParty(uint32_t aFormId, uint8_t aFormType, bool aQuestItem, bool aStoryGiven) noexcept
 {
-    return aFormType == cKeyFormType || aQuestItem || aStoryGiven;
+    return aFormId != cGold && (aFormType == cKeyFormType || aQuestItem || aStoryGiven);
 }
 
 // A carried stack is that party item: the same base, name ("[P] <name>") and improvements (tempering, enchantment), not
