@@ -106,6 +106,10 @@ flow cleaned up its actors before returning. `report`, `crash` and the original 
 
 ### Two Steam accounts
 
+Since 2026-10-31 (the user: keep the player's Steam free) both duo games run as Linux user `coop2` (`COOP_DUO_USER`)
+with its own Steam account in netns `coop2`, and from the duo's own game folder `build/coop-test/game` (the Steam
+install's files linked, its own `Data/SKSE/Plugins`): the player's Steam and Skyrim folder are never used. The
+client joins the host over loopback inside the namespace. `COOP_DUO_USER=` runs them as this user, on its Steam.
 The ordinary duo uses one account and the session network. Invite/lobby flows need `COOP_CLIENT_USER=coop2`, that
 user's Steam account, a client prefix it owns and the existing `coop2` network namespace setup. The harness prepares
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when

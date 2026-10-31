@@ -1,0 +1,59 @@
+1. CRASH my game crashed while looting fabien clothes after beating him to death
+    fabiens game crashed after I crashed and it was trying to send him back to the main menu
+    > crashed looting a item off of him (infiinite loop?)
+
+    2. bug filed > seeing objects going through peoples heads ect.. just to give an idea of what were both seeing
+      fabien was having a issue moving objects onto people, it was clipping through their head entirely
+
+    3. as host I moved an object on a npc's head > it looked better, but still has the issue where objects are flashing green as moved
+
+    4. when choosing to go to jail > it teleported me to a completly different area, and my friends game crashed (should be sencond crash)
+
+    5. all objects are slowly floating across the room, I saw this same bug in skyrim together, idk
+      > I actually saw this bug in singleplayer, also i even saw actors being pulled into it, it's like all objects we aren't updating the physics of slowly start to move in a direction for some reason
+
+      -----
+      fabiens hosting now i'm the client
+
+    6. can't loot items after loading a fresh game that fabien hosted > this is when i was the client
+      > reloaded / reconnected and it worked, another issue that may be because of lag
+
+    7. both of us are trying to sneak and there's a eye on the screen detecting our stealth, not sure if visual bug or not, but we can't tell if we are stealthed 
+      > I think allies are flagging us as stealth detected / have an eye
+
+    8. can't equip hide armor or boots, i'm trying to equip and it's not working
+
+    9. frames are getting bad when fighting talsgar the wandered and big lag on his computer
+
+    10. I think this is more or less a feature > but enemies should change aggro if someone is doing more damage / near, so a little smarter how npcs attack people
+
+    11. fabien like completly dc'd and is lagging out real bad, it's unplayable
+
+
+    fabien was lagging when playing (not sure if that's cause of his skyrim settings, or our mod)
+
+    for some reason some of the crit animations aren't playing > sometimes is works, probably networking or something?
+
+    > lagging out when moving side to side
+
+    > need a way to alter the skyrim settings easily
+
+    > really bad performance to load in, how much data are we sending over the wire to load in ect...
+
+    > when friend is dragging objects it going through entities heads (host h)
+    > w
+
+    > when friend is loading the world it's re-loading the whole thing everytime (not caching?)
+
+    > I think skyrims movement wasn't like this, did we override skyrims movement or something lol, moving back and forth left/right seems super buggy
+
+    > For some reason, we have the skyrim together bug where objects slowly are
+
+    > need more tests in actual skyrim instead of the isolated instance
+
+    > dialog is super fucked/buggy,
+      > didn't record a bug here, but there's also a issue where fabien was talking to someone as the guest and basically got stuck in a dialog. they couldn't get out until i joined / exited the conversation, so probably the logic is weird for leaving conversations
+
+    > add location of where other players are on the map / icon on the hud to know where your allies are
+
+    > we might need a better way to debug and see what's going on / monitoring a players performance (not sure if /bug is the best at that)

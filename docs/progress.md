@@ -1715,7 +1715,13 @@ actions preserve newer actions and body resets. Fast concurrency/restoration tes
 The original reload corruption remains open (v1); the historical werewolf crash is out of v1 scope (2026-10-29,
 `docs/bugs.md`). See the [stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
 
-- **V1 delivery:** `scripts/package.sh` builds the player zip (dev mode, no harness; plugin + PDB, UI, SkyrimCoopStart.esp,
+- **V1 delivery (2026-10-31):** one zip for friends, extracted into the Skyrim folder, then Play: SKSE and Address
+  Library bundled, our launcher as `SkyrimSELauncher.exe` (version check, INIs, enables the start esp, starts SKSE);
+  `package_check.py` boots it from only the extracted zip (PASS). [install.md](install.md).
+  The host's New Game skips Helgen with Alternate Start 4.2.6a and the USSEP 4.3.9c it needs, bundled (the user,
+  2026-10-31; about 250 MB zip; results in mod-compatibility.md). The PDB stays home: `build/package/<package>-symbols/` keeps the DLL and PDB, and
+  `scripts/re/symbolize_crash.py --build <commit>` decodes a friend's crash log with them.
+- **V1 delivery:** `scripts/package.sh` builds the player zip (dev mode, no harness; plugin, UI, SkyrimCoopStart.esp,
   SkyrimCoopLauncher.exe, `docs/install.md`, `docs/playtest.md`), byte-identical from the same build (2026-10-29).
   `scripts/package_check.py` installs and boots it from a clean folder and prefix (PASS). The README now points to install.md; its old server/launcher
   description below still needs cleaning up.

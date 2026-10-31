@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Turn the crash handler's "backtrace #NN module+0xOFF" lines into names.
 
-  scripts/re/symbolize_crash.py [tp_client.log] [--dll path/to/SkyrimTogetherClient.dll]
+  scripts/re/symbolize_crash.py [tp_client.log] [--dll path/to/SkyrimTogetherClient.dll | --build COMMIT]
+
+A friend's crash: --build with the commit its report names ("build:"), for the DLL and PDB scripts/package.sh kept
+beside that package (build/package/*-symbols/); the dev build's lines would be wrong for it.
 
 SkyrimSE.exe frames -> nearest Address Library ID + best known name (build/re/annotations.json,
 falling back to the raw ID list); our DLL frames -> function and source line (addr2line).
@@ -18,7 +21,7 @@ import subprocess
 import build_re_data as re_data
 
 ROOT = re_data.ROOT
-DEFAULT_LOG = re_data.GAME / "Data/SKSE/Plugins/logs/tp_client.log"
+DEFAULT_LOG = ROOT / "build/coop-test/game/Data/SKSE/Plugins/logs/tp_client.log"  # the duo host's
 DEFAULT_DLL = ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"
 FRAME = re.compile(r"backtrace #(\d+) (\S+)\+0x([0-9a-f]+)")
 
@@ -56,7 +59,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("log", nargs="?", type=Path, default=DEFAULT_LOG)
     parser.add_argument("--dll", type=Path, default=DEFAULT_DLL)
+    parser.add_argument("--build", help="a package's commit: its kept DLL and PDB (build/package/*-symbols/)")
     args = parser.parse_args()
+    if args.build:
+        kept = sorted((folder for folder in (ROOT / "build/package").glob("*-symbols")
+                       if (folder / "BUILD").exists() and (folder / "BUILD").read_text().strip() == args.build),
+                      key=lambda folder: folder.stat().st_mtime)
+        if not kept:
+            parser.error(f"no package kept symbols for build {args.build} (build/package/*-symbols/)")
+        args.dll = kept[-1] / "SkyrimTogetherClient.dll"
 
     lines = args.log.read_text(errors="replace").splitlines()
     starts = [i for i, line in enumerate(lines) if "crash occurred" in line]

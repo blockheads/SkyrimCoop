@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Installs the player package (scripts/package.sh) the way docs/install.md says into a clean game folder and a new
-Proton prefix, then boots it through SkyrimCoopLauncher.exe and checks that the plugin loads and its UI comes from the
-installed files. A player build has no test harness, so this is a boot check read from the plugin's log, not a
-joined session.
+"""Installs the player package (scripts/package.sh) the way docs/install.md says, extracting it into a clean game
+folder with a new Proton prefix, then presses Play (SkyrimSELauncher.exe, ours) and checks that the launcher enabled
+the bundled start and the plugin loads with its UI from the installed files. A player build has no test harness, so
+this is a boot check read from the plugin's log, not a joined session.
 
-The clean game folder (build/clean-install/game) links the Steam install's files but has its own SKSE and Address
-Library (copied, as a player downloads them) and nothing of ours but the package. Its own display (:105), so it can
-run beside the duo.
+The clean game folder (build/clean-install/game) links the Steam install's files, without SKSE, its plugins or
+anything of ours: the package brings them. Its own display (:105), so it can run beside the duo.
   scripts/package_check.py [ZIP]
 """
 import os
@@ -18,9 +17,10 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+os.environ["COOP_DUO_USER"] = ""  # a player's install: this user's Steam, not the duo's (common.DUO_USER)
 from coop_harness import Session
 from coop_harness.game import Game
-from coop_harness.common import ROOT, GAME as STEAM_GAME, RUNTIME, PROTON
+from coop_harness.common import ROOT, STEAM_GAME, RUNTIME, PROTON
 from coop_harness.errors import TestFailure
 from coop_harness.utilities import log
 
@@ -28,13 +28,13 @@ ct = Session()
 
 HOME = ROOT / "build/clean-install"
 GAME = HOME / "game"
-# What a player installs before us (docs/install.md, step 1): SKSE's loader and runtime, Address Library.
-REQUIREMENTS = ["skse64_loader.exe", "skse64_1_6_1170.dll", "Data/SKSE/Plugins/versionlib-1-6-1170-0.bin"]
-OURS = ("SKSE", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe", "SkyrimSELauncher.exe")
+# What the package brings: SKSE (its loader, runtime and scripts), its plugins, ours, and Steam's launcher name.
+OURS = ("SKSE", "Scripts", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe", "SkyrimSELauncher.exe",
+        "unofficial skyrim special edition patch", "alternate start - live another life")
 
 
 def clean_game():
-    """The Steam install's files as links, but no SKSE plugins, nothing of ours and its own launcher name."""
+    """The Steam install's files as links, without SKSE, its plugins, anything of ours or Steam's launcher."""
     if GAME.exists():
         shutil.rmtree(GAME)
     (GAME / "Data").mkdir(parents=True)
@@ -44,20 +44,13 @@ def clean_game():
     for source in (STEAM_GAME / "Data").iterdir():
         if not source.name.startswith(OURS):
             (GAME / "Data" / source.name).symlink_to(source)
-    (GAME / "SkyrimSELauncher.exe.vanilla").symlink_to(STEAM_GAME / "SkyrimSELauncher.exe")
-    for name in REQUIREMENTS:
-        (GAME / name).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(STEAM_GAME / name, GAME / name)
 
 
 def install(package):
-    """docs/install.md steps 2 and 3: extract into the game folder, enable the start, the launcher under Steam's name."""
+    """docs/install.md: extract into the game folder; nothing else (the launcher enables the start)."""
     with zipfile.ZipFile(package) as archive:
         archive.extractall(GAME)
-    shutil.copy2(GAME / "SkyrimCoopLauncher.exe", GAME / "SkyrimSELauncher.exe")
-    order = ct.load_order_file()
-    order.parent.mkdir(parents=True, exist_ok=True)
-    order.write_text("*SkyrimCoopStart.esp\n")
+    ct.load_order_file().unlink(missing_ok=True)
 
 
 def main():
@@ -69,7 +62,7 @@ def main():
         ct.stop_game()
     shutil.rmtree(ct.host.prefix, ignore_errors=True)
     clean_game()
-    ct.prepare_prefix(bundled_start=False)  # package start is enabled by hand below, as a player does
+    ct.prepare_prefix(bundled_start=False)  # the package's launcher enables the start
     install(package)
     ct.ensure_virtual_display()
     env = {key: value for key, value in ct.game_env().items()
@@ -87,6 +80,10 @@ def main():
         installed = str(GAME / "Data/SKSE/Plugins/SkyrimCoop/ui")
         if not ui.rstrip().replace("\\", "/").endswith(installed):
             raise TestFailure(f"the UI does not come from the installed files ({installed})")
+        order = ct.load_order_file().read_text(errors="replace").splitlines() if ct.load_order_file().exists() else []
+        wanted = ["*unofficial skyrim special edition patch.esp", "*alternate start - live another life.esp", "*SkyrimCoopStart.esp"]
+        if order[-3:] != wanted:
+            raise TestFailure(f"the launcher did not enable the package's plugins in order: Plugins.txt is {order!r}")
         time.sleep(30)  # the main menu, and any late failure
         problems = [line for line in plugin_log.read_text(errors="replace").splitlines()
                     if "[error]" in line or "[critical]" in line]
@@ -94,7 +91,7 @@ def main():
             raise TestFailure("the game exited")
         shot = HOME / "main-menu.png"
         subprocess.run(["import", "-display", ct.host.display, "-window", "root", str(shot)], check=False)
-        print(f"PASS: plugin loaded, UI from the package; {len(problems)} error lines; screenshot {shot}")
+        print(f"PASS: plugin loaded, plugins enabled, UI from the package; {len(problems)} error lines; screenshot {shot}")
         for line in problems[:20]:
             print("  ", line)
     finally:

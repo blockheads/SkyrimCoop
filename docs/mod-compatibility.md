@@ -316,3 +316,16 @@ profiles/settings/orders/control directories restored, the waiting entry removed
 All changes remain uncommitted, with no merge into `dev`; `scripts/net_check.sh` was not run.
 Windows runtime, separate-account Steam, larger parties, packaging and sustained 120 FPS remain
 outside this batch’s acceptance claims.
+
+## Alternate Start + USSEP for the host's New Game (2026-10-31)
+
+Alternate Start - Live Another Life 4.2.6a (Nexus 272) requires USSEP; tested with USSEP 4.3.9c (Nexus 266) in the
+duo's own folder (archives kept in git-ignored `build/mods/`). Both load in both games; a host's New Game goes
+straight to `AbandonedPrison01` with the race menu (no Helgen cart), through real main-menu input.
+
+22 scenarios (v1 tag plus loads, joins, first-time creation, quests, dialogue): no crash, no freeze; the
+documented USSEP guest crash during a host load did not reproduce. Both first-time-join creations pass. Failures
+matching the vanilla run are the deferred desyncs (headtracking, Aela's torch). Two failures follow the mods: with
+them `guest-joins-from-main-menu-as-kept-character` (the host's record of the guest not at level 11 with Armsman in
+20 s) and `host-saves-with-guest-menu-open` (chest C2CE8's lid pose after cleanup) pass 1 of 2 each; without them,
+same setup, 3 of 3 each. Evidence: `build/coop-test/aslal-scen.log`, `aslal-rerun.log`, `vanilla-rerun.log`.

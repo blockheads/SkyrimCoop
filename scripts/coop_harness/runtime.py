@@ -25,6 +25,7 @@ from .common import (
     CRASH_LOGGER_VERSION,
     DLL,
     DUMMY_XORG_CONFIG,
+    DUO_USER,
     GAME,
     GAME_MEMORY_LIMIT_MB,
     HOST_SIDE_ADDRESS,
@@ -34,6 +35,7 @@ from .common import (
     ROOT,
     RUNTIME,
     STEAM,
+    STEAM_GAME,
     TEST_HOME,
     UI_SOURCE,
     VANILLA_HARNESS,
@@ -100,9 +102,15 @@ class Runtime:
         return copy
 
     def instance_user(ctx, *, _game=None):
-        """The OS user this instance's game runs as, when not this one (CLIENT_USER for the client)."""
+        """The OS user this instance's game runs as, when not this one: DUO_USER for both games (its Steam, not the
+        player's); with CLIENT_USER (invite tests) that one for the client and this user for the host."""
         _game = ctx.game(_game)
-        return CLIENT_USER if _game.name == "client" and CLIENT_USER else None
+        if CLIENT_USER:
+            return CLIENT_USER if _game.name == "client" else None
+        return DUO_USER or None
+
+    def instance_users(ctx):
+        return {user for game in ctx.games if (user := ctx.instance_user(_game=game))}
 
     def as_instance_user(ctx, command, env, *, _game=None):
         """The command run as the instance's user (sudo, the environment passed explicitly, files group-writable), so
@@ -142,8 +150,10 @@ class Runtime:
                    SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
         if _game.name:
             env["SKYRIMCOOP_INSTANCE"] = _game.name
-        if ctx.instance_user(_game=_game):  # in its namespace: reachable on its link, and the host is across it
-            env.update(SKYRIMCOOP_COMMAND_ADDRESS=CLIENT_ADDRESS, SKYRIMCOOP_JOIN_HOST=HOST_SIDE_ADDRESS)
+        if ctx.instance_user(_game=_game):  # in its namespace: reachable on its link
+            env["SKYRIMCOOP_COMMAND_ADDRESS"] = CLIENT_ADDRESS
+            if _game.name and not ctx.instance_user(_game=ctx.host):  # the host across the link, else loopback
+                env["SKYRIMCOOP_JOIN_HOST"] = HOST_SIDE_ADDRESS
         if not ctx.VISIBLE:
             env["DISPLAY"] = _game.display
         return env
@@ -168,14 +178,14 @@ class Runtime:
     def process_environs(ctx):
         """{pid: environment} of every process; the client user's through one sudo (its /proc environ is not ours)."""
         environs, theirs = {}, []
-        uid = pwd.getpwnam(CLIENT_USER).pw_uid if CLIENT_USER else None
+        uids = {pwd.getpwnam(user).pw_uid for user in ctx.instance_users()}
         for entry in Path("/proc").iterdir():
             if entry.name.isdigit() and int(entry.name) != os.getpid():
                 try:
                     environs[int(entry.name)] = (entry / "environ").read_bytes()
                 except PermissionError:
                     with contextlib.suppress(OSError):
-                        if entry.stat().st_uid == uid:
+                        if entry.stat().st_uid in uids:
                             theirs.append(entry.name)
                 except OSError:
                     pass
@@ -242,15 +252,52 @@ class Runtime:
         return not ctx.prefix_processes(_game=_game)
 
     def check_prerequisites(ctx):
+        ctx.ensure_duo_game()
         required = [GAME / "SkyrimSE.exe", GAME / "skse64_loader.exe", PROTON / "proton", RUNTIME / "run", DLL]
         missing = [str(path) for path in required if not path.exists()]
         if missing:
             hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader")
             raise ctx.failure("Missing:\n  " + "\n  ".join(missing) + hint)
-        if subprocess.run(["pgrep", "-x", "steam"], capture_output=True).returncode != 0:
+        # Skyrim's DRM needs the Steam of each game's user: this user's must be running; DUO_USER's starts on launch.
+        if any(not ctx.instance_user(_game=game) for game in ctx.games) and \
+                subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "steam"], capture_output=True).returncode != 0:
             raise ctx.failure("Steam must be running (Skyrim's DRM needs it).")
         if (PLUGINS / "skyrim_coop_hooks.dll").exists():
             raise ctx.failure(f"Remove the old relay plugin first: {PLUGINS / 'skyrim_coop_hooks.dll'}")
+
+    def ensure_duo_game(ctx):
+        """The duo's own game folder (GAME): the Steam install's files linked, real Data/SKSE/Plugins for our deploys,
+        so the player's Skyrim is never changed. Both this user and DUO_USER write in it (ACLs)."""
+        if GAME == STEAM_GAME:
+            return
+        plugins = GAME / "Data/SKSE/Plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        # Ours, SKSE's plugin folder and the bundled start are the duo's own; everything else is the Steam install's.
+        own = {"Data", "SkyrimSELauncher.exe"}
+        own_data = {"SKSE", BUNDLED_START}
+        for folder, skip in ((STEAM_GAME, own), (STEAM_GAME / "Data", own_data)):
+            target = GAME if folder == STEAM_GAME else GAME / "Data"
+            for source in folder.iterdir():
+                link = target / source.name
+                if source.name not in skip and not link.is_symlink() and not link.exists():
+                    link.symlink_to(source)
+        for name in ("versionlib-1-6-1170-0.bin",):
+            if not (plugins / name).exists():
+                (plugins / name).symlink_to(STEAM_GAME / "Data/SKSE/Plugins" / name)
+        me = pwd.getpwuid(os.getuid()).pw_name
+        for user in ctx.instance_users():
+            ctx.sudo("setfacl", "-R", "-m", f"u:{user}:rwX,d:u:{user}:rwX,u:{me}:rwX,d:u:{me}:rwX", str(GAME / "Data/SKSE"))
+
+    def own_prefix(ctx, *, _game=None):
+        """Wine runs a prefix only for its owner: the game's user owns it, and this user keeps access (ACLs)."""
+        _game = ctx.game(_game)
+        user = ctx.instance_user(_game=_game) or pwd.getpwuid(os.getuid()).pw_name
+        if not _game.prefix.exists() or _game.prefix.owner() == user:
+            return
+        me = pwd.getpwuid(os.getuid()).pw_name
+        log(f"[{_game.name or 'host'}] giving its prefix to {user}")
+        ctx.sudo("chown", "-R", f"{user}:", str(_game.prefix))
+        ctx.sudo("setfacl", "-R", "-m", f"u:{me}:rwX,d:u:{me}:rwX", str(_game.prefix))
 
     def copy_if_changed(ctx, source, target):
         """Replaces target atomically (a running game keeps the file it mapped); True if it changed."""
@@ -447,6 +494,7 @@ class Runtime:
 
     def prepare_prefix(ctx, bundled_start=True, *, _game=None):
         _game = ctx.game(_game)
+        ctx.own_prefix(_game=_game)
         if not (_game.prefix / "pfx/drive_c/users/steamuser").exists():
             log("Creating the test Proton prefix (first run only, ~30s)...")
             _game.prefix.mkdir(parents=True, exist_ok=True)

@@ -13,13 +13,19 @@ See docs/design/testing.md for fixtures, ownership, selection and reporting.
 
 ROOT = Path(__file__).resolve().parents[2]
 STEAM_LIBRARY = Path("/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/SteamLibrary/steamapps/common")
-GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
-                           "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
+# The Steam install (the player's Skyrim): read only, linked into the duo's own folder.
+STEAM_GAME = Path(os.environ.get("SKYRIM_STEAM_GAME_DIR",
+                                 "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
 PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
 RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
 CLIENT_USER = os.environ.get("COOP_CLIENT_USER", "")
+# The OS user both duo games run as, with its own Steam (gandalfmight) in netns coop2, so the duo never uses the
+# player's Steam; empty: this user's. With COOP_CLIENT_USER (invite tests) the host stays on this user's Steam.
+DUO_USER = os.environ.get("COOP_DUO_USER", "coop2")
 TEST_HOME = (ROOT / "build/coop-test").resolve()
+# The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
+GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
 DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
