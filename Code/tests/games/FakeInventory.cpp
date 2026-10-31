@@ -7,6 +7,8 @@
 #include <Events/StoryEvents.h>
 
 #include <Events/ContainerChangeEvent.h>
+#include <Papyrus/StoryGifts.h>
+#include <Games/ItemChanges.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Events/AddTargetEvent.h>
@@ -86,6 +88,26 @@ void FakeEngine::Unequips(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     Unequip(aActor, aItem, aSlot);
 }
 
+void FakeEngine::RebuildCopyEquipment(uint32_t aActor, uint32_t aRemainingItem)
+{
+    auto& actor = Actors.at(aActor);
+    for (auto& entry : actor.Items.Entries)
+        if (::ItemForm(entry.BaseId) != aRemainingItem)
+            entry.ExtraWorn = entry.ExtraWornLeft = false;
+    actor.EquipmentNeedsReset = true;
+}
+
+void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept
+{
+    if (auto actor = Actors.find(aActorFormId); actor != Actors.end())
+    {
+        actor->second.EquipmentNeedsReset = false;
+        for (auto& item : actor->second.Items.Entries)
+            item.ExtraWorn = item.ExtraWornLeft = false;
+        actor->second.Items.CurrentMagicEquipment = acMagic;
+    }
+}
+
 void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
 {
     ScopedEquipOverride _;
@@ -106,8 +128,13 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     const auto cForm = ItemForms.find(aItem);
     if (cActor == Actors.end() || cForm == ItemForms.end())
         return;
+    // A torch uses its native left-hand equip type; an explicit right-hand weapon slot cannot equip it.
+    if (cForm->second.Type == kLight && aSlot != 0 && aSlot != kLeftHand)
+        return;
     if (cActor->second.Copy && !ScopedEquipOverride::IsOverriden())
         return;
+    if (cActor->second.Copy && cActor->second.EquipmentNeedsReset)
+        return; // A model/outfit rebuild can leave stale equipment state until UnequipAll clears it.
     if (cActor->second.Copy && CountOf(aActor, aItem) <= 0)
         return; // EquipManager::Equip: nothing to put on
     if (!cActor->second.Copy)
@@ -183,9 +210,12 @@ Inventory FakeEngine::GetActorEquipment(uint32_t aActorFormId) const noexcept
 {
     Inventory equipment;
     if (const auto it = Actors.find(aActorFormId); it != Actors.end())
+    {
+        equipment.CurrentMagicEquipment = it->second.Items.CurrentMagicEquipment;
         for (const auto& cEntry : it->second.Items.Entries)
             if (cEntry.IsWorn())
                 equipment.Entries.push_back(cEntry);
+    }
     return equipment;
 }
 
@@ -238,6 +268,21 @@ void FakeEngine::GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
     AddItems(aActor, aItem, aCount);
 }
 
+void FakeEngine::QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
+{
+    // As the AddItem native (0x140A2C110): an AddItemFunctor queued on the post-render queue, added in its run.
+    const int cFunctor = 0;
+    StoryGifts::Queued(StoryGifts::Queue::kPostRender, &cFunctor, true, true);
+    const StoryGifts::Run cRun(&cFunctor);
+    Inventory::Entry item;
+    item.BaseId = ServerId(aItem);
+    item.Count = aCount;
+    InventoryChangeEvent event(aActor, item);
+    event.StoryGiven = StoryGifts::Giving(); // as our add hooks read it
+    World::Get().GetRunner().Trigger(std::move(event));
+    AddItems(aActor, aItem, aCount);
+}
+
 void FakeEngine::OutfitPutsOn(uint32_t aActor, uint32_t aItem)
 {
     AddItems(aActor, aItem, 1);
@@ -265,6 +310,16 @@ void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
 
 void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
 {
+    // The inventory's Drop takes the stack the player picked: one with extra data (a name, tempering) as it is.
+    if (const auto cStacks = EntriesOf(aActor, aItem); !cStacks.empty())
+    {
+        Inventory::Entry item = cStacks.front();
+        item.Count = -aCount;
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item, true));
+        ScopedInventoryOverride _;
+        AddEntry(aActor, item);
+        return;
+    }
     Inventory::Entry item;
     item.BaseId = ServerId(aItem);
     item.Count = -aCount;
@@ -300,7 +355,8 @@ void FakeEngine::PicksUp(uint32_t aObject)
         World::Get().GetRunner().Trigger(ItemPickUpEvent{aObject});
         return;
     }
-    const Inventory::Entry cItem = it->second.Item;
+    Inventory::Entry cItem = it->second.Item;
+    cItem.IsQuestItem = it->second.QuestObject;
     Loose.erase(it);
     HostDecides.erase(aObject);
     m_freedTemporary.insert(aObject);
@@ -345,6 +401,16 @@ std::optional<Inventory::Entry> FakeEngine::TakeLoose(const GameId& acObject)
     return cItem;
 }
 
+bool FakeEngine::TakeQuestObject(const GameId& acObject)
+{
+    const uint32_t cId = 0xFF000000 | acObject.BaseId;
+    const auto it = acObject.ModId == ObjectChange::kCreatedModId ? Loose.find(cId) : Loose.end();
+    if (it == Loose.end() || !it->second.QuestObject)
+        return false;
+    PicksUp(cId);
+    return true;
+}
+
 void FakeEngine::RecordCreated(uint32_t aObject)
 {
     const auto it = Loose.find(aObject);
@@ -358,6 +424,29 @@ void FakeEngine::RecordCreated(uint32_t aObject)
     create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(it->second.Cell)});
     create.Stacks = {it->second.Item};
     Recorded.push_back(std::move(create));
+}
+
+void FakeEngine::Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange)
+{
+    auto& entries = Actors.at(aActor).Items.Entries;
+    const auto it = std::ranges::find_if(entries, [&](const Inventory::Entry& acEntry) { return acEntry.CanBeMerged(acStack); });
+    if (it == entries.end())
+        return;
+    const uint32_t cItem = ::ItemForm(acStack.BaseId);
+    const auto cBefore = EntriesOf(aActor, cItem);
+    Inventory::Entry improved = *it;
+    improved.Count = 1;
+    acChange(improved);
+    if (--it->Count <= 0)
+        entries.erase(it);
+    {
+        ScopedInventoryOverride _;
+        AddEntry(aActor, improved);
+    }
+    // Our hooks on 16145 / 16146: the stacks' difference raised as item changes.
+    if (!ScopedInventoryOverride::IsOverriden())
+        for (const auto& cChange : ItemChanges::Diff(cBefore, EntriesOf(aActor, cItem)))
+            World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, cChange));
 }
 
 std::vector<Inventory::Entry> FakeEngine::EntriesOf(uint32_t aActor, uint32_t aItem) const
@@ -414,10 +503,24 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
     return carried;
 }
 
-// Added (a worn one equipped, as SetInventory's adds do) or removed.
+// Added (a worn one equipped, as SetInventory's adds do) or removed. A removal takes from a stack with extra data only
+// when it names that stack's own list (InventoryChanges::RemoveItem 16059; a list rebuilt from the entry matched none
+// in Skyrim, 2026-10-30): the bridge's TESObjectREFR::AddOrRemoveItem finds it.
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
     const uint32_t cItem = ::ItemForm(aItem.BaseId);
+    if (aItem.Count < 0 && aItem.ContainsExtraData())
+    {
+        // As TESObjectREFR::AddOrRemoveItem: the carried stack's own list, found by ItemChanges::FindStack.
+        auto& entries = Actors.at(aObjectFormId).Items.Entries;
+        const auto cStack = ItemChanges::FindStack(entries, aItem);
+        if (!cStack)
+            return;
+        entries[*cStack].Count += aItem.Count;
+        if (entries[*cStack].Count <= 0)
+            entries.erase(entries.begin() + static_cast<std::ptrdiff_t>(*cStack));
+        return;
+    }
     AddEntry(aObjectFormId, aItem);
     if (aItem.Count > 0 && aItem.IsWorn())
     {

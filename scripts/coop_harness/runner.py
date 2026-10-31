@@ -1,5 +1,6 @@
 """Runner for the co-op harness."""
 from .source_tags import SOURCE_TAGS
+import argparse
 import contextlib
 import json
 import random
@@ -7,6 +8,7 @@ import sys
 import time
 import uuid
 from .common import (
+    BOOT_FILE,
     CLIENT_USER,
     ROOT,
     TEST_HOME,
@@ -100,8 +102,6 @@ class Runner:
             raise ctx.failure("desync afterwards: " + " | ".join(problems))
         if dialogue := ctx.check_dialogue_trace():
             raise ctx.failure("the menus differ in a conversation: " + " | ".join(dialogue[:6]))
-        if refused := ctx.replay_refusals_line(ctx.flow_started):
-            log(f"copies refused replayed animations: {refused}")
         if world := ctx.check_world(known_world):
             raise ctx.failure(f"world differs afterwards ({len(world)} references): " +
                               " | ".join(describe_world_differences(world, 20)))
@@ -109,6 +109,9 @@ class Runner:
         for game, report, ours in new_locks:
             if not ours:
                 log(f"warning: engine-only lock-order pattern on {game}: {report}")
+        # Live: the two orders overlapped in this run (the deadlock's precondition), ours or the engine's.
+        if live_locks := [f"{game}: {report}" for game, report, _ in new_locks if "live lock order inversion" in report]:
+            raise ctx.failure("lock order overlapped live: " + " | ".join(live_locks))
         if ours_locks := [f"{game}: {report}" for game, report, ours in new_locks if ours]:
             raise ctx.failure("lock order (our code on the stack): " + " | ".join(ours_locks))
 
@@ -136,6 +139,7 @@ class Runner:
         restored = True
         known_locks = {}
         original_step = {}
+        replay_since = None
         ctx.CURRENT_STEP.update(description=None, time=time.time())
         ctx.FAILING = False
         ctx.cleanup_errors = []
@@ -143,14 +147,14 @@ class Runner:
         ctx.STATUS_AT_FAILURE = True
 
         def setup():
-            nonlocal known_locks
+            nonlocal known_locks, replay_since
             if flow.fixture == "saved-story":
                 homes = [ctx.load_home(game.name) for game in ctx.games]
                 if not all(home and home.get("cell_name") is None and home.get("world", {}).get("live") for home in homes):
                     raise ctx.failure("this flow requires duo --save with its documented story save")
             known_locks = ctx.lock_order_reports()
             ctx.check_dialogue_trace()  # from here on: this flow's conversations
-            ctx.flow_started = time.time()
+            ctx.flow_started = replay_since = time.time()
 
         try:
             for phase, action in (("setup", setup), ("action", lambda: flow.run(ctx)),
@@ -167,6 +171,8 @@ class Runner:
                     except Exception as capture_error:
                         log(f"Evidence capture failed: {capture_error}")
                     break
+            if replay_since is not None and (refused := ctx.replay_refusals_line(replay_since)):
+                log(f"copies refused replayed animations: {refused}")
             failures.extend(("cleanup", error) for error in ctx.cleanup_errors
                             if not any(error is existing for _, existing in failures))
             if not (failures and until_fail):
@@ -190,6 +196,22 @@ class Runner:
         if failures and not isinstance(failures[0][1], Exception):
             raise failures[0][1]
         return FlowResult(name, time.monotonic() - started, failures, restored, original_step or dict(ctx.CURRENT_STEP))
+
+    def restart_duo(ctx):
+        """Boots the duo again as it was booted (boot.json) and returns its baseline world."""
+        try:
+            boot = json.loads((ctx.game("").control / BOOT_FILE).read_text())
+        except (OSError, ValueError):
+            raise ctx.failure(f"no {BOOT_FILE}: boot the duo with this harness to let it restart")
+        log(f"=== booting the duo again ({boot})")
+        ctx.stop_duo()
+        try:
+            ctx.command_duo(argparse.Namespace(**boot, keep_running=True, run_dir=None))
+        except SystemExit:
+            raise ctx.failure("the duo did not boot again")
+        if problems := ctx.settle_baseline():
+            raise ctx.failure("the booted duo is not at the baseline: " + " | ".join(problems))
+        return ctx.check_world()
 
     def command_scenario(ctx, args):
         ctx.HOLD = args.hold
@@ -224,8 +246,12 @@ class Runner:
         ctx.phase = "setup"
         try:
             if problems := ctx.settle_baseline():
-                raise ctx.failure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
-            baseline_world = ctx.check_world()
+                if getattr(args, "no_restart", False):
+                    raise ctx.failure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
+                log("the games are off the baseline before the first scenario (" + " | ".join(problems) + ")")
+                baseline_world = ctx.restart_duo()
+            else:
+                baseline_world = ctx.check_world()
         except Exception as error:
             ctx.keep_failure("baseline", error)
             raise
@@ -235,6 +261,7 @@ class Runner:
             log("warning: the worlds differ at the baseline: " + " | ".join(describe_world_differences(baseline_world, 20)))
         known_world = world_pairs(baseline_world)
         runs = []
+        restarts = []
         for index, name in enumerate(order):
             log(f"=== {name}: {ctx.registry[name].doc}")
             ctx.observe("start", name=name, index=index)
@@ -256,10 +283,25 @@ class Runner:
                         log(f"Bug report capture failed: {capture_error}; original failure: {result.text}")
             ctx.observe("result", name=name, seconds=result.seconds, result=result.text)
             log(f"=== {name}: {result.text}")
-            if (result.failures and (until_fail or args.fail_fast)) or not result.restored:
-                reason = "the games could not be reset to the baseline" if not result.restored else "--until-fail" if until_fail else "--fail-fast"
+            if result.failures and (until_fail or args.fail_fast):
+                reason = "--until-fail" if until_fail else "--fail-fast"
                 runs.extend((skipped, 0.0, f"NOT RUN ({reason})") for skipped in order[index + 1:])
                 break
+            if not result.restored:
+                reason = f"{name} left the games off the baseline"
+                if getattr(args, "no_restart", False) or index + 1 == len(order):
+                    runs.extend((skipped, 0.0, f"NOT RUN ({reason})") for skipped in order[index + 1:])
+                    break
+                ctx.observe("restart", name=name)
+                try:
+                    known_world = world_pairs(ctx.restart_duo())
+                except Exception as error:
+                    with contextlib.suppress(Exception):
+                        ctx.keep_failure("restart", error)
+                    runs.extend((skipped, 0.0, f"NOT RUN ({reason}; booting the duo again failed: {error})") for skipped in order[index + 1:])
+                    break
+                restarts.append(name)
+                runs[-1] = (name, result.seconds, result.text + " [broke the baseline: duo booted again]")
         print()
         for name, seconds, result in runs:
             print(f"{name:28s} {seconds:5.1f}s  {result}")
@@ -268,6 +310,8 @@ class Runner:
             for name in names:
                 mine = [result for run, _, result in runs if run == name]
                 print(f"{name:28s} {sum(r == 'PASS' for r in mine)}/{len(mine)} passed")
+        if restarts:
+            print(f"{'baseline broken by':28s} {', '.join(restarts)} (the duo was booted again after each)")
         print(f"{'total':28s} {time.monotonic() - suite_start:5.1f}s")
         if any(r != "PASS" for _, _, r in runs):
             raise SystemExit(1)

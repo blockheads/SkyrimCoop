@@ -5,8 +5,11 @@
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
+#include <Games/Animation/ReplayGraph.h>
+#include <Games/Animation/ReplayState.h>
 
 #include <Forms/BGSAction.h>
+#include <Forms/TESIdleForm.h>
 #include <AI/AIProcess.h>
 #include <AI/KnockState.h>
 #include <Misc/MiddleProcess.h>
@@ -195,12 +198,11 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     const auto pAction = Cast<BGSAction>(TESForm::GetById(cAction.ActionId));
     const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(cAction.TargetId));
 
-    // The action is played from the owner's state just before it performed it, but for the knock state: the copy's
-    // own, knocked down with its owner's ragdoll (BodyBridge; the owner's would claim a ragdoll it never took).
+    // Historical action flags keep the copy's current ragdoll and weapon transition.
     const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
     apActor->actorState.flags1 = (cAction.State1 & ~ActorState::kKnockMask) | (cPreviousFlags1 & ActorState::kKnockMask);
-    apActor->actorState.flags2 = cAction.State2;
+    apActor->actorState.flags2 = ReplayState::Flags2(cAction.State2, cPreviousFlags2);
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
     actionData.eventName = BSFixedString(cAction.EventName.c_str());
@@ -220,7 +222,16 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
         PrepareCopyGetUp(*apActor);
         apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (uint32_t(cKnockBefore) << 25);
     }
-    const bool cTaken = cGetUp ? ActorMediator::Get()->PerformAction(&actionData) : ActorMediator::Get()->ForceAction(&actionData);
+    const bool cPlayed = cGetUp ? ActorMediator::Get()->PerformAction(&actionData) : ActorMediator::Get()->ForceAction(&actionData);
+    const bool cTaken = ReplayGraph::Recover(cPlayed, cAction.GraphState, [&](std::string_view) {
+        const bool cLoaded = apActor->LoadAnimationGraphState(cAction.GraphState);
+        // The saved state carries the owner's knock flags; our body owns its own ragdoll.
+        apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (cPreviousFlags1 & ActorState::kKnockMask);
+        if (cLoaded)
+            spdlog::debug("Copy {:X} recovered refused action {:X} '{}' from its owner's graph", apActor->formID,
+                          cAction.ActionId, cAction.EventName);
+        return cLoaded;
+    });
     const uint8_t cKnockAfter = KnockReplay::AfterAction(cKnockBefore, cGetUp, cTaken);
     if (cKnockAfter != cKnockBefore)
         apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (uint32_t(cKnockAfter) << 25);
@@ -235,26 +246,9 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
 
 void AnimationSystem::RunReplayStep(Actor* apActor) noexcept
 {
-    using ReplayStep = ActorExtension::ReplayStep;
     auto& step = apActor->GetExtension()->Replay;
-    uint8_t phase = step.Phase.load(std::memory_order_acquire);
-    if (phase != ReplayStep::kVariables && phase != ReplayStep::kAction)
-        return;
-    if (!step.Phase.compare_exchange_strong(phase, ReplayStep::kBusy, std::memory_order_acq_rel))
-        return;
-
-    if (phase == ReplayStep::kVariables)
-    {
-        apActor->LoadAnimationVariables(step.Variables);
-        step.Phase.store(ReplayStep::kAction, std::memory_order_release);
-        return;
-    }
-    // As the owner's input retries until its graph takes it, a copy a graph update behind gets 3 more.
-    constexpr uint8_t cMaxRetries = 3;
-    if (PlayReplayedAction(apActor, step))
-        step.Phase.store(ReplayStep::kTaken, std::memory_order_release);
-    else
-        step.Phase.store(step.Retries++ < cMaxRetries ? ReplayStep::kAction : ReplayStep::kRefused, std::memory_order_release);
+    RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) { apActor->LoadAnimationVariables(acVariables); },
+                           [&] { return PlayReplayedAction(apActor, step); });
 }
 
 void AnimationSystem::Setup(World& aWorld, const entt::entity aEntity) noexcept
@@ -322,11 +316,11 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
 
 bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, const ActionEvent& aLastProcessedAction, std::string* apData)
 {
-    uint8_t scratch[1 << 14];
-    Wire::Buffer::Writer writer{std::span(scratch)};
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer{&buffer};
     aActionEvent.GenerateDifferential(aLastProcessedAction, writer);
 
-    apData->assign(scratch, scratch + writer.Size());
+    apData->assign(reinterpret_cast<const char*>(buffer.GetData()), writer.Size());
 
     return true;
 }

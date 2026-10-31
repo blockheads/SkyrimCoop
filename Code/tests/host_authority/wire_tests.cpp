@@ -82,6 +82,7 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.Id = 0x3456;
         m.Values[24] = 51.25f;
         m.Values[25] = -3.5f;
+        m.TemporaryValues[25] = 30.f;
         add("ActorValues", m, (NotifyActorValueChanges*)nullptr);
     }
     {
@@ -208,11 +209,11 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"AiState", {"b424b2a8010000000121831001", "b424b2a8010000000121831001"}}, // replaced NewPackage (2026-10-22)
+        {"AiState", {"b424b2a801000000012183100100", "b424b2a801000000012183100100"}}, // replaced NewPackage (2026-10-22); headtrack slots (2026-10-31)
         {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
         {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
-        {"ActorValues", {"d668021800004d4219000060c0", "d668021800004d4219000060c0"}},
+        {"ActorValues", {"d668021800004d4219000060c001190000f041", "d668021800004d4219000060c001190000f041"}}, // temporary pool modifiers (2026-10-30)
         {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},
         {"DeathState", {"f8ac0101", "f8ac0101"}},
         {"Dismount", {"92e003a30200", "92e003a30200"}}, // placement added 2026-10-27

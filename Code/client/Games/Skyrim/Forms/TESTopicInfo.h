@@ -21,6 +21,7 @@ struct TESTopicInfo : TESForm
     uint8_t favorLevel;      // 3B
     uint16_t flags;          // 3C, TOPIC_INFO_DATA
     uint16_t timeUntilReset; // 3E, not 0: not said again to the player within its reset hours
+    uint32_t fileOffset;     // 40, its record in its plugin: the responses are read from there (GetResponseList 25626)
 
     // Marks it said, as TESTopicInfo::Begin (25616) does when it is said (with the change flag the save keeps).
     void MarkSaid() noexcept
@@ -42,3 +43,4 @@ static_assert(offsetof(TESTopicInfo, parentTopic) == 0x20);
 static_assert(offsetof(TESTopicInfo, saidOnce) == 0x3A);
 static_assert(offsetof(TESTopicInfo, flags) == 0x3C);
 static_assert(offsetof(TESTopicInfo, timeUntilReset) == 0x3E);
+static_assert(offsetof(TESTopicInfo, fileOffset) == 0x40);

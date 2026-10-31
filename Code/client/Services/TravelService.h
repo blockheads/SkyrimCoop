@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <NoCopyMove.h>
+#include <MainLoopTasks.h>
 
 struct World;
 struct UpdateEvent;
@@ -39,6 +40,7 @@ struct TravelService
                                   const glm::vec3& acPosition) const noexcept;
 
   private:
+    void FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept;
     // The party arrived on one spot: the players on it pass through each other until each walks off it.
     void StackOn(const glm::vec3& acSpot) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
@@ -89,5 +91,6 @@ struct TravelService
     };
     std::optional<Stack> m_stack;
 
+    MainLoopTasks::Scope m_mainTasks;
     std::vector<entt::scoped_connection> m_connections;
 };

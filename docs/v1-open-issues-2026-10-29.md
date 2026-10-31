@@ -61,6 +61,18 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
 (`HookInitFromPackage`, ClientTests `[CopyPackage]`). Found, open:
 
 - Lydia's dialogue idle differs mid-conversation (`animation.idle` 1105592 on the host vs 1105590 on the copy).
+  **Cause and fast fix verified 2026-10-30 (`v1-copy-desync`):** the hook published an idle query after Skyrim
+  changed its flags from 1 to 2; the copy performed the query before the owner's actual gesture, then refused
+  the actual event or kept the queried idle. The fake models the native query and graph transitions;
+  GameTests `[replay-query]` fails before, passes after remembering the initial query flag. ClientTests
+  `[replay-capture]` and full `scripts/check.sh` pass. Focused native acceptance now passes anchor switch,
+  saved anchor, trade and host load. Both Beast Form and both kill-move scenarios pass in the next batch.
+  The final 105-scenario tag union finishes 87 PASS/18 FAIL; both transformations and both kill-move replay cases pass.
+  Intermittent trade copy latest-action zero remains open; no blanket closure of animation/movement checks. [Evidence and engine path](re/systems/animation-action-queries.md).
+  Remaining matched traces show independent clip transitions leaving different active graph states. A second red
+  GameTests `[replay-graph]` and recovery units cover loading the accepted action's resulting owner graph after
+  refusal. Unrecovered unpaired refusals disappear in the focused batch; raw refused attempts that recover are logged separately. A wolf-half refusal is already playing
+  with its local player, as the trace establishes; [recovery evidence and remaining timing/pose findings](re/systems/animation-replay-recovery.md).
 - Outdoors: an Imperial Soldier's turn (`TurnRight` vs `turnStop`) and an Elk's `weapon_drawn` differ.
 - Guest crash, twice, loading the host's save in `follower-anchor-saved` (`crash-2026-10-30-09-25-02`, `09-34-28`):
   the harness cleanup had deleted the world's NPCs, the guest marked its copies deleted, and the load handed one
@@ -75,17 +87,131 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
   first does not show it. Not the trade. Out of v1 scope (the user, 2026-10-30): in [bugs.md](bugs.md).
 - Found 2026-10-30 (merged build): after the guest hands Lucan the claw (`dialogue-options-are-the-partys`, its
   script run for the guest), the host's copy of the guest's player wears only one item: its armor and weapon gone
-  (`copy lacks 12E46, 12E4B, 12E4D, 13790`). Open.
+  (`copy lacks 12E46, 12E4B, 12E4D, 13790`). **Fast fix verified (`v1-copy-desync`):** the native
+  outfit/model rebuild leaves a stale partial worn set; items remain carried, and incremental equips fail.
+  Explicit UnequipAll plus an unchanged owner snapshot restores all five. The fake learns that boundary;
+  `[outfit-rebuild]` fails before and passes after resetting/reapplying a mismatched whole worn set.
+  `[equipment-repair]` units fail six assertions before, pass after; matching sets stay untouched, spells
+  and item counts survive repair. Full `scripts/check.sh` passes;
+  **Focused native acceptance passes:** the full claw hand-in passes with normal assertions and no diagnostic
+  repair commands. **Closed for the requested claw failure:** the full claw scenario and both quest-gold
+  turn-ins also pass in the final105-scenario combined batch. The native script's precise initiating rebuild call remains unknown.
+  [Evidence](re/systems/copy-equipment-after-rebuild.md).
 - Found 2026-10-30 (merged build): `guest-cannot-load` failed once on a lock-order report with our code on the stack
-  (`+0x3cdb45 > +0x1823d0 vs +0x182e91 > +0x3d1507`, client). Open; not related to this batch's changes as far as
-  read.
+  (`+0x3cdb45 > +0x1823d0 vs +0x182e91 > +0x3d1507`, client). **Recorded 2026-10-30:** these are the engine's own
+  orders, with no product change. In `ClearRefAlias`, which our guest quest-fill apply calls the same way Papyrus
+  `Alias.Clear()` does, the quest's lock comes before the actor's aliases. A load or the harness's console `coc`
+  takes them the other way round. The `+0x17a479 > +0xe82682` pattern (`party-changes-cells`,
+  `follower-guest-recruits`) is a cell detach against the physics job's trigger event, with only pass-through hooks
+  of ours on the stack. The checker no longer counts our pass-through `HookUpdateAI` and `HookCheckForNewPackage`
+  as ours; the boot alone had 14 such AI reports
+  ([2026-10-30-lock-orders-ours-on-stack.md](re/crashes/2026-10-30-lock-orders-ours-on-stack.md)).
+  `--until-fail 20` did not reproduce it. Run 17 failed differently: the guest's chat did not explain its refused
+  menu load within 10 s (bug report `2026-10-30-1256-8a5`). Open.
+- Found 2026-10-30 (the user, then the harness): actors slide or walk in slow motion, often right after the party
+  arrives somewhere. The harness's `gait` readout (`TestHarness/GaitWatch`, `check_gait`) compares how far each
+  humanoid travels with how far its feet move against its body. `actors-walk-after-arrival` (Riverwood and the
+  Sleeping Giant, 12 s each) fails 3 of 3: guest copies slide while their owners walk (Faendal, Sven, Dorthe,
+  Frodnar, Alvor), and the host's own NPCs slide for a few seconds after arrival too (Embry, Sigrid, Gerdur), with no
+  vanilla A/B yet. v1-copy-desync took it. Open.
+- Found 2026-10-30: after `party-buys-horse-host`/`-guest` (ride and dismount), the rider's copy was left lifted
+  off its feet on the other game (pelvis ~100 above the floor); the runner booted the duo again. Open.
+- Found 2026-10-30: "[ours]" lock tags still come through the pass-through script `MoveTo` chain (`HookMoveRun` ->
+  `HookMoveTo` -> `HookForceState`) for engine-only orders (`1823d0 > 15ff00`). `HookUpdateAI` and
+  `HookCheckForNewPackage` are ignored since today
+  ([2026-10-30-lock-orders-ours-on-stack.md](re/crashes/2026-10-30-lock-orders-ours-on-stack.md)). Open.
+- Harness, closed 2026-10-30: one scenario leaving the baseline broken stopped every later one ("NOT RUN: the games
+  could not be reset"; `party-travel-dead-guest` and `follower-anchor-dies` blocked 13-68 each). The runner now boots
+  the duo again with its recorded arguments (`boot.json`) and goes on, naming the scenario that broke it
+  (`--no-restart` keeps the old stop; testing.md, `scripts/test_coop_harness.py`).
 - Dialogue's harness check found and the fixes closed: each menu its own claw line, a list a step behind after a
   pick, a guest's menu blank while the NPC answered. The picked line overlapping in the claw conversation is in
   bugs.md (out of v1).
-- Copies of leveled NPCs roll their own leveled entry: placed guards in QASmoke ("Whiterun Guard" vs "Imperial
+- Copies of leveled NPCs show different names: placed guards in QASmoke ("Whiterun Guard" vs "Imperial
   Soldier") and a spawned "Bandit Chief" vs "Bandit Outlaw" (2026-10-30).
-- Found 2026-10-30 in the follower tag: Lydia's copy lacks a worn item (`10E2DE`) mid-trade; a Vigilant of
-  Stendarr's magicka differs (87 vs 57).
+  **Fixed, native name comparisons pass (`v1-copy-desync`):** the host's composite base has Chief's name and Outlaw's
+  selected face. The face reaches the copy, but the resolved name had no saved section (flags 0, empty snapshot).
+  Announcements include the native full-name section. Copies decode it on a disposable NPC and apply
+  a reference name (ExtraTextDisplayData), preserving the selected shared base. An attached private name base
+  proved unsafe: native leveled-data loading freed it before actor GC. That regression now has a RED4
+  lifetime smoke and a fix; the final mounted-travel sequence no longer crashes.
+  GameTests `[npc-choice]` fails before for created and placed copies, passes after; `[npc-snapshot]` units and
+  full `scripts/check.sh` pass. A native acceptance regression (ordinary named NPCs saving non-name runtime
+  sections) now has its own red/green flow and unit; those snapshots retain the original identity base.
+  Native spawned/placed name comparisons now pass; the placed scenario retained a separate travel lock-order
+  report. **Closed for resolved names:** spawned and placed name comparisons pass in the final 105-case
+  batch; the placed scenario still reports the independent travel lock. Native names use BSFixedString
+  case-insensitive equality; a pooled-name smoke and comparison unit fail first, while Chief/Outlaw remains rejected. [Evidence](re/systems/leveled-npc-copy-names.md).
+- Onmund's magicka: owner 205, copy 175 (`dialogue-question-answered-by-who-can`).
+  **Cause established (`v1-copy-desync`):** both permanent values are 175; the owner's active fortify effect
+  adds 30 through TEMPORARY, absent from the pool snapshot. The fake now respects the native DAMAGE healing
+  limit and `[fortified-pools]` reproduces 175 versus 205. Snapshot/live temporary-modifier synchronization
+  and ordered restoration pass `[fortified-pools]` and `[actor-pools]` after both failed first.
+  **Fixed, focused Skyrim acceptance passes:** both report permanent 175, TEMPORARY 30, current 205,
+  with the same identity base. **Closed for this pool mismatch:** dedicated Onmund and the original
+  dialogue-question-answered-by-who-can both pass in the final combined 105. Full `scripts/check.sh` passes. [Evidence](re/systems/fortified-copy-pools.md).
+- Lydia's mid-trade missing worn item (`10E2DE`) is her 12-arrow stack. **Fixed, native trade passes:** queued
+  equips emit no equipment event; the following actual bow equip now schedules a full snapshot on the next
+  update, rather than waiting up to three seconds. `[queued-ammo]` and snapshot scheduler units both failed
+  before and pass after. The Vigilant's similar temporary magicka gap is covered by the generic pool fix.
+
+The user's smoke audit exposed a second observer gap: `Party::ActorDifferences` compared neither animation
+markers, NPC names nor pools. New `[desync-checks]` fails on all three before adding those generic checks.
+The ordinary guest-talks flow now performs actual query/gesture/stop actions and checks all actors during
+conversation and before cleanup; disabling recovery makes it fail on the stuck final gesture. `[replay-time]`
+and `[replay-staging]` fail before fixing the fake's immediate replay: it now obeys the playback clock and shares
+the native graph-job phase machine. `[replay-ready]` also fails three assertions before teaching graph readiness and the native ten-update fallback. These improvements
+do not establish the cause of Skyrim's intermittent zero marker. A follow-up observer test also fails on
+head/pelvis gaps despite identical action markers. Supplied pose readings are now checked with the native
+20-unit tolerance; the fake has no IK solver. A subsequent native camera control establishes a stale off-screen skeleton:
+owner head88→124 just by looking, same JumpLand, scale1 on both. `[culled-pose]` and three comparison units
+fail first and pass after qualifying NPC bone readings by visibility; visible pose faults and all other actor
+checks remain. Native metadata calibration confirms owner83/cull6/frustum=false versus copy122/cull7/frustum=true; the qualified dialogue comparison passes. [Evidence](re/systems/culled-npc-pose-readings.md).
+
+Aela's `host-loads-party` failure in the combined batch is a missing **torch `1D4EC`**, not an animation-zero report.
+`[torch-repair]` and `[repair-slot]` fail first; only weapons now use explicit hand slots, other types use their
+native default slot. The final-build controlled `npc-torch-repairs-in-default-slot` passes: Aela actually wears1D4EC,
+her copy equips it, and an unchanged owner snapshot repairs deliberate drift. The torch fault is closed.
+
+A further native Deer trace catches current weapon state0 on the owner and5 on the copy, with the same
+moveStart marker carrying historical State2 `0x64E10A8` (weapon bits5). The fake previously ignored those
+replayed state bits and its observer compared only hand direction. `[replay-weapon]` now fails **5 != 0**
+through both ordinary replay and graph recovery; the observer's raw-state check fails first too.
+`[replay-state]` units fail three assertions. Historical action/graph flags now preserve the copy's current
+weapon bits; live owner weapon-choice messages retain control. The final recruitment case reports no NPC
+weapon/name mismatch. [Native fact and fast regression](re/systems/animation-replay-recovery.md).
+
+Latest complete `v1-copy-desync` gate: **618 C++ cases, 6,402 assertions**, Python
+harness checks (including17 comparison tests), UI fixtures, plugin and launcher pass (`build/replay-weapon-check.log`).
+All changes remain uncommitted in `.worktrees/v1-copy-desync`; no merge into dev.
+The final105-case combined run completes **87 PASS/18 FAIL**, 1,441.8s, with party-travel-dead-guest last.
+Names, Onmund, full guest claw hand-in, anchor switch/save/trade, host load, controlled torch, both Beast Forms
+and both kill-move replay cases pass their requested checks. The placed name case retains a lock report.
+The private-name-base cleanup crash does not recur. Own games stop and DUO is released before offline work.
+Remaining failures include owner gait, revived-player body/pose, four strict lock reports, Lydia facing26°,
+Belethor's copy retaining a scene, a missing story-save fixture, and the dead-guest enemy-copy death timeout.
+Intermittent all-zero animation from the earlier batch remains open and did not recur. Five refused paired
+attempts remain logged (four kill moves and HorseExit); the earlier wolf trace establishes an already-playing
+duplicate, not a blanket explanation for every paired refusal. No lock allowlist or tolerance increases.
+[Full final results, open failures and smoke evidence](reports/2026-10-30-copy-desync.md).
+
+**Scope decision, 2026-10-31 (user): all remaining findings from this copy-desync batch are deferred past v1.**
+This includes the intermittent zero marker, facing/scene differences, paired refusals, death/baseline and
+body/ragdoll failures, gait investigation, lock reports and missing story-save validation. They remain open
+in the [post-v1 backlog](bugs.md#copy-desync-follow-ups), with their evidence and failing checks preserved.
+The 18 failing scenarios are accepted deferred findings for this batch; their results are not changed to passes.
+The lock reports and enemy-copy death delay deserve earlier follow-up because their gameplay impact remains
+uncertain. This decision does not change the disposition of unrelated findings elsewhere in this document.
+
+**Superseding investigation, 2026-10-31:** the three reopened risks are classified and corrected.
+Worker cell loads/quest writes now run between frames; the mounted native-engine order retains its raw
+report with corrected wrapper attribution. Death timeout was a stale pre-travel copy handle (five-second
+bound unchanged). Belethor had a real stale effective scene cache and hidden guest conversation after
+barter; both have regressions and native two-transaction controls. Gate **629 cases / 6,462 assertions**
+plus Python/UI/Windows passes. Combined affected acceptance **20 PASS / 2 FAIL**,401.5s; fresh four barter
+controls plus dead-guest last **5/5 PASS**,139.2s. The combined failures (Sigurd registration and original
+Belethor animation marker) remain recorded; all other copy-desync deferrals above remain.
+[Classifications, evidence and exact results](reports/2026-10-31-v1-three-risks.md).
 
 ## Recent unresolved findings
 

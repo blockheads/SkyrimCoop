@@ -92,6 +92,8 @@ public:
 
     // --- Show HUD message ---
     virtual void ShowHudMessage(const std::string& aMessage) noexcept = 0;
+    // The engine's notice of an item added (aCount > 0) or removed: "Gold (40) Removed".
+    virtual void ShowItemChangeMessage(uint32_t aItemFormId, int32_t aCount) noexcept = 0;
     // Shows that actor's health bar on the HUD, as when the player's hit lowers its health.
     virtual void ShowEnemyHealth(uint32_t aActorFormId) noexcept = 0;
 

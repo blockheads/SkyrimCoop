@@ -1,5 +1,6 @@
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
+#include <Games/FormChangeRows.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include "FakeDialogue.h"
@@ -160,6 +161,22 @@ void FakeEngine::SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
     Recorded.push_back(LockRow(aReference, reference));
 }
 
+void FakeEngine::ScriptSetsCellOwner(uint32_t aCell, uint32_t aOwner)
+{
+    CellOwners[aCell] = aOwner;
+    if (!IsGuest && FormChangeRows::Sent(FormChangeRows::Form::kCell, FormChangeRows::cCellOwnership, ~0u))
+        Recorded.push_back({.Type = ObjectChange::Kind::kOwner, .Object = SessionIdOf(aCell), .Item = SessionIdOf(aOwner)});
+}
+
+void FakeEngine::ScriptSetsActorOwner(uint32_t aActor, uint32_t aOwner)
+{
+    auto& actor = Actors.at(aActor);
+    actor.Owner = aOwner;
+    actor.OwnerRecorded = true;
+    if (!IsGuest && FormChangeRows::Sent(FormChangeRows::Form::kActor, FormChangeRows::cReferenceOwnership, ~0u))
+        Recorded.push_back({.Type = ObjectChange::Kind::kOwner, .Object = SessionIdOf(aActor), .Item = SessionIdOf(aOwner)});
+}
+
 void FakeEngine::SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks)
 {
     auto& reference = References.at(aContainer);
@@ -200,6 +217,21 @@ std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
 
 bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
 {
+    if (const auto cCell = CellOwners.find(FormIdOf(acChange.Object)); cCell != CellOwners.end())
+    {
+        if (acChange.Type != ObjectChange::Kind::kOwner)
+            return false;
+        cCell->second = FormIdOf(acChange.Item);
+        return true;
+    }
+    // An actor's owner (the party's horse): an actor its cell never loaded is not in this game.
+    if (const auto cActor = Actors.find(FormIdOf(acChange.Object)); cActor != Actors.end())
+    {
+        if (acChange.Type != ObjectChange::Kind::kOwner || !InMemory.contains(cActor->second.Cell))
+            return false;
+        cActor->second.Owner = FormIdOf(acChange.Item);
+        return true;
+    }
     const auto it = References.find(FormIdOf(acChange.Object));
     if (it == References.end() || !InMemory.contains(it->second.Cell))
         return false; // its cell never loaded here: "its object is not in this game"
@@ -233,6 +265,10 @@ std::optional<std::vector<ObjectChange>> FakeEngine::CellState(const GameId& acC
         if (cReference.Cell == cCell && (Changed.contains(cId) || cNamed))
             std::ranges::move(RowsOf(cId), std::back_inserter(rows));
     }
+    for (const auto& [cId, cActor] : Actors)
+        if (cActor.Cell == cCell && cActor.OwnerRecorded &&
+            FormChangeRows::Sent(FormChangeRows::Form::kActor, FormChangeRows::cReferenceOwnership, ~0u))
+            rows.push_back({.Type = ObjectChange::Kind::kOwner, .Object = SessionIdOf(cId), .Item = SessionIdOf(cActor.Owner)});
     return rows;
 }
 

@@ -16,6 +16,11 @@ constexpr uint32_t kSinkholeChest = 0x0001B001; // a chest in kSinkhole: 10 gold
 constexpr uint32_t kGold = 0x0000000F;
 constexpr uint32_t kInnDoor = 0x0001A004;    // an unlocked door in kSmoke
 constexpr uint32_t kTimesAsked = 0x0003F1D6; // a global the host's quests count with
+constexpr uint32_t kBreezehome = 0x000165A8;  // a house's cell, unowned until bought
+constexpr uint32_t kPlayerFaction = 0x00000DB1;
+constexpr uint32_t kHorse = 0x00068D74;       // the Whiterun stable's horse, placed in kSmoke
+constexpr uint32_t kHorseBase = 0x00068D6D;
+constexpr uint32_t kFarHorse = 0x00068D75;    // another stable's, placed in kSinkhole
 
 // Each game's plugins: the same references; everyone has kSmoke loaded.
 void Plugins(FakeEngine& aEngine)
@@ -25,6 +30,9 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kChest] = {.Cell = kSmoke, .Items = {{kGold, 50}}};
     aEngine.References[kSinkholeChest] = {.Cell = kSinkhole, .Items = {{kGold, 10}}};
     aEngine.References[kInnDoor] = {.Cell = kSmoke, .Door = true};
+    aEngine.CellOwners[kBreezehome] = 0;
+    aEngine.PlaceNpc(kHorse, kHorseBase, kSmoke, {300.f, 0.f, 0.f});
+    aEngine.PlaceNpc(kFarHorse, kHorseBase, kSinkhole, {});
     aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
     aEngine.LoadCell(kSmoke);
 }
@@ -44,6 +52,47 @@ SCENARIO("The host's player picks a lock: it opens on the guest's game", "[world
     party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerSetsLock(kDoor, false, 25); });
     party.Until([&] { return !Party::Engine(party.Guest()).References[kDoor].Locked; }, "the guest's door unlocks");
     CheckInSync(party);
+}
+
+SCENARIO("A house bought on the host's game is the party's on the guest's too", "[world][ownership]")
+{
+    // party-buys-house-host: HousePurchaseScript.PurchaseHouse makes the house's cell the player faction's.
+    Party party(1, Plugins);
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).ScriptSetsCellOwner(kBreezehome, kPlayerFaction); });
+    party.Until([&] { return Party::Engine(party.Guest()).CellOwners[kBreezehome] == kPlayerFaction; },
+                "the guest's game shows Breezehome the player faction's");
+}
+
+SCENARIO("A horse bought on the host's game is the party's on the guest's too", "[world][ownership]")
+{
+    // party-buys-horse-host: the stable's script makes the horse the player faction's (SetFactionOwner).
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    WHEN("the guest stands by the horse")
+    {
+        party.As(party.Host(), [&] { host.ScriptSetsActorOwner(kHorse, kPlayerFaction); });
+        party.Until([&] { return guest.Actors.at(kHorse).Owner == kPlayerFaction; },
+                    "the guest's game shows the horse the player faction's");
+        AND_WHEN("the host's script makes it no one's again")
+        {
+            party.As(party.Host(), [&] { host.ScriptSetsActorOwner(kHorse, 0); });
+            party.Until([&] { return guest.Actors.at(kHorse).Owner == 0; }, "the guest's horse is no one's");
+        }
+    }
+    WHEN("the guest is elsewhere, and goes to that stable later")
+    {
+        party.As(party.Host(), [&] {
+            host.LoadCell(kSinkhole);
+            host.ScriptSetsActorOwner(kFarHorse, kPlayerFaction);
+        });
+        // A marker after it: the guest has had every change the host sent before.
+        party.As(party.Host(), [&] { host.PlayerSetsLock(kGate, false, 50); });
+        party.Until([&] { return !guest.References[kGate].Locked; }, "the marker reaches the guest");
+        guest.LoadCell(kSinkhole);
+        party.Until([&] { return guest.Actors.at(kFarHorse).Owner == kPlayerFaction; },
+                    "the stable's state gives the guest's horse the player faction");
+    }
 }
 
 SCENARIO("A guest picks a lock: the host's world takes it, and it comes back as the host's", "[world]")

@@ -1,4 +1,5 @@
 #include <Bridges/GuestEngine.h>
+#include <Games/QuestStarts.h>
 
 #include <Bridges/IBodyBridge.h>
 
@@ -45,7 +46,7 @@
 namespace
 {
 // Running or starting.
-constexpr uint16_t kStartedQuestFlags = TESQuest::Enabled | TESQuest::StageWait;
+constexpr uint16_t kStartedQuestFlags = QuestStarts::cStartedFlags;
 
 // The quest's flags under aMask set to aFlags', the change recorded.
 void SetQuestFlags(TESQuest& aQuest, uint16_t aMask, uint16_t aFlags) noexcept
@@ -277,9 +278,15 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
         return;
     TESQuest& quest = *pQuest;
 
-    // Running or starting first, without this game's own start: no alias rolls, no start-up stage of its own.
+    // Running or starting first, without this game's own start: no alias rolls, no start-up stage of its own. Its
+    // dialogue lines are read in as its start reads them (a quest's lines exist only once it starts).
     if (acQuest.Flags & kStartedQuestFlags)
+    {
+        const uint16_t cWas = quest.flags;
         SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
+        if (QuestStarts::LoadsDialogue(cWas, quest.flags))
+            quest.LoadDialogue();
+    }
     if (ApplyFills(quest, acQuest))
         m_pendingAliases.erase(quest.formID);
     else
@@ -498,6 +505,18 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     ScopedHostChangeOverride _;
     if (acChange.Type == ObjectChange::Kind::kCreate)
         return Create(acChange);
+    // A cell's owner (the party's house, FormChangeRows): every game has the cell, loaded or not.
+    if (auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(ToGame(acChange.Object))))
+    {
+        if (acChange.Type != ObjectChange::Kind::kOwner)
+            return false;
+        TESForm* pOwner = acChange.Item.BaseId ? TESForm::GetById(ToGame(acChange.Item)) : nullptr;
+        if (acChange.Item.BaseId && !pOwner)
+            return false;
+        if (pCell->GetOwner() != pOwner)
+            pCell->SetOwner(pOwner);
+        return true;
+    }
     auto* pObject = FindReference(acChange.Object);
     // The host's deletion of one this game's player picked up: done already.
     if (!pObject && acChange.Object.ModId == ObjectChange::kCreatedModId && m_taken.erase(acChange.Object.BaseId))

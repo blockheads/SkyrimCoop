@@ -24,7 +24,8 @@ uint16_t OnReference(uint16_t aFunction) noexcept
 std::optional<Judged> For(const Item& acItem) noexcept
 {
     const uint16_t cOnReference = OnReference(acItem.Function);
-    if (!cOnReference && !acItem.OnPlayer && !acItem.PlayerParam[0] && !acItem.PlayerParam[1])
+    if (acItem.Function == kGetRelationshipRank ||
+        (!cOnReference && !acItem.OnPlayer && !acItem.PlayerParam[0] && !acItem.PlayerParam[1]))
         return std::nullopt;
     return Judged{.Function = cOnReference ? cOnReference : acItem.Function,
                   .OnCharacter = cOnReference || acItem.OnPlayer,

@@ -56,6 +56,7 @@ struct HostPlayers
     void SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept;
     void SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, Net::EPacketFlags aFlags = Net::kReliable) const noexcept;
     void SendToAll(const NotifyMessage& acMessage) const noexcept { SendToOthers(acMessage, 0); }
+    void SendTo(ConnectionId_t aConnection, const NotifyMessage& acMessage) const noexcept;
     // The host removes a player (never itself: the host is the session).
     void Kick(uint32_t aPlayerId) noexcept;
 

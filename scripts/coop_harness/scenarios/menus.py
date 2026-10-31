@@ -254,14 +254,18 @@ def book_runs(ctx, game):
             ctx.console_on("", f"{ref:X}.disable")
             ctx.console_on("", f"{ref:X}.markfordelete")
 
-def barter_speech(ctx, game):
+def barter_speech(ctx, game, original=False):
     """A real merchant line opens barter on the picker, whose purchase earns Speech on that game alone."""
     ctx.both_go("WhiterunBelethorsGeneralGoods")
-    actors = set(ctx.local_player("").get("local_actors", {}))
-    ctx.console_on("", "player.placeatme 13BA1 1")
-    npc = int(next(iter(ctx.wait_for("a merchant is loaded inside the shop", lambda:
-                  set(ctx.local_player("").get("local_actors", {})) - actors, 15))))
-    ctx.console_on("", f"{npc:X}.setrestrained 1")
+    if original:
+        npc = 0x1A672
+        ctx.wait_for("the original Belethor is loaded", lambda: ctx.actor_state("", npc).get("placement", {}).get("has_3d"), 15)
+    else:
+        actors = set(ctx.local_player("").get("local_actors", {}))
+        ctx.console_on("", "player.placeatme 13BA1 1")
+        npc = int(next(iter(ctx.wait_for("a merchant is loaded inside the shop", lambda:
+                      set(ctx.local_player("").get("local_actors", {})) - actors, 15))))
+        ctx.console_on("", f"{npc:X}.setrestrained 1")
     ctx.wait_for("the merchant has a session id", lambda: ctx.host_npc_state(npc).get("session_id", -1) >= 0, 10)
     copy = ctx.copy_of("client", ctx.host_npc_state(npc)["session_id"])
     gold = ctx.party_gold()
@@ -276,37 +280,59 @@ def barter_speech(ctx, game):
         ctx.place_before(game, target, 110)
         ctx.wait_for("the merchant has faded in and can be activated", lambda:
                     ctx.actor_state(game, target).get("mod", {}).get("fade_state") == 0, 10)
-        ctx.activate_on(game, target)
-        try:
-            ctx.wait_for("the merchant offers its barter line", lambda: any(
-                "sale" in o.get("text", "").lower() for o in ctx.dialogue(game).get("options", [])), 30)
-        except TestFailure:
-            log(f"merchant {npc:X}, copy {copy:X}: host={ctx.dialogue('')}, guest={ctx.dialogue('client')}")
-            raise
-        topic = next(o["topic"] for o in ctx.dialogue(game)["options"] if "sale" in o.get("text", "").lower())
-        ctx.pick_with_keys(game, topic)
-        ctx.wait_for("the picker opens barter", lambda: menu in ctx.menus(game), 15)
-        if menu in ctx.menus(other):
-            raise ctx.failure("the non-trader opened barter")
-        ctx.wait_for("the merchant's categories take input", lambda:
-                    ctx.menu_var(game, menu, lists + "currentState") == 1, 10)
-        ctx.tap_key(game, MENU_RIGHT_KEY)  # D: categories -> items
-        ctx.wait_for("the merchant's item list takes input", lambda:
-                    ctx.menu_var(game, menu, lists + "currentState") == 2, 10)
-        ctx.wait_for("the purchase has a price", lambda:
-                    (ctx.menu_var(game, menu, root + "ItemCard_mc.itemInfo.value") or 0) > 0, 10)
-        ctx.tap_key(game, ACTIVATE_KEY)
-        # A stack opens the native quantity slider; one item is enough for this trade.
-        if ctx.menu_var(game, menu, root + "ItemCard_mc.QuantityMenu_mc._visible"):
-            ctx.tap_key(game, 0x1C)
-        ctx.wait_for("the trader's native Speech gains the purchase", lambda:
-                    ctx.skill(game, SPEECH_SKILL) > before[game], 15)
-        if ctx.skill(other, SPEECH_SKILL) != before[other]:
-            raise ctx.failure("the other player's Speech gained the trade")
+        for transaction in range(2):
+            log(f"[{game or 'host'}] {'original' if original else 'spawned'} Belethor transaction {transaction + 1}")
+            before = {g: ctx.skill(g, SPEECH_SKILL) for g in ("", "client")}
+            if transaction:
+                ctx.wait_for("the merchant finishes the previous goodbye", lambda: all(
+                    not ctx.actor_state(g, actor).get("ai", {}).get("talking")
+                    for g, actor in (("", npc), ("client", copy))), 10)
+            ctx.activate_on(game, target)
+            try:
+                ctx.wait_for("the merchant offers its barter line", lambda: any(
+                    "sale" in o.get("text", "").lower() for o in ctx.dialogue(game).get("options", [])), 30)
+            except TestFailure:
+                log(f"merchant {npc:X}, copy {copy:X}: host={ctx.dialogue('')}, guest={ctx.dialogue('client')}")
+                raise
+            topic = next(o["topic"] for o in ctx.dialogue(game)["options"] if "sale" in o.get("text", "").lower())
+            ctx.pick_with_keys(game, topic)
+            ctx.wait_for("the picker opens barter", lambda: menu in ctx.menus(game), 15)
+            if menu in ctx.menus(other):
+                raise ctx.failure("the non-trader opened barter")
+            ctx.wait_for("the merchant's categories take input", lambda:
+                        ctx.menu_var(game, menu, lists + "currentState") == 1, 10)
+            ctx.tap_key(game, MENU_RIGHT_KEY)  # D: categories -> items
+            ctx.wait_for("the merchant's item list takes input", lambda:
+                        ctx.menu_var(game, menu, lists + "currentState") == 2, 10)
+            ctx.wait_for("the purchase has a price", lambda:
+                        (ctx.menu_var(game, menu, root + "ItemCard_mc.itemInfo.value") or 0) > 0, 10)
+            ctx.tap_key(game, ACTIVATE_KEY)
+            # A stack opens the native quantity slider; one item is enough for this trade.
+            if ctx.menu_var(game, menu, root + "ItemCard_mc.QuantityMenu_mc._visible"):
+                ctx.tap_key(game, 0x1C)
+            ctx.wait_for("the trader's native Speech gains the purchase", lambda:
+                        ctx.skill(game, SPEECH_SKILL) > before[game], 15)
+            if ctx.skill(other, SPEECH_SKILL) != before[other]:
+                raise ctx.failure("the other player's Speech gained the trade")
+            close(ctx, game, menu)
+            ctx.close_dialogues()
+            # The original reference also participates in the shop's scene when a spawned merchant trades.
+            def scenes_agree():
+                for owner, mirrored in {(npc, copy), (0x1A672, 0x1A672)}:
+                    native = ctx.actor_state("", owner).get("mod", {}).get("runtime", {})
+                    effective = ctx.actor_state("client", mirrored).get("mod", {}).get("runtime", {})
+                    if not native or not effective or native["native_scene"] != effective["effective_scene"]:
+                        return False
+                return True
+            ctx.wait_for("both merchants' gameplay scenes follow their owners after barter", scenes_agree, 5)
+            for owner, mirrored in sorted({(npc, copy), (0x1A672, 0x1A672)}):
+                log(f"scene {owner:X}/{mirrored:X}: owner={ctx.actor_state('', owner)['mod']['runtime']}, "
+                    f"guest={ctx.actor_state('client', mirrored)['mod']['runtime']}")
     finally:
         close(ctx, game, menu)
         ctx.close_dialogues()
-        ctx.remove_host_npc(npc)
+        if not original:
+            ctx.remove_host_npc(npc)
         ctx.set_party_gold(gold)
         ctx.both_go(HOME_CELL)
 

@@ -18,6 +18,9 @@
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
+#include <Games/Animation/ReplayCapture.h>
+#include <Games/Animation/ReplayGraph.h>
+#include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/SpellCastEvent.h>
@@ -28,6 +31,7 @@
 #include <Events/RoutedCallEvent.h>
 #include <Events/PlayerProgressEvent.h>
 #include <Games/EngineNames.h>
+#include <Games/Animation/ReplayState.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/TimeScaleEvent.h>
@@ -421,8 +425,11 @@ bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noex
     return true;
 }
 
-std::string FakeEngine::GetActorBaseName(uint32_t aFormId) const noexcept
+std::string FakeEngine::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
+    const auto actor = Actors.find(aFormId);
+    if (actor != Actors.end() && !actor->second.DisplayName.empty())
+        return actor->second.DisplayName;
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
     return it != Npcs.end() ? it->second.Name : std::string{};
 }
@@ -507,10 +514,91 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
     World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
 }
 
+bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
+{
+    auto& actor = Actors.at(aFormId);
+    const auto cWeaponBefore = actor.Weapon;
+    if (actor.Copy)
+        actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
+    if (!GraphTransitions.empty() && !actor.GraphState.empty())
+    {
+        const auto it = GraphTransitions.find({actor.GraphState, acAction.EventName});
+        if (it == GraphTransitions.end())
+        {
+            ++RefusedAnimations[aFormId];
+            if (!ReplayGraph::Recover(false, acAction.GraphState, [&](std::string_view) {
+                return LoadActorGraphState(aFormId, acAction.GraphState);
+            }))
+            {
+                actor.Weapon = cWeaponBefore;
+                return false;
+            }
+        }
+        else
+            actor.GraphState = it->second;
+    }
+    return true;
+}
+
+bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
+{
+    aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
+    uint32_t flags = aQuery ? 1 : 0;
+    aAction.Type = 2 | (flags ? 4 : 0);
+    aAction.Tick = World::Get().GetTick();
+    aAction.ActorId = aFormId;
+    const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
+        // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
+        if (flags & 1)
+        {
+            flags = 2;
+            return 1;
+        }
+        return ReplayAnimation(aFormId, aAction);
+    });
+    if (cOutcome.Capture && cOutcome.Result)
+    {
+        if (aAction.TargetEventName.empty())
+            aAction.GraphState = SaveActorGraphState(aFormId);
+        Actors.at(aFormId).LatestAnimation = aAction;
+        World::Get().GetDispatcher().trigger(aAction);
+    }
+    return cOutcome.Result != 0;
+}
+
 ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
     return it != Actors.end() ? it->second.LatestAnimation : ActionEvent{};
+}
+
+std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.GraphState.empty())
+        return {};
+    const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
+    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + it->second.GraphState;
+}
+
+bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return false;
+    auto& actor = it->second;
+    // TESObjectREFR::SaveAnimationGraphState prefixes its graph with both ActorState words.
+    if (acState.size() >= 8 && acState.compare(0, 4, std::string(4, '\0')) == 0)
+    {
+        uint32_t flags[2];
+        std::memcpy(flags, acState.data(), sizeof(flags));
+        const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
+        actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
+        actor.GraphState = acState.substr(sizeof(flags));
+    }
+    else
+        actor.GraphState = acState; // direct fixtures supply the graph alone
+    return true;
 }
 
 void FakeEngine::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept
@@ -652,6 +740,15 @@ float FakeEngine::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const
     return cValue != cValues.end() ? cValue->second : 0.f;
 }
 
+float FakeEngine::GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    const auto actor = Actors.find(aFormId);
+    if (actor == Actors.end())
+        return 0.f;
+    const auto value = actor->second.TemporaryValues.find(static_cast<uint32_t>(aIndex));
+    return value == actor->second.TemporaryValues.end() ? 0.f : value->second;
+}
+
 // Its base (SetActorValue's), 0 until set.
 float FakeEngine::GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept
 {
@@ -680,7 +777,7 @@ void FakeEngine::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) n
     }
 }
 
-// A permanent modifier moves the maximum and current together; damage changes only the current value.
+// Permanent and temporary modifiers move the current; damage cannot heal above their combined maximum.
 void FakeEngine::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept
 {
     const auto it = Actors.find(aFormId);
@@ -695,8 +792,13 @@ void FakeEngine::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t a
         values.ActorValuesList[cIndex] += aValue - values.ActorMaxValuesList[cIndex];
         values.ActorMaxValuesList[cIndex] = aValue;
     }
+    else if (aForceMode == 1)
+    {
+        it->second.TemporaryValues[cIndex] += aValue - values.ActorValuesList[cIndex];
+        values.ActorValuesList[cIndex] = aValue;
+    }
     else if (aForceMode == 2)
-        values.ActorValuesList[cIndex] = std::min(aValue, values.ActorMaxValuesList[cIndex]);
+        values.ActorValuesList[cIndex] = std::min(aValue, values.ActorMaxValuesList[cIndex] + it->second.TemporaryValues[cIndex]);
     if (cBefore != values)
         World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, cIndex});
     if (cIndex == kHealth)
@@ -766,12 +868,42 @@ uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t
     return SpawnActorFromNpc(cBase);
 }
 
+uint32_t FakeEngine::GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept
+{
+    const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+    return it == Npcs.end() ? 0 : it->second.FaceBase;
+}
+
+void FakeEngine::DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || acAppearance.empty())
+        return;
+    if (aChangeFlags & 0x20)
+    {
+        const std::string cName = acAppearance.substr(0, acAppearance.find('\0'));
+        it->second.DisplayName = PooledNames.try_emplace(NameKey(cName), cName).first->second;
+    }
+}
+
 uint32_t FakeEngine::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
 {
-    if (aFormId != kPlayer)
+    if (aFormId == kPlayer)
+    {
+        aBuffer = Player.Base;
+        return Player.BaseFlags;
+    }
+    const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+    if (it == Npcs.end())
         return 0;
-    aBuffer = Player.Base;
-    return Player.BaseFlags;
+    const uint32_t cFlags = NpcSnapshot::SaveFlags(it->second.ChangeFlags, false,
+                                                 GetActorBaseFormId(aFormId) >= 0xFF000000, it->second.FaceBase != 0);
+    // Native FormState saves the full name only when its section (0x20) was requested.
+    if (cFlags & 0x20)
+        aBuffer = it->second.Name + '\0' + it->second.Looks;
+    else if (cFlags)
+        aBuffer = "native non-name sections";
+    return cFlags;
 }
 
 // TESForm::MarkChanged: the sections are saved from now on.
@@ -779,6 +911,9 @@ void FakeEngine::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept
 {
     if (aFormId == kPlayer)
         Player.BaseFlags |= aFlags;
+    else if (const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+             it != Npcs.end() && GetActorBaseFormId(aFormId) < 0xFF000000)
+        it->second.ChangeFlags |= aFlags;
 }
 
 // The player's is a travel (MoveTo_Impl queues it as a door's): the cells load and unload, a teleport is reported.
@@ -852,14 +987,21 @@ uint32_t FakeEngine::LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, 
 {
     for (const auto& [cId, cCell] : Exteriors)
         if (cCell.WorldSpace == aWorldSpaceFormId && cCell.X == aX && cCell.Y == aY)
+        {
+            if (!AtMainLoop) WorkerCellLoads.push_back(cId);
             return cId;
+        }
     return 0;
 }
 
 uint32_t FakeEngine::CellAt(uint32_t aWorldSpace, const glm::vec3& acPosition) const noexcept
 {
     const auto cAt = GridCellCoords::CalculateGridCellCoords(acPosition.x, acPosition.y);
-    return LookupCellByCoords(aWorldSpace, cAt.X, cAt.Y);
+    // Native movement resolves an already known cell; the bridge lookup can load one from disk.
+    for (const auto& [cId, cCell] : Exteriors)
+        if (cCell.WorldSpace == aWorldSpace && cCell.X == cAt.X && cCell.Y == cAt.Y)
+            return cId;
+    return 0;
 }
 
 // The loaded grid's centre is the player's cell (TES::centerGridX/Y; the engine's own lag behind it not modelled).
@@ -949,13 +1091,15 @@ void FakeEngine::SetActorValues(uint32_t aFormId, const ActorValues& acValues) n
     const auto cPool = [](uint32_t aIndex) { return aIndex >= kHealth && aIndex <= kStamina; };
     for (const auto& [cIndex, cValue] : acValues.ActorMaxValuesList)
         if (cPool(cIndex))
-            it->second.Values.ActorMaxValuesList[cIndex] = cValue;
+            ForceActorValue(aFormId, 0, cIndex, cValue);
+    for (const auto& [cIndex, cValue] : acValues.ActorTemporaryValuesList)
+        if (cPool(cIndex))
+            ForceActorValue(aFormId, 1, cIndex, GetActorValue(aFormId, cIndex) + cValue - GetActorTemporaryValue(aFormId, cIndex));
     for (const auto& [cIndex, cValue] : acValues.ActorValuesList)
-    {
-        it->second.Values.ActorValuesList[cIndex] = cValue;
-        if (!cPool(cIndex))
-            it->second.Values.ActorMaxValuesList[cIndex] = cValue;
-    }
+        if (cPool(cIndex))
+            ForceActorValue(aFormId, 2, cIndex, cValue);
+        else
+            SetActorValue(aFormId, cIndex, cValue);
 }
 
 // Resurrect: alive, its pools full (its maximums kept), its death action over, reported as the Resurrect hook reports
@@ -1319,6 +1463,13 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
+void FakeEngine::LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget)
+{
+    auto& slot = Actors.at(aActor).Ai.HeadTrackIds.at(aSlot);
+    if (std::exchange(slot, aTarget) != aTarget)
+        World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
+}
+
 void FakeEngine::Burns(uint32_t aActor, uint32_t aEffect, bool aOn)
 {
     auto& visuals = Actors.at(aActor).Visuals;
@@ -1474,7 +1625,12 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
     base.Looks = acAppearance;
     const uint32_t cRace = RaceInLooks(acAppearance);
     if (base.Race != cRace)
-        Actors.at(aFormId).Values = FullValues(); // SwitchRace recalculates values without a discrete value-write event.
+    {
+        auto& actor = Actors.at(aFormId);
+        actor.Values = FullValues(); // SwitchRace recalculates values without a discrete value-write event.
+        actor.Bases = actor.Values.ActorMaxValuesList;
+        actor.TemporaryValues.clear();
+    }
     base.Race = cRace;
     base.Weight = aWeight;
     return true;
@@ -1487,4 +1643,11 @@ bool FakeEngine::OpenFollowerInventory(uint32_t aNpcFormId) noexcept
     FollowerTradeNpc = aNpcFormId;
     World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
     return true;
+}
+
+void FakeEngine::EndScene(uint32_t aActor)
+{
+    // TESSceneEvent can be delivered before the final actor scene field is cleared.
+    World::Get().GetDispatcher().trigger(AiStateChangeEvent{aActor});
+    Actors.at(aActor).Ai.SceneId = 0;
 }

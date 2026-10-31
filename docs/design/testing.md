@@ -91,8 +91,11 @@ the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` a
 The runner restores the baseline before the batch and after each flow. A baseline records placement, equipment,
 level, maximum actor values, weather/calendar and actor population. Saved stories keep quest weather/time and
 placed story actors; new test actors still fail cleanup. The same actor, world and lock comparisons run after actions.
-Existing baseline world differences are recorded once. New differences left after cleanup stop the batch; the
-runner does not expand that initial allowance to hide contamination.
+Existing baseline world differences are recorded once. New differences left after cleanup fail that flow; the
+runner does not expand that initial allowance to hide contamination. Instead it boots the duo again with the
+arguments it was booted with (`boot.json` beside the host's `home.json`, written by `duo --keep-running`), records the
+fresh baseline and goes on; the summary names each flow that broke the baseline. The same happens when the games are
+off the baseline before the first flow. `--no-restart` stops the batch there instead.
 
 Failures are reported as `setup`, `action`, `comparison` or `cleanup`. The original error stays first if cleanup
 also fails. Named waits and spec steps emit checkpoints. Evidence is written under `build/coop-test/results/`

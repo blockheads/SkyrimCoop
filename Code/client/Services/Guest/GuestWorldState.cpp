@@ -56,9 +56,11 @@ void GuestWorldState::OnGlobals(const NotifyGlobals& acMessage) noexcept
 
 void GuestWorldState::OnQuests(const NotifyQuests& acMessage) noexcept
 {
-    for (const auto& cQuest : acMessage.Quests)
-        m_engine.ApplyQuest(cQuest, acMessage.Join);
-    spdlog::info("GuestWorldState: applied the host's {} quests{}", acMessage.Quests.size(), acMessage.Join ? " (as a load)" : "");
+    m_mainTasks.Queue([this, message = acMessage] {
+        for (const auto& cQuest : message.Quests)
+            m_engine.ApplyQuest(cQuest, message.Join);
+        spdlog::info("GuestWorldState: applied the host's {} quests{}", message.Quests.size(), message.Join ? " (as a load)" : "");
+    });
 }
 
 void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noexcept
@@ -174,7 +176,7 @@ void GuestWorldState::OnPickUpNotify(const NotifyPickUp& acMessage) noexcept
 
 void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
 {
-    m_engine.RetryQuestAliases();
+    m_mainTasks.Queue([this] { m_engine.RetryQuestAliases(); });
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)
         if (std::ranges::find(m_cells, cCell) == m_cells.end())

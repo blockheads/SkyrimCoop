@@ -1,4 +1,6 @@
 #include <Papyrus/GuestScripts.h>
+#include <Papyrus/StoryGifts.h>
+#include <Games/Overrides.h>
 #include <Papyrus/NativeReach.h>
 #include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/PlayerNatives.h>
@@ -26,6 +28,7 @@
 #include <atomic>
 #include <map>
 #include <mutex>
+#include <unordered_set>
 #include <ranges>
 #include <span>
 #include <string>
@@ -110,6 +113,13 @@ void* s_moveRun = nullptr;
 BSScript::Variable* HookMoveRun(DelayFunctor* apThis, BSScript::Variable* apResult);
 std::atomic<bool> s_mirroredMove{false};
 
+// A script's AddItem (party-items.md) is queued as an AddItemFunctor on the post-render queue (53955, from the native
+// 0x140A2C110) and adds in its run (56095, vtable slot 1): one queued from a quest's script (a quest, alias, dialogue
+// line or scene) gives the story's item.
+TCastRun* RealAddItemRun = nullptr;
+void* s_addItemRun = nullptr;
+BSScript::Variable* HookAddItemRun(DelayFunctor* apThis, BSScript::Variable* apResult);
+
 // Ownership: ExtraDataList::SetOwnerForm (11609) ignores a temporary form, which a guest's character's base is.
 using TSetOwnerForm = void(void*, TESForm*);
 TSetOwnerForm* RealSetOwnerForm = nullptr;
@@ -137,12 +147,14 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(55744, &RealCastRun, HookCastRun);
     HOOK_ID(53955, &RealPostRenderQueued, HookPostRenderQueued);
     HOOK_ID(56101, &RealMoveRun, HookMoveRun);
+    HOOK_ID(56095, &RealAddItemRun, HookAddItemRun);
     HOOK_ID(11609, &RealSetOwnerForm, HookSetOwnerForm);
     HOOK_ID(24075, &RealSetRelationship, HookSetRelationship);
     HOOK_ID(24084, &RealGetRelationship, HookGetRelationship);
     // Hooks install later: this is still the engine's own address.
     s_castRun = reinterpret_cast<void*>(RealCastRun);
     s_moveRun = reinterpret_cast<void*>(RealMoveRun);
+    s_addItemRun = reinterpret_cast<void*>(RealAddItemRun);
 });
 
 constexpr uint32_t cPlayerFormId = kThisPlayer;
@@ -452,9 +464,33 @@ BSScript::CallResult HookScriptCalled(BSScript::IFunction* apThis, BSScript::Sta
     return BSScript::CallResult::kCompleted;
 }
 
+// A quest's script: a quest or an alias handle, or a dialogue line's or scene's fragment (its form).
+bool IsStoryScript(uint64_t aHandle) noexcept
+{
+    if (static_cast<uint16_t>(aHandle >> 48) != 0 || !aHandle)
+        return false;
+    if (static_cast<uint16_t>(aHandle >> 32) != 0xFFFF)
+        return true; // an alias's
+    const TESForm* pForm = TESForm::GetById(static_cast<uint32_t>(aHandle));
+    constexpr uint8_t cInfo = 0x4C, cScene = 0x7A; // INFO, SCEN (CommonLibSSE-NG FormType)
+    return pForm && (pForm->formType == FormType::Quest || static_cast<uint8_t>(pForm->formType) == cInfo ||
+                     static_cast<uint8_t>(pForm->formType) == cScene);
+}
+
+// Before it is queued: the game thread may run it at once.
+void MarkStoryAddItem(StoryGifts::Queue aQueue, const DelayFunctor* apFunctor)
+{
+    if (!apFunctor || static_cast<void**>(apFunctor->pVtable)[1] != s_addItemRun)
+        return;
+    spdlog::debug("GuestScripts: an AddItem queued ({}) by script {:X}, the story's: {}", aQueue == StoryGifts::Queue::kDelay ? "delay" : "post-render",
+                  t_nativeScript, IsStoryScript(t_nativeScript));
+    StoryGifts::Queued(aQueue, apFunctor, true, IsStoryScript(t_nativeScript));
+}
+
 bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
 {
     DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
+    MarkStoryAddItem(StoryGifts::Queue::kDelay, pFunctor);
     const bool cTagged = t_nativeGuest && pFunctor && static_cast<void**>(pFunctor->pVtable)[1] == s_castRun;
     if (cTagged)
         s_tags.TagFunctor(pFunctor, t_nativeGuest); // before: the game thread may run it at once
@@ -467,6 +503,7 @@ bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
 bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor)
 {
     DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
+    MarkStoryAddItem(StoryGifts::Queue::kPostRender, pFunctor);
     const bool cTagged = PartyRules::IsMirrored(t_nativeGuest) && pFunctor && static_cast<void**>(pFunctor->pVtable)[1] == s_moveRun;
     if (cTagged)
         s_tags.TagFunctor(pFunctor, t_nativeGuest);
@@ -474,6 +511,14 @@ bool HookPostRenderQueued(void* apThis, DelayFunctor** appFunctor)
     if (cTagged && !cQueued)
         s_tags.TakeFunctor(pFunctor);
     return cQueued;
+}
+
+BSScript::Variable* HookAddItemRun(DelayFunctor* apThis, BSScript::Variable* apResult)
+{
+    const StoryGifts::Run cRun(apThis);
+    spdlog::debug("GuestScripts: an AddItem runs (the story's: {}, items overridden: {})", StoryGifts::Giving(),
+                  ScopedInventoryOverride::IsOverriden());
+    return RealAddItemRun(apThis, apResult);
 }
 
 BSScript::Variable* HookMoveRun(DelayFunctor* apThis, BSScript::Variable* apResult)
@@ -557,6 +602,11 @@ uint32_t NativeGuest() noexcept
 bool InNative() noexcept
 {
     return t_nativeDepth != 0;
+}
+
+bool StoryGiving() noexcept
+{
+    return StoryGifts::Giving();
 }
 
 uint64_t NativeScript() noexcept

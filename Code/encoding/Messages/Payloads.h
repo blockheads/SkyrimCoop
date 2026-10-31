@@ -70,6 +70,7 @@ struct ActorValueChanges
 
     uint32_t Id{};
     std::map<uint32_t, float> Values{};
+    std::map<uint32_t, float> TemporaryValues{};
 };
 
 struct ActorMaxValueChanges
@@ -366,6 +367,34 @@ struct PartyGold
     bool operator==(const PartyGold&) const noexcept = default;
 
     uint32_t Gold{};
+    // The change for this game's HUD to show ("Gold (40) removed"); 0 on the game whose player made it (the engine
+    // showed it there) and for a purse sent with no change (a join, a load).
+    int32_t Shown{};
+};
+
+// A party item (docs/design/party-items.md): every player carries Item.Count of that stack ("[P] <name>", its
+// extra data), 0 for none.
+struct PartyItem
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PartyItem&) const noexcept = default;
+
+    Inventory::Entry Item{};
+    // The change for this game's HUD to show, as PartyGold's.
+    int32_t Shown{};
+};
+
+// Every party item (a join): every player carries these stacks, and no other "[P] " stack.
+struct PartyItems
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PartyItems&) const noexcept = default;
+
+    std::vector<Inventory::Entry> Items;
 };
 
 // The quests that are one per player (docs/design/system-quests.md), learned by a game whose player's own script

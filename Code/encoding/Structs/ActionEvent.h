@@ -21,6 +21,8 @@ struct ActionEvent
     std::string EventName{};
     std::string TargetEventName{};
     AnimationVariables Variables{};
+    // The resulting graph for an unpaired action, used if a copy cannot take its event.
+    std::string GraphState{};
 
     ActionEvent() = default;
     ActionEvent(const ActionEvent& acRhs) = default;

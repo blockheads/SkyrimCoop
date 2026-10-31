@@ -66,6 +66,12 @@ void HostPlayers::SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aE
             m_network.Send(cConnection, acMessage, aFlags);
 }
 
+void HostPlayers::SendTo(ConnectionId_t aConnection, const NotifyMessage& acMessage) const noexcept
+{
+    if (m_players.contains(aConnection))
+        m_network.Send(aConnection, acMessage, Net::kReliable);
+}
+
 void HostPlayers::Kick(uint32_t aPlayerId) noexcept
 {
     for (const auto& [cConnection, cPlayer] : m_players)

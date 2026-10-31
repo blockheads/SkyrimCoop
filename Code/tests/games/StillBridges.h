@@ -142,6 +142,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ShowHudMessage(const std::string& aMessage) noexcept override
     {
     }
+    void ShowItemChangeMessage(uint32_t aItemFormId, int32_t aCount) noexcept override
+    {
+    }
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override
     {
     }
@@ -168,8 +171,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     }
     std::string GetFormName(uint32_t aFormId) const noexcept override
     {
-        return Name;
+        const auto it = FormNames.find(aFormId);
+        return it != FormNames.end() ? it->second : Name;
     }
+    std::map<uint32_t, std::string> FormNames; // a form's own name (an item's), else Name
     float GetGlobalValue(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -586,7 +591,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return false;
     }
-    std::string GetActorBaseName(uint32_t aFormId) const noexcept override
+    std::string GetActorDisplayName(uint32_t aFormId) const noexcept override
     {
         return {};
     }

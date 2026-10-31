@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <Messages/RelayedMessages.h>
 #include <NoCopyMove.h>
 #include <Services/JoinStatus.h>
 #include <optional>
@@ -84,6 +85,8 @@ struct UiService
     void UpdateJoin() noexcept;
     void OnJoinButton(const Rml::String& acId) noexcept;
     void OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexcept;
+    // The party's gold changed by another game's player: this HUD's notice of it (party-purse.md).
+    void OnPartyGold(const NotifyPartyGold& acMessage) noexcept;
     void OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept;
     // The keys typed into the chat line, and which lines show.
     void UpdateChat() noexcept;

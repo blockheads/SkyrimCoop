@@ -1138,6 +1138,7 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 ### World state
 
+- **Done 2026-10-31: a bought horse is the party's on a guest's game.** An actor's ownership change is the one actor change the host sends as a row (`FormChangeRows::Form::kActor`; `HostEngine` live and in a cell's state, none as base id 0); `GuestEngine` applies it as a reference's owner. GameTests `[world][ownership]`, ClientTests `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways; both still fail afterwards on the rider's body kneeling (deferred player body).
 - **Done 2026-10-20: a guest's story manager starts no quest.** `BGSStoryManager::ProcessEvent` (32372) is skipped while a guest, so its story events (arrivals, kills, script events) are handled with none started (`docs/re/systems/story-manager.md`, scenario `guest-story-starts-no-quest`). Still open: quests a guest's own scripts or console start (`EnsureQuestStarted`), with step 5. A guest's story events go to the host since 2026-10-27 (every type since 2026-10-28).
 - **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
@@ -1161,6 +1162,17 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Done 2026-10-31: copies look where their owners do.** In dialogue an NPC's head turns to the talking player;
+  its copy's never did (copies run no AI, which sets the headtrack slots), so dialogue animations drifted. The owner's
+  six slots ride `ActorAiState::HeadTrack`, raised from an `Actor::ProcessTracking` (38009) hook and put into the
+  copy before the engine reads them. Scenario `dialogue-copy-looks-at-speaker`, GameTests `[headtrack]`, TPTests
+  `[encoding.ai_state]`; dialogue, voice, barter, combat and steady-state scenarios pass. Next lead for drift:
+  compare a copy's active graph states with the owner's snapshot after accepted actions too.
+- **Merged 2026-10-31 (v1-copy-desync): copy desyncs.** Copies get their owner's fortified pools (temporary
+  modifiers carried, `ActorPools`), a leveled NPC's resolved name (`NpcSnapshot`, `leveled-npc-copy-names.md`), a
+  worn-set repair in native slots (`EquipmentRepair`), and recover a refused replayed action from the owner's
+  resulting graph (`ActionEvent::GraphState`, `animation-replay-recovery.md`). Travel, quest writes and copy moves
+  run between frames (`MainLoopTasks::Scope`). Report: `docs/reports/2026-10-30-copy-desync.md`.
 - **Fixed 2026-10-27: a guest bringing a character stood on the host's spot.** Before reconnecting, it now waits
   for checked placement beside the save's player position (floor, slope, headroom, room and clear path). Kept
   characters retain their saved place. ClientTests geometry cases, GameTests including a blocked arrival, Skyrim
@@ -1296,6 +1308,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Merged 2026-10-31 (lock-mounted-departure): live lock-order overlaps.** The checker counts each inverted
+  ask that finds the lock held from the reverse order; a live overlap fails any scenario. The mounted-departure
+  family is engine order (`docs/re/crashes/2026-10-31-mounted-departure-lock-order.md`).
 - **Done 2026-10-21: the guest crash and deadlock blamed on hot reload and log rotation** (a crash in
   `GuestWeather::OnUpdate` → `GuestEngine::HoldWeather` → `ModSystem::GetGameId` with a bad map,
   `crash-2026-10-21-15-50-41.log`, and a deadlock as `host-rejoins` ended the session) were the guest services'
@@ -1707,6 +1722,14 @@ The original reload corruption remains open (v1); the historical werewolf crash 
 - **V1 acceptance:** the agreed upstream fixes/features and library checks in [v1-playtest-todo.md](v1-playtest-todo.md),
   the unresolved host-reload freeze with its save/load gate (`save-load-gate`: five save/load ways with the door's
   autosave, a follower kept through them, a minute of fighting after each; 3/3 on vanilla 2026-10-29, the mod profiles next), and ordinary packaged-build Steam, quest/save/rejoin and 3–4-player runs.
+- **2026-10-30 (v1-party-owns):**
+  - A house bought is the party's on every game: a cell's owner is now a world-state row (`FormChangeRows`).
+  - An NPC's relationship with the player is the party's standing (`JudgedRules`).
+  - Party gold: a spend is told in every game's chat, and every game's HUD shows the change.
+  - The scenario runner boots the duo again when a scenario breaks the baseline.
+  - The harness's `gait` readout catches sliding actors.
+  - The ownership scenarios (`--tag ownership`).
+  - Next: party items ([party-items.md](design/party-items.md)).
 - **Later scope:** automatic mod/file syncing or self-updating, a launcher if needed for those features,
   player-list/kick/settings screens and the other items explicitly outside 1.0 above. V1 entry uses Steam invites
   and Skyrim's own save/character flow; no additional Host Game or character-library screen is required.

@@ -1,4 +1,5 @@
 #include "Party.h"
+#include "Fixtures.h"
 #include <Services/ContainerTransfers.h>
 
 namespace
@@ -129,4 +130,36 @@ SCENARIO("A guest loots a host NPC's inventory once", "[container-transfer]")
         },
         "the guest loots both swords");
     party.Agree("the NPC and player inventories agree");
+}
+
+SCENARIO("A guest taking a party item from a chest gives it to every player", "[container-transfer][party-items]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    Inventory::Entry tagged;
+    tagged.BaseId = GameId(0, kSword);
+    tagged.Count = 1;
+    tagged.ExtraName = "[P] Iron Sword";
+    party.As(party.Host(), [&] { host.PlayerSetsItems(kChest, kSword, 1, {tagged}); });
+    party.Until([&] { return PlayerCopies(host).size() == 1 && PlayerCopies(guest).size() == 1 && guest.References.at(kChest).Items[kSword] == 1; },
+                "the chest holds the party's sword on both games");
+    // The guest's container menu takes it: proposed to the host (ContainerTransfers).
+    party.As(party.Guest(), [&] { REQUIRE(ContainerTransfers::Propose(party.Guest(), kChest, FakeEngine::kPlayer, tagged)); });
+    const auto cTagged = [](const FakeEngine& acEngine, uint32_t aActor) {
+        int32_t count = 0;
+        for (const auto& cEntry : acEngine.EntriesOf(aActor, kSword))
+            if (cEntry.ExtraName == "[P] Iron Sword")
+                count += cEntry.Count;
+        return count;
+    };
+    party.Until(
+        [&] {
+            return cTagged(guest, FakeEngine::kPlayer) == 1 && cTagged(host, FakeEngine::kPlayer) == 1 &&
+                   cTagged(host, PlayerCopies(host)[0]) == 1 && cTagged(guest, PlayerCopies(guest)[0]) == 1;
+        },
+        "every player and every copy carries it", [&] {
+            return std::format("guest player {}, host player {}, host's copy {}, guest's copy {}", cTagged(guest, FakeEngine::kPlayer),
+                               cTagged(host, FakeEngine::kPlayer), cTagged(host, PlayerCopies(host)[0]), cTagged(guest, PlayerCopies(guest)[0]));
+        });
 }

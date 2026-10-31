@@ -7,6 +7,8 @@ void RequestInventoryChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const 
     Item.Serialize(aWriter);
     Serialization::WriteBool(aWriter, Drop);
     Serialization::WriteBool(aWriter, UpdateClients);
+    Serialization::WriteBool(aWriter, NewPartyItem);
+    Serialization::WriteBool(aWriter, StoryGiven);
 }
 
 void RequestInventoryChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -17,4 +19,6 @@ void RequestInventoryChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noex
     Item.Deserialize(aReader);
     Drop = Serialization::ReadBool(aReader);
     UpdateClients = Serialization::ReadBool(aReader);
+    NewPartyItem = Serialization::ReadBool(aReader);
+    StoryGiven = Serialization::ReadBool(aReader);
 }

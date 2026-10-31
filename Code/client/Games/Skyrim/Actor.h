@@ -200,6 +200,8 @@ struct Actor : TESObjectREFR
     TESForm* GetCurrentLocation();
     float GetActorValue(uint32_t aId) const noexcept;
     float GetActorPermanentValue(uint32_t aId) const noexcept;
+    float GetActorValueModifier(ActorValueOwner::ForceMode aMode, uint32_t aId) const noexcept;
+    float GetActorTemporaryValue(uint32_t aId) const noexcept;
     Inventory GetActorInventory() const noexcept;
     MagicEquipment GetMagicEquipment() const noexcept;
     Inventory GetEquipment() const noexcept;
@@ -411,7 +413,8 @@ public:
     uint8_t knockRagdolls;
     uint8_t flag197;
 
-    uint8_t pad198[8];
+    uint32_t cullingState; // CommonLib ACTOR_RUNTIME_DATA::unk274; Precision's HighActorCuller hook
+    uint8_t pad198[4];
     BSRecursiveLock actorLock;
     uint8_t padActorEnd[0x2B0 - 0x284];
 
@@ -426,6 +429,8 @@ static_assert(offsetof(Actor, actorState) == 0xC0);
 static_assert(offsetof(Actor, flags2) == 0x204);
 static_assert(offsetof(Actor, soundCallBackSet) == 0x278);
 static_assert(offsetof(Actor, knockRagdolls) == 0x27A);
+static_assert(offsetof(Actor, cullingState) == 0x27C);
+static_assert(offsetof(Actor, iLastSeenTime) == 0x264);
 static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
 static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
 static_assert(offsetof(Actor, unk84) == 0xF0);

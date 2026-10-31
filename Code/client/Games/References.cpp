@@ -4,6 +4,8 @@
 
 #include <RTTI.h>
 
+#include <BSCore/LockOrder.h>
+
 #include <Forms/BGSHeadPart.h>
 #include <Forms/TESNPC.h>
 #include <Forms/TESPackage.h>
@@ -79,25 +81,28 @@ using TCheckForNewPackage = bool(void*, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 
 // A copy picks no packages (copy contract): it holds its owner's (SetCopyAiFields), else the engine's do-nothing one,
-// so the engine treats it like any NPC with a package; HookUpdateAI keeps it from running.
+// so the engine treats it like any NPC with a package; HookUpdateAI keeps it from running. Not inlined: the hook's
+// own frames are a pass-through.
+__declspec(noinline) bool KeepCopyPackage(Actor* apActor)
+{
+    const AIProcess* pProcess = apActor->currentProcess;
+    const TESPackage* pPackage = pProcess ? pProcess->currentPackage.package : nullptr;
+    const uint32_t cOwnerPackageId = apActor->GetExtension()->OwnerPackageId;
+    auto* pOwnerPackage = cOwnerPackageId ? Cast<TESPackage>(TESForm::GetById(cOwnerPackageId)) : nullptr;
+    if (pProcess && pOwnerPackage)
+    {
+        if (pPackage != pOwnerPackage)
+            apActor->PutOwnerPackage(pOwnerPackage);
+    }
+    else if (pProcess && (!(pPackage && pPackage->packType == TESPackage::kDoNothing) || apActor->GetCurrentPackage()))
+        apActor->InitiateDoNothingPackage();
+    return false;
+}
+
 bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
 {
     if (apActor && apActor->GetExtension()->IsCopy())
-    {
-        const AIProcess* pProcess = apActor->currentProcess;
-        const TESPackage* pPackage = pProcess ? pProcess->currentPackage.package : nullptr;
-        const uint32_t cOwnerPackageId = apActor->GetExtension()->OwnerPackageId;
-        auto* pOwnerPackage = cOwnerPackageId ? Cast<TESPackage>(TESForm::GetById(cOwnerPackageId)) : nullptr;
-        if (pProcess && pOwnerPackage)
-        {
-            if (pPackage != pOwnerPackage)
-                apActor->PutOwnerPackage(pOwnerPackage);
-        }
-        else if (pProcess && (!(pPackage && pPackage->packType == TESPackage::kDoNothing) || apActor->GetCurrentPackage()))
-            apActor->InitiateDoNothingPackage();
-        return false;
-    }
-
+        return KeepCopyPackage(apActor);
     return RealCheckForNewPackage(apThis, apActor, aUnk1);
 }
 
@@ -204,6 +209,8 @@ static Hooks::Initializer s_referencesHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(38959, &RealInitFromPackage, HookInitFromPackage);
         HOOK_ID(39114, &RealCheckForNewPackage, HookCheckForNewPackage);
+        // Every actor's package pick runs through it: a lock order there is the engine's unless a copy's (KeepCopyPackage).
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookCheckForNewPackage), 0x70);
         HOOK_ID(51093, &RealSetCurrentPickREFR, HookSetCurrentPickREFR);
         HOOK_ID(37570, &RealPutCreatedPackage, HookPutCreatedPackage);
     });

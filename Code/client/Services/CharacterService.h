@@ -8,6 +8,7 @@
 #include <Messages/NotifyRespawn.h>
 #include <Structs/ActorWhereabouts.h>
 #include <NoCopyMove.h>
+#include <MainLoopTasks.h>
 #include <atomic>
 #include <memory>
 #include <Messages/RelayedMessages.h>
@@ -154,7 +155,7 @@ private:
     void RunPresence() noexcept;
     // A spawn for a copy we already have: its owner's latest place and spawn data.
     void RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept;
-    bool ApplyPlacedBase(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept;
+    bool ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept;
     // Drops the copy and asks the host to spawn it again.
     void RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept;
     // Drops our entities for the copies acShouldDrop picks (by form id).
@@ -171,7 +172,7 @@ private:
     std::unordered_set<uint32_t> m_discoveredActors;
     std::unordered_map<uint32_t, NotifyRespawn> m_pendingLooks;
     std::unordered_map<uint32_t, NotifyCharacterSpawn> m_pendingSpawns;
-    std::shared_ptr<std::atomic<bool>> m_alive{std::make_shared<std::atomic<bool>>(true)};
+    MainLoopTasks::Scope m_mainTasks;
     bool m_looksQueued{};
     // This game's player in the session (ConnectedEvent): its player id and its character's session id.
     uint32_t m_playerId{};

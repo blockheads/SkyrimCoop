@@ -137,10 +137,19 @@ def scenario_party_gold_is_one(ctx):
 
         ctx.console_on("", "player.removeitem f 30")
         ctx.wait_party_gold(f"the host's spending is the party's: every player carries {purse - 30}", purse - 30)
+        # The guest's HUD shows the host's spending as the host's engine did ("Gold (30) Removed").
+        ctx.wait_for("[client] its HUD shows the host's own notice of the 30 gold",
+                     lambda: (notice := next((m for m in reversed(ctx.hud_messages("")) if "(30)" in m), None))
+                     and notice in ctx.hud_messages("client"), 10)
+        for game in ("", "client"):  # everyone hears who spent it (party-purse.md, "Spending in chat")
+            ctx.wait_for(f"[{game or 'host'}] its chat tells the host's player spent 30 gold",
+                         lambda game=game: any(line.endswith(" 30 gold") for line in ctx.system_chat(game)), 10)
 
         copy = ctx.client_on_host()
         ctx.console_on("", f"{copy:X}.additem f 25")
         ctx.wait_party_gold(f"a reward on the client's character is the party's: every player carries {purse - 5}", purse - 5)
+        ctx.wait_for("[client] its HUD shows the reward its character got from the host's script",
+                     lambda: any("(25)" in m for m in ctx.hud_messages("client")), 10)
         ctx.hold()
     finally:
         if "ContainerMenu" in ctx.menus("client"):

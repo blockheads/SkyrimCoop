@@ -44,6 +44,12 @@ struct HostGame
     // The party's gold: the host's player's (party-purse.md); a change to it, silently (a removal takes at most all).
     std::function<uint32_t()> ReadPartyGold;
     std::function<void(int32_t aCount)> AddPartyGold;
+    // The party's items (party-items.md): the host's player's count of that stack (its extra data), a change to it
+    // silently, every party stack it carries, and an item's name.
+    std::function<int32_t(const Inventory::Entry&)> ReadPartyItem;
+    std::function<void(const Inventory::Entry&)> AddPartyItem;
+    std::function<std::vector<Inventory::Entry>()> ReadPartyItems;
+    std::function<std::string(const GameId&)> ItemName;
     // The host's own actors as its engine shows them now, but aExcludedSessionId.
     std::function<std::vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
     // The host's copy of another player's character (position, items, hands, action) into the spawn, its values left
@@ -92,6 +98,9 @@ struct HostGame
     // A guest picks up the party's loose item: taken out of the host's world (the deletion goes out), what it held;
     // none when it is gone (another player was first).
     std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;
+    // A loose quest object (a quest's alias holds it) the host's player picks up for the party (party-items.md); false
+    // for any other.
+    std::function<bool(const GameId& acObject)> TakeQuestObject;
     // A guest's story event, queued in the host's story manager and judged for the guest's character (HostStory).
     std::function<void(const StoryEvent& acEvent)> RaiseStoryEvent;
     // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine

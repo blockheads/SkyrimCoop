@@ -1,4 +1,5 @@
 #include <Services/DialogueService.h>
+#include <Services/DialogueMenuPolicy.h>
 
 #include <Components.h>
 #include <Events/DisconnectedEvent.h>
@@ -168,9 +169,10 @@ void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
     if (acEvent.Menu != "BarterMenu" || !m_pRole || !m_joined || !m_conversation)
         return;
     m_bartering = acEvent.Opening;
+    m_bridge.SetMenuCloseEnds(DialogueMenuPolicy::CloseEndsConversation(
+        m_pRole->RunsWithoutMenu(), m_bartering, m_conversation != 0));
     if (m_bartering)
     {
-        m_bridge.SetMenuCloseEnds(false);
         CloseMenu();
     }
     else if (m_bridge.GetSpeaker())

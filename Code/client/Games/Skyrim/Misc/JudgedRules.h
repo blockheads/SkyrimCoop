@@ -18,6 +18,9 @@ inline constexpr uint16_t kGetPCIsClass = 129;
 inline constexpr uint16_t kGetPCIsRace = 130;
 inline constexpr uint16_t kGetPCIsSex = 131;
 inline constexpr uint16_t kGetPCInFaction = 132;
+// An NPC's relationship with the player is the party's standing (party-model.md: the party is the Dragonborn): left
+// as the host's player's when judged for another character.
+inline constexpr uint16_t kGetRelationshipRank = 403;
 
 // One condition item, as the hook reads it.
 struct Item

@@ -7,6 +7,7 @@
 #include <catch2/catch.hpp>
 
 #include <Services/Host/HostAuthority.h>
+#include <Messages/ContainerTransferRequest.h>
 #include <Services/Host/HostNetwork.h>
 #include <RecipeBook.h>
 
@@ -183,6 +184,8 @@ struct Session
     bool CrimeCaught{};
     std::vector<CrimeGold> Bounty;
     uint32_t PartyGold{}; // the host's player's gold, the purse
+    // The host's player's party stacks (party-items.md), by base and name.
+    std::map<std::pair<GameId, std::string>, int32_t> PartyItems;
     std::vector<std::pair<uint32_t, CrimeRequest>> Crimes;
     std::function<void(uint32_t, const CrimeRequest&)> CrimeJudge;
 
@@ -200,6 +203,8 @@ struct Session
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
     std::unordered_map<GameId, Inventory::Entry> Loose;              // the host's loose items it made for guests' drops
+    std::set<GameId> QuestObjects;                                    // those a quest's alias holds
+    std::vector<GameId> TakenForParty;                                // quest objects the host's player picked up
     uint32_t LooseMade = 0;
     uint32_t CreateCalls = 0;
     std::vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
@@ -244,6 +249,26 @@ private:
         game.ReadCrimeGold = [this] { return Bounty; };
         game.ReadPartyGold = [this] { return PartyGold; };
         game.AddPartyGold = [this](int32_t aCount) { PartyGold = static_cast<uint32_t>(std::max<int64_t>(int64_t{PartyGold} + aCount, 0)); };
+        game.ReadPartyItem = [this](const Inventory::Entry& acItem) { return PartyItems[{acItem.BaseId, acItem.ExtraName}]; };
+        game.AddPartyItem = [this](const Inventory::Entry& acItem) {
+            auto& count = PartyItems[{acItem.BaseId, acItem.ExtraName}];
+            count = std::max(count + acItem.Count, 0);
+        };
+        game.ReadPartyItems = [this] {
+            std::vector<Inventory::Entry> items;
+            for (const auto& [cStack, cCount] : PartyItems)
+                if (cCount > 0)
+                {
+                    Inventory::Entry& item = items.emplace_back();
+                    item.BaseId = cStack.first;
+                    item.ExtraName = cStack.second;
+                    item.Count = cCount;
+                }
+            return items;
+        };
+        game.ItemName = [](const GameId&) { return std::string("Iron Sword"); };
+        // A host chest gives or takes what was asked.
+        game.TransferContainer = [](const ContainerTransferRequest& acRequest, uint32_t) { return acRequest.Item; };
         game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) {
             Crimes.emplace_back(aActor, aCrime);
             if (CrimeJudge) CrimeJudge(aActor, aCrime);
@@ -278,6 +303,12 @@ private:
             const GameId cId(ObjectChange::kCreatedModId, 0x800 + ++LooseMade);
             Loose[cId] = acItem;
             return cId;
+        };
+        game.TakeQuestObject = [this](const GameId& acObject) {
+            if (!QuestObjects.erase(acObject) || !Loose.erase(acObject))
+                return false;
+            TakenForParty.push_back(acObject);
+            return true;
         };
         game.TakeItem = [this](const GameId& acObject) -> std::optional<Inventory::Entry> {
             const auto it = Loose.find(acObject);

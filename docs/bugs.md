@@ -7,6 +7,46 @@ delete the entry and say where the evidence went. Unfinished work and unexplaine
 visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
 [native-bugs.md](design/native-bugs.md).
 
+## Copy-desync follow-ups
+
+Deferred past v1 by the user on **2026-10-31**: all remaining findings from the
+[copy-desync batch](reports/2026-10-30-copy-desync.md#retained-final-native-failures), including18 failing
+scenarios and earlier intermittent observations. Existing assertions and evidence remain; deferral changes
+release scope, not the recorded results. The implemented fixes and fast regressions remain in place.
+
+**Superseding investigation, 2026-10-31:** the three reopened risks are classified and corrected;
+all other findings below stay deferred. [Evidence, regressions and exact native results](reports/2026-10-31-v1-three-risks.md).
+
+- **Lock-order reports:** border cell loading and checkpoint alias writes moved from our VM worker to
+  between-frame tasks. Mounted/placed reports are native engine order incorrectly attributed through a
+  pass-through wrapper; narrow frame attribution corrected, raw strict reports retained. No contention
+  observed in the focused probe; this is not proof that an engine deadlock is impossible. All four affected
+  scenarios pass the combined acceptance.
+- **Enemy-copy death delay:** the scenario retained an unloaded pre-travel copy. The current copy receives
+  death state in52ms and replays death in136ms in the original failing run. Reacquire its current copy;
+  preserve the original five-second failure and unchanged timeout. Corrected full travel passes last in both
+  acceptance batches. The historical103-unit cleanup discrepancy remains recorded separately.
+- **Belethor scene/reopening:** real stale cached/effective owner scene after native scene-end cleanup,
+  plus hidden guest conversation left open after barter. Active-scene refresh and close lifecycle corrected
+  with failing GameTests/units first. Spawned/original host/guest controls all complete two transactions
+  in the fresh5/5 run. Combined batch20/22 retains unrelated Sigurd registration and Belethor animation-marker
+  failures; neither is exempted or silently closed.
+- **Animations drift in dialogue after a while** (user, 2026-10-31). One cause fixed the same day: copies never
+  headtracked (progress.md, "copies look where their owners do"). Still open: an accepted replayed action can land
+  in a different graph state, and nothing compares it (animation-replay-recovery.md); the proposed fix is to
+  compare active states with the owner's snapshot after each replay and load it on a mismatch.
+- **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
+  marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
+  wolf refusal was an already-playing duplicate; the other refusals still need classification.
+- **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
+  readings. Several occur on the owner too. Revived-player kneeling was already outside v1 scope.
+- **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
+  documented story save. Combined-dev acceptance remains separate from these deferred bug investigations.
+
+Full scenario names, observed values and ignored evidence paths are in the batch report. A future fix follows
+the native scenario -> failing GameTests flow -> unit tests/fix -> passing gate workflow. Reassess priority if
+normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
+
 ## Party scripts
 
 - **A reference a guest's own script creates is that game's alone** (2026-10-28, party-scripts-2). `PlaceAtMe` is not

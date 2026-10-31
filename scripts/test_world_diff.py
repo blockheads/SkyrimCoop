@@ -1,8 +1,9 @@
 """The duo's comparison must catch state differences without mistaking inventory delta bookkeeping for contents."""
 import unittest
+import copy
 
 from coop_harness.common import log_time
-from coop_harness.comparisons import dialogue_differences, reference_differences, refused_replays
+from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays
 
 
 class ContainerComparison(unittest.TestCase):
@@ -69,6 +70,49 @@ class DialogueDifferences(unittest.TestCase):
     def test_two_conversations_are_not_compared(self):
         self.assertEqual(dialogue_differences([self.entry(0, self.A, speaker=7)], [self.entry(0, self.B, speaker=8)],
                                               int(5e6)), [])
+
+
+class PoseVisibility(unittest.TestCase):
+    def worlds(self, owner_visible=True, copy_visible=True, player=False):
+        actor = {"role": "own", "player": player, "identity": {"name": "Lydia"},
+                 "animation": {"idle": 0xA8524},
+                 "pose": {"head": 88.0, "pelvis": 70.0, "floor_gap": 0.0, "skeleton": 0.0},
+                 "mod": {"session_id": 3, "components": ["Local"],
+                         "pose_visibility": {"was_in_frustum": owner_visible}}}
+        duplicate = copy.deepcopy(actor)
+        duplicate["role"] = "copy"
+        duplicate["pose"]["head"] = 122.0
+        duplicate["mod"]["components"] = ["Remote", "Interpolation"]
+        duplicate["mod"]["pose_visibility"]["was_in_frustum"] = copy_visible
+        return {"host": {"100": actor}, "client": {"200": duplicate}}
+
+    def test_culled_owner_skeleton_is_a_stale_observation(self):
+        self.assertEqual(compare_actors(self.worlds(owner_visible=False)), [])
+
+    def test_npc_names_use_the_pools_case_insensitive_equality(self):
+        worlds = self.worlds(owner_visible=False)
+        worlds["client"]["200"]["identity"]["name"] = "lydia"
+        self.assertEqual(compare_actors(worlds), [])
+
+    def test_different_resolved_npc_names_are_still_reported(self):
+        worlds = self.worlds(owner_visible=False)
+        worlds["host"]["100"]["identity"]["name"] = "Bandit Chief"
+        worlds["client"]["200"]["identity"]["name"] = "bandit outlaw"
+        self.assertTrue(any("identity.name" in key for key, _ in compare_actors(worlds)))
+
+    def test_culled_copy_skeleton_is_a_stale_observation(self):
+        self.assertEqual(compare_actors(self.worlds(copy_visible=False)), [])
+
+    def test_visible_pose_mismatch_is_still_reported(self):
+        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds())))
+
+    def test_animation_is_still_checked_when_bones_are_culled(self):
+        worlds = self.worlds(owner_visible=False)
+        worlds["client"]["200"]["animation"]["idle"] = 0
+        self.assertEqual([key.rsplit(" ", 1)[-1] for key, _ in compare_actors(worlds)], ["animation.idle"])
+
+    def test_player_body_checks_keep_their_existing_scope(self):
+        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds(False, False, player=True))))
 
 
 if __name__ == "__main__":

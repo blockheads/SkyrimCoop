@@ -1,4 +1,5 @@
 #include <PlayerCharacter.h>
+#include <BSCore/LockOrder.h>
 
 #include <Forms/TESTopicInfo.h>
 #include <ItemIds.h>
@@ -425,6 +426,8 @@ static Hooks::Initializer s_playerCharacterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
+        // 40438 runs native travel on its original thread; its locks are not introduced by this wrapper.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookProcessQueuedTravel), 0x358);
         HOOK_ID(40438, &RealProcessQueuedTravel, HookProcessQueuedTravel);
         HOOK_ID(40533, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(55497, &RealSetBeastForm, HookSetBeastForm);

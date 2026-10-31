@@ -150,6 +150,9 @@ struct TESQuest : BGSStoryManagerTreeForm
     void SetCompleted(bool aCompleted);
     // Sets or clears Failed (24988): the change, the HUD's message.
     void SetFailed(bool aFailed) noexcept;
+    // Its topics' lines read from the plugins, as its start does (25086, from QueuedPromoteQuestTask): a quest not
+    // started with the game has no lines (TESTopicInfo forms) until then. A topic's loaded ones are kept.
+    void LoadDialogue() noexcept;
 
     void CompleteAllObjectives(); // completes all objectives + stages
     void SetActive(bool toggle);  // < is the quest selected in journal and followed?

@@ -322,3 +322,23 @@ multipliers 370636 to 370648 (cowardly to foolhardy), `fBribeMoralityMult` 37063
 
 In vanilla's 15,449 menu-topic lines (Skyrim.esm and the DLC): 1,301 test a condition run on PlayerRef, 617 the
 target (the player argument), 457 a PlayerRef parameter, 373 a `GetPC*` function, 65 intimidate and 57 bribe.
+
+## A quest's lines exist only once it starts (2026-10-30)
+
+Found by `party-buys-house-guest`: the guest's menu dropped HousePurchase's line ("option A7B19 (info A7B31) cannot be
+shown here"). The guest's game had no form `A7B31` at all; the host's had it only after `startquest`.
+
+| ID | What |
+|---|---|
+| 25086 | `TESQuest` load dialogue: unless the quest starts with the game (flags `0x10`), gathers its topics (25085) and reads each one's lines from every loaded plugin (`TESTopic` 25519). Run when the quest starts (`QueuedPromoteQuestTask`) |
+| 25519 | `TESTopic`: seeks its group in a plugin and makes its `INFO` forms; a topic already read this session is skipped |
+| 25626 | `TESTopicInfo::GetResponseList`: a line's responses, read from its record (`fileOffset` +0x40) on demand, following `dataInfo` to the line whose data it shares |
+| 35254 | The Dialogue option's constructor keeps a response only if its text (+0x28) is not empty (`sub_140208380`) |
+
+A guest's quest is started by sync (`GuestEngine::ApplyQuest` sets its flags, no engine start), so its lines were never
+read. `ApplyQuest` now calls `TESQuest::LoadDialogue` (25086) when a quest goes from stopped to started there
+(`Games/QuestStarts.h`, shared with the fake's `GuestSeams`). The fake engine knows the fact (`FakeDialogue::LineQuest`,
+`FakeEngine::DialogueLoaded`): GameTests "A quest the host starts in play: its lines show on a guest's menu too" went red
+on it, ClientTests `[QuestStarts]`. A stopped
+quest's lines stay loaded on the guest (harmless). Harness readouts: `info_conditions` (each condition of a line judged
+for a player) and `info_responses` (a line's responses as the engine loads them).

@@ -6,7 +6,8 @@
 }
 .line { line-height: 1.1; margin-bottom: 0; }
 .line .name { margin-right: 7dp; }
-.line.system .text { color: #c0c0c0; }
+/* Lines the game writes (not typed by a player): a light gold. */
+.line.system .text, .line.system .name { color: #e6d49a; }
 .line.perished .text { color: #ff4c4c; }
 .entry { margin-top: 4dp; line-height: 1.1; }
 .prompt { margin-right: 7dp; }

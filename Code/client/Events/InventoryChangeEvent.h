@@ -34,4 +34,6 @@ struct InventoryChangeEvent
     Inventory::Entry Item{};
     bool Drop = false;
     bool UpdateClients = true;
+    // Added by a quest's script (a quest, alias, dialogue line or scene): the story gave it (party-items.md).
+    bool StoryGiven = false;
 };

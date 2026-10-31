@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <cstdint>
 #include <Structs/Perks.h>
 #include <string>
@@ -26,6 +28,9 @@ struct ActorAiFields
     uint32_t SceneId{};        // Actor::GetCurrentScene
     uint8_t CombatState{};     // Actor::GetCombatState
     uint32_t CombatTargetId{}; // Actor::currentCombatTarget
+    // HighProcessData::headTrackTarget: what it looks at, for each reason (default, action, script, combat,
+    // dialogue, procedure); 0 none. The engine looks at the highest set one (39484).
+    std::array<uint32_t, 6> HeadTrackIds{};
 };
 
 class IActorBridge
@@ -85,6 +90,7 @@ public:
     // --- Actor values ---
     virtual float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
     virtual float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
+    virtual float GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
     // Its base value, before every modifier (ActorValueOwner::GetBaseValue).
     virtual float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept = 0;
     // Its base made aValue (a copy's: its owner's current value).
@@ -127,7 +133,8 @@ public:
     virtual uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept = 0;
     // Changes this reference's NPC base and reloads its model; false if either form is missing.
     virtual bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept = 0;
-    virtual std::string GetActorBaseName(uint32_t aFormId) const noexcept = 0;
+    // Its name as the game shows it: the reference's name override, else its base's.
+    virtual std::string GetActorDisplayName(uint32_t aFormId) const noexcept = 0;
     virtual uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept = 0;
     // Its NPC base's weight (TESNPC, 0 to 100); 50 without an NPC base. The engine saves it with the actor
     // (Actor::SaveGame 37649), not in the base's sections, so it travels beside AppearanceBuffer.

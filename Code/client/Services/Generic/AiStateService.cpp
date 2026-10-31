@@ -1,4 +1,6 @@
 #include <Services/AiStateService.h>
+#include <Services/SceneRefresh.h>
+#include <Events/UpdateEvent.h>
 #include <Services/TransportService.h>
 
 #include <Bridges/IActorBridge.h>
@@ -24,12 +26,27 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
 {
+    Listen<UpdateEvent, &AiStateService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<AiStateChangeEvent, &AiStateService::OnAiStateChange>(m_connections, aDispatcher, this);
     Listen<NotifyAiState, &AiStateService::OnNotifyAiState>(m_connections, aDispatcher, this);
     Listen<NotifyCharacterSpawn, &AiStateService::OnCharacterSpawn>(m_connections, aDispatcher, this);
     Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<&AiStateService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+}
+
+void AiStateService::OnUpdate(const UpdateEvent&) noexcept
+{
+    if (!m_transport.IsConnected()) return;
+    // Scene stop (24140) sends its event before clearing the actors.
+    const auto changes = SceneRefresh::ReadChanges(m_sent, [this](uint32_t aSessionId) -> std::optional<ActorAiState> {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+        if (!cFormId || !m_actorBridge.ActorExists(cFormId) || m_actorBridge.IsActorCopy(cFormId))
+            return std::nullopt;
+        return ReadState(cFormId);
+    });
+    for (const auto& change : changes)
+        SendOwned(Utils::GetFormIdBySessionId(change.first), change.first);
 }
 
 void AiStateService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
@@ -127,11 +144,8 @@ ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexce
     state.Package = ToSession(acFields.PackageId).value_or(GameId{});
     state.Scene = ToSession(acFields.SceneId).value_or(GameId{});
     state.Combat = acFields.CombatState;
-    // An actor in the session goes by its session id (each game has its own form id for it), else by its form.
-    if (const auto cSessionId = Utils::GetSessionIdByFormId(acFields.CombatTargetId))
-        state.CombatTarget.SessionId = *cSessionId;
-    else
-        state.CombatTarget.RefId = ToSession(acFields.CombatTargetId).value_or(GameId{});
+    state.CombatTarget = ToTarget(acFields.CombatTargetId);
+    std::ranges::transform(acFields.HeadTrackIds, state.HeadTrack.begin(), &AiStateService::ToTarget);
     return state;
 }
 
@@ -143,9 +157,26 @@ ActorAiFields AiStateService::ToFields(const ActorAiState& acState) const noexce
     if (acState.Scene != GameId{})
         fields.SceneId = ToGame(acState.Scene);
     fields.CombatState = acState.Combat;
-    if (acState.CombatTarget.SessionId)
-        fields.CombatTargetId = Utils::GetFormIdBySessionId(acState.CombatTarget.SessionId);
-    else if (acState.CombatTarget.RefId != GameId{})
-        fields.CombatTargetId = ToGame(acState.CombatTarget.RefId);
+    fields.CombatTargetId = ToFormId(acState.CombatTarget);
+    std::ranges::transform(acState.HeadTrack, fields.HeadTrackIds.begin(), &AiStateService::ToFormId);
     return fields;
+}
+
+AiTarget AiStateService::ToTarget(uint32_t aFormId) noexcept
+{
+    AiTarget target;
+    if (!aFormId)
+        return target;
+    if (const auto cSessionId = Utils::GetSessionIdByFormId(aFormId))
+        target.SessionId = *cSessionId;
+    else
+        target.RefId = ToSession(aFormId).value_or(GameId{});
+    return target;
+}
+
+uint32_t AiStateService::ToFormId(const AiTarget& acTarget) noexcept
+{
+    if (acTarget.SessionId)
+        return Utils::GetFormIdBySessionId(acTarget.SessionId);
+    return acTarget.RefId != GameId{} ? ToGame(acTarget.RefId) : 0;
 }

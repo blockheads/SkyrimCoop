@@ -9,7 +9,7 @@ using namespace JudgedRules;
 namespace
 {
 constexpr uint16_t kGetItemCount = 47;
-constexpr uint16_t kGetRelationshipRank = 59;
+constexpr uint16_t kGetDetected = 45;
 } // namespace
 
 SCENARIO("A condition about the player is judged for the character", "[conditions]")
@@ -18,9 +18,11 @@ SCENARIO("A condition about the player is judged for the character", "[condition
     CHECK_FALSE(For({.Function = kGetItemCount}));
     THEN("one run on PlayerRef (Falion's soul gem: GetItemCount on the player) runs on the character")
     CHECK(For({.Function = kGetItemCount, .OnPlayer = true}) == Judged{.Function = kGetItemCount, .OnCharacter = true});
-    THEN("a player parameter is the character (GetRelationshipRank PlayerRef on the speaker)")
-    CHECK(For({.Function = kGetRelationshipRank, .PlayerParam = {true, false}}) ==
-          Judged{.Function = kGetRelationshipRank, .CharacterParam = {true, false}});
+    THEN("a player parameter is the character (GetDetected PlayerRef on the speaker)")
+    CHECK(For({.Function = kGetDetected, .PlayerParam = {true, false}}) ==
+          Judged{.Function = kGetDetected, .CharacterParam = {true, false}});
+    THEN("an NPC's relationship with the player is the party's (a Jarl's friend may buy a house): left as it is")
+    CHECK_FALSE(For({.Function = kGetRelationshipRank, .PlayerParam = {true, false}}));
     THEN("GetPCIsSex, GetPCIsRace, GetPCIsClass and GetPCInFaction become their own function on the character")
     {
         CHECK(For({.Function = kGetPCIsSex}) == Judged{.Function = kGetIsSex, .OnCharacter = true});

@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 from .common import (
+    BOOT_FILE,
     CLI_HELP,
     GAME,
     HOME_CELL,
@@ -128,6 +129,8 @@ class Commands:
                     _game = ctx.game(name)
                     ctx.face_actor(next(iter(seen[name or "host"])), _game=_game)
                 ctx.save_home(cell_name=args.cell if not args.save else None)
+                boot = {key: getattr(args, key, None) for key in ("cell", "save", "level", "npc", "seconds", "boot_timeout", "world_timeout")}
+                atomic_write(ctx.game("").control / BOOT_FILE, json.dumps(boot) + "\n")
         except TestFailure as error:
             print(f"\nFAIL: {error}\nLogs: {run_dir}", file=sys.stderr)
             raise SystemExit(1)
@@ -363,9 +366,11 @@ class Commands:
                 print(f"{name or 'host'}: not running")
                 continue
             lock_order = status.get("lock_order", {})
-            print(f"{name or 'host'}: " + ", ".join(f"{k} {v}" for k, v in lock_order.items() if k != "reports"))
+            print(f"{name or 'host'}: " + ", ".join(f"{k} {v}" for k, v in lock_order.items() if k not in ("reports", "overlaps")))
             for report in lock_order.get("reports", []):
                 print("  " + report)
+            for overlap in lock_order.get("overlaps", []):
+                print("  overlap: " + overlap)
 
     def command_repro(ctx, args, *, _game=None):
         """Runs a crash recipe (REPROS, or --cell and console commands) and prints each crash's report."""
@@ -773,6 +778,8 @@ class Commands:
         scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see the flow registry)")
         scenario.add_argument("--fail-fast", action="store_true", help="stop at the first scenario that fails")
         scenario.add_argument("--dry-run", action="store_true", help="print the selection without contacting Skyrim")
+        scenario.add_argument("--no-restart", action="store_true",
+                              help="stop the batch when a scenario leaves the baseline broken (default: boot the duo again and go on)")
         affected = commands.add_parser("affected", help="select scenarios from changed source files")
         affected.add_argument("--base", default="HEAD", metavar="REF", help="compare against REF (default HEAD), including untracked files")
         affected.add_argument("--run", action="store_true", help="run the selected scenarios; never expand core into the full suite")

@@ -266,3 +266,28 @@ def scenario_party_travel_with_menu(ctx):
                 ctx.tap_key(name, 0x0F)
         if ctx.player_cell("") != home or ctx.player_cell("client") != home:
             ctx.both_go(HOME_CELL)
+
+
+def scenario_actors_walk_after_arrival(ctx):
+    """The party arrives in Riverwood, then in the Sleeping Giant: for 12 s in each, every actor that moves walks on
+    both games (its feet move against its body about as far as it goes). An NPC sliding with its feet still, or
+    walking in slow motion, fails it, the host's own actors and the guest's copies alike (check_gait)."""
+    try:
+        for cell in (OUTDOOR_CELL, INN):
+            ctx.both_go(cell)
+            seen = {}
+            started = time.monotonic()
+            sampled = started
+            def observed():
+                nonlocal sampled
+                now = time.monotonic()
+                if now - sampled >= 2.0:
+                    for problem in ctx.check_gait():
+                        seen.setdefault(problem.split(" moved ")[0], problem)
+                    sampled = now
+                return now - started >= 12.0
+            ctx.wait_for(f"walking observations complete in {cell}", observed, 15)
+            if seen:
+                raise ctx.failure(f"in {cell}, {len(seen)} actors moved without walking: " + " | ".join(seen.values()))
+    finally:
+        ctx.both_go(HOME_CELL)

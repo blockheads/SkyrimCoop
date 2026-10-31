@@ -25,3 +25,23 @@ TEST_CASE("lock history keeps writer evidence separate from the first reader", "
     CHECK(LockOrderHistory::Key(cReference, cAlias, 1, 0) != cWriters);
     CHECK(LockOrderHistory::Key(cReference, cAlias, 0, 1) != LockOrderHistory::Key(cReference, cAlias, 1, 0));
 }
+
+TEST_CASE("an inverted ask is live only while another thread holds the lock from the reverse order", "[locks]")
+{
+    // mounted-guest-leaves: the main thread holds a reference's extra data (17A479) and asks for the havok world lock
+    // (E82682); a worker took the world lock at E85432 (returning to E85437) before reading extra data.
+    struct Entry
+    {
+        const void* Lock;
+        uint64_t Caller;
+        bool Acquired;
+    };
+    int world = 0, other = 0;
+    constexpr uint64_t cStep = 0xE85437, cElsewhere = 0x2F2920;
+    using LockOrderHistory::Overlap;
+    using LockOrderHistory::OverlapOf;
+    CHECK(OverlapOf(std::array<Entry, 1>{{{&other, cStep, true}}}, &world, cStep) == Overlap::kNone);
+    CHECK(OverlapOf(std::array<Entry, 1>{{{&world, cStep, false}}}, &world, cStep) == Overlap::kNone); // still waiting
+    CHECK(OverlapOf(std::array<Entry, 1>{{{&world, cElsewhere, true}}}, &world, cStep) == Overlap::kContended);
+    CHECK(OverlapOf(std::array<Entry, 2>{{{&world, cElsewhere, true}, {&world, cStep, true}}}, &world, cStep) == Overlap::kLive);
+}

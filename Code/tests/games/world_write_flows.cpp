@@ -117,6 +117,7 @@ SCENARIO("A created actor's quest role waits for its copy, then clears when the 
     party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(update); });
     party.Frame();
     CHECK(guest.QuestAliasReferences[kQuest][17] == 0);
+    CHECK(guest.WorkerQuestWrites.empty());
 }
 
 SCENARIO("A location alias clear alone reaches the guest", "[world][write-events][alias-clear]")

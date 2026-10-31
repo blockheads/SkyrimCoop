@@ -14,6 +14,7 @@ struct HostGame;
 struct HostNetwork;
 struct HostPlayers;
 struct HostCharacters;
+struct HostPartyItems;
 struct HostPurse;
 struct ContainerTransferRequest;
 
@@ -29,7 +30,7 @@ struct HostItems
     // Drops whose cell the host's game has not loaded wait; past this many the oldest is forgotten.
     static constexpr size_t kMaxPending = 64;
 
-    HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostGame& acGame) noexcept;
+    HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostPartyItems& acPartyItems, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostItems);
 
@@ -55,6 +56,7 @@ private:
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
     const HostPurse& m_purse;
+    const HostPartyItems& m_partyItems;
     const HostGame& m_game;
     std::vector<Pending> m_pending;                                  // oldest first
     std::map<std::pair<ConnectionId_t, uint32_t>, GameId> m_made;    // a guest's drop made here, by its tag

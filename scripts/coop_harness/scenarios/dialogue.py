@@ -102,6 +102,26 @@ def scenario_dialogue_peer_starts(ctx):
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
 
+def scenario_dialogue_copy_looks_at_speaker(ctx):
+    """The client talks to its copy of the host's NPC: the NPC turns its head to the client's character (a
+    headtrack slot, HighProcessData::headTrackTarget), and the client's copy looks at the same one, the client's
+    own player (ai_state.head_track: every slot, by session id). Copies run no AI, which sets those slots."""
+    npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+    try:
+        ctx.place_before("", npc, 110)
+        ctx.place_before("client", copy, 110)
+        ctx.activate_on("client", copy)
+        ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
+        owner = ctx.wait_for(f"[host] NPC {npc:08X} looks at someone",
+                             lambda: (lambda slots: slots if any(slots) else None)(ctx.ai_state("", npc).get("head_track") or []), 10)
+        log(f"host NPC {npc:08X} headtrack slots: {owner}")
+        ctx.wait_for(f"[client] copy {copy:08X} looks where its owner does ({owner})",
+                     lambda: ctx.ai_state("client", copy).get("head_track") == ctx.ai_state("", npc).get("head_track"), 5)
+        ctx.hold()
+    finally:
+        ctx.close_dialogues()
+        ctx.remove_host_npc(npc)
+
 def scenario_dialogue_last_one_out_ends_it(ctx):
     """A player leaving (Tab) leaves the conversation on for the others; the last one out ends it. The host talks
     and the client joins by talking to its copy; the client leaves, the host's stays, and the host's Tab ends it.

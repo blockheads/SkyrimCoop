@@ -123,6 +123,24 @@ and conditions would have been right whoever acted; with each player's own, thre
   (0x7), which already means each game's own player (the host's ownership travels that way): the room or horse is
   everyone's (`GuestScripts.cpp`; checked in `dialogue-pick-says-the-hosts-line`). Rejected: keeping "owned by player
   S" beside the engine for S's game alone, unless play shows players wanting their own rooms or horses.
+- **A house is the party's on every game** (2026-10-30). `HousePurchaseScript.PurchaseHouse` makes the house's cell
+  `PlayerFaction`'s (`Cell.SetFactionOwner`), which already means each game's own player. The host now sends a
+  cell's ownership change as a row (`Games/FormChangeRows.h`; `HostEngine::OnFormChange`, `GuestEngine` applies it to
+  the cell), so the guest's game shows the house as the party's too. Checked in the `ownership` scenarios, which
+  cover a rented room, a house and a stable horse, each bought by the host and by a guest. Still open:
+  - The key goes only to the buyer's inventory (items are each player's own), and Breezehome's door requires it
+    (lock 255). A guest without the key cannot enter until the buyer has opened the door once (the lock's change
+    syncs). Pending a decision.
+  - A horse's owner (`SetFactionOwner(PlayerFaction)` on the actor): fixed 2026-10-31. An actor's ownership change
+    is the one actor change the host sends as a row (`FormChangeRows`, `Form::kActor`), live and in a cell's state,
+    with none as base id 0; its other states stay its owner game's. GameTests `[world][ownership]`, ClientTests
+    `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways (2026-10-31).
+  - Fixed: a guest's house line from Proventus did not show. The line asks for the Jarl's friendship
+    (`GetRelationshipRank` >= 2 on the HousePurchase Jarl alias). It was judged for the guest's copy, which no Jarl
+    knows. An NPC's relationship with the player is now the party's standing, the host's player's (the user,
+    2026-10-30; `JudgedRules`). The Skyrim rerun of `party-buys-house-guest` is still to do.
+  - The key: decided 2026-10-30, keys, quest items and the story's rewards are the party's, every player carrying
+    a copy shown as "[P] <name>" ([party-items.md](party-items.md); not built).
 
 A picked line's fragments run for its picker (rule 2 for dialogue, built 2026-10-22: `shared-dialogue.md`, What
 players see). To build: giving items between players. The shared purse came back on 2026-10-27 (party-purse.md).

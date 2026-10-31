@@ -43,6 +43,8 @@ struct AiReadout
     uint32_t FollowTarget = 0;  // AIProcess::followTarget
     uint32_t Combat = 0;        // the condition GetCombatState (21740)
     uint32_t CombatTarget = 0;  // Actor::currentCombatTarget
+    // HighProcessData::headTrackTarget, each set slot's (default, action, script, combat, dialogue, procedure).
+    uint32_t HeadTrack[6]{};
 };
 
 // The actor's base looks the race menu sets beside its race: female (TESActorBaseData flag 1) and weight

@@ -179,9 +179,11 @@ static_assert(offsetof(ModManager, mods) == 0xD60);
 struct Setting
 {
     void* unk0;
-    uint64_t data;
+    uint64_t data; // a string setting's: its text (const char*)
     const char* name;
 };
+static_assert(sizeof(Setting) == 0x18);
+static_assert(offsetof(Setting, name) == 0x10);
 
 struct INISettingCollection
 {

@@ -69,6 +69,8 @@ from a stack copy (`JudgedRules`):
   (68 to 71) on the character;
 - `GetIntimidateSuccess` (655), `GetBribeSuccess` (654): worked out for the character (`dialogue.md`, "Judging a line
   for another player"), compared by the item's opCode.
+- except `GetRelationshipRank` (403): an NPC's relationship with the player is the party's standing (the user,
+  2026-10-30), so it stays the host's player's. Example: Proventus's house line asks for the Jarl's friend.
 
 `IsTrue` is on every condition's stack, on every thread: `LockOrder::IgnoreFrames` covers its pass-through, so an engine
 lock order seen there is not ours unless a judgement runs (`JudgedIsTrue`).

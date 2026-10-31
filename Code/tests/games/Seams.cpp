@@ -112,6 +112,15 @@ World::World()
     ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
     ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
+    // An NPC's AI sets its slot; a copy runs none (Skyrim: the copy's slots stayed empty).
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerLooks = [](uint32_t aSpeaker, uint32_t aTarget) {
+        FakeEngine& engine = FakeEngine::Current();
+        if (const auto it = engine.Actors.find(aSpeaker); it != engine.Actors.end() && !it->second.Copy)
+            engine.LooksAt(aSpeaker, FakeEngine::kDialogueHeadTrack, aTarget);
+    };
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).DialogueLoaded = [](uint32_t aQuest) {
+        return FakeEngine::Current().DialogueLoaded.contains(aQuest);
+    };
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
@@ -185,32 +194,81 @@ void World::Update() noexcept
         if (!engine.ActorExists(form.Id)) continue;
         if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
         {
-            if (all_of<WaitingFor3D>(cEntity)) continue;
-            engine.LoadActorGraphState(form.Id, spawn->State);
-            if (!animation.TimePoints.empty())
+            if (all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;
+            if (engine.LoadActorGraphState(form.Id, spawn->State) && !animation.TimePoints.empty())
             {
+                animation.LastRanAction = animation.TimePoints.front();
+                animation.Variables = animation.LastRanAction.Variables;
+                animation.VariablesTick = animation.LastRanAction.Tick;
                 engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
                 animation.TimePoints.pop_front();
             }
             remove<SpawnGraphStateComponent>(cEntity);
         }
-        for (auto it = animation.TimePoints.begin(); it != animation.TimePoints.end();)
+        auto& actor = engine.Actors.at(form.Id);
+        auto& step = actor.Replay;
+        using Step = AnimationReplayStep;
+        const uint8_t cPhase = step.Phase.load();
+        if (cPhase == Step::kTaken || cPhase == Step::kRefused)
         {
-            if (DeathActions::IsDying(it->State1))
+            if (cPhase == Step::kTaken)
             {
-                if (engine.HoldDeathActions || InterpolationSystem::PlaybackTick(*this, cEntity) < it->Tick)
-                {
-                    ++it;
-                    continue;
-                }
-                engine.ReplayDeathAction(form.Id, *it);
+                animation.LastRanAction = step.Action;
+                engine.SetActorLatestAnimation(form.Id, step.Action);
             }
-            else if (engine.Actors.at(form.Id).GraphUpdating && engine.Actors.at(form.Id).GraphState != "dead" &&
-                     engine.Actors.at(form.Id).GraphState != "recovering")
-                engine.SetActorLatestAnimation(form.Id, *it);
-            it = animation.TimePoints.erase(it);
+            if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&
+                animation.TimePoints.front().ActionId == step.Action.ActionId)
+                animation.TimePoints.pop_front();
+            step.Phase.store(Step::kIdle);
+            continue;
         }
+        if (cPhase != Step::kIdle)
+        {
+            // Native Update falls back after ten main-thread updates if no graph job takes the step.
+            if (++animation.StagedUpdates > 10 && cPhase != Step::kBusy)
+            {
+                step.Phase.store(Step::kBusy);
+                engine.ActorLoadAnimationVariables(form.Id, step.Variables);
+                step.Phase.store(engine.ReplayAnimation(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
+            }
+            continue;
+        }
+        if (animation.TimePoints.empty()) continue;
+        const auto& action = animation.TimePoints.front();
+        if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
+        if (!engine.IsAnimationGraphReady(form.Id)) continue;
+        if (DeathActions::IsDying(action.State1))
+        {
+            if (engine.HoldDeathActions) continue;
+            engine.ReplayDeathAction(form.Id, action);
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        if (actor.GraphState == "dead" || actor.GraphState == "recovering")
+        {
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        step.Action = action;
+        if (action.Tick >= animation.VariablesTick)
+        {
+            animation.Variables = action.Variables;
+            animation.VariablesTick = action.Tick;
+        }
+        step.Variables = animation.Variables;
+        step.Retries = 0;
+        animation.StagedUpdates = 0;
+        step.Phase.store(Step::kVariables);
     }
+    // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
+    for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
+        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity))
+        {
+            auto& step = engine.Actors.at(form.Id).Replay;
+            RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
+                engine.ActorLoadAnimationVariables(form.Id, acVariables);
+            }, [&] { return engine.ReplayAnimation(form.Id, step.Action); });
+        }
     ctx().at<GuestSeam>().Update();
     auto& waitEngine = ctx().at<FakeEngine&>();
     const float cTimeScale = waitEngine.Calendar.TimeScale;

@@ -189,3 +189,32 @@ SCENARIO("A following player's copy applies the confirmed death after a refused 
     });
     CHECK(guest.IsActorDead(copy));
 }
+
+SCENARIO("An NPC killed after party travel dies on its newly loaded copy", "[death][travel][death-after-travel]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t actor = 0;
+    party.As(party.Host(), [&] { actor = host.LoadNpc(kGuard, kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the NPC");
+    const uint32_t cBeforeTravel = guest.CopiesOf(kGuard)[0];
+    const uint32_t cOldSession = SessionOf(party.Guest(), cBeforeTravel);
+    party.As(party.Host(), [&] { host.PlayerTravels(0x9C5E1, {}); });
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).Cell == 0x9C5E1 && guest.CopiesOf(kGuard).empty(); },
+                "the party leaves and the old NPC copy unloads");
+    // Other temporary references can consume an unloaded copy's form ID before it returns.
+    party.As(party.Guest(), [&] { guest.PlaceLoose(0x9C5E1, Inventory::Entry{.BaseId = GameId{0, 0x12EB7}, .Count = 1}); });
+    party.As(party.Host(), [&] { host.PlayerTravels(kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the NPC gets a new copy on return");
+    const uint32_t cAfterTravel = guest.CopiesOf(kGuard)[0];
+    CHECK(cAfterTravel != cBeforeTravel);
+    CHECK(SessionOf(party.Guest(), cAfterTravel) != cOldSession);
+    SECTION("the native death action succeeds") {}
+    SECTION("the native death action is refused") { guest.RefuseDeathActions = true; }
+    party.As(party.Host(), [&] { host.Hit(actor, 200.f); });
+    REQUIRE(host.IsActorDead(actor));
+    party.Until([&] { return guest.IsActorDead(cAfterTravel); }, "the current copy dies by the owner's death");
+    CHECK_FALSE(guest.ActorExists(cBeforeTravel));
+    party.Agree("the returned NPC and its current copy agree after death");
+}

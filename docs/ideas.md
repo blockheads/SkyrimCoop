@@ -133,6 +133,11 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   through a C ABI host table, run on a fiber from the main loop, requested through `probe.txt` in the
   control directory; with `coop_test.py lab --repeat`.
 - **Warm spare game,** so a crash or hang does not cost a game restart.
+- **A guest's quest fills from the main loop (2026-10-30).** `GuestEngine::ApplyFills` clears and forces aliases on
+  the VM job, in `ClearRefAlias`'s lock order: quest, then the actor's aliases. A load or a `coc` takes them in the
+  other order. Running the fills from `MainLoopTasks` would keep them off the job threads. Not done, because no
+  deadlock was seen and Papyrus `Alias.Clear()` does the same
+  ([2026-10-30-lock-orders-ours-on-stack.md](re/crashes/2026-10-30-lock-orders-ours-on-stack.md)).
 
 ## Testing
 

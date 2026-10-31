@@ -2,6 +2,9 @@
 // and every game hears what it is now.
 #include "session.h"
 
+#include <Services/Host/HostPurse.h>
+
+#include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
 
 namespace
@@ -108,4 +111,67 @@ TEST_CASE("A guest entering carries the party's gold", "[HostAuthority][Purse]")
     session.Receive(kPeer, announce);
     CHECK(Heard(session, kPeer) == 640u);
     CHECK(Heard(session, kHost) == 640u); // the host's copy of it too
+}
+
+TEST_CASE("A player's spending is told in every game's chat; a gain is not", "[HostAuthority][Purse]")
+{
+    Session session;
+    const auto cPlayers = Players(session);
+    session.PartyGold = 100;
+
+    session.Receive(kPeer, Gold(cPlayers.at(kPeer), -40));
+    for (const ConnectionId_t cGame : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(cGame);
+        REQUIRE(cLines.size() == 1);
+        CHECK(cLines[0]->MessageType == kSystemMessage);
+        const std::string& cText = cLines[0]->ChatMessage;
+        CHECK(cText.starts_with("Lydia "));
+        CHECK(cText.ends_with(" 40 gold"));
+        CHECK(std::ranges::any_of(HostPurse::cSpendWords, [&](std::string_view aWord) { return cText == std::format("Lydia {} 40 gold", aWord); }));
+    }
+
+    SECTION("the host's own spending names the host's player")
+    {
+        session.Outbox.clear();
+        session.Receive(kHost, Gold(cPlayers.at(kHost), -5));
+        const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kPeer);
+        REQUIRE(cLines.size() == 1);
+        CHECK(cLines[0]->ChatMessage.starts_with("Dovahkiin "));
+    }
+    SECTION("gold gained says nothing")
+    {
+        session.Outbox.clear();
+        session.Receive(kPeer, Gold(cPlayers.at(kPeer), 10));
+        CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
+    }
+}
+
+TEST_CASE("Every other game's HUD shows the party's gold change; the changer's own game showed it already", "[HostAuthority][Purse]")
+{
+    Session session;
+    const auto cPlayers = Players(session);
+    session.PartyGold = 100;
+
+    session.Receive(kPeer, Gold(cPlayers.at(kPeer), -40));
+    const auto shown = [&](ConnectionId_t aGame) { return session.SentTo<NotifyPartyGold>(aGame).back()->Shown; };
+    CHECK(shown(kPeer) == 0);
+    CHECK(shown(kHost) == -40);
+    CHECK(shown(kOtherPeer) == -40);
+
+    SECTION("the host's script giving a guest's character gold: no engine showed it, so every game does")
+    {
+        session.Outbox.clear();
+        session.Receive(kHost, Gold(cPlayers.at(kPeer), 25)); // a quest reward on the guest's copy (rule 2)
+        CHECK(shown(kPeer) == 25);
+        CHECK(shown(kHost) == 25);
+        CHECK(shown(kOtherPeer) == 25);
+    }
+    SECTION("a gain too, and a purse sent for no change (a join, a load) shows nothing")
+    {
+        session.Outbox.clear();
+        session.Receive(kHost, Gold(cPlayers.at(kHost), 25));
+        CHECK(shown(kHost) == 0);
+        CHECK(shown(kPeer) == 25);
+    }
 }

@@ -14,7 +14,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import compare_actors, dialogue_differences, refused_replays
+from .comparisons import compare_actors, dialogue_differences, refused_replays, sliding_actors
 from .utilities import log
 
 
@@ -32,10 +32,13 @@ class Observations:
         """Each game's refused replays since `since`, one line (empty when none): animations copies did not play."""
         parts = []
         for game in ("", "client"):
-            try:
-                lines = ctx.plugin_log(game).read_text(errors="replace").splitlines()[-40000:]
-            except OSError:
-                continue
+            path = ctx.plugin_log(game)
+            lines = []
+            for file in [path, *(path.with_name(f"{path.stem}.{index}{path.suffix}") for index in range(1, 4))]:
+                try:
+                    lines.extend(file.read_text(errors="replace").splitlines()[-40000:])
+                except OSError:
+                    continue
             for (copy, event), count in sorted(refused_replays(lines, since).items()):
                 parts.append(f"{game or 'host'} {copy:08X} {event} x{count}")
         return "; ".join(parts)
@@ -64,6 +67,20 @@ class Observations:
                 time.sleep(interval)
         return list(persistent.values())
 
+    def check_gait(ctx, seconds=2.0):
+        """Actors that moved over the last seconds without walking (sliding, or in slow motion), on either game:
+        ["[client] copy 0001348C Faendal moved 160 units in 2s, its feet 2", ...]."""
+        problems = []
+        for game in ("", "client"):
+            world = (ctx.game(game).read_status() or {}).get("world") or {}
+            gait = ctx.player_command(game, {"cmd": "gait", "seconds": seconds})["actors"]
+            for actor, (travelled, feet) in sorted(sliding_actors(gait).items()):
+                entry = world.get(str(actor)) or {}
+                name = (entry.get("identity") or {}).get("name") or "?"
+                problems.append(f"[{game or 'host'}] {entry.get('role') or 'actor'} {actor:08X} {name} moved {travelled:.0f} units "
+                                f"in {seconds:.0f}s, its feet {feet:.0f}")
+        return problems
+
     def known_lock_patterns(ctx):
         try:
             lines = KNOWN_LOCK_PATTERNS.read_text().splitlines()
@@ -84,8 +101,12 @@ class Observations:
             for report in status.get("lock_order", {}).get("reports", []):
                 match = LOCK_PATTERN.match(report)
                 sites = match.group(3) if match else report
-                if sites not in known:
-                    found.setdefault(sites, (name or "host", report, bool(match and match.group(1))))
+                # A live overlap is never a reviewed pattern: its own key.
+                if match and match.group(2).startswith("live"):
+                    sites = "live: " + sites
+                elif sites in known:
+                    continue
+                found.setdefault(sites, (name or "host", report, bool(match and match.group(1))))
         return found
 
     def save_file(ctx, instance, name):

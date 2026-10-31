@@ -37,7 +37,8 @@ nlohmann::json LockOrderStatus()
 {
     const auto cStats = LockOrder::GetStats();
     return {{"enabled", cStats.Enabled}, {"edges", cStats.Edges}, {"reports", LockOrder::GetReports()},
-            {"report_count", cStats.Reports}, {"too_deep", cStats.TooDeep}, {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}};
+            {"overlaps", LockOrder::GetOverlaps()}, {"report_count", cStats.Reports}, {"too_deep", cStats.TooDeep},
+            {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}};
 }
 
 // Game form IDs of the items an actor has equipped (worn armor, weapons, spells).
@@ -83,6 +84,16 @@ static int64_t SessionId(uint32_t aFormId)
     return -1;
 }
 
+// A reference as every game names it: an actor in the session by its session id, else its form id.
+static nlohmann::json SharedName(uint32_t aFormId)
+{
+    if (!aFormId)
+        return nullptr;
+    if (const int64_t cSessionId = SessionId(aFormId); cSessionId >= 0)
+        return std::format("session {}", cSessionId);
+    return std::format("{:08X}", aFormId);
+}
+
 static nlohmann::json TintsOf(const Tints& acTints)
 {
     auto tints = nlohmann::json::array();
@@ -95,7 +106,7 @@ static nlohmann::json TintsOf(const Tints& acTints)
 static nlohmann::json Identity(uint32_t aFormId)
 {
     auto& actors = World::Get().GetActorBridge();
-    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorDisplayName(aFormId)},
                                {"race", actors.GetActorRaceFormId(aFormId)}};
     if (const auto cLooks = EngineReads::GetBaseLooks(aFormId))
         identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
@@ -200,7 +211,7 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                     {"seconds_under", cWater.SecondsUnder}};
 
     const auto cAi = EngineReads::GetAiReadout(aFormId);
-    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorDisplayName(aFormId)},
                                {"race", actors.GetActorRaceFormId(aFormId)},
                                {"template_base", actors.GetActorNpcTemplateBaseFormId(aFormId)},
                                {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
@@ -267,6 +278,8 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
         // The AI state every game reads 1:1: a copy holds its owner's (AiStateService), compared.
         {"ai_state", {{"package", cAi.Package}, {"scene", cAi.Scene},
                       {"combat", cAi.Combat}, {"combat_target", cAi.CombatTarget},
+                      {"head_track", {SharedName(cAi.HeadTrack[0]), SharedName(cAi.HeadTrack[1]), SharedName(cAi.HeadTrack[2]),
+                                      SharedName(cAi.HeadTrack[3]), SharedName(cAi.HeadTrack[4]), SharedName(cAi.HeadTrack[5])}},
                       {"in_combat", EngineReads::IsInCombat(aFormId)}}},
     };
 }

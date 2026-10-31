@@ -159,6 +159,8 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
     readout.Combat = static_cast<uint32_t>(combat);
     if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
         readout.CombatTarget = pTarget->formID;
+    if (const HighProcessData* pHigh = pActor->currentProcess->highProcess)
+        std::ranges::copy(pHigh->GetHeadTrackTargets(), readout.HeadTrack);
     return readout;
 }
 

@@ -72,6 +72,9 @@ struct TESObjectREFR : TESForm
 
     static void GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept;
     // A new list with the item's extra data, none without any; aCounted: holding its count too, for an add.
+    // The carried stack like acEntry (its extra data, worn or not; ItemChanges::FindStack): its own list, which a
+    // removal names. None for a plain entry or no such stack.
+    ExtraDataList* FindCarriedStack(TESBoundObject& aObject, const Inventory::Entry& acEntry) noexcept;
     static ExtraDataList* GetExtraDataFromItem(const Inventory::Entry& arEntry, bool aCounted = false) noexcept;
     // The item's extra data (enchantment, charge, poison, tempering, soul, name) onto a list: a loose item's own.
     static void SetItemExtraData(ExtraDataList& aList, const Inventory::Entry& acEntry) noexcept;
@@ -178,6 +181,8 @@ struct TESObjectREFR : TESForm
 
     BSPointerHandle<TESObjectREFR> GetHandle() const noexcept;
     uint32_t GetCellId() const noexcept;
+    // GetDisplayFullName (19781): its name with this reference's override (ExtraTextDisplayData), never null.
+    const char* GetDisplayFullName() noexcept;
     TESWorldSpace* GetWorldSpace() const noexcept;
     ExtraContainerChanges::Data* GetContainerChanges() const noexcept;
     // Its inventory changes, none made if it has none yet (TESObjectREFR::GetInventoryChanges 16039).

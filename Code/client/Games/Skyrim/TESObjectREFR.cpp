@@ -1,6 +1,7 @@
 #include <Games/Memory.h>
 #include <Games/Animation/GraphReference.h>
 #include <Games/Animation/VariableSync.h>
+#include <Games/Animation/ReplayState.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
 #include <cstring>
@@ -9,11 +10,13 @@
 
 #include <Games/References.h>
 #include <Games/Overrides.h>
+#include <Games/ItemChanges.h>
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
 #include <Services/PapyrusService.h>
 #include <Events/ActivateEvent.h>
+#include <Games/Skyrim/Papyrus/GuestScripts.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/LockChangeEvent.h>
@@ -179,6 +182,13 @@ bool TESObjectREFR::LoadGraphs(const std::string& acGraphs) const noexcept
     return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });
 }
 
+const char* TESObjectREFR::GetDisplayFullName() noexcept
+{
+    POINTER_SKYRIMSE(const char*(TESObjectREFR*), s_getDisplayFullName, 19781);
+    const char* cpName = s_getDisplayFullName(this);
+    return cpName ? cpName : "";
+}
+
 // The actor's state flags (weapon, sitting, life state) go first: the graph and they must agree.
 bool TESObjectREFR::SaveAnimationGraphState(std::string& aState) const noexcept
 {
@@ -200,11 +210,13 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
     if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
+    const uint32_t cPreviousFlags2 = pActor->actorState.flags2;
     const bool cLoaded = LoadGraphs(acState.substr(sizeof(flags)));
     if (cLoaded)
     {
         pActor->actorState.flags1 = flags[0];
-        pActor->actorState.flags2 = flags[1];
+        // Weapon choice has its live owner messages; a graph snapshot's transition is historical.
+        pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ReplayState::Flags2(flags[1], cPreviousFlags2) : flags[1];
     }
     return cLoaded;
 }
@@ -630,6 +642,33 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
     arEntry.IsQuestItem = apExtraDataList->HasQuestObjectAlias();
 }
 
+ExtraDataList* TESObjectREFR::FindCarriedStack(TESBoundObject& aObject, const Inventory::Entry& acEntry) noexcept
+{
+    if (!acEntry.ContainsExtraData())
+        return nullptr;
+    auto* pChanges = GetContainerChanges();
+    if (!pChanges || !pChanges->entries)
+        return nullptr;
+    std::vector<ExtraDataList*> lists;
+    std::vector<Inventory::Entry> stacks;
+    for (auto* pEntry : *pChanges->entries)
+        if (pEntry && pEntry->form == &aObject && pEntry->dataList)
+            for (ExtraDataList* pList : *pEntry->dataList)
+                if (pList)
+                {
+                    Inventory::Entry stack{};
+                    stack.BaseId = acEntry.BaseId;
+                    {
+                        ScopedExtraDataOverride _;
+                        GetItemFromExtraData(stack, pList);
+                    }
+                    lists.push_back(pList);
+                    stacks.push_back(std::move(stack));
+                }
+    const auto cFound = ItemChanges::FindStack(stacks, acEntry);
+    return cFound ? lists[*cFound] : nullptr;
+}
+
 ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEntry, bool aCounted) noexcept
 {
     if (!arEntry.ContainsExtraData())
@@ -882,7 +921,13 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
         return;
     }
 
-    ExtraDataList* pExtraDataList = GetExtraDataFromItem(arEntry, arEntry.Count > 0);
+    // A removal names the carried stack by its own list (16059 takes from no other); an add builds one from the entry.
+    ExtraDataList* pExtraDataList = arEntry.Count > 0 ? GetExtraDataFromItem(arEntry, true) : FindCarriedStack(*pObject, arEntry);
+    if (arEntry.Count < 0 && arEntry.ContainsExtraData() && !pExtraDataList)
+    {
+        spdlog::warn("{}: {:X} carries no stack of {:X} like the one to remove", __FUNCTION__, formID, pObject->formID);
+        return;
+    }
 
     if (arEntry.Count > 0)
     {
@@ -907,20 +952,6 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
     {
         spdlog::debug("Removing item {:X}, count {}", pObject->formID, -arEntry.Count);
         RemoveItem(pObject, -arEntry.Count, ITEM_REMOVE_REASON::kRemove, pExtraDataList, nullptr);
-    }
-
-    // TODO(cosideci): this is still flawed. Adding the refr to the quest leader is hard.
-    // It is still recommended that the quest leader loots all quest items.
-    if (arEntry.IsQuestItem && arEntry.Count > 0 && !aIsSettingInventory)
-    {
-        PlayerCharacter* pPlayer = PlayerCharacter::Get();
-
-        if (!pPlayer->IsItemInInventory(objectId))
-        {
-            Actor* pActor = Cast<Actor>(this);
-            if (pActor && pActor->GetExtension()->IsOtherPlayer())
-                pPlayer->AddOrRemoveItem(arEntry);
-        }
     }
 
     UpdateItemList(nullptr);
@@ -1066,7 +1097,9 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
         if (apExtraData)
             apThis->GetItemFromExtraData(item, apExtraData);
 
-        World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item)));
+        InventoryChangeEvent event(apThis->formID, std::move(item));
+        event.StoryGiven = GuestScripts::StoryGiving();
+        World::Get().GetRunner().Trigger(std::move(event));
     }
 
     spdlog::debug("Adding inventory item {:X} to {:X}", apItem->formID, apThis->formID);
@@ -1269,6 +1302,37 @@ void TESObjectREFR::SetMovesContainerItems(bool aMoves) noexcept
     s_movesContainerItems.store(aMoves, std::memory_order_relaxed);
 }
 
+// Tempering (InventoryChanges 16145) and enchanting (EnchantObject 16146) change one of a carried stack in place, past
+// our add/remove hooks: the owner's stacks of the item before and after, the difference raised as item changes
+// (ItemChanges::Diff; party-items.md, re/systems/inventory-changes.md).
+using TTemper = void*(ExtraContainerChanges::Data*, TESBoundObject*, ExtraDataList*, float);
+using TEnchantObject = ExtraDataList*(ExtraContainerChanges::Data*, TESBoundObject*, ExtraDataList*, EnchantmentItem*, uint16_t);
+static TTemper* RealTemper = nullptr;
+static TEnchantObject* RealEnchantObject = nullptr;
+
+template <class TCall> static auto ImprovesStack(ExtraContainerChanges::Data* apChanges, TESBoundObject* apObject, TCall&& aCall)
+{
+    TESObjectREFR* pOwner = apChanges && apObject ? apChanges->parent : nullptr;
+    const auto cStacks = [&] { return pOwner->GetInventory([apObject](TESForm& aForm) { return &aForm == apObject; }).Entries; };
+    const auto cBefore = pOwner ? cStacks() : std::vector<Inventory::Entry>{};
+    auto result = aCall();
+    if (pOwner && !ScopedInventoryOverride::IsOverriden())
+        for (auto& change : ItemChanges::Diff(cBefore, cStacks()))
+            World::Get().GetRunner().Trigger(InventoryChangeEvent(pOwner->formID, std::move(change)));
+    return result;
+}
+
+static void* HookTemper(ExtraContainerChanges::Data* apChanges, TESBoundObject* apObject, ExtraDataList* apExtra, float aHealth)
+{
+    return ImprovesStack(apChanges, apObject, [&] { return RealTemper(apChanges, apObject, apExtra, aHealth); });
+}
+
+static ExtraDataList* HookEnchantObject(ExtraContainerChanges::Data* apChanges, TESBoundObject* apObject, ExtraDataList* apExtra,
+                                        EnchantmentItem* apEnchantment, uint16_t aCharge)
+{
+    return ImprovesStack(apChanges, apObject, [&] { return RealEnchantObject(apChanges, apObject, apExtra, apEnchantment, aCharge); });
+}
+
 static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1279,6 +1343,8 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(19789, &RealRotateZ, HookRotateZ);
         HOOK_ID(19796, &RealActivate, HookActivate);
         HOOK_ID(19708, &RealAddInventoryItem, HookAddInventoryItem);
+        HOOK_ID(16145, &RealTemper, HookTemper);
+        HOOK_ID(16146, &RealEnchantObject, HookEnchantObject);
         HOOK_ID(19689, &RealRemoveInventoryItem, HookRemoveInventoryItem);
         HOOK_ID(16059, &RealRemoveFromInventory, HookRemoveFromInventory);
         HOOK_ID(56626, &RealMoveTo, HookMoveTo);

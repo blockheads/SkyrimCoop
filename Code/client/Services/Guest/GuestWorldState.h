@@ -2,6 +2,7 @@
 
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
+#include <MainLoopTasks.h>
 
 struct NotifyGlobals;
 struct NotifyQuests;
@@ -60,5 +61,6 @@ private:
     // The attached cells already asked for.
     std::vector<uint32_t> m_cells;
 
+    MainLoopTasks::Scope m_mainTasks;
     std::vector<entt::scoped_connection> m_connections;
 };

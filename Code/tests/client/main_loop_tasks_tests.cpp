@@ -73,3 +73,19 @@ TEST_CASE("A nested drain keeps the caller in the safe save phase", "[save-dispa
     MainLoopTasks::Run();
     CHECK(saved);
 }
+
+TEST_CASE("Pending engine changes are cancelled when their session service goes", "[engine-scheduling]")
+{
+    int changed = 0;
+    {
+        MainLoopTasks::Scope session;
+        session.Queue([&] { ++changed; });
+    }
+    MainLoopTasks::Run();
+    CHECK(changed == 0);
+    MainLoopTasks::Scope nextSession;
+    nextSession.Queue([&] { changed += 10; });
+    CHECK(changed == 0);
+    MainLoopTasks::Run();
+    CHECK(changed == 10);
+}

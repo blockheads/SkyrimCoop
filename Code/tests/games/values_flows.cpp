@@ -144,3 +144,85 @@ SCENARIO("Pool packets received while a copy is absent apply when its 3D returns
     CHECK(guest.GetActorPermanentValue(cCopy, FakeEngine::kHealth) == 300.f);
     CHECK(guest.GetActorValue(cCopy, FakeEngine::kHealth) == 250.f);
 }
+
+SCENARIO("An enchanted NPC's fortified pool reaches its copy", "[values][fortified-pools]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t onmund = 0;
+    party.As(party.Host(), [&] {
+        onmund = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f});
+        host.ForceActorValue(onmund, 0, FakeEngine::kMagicka, 175.f);
+        host.ForceActorValue(onmund, 1, FakeEngine::kMagicka, 205.f);
+    });
+    REQUIRE(host.GetActorValue(onmund, FakeEngine::kMagicka) == 205.f);
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "Onmund has a copy");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    for (int i = 0; i < 6; ++i)
+        party.Step(party.Guest());
+    CHECK(guest.GetActorPermanentValue(cCopy, FakeEngine::kMagicka) == 175.f);
+    CHECK(guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 205.f);
+    CHECK(guest.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 30.f);
+    SECTION("spending and recovering magicka retains the fortified maximum")
+    {
+        party.As(party.Host(), [&] { host.ForceActorValue(onmund, 2, FakeEngine::kMagicka, 140.f); });
+        party.Until([&] { return guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 140.f; }, "the copy spends magicka");
+        CHECK(guest.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 30.f);
+        party.As(party.Host(), [&] { host.ForceActorValue(onmund, 2, FakeEngine::kMagicka, 205.f); });
+        party.Until([&] { return guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 205.f; }, "the copy regains fortified magicka");
+    }
+    SECTION("fortification changes even if damage leaves the current pool unchanged")
+    {
+        party.As(party.Host(), [&] {
+            host.ForceActorValue(onmund, 1, FakeEngine::kMagicka, 235.f);
+            host.ForceActorValue(onmund, 2, FakeEngine::kMagicka, 205.f);
+        });
+        party.Until([&] { return guest.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 60.f; }, "the modifier changes without a current-value delta");
+        CHECK(guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 205.f);
+    }
+    SECTION("removing the enchantment sends a zero modifier")
+    {
+        party.As(party.Host(), [&] { host.ForceActorValue(onmund, 1, FakeEngine::kMagicka, 175.f); });
+        party.Until([&] { return guest.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 0.f; }, "the copy loses fortification");
+        CHECK(guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 175.f);
+    }
+    SECTION("a copy's local effect cannot stack onto the owner's fortification")
+    {
+        party.As(party.Guest(), [&] { guest.ForceActorValue(cCopy, 1, FakeEngine::kMagicka, 235.f); });
+        for (int i = 0; i < 6; ++i)
+            party.Step(party.Guest());
+        CHECK(guest.GetActorValue(cCopy, FakeEngine::kMagicka) == 205.f);
+        CHECK(guest.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 30.f);
+    }
+}
+
+TEST_CASE("A later guest sees a player's live fortify modifier", "[values][fortified-pools][fortified-record]")
+{
+    Party party(2, SmokeWorld, false);
+    auto& owner = Party::Engine(party.Guest(0));
+    auto& host = Party::Engine(party.Host());
+    auto& joiner = Party::Engine(party.Guest(1));
+    party.As(party.Guest(0), [&] { owner.ForceActorValue(FakeEngine::kPlayer, 0, FakeEngine::kMagicka, 175.f); });
+    party.Join(party.Guest(0));
+    uint32_t sid = 0;
+    party.Until([&] {
+        for (auto&& [entity, form, local] : party.Guest(0).view<FormIdComponent, LocalComponent>().each())
+            if (form.Id == FakeEngine::kPlayer) sid = local.Id;
+        return sid != 0;
+    }, "the first guest is announced");
+    const auto copyOf = [&](World& aGame) -> uint32_t {
+        for (auto&& [entity, form, remote] : aGame.view<FormIdComponent, RemoteComponent>().each())
+            if (remote.Id == sid) return form.Id;
+        return 0;
+    };
+    party.As(party.Guest(0), [&] { owner.ForceActorValue(FakeEngine::kPlayer, 1, FakeEngine::kMagicka, 205.f); });
+    party.Until([&] { const auto copy = copyOf(party.Host()); return copy && host.GetActorValue(copy, FakeEngine::kMagicka) == 205.f; },
+                "the existing copy gets the live fortify");
+    party.Join(party.Guest(1));
+    party.Until([&] { return copyOf(party.Guest(1)) != 0; }, "the later guest gets the first guest's copy");
+    const auto cCopy = copyOf(party.Guest(1));
+    for (size_t i = 0; i < 10; ++i) party.Frame();
+    CHECK(joiner.GetActorTemporaryValue(cCopy, FakeEngine::kMagicka) == 30.f);
+    CHECK(joiner.GetActorValue(cCopy, FakeEngine::kMagicka) == 205.f);
+}

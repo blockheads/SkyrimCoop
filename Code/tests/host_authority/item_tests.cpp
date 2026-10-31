@@ -158,3 +158,16 @@ TEST_CASE("Items: a guest's chest change carries its items' extra data", "[HostA
     CHECK(session.ItemsSet[0].Value == 3);
     CHECK(session.ItemsSet[0].Stacks == items.Stacks);
 }
+
+TEST_CASE("Items: a guest picking up a quest object: the host's player takes it for the party, no grant", "[HostAuthority][Items][PartyItems]")
+{
+    Session session;
+    session.LoadedCells[kQaSmoke] = {};
+    const GameId cClaw(ObjectChange::kCreatedModId, 0x900);
+    session.Loose[cClaw] = {};
+    session.QuestObjects.insert(cClaw);
+    session.Receive(kPeer, PickUp(cClaw));
+    CHECK(session.TakenForParty == std::vector{cClaw});
+    CHECK(session.SentTo<NotifyPickUp>(kPeer).empty());
+    CHECK(session.Loose.empty());
+}

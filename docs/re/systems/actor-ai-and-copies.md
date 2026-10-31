@@ -502,8 +502,9 @@ Where the engine itself uses it (IDA, 2026-10-12):
   of the old cell drop theirs, NPCs of the new one start fresh and their AI rebuilds the pose.
 
 A copy is the case the engine never has: a fresh graph, an owner with a history, and no AI to rebuild
-the pose. So it takes the savegame path at creation. The load runs once per copy and is never used to
-repair drift mid-play (that would hide replay bugs); state changes while a copy is loaded go through
+the pose. So it takes the savegame path at creation. The initial load runs once per copy. The v1 follow-up also recovers refused unpaired actions
+from their owner's captured result
+([evidence and limits](animation-replay-recovery.md)); ordinary state changes while a copy is loaded go through
 replayed actions, and scenarios have to cover them live (`furniture-host-player`/`-client-player`:
 the owner uses QASmoke's cooking spit and leaves it, the loaded copy follows both ways, 2026-10-13).
 
@@ -639,6 +640,28 @@ meh321 where they have one, ours otherwise.
   the package with no package event: `death-stage-runs-once` caught a copy keeping Valdr's), `TESSceneEvent`.
 - **Scene.** `IsInScene` (21682) and Papyrus ask `Actor::GetCurrentScene` (37247, vfunc 0x4A: `boolBits & 8`, then
   the reference's scene data): hooked for copies (the owner's scene).
+  Native scene stop24140 emits TESSceneEvent before actor cleanup3A2570 clears the scene through vfunc0x4B.
+  The owner's event read can therefore retain the ending scene. AiStateService refreshes owned actors with
+  active last-sent scenes on UpdateEvent and publishes their actual final state, including replacements;
+  inactive scenes need no polling. `[scene-clear]` and `[scene-refresh]` cover the ordering and lifecycle.
+  [Original Belethor evidence and native barter controls](../../reports/2026-10-31-v1-three-risks.md#belethor-scene-and-reopening).
+- **Headtracking** (built 2026-10-31). What an actor looks at is six slots in `HighProcessData` (`headTrackTarget[6]`
+  `+0x140`, handles; `headTracked[6]` `+0x158`; CommonLibSSE-NG `HEAD_TRACK_TYPE`: default, action, script, combat,
+  dialogue, procedure), set by the AI, packages, dialogue and scripts through `HighProcessData::SetHeadtrackTarget`
+  (39783; it also updates the cached look position, `sub_14070BEC0`) and `ClearHeadtrackTarget` (39756), with no
+  event. `Actor::ProcessTracking` (38009, vfunc `0x122`: Actor, Character and PlayerCharacter share it; CommonLib
+  `(float delta, NiAVObject*)`, the body reads only `rcx` and `xmm1`) runs every frame from `Actor::UpdateAnimation`
+  (call at `0x14066AC22`, gated only by distance), copies included. It takes the highest set slot
+  (`AIProcess::GetHeadtrackTarget` 39484; in a conversation it alternates the script and default slots), the
+  target's look position (vfunc `0x2D8`), and `AIProcess::SetHeadtrackTarget` (39887) writes it to the graph
+  (`SetGraphVariableNiPoint3`, the `TargetLocation` the look-at modifiers read) and sets `MiddleHigh +0x326`. A
+  copy's slots stayed empty (no AI), so its head never turned: `dialogue-copy-looks-at-speaker` (2026-10-31) showed
+  the host's Lydia's dialogue slot on the talking player and her copy's none, and the graph sample in
+  `animation-replay-recovery.md` differing only in `TargetLocation`. Now `AiStateEvents` hooks ProcessTracking:
+  an owner's slots changed since its last call raise `AiStateChangeEvent` (`ActorAiState::HeadTrack`, each slot by
+  session id or form), and a copy's owner's slots (`ActorExtension::HeadTrack`) are put in before the engine reads
+  them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
+  An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
 - **Talking.** `IsTalking` (37266, read by the condition 21519 and the dialogue menu 35283/35290/35294): `boolBits &
   0x180` and the voice timer, which a copy's played voice line sets. Compared (`ai_state.talking`), nothing written.
 - **Alarmed** (`GetAlarmed` 21452: the running package's type is 21, an engine-made alarm package): not carried; a

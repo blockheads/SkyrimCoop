@@ -13,6 +13,7 @@ struct World;
 struct TransportService;
 struct AiStateChangeEvent;
 struct DisconnectedEvent;
+struct UpdateEvent;
 struct NotifyCharacterSpawn;
 struct NotifyRemoveCharacter;
 
@@ -41,6 +42,7 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 
 private:
+    void OnUpdate(const UpdateEvent&) noexcept;
     void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     // One of this game's actors: its state goes out when it differs from the last sent.
     void SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept;
@@ -50,6 +52,9 @@ private:
     // This game's fields as the session's state, and back.
     [[nodiscard]] ActorAiState ToState(const ActorAiFields& acFields) const noexcept;
     [[nodiscard]] ActorAiFields ToFields(const ActorAiState& acState) const noexcept;
+    // A reference: an actor in the session by its session id (each game has its own form id for it), else its form.
+    [[nodiscard]] static AiTarget ToTarget(uint32_t aFormId) noexcept;
+    [[nodiscard]] static uint32_t ToFormId(const AiTarget& acTarget) noexcept;
 
     World& m_world;
     TransportService& m_transport;

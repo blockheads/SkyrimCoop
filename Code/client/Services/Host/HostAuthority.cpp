@@ -114,9 +114,10 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_wait(*this, aNetwork, m_players, m_game)
     , m_crime(*this, aNetwork, m_players, m_characters, m_game)
     , m_purse(m_players, m_characters, m_game)
+    , m_partyItems(m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
-    , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_game)
+    , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
     , m_physics(*this, aNetwork, m_players, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
@@ -240,8 +241,9 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
     m_worldState.SendWorldState(aPlayer);
     m_timeScale.SendTimeScale(aPlayer);
     m_characters.SendExistingCharacters(aPlayer, aCharacterSessionId);
-    // Its player and every copy carry the party's gold, its own brought in replaced.
+    // Its player and every copy carry the party's gold and items, its own brought in replaced.
     m_purse.Send();
+    m_partyItems.Send();
 }
 
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
@@ -263,7 +265,7 @@ bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSend
 
 void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
-    if (m_purse.Change(acRequest, aSender))
+    if (m_purse.Change(acRequest, aSender) || m_partyItems.Change(acRequest, aSender))
         return;
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);

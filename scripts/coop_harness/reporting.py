@@ -88,6 +88,5 @@ class Reporting:
         return response["events"], response["next"]
 
     def race_of(ctx, instance, actor):
-        _game = ctx.game()
-        return ((((_game.read_status() if (_game := ctx.game(instance)) is None else None) or {}).get("world") or {})
-                .get(str(actor), {}).get("identity", {}).get("race"))
+        status = ctx.game(instance).read_status() or {}
+        return (status.get("world") or {}).get(str(actor), {}).get("identity", {}).get("race")

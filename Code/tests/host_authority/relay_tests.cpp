@@ -224,9 +224,11 @@ TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[HostAut
     RequestActorValueChanges values;
     values.Id = cHostNpc;
     values.Values[24] = 50.f; // health
+    values.TemporaryValues[24] = 30.f;
     session.Receive(kHost, values);
     REQUIRE(session.SentTo<NotifyActorValueChanges>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyActorValueChanges>(kPeer)[0]->Values.at(24) == 50.f);
+    CHECK(session.SentTo<NotifyActorValueChanges>(kPeer)[0]->TemporaryValues.at(24) == 30.f);
     CHECK(session.SentTo<NotifyActorValueChanges>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyActorValueChanges>(kHost).empty());
 

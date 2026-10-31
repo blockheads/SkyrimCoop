@@ -8,7 +8,9 @@
 #include <utility>
 #include <vector>
 #include <Messages/RelayedMessages.h>
+#include <Structs/Inventory.h>
 #include <Structs/GameId.h>
+#include <Games/EquipmentRepair.h>
 
 class IActorBridge;
 class IFormBridge;
@@ -70,6 +72,20 @@ struct InventoryService
      * @brief The party's gold (docs/design/party-purse.md): this game's player and every copy of a player carry it.
      */
     void OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept;
+    // A party item (party-items.md): this game's player and every player copy carry the party's count of that stack.
+    void OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexcept;
+    void SetPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
+    // Every party item (a join): carried at the party's count, and a tagged stack the party lacks dropped.
+    void OnNotifyPartyItems(const NotifyPartyItems& acMessage) noexcept;
+    void SetPartyItems(uint32_t aActorFormId, const std::vector<Inventory::Entry>& acItems) const noexcept;
+
+    // The host's party items (HostGame's seams): how many of that stack (its base and name) the actor carries, a
+    // change to it silently, every party stack it carries, and an item's name.
+    [[nodiscard]] int32_t PartyItemCount(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
+    void AddPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept;
+    [[nodiscard]] std::vector<Inventory::Entry> PartyItemsOf(uint32_t aActorFormId) const noexcept;
+    [[nodiscard]] std::string ItemName(const GameId& acItem) const noexcept;
+
 
     // A copy about to equip an item it does not carry gets one, silently (its owner wears it).
     void CarryForEquip(uint32_t aActorFormId, const GameId& acItem) const noexcept;
@@ -95,9 +111,13 @@ private:
     void RunWeaponDrawConvergence(double aDelta) noexcept;
     void OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
-    // A copy's spawn items are on it now (CharacterService): a player's carries the party's gold, not its spawn's.
+    // A copy's spawn items are on it now (CharacterService): a player's carries the party's gold and items, not its spawn's.
     void OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept;
-    void OnDisconnected(const DisconnectedEvent&) noexcept { m_partyGold.reset(); }
+    void OnDisconnected(const DisconnectedEvent&) noexcept
+    {
+        m_partyGold.reset();
+        m_partyItems.reset();
+    }
     void RunEquipmentSnapshots() noexcept;
     /**
     * Checks whether an NPC's (local or remote) equipment is bugged (i.e. naked NPCS)
@@ -111,9 +131,10 @@ private:
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
 
-    std::chrono::steady_clock::time_point m_lastSnapshotSend;
+    EquipmentRepair::Snapshots m_equipmentSnapshots;
     std::chrono::steady_clock::time_point m_lastNakedCheck;
     std::optional<uint32_t> m_partyGold;
+    std::optional<std::vector<Inventory::Entry>> m_partyItems;
 
     std::vector<entt::scoped_connection> m_connections;
 };

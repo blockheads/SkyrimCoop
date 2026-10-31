@@ -27,6 +27,19 @@ struct FakeDialogue final : IDialogueBridge
     // A line's conditions (by topic and info): the players it is said to (their character's form id here; 0x14 this
     // game's player). A topic's first line that passes is the player's, as TESTopic 25544 picks; none listed: everyone.
     std::map<std::pair<uint32_t, uint32_t>, std::function<bool(uint32_t aPlayer)>> Needs;
+    // A line of a quest not started with the game (by info): it exists here only once that quest's dialogue is loaded
+    // in this game (TESQuest 25086 reads a quest's lines when it starts; re/systems/dialogue.md). Lines not listed
+    // always exist.
+    std::map<uint32_t, uint32_t> LineQuest;
+    std::function<bool(uint32_t aQuest)> DialogueLoaded = [](uint32_t) { return true; };
+    [[nodiscard]] bool LineExists(const Option& acOption) const
+    {
+        const auto it = LineQuest.find(acOption.Info);
+        return it == LineQuest.end() || DialogueLoaded(it->second);
+    }
+    // The speaker's AI looks at this game's player while they talk (its dialogue headtrack slot; Skyrim
+    // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0.
+    std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
 
@@ -117,12 +130,16 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (!aActorFormId || !CanTalk(aActorFormId))
             return false;
+        if (Speaker == aActorFormId && !MenuOpen)
+            return true; // native Start does not reopen a conversation already held in the manager
         if (RequiresGreeting && !aGreeting)
             return true; // native start accepted, but no eligible local greeting opens a menu
         StartedGreeting = aGreeting;
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
         Choices = false;
+        if (SpeakerLooks)
+            SpeakerLooks(Speaker, 0x14);
         Build(Greeting);
         return true;
     }
@@ -144,6 +161,8 @@ struct FakeDialogue final : IDialogueBridge
     }
     void End() noexcept override
     {
+        if (SpeakerLooks && Speaker)
+            SpeakerLooks(Speaker, 0);
         Speaker = 0;
         MenuOpen = false;
         ListShown = false;
@@ -158,7 +177,9 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (!Speaker || PlayerMenuOpen)
             return false;
-        Options = acOptions;
+        // As DialogueBridge::ReplaceOptions: a line this game does not have cannot be built ("cannot be shown here").
+        Options.clear();
+        std::ranges::copy_if(acOptions, std::back_inserter(Options), [this](const Option& acOption) { return LineExists(acOption); });
         Choices = aChoices;
         Highlight = 0;
         ListShown = MenuOpen;
@@ -230,7 +251,7 @@ struct FakeDialogue final : IDialogueBridge
         {
             const auto cNeed = Needs.find({cOption.Topic, cOption.Info});
             const bool cTaken = std::ranges::any_of(lines, [&](const Option& acLine) { return acLine.Topic == cOption.Topic; });
-            if (!cTaken && (cNeed == Needs.end() || cNeed->second(aPlayer)))
+            if (!cTaken && LineExists(cOption) && (cNeed == Needs.end() || cNeed->second(aPlayer)))
                 lines.push_back(cOption);
         }
         return lines;

@@ -1,4 +1,5 @@
 #include <Services/InventoryService.h>
+#include <Games/EquipmentRepair.h>
 #include <Events/PlayerProgressEvent.h>
 #include <Bridges/IPlayerBridge.h>
 
@@ -17,6 +18,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Games/Overrides.h>
+#include <Games/PartyItems.h>
 #include <set>
 #include <Components/LocalComponent.h>
 #include <Components/LocalWeaponDrawComponent.h>
@@ -44,6 +46,8 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyEquipmentSnapshot, &InventoryService::OnNotifyEquipmentSnapshot>(m_connections, m_dispatcher, this);
     Listen<NotifyDrawWeapon, &InventoryService::OnNotifyDrawWeapon>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyGold, &InventoryService::OnNotifyPartyGold>(m_connections, m_dispatcher, this);
+    Listen<NotifyPartyItem, &InventoryService::OnNotifyPartyItem>(m_connections, m_dispatcher, this);
+    Listen<NotifyPartyItems, &InventoryService::OnNotifyPartyItems>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &InventoryService::OnDisconnected>(m_connections, m_dispatcher, this);
     Listen<&InventoryService::OnSpawnItemsApplied>(m_connections, m_world.on_destroy<WaitingFor3D>(), this);
     Listen<&InventoryService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
@@ -83,9 +87,31 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     }
     request.SessionId = sessionIdRes.value();
 
+    // A key, a quest item or the story's gift arriving on a player is the party's (party-items.md): this game takes its
+    // own copy back, and the host gives every player the tagged one.
+    const bool cPlayer = acEvent.FormId == 0x14 || m_actorBridge.IsOtherPlayer(acEvent.FormId);
+    const uint32_t cItemId = ToGame(acEvent.Item.BaseId);
+    if (cPlayer && !acEvent.Drop && acEvent.Item.Count > 0 && !acEvent.Item.ExtraName.starts_with(PartyItems::cTag) &&
+        PartyItems::ArrivesAsParty(m_formBridge.GetFormType(cItemId), acEvent.Item.IsQuestItem, acEvent.StoryGiven))
+    {
+        request.NewPartyItem = true;
+        request.StoryGiven = acEvent.StoryGiven;
+        if (!acEvent.Item.IsQuestItem)
+        {
+            Inventory::Entry own = acEvent.Item;
+            own.Count = -own.Count;
+            ScopedInventoryOverride _;
+            m_formBridge.ObjectAddOrRemoveItem(acEvent.FormId, own);
+            request.Item.ExtraName = PartyItems::Tagged(acEvent.Item.ExtraName, m_formBridge.GetFormName(cItemId));
+            request.Item.ExtraWorn = request.Item.ExtraWornLeft = false;
+        }
+    }
+
     m_transport.Send(request);
 
-    spdlog::info("Sending item request, item: {:X}, count: {}, target object: {:X}", acEvent.Item.BaseId.BaseId, acEvent.Item.Count, acEvent.FormId);
+    spdlog::info("Sending item request, item: {:X}, count: {}, target object: {:X}{}{}", acEvent.Item.BaseId.BaseId, acEvent.Item.Count,
+                 acEvent.FormId, request.Item.ExtraName.empty() ? "" : std::format(", name '{}'", request.Item.ExtraName),
+                 request.NewPartyItem ? ", a new party item" : "");
 }
 
 void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEvent) noexcept
@@ -126,6 +152,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     request.IsShout = acEvent.IsShout;
     request.IsAmmo = acEvent.IsAmmo;
     request.CurrentInventory = m_formBridge.GetActorEquipment(acEvent.ActorId);
+    m_equipmentSnapshots.OnChange();
 
     m_transport.Send(request);
 
@@ -240,12 +267,9 @@ void InventoryService::RunEquipmentSnapshots() noexcept
     if (!m_transport.IsConnected())
         return;
 
-    constexpr auto cDelayBetweenSnapshots = 3s;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastSnapshotSend < cDelayBetweenSnapshots)
+    // The hook's event precedes the native equip; read the completed set on the next update.
+    if (!m_equipmentSnapshots.SendAt(std::chrono::steady_clock::now()))
         return;
-    m_lastSnapshotSend = now;
 
     auto view = m_world.view<FormIdComponent, LocalComponent>();
     for (auto entity : view)
@@ -267,10 +291,6 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorCopy(cActorFormId))
         return;
 
-    constexpr uint32_t cRightHandSlot = 0x13F42;
-    constexpr uint32_t cLeftHandSlot = 0x13F43;
-    constexpr uint8_t cArmorType = 26;
-
     // Worn items as (game form id, left hand) on each side.
     const auto worn = [&](const Inventory& acInventory) {
         std::set<std::pair<uint32_t, bool>> items;
@@ -283,30 +303,22 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
     const auto cWanted = worn(acMessage.Equipment);
     const auto cCurrent = worn(m_formBridge.GetActorEquipment(cActorFormId));
 
-    const auto slotOf = [&](uint32_t aItemId, bool aLeft) -> uint32_t {
-        if (m_formBridge.GetFormType(aItemId) == cArmorType)
-            return 0;
-        return aLeft ? cLeftHandSlot : cRightHandSlot;
-    };
-
-    for (const auto& [cItemId, cLeft] : cCurrent)
-        if (!cWanted.count({cItemId, cLeft}))
-        {
-            spdlog::info("Equipment reconcile {:X}: unequip {:X}", cActorFormId, cItemId);
-            m_formBridge.ActorUnequipItem(cActorFormId, cItemId, slotOf(cItemId, cLeft), 1);
-        }
-    for (const auto& [cItemId, cLeft] : cWanted)
-        if (!cCurrent.count({cItemId, cLeft}) && m_formBridge.FormExists(cItemId))
-        {
-            spdlog::info("Equipment reconcile {:X}: equip {:X}", cActorFormId, cItemId);
+    EquipmentRepair::Apply(cWanted, cCurrent,
+        [&] {
+            spdlog::info("Equipment reconcile {:X}: reset worn set", cActorFormId);
+            m_formBridge.ActorResetEquipment(cActorFormId, acMessage.Equipment.CurrentMagicEquipment);
+        },
+        [&](uint32_t aItemId, bool aLeft) {
+            if (!m_formBridge.FormExists(aItemId))
+                return;
             for (const auto& cEntry : acMessage.Equipment.Entries)
-                if (ToGame(cEntry.BaseId) == cItemId)
+                if (ToGame(cEntry.BaseId) == aItemId)
                 {
                     CarryForEquip(cActorFormId, cEntry.BaseId);
                     break;
                 }
-            m_formBridge.ActorEquipItem(cActorFormId, cItemId, slotOf(cItemId, cLeft), 1);
-        }
+            m_formBridge.ActorEquipItem(cActorFormId, aItemId, EquipmentRepair::EquipSlot(m_formBridge.GetFormType(aItemId), aLeft), 1);
+        });
 }
 
 void InventoryService::RunWeaponStateUpdates() noexcept
@@ -382,6 +394,122 @@ void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexc
             SetGold(cFormId, acMessage.Gold);
 }
 
+void InventoryService::OnNotifyPartyItem(const NotifyPartyItem& acMessage) noexcept
+{
+    if (m_partyItems)
+    {
+        std::erase_if(*m_partyItems, [&](const Inventory::Entry& acItem) { return PartyItems::SameStack(acMessage.Item, acItem); });
+        if (acMessage.Item.Count > 0)
+            m_partyItems->push_back(acMessage.Item);
+    }
+    SetPartyItem(0x14, acMessage.Item);
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+        if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
+            SetPartyItem(cFormId, acMessage.Item);
+    if (acMessage.Shown)
+        m_world.ctx().at<IPlayerBridge&>().ShowItemChangeMessage(ToGame(acMessage.Item.BaseId), acMessage.Shown);
+}
+
+// That stack (its base and name) set to the party's count, silently.
+void InventoryService::SetPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept
+{
+    if (!m_actorBridge.ActorExists(aActorFormId))
+        return;
+    Inventory::Entry change = acItem;
+    change.Count = acItem.Count - PartyItemCount(aActorFormId, acItem);
+    AddPartyItem(aActorFormId, change);
+}
+
+void InventoryService::OnNotifyPartyItems(const NotifyPartyItems& acMessage) noexcept
+{
+    m_partyItems = acMessage.Items;
+    SetPartyItems(0x14, acMessage.Items);
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+        if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
+            SetPartyItems(cFormId, acMessage.Items);
+}
+
+void InventoryService::SetPartyItems(uint32_t aActorFormId, const std::vector<Inventory::Entry>& acItems) const noexcept
+{
+    if (!m_actorBridge.ActorExists(aActorFormId))
+        return;
+    const auto cListed = [&](const Inventory::Entry& acStack) {
+        return std::ranges::any_of(acItems, [&](const Inventory::Entry& acItem) { return PartyItems::SameStack(acItem, acStack); });
+    };
+    for (Inventory::Entry stale : PartyItemsOf(aActorFormId))
+        if (!stale.IsQuestItem && !cListed(stale))
+        {
+            stale.Count = -stale.Count;
+            AddPartyItem(aActorFormId, stale);
+        }
+    for (const Inventory::Entry& cItem : acItems)
+        SetPartyItem(aActorFormId, cItem);
+}
+
+std::vector<Inventory::Entry> InventoryService::PartyItemsOf(uint32_t aActorFormId) const noexcept
+{
+    std::vector<Inventory::Entry> stacks;
+    for (const auto& cEntry : m_actorBridge.GetActorInventory(aActorFormId).Entries)
+    {
+        if (!PartyItems::IsParty(cEntry) || cEntry.Count <= 0)
+            continue;
+        Inventory::Entry stack = cEntry;
+        if (stack.IsQuestItem && stack.ExtraName.empty()) // its copies elsewhere are named with the tag
+            stack.ExtraName = PartyItems::Tagged("", m_formBridge.GetFormName(ToGame(stack.BaseId)));
+        const auto cSame = std::ranges::find_if(stacks, [&](const Inventory::Entry& acParty) { return PartyItems::SameStack(acParty, cEntry); });
+        if (cSame != stacks.end())
+            cSame->Count += cEntry.Count;
+        else
+            stacks.push_back(stack);
+    }
+    return stacks;
+}
+
+int32_t InventoryService::PartyItemCount(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept
+{
+    int32_t carried = 0;
+    for (const auto& cEntry : m_actorBridge.GetActorInventory(aActorFormId).Entries)
+        if (PartyItems::SameStack(acItem, cEntry))
+            carried += cEntry.Count;
+    return carried;
+}
+
+void InventoryService::AddPartyItem(uint32_t aActorFormId, const Inventory::Entry& acItem) const noexcept
+{
+    if (acItem.Count == 0)
+        return;
+    Inventory::Entry change = acItem;
+    const int32_t cCarried = PartyItemCount(aActorFormId, acItem);
+    change.Count = std::max(acItem.Count, -cCarried); // a removal takes at most all
+    change.IsQuestItem = false; // a copy: only the holder's stack is the engine's quest item
+    {
+        ScopedInventoryOverride _;
+        m_formBridge.ObjectAddOrRemoveItem(aActorFormId, change);
+    }
+    const int32_t cNow = PartyItemCount(aActorFormId, acItem);
+    spdlog::info("Party item {:X} '{}' on {:X}: carried {}, asked {}, changed {}, now {}", acItem.BaseId.LogFormat(), acItem.ExtraName,
+                 aActorFormId, cCarried, acItem.Count, change.Count, cNow);
+    if (cNow != cCarried + change.Count)
+    {
+        // The engine matched no stack: what was asked, and what is carried (extra data and all).
+        const auto cDescribe = [](const Inventory::Entry& acEntry) {
+            return std::format("x{} health {} charge {} ench {:X}/{} poison {:X} soul {} worn {}/{} quest {} name '{}'", acEntry.Count,
+                               acEntry.ExtraHealth, acEntry.ExtraCharge, acEntry.ExtraEnchantId.LogFormat(), acEntry.ExtraEnchantCharge,
+                               acEntry.ExtraPoisonId.LogFormat(), acEntry.ExtraSoulLevel, acEntry.ExtraWorn, acEntry.ExtraWornLeft,
+                               acEntry.IsQuestItem, acEntry.ExtraName);
+        };
+        spdlog::warn("Party item {:X} on {:X} did not change: asked {}", acItem.BaseId.LogFormat(), aActorFormId, cDescribe(change));
+        for (const auto& cEntry : m_actorBridge.GetActorInventory(aActorFormId).Entries)
+            if (cEntry.BaseId == acItem.BaseId)
+                spdlog::warn("  carried {}", cDescribe(cEntry));
+    }
+}
+
+std::string InventoryService::ItemName(const GameId& acItem) const noexcept
+{
+    return m_formBridge.GetFormName(ToGame(acItem));
+}
+
 uint32_t InventoryService::GoldOf(uint32_t aActorFormId) const noexcept
 {
     int64_t gold = 0;
@@ -422,10 +550,15 @@ void InventoryService::SetGold(uint32_t aActorFormId, uint32_t aGold) const noex
 
 void InventoryService::OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept
 {
-    if (!m_partyGold || !aRegistry.all_of<FormIdComponent>(aEntity))
+    if (!aRegistry.all_of<FormIdComponent>(aEntity))
         return;
-    if (const uint32_t cFormId = aRegistry.get<FormIdComponent>(aEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
+    const uint32_t cFormId = aRegistry.get<FormIdComponent>(aEntity).Id;
+    if (!m_actorBridge.IsOtherPlayer(cFormId))
+        return;
+    if (m_partyGold)
         SetGold(cFormId, *m_partyGold);
+    if (m_partyItems)
+        SetPartyItems(cFormId, *m_partyItems);
 }
 
 void InventoryService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept

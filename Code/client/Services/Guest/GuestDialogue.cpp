@@ -77,6 +77,10 @@ void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 void GuestDialogue::OnClosed() noexcept
 {
     m_greeting = 0;
+    auto& bridge = m_dialogue.Bridge();
+    bridge.SetMenuCloseEnds(true);
+    if (!bridge.IsMenuOpen() && bridge.GetSpeaker())
+        bridge.End();
 }
 
 std::optional<std::vector<IDialogueBridge::Option>> GuestDialogue::OnListBuilt() noexcept

@@ -36,6 +36,9 @@ struct Stats
     uint32_t TableResets; // times the edge table filled up and started over
 };
 Stats GetStats() noexcept;
+// Each inversion pattern seen: its asks, how many found the lock held by another thread, how many from the reverse
+// order (live). One line each.
+std::vector<std::string> GetOverlaps() noexcept;
 // The first reports, one line each.
 std::vector<std::string> GetReports() noexcept;
 } // namespace LockOrder

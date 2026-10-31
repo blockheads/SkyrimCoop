@@ -1,4 +1,5 @@
 #include "Party.h"
+#include <Games/EngineNames.h>
 
 namespace GameTest
 {
@@ -17,6 +18,34 @@ static void Compare(const std::string& acWhat, const FakeEngine& acOwner, uint32
     }
     const auto& cOwner = cOwnerIt->second;
     const auto& cCopy = cCopyIt->second;
+    if (!cOwner.Player && !SameName(acOwner.GetActorDisplayName(aOwnerId), acCopies.GetActorDisplayName(aCopyId)))
+        aDifferences.push_back(std::format("{} ({:X}) name is '{}', the owner's '{}'", acWhat, aCopyId,
+                                           acCopies.GetActorDisplayName(aCopyId), acOwner.GetActorDisplayName(aOwnerId)));
+    // Compare the replay marker, not tick/local actor IDs or a moving graph's serialized clip state.
+    const auto cAnimation = [](const ActionEvent& acAction) {
+        return std::tie(acAction.ActionId, acAction.IdleId, acAction.EventName, acAction.TargetEventName,
+                        acAction.State1, acAction.State2, acAction.Type);
+    };
+    if (cAnimation(cCopy.LatestAnimation) != cAnimation(cOwner.LatestAnimation))
+        aDifferences.push_back(std::format("{} ({:X}) animation is {} (idle {:X}), the owner's {} (idle {:X})",
+                                           acWhat, aCopyId, cCopy.LatestAnimation.EventName, cCopy.LatestAnimation.IdleId,
+                                           cOwner.LatestAnimation.EventName, cOwner.LatestAnimation.IdleId));
+    constexpr std::array cPools{"health", "magicka", "stamina"};
+    for (int32_t i = 24; i <= 26; ++i)
+        if (std::abs(acOwner.GetActorValue(aOwnerId, i) - acCopies.GetActorValue(aCopyId, i)) > 1.f ||
+            std::abs(acOwner.GetActorPermanentValue(aOwnerId, i) - acCopies.GetActorPermanentValue(aCopyId, i)) > 1.f ||
+            std::abs(acOwner.GetActorTemporaryValue(aOwnerId, i) - acCopies.GetActorTemporaryValue(aCopyId, i)) > 1.f)
+            aDifferences.push_back(std::format("{} ({:X}) {} current/permanent/temporary differs", acWhat, aCopyId,
+                                               cPools[i - 24]));
+    // Culled NPCs retain their last drawn skeleton even after the graph advances. Player
+    // body checks retain their existing scope; other properties never depend on visibility.
+    if (cOwner.Pose && cCopy.Pose && (cOwner.Player || (cOwner.PoseInFrustum && cCopy.PoseInFrustum)))
+        for (const auto& [field, own, copy] : {
+                 std::tuple{"pose.head", cOwner.Pose->Head, cCopy.Pose->Head},
+                 std::tuple{"pose.pelvis", cOwner.Pose->Pelvis, cCopy.Pose->Pelvis},
+                 std::tuple{"pose.floor_gap", cOwner.Pose->FloorGap, cCopy.Pose->FloorGap}})
+            if (std::abs(own - copy) > 20.f)
+                aDifferences.push_back(std::format("{} ({:X}) {} is {:.1f}, the owner's {:.1f}", acWhat, aCopyId, field, copy, own));
     const auto cAt = [](const FakeEngine::Actor& acActor) {
         return glm::vec3(acActor.Position[0], acActor.Position[1], acActor.Position[2]);
     };
@@ -44,10 +73,9 @@ static void Compare(const std::string& acWhat, const FakeEngine& acOwner, uint32
     if (acCopies.Worn(aCopyId) != acOwner.Worn(aOwnerId))
         aDifferences.push_back(std::format("{} ({:X}) wears {}, the owner's {}", acWhat, aCopyId,
                                            cWorn(acCopies, aCopyId), cWorn(acOwner, aOwnerId)));
-    if (ShowsHandsUp(cCopy.Weapon) != HandsUp(cOwner.Weapon))
-        aDifferences.push_back(std::format("{} ({:X}) shows its hands {}, the owner's are {}", acWhat, aCopyId,
-                                           ShowsHandsUp(cCopy.Weapon) ? "up" : "down",
-                                           HandsUp(cOwner.Weapon) ? "up" : "down"));
+    if (cCopy.Weapon != cOwner.Weapon)
+        aDifferences.push_back(std::format("{} ({:X}) weapon_state is {}, the owner's {}", acWhat, aCopyId,
+                                           uint32_t(cCopy.Weapon), uint32_t(cOwner.Weapon)));
     const auto cCarried = [](const FakeEngine& acEngine, uint32_t aId) {
         std::string carried;
         for (const auto& [cItem, cCount] : acEngine.Carried(aId))

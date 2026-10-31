@@ -66,7 +66,7 @@ SCENARIO("Two placed wildlife copies take their owner's bases despite different 
             const uint32_t cCopy = CopyReference(party.Guest(), cSessionId);
             REQUIRE(cCopy == cReference);
             CHECK(guest.GetActorBaseFormId(cCopy) == host.GetActorBaseFormId(cReference));
-            CHECK(guest.GetActorBaseName(cCopy) == host.GetActorBaseName(cReference));
+            CHECK(guest.GetActorDisplayName(cCopy) == host.GetActorDisplayName(cReference));
             CHECK(guest.GetActorRaceFormId(cCopy) == host.GetActorRaceFormId(cReference));
         }
     };

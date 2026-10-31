@@ -448,14 +448,13 @@ bool DialogueBridge::Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGree
 
 bool DialogueBridge::ShowMenu() noexcept
 {
-    // TESObjectREFR::GetDisplayFullName (19781): the name StartDialogue gives the menu.
-    using TGetDisplayFullName = const char*(TESObjectREFR*);
-    POINTER_SKYRIMSE(TGetDisplayFullName, s_getDisplayFullName, 19781);
     MenuTopicManager* pManager = Conversation();
     if (!pManager || IsMenuShown())
         return false;
     s_hidden = false;
-    RealShowMenu(s_getDisplayFullName.Get()(TESObjectREFR::GetByHandle(pManager->speaker)));
+    // The name StartDialogue gives the menu.
+    TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->speaker);
+    RealShowMenu(pSpeaker ? pSpeaker->GetDisplayFullName() : "");
     RealShowList(true);
     RealTurnToSpeaker(PlayerCharacter::Get());
     return true;

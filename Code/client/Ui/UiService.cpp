@@ -6,6 +6,7 @@
 #include <Ui/UiService.h>
 
 #include <Bridges/IActorBridge.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/PlayerComponent.h>
 #include <Events/SessionNoticeEvent.h>
@@ -13,6 +14,7 @@
 #include <Games/Skyrim/Interface/MenuCursor.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/Relayed.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Services/JoinService.h>
 #include <Services/SessionService.h>
@@ -108,6 +110,7 @@ Rml::String UiDirectory() noexcept
 UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept : m_world(aWorld), m_actorBridge(aActorBridge)
 {
     Listen<NotifyChatMessageBroadcast, &UiService::OnChatMessage>(m_connections, aWorld.GetDispatcher(), this);
+    Listen<NotifyPartyGold, &UiService::OnPartyGold>(m_connections, aWorld.GetDispatcher(), this);
     Listen<SessionNoticeEvent, &UiService::OnSessionNotice>(m_connections, aWorld.GetDispatcher(), this);
     m_party.Visible = false;
     m_party.Opacity = 0.f;
@@ -321,6 +324,12 @@ void UiService::OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexc
     m_chatHistory.push_back({std::move(line), std::chrono::steady_clock::now()});
     if (m_chatHistory.size() > cChatHistory)
         m_chatHistory.erase(m_chatHistory.begin());
+}
+
+void UiService::OnPartyGold(const NotifyPartyGold& acMessage) noexcept
+{
+    if (acMessage.Shown)
+        m_world.GetPlayerBridge().ShowItemChangeMessage(Payloads::PartyGold::kGold.BaseId, acMessage.Shown);
 }
 
 Rml::Vector<UiService::ChatLine> UiService::GetChatLines() const noexcept

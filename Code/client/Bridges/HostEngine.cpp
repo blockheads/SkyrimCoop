@@ -30,11 +30,14 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
+#include <Games/FormChangeRows.h>
 #include <Games/ReferenceStates.h>
 #include <Games/TES.h>
 #include <SaveLoad.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
+#include <ExtraData/ExtraDataList.h>
+#include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 #include <Utils.h>
@@ -168,12 +171,43 @@ void OnCreated(uint32_t aFormId) noexcept
     s_log.Created(aFormId);
 }
 
-// A world reference's recorded change (not an actor's, not a load's forced one). Removed: the record lost the flags
-// (a state back to its default, or the engine dropping changes on a long wait).
+static_assert(FormChangeRows::cReferenceOwnership == TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP);
+
+FormChangeRows::Form FormOf(const TESForm& acForm) noexcept
+{
+    using FormChangeRows::Form;
+    switch (acForm.formType)
+    {
+    case FormType::Reference: return Form::kReference;
+    case FormType::Cell: return Form::kCell;
+    case FormType::Character: return Form::kActor;
+    default: return Form::kOther;
+    }
+}
+
+// An actor's rows its change record holds (FormChangeRows: its owner).
+uint32_t ActorRows(const TESObjectREFR& acActor) noexcept
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    return pSaveLoad && acActor.formType == FormType::Character
+               ? FormChangeRows::Sent(FormChangeRows::Form::kActor, pSaveLoad->ChangeFlags(acActor, FormChangeRows::cReferenceOwnership), 0)
+               : 0;
+}
+
+// A cell's or an actor's owner (the party's house or horse): the owner's form, none as base id 0 (ReferenceStates'
+// owner row).
+ObjectChange OwnerRow(const GameId& acId, const TESForm* apOwner) noexcept
+{
+    return {.Type = ObjectChange::Kind::kOwner, .Object = acId, .Item = apOwner ? ToSession(apOwner->formID).value_or(GameId{}) : GameId{}};
+}
+
+// A world reference's, a cell's or an actor's recorded change (FormChangeRows; not a load's forced one). Removed:
+// the record lost the flags (a state back to its default, or the engine dropping changes on a long wait).
 void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded) noexcept
 {
-    const uint32_t cFlags = aFlags & ReferenceStates::SentFlags();
-    if (!cFlags || !aRecorded || aForced || acForm.formType != FormType::Reference)
+    const FormChangeRows::Form cForm = FormOf(acForm);
+    const uint32_t cFlags = FormChangeRows::Sent(cForm, aFlags, ReferenceStates::SentFlags());
+    if (!cFlags || !aRecorded || aForced)
         return;
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     s_log.Changed(acForm.formID, cFlags, pSaveLoad && !pSaveLoad->HasChange(acForm, cFlags));
@@ -425,6 +459,18 @@ std::optional<Inventory::Entry> HostEngine::TakeItem(const GameId& acObject) noe
     return item;
 }
 
+bool HostEngine::TakeQuestObject(const GameId& acObject) noexcept
+{
+    const uint32_t cFormId = acObject.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acObject.BaseId : 0;
+    auto* pObject = cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    ExtraDataList* pExtra = pObject ? pObject->GetExtraDataList() : nullptr;
+    if (!pPlayer || !pExtra || pObject->IsDeleted() || pObject->IsDisabled() || !pExtra->HasQuestObjectAlias())
+        return false;
+    pPlayer->PickUpGranted(*pObject, 1);
+    return true;
+}
+
 std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
 {
     auto [created, changed, removed] = s_log.Take();
@@ -448,10 +494,21 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     // Then the states, each as it is now.
     for (const auto& [cFormId, cFlags] : changed)
     {
+        if (const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(cFormId)))
+        {
+            if (const auto cId = ToSession(cFormId))
+                changes.push_back(OwnerRow(*cId, pCell->GetOwner()));
+            continue;
+        }
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         const auto cId = pObject && IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt;
         if (!cId)
             continue;
+        if (pObject->formType == FormType::Character)
+        {
+            changes.push_back(OwnerRow(*cId, pObject->GetOwner()));
+            continue;
+        }
         const GameId& id = *cId;
         // A physics move goes out once it rests (m_bodies), its flight as body frames (HostPhysics). A graph's live changes
         // are the animations scripts play (relayed as events); its state goes with a cell's.
@@ -464,7 +521,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
                 ReferenceStates::Read(*pObject, *cId, TESObjectREFR::CHANGE_REFR_MOVE, changes);
     // Records that lost rows: the guests drop theirs too.
     for (const uint32_t cFormId : removed)
-        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
+        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); pObject && pObject->formType == FormType::Reference)
             if (const auto cId = IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt)
                 changes.push_back(ReadRecord(*pObject, *cId));
     // Events last: an object a script enabled and then animated is enabled for the animation.
@@ -532,6 +589,11 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
         ReferenceStates::Read(*pRef, *cId, cRows, changes);
         changes.push_back(ReadRecord(*pRef, *cId));
     }
+    // An actor's owner (the party's horse): its other states are its owner's game's.
+    for (const TESObjectREFR* pRef : cReferences)
+        if (ActorRows(*pRef))
+            if (const auto cId = ToSession(pRef->formID))
+                changes.push_back(OwnerRow(*cId, pRef->GetOwner()));
     // Containers last: the host's roll of their leveled entries, then all they hold.
     for (TESObjectREFR* pRef : cReferences)
     {

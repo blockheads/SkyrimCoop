@@ -280,6 +280,7 @@ QUICK_MAP_KEY, PLACE_MARKER_KEY, TWEEN_MENU_KEY = 0x32, 0x19, 0x0F
 LEAVE_IT_BUTTON, REMOVE_IT_BUTTON = (630, 393), (746, 393)
 WAIT_KEY, MENU_RIGHT_KEY, MENU_ACCEPT_KEY = 0x14, 0x20, 0x12
 HOME_FILE = "home.json"
+BOOT_FILE = "boot.json"  # the duo's boot arguments, to boot it again when a scenario breaks the baseline
 TEST_ITEMS = {IRON_SWORD}
 HOME_TOLERANCE = 40.0
 PLAYER_VALUES = ("health", "magicka", "stamina")
@@ -292,7 +293,7 @@ RAISED_PELVIS = 85.0
 LOW_PELVIS = 40.0
 DESYNC_WINDOW = 0.8
 DESYNC_INTERVAL = 0.1
-LOCK_PATTERN = re.compile(r"^(\[ours\] )?(lock order inversion|self-deadlock) \[([^\]]*)\]")
+LOCK_PATTERN = re.compile(r"^(\[ours\] )?(live lock order inversion|lock order inversion|self-deadlock) \[([^\]]*)\]")
 KNOWN_LOCK_PATTERNS = ROOT / "scripts/lock_order_known.txt"
 FORM_TYPE_NAMES = dict(enumerate(
     "NONE TES4 GRUP GMST KYWD LCRT AACT TXST MICN GLOB CLAS FACT HDPT EYES RACE SOUN ASPC SKIL MGEF SCPT LTEX ENCH "

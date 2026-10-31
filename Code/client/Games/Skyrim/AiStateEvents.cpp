@@ -2,6 +2,8 @@
 #include <HookSwitch.h>
 
 #include <Actor.h>
+#include <AI/AIProcess.h>
+#include <Games/ActorExtension.h>
 #include <Combat/CombatController.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EventDispatcher.h>
@@ -96,11 +98,42 @@ void HookUpdatePlayerInCombat(PlayerCharacter* apPlayer, float aDelta)
         Raise(apPlayer);
 }
 
+using TProcessTracking = void(Actor*, float, NiAVObject*);
+TProcessTracking* RealProcessTracking = nullptr;
+
+// Actor::ProcessTracking (38009, vfunc 0x122, from Actor::UpdateAnimation, copies too): turns the head to the
+// highest set headtrack slot. The AI, packages and scripts set the slots (HighProcessData::SetHeadtrackTarget 39783)
+// without an event: an owner's change is noticed here. A copy runs no AI: its owner's slots are put in first.
+void HookProcessTracking(Actor* apActor, float aDelta, NiAVObject* apObject)
+{
+    HighProcessData* pHigh = apActor->currentProcess ? apActor->currentProcess->highProcess : nullptr;
+    if (!pHigh || !s_users.load(std::memory_order_relaxed))
+        return RealProcessTracking(apActor, aDelta, apObject);
+    auto& seen = apActor->GetExtension()->HeadTrack;
+    std::array<uint32_t, HighProcessData::kHeadTrackTypes> targets{};
+    const bool cCopy = apActor->GetExtension()->IsCopy();
+    if (cCopy)
+    {
+        std::ranges::transform(seen, targets.begin(), [](const auto& acSlot) { return acSlot.load(std::memory_order_relaxed); });
+        pHigh->SetHeadTrackTargets(targets);
+    }
+    RealProcessTracking(apActor, aDelta, apObject);
+    if (cCopy)
+        return;
+    targets = pHigh->GetHeadTrackTargets();
+    bool changed = false;
+    for (size_t i = 0; i < targets.size(); ++i)
+        changed |= seen[i].exchange(targets[i], std::memory_order_relaxed) != targets[i];
+    if (changed)
+        Raise(apActor);
+}
+
 Hooks::Initializer s_aiStateHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(33235, &RealSetCombatTarget, HookSetCombatTarget);
+        HOOK_ID(38009, &RealProcessTracking, HookProcessTracking);
         HOOK_ID(41238, &RealUpdatePlayerInCombat, HookUpdatePlayerInCombat);
     });
 } // namespace

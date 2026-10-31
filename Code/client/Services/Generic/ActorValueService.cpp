@@ -12,6 +12,7 @@
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
+#include <Games/ActorPools.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyRemoveCharacter.h>
 
@@ -53,6 +54,8 @@ void ActorValueService::CreateActorValuesComponent(const entt::entity aEntity, u
         actorValuesComponent.CurrentActorValues.ActorValuesList.insert({i, value});
         float maxValue = m_actorBridge.GetActorPermanentValue(aFormId, i);
         actorValuesComponent.CurrentActorValues.ActorMaxValuesList.insert({i, maxValue});
+        if (ActorPools::IsPool(i))
+            actorValuesComponent.CurrentActorValues.ActorTemporaryValuesList[i] = m_actorBridge.GetActorTemporaryValue(aFormId, i);
     }
 }
 
@@ -188,7 +191,7 @@ void ActorValueService::BroadcastActorValues() noexcept
                 (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == kDragonSouls))
                 continue;
             // Continuous pools go with their tick; their maxima still follow writes.
-            if (cIndex < 24 || cIndex > 26)
+            if (!ActorPools::IsPool(cIndex))
             {
                 const float cValue = m_actorBridge.GetActorValue(form.Id, cIndex);
                 auto& last = cached.CurrentActorValues.ActorValuesList[cIndex];
@@ -308,17 +311,25 @@ void ActorValueService::RunPoolUpdates() noexcept
         if (!m_actorBridge.ActorExists(cFormId))
             continue;
 
-        auto& values = view.get<ActorValuesComponent>(entity).CurrentActorValues.ActorValuesList;
+        auto& snapshot = view.get<ActorValuesComponent>(entity).CurrentActorValues;
+        auto& values = snapshot.ActorValuesList;
         RequestActorValueChanges request;
-        for (const int32_t cIndex : {24, 25, 26} /* kHealth, kMagicka, kStamina */)
+        for (const int32_t cIndex : ActorPools::kAll)
         {
             const float cValue = m_actorBridge.GetActorValue(cFormId, cIndex);
-            if (values[cIndex] == cValue)
-                continue;
-            values[cIndex] = cValue;
-            request.Values.insert({cIndex, cValue});
+            const float cTemporary = m_actorBridge.GetActorTemporaryValue(cFormId, cIndex);
+            if (snapshot.ActorTemporaryValuesList[cIndex] != cTemporary)
+            {
+                snapshot.ActorTemporaryValuesList[cIndex] = cTemporary;
+                request.TemporaryValues[cIndex] = cTemporary;
+            }
+            if (values[cIndex] != cValue)
+            {
+                values[cIndex] = cValue;
+                request.Values[cIndex] = cValue;
+            }
         }
-        if (request.Values.empty())
+        if (request.Values.empty() && request.TemporaryValues.empty())
             continue;
 
         request.Id = view.get<LocalComponent>(entity).Id;
@@ -407,8 +418,14 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
         if (key != kDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorValuesList[key] = value;
-            if (key >= 24 && key <= 26)
+            if (ActorPools::IsPool(key))
                 m_copyPoolsPending.insert(acMessage.Id);
+        }
+    for (const auto& [cIndex, cValue] : acMessage.TemporaryValues)
+        if (ActorPools::IsPool(cIndex))
+        {
+            m_copyValues[acMessage.Id].ActorTemporaryValuesList[cIndex] = cValue;
+            m_copyPoolsPending.insert(acMessage.Id);
         }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
 
@@ -445,7 +462,7 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
         if (key != kDragonSouls)
         {
             m_copyValues[acMessage.Id].ActorMaxValuesList[key] = value;
-            if (key >= 24 && key <= 26)
+            if (ActorPools::IsPool(key))
                 m_copyPoolsPending.insert(acMessage.Id);
         }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
@@ -468,8 +485,8 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
 
-        if (key < 24 || key > 26)
-            m_actorBridge.ForceActorValue(formId, 0 /* ForceMode::PERMANENT */, key, value);
+        if (!ActorPools::IsPool(key))
+            m_actorBridge.ForceActorValue(formId, ActorPools::kPermanent, key, value);
     }
 }
 
@@ -490,14 +507,10 @@ void ActorValueService::ApplyCopyPools() noexcept
         const auto it = m_copyValues.find(cId);
         if (it == m_copyValues.end() || !cFormId || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
             continue;
-        for (const int32_t cIndex : {24, 25, 26})
-        {
-            const auto& values = it->second;
-            if (const auto max = values.ActorMaxValuesList.find(cIndex); max != values.ActorMaxValuesList.end())
-                m_actorBridge.ForceActorValue(cFormId, 0, cIndex, max->second);
-            if (const auto value = values.ActorValuesList.find(cIndex); value != values.ActorValuesList.end())
-                m_actorBridge.ForceActorValue(cFormId, 2, cIndex, value->second);
-        }
+        ActorPools::Restore(it->second,
+            [&](int32_t aIndex) { return m_actorBridge.GetActorValue(cFormId, aIndex); },
+            [&](int32_t aIndex) { return m_actorBridge.GetActorTemporaryValue(cFormId, aIndex); },
+            [&](int32_t aMode, int32_t aIndex, float aTarget) { m_actorBridge.ForceActorValue(cFormId, aMode, aIndex, aTarget); });
     }
 }
 

@@ -21,6 +21,51 @@ namespace TestHarness::EngineCalls
 // The engine reads the player build uses too (bug reports).
 using namespace Diagnostics::EngineReads;
 
+uint8_t GetReplayPhase(uint32_t aFormId) noexcept;
+struct PoseVisibility
+{
+    bool WasInFrustum;
+    uint32_t CullingState;
+    uint32_t LastSeen;
+};
+std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept;
+
+struct ActorPoolReadout
+{
+    uint32_t Index;
+    float Base;
+    float Permanent;
+    float Temporary;
+    float Damage;
+    float Current;
+};
+std::vector<ActorPoolReadout> ReadActorPools(uint32_t aFormId) noexcept;
+
+struct ActorRuntime
+{
+    uint8_t LifeState{};
+    uint32_t State1{}, State2{};
+    uint32_t NativeScene{}, OwnerScene{}, EffectiveScene{};
+};
+std::optional<ActorRuntime> ReadActorRuntime(uint32_t aFormId) noexcept;
+
+struct NpcTemplateInfo
+{
+    uint32_t Id;
+    uint32_t Type;
+    std::string Name;
+    uint32_t Face;
+    uint32_t Template;
+};
+struct NpcTemplates
+{
+    std::vector<NpcTemplateInfo> Forms;
+    uint32_t Original = 0;
+    uint32_t Selected = 0;
+};
+// The reference's leveled choices and the base NPC's template chain, without changing either.
+NpcTemplates ReadNpcTemplates(uint32_t aFormId) noexcept;
+
 // --- Console and menus ---
 
 // SKSE's AddUITask (SKSETaskInterface), for console commands run where typed ones run.
@@ -150,6 +195,13 @@ std::optional<uint32_t> PlayerDrops(uint32_t aItemFormId, int32_t aCount, bool a
 // kStoreInContainer), the same stack as PlayerDrops; no container (0): removed, as the console's RemoveItem; false for
 // no such stack or container.
 bool PlayerStores(uint32_t aItemFormId, int32_t aCount, uint32_t aContainerFormId, bool aPlain) noexcept;
+// The player's stack of the item with extra data (as PlayerDrops) improved as the tables do, through their engine
+// calls and so our hooks: tempered to aHealth (InventoryChanges 16145) when above 0, enchanted with aEnchantment and
+// its charge (EnchantObject 16146) when given. False: no such stack or enchantment.
+bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, uint16_t aCharge) noexcept;
+// Each of the holder's stacks of the item with an extra data list: its count and the types its list holds
+// (BSExtraData::GetType), past the fields Inventory::Entry reads. None: no such holder or item.
+std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackExtraTypes(uint32_t aHolder, uint32_t aItem) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 
@@ -409,6 +461,19 @@ bool ForceGreet(uint32_t aActorFormId) noexcept;
 // The line the speaker would say for the topic to the player, judged for that player (a guest's character: as if it
 // were the player, JudgedFor); none: no such forms. Its value: the line's form id, 0 for none.
 std::optional<uint32_t> GetJudgedLine(uint32_t aTopic, uint32_t aSpeaker, uint32_t aPlayer) noexcept;
+// Each condition of a dialogue line evaluated alone for the speaker and that player, judged for it as GetJudgedLine
+// does (Idle holds the line's id): which one keeps a guest's character from the line.
+std::vector<IdleCondition> CheckInfoConditions(uint32_t aInfo, uint32_t aSpeaker, uint32_t aPlayer) noexcept;
+// A dialogue line's responses as the engine loads them for an option (TESTopicInfo::GetResponseList 25626, from its
+// plugin record): the line whose data it uses, that one's file offset and each response's text (an empty text drops
+// it from the option). None: no such line.
+struct InfoResponses
+{
+    uint32_t DataInfo;
+    uint32_t FileOffset;
+    std::vector<std::string> Texts;
+};
+std::optional<InfoResponses> GetInfoResponses(uint32_t aInfo) noexcept;
 // Whether the line is marked said (TESTopicInfo +0x3A), and setting it back (none: no such line).
 std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept;
 // The player's actor value (a skill's level) and that skill's experience toward its next level.
@@ -419,7 +484,7 @@ float GetPlayerSkillExperience(uint32_t aIndex) noexcept;
 // How many times the player trained this level (PlayerCharacter +0x938), and setting it back.
 uint32_t GetPlayerTrainings() noexcept;
 void SetPlayerTrainings(uint32_t aCount) noexcept;
-// The reference's owner (ExtraOwnership), loaded or not; 0: none or no such reference.
+// The reference's or cell's owner (ExtraOwnership), loaded or not; 0: none or no such form.
 uint32_t GetOwner(uint32_t aRefFormId) noexcept;
 // Whether the player knows the form (a word of power learned: TESForm flag 0x40), and setting it back
 // (TESForm::SetPlayerKnows, 14639).

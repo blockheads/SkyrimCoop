@@ -11,6 +11,7 @@
 #include <Messages/Relayed.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifyRemoveCharacter.h>
+#include <Games/ActorPools.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
@@ -530,6 +531,13 @@ std::optional<NotifyPartyTravel> HostCharacters::CharacterPlace(uint32_t aSessio
 void HostCharacters::OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept
 {
     KeepValues(acRequest.Id, acRequest.Values, false, aSender);
+    const auto it = m_characters.find(acRequest.Id);
+    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
+        return;
+    auto& temporary = it->second.PlayerRecord->InitialActorValues.ActorTemporaryValuesList;
+    for (const auto& [cIndex, cValue] : acRequest.TemporaryValues)
+        if (ActorPools::IsPool(cIndex))
+            temporary[cIndex] = cValue;
 }
 
 void HostCharacters::OnMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) noexcept

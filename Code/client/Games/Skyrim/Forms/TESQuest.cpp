@@ -118,6 +118,13 @@ void TESQuest::SetFailed(bool aFailed) noexcept
     setFailed(this, aFailed);
 }
 
+void TESQuest::LoadDialogue() noexcept
+{
+    using TLoadDialogue = bool(TESQuest*);
+    POINTER_SKYRIMSE(TLoadDialogue, loadDialogue, 25086);
+    loadDialogue(this);
+}
+
 void TESQuest::Objective::SetState(uint8_t aState) noexcept
 {
     using TSetState = void(Objective*, uint32_t);

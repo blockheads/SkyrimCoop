@@ -249,6 +249,8 @@ def compare_field(field, owner, copy, owner_snapshot):
         return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
     if field == "identity.name" and owner_snapshot["player"]:
         return None  # a player's copy shows the player's name, its own base is unnamed
+    if field == "identity.name" and isinstance(owner, str) and isinstance(copy, str):
+        return None if owner.lower() == copy.lower() else "differs"  # native BSFixedString equality
     if field.startswith("ragdoll."):
         return None  # each game's physics, shown (`look`); how bodies move over time is RagdollTrace's
     if field.startswith("pose."):
@@ -358,6 +360,13 @@ def compare_actors(worlds):
                 problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):
+                # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
+                # output (native camera control: head88 ->124, same JumpLand). Never use that
+                # cache to diagnose replay. Visible poses and every other actor field still compare.
+                if field.startswith("pose.") and not owned["player"] and any(
+                        not actor.get("mod", {}).get("pose_visibility", {}).get("was_in_frustum", True)
+                        for actor in (owned, copy)):
+                    continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:
                     problems.append((f"{who} {field}",
@@ -413,3 +422,14 @@ def dialogue_differences(host, guest, end, grace=DIALOGUE_GRACE):
                 start[3] = True
                 found.append(((start[0] - times[0]) / 1e6, field, start[1], start[2]))
     return found
+
+
+# A walk moves the feet against the body about as far as the body goes (ratio ~1, a run ~0.7); sliding with no
+# animation moves them not at all, slow motion too little.
+SLIDE_DISTANCE, SLIDE_RATIO = 100.0, 0.35
+
+
+def sliding_actors(gait):
+    """{id: (travelled, feet)} of the actors in a game's gait readout ({"cmd": "gait"}) that moved without walking."""
+    return {int(actor): (g["travelled"], g["feet"]) for actor, g in gait.items()
+            if g["travelled"] >= SLIDE_DISTANCE and g["feet"] < SLIDE_RATIO * g["travelled"]}

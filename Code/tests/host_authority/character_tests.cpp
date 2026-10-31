@@ -788,3 +788,29 @@ TEST_CASE("Characters: only a player's owner changes its copies' perk ranks, inc
     REQUIRE(cPeer != cSpawns.end());
     CHECK((*cPeer)->PerksContent == perks.Content);
 }
+
+TEST_CASE("Characters: only the owner updates temporary pool modifiers in later spawns", "[HostAuthority][fortified-record]")
+{
+    Session session;
+    AnnounceCharacterRequest announce;
+    announce.SessionId = session.CharacterId(kPeer);
+    announce.ReferenceId = GameId(0, 0x14);
+    announce.CurrentActorData.InitialActorValues.ActorMaxValuesList[25] = 175.f;
+    announce.CurrentActorData.InitialActorValues.ActorTemporaryValuesList[25] = 0.f;
+    session.Receive(kPeer, announce);
+    RequestActorValueChanges values;
+    values.Id = announce.SessionId;
+    values.Values[25] = 205.f;
+    values.TemporaryValues[25] = 30.f;
+    session.Receive(kPeer, values);
+    values.TemporaryValues[25] = 900.f;
+    session.Receive(kOtherPeer, values);
+    session.Outbox.clear();
+    RequestRespawn refresh;
+    refresh.ActorId = announce.SessionId;
+    session.Receive(kOtherPeer, refresh);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kOtherPeer);
+    REQUIRE(cSpawns.size() == 1);
+    CHECK(cSpawns[0]->InitialActorValues.ActorTemporaryValuesList.at(25) == 30.f);
+    CHECK(cSpawns[0]->InitialActorValues.ActorValuesList.at(25) == 205.f);
+}

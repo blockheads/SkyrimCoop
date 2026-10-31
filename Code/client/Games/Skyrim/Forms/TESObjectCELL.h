@@ -20,6 +20,10 @@ struct TESObjectCELL : TESForm
     bool IsInterior() const { return (cellFlags[0] & 1) != 0; }
     // Its grid cell outdoors (cellData's XCLC, CommonLibSSE-NG EXTERIOR_DATA); false indoors.
     bool GetGrid(int32_t& aX, int32_t& aY) const noexcept;
+    // Its owner (ExtraOwnership: a house's faction or NPC), or none.
+    [[nodiscard]] TESForm* GetOwner() const noexcept;
+    // As Cell.SetFactionOwner/SetActorOwner do on its extra data (ExtraDataList::SetOwnerForm 11609).
+    void SetOwner(TESForm* apOwner) noexcept;
     // Attached and done loading (a reset included): what its references hold is this game's state.
     bool IsFullyLoaded() const { return IsValid() && loadedCellData && loadedCellData->fullyLoaded; }
 

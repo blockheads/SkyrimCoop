@@ -4,6 +4,7 @@
 #include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
+#include <Games/ActorPools.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/ContainerItems.h>
 #include <Bridges/IFormBridge.h>
@@ -14,6 +15,7 @@
 #include <Effects/ReferenceEffect.h>
 #include <Components/TESContainer.h>
 #include <ExtraData/ExtraOwnership.h>
+#include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESIdleForm.h>
@@ -723,6 +725,8 @@ std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormI
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
     if (!pObject)
         return std::nullopt;
+    if (auto* pActor = Cast<Actor>(pObject))
+        return pActor->GetActorInventory().Entries;
     std::vector<Inventory::Entry> stacks;
     if (!pObject->GetContainer())
     {
@@ -803,6 +807,52 @@ bool PlayerStores(uint32_t aItemFormId, int32_t aCount, uint32_t aContainerFormI
     if (!pPlayer || !pItem || (aContainerFormId && (!pContainer || !pContainer->GetContainer())) || !FindPlayerStack(*pItem, aPlain, pStack))
         return false;
     pPlayer->RemoveItem(pItem, aCount, pContainer ? ITEM_REMOVE_REASON::kStoreInContainer : ITEM_REMOVE_REASON::kRemove, pStack, pContainer);
+    return true;
+}
+
+std::optional<std::vector<std::pair<int32_t, std::vector<uint32_t>>>> GetStackExtraTypes(uint32_t aHolder, uint32_t aItem) noexcept
+{
+    auto* pHolder = Cast<TESObjectREFR>(TESForm::GetById(aHolder));
+    auto* pItem = TESForm::GetById(aItem);
+    const auto* pChanges = pHolder ? pHolder->GetContainerChanges() : nullptr;
+    if (!pChanges || !pItem || !pChanges->entries)
+        return std::nullopt;
+    std::vector<std::pair<int32_t, std::vector<uint32_t>>> stacks;
+    for (auto* pEntry : *pChanges->entries)
+        if (pEntry && pEntry->form == pItem && pEntry->dataList)
+            for (ExtraDataList* pList : *pEntry->dataList)
+            {
+                if (!pList)
+                    continue;
+                std::vector<uint32_t> types;
+                for (const BSExtraData* pData = pList->data; pData; pData = pData->next)
+                    types.push_back(static_cast<uint32_t>(pData->GetType()));
+                stacks.emplace_back(pList->GetCount(), std::move(types));
+            }
+    return stacks;
+}
+
+bool PlayerImproves(uint32_t aItemFormId, float aHealth, uint32_t aEnchantment, uint16_t aCharge) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    auto* pEnchantment = aEnchantment ? Cast<EnchantmentItem>(TESForm::GetById(aEnchantment)) : nullptr;
+    ExtraDataList* pStack = nullptr;
+    auto* pChanges = pPlayer ? pPlayer->GetContainerChanges() : nullptr;
+    if (!pChanges || !pItem || (aEnchantment && !pEnchantment) || !FindPlayerStack(*pItem, false, pStack) || !pStack)
+        return false;
+    // Their addresses, which our hooks patched: the change as the smithing and enchanting tables make it.
+    using TTemper = void*(ExtraContainerChanges::Data*, TESBoundObject*, ExtraDataList*, float);
+    using TEnchantObject = ExtraDataList*(ExtraContainerChanges::Data*, TESBoundObject*, ExtraDataList*, EnchantmentItem*, uint16_t);
+    POINTER_SKYRIMSE(TTemper, s_temper, 16145);
+    POINTER_SKYRIMSE(TEnchantObject, s_enchantObject, 16146);
+    if (aHealth > 0.f)
+        s_temper.Get()(pChanges, pItem, pStack, aHealth);
+    if (pEnchantment)
+    {
+        FindPlayerStack(*pItem, false, pStack);
+        s_enchantObject.Get()(pChanges, pItem, pStack, pEnchantment, aCharge);
+    }
     return true;
 }
 
@@ -1144,6 +1194,58 @@ std::optional<uint32_t> GetJudgedLine(uint32_t aTopic, uint32_t aSpeaker, uint32
     return pLine ? pLine->formID : 0;
 }
 
+std::vector<IdleCondition> CheckInfoConditions(uint32_t aInfo, uint32_t aSpeaker, uint32_t aPlayer) noexcept
+{
+    std::vector<IdleCondition> results;
+    const auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
+    ConditionCheckParams params;
+    params.actionRef = Cast<TESObjectREFR>(TESForm::GetById(aSpeaker));
+    params.targetRef = Cast<TESObjectREFR>(TESForm::GetById(aPlayer));
+    if (!pInfo || !params.actionRef || !params.targetRef || !pInfo->objConditions)
+        return results;
+    params.quest = pInfo->parentTopic ? pInfo->parentTopic->ownerQuest : nullptr;
+    const JudgedFor::Scope cJudged(params.targetRef == PlayerCharacter::Get() ? nullptr : params.targetRef);
+    for (const TESConditionItem* pItem = static_cast<const TESCondition*>(pInfo->objConditions)->pHead; pItem; pItem = pItem->next)
+    {
+        const float cComparison = !pItem->flags.global       ? pItem->comparison.value
+                                  : pItem->comparison.global ? pItem->comparison.global->f
+                                                             : 0.f;
+        results.push_back({aInfo, pItem->function, pItem->flags.opCode, pItem->flags.isOr != 0, static_cast<uint8_t>(pItem->runOn),
+                           cComparison, pItem->IsTrue(params)});
+    }
+    return results;
+}
+
+std::optional<InfoResponses> GetInfoResponses(uint32_t aInfo) noexcept
+{
+    // A response (TESTopicInfo::ResponseData): its text at 28 (a BSFixedString), the next one at 40.
+    struct Response
+    {
+        uint8_t unk00[0x28];
+        const char* text;
+        uint8_t unk30[0x40 - 0x30];
+        Response* next;
+    };
+    static_assert(offsetof(Response, text) == 0x28 && offsetof(Response, next) == 0x40);
+    using TGetResponses = Response**(TESTopicInfo*, Response**);
+    using TFreeResponses = void(Response**);
+    POINTER_SKYRIMSE(TGetResponses, s_getResponses, 25626);
+    POINTER_SKYRIMSE(TFreeResponses, s_freeResponses, 25587);
+    auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
+    if (!pInfo)
+        return std::nullopt;
+    const TESTopicInfo* pData = pInfo;
+    while (pData->dataInfo)
+        pData = pData->dataInfo;
+    InfoResponses responses{pData->formID, pData->fileOffset, {}};
+    Response* pList = nullptr;
+    s_getResponses.Get()(pInfo, &pList);
+    for (const Response* pResponse = pList; pResponse; pResponse = pResponse->next)
+        responses.Texts.emplace_back(pResponse->text ? pResponse->text : "");
+    s_freeResponses.Get()(&pList);
+    return responses;
+}
+
 std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept
 {
     auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
@@ -1174,8 +1276,13 @@ float GetPlayerSkillExperience(uint32_t aIndex) noexcept
 
 uint32_t GetOwner(uint32_t aRefFormId) noexcept
 {
-    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefFormId));
-    const auto* pOwnership = pRef ? static_cast<ExtraOwnership*>(pRef->extraData.GetByType(ExtraDataType::Ownership)) : nullptr;
+    TESForm* pForm = TESForm::GetById(aRefFormId);
+    ExtraDataList* pExtra = nullptr;
+    if (auto* pRef = Cast<TESObjectREFR>(pForm))
+        pExtra = &pRef->extraData;
+    else if (auto* pCell = Cast<TESObjectCELL>(pForm))
+        pExtra = &pCell->extraData;
+    const auto* pOwnership = pExtra ? static_cast<ExtraOwnership*>(pExtra->GetByType(ExtraDataType::Ownership)) : nullptr;
     return pOwnership && pOwnership->owner ? pOwnership->owner->formID : 0;
 }
 
@@ -1643,4 +1750,83 @@ Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::option
     }
     return placement;
 }
+std::optional<ActorRuntime> ReadActorRuntime(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor) return std::nullopt;
+    ActorRuntime result;
+    result.State1 = pActor->actorState.flags1;
+    result.State2 = pActor->actorState.flags2;
+    result.LifeState = ActorState::LifeStateOf(result.State1);
+    if (const auto* pScene = pActor->GetOwnCurrentScene())
+        result.NativeScene = pScene->formID;
+    result.OwnerScene = pActor->GetExtension()->OwnerSceneId;
+    using TGetCurrentScene = TESForm*(Actor*);
+    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
+    if (const auto* pScene = s_getCurrentScene(pActor))
+        result.EffectiveScene = pScene->formID;
+    return result;
+}
+
+uint8_t GetReplayPhase(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor ? pActor->GetExtension()->Replay.Phase.load(std::memory_order_acquire) : 0;
+}
+
+std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return std::nullopt;
+    // CommonLib BOOL_BITS::kWasInFrustum; HighActorCuller's low nibble is also used by Precision.
+    return PoseVisibility{(pActor->flags1 & (1u << 21)) != 0, pActor->cullingState & 0xFu, pActor->iLastSeenTime};
+}
+
+NpcTemplates ReadNpcTemplates(uint32_t aFormId) noexcept
+{
+    NpcTemplates result;
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return result;
+    std::vector<TESForm*> pending{pActor->baseForm};
+    if (auto* pExtra = static_cast<ExtraLeveledCreature*>(pActor->extraData.GetByType(ExtraDataType::LeveledCreature)))
+    {
+        result.Original = pExtra->originalBase ? pExtra->originalBase->formID : 0;
+        result.Selected = pExtra->templateBase ? pExtra->templateBase->formID : 0;
+        pending.push_back(pExtra->originalBase);
+        pending.push_back(pExtra->templateBase);
+    }
+    while (!pending.empty())
+    {
+        auto* pBase = pending.back();
+        pending.pop_back();
+        if (!pBase || std::ranges::any_of(result.Forms, [&](const auto& acForm) { return acForm.Id == pBase->formID; }))
+            continue;
+        auto* pNpc = Cast<TESNPC>(pBase);
+        auto* pFace = pNpc ? pNpc->npcTemplate : nullptr; // TESNPC +1F0: faceNPC in CommonLibSSE-NG
+        auto* pTemplate = pNpc ? pNpc->actorData.owner : nullptr; // TESActorBaseData +30: baseTemplateForm
+        const char* cpName = pBase->GetName();
+        result.Forms.push_back({pBase->formID, uint32_t(pBase->formType), cpName ? cpName : "",
+                                pFace ? pFace->formID : 0, pTemplate ? pTemplate->formID : 0});
+        pending.push_back(pFace);
+        pending.push_back(pTemplate);
+    }
+    return result;
+}
+
+std::vector<ActorPoolReadout> ReadActorPools(uint32_t aFormId) noexcept
+{
+    std::vector<ActorPoolReadout> pools;
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return pools;
+    using Mode = ActorValueOwner::ForceMode;
+    for (const uint32_t cIndex : ActorPools::kAll)
+        pools.push_back({cIndex, EngineVirtual(pActor->actorValueOwner).GetBaseValue(cIndex),
+                          pActor->GetActorPermanentValue(cIndex), pActor->GetActorValueModifier(Mode::TEMPORARY, cIndex),
+                          pActor->GetActorValueModifier(Mode::DAMAGE, cIndex), pActor->GetActorValue(cIndex)});
+    return pools;
+}
+
 } // namespace TestHarness::EngineCalls

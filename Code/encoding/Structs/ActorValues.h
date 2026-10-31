@@ -15,4 +15,5 @@ struct ActorValues
 
     std::map<uint32_t, float> ActorValuesList{};
     std::map<uint32_t, float> ActorMaxValuesList{};
+    std::map<uint32_t, float> ActorTemporaryValuesList{};
 };

@@ -19,6 +19,7 @@
 #include <catch2/catch.hpp>
 
 #include <Messages/RequestMessageFactory.h>
+#include <Messages/RelayedMessages.h>
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
@@ -487,6 +488,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         sendAction.TargetId = 963741;
         sendAction.TargetActor = 0x1200003;
         sendAction.Type = 4;
+        sendAction.GraphState = std::string("graph\0state", 11);
 
         {
             Buffer buff(1000);
@@ -505,6 +507,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
             Buffer::Writer writer(&buff);
 
             sendAction.EventName = "Plot twist !";
+            sendAction.GraphState.clear();
 
             sendAction.GenerateDifferential(recvAction, writer);
 
@@ -903,6 +906,7 @@ TEST_CASE("Packets", "[encoding.packets]")
                 sendMessage.LatestAction.EventName = "IdleWerewolfTransformation";
                 sendMessage.GraphState = "graph";
                 sendMessage.Data.InitialActorValues.ActorMaxValuesList[24] = 5000.f;
+                sendMessage.Data.InitialActorValues.ActorTemporaryValuesList[24] = 30.f;
                 sendMessage.Data.IsWeaponDrawn = true;
             }
             Buffer::Writer writer(&buff);
@@ -1607,6 +1611,7 @@ TEST_CASE("The party's gold goes to every game", "[encoding.items]")
 {
     NotifyPartyGold sent;
     sent.Gold = 123456;
+    sent.Shown = -40; // a spend another game shows
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -1615,6 +1620,44 @@ TEST_CASE("The party's gold goes to every game", "[encoding.items]")
     REQUIRE(decoded);
     REQUIRE(decoded->GetOpcode() == kNotifyPartyGold);
     CHECK(static_cast<const NotifyPartyGold&>(*decoded) == sent);
+}
+
+TEST_CASE("A party item goes to every game with its extra data, count and HUD change", "[encoding.party-items]")
+{
+    NotifyPartyItem sent;
+    sent.Item.BaseId = GameId(0, 0x12EB7);
+    sent.Item.Count = 2;
+    sent.Item.ExtraName = "[P] Iron Sword";
+    sent.Item.ExtraHealth = 1.2f;
+    sent.Shown = -1;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kNotifyPartyItem);
+    CHECK(static_cast<const NotifyPartyItem&>(*decoded) == sent);
+}
+
+TEST_CASE("A joining game hears every party item", "[encoding.party-items]")
+{
+    NotifyPartyItems sent;
+    sent.Items.resize(2);
+    sent.Items[0].BaseId = GameId(0, 0x12EB7);
+    sent.Items[0].Count = 2;
+    sent.Items[0].ExtraName = "[P] Iron Sword";
+    sent.Items[1].BaseId = GameId(0, 0x93B08);
+    sent.Items[1].Count = 1;
+    sent.Items[1].IsQuestItem = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kNotifyPartyItems);
+    CHECK(static_cast<const NotifyPartyItems&>(*decoded) == sent);
 }
 
 TEST_CASE("The quests one per player go to the host and from it to every game", "[encoding.quests]")
@@ -1915,4 +1958,26 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     REQUIRE(decodedMove);
     REQUIRE(decodedMove->GetOpcode() == kDialogueHighlightRequest);
     CHECK(static_cast<const DialogueHighlightRequest&>(*decodedMove) == moved);
+}
+
+TEST_CASE("An actor's AI state carries what it looks at for each reason", "[encoding.ai_state]")
+{
+    AiStateRequest sent;
+    sent.SessionId = 7;
+    sent.State.Combat = 1;
+    sent.State.CombatTarget.SessionId = 2;
+    sent.State.HeadTrack[4].SessionId = 1;                  // dialogue: a player's character
+    sent.State.HeadTrack[5].RefId = GameId(0, 0x31D2E);     // procedure: a marker from the game's data
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kAiStateRequest);
+    const auto& cState = static_cast<const AiStateRequest&>(*decoded).State;
+    CHECK(cState == sent.State);
+    CHECK(cState.HeadTrack[4].SessionId == 1);
+    CHECK(cState.HeadTrack[5].RefId == GameId(0, 0x31D2E));
+    CHECK(cState.HeadTrack[0] == AiTarget{});
 }

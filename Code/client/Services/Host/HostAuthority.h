@@ -21,6 +21,7 @@
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWait.h>
 #include <Services/Host/HostCrime.h>
+#include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPurse.h>
 #include <Services/Host/HostWeather.h>
 #include <Services/Host/HostWorldState.h>
@@ -161,6 +162,7 @@ private:
     HostWait m_wait;
     HostCrime m_crime;
     HostPurse m_purse;
+    HostPartyItems m_partyItems;
     HostWeather m_weather;
     HostWorldState m_worldState;
     HostItems m_items;

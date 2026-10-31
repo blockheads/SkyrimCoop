@@ -134,6 +134,10 @@ class CombatActions:
                     raise ctx.failure("party travel revived the dead follower")
                 ctx.camera_sees_followed(victim, "the dead follower after party travel")
                 ctx.both_go(HOME_CELL)
+                # An unloaded NPC gets a new session and copy on return; its host reference survives.
+                ctx.wait_for("the enemy is assigned after travel", lambda:
+                             ctx.host_npc_state(npc).get("session_id", -1) >= 0, 10)
+                copy = ctx.copy_of("client", ctx.host_npc_state(npc)["session_id"])
             # Drive spectator controls as player input; with a duo the sole standing target stays selected.
             watched = ctx.death_state(victim)["spectating"]
             ctx.tap_key(victim, 0xCD)

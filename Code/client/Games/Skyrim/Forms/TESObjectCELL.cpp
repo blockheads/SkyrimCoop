@@ -1,4 +1,5 @@
 #include <Forms/TESObjectCELL.h>
+#include <ExtraData/ExtraOwnership.h>
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
 
@@ -57,4 +58,17 @@ void TESObjectCELL::GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bo
     using TGetCOCPlacementInfo = void(TESObjectCELL*, NiPoint3*, NiPoint3*, bool);
     POINTER_SKYRIMSE(TGetCOCPlacementInfo, s_getCOCPlacementInfo, 19075);
     s_getCOCPlacementInfo(this, aOutPos, aOutRot, aAllowCellLoad);
+}
+
+TESForm* TESObjectCELL::GetOwner() const noexcept
+{
+    const auto* pOwnership = static_cast<ExtraOwnership*>(extraData.GetByType(ExtraDataType::Ownership));
+    return pOwnership ? pOwnership->owner : nullptr;
+}
+
+void TESObjectCELL::SetOwner(TESForm* apOwner) noexcept
+{
+    using TSetOwnerForm = void(ExtraDataList*, TESForm*);
+    POINTER_SKYRIMSE(TSetOwnerForm, s_setOwnerForm, 11609);
+    s_setOwnerForm(&extraData, apOwner);
 }

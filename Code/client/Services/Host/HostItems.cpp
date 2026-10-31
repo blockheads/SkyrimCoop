@@ -1,5 +1,6 @@
 #include <Services/Host/HostItems.h>
 #include <Services/Host/HostCharacters.h>
+#include <Services/Host/HostPartyItems.h>
 #include <Services/Host/HostPurse.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Messages/RequestInventoryChanges.h>
@@ -12,11 +13,12 @@
 
 #include <algorithm>
 
-HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostGame& acGame) noexcept
+HostItems::HostItems(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostPurse& acPurse, const HostPartyItems& acPartyItems, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
     , m_purse(acPurse)
+    , m_partyItems(acPartyItems)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostItems::OnContainerTransfer);
@@ -93,6 +95,12 @@ void HostItems::OnPickUp(const PickUpRequest& acRequest, ConnectionId_t aSender)
     if (const auto cMade = m_made.find({aSender, acRequest.Tag}); acRequest.Tag && cMade != m_made.end())
         object = cMade->second;
     std::erase_if(m_made, [&](const auto& acMade) { return acMade.second == object; });
+    // A quest object is the party's: held by the host's player, so the host's quests see the player hold it.
+    if (object != GameId{} && m_game.TakeQuestObject && m_game.TakeQuestObject(object))
+    {
+        spdlog::info("HostItems: {:x} picked up quest object {:X}: the party holds it", aSender, object.LogFormat());
+        return;
+    }
     if (const auto cItem = object != GameId{} ? m_game.TakeItem(object) : std::nullopt)
         Grant(aSender, object, acRequest.Tag, *cItem);
     else
@@ -122,7 +130,8 @@ void HostItems::OnContainerTransfer(const ContainerTransferRequest& acRequest, C
     RequestInventoryChanges change;
     change.SessionId = cPlayer;
     change.Item = moved;
-    if (!m_purse.Change(change, m_players.Host()))
+    // Gold and party stacks are the party's (party-purse.md, party-items.md); the guest's engine showed its own take.
+    if (!m_purse.Change(change, m_players.Host()) && !m_partyItems.Change(change, aSender))
     {
         NotifyInventoryChanges notify;
         notify.SessionId = cPlayer;

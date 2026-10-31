@@ -10,8 +10,11 @@ from .scenarios import (
     join,
     magic,
     mounts,
+    npc_choices,
     movement,
     objects,
+    ownership,
+    party_items,
     physics,
     session,
     story,
@@ -20,6 +23,10 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    registry.add('enchanted-npc-pools-match-owner', ['spawn', 'npc', 'magic', 'copies'], lambda ctx: npc_choices.fortified_pools(ctx), doc="Onmund's enchanted outfit gives his copy the owner's fortified magicka.")
+    registry.add('npc-torch-repairs-in-default-slot', ['npc', 'inventory', 'ai', 'copies'], lambda ctx: npc_choices.torch_repair(ctx), doc="Aela's copy repairs a drifted worn set including her torch in its native equip slot.")
+    registry.add('leveled-spawned-npc-is-hosts', ['spawn', 'npc', 'copies'], lambda ctx: npc_choices.spawned_choice(ctx), doc="A spawned bandit boss copy keeps the host's resolved leveled NPC identity.")
+    registry.add('leveled-placed-npc-is-hosts', ['spawn', 'npc', 'copies'], lambda ctx: npc_choices.placed_choice(ctx), doc="A placed guard copy keeps the host's resolved leveled NPC identity.")
     registry.add('session-roster', ['session'], lambda ctx: session.scenario_session_roster(ctx), doc='Everyone connected is in the session (there are no parties): each game lists the other\n    player, and both agree the host hosts.')
     registry.add('party-panel', ['reload', 'session', 'ui'], lambda ctx: session.scenario_party_panel(ctx), doc='The party panel (the in-game UI) lists the other player in each game, with its health, and\n    still does after both games hot reload.')
     registry.add('party-shows-levels', ['session', 'ui'], lambda ctx: session.scenario_party_shows_levels(ctx), doc="Each party panel shows the other player's level, and a level-up in either game (the console's\n    advlevel, as a level-up raises it) reaches the other's panel. The baseline puts the levels back.")
@@ -63,6 +70,7 @@ def register_flows(registry):
     registry.add('remove-host-npc', ['spawn'], lambda ctx: travel.scenario_remove_host_npc(ctx), doc="Host disables an NPC it owns; the client's copy must disappear.")
     registry.add('copy-ends-voice-line', ['ai', 'dialogue'], lambda ctx: dialogue.scenario_copy_ends_voice_line(ctx), doc="The host player talks to its NPC: she greets him, and the client's copy plays the same line\n    (NotifyDialogue) with the same subtitle (NotifySubtitle) and ends it, as the host's NPC does. SpeakSound only queues a line; the engine's\n    voice upkeep in Character::UpdateAI starts and ends it (Actor::UpdateSoundCallback,\n    Character::UpdateVoiceTimer), which copies run from HookUpdateAI. A copy holds a package, its owner's\n    (AiStateService) or the engine's do-nothing one (HookCheckForNewPackage): an actor without one gets no\n    UpdateAI once its 3D is far enough from the camera to fade (Character::ShouldOnlyCheckPackage).")
     registry.add('dialogue-peer-starts', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_peer_starts(ctx), doc="The client talks to its copy of the host's NPC: the host's player is the one talking (its game runs the\n    conversation with the real NPC, without its menu: the host plays on), and the client's menu opens on the copy\n    with the host's list: its topics, lines and texts, in its order (docs/design/shared-dialogue.md).")
+    registry.add('dialogue-copy-looks-at-speaker', ['dialogue', 'spawn', 'animation'], lambda ctx: dialogue.scenario_dialogue_copy_looks_at_speaker(ctx), doc="The client talks to its copy of the host's NPC: the NPC looks at the client's character, and the copy looks at the same one (every headtrack slot).")
     registry.add('dialogue-last-one-out-ends-it', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_last_one_out_ends_it(ctx), doc="A player leaving (Tab) leaves the conversation on for the others; the last one out ends it. The host talks\n    and the client joins by talking to its copy; the client leaves, the host's stays, and the host's Tab ends it.\n    Then the other way round: the host leaves first and its conversation goes on without its menu, until the\n    client leaves too.")
     registry.add('dialogue-nobody-moves', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_nobody_moves(ctx), doc="The client talks to its copy while the host stands 1500 units off: the host's player is the one talking\n    (its game runs the conversation from where it stands, without its menu), and neither player is moved for it.\n    The client's menu lists the options and stays open; its Tab, the last one out, ends it.")
     registry.add('dialogue-join-by-talking', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_join_by_talking(ctx), doc="The host talks to its NPC with the client 2000 units off: the client stays out of it (no menu) and reads\n    her line on its screen (relayed with the engine's force flag, so at any distance). Coming up to her copy and\n    talking to it, the client joins: its menu opens on the copy, the host's conversation goes on.")
@@ -91,6 +99,9 @@ def register_flows(registry):
     registry.add('dialogue-npc-starts', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_npc_starts(ctx), doc="An NPC starts the conversation (a force greet; NPCs run their AI on the host's game, so it greets the host's\n    player): it greets the party, every game's menu opens on it (the clients' on their copies), with the host's\n    topics, without anyone talking to it. While the client's conversation with another NPC runs in the\n    background, a force greet waits: the host's game stays in the client's conversation.")
     registry.add('dialogue-several-questions-deep', ['dialogue', 'spawn'], lambda ctx: dialogue.scenario_dialogue_several_questions_deep(ctx), doc="A conversation three questions deep, picked by turns: Andurs greets with a question; the client answers,\n    the host (joined by talking) asks the follow-up, the client answers the last one. After each pick both\n    menus show the host's next list (topics, lines, texts), the line's choices only, and a peer's not before the NPC\n    has answered.")
     registry.add('teleport-keeps-copies', ['cells', 'movement', 'spawn'], lambda ctx: travel.scenario_teleport_keeps_copies(ctx), doc="The client teleports within the cell (moveto): its game keeps the copies it shows (the host's\n    character and NPC stay the same actors). A respawned copy loses its state and id.")
+    registry.add('actors-walk-after-arrival', ['cells', 'animation'], lambda ctx: travel.scenario_actors_walk_after_arrival(ctx),
+                 doc="After the party arrives in Riverwood and the Sleeping Giant, every actor that moves walks on both games: no "
+                     "NPC slides with its feet still or walks in slow motion (check_gait).")
     registry.add('party-changes-cells', ['cells', 'spawn'], lambda ctx: travel.scenario_party_changes_cells(ctx), doc="The party goes to another cell and back together (the party tether): each arrival drops the\n    copies the old cell took, and the host sends what is there. In each cell both games show the\n    other player again, and the client shows the host's NPCs there.")
     registry.add('party-stacks-on-arrival', ['cells'], lambda ctx: travel.scenario_party_stacks_on_arrival(ctx), doc="The party arrives on one spot (a coc puts the host on the cell's marker, the tether the client where the\n    host arrived): both stand on it, passing through each other on both games, and both games\n    show the same view, though each player looked its own way before. The client walks off it (nothing\n    else happens) and then into the host, which stops it: its collision is back. And again after travelling home.")
     registry.add('party-uses-door', ['cells', 'objects', 'spawn'], lambda ctx: travel.scenario_party_uses_door(ctx), doc="The host walks out of the inn through its door and the client follows (the party tether); then the\n    client leads back in and the host follows. Each time both games end up showing the other player and the\n    same view (the follower faces the way the leader arrived), and outside the client shows the host's NPCs.")
@@ -261,6 +272,8 @@ def register_flows(registry):
     registry.add('guest-murder-party-alarm', ['crime', 'items', 'world'], lambda ctx: crime.guest_murder_alarm(ctx), doc="The host's native murder alarm accepts its guest copy as the criminal.")
     registry.add('dialogue-host-barter-earns-speech', ['barter', 'dialogue', 'inventory', 'menus', 'spawn'], lambda ctx: menus.barter_speech(ctx, ''), doc='A real merchant line opens barter on the picker, whose purchase earns Speech on that game alone.')
     registry.add('dialogue-guest-barter-earns-speech', ['barter', 'dialogue', 'inventory', 'menus', 'spawn'], lambda ctx: menus.barter_speech(ctx, 'client'), doc='A real merchant line opens barter on the picker, whose purchase earns Speech on that game alone.')
+    registry.add('dialogue-host-placed-barter-reopens', ['barter', 'dialogue', 'inventory', 'menus'], lambda ctx: menus.barter_speech(ctx, '', original=True), doc='The original placed Belethor closes and reopens dialogue and barter for a second host purchase.')
+    registry.add('dialogue-guest-placed-barter-reopens', ['barter', 'dialogue', 'inventory', 'menus'], lambda ctx: menus.barter_speech(ctx, 'client', original=True), doc='The original placed Belethor closes and reopens dialogue and barter for a second guest purchase.')
     registry.add('host-map-keeps-world-running', ['menus', 'ui', 'world'], lambda ctx: menus.map_runs(ctx, ''), doc='host-map-keeps-world-running')
     registry.add('guest-map-keeps-world-running', ['menus', 'ui', 'world'], lambda ctx: menus.map_runs(ctx, 'client'), doc='guest-map-keeps-world-running')
     registry.add('host-journal-keeps-world-running', ['menus', 'ui', 'world'], lambda ctx: menus.journal_runs(ctx, ''), doc='host-journal-keeps-world-running')
@@ -305,6 +318,35 @@ def register_flows(registry):
                  doc="Guest: equip, draw, sheathe, remove; compare its host copy after every action.")
     registry.add("npc-equipment-lifecycle", ["inventory"], lambda ctx: inventory.scenario_npc_equipment_lifecycle(ctx),
                  doc="NPC: equip, remove, recover from copy equipment drift.")
+    registry.add("party-reward-reaches-everyone", ["party-items", "inventory", "quest"],
+                 lambda ctx: party_items.scenario_party_reward_reaches_everyone(ctx),
+                 doc="A quest's stage fragment gives the player an item (Cidhna Mine's skooma): every player carries it as [P], and chat says so.")
+    for game, who in (("host", "the host"), ("guest", "a guest")):
+        registry.add(f"party-rents-room-{game}", ["ownership", "dialogue", "spawn", "cells"],
+                     lambda ctx, game=game: getattr(ownership, f"scenario_party_rents_room_{game}")(ctx),
+                     doc=f"{who.capitalize()} rents Hulda's room: both games show the bed the player's, and the other player sleeps in it.")
+        registry.add(f"party-buys-house-{game}", ["ownership", "dialogue", "cells"],
+                     lambda ctx, game=game: getattr(ownership, f"scenario_party_buys_house_{game}")(ctx),
+                     doc=f"{who.capitalize()} buys Breezehome: both games show it the party's, and the other player takes from "
+                         "its containers and sleeps in its bed with no crime.")
+        registry.add(f"party-item-moves-{game}", ["party-items", "inventory", "objects"],
+                     lambda ctx, game=game: getattr(party_items, f"scenario_party_item_moves_{game}")(ctx),
+                     doc=f"{who.capitalize()} gets a key: every player carries it as [P], and a drop, a pickup, a store in a "
+                         "chest and a take each reach every player.")
+        registry.add(f"party-quest-item-{game}", ["party-items", "inventory", "quest"],
+                     lambda ctx, game=game: getattr(party_items, f"scenario_party_quest_item_{game}")(ctx),
+                     doc=f"{who.capitalize()} picks up the Golden Claw while MS13 holds it: every player carries one claw.")
+        registry.add(f"party-item-sold-{game}", ["party-items", "inventory", "menus"],
+                     lambda ctx, game=game: getattr(party_items, f"scenario_party_item_sold_{game}")(ctx),
+                     doc=f"{who.capitalize()} sells the party's sword: nobody carries it and the purse is paid; the other "
+                         "player buys it back: everyone carries it.")
+        registry.add(f"party-item-improved-{game}", ["party-items", "inventory"],
+                     lambda ctx, game=game: getattr(party_items, f"scenario_party_item_improved_{game}")(ctx),
+                     doc=f"{who.capitalize()} tempers and enchants the party's sword: every player's copy is improved the same.")
+        registry.add(f"party-buys-horse-{game}", ["ownership", "dialogue", "movement", "cells"],
+                     lambda ctx, game=game: getattr(ownership, f"scenario_party_buys_horse_{game}")(ctx),
+                     doc=f"{who.capitalize()} buys the stable's horse: both games show it the party's, and the other player rides it "
+                         "with no crime.")
     for spec in registry.specs():
         registry.add("spec:" + spec["name"], ["spec", *spec.get("tags", ["scripts"]), *(["session"] if spec["name"] in ("cutscene-controls-reach-party", "leaver-cutscene-gives-back") else [])],
                      lambda ctx, spec=spec: specs.run(ctx, spec), doc=spec.get("doc", spec["name"]))

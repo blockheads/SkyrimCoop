@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Structs/GameId.h>
+#include <array>
 #include <Wire/Buffer.h>
 
 // An actor in the session (its session id) or a reference from the game's data; both empty: none.
@@ -30,4 +31,7 @@ struct ActorAiState
     // Actor::GetCombatState: 0 none, 1 fighting, 2 searching; and its target (Actor::currentCombatTarget).
     uint8_t Combat{};
     AiTarget CombatTarget{};
+    // HighProcessData::headTrackTarget: what it looks at for each reason (default, action, script, combat, dialogue,
+    // procedure); the engine looks at the highest set one.
+    std::array<AiTarget, 6> HeadTrack{};
 };

@@ -26,6 +26,26 @@ nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)
     return {{"ok", true}, {"status", BuildStatus(aHarness)}};
 }
 
+// {"cmd": "actor_pools", "actor": id}: the pools' independent native value modifiers.
+nlohmann::json ActorPoolsCommand(Harness&, const nlohmann::json& acRequest)
+{
+    auto pools = nlohmann::json::array();
+    for (const auto& cPool : EngineCalls::ReadActorPools(acRequest.value("actor", 0x14u)))
+        pools.push_back({{"index", cPool.Index}, {"base", cPool.Base}, {"permanent", cPool.Permanent},
+                         {"temporary", cPool.Temporary}, {"damage", cPool.Damage}, {"current", cPool.Current}});
+    return {{"ok", true}, {"pools", pools}};
+}
+
+// {"cmd": "npc_templates", "actor": id}: this reference's leveled choices and NPC template chain.
+nlohmann::json NpcTemplatesCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cTemplates = EngineCalls::ReadNpcTemplates(acRequest.value("actor", 0x14u));
+    auto forms = nlohmann::json::array();
+    for (const auto& cForm : cTemplates.Forms)
+        forms.push_back({{"id", cForm.Id}, {"type", cForm.Type}, {"name", cForm.Name}, {"face", cForm.Face}, {"template", cForm.Template}});
+    return {{"ok", true}, {"original", cTemplates.Original}, {"selected", cTemplates.Selected}, {"forms", forms}};
+}
+
 // {"cmd": "graph_bool", "actor": id, "names": ["IsAttackReady", ...]}: the actor's behavior graph
 // booleans by name (false for one its graph lacks).
 nlohmann::json GraphBool(Harness&, const nlohmann::json& acRequest)
@@ -83,6 +103,12 @@ nlohmann::json BodyTraceCommand(Harness& aHarness, const nlohmann::json& acReque
     if (acRequest.contains("refs"))
         aHarness.Bodies.Watch(acRequest.value("refs", std::set<uint32_t>{}));
     return {{"ok", true}, {"entries", aHarness.Bodies.Take()}};
+}
+
+// {"cmd": "gait", "seconds": 2}: each loaded humanoid's travel and its feet's motion against its body (GaitWatch).
+nlohmann::json Gait(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"actors", aHarness.Gait.Read(acRequest.value("seconds", 2.0))}};
 }
 
 nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
@@ -470,6 +496,8 @@ nlohmann::json StackJson(const Inventory::Entry& acItem)
 {
     return {{"item", ItemForm(acItem.BaseId)},
             {"count", acItem.Count},
+            {"worn", acItem.ExtraWorn},
+            {"worn_left", acItem.ExtraWornLeft},
             {"health", acItem.ExtraHealth},
             {"enchantment", acItem.ExtraEnchantId.ModId == 0xFFFFFFFF ? 0xFF000000 | acItem.ExtraEnchantId.BaseId : ToGame(acItem.ExtraEnchantId)},
             {"enchant_charge", acItem.ExtraEnchantCharge},
@@ -528,6 +556,29 @@ nlohmann::json Store(Harness&, const nlohmann::json& acRequest)
                                    acRequest.value("plain", false)))
         return Error("the player holds no such stack, or no such container");
     return Ok();
+}
+
+// {"cmd": "improve", "item": id, "health": 1.2, "enchantment": id, "charge": 1000}: the player's stack of the item with
+// extra data tempered and/or enchanted as the smithing and enchanting tables do (EngineCalls::PlayerImproves).
+nlohmann::json Improve(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::PlayerImproves(acRequest.value("item", 0u), acRequest.value("health", 0.f), acRequest.value("enchantment", 0u),
+                                     static_cast<uint16_t>(acRequest.value("charge", 0u))))
+        return Error("the player holds no such stack with extra data, or no such enchantment");
+    return Ok();
+}
+
+// {"cmd": "stack_extras", "object": id, "item": id}: each of the holder's stacks of the item with an extra data list,
+// its count and the extra data types it holds (EngineCalls::GetStackExtraTypes).
+nlohmann::json StackExtras(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cStacks = EngineCalls::GetStackExtraTypes(acRequest.value("object", 0u), acRequest.value("item", 0u));
+    if (!cStacks)
+        return Error("no such holder or item");
+    auto stacks = nlohmann::json::array();
+    for (const auto& [cCount, cTypes] : *cStacks)
+        stacks.push_back({{"count", cCount}, {"types", cTypes}});
+    return {{"ok", true}, {"stacks", stacks}};
 }
 
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
@@ -782,6 +833,31 @@ nlohmann::json JudgedLine(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"line", *cLine}};
 }
 
+// {"cmd": "info_conditions", "info": id, "speaker": id, "player": id}: each of the line's conditions evaluated alone,
+// judged for that player (EngineCalls::CheckInfoConditions).
+nlohmann::json InfoConditions(Harness&, const nlohmann::json& acRequest)
+{
+    auto conditions = nlohmann::json::array();
+    for (const auto& cCondition : EngineCalls::CheckInfoConditions(acRequest.value("info", 0u), acRequest.value("speaker", 0u),
+                                                                   acRequest.value("player", 0x14u)))
+        conditions.push_back({{"function", cCondition.Function},
+                              {"op", cCondition.OpCode},
+                              {"or", cCondition.Or},
+                              {"run_on", cCondition.RunOn},
+                              {"comparison", cCondition.Comparison},
+                              {"true", cCondition.True}});
+    return {{"ok", true}, {"conditions", conditions}};
+}
+
+// {"cmd": "info_responses", "info": id}: the line's responses as the engine loads them (EngineCalls::GetInfoResponses).
+nlohmann::json InfoResponsesCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cResponses = EngineCalls::GetInfoResponses(acRequest.value("info", 0u));
+    if (!cResponses)
+        return Error("no such line");
+    return {{"ok", true}, {"data_info", cResponses->DataInfo}, {"file_offset", cResponses->FileOffset}, {"texts", cResponses->Texts}};
+}
+
 // {"cmd": "dialogue_pick", "index": n}: says the conversation's option n, as clicking it does (no menu needed).
 nlohmann::json DialoguePick(Harness&, const nlohmann::json& acRequest)
 {
@@ -921,15 +997,20 @@ constexpr Command cCommands[] = {
     {"dialogue_trace", false, &DialogueTraceCommand},
     {"dialogue_pick", true, &DialoguePick},
     {"judged_line", true, &JudgedLine},
+    {"info_conditions", true, &InfoConditions},
+    {"info_responses", true, &InfoResponsesCommand},
     {"item_count", true, &ItemCount},
     {"skill", true, &Skill},
     {"force_greet", true, &ForceGreet},
     {"info_said", true, &InfoSaid},
     {"trainings", true, &Trainings},
     {"graph_bool", true, &GraphBool},
+    {"npc_templates", true, &NpcTemplatesCommand},
+    {"actor_pools", true, &ActorPoolsCommand},
     {"kill_move_check", true, &KillMoveCheckCommand},
     {"anim_trace", true, &AnimTrace},
     {"body_trace", true, &BodyTraceCommand},
+    {"gait", true, &Gait},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"world_state", true, &WorldState},
@@ -965,6 +1046,8 @@ constexpr Command cCommands[] = {
     {"give_item", true, &GiveItem},
     {"drop", true, &Drop},
     {"store", true, &Store},
+    {"improve", true, &Improve},
+    {"stack_extras", true, &StackExtras},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},

@@ -63,6 +63,12 @@ void ActorValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const no
         Serialization::WriteVarInt(aWriter, value.first);
         Serialization::WriteFloat(aWriter, value.second);
     }
+    Serialization::WriteVarInt(aWriter, TemporaryValues.size());
+    for (const auto& [cIndex, cValue] : TemporaryValues)
+    {
+        Serialization::WriteVarInt(aWriter, cIndex);
+        Serialization::WriteFloat(aWriter, cValue);
+    }
 }
 
 void ActorValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -75,6 +81,12 @@ void ActorValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noexce
         auto key = Serialization::ReadVarInt(aReader);
         auto value = Serialization::ReadFloat(aReader);
         Values.insert({key, value});
+    }
+    const auto cTemporaryCount = Serialization::ReadVarInt(aReader);
+    for (uint64_t i = 0; i < cTemporaryCount; ++i)
+    {
+        const auto cIndex = Serialization::ReadVarInt(aReader);
+        TemporaryValues[cIndex] = Serialization::ReadFloat(aReader);
     }
 }
 
@@ -482,11 +494,39 @@ void Payloads::BodyPushes::DeserializePayload(Wire::Buffer::Reader& aReader) noe
 void Payloads::PartyGold::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Gold);
+    Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Shown));
 }
 
 void Payloads::PartyGold::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Gold = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
+    Shown = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
+}
+
+void Payloads::PartyItem::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Item.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Shown));
+}
+
+void Payloads::PartyItem::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Item.Deserialize(aReader);
+    Shown = static_cast<int32_t>(static_cast<uint32_t>(Serialization::ReadVarInt(aReader)));
+}
+
+void Payloads::PartyItems::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Items.size());
+    for (const Inventory::Entry& cItem : Items)
+        cItem.Serialize(aWriter);
+}
+
+void Payloads::PartyItems::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Items.resize(Serialization::ReadVarInt(aReader));
+    for (Inventory::Entry& item : Items)
+        item.Deserialize(aReader);
 }
 
 void Payloads::SystemQuests::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

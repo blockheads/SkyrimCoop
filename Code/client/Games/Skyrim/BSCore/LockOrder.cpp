@@ -2,6 +2,7 @@
 
 #include "LockOrder.h"
 #include "LockOrderHistory.h"
+#include "LockOrderAttribution.h"
 
 #include <HotReload/Handoff.h>
 #include <Hooks/SkseBranchPatch.h>
@@ -133,6 +134,36 @@ const PairStack* FindPairStack(uint64_t aOuterCaller, uint64_t aInnerCaller)
     return nullptr;
 }
 
+// Each inversion pattern's asks: how many found the asked lock held by another thread, and how many by one inside the
+// reverse order (LockOrderHistory::OverlapOf). A pattern never live is history only.
+struct OverlapCount
+{
+    std::atomic<uint64_t> Pattern;
+    std::atomic<bool> Ready;
+    uint64_t Callers[4]; // ours outer > inner, theirs outer > inner
+    std::atomic<uint32_t> Asks, Contended, Live;
+};
+OverlapCount s_overlaps[256];
+
+OverlapCount* OverlapOfPattern(uint64_t aPattern, const uint64_t (&acCallers)[4])
+{
+    aPattern |= 1;
+    for (size_t probe = 0; probe < 32; ++probe)
+    {
+        auto& slot = s_overlaps[(aPattern + probe) & (std::size(s_overlaps) - 1)];
+        uint64_t seen = slot.Pattern.load(std::memory_order_acquire);
+        if (seen == 0 && slot.Pattern.compare_exchange_strong(seen, aPattern))
+        {
+            std::copy(std::begin(acCallers), std::end(acCallers), slot.Callers);
+            slot.Ready.store(true, std::memory_order_release);
+            return &slot;
+        }
+        if (seen == aPattern)
+            return &slot;
+    }
+    return nullptr;
+}
+
 // Report each pattern (the call sites involved) once, not once per pair of objects.
 std::atomic<uint64_t> s_reportedPatterns[1024];
 std::atomic<uint32_t> s_reportCount{0};
@@ -143,17 +174,9 @@ uintptr_t s_engineEnd = 0;
 uintptr_t s_ourBase = 0;
 uintptr_t s_ourEnd = 0;
 // Our pass-through hooks' code (IgnoreFrames), set at startup.
-std::pair<uintptr_t, uintptr_t> s_ignored[4]{};
+std::pair<uintptr_t, uintptr_t> s_ignored[8]{};
 std::atomic<uint32_t> s_ignoredCount{0};
 
-bool IsIgnored(uintptr_t aFrame) noexcept
-{
-    const uint32_t cCount = std::min<uint32_t>(s_ignoredCount.load(std::memory_order_acquire), std::size(s_ignored));
-    for (uint32_t i = 0; i < cCount; ++i)
-        if (aFrame >= s_ignored[i].first && aFrame < s_ignored[i].second)
-            return true;
-    return false;
-}
 std::atomic<LockOrder::TDescribeLock> s_describe{nullptr};
 
 std::mutex s_reportLock;
@@ -295,17 +318,16 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
         const USHORT cCount = RtlCaptureStackBackTrace(1, 32, frames, nullptr);
         std::string stack;
         // Our frames above the engine's lock call are this checker itself.
-        bool belowEngine = false;
-        bool ours = false;
+        std::array<uintptr_t, 32> addresses{};
         for (USHORT i = 0; i < cCount; ++i)
         {
             const auto cFrame = reinterpret_cast<uint64_t>(frames[i]);
-            const bool cOurFrame = cFrame >= s_ourBase && cFrame < s_ourEnd && !IsIgnored(cFrame);
-            belowEngine |= !cOurFrame;
-            ours |= belowEngine && cOurFrame;
+            addresses[i] = cFrame;
             stack += std::format("\n  backtrace #{:02} {}", i, FormatAddress(cFrame));
         }
-        if (ours)
+        const auto cIgnoredCount = std::min<uint32_t>(s_ignoredCount.load(std::memory_order_acquire), std::size(s_ignored));
+        if (LockOrderAttribution::IntroducedByUs(std::span(addresses).first(cCount), {s_ourBase, s_ourEnd},
+                                                std::span(s_ignored).first(cIgnoredCount)))
             aMessage = "[ours] " + aMessage;
         if (apOtherStack)
         {
@@ -335,6 +357,49 @@ ThreadSlot* CurrentSlot(uint32_t aThreadId)
     t_slot = &s_threads[cIndex];
     t_slot->ThreadId.store(aThreadId, std::memory_order_release);
     return t_slot;
+}
+
+// An inverted ask: is another thread holding the asked lock now, from the reverse order? Live reports strictly.
+void CountOverlap(uint64_t aPattern, const Held& acHeld, const void* apLock, uint8_t aMode, uint64_t aCaller,
+                  uint32_t aThreadId, const Edge& acReverse)
+{
+    const uint64_t cCallers[4]{acHeld.Caller, aCaller, acReverse.OuterCaller, acReverse.InnerCaller};
+    OverlapCount* pCount = OverlapOfPattern(aPattern, cCallers);
+    if (!pCount)
+        return;
+    pCount->Asks.fetch_add(1, std::memory_order_relaxed);
+    const auto* pWords = static_cast<const volatile uint32_t*>(apLock);
+    if (pWords[0] == 0 && pWords[1] == 0)
+        return;
+    using LockOrderHistory::Overlap;
+    Overlap overlap = Overlap::kNone;
+    uint32_t holder = 0;
+    const uint32_t cThreads = std::min<uint32_t>(s_threadCount.load(std::memory_order_acquire), static_cast<uint32_t>(std::size(s_threads)));
+    for (uint32_t t = 0; t < cThreads && overlap != Overlap::kLive; ++t)
+    {
+        const ThreadSlot& cSlot = s_threads[t];
+        const uint32_t cId = cSlot.ThreadId.load(std::memory_order_acquire);
+        if (cId == aThreadId)
+            continue;
+        const uint32_t cStored = std::min<uint32_t>(cSlot.Depth.load(std::memory_order_acquire), static_cast<uint32_t>(std::size(cSlot.Entries)));
+        const Overlap cOverlap = LockOrderHistory::OverlapOf(std::span(cSlot.Entries, cStored), apLock, acReverse.OuterCaller);
+        if (cOverlap > overlap)
+        {
+            overlap = cOverlap;
+            holder = cId;
+        }
+    }
+    if (overlap == Overlap::kNone)
+        return;
+    pCount->Contended.fetch_add(1, std::memory_order_relaxed);
+    if (overlap != Overlap::kLive)
+        return;
+    pCount->Live.fetch_add(1, std::memory_order_relaxed);
+    Report(aPattern ^ 0x4C495645ull, std::format("live lock order inversion [{} > {} vs {} > {}]: thread {} holds {} (taken by {}) "
+                                                 "and asks for {} for {} while thread {} holds it from the reverse order",
+                                                 FormatAddress(acHeld.Caller), FormatAddress(aCaller), FormatAddress(acReverse.OuterCaller),
+                                                 FormatAddress(acReverse.InnerCaller), aThreadId, DescribeLock(acHeld.Lock),
+                                                 FormatAddress(acHeld.Caller), DescribeLock(apLock), ModeName(aMode), holder));
 }
 
 // Checks and records the acquisition before the engine starts waiting: a hang then shows who
@@ -379,12 +444,13 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
                     Edge* pReverse = FindEdge(apLock, cHeld.Lock, theirHeld, theirWant);
                     if (!pReverse || (pReverse->ThreadId == cThreadId && !pReverse->ManyThreads.load(std::memory_order_relaxed)))
                         continue;
-                    if (pReverse->Reported.exchange(true))
-                        continue;
                     const uint64_t cPattern =
                         EdgeKey(reinterpret_cast<const void*>(cHeld.Caller), reinterpret_cast<const void*>(aCaller)) ^
                         _rotl64(EdgeKey(reinterpret_cast<const void*>(pReverse->OuterCaller),
                                         reinterpret_cast<const void*>(pReverse->InnerCaller)), 17);
+                    CountOverlap(cPattern, cHeld, apLock, aMode, aCaller, cThreadId, *pReverse);
+                    if (pReverse->Reported.exchange(true))
+                        continue;
                     Report(cPattern, std::format(
                         "lock order inversion [{} > {} vs {} > {}]: thread {} holds {} for {} (taken by {}) and asks "
                         "for {} for {} (by {}); thread {} held {} for {} (taken by {}) and asked for {} for {} (by {})",
@@ -591,6 +657,17 @@ void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept
         return;
     s_ignored[cIndex] = {cStart, cStart + aBytes};
     s_ignoredCount.store(cIndex + 1, std::memory_order_release);
+}
+
+std::vector<std::string> GetOverlaps() noexcept
+{
+    std::vector<std::string> lines;
+    for (const OverlapCount& cCount : s_overlaps)
+        if (cCount.Ready.load(std::memory_order_acquire))
+            lines.push_back(std::format("{} > {} vs {} > {}: {} asks, {} contended, {} live", FormatAddress(cCount.Callers[0]),
+                                        FormatAddress(cCount.Callers[1]), FormatAddress(cCount.Callers[2]), FormatAddress(cCount.Callers[3]),
+                                        cCount.Asks.load(), cCount.Contended.load(), cCount.Live.load()));
+    return lines;
 }
 
 std::vector<std::string> GetReports() noexcept

@@ -146,7 +146,9 @@
     X(NotifySystemQuests)           \
     X(NotifyRecipes)               \
     X(NotifyBugReport)             \
-    X(NotifyDialogueHighlight)
+    X(NotifyDialogueHighlight)     \
+    X(NotifyPartyItem)             \
+    X(NotifyPartyItems)
 
 #define COOP_OPCODE(aName) k##aName,
 

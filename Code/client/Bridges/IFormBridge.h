@@ -146,6 +146,8 @@ public:
     virtual void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept = 0;
     /// Unequip a shout from an actor using EquipManager.
     virtual void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept = 0;
+    // Clears stale worn state, retaining the owner's spells and shout.
+    virtual void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept = 0;
     /// Full equip via EquipManager (item, no extra data, count, equip slot).
     virtual void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
                                   int32_t aCount) noexcept = 0;

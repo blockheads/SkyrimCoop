@@ -2,6 +2,7 @@
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
 #include "GuestSeams.h"
 #include "FakeEngine.h"
+#include <Games/QuestStarts.h>
 
 #include <Bridges/GuestEngine.h>
 #include <Bridges/IBodyBridge.h>
@@ -112,6 +113,11 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     const uint32_t cId = FormIdOf(acQuest.Id);
     if (engine.SystemQuestList.Contains(cId))
         return;
+    // As GuestEngine: the host's state starting it here reads its dialogue lines.
+    if (QuestStarts::LoadsDialogue(engine.Quests.contains(cId) ? engine.Quests[cId].Flags : 0, acQuest.Flags))
+        engine.DialogueLoaded.insert(cId);
+    if (!engine.AtMainLoop && engine.Quests[cId] != acQuest)
+        engine.WorkerQuestWrites.push_back(cId);
     engine.Quests[cId] = acQuest;
     m_pendingAliases[cId] = acQuest;
     RetryQuestAliases();
@@ -124,6 +130,7 @@ void GuestEngine::RetryQuestAliases() noexcept
     {
         bool ready = true;
         auto& aliases = engine.QuestAliasReferences[it->first];
+        const auto cPrevious = aliases;
         if (!(it->second.Flags & 0x81))
             aliases.clear();
         else
@@ -139,6 +146,8 @@ void GuestEngine::RetryQuestAliases() noexcept
                 }
                 aliases[cFill.AliasId] = cRef;
             }
+        if (!engine.AtMainLoop && aliases != cPrevious)
+            engine.WorkerQuestWrites.push_back(it->first);
         it = ready ? m_pendingAliases.erase(it) : std::next(it);
     }
 }

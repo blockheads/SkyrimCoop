@@ -6,6 +6,7 @@
 // world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
+#include <Games/Animation/ReplayStep.h>
 #include "../FakeFlight.h"
 
 #include <Bridges/IJoinBridge.h>
@@ -186,6 +187,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    // Each cell's owner (its ExtraOwnership), by cell: every game has the cells.
+    std::map<uint32_t, uint32_t> CellOwners;
+    // A script makes a cell another's (Cell.SetFactionOwner, a house bought): the engine records the cell's
+    // ownership change, which the host's game sends as a row if FormChangeRows says so.
+    void ScriptSetsCellOwner(uint32_t aCell, uint32_t aOwner);
+    // A script makes an actor another's (SetFactionOwner, a horse bought): the engine records the reference's
+    // ownership change (CHANGE_REFR_EXTRA_OWNERSHIP), sent as a row if FormChangeRows says so.
+    void ScriptSetsActorOwner(uint32_t aActor, uint32_t aOwner);
     std::set<uint32_t> PendingPlacements; // controlled by shared-rest reconciliation tests
     std::set<uint32_t> Attached;       // the cells loaded here
     std::set<uint32_t> InMemory;       // the cells loaded here once: their references stay in memory
@@ -237,6 +246,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::array<uint32_t, 2> BeastPerkGlobals{}; // werewolf, vampire: default objects 320/321
     void ModifyBeastPerks(bool aVampire, int32_t aDelta);
     std::map<uint32_t, QuestState> Quests;
+    // Quests whose dialogue lines this game has read (TESQuest 25086, at the engine's start of the quest).
+    std::set<uint32_t> DialogueLoaded;
+    // The host's game starts a quest as the engine does: running, its lines read, the change reported.
+    void StartsQuest(uint32_t aQuest)
+    {
+        Quests[aQuest].Id = GameId{0, aQuest};
+        Quests[aQuest].Flags |= 1;
+        DialogueLoaded.insert(aQuest);
+        QuestChanged(aQuest);
+    }
     QuestChanges QuestWrites;
     // The quest events and alias-write hooks report the quest after its state was written.
     void QuestChanged(uint32_t aId) { QuestWrites.Quest(aId); }
@@ -249,6 +268,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     {
         uint32_t Cell = 0;
         Inventory::Entry Item;
+        // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
+        bool QuestObject = false;
     };
     std::map<uint32_t, LooseItem> Loose;
     // A guest's loose items the host decides (twins, its own drops not answered yet), as GuestEngine's pickup gate
@@ -271,6 +292,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // loaded here, an empty id for a missing form. And takes one out of its world (HostGame::TakeItem).
     std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell);
     std::optional<Inventory::Entry> TakeLoose(const GameId& acObject);
+    // A loose quest object the host's player picks up (HostGame::TakeQuestObject); false for any other.
+    bool TakeQuestObject(const GameId& acObject);
     // The actor's entries of that item, extra data and all.
     [[nodiscard]] std::vector<Inventory::Entry> EntriesOf(uint32_t aActor, uint32_t aItem) const;
 
@@ -345,6 +368,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     struct Actor
     {
         uint32_t Base = 0;
+        std::string DisplayName;
         uint32_t Cell = 0;
         uint32_t WorldSpace = 0;
         float Position[3]{};
@@ -352,11 +376,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         bool Dead = false;
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
+        bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
         bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
+        uint32_t Owner = 0;          // its ExtraOwnership (a horse bought: the player faction)
+        bool OwnerRecorded = false;  // its change record holds the ownership change
         bool Deleted = false;    // marked deleted (DisableActor's aDelete)
         bool Created = false;    // made by Actor::Create (a copy): deleted with its cell unless persistent
         bool Persistent = false; // kept when its cell unloads (SetActorPersistent)
@@ -369,14 +396,36 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
         WeaponState Weapon = WeaponState::Sheathed;
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
+        uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
         ActorValues Values = FullValues();
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
+        std::map<uint32_t, float> TemporaryValues;
         Inventory Items;
+        bool EquipmentNeedsReset = false;
+        struct ReplayState : AnimationReplayStep
+        {
+            ReplayState() = default;
+            ReplayState(const ReplayState& acOther) { *this = acOther; }
+            ReplayState& operator=(const ReplayState& acOther)
+            {
+                Phase.store(acOther.Phase.load());
+                Retries = acOther.Retries;
+                Action = acOther.Action;
+                Variables = acOther.Variables;
+                return *this;
+            }
+        } Replay;
         ActionEvent LatestAnimation;
         std::string GraphState;
+        // Native skeleton observations are independent of the latest action and saved state-machine IDs.
+        // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
+        struct BodyPose { float Head; float Pelvis; float FloorGap; };
+        std::optional<BodyPose> Pose;
+        std::optional<BodyPose> EvaluatedPose;
+        bool PoseInFrustum = true;
         bool BlockResurrect = false;
         uint32_t ResurrectCalls = 0;
         uint32_t ValueWrites = 0;
@@ -387,6 +436,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t Snaps = 0;
         float WorstSnap = 0.f; // units: the move, and the turn at a body's reach (kSnapReach)
     };
+    void RenderBodyPose(uint32_t aActor, Actor::BodyPose aPose)
+    {
+        auto& actor = Actors.at(aActor);
+        actor.EvaluatedPose = aPose;
+        if (actor.PoseInFrustum) actor.Pose = aPose;
+    }
+    void SetBodyVisible(uint32_t aActor, bool aVisible)
+    {
+        auto& actor = Actors.at(aActor);
+        actor.PoseInFrustum = aVisible;
+        if (aVisible && actor.EvaluatedPose) actor.Pose = actor.EvaluatedPose;
+    }
     static constexpr float kSnapReach = 60.f;
     struct Npc
     {
@@ -395,26 +456,32 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         float Weight = 50.f; // this game's player's is its record's (Player.Weight)
         std::string Looks;   // a copy's: the save data it was made from (CreateCustomActor)
         uint16_t Level = 1;
+        uint32_t FaceBase = 0;
+        uint32_t ChangeFlags = 0;
     };
     std::map<uint32_t, Npc> Npcs;
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
+    std::map<std::string, std::string> PooledNames;
     static constexpr uint32_t kPlayer = 0x14;
     mutable std::map<std::pair<uint32_t, int32_t>, uint32_t> ValueReads;
     mutable std::map<std::pair<uint32_t, int32_t>, uint32_t> MaximumReads;
+    // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
+    std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
+    std::map<uint32_t, uint32_t> RefusedAnimations;
+    bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
+    bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
+    bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.GraphReady;
+    }
     bool HoldDeathActions = false;
     bool RefuseDeathActions = false;
     void ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction);
     void FinishDeath(uint32_t aFormId);
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
-    std::string SaveActorGraphState(uint32_t aFormId) const noexcept override
-    { const auto it = Actors.find(aFormId); return it == Actors.end() ? std::string{} : it->second.GraphState; }
-    bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override
-    {
-        const auto it = Actors.find(aFormId);
-        if (it == Actors.end()) return false;
-        it->second.GraphState = aState;
-        return true;
-    }
+    std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;
+    bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
@@ -593,6 +660,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
+    // AI: the actor looks at a target for a reason (a headtrack slot, HighProcessData::headTrackTarget), 0 none; the
+    // ProcessTracking hook raises AiStateChangeEvent.
+    static constexpr uint32_t kDialogueHeadTrack = 4;
+    void LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget);
+    void EndScene(uint32_t aActor);
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
@@ -706,7 +778,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
-    std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
+    std::string GetActorDisplayName(uint32_t aFormId) const noexcept override;
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
     void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept override
     {
@@ -751,6 +823,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
                              const AnimationVariables& aVariables, bool aPlace) noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    float GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
@@ -774,10 +847,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
             it->second.GraphHash = aHash;
     }
     bool BlockAppearance = false;
+    mutable std::vector<uint32_t> WorkerCellLoads;
+    std::vector<uint32_t> WorkerQuestWrites;
     bool AtMainLoop = false;
     std::deque<std::function<void()>> MainTasks;
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
+    uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
+    void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetPlayerRaceFormId() const noexcept override { return GetActorRaceFormId(kPlayer); }
@@ -837,6 +914,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t Slots = 0; // an armor's (BGSBipedObjectForm)
     };
     static constexpr uint8_t kWeapon = 41;
+    static constexpr uint8_t kLight = 31;
     static constexpr uint8_t kArmor = 26;
     static constexpr uint32_t kRightHand = 0x13F42; // DefaultObjectManager's equip slots
     static constexpr uint32_t kLeftHand = 0x13F43;
@@ -849,6 +927,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // The actor equips or unequips by itself (the player's menu, an NPC's AI), as EquipManager::Equip (38894) and
     // UnEquip (38901) through our hooks: a local actor's change is raised (EquipmentChangeEvent), a copy refuses it.
     // Equip does nothing for an item a copy does not carry.
+    void RebuildCopyEquipment(uint32_t aActor, uint32_t aRemainingItem);
     void Equips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
     void Unequips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
@@ -863,6 +942,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // One with extra data (an enchantment, tempering...), its own stack.
     void GetsItem(uint32_t aActor, const Inventory::Entry& acItem);
     void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // A smithing or enchanting table improves one of the stack in place (InventoryChanges 16145 temper, 16146
+    // EnchantObject): split off a counted stack and changed, no add or remove for our item hooks to see.
+    void Improves(uint32_t aActor, const Inventory::Entry& acStack, const std::function<void(Inventory::Entry&)>& acChange);
+    // A quest's script gives it (AddItem from a quest, alias, dialogue line or scene): raised as the story's.
+    void QuestGivesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
     // The engine puts an NPC's outfit item back on after removeallitems: added with no InventoryChangeEvent (our item
     // hooks never see it), then equipped as Equips does (save-load-gate, 2026-10-30: Lydia's copy lost her armor).
     void OutfitPutsOn(uint32_t aActor, uint32_t aItem);
@@ -880,6 +964,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
     Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
     // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
+    void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 

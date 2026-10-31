@@ -33,6 +33,8 @@ struct BodyFrames;
 struct BodyRests;
 struct BodyPushes;
 struct PartyGold;
+struct PartyItem;
+struct PartyItems;
 struct SystemQuests;
 struct Recipes;
 struct BugReport;
@@ -91,6 +93,8 @@ using BodyReleaseRequest = Relayed<Payloads::BodyFrames, kBodyReleaseRequest>;
 using BodyPoseRequest = Relayed<Payloads::BodyRests, kBodyPoseRequest>;
 using BodyRestsRequest = Relayed<Payloads::BodyRests, kBodyRestsRequest>;
 using NotifyPartyGold = Relayed<Payloads::PartyGold, kNotifyPartyGold>;
+using NotifyPartyItem = Relayed<Payloads::PartyItem, kNotifyPartyItem>;
+using NotifyPartyItems = Relayed<Payloads::PartyItems, kNotifyPartyItems>;
 
 using ActorPerksRequest = Relayed<Payloads::ActorPerks, kActorPerksRequest>;
 using NotifyActorPerks = Relayed<Payloads::ActorPerks, kNotifyActorPerks>;

@@ -184,3 +184,85 @@ SCENARIO("A guest joining sees the host's player with its weapon drawn", "[equip
     party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
     party.Agree("the guest's copy of the host's player has its hands up");
 }
+
+SCENARIO("A quest's outfit rebuild cannot leave a player's copy partly undressed", "[equipment][outfit-rebuild]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the guest's player has a copy");
+    party.As(party.Guest(), [&] {
+        for (const auto item : {kIronArmor, kIronHelmet, kIronSword})
+        {
+            guest.GetsItem(FakeEngine::kPlayer, item, 1);
+            guest.Equips(FakeEngine::kPlayer, item, item == kIronSword ? FakeEngine::kRightHand : 0);
+        }
+    });
+    const auto cCopy = PlayerCopy(host);
+    party.Until([&] { return Wears(host, cCopy, kIronArmor) && Wears(host, cCopy, kIronHelmet) && Wears(host, cCopy, kIronSword); },
+                "the copy wears the owner's outfit and holds its weapon");
+    const GameId cSpell{0, 0x12FCC};
+    guest.Actors.at(FakeEngine::kPlayer).Items.CurrentMagicEquipment.LeftHandSpell = cSpell;
+    const auto cInventory = host.GetActorInventory(cCopy);
+    party.As(party.Host(), [&] { host.RebuildCopyEquipment(cCopy, kIronArmor); });
+    REQUIRE(Wears(host, cCopy, kIronArmor));
+    REQUIRE_FALSE(Wears(host, cCopy, kIronHelmet));
+    REQUIRE_FALSE(Wears(host, cCopy, kIronSword));
+    const auto cNext = std::chrono::steady_clock::now() + std::chrono::milliseconds(3200);
+    party.Until([&] { return std::chrono::steady_clock::now() >= cNext; }, "another unchanged owner equipment snapshot arrives", {}, nullptr, std::chrono::seconds(4));
+    CHECK(Wears(host, cCopy, kIronArmor));
+    CHECK(Wears(host, cCopy, kIronHelmet));
+    CHECK(Wears(host, cCopy, kIronSword));
+    CHECK(host.GetActorEquipment(cCopy).CurrentMagicEquipment.LeftHandSpell == cSpell);
+    for (const auto& item : cInventory.Entries)
+        CHECK(host.CountOf(cCopy, item.BaseId.BaseId) == item.Count);
+}
+
+TEST_CASE("An actual equip brings the owner's queued ammo to its copy immediately", "[equipment][queued-ammo]")
+{
+    constexpr uint32_t cArrow = 0x10E2DE;
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+        engine->ItemForms[cArrow] = {42};
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the guest's copy appears");
+    const auto cCopy = PlayerCopy(host);
+    party.As(party.Guest(), [&] {
+        guest.GetsItem(FakeEngine::kPlayer, cArrow, 12);
+        guest.GetsItem(FakeEngine::kPlayer, kIronSword, 1);
+        // Native queued equipment has no hook event; the following actual equip does (Lydia's bow).
+        for (auto& entry : guest.Actors.at(FakeEngine::kPlayer).Items.Entries)
+            if (entry.BaseId.BaseId == cArrow)
+                entry.ExtraWorn = true;
+        guest.Equips(FakeEngine::kPlayer, kIronSword, FakeEngine::kRightHand);
+    });
+    party.Until([&] { return Wears(host, cCopy, cArrow); }, "queued ammo accompanies the actual equip",
+                {}, nullptr, std::chrono::seconds(1));
+    CHECK(host.CountOf(cCopy, cArrow) == 12);
+    CHECK(Wears(host, cCopy, kIronSword));
+}
+
+TEST_CASE("Aela's torch survives full equipment repair in its native slot", "[equipment][torch-repair]")
+{
+    constexpr uint32_t cTorch = 0x1D4EC;
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest}) engine->ItemForms[cTorch] = {FakeEngine::kLight};
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the owner has a copy");
+    const auto cCopy = PlayerCopy(host);
+    party.As(party.Guest(), [&] {
+        guest.GetsItem(FakeEngine::kPlayer, cTorch, 1);
+        guest.GetsItem(FakeEngine::kPlayer, kIronSword, 1);
+        guest.Equips(FakeEngine::kPlayer, cTorch, 0);
+        guest.Equips(FakeEngine::kPlayer, kIronSword, FakeEngine::kRightHand);
+    });
+    party.Until([&] { return Wears(host, cCopy, cTorch) && Wears(host, cCopy, kIronSword); }, "the copy holds its torch and weapon");
+    party.As(party.Host(), [&] { host.RebuildCopyEquipment(cCopy, kIronSword); });
+    REQUIRE_FALSE(Wears(host, cCopy, cTorch));
+    party.As(party.Guest(), [&] { guest.Equips(FakeEngine::kPlayer, kIronSword, FakeEngine::kRightHand); });
+    party.Until([&] { return Wears(host, cCopy, cTorch); }, "the unchanged owner torch is repaired", {}, nullptr, std::chrono::seconds(1));
+    CHECK(Wears(host, cCopy, kIronSword));
+    CHECK(host.CountOf(cCopy, cTorch) == 1);
+}

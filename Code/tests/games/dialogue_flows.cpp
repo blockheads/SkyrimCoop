@@ -55,6 +55,31 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
     party.Agree("the games agree on the guard");
     const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
 
+    // Script this fixture's graph as Skyrim's observed talking idle: the query does not perform,
+    // the selected line gestures, and the goodbye stops it. Real services carry the actions.
+    for (auto* engine : {&host, &guest})
+        engine->GraphTransitions = {{{"MotionDrivenDialogue", "MotionDrivenDialogueGeneric"}, "DialogueGeneric"},
+                                    {{"DialogueGeneric", "IdleStopInstant"}, "MotionDrivenDialogue"}};
+    host.Actors.at(guard).GraphState = guest.Actors.at(cCopy).GraphState = "MotionDrivenDialogue";
+    hostTalk.OnSaid = [&](const IDialogueBridge::Option& option) {
+        ActionEvent gesture;
+        if (option.Topic == kNews.Topic)
+        {
+            gesture.ActionId = 0x489F1;
+            gesture.EventName = "MotionDrivenDialogueGeneric";
+            gesture.IdleId = 0x10DEB6;
+            REQUIRE(host.PerformAnimation(guard, gesture, true));
+            gesture.IdleId = 0x10DEB8;
+        }
+        else
+        {
+            gesture.ActionId = 0x7F8E3;
+            gesture.EventName = "IdleStopInstant";
+            gesture.IdleId = 0x7F8E4;
+        }
+        REQUIRE(host.PerformAnimation(guard, gesture));
+    };
+
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
     party.Until([&] { return guestTalk.MenuOpen && guestTalk.Speaker == cCopy && hostTalk.Speaker == guard; },
                 "the guest's menu opens on its copy, the host's game talks to the guard");
@@ -67,9 +92,16 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
                 "the host's game says the guest's pick, and the guest's menu shows what it leads to");
     CHECK(hostTalk.Said == std::vector{kNews});
     CHECK(guestTalk.Said.empty());
+    party.Agree("the talking NPC's gestures match during the conversation");
+    CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == 0x10DEB8);
+    // The copy's clip can finish locally before the owner's stop arrives, as in the native trace.
+    guest.Actors.at(cCopy).GraphState = "MotionDrivenDialogue";
 
     party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye ends it on both games");
+    party.Agree("the NPC's final idle matches before cleanup");
+    CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == 0x7F8E4);
+    CHECK(guest.RefusedAnimations[cCopy] > 0);
 }
 
 SCENARIO("Every menu shows the party's list; a player says only its own options", "[dialogue]")
@@ -385,4 +417,97 @@ SCENARIO("One highlight for the conversation: a player moving it moves every men
         party.Until([&] { return !hostTalk.Said.empty(); }, "the host's game says it");
         CHECK(hostTalk.Said[0].Topic == kMore.Topic);
     }
+}
+
+SCENARIO("A quest the host starts in play: its lines show on a guest's menu too", "[dialogue][quests]")
+{
+    // HousePurchase's line (Skyrim 2026-10-30, party-buys-house-guest): its lines exist only once the quest starts,
+    // and a guest's quest is started by the host's state, not the engine.
+    constexpr uint32_t kHousePurchase = 0xA7B33;
+    const IDialogueBridge::Option cHouse{.Topic = 0xA7B19, .Info = 0xA7B31, .Text = "I'd like to purchase a house in the city."};
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    for (World* pGame : {&party.Host(), &party.Guest()})
+    {
+        FakeDialogue& talk = Dialogue(*pGame);
+        talk.Greeting = {cHouse, kGoodbye};
+        talk.After = {{cHouse.Topic, {kGoodbye}}, {kGoodbye.Topic, {}}};
+        talk.LineQuest[cHouse.Info] = kHousePurchase;
+    }
+    uint32_t steward = 0;
+    party.As(party.Host(), [&] { steward = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the steward");
+
+    party.As(party.Host(), [&] { host.StartsQuest(kHousePurchase); });
+    party.Until([&] { return guest.Quests.contains(kHousePurchase) && guest.Quests.at(kHousePurchase).Flags & 1; },
+                "the guest's game runs HousePurchase");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Options == std::vector{cHouse, kGoodbye}; },
+                "the guest's menu lists the house line", [&] { return std::format("{} options", guestTalk.Options.size()); });
+}
+
+SCENARIO("A guest closes barter and dialogue then trades with the same merchant again", "[dialogue][barter][barter-reopen]")
+{
+    Party party(1, SmokeWorld);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    auto& service = party.Guest().ctx().at<DialogueService>();
+    uint32_t merchant = 0;
+    party.As(party.Host(), [&] { merchant = host.LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the merchant arrives");
+    const auto cCopy = guest.CopiesOf(kGuard)[0];
+    for (int trade = 0; trade < 2; ++trade)
+    {
+        party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
+        party.Until([&] { return talk.MenuOpen && talk.ListShown && service.Joined(); }, "the guest can pick a merchant line");
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(MenuEvent{"BarterMenu", true}); });
+        party.Until([&] { return !talk.MenuOpen; }, "barter suspends dialogue");
+        CHECK(talk.Speaker == cCopy);
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(MenuEvent{"BarterMenu", false}); });
+        party.Until([&] { return talk.MenuOpen && service.Joined(); }, "barter returns to dialogue");
+        party.Frame(); // the returned dialogue has reached the engine before the player leaves
+        party.As(party.Guest(), [&] { talk.PlayerLeaves(); });
+        party.Until([&] { return !service.Conversation() && Dialogue(party.Host()).Speaker == 0; }, "the party conversation ends");
+        CHECK(talk.Speaker == 0);
+    }
+}
+
+SCENARIO("A copy looks where its owner does: an NPC in conversation looks at its partner on every game", "[dialogue][ai][headtrack]")
+{
+    // dialogue-copy-looks-at-speaker (Skyrim 2026-10-31): the host's Lydia had her dialogue slot on the talking
+    // player, her copy none; copies run no AI, which sets the slots.
+    Party party(1, SmokeWorld);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the NPC");
+    const auto cCopy = guest.CopiesOf(kGuard)[0];
+    const auto cHostPlayerCopy = [&] {
+        for (const auto& [cId, cActor] : guest.Actors)
+            if (cActor.Copy && cActor.Player)
+                return cId;
+        return 0u;
+    };
+    const auto cDialogueSlot = [](const FakeEngine& acEngine, uint32_t aActor) {
+        return acEngine.GetActorAiFields(aActor).HeadTrackIds[FakeEngine::kDialogueHeadTrack];
+    };
+
+    party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return cDialogueSlot(host, npc) == FakeEngine::kPlayer; }, "the host's NPC looks at the host's player");
+    party.Until([&] { return cHostPlayerCopy() && cDialogueSlot(guest, cCopy) == cHostPlayerCopy(); },
+                "the copy looks at the same player, the host's player's copy here",
+                [&] { return std::format("copy's dialogue slot {:X}", cDialogueSlot(guest, cCopy)); });
+
+    party.As(party.Guest(), [&] { talk.PlayerLeaves(); });
+    party.Until([&] { return cDialogueSlot(host, npc) == 0; }, "the host's NPC looks away once the conversation ends");
+    party.Until([&] { return cDialogueSlot(guest, cCopy) == 0; }, "the copy looks away too");
 }

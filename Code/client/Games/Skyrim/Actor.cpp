@@ -3,6 +3,7 @@
 #include <BSCore/LockOrder.h>
 #include <Games/EngineNames.h>
 #include <Games/References.h>
+#include <Games/ActorPools.h>
 #include <Games/Skyrim/EquipManager.h>
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
@@ -19,6 +20,7 @@
 
 #include <Events/HealthChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
+#include <Games/Skyrim/Papyrus/GuestScripts.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/MountEvent.h>
@@ -594,6 +596,18 @@ float Actor::GetActorPermanentValue(uint32_t aId) const noexcept
     return EngineVirtual(actorValueOwner).GetPermanentValue(aId);
 }
 
+float Actor::GetActorValueModifier(ActorValueOwner::ForceMode aMode, uint32_t aId) const noexcept
+{
+    // CommonLibSSE-NG Actor::GetActorValueModifier (38469).
+    POINTER_SKYRIMSE(float(const Actor*, uint32_t, uint32_t), s_modifier, 38469);
+    return s_modifier(this, static_cast<uint32_t>(aMode), aId);
+}
+
+float Actor::GetActorTemporaryValue(uint32_t aId) const noexcept
+{
+    return GetActorValueModifier(ActorValueOwner::ForceMode::TEMPORARY, aId);
+}
+
 void Actor::SetActorValue(uint32_t aId, float aValue) noexcept
 {
     EngineVirtual(actorValueOwner).SetValue(aId, aValue);
@@ -706,16 +720,13 @@ void Actor::SetMagicEquipment(const MagicEquipment& acEquipment) noexcept
 
 void Actor::SetActorValues(const ActorValues& acActorValues) noexcept
 {
-    // The pools: their maximum, then the damage below it. Every other value as the value relay sets it: its base made
-    // the owner's current value (a fortify above the maximum included, which damage cannot reach).
-    const auto cPool = [](uint32_t aId) { return aId >= ActorValueInfo::kHealth && aId <= ActorValueInfo::kStamina; };
-    for (const auto& [cId, cValue] : acActorValues.ActorMaxValuesList)
-        if (cPool(cId))
-            ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, cId, cValue);
+    ActorPools::Restore(acActorValues, [this](int32_t aId) { return GetActorValue(aId); },
+        [this](int32_t aId) { return GetActorTemporaryValue(aId); },
+        [this](int32_t aMode, int32_t aId, float aTarget) {
+            ForceActorValue(static_cast<ActorValueOwner::ForceMode>(aMode), aId, aTarget);
+        });
     for (const auto& [cId, cValue] : acActorValues.ActorValuesList)
-        if (cPool(cId))
-            ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, cId, cValue);
-        else
+        if (!ActorPools::IsPool(cId))
             SetActorValue(cId, cValue);
 }
 
@@ -1122,7 +1133,9 @@ static void ReportAdd(const Actor& acActor, const TESBoundObject& acItem, ExtraD
     item.Count = aCount;
     if (apExtraData)
         TESObjectREFR::GetItemFromExtraData(item, apExtraData);
-    World::Get().GetRunner().Trigger(InventoryChangeEvent(acActor.formID, std::move(item)));
+    InventoryChangeEvent event(acActor.formID, std::move(item));
+    event.StoryGiven = GuestScripts::StoryGiving();
+    World::Get().GetRunner().Trigger(std::move(event));
 }
 
 void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
@@ -1345,42 +1358,44 @@ static TGetLipData* GetLipData = nullptr;
 using TUpdateLipSyncGraph = void(AIProcess*, void* apLipData, Actor* apActor);
 static TUpdateLipSyncGraph* UpdateLipSyncGraph = nullptr;
 
+// A copy's part of UpdateAI: its body's upkeep only. Not inlined: HookUpdateAI's own frames are a pass-through.
+__declspec(noinline) void UpdateCopyAI(Actor* apThis)
+{
+    // UpdateAI's own early return.
+    if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
+        return;
+
+    UpdateVoiceTimer(apThis, false);
+    apThis->UpdateSoundCallback(false);
+
+    // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
+    if (!apThis->IsDead())
+        apThis->StartDeferredKill();
+    else if (ActorState::LifeStateOf(apThis->actorState.flags1) == ActorState::kLifeDying &&
+             apThis->LiesInRagdoll() && !apThis->IsInKillMove())
+    {
+        // Copies skip native death upkeep; a ragdoll must leave kDying before NPC activation permits looting.
+        POINTER_SKYRIMSE(void(Actor*, uint32_t), s_setLifeState, 37612);
+        s_setLifeState(apThis, ActorState::kLifeDead);
+    }
+
+    AIProcess* pProcess = apThis->currentProcess;
+    if (pProcess && pProcess->processLevel == 0)
+    {
+        CalculateEssentialProtected(apThis);
+        if (void* pLipData = GetLipData(pProcess); pLipData && apThis->race && !(apThis->race->raceFlags & TESRace::kFaceGenHead))
+            UpdateLipSyncGraph(pProcess, pLipData, apThis);
+    }
+
+    // UpdateAI does this last, below high process.
+    if (apThis->baseForm && (!pProcess || pProcess->processLevel != 0))
+        UpdateCellAttachment(apThis);
+}
+
 void HookUpdateAI(Actor* apThis, float aDelta)
 {
     if (apThis->GetExtension()->IsCopy())
-    {
-        // UpdateAI's own early return.
-        if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
-            return;
-
-        UpdateVoiceTimer(apThis, false);
-        apThis->UpdateSoundCallback(false);
-
-        // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
-        if (!apThis->IsDead())
-            apThis->StartDeferredKill();
-        else if (ActorState::LifeStateOf(apThis->actorState.flags1) == ActorState::kLifeDying &&
-                 apThis->LiesInRagdoll() && !apThis->IsInKillMove())
-        {
-            // Copies skip native death upkeep; a ragdoll must leave kDying before NPC activation permits looting.
-            POINTER_SKYRIMSE(void(Actor*, uint32_t), s_setLifeState, 37612);
-            s_setLifeState(apThis, ActorState::kLifeDead);
-        }
-
-        AIProcess* pProcess = apThis->currentProcess;
-        if (pProcess && pProcess->processLevel == 0)
-        {
-            CalculateEssentialProtected(apThis);
-            if (void* pLipData = GetLipData(pProcess); pLipData && apThis->race && !(apThis->race->raceFlags & TESRace::kFaceGenHead))
-                UpdateLipSyncGraph(pProcess, pLipData, apThis);
-        }
-
-        // UpdateAI does this last, below high process.
-        if (apThis->baseForm && (!pProcess || pProcess->processLevel != 0))
-            UpdateCellAttachment(apThis);
-        return;
-    }
-
+        return UpdateCopyAI(apThis);
     RealUpdateAI(apThis, aDelta);
 }
 
@@ -1608,6 +1623,8 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37356, &RealApplyMovement, HookApplyMovement);
         HOOK_ID(37322, &RealResetInventory, HookResetInventory);
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
+        // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI), 0x50);
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
         HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

@@ -6,6 +6,7 @@
 #include "ControlFiles.h"
 #include "DialogueTrace.h"
 #include "EngineEvents.h"
+#include "GaitWatch.h"
 #include "InputTrace.h"
 #include "PlayerInput.h"
 
@@ -21,6 +22,7 @@ struct Harness
     CommandServer Commands;
     AnimationTrace Trace;
     BodyTrace Bodies;
+    GaitWatch Gait;
     DialogueTrace Dialogue;
     EngineEvents Events;
     InputTrace Inputs;

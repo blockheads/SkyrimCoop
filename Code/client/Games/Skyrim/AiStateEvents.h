@@ -1,7 +1,8 @@
 #pragma once
 
 // The engine's package, combat, death and scene events (TESPackageEvent, TESCombatEvent, TESDeathEvent,
-// TESSceneEvent), combat target switches and the player's in-combat flag raised as AiStateChangeEvent. On while
+// TESSceneEvent), combat target switches, headtrack slot changes and the player's in-combat flag raised as
+// AiStateChangeEvent; copies get their owner's headtrack slots. On while
 // anyone started them (HostEngine, GuestEngine).
 namespace AiStateEvents
 {

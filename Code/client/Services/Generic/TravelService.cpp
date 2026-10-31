@@ -134,6 +134,14 @@ void TravelService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept
 
 void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept
 {
+    m_mainTasks.Queue([this, aWorld, aCell, aPosition, aHeading, aForce] {
+        FollowBetweenFrames(aWorld, aCell, aPosition, aHeading, aForce);
+    });
+}
+
+void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept
+{
+    if (!m_transport.IsOnline()) return;
     // Already there, unless a move of the tether's is still to come: that one would take it away again.
     if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition))
     {

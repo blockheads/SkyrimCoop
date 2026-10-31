@@ -11,6 +11,8 @@
 #include <Breadcrumbs.h>
 #include <MainLoopTasks.h>
 #include <FormIds.h>
+#include <Games/NpcSnapshot.h>
+#include <Games/IFormFactory.h>
 
 // SKSE / game headers (allowed only here)
 #include <Actor.h>
@@ -335,6 +337,13 @@ float SkyrimBridge::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) con
     return 0.f;
 }
 
+float SkyrimBridge::GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    if (Actor* pActor = GetActor(aFormId))
+        return pActor->GetActorTemporaryValue(aIndex);
+    return 0.f;
+}
+
 float SkyrimBridge::GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -525,11 +534,10 @@ bool SkyrimBridge::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) no
     return true;
 }
 
-std::string SkyrimBridge::GetActorBaseName(uint32_t aFormId) const noexcept
+std::string SkyrimBridge::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
-        if (pActor->baseForm)
-            return pActor->baseForm->GetName();
+        return pActor->GetDisplayFullName();
     return {};
 }
 
@@ -1196,6 +1204,15 @@ void SkyrimBridge::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormI
         EquipManager::Get()->UnEquipShout(pActor, pShout);
 }
 
+void SkyrimBridge::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept
+{
+    if (auto* pActor = GetActor(aActorFormId))
+    {
+        pActor->UnEquipAll();
+        pActor->SetMagicEquipment(acMagic);
+    }
+}
+
 void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
                                     uint32_t aEquipSlotFormId, int32_t aCount) noexcept
 {
@@ -1462,6 +1479,20 @@ void SkyrimBridge::StopTeleportEvents() noexcept
 void SkyrimBridge::ShowHudMessage(const std::string& aMessage) noexcept
 {
     Utils::ShowHudMessage(std::string(aMessage));
+}
+
+// Worded as the engine's inventory notice (CommonLibSSE-NG SendHUDMessage::ShowInventoryChangeMessage).
+void SkyrimBridge::ShowItemChangeMessage(uint32_t aItemFormId, int32_t aCount) noexcept
+{
+    POINTER_SKYRIMSE(Setting, s_added, 376348);   // sAddItemtoInventory
+    POINTER_SKYRIMSE(Setting, s_removed, 376351); // sRemoveItemfromInventory
+    const TESForm* pItem = TESForm::GetById(aItemFormId);
+    const char* pName = pItem ? pItem->GetName() : nullptr;
+    if (!pName || !aCount)
+        return;
+    const auto* pPhrase = reinterpret_cast<const char*>((aCount > 0 ? s_added.Get() : s_removed.Get())->data);
+    const int64_t cCount = std::abs(static_cast<int64_t>(aCount));
+    Utils::ShowHudMessage(cCount == 1 ? std::format("{} {}", pName, pPhrase) : std::format("{} ({}) {}", pName, cCount, pPhrase));
 }
 
 void SkyrimBridge::ShowEnemyHealth(uint32_t aActorFormId) noexcept
@@ -1776,6 +1807,8 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
     fields.CombatState = pActor->GetOwnCombatState();
     if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
         fields.CombatTargetId = pTarget->formID;
+    if (const HighProcessData* pHigh = pActor->currentProcess->highProcess)
+        fields.HeadTrackIds = pHigh->GetHeadTrackTargets();
     return fields;
 }
 
@@ -1850,6 +1883,9 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
     pActor->GetExtension()->OwnerPackageId = acFields.PackageId;
     pActor->GetExtension()->OwnerSceneId = acFields.SceneId;
     pActor->GetExtension()->OwnerCombatState = acFields.CombatState;
+    // Put in its slots before the engine reads them (AiStateEvents' ProcessTracking hook): a copy runs no AI to set them.
+    for (size_t i = 0; i < acFields.HeadTrackIds.size(); ++i)
+        pActor->GetExtension()->HeadTrack[i].store(acFields.HeadTrackIds[i], std::memory_order_relaxed);
     // Actor::currentCombatTarget: written only by a combat controller, which a copy never has.
     auto* pTarget = acFields.CombatTargetId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.CombatTargetId)) : nullptr;
     const uint32_t cTargetHandle = pTarget ? pTarget->GetHandle().handle.iBits : *TESObjectREFR::GetNullHandle();
@@ -1983,9 +2019,21 @@ void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const std::string& acAp
     if (!pActor)
         return;
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
-    if (!pNpc)
+    if (!pNpc || acAppearance.empty())
         return;
-    pNpc->Deserialize(acAppearance, aChangeFlags);
+    if (!NpcSnapshot::HasResolvedName(aChangeFlags))
+        return;
+    // Decode the native snapshot without giving an actor a temporary name-only base.
+    auto* pSnapshot = IFormFactory::Create<TESNPC>();
+    if (!pSnapshot)
+        return;
+    if (FormState::Load(*pSnapshot, aChangeFlags, acAppearance))
+    {
+        const char* cpName = pSnapshot->fullName.value.AsAscii();
+        pActor->extraData.SetCustomName(cpName ? cpName : "");
+    }
+    // The engine's deleting destructor (vtable 0) frees it on the game's heap.
+    delete pSnapshot;
 }
 
 bool SkyrimBridge::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
@@ -2011,8 +2059,10 @@ uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer)
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     if (!pNpc)
         return 0;
-    pNpc->Serialize(&aBuffer);
-    return pNpc->GetChangeFlags();
+    const uint32_t cFlags = NpcSnapshot::SaveFlags(pNpc->GetChangeFlags(), pActor == PlayerCharacter::Get(),
+                                                 pNpc->IsTemporary(), pNpc->GetTemplateBase() != nullptr);
+    FormState::Save(*pNpc, cFlags, aBuffer);
+    return cFlags;
 }
 
 void SkyrimBridge::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept

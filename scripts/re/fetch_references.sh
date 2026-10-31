@@ -25,7 +25,7 @@ fetch alandtse/CommonLibSSE-NG "$ROOT/reference/CommonLibSSE-NG" "${COMMONLIB_NG
 # SKSE plugins that hook or call engine code we also touch: where someone else hooked an address
 # and how. build_re_data.py adds "used by" lines to the annotations.
 for repo in ersh1/Precision ersh1/TrueHUD aers/EngineFixesSkyrim64 powerof3/po3-Tweaks \
-            powerof3/PapyrusExtenderSSE; do
+            powerof3/PapyrusExtenderSSE powerof3/Spell-Perk-Item-Distributor; do
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 

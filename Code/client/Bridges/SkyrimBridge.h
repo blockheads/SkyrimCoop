@@ -51,6 +51,7 @@ public:
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    float GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorBaseValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
@@ -73,7 +74,7 @@ public:
     uint32_t GetCombatTargetFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
-    std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
+    std::string GetActorDisplayName(uint32_t aFormId) const noexcept override;
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
     void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
@@ -217,6 +218,7 @@ public:
     void ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept override;
     void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
     void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment& acMagic) noexcept override;
     void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
     void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
@@ -262,6 +264,7 @@ public:
     void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept override;
     void StopTeleportEvents() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
+    void ShowItemChangeMessage(uint32_t aItemFormId, int32_t aCount) noexcept override;
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override;
     Tints GetPlayerFaceTints() const noexcept override;
     uint32_t GetPlayerParentCellFormId() const noexcept override;

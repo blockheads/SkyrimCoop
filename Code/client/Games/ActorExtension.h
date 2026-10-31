@@ -1,6 +1,10 @@
 #pragma once
 
 #include <Games/Animation/ActionState.h>
+#include <Games/Animation/ReplayStep.h>
+
+#include <array>
+#include <atomic>
 
 // Words: docs/design/glossary.md.
 struct ActorExtension
@@ -28,24 +32,12 @@ struct ActorExtension
     uint32_t OwnerPackageId = 0;
     uint32_t OwnerSceneId = 0;
     uint8_t OwnerCombatState = 0;
+    // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
+    // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
+    std::array<std::atomic<uint32_t>, 6> HeadTrack{};
 
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
-    struct ReplayStep
-    {
-        enum : uint8_t
-        {
-            kIdle,
-            kVariables, // staged by our update
-            kAction,    // variables in, one graph update to go
-            kBusy,      // being applied
-            kTaken,
-            kRefused,
-        };
-        std::atomic<uint8_t> Phase{kIdle};
-        uint8_t Retries = 0; // graph updates the action was refused in
-        ActionEvent Action{};
-        AnimationVariables Variables{};
-    };
+    using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;
 
     // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors

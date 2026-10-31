@@ -21,6 +21,7 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Utils.h>
+#include <Games/Animation/ReplayCapture.h>
 #include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
@@ -58,14 +59,15 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 
         const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
         s_playerAction |= cOuterPlayerAction;
-        const auto res = RealPerformAction(apThis, apAction);
+        const auto cOutcome = ReplayCapture::Run(apAction->someFlag, [&] { return RealPerformAction(apThis, apAction); });
+        const auto res = cOutcome.Result;
         if (cOuterPlayerAction)
             s_playerAction = false;
 
         // spdlog::debug("Action event name: {}, target name: {}", apAction->eventName.AsAscii(), apAction->targetEventName.AsAscii());
 
-        // This is a weird case where it gets spammed and doesn't do much, not sure if it still needs to be sent over the network
-        if (apAction->someFlag == 1)
+        // A resolved idle query selected an animation but never performed it (38949).
+        if (!cOutcome.Capture)
             return res;
 
         action.EventName = apAction->eventName.AsAscii();
@@ -81,6 +83,10 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
                 spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
             return res;
         }
+
+        // A copy whose clip already advanced can recover from the accepted action's result.
+        if (!g_forceAnimation && !cPlayersPartner && action.TargetEventName.empty())
+            pActor->SaveAnimationGraphState(action.GraphState);
 
         // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
         pExtension->LatestAnimation.Write(action);
@@ -169,11 +175,8 @@ bool ActorMediator::PerformAction(TESActionData* apAction) noexcept
 bool ActorMediator::ForceAction(TESActionData* apAction) noexcept
 {
     using TAnimationStep = uint8_t(ActorMediator*, TESActionData*);
-    using TApplyAnimationVariables = void*(void*, TESActionData*);
 
-    POINTER_SKYRIMSE(TApplyAnimationVariables, ApplyAnimationVariables, 39004);
     POINTER_SKYRIMSE(TAnimationStep, PerformComplexAction, 38953);
-    POINTER_SKYRIMSE(void*, qword_142F271B8, 403566);
 
     uint8_t result = 0;
 
@@ -181,8 +184,6 @@ bool ActorMediator::ForceAction(TESActionData* apAction) noexcept
     if (!pActor || EngineVirtual(pActor->animationGraphHolder).IsReady())
     {
         result = PerformComplexAction(this, apAction);
-
-        ApplyAnimationVariables(*qword_142F271B8.Get(), apAction);
     }
 
     return result;

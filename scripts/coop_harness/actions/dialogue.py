@@ -442,7 +442,8 @@ class DialogueActions:
         info: that line of the topic (a topic with a line per player lists each, shared-dialogue.md)."""
         ctx.wait_for(f"[{instance or 'host'}] the menu takes a pick", lambda: ctx.menu_takes_pick(instance), 10)
         # Mid-conversation, the speaker's copy must play what its owner does (only one player talks to it).
-        if not ctx.FAILING and (problems := ctx.check_desync()):
+        speaker = ctx.dialogue("").get("speaker")
+        if not ctx.FAILING and speaker and (problems := [p for p in ctx.check_desync() if f"[host {speaker:08X}," in p]):
             raise ctx.failure("desync in the conversation: " + " | ".join(problems))
         options = ctx.dialogue(instance).get("options", [])
         target = next((i for i, o in enumerate(options) if o["topic"] == topic and info in (None, o["info"])), None)

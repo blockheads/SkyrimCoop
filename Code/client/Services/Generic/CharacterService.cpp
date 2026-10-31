@@ -1,3 +1,5 @@
+#include <Games/NpcSnapshot.h>
+#include <Games/ActorPools.h>
 #include <Services/CharacterService.h>
 #include <MainLoopTasks.h>
 #include <Services/ActorValueService.h>
@@ -333,7 +335,6 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 
 CharacterService::~CharacterService() noexcept
 {
-    m_alive->store(false);
     m_playerBridge.StopTeleportEvents();
 }
 
@@ -386,7 +387,6 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
                 return;
             }
 
-            m_actorBridge.DeserializeActorNpc(cNpcId, acMessage.AppearanceBuffer, acMessage.ChangeFlags);
             actorFormId = m_actorBridge.SpawnActorFromNpc(cNpcId);
         }
         else
@@ -436,7 +436,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     spdlog::info("NotifyCharacterSpawn, session id: {:X}, form id: {:X}", acMessage.SessionId, actorFormId);
 
     m_actorBridge.SetActorCopy(actorFormId, true);
-    if (!ApplyPlacedBase(actorFormId, acMessage))
+    if (!ApplyNpcSnapshot(actorFormId, acMessage))
         return;
 
     if (m_actorBridge.IsActorDisabled(actorFormId))
@@ -504,23 +504,27 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
 }
 
-bool CharacterService::ApplyPlacedBase(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
+bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
 {
-    if (acMessage.FormId == GameId{} || acMessage.BaseId == GameId{})
+    if (acMessage.BaseId == GameId{})
         return true;
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
-    if (cBaseId && m_actorBridge.SetActorBaseFormId(aFormId, cBaseId))
-        return true;
-    spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to placed actor {:X}", acMessage.BaseId.ModId,
-                  acMessage.BaseId.BaseId, aFormId);
-    return false;
+    if (!cBaseId || !m_actorBridge.SetActorBaseFormId(aFormId, cBaseId))
+    {
+        spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to actor {:X}", acMessage.BaseId.ModId,
+                      acMessage.BaseId.BaseId, aFormId);
+        return false;
+    }
+    if (NpcSnapshot::HasResolvedName(acMessage.ChangeFlags) && !acMessage.AppearanceBuffer.empty())
+        m_actorBridge.DeserializeActorNpc(aFormId, acMessage.AppearanceBuffer, acMessage.ChangeFlags);
+    return true;
 }
 
 void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
 {
     const auto* pFormId = m_world.try_get<FormIdComponent>(aEntity);
     const uint32_t cOldBase = pFormId ? m_actorBridge.GetActorBaseFormId(pFormId->Id) : 0;
-    if (pFormId && !ApplyPlacedBase(pFormId->Id, acMessage))
+    if (pFormId && !ApplyNpcSnapshot(pFormId->Id, acMessage))
         return;
     const bool cBaseChanged = pFormId && cOldBase != m_actorBridge.GetActorBaseFormId(pFormId->Id);
     if (cBaseChanged)
@@ -760,9 +764,7 @@ void CharacterService::QueuePendingLooks() noexcept
     if (m_pendingLooks.empty() || m_looksQueued)
         return;
     m_looksQueued = true;
-    MainLoopTasks::Queue([this, alive = m_alive] {
-        if (!alive->load())
-            return;
+    m_mainTasks.Queue([this] {
         m_looksQueued = false;
         ApplyPendingLooks();
     });
@@ -1105,14 +1107,18 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
 
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept
 {
-    const uint32_t cCellFormId = m_world.GetTravelService().CellAt(acWorldSpaceId, acCellId, acPosition);
-    if (!cCellFormId)
-    {
-        spdlog::error("{}: : failed to fetch cell to teleport, actor: {:X}, worldspace: {:X}, cell: {:X}, position: {}, {}, {}", __FUNCTION__, aFormId, acWorldSpaceId.BaseId, acCellId.BaseId, acPosition.x, acPosition.y, acPosition.z);
-        return;
-    }
+    m_mainTasks.Queue([this, aFormId, acWorldSpaceId, acCellId, acPosition] {
+        if (!m_transport.IsOnline() || !m_actorBridge.ActorExists(aFormId))
+            return;
+        const uint32_t cCellFormId = m_world.GetTravelService().CellAt(acWorldSpaceId, acCellId, acPosition);
+        if (!cCellFormId)
+        {
+            spdlog::error("MoveActor: failed to fetch cell to teleport, actor: {:X}, worldspace: {:X}, cell: {:X}, position: {}, {}, {}", aFormId, acWorldSpaceId.BaseId, acCellId.BaseId, acPosition.x, acPosition.y, acPosition.z);
+            return;
+        }
 
-    m_actorBridge.MoveActorTo(aFormId, cCellFormId, acPosition.x, acPosition.y, acPosition.z);
+        m_actorBridge.MoveActorTo(aFormId, cCellFormId, acPosition.x, acPosition.y, acPosition.z);
+    });
 }
 
 void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
@@ -1312,7 +1318,7 @@ void CharacterService::ReleaseCharacter(const entt::entity aEntity, const uint32
         // Only while it is still our copy: a deleted copy's form id can belong to a new reference already.
         if (m_actorBridge.IsActorCopy(aFormId))
         {
-            if (m_actorBridge.IsActorTemporary(aFormId) || m_actorBridge.IsActorNpcTemporary(aFormId))
+            if (m_actorBridge.IsActorTemporary(aFormId))
             {
                 spdlog::info("Temporary Remote Deleted {:X}", aFormId);
                 m_actorBridge.DeleteActor(aFormId);
@@ -1366,7 +1372,7 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
     const bool cPlayer = aFormId == m_playerBridge.GetPlayerFormId();
     for (int32_t index = 0; index < m_actorBridge.GetActorValueCount(); ++index)
     {
-        const bool cPool = index >= 24 && index <= 26; // kHealth, kMagicka, kStamina
+        const bool cPool = ActorPools::IsPool(index);
         const bool cSkill = index >= 6 && index <= 23; // kOneHanded to kEnchanting
         if (!cPool && (!cPlayer || index == static_cast<int32_t>(ActorValueService::kDragonSouls)))
             continue;
@@ -1376,6 +1382,8 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
             continue;
         actorData.InitialActorValues.ActorValuesList[index] = cValue;
         actorData.InitialActorValues.ActorMaxValuesList[index] = cMax;
+        if (cPool)
+            actorData.InitialActorValues.ActorTemporaryValuesList[index] = m_actorBridge.GetActorTemporaryValue(aFormId, index);
     }
     actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);

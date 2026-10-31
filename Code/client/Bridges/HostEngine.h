@@ -66,6 +66,9 @@ public:
     // A guest's pickup granted: the party's loose item taken out of this world (disabled and deleted, the deletion goes
     // out), what it held; none when it is gone.
     [[nodiscard]] std::optional<Inventory::Entry> TakeItem(const GameId& acObject) noexcept;
+    // A loose quest object (a quest's alias holds it, ExtraAliasInstanceArray) picked up by this game's player for the
+    // party (party-items.md): the alias follows it into the player's inventory. False for any other item.
+    [[nodiscard]] bool TakeQuestObject(const GameId& acObject) noexcept;
     // Since the last call: each reference the game created, the state of each one the funnel saw change, the
     // physics objects that came to rest, the records that lost rows, then the scripts' events in order.
     [[nodiscard]] std::vector<ObjectChange> TakeObjectChanges() noexcept;
