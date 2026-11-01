@@ -9,6 +9,7 @@
 #include <Services/WorldStateLog.h>
 #include <Systems/InterpolationSystem.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBridge& aBridge) noexcept
     : m_world(aWorld)
@@ -96,6 +97,7 @@ uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
 
 void BodyService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("BodyService::OnUpdate");
     const uint64_t cTick = m_world.GetTransport().GetTick();
     // What this game's player took is its own now: the owner's playback of it stops.
     if (m_pKeeper)

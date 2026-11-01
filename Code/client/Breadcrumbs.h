@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 /**
@@ -23,4 +24,6 @@ void RecordHook(const char* acpHookName, const void* apFirstArgument) noexcept;
 bool ObservesHook(const char* acpHookName) noexcept;
 // Into the log, oldest first, times relative to now. Safe to call from the crash handler.
 void Dump() noexcept;
+// Each hook's and bridge call's calls so far (the profiler's call rates): up to aCapacity, returns how many.
+size_t Totals(const char** apWhat, uint64_t* apTotal, size_t aCapacity) noexcept;
 } // namespace Breadcrumbs

@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from coop_harness import Session
+from coop_harness.common import WINDOWS
 from coop_harness.errors import TestFailure
 from coop_harness.game import Game
 from coop_harness.registry import Registry
@@ -113,6 +114,8 @@ class Harness(unittest.TestCase):
             for name in ("Skyrim_Default.ini", "Low.ini"):
                 (install / name).write_text("[General]\n")
             game = Game("", install=install, prefix=Path(directory) / "prefix", display=":99")
+            if WINDOWS:  # not the user's own My Games
+                game.my_games = Path(directory) / "My Games"
             game.my_games.mkdir(parents=True)
             self.session.host = game
             self.session.games = (game, self.session.guest)

@@ -3,6 +3,7 @@
 #include <Bridges/GuestEngine.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/NotifyWeatherChange.h>
+#include <Diagnostics/Profile.h>
 
 GuestWeather::GuestWeather(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
     : m_engine(aEngine)
@@ -28,6 +29,7 @@ void GuestWeather::OnWeatherChange(const NotifyWeatherChange& acMessage) noexcep
 
 void GuestWeather::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("GuestWeather::OnUpdate");
     if (m_hostWeather)
         m_engine.HoldWeather(*m_hostWeather);
 }

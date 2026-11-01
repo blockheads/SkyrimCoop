@@ -2,6 +2,11 @@
 -- `#if COOP_TEST_HARNESS`.
 local function add_test_harness_define()
     add_defines(has_config("test_harness") and "COOP_TEST_HARNESS=1" or "COOP_TEST_HARNESS=0")
+    -- The profiler option (root xmake.lua): COOP_PROFILER for Diagnostics/Profile.h.
+    add_defines(has_config("profiler") and "COOP_PROFILER=1" or "COOP_PROFILER=0")
+    if has_config("profiler") then
+        add_packages("tracy")
+    end
 end
 
 local function build_client(name)

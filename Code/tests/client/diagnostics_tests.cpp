@@ -5,6 +5,7 @@
 #include <Diagnostics/Export.h>
 #include <Diagnostics/LogRing.h>
 #include <Diagnostics/MessageTrail.h>
+#include <Diagnostics/Perf.h>
 #include <Diagnostics/ReportPaths.h>
 #include <Diagnostics/Zip.h>
 
@@ -211,4 +212,50 @@ TEST_CASE("A run without a clean exit, or with a crash log after it started, bec
         REQUIRE(cReport);
         CHECK(std::filesystem::exists(*cReport / "crash-1.log"));
     }
+}
+
+TEST_CASE("Frame times: percentiles over the last window, our update's share beside them", "[diagnostics][perf]")
+{
+    FrameTimes times(8);
+    CHECK(times.Last(60000).Frames == 0);
+    // 16 ms frames, then one 200 ms hitch; the ring keeps the newest eight.
+    for (int i = 0; i < 10; ++i)
+        times.Add(i * 16, 16.f, 2.f);
+    times.Add(400, 200.f, 50.f);
+
+    const auto cAll = times.Last(60000);
+    CHECK(cAll.Frames == 8);
+    CHECK(cAll.FrameP50 == 16.f);
+    CHECK(cAll.FrameMax == 200.f);
+    CHECK(cAll.FrameP99 == 200.f);
+    CHECK(cAll.UpdateP50 == 2.f);
+    CHECK(cAll.UpdateMax == 50.f);
+    CHECK(cAll.Seconds == Approx(0.4 - 0.048));
+
+    // Only the frames that ended within the window of the newest.
+    const auto cRecent = times.Last(300);
+    CHECK(cRecent.Frames == 4);
+    CHECK(cRecent.FrameP50 == 16.f);
+}
+
+TEST_CASE("Traffic: messages by name and way since a time, the most bytes first", "[diagnostics][perf]")
+{
+    // Two copies of one name's text: rows go by the text, not the pointer.
+    static const char cMove[] = "ClientReferencesMoveRequest";
+    static const char cMoveAgain[] = "ClientReferencesMoveRequest";
+    const std::vector<MessageEntry> cEntries = {
+        {100, 0, MessageWay::Sent, cMove, 0, 40},
+        {200, 0, MessageWay::Sent, cMoveAgain, 0, 60},
+        {200, 0, MessageWay::Received, cMove, 0, 500},
+        {300, 0, MessageWay::Sent, "ChatRequest", 0, 10},
+        {50, 0, MessageWay::Sent, "TooOld", 0, 9999},
+    };
+    const auto cRows = Traffic(cEntries, 100);
+    REQUIRE(cRows.size() == 3);
+    CHECK(cRows[0].Way == MessageWay::Received);
+    CHECK(cRows[0].Bytes == 500);
+    CHECK(std::string(cRows[1].Name) == "ClientReferencesMoveRequest");
+    CHECK(cRows[1].Count == 2);
+    CHECK(cRows[1].Bytes == 100);
+    CHECK(std::string(cRows[2].Name) == "ChatRequest");
 }

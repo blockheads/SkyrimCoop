@@ -7,7 +7,7 @@ target("ClientTests")
     add_files("*.cpp")
     add_files("../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp")
     add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
-              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
+              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Perf.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
               "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
               "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/StoryGifts.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp",

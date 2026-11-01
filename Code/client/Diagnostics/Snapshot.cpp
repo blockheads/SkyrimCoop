@@ -20,6 +20,11 @@
 #include <Games/Skyrim/BSCore/LockOrder.h>
 #include <BuildVersion.h>
 #include <FormIds.h>
+#include <Breadcrumbs.h>
+#include "MessageTrail.h"
+#include "Perf.h"
+
+#include <psapi.h>
 
 namespace Diagnostics
 {
@@ -437,6 +442,53 @@ nlohmann::json Copies()
 }
 
 // A guest's line to the host over the last second (enet, compressed and not); the host's own route counts nothing.
+nlohmann::json PerfStatus(bool aHooks, int64_t aWindowMs)
+{
+    const int64_t cWindowMs = std::clamp<int64_t>(aWindowMs, 1, 60000);
+    const auto cFrames = Frames().Last(cWindowMs);
+    nlohmann::json result = {
+        {"window_s", cFrames.Seconds},
+        {"frames", cFrames.Frames},
+        {"frame_ms", {{"p50", cFrames.FrameP50}, {"p95", cFrames.FrameP95}, {"p99", cFrames.FrameP99}, {"max", cFrames.FrameMax}}},
+        {"update_ms", {{"p50", cFrames.UpdateP50}, {"p95", cFrames.UpdateP95}, {"max", cFrames.UpdateMax}}}};
+
+    const auto cNowMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    nlohmann::json messages = nlohmann::json::array();
+    uint64_t bytes = 0;
+    for (const auto& cRow : Traffic(Messages().Since(), cNowMs - cWindowMs))
+    {
+        bytes += cRow.Bytes;
+        if (messages.size() < 25)
+            messages.push_back({{"name", cRow.Name}, {"way", std::string(1, static_cast<char>(cRow.Way))}, {"count", cRow.Count}, {"bytes", cRow.Bytes}});
+    }
+    result["messages"] = {{"bytes", bytes}, {"top", std::move(messages)}};
+
+    PROCESS_MEMORY_COUNTERS_EX memory{};
+    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory)))
+        result["memory_mb"] = {{"working_set", memory.WorkingSetSize >> 20}, {"private", memory.PrivateUsage >> 20},
+                               {"peak_working_set", memory.PeakWorkingSetSize >> 20}};
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user))
+    {
+        const auto cSeconds = [](const FILETIME& acTime) { return (static_cast<uint64_t>(acTime.dwHighDateTime) << 32 | acTime.dwLowDateTime) / 1e7; };
+        FILETIME now{};
+        GetSystemTimeAsFileTime(&now);
+        result["cpu_s"] = cSeconds(kernel) + cSeconds(user);
+        result["uptime_s"] = cSeconds(now) - cSeconds(created);
+    }
+
+    if (aHooks)
+    {
+        const char* what[512];
+        uint64_t total[512];
+        nlohmann::json hooks = nlohmann::json::object();
+        for (size_t i = 0, cCount = Breadcrumbs::Totals(what, total, 512); i < cCount; ++i)
+            hooks[what[i]] = total[i];
+        result["calls"] = std::move(hooks);
+    }
+    return result;
+}
+
 nlohmann::json LineStatus()
 {
     const auto cStats = World::Get().GetTransport().GetStatistics();
@@ -491,6 +543,7 @@ nlohmann::json Report()
             {"copy_clock", {{"network_ms", World::Get().GetCopyClock().Network()}, {"delay_ms", World::Get().GetCopyClock().Delay()}}},
             {"line", LineStatus()},
             {"frames", FrameStatus()},
+            {"perf", PerfStatus()},
             {"lock_order", LockOrderStatus()},
             {"steam", SteamStatus()}};
 }

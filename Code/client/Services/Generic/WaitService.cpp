@@ -5,6 +5,7 @@
 #include <Events/UpdateEvent.h>
 #include <Services/TransportService.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -141,6 +142,7 @@ void WaitService::OnState(const NotifyWaitState& acMessage) noexcept
 
 void WaitService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("WaitService::OnUpdate");
     if (m_id && !m_ready && m_bridge.IsReady())
     {
         m_ready = true;

@@ -4,10 +4,31 @@ import json
 import os
 import socket
 import time
+from pathlib import Path
 from .common import (
     GAME,
     TEST_HOME,
+    WINDOWS,
 )
+
+
+def known_folder(guid):
+    """A Windows known folder's path (SHGetKnownFolderPath: Documents may be moved, to OneDrive say)."""
+    import ctypes
+    import uuid
+    from ctypes import wintypes
+    folder_id = (ctypes.c_byte * 16).from_buffer_copy(uuid.UUID(guid).bytes_le)
+    path = ctypes.c_wchar_p()
+    ctypes.windll.shell32.SHGetKnownFolderPath(folder_id, wintypes.DWORD(0), None, ctypes.byref(path))
+    try:
+        return Path(path.value)
+    finally:
+        ctypes.windll.ole32.CoTaskMemFree(path)
+
+
+DOCUMENTS = "FDD39AD0-238F-46AF-ADB4-6C85480369C7"
+LOCAL_APP_DATA = "F1B32785-6FBA-4FCF-9D55-7B8E7F157091"
+
 
 class Game:
     def __init__(self, name, *, install=GAME, prefix=None, display=None):
@@ -15,9 +36,13 @@ class Game:
         self.install = install
         self.prefix = prefix or TEST_HOME / f"prefix-{name or 'host'}"
         self.control = install / "Data/SKSE/Plugins" / ("SkyrimCoopHotReload" + (f"-{name}" if name else ""))
-        self.my_games = self.prefix / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition"
+        if WINDOWS:  # the user's own, shared by both games: Skyrim takes it from the Documents known folder
+            self.my_games = known_folder(DOCUMENTS) / "My Games/Skyrim Special Edition"
+        else:
+            self.my_games = self.prefix / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition"
         base = int(os.environ.get("COOP_DISPLAY", ":99").lstrip(":"))
         self.display = display or f":{base + bool(name)}"
+        self.tracy_port = 8086 + bool(name)  # TRACY_PORT: where `profile` captures it (Diagnostics/Profile.h)
         self.rpc_connections = {}
         self.held_buttons = set()
 

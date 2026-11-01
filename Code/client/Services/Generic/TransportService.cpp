@@ -26,6 +26,7 @@
 #include <Structs/GameVersions.h>
 #include <BuildVersion.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 // #include <imgui_internal.h>
 
@@ -266,6 +267,7 @@ void TransportService::OnUpdate()
 
 void TransportService::HandleUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("TransportService::HandleUpdate");
     if (!m_pHostNetwork)
     {
         Update();

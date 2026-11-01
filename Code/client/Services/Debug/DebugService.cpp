@@ -64,6 +64,7 @@
 #include <BuildVersion.h>
 #include <RTTI.h>
 #include <Services/HostService.h>
+#include <Diagnostics/Profile.h>
 extern thread_local bool g_overrideFormId;
 
 static void DrawBuildTag()
@@ -128,6 +129,7 @@ void DebugService::OnMoveActor(const MoveActorEvent& acEvent) noexcept
 
 void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
+    PROFILE_ZONE("DebugService::OnUpdate");
     if (!BSGraphics::GetMainWindow()->IsForeground())
         return;
 
@@ -149,6 +151,7 @@ static bool g_enableAnimWindow{false};
 static bool g_enableEntitiesWindow{false};
 static bool g_enableInventoryWindow{false};
 static bool g_enableNetworkWindow{false};
+static bool g_enablePerfWindow{false};
 static bool g_enableFormsWindow{false};
 static bool g_enablePlayerWindow{false};
 static bool g_enableSkillsWindow{false};
@@ -254,6 +257,7 @@ void DebugService::OnDraw() noexcept
         ImGui::MenuItem("Dragon spawner", nullptr, &g_enableDragonSpawnerWindow);
 
         ImGui::MenuItem("Network", nullptr, &g_enableNetworkWindow);
+        ImGui::MenuItem("Performance", nullptr, &g_enablePerfWindow);
         ImGui::MenuItem("Forms", nullptr, &g_enableFormsWindow);
         ImGui::MenuItem("Inventory", nullptr, &g_enableInventoryWindow);
         ImGui::MenuItem("Animations", nullptr, &g_enableAnimWindow);
@@ -292,6 +296,8 @@ void DebugService::OnDraw() noexcept
 
     if (g_enableNetworkWindow)
         DrawNetworkView();
+    if (g_enablePerfWindow)
+        DrawPerfView();
     if (g_enableFormsWindow)
         DrawFormDebugView();
     if (g_enableInventoryWindow)

@@ -49,30 +49,22 @@ const uint32_t* Locator(const void* apObject) noexcept
         return nullptr;
     return pLocator;
 }
-} // namespace
 
-bool ClassName(const void* apObject, char* apOut, size_t aSize) noexcept
+void NameOf(const uint32_t* apLocator, char* apOut, size_t aSize) noexcept
 {
-    apOut[0] = '\0';
-    const uint32_t* pLocator = Locator(apObject);
-    if (!pLocator)
-        return false;
     // ".?AVActor@@" -> "Actor"
-    const char* pStart = reinterpret_cast<const char*>(Game().At(pLocator[3]) + 16 + 4);
+    const char* pStart = reinterpret_cast<const char*>(Game().At(apLocator[3]) + 16 + 4);
     size_t length = 0;
     while (length < 40 && pStart[length] && pStart[length] != '@')
         ++length;
     const size_t cCopied = length < aSize - 1 ? length : aSize - 1;
     memcpy(apOut, pStart, cCopied);
     apOut[cCopied] = '\0';
-    return true;
 }
 
-bool IsForm(const void* apObject) noexcept
+bool FormOf(const uint32_t* apLocator) noexcept
 {
-    const uint32_t* pLocator = Locator(apObject);
-    if (!pLocator)
-        return false;
+    const uint32_t* pLocator = apLocator;
     const Image& cImage = Game();
     const auto* pHierarchy = reinterpret_cast<const uint32_t*>(cImage.At(pLocator[4]));
     if (!cImage.Holds(cImage.At(pHierarchy[3]), pHierarchy[2] * 4))
@@ -87,5 +79,30 @@ bool IsForm(const void* apObject) noexcept
             return true;
     }
     return false;
+}
+} // namespace
+
+bool ClassName(const void* apObject, char* apOut, size_t aSize) noexcept
+{
+    bool isForm = false;
+    return ClassName(apObject, apOut, aSize, isForm);
+}
+
+bool ClassName(const void* apObject, char* apOut, size_t aSize, bool& aIsForm) noexcept
+{
+    apOut[0] = '\0';
+    aIsForm = false;
+    const uint32_t* pLocator = Locator(apObject);
+    if (!pLocator)
+        return false;
+    NameOf(pLocator, apOut, aSize);
+    aIsForm = FormOf(pLocator);
+    return true;
+}
+
+bool IsForm(const void* apObject) noexcept
+{
+    const uint32_t* pLocator = Locator(apObject);
+    return pLocator && FormOf(pLocator);
 }
 } // namespace Rtti

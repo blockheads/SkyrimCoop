@@ -4,7 +4,6 @@ import contextlib
 import json
 import math
 import os
-import pwd
 import shutil
 import signal
 import socket
@@ -13,6 +12,7 @@ import sys
 import time
 import uuid
 from .common import (
+    ADDRESS_LIBRARY,
     BUNDLED_START,
     CLIENT_ADDRESS,
     CLIENT_NETNS,
@@ -39,12 +39,15 @@ from .common import (
     TEST_HOME,
     UI_SOURCE,
     VANILLA_HARNESS,
+    WINDOWS,
 )
 from .utilities import (
     atomic_write,
     log,
     set_ini,
 )
+if not WINDOWS:
+    import pwd
 
 
 class Runtime:
@@ -150,6 +153,7 @@ class Runtime:
                    SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
         if _game.name:
             env["SKYRIMCOOP_INSTANCE"] = _game.name
+        env["TRACY_PORT"] = str(_game.tracy_port)
         if ctx.instance_user(_game=_game):  # in its namespace: reachable on its link
             env["SKYRIMCOOP_COMMAND_ADDRESS"] = CLIENT_ADDRESS
             if _game.name and not ctx.instance_user(_game=ctx.host):  # the host across the link, else loopback
@@ -223,6 +227,7 @@ class Runtime:
                 pass
         raise ctx.failure(f"[{instance or 'host'}] no running SkyrimSE.exe")
 
+    @contextlib.contextmanager
     def game_stalled(ctx, instance):
         """The game's process stops (as a hitch or a slow load would hold it) and runs again afterwards: what
         reaches it meanwhile waits on its socket."""
@@ -283,7 +288,7 @@ class Runtime:
                     link.symlink_to(source)
         for name in ("versionlib-1-6-1170-0.bin",):
             if not (plugins / name).exists():
-                (plugins / name).symlink_to(STEAM_GAME / "Data/SKSE/Plugins" / name)
+                (plugins / name).symlink_to(ADDRESS_LIBRARY / name)
         me = pwd.getpwuid(os.getuid()).pw_name
         for user in ctx.instance_users():
             ctx.sudo("setfacl", "-R", "-m", f"u:{user}:rwX,d:u:{user}:rwX,u:{me}:rwX,d:u:{me}:rwX", str(GAME / "Data/SKSE"))
@@ -566,12 +571,7 @@ class Runtime:
         if command:
             atomic_write(_game.control / "boot.txt", command + "\n")  # run by the plugin at the main menu
         log(f"Launching Skyrim ({'to the main menu' if main_menu else f'start command: {command!r}'})")
-        output = open(run_dir / f"proton{'-' + _game.name if _game.name else ''}.log", "w")
-        ctx.ensure_user_steam(_game=_game)
-        launcher = subprocess.Popen(
-            ctx.as_instance_user([str(ctx.instance_runtime(_game=_game) / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
-                              str(_game.install / "skse64_loader.exe")], ctx.game_env(_game=_game), _game=_game),
-            env=ctx.game_env(_game=_game), cwd=_game.install, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+        launcher = ctx.start_game(run_dir, _game=_game)
         if vanilla and not VANILLA_HARNESS.exists():
             log(f"Vanilla run (no plugin): at the main menu, open the console (~) and type `{command}`")
             return launcher
@@ -587,6 +587,22 @@ class Runtime:
         # The Survival Mode prompt opens on the first exterior and pauses the game until answered.
         ctx.run_console("set Survival_PlayerHasBeenPrompted to 1", _game=_game)
         return launcher
+
+    def start_game(ctx, run_dir, *, _game=None):
+        """Starts SKSE's loader in the game's prefix; returns the launcher process (it lives as long as the game)."""
+        _game = ctx.game(_game)
+        output = open(run_dir / f"proton{'-' + _game.name if _game.name else ''}.log", "w")
+        ctx.ensure_user_steam(_game=_game)
+        return subprocess.Popen(
+            ctx.as_instance_user([str(ctx.instance_runtime(_game=_game) / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
+                              str(_game.install / "skse64_loader.exe")], ctx.game_env(_game=_game), _game=_game),
+            env=ctx.game_env(_game=_game), cwd=_game.install, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+
+    def process_memory(ctx, pid):
+        """A process's resident, swapped and virtual bytes."""
+        fields = dict(line.split(":", 1) for line in Path(f"/proc/{pid}/status").read_text().splitlines() if ":" in line)
+        return {key: int(fields.get(field, "0 kB").split()[0]) * 1024
+                for key, field in (("rss_bytes", "VmRSS"), ("swap_bytes", "VmSwap"), ("virtual_bytes", "VmSize"))}
 
     def collect_logs(ctx, run_dir, *, _game=None):
         _game = ctx.game(_game)

@@ -8,6 +8,7 @@
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
+#include <Diagnostics/Profile.h>
 
 PerkService::PerkService(entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aBridge) noexcept
     : m_transport(aTransport), m_bridge(aBridge)
@@ -27,6 +28,7 @@ void PerkService::OnDisconnected(const DisconnectedEvent&) noexcept
 
 void PerkService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("PerkService::OnUpdate");
     if (!m_transport.IsOnline())
         return;
     // RemovePerk queues its mutation (40682); observe the completed list, without assuming when its task runs.

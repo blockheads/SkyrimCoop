@@ -19,6 +19,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
 - **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
+- **Profiling**: `scripts/coop_test.py profile [--load wolves=N] [--stacks]` reports fps, CPU, memory, messages, hook call rates, our zones and call stacks per game (`docs/design/testing.md`, Profiling). Tracy builds in with the xmake option `profiler` (`COOP_PROFILER`, on in `scripts/xmake-msvc.sh f`, off in player packages); code uses it only through `Diagnostics/Profile.h`
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
 - **License**: GPLv3 — all modifications must remain open source
@@ -61,7 +62,8 @@ XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-13-dev`, from the `ubuntu-
 (`-j16` has crashed clang-cl and the linker with the duo running).
 
 ```bash
-# The SKSE plugin: clang-cl targeting Windows (first time: scripts/xmake-msvc.sh f -m dev)
+# The SKSE plugin: clang-cl targeting Windows (first time: scripts/xmake-msvc.sh f -m dev). Also runs natively on
+# Windows from Git Bash: LLVM unpacked in build/toolchains/LLVM, Visual Studio's SDK (docs/design/testing.md, On Windows)
 scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
 scripts/xmake-msvc.sh build -j8 SkyrimCoopLoader          # hot reload's resident loader
 

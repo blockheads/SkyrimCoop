@@ -35,6 +35,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Utils.h>
+#include <Diagnostics/Profile.h>
 
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
@@ -278,6 +279,7 @@ uint32_t HostService::NewCharacterId() noexcept
 
 void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("HostService::OnUpdate");
     if (!IsHosting())
         return;
     m_pNetwork->Update();

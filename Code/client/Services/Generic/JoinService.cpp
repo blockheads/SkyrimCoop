@@ -17,6 +17,7 @@
 #include <Services/SteamService.h>
 #include <Services/TransportService.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBridge& aBridge) noexcept
     : m_world(aWorld)
@@ -128,6 +129,7 @@ void JoinService::Fail(JoinStatus aStatus) noexcept
 
 void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("JoinService::OnUpdate");
     const auto cCreation = m_bridge.PollCharacterCreation();
     using Creation = IJoinBridge::Creation;
     m_creatingCharacter = cCreation == Creation::kStarting || cCreation == Creation::kCustomizing || cCreation == Creation::kFinalizing;

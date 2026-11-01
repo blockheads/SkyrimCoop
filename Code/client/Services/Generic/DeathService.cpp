@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <Diagnostics/Profile.h>
 
 DeathService::DeathService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IPlayerBridge& aPlayerBridge,
                            IActorBridge& aActorBridge) noexcept
@@ -63,6 +64,7 @@ void DeathService::StandUp() noexcept
 
 void DeathService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("DeathService::OnUpdate");
     if (!m_transport.IsOnline())
         return;
     // Once its character has a session id: the host learns its death state (and combat state, for the recovery timer),

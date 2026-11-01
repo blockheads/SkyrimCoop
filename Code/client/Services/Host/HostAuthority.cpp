@@ -29,6 +29,7 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Diagnostics/ReportPaths.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -203,6 +204,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
 void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
 {
+    PROFILE_ZONE("HostAuthority::Update");
     // Only the save transfer runs until the host's game loads it.
     if (m_reloading || m_death.Wiped())
     {
