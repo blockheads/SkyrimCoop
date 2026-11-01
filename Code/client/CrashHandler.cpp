@@ -269,6 +269,11 @@ void CrashHandler::SetSpinLockWait(DWORD64 aFunction, TSpinLockOfFrame apLockOfF
     s_spinLockWait = aFunction;
 }
 
+int CrashHandler::Backtrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames) noexcept
+{
+    return CaptureBacktrace(acContext, apFrames, aMaxFrames);
+}
+
 // The spin lock a stuck thread waits for, read after the threads run again (a copy: it may be freed memory).
 static void LogSpinLock(DWORD64 aLock)
 {

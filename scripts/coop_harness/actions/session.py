@@ -9,7 +9,8 @@ import socket
 import subprocess
 import time
 import uuid
-from ..common import PEER
+from ..common import PEER, WINDOWS
+from ..game import LOCAL_APP_DATA, known_folder
 from ..utilities import atomic_write
 
 
@@ -99,6 +100,8 @@ class SessionActions:
     def load_order_file(ctx, *, _game=None):
         """The selected game's Plugins.txt (in its own prefix: each test game has its own load order)."""
         _game = ctx.game(_game)
+        if WINDOWS:  # the user's own, shared by both games
+            return known_folder(LOCAL_APP_DATA) / "Skyrim Special Edition/Plugins.txt"
         return _game.prefix / "pfx/drive_c/users/steamuser/AppData/Local/Skyrim Special Edition/Plugins.txt"
 
 

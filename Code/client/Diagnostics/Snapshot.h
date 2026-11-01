@@ -27,6 +27,9 @@ nlohmann::json LineStatus();
 nlohmann::json SteamStatus();
 // Frames, stalls, the longest frame and update.
 nlohmann::json FrameStatus();
+// The last aWindowMs (up to a minute): frame-time percentiles, our update's, messages by name, the process's memory
+// and CPU time. aHooks: every hook's call count so far too (coop_test.py profile turns two into rates).
+nlohmann::json PerfStatus(bool aHooks = false, int64_t aWindowMs = 60000);
 // The lock-order checker's edges and reports.
 nlohmann::json LockOrderStatus();
 // Form ids of the items an actor wears or holds.

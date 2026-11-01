@@ -9,6 +9,7 @@
 #include <SessionIds.h>
 #include <World.h>
 #include <utility>
+#include <Diagnostics/Profile.h>
 
 FollowerService::FollowerService(World& aWorld, entt::dispatcher& aDispatcher, IPlayerBridge& aPlayer) noexcept
     : m_world(aWorld), m_player(aPlayer)
@@ -55,6 +56,7 @@ void FollowerService::OnMenu(const MenuEvent& acEvent) noexcept
 }
 void FollowerService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("FollowerService::OnUpdate");
     if (m_pendingNpc && !m_world.ctx().at<DialogueService>().Bridge().IsMenuOpen())
         OpenPending();
     if (m_trading && !m_opened && std::chrono::steady_clock::now() >= m_until)

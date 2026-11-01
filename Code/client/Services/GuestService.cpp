@@ -22,6 +22,7 @@
 #include <Services/TransportService.h>
 #include <Utils.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 // The parts, after the engine they apply through.
 struct GuestService::Guest
@@ -106,6 +107,7 @@ void GuestService::SendNativeResult(uint32_t aReplyId, const LocalValue& acResul
 
 void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("GuestService::OnUpdate");
     if (!m_pGuest)
         return;
     m_pGuest->Clock.OnUpdate(acEvent);

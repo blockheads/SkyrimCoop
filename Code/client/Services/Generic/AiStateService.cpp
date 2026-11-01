@@ -14,6 +14,7 @@
 #include <SessionIds.h>
 #include <World.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -37,6 +38,7 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
 
 void AiStateService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("AiStateService::OnUpdate");
     if (!m_transport.IsConnected()) return;
     // Scene stop (24140) sends its event before clearing the actors.
     const auto changes = SceneRefresh::ReadChanges(m_sent, [this](uint32_t aSessionId) -> std::optional<ActorAiState> {

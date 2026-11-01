@@ -54,6 +54,8 @@
 #include <Services/DebugService.h>
 
 #include <Events/UpdateEvent.h>
+#include <Diagnostics/Perf.h>
+#include <Diagnostics/Profile.h>
 
 #include <ModCompat/BehaviorVar.h>  
 #include <Hooks/MemoryVP.h>
@@ -202,13 +204,20 @@ void World::Update() noexcept
     // The engine's UI is made after the plugin loads: its menu events from the first frame it is there.
     MenuEvents::Start();
 
-    m_copyClock.Advance(GetTick());
-    // Force run this before so we get the tasks scheduled to run
-    m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
-    m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));
+    {
+        PROFILE_ZONE("World::Update");
+        m_copyClock.Advance(GetTick());
+        // Force run this before so we get the tasks scheduled to run
+        m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
+        m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));
+    }
+    Profile::PlotFrame();
+    PROFILE_FRAME();
 
     m_lastUpdateMs = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - cNow).count();
     m_frameStats.LongestUpdateMs = std::max(m_frameStats.LongestUpdateMs, m_lastUpdateMs);
+    const auto cUnixMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    Diagnostics::Frames().Add(cUnixMs, static_cast<float>(cFrameMs), static_cast<float>(m_lastUpdateMs));
     if (m_lastUpdateMs > kStallMs)
         spdlog::warn("Our update took {:.0f}ms", m_lastUpdateMs);
 }

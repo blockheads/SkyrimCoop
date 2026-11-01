@@ -6,6 +6,7 @@
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WaitMessages.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -39,6 +40,7 @@ void GuestClock::OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept
 
 void GuestClock::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("GuestClock::OnUpdate");
     if (!m_hasHostTime)
         return;
 

@@ -15,6 +15,7 @@ struct Entry
     const char* What;
     const void* Object; // a hook's first argument (0 for bridge calls)
     char Subject[48];   // what Object was when first recorded: "Actor FF00081E", "NiNode", ""
+    bool Described;     // Subject was read when recorded (else at the dump: cDescribeEveryMs)
     uint32_t FormId;
     uint32_t Detail;
     uint32_t ThreadId;
@@ -28,12 +29,16 @@ struct Entry
 constexpr size_t cPerChannel = 24;
 constexpr size_t cChannels = 512; // hooks and bridge calls together are well under this
 constexpr uint64_t cDumpedMs = 10000; // what ran in the last 10s
+// A hook describes a new object at most this often: describing costs a VirtualQuery, and hooks run tens of thousands
+// of times a second on the job threads (docs/re/systems/breadcrumbs-cost.md).
+constexpr uint64_t cDescribeEveryMs = 50;
 
 struct Channel
 {
     const char* What; // a string literal: the same pointer every call
     uint64_t Total;
     uint64_t LastMs;
+    uint64_t DescribedMs;
     uint32_t Next;
     std::array<Entry, cPerChannel> Recent;
 };
@@ -63,7 +68,8 @@ std::atomic_flag s_lock = ATOMIC_FLAG_INIT;
 // game's: a hook's first argument may be a number, or an object still being constructed.
 void Describe(const void* apObject, char* apOut, size_t aSize) noexcept
 {
-    if (!Rtti::ClassName(apObject, apOut, aSize - 12) || !Rtti::IsForm(apObject))
+    bool isForm = false;
+    if (!Rtti::ClassName(apObject, apOut, aSize - 12, isForm) || !isForm)
         return;
     const size_t cLength = strlen(apOut);
     snprintf(apOut + cLength, aSize - cLength, " %08X", *reinterpret_cast<const uint32_t*>(static_cast<const uint8_t*>(apObject) + 0x14));
@@ -96,9 +102,12 @@ void Add(const char* acpWhat, const void* apObject, uint32_t aFormId, uint32_t a
         }
     }
     // New: what the object is now (it may be freed by the time of a crash). Read outside the lock.
+    const bool cDescribe = apObject && cNow - pChannel->DescribedMs >= cDescribeEveryMs;
+    if (cDescribe)
+        pChannel->DescribedMs = cNow;
     s_lock.clear(std::memory_order_release);
-    Entry entry{acpWhat, apObject, "", aFormId, aDetail, cThread, 1, cNow, cNow};
-    if (apObject)
+    Entry entry{acpWhat, apObject, "", cDescribe, aFormId, aDetail, cThread, 1, cNow, cNow};
+    if (cDescribe)
         Describe(apObject, entry.Subject, sizeof(entry.Subject));
     while (s_lock.test_and_set(std::memory_order_acquire))
         YieldProcessor();
@@ -117,6 +126,21 @@ void Record(const char* acpWhat, uint32_t aFormId, uint32_t aDetail) noexcept
 void RecordHook(const char* acpHookName, const void* apFirstArgument) noexcept
 {
     Add(acpHookName, apFirstArgument, 0, 0);
+}
+
+size_t Totals(const char** apWhat, uint64_t* apTotal, size_t aCapacity) noexcept
+{
+    size_t count = 0;
+    while (s_lock.test_and_set(std::memory_order_acquire))
+        YieldProcessor();
+    for (const Channel& channel : s_channels)
+        if (channel.What && count < aCapacity)
+        {
+            apWhat[count] = channel.What;
+            apTotal[count++] = channel.Total;
+        }
+    s_lock.clear(std::memory_order_release);
+    return count;
 }
 
 bool ObservesHook(const char* acpHookName) noexcept
@@ -159,8 +183,16 @@ void Dump() noexcept
     {
         const Entry& entry = *s_sorted[i];
         char subject[96];
+        char described[48];
+        if (entry.Object && !entry.Described) // what it is at the crash, not when the hook ran
+        {
+            Describe(entry.Object, described, sizeof(described) - 6);
+            if (described[0])
+                strcat(described, " (now)");
+        }
+        const char* pSubject = entry.Object && !entry.Described ? described : entry.Subject;
         if (entry.Object)
-            snprintf(subject, sizeof(subject), "%s%s%p", entry.Subject, entry.Subject[0] ? " at " : "", entry.Object);
+            snprintf(subject, sizeof(subject), "%s%s%p", pSubject, pSubject[0] ? " at " : "", entry.Object);
         else
             snprintf(subject, sizeof(subject), "%08X %X", entry.FormId, entry.Detail);
         if (entry.Count > 1)

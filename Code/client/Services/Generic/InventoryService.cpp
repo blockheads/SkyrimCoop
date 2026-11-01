@@ -29,6 +29,7 @@
 #include <Components/FormIdComponent.h>
 #include <Components/WaitingFor3D.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -56,6 +57,7 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
+    PROFILE_ZONE("InventoryService::OnUpdate");
     RunWeaponStateUpdates();
     RunWeaponDrawConvergence(acUpdateEvent.Delta);
     RunEquipmentSnapshots();
