@@ -9,6 +9,7 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
+#include <Services/ContainerOpens.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -1540,6 +1541,13 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
+    // The player activating a corpse opens its loot (TESNPC::Activate -> ContainerMenu::OpenMenu, our hook first).
+    if (aActor == kPlayer && Actors.contains(aObject) && IsActorDead(aObject) && !LootMenuOf &&
+        !ContainerOpens::Refused(Actors.at(aObject).Copy && Actors.at(aObject).Player))
+    {
+        LootMenuOf = aObject;
+        World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
+    }
     ToggleDoor(aObject);
 }
 

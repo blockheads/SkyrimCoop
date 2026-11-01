@@ -241,6 +241,7 @@ def register_flows(registry):
     registry.add('guest-leaves-to-main-menu', ['restart', 'session'], lambda ctx: v1.guest_leaves(ctx), doc=None)
     registry.add('guest-container-take-keeps-extra-data', ['inventory', 'objects'], lambda ctx: v1.guest_takes_extra_stack(ctx), doc='A native chest-menu take retains the exact tempered, enchanted, named stack.')
     registry.add('guest-loots-corpse-once', ['inventory', 'objects'], lambda ctx: v1.guest_loots_corpse(ctx), doc="Looting an NPC's corpse removes its stock and grants it to the guest and its copy once.")
+    registry.add('host-cannot-loot-guest', ['death', 'inventory', 'restart'], lambda ctx: v1.host_cannot_loot_guest(ctx), doc="Players can't loot each other: the host activates the dead guest's body and no loot menu opens.")
     registry.add('guest-ingredient-knowledge-rejoin', ['inventory', 'restart', 'save'], lambda ctx: v1.ingredient_rejoin(ctx), doc="A guest's ingredient knowledge survives a host save and a new guest process.")
     registry.add('host-ingredient-knowledge-control', ['inventory', 'restart', 'save'], lambda ctx: v1.ingredient_host_control(ctx), doc="The same native ingredient knowledge survives the host's own save/load.")
     registry.add('guest-enchantment-knowledge-rejoin', ['inventory', 'restart', 'save'], lambda ctx: v1.enchantment_rejoin(ctx), doc="A guest learns by disenchanting, then starts again from the host's saved world.")

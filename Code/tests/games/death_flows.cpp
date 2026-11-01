@@ -434,3 +434,35 @@ SCENARIO("Spectating is third person only: a view dropped into the watched playe
         THEN("its own first person view is its to keep") CHECK(guest.FirstPerson);
     }
 }
+
+SCENARIO("Players can't loot each other: a dead player's body opens no loot menu, an NPC's does", "[death][items]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    uint32_t guard{};
+    party.As(party.Host(), [&] {
+        guard = host.LoadNpc(kGuard, kSmoke, {750.f, 800.f, 0.f});
+        host.Fights(guard, FakeEngine::kPlayer);
+    });
+
+    WHEN("the guest dies and the host activates its body")
+    {
+        party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+        party.Until([&] { return DeadPlayerCopies(host) == 1; }, "the host's copy of the guest dies");
+        party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, PlayerCopy(host)); });
+        CHECK(host.LootMenuOf == 0);
+    }
+
+    WHEN("the host kills the guard and activates its body")
+    {
+        party.As(party.Host(), [&] {
+            host.Fights(guard, 0);
+            host.Hit(guard, 200.f);
+        });
+        REQUIRE(host.IsActorDead(guard));
+        party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, guard); });
+        CHECK(host.LootMenuOf == guard); // the engine's own corpse loot still opens
+    }
+}
