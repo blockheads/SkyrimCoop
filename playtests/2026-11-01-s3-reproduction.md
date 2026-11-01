@@ -131,4 +131,5 @@ Reviewing the SWF source found that the first fixture treated `Entry0` as option
 clips and recenters them: an option's visible clip is identified by `itemIndex`, often `Entry4` for the first
 option. The earlier screenshot's cursor was above the choices. Its selected text and actual fine callback
 remain valid evidence, but it does **not** establish the claimed mouse hover path. `dialogue_mouse.py` now
-finds the visible clip for each option before moving the pointer; native validation of that correction is pending.
+finds the visible clip for each option before moving the pointer. Its Lucan shared-highlight and quick-click
+controls now pass; the original Rift mouse variants remain pending.

@@ -67,6 +67,8 @@ def lucan(ctx, folder):
     finally:
         def cleanup():
             ctx.close_dialogues()
+            ctx.wait_for('both players return to gameplay after the mouse test',
+                         lambda: all(ctx.takes_input(name) for name in ('', 'client')), 10)
             ctx.console_on('', f'{LUCAN:X}.setrestrained 0')
             ctx.release_host_npc(LUCAN)
             ctx.console_on('', 'stopquest MS13')
@@ -122,7 +124,7 @@ def mouse_highlights(ctx, fast_pick=False):
         options = ctx.dialogue('client')['options']
         marks = {name: ctx.log_trail(name, 1 << 62)[1] for name in ('', 'client')}
         history = []
-        for index in [1, 0, min(2, len(options) - 1), 0, 1]:
+        for index in [1, 0, min(2, len(options) - 1), 1, 0]:
             history.append(mouse.hover(ctx, 'client', index, scale, settle=not fast_pick))
             if not fast_pick:
                 ctx.wait_for(f'the host follows mouse option {index}', lambda: ctx.cursor_index('') == index, 5)
@@ -134,7 +136,7 @@ def mouse_highlights(ctx, fast_pick=False):
             before = ctx.dialogue('client')
             ctx.click('client')
             capture(ctx, folder, 'after-click', before=before, history=history)
-            wanted = options[1]
+            wanted = options[0]
             ctx.wait_for('the mouse click reaches the host with the requested topic',
                          lambda: any(f'picked topic {wanted["topic"]:X} (info ' in row['text']
                                      for row in ctx.log_trail('', marks[''])[0]), 10)
@@ -183,8 +185,13 @@ def refused_pick(ctx):
         pick(instance, topic, info)
         if instance == '' and topic == ONMUND_NOT_A_NORD:
             capture(ctx, folder, 'after-refused-pick')
-            ctx.wait_for('a refused choice restores the choosing player\'s list without the guest answering',
-                         lambda: ctx.menu_takes_pick(''), 5)
+            try:
+                ctx.wait_for('a refused choice restores the choosing player\'s list without the guest answering',
+                             lambda: ctx.menu_takes_pick(''), 5)
+            except BaseException:
+                with contextlib.suppress(Exception):
+                    capture(ctx, folder, 'still-blocked')
+                raise
             capture(ctx, folder, 'restored')
     ctx.pick_with_keys = record
     try:

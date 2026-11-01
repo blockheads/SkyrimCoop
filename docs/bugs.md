@@ -92,6 +92,13 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
 
 ## Dialogue
 
+- **A refused dialogue choice leaves the chooser's list hidden** (2026-11-01, reproduced on Linux). A Nord host
+  selects Onmund's Breton guest-only answer: its refusal notice appears, but its menu stays in `TOPIC_CLICKED`
+  with input disabled; the guest's list remains usable. Tab still exits, so this does not establish S9 or S3.
+  - Native: `dialogue-refused-pick-restores-list`; [evidence](../playtests/2026-11-01-dialogue-reproduction.md).
+  - GameTests party-options flow now fails the host/guest list-restoration postconditions. No production fix yet.
+
+
 - **A guest crashed once in a conversation whose NPC was deleted** (2026-10-29, party dialogue). In
   `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
   copy, already flagged deleted (client prefix `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced since; the play

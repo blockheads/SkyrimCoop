@@ -172,6 +172,11 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
             CHECK(hostNotices.Lines[0].starts_with("I'm sorry "));
             CHECK(hostNotices.Lines[0].ends_with(", you don't know how to say that."));
             CHECK(guestNotices.Lines.empty());
+            // Skyrim: a local refusal left this menu in TOPIC_CLICKED (2026-11-01, Onmund).
+            CHECK(hostTalk.MenuOpen);
+            CHECK(hostTalk.ListShown);
+            CHECK(hostTalk.PickedText.empty());
+            CHECK(guestTalk.ListShown);
         }
     }
     WHEN("the guest presses its gift")
@@ -195,6 +200,10 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
         {
             CHECK(hostTalk.Said.empty());
             CHECK(guestNotices.Lines.size() == 1);
+            CHECK(guestTalk.MenuOpen);
+            CHECK(guestTalk.ListShown);
+            CHECK(guestTalk.PickedText.empty());
+            CHECK(hostTalk.ListShown);
         }
     }
     WHEN("the host presses the guest's line of the claw topic")
