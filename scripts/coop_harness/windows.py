@@ -118,6 +118,10 @@ class WindowsRuntime(Runtime):
             return process.pid
         raise ctx.failure(f"[{instance or 'host'}] no running {GAME_EXE}")
 
+    def game_exited(ctx, instance, pid):
+        process = ctx.recorded_process(ctx.game(instance))
+        return process is None or process.pid != pid
+
     @contextlib.contextmanager
     def game_stalled(ctx, instance):
         process = psutil().Process(ctx.game_process(instance))

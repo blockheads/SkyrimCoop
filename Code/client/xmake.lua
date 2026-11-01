@@ -6,6 +6,8 @@ local function add_test_harness_define()
     add_defines(has_config("profiler") and "COOP_PROFILER=1" or "COOP_PROFILER=0")
     if has_config("profiler") then
         add_packages("tracy")
+        -- The CMake package exports feature flags but omits the profiling enable define.
+        add_defines("TRACY_ENABLE")
     end
 end
 

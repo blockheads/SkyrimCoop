@@ -312,6 +312,7 @@ class Harness(unittest.TestCase):
             session.wait_for = Mock(side_effect=lambda _, predicate, *args, **kw: predicate())
             session.prefix_processes = Mock(return_value=[])
             session.game_process = Mock(return_value=999999999)
+            session.game_exited = Mock(return_value=True)
             session.stop_game = Mock(return_value=True)
             session.collect_logs = Mock()
             crashed = False
@@ -326,6 +327,86 @@ class Harness(unittest.TestCase):
                     quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
             session.stop_game.assert_called_once_with(_game=session.host)
             self.assertTrue((directory / "evidence" / crash.name).exists())
+
+    def quit_fixture(self, directory):
+        session = self.session
+        session.check_prerequisites = Mock()
+        session.new_run_dir = Mock(return_value=directory)
+        session.launch = Mock()
+        session.prefix_processes = Mock(return_value=[])
+        session.game_process = Mock(return_value=999999999)
+        session.game_exited = Mock(return_value=True)
+        session.crash_logs = Mock(return_value=[])
+        session.stop_game = Mock(return_value=True)
+        session.collect_logs = Mock()
+
+        def wait(description, predicate, *args, **kwargs):
+            if not (value := predicate()):
+                raise session.failure(f"Timed out: {description}")
+            return value
+        session.wait_for = Mock(side_effect=wait)
+        return session
+
+    def test_quit_recipe_preserves_games_already_running(self):
+        from coop_harness.scenarios import quit
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.quit_fixture(Path(tmp))
+            session.prefix_processes = Mock(side_effect=lambda *, _game: [123] if _game is session.guest else [])
+            session.launch.side_effect = session.failure("The test Skyrim is already running")
+            with patch.object(quit, "quit_to_desktop"), self.assertRaisesRegex(TestFailure, "already running"):
+                quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
+            session.launch.assert_not_called()
+            session.stop_game.assert_not_called()
+            session.check_prerequisites.assert_not_called()
+
+    def test_quit_recipe_does_not_pass_when_the_platform_reports_skyrim_alive(self):
+        from coop_harness.scenarios import quit
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.quit_fixture(Path(tmp))
+            session.game_exited.return_value = False
+            with patch.object(quit, "quit_to_desktop"), self.assertRaisesRegex(TestFailure, "Timed out"):
+                quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
+            session.game_exited.assert_called_once_with(session.host.name, 999999999)
+
+    def test_quit_recipe_checks_unclassified_windows_crash_logs_before_cleanup(self):
+        from coop_harness.scenarios import quit
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            session = self.quit_fixture(directory / "evidence")
+            (directory / "evidence").mkdir()
+            session.host.my_games = directory / "Documents"
+            crashes = session.host.my_games / "SKSE"
+            crashes.mkdir(parents=True)
+            crash = crashes / "crash-new.log"
+            with patch.object(quit, "quit_to_desktop", side_effect=lambda *args, **kwargs: crash.write_text("VM teardown crash")), \
+                    self.assertRaisesRegex(TestFailure, "Quit crashed"):
+                quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
+            self.assertTrue((directory / "evidence" / crash.name).exists())
+
+    def test_windows_quit_tracks_the_recorded_process_identity(self):
+        with patch.dict(sys.modules, {"_winapi": Mock()}):
+            from coop_harness.windows import WindowsRuntime
+        context = Mock()
+        context.recorded_process.return_value = Mock(pid=123)
+        self.assertFalse(WindowsRuntime.game_exited(context, "", 123))
+        context.recorded_process.return_value = None
+        self.assertTrue(WindowsRuntime.game_exited(context, "", 123))
+        context.recorded_process.return_value = Mock(pid=456)
+        self.assertTrue(WindowsRuntime.game_exited(context, "", 123))
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux process adapter")
+    def test_linux_quit_distinguishes_a_live_process_from_an_exited_one(self):
+        import os
+        self.assertFalse(self.session.game_exited("", os.getpid()))
+        self.assertTrue(self.session.game_exited("", 999999999))
+
+    def test_quit_recipe_fails_if_its_game_cannot_be_stopped(self):
+        from coop_harness.scenarios import quit
+        with tempfile.TemporaryDirectory() as tmp:
+            session = self.quit_fixture(Path(tmp))
+            session.stop_game.return_value = False
+            with patch.object(quit, "quit_to_desktop"), self.assertRaisesRegex(TestFailure, "could not stop"):
+                quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
 
     def test_discovery_commands_need_no_running_games(self):
         scripts = Path(__file__).resolve().parent

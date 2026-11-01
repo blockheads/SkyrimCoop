@@ -227,6 +227,10 @@ class Runtime:
                 pass
         raise ctx.failure(f"[{instance or 'host'}] no running SkyrimSE.exe")
 
+    def game_exited(ctx, instance, pid):
+        """The captured Skyrim process is gone; Wine helpers may still be alive."""
+        return not (Path("/proc") / str(pid)).exists()
+
     @contextlib.contextmanager
     def game_stalled(ctx, instance):
         """The game's process stops (as a hitch or a slow load would hold it) and runs again afterwards: what

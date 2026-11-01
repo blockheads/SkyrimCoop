@@ -88,3 +88,30 @@ The final native pair had no intervention. The main-menu SWF sets `MAIN_CONFIRM_
 `MainConfirmStartAnim` label begins at frame 16 (`Skyrim - Interface.bsa`, `interface/startmenu.swf`).
 
 
+
+## Review and integration (2026-11-01)
+
+The user authorized review and merge into `dev`. Current `dev` (`9b47b97c`, including C1 and Windows profiling)
+was integrated into the isolated C3 worktree before validation. The allocator fix, native member cleanup,
+MSVC layout checks and source moves were reviewed; no remaining production defect was found in the C3 change.
+
+Review findings corrected in the solo recipes:
+
+- A `/proc` existence check could report success immediately on Windows while Skyrim still ran. Exit checks now
+  use each platform's process adapter; Windows checks the recorded process identity, including PID reuse.
+- A refused launch still entered cleanup, potentially stopping a game the recipe had not started. Both games must
+  be stopped before prerequisites/deployment, and a live game is refused without cleanup.
+- Windows defers assigning shared crash logs to an instance for two seconds. A solo recipe also checks new raw
+  CrashLogger files after exit, before cleanup removes the process record, so an unclassified crash cannot pass.
+- Cleanup ignored a failed stop. Success is now reported only after cleanup succeeds; a prior failure stays first.
+- Windows harness windows are 960x540, Linux 1280x720. Quit-menu cursor positions use the configured dimensions.
+
+Four new regression cases failed before these fixes. The harness suite now has 30 cases, including direct Linux
+and Windows process-adapter checks. Logs: `build/c3-review-harness-red.log`, `build/c3-review-harness-green.log`.
+
+The merged default profiler build also exposed an inherited xmake Tracy CMake-package issue: its manifest
+exports the feature flags but omits `TRACY_ENABLE`, disabling the API declarations required by `Profile.cpp`.
+`Code/client/xmake.lua` now supplies that define when profiling is enabled. The existing package library contains
+the matching startup/shutdown symbols; no profiler implementation or package-cache changes were made.
+
+Final combined gate and native acceptance results follow below.

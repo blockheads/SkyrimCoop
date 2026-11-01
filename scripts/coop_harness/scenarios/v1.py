@@ -21,6 +21,8 @@ from ..common import (
     TAB_KEY,
     UP_KEY,
     WOLF,
+    WINDOWS,
+    WINDOW_SIZE,
 )
 from ..errors import TestFailure
 from ..utilities import log
@@ -29,15 +31,20 @@ import argparse
 import time
 
 
+def move_quit_cursor(ctx, instance, point):
+    width, height = WINDOW_SIZE if WINDOWS else (1280, 720)
+    ctx.move_cursor(instance, (round(point[0] * width / 1280), round(point[1] * height / 720)))
+
+
 def open_quit_panel(ctx, instance):
     value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
     ctx.tap_key(instance, 0x01)
     ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
-    ctx.move_cursor(instance, (910, 100))
+    move_quit_cursor(ctx, instance, (910, 100))
     ctx.click(instance)
     ctx.wait_for("the system tab opens",
                 lambda: ctx.menu_var(instance, "Journal Menu", JOURNAL_ROOT + ".iCurrentTab") == 2, 5)
-    ctx.move_cursor(instance, (700, 300))
+    move_quit_cursor(ctx, instance, (700, 300))
     for _ in range(12):
         selected = value("CategoryList.selectedIndex")
         if value(f"CategoryList.entryList.{int(selected)}.text") == "$QUIT":
@@ -52,13 +59,13 @@ def open_quit_panel(ctx, instance):
 def quit_to_menu(ctx, instance):
     open_quit_panel(ctx, instance)
     value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
-    ctx.move_cursor(instance, (700, 150))
+    move_quit_cursor(ctx, instance, (700, 150))
     if value("PCQuitList.selectedIndex") != 0:
         ctx.tap_key(instance, UP_KEY)
         ctx.wait_for("Main Menu is selected", lambda: value("PCQuitList.selectedIndex") == 0, 5)
     ctx.tap_key(instance, ACTIVATE_KEY)
     ctx.wait_for("the quit confirmation opens", lambda: value("iCurrentState") == 9, 5)
-    ctx.move_cursor(instance, (700, 560))
+    move_quit_cursor(ctx, instance, (700, 560))
     ctx.click(instance)
     ctx.wait_for("the game returns to the main menu", lambda: ctx.game_state(instance).get("main_menu"), 30)
 
