@@ -28,7 +28,7 @@ import argparse
 import time
 
 
-def quit_to_menu(ctx, instance):
+def open_quit_panel(ctx, instance):
     value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
     ctx.tap_key(instance, 0x01)
     ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
@@ -47,6 +47,10 @@ def quit_to_menu(ctx, instance):
         raise ctx.failure("Quit is absent from the system menu")
     ctx.tap_key(instance, ACTIVATE_KEY)
     ctx.wait_for("the quit list opens", lambda: value("iCurrentState") == 8, 5)
+
+def quit_to_menu(ctx, instance):
+    open_quit_panel(ctx, instance)
+    value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
     ctx.move_cursor(instance, (700, 150))
     if value("PCQuitList.selectedIndex") != 0:
         ctx.tap_key(instance, UP_KEY)

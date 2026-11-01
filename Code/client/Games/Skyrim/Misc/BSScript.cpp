@@ -222,86 +222,6 @@ BSScript::IObjectHandlePolicy* BSScript::IObjectHandlePolicy::Get() noexcept
     return *s_policy.Get();
 }
 
-BSFixedString& BSScript::NativeFunctionBase::GetName()
-{
-    return name;
-}
-
-BSFixedString& BSScript::NativeFunctionBase::GetObjectTypeName()
-{
-    return objectName;
-}
-
-BSFixedString& BSScript::NativeFunctionBase::GetStateName()
-{
-    return stateName;
-}
-
-BSScript::TypeInfo BSScript::NativeFunctionBase::GetReturnType()
-{
-    return {returnType};
-}
-
-uint32_t BSScript::NativeFunctionBase::GetParamCount()
-{
-    return parameters.capacity;
-}
-
-void BSScript::NativeFunctionBase::GetParam(uint32_t aIndex, BSFixedString& apNameOut, Variable::Type& aTypeOut)
-{
-    if (aIndex < parameters.size)
-    {
-        auto& elem = parameters.data[aIndex];
-        apNameOut = elem.name;
-        aTypeOut = elem.type;
-    }
-    else
-    {
-        apNameOut = "";
-        aTypeOut = Variable::Type::kEmpty;
-    }
-}
-
-uint32_t BSScript::NativeFunctionBase::GetStackFrameSize()
-{
-    return parameters.capacity;
-}
-
-bool BSScript::NativeFunctionBase::GetIsNative()
-{
-    return true;
-}
-
-bool BSScript::NativeFunctionBase::GetIsStatic()
-{
-    return isStatic;
-}
-
-bool BSScript::NativeFunctionBase::GetIsEmpty()
-{
-    return false;
-}
-
-auto BSScript::NativeFunctionBase::GetFunctionType() -> FunctionType
-{
-    return FunctionType::kNormal;
-}
-
-uint32_t BSScript::NativeFunctionBase::GetUserFlags()
-{
-    return flags;
-}
-
-BSFixedString& BSScript::NativeFunctionBase::GetDocString()
-{
-    return documentation;
-}
-
-void BSScript::NativeFunctionBase::InsertLocals(StackFrame*)
-{
-    return;
-}
-
 BSScript::CallResult BSScript::NativeFunctionBase::Call(Stack** appStack, void* apLogger, IVirtualMachine* apVm, bool aArg4)
 {
     using TCall = CallResult(NativeFunctionBase*, Stack**, void*, IVirtualMachine*, bool);
@@ -309,51 +229,32 @@ BSScript::CallResult BSScript::NativeFunctionBase::Call(Stack** appStack, void* 
     return s_call(this, appStack, apLogger, apVm, aArg4);
 }
 
-BSFixedString& BSScript::NativeFunctionBase::GetSourceFilename()
+
+BSScript::NativeFunction::~NativeFunction()
 {
-    static BSFixedString native("<native>");
-    return native;
+    using TNativeFunctionDtor = void(NativeFunction*);
+    // SKSE NativeFunction::Impl_dtor (104655): destroys members without freeing this.
+    POINTER_SKYRIMSE(TNativeFunctionDtor, dtor, 104655);
+    dtor(this);
 }
 
-bool BSScript::NativeFunctionBase::TranslateIPToLineNumber(uint32_t, uint32_t& aLineNumberOut)
+BSScript::NativeFunction::NativeFunction(const char* apFunctionName, const char* apClassName, bool aIsStatic, uint32_t aParameterCount)
 {
-    aLineNumberOut = 0;
-    return false;
+    using TNativeFunctionCtor = void(NativeFunction*, const char*, const char*, bool, uint32_t);
+    POINTER_SKYRIMSE(TNativeFunctionCtor, ctor, 104653);
+    ctor(this, apFunctionName, apClassName, aIsStatic, aParameterCount);
 }
 
-bool BSScript::NativeFunctionBase::GetVarNameForStackIndex(std::uint32_t aIndex, BSFixedString& aNameOut)
+uint32_t BSScript::Stack::GetPageForFrame(StackFrame* apFrame)
 {
-    if (aIndex < parameters.capacity)
-    {
-        aNameOut = parameters.data[aIndex].name;
-        return true;
-    }
-    else
-    {
-        aNameOut = "";
-        return false;
-    }
+    using TGetPageForFrame = uint32_t(Stack*, StackFrame*);
+    POINTER_SKYRIMSE(TGetPageForFrame, getPageForFrame, 104483);
+    return getPageForFrame(this, apFrame);
 }
 
-bool BSScript::NativeFunctionBase::CanBeCalledFromTasklets()
+BSScript::Variable* BSScript::Stack::GetStackFrameVariable(StackFrame* apFrame, uint32_t aIndex, uint32_t aPageHint)
 {
-    return isCallableFromTask;
-}
-
-void BSScript::NativeFunctionBase::SetCallableFromTasklets(bool aCallable)
-{
-    isCallableFromTask = aCallable;
-}
-
-BSScript::DidLaunchSkyrimTogetherFunc::DidLaunchSkyrimTogetherFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType)
-    : NativeFunction(apFunctionName, apClassName, true, 0)
-{
-    pFunction = reinterpret_cast<void*>(aFunction);
-    returnType = aType;
-}
-
-bool BSScript::DidLaunchSkyrimTogetherFunc::MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame)
-{
-    apResult->Set<bool>(true);
-    return true;
+    using TGetStackFrameVariable = Variable*(Stack*, StackFrame*, uint32_t, uint32_t);
+    POINTER_SKYRIMSE(TGetStackFrameVariable, getStackFrameVariable, 104484);
+    return getStackFrameVariable(this, apFrame, aIndex, aPageHint);
 }

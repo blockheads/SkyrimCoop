@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Games/Memory.h>
+#include <Games/BSIntrusiveRefCounted.h>
 #include <iterator>
 #include <cstddef>
 #include <vector>
@@ -364,13 +365,6 @@ template <class T> struct GamePtr
 private:
     T* m_pPointer;
 };
-
-struct alignas(sizeof(void*)) BSIntrusiveRefCounted
-{
-    volatile int32_t refCount;
-};
-
-static_assert(sizeof(BSIntrusiveRefCounted) == sizeof(void*));
 
 template <class Target, class Source> Target* niptr_cast(const Source& acSrc)
 {

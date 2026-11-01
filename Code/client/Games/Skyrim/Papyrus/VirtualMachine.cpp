@@ -16,12 +16,6 @@ using TBindEverythingToScript = void(BSScript::IVirtualMachine**);
 TRegisterPapyrusFunction* RealRegisterPapyrusFunction = nullptr;
 TBindEverythingToScript* RealBindEverythingToScript = nullptr;
 
-// SkyrimTogetherVerifyLaunchScript.DidLaunchSkyrimTogether: the plugin is loaded.
-static bool DidLaunchSkyrimTogether()
-{
-    return true;
-}
-
 void HookRegisterPapyrusFunction(BSScript::IVirtualMachine* apThis, NativeFunction* apFunction)
 {
     // Synchronous: natives register on the main thread during VM setup, and hooks such as
@@ -38,7 +32,7 @@ void HookBindEverythingToScript(BSScript::IVirtualMachine** apThis)
     // The VM owns bound functions and frees them with the game heap (e.g. when the
     // script class is not installed), so they must come from the game heap too.
     // Plain `new` used the DLL's allocator and crashed BSSmallBlockAllocator at startup.
-    (*apThis)->BindNativeMethod(Memory::New<BSScript::DidLaunchSkyrimTogetherFunc>("DidLaunchSkyrimTogether", "SkyrimTogetherVerifyLaunchScript", DidLaunchSkyrimTogether, BSScript::Variable::kBoolean));
+    (*apThis)->BindNativeMethod(BSScript::MakeLaunchFunction());
 
     RealBindEverythingToScript(apThis);
 }

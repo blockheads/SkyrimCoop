@@ -1,12 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <Games/Skyrim/BSCore/BSSpinLock.h>
 #include <Games/Skyrim/BSCore/BSTHashMap.h>
 #include <Misc/BSFixedString.h>
 #include <span>
 #include <tuple>
-#include <VersionDb.h>
-#include <Games/Primitives.h>
+#include <Games/BSIntrusiveRefCounted.h>
+#include <Games/Memory.h>
 
 struct Actor;
 struct TESForm;
@@ -16,6 +18,7 @@ struct BSScript
     struct IVirtualMachine;
     struct Variable;
     struct IFunction;
+    static IFunction* MakeLaunchFunction();
 
     // A script's compiled type (CommonLibSSE-NG ObjectTypeInfo.h).
     struct ObjectTypeInfo
@@ -219,19 +222,8 @@ struct BSScript
 
     struct Stack
     {
-        uint32_t GetPageForFrame(StackFrame* apFrame)
-        {
-            using TGetPageForFrame = uint32_t(Stack*, StackFrame*);
-            POINTER_SKYRIMSE(TGetPageForFrame, getPageForFrame, 104483);
-            return getPageForFrame(this, apFrame);
-        }
-
-        Variable* GetStackFrameVariable(StackFrame* apFrame, uint32_t aIndex, uint32_t aPageHint)
-        {
-            using TGetStackFrameVariable = Variable*(Stack*, StackFrame*, uint32_t, uint32_t);
-            POINTER_SKYRIMSE(TGetStackFrameVariable, getStackFrameVariable, 104484);
-            return getStackFrameVariable(this, apFrame, aIndex, aPageHint);
-        }
+        uint32_t GetPageForFrame(StackFrame* apFrame);
+        Variable* GetStackFrameVariable(StackFrame* apFrame, uint32_t aIndex, uint32_t aPageHint);
 
         // CommonLibSSE-NG Stack.h
         uint8_t unk00[0x60];
@@ -426,20 +418,11 @@ struct BSScript
 
     struct NativeFunction : NativeFunctionBase
     {
-        virtual ~NativeFunction()
-        {
-            using TNativeFunctionDtor = void(NativeFunction*);
-            // TODO: not sure about this address
-            POINTER_SKYRIMSE(TNativeFunctionDtor, dtor, 104655);
-            dtor(this);
-        }
+        ~NativeFunction() override;
+        NativeFunction(const char* apFunctionName, const char* apClassName, bool aIsStatic, uint32_t aParameterCount);
 
-        NativeFunction(const char* apFunctionName, const char* apClassName, bool aIsStatic, uint32_t aParameterCount)
-        {
-            using TNativeFunctionCtor = void(NativeFunction*, const char*, const char*, bool, uint32_t);
-            POINTER_SKYRIMSE(TNativeFunctionCtor, ctor, 104653);
-            ctor(this, apFunctionName, apClassName, aIsStatic, aParameterCount);
-        }
+        // The VM deletes through IFunction; Memory::New allocated this on Skyrim's heap.
+        static void operator delete(void* apMemory) noexcept { Memory::Free(apMemory); }
 
         bool HasCallback() override { return pFunction != nullptr; }
 
@@ -476,5 +459,7 @@ static_assert(offsetof(BSScript::StackFrame, pPrevious) == 0x8 && offsetof(BSScr
               offsetof(BSScript::StackFrame, self) == 0x28);
 static_assert(offsetof(BSScript::CodeTasklet, pStack) == 0x10);
 static_assert(sizeof(BSScript::IStackCallbackFunctor) == 0x10); // the vtable, then refCount at 08
-static_assert(offsetof(BSScript::VirtualMachine, runningStacksLock) == 0x9318 && offsetof(BSScript::VirtualMachine, allRunningStacks) == 0x9320 &&
-              sizeof(creation::BSTHashMap<uint32_t, BSScript::Stack*>) == 0x30);
+static_assert(offsetof(BSScript::VirtualMachine, runningStacksLock) == 0x9318 && offsetof(BSScript::VirtualMachine, allRunningStacks) == 0x9320);
+#ifdef _WIN32
+static_assert(sizeof(creation::BSTHashMap<uint32_t, BSScript::Stack*>) == 0x30);
+#endif

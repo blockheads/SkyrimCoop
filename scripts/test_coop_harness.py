@@ -295,6 +295,35 @@ class Harness(unittest.TestCase):
                 "3": {"travelled": 550, "feet": 400}, "4": {"travelled": 40, "feet": 0}, "5": {"travelled": 300, "feet": 60}}
         self.assertEqual(sliding_actors(gait), {1: (160, 2), 5: (300, 60)})
 
+    def test_quit_recipe_fails_on_a_crash_even_after_the_process_exits(self):
+        from coop_harness.scenarios import quit
+        session = self.session
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            crash = directory / "crash-new.log"
+            crash.write_text("VM teardown crash")
+            session.check_prerequisites = Mock()
+            session.new_run_dir = Mock(return_value=directory / "evidence")
+            (directory / "evidence").mkdir()
+            session.launch = Mock()
+            session.wait_for = Mock(side_effect=lambda _, predicate, *args, **kw: predicate())
+            session.prefix_processes = Mock(return_value=[])
+            session.game_process = Mock(return_value=999999999)
+            session.stop_game = Mock(return_value=True)
+            session.collect_logs = Mock()
+            crashed = False
+            session.crash_logs = Mock(side_effect=lambda _: [crash] if crashed else [])
+
+            def confirm(*args, **kwargs):
+                nonlocal crashed
+                crashed = True
+
+            with patch.object(quit, "quit_to_desktop", side_effect=confirm):
+                with self.assertRaisesRegex(TestFailure, "Quit crashed"):
+                    quit.reproduce(session, argparse.Namespace(runs=1), main_menu=True, game=session.host)
+            session.stop_game.assert_called_once_with(_game=session.host)
+            self.assertTrue((directory / "evidence" / crash.name).exists())
+
     def test_discovery_commands_need_no_running_games(self):
         scripts = Path(__file__).resolve().parent
         for command in ([sys.executable, str(scripts / "coop_test.py"), "scenario", "--dry-run", "--tag", "inventory"],

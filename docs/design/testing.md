@@ -104,6 +104,19 @@ batch even without `--fail-fast`. `--until-fail N` stops at the first failure, r
 skips batch restoration; a flow's own `finally` cleanup still runs. Reports retain at-failure snapshots even if a
 flow cleaned up its actors before returning. `report`, `crash` and the original diagnostic commands remain available.
 
+### Quitting to desktop
+
+The solo process-lifecycle scenarios launch a fresh game, use native menu input to select Quit and confirm it,
+and require Skyrim itself to exit without a new crash report. Wine helpers are stopped during cleanup:
+
+```bash
+python3 scripts/coop_test.py repro quit-main-menu
+python3 scripts/coop_test.py repro quit-in-game
+```
+
+They use the same duo reservation, off-screen display and prefix ownership rules. The corresponding GameTests
+flow is `[quit-desktop]`; `[native-lifetime]` checks deletion of independently registered VM natives.
+
 ### Two Steam accounts
 
 Since 2026-10-31 (the user: keep the player's Steam free) both duo games run as Linux user `coop2` (`COOP_DUO_USER`)

@@ -80,3 +80,28 @@ SCENARIO("A guest quitting keeps the character already received by the host", "[
     CHECK(party.Host().ctx().at<SaveService>().GetRecords().Find(cKey)->Level == 19);
     CHECK_FALSE(game.GetTransport().IsConnected());
 }
+
+SCENARIO("Quitting destroys the VM's launch native on the game heap", "[session-exit][quit-desktop]")
+{
+    Party party(0, SmokeWorld);
+    auto& engine = Party::Engine(party.Host());
+    REQUIRE(engine.NativeVm.LaunchCheck());
+    REQUIRE(engine.NativeVm.Allocations == 1);
+    WHEN("the player quits from in-game")
+    {
+        engine.QuitToDesktop();
+        CHECK(engine.NativeVm.Destructions == 1);
+        CHECK(engine.NativeVm.GameHeapFrees == 1);
+    }
+    WHEN("the player returns to the main menu and quits")
+    {
+        party.As(party.Host(), [&] {
+            engine.AtMainMenu = true;
+            party.Host().GetDispatcher().trigger(MenuEvent{"Main Menu", true});
+        });
+        REQUIRE(engine.NativeVm.LaunchCheck());
+        engine.QuitToDesktop();
+        CHECK(engine.NativeVm.Destructions == 1);
+        CHECK(engine.NativeVm.GameHeapFrees == 1);
+    }
+}

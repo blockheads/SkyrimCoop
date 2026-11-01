@@ -375,6 +375,9 @@ class Commands:
     def command_repro(ctx, args, *, _game=None):
         """Runs a crash recipe (REPROS, or --cell and console commands) and prints each crash's report."""
         _game = ctx.game(_game)
+        if args.name in ("quit-main-menu", "quit-in-game"):
+            from .scenarios.quit import reproduce
+            return reproduce(ctx, args, main_menu=args.name == "quit-main-menu", game=_game)
         if args.name in REPROS:
             cell, commands = REPROS[args.name]
         else:  # console commands of its own

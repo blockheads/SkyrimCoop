@@ -6,6 +6,7 @@
 // world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
+#include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
 #include "../FakeFlight.h"
 
@@ -68,6 +69,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     float GreetDistance = 150.f;
     // The join flow's engine (IJoinBridge). A save carries this game's player as a record and the co-save; loading one
     // makes the player the save's (the host's) until JoinService applies the joining player's own.
+    FakeNativeVm NativeVm;
+    void QuitToDesktop() { NativeVm.ReleaseTypes(); }
     bool AtMainMenu = false;
     bool CreationAvailable = true;
     Creation CreationPhase = Creation::kIdle;

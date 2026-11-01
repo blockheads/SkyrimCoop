@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cassert>
+#include <cstddef>
+#include <new>
+#include <utility>
+
 struct Memory
 {
     [[nodiscard]] static void* Allocate(size_t aSize) noexcept;

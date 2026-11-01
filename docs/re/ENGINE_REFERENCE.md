@@ -195,7 +195,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 55497 | `0xa0d3e0` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `RealSetBeastForm` | [PlayerCharacter.cpp:433](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L433) |  |
 | 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `RealGetPlayer` | [GuestScripts.cpp:140](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L140) |  |
 | 55646 | `0xa15f20` | `SkyrimScript::FadeThenMainMenuCallback::Func1_55646` | meh | hook → `HookScriptQuit` | `RealScriptQuit` | [QuitToMainMenu.cpp:36](../../Code/client/Games/Skyrim/Interface/QuitToMainMenu.cpp#L36) |  |
-| 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `RealBindEverythingToScript` | [VirtualMachine.cpp:51](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L51) |  |
+| 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `RealBindEverythingToScript` | [VirtualMachine.cpp:45](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L45) |  |
 | 55744 | `0xa19f50` | `SkyrimScript::CastFunctor::operator()` | IDA meh | hook → `HookCastRun` | `RealCastRun` | [GuestScripts.cpp:147](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L147) |  |
 | 55923 | `0xa21440` | `papyrus::GlobalVariable::SetValue` | PL meh | hook → `HookSetValue` | `RealSetValue` | [GlobalEvents.cpp:87](../../Code/client/Games/Skyrim/GlobalEvents.cpp#L87) |  |
 | 56095 | `0xa28b40` | `SkyrimScript::AddItemFunctor::Func1_56095` | meh | hook → `HookAddItemRun` | `RealAddItemRun` | [GuestScripts.cpp:150](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L150) |  |
@@ -223,7 +223,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 79133 | `0xed1620` | `bhkCharProxyController::objectInteractionCallback` | IDA meh | hook → `HookObjectInteraction` | `RealObjectInteraction` | [PlayerHands.cpp:86](../../Code/client/Games/Skyrim/PlayerHands.cpp#L86) |  |
 | 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackEnded` | `RealStackEnded` | [GuestScripts.cpp:145](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L145) |  |
 | 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookNativeCalled` | `RealNativeCalled` | [GuestScripts.cpp:143](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L143) |  |
-| 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `RealRegisterPapyrusFunction` | [VirtualMachine.cpp:50](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L50) |  |
+| 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `RealRegisterPapyrusFunction` | [VirtualMachine.cpp:44](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L44) |  |
 | 104800 | `0x14477f0` | `BSScript::Internal::VirtualMachine::SendEvent` | IDA | hook → `HookSendEvent` | `RealSendEvent` | [WorldEvents.cpp:63](../../Code/client/Games/Skyrim/Papyrus/WorldEvents.cpp#L63) |  |
 | 104807 | `0x1448830` | `BSScript::Internal::VirtualMachine::Func43_104807` | meh | hook → `HookReturnFromLatent` | `RealReturnFromLatent` | [PartyNatives.cpp:146](../../Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp#L146) |  |
 | 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookStackCreated` | `RealStackCreated` | [GuestScripts.cpp:142](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L142) |  |
@@ -869,11 +869,11 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 104253 | `0x1422f50` | `Object::DecRef` | CL meh | call | `s_decRef` | [BSScript.cpp:16](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L16) |  |
 | 104296 | `0x14259f0` | `ArrayData::Destroy` | SKSE | call | `s_reset` | [BSScript.cpp:62](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L62) |  |
 | 104297 | `0x1425af0` | `ArrayData::Set` | SKSE | call | `s_assign` | [BSScript.cpp:80](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L80) |  |
-| 104483 | `0x14327e0` | `VMArgList::GetOffset` | SKSE | call | `getPageForFrame` | [BSScript.h:225](../../Code/client/Games/Skyrim/Misc/BSScript.h#L225) |  |
-| 104484 | `0x1432850` | `Stack::GetStackFrameVariable` | CL SKSE meh | call | `getStackFrameVariable` | [BSScript.h:232](../../Code/client/Games/Skyrim/Misc/BSScript.h#L232) |  |
-| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | call | `s_call` | [BSScript.cpp:308](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L308) |  |
-| 104653 | `0x143e0e0` | `NativeFunction::Impl_ctor` | SKSE meh | call | `ctor` | [BSScript.h:440](../../Code/client/Games/Skyrim/Misc/BSScript.h#L440) |  |
-| 104655 | `0x143e330` | `Entry::Impl_dtor` | SKSE meh | call | `dtor` | [BSScript.h:433](../../Code/client/Games/Skyrim/Misc/BSScript.h#L433) | todo-in-code |
+| 104483 | `0x14327e0` | `VMArgList::GetOffset` | SKSE | call | `getPageForFrame` | [BSScript.cpp:251](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L251) |  |
+| 104484 | `0x1432850` | `Stack::GetStackFrameVariable` | CL SKSE meh | call | `getStackFrameVariable` | [BSScript.cpp:258](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L258) |  |
+| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | call | `s_call` | [BSScript.cpp:228](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L228) |  |
+| 104653 | `0x143e0e0` | `NativeFunction::Impl_ctor` | SKSE meh | call | `ctor` | [BSScript.cpp:244](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L244) |  |
+| 104655 | `0x143e330` | `Entry::Impl_dtor` | SKSE meh | call | `dtor` | [BSScript.cpp:237](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L237) |  |
 | 104851 | `0x144ded0` | `?` | - | call | `s_waitOnLatent` | [BSScript.cpp:49](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L49) | **undocumented** |
 | 370618 | `0x1ffc268` | `gGameSetting_fBribeNPCLevelMult` | meh | data | `s_npcLevel` | [JudgedFor.cpp:87](../../Code/client/Games/Skyrim/Misc/JudgedFor.cpp#L87) |  |
 | 370621 | `0x1ffc280` | `gGameSetting_fBribeScale` | meh | data | `s_scale` | [JudgedFor.cpp:90](../../Code/client/Games/Skyrim/Misc/JudgedFor.cpp#L90) |  |
@@ -954,7 +954,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 55105 | `0x9fac30` | `Character::sub_55105` | meh | data | `s_playIdle` | [NativeReach.cpp:125](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L125) |  |
 | 55616 | `0xa12ac0` | `IncrementSkillFromPapyrus` | meh | data | `s_incrementSkill` | [NativeReach.cpp:113](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L113) |  |
 | 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `RealGetPlayer` | [GuestScripts.cpp:140](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L140) |  |
-| 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `RealBindEverythingToScript` | [VirtualMachine.cpp:51](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L51) |  |
+| 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `RealBindEverythingToScript` | [VirtualMachine.cpp:45](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L45) |  |
 | 55744 | `0xa19f50` | `SkyrimScript::CastFunctor::operator()` | IDA meh | hook → `HookCastRun` | `RealCastRun` | [GuestScripts.cpp:147](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L147) |  |
 | 56095 | `0xa28b40` | `SkyrimScript::AddItemFunctor::Func1_56095` | meh | hook → `HookAddItemRun` | `RealAddItemRun` | [GuestScripts.cpp:150](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L150) |  |
 | 56101 | `0xa292e0` | `SkyrimScript::MoveToFunctor::Func1_56101` | meh | hook → `HookMoveRun` | `RealMoveRun` | [GuestScripts.cpp:149](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L149) |  |
@@ -964,7 +964,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68545 | `0xcd5650` | `ControlMap::ToggleControls` | CL | hook → `HookToggleControls` | `RealToggleControls` | [PartyNatives.cpp:145](../../Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp#L145) |  |
 | 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackEnded` | `RealStackEnded` | [GuestScripts.cpp:145](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L145) |  |
 | 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookNativeCalled` | `RealNativeCalled` | [GuestScripts.cpp:143](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L143) |  |
-| 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `RealRegisterPapyrusFunction` | [VirtualMachine.cpp:50](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L50) |  |
+| 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `RealRegisterPapyrusFunction` | [VirtualMachine.cpp:44](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L44) |  |
 | 104800 | `0x14477f0` | `BSScript::Internal::VirtualMachine::SendEvent` | IDA | hook → `HookSendEvent` | `RealSendEvent` | [WorldEvents.cpp:63](../../Code/client/Games/Skyrim/Papyrus/WorldEvents.cpp#L63) |  |
 | 104807 | `0x1448830` | `BSScript::Internal::VirtualMachine::Func43_104807` | meh | hook → `HookReturnFromLatent` | `RealReturnFromLatent` | [PartyNatives.cpp:146](../../Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp#L146) |  |
 | 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookStackCreated` | `RealStackCreated` | [GuestScripts.cpp:142](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L142) |  |
