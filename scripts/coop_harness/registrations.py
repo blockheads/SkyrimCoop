@@ -23,6 +23,7 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    registry.add('dialogue-guest-s9-exits', ['restart', 'dialogue'], lambda ctx: dialogue_repro.guest_exits(ctx, placed=0x19DF0, walking=True), doc='The guest talks to Wylandriah, the S9 candidate, exits alone with Tab around greeting and movement input, then walks normally.')
     registry.add('dialogue-guest-picks-at-greeting-end', ['restart', 'dialogue'], dialogue_repro.greeting_end, doc='The guest presses as the host greeting ends, while its menu takes input, without waiting for its copy\'s voice to end.')
     registry.add('dialogue-refused-pick-restores-list', ['restart', 'dialogue'], dialogue_repro.refused_pick, doc='Choosing another player\'s option is refused and restores the local list without another player intervening.')
     registry.add('dialogue-guest-exits-alone', ['restart', 'dialogue'], dialogue_repro.guest_exits, doc='A guest exits alone by Tab, Escape and Tab during an answer, then can talk again without host intervention.')

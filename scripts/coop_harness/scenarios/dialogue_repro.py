@@ -6,6 +6,7 @@ import time
 
 from ..common import ACTIVATE_KEY, DOWN_KEY, ESCAPE_KEY, GOLDEN_CLAW_QUEST, LUCAN, LYDIA, ONMUND_NOT_A_NORD, TAB_KEY, TEST_HOME, WINDOWS
 from ..utilities import log
+from ..comparisons import distance
 from . import dialogue, dialogue_mouse as mouse
 
 
@@ -20,8 +21,10 @@ def capture(ctx, folder, label, **values):
     for game in ctx.games:
         name = game.name or 'host'
         status = game.read_status() or {}
-        data['games'][name] = {'frames': status.get('frames'), 'game': status.get('game')}
+        data['games'][name] = {'frames': status.get('frames'), 'game': status.get('game'),
+                               'menus': status.get('menus'), 'player': status.get('player')}
         with contextlib.suppress(Exception):
+            data['games'][name]['input'] = ctx.player_command(game.name, {'cmd': 'input_state'})
             data['games'][name]['dialogue'] = ctx.dialogue(game.name)
             data['games'][name]['rendered'] = mouse.value(ctx, game.name, 'selectedEntry.text')
             data['games'][name]['rows'] = mouse.rows(ctx, game.name)
@@ -79,28 +82,67 @@ def lucan(ctx, folder):
             cleanup()
 
 
-def guest_exits(ctx):
-    folder = evidence_folder('guest-exits')
-    npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+def guest_exits(ctx, placed=None, walking=False):
+    folder = evidence_folder('s9-wylandriah-exits' if placed else 'guest-exits')
+    if placed:
+        npc = placed
+        copy = ctx.stage_host_npc(npc)
+        ctx.console_on('', f'{npc:X}.setrestrained 1')
+        ctx.freeze('', npc, False)
+    else:
+        npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
     failed = False
     try:
         ctx.place_before('', npc, 800, 90)
         ctx.place_before('client', copy, 110)
-        for mode, key in [('list-tab', TAB_KEY), ('list-escape', ESCAPE_KEY), ('answer-tab', TAB_KEY)]:
+        modes = [('list-tab', TAB_KEY), ('greeting-tab', TAB_KEY), ('walk-back', TAB_KEY)] if walking else [
+            ('list-tab', TAB_KEY), ('list-escape', ESCAPE_KEY), ('answer-tab', TAB_KEY)]
+        for mode, key in modes:
             ctx.activate_on('client', copy)
             ctx.wait_for('the guest opens dialogue alone', lambda: ctx.talking_to('client', copy), 10)
-            ctx.wait_for('the guest list accepts input', lambda: ctx.menu_takes_pick('client'), 30)
             if ctx.dialogue('')['menu']:
                 raise ctx.failure('the host unexpectedly joined the guest-only conversation')
+            if mode == 'greeting-tab':
+                before = ctx.dialogue('client')
+                ctx.tap_key('client', TAB_KEY)
+                capture(ctx, folder, 'greeting-tab-press', before=before)
+                ctx.wait_for('the greeting can be skipped or completed without host intervention',
+                             lambda: ctx.menu_closed('client') or ctx.menu_takes_pick('client'), 30)
+            else:
+                ctx.wait_for('the guest list accepts input', lambda: ctx.menu_takes_pick('client'), 30)
             if mode == 'answer-tab':
                 ctx.tap_key('client', ACTIVATE_KEY)
                 ctx.wait_for('the host starts the selected answer', lambda: ctx.line_playing('', npc), 10)
+            if mode == 'walk-back':
+                start, frame = ctx.my_position('client'), ctx.game_frame('client')
+                ctx.player_command('client', {'cmd': 'input', 'button': 'back', 'down': True})
+                ctx.guest.held_buttons.add('back')
+                try:
+                    ctx.wait_for('the guest attempts to walk away with its dialogue menu open',
+                                 lambda: ctx.menu_closed('client') or distance(ctx.my_position('client'), start) > 150
+                                 or ctx.game_frame('client') > frame + 90, 10)
+                finally:
+                    ctx.release('client', 'back')
+                capture(ctx, folder, 'movement-with-menu', start=start, end=ctx.my_position('client'),
+                        moved=distance(ctx.my_position('client'), start))
             capture(ctx, folder, mode + '-before')
-            ctx.tap_key('client', key)
+            if not ctx.menu_closed('client'):
+                ctx.tap_key('client', key)
             ctx.wait_for(f'{mode}: the guest exits without host intervention',
                          lambda: ctx.menu_closed('client') and not ctx.dialogue('')['speaker']
                          and not ctx.dialogue('client')['speaker'] and ctx.takes_input('client'), 10)
+            if ctx.dialogue('')['menu']:
+                raise ctx.failure('the host joined during the guest exit test')
             capture(ctx, folder, mode + '-after')
+            if mode == 'walk-back':
+                start = ctx.my_position('client')
+                ctx.press('client', 'back')
+                try:
+                    ctx.wait_for('the guest can really walk after closing dialogue',
+                                 lambda: distance(ctx.my_position('client'), start) > 25, 5)
+                finally:
+                    ctx.release('client', 'back')
+                capture(ctx, folder, 'movement-after-tab', start=start, end=ctx.my_position('client'))
     except BaseException:
         failed = True
         with contextlib.suppress(Exception):
@@ -109,7 +151,11 @@ def guest_exits(ctx):
     finally:
         def cleanup():
             ctx.close_dialogues()
-            ctx.remove_host_npc(npc)
+            if placed:
+                ctx.console_on('', f'{npc:X}.setrestrained 0')
+                ctx.release_host_npc(npc)
+            else:
+                ctx.remove_host_npc(npc)
         if failed:
             with contextlib.suppress(Exception):
                 cleanup()

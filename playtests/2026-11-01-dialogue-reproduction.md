@@ -146,3 +146,11 @@ This bounded negative result does not exclude narrower same-frame races or other
 Evidence: `build/dialogue-greeting.log`, `build/dialogue-greeting-evidence/`, and the twenty timestamped
 `build/coop-test/dialogue-repro/*-greeting-end/after-early-press.json` captures. Own games stopped, prefixes
 verified empty, duo released at 13:19; main S1 claimed it afterward. No other agent's games were touched.
+
+## Later S9 verification
+
+[Focused S9 verification](2026-11-01-s9-verification.md) adds the actual Wylandriah `19DF0` candidate and real
+movement input, then repeats both NPC exit scenarios five times (10 runs, 30 exits): all pass without the host
+joining. Walking with the menu open moves the guest 161–164 units but keeps dialogue open as specified; Tab
+closes it and locomotion remains normal. The refused-choice regression is still red. S9 is marked not reproduced
+in these paths, not conclusively fixed across the original scene and platforms.
