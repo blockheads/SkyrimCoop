@@ -1,5 +1,5 @@
 """One registration per canonical Skyrim flow."""
-from .scenarios import combat, crime, followers, menus, rewards, specs, v1
+from .scenarios import arrest_repro, combat, crime, followers, menus, rewards, specs, v1
 from .scenarios import (
     ai,
     combat,
@@ -266,6 +266,9 @@ def register_flows(registry):
     registry.add('guest-lockpick-party-alarm', ['crime', 'items', 'world'], lambda ctx: crime.guest_lockpick_alarm(ctx), doc="The guest's real lock menu uses host witnesses and cannot charge a caught attempt twice.")
     registry.add('guest-trespass-state', ['crime', 'items', 'world'], lambda ctx: crime.guest_trespass_state(ctx), doc="Host ownership refreshes the guest copy's trespass state while copy AI stays suppressed.")
     registry.add('guest-crime-flags', ['crime', 'items', 'world'], lambda ctx: crime.guest_crime_flags(ctx), doc='Native bounty/hostility flags include guests; an NPC reacts to the visible guest and a fine ends it.')
+    registry.add('guest-ivarstead-fine-mouse', ['restart', 'crime', 'dialogue', 'world'], lambda ctx: arrest_repro.ivarstead(ctx), doc='The reported Ivarstead pickups and a mouse fine choice bring both games to Riften without freezing.')
+    registry.add('guest-ivarstead-jail-mouse', ['restart', 'crime', 'dialogue', 'world'], lambda ctx: arrest_repro.ivarstead(ctx, 'jail'), doc='The guest steals in Ivarstead and clicks jail; both games reach the Rift sentence and remain responsive.')
+    registry.add('guest-ivarstead-fine-mouse-sweep', ['restart', 'crime', 'dialogue', 'world'], lambda ctx: arrest_repro.ivarstead(ctx, rapid=True), doc='The guest quickly hovers different arrest choices before clicking the fine in the reported Ivarstead route.')
     registry.add('guest-guard-arrest-jail', ['crime', 'items', 'world'], lambda ctx: crime.guest_guard_jail(ctx), doc="A guest's crime causes guard arrest; its jail dialogue choice sends the whole party to jail.")
     registry.add('host-guard-arrest-jail', ['crime', 'items', 'world'], lambda ctx: crime.host_guard_jail(ctx), doc="The host's arrest and jail sentence bring every guest to the same jail cell.")
     registry.add('guest-guard-arrest-fine', ['crime', 'items', 'world'], lambda ctx: crime.guest_guard_fine(ctx), doc="An arrested guest pays through vanilla guard dialogue, from the party's purse, with no jail sentence.")
