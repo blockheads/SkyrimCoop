@@ -114,4 +114,18 @@ exports the feature flags but omits `TRACY_ENABLE`, disabling the API declaratio
 `Code/client/xmake.lua` now supplies that define when profiling is enabled. The existing package library contains
 the matching startup/shutdown symbols; no profiler implementation or package-cache changes were made.
 
-Final combined gate and native acceptance results follow below.
+Final integration validation:
+
+- `scripts/check.sh` passes with the default profiler enabled: 668 C++ cases / 6,728 assertions, 30 harness
+  cases, the comparison/baseline checks, UI fixtures, Windows DLL and launcher. Log:
+  `.worktrees/c3-quit/build/c3-review-check-final.log` (48 s).
+- The final terminal-input adjustment also passes all 30 harness cases. It accepts a missing reply only for the
+  last input event, then still requires Skyrim to exit and checks for a new crash report.
+- Both fresh solo quit paths pass on the combined build without intervention, including cleanup: 17.3 s from
+  the main menu, 18.1 s from in-game. Log: `.worktrees/c3-quit/build/c3-review-native.log`.
+- Deployed DLL SHA-256 verified before both launches:
+  `5ff6854cbae944c56a21cbfc3f0f96d7352ad92b991b41ab9ec4342300267d32`.
+- Own games stopped, both prefixes verified empty, duo released. No outstanding C3 review finding.
+
+Native OS validation here is Linux/Proton. The Windows process adapter is covered by unit tests and the Windows
+DLL is cross-compiled; the playtest plan's later Windows OS check is still required.

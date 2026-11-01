@@ -43,16 +43,16 @@ def quit_to_desktop(ctx, instance, *, main_menu):
         ctx.wait_for("the desktop quit confirmation opens", lambda: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + "iCurrentState") == 9, 5)
     # The movie must observe the preceding Accept release before another Accept press.
     ctx.held_a_frame(instance)
-    # Confirmation can stop drawing frames immediately; don't require a subsequent frame/key release.
+    # The terminal input may close the socket before its reply; process exit is checked below.
     if main_menu:
-        ctx.key(instance, ACTIVATE_KEY, True)
+        request = {"cmd": "key", "scan": ACTIVATE_KEY, "down": True}
     else:
         move_quit_cursor(ctx, instance, (700, 560))
         ctx.player_command(instance, {"cmd": "mouse", "button": 0, "down": True})
-        # The button acts on release, which may close the socket before its reply.
-        response = ctx.game(instance).rpc({"cmd": "mouse", "button": 0, "down": False})
-        if response and not response.get("ok"):
-            raise ctx.failure(f"Quit confirmation refused: {response.get('error')}")
+        request = {"cmd": "mouse", "button": 0, "down": False}
+    response = ctx.game(instance).rpc(request)
+    if response and not response.get("ok"):
+        raise ctx.failure(f"Quit confirmation refused: {response.get('error')}")
 
 
 def reproduce(ctx, args, *, main_menu, game):
