@@ -58,6 +58,7 @@
 #include <SessionIds.h>
 #include <Services/HostService.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -235,6 +236,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
+    PROFILE_ZONE("CharacterService::OnUpdate");
     QueuePendingLooks();
     RunActorDiscovery();
     RunPresence();

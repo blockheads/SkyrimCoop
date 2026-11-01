@@ -12,6 +12,7 @@
 #include <Services/JoinService.h>
 #include <Services/TransportService.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 GuestRecord::GuestRecord(World& aWorld, entt::dispatcher& aDispatcher, IJoinBridge& aBridge) noexcept
     : m_world(aWorld)
@@ -40,6 +41,7 @@ void GuestRecord::OnMenu(const MenuEvent& acEvent) noexcept
 
 void GuestRecord::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("GuestRecord::OnUpdate");
     m_sinceSent += acEvent.Delta;
     if (m_changed && m_sinceSent >= kSeconds)
         Send();

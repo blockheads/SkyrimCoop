@@ -15,6 +15,7 @@ from ..common import (
     JOURNAL_ROOT,
     JOURNAL_SYSTEM,
     MENU_RIGHT_KEY,
+    RACE_MENU,
     SMALL_CHEST,
     SWEETROLL,
     TAB_KEY,
@@ -144,6 +145,53 @@ def guest_loots_corpse(ctx):
             if extra > 0:
                 ctx.console_on("client", f"player.removeitem {item:X} {extra}")
         ctx.remove_host_npc(npc)
+
+def host_cannot_loot_guest(ctx):
+    """Players can't loot each other: the guest dies, the host activates its body and no loot menu opens (it once
+    crashed the host taking the body's clothes, playtests/2026-10-31-fabien.md C1). The guest keeps its items.
+    The duo's guest is unnamed and Skyrim activates nothing nameless (ActivateRef 19796), so it names its character in
+    the race menu first, as a new player does. The client's game then starts again as the duo's."""
+    _game = ctx.game('client')
+    load_order = ctx.load_order_file(_game=_game).read_bytes()
+    try:
+        ctx.console_on("client", "showracemenu")
+        ctx.wait_for("[client] the race menu opens", lambda: ctx.race_panel("_SubList2.selectedIndex") is not None, 30, _game=_game)
+        ctx.finishes_race_menu("names the character", "Fallen")
+        ctx.wait_for("[client] plays on, the race menu closed",
+                     lambda: RACE_MENU not in ctx.menus("client") and ctx.takes_input("client"), 30, _game=_game)
+        ctx.wait_for("[host] its copy of the guest carries the name",
+                     lambda: (c := ctx.player_copy("")) and ctx.actor_snapshot("", c).get("identity", {}).get("name") == "Fallen", 30)
+        ctx.give_sword("client")
+        carried = ctx.item_count("client", 0x14, IRON_SWORD)
+        ctx.console_on("client", "player.kill")
+        # Its body can be activated once dead, not while dying (ACTOR_LIFE_STATE 2).
+        ctx.wait_for("[host] its copy of the guest is dead, not dying",
+                     lambda: (c := ctx.player_copy("")) and
+                     ctx.actor_snapshot("", c).get("mod", {}).get("runtime", {}).get("life_state") == 2, 10)
+        copy = ctx.player_copy("")
+        # A body in its ragdoll can't be activated yet (TESNPC::Activate 24715): a player waits for it to settle.
+        ctx.wait_for("[host] the guest's body comes to rest",
+                     lambda: (bodies := ctx.ragdoll_of("", copy)) and not any(b["awake"] for b in bodies), 8)
+        ctx.place_before("", copy, 100)
+        _, since = ctx.engine_events("")
+        ctx.activate_on("", copy)
+        ctx.wait_for("[host] the player activates the guest's body",
+                     lambda: any(e.get("kind") == "activate" and e.get("object") == copy
+                                 for e in ctx.engine_events("", since)[0]), 5)
+        frame = ctx.game_frame("")
+        def stays_closed():
+            if "ContainerMenu" in ctx.menus(""):
+                raise ctx.failure("[host] the guest's body opened as loot")
+            return ctx.game_frame("") > frame + 60
+        ctx.wait_for("[host] no loot menu opens", stays_closed, 10)
+        if ctx.item_count("client", 0x14, IRON_SWORD) != carried:
+            raise ctx.failure("[client] the guest's items changed")
+        ctx.wait_for("[client] the guest respawns beside the host", lambda: not ctx.death_state("client").get("down"), 30)
+    finally:  # the duo's character again, in QASmoke, joined
+        if "ContainerMenu" in ctx.menus(""):
+            ctx.tap_key("", TAB_KEY)
+        ctx.restart_client(load_order, dropped=bool(ctx.game_state("client").get("online")))
+        ctx.rejoin_client()
 
 def knowledge(ctx, instance, form):
     return ctx.player_command(instance, {"cmd": "knowledge", "form": form})

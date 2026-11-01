@@ -609,6 +609,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // raises it; another game's activation replayed here (ActivateObjectFromActor), recorded.
     void Activates(uint32_t aActor, uint32_t aObject);
     std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
+    uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
     {
         const auto it = References.find(aObjectFormId);

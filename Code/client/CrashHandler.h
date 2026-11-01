@@ -18,6 +18,8 @@ class CrashHandler
     // dump then names each stuck thread's lock and its owner.
     using TSpinLockOfFrame = DWORD64 (*)(const CONTEXT& acFrame);
     static void SetSpinLockWait(DWORD64 aFunction, TSpinLockOfFrame apLockOfFrame) noexcept;
+    // A suspended thread's return addresses from its context (unwind tables only: no allocation, no loader lock).
+    static int Backtrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames) noexcept;
     static inline LPTOP_LEVEL_EXCEPTION_FILTER GetOriginalUnhandledExceptionFilter()
     {
         return m_pUnhandled;

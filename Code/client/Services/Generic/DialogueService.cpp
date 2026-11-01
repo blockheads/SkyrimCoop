@@ -14,6 +14,7 @@
 #include <SessionIds.h>
 #include <World.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                  IDialogueBridge& aBridge) noexcept
@@ -184,6 +185,7 @@ void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
 
 void DialogueService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("DialogueService::OnUpdate");
     if (!m_transport.IsOnline() || !m_pRole)
         return;
 

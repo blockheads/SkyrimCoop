@@ -128,6 +128,78 @@ user's Steam account, a client prefix it owns and the existing `coop2` network n
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when
 named or when a second-account configuration is present; they are not part of an ordinary smoke test.
 
+### On Windows
+
+Since 2026-11-01 the duo also runs on Windows, natively (`scripts/coop_harness/windows.py`). Setup:
+- Python 3.12 with `psutil`.
+- The `clang+llvm-*-x86_64-pc-windows-msvc` release unpacked into `build/toolchains/LLVM`.
+- Visual Studio's build tools; `scripts/xmake-msvc.sh` from Git Bash.
+
+Both games run as the user, on the user's Steam, in 960x540 windows side by side, with `bBackgroundMouse` set so
+they do not grab the cursor.
+
+**Skyrim version:** Steam ships 1.7 on Windows, which our Address Library IDs and SKSE do not support. The duo links
+a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SKYRIM_ADDRESS_LIBRARY_DIR`).
+
+**Unlike Linux:**
+- Both games share the user's `Documents/My Games/Skyrim Special Edition` (INIs, saves, SKSE and crash logs) and
+  `Plugins.txt`. Skyrim reads them from the user's known folders, so there is no prefix per game.
+- A crash log belongs to the game that is gone when it settles (`build/coop-test/crash-owners.json`).
+- Each game is the process recorded at launch (`prefix-<game>/game.json`).
+- The `xdotool` input actions, `watch`, `screenshot` and the two-account flows are Linux only.
+
+## Profiling
+
+`coop_test.py profile` shows where a running duo's time goes, per game, over one window (default 20 s). It writes
+`build/coop-test/profiles/<time>/summary.md` and prints it:
+
+```bash
+python3 scripts/coop_test.py profile                          # idle
+python3 scripts/coop_test.py profile --load wolves=15         # a fight: god mode, 15 wolves at the host
+python3 scripts/coop_test.py profile --scenario NAME... --seconds 60
+python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-process call stacks
+```
+
+| Section | From |
+|---|---|
+| fps, frame-time and our update's percentiles | the plugin's `perf` command (`Diagnostics::PerfStatus`, `Diagnostics/Perf.h`) |
+| CPU and memory | the game's process (psutil / `/proc`) |
+| messages by name and way, KB/s | the message trail (`Diagnostics/MessageTrail.h`) |
+| each hook's calls per second | the breadcrumb counters (`Breadcrumbs::Totals`) |
+| our zones: total, self, mean, max | a Tracy capture (`<game>.tracy`, `tracy-csvexport`) |
+| call stacks, engine and ours | `--stacks`: the plugin's sampler (`TestHarness/Sampler.cpp`) |
+
+**Tracy** (v0.11.1, BSD-3) is built in with the xmake option `profiler`:
+- On in `scripts/xmake-msvc.sh f`; off in player packages unless `--profiler=y`.
+- It is idle until a viewer connects, listens on localhost only (`TRACY_PORT`: the host 8086, the guest 8087), and is
+  started and stopped by the plugin (`Diagnostics/Profile.h`), so hot reload works.
+- Zones go only in our update (one `PROFILE_ZONE` per service update, `HostAuthority::Update`), never in hooks.
+- Plots: each hook's calls per frame, memory and the guest's line.
+- It has no call stacks: resolving them would hold our PDB open in the game and block relinking.
+- To dig in, open a `.tracy` in Tracy's viewer (`build/third_party/tracy-0.11.1/tracy-profiler.exe` on Windows), or
+  connect the viewer to a running game's port.
+
+**The stack sampler** (`{"cmd": "sample"}`, test builds):
+- Every millisecond it suspends the main thread and the seven busiest others, one at a time, and unwinds each with
+  the crash handler's unwinder. It works the same under Wine as on Windows, with no admin.
+- Python names the frames:
+  - our DLL: `llvm-symbolizer` and its PDB (it warns when the build is newer than the games' copy)
+  - SkyrimSE.exe: the nearest Address Library ID, named from `docs/re/ENGINE_REFERENCE.md`
+  - system DLLs: their exports
+- Each thread's report ranks the samples where it ran. Its wait calls count as waiting; other system calls
+  (`VirtualQuery`, say) count as work.
+- A flame graph per game: `<game>-stacks.speedscope.json` (open at speedscope.app).
+
+**Player builds** keep the cheap part:
+- A bug report's `snapshot.json` has `perf`: the last minute's frame and update percentiles, messages by name,
+  memory and CPU time.
+- The debug overlay has a Performance window.
+
+**Open:** `profile` on the Linux duo (Proton, netns `coop2`): the capture runs in the namespace through
+`as_instance_user`, and the Tracy tools are built from source there. Not yet run.
+
+The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+
 ## Python ownership
 
 `coop_test.py` is the CLI entry point. `Session` owns two explicit `Game` handles, fixture and failure state, and

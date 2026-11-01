@@ -11,6 +11,12 @@ Every player carries every party item. The party owns a count of each, as the pu
 Gold is never a party item, even the story's (a quest's gold reward): it goes to the purse (2026-10-31,
 `quest-gold-turn-in-host`).
 
+Players don't loot or pickpocket each other (the user, 2026-11-01): a dead player's body opens no loot menu.
+Taking a dead guest's clothes crashed the host (`playtests/2026-10-31-fabien.md`, C1). Our hook on
+`ContainerMenu::OpenMenu` (51140, which `TESNPC::Activate` calls for corpses and pickpockets) refuses another
+player's copy (`ContainerOpens::Refused`). Tested by GameTests "Players can't loot each other" and the scenario
+`host-cannot-loot-guest`.
+
 ```text
 a party item comes in (the story gives it, a key or quest item picked up)
   -> the host: the party's count + 1

@@ -499,9 +499,7 @@ class Commands:
                       "build": status.get("game", {}).get("build"), "generation": status.get("reload", {}).get("generation")}
             try:
                 pid = ctx.game_process(name)
-                fields = dict(line.split(":", 1) for line in Path(f"/proc/{pid}/status").read_text().splitlines() if ":" in line)
-                sample["memory"] = {"pid": pid, **{key: int(fields.get(field, "0 kB").split()[0]) * 1024
-                                    for key, field in (("rss_bytes", "VmRSS"), ("swap_bytes", "VmSwap"), ("virtual_bytes", "VmSize"))}}
+                sample["memory"] = {"pid": pid, **ctx.process_memory(pid)}
             except (TestFailure, OSError, ValueError) as error:
                 sample["unavailable"] = str(error)
             games[role] = sample
@@ -796,6 +794,14 @@ class Commands:
         soak.add_argument("--seed", type=int, help="first round's shuffle seed; each round adds one")
         soak.add_argument("--tag", help="smoke test only these comma-separated scenario tags")
         soak.add_argument("--dry-run", action="store_true", help="print the scope without booting or stopping games")
+        profile = commands.add_parser("profile", help="where a running duo's time goes: fps, CPU, memory, network, hooks, "
+                                                     "our zones (Tracy) and, with --stacks, call stacks")
+        profile.add_argument("--seconds", type=float, default=20, help="the window (default 20; caps --scenario too)")
+        profile.add_argument("--instance", choices=("host", "client", "both"), help="which game (default: both)")
+        profile.add_argument("--load", metavar="wolves=N", help="a fight first: god mode for both players, N wolves at the host")
+        profile.add_argument("--scenario", nargs="+", metavar="NAME", help="run these scenarios inside the window")
+        profile.add_argument("--stacks", action="store_true", help="also sample every busy thread's call stack (engine and ours)")
+        profile.add_argument("--no-tracy", action="store_true", help="skip the Tracy capture (the plugin's own readouts only)")
         stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
         console = commands.add_parser("console", help="run a console command in the running test game")
         console.add_argument("text", nargs="+")
@@ -857,6 +863,8 @@ class Commands:
                 ctx.command_duo(args)
             elif args.command == "scenario":
                 ctx.command_scenario(args)
+            elif args.command == "profile":
+                ctx.command_profile(args)
             elif args.command == "affected":
                 ctx.command_affected(args)
             elif args.command == "soak":

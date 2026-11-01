@@ -149,4 +149,22 @@ option("test_harness")
     set_description("Build the test harness and hot reload into the client (never for release)")
 option_end()
 
+-- Tracy (Code/client/Diagnostics/Profile.h): zones, plots and call stacks for `coop_test.py profile` and the Tracy
+-- viewer. On in the harness's builds (scripts/xmake-msvc.sh); a playtester's package may have it (--profiler=y).
+option("profiler")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build Tracy into the client (idle until a profiler connects; localhost only)")
+option_end()
+
+if is_plat("windows") and has_config("profiler") then
+    -- Started and stopped by the plugin (not in DllMain; before a hot reload unloads it). No crash handler of its
+    -- own (ours and CrashLoggerSSE's), no LAN broadcast, nothing needing admin. No call stacks: resolving them
+    -- holds our PDB open in the game (no relink while it runs); `profile --stacks` samples them itself.
+    add_requires("tracy v0.11.1", {configs = {on_demand = true, only_localhost = true, broadcast = false,
+        manual_lifetime = true, delayed_init = true, crash_handler = false, enforce_callstack = false,
+        callstack = false, sampling = false, frame_image = false, vsync_capture = false, context_switch = false,
+        system_tracing = false, code_transfer = false}})
+end
+
 includes("Code")

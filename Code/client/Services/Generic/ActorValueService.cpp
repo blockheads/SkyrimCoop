@@ -19,6 +19,7 @@
 #include <Messages/Relayed.h>
 
 #include <Bridges/IActorBridge.h>
+#include <Diagnostics/Profile.h>
 
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
@@ -111,6 +112,7 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
 
 void ActorValueService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("ActorValueService::OnUpdate");
     RunSmallHealthUpdates();
     BroadcastActorValues();
     RunPoolUpdates();

@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <Hooks/FunctionHook.h>
 #include <VersionDb.h>
+#include <Diagnostics/Profile.h>
 
 std::unique_ptr<Plugin> g_plugin{nullptr};
 
@@ -26,6 +27,7 @@ void InitPlugin(const std::filesystem::path& acGamePath, const std::string& aExe
 
     g_plugin = std::make_unique<Plugin>();
 
+    Profile::Start(); // before any hook of ours runs
     Plugin::InstallHooks();
     HOOK_COMMIT;
 }

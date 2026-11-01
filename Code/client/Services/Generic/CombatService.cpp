@@ -17,6 +17,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Components.h>
+#include <Diagnostics/Profile.h>
 
 CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge,
                              IActorBridge& aActorBridge, IPlayerBridge& aPlayerBridge)
@@ -37,6 +38,7 @@ CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::
 
 void CombatService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("CombatService::OnUpdate");
     RunHitFeedback();
     UpdateRemotePlayerAnger();
     RefreshHangLockWatch();

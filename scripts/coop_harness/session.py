@@ -4,6 +4,7 @@ from .errors import TestFailure
 from .game import Game
 from .registry import Registry
 from .registrations import register_flows
+from .common import WINDOWS
 from .runtime import Runtime
 from .commands import Commands
 from .actions import Actions
@@ -11,9 +12,14 @@ from .reporting import Reporting
 from .fixtures import Fixtures
 from .runner import Runner
 from .observations import Observations
+from .profiling import Profiling
 
 
-class Session(Runtime, Commands, Actions, Reporting, Fixtures, Runner, Observations):
+if WINDOWS:
+    from .windows import WindowsRuntime as Runtime
+
+
+class Session(Runtime, Commands, Actions, Reporting, Fixtures, Runner, Observations, Profiling):
     def __init__(self):
         self.host = Game("")
         self.guest = Game("client")

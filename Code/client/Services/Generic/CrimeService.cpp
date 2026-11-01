@@ -8,6 +8,7 @@
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <Diagnostics/Profile.h>
 
 CrimeService::CrimeService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                            ICrimeBridge& aBridge) noexcept
@@ -60,6 +61,7 @@ void CrimeService::OnConfiscation(const NotifyCrimeConfiscation& aDue) noexcept
 
 void CrimeService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("CrimeService::OnUpdate");
     const auto role = !m_transport.IsOnline()            ? ICrimeBridge::Role::Offline
                       : m_transport.IsConnectedLocally() ? ICrimeBridge::Role::Host
                                                          : ICrimeBridge::Role::Guest;

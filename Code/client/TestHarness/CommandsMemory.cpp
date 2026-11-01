@@ -2,6 +2,7 @@
 #include "UpdateTrace.h"
 
 #include <Actor.h>
+#include <Diagnostics/Snapshot.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
 #include <World.h>
@@ -55,7 +56,14 @@ nlohmann::json MemorySites(Harness&, const nlohmann::json& acRequest)
               {"update_overlaps", cUpdates.UpdateOverlaps}}}};
 }
 
-constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}};
+// {"cmd": "perf", "window_ms"?: 60000}: that window's frames and messages, memory and CPU time, and every hook's
+// calls so far.
+nlohmann::json Perf(Harness&, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"perf", Diagnostics::PerfStatus(true, acRequest.value("window_ms", int64_t{60000}))}};
+}
+
+constexpr Command cCommands[] = {{"memory_sites", false, &MemorySites}, {"perf", false, &Perf}};
 } // namespace
 
 std::span<const Command> MemoryCommands()

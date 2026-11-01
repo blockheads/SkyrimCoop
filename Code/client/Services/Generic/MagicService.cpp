@@ -20,6 +20,7 @@
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                            IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -42,6 +43,7 @@ MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
 
 void MagicService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("MagicService::OnUpdate");
     if (!m_transport.IsConnected())
         return;
 

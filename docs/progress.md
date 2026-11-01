@@ -1312,6 +1312,13 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Done 2026-11-01 (C1, `playtests/2026-10-31-fabien.md`): players can't loot each other.** Taking a dead guest's
+  clothes crashed the host in `ContainerMenu`. Now `ContainerMenu::OpenMenu` (51140) refuses another player's copy
+  (`party-items.md`). GameTests "Players can't loot each other" passes. The duo scenario `host-cannot-loot-guest`
+  recreated it unfixed (the loot menu opened) and passes fixed. The duo's guest is unnamed and `ActivateRef` (19796)
+  activates nothing nameless, so the scenario names the guest in the race menu first and restarts it after. One
+  fixed run timed out waiting 8 s for the body to rest (passed on the next run; not masked). Found while writing it: in GameTests, the host's death doesn't
+  kill its copy on a guest's game (fake gap or real bug, unchecked).
 - **Merged 2026-10-31 (lock-mounted-departure): live lock-order overlaps.** The checker counts each inverted
   ask that finds the lock held from the reverse order; a live overlap fails any scenario. The mounted-departure
   family is engine order (`docs/re/crashes/2026-10-31-mounted-departure-lock-order.md`).

@@ -14,6 +14,7 @@
 #include <PlayerCharacter.h>
 #include <RTTI.h>
 #include <SessionIds.h>
+#include <Services/ContainerOpens.h>
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
 #include <atomic>
@@ -91,6 +92,12 @@ using TOpenInventory = void(TESObjectREFR*, int32_t);
 TOpenInventory* RealOpenInventory;
 void HookOpenInventory(TESObjectREFR* apRef, int32_t aMode)
 {
+    // Players don't loot or pickpocket each other (TESNPC::Activate opens a corpse or a pickpocket here).
+    if (auto* pActor = Cast<Actor>(apRef); pActor && ContainerOpens::Refused(pActor->GetExtension()->IsOtherPlayer()))
+    {
+        spdlog::info("ContainerOpens: {:X} is another player's character, not opened", apRef->formID);
+        return;
+    }
     if (s_active && apRef && aMode == 3 && s_targets.load()->contains(apRef->formID))
     {
         const uint32_t cPlayer = GuestScripts::NativeGuest();

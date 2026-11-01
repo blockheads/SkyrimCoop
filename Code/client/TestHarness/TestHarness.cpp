@@ -78,6 +78,7 @@ void Poll()
 void Shutdown()
 {
     StopQuestTrace();
+    StopSampler(); // its thread runs our code
     // Off the graphs before this DLL goes (a hot reload): they would call into it.
     Harness::Get().Trace.Stop();
     Harness::Get().Inputs.Stop();

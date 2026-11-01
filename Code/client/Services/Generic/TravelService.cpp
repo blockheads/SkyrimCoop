@@ -17,6 +17,7 @@
 #include <Components.h>
 #include <World.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 namespace
 {
@@ -74,6 +75,7 @@ uint32_t TravelService::CellAt(const GameId& acWorldSpaceId, const GameId& acCel
 // holds cell locks (docs/re/systems/player-travel.md).
 void TravelService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("TravelService::OnUpdate");
     UpdateStack();
     if (!m_transport.IsOnline())
     {

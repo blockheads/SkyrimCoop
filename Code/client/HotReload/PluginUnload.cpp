@@ -11,6 +11,7 @@
 #include <SkseRipAllocator.h>
 #include <CoSave.h>
 #include <VersionDb.h>
+#include <Diagnostics/Profile.h>
 
 extern std::unique_ptr<Plugin> g_plugin;
 
@@ -65,6 +66,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
     Hooks::RestorePatches();
     Hooks::RunUnloadCallbacks();
     CoopSkse::HandOffJit(); // Only the patches just restored branched into it.
+    Profile::Stop(); // its threads run our code
 
     // Our threads: the hang watchdog (crash handler), the network library's, spdlog's flusher.
     g_plugin.reset();

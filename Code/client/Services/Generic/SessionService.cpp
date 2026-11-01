@@ -15,6 +15,7 @@
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/DeathMessages.h>
+#include <Diagnostics/Profile.h>
 
 SessionService::SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
@@ -103,6 +104,7 @@ void SessionService::OnMenu(const MenuEvent& acEvent) noexcept
 
 void SessionService::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("SessionService::OnUpdate");
     if (m_pending)
         Finish(true);
 }

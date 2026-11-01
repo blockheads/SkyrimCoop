@@ -17,6 +17,7 @@
 #include <Services/WorldStateLog.h>
 #include <World.h>
 #include <FormIds.h>
+#include <Diagnostics/Profile.h>
 
 GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
     : m_world(aWorld)
@@ -176,6 +177,7 @@ void GuestWorldState::OnPickUpNotify(const NotifyPickUp& acMessage) noexcept
 
 void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
 {
+    PROFILE_ZONE("GuestWorldState::OnUpdate");
     m_mainTasks.Queue([this] { m_engine.RetryQuestAliases(); });
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)

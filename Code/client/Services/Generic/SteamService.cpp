@@ -16,6 +16,7 @@
 #include <LoopbackPort.h>
 
 #include <algorithm>
+#include <Diagnostics/Profile.h>
 
 SteamService::SteamService(World& aWorld, entt::dispatcher& aDispatcher, ISteamBridge& aSteam) noexcept
     : m_world(aWorld)
@@ -323,6 +324,7 @@ void SteamService::PumpTunnels() noexcept
 
 void SteamService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    PROFILE_ZONE("SteamService::OnUpdate");
     const ISteamBridge::Events cEvents = m_steam.Poll();
     for (const SteamId cLobby : cEvents.JoinRequests)
         JoinLobby(cLobby);
