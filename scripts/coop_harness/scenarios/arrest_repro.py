@@ -7,7 +7,7 @@ import uuid
 
 from ..common import TEST_HOME, WINDOWS
 from ..utilities import log
-from . import crime
+from . import crime, dialogue_mouse as mouse
 
 INN = 0x13A5C
 RIFT = 0x2816B
@@ -44,32 +44,9 @@ def pick_mouse(ctx, topic, folder, rapid=False):
     if target is None:
         raise ctx.failure(f'the guard menu does not list {topic:X}: {options}')
     value = lambda suffix: ctx.menu_var(instance, 'Dialogue Menu', LIST + suffix)
-    # Measure the movie-to-window scale away from the choices, through real cursor motion.
-    samples = []
-    for point in [(100, 100), (132, 132)]:
-        ctx.move_cursor(instance, point)
-        ctx.held_a_frame(instance)
-        samples.append((value('Entry0._xmouse'), value('Entry0._ymouse')))
-    if any(v is None for sample in samples for v in sample):
-        raise ctx.failure(f'the guard choice has no mouse coordinates: {samples}')
-    dx, dy = (samples[1][i] - samples[0][i] for i in range(2))
-    if abs(dx) < 1 or abs(dy) < 1:
-        raise ctx.failure(f'the guard movie did not observe mouse motion: {samples}')
-    scale = (32 / dx, 32 / dy)
+    scale = mouse.calibrate(ctx, instance)
     sequence = [2, 0, 1, target] if rapid else [target]
-    hovered = []
-    for index in sequence:
-        cursor = ctx.game_state(instance)['cursor']
-        local = [value(f'Entry{index}._xmouse'), value(f'Entry{index}._ymouse')]
-        size = [value(f'Entry{index}._width'), value(f'Entry{index}._height')]
-        if any(v is None for v in local + size):
-            raise ctx.failure(f'guard row {index} has no mouse bounds')
-        point = tuple(round(cursor[i] + (size[i] / 2 - local[i]) * scale[i]) for i in range(2))
-        ctx.move_cursor(instance, point)
-        if not rapid:
-            ctx.wait_for('the mouse highlights the requested guard choice',
-                         lambda: ctx.cursor_index(instance) == target, 5)
-        hovered.append({'row': index, 'point': point, 'selected': ctx.cursor_index(instance)})
+    hovered = [mouse.hover(ctx, instance, index, scale, settle=not rapid) for index in sequence]
     ctx.wait_for('the final hovered guard choice is selected', lambda: ctx.cursor_index(instance) == target, 5)
     selected = ctx.dialogue(instance)
     text = value('selectedEntry.text')

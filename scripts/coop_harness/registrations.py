@@ -1,5 +1,5 @@
 """One registration per canonical Skyrim flow."""
-from .scenarios import arrest_repro, combat, crime, followers, menus, rewards, specs, v1
+from .scenarios import arrest_repro, combat, crime, dialogue_repro, followers, menus, rewards, specs, v1
 from .scenarios import (
     ai,
     combat,
@@ -23,6 +23,12 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    registry.add('dialogue-guest-picks-at-greeting-end', ['restart', 'dialogue'], dialogue_repro.greeting_end, doc='The guest presses as the host greeting ends, while its menu takes input, without waiting for its copy\'s voice to end.')
+    registry.add('dialogue-refused-pick-restores-list', ['restart', 'dialogue'], dialogue_repro.refused_pick, doc='Choosing another player\'s option is refused and restores the local list without another player intervening.')
+    registry.add('dialogue-guest-exits-alone', ['restart', 'dialogue'], dialogue_repro.guest_exits, doc='A guest exits alone by Tab, Escape and Tab during an answer, then can talk again without host intervention.')
+    registry.add('dialogue-mouse-highlight-stays-shared', ['restart', 'dialogue'], dialogue_repro.mouse_highlights, doc='Real mouse hovers update both menus and the final shared choice stays stable under a stationary mouse.')
+    registry.add('dialogue-fast-mouse-pick', ['restart', 'dialogue'], lambda ctx: dialogue_repro.mouse_highlights(ctx, fast_pick=True), doc='Several un-settled mouse highlights followed by a click say the intended topic on the host; record its actual line.')
+    registry.add('dialogue-picked-text-visual', ['restart', 'dialogue'], dialogue_repro.picked_text, doc='Capture both actual claw menus at each pick to investigate overlapping selected text.')
     registry.add('enchanted-npc-pools-match-owner', ['spawn', 'npc', 'magic', 'copies'], lambda ctx: npc_choices.fortified_pools(ctx), doc="Onmund's enchanted outfit gives his copy the owner's fortified magicka.")
     registry.add('npc-torch-repairs-in-default-slot', ['npc', 'inventory', 'ai', 'copies'], lambda ctx: npc_choices.torch_repair(ctx), doc="Aela's copy repairs a drifted worn set including her torch in its native equip slot.")
     registry.add('leveled-spawned-npc-is-hosts', ['spawn', 'npc', 'copies'], lambda ctx: npc_choices.spawned_choice(ctx), doc="A spawned bandit boss copy keeps the host's resolved leveled NPC identity.")
