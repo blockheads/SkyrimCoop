@@ -333,6 +333,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         glm::vec3 NodePosition{};
         glm::quat NodeRotation{1.f, 0.f, 0.f, 0.f};
         size_t NodeWrites = 0;
+        size_t SceneWritesDuringJobs = 0; // manual 3D writes outside the between-frames main-loop drain
         size_t Replaced = 0;
         size_t Rests = 0;     // rests of the host's placed
         uint64_t Tick = 0;    // the host's: where its flight is

@@ -320,11 +320,13 @@ SCENARIO("Only the completed shared rest defers its own record flags", "[wait][w
 
     uint32_t expected = 0;
     SECTION("The rest's flags apply after its placement finishes") {}
-    SECTION("An ordinary update applies immediately and supersedes the queued rest flags")
+    SECTION("An ordinary update applies between frames and supersedes the queued rest flags")
     {
         NotifyObjectChanges changes;
         changes.Changes = {{.Type = ObjectChange::Kind::kRecord, .Object = SessionIdOf(cObject), .Value = 8}};
         party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
+        CHECK(engine.References[cObject].RecordFlags == 2);
+        party.Step(party.Guest());
         CHECK(engine.References[cObject].RecordFlags == 8);
         expected = 8;
     }

@@ -32,14 +32,24 @@ struct NiAVObject : NiObjectNET
     struct bhkNiCollisionObject* collisionObject; // 40, its physics (NiPointer)
     Transform local; // 48
     Transform world; // 7C
-    uint8_t padB0[0xF4 - 0xB0];
+    Transform previousWorld; // B0, temporal rendering (CommonLibSSE-NG, UpdateWorldData 70539)
+    struct Bound
+    {
+        NiPoint3 center;
+        float radius;
+    } worldBound; // E4
     uint32_t flags; // F4, kHidden 1 (CommonLibSSE-NG NiAVObject::Flag)
-    uint8_t padF8[0x110 - 0xF8];
+    struct TESObjectREFR* userData; // F8
+    float fadeAmount; // 100
+    uint32_t lastUpdatedFrame; // 104, UpdateWorldData 70539
+    uint8_t pad108[8];
 };
 
 static_assert(sizeof(NiAVObject::Transform) == 0x34);
 static_assert(offsetof(NiAVObject, collisionObject) == 0x40);
 static_assert(offsetof(NiAVObject, local) == 0x48);
 static_assert(offsetof(NiAVObject, world) == 0x7C);
+static_assert(offsetof(NiAVObject, previousWorld) == 0xB0);
 static_assert(offsetof(NiAVObject, flags) == 0xF4);
+static_assert(offsetof(NiAVObject, lastUpdatedFrame) == 0x104);
 static_assert(sizeof(NiAVObject) == 0x110);

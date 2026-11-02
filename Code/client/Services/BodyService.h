@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <MainLoopTasks.h>
 #include <Messages/RelayedMessages.h>
 #include <Physics/BodyPlayback.h>
 
@@ -61,6 +62,7 @@ private:
     void OnFrames(const NotifyBodyFrames& acMessage) noexcept;
     void OnRests(const NotifyBodyRests& acMessage) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
+    void Apply() noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept;
     // A copy's ragdoll's time: its copy's (InterpolationSystem::PlaybackTick), 0 without one.
@@ -82,4 +84,6 @@ private:
     std::set<BodyKey> m_held;      // a player's hold in another game: steered here
     std::set<BodyKey> m_missing;   // not in this game (logged once)
     std::vector<entt::scoped_connection> m_connections;
+    bool m_updateQueued{};
+    MainLoopTasks::Scope m_mainTasks;
 };

@@ -224,12 +224,14 @@ game without co-op"). Not accepted for v1 yet: the user decides.
   - Test: `guest-bucket-on-npc-head --until-fail`, reading the client's lowest; then teach the fake (it already
     has copies push nothing: `FakeEngine::OutsideCapsules`).
 
-- **S2: a moved object flashes green** (playtest item 3, the host moving an object onto an NPC; `/bug 1455-e7e` /
-  `1455-a9c`). Not reproduced (2026-11-01): the duo's videos of the host dragging a ladle left and right, with the
-  host's node writes as they were then and as fixed, and of grabs and set-downs, show no green.
-  - Start: what in Skyrim tints an object green (none of our code applies a shader to a held object: no
-    `ApplyEffectShader` on references), the reports' `messages.txt` and log around 14:54:30-14:55:00, and both
-    players' mod lists (an ENB or a grab mod's highlight).
+- **S2: a held object flashes green on the watching game** (2026-11-02, fixed on `repro/s2-green-flash`, not merged).
+  Manual scene updates ran in the Papyrus VM job. Body playback, left-behind node repairs and received object
+  placements now run between frames. The native tankard detector fails before the fix (18/340 sampled frames)
+  and passes after it (0/2,773 across three observer checks); throw and push controls pass.
+  - Three RED-to-GREEN GameTests guard scene-write timing; four unit cases cover deferred repair/rest bookkeeping
+    and cancellation. Full `scripts/check.sh` passes. [Evidence and scope](../playtests/2026-11-01-s2-green-flash.md).
+  - The user's manual two-way reproduction stands. The automated host-watching-guest controls were negative
+    before the fix too; the guest watching the host provides the native before/after proof.
 
 - **A dragged object blinks in and out of existence** (the user, 2026-11-01). Not reproduced (2026-11-01): a ladle
   dragged left and right by either player, traced each frame on both games (`body_trace`, which now also gives its 3D's
