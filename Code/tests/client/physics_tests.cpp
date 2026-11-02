@@ -11,6 +11,7 @@
 #include <Physics/RagdollPending.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodySends.h>
+#include <Physics/HavokStep.h>
 #include <Systems/CopyEase.h>
 
 using namespace BodyPrediction;
@@ -392,4 +393,16 @@ TEST_CASE("A copy with a ragdoll finishes a get-up action with the native knock-
     CHECK(KnockReplay::AfterAction(0, true, true) == 0);
     CHECK(KnockReplay::AfterAction(1, true, false) == 1);
     CHECK(KnockReplay::AfterAction(6, true, true) == 6);
+}
+
+TEST_CASE("Havok steps with the frame at any frame rate", "[physics][havok-step]")
+{
+    constexpr float cLongest = 1.f / 60.f;
+    // S4: at 144 fps the step is the frame, not 1/60 (2.4 frames, which wakes resting clutter).
+    CHECK(Physics::HavokStep(1.f / 144.f, cLongest, 5) == Approx(1.f / 144.f));
+    CHECK(Physics::HavokStep(1.f / 60.f, cLongest, 5) == Approx(1.f / 60.f));
+    // A long frame splits into equal steps no longer than 1/60, as far as the step count allows.
+    CHECK(Physics::HavokStep(1.f / 25.f, cLongest, 5) == Approx(1.f / 75.f));
+    CHECK(Physics::HavokStep(0.5f, cLongest, 5) == Approx(0.1f));
+    CHECK(Physics::HavokStep(1.f / 25.f, cLongest, 1) == Approx(1.f / 25.f));
 }

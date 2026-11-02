@@ -160,6 +160,22 @@ Not checked: where the step itself runs against our update. It does not matter f
 hold until the next step whenever that runs; the physics substep count comes from `UpdateTimeManager`
 (`uMaxNumPhysicsStepsPerUpdate:HAVOK` 389138).
 
+## Havok's step (S4, 2026-11-01)
+
+`UpdateTimeManager` calls `sub_140E85250` (77850) each frame with the frame's seconds: the step is
+`fMaxTime:HAVOK` (389102, default 1/60; `fMaxTimeComplex` 389144 while a complex scene runs) times the clock's
+multiplier, and the time to simulate is `min(leftover + frame, uMaxNumPhysicsStepsPerUpdate (389138) × step)`, the
+rest carried to the next frame. So vanilla steps by 1/60 whatever the frame rate. Above 60 fps the step is longer
+than the frame and resting clutter wakes and creeps: the playtest's "objects float across the room", seen in single
+player at 144 Hz and with Skyrim Together. At 60 fps with `fMaxTime` 0.04 (2.4 frames, as 1/60 is at 144 fps) 26
+more objects in the Sleeping Giant Inn stayed awake, one moved 114 units in a minute.
+
+The community fix (HIGGS `UpdatePhysicsTimesHook`, HavokFix, SSE Display Tweaks' Havok option): before that call, set
+`fMaxTime` to the frame, split into equal steps no longer than 1/60 when the frame is long. Ours is
+`Fixes/HavokStepFix.cpp` (`Physics::HavokStep`), keeping the INI's complex-to-simple ratio. It writes the same values
+those mods would, so running with them is harmless. Scenario `clutter-rests-at-any-frame-rate`; `ClientTests`
+`[havok-step]`; no GameTests flow (the fake has no physics).
+
 ## Grabbing
 
 `PlayerCharacter::StartGrabObject` (40552, `0x14073ec70`; checked in IDA 2026-10-24): with no grab going (`+0xAFC`

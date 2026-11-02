@@ -567,3 +567,37 @@ def scenario_placed_leveled_items_are_hosts(ctx):
             raise ctx.failure("[client] picked its own: " + "; ".join(f"{ref:X} {text}" for ref, text in left.items()))
     finally:
         ctx.both_go(HOME_CELL)
+
+
+def scenario_clutter_rests_at_any_frame_rate(ctx, *, window=20, _game=None):
+    """S4 (playtests/2026-10-31-fabien.md): Havok's step set 2.4 times the frame (fMaxTime 0.04 at 60 fps, as the
+    default 1/60 is at 144 fps) wakes the inn's clutter, which then creeps. Each game steps physics with its frames:
+    the step reads back as the frame's whatever the INI says."""
+    _game = ctx.game(_game)
+
+    def awake(step):
+        ctx.run_console(f'setini "fMaxTime:HAVOK" {step}')
+        counts, end = {}, time.monotonic() + window
+        while time.monotonic() < end:
+            time.sleep(2)
+            for ref, r in ctx.world_state("").items():
+                if any(body.get("awake") for body in r.get("collision") or []):
+                    counts[ref] = counts.get(ref, 0) + 1
+        # Awake in the second half of the window: woken and not settling.
+        return {ref for ref, n in counts.items() if n > window // 4}
+
+    try:
+        ctx.both_go(INN)
+        matched = awake(0.0166)
+        mismatched = awake(0.04)
+        # Which clutter wakes also depends on who walks by: the step itself is the check, the counts the evidence.
+        woken = sorted(mismatched - matched)
+        log(f"[host] awake at a matched step: {len(matched)}, at 2.4 frames: {len(mismatched)}; woken: "
+            + ", ".join(f"{ref:X}" for ref in woken))
+        step = float(ctx.run_console('getini "fMaxTime:HAVOK"')[0].split(">>")[-1])
+        if step > 0.03:
+            raise ctx.failure(f"[host] Havok steps {step} s at 60 fps (2.4 frames), woke {len(woken)} objects that rest "
+                              "at a matched step")
+    finally:
+        ctx.run_console('setini "fMaxTime:HAVOK" 0.0166')
+        ctx.both_go(HOME_CELL)
