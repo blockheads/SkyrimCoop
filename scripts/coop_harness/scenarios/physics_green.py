@@ -3,6 +3,7 @@ import contextlib
 import json
 import math
 import subprocess
+import threading
 import time
 import uuid
 
@@ -82,6 +83,59 @@ class VisualCapture:
                 process.kill()
                 process.communicate()
             errors.close()
+
+    @contextlib.contextmanager
+    def watch_tankard(self, watcher):
+        """Sample throughout the aimed hold: a single screenshot can fall between flashes."""
+        from PIL import Image
+        from analyze_green_flash import green_pixels
+
+        path = self.folder / f'{watcher or "host"}-tankard.png'
+        counts, errors, samples = [], [], []
+        with (self.folder / 'appearance-ffmpeg.log').open('w') as log_file:
+            process = subprocess.Popen([
+                'ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+                '-f', 'x11grab', '-framerate', '60', '-video_size', '96x96',
+                '-i', f'{self.ctx.game(watcher).display}+596,342',
+                '-threads', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+                stdout=subprocess.PIPE, stderr=log_file)
+
+            def read():
+                try:
+                    while data := process.stdout.read(96 * 96 * 3):
+                        if len(data) != 96 * 96 * 3:
+                            break
+                        shot = Image.frombytes('RGB', (96, 96), data)
+                        count = green_pixels(shot, red_excess=10, blue_excess=3, minimum=20)
+                        if count > max(counts, default=0):
+                            shot.save(path)
+                        counts.append(count)
+                        samples.append({"time": time.time(), "green_pixels": count})
+                except Exception as error:
+                    errors.append(str(error))
+
+            reader = threading.Thread(target=read)
+            reader.start()
+            try:
+                self.ctx.wait_for('the tankard appearance capture starts', lambda: counts or errors, 5)
+                yield
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                reader.join(timeout=5)
+                process.stdout.close()
+        result = {'watcher': watcher or 'host', 'frames': len(counts), 'green_pixels': max(counts, default=0),
+                  'flashing_frames': sum(c > 128 for c in counts), 'errors': errors, 'samples': samples}
+        (self.folder / 'appearance.json').write_text(json.dumps(result))
+        if errors or len(counts) < 60:
+            raise self.ctx.failure(f'incomplete tankard appearance capture: {result}')
+        if result['flashing_frames']:
+            raise self.ctx.failure(f'S2: watching {watcher or "host"} sees green on the metal tankard: '
+                                   f'{result["flashing_frames"]}/{len(counts)} frames, max {result["green_pixels"]} pixels; {path}')
 
 
 def frames(ctx, instance, count):
@@ -207,6 +261,7 @@ def observer_probe(ctx, holder='', fast=False):
         host, guest = ctx.world_state(''), ctx.world_state('client')
         resting = ctx.resting_clutter_on_both(host, guest)
         target = ctx.pick_reference(host, 'MISC', 0, lambda ref: resting(ref)
+                                    and ref.get('base') == 0x319E3
                                     and 'tankard' in (first_body(ref).get('node') or '').lower())
         watcher = 'client' if not holder else ''
         log(f'S2 observer probe: {holder or "host"} holds {target:X}, base {host[target]["base"]:X}')
@@ -222,20 +277,21 @@ def observer_probe(ctx, holder='', fast=False):
                 look_pitch(ctx, holder, 0)
                 aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
                 capture.mark('held at eye height')
-                frames(ctx, holder, 300)
-                for dx in ((180, -300, 180, -60) if fast else (-8, 8, 8, -8)):
-                    for _ in range(1 if fast else 8):
-                        before = ctx.local_player(holder)['rotation'][2]
-                        ctx.player_command(holder, {'cmd': 'mouse', 'dx': dx, 'dy': 0})
-                        ctx.wait_for('the holder moves the object with the mouse', lambda:
-                                     abs(ctx.local_player(holder)['rotation'][2] - before) > .0003, 3)
-                    aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
-                    capture.mark(f'held mouse movement {dx}')
-                    if ctx.local_player(holder).get('grabbed') != target:
-                        raise ctx.failure('the holder dropped the prop during the observer probe')
-                    if fast:
-                        frames(ctx, holder, 45)
-                frames(ctx, holder, 300)
+                with capture.watch_tankard(watcher):
+                    frames(ctx, holder, 300)
+                    for dx in ((180, -300, 180, -60) if fast else (-8, 8, 8, -8)):
+                        for _ in range(1 if fast else 8):
+                            before = ctx.local_player(holder)['rotation'][2]
+                            ctx.player_command(holder, {'cmd': 'mouse', 'dx': dx, 'dy': 0})
+                            ctx.wait_for('the holder moves the object with the mouse', lambda:
+                                         abs(ctx.local_player(holder)['rotation'][2] - before) > .0003, 3)
+                        aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
+                        capture.mark(f'held mouse movement {dx}')
+                        if ctx.local_player(holder).get('grabbed') != target:
+                            raise ctx.failure('the holder dropped the prop during the observer probe')
+                        if fast:
+                            frames(ctx, holder, 45)
+                    frames(ctx, holder, 300)
                 release(ctx, holder)
                 capture.mark('released')
                 frames(ctx, watcher, 120)

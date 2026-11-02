@@ -5,7 +5,12 @@
 #include <Havok/Ragdoll.h>
 #include <Havok/bhkCollision.h>
 #include <Misc/BSFixedString.h>
+#include <NetImmerse/BSGeometry.h>
+#include <NetImmerse/BSLightingShaderMaterial.h>
+#include <NetImmerse/BSLightingShaderProperty.h>
+#include <NetImmerse/BSShaderProperty.h>
 #include <NetImmerse/NiNode.h>
+#include <RTTI.h>
 #include <TESObjectREFR.h>
 
 #include <chrono>
@@ -37,6 +42,49 @@ nlohmann::json NodeJson(NiNode& aRoot, const BSFixedString& acName)
     if (!pNode)
         return nullptr;
     return {pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z};
+}
+
+nlohmann::json GeometryJson(NiAVObject& aRoot)
+{
+    auto entries = nlohmann::json::array();
+    std::vector<NiAVObject*> queue{&aRoot};
+    for (size_t i = 0; i < queue.size(); ++i)
+    {
+        NiAVObject* pObject = queue[i];
+        if (auto* pGeometry = Cast<BSGeometry>(pObject))
+        {
+            nlohmann::json entry = {{"node", pObject->name ? pObject->name : ""}, {"flags", pObject->flags},
+                                    {"vertex_desc", pGeometry->vertexDesc}, {"scale", pObject->world.scale},
+                                    {"position", {pObject->world.translate.x, pObject->world.translate.y, pObject->world.translate.z}},
+                                    {"previous_position", {pObject->previousWorld.translate.x, pObject->previousWorld.translate.y, pObject->previousWorld.translate.z}},
+                                    {"previous_scale", pObject->previousWorld.scale}, {"updated_frame", pObject->lastUpdatedFrame},
+                                    {"rotation", pObject->world.rotate}, {"local_rotation", pObject->local.rotate}};
+            if (const auto* pShader = pGeometry->shaderProperty.object)
+            {
+                entry["shader"] = {{"flags", pShader->flags}, {"alpha", pShader->alpha},
+                                    {"render_state", pShader->lastRenderPassState},
+                                    {"material", reinterpret_cast<uintptr_t>(pShader->material)},
+                                    {"effect_data", reinterpret_cast<uintptr_t>(pShader->effectData)},
+                                    {"passes", reinterpret_cast<uintptr_t>(pShader->renderPassList.head)},
+                                    {"debug_passes", reinterpret_cast<uintptr_t>(pShader->debugRenderPassList.head)},
+                                    {"accumulated_frame", pShader->lastAccumulatedFrameCount}};
+                if (Cast<BSLightingShaderProperty>(pGeometry->shaderProperty.object) && pShader->material)
+                {
+                    const auto& cMaterial = *static_cast<const BSLightingShaderMaterial*>(pShader->material);
+                    entry["textures"] = {{"offset", cMaterial.texCoordOffset}, {"scale", cMaterial.texCoordScale},
+                                          {"diffuse", reinterpret_cast<uintptr_t>(cMaterial.diffuseTexture)},
+                                          {"normal", reinterpret_cast<uintptr_t>(cMaterial.normalTexture)},
+                                          {"render_target", cMaterial.diffuseRenderTargetSourceIndex}};
+                }
+            }
+            entries.push_back(std::move(entry));
+        }
+        if (auto* pNode = Cast<NiNode>(pObject))
+            for (uint16_t child = 0; child < pNode->children.length; ++child)
+                if (auto* pChild = pNode->children.data[child])
+                    queue.push_back(pChild);
+    }
+    return entries;
 }
 } // namespace
 
@@ -73,6 +121,8 @@ void BodyTrace::Poll()
         nlohmann::json entry = {{"t", cNow}, {"id", cFormId}, {"position_3d", {cTranslate.x, cTranslate.y, cTranslate.z}}, {"bodies", bodies}};
         // Its 3D's flags (NiAVObject): kHidden 1, kNotVisible 1 << 20 (the last frame's culling: not drawn).
         entry["flags_3d"] = p3D->flags;
+        if (!pActor)
+            entry["geometry"] = GeometryJson(*p3D);
         if (pActor)
         {
             static const BSFixedString s_pelvis("NPC Pelvis [Pelv]");

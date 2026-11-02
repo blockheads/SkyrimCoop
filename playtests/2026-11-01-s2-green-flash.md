@@ -83,6 +83,41 @@ Python compilation, all 31 harness tests, scenario discovery, configurable-mask 
 checks pass. Native reproduction/capture is the validation for these Python-only additions. No C++ build or
 full `scripts/check.sh` rerun is claimed for this reproduction-only change.
 
+## Automatic harness detection (23:20)
+
+The metal-tankard fixture now samples a 96×96 region around the aimed held body at 60 fps, throughout its
+steady hold and mouse sweeps. A dark-green fill over 128 pixels fails the scenario and saves the strongest
+candidate, per-frame sample times/counts, both full videos and engine traces. It requires at least 60 sampled
+frames. The colour rule is specific to this vanilla metal-tankard fixture, not a universal object classifier.
+
+The first continuous-check run failed automatically on unmodified playback: **18 of 340 sampled frames**, maximum
+1,862 matching pixels. Evidence: `build/coop-test/green-flash/20261101-232042-observer-host-600EE-58f6/`,
+`appearance.json`, `client-tankard.png`, and `build/s2-pixel-red.log`. A single end-of-hold screenshot had missed
+the transient fill; full-video analysis found it, which prompted continuous sampling.
+
+Fresh diagnostic builds record shader flags, material/texture identities, UV offsets/scales and geometry
+transforms per frame. Those remain intact during the reproduced fill; no effect-data pointer appears.
+The native body switches between keyframed playback while moving and dynamic motion again at the host's
+reported rest, even though the host player still holds the prop.
+
+Two controlled diagnostic artifacts still failed the same visual assertion:
+
+- Applying `Drive` through `MainLoopTasks`: 2 of 361 frames, max 1,858 pixels (`build/s2-phase-probe.log`).
+- Omitting the extra `NiAVObject::Update` after the body-to-node write: 1 of 363 frames, max 547 pixels
+  (`build/s2-node-probe.log`).
+
+Neither is a fix, and the source was restored after building each diagnostic artifact. These separate short
+runs do not establish an improvement in flash rate. Each run stopped and verified its own prefix processes,
+then released the duo before offline analysis or compilation.
+
+The diagnostic additions pass the full `scripts/check.sh` gate: ClientTests 176, HostAuthorityTests 198,
+TPTests 32 and GameTests 271 cases, harness checks, UI fixtures, DLL and launcher builds. The native S2 check
+remains red. No S2 GameTests regression has been added yet.
+
+The next controlled probes are lighting-list refresh after a manually moved keyframed node (HIGGS's
+`ShadowSceneNode_UpdateNodeList`, verified on AE as 106349), and an overlay-disabled control. The cause is still
+open; no GameTests engine fact or production fix is claimed yet.
+
 ## Earlier preparation (before the manual watching-game clarification)
 
 User confirms the symptom happened previously and clarifies that **only the held object turns green**.
