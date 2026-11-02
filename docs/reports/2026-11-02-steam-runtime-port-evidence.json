@@ -1,0 +1,195 @@
+{
+  "date": "2026-11-02",
+  "source_commit": "eb913f95",
+  "public_steam_branch_observed": {
+    "source": "https://api.steamcmd.net/v1/info/489830",
+    "buildid": "24914197",
+    "timebuildupdated": "1787601592",
+    "timeupdated": "1787839209"
+  },
+  "latest_local_original_exe": {
+    "path": "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition/SkyrimSE_1.7.104.exe",
+    "version": "1.7.104.0",
+    "sha256": "846efccf0c1374d71f892907f46549560f2fcb0a75cb87a3eed438baa0f1402f"
+  },
+  "upstream_commonlib_commit": "8eaddedd1542290701ccb0e9e88b2af8b3cea597",
+  "upstream_skse_commit": "25b72352adb6543fa6d0bd3795780672b2e238e0",
+  "inventory": {
+    "coverage_target": "1.7.99.0 ONLY; exact 1.7.104.0 library was unavailable locally",
+    "indexed_distinct_ids": 606,
+    "indexed_uses": 698,
+    "indexed_usage_kinds": {
+      "call": 282,
+      "hook": 219,
+      "data": 197
+    },
+    "hook_ids": 219,
+    "rtti_ids": 2806,
+    "all_observed_literal_ids": 3457,
+    "extra_ids_outside_generated_index": 2851,
+    "indexed_resolved_in_1_7_99": 605,
+    "all_resolved_in_1_7_99": 3453,
+    "already_missing_in_1_6_1170": [
+      392519,
+      394235,
+      398437
+    ],
+    "newly_missing_in_1_7_99": [
+      52488
+    ],
+    "missing_details": {
+      "52488": {
+        "old_rva": "0x95e000",
+        "uses": [
+          {
+            "file": "Code/client/Bridges/WaitBridge.cpp",
+            "line": 124,
+            "var": "RealOkay",
+            "type": "decltype(*RealOkay)",
+            "kind": "hook",
+            "hook": "HookOkay",
+            "flags": []
+          }
+        ]
+      },
+      "392519": {
+        "old_rva": "0x0",
+        "uses": [
+          {
+            "kind": "rtti",
+            "file": "Code/client/Games/Skyrim/RTTI.cpp",
+            "line": 544,
+            "name": "registerRtti_NiObjectNET"
+          }
+        ]
+      },
+      "394235": {
+        "old_rva": "0x0",
+        "uses": [
+          {
+            "kind": "rtti",
+            "file": "Code/client/Games/Skyrim/RTTI.cpp",
+            "line": 1794,
+            "name": "registerRtti_CreationClubMenu"
+          }
+        ]
+      },
+      "398437": {
+        "old_rva": "0x0",
+        "uses": [
+          {
+            "kind": "rtti",
+            "file": "Code/client/Games/Skyrim/RTTI.cpp",
+            "line": 4344,
+            "name": "registerRtti_NiParticleSystem"
+          }
+        ]
+      }
+    },
+    "ida_notes": 235,
+    "ida_notes_resolved_in_1_7_99": 234,
+    "ida_notes_missing_in_1_7_99": [
+      52488
+    ],
+    "resolved_ida_note_rvas_changed": 234,
+    "fixture_sha256": "184fca0c834e0d2523b450d18ea32c9fbf9f6295e88e936712b7360f1fccc4ec",
+    "fixture_address_count": 435154,
+    "current_python_decoder_v5_result": "unsupported Address Library format"
+  },
+  "native_binary_checks": {
+    "1.6.1170.0": {
+      "sha256_unpacked": "5d86c19dbff13d6ab4a3eaf5b82de5e7ca66b0c449f84b99ea810298fb25ae63",
+      "file_version": "1.6.1170.0",
+      "rtti": {
+        "PlayerCharacter": [
+          {
+            "name": ".?AV?$BSTEventSource@UPositionPlayerEvent@@@@",
+            "offset": "0x388"
+          }
+        ],
+        "SkyrimVM": [
+          {
+            "name": ".?AV?$BSTEventSink@UPositionPlayerEvent@@@@",
+            "offset": "0x190"
+          },
+          {
+            "name": ".?AV?$BSTEventSource@UStatsEvent@SkyrimScript@@@@",
+            "offset": "0x1a8"
+          }
+        ]
+      },
+      "StatsMenu_ProcessMessage_rva": "0x95f710",
+      "SleepWaitMenu_ProcessMessage_rva": "0x95db60",
+      "SleepWaitMenu_first_callback": {
+        "name": "OK",
+        "rva": "0x95e000",
+        "source": "RTTI -> primary vtable slot 1 Accept -> callback registration"
+      }
+    },
+    "1.7.104.0": {
+      "sha256_unpacked": "c81aad73c85076b27cf14a2f57ac114115c827d66af195076e26fea8c1093965",
+      "file_version": "1.7.104.0",
+      "rtti": {
+        "PlayerCharacter": [
+          {
+            "name": ".?AV?$BSTEventSource@UPositionPlayerEvent@@@@",
+            "offset": "0x390"
+          },
+          {
+            "name": ".?AV?$BSTEventSink@VBSSystemEvent@@@@",
+            "offset": "0x2d8"
+          }
+        ],
+        "SkyrimVM": [
+          {
+            "name": ".?AV?$BSTEventSink@UTESAmiiboTouchEvent@@@@",
+            "offset": "0x180"
+          },
+          {
+            "name": ".?AV?$BSTEventSink@UTESAmiiboForcedStopDetectionEvent@@@@",
+            "offset": "0x188"
+          },
+          {
+            "name": ".?AV?$BSTEventSink@UPositionPlayerEvent@@@@",
+            "offset": "0x1a0"
+          },
+          {
+            "name": ".?AV?$BSTEventSource@UStatsEvent@SkyrimScript@@@@",
+            "offset": "0x1b8"
+          }
+        ]
+      },
+      "StatsMenu_ProcessMessage_rva": "0x976a50",
+      "SleepWaitMenu_ProcessMessage_rva": "0x974e00",
+      "SleepWaitMenu_first_callback": {
+        "name": "OK",
+        "rva": "0x9752a0",
+        "source": "RTTI -> primary vtable slot 1 Accept -> callback registration"
+      }
+    }
+  },
+  "StatsMenu_patch_bytes": {
+    "1.6.1170.0": {
+      "0x84e": "0f85530c0000",
+      "0xa10": "834e1c20",
+      "0x1040": "743b"
+    },
+    "1.7.104.0": {
+      "0x84e": "0f85530c0000",
+      "0xa10": "834e1c20",
+      "0x1040": "743b"
+    }
+  },
+  "shared_ida_read_only": {
+    "instance": "gy8k",
+    "version": "1.6.1170",
+    "function_count": 194094,
+    "type_ordinal_limit": 225
+  },
+  "limitations": [
+    "No 1.7.104 Address Library coverage claim.",
+    "Nonzero IDs do not prove function signatures or patch offsets.",
+    "No game was launched and no gameplay compatibility claim is made.",
+    "Literal source scan includes test code and may omit computed IDs."
+  ]
+}
