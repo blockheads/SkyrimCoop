@@ -11,6 +11,25 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
+2026-11-01: a guest can take a chest's fresh roll (S5, uncommitted): the host's game found none of a freshly rolled
+leveled item to give (its read counted the changes' 0, not the engine's count through the base's leveled list) and
+removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEngine::TransferContainer` now counts
+with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
+"A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
+
+2026-11-01: a joined player can change its armor again (S7, uncommitted): the join put the kept character's worn set
+back on force-equipped (`abForceEquip`, Papyrus `EquipItem`'s prevent removal), so the inventory menu could not take
+it off or replace it ([inventory-changes.md](re/systems/inventory-changes.md), "Worn on add"). Scenario
+`guest-swaps-armor-after-join`; no GameTests flow (the call is below the bridges the fake replaces).
+
+2026-11-01: a guest's held object is steered on the host, not keyframed (uncommitted): the host's physics stops it on
+an NPC's head and the other guests get the host's result (S1, [physics-sync.md](design/physics-sync.md), "Steered
+holds"). The host's physics matches a game without a session again: the host wrote every awake object's 3D each
+update, which re-placed it and lost its contacts (a dropped bucket rested 21 units deeper on a head); now only when
+the engine left the 3D behind ("Matches a game without co-op"). The bucket trick works for either player
+(`guest-bucket-trick`, `host-bucket-trick`). The duo's games run with Wine's audio drivers off (they took this
+user's sound card).
+
 2026-10-29: party dialogue built (uncommitted): every menu shows every player's options tagged with who can say them,
 one shared highlight, a player says only its own options ([shared-dialogue.md](design/shared-dialogue.md)).
 Fast tiers and the Skyrim dialogue tag pass (the party list, the shared highlight, a question answered by the guest).
