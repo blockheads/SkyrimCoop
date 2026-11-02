@@ -254,7 +254,7 @@ def book_runs(ctx, game):
             ctx.console_on("", f"{ref:X}.disable")
             ctx.console_on("", f"{ref:X}.markfordelete")
 
-def barter_speech(ctx, game, original=False):
+def barter_speech(ctx, game, original=False, stay_in_dialogue=False):
     """A real merchant line opens barter on the picker, whose purchase earns Speech on that game alone."""
     ctx.both_go("WhiterunBelethorsGeneralGoods")
     if original:
@@ -283,11 +283,14 @@ def barter_speech(ctx, game, original=False):
         for transaction in range(2):
             log(f"[{game or 'host'}] {'original' if original else 'spawned'} Belethor transaction {transaction + 1}")
             before = {g: ctx.skill(g, SPEECH_SKILL) for g in ("", "client")}
-            if transaction:
+            if transaction and not stay_in_dialogue:
                 ctx.wait_for("the merchant finishes the previous goodbye", lambda: all(
                     not ctx.actor_state(g, actor).get("ai", {}).get("talking")
                     for g, actor in (("", npc), ("client", copy))), 10)
-            ctx.activate_on(game, target)
+            if not transaction or not stay_in_dialogue:
+                ctx.activate_on(game, target)
+            elif not ctx.talking_to(game, target):
+                raise ctx.failure('closing barter did not preserve the merchant conversation')
             try:
                 ctx.wait_for("the merchant offers its barter line", lambda: any(
                     "sale" in o.get("text", "").lower() for o in ctx.dialogue(game).get("options", [])), 30)
@@ -315,6 +318,14 @@ def barter_speech(ctx, game, original=False):
             if ctx.skill(other, SPEECH_SKILL) != before[other]:
                 raise ctx.failure("the other player's Speech gained the trade")
             close(ctx, game, menu)
+            if stay_in_dialogue and transaction == 0:
+                try:
+                    ctx.wait_for('the returned dialogue accepts another merchant choice', lambda: ctx.menu_takes_pick(game), 15)
+                except TestFailure:
+                    from .dialogue_repro import capture, evidence_folder
+                    capture(ctx, evidence_folder('barter-return'), 'blocked-return')
+                    raise
+                continue
             ctx.close_dialogues()
             # The original reference also participates in the shop's scene when a spawned merchant trades.
             def scenes_agree():

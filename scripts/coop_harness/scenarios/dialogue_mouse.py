@@ -32,7 +32,7 @@ def calibrate(ctx, instance):
     return [32 / v for v in delta]
 
 
-def hover(ctx, instance, index, scale, settle=True):
+def target(ctx, instance, index, scale):
     visible = rows(ctx, instance)
     row = next((row for row in visible if row['index'] == index), None)
     if row is None:
@@ -41,8 +41,14 @@ def hover(ctx, instance, index, scale, settle=True):
     local = [row['_xmouse'], row['_ymouse']]
     size = [row['_width'], row['_height']]
     point = [round(cursor[axis] + (size[axis] / 2 - local[axis]) * scale[axis]) for axis in range(2)]
+    return {'row': row, 'point': point}
+
+
+def hover(ctx, instance, index, scale, settle=True):
+    result = target(ctx, instance, index, scale)
+    point = result['point']
     ctx.move_cursor(instance, point)
     if settle:
         ctx.wait_for(f'[{instance or "host"}] mouse highlights option {index}',
                      lambda: ctx.cursor_index(instance) == index, 5)
-    return {'row': row, 'point': point, 'selected': ctx.cursor_index(instance)}
+    return {**result, 'selected': ctx.cursor_index(instance)}

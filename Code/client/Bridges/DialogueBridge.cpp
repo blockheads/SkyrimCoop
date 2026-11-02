@@ -18,6 +18,7 @@
 #include <Misc/JudgedFor.h>
 #include <Papyrus/GuestScripts.h>
 #include <PlayerCharacter.h>
+#include <Services/DialogueMenuPolicy.h>
 #include <RTTI.h>
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
@@ -59,6 +60,9 @@ std::mutex s_judgedLock;
 std::map<uint32_t, std::vector<IDialogueBridge::Option>> s_judged;
 
 // ---- Helpers ----
+
+GFxMovie* DialogueMovie() noexcept;
+std::optional<double> ReadNumber(const GFxMovie& acMovie, const char* acpPath) noexcept;
 
 uint32_t IdOf(const TESForm* apForm) noexcept
 {
@@ -494,7 +498,7 @@ bool DialogueBridge::ClearOrphaned() noexcept
 
 // ---- The list and picks ----
 
-bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept
+bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming) noexcept
 {
     // A refresh raises dialogue above the trader's menu and takes its input.
     if (IsBartering())
@@ -503,12 +507,14 @@ bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoice
     if (!pManager)
         return false;
     const bool cReplaced = ReplaceOptions(*pManager, acOptions);
-    if (const int8_t cHeld = s_heldShow.exchange(-1); cHeld >= 0)
+    const auto* pMovie = DialogueMovie();
+    const bool cListShown = pMovie && ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") == 1.0;
+    if (const int8_t cHeld = s_heldShow.exchange(-1); cHeld >= 0 && !aResuming)
     {
         spdlog::info("Dialogue: the party's list, in the show the engine was held from");
         RealShowList(cHeld != 0);
     }
-    else if (cReplaced)
+    else if (DialogueMenuPolicy::NeedsRefill(cReplaced, cListShown, aResuming))
         RefillMenu(aChoices);
     else
         spdlog::info("Dialogue: the party's list again, as the menu shows it: not refilled");
@@ -580,15 +586,20 @@ std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
 void DialogueBridge::ShowPicked(const std::string& acText) noexcept
 {
     GFxMovie* pMovie = DialogueMovie();
-    // As the SWF's onSelectionClick, without its TopicClicked: the list goes (TOPIC_CLICKED, 2), the picked line
-    // stays in its place (TextCopy_mc), and the next list shown (DoShowDialogueList) slides in.
-    if (!pMovie || ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") != 1.0)
+    if (!pMovie)
         return;
-    pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(2), 0);
+    const auto cDisplay = DialogueMenuPolicy::DisplayPicked(ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState").value_or(0));
+    if (cDisplay == DialogueMenuPolicy::PickedDisplay::Ignore)
+        return;
     GFxValue argument{};
     argument.type = GFxValue::kString;
-    argument.value.string = "topicClicked";
-    pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
+    if (cDisplay == DialogueMenuPolicy::PickedDisplay::Animate)
+    {
+        pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(2), 0);
+        argument.value.string = "topicClicked";
+        pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
+    }
+    // TOPIC_CLICKED may already display a losing local choice; replace it with the host's accepted text.
     GFxValue visible{};
     visible.type = GFxValue::kBoolean;
     visible.value.boolean = true;

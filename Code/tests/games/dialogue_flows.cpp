@@ -177,7 +177,12 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
             CHECK(hostTalk.ListShown);
             CHECK(hostTalk.PickedText.empty());
             CHECK(guestTalk.ListShown);
+            CHECK(hostTalk.Highlight == 4u);
+            CHECK(guestTalk.Highlight == 4u);
         }
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
+        party.Until([&] { return hostTalk.Said.size() == 1; }, "after refusal the host can say its own option");
+        CHECK(hostTalk.Said[0].Info == cNoClaw.Info);
     }
     WHEN("the guest presses its gift")
     {
@@ -204,7 +209,12 @@ SCENARIO("Every menu shows the party's list; a player says only its own options"
             CHECK(guestTalk.ListShown);
             CHECK(guestTalk.PickedText.empty());
             CHECK(hostTalk.ListShown);
+            CHECK(guestTalk.Highlight == 2u);
+            CHECK(hostTalk.Highlight == 2u);
         }
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(4); });
+        party.Until([&] { return hostTalk.Said.size() == 1; }, "after refusal the guest can say its own option");
+        CHECK(hostTalk.Said[0].Info == cGift.Info);
     }
     WHEN("the host presses the guest's line of the claw topic")
     {
@@ -315,7 +325,7 @@ SCENARIO("A guest defers the next dialogue list until its personal menu closes",
     party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the merchant's copy arrives");
     party.As(party.Guest(), [&] { talk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
     party.Until([&] { return talk.MenuOpen && talk.Options.size() == 2; }, "dialogue opens");
-    talk.PlayerMenuOpen = true;
+    Dialogue(party.Host()).OnSaid = [&](const auto&) { talk.PlayerMenuOpen = true; };
     party.As(party.Guest(), [&] { talk.PlayerPicks(0); });
     party.Until([&] { return Dialogue(party.Host()).Said.size() == 1; }, "the host says the picked line");
     for (int i = 0; i < 10; ++i)
@@ -478,7 +488,12 @@ SCENARIO("A guest closes barter and dialogue then trades with the same merchant 
         party.Until([&] { return !talk.MenuOpen; }, "barter suspends dialogue");
         CHECK(talk.Speaker == cCopy);
         party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(MenuEvent{"BarterMenu", false}); });
-        party.Until([&] { return talk.MenuOpen && service.Joined(); }, "barter returns to dialogue");
+        party.Until([&] { return talk.MenuOpen && talk.ListShown && talk.AllowProgress && service.Joined(); },
+                    "the returned dialogue accepts another choice");
+        party.As(party.Guest(), [&] { talk.PlayerPicks(0); });
+        party.Until([&] { return Dialogue(party.Host()).Said.size() == static_cast<size_t>(trade + 1) && talk.ListShown &&
+                                talk.Options == std::vector{kMore, kGoodbye}; },
+                    "the next choice is said once and another usable list returns");
         party.Frame(); // the returned dialogue has reached the engine before the player leaves
         party.As(party.Guest(), [&] { talk.PlayerLeaves(); });
         party.Until([&] { return !service.Conversation() && Dialogue(party.Host()).Speaker == 0; }, "the party conversation ends");

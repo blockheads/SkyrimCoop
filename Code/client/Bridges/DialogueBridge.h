@@ -25,7 +25,7 @@ public:
     void End() noexcept override;
     bool ClearOrphaned() noexcept override;
 
-    bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept override;
+    bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;
     void ShowPicked(const std::string& acText) noexcept override;
 

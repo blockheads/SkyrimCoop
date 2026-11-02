@@ -87,6 +87,9 @@ private:
     void OnHighlight(const NotifyDialogueHighlight& acMessage) noexcept;
     // This game's highlight moved: the others' menus follow; another's move shows here once its list does.
     void SyncHighlight() noexcept;
+    void SendHighlight(uint32_t aIndex) noexcept;
+    // A refused click has already hidden the SWF list; restore it on the next update.
+    void RestoreList(uint32_t aIndex) noexcept;
     // The player clicked an option: it goes to the host when it is the player's own (true: the menu never says it).
     bool OnPickAsked(uint32_t aIndex) noexcept;
     // The party's list in an open menu, once per step.
@@ -105,6 +108,7 @@ private:
     uint32_t m_openingFrames{};
     bool m_menuOpen{};
     bool m_bartering{};
+    bool m_resuming{};
     bool m_closing{}; // its close asked for, the menu still fading out
     // The party's list for a step (this game's form ids, its names in the text), and which step its menu shows.
     uint32_t m_listStep{};

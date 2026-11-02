@@ -1,5 +1,5 @@
 """One registration per canonical Skyrim flow."""
-from .scenarios import arrest_repro, combat, crime, dialogue_repro, followers, menus, rewards, specs, v1
+from .scenarios import arrest_repro, combat, crime, dialogue_regression, dialogue_repro, followers, menus, rewards, specs, v1
 from .scenarios import (
     ai,
     combat,
@@ -23,6 +23,12 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    registry.add('dialogue-host-barter-return-accepts-choice', ['restart', 'dialogue', 'barter'], lambda ctx: menus.barter_speech(ctx, '', original=True, stay_in_dialogue=True), doc='Closing real host barter returns to usable dialogue; a second purchase needs no new conversation.')
+    registry.add('dialogue-guest-barter-return-accepts-choice', ['restart', 'dialogue', 'barter'], lambda ctx: menus.barter_speech(ctx, 'client', original=True, stay_in_dialogue=True), doc='Closing real guest barter returns to usable dialogue; a second purchase needs no host intervention.')
+    registry.add('dialogue-competing-picks-recover', ['restart', 'dialogue'], dialogue_regression.competing_picks, doc='Concurrent different-choice input says one winning line, charges once and restores both usable lists.')
+    registry.add('dialogue-double-click-says-once', ['restart', 'dialogue'], lambda ctx: dialogue_regression.competing_picks(ctx, double_click=True), doc='Two real mouse clicks spend one coin and both players can leave the recovered conversation.')
+    registry.add('dialogue-close-immediate-reopen', ['restart', 'dialogue'], dialogue_regression.immediate_reopen, doc='Guest Tab then activation of another NPC opens a usable conversation without host intervention.')
+    registry.add('dialogue-same-topic-mouse-picks-info', ['restart', 'dialogue'], dialogue_regression.same_topic_mouse, doc='Mouse clicks distinguish owner/INFO rows of one topic; refusal restores input and the owned line is said.')
     registry.add('dialogue-guest-s9-exits', ['restart', 'dialogue'], lambda ctx: dialogue_repro.guest_exits(ctx, placed=0x19DF0, walking=True), doc='The guest talks to Wylandriah, the S9 candidate, exits alone with Tab around greeting and movement input, then walks normally.')
     registry.add('dialogue-guest-picks-at-greeting-end', ['restart', 'dialogue'], dialogue_repro.greeting_end, doc='The guest presses as the host greeting ends, while its menu takes input, without waiting for its copy\'s voice to end.')
     registry.add('dialogue-refused-pick-restores-list', ['restart', 'dialogue'], dialogue_repro.refused_pick, doc='Choosing another player\'s option is refused and restores the local list without another player intervening.')

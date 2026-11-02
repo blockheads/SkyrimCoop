@@ -1,5 +1,8 @@
 # Dialogue reproduction follow-up
 
+Follow-up: the failures below are historical RED results. The [fix batch](2026-11-01-dialogue-fixes.md)
+records the subsequent fixes, passing fast tests and native verification on `repro/s3-guest-arrest` (not merged).
+
 User request: investigate concrete dialogue bugs, including mouse/highlight/click races, before broad cleanup.
 Baseline: committed dev `454fb752`, with the S3 reproduction additions at `a6ca4796`; isolated worktree
 `.worktrees/s3-guest-arrest`. This task changes reproduction coverage and documentation only; no production fix or merge.

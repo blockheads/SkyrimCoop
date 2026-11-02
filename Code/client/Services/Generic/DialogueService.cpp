@@ -120,9 +120,10 @@ void DialogueService::ShowPartyList() noexcept
 {
     if (!m_listStep || m_listStep != m_step || m_shownStep == m_step)
         return;
-    if (!m_bridge.ShowList(m_list, m_listChoices))
+    if (!m_bridge.ShowList(m_list, m_listChoices, m_resuming))
         return;
     m_shownStep = m_step;
+    m_resuming = false;
     m_highlight.reset();
 }
 
@@ -158,11 +159,25 @@ void DialogueService::SyncHighlight() noexcept
     // A list just shown starts at its first option on every menu: nothing to tell.
     if (cFirst && *cHighlight == 0)
         return;
+    SendHighlight(*cHighlight);
+}
+
+void DialogueService::SendHighlight(uint32_t aIndex) noexcept
+{
     DialogueHighlightRequest moved;
     moved.Conversation = m_conversation;
     moved.Step = m_step;
-    moved.Index = *cHighlight;
+    moved.Index = aIndex;
     m_transport.Send(moved);
+}
+
+void DialogueService::RestoreList(uint32_t aIndex) noexcept
+{
+    if (!PartyList() || aIndex >= m_list.size())
+        return;
+    m_shownStep = 0;
+    m_pendingHighlight = std::pair{m_step, aIndex};
+    SendHighlight(aIndex);
 }
 
 void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
@@ -174,10 +189,13 @@ void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
         m_pRole->RunsWithoutMenu(), m_bartering, m_conversation != 0));
     if (m_bartering)
     {
+        m_resuming = false;
         CloseMenu();
     }
     else if (m_bridge.GetSpeaker())
     {
+        m_resuming = true;
+        m_shownStep = 0;
         m_bridge.ShowMenu();
         Opening();
     }
@@ -247,6 +265,7 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_menuOpen = false;
     m_closing = false;
     m_bartering = false;
+    m_resuming = false;
     m_listStep = 0;
     m_shownStep = 0;
     m_highlight.reset();
@@ -256,6 +275,7 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
 void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
     m_conversation = acMessage.Conversation;
+    m_resuming = false;
     m_npcSessionId = acMessage.NpcId;
     m_step = 1;
     m_joined = false;
@@ -280,6 +300,7 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
     if (aIndex >= cOptions.size())
     {
         spdlog::warn("Dialogue: a click on option {} of a list of {}", aIndex, cOptions.size());
+        RestoreList(m_highlight.value_or(0));
         return true;
     }
     // Another player's option: this player may highlight it, not say it; only its chat hears why.
@@ -291,6 +312,7 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
             if (const uint32_t cMe = m_transport.GetLocalPlayerId(); !CanSay(m_listPlayers[cListed - m_list.begin()], cMe))
             {
                 spdlog::info("Dialogue: option {} (topic {:X}) is another player's: not sent", aIndex, cOptions[aIndex].Topic);
+                RestoreList(aIndex);
                 m_world.GetDispatcher().trigger(SessionNoticeEvent{CannotSayText(m_world.GetSessionService().NameOf(cMe))});
                 return true;
             }
@@ -334,6 +356,7 @@ void DialogueService::OnClosed(const NotifyDialogueClosed& acMessage) noexcept
     m_conversation = 0;
     m_joined = false;
     m_bartering = false;
+    m_resuming = false;
     m_opening = false;
     if (m_pRole)
         m_pRole->OnClosed();

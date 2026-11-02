@@ -85,8 +85,8 @@ public:
 
     /// The list becomes these options (topic and line each, as another game's engine built them; no conditions are
     /// tested), and an open menu not showing them already shows them and takes a pick (aChoices: slid in as a line's
-    /// choices). False: no conversation, or a personal menu defers the refresh.
-    virtual bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept = 0;
+    /// choices). aResuming re-arms input after barter. False: no conversation, or a personal menu defers the refresh.
+    virtual bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept = 0;
     /// Says this topic's line, as clicking its option does: the list's option with it, else one built for it (a line
     /// judged for another player's character). False: no conversation, or no such line.
     virtual bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept = 0;
