@@ -162,7 +162,7 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
-    , m_moving(false)
+    , m_moving(m_reads, false)
 {
     m_bodyBridge.SetReferences([this](const GameId& acId) {
         const TESObjectREFR* pObject = FindReference(acId);

@@ -71,6 +71,8 @@ void BodyTrace::Poll()
         }
         const auto& cTranslate = p3D->world.translate;
         nlohmann::json entry = {{"t", cNow}, {"id", cFormId}, {"position_3d", {cTranslate.x, cTranslate.y, cTranslate.z}}, {"bodies", bodies}};
+        // Its 3D's flags (NiAVObject): kHidden 1, kNotVisible 1 << 20 (the last frame's culling: not drawn).
+        entry["flags_3d"] = p3D->flags;
         if (pActor)
         {
             static const BSFixedString s_pelvis("NPC Pelvis [Pelv]");

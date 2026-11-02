@@ -442,6 +442,7 @@ void Payloads::BodyFrames::SerializePayload(Wire::Buffer::Writer& aWriter) const
     Serialization::WriteVarInt(aWriter, Frames.size());
     for (const auto& cFrame : Frames)
         cFrame.Serialize(aWriter);
+    Serialization::WriteBool(aWriter, Held);
 }
 
 void Payloads::BodyFrames::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -453,6 +454,7 @@ void Payloads::BodyFrames::DeserializePayload(Wire::Buffer::Reader& aReader) noe
     Frames.resize(cCount);
     for (auto& frame : Frames)
         frame.Deserialize(aReader);
+    Held = Serialization::ReadBool(aReader);
 }
 
 void Payloads::BodyRests::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

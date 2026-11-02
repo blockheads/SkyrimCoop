@@ -32,6 +32,7 @@
 
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
+    , m_moving(m_reads, false)
 {
 }
 
@@ -48,8 +49,26 @@ void GuestEngine::EndScenePackage() noexcept
 {
     FakeEngine::Current().AiDriven = false;
 }
-// Never read here (TakeOwnBodies is the fake's), but GuestEngine holds one.
-PhysicsBodies::PhysicsBodies(bool) noexcept {}
+// The engine's reads as the fake engine's (GuestEngine and HostEngine hold one; HostService's TakeBodies reads the fake
+// directly).
+BodyReads::BodyReads() noexcept = default;
+BodyReads::~BodyReads() noexcept = default;
+std::vector<uint32_t> BodyReads::TakeMovedReferences() noexcept
+{
+    return FakeEngine::Current().TakeMovedReferences();
+}
+uint32_t BodyReads::PlayerInRagdoll() noexcept
+{
+    return FakeEngine::Current().PlayerInRagdoll();
+}
+std::optional<IBodyReads::Reference> BodyReads::ReadReference(uint32_t aFormId, bool aBodies) noexcept
+{
+    return FakeEngine::Current().ReadReference(aFormId, aBodies);
+}
+void BodyReads::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
+{
+    FakeEngine::Current().WriteNode(aFormId, aIndex);
+}
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {

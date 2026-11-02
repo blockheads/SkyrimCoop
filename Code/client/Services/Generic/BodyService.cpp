@@ -30,6 +30,7 @@ void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
     m_ragdollRests.erase(acKey);
     m_pendingRests.erase(acKey);
     m_following.erase(acKey);
+    m_held.erase(acKey);
 }
 
 void BodyService::EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept
@@ -52,6 +53,8 @@ void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
         if (!cFrame.Key.Actor && !m_playback.Has(cFrame.Key))
             if (const auto cShown = m_bridge.ReadPose(cFrame.Key))
                 m_playback.StartFrom(*cShown);
+        if (acMessage.Held && !cFrame.Key.Actor)
+            m_held.insert(cFrame.Key);
         (cFrame.Key.Actor ? ragdolls : frames).push_back(cFrame);
     }
     m_playback.Add(acMessage.Tick, frames);
@@ -75,6 +78,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_playback = {};
     m_ragdolls = {};
     m_following.clear();
+    m_held.clear();
     m_ragdollRests.clear();
     m_pendingRests.clear();
     m_missing.clear();
@@ -147,7 +151,9 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
             m_ragdollRests[cKey] = {cPose.Tick, cAt};
         else
             m_ragdollRests.erase(cKey);
-        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy);
+        const bool cDone = cPose.Rest             ? m_bridge.Rest(cAt, cCopy)
+                           : m_held.contains(cKey) ? m_bridge.Steer(cPose.Body)
+                                                   : m_bridge.Drive(cPose.Body, cCopy);
         if (cPose.Rest && !cKey.Actor && !cDone)
         {
             m_pendingRests[cKey] = {cPose.Tick, cAt};

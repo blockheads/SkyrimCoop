@@ -22,7 +22,8 @@ class IBodyBridge;
  *            ragdoll plays at its copy's time (CopyPlayback, with its movement), steered
  *   rest     placed exactly; a reference's simulated again (asleep) so this game's player can push and grab it
  *
- * A guest gets the host's bodies and the others' held ones; the host a guest's held ones. The bodies this game owns
+ * A guest gets the host's bodies; the host a guest's held ones (Held), steered instead (IBodyBridge::Steer): its physics,
+ * its actors included, has the last word, and it sends its result on. The bodies this game owns
  * for now (a guest's player pushed or holds them) are its Keeper's: their frames wait.
  */
 struct BodyService
@@ -78,6 +79,7 @@ private:
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests;
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
+    std::set<BodyKey> m_held;      // a player's hold in another game: steered here
     std::set<BodyKey> m_missing;   // not in this game (logged once)
     std::vector<entt::scoped_connection> m_connections;
 };

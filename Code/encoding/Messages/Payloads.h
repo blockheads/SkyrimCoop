@@ -330,6 +330,7 @@ struct BodyFrames
 
     uint64_t Tick{};
     std::vector<BodyFrame> Frames;
+    bool Held{}; // a player's hold, forwarded to the host's game: it steers them (its own physics meets its actors)
 };
 
 // Bodies that fell asleep on their owner's game, where they stay (reliable). Asked by a guest (BodyPoseRequest):

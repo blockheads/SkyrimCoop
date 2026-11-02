@@ -2,6 +2,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Physics/BodyPrediction.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
@@ -60,6 +61,9 @@ float FakeEngine::HeadingOf(const glm::quat& acRotation) noexcept
 void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
 {
     Body& body = Bodies.at(acKey);
+    // Its 3D where it was (it rested there): the engine moves it from the body as it flies.
+    body.NodePosition = body.Flight.Body.Position;
+    body.NodeRotation = body.Flight.Body.Rotation;
     if (body.RagdollOf && Actors.contains(body.RagdollOf) && !IsActorDead(body.RagdollOf))
         Actors.at(body.RagdollOf).KnockedDown = true;
     body.Flight.Resting = false;
@@ -120,6 +124,51 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     return true;
 }
 
+glm::vec3 FakeEngine::OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& acTo) const noexcept
+{
+    glm::vec3 at = acTo;
+    for (const auto& [cFormId, cActor] : Actors)
+    {
+        if (cActor.Copy || cActor.Dead || cActor.Disabled || !cActor.Loaded)
+            continue;
+        const glm::vec3 cFeet(cActor.Position[0], cActor.Position[1], cActor.Position[2]);
+        const glm::vec2 cOff(at.x - cFeet.x, at.y - cFeet.y);
+        if (glm::length(cOff) >= kCapsuleRadius || at.z < cFeet.z || at.z >= cFeet.z + kCapsuleTop)
+            continue;
+        // From above, it rests on top; else out to the side it came from.
+        if (acFrom.z >= cFeet.z + kCapsuleTop)
+            at.z = cFeet.z + kCapsuleTop;
+        else
+        {
+            glm::vec2 side(acFrom.x - cFeet.x, acFrom.y - cFeet.y);
+            if (glm::length(side) < 1e-3f)
+                side = glm::length(cOff) > 1e-3f ? cOff : glm::vec2(1.f, 0.f);
+            side = glm::normalize(side) * kCapsuleRadius;
+            at.x = cFeet.x + side.x;
+            at.y = cFeet.y + side.y;
+        }
+    }
+    return at;
+}
+
+bool FakeEngine::Steer(const BodyFrame& acFrame) noexcept
+{
+    const auto it = acFrame.Key.Actor ? Bodies.end() : Bodies.find(acFrame.Key);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    body.Held = false;
+    body.Steered = true;
+    body.Awake = true;
+    body.Flight.Resting = false;
+    body.Flight.Body.Position = OutsideCapsules(body.Flight.Body.Position, acFrame.Position);
+    body.Flight.Body.Rotation = acFrame.Rotation;
+    body.Flight.Body.LinearVelocity = acFrame.LinearVelocity;
+    body.Flight.Body.AngularVelocity = acFrame.AngularVelocity;
+    ++body.Steers;
+    return true;
+}
+
 bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acPose.Key);
@@ -156,24 +205,123 @@ bool FakeEngine::Free(const BodyFrame& acFrame) noexcept
         return false;
     Body& body = it->second;
     body.Held = false;
-    body.Flight.Body = acFrame;
-    body.Flight.Body.Key = {};
+    // Steered (simulated all along): it goes on from where this game has it.
+    if (!std::exchange(body.Steered, false))
+    {
+        body.Flight.Body = acFrame;
+        body.Flight.Body.Key = {};
+    }
     Knock(acFrame.Key, acFrame.LinearVelocity, acFrame.AngularVelocity);
     return true;
 }
 
+namespace
+{
+constexpr uint64_t kStepMs = 16; // Havok's substeps (fTimePerSubStep)
+
+// Its physics up to aTick: its flight steps (unless a holder's frames move it), and the engine writes its node from it
+// unless it leaves the node behind.
+void StepBody(FakeEngine::Body& aBody, uint64_t aTick)
+{
+    if (!aBody.Tick || aBody.Steered)
+        aBody.Tick = aTick;
+    // Steered, the holder's frames move it (the steer stands for its physics' steps).
+    for (; aBody.Tick + kStepMs <= aTick && !aBody.Flight.Resting; aBody.Tick += kStepMs)
+        aBody.Flight.Step(kStepMs / 1000.f);
+    if (!aBody.NodeLeftBehind)
+    {
+        aBody.NodePosition = aBody.Flight.Body.Position;
+        aBody.NodeRotation = aBody.Flight.Body.Rotation;
+    }
+}
+} // namespace
+
+uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
+{
+    return acKey.Actor ? acKey.Actor : FormIdOf(acKey.Object);
+}
+
+std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
+{
+    std::vector<uint32_t> moved;
+    for (const auto& [cKey, cBody] : Bodies)
+        if ((cBody.Awake || cBody.Steered) && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
+            moved.push_back(ReferenceOf(cKey));
+    return moved;
+}
+
+uint32_t FakeEngine::PlayerInRagdoll() noexcept
+{
+    const auto it = Actors.find(kPlayer);
+    return it != Actors.end() && (IsActorDead(kPlayer) || it->second.KnockedDown) ? kPlayer : 0;
+}
+
+std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId, bool aBodies) noexcept
+{
+    const auto cActor = Actors.find(aFormId);
+    IBodyReads::Reference reference{.Actor = cActor != Actors.end(),
+                        .Dead = cActor != Actors.end() && IsActorDead(aFormId),
+                        .Up = cActor != Actors.end() && !IsActorDead(aFormId) && !cActor->second.KnockedDown,
+                        .Player = aFormId == kPlayer};
+    bool any = reference.Actor;
+    for (auto& [cKey, body] : Bodies)
+    {
+        if (ReferenceOf(cKey) != aFormId)
+            continue;
+        any = true;
+        if (!reference.Actor && cKey.Index == 0)
+            reference.Position = body.NodePosition;
+        if (!aBodies)
+            continue;
+        if (body.Awake && !body.Held)
+            StepBody(body, PhysicsTick);
+        // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
+        // 37996).
+        if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && (body.Awake || body.Steered))
+        {
+            std::copy_n(&body.Flight.Body.Position.x, 3, cActor->second.Position);
+            cActor->second.Rotation[2] = HeadingOf(body.Flight.Body.Rotation);
+        }
+        if (body.Flight.Resting)
+            body.Awake = false;
+        if (reference.Bodies.size() <= cKey.Index)
+            reference.Bodies.resize(cKey.Index + 1);
+        BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
+                      .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
+                      .Dynamic = !body.Held, .Active = (body.Awake && !body.Flight.Resting) || body.Steered};
+        reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
+        if (!reference.Actor)
+            reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);
+    }
+    if (!any)
+        return std::nullopt;
+    return reference;
+}
+
+void FakeEngine::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
+{
+    for (auto& [cKey, body] : Bodies)
+    {
+        if (cKey.Actor || cKey.Index != aIndex || ReferenceOf(cKey) != aFormId)
+            continue;
+        ++body.NodeWrites;
+        const auto cApart = BodyPrediction::Between({.Position = body.NodePosition, .Rotation = body.NodeRotation},
+                                                    {.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation});
+        if (cApart.Distance < 0.1f && cApart.Angle < 0.001f)
+            ++body.Replaced;
+        body.NodePosition = body.Flight.Body.Position;
+        body.NodeRotation = body.Flight.Body.Rotation;
+    }
+}
+
 HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich)
 {
-    constexpr uint64_t cStepMs = 16; // Havok's substeps (fTimePerSubStep)
     HostBodies bodies;
     for (auto& [cKey, body] : Bodies)
     {
         if (!body.Awake || (acWhich && !acWhich(cKey)))
             continue;
-        if (!body.Tick)
-            body.Tick = aTick;
-        for (; body.Tick + cStepMs <= aTick && !body.Flight.Resting; body.Tick += cStepMs)
-            body.Flight.Step(cStepMs / 1000.f);
+        StepBody(body, aTick);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,

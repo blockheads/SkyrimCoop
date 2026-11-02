@@ -12,6 +12,7 @@
 
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IBodyBridge.h>
+#include <Bridges/IBodyReads.h>
 #include <Physics/RagdollPending.h>
 
 #include <Games/QuestChanges.h>
@@ -45,7 +46,7 @@
 
 struct World;
 
-struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
+struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 {
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
 
@@ -321,8 +322,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         size_t RestAttempts{};
         FakeFlight Flight;
         bool Awake = false;
-        bool Held = false;    // keyframed by the host's frames (a guest's; a reference's freed at its rest), or by a guest's hold (the host's)
+        bool Held = false;    // keyframed by the host's frames (a guest's; a reference's freed at its rest)
+        bool Steered = false; // simulated, steered onto a holder's frames (the host's, while a guest's player holds it)
         size_t Drives = 0;    // frames of the host's followed
+        size_t Steers = 0;    // a holder's frames steered toward
+        // Its node (a reference's 3D): the engine writes it from the body each step, except while it leaves it behind
+        // (docs/re/systems/physics.md). A node write on a body the engine already followed re-places the body, which
+        // loses its contacts (the bucket that sank into a head): counted in Replaced.
+        bool NodeLeftBehind = false;
+        glm::vec3 NodePosition{};
+        glm::quat NodeRotation{1.f, 0.f, 0.f, 0.f};
+        size_t NodeWrites = 0;
+        size_t Replaced = 0;
         size_t Rests = 0;     // rests of the host's placed
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
@@ -335,6 +346,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
     HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});
+    // IBodyReads: this game's physics as PhysicsBodies reads it (the host's, in its network's time: PhysicsTick).
+    uint64_t PhysicsTick = 0;
+    std::vector<uint32_t> TakeMovedReferences() noexcept override;
+    uint32_t PlayerInRagdoll() noexcept override;
+    std::optional<IBodyReads::Reference> ReadReference(uint32_t aFormId, bool aBodies = true) noexcept override;
+    void WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept override;
+    // The reference a body belongs to (an actor's for its ragdoll's).
+    [[nodiscard]] static uint32_t ReferenceOf(const BodyKey& acKey) noexcept;
     // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
@@ -346,7 +365,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool Steer(const BodyFrame& acFrame) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
+    // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
+    // object interactions); a keyframed body passes through, and so does a copy's capsule (copies skip
+    // Actor::ApplyMovement 37356, which integrates it). The duo's probe: the capsule's top 128 above the feet.
+    static constexpr float kCapsuleRadius = 20.f;
+    static constexpr float kCapsuleTop = 128.f;
+    // Where a simulated body moving from acFrom toward acTo stops: outside every capsule that pushes.
+    [[nodiscard]] glm::vec3 OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& acTo) const noexcept;
     bool Free(const BodyFrame& acFrame) noexcept override;
     bool Push(const BodyPush& acPush) noexcept override;
     bool KeepMotion(const BodyKey&) noexcept override { return false; }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Bridges/BodyReads.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/DroppedItems.h>
@@ -129,6 +130,7 @@ private:
     [[nodiscard]] std::optional<GameId> HostIdOf(const TESObjectREFR& acObject) const noexcept;
     IBodyBridge& m_bodyBridge; // the session's bodies here
     std::vector<std::pair<BodyKey, uint32_t>> m_placed; // held at a move row's rest: updates since
+    BodyReads m_reads;
     PhysicsBodies m_moving; // the references and player's ragdoll this game's physics moves
     // The host's created references' ids (base id part) and this game's, by handle.
     std::unordered_map<uint32_t, uint32_t> m_created;

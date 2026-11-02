@@ -92,7 +92,8 @@ host game
     an actor: its ragdoll's bodies in order (RagdollBodiesOf), by its session id; a living actor's are keyframed
       by its animation, so only a dead or knocked-down actor's count
     awake: its island's active mark; none awake -> rested (every dynamic body's pose) + the move row (references)
-    every awake reference body's 3D written from its body each update (FollowBody)
+    an awake reference body's 3D written from its body when the engine left it behind (FollowBody; since
+      2026-11-01 only then: writing a followed one re-placed it, "Matches a game without co-op" below)
   HostPhysics (Services/Host/): BodyMotions marks free fall; each guest's BodySends picks the frames its guess got
     wrong (2 units, 0.05 rad), or 500 ms old, the most wrong first within ~8 KB/s, of the bodies within 4096
     units of that guest's copy (BodyRelevance)
@@ -140,8 +141,8 @@ Hz, the frames come 1-57 ms apart), as on the host; the guest plays by the clock
 
 A guest gets the frames of the awake bodies within `BodyRelevance::kGuestRadius` (4096 units, one exterior cell) of
 its copy in the host's game (`HostGame::ReadPlayerPosition`), so a fight far from it does not spend its budget;
-without a copy shown (joining, travelling) it gets them all. Rests go to every guest, and the host writes every awake
-body's 3D wherever the players are (the engine's own write is sometimes skipped, at any distance:
+without a copy shown (joining, travelling) it gets them all. Rests go to every guest, and the host writes an awake
+body's 3D wherever the players are when the engine skipped its own write (sometimes, at any distance:
 `docs/re/systems/physics.md`). A body that comes near mid-flight starts getting frames (its guess is old); one that
 leaves stops at its last guess until its rest. Tests: `ClientTests` "A guest gets the frames of the bodies near its
 character", `HostAuthorityTests` "a guest gets the frames of the bodies near its character, every guest the rests".
@@ -156,16 +157,65 @@ guest game: a reference's body at rest is dynamic, asleep (the host's frames hol
        the motion's applyPointImpulse)
   its player grabs one (Activate held: StartGrabObject 40552; a body the host's frames still move is keyframed, which
     the engine's grab refuses)
-    -> each update its frames (BodySends' rule) as BodyFramesRequest: the host keyframes its body toward them, 100 ms
-       behind (BodyPlayback), and forwards them to the other guests; the first holder keeps it
-  it lets go (PlayerCharacter::grabbedObject empty) -> BodyReleaseRequest{its last frame} (reliable): the host puts
-    its body there, simulated again with that velocity (bhkCollisionObject::SetMotionType 78182)
+    -> each update its frames (BodySends' rule) as BodyFramesRequest: the host steers its body after them, 100 ms
+       behind (BodyPlayback; since 2026-11-01, "Steered holds" below); the first holder keeps it
+  it lets go (PlayerCharacter::grabbedObject empty) -> BodyReleaseRequest{its last frame} (reliable): the host's
+    body goes on from where the host has it, at that velocity
   a pushed, held or dropped body is the guest's own until the host's rest: its own physics shows it, the host's
     frames of it wait, the rest places it (then dynamic again, asleep: hkpEntity::deactivate 60850)
   its own physics moves one the host's frames never follow (its copy of a cast exploded elsewhere, a settle 2 units
     or 0.05 rad off) -> after 1 s BodyPoseRequest: the host answers that guest with its bodies' poses as rests
-host game: a held body is keyframed, so not read as awake; a holder that leaves or goes silent for 2 s drops it
+host game: a held body is simulated and steered, so awake: HostPhysics sends it to the other guests; a holder that
+  leaves or goes silent for 2 s drops it
 ```
+
+### Steered holds (2026-11-01)
+
+S1 of `playtests/2026-10-31-fabien.md`: a guest's held object went through people's heads on the host. The host
+keyframed its body onto the holder's frames (`SetPositionAndRotation` each frame), and a keyframed body moved so
+meets nothing: whatever the holder's game let through, the host's did too (scenario `guest-bucket-on-npc-head`,
+first run: the guest's bucket 50 units over Lydia's feet in its own game, 69 on the host, keyframed).
+
+```
+guest holds a body -> BodyFramesRequest (as before)
+  HostHands: to the host's game only, Held set (NotifyBodyFrames::Held)
+  the host's BodyService: a Held frame is steered (IBodyBridge::Steer): simulated, its velocity set onto the
+    frame's path (BodyPrediction::Steer, as copies' ragdolls), put there only past 64 units (BodyBridge::kSteerFar)
+    -> the host's physics has the last word: Lydia's capsule stops it on her head
+  HostPhysics: the steered body is awake, so the other guests get the host's result, not the holder's frames
+  let go: BodyBridge::Free gives it the frame's velocity where the host has it
+```
+
+The holder still shows its own hold until the host's rest. A copy's capsule pushes held bodies only while its
+character controller integrates, and copies skip `Actor::ApplyMovement` (37356), which does that
+(`docs/re/systems/physics.md`, "What stops a held body"); the duo's later runs had the guest's own bucket stop on
+the copy's head anyway (168 to 170 units, 131 to 138 in two), so when the holder's own game lets one through is
+still open. Tests: GameTests "A guest's player lowers the plate onto a host NPC's head" (the fake's capsules:
+`FakeEngine::OutsideCapsules`), HostAuthorityTests "a guest's player holds a body, the host's game steers its own",
+scenarios `guest-bucket-on-npc-head`, `host-bucket-on-npc-head`, `guest-throw-lands-on-host`, and the bucket trick
+(`guest-bucket-trick`, `host-bucket-trick`: the wide bucket 00012FDF upside down, centred, stays on her head in both
+games; the bucket 000747FB and the cast iron pot roll off, as in a game without co-op).
+
+### Matches a game without co-op (2026-11-01)
+
+The same drop (the wide bucket upside down, 60 units over a restrained Lydia's head, at the stage spot in QASmoke)
+rested 152.4 units over her feet in a game with no session, and 131.3 on a host, hosting alone or with a guest,
+every time. Traced frame by frame (`body_trace`): without a session the bucket meets her at 152 and settles; on the
+host it never met that contact and sank to her capsule's top. The cause was the host's own `FollowBody`: writing an
+awake body's node every update, even when the engine had already written it, re-places the body and its contacts
+are lost (the node's update and the moved-reference notify both off still did it: the write itself). The host now
+writes a node only when the engine left it behind (more than 1 unit or 0.01 rad off its body; followed, they agree
+to 0.1 unit), and the same drop rests at 153.5 in the duo, the guest's exactly where the host's is. Writing on any
+offset was not enough the other way: a 32-unit threshold left small knocks' nodes behind (`guest-cast-moves-host`'s
+put-back failed). `kFarAway` on an NPC's controller (bit 18, set by `Actor::UpdateFadeSettings` 37992 while her 3D
+is not visible) is vanilla and did not change the drop. `host-bucket-trick` is the regression scenario.
+
+`PhysicsBodies` now reads through `IBodyReads` (the engine's `BodyReads`: the change funnel's watch and the engine
+calls), so GameTests run the real one on the fake engine, whose bodies have a node the engine writes each step unless
+it leaves it behind, and count a node write on a followed body as re-placing it (`FakeEngine::Body::Replaced`).
+Flows: "The host's engine moves a knocked bucket's 3D with it" (no write, nothing re-placed), "...leaves a knocked
+bucket's 3D behind: the host writes it, after a small knock too" (the 32-unit threshold fails it), "...leaves a
+spinning bucket's 3D turned as it was" (a position-only check fails it).
 
 - Pushes are the engine's own numbers: the guest's game computes the push its player's character gives (the
   character proxy's interaction), the host applies the same impulse. A copy moves by SetPosition and pushes nothing

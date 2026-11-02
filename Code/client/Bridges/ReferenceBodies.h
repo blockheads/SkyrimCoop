@@ -14,8 +14,8 @@ struct TESObjectREFR;
 namespace ReferenceBodies
 {
 // A body this near a pose is there: a settle in place, not a move of its own.
-constexpr float kSameDistance = 0.5f;  // units
-constexpr float kSameAngle = 0.005f;   // radians
+constexpr float kSameDistance = kBodySameDistance;
+constexpr float kSameAngle = kBodySameAngle;
 
 struct Body
 {

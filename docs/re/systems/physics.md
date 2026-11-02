@@ -86,8 +86,13 @@ and followed at every distance from 780 to 2700; in a third run of the same knoc
 1550. No INI setting names a havok or physics distance. The cause is untraced; the island activation (25849, 25857)
 moves the 3D under the cell's `DynamicNode` either directly or through the task queue, which is where to look next.
 
-`PhysicsBodies` (host) therefore writes each awake reference body's node from its body every update (`FollowBody`,
-the engine's own dynamic write), wherever the players are; a guest does the same for the bodies it holds.
+`PhysicsBodies` (host) therefore writes an awake reference body's node from its body (`FollowBody`, the engine's own
+dynamic write), wherever the players are, but only when the node is off its body (more than 1 unit or 0.01 rad;
+followed, the node's world sits on the body to 0.1 unit and its rotation matrix, read as is, is the body's
+quaternion). Writing a followed body's node again re-places the body, which loses its contacts: a dropped bucket
+went 21 units deeper into a head than in a game without a session (2026-11-01, `docs/design/physics-sync.md`,
+"Matches a game without co-op"). That holds with the node's `NiAVObject::Update` and the collision object's
+`kNotify` both left out: the write (vfunc 0x2B) itself does it.
 
 ## Motion type and kSetLocal
 
@@ -172,6 +177,27 @@ grabs a resting body (dynamic, asleep), not one the host's frames still move (a 
 `docs/progress.md`, loose ends). A grab holds the object where
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
+
+## What stops a held body (2026-11-01)
+
+Probed in the duo (harness `ragdoll`, which also reads the character controller's flags and filter, and `ray`):
+
+- A standing NPC's ragdoll bodies are not in the world (18 bodies, `in_world` false, on the host and on the copy).
+  What a ray meets is the character controller's capsule (layer 30), its top 128 units over the feet, in both games.
+- A grabbed object (the mouse spring on a dynamic body) stops on that capsule in vanilla: the host's own grab of a
+  bucket stays at 166 over Lydia's feet however far its player looks down, then drops.
+- The controller keeps bodies out as it integrates (its proxy's object interactions, 79133). A copy's controller
+  reads flags `40200000` where the host's NPC reads `40240500`: no `kSupport` (bit 8), `kCanJump` (10) or
+  `kFarAway` (18), as copies skip `Actor::ApplyMovement` (37356, `HookApplyMovement`), whose movement integrates it.
+- A keyframed body put at a pose each frame (`SetPositionAndRotation` 78082) meets nothing; a simulated body steered
+  by its velocity (78089/78090) is stopped like the grab's.
+
+## kFarAway
+
+`bhkCharacterController` flag bit 18 (`kFarAway`, CommonLibSSE-NG) is set by `Actor::UpdateFadeSettings` (37992)
+when the actor's `Get3D2` (TESObjectREFR vfunc 0x70) is none or has `kNotVisible` (NiAVObject flags bit 20): an NPC
+the camera does not see. In a game without a session, turning the player away from Lydia sets it (40200500 to
+40240500) and back clears it; a bucket dropped on her head rests the same either way.
 
 ## Knockdown
 

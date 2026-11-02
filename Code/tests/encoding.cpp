@@ -1391,8 +1391,10 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
         NotifyBodyFrames frames;
         frames.Tick = 123456789;
         frames.Frames = {frame, BodyFrame{.Key = {.Actor = 0x22, .Index = 14}, .Knocked = true}};
+        frames.Held = true;
         const auto cDecoded = roundTrip(frames);
         REQUIRE(cDecoded.Frames.size() == 2);
+        CHECK(cDecoded.Held);
         CHECK(cDecoded.Frames[1].Knocked);
         CHECK(cDecoded.Tick == frames.Tick);
         CHECK(cDecoded.Frames[0] == frame.Quantized());

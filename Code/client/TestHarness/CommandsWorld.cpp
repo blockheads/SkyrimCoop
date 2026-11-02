@@ -582,7 +582,7 @@ nlohmann::json StackExtras(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
-// rotation (x, y, z, w) and velocity in game units.
+// rotation (x, y, z, w) and velocity in game units; and its character controller's flags and filter info.
 nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
 {
     const auto cBodies = EngineCalls::GetRagdoll(acRequest.value("actor", 0u));
@@ -593,7 +593,10 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
         bodies.push_back({{"in_world", cBody.InWorld}, {"motion", cBody.Motion}, {"awake", cBody.Awake}, {"position", cBody.Position},
                           {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity},
                           {"bone", cBody.HasBone ? nlohmann::json(cBody.Bone) : nlohmann::json()}});
-    return {{"ok", true}, {"bodies", bodies}};
+    nlohmann::json result = {{"ok", true}, {"bodies", bodies}};
+    if (const auto cController = EngineCalls::GetController(acRequest.value("actor", 0u)))
+        result["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}};
+    return result;
 }
 
 nlohmann::json RayJson(const EngineCalls::RayHit& acHit)

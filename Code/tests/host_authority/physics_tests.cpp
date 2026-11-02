@@ -28,23 +28,24 @@ TEST_CASE("Physics: a guest's push pushes the host's body, unless a player holds
     CHECK(session.Pushed.size() == 1);
 }
 
-TEST_CASE("Physics: a guest's player holds a body, every other game plays the holder's frames", "[HostAuthority][Physics]")
+TEST_CASE("Physics: a guest's player holds a body, the host's game steers its own after the holder's frames", "[HostAuthority][Physics]")
 {
     Session session;
     session.Receive(kPeer, Held(1000, 10.f));
     session.Receive(kPeer, Held(1050, 12.5f));
-    THEN("the host's game and the other guest get the holder's frames, the holder none")
+    THEN("the host's game gets the holder's frames as a hold; the other guests get the host's result instead (HostPhysics)")
     {
         REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 2);
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).back()->Held);
         CHECK(session.SentTo<NotifyBodyFrames>(kHost).back()->Frames[0].Position.x == 12.5f);
-        CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).size() == 2);
+        CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).empty());
         CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
     }
     THEN("a second guest's hold of it is not taken")
     {
         session.Outbox.clear();
         session.Receive(kOtherPeer, Held(1100, 40.f));
-        CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
     }
 }
 
@@ -147,6 +148,7 @@ TEST_CASE("Physics: a guest's own ragdoll goes to every other game; another's ra
     REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyBodyFrames>(kHost)[0]->Frames.size() == 1);
     CHECK(session.SentTo<NotifyBodyFrames>(kHost)[0]->Frames[0].Key.Actor == cOwn);
+    CHECK_FALSE(session.SentTo<NotifyBodyFrames>(kHost)[0]->Held);
     CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
 

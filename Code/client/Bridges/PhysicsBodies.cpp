@@ -1,125 +1,93 @@
 #include <Bridges/PhysicsBodies.h>
-#include <Bridges/ReferenceBodies.h>
 
-#include <Actor.h>
-#include <Forms/FormChanges.h>
-#include <Havok/bhkCollision.h>
-#include <Havok/Ragdoll.h>
-#include <NetImmerse/NiNode.h>
-#include <PlayerCharacter.h>
-#include <TESObjectREFR.h>
+#include <Physics/BodyPrediction.h>
 
 #include <glm/glm.hpp>
 
-#include <mutex>
-#include <RTTI.h>
-
 namespace
 {
-
-// The references the funnel saw physics move since the last update, filled on the engine's threads. A leaf lock.
-std::mutex s_movedLock;
-std::unordered_set<uint32_t> s_moved;
-
-// The havok move flag: every frame while a body is awake.
-void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool, bool aRecorded) noexcept
+// The engine skipped its body to node write (it leaves the node exactly at the body otherwise). Writing a followed
+// body's node again re-places it, losing its contacts: a dropped bucket sank 21 units into a head.
+bool NodeLeftBehind(const IBodyReads::Body& acBody) noexcept
 {
-    if (!aRecorded || !(aFlags & TESObjectREFR::CHANGE_REFR_HAVOK_MOVE) ||
-        (acForm.formType != FormType::Reference && acForm.formType != FormType::Character))
-        return;
-    std::scoped_lock _(s_movedLock);
-    s_moved.insert(acForm.formID);
+    if (!acBody.Node)
+        return false;
+    const auto cApart = BodyPrediction::Between({.Position = acBody.Node->first, .Rotation = acBody.Node->second},
+                                                {.Position = acBody.Read.Position, .Rotation = acBody.Read.Rotation});
+    return cApart.Distance > PhysicsBodies::kLeftBehind || cApart.Angle > PhysicsBodies::kLeftBehindAngle;
+}
+
+BodyFrame FrameOf(const BodyRead& acRead, uint8_t aIndex) noexcept
+{
+    return {.Key = {.Index = aIndex}, .Position = acRead.Position, .Rotation = acRead.Rotation, .LinearVelocity = acRead.LinearVelocity,
+            .AngularVelocity = acRead.AngularVelocity};
 }
 } // namespace
 
-PhysicsBodies::Pose PhysicsBodies::Pose::Of(const TESObjectREFR& acObject) noexcept
+PhysicsBodies::Pose PhysicsBodies::Pose::Of(const IBodyReads::Reference& acReference) noexcept
 {
-    return {{acObject.position.x, acObject.position.y, acObject.position.z}, {acObject.rotation.x, acObject.rotation.y, acObject.rotation.z}};
+    return {acReference.Position, acReference.Rotation};
 }
 
 bool PhysicsBodies::Pose::IsNear(const Pose& acOther) const noexcept
 {
-    return glm::all(glm::lessThan(glm::abs(Position - acOther.Position), glm::vec3(ReferenceBodies::kSameDistance))) &&
-           glm::all(glm::lessThan(glm::abs(Rotation - acOther.Rotation), glm::vec3(ReferenceBodies::kSameAngle)));
+    return glm::all(glm::lessThan(glm::abs(Position - acOther.Position), glm::vec3(kBodySameDistance))) &&
+           glm::all(glm::lessThan(glm::abs(Rotation - acOther.Rotation), glm::vec3(kBodySameAngle)));
 }
 
-PhysicsBodies::PhysicsBodies(bool aAllActors) noexcept
-    : m_allActors(aAllActors)
+PhysicsBodies::PhysicsBodies(IBodyReads& aReads, bool aAllActors) noexcept
+    : m_reads(aReads)
+    , m_allActors(aAllActors)
 {
-    if (!FormChanges::Watch(&OnFormChange))
-        spdlog::error("{}: no slot left to watch the change funnel, physics stays in this game", __FUNCTION__);
-}
-
-PhysicsBodies::~PhysicsBodies() noexcept
-{
-    FormChanges::Unwatch(&OnFormChange);
-    std::scoped_lock _(s_movedLock);
-    s_moved.clear();
 }
 
 PhysicsBodies::Update PhysicsBodies::Take() noexcept
 {
-    std::unordered_set<uint32_t> moved;
-    {
-        std::scoped_lock _(s_movedLock);
-        moved.swap(s_moved);
-    }
+    auto moved = m_reads.TakeMovedReferences();
     // A revived player's next ragdoll need not mark the reference as moved again.
-    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    const bool cPlayerRagdoll = pPlayer && (pPlayer->IsDead() || pPlayer->actorState.IsKnockedDown());
+    const uint32_t cPlayerRagdoll = m_reads.PlayerInRagdoll();
     if (cPlayerRagdoll && !m_playerRagdoll)
-        moved.insert(pPlayer->formID);
-    m_playerRagdoll = cPlayerRagdoll;
+        moved.push_back(cPlayerRagdoll);
+    m_playerRagdoll = cPlayerRagdoll != 0;
     for (const uint32_t cFormId : moved)
-        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); pObject && (m_allActors || !Cast<Actor>(pObject) || pObject == PlayerCharacter::Get()))
-            m_awake.try_emplace(cFormId, Moving{Pose::Of(*pObject)});
+        if (const auto cReference = m_reads.ReadReference(cFormId, false); cReference && (m_allActors || !cReference->Actor || cReference->Player))
+            m_awake.try_emplace(cFormId, Moving{Pose::Of(*cReference)});
 
     Update update;
     for (auto it = m_awake.begin(); it != m_awake.end();)
     {
-        auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(it->first));
-        NiNode* p3D = pObject && !pObject->IsDeleted() ? pObject->GetNiNode() : nullptr;
-        if (!p3D)
+        const auto cReference = m_reads.ReadReference(it->first);
+        if (!cReference)
         {
             it = m_awake.erase(it);
             continue;
         }
-        const auto* pActor = Cast<Actor>(pObject);
-        const bool cActor = pActor != nullptr;
+        const bool cActor = cReference->Actor;
         // A living actor's ragdoll is its physics' only while it is knocked down; up again, its animation's.
-        const bool cUp = pActor && !pActor->IsDead() && !pActor->actorState.IsKnockedDown();
+        const bool cUp = cReference->Up;
         Bodies awake{it->first, cActor};
         Bodies all{it->first, cActor};
-        // A reference's: with their collision objects, whose nodes this game writes (below).
-        const auto cCollisions = cActor ? std::vector<bhkNiCollisionObject*>{} : CollisionObjectsOf(*p3D);
-        std::vector<bhkWorldObject*> bodies;
-        if (cActor)
-            bodies = RagdollBodiesOf(*pObject);
-        else
-            for (bhkNiCollisionObject* pCollision : cCollisions)
-                bodies.push_back(pCollision->body);
-        const auto& cBodies = bodies;
-        for (size_t i = 0; i < cBodies.size(); ++i)
+        for (size_t i = 0; i < cReference->Bodies.size(); ++i)
         {
-            BodyRead read;
-            if (!cBodies[i] || !ReadBody(*cBodies[i], read) || (!read.Dynamic && !cUp))
+            const auto& cBody = cReference->Bodies[i];
+            if (!cBody || (!cBody->Read.Dynamic && !cUp))
                 continue;
+            const BodyRead& cRead = cBody->Read;
             // Up again: where it lay is its rest (read once, below).
             if (cUp)
             {
-                all.Read.push_back(ReferenceBodies::FrameOf(read, static_cast<uint8_t>(i)));
+                all.Read.push_back(FrameOf(cRead, static_cast<uint8_t>(i)));
                 continue;
             }
             // The engine sometimes leaves a flying body's 3D (and reference) where it was (docs/re/systems/physics.md);
             // the guests and the record get where it is.
-            if (!cActor)
-                FollowBody(*cCollisions[i]);
-            BodyFrame frame = ReferenceBodies::FrameOf(read, static_cast<uint8_t>(i));
-            frame.Knocked = pActor && !pActor->IsDead();
-            const BodyFrame& cFrame = frame;
-            all.Read.push_back(cFrame);
-            if (read.Active)
-                awake.Read.push_back(cFrame);
+            if (!cActor && NodeLeftBehind(*cBody))
+                m_reads.WriteNode(it->first, static_cast<uint8_t>(i));
+            BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
+            frame.Knocked = cActor && !cReference->Dead;
+            all.Read.push_back(frame);
+            if (cRead.Active)
+                awake.Read.push_back(frame);
         }
         if (!awake.Read.empty())
         {
@@ -136,8 +104,9 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
         if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {
-            // An actor's place is its own sync's (movement, the copy contract).
-            if (!cActor && !it->second.At.IsNear(Pose::Of(*pObject)))
+            // An actor's place is its own sync's (movement, the copy contract). Its pose after the node writes.
+            const auto cNow = cActor ? cReference : m_reads.ReadReference(it->first, false);
+            if (!cActor && cNow && !it->second.At.IsNear(Pose::Of(*cNow)))
                 m_restedAway.push_back(it->first);
             update.Rested.push_back(std::move(all));
         }

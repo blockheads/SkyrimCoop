@@ -225,6 +225,18 @@ int32_t GetCharacterState(uint32_t aFormId) noexcept
     return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
 }
 
+std::optional<ControllerRead> GetController(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    const AIProcess* pProcess = pActor ? pActor->currentProcess : nullptr;
+    bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pController)
+        return std::nullopt;
+    ControllerRead read{.Flags = pController->flags};
+    pController->GetCollisionFilterInfo(read.Filter);
+    return read;
+}
+
 uint32_t GetEnemyHealthTarget() noexcept
 {
     // HUDMenu (1.6.1170): BSTArray<HUDObject*> objects at +0x40 (data, then size at +0x50). The

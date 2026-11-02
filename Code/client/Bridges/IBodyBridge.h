@@ -21,10 +21,14 @@ public:
     // Put at the frame and held keyframed, moving so. A copy's ragdoll body (aCopyFormId) is taken only once its own
     // ragdoll simulates it, and kept (true while it waits), steered onto the frame instead. False: that body is not here.
     virtual bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept = 0;
+    // A reference's body a player holds in another game, played on the host's: kept simulated and steered onto the
+    // frame (far off, put there), so this game's physics, its actors included, has the last word. False: not here.
+    virtual bool Steer(const BodyFrame& acFrame) noexcept = 0;
     // Put at its rest, still: a reference's simulated again, asleep, so this game's player can push and grab it; a
     // copy's ragdoll remains simulated and follows its owner's rest.
     virtual bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept = 0;
-    // A released reference's body simulated from its last held frame, even if its held packets were lost.
+    // A released reference's body simulated from its last held frame, even if its held packets were lost; a steered
+    // one goes on from where this game has it, at the frame's velocity.
     virtual bool Free(const BodyFrame& acFrame) noexcept = 0;
     // A player's character's impulse on a reference's body, at a point (Havok's character proxy).
     virtual bool Push(const BodyPush& acPush) noexcept = 0;

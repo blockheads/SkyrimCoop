@@ -193,22 +193,41 @@ void HostService::MakeAuthority() noexcept
     };
     game.TakeItem = [&engine](const GameId& acObject) { return engine.TakeLoose(acObject); };
     game.TakeQuestObject = [&engine](const GameId& acObject) { return engine.TakeQuestObject(acObject); };
-    // An actor's ragdoll goes by its session id, as HostEngine::TakeBodies keys it; only this game's own actors' (a
-    // copy's is keyed by session id here, and played).
-    game.TakeBodies = [&engine, this] {
+    // The real PhysicsBodies over the fake engine's physics, keyed as HostEngine::TakeBodies keys them: an actor's
+    // ragdoll by its session id, only this game's own actors' (a copy's is played here).
+    game.TakeBodies = [&engine, this, physics = std::make_shared<PhysicsBodies>(engine)] {
         const auto cSessionOf = [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;
             return 0;
         };
-        HostBodies bodies = engine.TakeBodies(m_pNetwork->GetTick(), [&](const BodyKey& acKey) { return !acKey.Actor || cSessionOf(acKey.Actor); });
-        for (auto& frame : bodies.Awake)
-            if (frame.Key.Actor)
-                frame.Key.Actor = cSessionOf(frame.Key.Actor);
-        for (auto& rest : bodies.Rested)
-            if (rest.Key.Actor)
-                rest.Key.Actor = cSessionOf(rest.Key.Actor);
+        const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
+            if (acBodies.Actor)
+            {
+                const uint32_t cSessionId = cSessionOf(acBodies.FormId);
+                return cSessionId ? std::optional(BodyKey{.Actor = cSessionId}) : std::nullopt;
+            }
+            for (const auto& [cKey, cBody] : engine.Bodies)
+                if (!cKey.Actor && FakeEngine::ReferenceOf(cKey) == acBodies.FormId)
+                    return BodyKey{.Object = cKey.Object};
+            return std::nullopt;
+        };
+        engine.PhysicsTick = m_pNetwork->GetTick();
+        const auto cUpdate = physics->Take();
+        HostBodies bodies;
+        for (const auto& cAwake : cUpdate.Awake)
+            if (const auto cKey = cOwner(cAwake))
+                for (BodyFrame frame : cAwake.Read)
+                {
+                    frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
+                    bodies.Awake.push_back(frame);
+                }
+        for (const auto& cRested : cUpdate.Rested)
+            if (const auto cKey = cOwner(cRested))
+                for (const BodyFrame& cRead : cRested.Read)
+                    bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position,
+                                             .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
         return bodies;
     };
     game.PushBody = [&engine](const BodyPush& acPush) { return engine.Push(acPush); };
@@ -319,7 +338,6 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
 
 // Never made here (the fake engine is the host's reads), but HostService's members name them.
 HostEngine::~HostEngine() noexcept = default;
-PhysicsBodies::~PhysicsBodies() noexcept = default;
 // AnimationSystem and FaceGenSystem as their own (their files read the engine too): the components only.
 void AnimationSystem::Setup(World& aWorld, entt::entity aEntity) noexcept
 {

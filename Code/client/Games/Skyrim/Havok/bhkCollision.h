@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Games/Primitives.h>
+#include <Physics/BodyRead.h>
 
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
@@ -124,17 +125,7 @@ constexpr float cHavokToGame = 1.f / 0.0142875f;
 // for it (a keyframed body's collision object has it off: 78182).
 void FollowBody(bhkNiCollisionObject& aCollision) noexcept;
 
-// A rigid body as the guests get it, in game units: where (its Havok transform), how it moves, and whether it is
-// simulated (dynamic) and awake (its island active). Under its world's read lock.
-struct BodyRead
-{
-    glm::vec3 Position{};
-    glm::quat Rotation{1.f, 0.f, 0.f, 0.f};
-    glm::vec3 LinearVelocity{};
-    glm::vec3 AngularVelocity{};
-    bool Dynamic{};
-    bool Active{};
-};
+// A rigid body's read (Physics/BodyRead.h), under its world's read lock.
 [[nodiscard]] bool ReadBody(const bhkWorldObject& acBody, BodyRead& aRead) noexcept;
 
 // Put there exactly, keyframed unless aSimulated (a ragdoll keeps its dynamic motion), moving so: its own

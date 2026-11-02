@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Messages/CellStateRequest.h>
+#include <Bridges/BodyReads.h>
 #include <Bridges/PhysicsBodies.h>
 #include <Messages/WorldState.h>
 #include <Services/Host/HostGame.h>
@@ -89,7 +90,8 @@ private:
 
     mutable std::unordered_set<uint32_t> m_pendingActorAliases;
     IBodyBridge& m_bodyBridge;
-    PhysicsBodies m_bodies;
+    BodyReads m_reads;
+    PhysicsBodies m_bodies{m_reads};
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
     std::unordered_map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base
 };

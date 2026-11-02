@@ -43,7 +43,9 @@ void HostHands::OnPushes(const BodyPushRequest& acMessage, ConnectionId_t aSende
 
 void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSender) noexcept
 {
-    std::vector<BodyFrame> taken;
+    NotifyBodyFrames ragdolls, held;
+    ragdolls.Tick = held.Tick = acMessage.Tick;
+    held.Held = true;
     for (const auto& cFrame : acMessage.Frames)
     {
         if (cFrame.Key.Actor)
@@ -52,18 +54,18 @@ void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSende
                 continue;
             if (++m_ragdolls[cFrame.Key] == 1)
                 spdlog::info("HostHands: {:x}'s {} moves", aSender, WorldStateLog::DescribeBody(cFrame.Key));
+            ragdolls.Frames.push_back(cFrame);
         }
-        else if (!TakeHeld(cFrame, acMessage.Tick, aSender))
-            continue;
-        taken.push_back(cFrame);
+        else if (TakeHeld(cFrame, acMessage.Tick, aSender))
+            held.Frames.push_back(cFrame);
     }
-    if (taken.empty())
-        return;
-    // Every other game sees it as its owner's game does, the host's too.
-    NotifyBodyFrames frames;
-    frames.Tick = acMessage.Tick;
-    frames.Frames = std::move(taken);
-    m_players.SendToOthers(frames, aSender, Net::kUnreliable);
+    // A ragdoll: every other game sees it as its owner's game does, the host's too.
+    if (!ragdolls.Frames.empty())
+        m_players.SendToOthers(ragdolls, aSender, Net::kUnreliable);
+    // A hold: the host's game steers its own body; the others get the host's result (HostPhysics).
+    if (!held.Frames.empty())
+        if (const ConnectionId_t cHost = m_players.Host(); cHost && cHost != aSender)
+            m_players.SendTo(cHost, held);
 }
 
 bool HostHands::TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_t aSender) noexcept

@@ -118,6 +118,14 @@ int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
 
+// The actor's character controller: its flags (CHARACTER_FLAGS) and its bodies' filter info, or none without one.
+struct ControllerRead
+{
+    uint32_t Flags{};
+    uint32_t Filter{};
+};
+std::optional<ControllerRead> GetController(uint32_t aFormId) noexcept;
+
 // The actor whose health bar the HUD shows, or 0.
 uint32_t GetEnemyHealthTarget() noexcept;
 

@@ -5,6 +5,7 @@
 #include <Services/BodyService.h>
 #include <Services/Guest/GuestHands.h>
 #include <Messages/Relayed.h>
+#include <Physics/BodyPrediction.h>
 
 namespace
 {
@@ -24,6 +25,17 @@ void Plugins(FakeEngine& aEngine)
     FakeEngine::Body plate;
     plate.Flight.Body.Position = {140.f, 200.f, kTable};
     aEngine.Bodies[kPlate] = plate;
+}
+
+// Lydia, placed in the plugins beside the table (the host's NPC, a copy on each guest's game).
+constexpr uint32_t kLydia = 0x0001A100;
+constexpr uint32_t kLydiaBase = 0x000A2C8E;
+const glm::vec3 kLydiaFeet{300.f, 200.f, 0.f};
+
+void PluginsWithLydia(FakeEngine& aEngine)
+{
+    Plugins(aEngine);
+    aEngine.PlaceNpc(kLydia, kLydiaBase, kSmoke, kLydiaFeet);
 }
 
 FakeEngine::Body& BodyOf(Party& aParty, World& aGame, const BodyKey& acKey)
@@ -153,7 +165,7 @@ SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the h
     }
 }
 
-SCENARIO("A guest's player carries the plate and lets go: the host's follows its hands, then falls from there", "[physics]")
+SCENARIO("A guest's player carries the plate and lets go: the host's is steered after its hands, then flies on", "[physics]")
 {
     Party party(1, Plugins);
     auto& hostPlate = BodyOf(party, party.Host(), kPlate);
@@ -173,24 +185,26 @@ SCENARIO("A guest's player carries the plate and lets go: the host's follows its
         guestPlate.Flight.Body.Position = cStart + cCarry * cNow;
         guestPlate.Flight.Body.LinearVelocity = cCarry;
     };
-    party.Until([&] { cMove(); return hostPlate.Drives > 0 && cCarried() > 0.5f; }, "the host's plate follows the guest's hands");
-    THEN("the host's is held, a little behind the guest's hands")
+    party.Until([&] { cMove(); return hostPlate.Steers > 0 && cCarried() > 0.5f; }, "the host's plate follows the guest's hands");
+    THEN("the host's is steered (simulated, so its physics meets its actors), a little behind the guest's hands")
     {
-        CHECK(hostPlate.Held);
-        CHECK_FALSE(hostPlate.Awake);
+        CHECK(hostPlate.Steered);
+        CHECK_FALSE(hostPlate.Held);
+        CHECK(hostPlate.Drives == 0);
         const float cBehind = glm::length(cCarry) * (BodyService::kDelayMs / 1000.f + 2.f * longestFrame) + 5.f;
         INFO("longest frame " << longestFrame << " s");
         INFO("host tick " << party.Host().GetTransport().GetTick() << ", guest tick " << party.Guest().GetTransport().GetTick()
-             << ", RTT " << party.Guest().GetTransport().GetRoundTripTime() << ", host drives " << hostPlate.Drives
+             << ", RTT " << party.Guest().GetTransport().GetRoundTripTime() << ", host steers " << hostPlate.Steers
              << ", host x " << hostPlate.Flight.Body.Position.x << ", guest x " << guestPlate.Flight.Body.Position.x);
         CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < cBehind);
     }
 
-    const glm::vec3 cLetGo = guestPlate.Flight.Body.Position;
     Party::Engine(party.Guest()).Grabbed.reset();
-    party.Until([&] { return !hostPlate.Held; }, "the host's plate is let go");
+    glm::vec3 letGo{};
+    party.Until([&] { letGo = hostPlate.Flight.Body.Position; return !hostPlate.Steered; }, "the host's plate is let go");
+    const glm::vec3 cLetGo = letGo;
     party.Until([&] { return !hostPlate.Awake && guestPlate.Rests > 0; }, "the plate rests on both games");
-    THEN("it flew on from the guest's hands on the host, and the guest showed its own fall until the host's rest")
+    THEN("it flew on from where the host had it, and the guest showed its own fall until the host's rest")
     {
         CHECK(hostPlate.Flight.Body.Position.x > cLetGo.x);
         CHECK(hostPlate.Flight.Body.Position.z == kTable);
@@ -508,4 +522,106 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
             CHECK(cCopyBone.Drives > 0);
             CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < 0.01f);
         }
+}
+
+SCENARIO("A guest's player lowers the plate onto a host NPC's head: the host's stops on it, as every other game shows",
+         "[physics]")
+{
+    // S1 (playtests/2026-10-31-fabien.md, guest-bucket-on-npc-head): the host's game followed the guest's hold
+    // keyframed, through her head.
+    Party party(2, PluginsWithLydia);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestPlate = BodyOf(party, party.Guest(0), kPlate);
+    auto& otherPlate = BodyOf(party, party.Guest(1), kPlate);
+    Party::Engine(party.Guest(0)).Grabbed = kPlate;
+    const glm::vec3 cAbove = kLydiaFeet + glm::vec3(0.f, 0.f, 200.f);
+    const auto cBegan = std::chrono::steady_clock::now();
+    const auto cHeld = [&] { return std::chrono::duration<float>(std::chrono::steady_clock::now() - cBegan).count(); };
+    // The guest's hands: over her head for half a second, then down through it at 100 units/s (its copy pushes
+    // nothing, as in Skyrim).
+    const auto cMove = [&] {
+        const float cLowered = std::max(0.f, cHeld() - 0.5f) * 100.f;
+        guestPlate.Flight.Body.Position = cAbove - glm::vec3(0.f, 0.f, std::min(cLowered, 180.f));
+        guestPlate.Flight.Body.LinearVelocity = {0.f, 0.f, cLowered > 0.f && cLowered < 180.f ? -100.f : 0.f};
+    };
+    float hostLowest = 1e9f, otherLowest = 1e9f;
+    const auto cOverHer = [](const FakeEngine::Body& acBody) {
+        return glm::distance(glm::vec2(acBody.Flight.Body.Position), glm::vec2(kLydiaFeet)) < FakeEngine::kCapsuleRadius;
+    };
+    const auto cWatch = [&] {
+        if (cOverHer(hostPlate))
+            hostLowest = std::min(hostLowest, hostPlate.Flight.Body.Position.z - kLydiaFeet.z);
+        if (cOverHer(otherPlate) && otherPlate.Drives)
+            otherLowest = std::min(otherLowest, otherPlate.Flight.Body.Position.z - kLydiaFeet.z);
+    };
+    party.Until([&] { cMove(); cWatch(); return cHeld() > 2.8f; }, "the guest's player lowers the plate through her head", {}, nullptr,
+                std::chrono::seconds{5});
+    THEN("the host's plate sits on her head, and the other guest shows it there")
+    {
+        INFO("guest's plate at " << guestPlate.Flight.Body.Position.z << ", host drives " << hostPlate.Drives << ", steers "
+             << hostPlate.Steers << ", other guest's drives " << otherPlate.Drives);
+        CHECK(hostLowest >= FakeEngine::kCapsuleTop - 1.f);
+        CHECK(hostLowest < FakeEngine::kCapsuleTop + 10.f);
+        CHECK(otherPlate.Drives > 0);
+        CHECK(otherLowest >= FakeEngine::kCapsuleTop - 1.f);
+    }
+    Party::Engine(party.Guest(0)).Grabbed.reset();
+    party.Until([&] { return !hostPlate.Steered && !hostPlate.Held; }, "the host's plate is let go");
+}
+
+SCENARIO("The host's engine moves a knocked bucket's 3D with it: the host's own physics is left alone", "[physics]")
+{
+    // A node write on a body the engine already followed re-places it and loses its contacts: a dropped bucket sank
+    // 21 units into a head on the host, never in a game without co-op (physics-sync.md, "Matches a game without co-op").
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    hostBucket.Flight.Floor = kTable;
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {120.f, 0.f, 150.f}, {0.f, 6.f, 0.f}); });
+    party.Until([&] { return !hostBucket.Awake && BodyOf(party, party.Guest(), kBucket).Rests > 0; }, "the bucket rests on both games");
+    THEN("the host never wrote its node, so never re-placed it")
+    {
+        CHECK(hostBucket.NodeWrites == 0);
+        CHECK(hostBucket.Replaced == 0);
+    }
+}
+
+SCENARIO("The host's engine leaves a knocked bucket's 3D behind: the host writes it, after a small knock too", "[physics]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    hostBucket.NodeLeftBehind = true;
+    hostBucket.Flight.Floor = kTable;
+    const glm::vec3 cStart = hostBucket.Flight.Body.Position;
+    // A nudge along the table: it slides a few units (FakeFlight's friction), its 3D left where it was by the engine.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {60.f, 0.f, 0.f}); });
+    party.Until([&] { return !hostBucket.Awake && BodyOf(party, party.Guest(), kBucket).Rests > 0; }, "the bucket rests on both games");
+    THEN("its 3D is where its body rests: the host wrote it, without re-placing a followed body")
+    {
+        INFO("slid " << glm::distance(hostBucket.Flight.Body.Position, cStart) << " units");
+        CHECK(glm::distance(hostBucket.Flight.Body.Position, cStart) > 2.f);
+        CHECK(glm::distance(hostBucket.Flight.Body.Position, cStart) < 32.f);
+        CHECK(glm::distance(hostBucket.NodePosition, hostBucket.Flight.Body.Position) < 1.f);
+        CHECK(hostBucket.NodeWrites > 0);
+        CHECK(hostBucket.Replaced == 0);
+    }
+}
+
+SCENARIO("The host's engine leaves a spinning bucket's 3D turned as it was: the host writes its turn", "[physics]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    hostBucket.NodeLeftBehind = true;
+    hostBucket.Flight.Floor = kTable;
+    // It spins where it stands (FakeFlight stops its spin when it stops sliding): a slow slide, a fast spin.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {20.f, 0.f, 0.f}, {0.f, 0.f, 8.f}); });
+    party.Until([&] { return !hostBucket.Awake; }, "the bucket rests on the host");
+    THEN("its 3D is turned as its body")
+    {
+        const auto cApart = BodyPrediction::Between({.Position = hostBucket.NodePosition, .Rotation = hostBucket.NodeRotation},
+                                                    {.Position = hostBucket.Flight.Body.Position, .Rotation = hostBucket.Flight.Body.Rotation});
+        INFO("apart " << cApart.Distance << " units, " << cApart.Angle << " rad");
+        CHECK(cApart.Angle < 0.01f);
+        CHECK(cApart.Distance < 1.f);
+        CHECK(hostBucket.Replaced == 0);
+    }
 }

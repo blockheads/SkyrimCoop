@@ -11,7 +11,8 @@ target("GameTests")
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp",
               "../../client/Services/Generic/BugReportService.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp")
-    add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp")
+    add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp",
+              "../../client/Bridges/PhysicsBodies.cpp")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
               "../../client/Services/Generic/SystemQuestService.cpp",
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",

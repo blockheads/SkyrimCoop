@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Bridges/IBodyReads.h>
 #include <Structs/BodyFrame.h>
 
 #include <glm/vec3.hpp>
@@ -10,18 +11,19 @@
 #include <utility>
 #include <vector>
 
-struct TESObjectREFR;
-
 // The host's physics objects (docs/design/physics-sync.md): each reference physics moves (the change funnel's havok
 // move) is read each update while any of its bodies is awake (its island active); once all sleep it rests. An actor's
 // bodies are its ragdoll's, read while they are simulated (dead, knocked down), not while its animation drives them.
-// One at a time (the host's, or a guest's own moves: GuestEngine::TakeOwnBodies): the funnel's moved set is shared.
+// It reads through IBodyReads (the engine's BodyReads; the fake engine's in GameTests).
 class PhysicsBodies
 {
 public:
+    // A body's node further off than this was left behind by the engine (followed, it sits on the body to 0.1 units).
+    static constexpr float kLeftBehind = 1.f;
+    static constexpr float kLeftBehindAngle = 0.01f; // radians
+
     // aAllActors: every actor's ragdoll (the host's); a guest's watches its references and its player's.
-    explicit PhysicsBodies(bool aAllActors = true) noexcept;
-    ~PhysicsBodies() noexcept;
+    explicit PhysicsBodies(IBodyReads& aReads, bool aAllActors = true) noexcept;
 
     PhysicsBodies(const PhysicsBodies&) = delete;
     PhysicsBodies& operator=(const PhysicsBodies&) = delete;
@@ -53,7 +55,7 @@ private:
         glm::vec3 Position{};
         glm::vec3 Rotation{};
 
-        static Pose Of(const TESObjectREFR& acObject) noexcept;
+        static Pose Of(const IBodyReads::Reference& acReference) noexcept;
         [[nodiscard]] bool IsNear(const Pose& acOther) const noexcept;
     };
 
@@ -63,6 +65,7 @@ private:
         bool Ragdoll{};   // an actor whose ragdoll physics simulated
     };
 
+    IBodyReads& m_reads;
     bool m_allActors;
     bool m_playerRagdoll{};
     std::unordered_map<uint32_t, Moving> m_awake; // each moving reference
