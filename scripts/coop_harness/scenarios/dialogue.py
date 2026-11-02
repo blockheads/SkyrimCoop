@@ -1004,6 +1004,19 @@ def scenario_dialogue_picker_trains(ctx):
         ctx.wait_for("[client] the training menu closes", lambda: TRAINING_MENU not in ctx.menus("client"), 10)
         if not ctx.talking_to("client", copy):
             raise ctx.failure("[client] left the conversation with the training menu")
+        ctx.wait_for('the returned dialogue accepts another training choice', lambda: ctx.menu_takes_pick('client'), 15)
+        trained_once = ctx.skill('client', ONE_HANDED_SKILL)
+        ctx.pick_with_keys('client', TRAINING_TOPIC)
+        ctx.wait_for('training can reopen from the returned dialogue', lambda: TRAINING_MENU in ctx.menus('client'), 30)
+        ctx.tap_key('client', TAB_KEY)
+        ctx.wait_for('the second training menu closes without a purchase', lambda: TRAINING_MENU not in ctx.menus('client'), 10)
+        ctx.wait_for('dialogue is usable after the second training return', lambda: ctx.menu_takes_pick('client'), 15)
+        if ctx.skill('client', ONE_HANDED_SKILL) != trained_once:
+            raise ctx.failure('opening training again trained the player without a purchase')
+        ctx.wait_party_gold('opening training again does not charge the party', left)
+        ctx.leave_dialogue('client')
+        ctx.wait_for('the guest can exit after returning from training', lambda:
+                     not ctx.dialogue('')['speaker'] and ctx.takes_input('client'), 10)
         ctx.hold()
     finally:
         if TRAINING_MENU in ctx.menus("client"):
@@ -1024,6 +1037,7 @@ def scenario_dialogue_pick_reaches_host(ctx):
     voiced on the client's copy), and both games follow it: a goodbye ends the conversation for both, any other
     line leads both to the same next list."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+    _, pick_mark = ctx.log_trail('', 1 << 62)
     try:
         ctx.place_before("", npc, 800, 90)
         ctx.place_before("client", copy, 110)
@@ -1032,30 +1046,39 @@ def scenario_dialogue_pick_reaches_host(ctx):
         ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
         options = ctx.wait_for("[client] the menu lists options",
                            lambda: ctx.talking_to("client", copy) and ctx.dialogue("client").get("options"), 10)
-        before = [o["topic"] for o in ctx.dialogue("").get("options", [])]
         ctx.wait_for("[host] its NPC's greeting is over", lambda: ctx.line_over("", npc), 30)
         # The client's copy voices it a moment later; a press in the frame its greeting ends is lost (B3, docs/bugs.md).
         ctx.wait_for("[client] its copy's greeting is over", lambda: ctx.line_over("client", copy), 30)
         ctx.wait_for("[client] the menu takes a pick", lambda: ctx.menu_takes_pick("client"), 10)
-        before = ctx.dialogue("client").get("swf")
-        log(f"[client] picks {options[0]['text']!r} (its menu's SWF: {before})")
+        selection = ctx.dialogue('client')
+        before_swf = selection.get('swf') or {}
+        index = before_swf.get('cursor_index', -1)
+        if not 0 <= index < len(selection.get('options') or []):
+            raise ctx.failure(f'the ready dialogue menu has no selected option: {selection}')
+        picked = selection['options'][index]
+        log(f"[client] picks {picked['text']!r} (its menu's SWF: {before_swf})")
         ctx.tap_key("client", ACTIVATE_KEY)
         try:
+            ctx.wait_for('the host accepts the selected topic and INFO', lambda: any(
+                f"picked topic {picked['topic']:X} (info {picked['info']:X})" in line['text']
+                for line in ctx.log_trail('', pick_mark)[0]), 10)
             ctx.wait_for(f"[host] {npc:08X} says the picked line", lambda: ctx.line_playing("", npc), 10)
         except TestFailure as error:
             # Where the press went: the SWF before it and now, and whether this game asked the host at all.
             lines, _ = ctx.log_trail("client", 0)
             asked = [l["text"] for l in lines if l["text"].startswith("Dialogue:")][-4:]
-            raise ctx.failure(f"{error} (the client's SWF before the press {before}, now {ctx.dialogue('client').get('swf')}; "
+            raise ctx.failure(f"{error} (the client's SWF before the press {before_swf}, now {ctx.dialogue('client').get('swf')}; "
                               f"its last dialogue lines: {asked})") from None
         ctx.wait_for(f"[client] copy {copy:08X} voices it", lambda: ctx.line_playing("client", copy), 5)
         def followed():
             host, client = ctx.dialogue(""), ctx.dialogue("client")
             if not host.get("speaker"):
-                return client_closed or not client.get("menu")
-            topics = [o["topic"] for o in host.get("options", [])]
-            return topics and topics != before and [o["topic"] for o in client.get("options", [])] == topics
-        client_closed = False
+                return not host.get('menu') and not client.get('menu') and not client.get('speaker')
+            def ready(state):
+                swf = state.get('swf') or {}
+                return swf.get('state') == 1 and swf.get('allow_progress') == 1
+            return (client.get('menu') and ready(client) and (not host.get('menu') or ready(host))
+                    and bool(host.get('options')) and client.get('options') == host.get('options'))
         ctx.wait_for("[both] the conversation follows the pick (ended for both, or the same next list)", followed, 30)
         ctx.hold()
     finally:

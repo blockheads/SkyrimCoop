@@ -92,6 +92,29 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
 
 ## Dialogue
 
+- **A refused dialogue choice leaves the chooser's list hidden** (2026-11-01, reproduced on Linux). A Nord host
+  selects Onmund's Breton guest-only answer: its refusal notice appears, but its menu stays in `TOPIC_CLICKED`
+  with input disabled; the guest's list remains usable. Tab still exits, so this does not establish S9 or S3.
+  - Native: `dialogue-refused-pick-restores-list`; [evidence](../playtests/2026-11-01-dialogue-reproduction.md).
+  - Fixed on `repro/s3-guest-arrest` (not merged): refresh the hidden unchanged list and retain its shared highlight.
+    Native recovery and host/guest GameTests pass; [fix verification](../playtests/2026-11-01-dialogue-fixes.md).
+
+
+- **Simultaneous different choices leave the losing menu displaying its rejected text** (2026-11-01, Linux).
+  Reproduced with 150 ms UDP delay: the host accepts one option but the guest's already-clicked text stays on its
+  losing option. Fixed on `repro/s3-guest-arrest` (not merged): replace text in `TOPIC_CLICKED` without replaying
+  its animation. Native 3/3 and GameTests pass; [evidence](../playtests/2026-11-01-dialogue-fixes.md).
+
+- **Guest barter can return to a list with input disabled** (2026-11-01, Linux). Host barter followed by guest
+  barter reproduces state 1 / progress 0 beyond 15 seconds; a fresh guest-only trade passed. Fixed on
+  `repro/s3-guest-arrest` (not merged): explicitly re-arm input readiness when resuming the menu. Native alternating
+  sequence 4/4 and GameTests pass; [evidence](../playtests/2026-11-01-dialogue-fixes.md).
+
+- **Lydia's greeting can remain queued on the guest before any pick** (2026-11-01, Linux/Wine audio off).
+  `dialogue-pick-reaches-host` fails at its existing voice-end precondition on a fresh duo as well as after Onmund.
+  Capture: callback 3 / sound 162 / seconds -1, subtitle "Hey, slug-breath!"; the host's greeting has ended.
+  Cause and regression status unknown; still open. [Evidence and limits](../playtests/2026-11-01-dialogue-fixes.md#remaining-voice-failure-and-limits).
+
 - **A guest crashed once in a conversation whose NPC was deleted** (2026-10-29, party dialogue). In
   `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
   copy, already flagged deleted (client prefix `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced since; the play

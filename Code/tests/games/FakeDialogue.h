@@ -4,6 +4,7 @@
 // at a time, a menu that may be open or not, the list the engine builds from a small script of topics, and the
 // service's filters where our hooks ask them (DialogueHooks.cpp). Each World has its own.
 #include <Bridges/IDialogueBridge.h>
+#include <Services/DialogueMenuPolicy.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -51,6 +52,7 @@ struct FakeDialogue final : IDialogueBridge
     // The menu's SWF shows the list (eMenuState TOPIC_LIST_SHOWN): a click hides it (TOPIC_CLICKED) until a list is
     // shown again.
     bool ListShown = false;
+    bool AllowProgress = true;
     // The line the menu shows picked while the NPC answers (the SWF's TextCopy_mc), empty with the list shown.
     std::string PickedText;
     // Lines take time (a voiced line): the next list waits for LineEnds, as the engine builds it after the line.
@@ -78,8 +80,9 @@ struct FakeDialogue final : IDialogueBridge
     // This game's player clicks the menu's option: the Pick filter first, else the engine says it.
     void PlayerPicks(uint32_t aIndex)
     {
-        if (!MenuOpen || aIndex >= Options.size())
+        if (!MenuOpen || !ListShown || !AllowProgress || PlayerMenuOpen || aIndex >= Options.size())
             return;
+        m_pickedShown = true;
         ListShown = false; // the SWF's onSelectionClick, before TopicClicked
         PickedText = Options[aIndex].Text;
         if (m_filters.Pick && m_filters.Pick(aIndex))
@@ -134,6 +137,9 @@ struct FakeDialogue final : IDialogueBridge
             return true; // native Start does not reopen a conversation already held in the manager
         if (RequiresGreeting && !aGreeting)
             return true; // native start accepted, but no eligible local greeting opens a menu
+        m_suspended = false;
+        AllowProgress = true;
+        m_pickedShown = false;
         StartedGreeting = aGreeting;
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
@@ -146,11 +152,14 @@ struct FakeDialogue final : IDialogueBridge
     bool ShowMenu() noexcept override
     {
         MenuOpen = Speaker != 0;
+        m_pickedShown = false;
+        AllowProgress = !std::exchange(m_suspended, false);
         ListShown = MenuOpen && !Options.empty(); // the menu opens on the list (SHOW_GREETING, then the list)
         return MenuOpen;
     }
     void CloseMenu() noexcept override
     {
+        m_suspended = MenuOpen && !MenuCloseEnds;
         MenuOpen = false;
         if (MenuCloseEnds)
             End();
@@ -164,6 +173,8 @@ struct FakeDialogue final : IDialogueBridge
         if (SpeakerLooks && Speaker)
             SpeakerLooks(Speaker, 0);
         Speaker = 0;
+        m_pickedShown = false;
+        PickedText.clear();
         MenuOpen = false;
         ListShown = false;
         Options.clear();
@@ -173,23 +184,34 @@ struct FakeDialogue final : IDialogueBridge
         return false;
     }
     bool PlayerMenuOpen = false;
-    bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept override
+    bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override
     {
         if (!Speaker || PlayerMenuOpen)
             return false;
         // As DialogueBridge::ReplaceOptions: a line this game does not have cannot be built ("cannot be shown here").
+        const bool cChanged = !MenuOpen || m_shownElsewhere != acOptions;
+        m_shownElsewhere = acOptions;
         Options.clear();
         std::ranges::copy_if(acOptions, std::back_inserter(Options), [this](const Option& acOption) { return LineExists(acOption); });
         Choices = aChoices;
-        Highlight = 0;
-        ListShown = MenuOpen;
-        PickedText.clear();
+        if (m_heldShow || DialogueMenuPolicy::NeedsRefill(cChanged, ListShown, aResuming))
+        {
+            m_heldShow = false;
+            if (aResuming)
+                AllowProgress = true;
+            Highlight = 0;
+            ListShown = MenuOpen;
+            m_pickedShown = false;
+            PickedText.clear();
+        }
         return true;
     }
     void ShowPicked(const std::string& acText) noexcept override
     {
-        if (!MenuOpen || !ListShown)
+        const auto cState = !MenuOpen ? 0 : ListShown ? 1 : m_pickedShown ? 2 : 3;
+        if (DialogueMenuPolicy::DisplayPicked(cState) == DialogueMenuPolicy::PickedDisplay::Ignore)
             return;
+        m_pickedShown = true;
         ListShown = false;
         PickedText = acText;
     }
@@ -198,12 +220,12 @@ struct FakeDialogue final : IDialogueBridge
     std::optional<uint32_t> Highlight;
     void PlayerHighlights(uint32_t aIndex)
     {
-        if (MenuOpen && aIndex < Options.size())
+        if (MenuOpen && ListShown && aIndex < Options.size())
             Highlight = aIndex;
     }
     std::optional<uint32_t> GetHighlight() const noexcept override
     {
-        return MenuOpen && !Options.empty() ? Highlight : std::nullopt;
+        return MenuOpen && ListShown && !Options.empty() ? Highlight : std::nullopt;
     }
     void SetHighlight(uint32_t aIndex) noexcept override
     {
@@ -279,15 +301,30 @@ struct FakeDialogue final : IDialogueBridge
         auto shown = m_filters.List ? m_filters.List() : std::nullopt;
         if (shown && shown->empty())
         {
+            m_heldShow = true;
             m_built = std::exchange(Options, std::move(before)); // held: the menu keeps what it shows (HookShowList)
             return;
         }
         if (shown)
+        {
             Options = std::move(*shown);
+            const bool cAlreadyShown = MenuOpen && m_shownElsewhere == Options;
+            m_shownElsewhere = Options;
+            if (cAlreadyShown)
+                return;
+        }
+        else
+            m_shownElsewhere.clear();
         ListShown = MenuOpen;
+        m_pickedShown = false;
+        PickedText.clear();
     }
 
     Filters m_filters;
+    bool m_heldShow = false;
+    bool m_pickedShown = false;
+    bool m_suspended = false;
+    std::vector<Option> m_shownElsewhere;
     std::vector<Option> m_source; // the topics of the last build
     std::vector<Option> m_built;  // the engine's own list a held show left unshown
     std::optional<std::vector<Option>> m_next; // after the line being said (LinesTakeTime)

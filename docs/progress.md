@@ -45,6 +45,13 @@ The combined fast tests and Windows plugin build pass. Review findings and verif
 [integration review](v1-integration-review-2026-10-28.md). Agreed remaining work:
 [v1 checklist](v1-playtest-todo.md). Earlier worktree references below record where each feature was built.
 
+2026-11-01: dialogue follow-up on `repro/s3-guest-arrest` (not merged): refused choices restore their list,
+competing clicks display the host's accepted text, and barter resume re-arms input. Native failures, failing
+GameTests and unit tests preceded each fix. Six coverage improvements include stricter fake input, pick-completion
+postconditions, duplicate/competing choices, stale notifications after reopen, same-topic mouse INFO selection,
+and barter/training returns. Full check passes; native fixes and exit controls pass. A separate queued Lydia
+greeting still blocks `dialogue-pick-reaches-host` before any pick; [results and limits](../playtests/2026-11-01-dialogue-fixes.md).
+
 ## Direct authority migration
 
 Porting Skyrim Together's server to the host's game (`docs/design/host-authority-migration.md`).

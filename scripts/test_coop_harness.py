@@ -1,6 +1,7 @@
 """Harness ownership, selection, checkpoints and failure cleanup, without Skyrim."""
 import argparse
 import contextlib
+import copy
 import io
 import json
 import subprocess
@@ -15,13 +16,58 @@ from coop_harness.common import WINDOWS
 from coop_harness.errors import TestFailure
 from coop_harness.game import Game
 from coop_harness.registry import Registry
-from coop_harness.scenarios import specs
+from coop_harness.scenarios import dialogue, specs
 
 
 class Harness(unittest.TestCase):
     def setUp(self):
         self.session = Session()
         self.addCleanup(self.session.close)
+
+    def test_dialogue_pick_completion_requires_usable_matching_menus_or_a_complete_close(self):
+        session = self.session
+        option = {'topic': 0x1001, 'info': 0x2001, 'quest': 0, 'text': 'News?'}
+        host = {'speaker': 0x123, 'menu': False, 'options': [option], 'swf': {'state': -1, 'allow_progress': -1}}
+        guest = {'speaker': 0x456, 'menu': True, 'options': [option], 'swf': {'state': 1, 'allow_progress': 1, 'cursor_index': 0}}
+        states = {'': copy.deepcopy(host), 'client': copy.deepcopy(guest)}
+        session.spawn_host_npc = Mock(return_value=(0x123, 3, 0x456))
+        for method in ('place_before', 'tap_key', 'close_dialogues', 'remove_host_npc', 'hold'):
+            setattr(session, method, Mock())
+        session.activate_on = Mock()
+        session.dialogue = lambda instance: states[instance]
+        session.log_trail = Mock(return_value=([{'text': 'Dialogue: player 2 picked topic 1001 (info 2001)'}], 10))
+        session.line_over = session.line_playing = Mock(return_value=True)
+        predicates = []
+        class Captured(Exception):
+            pass
+        def wait(description, predicate, timeout=15, **kwargs):
+            if description.startswith('[both] the conversation follows the pick'):
+                predicates.append(predicate)
+                raise Captured()
+            if description == '[client] the menu lists options':
+                return [option]
+            return True
+        session.wait_for = wait
+        with self.assertRaises(Captured):
+            dialogue.scenario_dialogue_pick_reaches_host(session)
+        followed = predicates[0]
+        cases = [
+            ('unchanged usable list can be the next step', {}, {}, True),
+            ('hidden old list', {}, {'swf': {'state': 2, 'allow_progress': 1}}, False),
+            ('transitioning list', {}, {'swf': {'state': 3, 'allow_progress': 1}}, False),
+            ('visible list cannot accept input', {}, {'swf': {'state': 1, 'allow_progress': 0}}, False),
+            ('same topic with the wrong INFO', {}, {'options': [{**option, 'info': 0x2999}]}, False),
+            ('host menu is not usable', {'menu': True, 'swf': {'state': 2, 'allow_progress': 0}}, {}, False),
+            ('host menu still open after releasing its speaker', {'speaker': 0, 'menu': True},
+             {'speaker': 0, 'menu': False}, False),
+            ('closed menu still holds its speaker', {'speaker': 0}, {'menu': False}, False),
+            ('both conversations completely closed', {'speaker': 0}, {'speaker': 0, 'menu': False}, True),
+        ]
+        for name, host_changes, guest_changes, expected in cases:
+            with self.subTest(name=name):
+                states[''] = {**copy.deepcopy(host), **host_changes}
+                states['client'] = {**copy.deepcopy(guest), **guest_changes}
+                self.assertEqual(bool(followed()), expected)
 
     def runner_fixture(self, action=lambda session: None):
         session = self.session
