@@ -942,11 +942,11 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
         spdlog::debug("Adding item {:X}, count {}", pObject->formID, arEntry.Count);
         AddObjectToContainer(pObject, pExtraDataList, arEntry.Count, nullptr);
 
-        // TODO: check Actor cast first?
+        // Not force-equipped (abForceEquip, Papyrus EquipItem's abPreventRemoval): the player could never take it off (S7).
         if (isWorn)
-            EquipManager::Get()->Equip(Cast<Actor>(this), pObject, nullptr, arEntry.Count, DefaultObjectManager::Get().rightEquipSlot, false, true, false, false);
+            EquipManager::Get()->Equip(Cast<Actor>(this), pObject, nullptr, arEntry.Count, DefaultObjectManager::Get().rightEquipSlot, false, false, false, false);
         else if (isWornLeft)
-            EquipManager::Get()->Equip(Cast<Actor>(this), pObject, nullptr, arEntry.Count, DefaultObjectManager::Get().leftEquipSlot, false, true, false, false);
+            EquipManager::Get()->Equip(Cast<Actor>(this), pObject, nullptr, arEntry.Count, DefaultObjectManager::Get().leftEquipSlot, false, false, false, false);
     }
     else if (arEntry.Count < 0)
     {

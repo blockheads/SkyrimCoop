@@ -54,15 +54,28 @@ Inventory::Entry HostEngine::TransferContainer(const ContainerTransferRequest& a
     TESObjectREFR* pTarget = cTake ? pPlayer : pContainer;
     const auto inventory = pSource->GetInventory([pItem](TESForm& aForm) { return &aForm == pItem; });
     int32_t available = 0;
-    for (auto entry : inventory.Entries)
-        if (ContainerTransfers::Stack(entry).CanBeMerged(moved) && entry.Count > 0)
-            available += entry.Count;
+    if (moved.ContainsExtraData())
+    {
+        for (auto entry : inventory.Entries)
+            if (ContainerTransfers::Stack(entry).CanBeMerged(moved) && entry.Count > 0)
+                available += entry.Count;
+    }
+    else
+    {
+        // The engine's count (16108): a fresh roll's items count through the base's leveled list, not the changes'.
+        available = pSource->GetContainerCount(pItem).value_or(0);
+        for (auto entry : inventory.Entries)
+            if (ContainerTransfers::Stack(entry).ContainsExtraData() && entry.Count > 0)
+                available -= entry.Count;
+    }
     int32_t remaining = std::min(std::abs(acRequest.Item.Count), available);
     ScopedInventoryOverride _;
     while (remaining > 0)
     {
         int32_t chunk = remaining;
-        ExtraDataList* pExtra = moved.ContainsExtraData() ? FindStack(*pSource, *pItem, moved, chunk) : nullptr;
+        // Plain to us is not plain to the engine: a fresh roll's items sit in lists (ExtraLeveledItem), which 16059
+        // takes from only when given the list (S5).
+        ExtraDataList* pExtra = FindStack(*pSource, *pItem, moved, chunk);
         if (moved.ContainsExtraData() && !pExtra)
             break;
         const int32_t cBefore = pSource->GetContainerCount(pItem).value_or(0);

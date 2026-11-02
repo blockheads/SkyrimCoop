@@ -28,3 +28,20 @@ Decompiled 2026-10-30 (second pass):
 Removing (2026-10-30): `InventoryChanges::RemoveItem` (16059) takes from a stack with extra data only when given that
 stack's own `ExtraDataList`. A list rebuilt from our entry, with the same data types (harness `stack_extras`: custom
 name 153, health 37), removed nothing on a fresh session. `TESObjectREFR::FindCarriedStack` finds the carried list.
+
+Worn on add (2026-11-01, S7): `TESObjectREFR::AddOrRemoveItem` puts a worn entry on with the engine's equip (38894).
+With `abForceEquip` set (Papyrus `EquipItem`'s `abPreventRemoval`) the player can neither take the item off nor
+replace it from the inventory menu, while console `equipitem` still replaces it. Every join dresses the player this
+way (`JoinBridge` → `SetActorInventory`), so after joining, a guest's menu equips of body armor and boots did nothing
+(the playtest's Hide Armor and Hide Boots over the kept Clothes and Boots). It now equips normally.
+`guest-swaps-armor-after-join` shows it.
+
+A fresh roll (2026-11-01, S5): a container's leveled entries rolled by `InitInventoryIfRequired` (16038) hold each
+item in its own extra data list with `ExtraLeveledItem` (0x2E; gold also `ExtraCount`), while the changes' entry
+for the item counts 0: the item counts through the base container's leveled list. `InventoryChanges::GetItemCount`
+(16108, `GetContainerCount`) gives the true count; `TESObjectREFR::GetInventory`, which subtracts each list from the
+entry's count, reads such an item as none. After a save and load the items read as usual (a playtest guest could
+loot the same chest then). `HostEngine::TransferContainer` counts a plain request with 16108 and removes through the
+matching list (`RemoveItem` 16059 takes from a list only when given it). `GetInventory` itself still reads a fresh
+roll as empty.
+
