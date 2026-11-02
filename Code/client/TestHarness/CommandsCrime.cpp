@@ -136,6 +136,15 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         return {{"ok", true}, {"known", query(ProcessLists::Get(), target, actor, witness,
                                               aRequest.value("type", 0u), 0, -1)}};
     }
+    else if (action == "stealth_meter")
+    {
+        // The HUD's eye: the highest detection level any actor in high process has of the player (41408).
+        using THighest = int16_t(ProcessLists*, Actor*, uint32_t&);
+        static VersionDbPtr<THighest> highest(41408);
+        uint32_t seeing = 0;
+        const int16_t cLevel = highest(ProcessLists::Get(), player, seeing);
+        return {{"ok", true}, {"level", cLevel}, {"seeing", seeing}};
+    }
     else if (action == "detection")
     {
         auto* victim = Cast<Actor>(target);

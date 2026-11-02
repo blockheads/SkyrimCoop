@@ -3,6 +3,7 @@ import math
 from ..common import LYDIA
 from ..errors import TestFailure
 from ..comparisons import distance
+from ..utilities import log
 
 
 def scenario_steady_state(ctx):
@@ -105,3 +106,29 @@ def scenario_health_client_player(ctx):
     """Client player loses/regains health; the host's copy of the client must match."""
     ctx.health_roundtrip("client", "player", lambda: ctx.local_player("client").get("health"), "", ctx.other_player,
                      "client's character")
+
+
+
+def scenario_sneaking_players_stay_hidden(ctx):
+    """Both players sneak facing each other, nobody else about: each game's stealth eye (the HUD's highest detection
+    of its player, 41408) stays hidden; the other player's copy is no observer (playtests/2026-10-31-fabien.md S6)."""
+    def eye(instance):
+        return ctx.player_command(instance, {"cmd": "crime", "action": "stealth_meter"})["level"]
+    def observers(instance):
+        world = (ctx.game(instance).read_status() or {}).get("world") or {}
+        return {f"{int(actor):X} {(state.get('identity') or {}).get('name', '')}":
+                ctx.player_command(instance, {"cmd": "crime", "action": "detection", "actor": int(actor), "target": 0x14})["level"]
+                for actor, state in world.items() if int(actor) != 0x14}
+    try:
+        ctx.show("", ctx.other_player)
+        ctx.show("client", ctx.other_player)
+        ctx.sneak("", True)
+        ctx.sneak("client", True)
+        frame = ctx.game_frame("")
+        ctx.wait_for("both sneak for 120 frames", lambda: ctx.game_frame("") > frame + 120, 10)
+        for instance in ("", "client"):
+            if (level := eye(instance)) >= 0:
+                raise ctx.failure(f"[{instance or 'host'}] the sneaking player's eye shows detected ({level}): {observers(instance)}")
+    finally:
+        ctx.sneak("", False)
+        ctx.sneak("client", False)

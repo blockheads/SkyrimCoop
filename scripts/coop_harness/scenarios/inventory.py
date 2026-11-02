@@ -1,6 +1,7 @@
 """Scenarios inventory for the co-op harness."""
 import sys
 from ..common import (
+    ACTIVATE_KEY,
     BLUE_MOUNTAIN_FLOWER,
     DEATHBELL,
     GOLD,
@@ -8,12 +9,14 @@ from ..common import (
     HOME_CELL,
     IRON_SWORD,
     LYDIA,
+    MENU_RIGHT_KEY,
     NIGHTSHADE,
     OUTDOOR_CELL,
     POISON_YES,
     REFR_LOCK,
     SMALL_CHEST,
     SWEETROLL,
+    TAB_KEY,
     WHEAT,
 )
 from ..errors import TestFailure
@@ -397,3 +400,57 @@ def scenario_form_state_round_trips(ctx):
         for name in ("", "client"):
             if ctx.door_lock(name, door)[0]:
                 ctx.lock_on(name, door, False)
+
+
+IRON_ARMOR = 0x00012E49
+HIDE_ARMOR = 0x00013911
+
+
+def scenario_guest_swaps_armor_after_join(ctx):
+    """The guest joins again wearing iron armor (the host puts its kept character back on), then puts on hide armor
+    from the inventory menu: its game and the host's copy wear the hide armor (playtests/2026-10-31-fabien.md S7: the
+    join force-equipped the kept worn set, so the menu could not replace it)."""
+    worn = lambda instance, actor: ctx.actor_state(instance, actor).get("equipment", [])
+    host_copy = lambda: ctx.player_copy("")
+    root = "_root.Menu_mc.InventoryLists_mc"
+    try:
+        ctx.console_on("client", f"player.additem {IRON_ARMOR:08X} 1")
+        ctx.console_on("client", f"player.equipitem {IRON_ARMOR:08X}")
+        ctx.wait_for("[client] the guest wears iron armor", lambda: IRON_ARMOR in worn("client", 0x14), 5)
+        ctx.player_command("client", {"cmd": "leave_session"})
+        ctx.wait_for("[client] leaving returns to the main menu", lambda: ctx.game_state("client").get("main_menu"), 30)
+        ctx.wait_for("[host] removes the leaving guest", lambda: not ctx.session_players(""), 15)
+        ctx.joins_with_world("joins again")
+        ctx.wait_for("[client] the guest wears iron armor again", lambda: IRON_ARMOR in worn("client", 0x14), 10)
+        ctx.console_on("client", f"player.additem {HIDE_ARMOR:08X} 1")
+        ctx.wait_for("[client] the game takes input", lambda: ctx.takes_input("client"), 10)
+        ctx.tap_key("client", TAB_KEY)
+        ctx.wait_for("[client] the character menu opens", lambda: "TweenMenu" in ctx.menus("client"), 5)
+        ctx.tap_key("client", MENU_RIGHT_KEY)
+        ctx.tap_key("client", ACTIVATE_KEY)
+        ctx.wait_for("[client] the inventory opens", lambda: "InventoryMenu" in ctx.menus("client"), 5)
+        ctx.select_entry("client", "InventoryMenu", root + ".CategoriesList", "$Apparel")
+        ctx.tap_key("client", MENU_RIGHT_KEY)
+        ctx.wait_for("[client] the apparel list opens", lambda: ctx.menu_var("client", "InventoryMenu", root + ".currentState") == 2, 5)
+        ctx.select_entry("client", "InventoryMenu", root + ".ItemsList", "Hide Armor")
+        ctx.tap_key("client", ACTIVATE_KEY)
+        ctx.wait_for("[client] the guest wears the hide armor, not the iron",
+                     lambda: HIDE_ARMOR in (w := worn("client", 0x14)) and IRON_ARMOR not in w, 5)
+        ctx.tap_key("client", TAB_KEY)
+        ctx.wait_for("[client] the inventory closes", lambda: "InventoryMenu" not in ctx.menus("client"), 5)
+        ctx.wait_for("[host] the guest's copy wears the hide armor, not the iron",
+                     lambda: HIDE_ARMOR in (w := worn("", host_copy())) and IRON_ARMOR not in w, 10)
+        # The owner's worn-set snapshots come every 3 s: the copy keeps the hide armor through one.
+        frame = ctx.game_frame("")
+        def keeps_it():
+            if HIDE_ARMOR not in (w := worn("", host_copy())) or IRON_ARMOR in w:
+                raise ctx.failure(f"[host] the guest's copy went back to {w}")
+            return ctx.game_frame("") > frame + 300
+        ctx.wait_for("[host] the guest's copy keeps the hide armor", keeps_it, 15)
+    finally:
+        menus = lambda: len({"InventoryMenu", "TweenMenu"} & set(ctx.menus("client")))
+        while (open_menus := menus()):
+            ctx.tap_key("client", TAB_KEY)
+            ctx.wait_for("[client] a menu closes", lambda: menus() < open_menus, 5)
+        ctx.console_on("client", f"player.removeitem {HIDE_ARMOR:X} 1")
+        ctx.console_on("client", f"player.removeitem {IRON_ARMOR:X} 1")
