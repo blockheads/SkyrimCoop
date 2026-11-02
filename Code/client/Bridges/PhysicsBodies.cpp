@@ -82,7 +82,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             // The engine sometimes leaves a flying body's 3D (and reference) where it was (docs/re/systems/physics.md);
             // the guests and the record get where it is.
             if (!cActor && NodeLeftBehind(*cBody))
-                m_reads.WriteNode(it->first, static_cast<uint8_t>(i));
+                QueueNode(it->first, static_cast<uint8_t>(i));
             BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
             frame.Knocked = cActor && !cReference->Dead;
             all.Read.push_back(frame);
@@ -104,10 +104,9 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
         if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {
-            // An actor's place is its own sync's (movement, the copy contract). Its pose after the node writes.
-            const auto cNow = cActor ? cReference : m_reads.ReadReference(it->first, false);
-            if (!cActor && cNow && !it->second.At.IsNear(Pose::Of(*cNow)))
-                m_restedAway.push_back(it->first);
+            // An actor's place is its own sync's; a reference's move row follows its queued node repair.
+            if (!cActor)
+                QueueRest(it->first, it->second.At);
             update.Rested.push_back(std::move(all));
         }
         it = m_awake.erase(it);
@@ -122,6 +121,33 @@ std::vector<uint32_t> PhysicsBodies::TakeRested() noexcept
 
 void PhysicsBodies::Forget(uint32_t aFormId) noexcept
 {
+    ++m_sceneGeneration[aFormId];
     m_awake.erase(aFormId);
     std::erase(m_restedAway, aFormId);
+}
+
+void PhysicsBodies::QueueNode(uint32_t aFormId, uint8_t aIndex) noexcept
+{
+    m_mainTasks.Queue([this, aFormId, aIndex, generation = m_sceneGeneration[aFormId]] {
+        if (generation != m_sceneGeneration[aFormId])
+            return;
+        const auto cReference = m_reads.ReadReference(aFormId);
+        if (!cReference || cReference->Actor || aIndex >= cReference->Bodies.size())
+            return;
+        const auto& cBody = cReference->Bodies[aIndex];
+        // The engine may have followed it itself since the snapshot: keep those contacts.
+        if (cBody && NodeLeftBehind(*cBody))
+            m_reads.WriteNode(aFormId, aIndex);
+    });
+}
+
+void PhysicsBodies::QueueRest(uint32_t aFormId, const Pose& acStart) noexcept
+{
+    m_mainTasks.Queue([this, aFormId, start = acStart, generation = m_sceneGeneration[aFormId]] {
+        if (generation != m_sceneGeneration[aFormId])
+            return;
+        const auto cNow = m_reads.ReadReference(aFormId, false);
+        if (cNow && !start.IsNear(Pose::Of(*cNow)))
+            m_restedAway.push_back(aFormId);
+    });
 }

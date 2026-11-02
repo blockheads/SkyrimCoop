@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/IBodyReads.h>
+#include <MainLoopTasks.h>
 #include <Structs/BodyFrame.h>
 
 #include <glm/vec3.hpp>
@@ -65,9 +66,14 @@ private:
         bool Ragdoll{};   // an actor whose ragdoll physics simulated
     };
 
+    void QueueNode(uint32_t aFormId, uint8_t aIndex) noexcept;
+    void QueueRest(uint32_t aFormId, const Pose& acStart) noexcept;
+
     IBodyReads& m_reads;
     bool m_allActors;
     bool m_playerRagdoll{};
     std::unordered_map<uint32_t, Moving> m_awake; // each moving reference
     std::vector<uint32_t> m_restedAway;
+    std::unordered_map<uint32_t, uint64_t> m_sceneGeneration;
+    MainLoopTasks::Scope m_mainTasks;
 };

@@ -232,6 +232,22 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         cActor->second.Owner = FormIdOf(acChange.Item);
         return true;
     }
+    if (acChange.Type == ObjectChange::Kind::kMove)
+    {
+        const auto cBody = Bodies.find(BodyKey{.Object = acChange.Object});
+        if (cBody != Bodies.end())
+        {
+            if (acChange.Data.size() != 6 * sizeof(float))
+                return false;
+            float pose[6];
+            std::memcpy(pose, acChange.Data.data(), sizeof(pose));
+            auto& body = cBody->second;
+            body.SceneWritesDuringJobs += !AtMainLoop;
+            body.NodePosition = body.Flight.Body.Position = {pose[0], pose[1], pose[2]};
+            body.NodeRotation = body.Flight.Body.Rotation = glm::quat(glm::vec3(pose[3], pose[4], pose[5]));
+            return true;
+        }
+    }
     const auto it = References.find(FormIdOf(acChange.Object));
     if (it == References.end() || !InMemory.contains(it->second.Cell))
         return false; // its cell never loaded here: "its object is not in this game"

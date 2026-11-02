@@ -120,6 +120,9 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     body.Awake = false;
     body.Flight.Body.Position = acFrame.Position;
     body.Flight.Body.Rotation = acFrame.Rotation;
+    body.SceneWritesDuringJobs += !AtMainLoop;
+    body.NodePosition = acFrame.Position;
+    body.NodeRotation = acFrame.Rotation;
     ++body.Drives;
     return true;
 }
@@ -188,6 +191,13 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         return true;
     }
     Body& body = it->second;
+    // FollowBody updates the reference's scene graph after a keyframe or a changed rest.
+    if (body.Held || body.Flight.Body.Position != acPose.Position || body.Flight.Body.Rotation != acPose.Rotation)
+    {
+        body.SceneWritesDuringJobs += !AtMainLoop;
+        body.NodePosition = acPose.Position;
+        body.NodeRotation = acPose.Rotation;
+    }
     // A reference's body is simulated again at its rest; a ragdoll's stays held.
     body.Held = body.RagdollOf != 0;
     body.Flight.Body.Position = acPose.Position;
@@ -305,6 +315,7 @@ void FakeEngine::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
         if (cKey.Actor || cKey.Index != aIndex || ReferenceOf(cKey) != aFormId)
             continue;
         ++body.NodeWrites;
+        body.SceneWritesDuringJobs += !AtMainLoop;
         const auto cApart = BodyPrediction::Between({.Position = body.NodePosition, .Rotation = body.NodeRotation},
                                                     {.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation});
         if (cApart.Distance < 0.1f && cApart.Angle < 0.001f)

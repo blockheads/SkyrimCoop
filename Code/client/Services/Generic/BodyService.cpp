@@ -101,7 +101,17 @@ uint32_t BodyService::CopyOf(uint32_t aSessionId) const noexcept
 
 void BodyService::OnUpdate(const UpdateEvent&) noexcept
 {
-    PROFILE_ZONE("BodyService::OnUpdate");
+    if (std::exchange(m_updateQueued, true))
+        return;
+    m_mainTasks.Queue([this] {
+        m_updateQueued = false;
+        Apply();
+    });
+}
+
+void BodyService::Apply() noexcept
+{
+    PROFILE_ZONE("BodyService::Apply");
     const uint64_t cTick = m_world.GetTransport().GetTick();
     // What this game's player took is its own now: the owner's playback of it stops.
     if (m_pKeeper)

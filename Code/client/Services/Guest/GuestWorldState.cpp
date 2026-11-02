@@ -66,25 +66,27 @@ void GuestWorldState::OnQuests(const NotifyQuests& acMessage) noexcept
 
 void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noexcept
 {
-    // A cell's state arriving after this game left it: the next load asks again.
-    if (acMessage.Cell != GameId{} && !m_engine.IsCellAttached(acMessage.Cell))
-    {
-        spdlog::info("GuestWorldState: the host's state of cell {:X} came after it unloaded here, left", acMessage.Cell.LogFormat());
-        return;
-    }
-    std::vector<ObjectChange> applied;
-    for (const auto& cChange : acMessage.Changes)
-    {
-        if (m_engine.ApplyObjectChange(cChange, acMessage.Cell != GameId{}))
-            applied.push_back(cChange);
-        else
-            spdlog::warn("GuestWorldState: could not apply the host's {}: its object, activator or item is not in this game", WorldStateLog::Describe(cChange));
-    }
-    if (acMessage.Cell != GameId{})
-        spdlog::info("GuestWorldState: applied cell {:X}'s state, {} of {} changes: {}", acMessage.Cell.LogFormat(), applied.size(),
-                     acMessage.Changes.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
-    else if (!applied.empty())
-        spdlog::info("GuestWorldState: applied {} of the host's object changes: {}", applied.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
+    m_mainTasks.Queue([this, message = acMessage] {
+        // A cell's state arriving after this game left it: the next load asks again.
+        if (message.Cell != GameId{} && !m_engine.IsCellAttached(message.Cell))
+        {
+            spdlog::info("GuestWorldState: the host's state of cell {:X} came after it unloaded here, left", message.Cell.LogFormat());
+            return;
+        }
+        std::vector<ObjectChange> applied;
+        for (const auto& cChange : message.Changes)
+        {
+            if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))
+                applied.push_back(cChange);
+            else
+                spdlog::warn("GuestWorldState: could not apply the host's {}: its object, activator or item is not in this game", WorldStateLog::Describe(cChange));
+        }
+        if (message.Cell != GameId{})
+            spdlog::info("GuestWorldState: applied cell {:X}'s state, {} of {} changes: {}", message.Cell.LogFormat(), applied.size(),
+                         message.Changes.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
+        else if (!applied.empty())
+            spdlog::info("GuestWorldState: applied {} of the host's object changes: {}", applied.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
+    });
 }
 
 void GuestWorldState::AskCellState(uint32_t aCellFormId) noexcept

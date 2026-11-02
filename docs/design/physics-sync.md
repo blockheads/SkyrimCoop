@@ -66,6 +66,19 @@ Found on the way:
 
 Still open: a dead body's pose when a guest loads its cell or joins, a small bug parked in `docs/ideas.md`.
 
+## Scene updates between frames (2026-11-02)
+
+The update hook runs in the Papyrus VM job. `BodyService` applies playback and rests through a scoped
+`MainLoopTasks` task between frames, with current state and synchronous bridge results. Received object rows
+(`GuestWorldState`) use the same phase. Updating their scene graphs inside the VM job made a watched held
+tankard flash green ([S2 native evidence](../../playtests/2026-11-01-s2-green-flash.md)).
+
+`PhysicsBodies` still reads physics snapshots during the update. Its left-behind node repairs are queued and
+rechecked before writing, preserving contacts if the engine already followed them. A rested reference's move
+row is recorded after those writes, so its saved place matches its repaired node. Forgetting the reference
+invalidates queued repairs and records; destroying the physics reader cancels its tasks. GameTests observe
+manual scene writes outside the main-loop drain, and ClientTests cover repair/rest ordering and cancellation.
+
 ## As built (2026-10-24, split 2026-10-25)
 
 Where each part lives:

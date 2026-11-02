@@ -1,5 +1,74 @@
 # S2 green-flash follow-up
 
+## Fix and verification (2026-11-02)
+
+**Fixed on `repro/s2-green-flash`; not merged into dev.** The native detector fails on the original held-body
+playback and passes on the fix. The final run has **zero flashing frames out of 2,773 sampled frames** across
+host-held, guest-held and fast guest-held mouse sweeps. Both games stopped, own prefix processes verified empty,
+and duo released at 00:54 before offline review.
+
+### Engine fact and fix
+
+`World::Update` runs in the Papyrus VM update job. Its body playback, reference node repairs and received object
+placements were manually updating the scene graph there. Queue those writes through `MainLoopTasks`, between
+frames. This timing change removes the observed green fill while the observer still sees the textured moving
+prop and still uses keyframed playback (guest watching host) or simulated steering (host watching guest).
+The evidence identifies unsafe scene-update timing; it does not identify the exact GPU draw that produced green.
+
+Controls that did **not** remove the native flash: lighting-list refresh after FollowBody (180/876 affected samples),
+overlay disabled (167/869), Drive alone queued (2/361), and omitting the extra node Update (1/363). TAA was already
+disabled. Shader flags, material and diffuse/normal bindings remained intact in the affected captures.
+A diagnostic moving all scene writes between frames passed (0/881, max one matching pixel), then a narrower
+service/node scheduling diagnostic passed. Diagnostic source was restored between experiments; final changes
+retain synchronous bridge results and rest retries.
+
+- `BodyService` coalesces its update into a scoped main-loop task, reading the current clock and playback there.
+- `GuestWorldState` queues received object changes and checks cell attachment when they actually apply.
+- Shared `PhysicsBodies` queues a left-behind node repair, rechecks it before writing (the engine may already
+  have followed it), and publishes its rested move row after that repair. Forgetting a reference or destroying
+  the session cancels queued repairs. Physics snapshots and reliable rests still leave immediately.
+
+### Red tests, then green
+
+The fake records manual scene writes outside the existing `AtMainLoop` phase; it does not invent a green shader.
+Three GameTests cover an observer's held reference through release, a left-behind node through rest, and a
+recorded world-rest placement. They fail on original code solely on unsafe-phase assertions:
+`build/s2-smoke-red.log` and `build/s2-placement-red.log`.
+
+Four ClientTests first fail on immediate writes, premature move-row publication, and writes surviving reference
+unload/session destruction (`build/s2-unit-red.log`). They now pass, including the case where Skyrim follows
+the node before its queued repair. An existing wait test now checks that an ordinary update applies at the next
+main-loop drain and still supersedes older rest flags.
+
+Final `scripts/check.sh` passes (`build/s2-final-check.log`): ClientTests 180, HostAuthorityTests 198, TPTests 32,
+GameTests 274, harness checks, UI fixtures, Windows DLL and launcher builds. The focused physics suite passes too.
+
+### Native acceptance
+
+Exact deployed DLL SHA256: `e67600c0cbaec2ed077287354b49dfdcfc92bd35a4610e48bca050d760f681d1`.
+`build/s2-fixed-acceptance.log` records all five passing scenarios:
+
+| Scenario | Flashing / sampled frames | Maximum green pixels |
+| --- | ---: | ---: |
+| `green-flash-observer-of-host` | 0 / 880 | 1 |
+| `green-flash-observer-of-guest` | 0 / 892 | 0 |
+| `green-flash-observer-of-guest-fast` | 0 / 1001 | 1 |
+| `physics-push-reaches-guest` | PASS | — |
+| `guest-throw-lands-on-host` | PASS | — |
+
+The visual assertion fails above 128 matching pixels in its metal-tankard crop; original code failed with
+18/340 frames and up to 1,862 pixels. Final watcher crops were inspected: the textured tankard is present,
+not an empty view. Native body traces retain motion 4 during the guest's moving playback.
+
+Final evidence folders under `build/coop-test/green-flash/`:
+`20261102-005213-observer-host-600EE-07d2`, `20261102-005247-observer-client-600EE-6780`,
+and `20261102-005322-observer-client-600EE-fast-a2ee`. Each retains appearance samples, lossless videos,
+input checkpoints and body/geometry traces. The colour assertion is specific to this vanilla metal fixture.
+The host-watching-guest controls were also negative before the fix; they exercise that path, while the
+host-held/guest-watching case supplies the native before/after evidence.
+
+The sections below preserve the investigation as it stood at each earlier checkpoint.
+
 ## Native update: watching-game flash reproduced
 
 **Current result (21:49): S2 reproduced on the watching guest.** The user additionally reproduced it manually

@@ -224,15 +224,14 @@ game without co-op"). Not accepted for v1 yet: the user decides.
   - Test: `guest-bucket-on-npc-head --until-fail`, reading the client's lowest; then teach the fake (it already
     has copies push nothing: `FakeEngine::OutsideCapsules`).
 
-- **S2: a held object flashes green on the watching game** (2026-11-01, reproduced). The user reproduced
-  both directions in Sleeping Giant Inn with `coop_test.py play`; the holder's view stays normal. The automated
-  host-holds/guest-watches tankard flow captures the guest's prop flat dark green while the host's remains textured.
-  - Native: `green-flash-observer-of-host`, tankard `600EE`; [paired evidence and limits](../playtests/2026-11-01-s2-green-flash.md).
-  - Guest watching host: keyframed `BodyBridge::Drive` confirmed. Host watching guest: `BodyBridge::Steer` exercised
-    in slow and fast controls, but this bounded probe did not capture its green fill; the user's manual result stands.
-  - Open: identify the engine graphics state affected by held-body playback, then teach the fake and add the red
-    GameTests flow before a fix. No production fix yet. The earlier bright-green pixel filter missed the actual
-    dark RGB `(23, 42, 36)` and cannot rule the symptom out.
+- **S2: a held object flashes green on the watching game** (2026-11-02, fixed on `repro/s2-green-flash`, not merged).
+  Manual scene updates ran in the Papyrus VM job. Body playback, left-behind node repairs and received object
+  placements now run between frames. The native tankard detector fails before the fix (18/340 sampled frames)
+  and passes after it (0/2,773 across three observer checks); throw and push controls pass.
+  - Three RED-to-GREEN GameTests guard scene-write timing; four unit cases cover deferred repair/rest bookkeeping
+    and cancellation. Full `scripts/check.sh` passes. [Evidence and scope](../playtests/2026-11-01-s2-green-flash.md).
+  - The user's manual two-way reproduction stands. The automated host-watching-guest controls were negative
+    before the fix too; the guest watching the host provides the native before/after proof.
 
 - **A dragged object blinks in and out of existence** (the user, 2026-11-01). Not reproduced (2026-11-01): a ladle
   dragged left and right by either player, traced each frame on both games (`body_trace`, which now also gives its 3D's

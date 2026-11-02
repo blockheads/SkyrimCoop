@@ -6,6 +6,7 @@
 #include <Services/Guest/GuestHands.h>
 #include <Messages/Relayed.h>
 #include <Physics/BodyPrediction.h>
+#include <Bridges/PhysicsBodies.h>
 
 namespace
 {
@@ -624,4 +625,60 @@ SCENARIO("The host's engine leaves a spinning bucket's 3D turned as it was: the 
         CHECK(cApart.Distance < 1.f);
         CHECK(hostBucket.Replaced == 0);
     }
+}
+
+SCENARIO("An observer plays a held reference between frames, clear of the renderer's scene reads", "[physics][body-scene-phase]")
+{
+    Party party(1, Plugins);
+    auto& holder = Party::Engine(party.Host());
+    auto& held = BodyOf(party, party.Host(), kBucket);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    holder.Grabbed = kBucket;
+    holder.Knock(kBucket, {80.f, 0.f, 0.f});
+    held.Flight.Floor = kTable;
+    const auto cBegan = std::chrono::steady_clock::now();
+    const auto cStart = held.Flight.Body.Position;
+    party.Until([&] {
+        const float cElapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - cBegan).count();
+        held.Flight.Body.Position = cStart + glm::vec3(80.f * cElapsed, 0.f, 0.f);
+        held.Flight.Body.LinearVelocity = {80.f, 0.f, 0.f};
+        return watched.Drives > 5 && cElapsed > 0.3f;
+    }, "the observer sees the holder move the bucket");
+    REQUIRE(watched.Held);
+    CHECK(watched.NodePosition.x > cStart.x);
+    CHECK(watched.SceneWritesDuringJobs == 0);
+    holder.Grabbed.reset();
+    party.Until([&] { return !held.Awake && watched.Rests > 0; }, "release settles on both games");
+    CHECK(glm::distance(watched.NodePosition, held.Flight.Body.Position) < 0.01f);
+    CHECK(watched.SceneWritesDuringJobs == 0);
+}
+
+SCENARIO("A body's left-behind scene node is repaired between frames through its rest", "[physics][body-scene-phase]")
+{
+    Party party(1, Plugins);
+    auto& held = BodyOf(party, party.Host(), kBucket);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    held.NodeLeftBehind = true;
+    held.Flight.Floor = kTable;
+    Party::Engine(party.Host()).Knock(kBucket, {60.f, 0.f, 0.f});
+    party.Until([&] { return !held.Awake && watched.Rests > 0; }, "the repaired reference settles on both games");
+    REQUIRE(held.NodeWrites > 0);
+    CHECK(glm::distance(held.NodePosition, held.Flight.Body.Position) < PhysicsBodies::kLeftBehind);
+    CHECK(held.SceneWritesDuringJobs == 0);
+    CHECK(watched.SceneWritesDuringJobs == 0);
+}
+
+SCENARIO("A host's recorded rest places the observer's reference between frames", "[physics][body-scene-phase][world-rest-phase]")
+{
+    Party party(1, Plugins);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    NotifyObjectChanges changes;
+    changes.Cell = GameId(0, kSmoke);
+    const float cPose[6]{320.f, 240.f, kTable, 0.f, 0.f, 0.5f};
+    ObjectChange change{.Type = ObjectChange::Kind::kMove, .Object = kBucket.Object};
+    change.Data.assign(reinterpret_cast<const char*>(cPose), sizeof(cPose));
+    changes.Changes.push_back(change);
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
+    party.Until([&] { return watched.NodePosition.x == cPose[0]; }, "the observer applies the recorded rest");
+    CHECK(watched.SceneWritesDuringJobs == 0);
 }
