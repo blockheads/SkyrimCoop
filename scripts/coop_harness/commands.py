@@ -716,6 +716,83 @@ class Commands:
                for round_ in report["rounds"]):
             raise SystemExit(1)
 
+    def command_play(ctx, args):
+        """Manual play: the game you control in a window on the primary monitor (your mouse and keyboard go straight
+        to it), the other off-screen as always, shown by a `watch` view on the second monitor. Keep your window
+        uncovered: a covered window stops getting frames back from the compositor. Chat `!watch` turns the other
+        player to face yours. Ctrl+C closes the view; the games keep running until `stop`."""
+        monitors = []
+        for line in subprocess.run(["xrandr", "--listmonitors"], capture_output=True, text=True).stdout.splitlines()[1:]:
+            if m := re.search(r"\s(\d+)/\d+x(\d+)/\d+\+(\d+)\+(\d+)", line):
+                monitors.append({"primary": "*" in line.split()[1], "w": int(m[1]), "h": int(m[2]), "x": int(m[3]), "y": int(m[4])})
+        if not monitors:
+            raise TestFailure("no monitors (xrandr --listmonitors)")
+        monitors.sort(key=lambda m: not m["primary"])
+        main, side = monitors[0], monitors[-1]
+        playing = "" if args.control == "host" else "client"
+        other = "client" if playing == "" else ""
+        centred = lambda monitor: (monitor["x"] + (monitor["w"] - 1280) // 2, monitor["y"] + (monitor["h"] - 720) // 2)
+
+        def game_window():
+            out = subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "steam_app_489830"],
+                                 capture_output=True, text=True).stdout.split()
+            return out[0] if out else None
+
+        if not getattr(args, "attach", False):
+            ctx.VISIBLE = {playing}
+            # Its window onto the primary monitor as soon as it shows, before anything can cover it.
+            import threading
+            booting = threading.Event()
+            booting.set()
+
+            def placer():
+                placed = None
+                while booting.is_set():
+                    if (window := game_window()) and window != placed:
+                        x, y = centred(main)
+                        subprocess.run(["xdotool", "windowmove", window, str(x), str(y)], capture_output=True)
+                        placed = window
+                    time.sleep(0.5)
+
+            thread = threading.Thread(target=placer, daemon=True)
+            thread.start()
+            try:
+                args.keep_running = True
+                ctx.command_duo(args)
+            finally:
+                booting.clear()
+                thread.join(2)
+        x, y = centred(side)
+        view = subprocess.Popen(
+            ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {'guest' if other else 'host'} (watching)",
+             "-left", str(x), "-top", str(y), "-x", "1280", "-y", "720",
+             "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720", "-i", f"{ctx.game(other).display}+4,30"])
+        if window := game_window():
+            subprocess.run(["xdotool", "windowactivate", window], capture_output=True)
+        log(f"Playing the {args.control} in its window; watching the {'guest' if other else 'host'} on the second monitor. "
+            f"Chat !watch to have it face you. Ctrl+C closes the view; `coop_test.py stop` ends the games; "
+            f"`play --control {'guest' if playing == '' else 'host'}` (after stop) plays the other side.")
+        seen = None
+        try:
+            while True:
+                lines = [(l.get("name"), l.get("text")) for l in (ctx.game_state("").get("chat") or {}).get("lines", [])
+                         if not l.get("system")]
+                if seen is None:
+                    seen = lines
+                new = lines[len(seen):] if lines[:len(seen)] == seen else lines[-1:] if lines and lines[-1:] != seen[-1:] else []
+                seen = lines
+                if any((text or "").strip().lower() == "!watch" for _, text in new):
+                    if copy := ctx.player_copy(other):
+                        ctx.face(other, copy)
+                        log(f"The {'guest' if other else 'host'} faces the player you control")
+                if view.poll() is not None:  # closed by hand: open it again
+                    view = subprocess.Popen(view.args)
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            log("View closed; the games keep running (coop_test.py stop)")
+        finally:
+            view.terminate()
+
     def cli(ctx):
         _game = ctx.game()
         try:
@@ -846,6 +923,16 @@ class Commands:
         desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
         desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
         desync.add_argument("--interval", type=float, default=1.0, help="seconds between samples")
+        play = commands.add_parser("play", help="manual play: the game you control in a window, the other off-screen with a live view; chat !watch")
+        play.add_argument("--control", choices=("host", "guest"), default="host", help="the game you play (default host)")
+        play.add_argument("--cell", default="RiverwoodSleepingGiantInn", help="cell both start in (default the Sleeping Giant Inn)")
+        play.add_argument("--save", help="load this save instead of coc")
+        play.add_argument("--boot-timeout", type=float, default=240)
+        play.add_argument("--world-timeout", type=float, default=180)
+        play.add_argument("--seconds", type=float, default=30)
+        play.add_argument("--npc", default="", help="NPC base form the host spawns (default none)")
+        play.add_argument("--level", type=int)
+        play.add_argument("--attach", action="store_true", help="the games already run: only open the view")
         watch = commands.add_parser("watch", help="live view of the off-screen game display in a window (ffplay)")
         commands.add_parser("setup-display", help="one-time: install the off-screen dummy X server (sudo)")
         shot = commands.add_parser("screenshot", help="save a PNG of the off-screen game display")
@@ -861,6 +948,8 @@ class Commands:
                 ctx.command_launch(args, _game=_game)
             elif args.command == "duo":
                 ctx.command_duo(args)
+            elif args.command == "play":
+                ctx.command_play(args)
             elif args.command == "scenario":
                 ctx.command_scenario(args)
             elif args.command == "profile":

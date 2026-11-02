@@ -156,9 +156,13 @@ class Runtime:
         env["TRACY_PORT"] = str(_game.tracy_port)
         if ctx.instance_user(_game=_game):  # in its namespace: reachable on its link
             env["SKYRIMCOOP_COMMAND_ADDRESS"] = CLIENT_ADDRESS
+            # No sound server as that user: Wine's ALSA driver would take this user's sound card itself. Muted
+            # anyway (fAudioMasterVolume), so no audio driver at all.
+            overrides = [o for o in env.get("WINEDLLOVERRIDES", "").split(";") if o]
+            env["WINEDLLOVERRIDES"] = ";".join(overrides + ["winealsa.drv=d", "winepulse.drv=d"])
             if _game.name and not ctx.instance_user(_game=ctx.host):  # the host across the link, else loopback
                 env["SKYRIMCOOP_JOIN_HOST"] = HOST_SIDE_ADDRESS
-        if not ctx.VISIBLE:
+        if not ctx.shown(_game=_game):
             env["DISPLAY"] = _game.display
         return env
 
@@ -448,6 +452,11 @@ class Runtime:
             time.sleep(0.1)
         ctx.allow_instance_user(_game=_game)
 
+    def shown(ctx, *, _game=None):
+        """That game runs on the desktop (`--visible` for all, or `play`'s one game), not its off-screen display."""
+        _game = ctx.game(_game)
+        return ctx.VISIBLE is True or (isinstance(ctx.VISIBLE, (set, frozenset)) and _game.name in ctx.VISIBLE)
+
     def allow_instance_user(ctx, *, _game=None):
         """Lets the instance's user draw on its display (xhost)."""
         _game = ctx.game(_game)
@@ -555,8 +564,10 @@ class Runtime:
         _game = ctx.game(_game)
         if ctx.prefix_processes(_game=_game):
             raise ctx.failure("The test Skyrim is already running. Use `coop_test.py stop` first.")
-        if not ctx.VISIBLE:
+        if not ctx.shown(_game=_game):
             ctx.ensure_virtual_display(_game=_game)
+        else:  # the desktop's display: its user (coop2) may draw there too
+            ctx.allow_instance_user(_game=_game)
         vanilla = getattr(args, "vanilla", False)
         if vanilla:  # A/B baseline: same prefix and settings, SKSE without our plugin
             ctx.remove_plugin()

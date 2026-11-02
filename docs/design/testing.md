@@ -88,6 +88,14 @@ Games use their own Proton prefixes under `build/coop-test`, never ordinary play
 `SKYRIM_PROTON_DIR`, `SKYRIM_RUNTIME_DIR` and `COOP_DLL` override installation paths. `--visible` shows the games on
 the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` and `world-diff` inspect a live duo.
 
+To play by hand, `play [--control host|guest] [--cell CELL]` (default the Sleeping Giant Inn) boots the duo with only
+the controlled game on the desktop, in a window on the primary monitor, and the other off-screen with a live `watch`
+view on the second monitor; chat `!watch` turns the other player to face yours. Only an uncovered window keeps
+running (KWin stops completing a covered window's presents, and a game that missed one stays stuck), so keep the
+played window in front; the off-screen game never stops. Playing the other side means `stop` and `play --control`
+again. Tried and dropped (2026-11-01): both games visible (a window covered while booting hung for good) and VNC
+views of the off-screen games (`x11vnc`: the mouse never reached Skyrim).
+
 The runner restores the baseline before the batch and after each flow. A baseline records placement, equipment,
 level, maximum actor values, weather/calendar and actor population. Saved stories keep quest weather/time and
 placed story actors; new test actors still fail cleanup. The same actor, world and lock comparisons run after actions.
@@ -123,6 +131,9 @@ Since 2026-10-31 (the user: keep the player's Steam free) both duo games run as 
 with its own Steam account in netns `coop2`, and from the duo's own game folder `build/coop-test/game` (the Steam
 install's files linked, its own `Data/SKSE/Plugins`): the player's Steam and Skyrim folder are never used. The
 client joins the host over loopback inside the namespace. `COOP_DUO_USER=` runs them as this user, on its Steam.
+As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01): the
+harness turns Wine's audio drivers off for them (`WINEDLLOVERRIDES` `winealsa.drv=d;winepulse.drv=d`, `game_env`);
+they are muted anyway.
 The ordinary duo uses one account and the session network. Invite/lobby flows need `COOP_CLIENT_USER=coop2`, that
 user's Steam account, a client prefix it owns and the existing `coop2` network namespace setup. The harness prepares
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when
