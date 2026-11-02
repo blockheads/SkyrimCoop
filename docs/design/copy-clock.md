@@ -30,18 +30,25 @@ per-copy send interval (a 10/s NPC needs more buffer than a 30/s player) and Uni
 ## How it works
 
 ```text
-an owner sends (CharacterService::RunLocalUpdates, a round every 33 ms):
+an owner sends (CharacterService::RunLocalUpdates, a round every 33 ms by the frame clock, half a frame early:
+at 60 fps every second frame):
   its player, its ridden mount, actors in combat (CombatState): every round   30/s
   every other actor: every third round                                        10/s
+
+each frame, first (World::Update):
+  FrameClock::Advance(session time as read, the engine's frame)
+    steps by the engine's frame (BSTimer's realTimeDelta), leans 10 % a frame toward the session's time as read,
+    jumps if 250 ms off; owners stamp their snapshots with it (World::GetFrameTick)
 
 this game, on each snapshot (OnReferencesMoveRequest; BodyService's ragdoll frames):
   CopyClock::OnSnapshot(owner tick, now)      lateness = now - owner tick (latency, jitter, clock error)
   CopyPlayback::OnPoint(tick)                 that copy's own gap between snapshots
 
 each frame, before UpdateEvent (World::Update):
-  CopyClock::Advance(now)
+  CopyClock::Advance(now = the frame clock, the engine's frame)
     network = worst lateness of the last 3 s + 20 ms, at most 400 ms   rises at once, falls when a spike leaves
-    p steered toward now - network: speed 0.85..1.1, never back, never ahead; > 1 s behind: jumps
+    p steps by the engine's frame, steered toward now - network: speed 0.85..1.1, never back, never ahead;
+    > 1 s behind: jumps
   a copy's tick (InterpolationSystem::PlaybackTick, its CopyPlayback, once a frame whoever asks first):
     p - its interval (the 3 s mean, or the newest 4 gaps' if longer; changes by <= 10 % of a frame per frame)
     used by: its movement (RunRemoteUpdates), its actions (AnimationSystem::Update), its ragdoll (BodyService)
@@ -53,6 +60,60 @@ past the newest snapshot (it is late):
 ```
 
 A snapshot is seen at the frame after it arrives, so the measured lateness includes up to a frame.
+
+**Why the engine's frame (S10, 2026-11-01).** The session's time (`TransportService::GetTick`: the host's last
+`Server::Update`, a guest's `SynchronizedClock`) is wherever the network last updated it, and our update runs at a
+different point of each frame (in the VM's update, after a varying amount of the engine's work). Read once a frame it
+stepped 27 then 6 ms, or 39 then 2, while frames were a steady 16.4 ms. The clock stepped by those differences, and
+owners stamped snapshots with them while their positions were the frame's: a copy strafing at 350 units/s moved 50
+to 770 a frame (`copy-strafes-with-host`/`-guest`: 22-48 frames a third off its owner's steady move). Stepping by
+the engine's frame (measured at the frame's start, steady) and stamping with the frame clock: none. The owner's own
+movement matched vanilla throughout (the stand-in harness's player trace: 5.8 units a frame, a turn in two frames);
+a copy turns over one snapshot interval later than its owner. Rounds were timed by the wall clock at our update, so at
+60 fps they fell every third frame (49 ms, 20/s: 33 ms is just over two); timed by the frame clock, half a frame early,
+every second (33 ms). A copy's turn takes 49-66 ms, was 66-82 (its owner's 33), and its animation's floats, sampled at
+the nearest snapshot, are off by at most half as much. A stuttering frame or two still shows in some strafe runs at
+either rate (open).
+
+**Its animation turns with it.** A copy's graph floats match its owner's (`Direction` 0.25/0.75 for a strafe right
+or left, `Speed`), but they were the current snapshot's while its movement already blended toward the next: at every
+turn it slid the new way in its old strafe for a snapshot (22-33 ms on average, the trace's `floats`). It now takes the
+nearest snapshot's floats (past halfway, the next one's: what moved the owner there; booleans and integers stay the
+current one's, graphs react to their changes): about 10 ms. Tried and dropped: sending a snapshot at once when the
+owner's graph steps (a frame, but the uneven gaps made copies stutter).
+
+## Compared with other games (2026-11-02)
+
+- **Buffered snapshot interpolation**, as Source (a fixed 100 ms "lerp", two update intervals so one lost packet
+  is covered) and Glenn Fiedler's snapshot interpolation (enough delay to lose two packets). Ours adapts instead: the
+  worst lateness of the last 3 s, a 20 ms margin and the copy's own send interval; a lost relay (the host relays
+  movement unreliably) leaves a gap the short extrapolation covers.
+- **A steered playback clock** (0.85-1.1 speed, a jump past 1 s), as adaptive jitter buffers do, so a delay change
+  never jumps or reverses a copy.
+- **Stamped at the frame**, not at the read: owners stamp snapshots with the frame clock and copies step with the
+  engine's frame, as engines stamp with their tick (S10, above).
+- **Short extrapolation** (up to one interval, 100 ms at most; Source allows 250 ms), never while lying or knocked.
+- **Linear, not Hermite.** Fiedler's Hermite spline (velocity in each snapshot) smooths speed across samples; a
+  player's strafe reverses within two frames, which a curve would round off, and steady movement is already exact
+  under linear blending. Left as an option if curved paths (turning at a run) show kinks.
+- **No visual correction offset.** Unreal snaps a simulated proxy's capsule and eases its mesh offset back; copies
+  are placed on the interpolated path every frame, so there is nothing to correct except a ragdoll's end
+  (`CopyEase`).
+- **Animation from the owner's graph.** Engines usually drive a remote character's locomotion from its replicated
+  velocity; copies load their owner's graph variables instead (mod behaviours too), floats from the nearest snapshot
+  so animation and movement turn together.
+- **skymp** (another Skyrim multiplayer) extrapolates the newest position 0.2 s ahead and lets the engine glide there
+  (`TranslateTo`), its locomotion animated by the engine (`KeepOffsetFromActor`): less delay, but paths overshoot
+  and correct. Copies follow the owner's path instead.
+- **In the frame** (`Main::Update` 36564): `UpdateTimeManager`, then the VM's update (ours: copies placed, graphs
+  loaded), then input, then the actor movement and animation jobs, then render. A copy's place and variables are
+  drawn the same frame; an owner's snapshot reads the previous frame's movement (a constant frame).
+
+Sources: [Source multiplayer networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking),
+[Source interpolation](https://developer.valvesoftware.com/wiki/Interpolation),
+[Snapshot interpolation](https://gafferongames.com/post/snapshot_interpolation),
+[Unreal SmoothClientPosition](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/UCharacterMovementComponent/SmoothClientPosition),
+skymp's `skymp5-client/src/sync/movementApply.ts` (`reference/plugins/skymp`).
 
 ## Readouts
 
@@ -69,7 +130,9 @@ The harness status: `copy_clock` (`network_ms`, `delay_ms`), and per copy `behin
   - the delay stays bounded;
   - leaving a fight (30/s to 10/s) steers smoothly;
   - a teleport snaps;
-  - one tick a frame.
+  - one tick a frame;
+  - steady frames step the copies steadily however unevenly the session's time is read;
+  - the frame clock steps with the frames and follows the session's time.
 - GameTests `copy_playback_flows.cpp`:
   - the extrapolation and its limits;
   - a copy well under 300 ms behind in-process (121 ms for a 10/s copy);

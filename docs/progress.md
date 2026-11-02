@@ -17,6 +17,18 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-01: other players move smoothly (S10, uncommitted): the copy clock and owners' snapshot stamps stepped with the
+session's time as read once a frame, which jumps (27 then 6 ms) while frames are steady, so copies stuttered. Both now
+step by the engine's frame (`FrameClock`, [copy-clock.md](design/copy-clock.md)); players and fights are sent every second
+frame at 60 fps (were every third), and a copy's strafe animation turns with its movement (was a snapshot late). Scenarios `copy-strafes-with-host`,
+`copy-strafes-with-guest`; ClientTests `[copy-clock]`. The vanilla stand-in records the player's path
+(`player_trace.on`) to compare a player's own movement.
+
+2026-11-01: clutter no longer creeps above 60 fps (S4, uncommitted): vanilla Havok steps by `fMaxTime` (1/60)
+whatever the frame rate, and a step longer than the frame wakes resting objects. Each frame's step is now the frame,
+as HIGGS and HavokFix do ([physics.md](re/systems/physics.md), "Havok's step"). Scenario
+`clutter-rests-at-any-frame-rate`; `ClientTests` `[havok-step]`.
+
 2026-11-01: a joined player can change its armor again (S7, uncommitted): the join put the kept character's worn set
 back on force-equipped (`abForceEquip`, Papyrus `EquipItem`'s prevent removal), so the inventory menu could not take
 it off or replace it ([inventory-changes.md](re/systems/inventory-changes.md), "Worn on add"). Scenario
