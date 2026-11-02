@@ -24,6 +24,9 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    registry.add('green-flash-observer-of-guest-fast', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.observer_probe(ctx, holder='client', fast=True), doc='S2: a farther guest grab and fast mouse reversals exercise the host observer correction path.')
+    registry.add('green-flash-observer-of-host', ['restart', 'green-flash', 'visual'], physics_green.observer_probe, doc='S2: Sleeping Giant Inn, host grabs and moves a normal prop; inspect the guest watching it.')
+    registry.add('green-flash-observer-of-guest', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.observer_probe(ctx, holder='client'), doc='S2: Sleeping Giant Inn, guest grabs and moves a normal prop; inspect the host steering it.')
     registry.add('green-flash-ivarstead-host', ['restart', 'green-flash', 'visual'], physics_green.probe, doc='S2 diagnostic: real mouse moves the original kettle onto Bassianus; lossless 120 fps videos of both games. Completion is not a no-flash assertion.')
     registry.add('green-flash-ivarstead-guest', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.probe(ctx, holder='client'), doc='S2 diagnostic: the guest moves the original kettle against the NPC copy; record both viewpoints for green flashes.')
     registry.add('green-flash-ivarstead-handoff', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.probe(ctx, handoff=True), doc='S2 diagnostic: head contact, release, then the other player grabs and moves the same original kettle.')

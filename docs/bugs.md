@@ -224,12 +224,15 @@ game without co-op"). Not accepted for v1 yet: the user decides.
   - Test: `guest-bucket-on-npc-head --until-fail`, reading the client's lowest; then teach the fake (it already
     has copies push nothing: `FakeEngine::OutsideCapsules`).
 
-- **S2: a moved object flashes green** (playtest item 3, the host moving an object onto an NPC; `/bug 1455-e7e` /
-  `1455-a9c`). Not reproduced (2026-11-01): the duo's videos of the host dragging a ladle left and right, with the
-  host's node writes as they were then and as fixed, and of grabs and set-downs, show no green.
-  - Start: what in Skyrim tints an object green (none of our code applies a shader to a held object: no
-    `ApplyEffectShader` on references), the reports' `messages.txt` and log around 14:54:30-14:55:00, and both
-    players' mod lists (an ENB or a grab mod's highlight).
+- **S2: a held object flashes green on the watching game** (2026-11-01, reproduced). The user reproduced
+  both directions in Sleeping Giant Inn with `coop_test.py play`; the holder's view stays normal. The automated
+  host-holds/guest-watches tankard flow captures the guest's prop flat dark green while the host's remains textured.
+  - Native: `green-flash-observer-of-host`, tankard `600EE`; [paired evidence and limits](../playtests/2026-11-01-s2-green-flash.md).
+  - Guest watching host: keyframed `BodyBridge::Drive` confirmed. Host watching guest: `BodyBridge::Steer` exercised
+    in slow and fast controls, but this bounded probe did not capture its green fill; the user's manual result stands.
+  - Open: identify the engine graphics state affected by held-body playback, then teach the fake and add the red
+    GameTests flow before a fix. No production fix yet. The earlier bright-green pixel filter missed the actual
+    dark RGB `(23, 42, 36)` and cannot rule the symptom out.
 
 - **A dragged object blinks in and out of existence** (the user, 2026-11-01). Not reproduced (2026-11-01): a ladle
   dragged left and right by either player, traced each frame on both games (`body_trace`, which now also gives its 3D's

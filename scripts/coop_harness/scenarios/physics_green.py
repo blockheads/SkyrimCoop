@@ -1,4 +1,4 @@
-"""S2 visual probes using the reported inn, kettle, wine bottle and NPC."""
+"""S2 watching-game probes in Sleeping Giant Inn and historical Vilemyr controls."""
 import contextlib
 import json
 import math
@@ -7,6 +7,7 @@ import time
 import uuid
 
 from ..common import TEST_HOME, WINDOWS
+from ..comparisons import first_body
 from ..utilities import log
 from .dialogue_regression import checkpoint
 
@@ -15,8 +16,9 @@ KETTLE, WINE, BASSIANUS = 0x9EF53, 0x9E194, 0x19E08
 
 
 class VisualCapture:
-    def __init__(self, ctx, label, target):
+    def __init__(self, ctx, label, target, camera_targets=None):
         self.ctx, self.target = ctx, target
+        self.camera_targets = camera_targets or {}
         self.folder = TEST_HOME / 'green-flash' / (time.strftime('%Y%m%d-%H%M%S') + '-' + label + '-' + uuid.uuid4().hex[:4])
         self.processes, self.events = [], []
 
@@ -54,7 +56,7 @@ class VisualCapture:
             event['games'][name] = {
                 'frame': self.ctx.game_frame(game.name), 'player': self.ctx.local_player(game.name),
                 'body': self.ctx.body_of(game.name, self.target),
-                'camera': self.ctx.player_command(game.name, {'cmd': 'camera', 'target': BASSIANUS}),
+                'camera': self.ctx.player_command(game.name, {'cmd': 'camera', 'target': self.camera_targets.get(game.name, BASSIANUS)}),
                 'effects': self.ctx.player_command(game.name, {'cmd': 'reference_effects', 'form': self.target}),
                 'trace': self.ctx.player_command(game.name, {'cmd': 'body_trace'})}
         self.events.append(event)
@@ -106,9 +108,18 @@ def look_pitch(ctx, instance, goal):
     raise ctx.failure(f'mouse pitch did not reach {goal}: at {pitch()}')
 
 
-def grab(ctx, instance, target):
-    ctx.place_before(instance, target, 90)
-    ctx.face(instance, target)
+def aim_at(ctx, instance, position):
+    camera = ctx.player_command(instance, {'cmd': 'camera'})['position']
+    dx, dy, dz = [position[i] - camera[i] for i in range(3)]
+    ctx.console_on(instance, f'player.setangle z {math.degrees(math.atan2(dx, dy))}')
+    ctx.console_on(instance, f'player.setangle x {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}')
+
+
+def grab(ctx, instance, target, gap=90):
+    ctx.place_before(instance, target, gap)
+    aim_at(ctx, instance, ctx.body_of(instance, target)['position'])
+    ctx.wait_for('the crosshair identifies the prop before grabbing', lambda:
+                 ctx.player_command(instance, {'cmd': 'camera'}).get('crosshair') == target, 3)
     ctx.press(instance, 'activate')
     try:
         ctx.wait_for(f'[{instance or "host"}] grabs the reported object',
@@ -187,3 +198,48 @@ def probe(ctx, holder='', target=KETTLE, handoff=False):
                     release(ctx, name)
             ctx.console_on('', f'{BASSIANUS:X}.setrestrained 0')
         log('S2 input probe complete; inspect both videos before assigning a visual result.')
+
+
+def observer_probe(ctx, holder='', fast=False):
+    """The watching game observes a normal grab in Sleeping Giant Inn, in either direction."""
+    with checkpoint(ctx):
+        ctx.both_go('RiverwoodSleepingGiantInn')
+        host, guest = ctx.world_state(''), ctx.world_state('client')
+        resting = ctx.resting_clutter_on_both(host, guest)
+        target = ctx.pick_reference(host, 'MISC', 0, lambda ref: resting(ref)
+                                    and 'tankard' in (first_body(ref).get('node') or '').lower())
+        watcher = 'client' if not holder else ''
+        log(f'S2 observer probe: {holder or "host"} holds {target:X}, base {host[target]["base"]:X}')
+        ctx.place_before(holder, target, 145 if fast else 90, bearing=270)
+        ctx.place_before(watcher, target, 190, bearing=0)
+        camera_targets = {name: ctx.player_copy(name) for name in ('', 'client')}
+        aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
+        try:
+            with VisualCapture(ctx, f'observer-{holder or "host"}-{target:X}' + ('-fast' if fast else ''), target, camera_targets) as capture:
+                grab(ctx, holder, target, gap=145 if fast else 90)
+                capture.mark('first grab, inspect watching game')
+                aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
+                look_pitch(ctx, holder, 0)
+                aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
+                capture.mark('held at eye height')
+                frames(ctx, holder, 300)
+                for dx in ((180, -300, 180, -60) if fast else (-8, 8, 8, -8)):
+                    for _ in range(1 if fast else 8):
+                        before = ctx.local_player(holder)['rotation'][2]
+                        ctx.player_command(holder, {'cmd': 'mouse', 'dx': dx, 'dy': 0})
+                        ctx.wait_for('the holder moves the object with the mouse', lambda:
+                                     abs(ctx.local_player(holder)['rotation'][2] - before) > .0003, 3)
+                    aim_at(ctx, watcher, ctx.body_of(watcher, target)['position'])
+                    capture.mark(f'held mouse movement {dx}')
+                    if ctx.local_player(holder).get('grabbed') != target:
+                        raise ctx.failure('the holder dropped the prop during the observer probe')
+                    if fast:
+                        frames(ctx, holder, 45)
+                frames(ctx, holder, 300)
+                release(ctx, holder)
+                capture.mark('released')
+                frames(ctx, watcher, 120)
+        finally:
+            with contextlib.suppress(Exception):
+                release(ctx, holder)
+        log('Observer probe recorded; inspect the watching game before assigning the visual result.')

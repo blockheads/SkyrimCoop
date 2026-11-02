@@ -1,5 +1,90 @@
 # S2 green-flash follow-up
 
+## Native update: watching-game flash reproduced
+
+**Current result (21:49): S2 reproduced on the watching guest.** The user additionally reproduced it manually
+in both directions using main checkout `coop_test.py play` in Sleeping Giant Inn. Only the held prop changes
+colour; the holder's view stays normal.
+
+The isolated branch was rebased onto dev `edca669f`, including `a805ec4b` (steered holds) and the dialogue merge.
+Native captures used the exact DLL copied from the main checkout after the user's manual reproduction:
+SHA256 `327b300c9cf4119c95f5c85c82715d63226fd2bf958f7bc44b8286176b270c8b`, reported build
+`v1.6.7-798-gc6553525-dirty`. That build label predates the merge commit; the artifact identity is recorded
+explicitly rather than claiming a newly compiled edca669f build. No production C++ changed in this worktree.
+
+### Concrete recorded trigger
+
+`green-flash-observer-of-host` enters Sleeping Giant Inn, grabs placed tankard `600EE` (base `319E3`), lifts it
+with real mouse input and moves it sideways. Crosshair targeting and the actual grabbed reference are checked.
+The other player faces the held prop. Both views are recorded losslessly at requested 120 fps.
+
+At the `held at eye height` checkpoint the host's tankard retains its metal texture, while the watching guest's
+same tankard is flat dark green. Sample pixel RGB is `(23, 42, 36)`. Full native frames, enlarged comparison and
+videos are retained in:
+
+`build/coop-test/green-flash/20261101-214802-observer-host-600EE-1eed/`
+
+- `host-held.png`: holder, normal texture.
+- `client-held.png`: watching guest, flat green.
+- `holder-vs-watcher.png`: labelled native crops, enlarged; originals retained.
+- `host.mkv` / `client.mkv`: 2,607 / 2,694 decoded frames, with `events.json` and per-frame body traces.
+
+The guest's body is motion type 4 (keyframed) during the affected checkpoint. The holder's remains dynamic.
+No active reference-effect entries were reported at sampled checkpoints. This does not exclude material,
+lighting or render-pass changes; it is not a diagnosis of the graphics fault.
+
+### Reverse-direction controls
+
+`green-flash-observer-of-guest` completed the same tankard grab and movement with the guest holding and host
+watching. Its capture has a dynamic/steered host body; no matching green fill was found in the bounded object
+region or selected native frames. A second run, `green-flash-observer-of-guest-fast`, used a farther grab and
+fast real mouse reversals. The guest remained holding at every captured phase, but the host recording still
+had no comparable flat-green candidate. These negative controls do **not** overturn the user's manual
+reproduction in that direction.
+
+Captures: `20261101-214836-observer-client-600EE-93be/` and
+`20261101-220052-observer-client-600EE-fast-8ae2/`, under the same `green-flash/` directory.
+Logs: `build/s2-observer-attempt3.log`, `build/s2-observer-fast.log` and matching evidence directories.
+Both scenarios' input/cleanup checks passed; visual outcome is recorded separately. Final own pair stopped,
+prefix processes verified empty and duo released at 22:01 before offline analysis.
+
+### Correcting the colour filter
+
+The earlier strict filter required green at least 80 and excess 35 over both other channels. It missed this
+actual dark teal/green fill. Therefore its zero-candidate results cannot be used to reject S2, even for the
+new recordings. The viewer frames, not that threshold, established the reproduction.
+
+The analysis script now accepts explicit channel thresholds and an object region. On the confirmed native
+watcher crop (`592 145 650 199`), `--red-excess 10 --blue-excess 3 --minimum 20` finds the dark fill. The paired
+holder's tankard-body crop (`600 385 660 440`) is a control (2,032 matching pixels on the watcher, zero on the holder). Colour candidates still require visual confirmation;
+no universal colour test or no-flash assertion is claimed.
+
+### Playback code checked; cause still open
+
+The affected guest path is `BodyService::Show` → `BodyBridge::Drive` → `PlaceBody` → `FollowBody`.
+The watching host receives `NotifyBodyFrames::Held` and selects `BodyBridge::Steer`, which uses velocity
+steering nearby and a simulated placement beyond `kSteerFar`. Source and traces agree on these routes.
+`PlaceBody` and `SteerBody` both call the native velocity setters; their IDs/signatures match the local
+CommonLibSSE-NG reference. This does not identify which graphics state causes the green fill.
+
+The player-driven native reproduction and visual evidence are saved. The engine fact behind the graphics
+change still needs to be identified before adding it to the fake engine and writing the failing GameTests flow.
+Unit tests and the fix follow that step; no production fix has been made.
+
+### Fixture corrections and verification
+
+The first attempt booted directly into the inn, where the global scenario baseline rejected arriving NPCs and
+weather. It stopped before a grab. The next selected a plate under another item; the crosshair hit that item,
+so the grab never began. Both are retained as fixture failures, not S2 results. The final probe starts from the
+normal QASmoke baseline, enters the inn inside the fixture, uses a standalone tankard, and verifies the crosshair
+before pressing Activate. Observer aiming uses actual body/camera positions.
+
+Python compilation, all 31 harness tests, scenario discovery, configurable-mask pipeline checks and whitespace
+checks pass. Native reproduction/capture is the validation for these Python-only additions. No C++ build or
+full `scripts/check.sh` rerun is claimed for this reproduction-only change.
+
+## Earlier preparation (before the manual watching-game clarification)
+
 User confirms the symptom happened previously and clarifies that **only the held object turns green**.
 This is still an open report. A failed reproduction does not establish that it never happened.
 

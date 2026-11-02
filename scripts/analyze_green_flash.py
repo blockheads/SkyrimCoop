@@ -7,15 +7,16 @@ import subprocess
 from PIL import Image, ImageChops
 
 
-def green_pixels(frame):
+def green_pixels(frame, red_excess=35, blue_excess=35, minimum=80):
     red, green, blue = frame.split()
-    excess = ImageChops.darker(ImageChops.subtract(green, red), ImageChops.subtract(green, blue))
-    mask = ImageChops.darker(excess.point(lambda value: 255 if value >= 35 else 0),
-                            green.point(lambda value: 255 if value >= 80 else 0))
+    over_red = ImageChops.subtract(green, red).point(lambda value: 255 if value >= red_excess else 0)
+    over_blue = ImageChops.subtract(green, blue).point(lambda value: 255 if value >= blue_excess else 0)
+    mask = ImageChops.darker(ImageChops.darker(over_red, over_blue),
+                            green.point(lambda value: 255 if value >= minimum else 0))
     return mask.histogram()[255]
 
 
-def analyze(path, output, keep=8):
+def analyze(path, output, keep=8, red_excess=35, blue_excess=35, minimum=80, region=None):
     output.mkdir(parents=True, exist_ok=True)
     info = json.loads(subprocess.check_output([
         'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_streams', '-show_frames',
@@ -23,6 +24,9 @@ def analyze(path, output, keep=8):
         '-of', 'json', str(path)]))
     stream = info['streams'][0]
     width, height = stream['width'], stream['height']
+    if region and not (0 <= region[0] < region[2] <= width and 0 <= region[1] < region[3] <= height):
+        raise ValueError('crop must be inside the recorded frame')
+    colour = dict(red_excess=red_excess, blue_excess=blue_excess, minimum=minimum)
     times = [float(frame['best_effort_timestamp_time']) for frame in info['frames']]
     if not times:
         raise ValueError('video has no timestamped frames to analyze')
@@ -37,10 +41,10 @@ def analyze(path, output, keep=8):
                 raise RuntimeError('partial decoded video frame')
             frame = Image.frombytes('RGB', (width, height), data)
             # Keep HUD colour changes separate from the world view.
-            world = frame.crop((0, round(height * .12), width, round(height * .84)))
-            count = green_pixels(world)
+            world = frame.crop(region or (0, round(height * .12), width, round(height * .84)))
+            count = green_pixels(world, **colour)
             row = {'frame': len(rows), 'time': times[len(rows)], 'world_green_pixels': count,
-                   'whole_frame_green_pixels': green_pixels(frame), 'increase': count - previous}
+                   'whole_frame_green_pixels': green_pixels(frame, **colour), 'increase': count - previous}
             rows.append(row)
             previous = count
             if count:
@@ -60,6 +64,7 @@ def analyze(path, output, keep=8):
         frame.save(output / name)
         saved.append({**row, 'image': name})
     result = {'video': str(path.resolve()), 'stream': stream, 'frames_analyzed': len(rows),
+              'colour_filter': colour, 'region': region,
               'max_world_green_pixels': max((row['world_green_pixels'] for row in rows), default=0),
               'candidates': saved, 'frames': rows,
               'interpretation': 'Colour candidates only; neither a reproduction nor proof the bug is absent.'}
@@ -71,5 +76,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('video', type=Path)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--red-excess', type=int, default=35)
+    parser.add_argument('--blue-excess', type=int, default=35)
+    parser.add_argument('--minimum', type=int, default=80)
+    parser.add_argument('--crop', type=int, nargs=4, metavar=('LEFT', 'TOP', 'RIGHT', 'BOTTOM'))
     args = parser.parse_args()
-    print(json.dumps(analyze(args.video, args.output), indent=2))
+    print(json.dumps(analyze(args.video, args.output, red_excess=args.red_excess,
+                             blue_excess=args.blue_excess, minimum=args.minimum, region=args.crop), indent=2))
