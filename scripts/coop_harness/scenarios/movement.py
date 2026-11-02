@@ -1,9 +1,11 @@
 """Scenarios movement for the co-op harness."""
+import json
 import math
 from ..common import LYDIA
 from ..errors import TestFailure
 from ..comparisons import distance
 from ..utilities import log
+from ..objects import AnimTrace
 
 
 def scenario_steady_state(ctx):
@@ -132,3 +134,118 @@ def scenario_sneaking_players_stay_hidden(ctx):
     finally:
         ctx.sneak("", False)
         ctx.sneak("client", False)
+
+
+# The locomotion graph's floats: the synced ones (Master_Behavior's) and what the graph damps from them.
+LOCOMOTION = ("Direction", "DirectionDamped", "Speed", "SpeedSampled", "SpeedDamped", "TurnDelta")
+
+
+def strafe_path(entries, game, who, yaw=None):
+    """[(time, lateral)]: that actor's position along the strafer's right axis (its yaw at the start), per frame."""
+    points = [e for e in entries if e["kind"] == "pos" and e["game"] == game and e["who"] == who]
+    if not points:
+        return [], yaw
+    yaw = points[0]["yaw"] if yaw is None else yaw
+    right = (math.cos(yaw), -math.sin(yaw))
+    return [(e["time"], e["pos"][0] * right[0] + e["pos"][1] * right[1]) for e in points], yaw
+
+
+def lateral_at(path, t):
+    """The path's lateral position at time t, linear between frames."""
+    for (t0, x0), (t1, x1) in zip(path, path[1:]):
+        if t0 <= t <= t1:
+            return x0 + (x1 - x0) * (t - t0) / (t1 - t0) if t1 > t0 else x0
+    return None
+
+
+def compare_strafe(owner, copy):
+    """How the copy's path follows the owner's: its delay (s), and after it the mean and worst error (units)."""
+    def errors(delay):
+        found = [(t, x, lateral_at(owner, t - delay)) for t, x in copy]
+        return [(t, x, o) for t, x, o in found if o is not None]
+    best = min((d / 100 for d in range(0, 80)), key=lambda d: (lambda e: sum(abs(x - o) for _, x, o in e) / max(len(e), 1))(errors(d)))
+    found = errors(best)
+    if not found:
+        return None
+    mean = sum(abs(x - o) for _, x, o in found) / len(found)
+    worst = max(found, key=lambda f: abs(f[1] - f[2]))
+    return {"delay": best, "mean": round(mean, 1), "worst": round(abs(worst[1] - worst[2]), 1), "frames": len(found)}
+
+
+def frame_speeds(path):
+    """[(time, speed)] between a path's frames: each frame's move at 60 frames a second (what a frame shows; the
+    harness's own stamps jitter by up to a frame)."""
+    return [((t0 + t1) / 2, (x1 - x0) * 60) for (t0, x0), (t1, x1) in zip(path, path[1:]) if t1 > t0]
+
+
+def strafe_stutters(owner, copy, delay, tolerance=0.35, settle=0.1):
+    """The copy's frames that move more than `tolerance` faster or slower than its owner did then, where the owner
+    moved steadily for `settle` seconds either side (a turn blends over a snapshot interval): (time, owner's speed,
+    copy's speed)."""
+    theirs, found = frame_speeds(owner), []
+    for t, speed in frame_speeds(copy):
+        at = t - delay
+        near = [v for tt, v in theirs if abs(tt - at) <= settle]
+        if len(near) < 5:
+            continue
+        typical = sorted(near)[len(near) // 2]
+        if abs(typical) < 200 or max(near) - min(near) > 0.15 * abs(typical):
+            continue
+        if abs(speed - typical) > tolerance * abs(typical):
+            found.append((round(t, 3), round(typical), round(speed)))
+    return found
+
+
+def animation_lags(entries, game, who, yaw):
+    """For each strafe turn of that actor: ms from its movement turning to its graph's Direction flipping."""
+    right = (math.cos(yaw), -math.sin(yaw))
+    lateral = lambda e: e["pos"][0] * right[0] + e["pos"][1] * right[1]
+    frames = [e for e in entries if e["kind"] == "pos" and e["game"] == game and e["who"] == who and "floats" in e]
+    lags = []
+    for before, after in zip(frames, frames[1:]):
+        if {before["floats"]["Direction"], after["floats"]["Direction"]} != {0.25, 0.75}:
+            continue
+        near = [e for e in frames if abs(e["time"] - after["time"]) < 0.15]
+        moves = [(b["time"], lateral(b) - lateral(a)) for a, b in zip(near, near[1:])]
+        settled = [m for t, m in moves if t > after["time"] + 0.08]
+        if not settled:
+            continue
+        way = 1 if sum(settled) > 0 else -1
+        turned = next((t for t, m in moves if m * way > 1.0), None)
+        if turned is not None:
+            lags.append(round((after["time"] - turned) * 1000))
+    return lags
+
+
+def scenario_copy_strafes_with_owner(ctx, strafer=""):
+    """S10 (playtests/2026-10-31-fabien.md, "lagging out when moving side to side"): the strafer's player strafes
+    left and right with real keys, slow then quick; the other game's copy follows its path side to side."""
+    watcher = "client" if strafer == "" else ""
+    copy = ctx.player_copy(watcher)
+    if copy is None:
+        raise ctx.failure(f"[{watcher or 'host'}] no copy of the other player")
+    with AnimTrace(ctx, f"strafe-{strafer or 'host'}", {strafer: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False,
+                   floats=LOCOMOTION) as trace:
+        for seconds, times in ((0.8, 3), (0.3, 6)):
+            for _ in range(times):
+                ctx.hold_key(strafer, "d", seconds)
+                ctx.hold_key(strafer, "a", seconds)
+        frame = ctx.game_frame(watcher)
+        ctx.wait_for("the copy has a second to finish", lambda: ctx.game_frame(watcher) > frame + 60, 5)
+    owner, yaw = strafe_path(trace.entries, strafer, "owner")
+    theirs, _ = strafe_path(trace.entries, watcher, "copy", yaw)
+    result = compare_strafe(owner, theirs)
+    log(f"[{watcher or 'host'}] the copy against its owner: {result}; trace {trace.dir}")
+    (trace.dir / "strafe.json").write_text(json.dumps({"owner": owner, "copy": theirs, "result": result,
+                                                       "entries": [e for e in trace.entries if e["kind"] == "pos"]}))
+    if result is None:
+        raise ctx.failure("no overlapping frames between the owner's and the copy's paths")
+    lags = animation_lags(trace.entries, watcher, "copy", yaw)
+    log(f"[{watcher or 'host'}] the copy's strafe animation flips after its movement turns by (ms): {sorted(lags)}")
+    # The owner turns in two steps (a frame stopped, then the new way): its copy blends one frame between them.
+    if lags and (sum(lags) / len(lags) > 16 or max(lags) > 34):
+        raise ctx.failure(f"[{watcher or 'host'}] the copy slides the new way in its old strafe: its animation flips "
+                          f"{sorted(lags)} ms after its movement turns (a frame on average, two at most)")
+    if stutters := strafe_stutters(owner, theirs, result["delay"]):
+        raise ctx.failure(f"[{watcher or 'host'}] the copy stutters: {len(stutters)} frames off its owner's steady speed by "
+                          f"over a third, e.g. (owner, copy) {[(o, c) for _, o, c in stutters[:5]]}")

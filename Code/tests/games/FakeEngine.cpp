@@ -700,11 +700,12 @@ void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 // ForcePosition and SetRotation when placing, never of a copy lying in its ragdoll (the engine keeps it on its ragdoll,
 // as its owner: SkyrimBridge); the graph's variables are not modelled.
 bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
-                                     const AnimationVariables&, bool aPlace) noexcept
+                                     const AnimationVariables& acVariables, bool aPlace) noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
+    it->second.GraphVariables = acVariables;
     if (!aPlace || RagdollPosed(aFormId))
         return true;
     std::copy_n(aPosition, 3, it->second.Position);

@@ -116,7 +116,8 @@ nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
     if (acRequest.value("stop", false))
         return {{"ok", true}, {"entries", aHarness.Trace.Stop()}};
     if (acRequest.contains("actors"))
-        aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}));
+        aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}),
+                             acRequest.value("floats", std::vector<std::string>{}));
     return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 

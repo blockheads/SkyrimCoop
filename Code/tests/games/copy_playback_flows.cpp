@@ -144,3 +144,42 @@ SCENARIO("Players and fights are sent 30 times a second, other actors 10", "[cop
     CHECK(SendInterval(party.Guest(), fightingCopy) == Approx(33).margin(8));
     CHECK(SendInterval(party.Guest(), idleCopy) == Approx(100).margin(10));
 }
+
+SCENARIO("A strafing player's copy turns its animation with its movement", "[copies][copy-clock]")
+{
+    // S10: the owner's strafe direction flips the frame it turns; its copy's must flip as its movement turns, within
+    // half a round, not a whole snapshot later (sliding the new way in the old strafe).
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+    const uint32_t cCopy = HostPlayerCopy(guest);
+    auto& graph = host.Actors.at(FakeEngine::kPlayer).GraphVariables;
+    graph.Floats = {0.25f, 340.f}; // Direction (right), Speed
+    Walk(party, std::chrono::milliseconds(800), 200.f);
+
+    using Clock = std::chrono::steady_clock;
+    struct Seen { Clock::time_point Time; float X; float Direction; };
+    for (int turn = 0; turn < 8; ++turn)
+    {
+        // Turns at times unrelated to the rounds: 0-30 ms after one.
+        const float cSpeed = turn % 2 ? 200.f : -200.f;
+        graph.Floats[0] = turn % 2 ? 0.25f : 0.75f;
+        std::vector<Seen> seen;
+        Walk(party, std::chrono::milliseconds(400 + 7 * turn), cSpeed, [&] {
+            const auto& cActor = guest.Actors.at(cCopy);
+            seen.push_back({Clock::now(), cActor.Position[0], cActor.GraphVariables.Floats.empty() ? 0.f : cActor.GraphVariables.Floats[0]});
+        });
+        // When the copy started moving the new way, and when its direction flipped.
+        const auto cTurned = std::ranges::find_if(seen.begin() + 1, seen.end(), [&](const Seen& acSeen) {
+            const auto& cBefore = *(&acSeen - 1);
+            return (acSeen.X - cBefore.X) * cSpeed > 0.f;
+        });
+        const auto cFlipped = std::ranges::find_if(seen, [&](const Seen& acSeen) { return acSeen.Direction == graph.Floats[0]; });
+        REQUIRE(cTurned != seen.end());
+        REQUIRE(cFlipped != seen.end());
+        const auto cApartMs = std::chrono::duration_cast<std::chrono::milliseconds>(cFlipped->Time - cTurned->Time).count();
+        INFO("turn " << turn << ": the direction flipped " << cApartMs << " ms after the movement turned");
+        CHECK(std::abs(cApartMs) <= 17);
+    }
+}

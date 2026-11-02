@@ -34,4 +34,6 @@ public:
     virtual float GetGameDay() const noexcept = 0;
     /// The whole calendar: speed, hour, date and whole days passed.
     virtual TimeModel GetGameTime() const noexcept = 0;
+    /// The engine's last frame, seconds, unscaled: measured at the frame's start, steady where our update is not.
+    virtual float GetRealFrameSeconds() const noexcept = 0;
 };

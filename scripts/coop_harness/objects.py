@@ -43,10 +43,10 @@ class AnimTrace:
     Leaves build/coop-test/traces/<time>-<name>/: timeline.txt (host left, client right), trace.json,
     host.mp4 / client.mp4, and strip-*.png (both screens side by side) at moments asked for with mark()."""
 
-    def __init__(self, ctx, name, actors, bools=("bIsSynced",), video=True):
+    def __init__(self, ctx, name, actors, bools=("bIsSynced",), video=True, floats=()):
         _game = ctx.host
         self.session = ctx
-        self.name, self.actors, self.bools, self.video = name, actors, list(bools), video
+        self.name, self.actors, self.bools, self.video, self.floats = name, actors, list(bools), video, list(floats)
         self.entries, self.marks, self.captures = [], [], {}
 
     def __enter__(self):
@@ -66,7 +66,7 @@ class AnimTrace:
         self.start = time.time()
         for game, ids in self.actors.items():
             _game = ctx.game(game)
-            if not (_game.rpc({"cmd": "anim_trace", "actors": list(ids), "bools": self.bools}) or {}).get("ok"):
+            if not (_game.rpc({"cmd": "anim_trace", "actors": list(ids), "bools": self.bools, "floats": self.floats}) or {}).get("ok"):
                 self.__exit__(None, None, None)  # the captures and any game already recording
                 raise ctx.failure(f"[{game or 'host'}] the animation trace did not start")
         return self

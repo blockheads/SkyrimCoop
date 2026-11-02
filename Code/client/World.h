@@ -76,6 +76,8 @@ struct World : entt::registry
     RecipeBook& GetRecipes() noexcept { return m_recipes; }
     // The copies' playback time, stepped once a frame before UpdateEvent.
     CopyClock& GetCopyClock() noexcept { return m_copyClock; }
+    // The session's time at this frame (FrameClock): what owners stamp their snapshots with.
+    [[nodiscard]] uint64_t GetFrameTick() const noexcept { return m_frameClock.Now(); }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -94,6 +96,7 @@ private:
     std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
     std::unique_ptr<IBugReportBridge> m_pBugReportBridge;
     RecipeBook m_recipes;
+    FrameClock m_frameClock;
     CopyClock m_copyClock;
     RunnerService m_runner;
     TransportService m_transport;

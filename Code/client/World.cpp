@@ -206,7 +206,10 @@ void World::Update() noexcept
 
     {
         PROFILE_ZONE("World::Update");
-        m_copyClock.Advance(GetTick());
+        // The engine's frame, not ours: our update runs at a different point in each frame (S10).
+        const double cEngineFrameMs = GetWorldBridge().GetRealFrameSeconds() * 1000.0;
+        m_frameClock.Advance(GetTick(), cEngineFrameMs);
+        m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
         // Force run this before so we get the tasks scheduled to run
         m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
         m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));

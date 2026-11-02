@@ -303,6 +303,17 @@ bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
     return value;
 }
 
+float GetGraphFloat(uint32_t aFormId, const char* acpName) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return 0.f;
+    BSFixedString name(acpName);
+    float value = 0.f;
+    EngineVirtual(pActor->animationGraphHolder).GetVariableFloat(&name, &value);
+    return value;
+}
+
 KillState GetKillState(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);

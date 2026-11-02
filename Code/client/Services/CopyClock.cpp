@@ -1,6 +1,18 @@
 #include <Services/CopyClock.h>
 
 #include <algorithm>
+#include <cmath>
+
+void FrameClock::Advance(uint64_t aSession, double aFrameMs) noexcept
+{
+    const double cSession = static_cast<double>(aSession);
+    const double cStepped = m_now + std::max(aFrameMs, 0.0);
+    if (!m_started || std::abs(cSession - cStepped) > static_cast<double>(kSnapMs))
+        m_now = cSession;
+    else
+        m_now = std::max(m_now, cStepped + (cSession - cStepped) * kLean);
+    m_started = true;
+}
 
 void CopyClock::OnSnapshot(uint64_t aOwnerTick, uint64_t aArrived) noexcept
 {
@@ -15,9 +27,9 @@ uint64_t CopyClock::Network() const noexcept
     return std::min(late + kMarginMs, kMaxMs);
 }
 
-void CopyClock::Advance(uint64_t aNow) noexcept
+void CopyClock::Advance(uint64_t aNow, double aFrameMs) noexcept
 {
-    m_frameMs = m_started && aNow > m_now ? static_cast<double>(aNow - m_now) : 0.0;
+    m_frameMs = m_started ? std::max(aFrameMs, 0.0) : 0.0;
     m_now = aNow;
     ++m_frame;
     while (!m_late.empty() && m_late.front().first + kWindowMs < aNow)

@@ -363,6 +363,8 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     cActors.GetActorRotation(formIdComponent.Id, x, y, z);
     movement.Rotation.x = x;
     movement.Rotation.y = z;
+    if (const auto it = aWorld.ctx().at<FakeEngine&>().Actors.find(formIdComponent.Id); it != aWorld.ctx().at<FakeEngine&>().Actors.end())
+        movement.Variables = it->second.GraphVariables;
     for (auto& entry : animationComponent.Actions)
         update.ActionEvents.push_back(entry);
     if (auto latestAction = animationComponent.GetLatestAction())

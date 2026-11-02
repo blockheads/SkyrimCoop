@@ -411,6 +411,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    float GetRealFrameSeconds() const noexcept override
+    {
+        return 1.f / 60.f;
+    }
     float GetGameYear() const noexcept override
     {
         return {};

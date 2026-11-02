@@ -26,6 +26,7 @@ struct Line
     uint64_t JitterMs = 0;
     uint64_t SpikeAt = 0; // the snapshot sent at this tick arrives SpikeMs late
     uint64_t SpikeMs = 0;
+    uint64_t ReadJitterMs = 0; // the session's time read up to this stale (where the network last updated it)
 
     CopyClock Clock;
     CopyPlayback Copy;
@@ -59,7 +60,7 @@ struct Line
                 Newest = std::max(Newest, m_flight.front().Sent);
                 m_flight.pop_front();
             }
-            Clock.Advance(Now);
+            Clock.Advance(Now - (ReadJitterMs ? Random() % (ReadJitterMs + 1) : 0), cFrameMs);
             const uint64_t cTick = Copy.At(Clock);
             if (Now >= aCountAfter)
             {
@@ -142,16 +143,16 @@ TEST_CASE("A game that stalled jumps ahead, never back", "[copy-clock]")
 {
     CopyClock clock;
     clock.OnSnapshot(cStart - 20, cStart);
-    clock.Advance(cStart);
+    clock.Advance(cStart, 0);
     const uint64_t cBefore = clock.Now();
-    clock.Advance(cStart + 2000);
+    clock.Advance(cStart + 2000, 2000);
     CHECK(clock.Now() == cStart + 2000 - clock.Network());
     CHECK(clock.Now() > cBefore);
 
     SECTION("the session's time going back holds it")
     {
         const uint64_t cHeld = clock.Now();
-        clock.Advance(cStart + 1000);
+        clock.Advance(cStart + 1000, cFrameMs);
         CHECK(clock.Now() == cHeld);
     }
 }
@@ -160,7 +161,7 @@ TEST_CASE("The delay stays bounded however late the line is", "[copy-clock]")
 {
     CopyClock clock;
     clock.OnSnapshot(cStart, cStart + 5000);
-    clock.Advance(cStart + 5000);
+    clock.Advance(cStart + 5000, 0);
     CHECK(clock.Network() == CopyClock::kMaxMs);
     CHECK(clock.Delay() == CopyClock::kMaxMs);
 }
@@ -200,6 +201,52 @@ TEST_CASE("Every service asking in one frame gets one tick", "[copy-clock]")
     line.Run(1000);
     const uint64_t cFirst = line.Copy.At(line.Clock);
     CHECK(line.Copy.At(line.Clock) == cFirst);
-    line.Clock.Advance(line.Now + cFrameMs);
+    line.Clock.Advance(line.Now + cFrameMs, cFrameMs);
     CHECK(line.Copy.At(line.Clock) > cFirst);
+}
+
+TEST_CASE("Steady frames step the copies steadily however unevenly the session's time is read", "[copy-clock]")
+{
+    // S10: the session's time is where the network last updated it, read 0-12 ms late each frame; on a fast line
+    // the delay is about that much.
+    Line line;
+    line.LatencyMs = 1;
+    line.ReadJitterMs = 12;
+    line.Run(2000);
+    for (int frame = 0; frame < 120; ++frame)
+    {
+        const uint64_t cBefore = line.Copy.At(line.Clock);
+        line.Run(cFrameMs);
+        const uint64_t cStep = line.Copy.At(line.Clock) - cBefore;
+        CHECK(cStep >= static_cast<uint64_t>(cFrameMs * CopyClock::kSlowest) - 1);
+        CHECK(cStep <= static_cast<uint64_t>(cFrameMs * CopyClock::kFastest) + 2);
+    }
+}
+
+TEST_CASE("The frame clock steps with the frames and follows the session's time read unevenly", "[copy-clock]")
+{
+    // S10: owners stamp snapshots with it; the session's time is read 0-12 ms stale each frame.
+    FrameClock clock;
+    uint64_t seed = 7;
+    const auto cStale = [&] { return (seed = seed * 6364136223846793005ull + 1442695040888963407ull, (seed >> 33) % 13); };
+    uint64_t session = cStart;
+    clock.Advance(session, 0);
+    for (int frame = 0; frame < 300; ++frame)
+    {
+        const uint64_t cBefore = clock.Now();
+        session += cFrameMs;
+        clock.Advance(session - cStale(), cFrameMs);
+        if (frame > 60)
+        {
+            CHECK(clock.Now() - cBefore >= cFrameMs - 2);
+            CHECK(clock.Now() - cBefore <= cFrameMs + 2);
+            CHECK(session - clock.Now() <= 12);
+        }
+    }
+
+    SECTION("a load's jump is taken at once")
+    {
+        clock.Advance(session + 5000, cFrameMs);
+        CHECK(clock.Now() == session + 5000);
+    }
 }

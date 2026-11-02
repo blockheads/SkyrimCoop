@@ -32,6 +32,7 @@ constexpr uintptr_t cPlayerSingleton = 0x3137698; // 401069 PlayerCharacter*
 constexpr uintptr_t cAddMessage = 0x1af260;      // 13631 UIMessageQueue::AddMessage
 constexpr uintptr_t cMessageQueue = 0x20f8950;   // 400445 UIMessageQueue*
 constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
+constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
 
 struct BSFixedString
@@ -50,6 +51,7 @@ std::string s_bootCommand;
 bool s_bootDone = false;
 std::string s_consoleId;
 std::chrono::steady_clock::time_point s_nextStatus{};
+bool s_tracing = false; // player_trace.on exists: the player's place each frame into player_trace.txt
 
 using TMainUpdate = short(void*);
 TMainUpdate* s_realMainUpdate = nullptr;
@@ -114,6 +116,22 @@ void WriteStatus()
              << (s_bootDone && InWorld() ? "true" : "false") << "}}";
     }
     MoveFileExW(cTemporary.c_str(), (s_control / "status.json").c_str(), MOVEFILE_REPLACE_EXISTING);
+    s_tracing = std::filesystem::exists(s_control / "player_trace.on");
+}
+
+// The player's place and heading this frame, wall-clock stamped (as the client's animation trace): what the
+// strafe scenarios compare a co-op player's movement against (S10).
+void TracePlayer()
+{
+    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
+    if (!s_tracing || !pPlayer)
+        return;
+    const auto* pAngle = reinterpret_cast<const float*>(pPlayer + cAngle);
+    const auto* pLocation = reinterpret_cast<const float*>(pPlayer + cLocation);
+    const auto cEpochUs =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    std::ofstream file(s_control / "player_trace.txt", std::ios::app);
+    file << cEpochUs << ' ' << pLocation[0] << ' ' << pLocation[1] << ' ' << pLocation[2] << ' ' << pAngle[2] << '\n';
 }
 
 void Poll()
@@ -146,6 +164,7 @@ void Poll()
         }
     }
     WriteStatus();
+    TracePlayer();
 }
 
 short HookMainUpdate(void* apMain)

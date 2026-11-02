@@ -278,6 +278,7 @@ public:
     float GetGameTimeHours() const noexcept override;
     void SetSharedTimeScale(float aMultiplier) noexcept override;
     float GetGameTimeScale() const noexcept override;
+    float GetRealFrameSeconds() const noexcept override;
     TimeModel GetGameTime() const noexcept override;
     float GetGameYear() const noexcept override;
     float GetGameMonth() const noexcept override;

@@ -8,6 +8,8 @@
 #include <Utils.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
+#include <Components.h>
+#include <Systems/InterpolationSystem.h>
 
 #include <atomic>
 #include <mutex>
@@ -59,8 +61,12 @@ Actor* GetActor(uint32_t aFormId) noexcept
 }
 } // namespace
 
-void AnimationTrace::Watch(const std::vector<uint32_t>& acActors, const std::vector<std::string>& acGraphBools)
+void AnimationTrace::Watch(const std::vector<uint32_t>& acActors, const std::vector<std::string>& acGraphBools,
+                           const std::vector<std::string>& acGraphFloats)
 {
+    for (const auto& cName : acGraphFloats)
+        if (std::find(m_graphFloats.begin(), m_graphFloats.end(), cName) == m_graphFloats.end())
+            m_graphFloats.push_back(cName);
     for (const uint32_t cId : acActors)
         m_actors.try_emplace(cId);
     for (const auto& cName : acGraphBools)
@@ -87,6 +93,7 @@ nlohmann::json AnimationTrace::Stop()
     m_graphs.clear();
     m_actors.clear();
     m_graphBools.clear();
+    m_graphFloats.clear();
     m_game = nullptr;
     return Take();
 }
@@ -175,6 +182,18 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     float position[3]{}, rotation[3]{};
     actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
     actors.GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
-    Record({{"kind", "pos"}, {"actor", aFormId}, {"pos", {position[0], position[1], position[2]}}, {"yaw", rotation[2]}});
+    nlohmann::json entry = {{"kind", "pos"}, {"actor", aFormId}, {"pos", {position[0], position[1], position[2]}}, {"yaw", rotation[2]}};
+    for (const auto& cName : m_graphFloats)
+        entry["floats"][cName] = EngineCalls::GetGraphFloat(aFormId, cName.c_str());
+    // A copy's clocks: the owner's time it shows, the game's copy clock and the session's time as read.
+    auto& world = World::Get();
+    for (auto&& [entity, form, interpolation] : world.view<FormIdComponent, InterpolationComponent>().each())
+        if (form.Id == aFormId)
+        {
+            entry["playback"] = InterpolationSystem::PlaybackTick(world, entity);
+            entry["clock"] = world.GetCopyClock().Now();
+            entry["session"] = world.GetTick();
+        }
+    Record(std::move(entry));
 }
 } // namespace TestHarness

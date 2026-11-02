@@ -1559,6 +1559,12 @@ void SkyrimBridge::SetSharedTimeScale(float aMultiplier) noexcept
     BSTimer::SetSharedMultiplier(aMultiplier);
 }
 
+float SkyrimBridge::GetRealFrameSeconds() const noexcept
+{
+    const BSTimer* pTimer = BSTimer::Get();
+    return pTimer ? pTimer->RealTimeDelta : 0.f;
+}
+
 float SkyrimBridge::GetGameTimeScale() const noexcept
 {
     if (TimeData* pTime = TimeData::Get())

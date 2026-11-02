@@ -5,6 +5,22 @@
 #include <deque>
 #include <utility>
 
+// The session's time at this frame: steps by the engine's frame and leans toward the session's time as read, which
+// lags unevenly (wherever the network last updated it). Owners stamp their snapshots with it (S10, copy-clock.md).
+class FrameClock
+{
+public:
+    static constexpr double kLean = 0.1;      // of the reading's difference, per frame
+    static constexpr uint64_t kSnapMs = 250;  // further off than this: jumps (a start, a load, a long stall)
+
+    void Advance(uint64_t aSession, double aFrameMs) noexcept;
+    [[nodiscard]] uint64_t Now() const noexcept { return static_cast<uint64_t>(m_now); }
+
+private:
+    double m_now{};
+    bool m_started{};
+};
+
 // The game's playback time for copies (docs/design/copy-clock.md): the owners' time minus the line's lateness,
 // steered toward it a little each frame, never back and never ahead. No engine: ClientTests.
 class CopyClock
@@ -20,8 +36,9 @@ public:
 
     // An owner's snapshot stamped aOwnerTick (the session's time) arrived at aArrived.
     void OnSnapshot(uint64_t aOwnerTick, uint64_t aArrived) noexcept;
-    // Once a frame, the session's time now.
-    void Advance(uint64_t aNow) noexcept;
+    // Once a frame: the session's time now, and the frame's own length. It steps by the frame, steered toward the
+    // session's time: that is read wherever the network last updated it, unevenly (S10, copy-clock.md).
+    void Advance(uint64_t aNow, double aFrameMs) noexcept;
     void Reset() noexcept;
 
     [[nodiscard]] uint64_t Now() const noexcept { return static_cast<uint64_t>(m_tick); }

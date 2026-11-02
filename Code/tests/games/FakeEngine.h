@@ -450,6 +450,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         } Replay;
         ActionEvent LatestAnimation;
         std::string GraphState;
+        AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
         struct BodyPose { float Head; float Pelvis; float FloorGap; };

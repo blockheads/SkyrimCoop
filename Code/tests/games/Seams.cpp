@@ -184,7 +184,8 @@ void World::Update() noexcept
     const auto cNow = std::chrono::high_resolution_clock::now();
     const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
     m_lastFrameTime = cNow;
-    m_copyClock.Advance(GetTick());
+    m_frameClock.Advance(GetTick(), cDelta * 1000.0);
+    m_copyClock.Advance(m_frameClock.Now(), cDelta * 1000.0);
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).

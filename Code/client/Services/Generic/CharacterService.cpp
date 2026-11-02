@@ -1397,18 +1397,20 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
 void CharacterService::RunLocalUpdates() noexcept
 {
     // 30 a second for players, mounts and fights, whose copies are watched closely; 10 for the rest (copy-clock.md).
-    constexpr auto cFast = 33ms;
-    constexpr auto cSlow = 3 * cFast; // every third round
+    // Timed by the frame clock, half a frame early: at 60 fps every second frame, not every third.
+    constexpr double cRoundMs = 33.0;
+    constexpr uint64_t cSlowRounds = 3;
 
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastSnapshot < cFast)
+    const uint64_t cNow = m_world.GetFrameTick();
+    if (static_cast<double>(cNow - m_lastSnapshot) + m_world.GetCopyClock().FrameMs() / 2.0 < cRoundMs)
         return;
 
-    m_lastSnapshot = now;
+    m_lastSnapshot = cNow;
+    ++m_round;
     const uint32_t cPlayer = m_playerBridge.GetPlayerFormId();
 
     ReferencesMoveRequest message;
-    message.Tick = m_transport.GetTick();
+    message.Tick = cNow; // when this frame's positions were, not when we read the clock (S10)
 
     auto animatedLocalView = m_world.view<LocalComponent, LocalAnimationComponent, FormIdComponent>();
 
@@ -1420,12 +1422,12 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
-        if (now - localComponent.LastSent < (cWatched ? cFast : cSlow))
+        if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {
             waiting.insert(cFormId);
             continue;
         }
-        localComponent.LastSent = now;
+        localComponent.LastSentRound = m_round;
 
         AnimationSystem::Serialize(m_world, message, localComponent, animationComponent, formIdComponent);
         const auto it = message.Updates.find(localComponent.Id);
@@ -1481,7 +1483,9 @@ void CharacterService::RunRemoteUpdates() noexcept
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
-            // The current snapshot's variables, never the next one's or older ones (graphs react to changes).
+            // Booleans and integers: the current snapshot's, never older (graphs react to their changes). Floats
+            // (Direction, Speed): while it stands, the nearest snapshot's, what moved its owner there, so a strafe's
+            // animation turns with the copy's movement, within half an interval (S10, copy-clock.md).
             const AnimationVariables* pVariables = &first.Variables;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
@@ -1491,6 +1495,15 @@ void CharacterService::RunRemoteUpdates() noexcept
                     pAnimation->VariablesTick = first.Tick;
                 }
                 pVariables = &pAnimation->Variables;
+            }
+            const bool cStanding = !first.Lying && !second.Lying && !first.Knocked && !second.Knocked;
+            const bool cNearerSecond = cStanding && (tick >= second.Tick || (tick > first.Tick && 2 * (tick - first.Tick) >= second.Tick - first.Tick));
+            AnimationVariables shown;
+            if (cNearerSecond && second.Variables.Floats.size() == pVariables->Floats.size() && second.Variables.Floats != pVariables->Floats)
+            {
+                shown = *pVariables;
+                shown.Floats = second.Variables.Floats;
+                pVariables = &shown;
             }
             // Its owner lying, or the copy itself: its own ragdoll places it. Up again, it is eased from where its
             // engine stood it onto its owner's place (physics-sync.md, "A copy's ragdoll, steered").
