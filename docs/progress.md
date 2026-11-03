@@ -7,6 +7,12 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 `docs/ideas.md`, engine findings in `docs/re/`, the words (host, guest, owner, copy, player) in
 `docs/design/glossary.md`.
 
+2026-11-02: party markers (Fabien R2) are reviewed and merged into dev: cyan compass
+icons and named pins on the world/local maps, following displayed player copies and clearing on departure.
+The combined fast gate passes (193 client / 198 host / 32 encoding / 282 game cases); all five targeted native
+cases pass on both Steam 1.7.104 and the retained 1.6.1170 build.
+[Design](design/party-markers.md), [acceptance and screenshots](../playtests/2026-11-02-party-markers.md).
+
 **Goal:** friends play Skyrim together (up to a Steam lobby's 250 since 2026-10-29: `PartySize.h`), the host's game is the only authority (direct
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
@@ -1816,9 +1822,8 @@ What the first playtest build has besides what works today (the table above):
     `menu_auto_close_tests.cpp`, GameTests `perk_flows.cpp` (rejoin); Skyrim `ability-stays-on-copy` and the
     `coop_menus.py` live-menu checks pass; a chest lid's pose after an interrupted open is in `docs/bugs.md`.
 
-Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
-players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation
-mods, mod sync).
+Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, mod support
+(RaceMenu adapter, animation mods, mod sync). Party map/compass markers are implemented on dev as recorded above.
 
 ## Product status and remaining delivery work
 

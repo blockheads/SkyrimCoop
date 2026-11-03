@@ -25,7 +25,9 @@ struct GFxMovie
     virtual bool SetVariable(const char* acpPath, const GFxValue& acValue, uint32_t aSetType) = 0; // 10
     // Reads an ActionScript variable by its path into apValue.
     virtual bool GetVariable(GFxValue* apValue, const char* acpPath) const = 0; // 11
-    virtual void Unk12() = 0;
+    // CommonLib GFxMovie::SetVariableArray; 5 = GFxValue, 0 = normal assignment.
+    virtual bool SetVariableArray(uint32_t aType, const char* acpPath, uint32_t aIndex, const void* apData,
+                                  uint32_t aCount, uint32_t aSetType) const = 0; // 12
     virtual void Unk13() = 0;
     virtual void Unk14() = 0;
     virtual void Unk15() = 0;

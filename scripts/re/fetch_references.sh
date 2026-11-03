@@ -70,6 +70,10 @@ for repo in Mardoxx/skyrimui DCCStudios/CHIM-Dialogue-TTS-Bridge JonathanFeenstr
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Native compass marker layout and custom marker icons (party-markers.md).
+fetch alexsylex/CompassNavigationOverhaul "$ROOT/reference/plugins/CompassNavigationOverhaul"
+fetch Exit-9B/MapMarkerFramework "$ROOT/reference/plugins/MapMarkerFramework"
+
 # Camera and controls (docs/research/party-freezes.md): how mods read "the player is taken over" with no cutscene
 # state, from the player's own state: movement controls enabled, AI-driven, the furniture camera.
 for repo in mwilsnd/SkyrimSE-SmoothCam ersh1/TrueDirectionalMovement; do

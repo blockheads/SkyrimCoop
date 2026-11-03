@@ -24,6 +24,11 @@ from .scenarios import (
 )
 
 def register_flows(registry):
+    from .scenarios import party_markers
+    registry.add("party-compass-markers", ["party-markers", "map", "ui"], party_markers.compass, doc="Every other player has a native compass icon.")
+    registry.add("party-world-map-markers", ["party-markers", "map", "ui", "travel"], party_markers.world_map, doc="Every other player is named on the native world map.")
+    registry.add("party-markers-in-interior", ["party-markers", "map", "ui", "travel"], lambda ctx: party_markers.world_map(ctx, "RiverwoodSleepingGiantInn", movement=False), doc="Interior companions appear on the world and local maps.")
+    registry.add("party-markers-after-rejoin", ["party-markers", "session", "ui"], party_markers.rejoin, doc="Departure removes party icons; rejoining restores one per player.")
     registry.add('green-flash-observer-of-guest-fast', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.observer_probe(ctx, holder='client', fast=True), doc='S2: a farther guest grab and fast mouse reversals exercise the host observer correction path.')
     registry.add('green-flash-observer-of-host', ['restart', 'green-flash', 'visual'], physics_green.observer_probe, doc='S2: Sleeping Giant Inn, host grabs and moves a normal prop; inspect the guest watching it.')
     registry.add('green-flash-observer-of-guest', ['restart', 'green-flash', 'visual'], lambda ctx: physics_green.observer_probe(ctx, holder='client'), doc='S2: Sleeping Giant Inn, guest grabs and moves a normal prop; inspect the host steering it.')

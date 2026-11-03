@@ -5,7 +5,7 @@ target("GameTests")
     set_group("Tests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
-    add_files("../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
+    add_files("../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp", "../../client/Games/Skyrim/Interface/PartyMarkerLabel.cpp")
     add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp", "../../client/RecipeBook.cpp", "../../client/ItemIds.cpp",
               "../../client/Services/CopyClock.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp",
@@ -26,7 +26,7 @@ target("GameTests")
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Generic/BodyService.cpp",
               "../../client/Services/Guest/GuestHands.cpp", "../../client/Services/Guest/GuestWait.cpp",
               "../../client/Services/Guest/GuestScene.cpp",
-              "../../client/Services/Generic/MapService.cpp",
+              "../../client/Services/Generic/MapService.cpp", "../../client/Services/Generic/PartyMarkerService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp",
               "../../client/Services/Generic/CombatService.cpp", "../../client/Services/Generic/PerkService.cpp",
