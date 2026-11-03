@@ -8,6 +8,10 @@ IDA/reference tooling.** A first successful launch may take 1–3 days; that is 
 co-op game. Keeping both runtimes supported in one DLL could add 2–5 days. These are planning estimates, with medium
 confidence: the exact 1.7.104 Address Library and native regression results remain outstanding.
 
+Follow-up: upstream's completed compatibility patch is identified below. It supplies the core decoder and layout
+changes, reducing implementation uncertainty. The 5–10 day figure is a conservative budget for our full port,
+reference migration and acceptance, not an estimate for writing that small compatibility patch from scratch.
+
 ## Target and available artifacts
 
 The latest published Steam runtime checked today is **1.7.104.0**, supported by published **SKSE 2.3.1** and
@@ -34,6 +38,37 @@ The exact **1.7.104 Address Library binary was not available locally**. The curr
 a real **1.7.99** format-5 fixture, which I decoded for a preliminary migration inventory. Every coverage number below
 is explicitly for **1.7.99**, not a claim that 1.7.104 is mapped or supported. The public meh321 `skyrimae.relib` still
 ends at 1.6.1179 and cannot fill this gap.
+
+## What Skyrim Together changed
+
+Their [1.8.1 release](https://github.com/tiltedphoques/TiltedEvolution/releases/tag/v1.8.1), published September 14,
+explicitly advertises 1.7.104 support and points to [PR #885](https://github.com/tiltedphoques/TiltedEvolution/pull/885).
+I checked the actual patch, commit `6f9634979310cf1887a1dbf8f74ef13b71d0387a` (August 22): **11 files, 98 added lines,
+67 removed lines**, comprising these compatibility changes:
+
+| Upstream change | Relevance to our fork |
+|---|---|
+| Split the existing library reader into `LoadV2` and `LoadV5`; the latter reads a dense ID-indexed offset array and skips zeros | Directly reusable approach in our closely related `VersionDb.h`; add validation when adapting |
+| Move the declared player fields by eight bytes and the VM pointer/frozen state by sixteen; use the typed VM in its update hook | Matches our binary findings; adapt to our expanded structs and additional player-field uses |
+| Handle a newer SteamStub header with an unencrypted code section | Belongs to their custom immersive launcher; our SKSE plugin does not load the game executable this way |
+| Move SKSE startup earlier, after Together installs hooks and before the game continues initialization | Belongs to their path that loads SKSE; our plugin is loaded by SKSE |
+
+That patch retained the existing address IDs and did not introduce a replacement hook inventory. It does not contain
+an IDA database migration. Upstream later added an explicit 1.7.104 version gate in
+[`24dc4c4e`](https://github.com/tiltedphoques/TiltedEvolution/commit/24dc4c4e8c4744b36ff86f1f129a1c8e3d716356).
+
+On October 21, [`e1de917c`](https://github.com/tiltedphoques/TiltedEvolution/commit/e1de917ce206d8df35982584e11272a6d569c1bc)
+added `skyrim_version=latest|1.6.1170`: compile-time layout branches and separate CI builds. This is a useful model
+for retaining our old build while adding the new runtime; it is not one DLL switching its ordinary field offsets at
+runtime. Source/history was inspected through upstream `711ca1b832790e9035fd05c88a728e88f69c9b4b`.
+
+Upstream's public `Tools/Scripts/addrlib.py` also decodes both formats. Running it on the public 1.7.99 fixture produced
+the same 435,154 nonzero IDs and the same missing 52488 as our independent check. This is useful reusable reference
+tooling, although it cannot supply the absent local 1.7.104 library.
+
+The appropriate starting point is adapting those known decoder/layout changes, then handling our added engine
+members, event sources, wait hook and versioned IDA tools. No upstream gameplay or launcher merge is needed to reuse
+that work. The initial assessment should have consulted this upstream patch before estimating implementation effort.
 
 ## Size of our engine interface
 
