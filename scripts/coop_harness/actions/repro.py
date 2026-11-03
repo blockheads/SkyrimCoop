@@ -1,80 +1,81 @@
-"""The repro loop's verbs (docs/design/repro-mcp.md): the duo's reservation, named handles for what a repro stages,
+"""The repro loop's verbs (docs/design/repro-mcp.md): the duo's lock, named handles for what a repro stages,
 and the recorder that turns a session's calls into a scenario. The MCP server (scripts/coop_mcp.py) calls these;
 scenarios can too."""
 import contextlib
 import json
 import math
+import os
 import re
 import subprocess
+import sys
 import time
+from pathlib import Path
 
-from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME
+from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
+from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 
-DUO_FILE = TEST_HOME / "DUO.md"
 RECORDINGS = TEST_HOME / "mcp"
 
 
-def _section(text, name):
-    """The body of a `## name` section and its span in the text."""
-    match = re.search(rf"^## {re.escape(name)}\n(.*?)(?=^## |\Z)", text, re.S | re.M)
-    return (match.group(1).strip(), match.span(1)) if match else (None, None)
-
-
-def duo_holder(text):
-    """Who holds the duo: None when free (DUO.md's Now section says `free`)."""
-    now, _ = _section(text, "Now")
-    return None if now in (None, "", "free") else now
-
-
-def with_now(text, value):
-    """The file with its Now section set to value."""
-    _, span = _section(text, "Now")
-    if span is None:
-        raise ValueError("DUO.md has no Now section")
-    return text[:span[0]] + f"\n{value}\n\n" + text[span[1]:]
-
-
-def with_log(text, line):
-    """The file with a line first under Log."""
-    _, span = _section(text, "Log")
-    if span is None:
-        raise ValueError("DUO.md has no Log section")
-    return text[:span[0]] + f"\n- {line}\n" + text[span[0]:]
+def duo_home():
+    """The main checkout's build/coop-test, where every worktree's duo lock lives (COOP_DUO_HOME overrides)."""
+    if home := os.environ.get("COOP_DUO_HOME"):
+        return Path(home)
+    common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    return (Path(common).parent / "build/coop-test").resolve() if common else TEST_HOME
 
 
 class ReproActions:
-    def duo_claim(ctx, owner, what):
-        """Claims the shared duo (memory duo-reservation): refused when someone else holds it."""
-        text = DUO_FILE.read_text()
-        holder = duo_holder(text)
-        if holder and not holder.startswith(owner):
-            raise ctx.failure(f"the duo is held: {holder}")
-        if not holder:
-            ctx.REPRO_CLAIMED_AT = time.strftime("%H:%M")
-            text = re.sub(rf"^- {re.escape(owner)}\b.*\n", "", with_now(text, f"{owner}, since {time.strftime('%Y-%m-%d %H:%M')}, {what}"),
-                          flags=re.M, count=1)
-            DUO_FILE.write_text(text)
-        return holder or "claimed"
+    # --- The duo's lock (coop_harness/duo_lock.py): none on Windows, one machine per duo there ---
+
+    def duo_lock(ctx, name=None):
+        if WINDOWS:
+            return None
+        if getattr(ctx, "DUO_LOCK", None) is None:
+            from ..duo_lock import DuoLock
+            ctx.DUO_LOCK = DuoLock(duo_home(), ROOT, name or os.environ.get("COOP_DUO_NAME") or ROOT.name,
+                                   stop_command=[sys.executable, str(ROOT / "scripts/coop_test.py"), "stop"])
+        return ctx.DUO_LOCK
+
+    def duo_games_running(ctx):
+        return any(ctx.prefix_processes(_game=game) for game in ctx.games)
+
+    def duo_claim(ctx, owner, what, wait_seconds=0, keep_place=False):
+        """Holds the shared duo (or joins this checkout's hold), waiting up to wait_seconds in the queue."""
+        from ..duo_lock import DuoBusy
+        if not (lock := ctx.duo_lock(owner)):
+            return "no lock on Windows"
+        try:
+            return lock.acquire(what, timeout=wait_seconds, keep_place=keep_place)
+        except DuoBusy as error:
+            raise ctx.failure(str(error)) from None
 
     def duo_free(ctx, owner, summary):
-        """Stops the duo, checks none of its Skyrims is left and frees the claim with a log line. Refused unless this
-        owner holds the claim: never stop a duo someone else started."""
-        text = DUO_FILE.read_text()
-        holder = duo_holder(text)
-        if not holder or not holder.startswith(owner):
-            raise ctx.failure(f"not ours to stop: the duo is {holder or 'free'}")
+        """Stops the duo, checks none of its Skyrims is left and frees the hold with a log line. Refused unless this
+        process holds it: never stop a duo someone else started."""
+        lock = ctx.duo_lock(owner)
+        if lock and lock.role != "holder":
+            raise ctx.failure(f"not ours to stop: this session holds no duo ({lock.role or 'none'})")
         ctx.stop_duo()
         if left := ctx.our_skyrims():
             raise ctx.failure(f"{len(left)} of our Skyrim processes still running after stop: {left}")
-        text = DUO_FILE.read_text()
-        if holder and holder.startswith(owner):
-            since = getattr(ctx, "REPRO_CLAIMED_AT", "?")
-            text = with_log(with_now(text, "free"),
-                            f"{time.strftime('%Y-%m-%d')} {since} to {time.strftime('%H:%M')} {owner}: {summary}. "
-                            "Stopped, 0 Skyrim processes, freed.")
-            DUO_FILE.write_text(text)
+        if lock:
+            lock.release(f"{summary}. Stopped, 0 Skyrim processes, freed")
         return "freed"
+
+    def duo_finish(ctx):
+        """A command's end: a hold whose games still run goes to a keeper (scripts/duo.py keep), else it is freed."""
+        lock = getattr(ctx, "DUO_LOCK", None)
+        if not lock or not lock.role:
+            return
+        if lock.role == "holder" and ctx.duo_games_running():
+            if lock.park([sys.executable, str(ROOT / "scripts/duo.py"), "keep"]):
+                print("duo: games left running; a keeper holds the duo until `coop_test.py stop` "
+                      f"(or {IDLE_MINUTES:.0f} idle minutes)", file=sys.stderr)
+                return
+        lock.release("Command ended")
 
     def our_skyrims(ctx):
         """The Skyrim processes running from this checkout's test game folder (another worktree's are theirs)."""

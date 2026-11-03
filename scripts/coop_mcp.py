@@ -22,7 +22,7 @@ from coop_harness import Session  # noqa: E402
 from coop_harness.common import ROOT, TEST_HOME  # noqa: E402
 from coop_harness.errors import TestFailure  # noqa: E402
 
-OWNER = "repro-mcp"
+OWNER = f"repro-mcp ({ROOT.name})"
 server = FastMCP("skyrim-coop")
 session = Session()
 duo = {"process": None, "log": None}
@@ -49,10 +49,11 @@ def _game(game):
 
 
 @tool
-def duo_start(cell: str = "QASmoke", save: str = "") -> dict:
-    """Claims the shared duo (build/coop-test/DUO.md) and boots both games in the background; then call duo_wait.
-    Refused while another agent holds the duo."""
-    session.duo_claim(OWNER, f"repro session in {cell}")
+def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 300) -> dict:
+    """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
+    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again.
+    This server holds the duo until duo_stop or until it exits."""
+    session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
     if duo["process"] and duo["process"].poll() is None:
         return {"ok": True, "booting": True}
     if all(game.read_status() for game in session.games):  # ours, already running: attach
@@ -67,10 +68,10 @@ def duo_start(cell: str = "QASmoke", save: str = "") -> dict:
 
 
 @tool
-def vanilla_start(cell: str = "QASmoke") -> dict:
-    """Claims the duo's host game and boots it without our plugin (the vanilla stand-in: player_trace, console),
+def vanilla_start(cell: str = "QASmoke", wait: int = 300) -> dict:
+    """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true)."""
-    session.duo_claim(OWNER, f"vanilla stand-in in {cell}")
+    session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", "--vanilla", "--cell", cell]
@@ -96,7 +97,7 @@ def duo_wait(seconds: int = 50) -> dict:
 
 @tool
 def duo_stop(summary: str = "repro session") -> dict:
-    """Stops both games, checks no Skyrim is left and frees the duo with a log line."""
+    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits)."""
     return {"ok": True, "result": session.duo_free(OWNER, summary)}
 
 

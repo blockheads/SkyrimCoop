@@ -70,9 +70,39 @@ story fixture documented by that flow (`duo --save NAME`); they cannot run again
 
 ## Run targeted Skyrim flows
 
-Read the main checkout's `build/coop-test/CHAT.md` and `DUO.md` first. In a worktree, link those two files individually
-to the shared originals, keeping prefixes and evidence isolated. Claim the duo before deployment or launch, use
-`:99` / `:100`, stop only your own games, and release promptly. Do not take over another agent's live processes.
+The duo is shared by every agent and worktree; its lock (below) is automatic. In a worktree, link the main checkout's
+`build/coop-test/CHAT.md` and `DUO.md` individually, keeping prefixes and evidence isolated. Use `:99` / `:100`,
+`stop` when Skyrim is no longer needed, and never stop games another checkout holds (`stop` refuses).
+
+### The duo lock
+
+`scripts/coop_harness/duo_lock.py`, in the main checkout's `build/coop-test/` (found through git, so every worktree
+shares it): `duo.json` is the truth, guarded by an `flock` on `duo.lock`; `DUO.md` is a view it rewrites (Rules,
+Now, Waiting, new Log lines first). Nobody edits `DUO.md` or asks the user.
+
+```
+command starts (duo, scenario, reload, repro, launch, play, profile, soak, quest-walk, affected --run,
+                MCP duo_start, duo.py run)
+  token = new file, flock'ed for this process's life (freed by the kernel however it ends)
+  holder is this checkout, alive   -> join the hold, run
+  free, nobody ahead               -> hold, run
+  holder's tokens all free (stale) -> stop its games (its checkout's `stop`), log it, hold, run
+  else                             -> join the queue's end, block on the token ahead (flock, no polling),
+                                      re-check when it frees; COOP_DUO_WAIT (2 h) then fail
+command ends
+  its games still run (duo --keep-running) -> hand the hold to a keeper (`duo.py keep`): it frees
+      the hold on `coop_test.py stop`, 1 min after the games end, or after 30 idle minutes
+      (COOP_DUO_IDLE_MINUTES; it stops the games first)
+  else -> release with a Log line; the next waiter's block on our token returns
+```
+
+- One checkout holds at a time; its other commands (and the MCP's `duo` subprocess) join that hold.
+- The MCP server holds it from `duo_start` (waits `wait` seconds, then fails keeping its queue place for the next
+  call) until `duo_stop` or the server's exit.
+- `scripts/duo.py status` shows the holder, the queue and ages; `scripts/duo.py run -- <command>` waits, holds for
+  the command, stops its games and frees the duo.
+- Tests: `DuoLockTests` in `scripts/test_coop_harness.py` (contending processes, FIFO, a killed holder, a stale
+  takeover, the MCP's hold, the keeper).
 
 ```bash
 python3 scripts/coop_test.py duo --keep-running
