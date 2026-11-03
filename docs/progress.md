@@ -43,7 +43,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - It likely covers: the host's copy of a sword the guest dropped rests 44 to 67 units from the guest's
      (`guest-drops-item-stays`, 2 of 5).
 3. **The handoff's red flags:** the action clock, unreliable movement, the tick clamp, the cost of
-   `SaveAnimationGraphState`, and one rest path. Then cleanup and explainer docs.
+   `SaveAnimationGraphState`, and one rest path. Plan: `docs/design/red-flags.md`. Then cleanup and explainer docs.
 4. **Open bugs found 2026-11-02**:
    - Fixed: `guest-throw-lands-on-host` failed 2 of 3 at its grab. The scenario teleported the client beside the ladle
      and pressed at once, while its copy was still reaching the host. The host's ladle could stir then, and its frames
