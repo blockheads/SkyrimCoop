@@ -16,9 +16,10 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 ### Constraints
 
-- **Runtime**: Steam 1.7.104 is the default and primary target. Keep 1.6.1170 as a separate build:
-  `COOP_SKYRIM_VERSION=1.6.1170 scripts/xmake-msvc.sh f -m dev`, then the same environment for build and harness commands.
-  Legacy artifacts/configuration are isolated under `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
+- **Runtime**: Steam 1.7.104 is the routine development and validation target. Do not run compatibility builds,
+  tests or legacy RE updates for 1.6.1170 unless explicitly requested (user preference, 2026-11-02).
+  Keep the existing optional 1.6 build configuration; its artifacts remain isolated under
+  `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
 
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide

@@ -74,6 +74,9 @@ done
 fetch alexsylex/CompassNavigationOverhaul "$ROOT/reference/plugins/CompassNavigationOverhaul"
 fetch Exit-9B/MapMarkerFramework "$ROOT/reference/plugins/MapMarkerFramework"
 
+# Native combat target switching and damage/proximity threat (party-aggro.md).
+fetch RedyellowUnit/SmartTargetingNPC "$ROOT/reference/plugins/SmartTargetingNPC"
+
 # Camera and controls (docs/research/party-freezes.md): how mods read "the player is taken over" with no cutscene
 # state, from the player's own state: movement controls enabled, AI-driven, the furniture camera.
 for repo in mwilsnd/SkyrimSE-SmoothCam ersh1/TrueDirectionalMovement; do

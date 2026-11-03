@@ -15,6 +15,7 @@
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/HealthChangeEvent.h>
+#include <Events/ActorDamagedEvent.h>
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
@@ -396,7 +397,11 @@ void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
 void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
         it->second.Copy = aCopy;
+        if (!aCopy)
+            it->second.OwnerCombatTarget = 0;
+    }
 }
 
 bool FakeEngine::IsActorCopy(uint32_t aFormId) const noexcept
@@ -665,6 +670,8 @@ bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, f
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
+    if (aDamage > 0 && aAttackerFormId)
+        World::Get().GetRunner().Trigger(ActorDamagedEvent{aFormId, aAttackerFormId, aDamage});
     World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, kHealth});
     // The engine names the killer before its death event.
     if (!cWasDead && it->second.Values.ActorValuesList[kHealth] <= 0.f)
@@ -1289,6 +1296,7 @@ std::string FakeEngine::PlayerId() noexcept
 
 void FakeEngine::RunMainLoop() noexcept
 {
+    RunNativeCombat();
     if (const auto cName = std::exchange(PendingSave, std::nullopt))
     {
         if (RefusesSaves || !World::Get().ctx().at<SaveService>().OnSaveRequested())

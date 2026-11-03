@@ -11,6 +11,7 @@
 #include <optional>
 #include <unordered_set>
 
+namespace PartyThreat { struct State; }
 struct TESObjectREFR;
 struct ContainerTransferRequest;
 
@@ -32,6 +33,8 @@ public:
     [[nodiscard]] std::optional<std::vector<Followers::State>> ReadFollowers() const noexcept;
     [[nodiscard]] std::vector<Followers::Order> TakeFollowerOrders() const noexcept;
     void SetFollowerTargets(const std::vector<Followers::Target>& acTargets) const noexcept;
+
+    void SetPartyThreats(const PartyThreat::State& acState) const noexcept;
 
     // The weather the game shows; none for no sky, or the world map's own.
     [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;

@@ -5,8 +5,8 @@ target("HostAuthorityTests")
     set_group("Tests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
-    -- HostConversation is the host's game in a conversation, not a rule: it needs the game.
-    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
+    -- Conversation and aggro bind the host's game; GameTests covers their engine reads.
+    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp")
     add_includedirs(".", "../../client")

@@ -1,6 +1,7 @@
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
+#include <Services/Host/HostAggro.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
@@ -132,7 +133,10 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 
 void HostService::MakeAuthority() noexcept
 {
+    m_pAggro.reset();
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
+    m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
+        [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
     HostGame game;
     game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
     game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };
@@ -251,6 +255,7 @@ void HostService::MakeAuthority() noexcept
 
 void HostService::StopHosting() noexcept
 {
+    m_pAggro.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
@@ -285,4 +290,6 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     m_pNetwork->Update();
     m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta);
     UpdateReload();
+    if (m_pAggro)
+        m_pAggro->Update(acEvent);
 }

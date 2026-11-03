@@ -1900,6 +1900,7 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
     // Actor::currentCombatTarget: written only by a combat controller, which a copy never has.
     auto* pTarget = acFields.CombatTargetId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.CombatTargetId)) : nullptr;
     const uint32_t cTargetHandle = pTarget ? pTarget->GetHandle().handle.iBits : *TESObjectREFR::GetNullHandle();
+    pActor->GetExtension()->OwnerCombatTargetHandle.store(cTargetHandle, std::memory_order_relaxed);
     if (pActor->combatHandle != cTargetHandle)
         pActor->combatHandle = cTargetHandle;
     if (!pActor->currentProcess)

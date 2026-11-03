@@ -30,7 +30,10 @@ void ActorExtension::SetCopy(bool aSet) noexcept
     if (aSet)
         onlineFlags |= kCopy;
     else
+    {
         onlineFlags &= ~kCopy;
+        OwnerCombatTargetHandle.store(0, std::memory_order_relaxed);
+    }
 }
 
 void ActorExtension::SetPlayer(bool aSet) noexcept

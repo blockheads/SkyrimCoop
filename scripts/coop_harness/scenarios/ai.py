@@ -32,8 +32,7 @@ def scenario_copy_runs_owners_package(ctx):
 
 def scenario_copy_in_owners_combat(ctx):
     """The host's Vilkas (staged, his AI on: combat needs it) starts combat with the host's player, then stops. On the client his copy, which has no combat controller, answers IsInCombat and GetCombatState
-    as the host's Vilkas does (copy-contract.md, "AI state"). Its combat target is not checked: the engine clears the
-    field on a copy, which its own callers see out of combat (progress.md, overnight slice 3)."""
+    as the host's Vilkas does, including its persistent target handle (copy-contract.md, "AI state")."""
     try:
         ctx.stage_host_npc(VILKAS)
         ctx.freeze("", VILKAS, False)  # combat needs his AI (restrained, he does not start it either)
@@ -42,7 +41,7 @@ def scenario_copy_in_owners_combat(ctx):
         host_player = ctx.other_player(ctx.actors_on("client"))
         try:
             ctx.wait_for("[client] its Vilkas is in combat with the host's character",
-                     lambda: (s := ctx.ai_state("client", VILKAS)).get("in_combat") and s.get("combat") == ctx.ai_state("", VILKAS).get("combat"), 3)
+                     lambda: (s := ctx.ai_state("client", VILKAS)).get("in_combat") and s.get("combat") == ctx.ai_state("", VILKAS).get("combat") and s.get("combat_target") == host_player, 3)
         except TestFailure:
             raise ctx.failure(f"[client] its Vilkas is not in the host's combat: {ctx.ai_state('client', VILKAS)} "
                               f"(host {ctx.ai_state('', VILKAS)}, the host's character here {host_player:X})")

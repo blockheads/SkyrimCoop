@@ -2,6 +2,7 @@
 #include <Havok/bhkPickData.h>
 #include <Forms/TESObjectCELL.h>
 #include <PlayerCharacter.h>
+#include <Actor.h>
 #include <VersionDb.h>
 #include <glm/glm.hpp>
 
@@ -9,10 +10,17 @@ namespace GameRaycast
 {
 namespace
 {
-std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept;
+std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer, TESObjectCELL* apCell) noexcept;
+void* WorldOf(TESObjectCELL* apCell) noexcept
+{
+    using TGetWorld = void*(TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995);
+    return apCell ? s_getWorld(apCell) : nullptr;
+}
 } // namespace
 
-std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer, uint32_t aThrough) noexcept
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer, uint32_t aThrough,
+                            TESObjectCELL* apCell) noexcept
 {
     // Past the camera's own collision (kCameraSphere 36, kCameraPick 39) and the player's: they are not the world.
     const glm::vec3 cStart(acFrom[0], acFrom[1], acFrom[2]);
@@ -22,7 +30,7 @@ std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32
     for (int skip = 0; skip < 8; ++skip)
     {
         const float cFrom[3]{from.x, from.y, from.z};
-        auto hit = CastRayOnce(cFrom, acTo, aLayer);
+        auto hit = CastRayOnce(cFrom, acTo, aLayer, apCell);
         if (!hit || !hit->Hit)
         {
             if (hit)
@@ -43,14 +51,10 @@ std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32
 
 namespace
 {
-std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept
+std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer, TESObjectCELL* apCell) noexcept
 {
     const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer || !pPlayer->parentCell)
-        return std::nullopt;
-    using TGetWorld = void*(TESObjectCELL*);
-    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995); // TESObjectCELL::GetbhkWorld
-    void* pWorld = s_getWorld(pPlayer->parentCell);
+    void* pWorld = WorldOf(apCell ? apCell : pPlayer ? pPlayer->parentCell : nullptr);
     if (!pWorld)
         return std::nullopt;
 
@@ -92,5 +96,16 @@ std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], ui
     return hit;
 }
 } // namespace
+
+bool HasClearPath(Actor* apFrom, Actor* apTo) noexcept
+{
+    if (!apFrom || !apTo || !WorldOf(apFrom->parentCell) || WorldOf(apFrom->parentCell) != WorldOf(apTo->parentCell))
+        return false;
+    const auto cFrom = apFrom->GetLookingAtLocation();
+    const auto cTo = apTo->GetLookingAtLocation();
+    const float cStart[3]{cFrom.x, cFrom.y, cFrom.z}, cEnd[3]{cTo.x, cTo.y, cTo.z};
+    const auto hit = CastRay(cStart, cEnd, 30, apFrom->formID, apFrom->parentCell);
+    return hit && (!hit->Hit || hit->Reference == apTo->formID);
+}
 
 } // namespace GameRaycast

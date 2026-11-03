@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <optional>
 
+struct Actor;
+struct TESObjectCELL;
+
 namespace GameRaycast
 {
 struct RayHit
@@ -15,5 +18,7 @@ struct RayHit
     uint32_t Layer{};     // the hit collision's layer (COL_LAYER)
 };
 // No value when the physics world or pick is unavailable. Passes through the player's own collision.
-std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0) noexcept;
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0,
+                            TESObjectCELL* apCell = nullptr) noexcept;
+bool HasClearPath(Actor* apFrom, Actor* apTo) noexcept;
 } // namespace GameRaycast

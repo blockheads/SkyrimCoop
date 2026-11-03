@@ -20,6 +20,28 @@
 // go through the bridges, never through these.
 namespace TestHarness::EngineCalls
 {
+struct CombatCandidateRead
+{
+    uint32_t FormId{};
+    int32_t Detection{};
+    uint16_t Attackers{};
+    uint16_t Flags{};
+    float Stealth{};
+    bool LineOfSight{};
+    bool ClearPath{};
+    bool Invisible{};
+    bool Sneaking{};
+};
+struct CombatRead
+{
+    uint32_t ControllerTarget{};
+    uint32_t ActorTarget{};
+    uint32_t PapyrusTarget{};
+    uint8_t State{};
+    std::vector<CombatCandidateRead> Candidates;
+};
+std::optional<CombatRead> ReadCombat(uint32_t aActorId);
+
 // The engine reads the player build uses too (bug reports).
 using namespace Diagnostics::EngineReads;
 

@@ -7,6 +7,7 @@
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
 #include <Services/PartyMarkers.h>
+#include <Services/Host/PartyThreat.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
 #include "../FakeFlight.h"
@@ -49,6 +50,12 @@ struct World;
 
 struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 {
+    PartyThreat::State PartyThreats;
+    // Skyrim keeps the first candidate selected while other known targets attack it.
+    std::map<uint32_t, std::vector<PartyThreat::Candidate>> CombatCandidates;
+    std::map<uint32_t, uint32_t> CombatProposals; // Periodic native recalculation (47191/47195).
+    std::map<uint64_t, PartyThreat::Perception> CombatPerception;
+    void RunNativeCombat() noexcept;
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
 
     uint32_t Controls = kAllControls; // ControlMap::enabledControls
@@ -437,6 +444,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
         uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
+        uint32_t OwnerCombatTarget{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
         ActorValues Values = FullValues();
@@ -719,7 +727,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override
     {
         if (const auto it = Actors.find(aFormId); it != Actors.end())
+        {
             it->second.Ai = acFields;
+            it->second.OwnerCombatTarget = acFields.CombatTargetId;
+        }
     }
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }

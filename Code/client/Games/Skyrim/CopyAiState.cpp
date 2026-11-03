@@ -116,11 +116,24 @@ uint8_t Actor::GetOwnCombatState() const noexcept
     return RealGetCombatState ? static_cast<uint8_t>(RealGetCombatState(const_cast<Actor*>(this))) : 0;
 }
 
+using TUpdateCombatSearchState = uintptr_t(Actor*);
+static TUpdateCombatSearchState* RealUpdateCombatSearchState = nullptr;
+
+// 37273 clears a copy's target because it has no native combat. Keep its owner's weak handle after that update.
+static uintptr_t HookUpdateCombatSearchState(Actor* apActor)
+{
+    const auto cResult = RealUpdateCombatSearchState(apActor);
+    if (apActor->GetExtension()->IsCopy())
+        apActor->combatHandle = apActor->GetExtension()->OwnerCombatTargetHandle.load(std::memory_order_relaxed);
+    return cResult;
+}
+
 static Hooks::Initializer s_copyAiStateHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(37247, &RealGetCurrentScene, HookGetCurrentScene);
+        HOOK_ID(37273, &RealUpdateCombatSearchState, HookUpdateCombatSearchState);
         HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
         HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);
         HOOK_ID(41261, &RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);

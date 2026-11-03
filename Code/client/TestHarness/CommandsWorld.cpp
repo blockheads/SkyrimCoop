@@ -20,6 +20,19 @@ namespace TestHarness
 {
 namespace
 {
+// The native combat group's candidate set, separate from the current selected target.
+nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cRead = EngineCalls::ReadCombat(acRequest.value("actor", 0u));
+    if (!cRead) return Error("no such actor");
+    nlohmann::json candidates = nlohmann::json::array();
+    for (const auto& cCandidate : cRead->Candidates)
+        candidates.push_back({{"actor", cCandidate.FormId}, {"detection", cCandidate.Detection},
+                              {"attackers", cCandidate.Attackers}, {"flags", cCandidate.Flags}, {"stealth", cCandidate.Stealth},
+                              {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}});
+    return {{"ok", true}, {"controller_target", cRead->ControllerTarget}, {"actor_target", cRead->ActorTarget},
+            {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates}};
+}
 // {"cmd": "status"}: the status (Status.h).
 nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)
 {
@@ -1004,6 +1017,7 @@ nlohmann::json PapyrusResult(Harness&, const nlohmann::json& acRequest)
 }
 
 constexpr Command cCommands[] = {
+    {"combat_targets", true, &ReadCombat},
     {"status", false, &GetStatus},
     {"camera", true, &Camera},
     {"screen", true, &Screen},

@@ -32,6 +32,7 @@ struct ActorExtension
     uint32_t OwnerPackageId = 0;
     uint32_t OwnerSceneId = 0;
     uint8_t OwnerCombatState = 0;
+    std::atomic<uint32_t> OwnerCombatTargetHandle{0};
     // Its headtrack slots (HighProcessData::headTrackTarget, form ids): a copy's owner's, put in before the engine
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};

@@ -7,6 +7,12 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 `docs/ideas.md`, engine findings in `docs/re/`, the words (host, guest, owner, copy, player) in
 `docs/design/glossary.md`.
 
+2026-11-02: smarter enemy aggro is built on `feature/party-aggro` (not merged): recent applied damage and
+proximity choose between party players, with a target hold and switching margin. Copied combat targets now persist
+through native updates. Steam 1.7.104 acceptance passes all six targeted scenarios, including both attack orders,
+300-frame stability, guest combat state and casting; the full fast gate passes 200 client / 198 host / 32 encoding /
+286 game cases. [Design](design/party-aggro.md), [acceptance](../playtests/2026-11-02-party-aggro.md).
+
 2026-11-02: party markers (Fabien R2) are reviewed and merged into dev: cyan compass
 icons and named pins on the world/local maps, following displayed player copies and clearing on departure.
 The combined fast gate passes (193 client / 198 host / 32 encoding / 282 game cases); all five targeted native
@@ -419,9 +425,10 @@ Decisions made without the user are marked **Decided**.
     apply on the changed duo code; its half (a `--players` flag `duo` ignored, `client2`, `dialogue-three-players`)
     was removed at review (`docs/ideas.md`, Testing). Steps 4 (quest topics on guests) and 5 (event-driven lists)
     not done; step 5 is moot (step sync has no polled list).
-- **Combat target on copies (found while running the suite):** writing `currentCombatTarget` works only while the
-  engine's own callers see the copy in combat; with the allowlist below they see it out of combat and something
-  clears the field again (not traced). `copy-in-owners-combat` no longer checks it. Open.
+- **Combat target on copies:** fixed on `feature/party-aggro` (2026-11-02, not merged). Native
+  `Actor::UpdateCombatSearchState` (37273) clears the target on actors with no native combat. Copies restore their
+  cached owner weak handle after that update; their AI/controller stays disabled. The strengthened
+  `copy-in-owners-combat` target assertion and both aggro switch directions pass on Steam 1.7.104.
 - **Combat state allowlist (crash found by the suite, fixed):** the first hook answered the owner's state to every
   caller but the 9 audited sites; the client crashed in `cast-host-player` (`MagicCaster` 34450 through
   `Actor::EngagingInCombat` 38563 reads the controller at `+0x160`; 23 callers of that wrapper, none in the audit of

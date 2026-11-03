@@ -1,6 +1,7 @@
 // A host load or party wipe: the chosen save to the guests, then
 // loaded here, and the host's rules made again on the same listener.
 #include <Services/HostService.h>
+#include <Services/Host/HostAggro.h>
 
 #include <Bridges/HostEngine.h>
 #include <Events/GameLoadFailedEvent.h>
@@ -66,6 +67,7 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
         return;
     m_pConversation.reset();
     m_pAuthority.reset();
+    m_pAggro.reset();
     m_pEngine.reset();
     m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();

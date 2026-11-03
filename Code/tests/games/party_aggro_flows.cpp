@@ -1,0 +1,108 @@
+#include "Fixtures.h"
+#include "Party.h"
+#include <Events/AiStateChangeEvent.h>
+#include <Events/UpdateEvent.h>
+
+namespace
+{
+void DamageSwitches(bool aGuestFirst)
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t enemy = 0;
+    party.As(party.Host(), [&] { enemy = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1 && PlayerCopy(host); },
+                "both games have the enemy and players");
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    const uint32_t cGuest = PlayerCopy(host);
+    const uint32_t cFirst = aGuestFirst ? cGuest : FakeEngine::kPlayer;
+    const uint32_t cSecond = aGuestFirst ? FakeEngine::kPlayer : cGuest;
+    party.As(party.Host(), [&] {
+        host.CombatCandidates[enemy] = {{FakeEngine::kPlayer, 250.f, true}, {cGuest, 250.f, true}};
+        host.CombatPerception[PartyThreat::State::Key(enemy, cSecond)] = {
+            .Known = false, .Lost = true, .Detection = 0, .ClearPath = true};
+        host.Actors.at(enemy).Ai.CombatState = 1;
+        host.Actors.at(enemy).Ai.CombatTargetId = cFirst;
+        party.Host().GetRunner().Trigger(AiStateChangeEvent{enemy});
+    });
+    party.Until([&] { return host.PartyThreats.Active; }, "the host's combat policy is active");
+    CHECK_FALSE(guest.PartyThreats.Active);
+    World& firstGame = aGuestFirst ? party.Guest() : party.Host();
+    World& secondGame = aGuestFirst ? party.Host() : party.Guest();
+    party.As(firstGame,
+             [&] { Party::Engine(firstGame).Strikes(FakeEngine::kPlayer, aGuestFirst ? cCopy : enemy, 5.f); });
+    party.Until([&] { return host.Actors.at(enemy).Values.ActorValuesList[24] < 96.f; },
+                "the first player's damage is applied");
+    party.As(secondGame,
+             [&] { Party::Engine(secondGame).Strikes(FakeEngine::kPlayer, aGuestFirst ? enemy : cCopy, 30.f); });
+    party.Until([&] { return host.Actors.at(enemy).Ai.CombatTargetId == cSecond; },
+                "the enemy switches from its initial target to the party member doing more damage");
+    const uint32_t cSecondOnGuest = aGuestFirst ? PlayerCopy(guest) : FakeEngine::kPlayer;
+    party.Until([&] { return guest.GetActorAiFields(cCopy).CombatTargetId == cSecondOnGuest; },
+                "the guest's gameplay AI state sees the same target switch");
+    party.As(party.Host(), [&] { host.CombatProposals[enemy] = cFirst; });
+    party.Frame();
+    party.Frame();
+    CHECK(host.Actors.at(enemy).Ai.CombatTargetId == cSecond);
+    CHECK(guest.GetActorAiFields(cCopy).CombatTargetId == cSecondOnGuest);
+}
+} // namespace
+
+SCENARIO("A guest can draw aggro from the host with greater damage", "[party-aggro][combat]")
+{
+    DamageSwitches(false);
+}
+SCENARIO("The host can draw aggro from a guest with greater damage", "[party-aggro][combat]")
+{
+    DamageSwitches(true);
+}
+
+SCENARIO("Party threat retires actors and players and stops with the host", "[party-aggro][combat]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t enemy = 0;
+    party.As(party.Host(), [&] { enemy = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1 && PlayerCopy(host); }, "the fight is loaded");
+    const uint32_t cGuest = PlayerCopy(host);
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    party.As(party.Host(), [&] {
+        host.Actors.at(enemy).Ai.CombatState = 1;
+        host.Actors.at(enemy).Ai.CombatTargetId = FakeEngine::kPlayer;
+    });
+    party.As(party.Guest(), [&] { guest.Strikes(FakeEngine::kPlayer, cCopy, 5.f); });
+    party.Until([&] { return host.PartyThreats.DamageOf(enemy, cGuest) > 0; }, "the host credits the guest's damage");
+    CHECK_FALSE(guest.PartyThreats.Active);
+
+    SECTION("Death clears the enemy's threat")
+    {
+        party.As(party.Host(), [&] { host.Actors.at(enemy).Dead = true; });
+        party.Until([&] { return host.PartyThreats.DamageByPair.empty(); }, "the dead enemy is forgotten");
+        CHECK(host.PartyThreats.Combats.empty());
+    }
+    SECTION("Combat ending clears the fight after the hit grace period")
+    {
+        party.As(party.Host(), [&] {
+            host.Actors.at(enemy).Ai.CombatState = 0;
+            party.Host().GetDispatcher().trigger(UpdateEvent{PartyThreat::kRecentHit + 0.1});
+        });
+        CHECK(host.PartyThreats.DamageByPair.empty());
+        CHECK(host.PartyThreats.Combats.empty());
+    }
+    SECTION("A departing player loses their damage history")
+    {
+        party.Leave(party.Guest());
+        party.Until([&] { return !host.PartyThreats.IsPlayer(cGuest); },
+                    "the departed guest is removed from targeting");
+        CHECK(host.PartyThreats.DamageByPair.empty());
+    }
+    SECTION("Stopping hosting clears the native selection policy")
+    {
+        party.As(party.Host(), [&] { party.Host().GetHostService().StopHosting(); });
+        CHECK_FALSE(host.PartyThreats.Active);
+        CHECK(host.PartyThreats.Players.empty());
+        CHECK(host.PartyThreats.DamageByPair.empty());
+    }
+}

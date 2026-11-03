@@ -24,6 +24,7 @@ struct HostAuthority;
 struct HostNetwork;
 class HostEngine;
 struct HostConversation;
+struct HostAggro;
 
 /**
  * @brief Hosting a session: the listener the other players' games join (HostNetwork), the host's
@@ -89,6 +90,7 @@ private:
 
     // Declared first so they outlive the network, which calls into the authority, which reads the engine.
     std::unique_ptr<HostEngine> m_pEngine;
+    std::unique_ptr<HostAggro> m_pAggro;
     std::unique_ptr<HostAuthority> m_pAuthority;
     std::unique_ptr<HostNetwork> m_pNetwork;
     // The host's game in the party's conversation.
