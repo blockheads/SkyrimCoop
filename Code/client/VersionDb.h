@@ -1,7 +1,11 @@
 #pragma once
 
 #include <windows.h>
+#include "AddressLibrary.h"
+#include "RuntimeVersion.h"
 #include <fstream>
+#include <filesystem>
+#include <algorithm>
 #include <map>
 #include <stdio.h>
 
@@ -21,13 +25,6 @@ private:
     std::string _verStr;
     std::string _moduleName;
     unsigned long long _base;
-
-    template <typename T> static T read(std::ifstream& file)
-    {
-        T v;
-        file.read((char*)&v, sizeof(T));
-        return v;
-    }
 
     static void* ToPointer(unsigned long long v) { return (void*)v; }
 
@@ -175,138 +172,17 @@ public:
         if (!file.good())
             return false;
 
-        int format = read<int>(file);
-
-        if (format != 2)
+        AddressLibrary::Data data;
+        if (!AddressLibrary::Load(file, {major, minor, revision, build}, data))
             return false;
-
-        for (int i = 0; i < 4; i++)
-            _ver[i] = read<int>(file);
-
-        {
-            char verName[64];
-            _snprintf_s(verName, 64, "%d.%d.%d.%d", _ver[0], _ver[1], _ver[2], _ver[3]);
-            _verStr = verName;
-        }
-
-        int tnLen = read<int>(file);
-
-        if (tnLen < 0 || tnLen >= 0x10000)
-            return false;
-
-        if (tnLen > 0)
-        {
-            char* tnbuf = (char*)malloc(tnLen + 1);
-            file.read(tnbuf, tnLen);
-            tnbuf[tnLen] = '\0';
-            _moduleName = tnbuf;
-            free(tnbuf);
-        }
-
-        {
-            HMODULE handle = GetModuleHandleA(NULL);
-            _base = (unsigned long long)handle;
-        }
-
-        int ptrSize = read<int>(file);
-
-        int addrCount = read<int>(file);
-
-        unsigned char type, low, high;
-        unsigned char b1, b2;
-        unsigned short w1, w2;
-        unsigned int d1, d2;
-        unsigned long long q1, q2;
-        unsigned long long pvid = 0;
-        unsigned long long poffset = 0;
-        unsigned long long tpoffset;
-        for (int i = 0; i < addrCount; i++)
-        {
-            type = read<unsigned char>(file);
-            low = type & 0xF;
-            high = type >> 4;
-
-            switch (low)
-            {
-            case 0: q1 = read<unsigned long long>(file); break;
-            case 1: q1 = pvid + 1; break;
-            case 2:
-                b1 = read<unsigned char>(file);
-                q1 = pvid + b1;
-                break;
-            case 3:
-                b1 = read<unsigned char>(file);
-                q1 = pvid - b1;
-                break;
-            case 4:
-                w1 = read<unsigned short>(file);
-                q1 = pvid + w1;
-                break;
-            case 5:
-                w1 = read<unsigned short>(file);
-                q1 = pvid - w1;
-                break;
-            case 6:
-                w1 = read<unsigned short>(file);
-                q1 = w1;
-                break;
-            case 7:
-                d1 = read<unsigned int>(file);
-                q1 = d1;
-                break;
-            default:
-            {
-                Clear();
-                return false;
-            }
-            }
-
-            tpoffset = (high & 8) != 0 ? (poffset / (unsigned long long)ptrSize) : poffset;
-
-            switch (high & 7)
-            {
-            case 0: q2 = read<unsigned long long>(file); break;
-            case 1: q2 = tpoffset + 1; break;
-            case 2:
-                b2 = read<unsigned char>(file);
-                q2 = tpoffset + b2;
-                break;
-            case 3:
-                b2 = read<unsigned char>(file);
-                q2 = tpoffset - b2;
-                break;
-            case 4:
-                w2 = read<unsigned short>(file);
-                q2 = tpoffset + w2;
-                break;
-            case 5:
-                w2 = read<unsigned short>(file);
-                q2 = tpoffset - w2;
-                break;
-            case 6:
-                w2 = read<unsigned short>(file);
-                q2 = w2;
-                break;
-            case 7:
-                d2 = read<unsigned int>(file);
-                q2 = d2;
-                break;
-            default:
-            {
-                Clear();
-                return false;
-            }
-            }
-
-            if ((high & 8) != 0)
-                q2 *= (unsigned long long)ptrSize;
-
-            _data[q1] = q2;
-            _rdata[q2] = q1;
-
-            poffset = q2;
-            pvid = q1;
-        }
+        _data = std::move(data.Offsets);
+        _moduleName = std::move(data.Module);
+        const int version[]{major, minor, revision, build};
+        std::copy_n(version, 4, _ver);
+        _verStr = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(revision) + "." + std::to_string(build);
+        _base = reinterpret_cast<unsigned long long>(GetModuleHandleW(nullptr));
+        for (const auto& [id, offset] : _data)
+            _rdata.emplace(offset, id);
 
         return true;
     }

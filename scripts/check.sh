@@ -81,6 +81,7 @@ for target in ClientTests HostAuthorityTests TPTests GameTests; do
     fi
 done
 step "check harness lifecycle" python3 -m unittest discover -s scripts -p test_coop_harness.py
+step "check Skyrim runtimes" python3 -m unittest discover -s scripts -p test_skyrim_runtime.py
 step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
 step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py

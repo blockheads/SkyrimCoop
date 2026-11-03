@@ -1,8 +1,11 @@
 # Installing SkyrimCoop (playtest)
 
-You need Skyrim Special Edition (or Anniversary Edition) on Steam, game version 1.6.1170 (Steam's current version),
+You need Skyrim Special Edition (or Anniversary Edition) on Steam, game version **1.7.104**,
 on Windows or on Linux through Proton. The zip has everything else: SKSE, Alternate Start - Live Another Life and the
 Unofficial Skyrim Special Edition Patch it needs.
+
+The package filename names its Skyrim version. A separate **1.6.1170** build remains available for older
+installations; install the package matching your executable. The default build and primary support target are 1.7.104.
 
 ## Install
 

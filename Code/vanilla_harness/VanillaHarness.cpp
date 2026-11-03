@@ -7,9 +7,9 @@
 // up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), and status.json
 // (heartbeat_ms, pid, console_id, session.world_ready). Nothing else of ours is loaded.
 //
-// Addresses are for Skyrim SE 1.6.1170, the only version the harness runs (Address Library IDs
-// in the comments; scripts/re/build_re_data.py resolves them).
+// Engine addresses come from the selected runtime's Address Library.
 #include <windows.h>
+#include "../client/VersionDb.h"
 
 #include <MinHook.h>
 
@@ -23,14 +23,14 @@
 
 namespace
 {
-constexpr uintptr_t cMainUpdate = 0x645ea0;      // 36564 Main::Update
-constexpr uintptr_t cExecuteCommand = 0x8f3f30;  // 442672 Console::ExecuteCommand(const char*)
-constexpr uintptr_t cUISingleton = 0x20f6a00;    // 400327 UI*
-constexpr uintptr_t cIsMenuOpen = 0xfa37b0;      // 82074 UI::IsMenuOpen(const BSFixedString&)
-constexpr uintptr_t cFixedString = 0xcec5d0;     // 69161 BSFixedString::BSFixedString(const char*)
-constexpr uintptr_t cPlayerSingleton = 0x3137698; // 401069 PlayerCharacter*
-constexpr uintptr_t cAddMessage = 0x1af260;      // 13631 UIMessageQueue::AddMessage
-constexpr uintptr_t cMessageQueue = 0x20f8950;   // 400445 UIMessageQueue*
+constexpr uint32_t cMainUpdate = 36564;
+constexpr uint32_t cExecuteCommand = 442672;
+constexpr uint32_t cUISingleton = 400327;
+constexpr uint32_t cIsMenuOpen = 82074;
+constexpr uint32_t cFixedString = 69161;
+constexpr uint32_t cPlayerSingleton = 401069;
+constexpr uint32_t cAddMessage = 13631;
+constexpr uint32_t cMessageQueue = 400445;
 constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
 constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
@@ -43,7 +43,7 @@ struct BSFixedString
 uintptr_t s_base = 0;
 template <class T> T At(uintptr_t aRva)
 {
-    return reinterpret_cast<T>(s_base + aRva);
+    return reinterpret_cast<T>(VersionDb::Get().FindAddressById(aRva));
 }
 
 std::filesystem::path s_control;
@@ -191,17 +191,21 @@ struct SKSEPluginVersionData
 static_assert(offsetof(SKSEPluginVersionData, author) == 0x108 && offsetof(SKSEPluginVersionData, supportEmail) == 0x208,
               "SKSE's PluginVersionData layout (CommonLibSSE)");
 
-// As the client's (Code/client/skse_entry.cpp): no struct use, Address Library and post-629
-// structs, built for 1.6.1170.
+// Exact runtime compatibility, as the client's (Code/client/skse_entry.cpp).
 extern "C" __declspec(dllexport) const SKSEPluginVersionData SKSEPlugin_Version = {
-    1, 1, "SkyrimCoopVanillaHarness", "SkyrimCoop", "", 1 << 0, (1 << 0) | (1 << 2),
-    {(1u << 24) | (6u << 16) | (1170u << 4), 0}, 0};
+    1, 1, "SkyrimCoopVanillaHarness", "SkyrimCoop", "", 1 << 1, 0,
+    {SkyrimRuntime::PackedVersion, 0}, 0};
 
 extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
 {
     s_base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     wchar_t path[MAX_PATH]{};
     GetModuleFileNameW(s_self, path, MAX_PATH);
+    const auto game = std::filesystem::path(path).parent_path().parent_path().parent_path().parent_path();
+    if (!VersionDb::Get().Load(game, std::string(SkyrimRuntime::Name)))
+        return false;
+    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue})
+        if (!VersionDb::Get().FindAddressById(id)) return false;
     const char* pInstance = std::getenv("SKYRIMCOOP_INSTANCE");
     s_control = std::filesystem::path(path).parent_path() /
                 (std::string("SkyrimCoopHotReload") + (pInstance && *pInstance ? std::string("-") + pInstance : ""));

@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "../client/RuntimeVersion.h"
 #include <shlobj.h>
 
 #include <algorithm>
@@ -22,7 +23,7 @@ void Fail(const std::wstring& acMessage)
     MessageBoxW(nullptr, acMessage.c_str(), cTitle, MB_OK | MB_ICONERROR);
 }
 
-// SkyrimSE.exe's file version, "1.6.1170.0"; empty if unreadable.
+// SkyrimSE.exe's file version; empty if unreadable.
 std::wstring GameVersion(const std::filesystem::path& acExe)
 {
     DWORD handle = 0;
@@ -96,14 +97,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         return 1;
     const std::filesystem::path cGame = std::filesystem::path(std::wstring(module.data(), count)).parent_path();
 
-    // SKSE and our plugin are built for this game version only (Steam's current).
+    // SKSE and our plugin must match this build's selected runtime.
     const std::wstring cVersion = GameVersion(cGame / L"SkyrimSE.exe");
-    if (cVersion != L"1.6.1170.0")
+    const std::wstring cRequired(SkyrimRuntime::Name.begin(), SkyrimRuntime::Name.end());
+    if (cVersion != cRequired)
     {
-        Fail(std::format(L"SkyrimCoop needs Skyrim Special Edition 1.6.1170 (Steam's current version); this game is {}.\n\n"
-                         L"In Steam: Skyrim Special Edition > Properties > Installed Files > Verify integrity of game files, "
-                         L"then extract SkyrimCoop again.",
-                         cVersion.empty() ? L"unknown" : cVersion));
+        Fail(std::format(L"This SkyrimCoop build requires Skyrim Special Edition {}; this game is {}.\n\n"
+                         L"Install the SkyrimCoop build matching your game version.",
+                         cRequired, cVersion.empty() ? L"unknown" : cVersion));
         return 1;
     }
     EnsureIni(cGame);

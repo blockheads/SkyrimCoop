@@ -1,6 +1,6 @@
 # Reverse engineering notes
 
-Everything we know about SkyrimSE.exe **1.6.1170** (Steam AE build) and how SkyrimCoop
+Everything we know about SkyrimSE.exe **1.7.104** (the primary Steam target), the retained **1.6.1170** build, and how SkyrimCoop
 touches it. The repo is the record; IDA is a workbench that syncs into it.
 
 | Where | What | Edited by |
@@ -12,15 +12,16 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
 
 ## Sources (in priority order)
 
-1. **Our IDA database** (`build/re/SkyrimSE_1.6.1170.i64`, not committed) via `ida_notes.tsv`.
+1. **Our IDA database** (`build/re/SkyrimSE_1.7.104.i64`, not committed). The 1.6.1170 database remains separate;
+   `ida_notes.tsv` retains its findings, and `ida_notes_1.7.104.tsv` holds target-specific notes.
 2. **CommonLibSSE** (powerof3, GPL-3) in `reference/CommonLibSSE`: engine classes, layouts,
    vtables, RTTI, and `RELOCATION_ID(SE, AE)` for ~9.7k addresses. The best reference for
    struct layouts; check our hand-written structs in `Code/client/Games/` against it.
    **CommonLibSSE-NG** (alandtse) in `reference/CommonLibSSE-NG` fills the gaps: ~170 more AE IDs,
    AE layout fixes (e.g. `PlayerControls::data` at 0x24, the `ButtonEvent` stride) and helpers such
    as `ButtonEvent::Create`. When the two disagree on an AE layout, check IDA.
-3. **SKSE 2.2.6 source**, shipped with SKSE in the game dir (`src/skse64`): raw 1.6.1170
-   offsets. Also shows which engine functions SKSE itself hooks (we stack on some of them).
+3. **Matching SKSE source**, shipped with SKSE in the game dir (`src/skse64`): runtime-specific
+   offsets. 1.7.104 uses SKSE 2.3.1; 1.6.1170 uses 2.2.6. Also shows which engine functions SKSE itself hooks (we stack on some of them).
 4. **meh321 AddressLibraryDatabase** (`skyrimae.rename`): names for ~42k Address Library IDs.
 5. **SKSE plugins** in `reference/plugins` (Precision, TrueHUD, EngineFixes, po3-Tweaks, Papyrus
    Extender): where other mods hook or call an address and how. Each such ID gets "Used by plugin:
@@ -39,17 +40,21 @@ way to document those.
 
 ```bash
 scripts/re/fetch_references.sh   # clone/update reference/ (CommonLibSSE, meh321 names)
-scripts/re/build_re_data.py      # regenerate ENGINE_REFERENCE.md + build/re/annotations.json
+scripts/re/build_re_data.py      # regenerate ENGINE_REFERENCE.md + build/re/<version>/annotations.json
 scripts/re/make_ida_db.sh        # first time: unpack the exe, analyse, annotate (slow)
 ```
 
-In IDA (open `build/re/SkyrimSE_1.6.1170.i64`):
+The default is 1.7.104. For legacy generation use `COOP_SKYRIM_VERSION=1.6.1170`; it writes
+`ENGINE_REFERENCE_1.6.1170.md`. Both write `build/re/<version>/annotations.json`. `COOP_RE_LIBRARY`,
+`COOP_RE_EXE`, `COOP_RE_SKSE_SOURCE` and `COOP_RE_COMMONLIB` select private artifact/reference paths.
+
+In IDA (open the database matching the selected executable):
 
 - **File > Script file… > `scripts/re/ida_apply.py`** after `build_re_data.py` to refresh names
-  and comments. It never overwrites names you set, and keeps comment text you write above the
+  and comments. It verifies the input executable hash before writing. It never overwrites names you set, and keeps comment text you write above the
   `[re]` marker line. Orange functions are hooked by SkyrimCoop, green ones are called/read.
 - **File > Script file… > `scripts/re/ida_export.py`** to push your names/comments into
-  `ida_notes.tsv`, then run `build_re_data.py` and commit both.
+  the matching `ida_notes_<version>.tsv` (legacy: `ida_notes.tsv`), then run `build_re_data.py` and commit both.
 
 The exe in `SkyrimSE.exe` is encrypted by SteamStub DRM; IDA needs the copy unpacked by
 Steamless (`make_ida_db.sh` does it). Never commit the exe or the database (Bethesda code).
@@ -63,7 +68,7 @@ the report; `scripts/coop_test.py crash` prints the newest crash of each game ag
 
 - the exception and CrashLogger's access-violation analysis;
 - the objects the registers and stack point to (RTTI types, form IDs and names, scene node names);
-- the probable call stack, engine frames named from `build/re/annotations.json`;
+- the probable call stack, engine frames named from `build/re/<version>/annotations.json`;
 - our breadcrumbs: the last engine changes our code made through `SkyrimBridge`, with times
   before the crash and repeat counts (`Code/client/Breadcrumbs.h`, written by our crash handler);
 - the last lines of `tp_client.log` before the crash.

@@ -14,6 +14,7 @@
 // run when any thread exits, and engine threads may still be returning out of its hooks; leaving it
 // mapped makes both harmless. Each reload costs the copy's image and heap (tens of MB).
 #include <windows.h>
+#include "../client/RuntimeVersion.h"
 
 #include <MinHook.h>
 
@@ -60,10 +61,9 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
     "SkyrimCoopLoader",
     "SkyrimCoop",
     "",
-    SKSEPluginVersionData::kVersionIndependentEx_NoStructUse,
-    SKSEPluginVersionData::kVersionIndependent_AddressLibraryPostAE
-        | SKSEPluginVersionData::kVersionIndependent_StructsPost629,
-    { MAKE_EXE_VERSION(1, 6, 1170), 0 },
+    1 << 1,
+    0,
+    { SkyrimRuntime::PackedVersion, 0 },
     0,
 };
 

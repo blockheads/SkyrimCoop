@@ -1,6 +1,7 @@
 """Runtime for the co-op harness."""
 from pathlib import Path
 import contextlib
+import hashlib
 import json
 import math
 import os
@@ -11,7 +12,11 @@ import subprocess
 import sys
 import time
 import uuid
+from skyrim_runtime import game_executable
 from .common import (
+    VERSIONLIB_NAME,
+    SKSE_DLL_NAME,
+    SKYRIM_VERSION,
     ADDRESS_LIBRARY,
     BUNDLED_START,
     CLIENT_ADDRESS,
@@ -36,6 +41,7 @@ from .common import (
     RUNTIME,
     STEAM,
     STEAM_GAME,
+    SKSE_DIR,
     TEST_HOME,
     UI_SOURCE,
     VANILLA_HARNESS,
@@ -286,20 +292,35 @@ class Runtime:
         plugins = GAME / "Data/SKSE/Plugins"
         plugins.mkdir(parents=True, exist_ok=True)
         # Ours, SKSE's plugin folder and the bundled start are the duo's own; everything else is the Steam install's.
-        own = {"Data", "SkyrimSELauncher.exe"}
-        own_data = {"SKSE", BUNDLED_START}
+        own = {"Data", "SkyrimSELauncher.exe", "SkyrimSE.exe"}
+        own.update(source.name for source in STEAM_GAME.glob("skse64_*") if source.suffix in (".exe", ".dll"))
+        own_data = {"SKSE", "Scripts", BUNDLED_START}
         for folder, skip in ((STEAM_GAME, own), (STEAM_GAME / "Data", own_data)):
             target = GAME if folder == STEAM_GAME else GAME / "Data"
             for source in folder.iterdir():
                 link = target / source.name
                 if source.name not in skip and not link.is_symlink() and not link.exists():
                     link.symlink_to(source)
-        for name in ("versionlib-1-6-1170-0.bin",):
-            if not (plugins / name).exists():
-                (plugins / name).symlink_to(ADDRESS_LIBRARY / name)
+        ctx.copy_if_changed(game_executable(STEAM_GAME, SKYRIM_VERSION), GAME / "SkyrimSE.exe", compare_contents=True)
+        for name in ("skse64_loader.exe", SKSE_DLL_NAME):
+            ctx.copy_if_changed(SKSE_DIR / name, GAME / name, compare_contents=True)
+        ctx.copy_if_changed(ADDRESS_LIBRARY / VERSIONLIB_NAME, plugins / VERSIONLIB_NAME, compare_contents=True)
+        ctx.stage_skse_scripts()
         me = pwd.getpwuid(os.getuid()).pw_name
         for user in ctx.instance_users():
             ctx.sudo("setfacl", "-R", "-m", f"u:{user}:rwX,d:u:{user}:rwX,u:{me}:rwX,d:u:{me}:rwX", str(GAME / "Data/SKSE"))
+
+    def stage_skse_scripts(ctx):
+        scripts = GAME / "Data/Scripts"
+        if scripts.is_symlink():
+            scripts.unlink()
+        scripts.mkdir(parents=True, exist_ok=True)
+        for source in (STEAM_GAME / "Data/Scripts").glob("*"):
+            target = scripts / source.name
+            if source.is_file() and not target.exists():
+                ctx.copy_if_changed(source, target)
+        for source in (SKSE_DIR / "Data/Scripts").glob("*.pex"):
+            ctx.copy_if_changed(source, scripts / source.name, compare_contents=True)
 
     def own_prefix(ctx, *, _game=None):
         """Wine runs a prefix only for its owner: the game's user owns it, and this user keeps access (ACLs)."""
@@ -312,16 +333,17 @@ class Runtime:
         ctx.sudo("chown", "-R", f"{user}:", str(_game.prefix))
         ctx.sudo("setfacl", "-R", "-m", f"u:{me}:rwX,d:u:{me}:rwX", str(_game.prefix))
 
-    def copy_if_changed(ctx, source, target):
+    def copy_if_changed(ctx, source, target, *, compare_contents=False):
         """Replaces target atomically (a running game keeps the file it mapped); True if it changed."""
         target.parent.mkdir(parents=True, exist_ok=True)
         stat = source.stat()
         if target.exists() and target.stat().st_size == stat.st_size and target.stat().st_mtime >= stat.st_mtime:
-            return False
+            if not compare_contents or hashlib.sha256(source.read_bytes()).digest() == hashlib.sha256(target.read_bytes()).digest():
+                return False
         temporary = target.with_name(target.name + ".tmp")
         shutil.copy2(source, temporary)
         os.replace(temporary, target)
-        log(f"Deployed {source.relative_to(ROOT)} ({stat.st_size // 1024} KB)")
+        log(f"Deployed {source.relative_to(ROOT) if source.is_relative_to(ROOT) else source} ({stat.st_size // 1024} KB)")
         return True
 
     def deploy_ui(ctx):
@@ -345,11 +367,11 @@ class Runtime:
         direct = PLUGINS / "SkyrimTogetherClient.dll"
         if LOADER.exists():
             direct.unlink(missing_ok=True)
-            ctx.copy_if_changed(LOADER, PLUGINS / LOADER.name)
-            ctx.copy_if_changed(DLL, PLUGINS / "SkyrimCoop" / DLL.name)
+            ctx.copy_if_changed(LOADER, PLUGINS / LOADER.name, compare_contents=True)
+            ctx.copy_if_changed(DLL, PLUGINS / "SkyrimCoop" / DLL.name, compare_contents=True)
         else:
             (PLUGINS / LOADER.name).unlink(missing_ok=True)
-            ctx.copy_if_changed(DLL, direct)
+            ctx.copy_if_changed(DLL, direct, compare_contents=True)
 
     def deploy_crash_logger(ctx):
         cache = ROOT / f"build/third_party/crashlogger-{CRASH_LOGGER_VERSION}"
@@ -572,7 +594,7 @@ class Runtime:
         if vanilla:  # A/B baseline: same prefix and settings, SKSE without our plugin
             ctx.remove_plugin()
             if VANILLA_HARNESS.exists():  # runs the harness's commands, nothing of ours
-                ctx.copy_if_changed(VANILLA_HARNESS, PLUGINS / VANILLA_HARNESS.name)
+                ctx.copy_if_changed(VANILLA_HARNESS, PLUGINS / VANILLA_HARNESS.name, compare_contents=True)
         else:
             (PLUGINS / VANILLA_HARNESS.name).unlink(missing_ok=True)
             ctx.deploy_dll()

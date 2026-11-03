@@ -19,6 +19,7 @@ import re
 import subprocess
 
 import build_re_data as re_data
+from skyrim_runtime import runtime_from_log
 
 ROOT = re_data.ROOT
 DEFAULT_LOG = ROOT / "build/coop-test/game/Data/SKSE/Plugins/logs/tp_client.log"  # the duo host's
@@ -26,16 +27,22 @@ DEFAULT_DLL = ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"
 FRAME = re.compile(r"backtrace #(\d+) (\S+)\+0x([0-9a-f]+)")
 
 
-def engine_resolver():
-    ids = re_data.load_address_library(re_data.VERSIONLIB)
+def engine_resolver(version=None):
+    re_data.configure_runtime(version)
+    ids = re_data.load_address_library(re_data.VERSIONLIB, re_data.EXE_VERSION)
     names = {}
     if re_data.OUT_JSON.exists():
-        names = {a["id"]: a["name"] for a in json.loads(re_data.OUT_JSON.read_text())["annotations"]}
+        data = json.loads(re_data.OUT_JSON.read_text())
+        if data.get("exe_version") != re_data.EXE_VERSION:
+            raise ValueError("Crash annotations belong to a different Skyrim runtime")
+        names = {a["id"]: a["name"] for a in data["annotations"]}
     table = sorted((rva, ident) for ident, rva in ids.items())
     starts = [rva for rva, _ in table]
 
     def resolve(rva):
         index = bisect.bisect_right(starts, rva) - 1
+        if index < 0:
+            return f"unmapped engine RVA {rva:#x}"
         start, ident = table[index]
         return f"ID {ident} {names.get(ident, '(unnamed)')} +{rva - start:#x}"
     return resolve
@@ -61,21 +68,24 @@ def main():
     parser.add_argument("--dll", type=Path, default=DEFAULT_DLL)
     parser.add_argument("--build", help="a package's commit: its kept DLL and PDB (build/package/*-symbols/)")
     args = parser.parse_args()
+    lines = args.log.read_text(errors="replace").splitlines()
+    runtime = runtime_from_log("\n".join(lines)).removesuffix(".0")
     if args.build:
         kept = sorted((folder for folder in (ROOT / "build/package").glob("*-symbols")
-                       if (folder / "BUILD").exists() and (folder / "BUILD").read_text().strip() == args.build),
+                       if (folder / "BUILD").exists() and (folder / "BUILD").read_text().strip() == args.build
+                       and ((folder / "RUNTIME").read_text().strip() == runtime if (folder / "RUNTIME").exists()
+                            else runtime == "1.6.1170")),
                       key=lambda folder: folder.stat().st_mtime)
         if not kept:
             parser.error(f"no package kept symbols for build {args.build} (build/package/*-symbols/)")
         args.dll = kept[-1] / "SkyrimTogetherClient.dll"
 
-    lines = args.log.read_text(errors="replace").splitlines()
     starts = [i for i, line in enumerate(lines) if "crash occurred" in line]
     whole = not starts
     crash = lines if whole else lines[starts[-1]:]
     if not whole:
         print("\n".join(crash[:2]))
-    resolve_engine = engine_resolver()
+    resolve_engine = engine_resolver(runtime_from_log("\n".join(lines)))
     for line in crash:
         match = FRAME.search(line)
         if not match:

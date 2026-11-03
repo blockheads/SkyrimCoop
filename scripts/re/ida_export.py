@@ -22,7 +22,11 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 import build_re_data  # noqa: E402  (shares the Address Library decoder)
 
-OUT = os.path.join(ROOT, "docs", "re", "ida_notes.tsv")
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from skyrim_runtime import pe_version
+VERSION = pe_version(ida_nalt.get_input_file_path())
+build_re_data.configure_runtime(VERSION)
+OUT = str(build_re_data.TARGET_NOTES)
 
 
 def user_comment(ea):

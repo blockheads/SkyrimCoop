@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge everything known about SkyrimSE.exe 1.6.1170 into one dataset.
+"""Merge known engine references into a runtime-specific dataset.
 
 Sources, in priority order for names:
   1. docs/re/ida_notes.tsv            names/comments exported from our IDA database (ida_export.py)
@@ -17,6 +17,8 @@ Outputs:
 Run scripts/re/fetch_references.sh first. Overrides: SKYRIM_GAME_DIR.
 """
 import json
+import hashlib
+import sys
 import os
 from pathlib import Path
 import re
@@ -24,55 +26,36 @@ import struct
 from collections import defaultdict
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from skyrim_runtime import runtime_version, library_name, pe_version
+from address_library import load as load_address_library
+
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
                            "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
-VERSIONLIB = GAME / "Data/SKSE/Plugins/versionlib-1-6-1170-0.bin"
-SKSE_SRC = GAME / "src/skse64"
-COMMONLIBS = (ROOT / "reference/CommonLibSSE", ROOT / "reference/CommonLibSSE-NG")
 PLUGINS = ROOT / "reference/plugins"
 MEH_NAMES = ROOT / "reference/AddressLibraryDatabase/skyrimae.rename"
-IDA_NOTES = ROOT / "docs/re/ida_notes.tsv"
 CLIENT = ROOT / "Code/client"
-OUT_JSON = ROOT / "build/re/annotations.json"
-OUT_MD = ROOT / "docs/re/ENGINE_REFERENCE.md"
 IMAGE_BASE = 0x140000000
 
 
-def load_address_library(path):
-    """Address Library v2 format (same decoder as Code/client/VersionDb.h). Returns {id: rva}."""
-    data = path.read_bytes()
-    pos = 0
+def configure_runtime(value=None):
+    global EXE_VERSION, VERSIONLIB, SKSE_SRC, COMMONLIBS, IDA_NOTES, TARGET_NOTES, OUT_JSON, OUT_MD, EXE
+    EXE_VERSION = runtime_version(value)
+    short = EXE_VERSION.removesuffix(".0")
+    local_library = ROOT / "build/runtime-vendor" / short / "Data/SKSE/Plugins" / library_name(EXE_VERSION)
+    VERSIONLIB = Path(os.environ.get("COOP_RE_LIBRARY", local_library if local_library.exists() else GAME / "Data/SKSE/Plugins" / library_name(EXE_VERSION)))
+    vendor = ROOT / "build/runtime-vendor" / short
+    SKSE_SRC = Path(os.environ.get("COOP_RE_SKSE_SOURCE", vendor / "src" if vendor.exists() else GAME / "src/skse64"))
+    ng = Path(os.environ.get("COOP_RE_COMMONLIB", ROOT / "reference/CommonLibSSE-NG"))
+    COMMONLIBS = (ROOT / "reference/CommonLibSSE", ng) if EXE_VERSION == "1.6.1170.0" else (ng,)
+    IDA_NOTES = ROOT / "docs/re/ida_notes.tsv"
+    TARGET_NOTES = IDA_NOTES if EXE_VERSION == "1.6.1170.0" else ROOT / f"docs/re/ida_notes_{short}.tsv"
+    OUT_JSON = ROOT / "build/re" / short / "annotations.json"
+    OUT_MD = ROOT / "docs/re" / ("ENGINE_REFERENCE.md" if EXE_VERSION == "1.7.104.0" else f"ENGINE_REFERENCE_{short}.md")
+    EXE = Path(os.environ.get("COOP_RE_EXE", ROOT / "build/re" / f"SkyrimSE_{short}_unpacked.exe"))
 
-    def read(fmt):
-        nonlocal pos
-        value = struct.unpack_from("<" + fmt, data, pos)[0]
-        pos += struct.calcsize("<" + fmt)
-        return value
 
-    if read("i") != 2:
-        raise SystemExit(f"{path}: unsupported Address Library format")
-    for _ in range(4):
-        read("i")
-    name_length = read("i")
-    pos += name_length  # module name
-    pointer_size, count = read("i"), read("i")
-    previous_id = previous_offset = 0
-    ids = {}
-    for _ in range(count):
-        kind = read("B")
-        low, high = kind & 0xF, kind >> 4
-        q1 = {0: lambda: read("Q"), 1: lambda: previous_id + 1, 2: lambda: previous_id + read("B"),
-              3: lambda: previous_id - read("B"), 4: lambda: previous_id + read("H"),
-              5: lambda: previous_id - read("H"), 6: lambda: read("H"), 7: lambda: read("I")}[low]()
-        base = previous_offset // pointer_size if high & 8 else previous_offset
-        q2 = {0: lambda: read("Q"), 1: lambda: base + 1, 2: lambda: base + read("B"),
-              3: lambda: base - read("B"), 4: lambda: base + read("H"), 5: lambda: base - read("H"),
-              6: lambda: read("H"), 7: lambda: read("I")}[high & 7]()
-        if high & 8:
-            q2 *= pointer_size
-        ids[q1] = q2
-        previous_id, previous_offset = q1, q2
-    return ids
+configure_runtime()
 
 
 def load_meh_names():
@@ -105,10 +88,10 @@ def load_commonlib_tree(COMMONLIB):
     found = {}
     if not COMMONLIB.exists():
         return found
-    relocation = re.compile(r"(?:RELOCATION_ID|REL::RelocationID)\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+    relocation = re.compile(r"(?:RELOCATION_ID|REL::RelocationID|REL::VariantID)\(\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[^)]+)?\s*\)")
     decltype_name = re.compile(r"decltype\(&\s*(?:RE::)?([\w:]+)\s*\)")
     variable = re.compile(r"REL::Relocation<[^>]*>+\s+(\w+)\s*[{(]")
-    table_entry = re.compile(r"inline constexpr .*?\s(\w+)\s*\{\s*(.*?)\s*\};")
+    table_entry = re.compile(r"(?:inline )?constexpr .*?\s(\w+)\s*[{(]\s*(.*?)\s*[})];")
     for path in sorted((COMMONLIB / "include").rglob("*.h")) + sorted((COMMONLIB / "src").rglob("*.cpp")):
         relative = path.relative_to(COMMONLIB.parent)
         lines = path.read_text(errors="replace").splitlines()
@@ -131,11 +114,12 @@ def load_commonlib_tree(COMMONLIB):
                     name = "" if generic else f"{path.stem}::{var.group(1)}"
                     kind = "func" if generic else "data"
                 found.setdefault(ae_id, (name, kind, f"{relative}:{number}"))
-            if has_ae_block and in_ae:
+            if (has_ae_block and in_ae) or (not has_ae_block and path.name.startswith("Offsets")):
                 table = table_entry.search(line)
                 if table:
                     label, body = table.groups()
-                    ids = [int(x) for x in re.findall(r"REL::ID\((\d+)\)", body)] or \
+                    ids = [int(x) for x in re.findall(r"REL::(?:VariantID|RelocationID)\(\s*\d+\s*,\s*(\d+)", body)] or \
+                          [int(x) for x in re.findall(r"REL::ID\((\d+)\)", body)] or \
                           [int(x) for x in re.findall(r"^(\d+)$", body)]
                     for index, ident in enumerate(ids):
                         if label.startswith("VTABLE_"):
@@ -199,11 +183,17 @@ def load_skse(rva_to_id):
 
 def load_ida_notes():
     notes = {}
-    if IDA_NOTES.exists():
-        for line in IDA_NOTES.read_text().splitlines()[1:]:
+    paths = [IDA_NOTES] if TARGET_NOTES == IDA_NOTES else [IDA_NOTES, TARGET_NOTES]
+    for path in paths:
+        if not path.exists():
+            continue
+        for line in path.read_text().splitlines()[1:]:
             parts = line.split("\t")
             if len(parts) >= 3 and parts[0].isdigit():
-                notes[int(parts[0])] = (parts[2], parts[3] if len(parts) > 3 else "")
+                comment = parts[3] if len(parts) > 3 else ""
+                if path == IDA_NOTES and EXE_VERSION != "1.6.1170.0" and comment:
+                    comment = "From 1.6.1170 (instruction offsets require review): " + comment
+                notes[int(parts[0])] = (parts[2], comment)
     return notes
 
 
@@ -220,7 +210,29 @@ def scan_our_code():
             continue
         text = path.read_text(errors="replace")
         lines = text.splitlines()
+        branches = []
         for number, line in enumerate(lines, 1):
+            directive = line.strip()
+            if re.match(r"#\s*if(?:def|ndef)?\b", directive):
+                branches.append(EXE_VERSION == "1.6.1170.0" if directive == "#if COOP_SKYRIM_1_6_1170" else None)
+            elif directive == "#else" and branches and branches[-1] is not None:
+                branches[-1] = not branches[-1]
+            elif directive == "#endif" and branches:
+                branches.pop()
+            if False in branches or line.lstrip().startswith("//"):
+                continue
+            direct = re.search(r"\bVersionDbPtr<(.+?)>\s+(.+)", line)
+            extras = []
+            if direct:
+                extras += [(int(m[2]), m[1], direct[1], "data") for m in
+                           re.finditer(r"([\w:]+)\s*[({]\s*(\d+)\s*[)}]", direct[2])]
+            extras += [(int(m[2]), m[1], "RTTI", "rtti") for m in
+                       re.finditer(r"internal::RttiLocator<[^>]+>\s+(\w+)\(\s*(\d+)\s*\)", line)]
+            for ident, variable, type_name, kind in extras:
+                if kind != "rtti" and re.search(rf"Hooks::(?:Nop|Put\w*|SwapCall)\([^;]*\b{re.escape(variable)}\b", text):
+                    kind = "patch"
+                uses[ident].append({"file": str(path.relative_to(ROOT)), "line": number, "var": variable,
+                                    "type": type_name, "kind": kind, "hook": None, "flags": []})
             for match in pointer.finditer(line):
                 type_name, var, ident = match.group(1), match.group(2), int(match.group(3))
                 real = re.findall(rf"(\w+)\s*=\s*{var}\.Get\(\)", text)
@@ -262,9 +274,11 @@ def scan_our_code():
 
 
 def main():
+    if pe_version(EXE) != EXE_VERSION:
+        raise SystemExit(f"Executable version does not match {EXE_VERSION}: {EXE}")
     if not VERSIONLIB.exists():
         raise SystemExit(f"Address Library not found: {VERSIONLIB}")
-    ids = load_address_library(VERSIONLIB)
+    ids = load_address_library(VERSIONLIB, EXE_VERSION)
     rva_to_id = {rva: ident for ident, rva in ids.items()}
     meh, commonlib, skse, notes, ours, plugins = (load_meh_names(), load_commonlib(), load_skse(rva_to_id),
                                                   load_ida_notes(), scan_our_code(), load_plugins())
@@ -299,7 +313,8 @@ def main():
                             "ours": bool(uses), "hook": any(u["kind"] == "hook" for u in uses)})
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    OUT_JSON.write_text(json.dumps({"image_base": IMAGE_BASE, "exe_version": "1.6.1170.0",
+    OUT_JSON.write_text(json.dumps({"image_base": IMAGE_BASE, "exe_version": EXE_VERSION,
+                                    "input_sha256": hashlib.sha256(EXE.read_bytes()).hexdigest(),
                                     "annotations": annotations}))
     write_markdown(ids, meh, commonlib, skse, ours, notes, plugins)
     used = [a for a in annotations if a["ours"]]
@@ -345,7 +360,7 @@ def write_markdown(ids, meh, commonlib, skse, ours, notes, plugins):
         "",
         "<!-- Generated by scripts/re/build_re_data.py — do not edit; put notes in docs/re/systems/. -->",
         "",
-        "Every SkyrimSE.exe 1.6.1170 address SkyrimCoop uses, cross-referenced with the community references.",
+        f"Every SkyrimSE.exe {EXE_VERSION} address SkyrimCoop uses, cross-referenced with the community references.",
         "RVAs are relative to image base `0x140000000`. Sources: **CL** = CommonLibSSE (signature/layout",
         "available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** = hooked or called by an",
         "SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,",

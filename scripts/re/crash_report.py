@@ -20,6 +20,7 @@ import subprocess
 
 import build_re_data as re_data
 import symbolize_crash
+from skyrim_runtime import runtime_from_log
 
 SECTIONS = ("ACCESS VIOLATION ANALYSIS:", "POSSIBLE RELEVANT OBJECTS:", "CALL STACK")
 FRAME_ID = re.compile(r"-> (\d+)\+0x([0-9A-F]+)")
@@ -163,6 +164,7 @@ def plugin_context(plugin_log, breadcrumbs=4096, before=15):
 
 def report(crash_log, plugin_log=None):
     lines = crash_log.read_text(errors="replace").splitlines()
+    re_data.configure_runtime(runtime_from_log("\n".join(lines[:30])))
     names = engine_names()
     out = [f"Crash: {crash_log}"]
     out += [line for line in lines[:12] if line.startswith(("CRASH TIME", "Unhandled exception", "Access Violation"))]

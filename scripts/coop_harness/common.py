@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import sys
 import time
+from skyrim_runtime import runtime_version, library_name, skse_dll
 
 CLI_HELP = """Co-op game tests and diagnostics.
 
@@ -13,18 +14,21 @@ See docs/design/testing.md for fixtures, ownership, selection and reporting.
 """
 
 ROOT = Path(__file__).resolve().parents[2]
+SKYRIM_VERSION = runtime_version()
+VERSIONLIB_NAME = library_name(SKYRIM_VERSION)
+SKSE_DLL_NAME = skse_dll(SKYRIM_VERSION)
 # Windows runs the games natively (windows.py): no Proton, display, second OS user or network namespace.
 WINDOWS = sys.platform == "win32"
 STEAM_LIBRARY = Path("/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/SteamLibrary/steamapps/common")
-# The Steam install (the player's Skyrim): read only, linked into the duo's own folder. On Windows a 1.6.1170 copy:
-# Steam ships 1.7 there, which our Address Library IDs and SKSE do not support.
+# Read-only game assets; a matching executable and SKSE are staged into the duo's own folder.
 STEAM_GAME = Path(os.environ.get("SKYRIM_STEAM_GAME_DIR", r"D:\Modlists\ElderTeej\Stock Game" if WINDOWS else
                                  "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
 # SKSE's loader and DLL, and the Address Library, when the game folder has neither (Windows: a modlist's copies).
+RUNTIME_VENDOR = ROOT / "build/runtime-vendor" / SKYRIM_VERSION.removesuffix(".0")
 SKSE_DIR = Path(os.environ.get("SKYRIM_SKSE_DIR", r"D:\Modlists\ElderTeej\mods\Skyrim Script Extender (SKSE64)\Root"
-                               if WINDOWS else STEAM_GAME))
+                               if WINDOWS else RUNTIME_VENDOR if (RUNTIME_VENDOR / SKSE_DLL_NAME).exists() else STEAM_GAME))
 ADDRESS_LIBRARY = Path(os.environ.get("SKYRIM_ADDRESS_LIBRARY_DIR", r"D:\Modlists\ElderTeej\mods\Address Library for SKSE Plugins\SKSE\Plugins"
-                                      if WINDOWS else STEAM_GAME / "Data/SKSE/Plugins"))
+                                      if WINDOWS else SKSE_DIR / "Data/SKSE/Plugins"))
 PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
 RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
@@ -35,7 +39,8 @@ DUO_USER = os.environ.get("COOP_DUO_USER", "" if WINDOWS else "coop2")
 TEST_HOME = (ROOT / "build/coop-test").resolve()
 # The duo's game folder: STEAM_GAME's files linked, its own SKSE plugins (runtime.ensure_duo_game).
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR", TEST_HOME / "game"))
-DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
+BUILD_HOME = ROOT / ("build/skyrim-1.6.1170" if SKYRIM_VERSION == "1.6.1170.0" else "build")
+DLL = Path(os.environ.get("COOP_DLL", BUILD_HOME / "windows/x64/dev/SkyrimTogetherClient.dll"))
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
 PEER = ROOT / "build/linux/x86_64/debug/coop_peer"
@@ -311,7 +316,8 @@ LOW_PELVIS = 40.0
 DESYNC_WINDOW = 0.8
 DESYNC_INTERVAL = 0.1
 LOCK_PATTERN = re.compile(r"^(\[ours\] )?(live lock order inversion|lock order inversion|self-deadlock) \[([^\]]*)\]")
-KNOWN_LOCK_PATTERNS = ROOT / "scripts/lock_order_known.txt"
+KNOWN_LOCK_PATTERNS = ROOT / ("scripts/lock_order_known.txt" if SKYRIM_VERSION == "1.6.1170.0"
+                              else "scripts/lock_order_known-1.7.104.txt")
 FORM_TYPE_NAMES = dict(enumerate(
     "NONE TES4 GRUP GMST KYWD LCRT AACT TXST MICN GLOB CLAS FACT HDPT EYES RACE SOUN ASPC SKIL MGEF SCPT LTEX ENCH "
     "SPEL SCRL ACTI TACT ARMO BOOK CONT DOOR INGR LIGH MISC APPA STAT SCOL MSTT GRAS TREE FLOR FURN WEAP AMMO NPC_ "

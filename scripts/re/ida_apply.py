@@ -1,4 +1,4 @@
-"""Apply build/re/annotations.json to the open IDA database (SkyrimSE 1.6.1170, unpacked).
+"""Apply the matching runtime annotations to the open unpacked Skyrim database.
 
 In IDA: File > Script file... > scripts/re/ida_apply.py (re-run any time after
 build_re_data.py). Headless: scripts/re/make_ida_db.sh.
@@ -8,6 +8,7 @@ names this script set earlier are replaced. Our comments sit after a "[re]" mark
 line; text you write above it is kept.
 """
 import json
+import sys
 import os
 
 import ida_auto
@@ -20,7 +21,10 @@ import ida_netnode
 import idc
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA = os.environ.get("COOP_RE_ANNOTATIONS", os.path.join(ROOT, "build", "re", "annotations.json"))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from skyrim_runtime import pe_version
+VERSION = pe_version(ida_nalt.get_input_file_path())
+DATA = os.environ.get("COOP_RE_ANNOTATIONS", os.path.join(ROOT, "build", "re", VERSION.removesuffix(".0"), "annotations.json"))
 MARKER = "[re]"
 HOOK_COLOR = 0x9CD0FF  # BGR: orange, engine code SkyrimCoop replaces
 OURS_COLOR = 0xC8EBC8  # BGR: green, engine code SkyrimCoop calls or reads
@@ -34,6 +38,9 @@ def our_comment(existing, generated):
 def main():
     with open(DATA) as handle:
         data = json.load(handle)
+    actual_hash = ida_nalt.retrieve_input_file_sha256().hex()
+    if data.get("exe_version") != VERSION or data.get("input_sha256") != actual_hash:
+        raise RuntimeError("Annotations do not match this executable version and SHA-256; regenerate for this database")
     base = ida_nalt.get_imagebase()
     if base != data["image_base"]:
         print(f"[re] warning: database image base {base:#x} != {data['image_base']:#x}; using database base")

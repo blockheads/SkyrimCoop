@@ -1,0 +1,2 @@
+id	rva	name	comment
+524025	0x9752a0	SleepWaitMenu::OK	1.7.104: SleepWaitMenu::Accept (primary vtable slot 1) registers this FxDelegateArgs callback as OK; replaces 1.6.1170 ID 52488.

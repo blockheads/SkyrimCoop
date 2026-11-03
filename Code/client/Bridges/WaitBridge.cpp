@@ -121,7 +121,11 @@ uint64_t HookStep(PlayerCharacter* apPlayer)
 
 static Hooks::Initializer s_hooks([] {
     const HookGate cGate(__FILE__);
+#if COOP_SKYRIM_1_6_1170
     HOOK_ID(52488, &RealOkay, HookOkay);
+#else
+    HOOK_ID(524025, &RealOkay, HookOkay);
+#endif
     HOOK_ID(52489, &RealCancel, HookCancel);
     HOOK_ID(52486, &RealProcess, HookProcess);
     HOOK_ID(40485, &RealStep, HookStep);

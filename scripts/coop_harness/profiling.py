@@ -20,6 +20,7 @@ import sys
 import time
 import zipfile
 from .common import (
+    VERSIONLIB_NAME,
     DLL,
     PLUGINS,
     ROOT,
@@ -274,7 +275,7 @@ class Profiling:
         the Address Library."""
         sys.path.insert(0, str(ROOT / "scripts/re"))
         import build_re_data as re_data
-        library = PLUGINS / "versionlib-1-6-1170-0.bin"
+        library = PLUGINS / VERSIONLIB_NAME
         if not library.exists():
             return None
         ids = re_data.load_address_library(library)
