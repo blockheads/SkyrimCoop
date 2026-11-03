@@ -316,3 +316,46 @@ SCENARIO("A guest's player moves evenly on the host's game though its clock runs
     INFO(uneven << " of " << seen.size() - 1 << " frames the copy stepped over a third off its owner's steady step");
     CHECK(uneven <= 2);
 }
+
+SCENARIO("Over a lossy line a guest's player reaches the host without stalls", "[copies][copy-clock][net]")
+{
+    // A lost reliable snapshot holds back every later one until its resend; unreliable, only itself (red-flags.md, 5).
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 30, .JitterMs = 10, .LossPercent = 5, .Seed = 7});
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(host) != 0; }, "the host's game makes a copy of the guest's player");
+    const uint32_t cCopy = HostPlayerCopy(host);
+
+    using Clock = std::chrono::steady_clock;
+    const auto cStart = Clock::now();
+    const float cFrom = guest.Actors.at(FakeEngine::kPlayer).Position[0];
+    uint64_t newest = 0;
+    auto lastArrival = cStart;
+    double longestGapMs = 0.0;
+    size_t arrivals = 0;
+    while (Clock::now() - cStart < std::chrono::seconds(4))
+    {
+        const float cSeconds = std::chrono::duration<float>(Clock::now() - cStart).count();
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] = cFrom + 200.f * cSeconds;
+        party.Frame();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        const auto cEntity = CopyEntity(party.Host(), cCopy);
+        if (cEntity == entt::null)
+            continue;
+        const auto& cPoints = party.Host().get<InterpolationComponent>(cEntity).TimePoints;
+        const uint64_t cNewest = cPoints.empty() ? 0 : cPoints.back().Tick;
+        if (cNewest > newest)
+        {
+            if (newest && cSeconds > 0.5f)
+            {
+                longestGapMs = std::max(longestGapMs, std::chrono::duration<double, std::milli>(Clock::now() - lastArrival).count());
+                ++arrivals;
+            }
+            newest = cNewest;
+            lastArrival = Clock::now();
+        }
+    }
+    REQUIRE(arrivals > 50);
+    INFO("the longest wait for the guest's next snapshot: " << longestGapMs << " ms, over " << arrivals << " arrivals");
+    CHECK(longestGapMs < 120.0); // a lost one or two: a few send intervals
+}

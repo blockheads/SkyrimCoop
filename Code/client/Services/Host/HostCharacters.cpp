@@ -7,6 +7,7 @@
 
 #include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/ReferencesMoveRequest.h>
+#include <Messages/Delivery.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/Relayed.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -68,8 +69,7 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
     }
     if (!notify.Updates.empty())
     {
-        const bool cActions = std::ranges::any_of(notify.Updates, [](const auto& acUpdate) { return !acUpdate.second.ActionEvents.empty(); });
-        m_players.SendToOthers(notify, aSender, cActions ? Net::kReliable : Net::kUnreliable);
+        m_players.SendToOthers(notify, aSender, MustArrive(notify.Updates) ? Net::kReliable : Net::kUnreliable);
     }
 }
 

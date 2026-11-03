@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **1, 2 done; 3 measured, left as is; 4 fixed; 5 open (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1, 2 done; 3 measured, left as is; 4, 5 fixed (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -172,6 +172,17 @@ network: Net::Server and Client, 2 ENet channels: 0 reliable, 1 unreliable (Serv
     stalls the reliable path shows.
 - **Duo:** the movement and copy scenarios. **`scripts/net_check.sh` only with the user's OK** (memory
   `net-check-seldom`). It's the tier that shows the gain.
+- **Fixed (2026-11-02):** `DeliveryOf` (`Messages/Delivery.h`) picks the guest's flags:
+  `ReferencesMoveRequest` unreliable unless `MustArrive` (actions, or a teleport: said in one snapshot, so a lost
+  one would sweep the copy across), the rest reliable (`PartyTravelRequest` without Nagle). `BodyFramesRequest`
+  stays reliable: sent unreliably, `world-changes-reach-guest`'s create step passed 1 of 5 (7 of 8 without), the
+  created ladle ending turned differently; the host follows the last frame of a body the guest moves. The host's relay takes the same `MustArrive`, so teleports go reliably there too. Late snapshots are
+  inserted in tick order and the old pruned (`InterpolationSystem::AddPoint`, `RunRemoteUpdates`): no reordering.
+  - TPTests `[encoding.delivery]`; GameTests "Over a lossy line a guest's player reaches the host without stalls"
+    (`UdpRelay`, 30 ms, 10 jitter, 5% loss): the longest wait for the guest's next snapshot on the host, 8 runs
+    each: reliable 127-323 ms (one run 42), unreliable 65-98.
+  - Duo: `copy-strafes-with-guest`, `copy-jumps-with-owner`, `party-uses-door`, `party-stacks-on-arrival`, sneak and
+    cast pass. `scripts/net_check.sh` not run (the user's OK first).
 
 ## Where things stand (2026-11-02)
 

@@ -1,6 +1,8 @@
 
 #include <Services/TransportService.h>
 
+#include <Messages/Delivery.h>
+
 #include <Events/ConnectedEvent.h>
 #include <Services/Host/JoinRefusal.h>
 #include <Events/DisconnectedEvent.h>
@@ -170,7 +172,8 @@ void TransportService::SendPacket(const RequestMessage& acMessage) const noexcep
     Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
     Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Sent, RequestName(acMessage.GetOpcode()), 0, static_cast<uint32_t>(writer.Size()));
 
-    Client::Send(&packet, acMessage.GetOpcode() == kPartyTravelRequest ? Net::kReliableNoNagle : Net::kReliable);
+    constexpr Net::EPacketFlags cFlags[] = {Net::kReliable, Net::kReliableNoNagle, Net::kUnreliable};
+    Client::Send(&packet, cFlags[static_cast<size_t>(DeliveryOf(acMessage))]);
 }
 
 void TransportService::SendRecipes() const noexcept
