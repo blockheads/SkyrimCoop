@@ -504,20 +504,20 @@ nlohmann::json PerfStatus(bool aHooks, int64_t aWindowMs)
 
 nlohmann::json LineStatus()
 {
-    const auto cStats = World::Get().GetTransport().GetStatistics();
+    auto& world = World::Get();
+    const auto cStats = world.GetTransport().GetStatistics();
+    const auto* pHostNetwork = world.GetHostService().GetNetwork();
     nlohmann::json connections = nlohmann::json::array();
     const auto add = [&](const Net::ConnectionQuality& acLine, const std::string& acName) {
         connections.push_back({{"connection", acLine.Connection}, {"player", acName}, {"rtt_ms", acLine.RoundTripMs},
             {"rtt_variation_ms", acLine.VariationMs}, {"loss_percent", acLine.LossPercent},
             {"reliable_in_flight_bytes", acLine.ReliableInFlight}, {"queued_reliable_commands", acLine.QueuedReliable}});
     };
-    auto& world = World::Get();
-    if (const auto* pNetwork = world.GetHostService().GetNetwork())
-        for (const auto& cConnection : pNetwork->GetConnections())
-            add(cConnection, pNetwork->ConnectionName(cConnection.Connection));
+    if (pHostNetwork)
+        for (const auto& cConnection : pHostNetwork->GetConnections())
+            add(cConnection, pHostNetwork->ConnectionName(cConnection.Connection));
     else if (const auto cConnection = world.GetTransport().GetConnectionQuality())
         add(*cConnection, "host");
-    const auto* pHostNetwork = world.GetHostService().GetNetwork();
     const auto cWire = pHostNetwork ? pHostNetwork->GetWireTotals() : world.GetTransport().GetWireTotals();
     return {{"sent_bytes", cStats.SentBytes}, {"recv_bytes", cStats.RecvBytes},
             {"sent_uncompressed", cStats.UncompressedSentBytes}, {"recv_uncompressed", cStats.UncompressedRecvBytes},

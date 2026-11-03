@@ -51,7 +51,7 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   `graph state save us` and `graph state bytes` (`Animation.cpp`), `movement messages` and
   `movement stamp ahead ms` (`HostCharacters::OnMovement`).
 - **Network** (`status.network`, MCP `network`, a line in `profile`): the session time, the host's round trip per
-  connection (`Server::RoundTripTimes`), a guest's round trip and its last 8 clock syncs (`SynchronizedClock::Syncs`:
+  connection (`Server::GetConnections`), a guest's round trip and its last 8 clock syncs (`SynchronizedClock::Syncs`:
   the server tick, the ping used, the correction asked).
 - **Vanilla:** `vanilla_start` boots the stand-in, and `press_to_motion(vanilla=true)` measures with its
   `player_trace`. Our games measure through the animation trace (`PressTiming`).

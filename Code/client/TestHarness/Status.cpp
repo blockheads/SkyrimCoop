@@ -31,8 +31,8 @@ nlohmann::json NetworkStatus()
     if (const HostNetwork* pHost = world.GetHostService().GetNetwork())
     {
         nlohmann::json rtts = nlohmann::json::object();
-        for (const auto& [cId, cRtt] : pHost->RoundTripTimes())
-            rtts[std::to_string(cId)] = cRtt;
+        for (const auto& cConnection : pHost->GetConnections())
+            rtts[std::to_string(cConnection.Connection)] = cConnection.RoundTripMs;
         network["round_trips"] = rtts;
         return network;
     }

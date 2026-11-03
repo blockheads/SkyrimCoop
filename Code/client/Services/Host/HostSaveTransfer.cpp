@@ -67,8 +67,7 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
         if (receiver.Save)
         {
             // Keep bulk data from growing an unbounded ENet backlog on a slow line.
-            if (const auto* pPeer = m_network.GetPeer(cConnection); pPeer &&
-                enet_list_size(const_cast<ENetList*>(&pPeer->outgoingSendReliableCommands)) > 512)
+            if (const auto* pPeer = m_network.GetPeer(cConnection); pPeer && Net::ReadQuality(cConnection, *pPeer).QueuedReliable > 512)
             {
                 ++it;
                 continue;

@@ -43,7 +43,7 @@ struct NotifySaveChunk final : NotifyMessage
 
     uint32_t Offset{}; // offset in the uncompressed packed save
     uint32_t Total{};  // the uncompressed packed save's size
-    uint32_t RawSize{};
-    std::string Hash; // 32 binary SHA-256 bytes
-    std::string Data;  // at most kMaxData bytes
+    uint32_t RawSize{}; // the block's uncompressed size
+    std::string Hash;   // the block's SHA-256, 32 binary bytes
+    std::string Data;   // the block, snappy-compressed, at most kMaxData bytes
 };

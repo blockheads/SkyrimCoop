@@ -312,14 +312,6 @@ namespace Net
         return std::chrono::duration_cast<std::chrono::milliseconds>(m_currentTick.time_since_epoch()).count();
     }
 
-    std::vector<std::pair<ConnectionId_t, uint32_t>> Server::RoundTripTimes() const noexcept
-    {
-        std::vector<std::pair<ConnectionId_t, uint32_t>> times;
-        for (const auto& [cId, pPeer] : m_peers)
-            times.emplace_back(cId, pPeer->roundTripTime);
-        return times;
-    }
-
     bool Server::IsAlive(ConnectionId_t aConnectionId) const noexcept
     {
         return m_peers.find(aConnectionId) != m_peers.end();
