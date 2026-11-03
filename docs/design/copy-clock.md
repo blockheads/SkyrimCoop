@@ -149,3 +149,6 @@ The harness status: `copy_clock` (`network_ms`, `delay_ms`), and per copy `behin
     every 47 ms at that frame rate.
   - **Guest's line:** up 2.5-2.8 KB/s (1.2 on the old timing), down 7-9 KB/s (3.8; physics bursts to 130 KB/s in
     knockdowns either way). This compares different scenario sets, so the numbers are indicative only.
+
+**A player's own motion (2026-11-02).** From a real key press the player moves 2 frames later, as host, as guest and
+in vanilla (red-flags.md, 3); saving the graph state on each action costs 0.05-0.15 ms.

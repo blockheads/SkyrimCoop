@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **1 done (2026-11-02); 2 fixed (uncommitted); 3-5 open.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1, 2 done; 3 measured, left as is; 4-5 open (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -65,7 +65,7 @@ HostCharacters::OnMovement (HostCharacters.cpp:52)
   `CopyClock`, which never plays ahead (`copy-clock.md`). Test: HostAuthorityTests (stamps pass through) and a
   GameTests flow where a guest's clock runs ahead and its copy still moves evenly.
 - **If it rarely clamps,** record the numbers in `copy-clock.md` and leave it.
-- **Measured (2026-11-02, a counter in `OnMovement`, not committed):** about 2.5 minutes of
+- **Measured (2026-11-02, a counter in `OnMovement`, since removed):** about 2.5 minutes of
   `copy-strafes-with-guest`, `party-stacks-on-arrival`, `party-uses-door`, `guest-bump-moves-host` (3 runs each, all
   pass). The guest: 1170 of 4857 snapshots clamped (24%; 30% in walking windows), mean cut 8.9 ms, largest 179 (100-106
   through most of the run); 673 gaps (14%) changed by more than 1 ms. The host's own route: 64 of 4812 (1.3%),
@@ -98,6 +98,14 @@ Animation.cpp:89  pActor->SaveAnimationGraphState(action.GraphState)   on each a
   - Over about 0.5 ms a call, or a guest delay vanilla doesn't have: save it only when a copy needs it (the action
     has no target event and the copy's clip can't follow), or move it off the action's frame.
   - Otherwise record the numbers in `copy-clock.md` and leave it.
+- **Measured (2026-11-02), left as is:** a timer around the call (since removed), the duo and the vanilla stand-in.
+  - Cost: 0.10-0.15 ms a call for a player (DefaultMale), 0.05 for wolves; a 15-wolf fight about 4 calls a second,
+    0.2 ms a second on the host.
+  - Press to motion (real `w` key, the player's place each frame): host 2 frames (31-32 ms), guest 2 (31-37),
+    vanilla 2 (24-36). The owner's `moveStart` is taken the frame it moves. No delay of ours.
+  - Open: every save differs from the last, so each accepted action carries its whole state: 12-15 KB for a
+    player, 4-6 KB for a wolf, about 13.5 KB/s raw in the fight (the host's movement out is 23 KB/s on the wire).
+    Worth sending only when a copy needs it, if bandwidth comes up (`docs/ideas.md`).
 
 ## 4. One rest path
 
