@@ -34,6 +34,15 @@
     return IsCreatedForm(aFormId) ? CreatedId(aFormId) : ToSession(aFormId);
 }
 
+// An actor's cell on the wire. Outdoors (aWorldSpaceId set) the worldspace and position place it (TravelService::
+// CellAt), so a cell the engine made at load (no plugin record) goes as none; indoors the cell must be the plugins'.
+[[nodiscard]] inline std::optional<GameId> ToSessionCell(uint32_t aCellId, uint32_t aWorldSpaceId) noexcept
+{
+    if (aWorldSpaceId && IsCreatedForm(aCellId))
+        return GameId{};
+    return ToSession(aCellId);
+}
+
 // The wire's id as this game's form id; 0 for a created form's id, which only its own game had.
 [[nodiscard]] inline uint32_t ToGame(const GameId& acId) noexcept
 {

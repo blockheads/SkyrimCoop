@@ -24,3 +24,13 @@ TEST_CASE("Form ids: a created form has none, unless a message rebuilds it", "[F
     CHECK(ToGame(CreatedId(0xFF000801)) == 0);
     CHECK(ToGame(GameId(0xFF, 0x801)) == 0);
 }
+
+TEST_CASE("Form ids: an exterior cell the game made goes as none; the worldspace and position place it", "[FormIds]")
+{
+    constexpr uint32_t cTamriel = 0x3C;
+    CHECK(ToSessionCell(0xFF000A15, cTamriel) == GameId{});
+    CHECK(ToSessionCell(0x00009732, cTamriel) == GameId(0, 0x9732));
+    // An interior is only its cell: a made one has no id another game knows.
+    CHECK_FALSE(ToSessionCell(0xFF000A15, 0).has_value());
+    CHECK(ToSessionCell(0x000A2C8E, 0) == GameId(0, 0xA2C8E));
+}

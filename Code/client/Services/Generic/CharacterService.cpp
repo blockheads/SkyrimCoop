@@ -449,12 +449,18 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     }
 
     // Where the copy goes: an NPC from the game's data (FormId set) to the cell its owner reported, even if
-    // the player has left it since; a created actor (a player's copy) to the player's cell.
+    // the player has left it since (outdoors with no cell, one the engine made: the cell at its position in the
+    // player's worldspace); a created actor (a player's copy) to the player's cell.
     uint32_t cellId = m_playerBridge.GetPlayerParentCellFormId();
     if (acMessage.FormId != GameId{})
     {
         if (const uint32_t cOwnerCellId = ToGame(acMessage.CellId))
             cellId = cOwnerCellId;
+        else if (const auto cWorldSpace = ToSession(m_playerBridge.GetPlayerWorldSpaceId()); cWorldSpace && *cWorldSpace != GameId{})
+        {
+            if (const uint32_t cOutdoors = m_world.GetTravelService().CellAt(*cWorldSpace, {}, acMessage.Position))
+                cellId = cOutdoors;
+        }
     }
     m_actorBridge.MoveActorTo(actorFormId, cellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
     m_actorBridge.SetActorRotation(actorFormId, acMessage.Rotation.x, acMessage.Rotation.y);
@@ -725,7 +731,7 @@ ActorWhereabouts CharacterService::ReadWhereabouts(uint32_t aFormId) const noexc
     {
         const uint32_t cCellId = m_actorBridge.GetActorParentCellFormId(aFormId);
         const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(aFormId);
-        const auto cCell = cCellId ? ToSession(cCellId) : std::nullopt;
+        const auto cCell = cCellId ? ToSessionCell(cCellId, cWorldSpaceId) : std::nullopt;
         const auto cWorldSpace = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
         if (!cCell || !cWorldSpace)
             return {};
@@ -1171,19 +1177,29 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     // A created actor goes by its created id: the spawn rebuilds it from its base (NotifyCharacterSpawn).
     const auto cReference = ToSessionOrCreated(formIdComponent.Id);
     if (!cReference)
+    {
+        spdlog::warn("AnnounceCharacter: {:X} has no session reference", formIdComponent.Id);
         return std::nullopt;
+    }
     message.ReferenceId = *cReference;
 
-    const auto cCell = ToSession(m_actorBridge.GetActorParentCellFormId(formIdComponent.Id));
+    const auto cCell = ToSessionCell(m_actorBridge.GetActorParentCellFormId(formIdComponent.Id),
+                                     m_actorBridge.GetActorWorldSpaceFormId(formIdComponent.Id));
     if (!cCell)
+    {
+        spdlog::warn("AnnounceCharacter: {:X}'s cell {:X} has no session id", formIdComponent.Id, m_actorBridge.GetActorParentCellFormId(formIdComponent.Id));
         return std::nullopt;
+    }
     message.CellId = *cCell;
 
     if (const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(formIdComponent.Id))
     {
         const auto cWorldSpace = ToSession(cWorldSpaceId);
         if (!cWorldSpace)
+        {
+            spdlog::warn("AnnounceCharacter: {:X}'s worldspace {:X} has no session id", formIdComponent.Id, cWorldSpaceId);
             return std::nullopt;
+        }
         message.WorldSpaceId = *cWorldSpace;
     }
 
@@ -1235,7 +1251,10 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
         {
             const auto cTemplate = ToSession(cNpcTemplateId);
             if (!cTemplate)
+            {
+                spdlog::warn("AnnounceCharacter: {:X}'s base {:X} has no session id", formIdComponent.Id, cNpcTemplateId);
                 return std::nullopt;
+            }
             message.FormId = *cTemplate;
         }
     }

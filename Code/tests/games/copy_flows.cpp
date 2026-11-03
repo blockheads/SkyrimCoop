@@ -422,6 +422,33 @@ SCENARIO("A guest joins outdoors four cells from the host, out of its grid: it i
     party.Agree("the games agree on the players");
 }
 
+namespace
+{
+// An exterior cell the engine made at load (no plugin has a record for it: a created form id), as the Throat of the
+// World's summit on LateAfterDragonslayerBackinSkyrim, with the plugins' NPC standing in it.
+constexpr uint32_t kMadeCell = 0xFF000A15;
+constexpr glm::vec3 kInMadeCell{4096.f + 100.f, 100.f, 0.f}; // cell (1, 0), in the loaded grid
+
+void OutdoorsByAMadeCell(FakeEngine& aEngine)
+{
+    aEngine.Exterior(kTamriel, kFirstTamrielCell, 6);
+    aEngine.Exteriors.erase(aEngine.CellAt(kTamriel, kInMadeCell));
+    aEngine.Exteriors[kMadeCell] = {kTamriel, 1, 0};
+    aEngine.PlayerStands(aEngine.CellAt(kTamriel, kHostStands), kHostStands);
+    aEngine.PlaceNpc(kVilkas, kVilkasBase, kMadeCell, kInMadeCell);
+    aEngine.Actors.at(kVilkas).WorldSpace = kTamriel;
+}
+} // namespace
+
+SCENARIO("The host's NPC in an exterior cell the engine made gets a copy on the guest", "[copies]")
+{
+    Party party(1, OutdoorsByAMadeCell);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return guest.IsActorCopy(kVilkas); }, "the guest's Vilkas is a copy of the host's");
+    CHECK(guest.Actors.at(kVilkas).Cell == kMadeCell);
+    party.Agree("the games agree on Vilkas");
+}
+
 SCENARIO("A player's level follows its owner on the existing copy", "[copies][copy-level]")
 {
     Party party(1, SmokeWorld);
