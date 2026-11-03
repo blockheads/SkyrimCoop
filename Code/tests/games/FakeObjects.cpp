@@ -243,6 +243,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
             std::memcpy(pose, acChange.Data.data(), sizeof(pose));
             auto& body = cBody->second;
             body.SceneWritesDuringJobs += !AtMainLoop;
+            ++body.MoveRows;
             body.NodePosition = body.Flight.Body.Position = {pose[0], pose[1], pose[2]};
             body.NodeRotation = body.Flight.Body.Rotation = glm::quat(glm::vec3(pose[3], pose[4], pose[5]));
             return true;

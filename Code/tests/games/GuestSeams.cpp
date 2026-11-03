@@ -1,5 +1,6 @@
 // A guest's side in this process: GuestEngine's calls GuestWorldState makes, on the fake engine's world, and
 // GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
+#include <Physics/BodyRead.h>
 #include "GuestSeams.h"
 #include "FakeEngine.h"
 #include <Games/QuestStarts.h>
@@ -173,6 +174,17 @@ void GuestEngine::RetryQuestAliases() noexcept
             engine.WorkerQuestWrites.push_back(it->first);
         it = ready ? m_pendingAliases.erase(it) : std::next(it);
     }
+}
+
+bool GuestEngine::RestsThere(const ObjectChange& acMove) noexcept
+{
+    const auto& cBodies = FakeEngine::Current().Bodies;
+    const auto it = cBodies.find(BodyKey{.Object = acMove.Object});
+    float pose[6];
+    if (it == cBodies.end() || acMove.Data.size() != sizeof(pose))
+        return false;
+    std::memcpy(pose, acMove.Data.data(), sizeof(pose));
+    return glm::distance(it->second.NodePosition, glm::vec3(pose[0], pose[1], pose[2])) <= kBodySameDistance;
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept

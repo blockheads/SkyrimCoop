@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **1, 2 done; 3 measured, left as is; 4-5 open (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1, 2 done; 3 measured, left as is; 4 fixed; 5 open (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -134,6 +134,18 @@ seen 2026-11-02 for one ladle: "BodyService: placed the owner's rest of 32AFF" A
   - GameTests: the fake counts both writers (`FakeEngine::Body::SceneWritesDuringJobs` and the rest counters exist).
 - **Duo:** `world-changes-reach-guest` (the world oracle), `clutter-rests-at-any-frame-rate`, the physics set,
   `late-join-gets-cell-state`.
+- **Fixed (2026-11-02):** a live move row is skipped when its reference is loaded with dynamic bodies and already
+  stands where the row puts it (`GuestEngine::RestsThere`, within the bodies' 0.5 units / 0.005 rad): the body rest
+  placed it. Any other live row still applies, and so do a cell load's rows (path A cannot reach those).
+  - First cut skipped every live row of a loaded dynamic body: the ladle resets broke (`physics-push-reaches-guest`,
+    `guest-bump-moves-host`, `guest-cast-moves-host` at "shows them back"). The console's `setpos`, as a script's
+    move, wakes no body and sends no rest: only its row reaches the guest.
+  - GameTests "A loaded body takes its rest from the host's body rest alone and not from its move row": the same
+    rest as a live row writes nothing (was a second write), a scripted move's row still places it. The fake counts
+    move-row writes (`Body::MoveRows`).
+  - Duo: physics push, bump, throw, cast, `late-join-gets-cell-state`, `clutter-rests-at-any-frame-rate`,
+    `world-changes-reach-guest` pass. `guest-drops-item-stays` fails on committed code too (the host's sword 124
+    units off the guest's rest).
 
 ## 5. A guest's movement goes unreliable
 
