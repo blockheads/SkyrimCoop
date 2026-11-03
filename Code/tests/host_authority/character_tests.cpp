@@ -627,6 +627,23 @@ TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared fir
     }
 }
 
+TEST_CASE("Movement: a guest's stamp reaches the other games as it sent it even ahead of the host's time", "[HostAuthority][Characters]")
+{
+    // A guest's clock can run ahead of the host's time as read; copies play on CopyClock, never ahead (red-flags.md, 2).
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    ReferencesMoveRequest movement;
+    movement.Tick = uint64_t(1) << 50; // far past the host's now
+    movement.Updates[cPeerPlayer].UpdatedMovement.Position = glm::vec3(1.f, 2.f, 3.f);
+    session.Receive(kPeer, movement);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cMoves = session.SentTo<NotifyReferencesMove>(cTo);
+        REQUIRE(cMoves.size() == 1);
+        CHECK(cMoves[0]->Tick == movement.Tick);
+    }
+}
+
 TEST_CASE("Mounts: a player getting on the host's horse makes it its game's to move", "[HostAuthority][Characters]")
 {
     Session session;

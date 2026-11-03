@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **1 done (2026-11-02, uncommitted); 2-5 open.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1 done (2026-11-02); 2 fixed (uncommitted); 3-5 open.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -65,6 +65,21 @@ HostCharacters::OnMovement (HostCharacters.cpp:52)
   `CopyClock`, which never plays ahead (`copy-clock.md`). Test: HostAuthorityTests (stamps pass through) and a
   GameTests flow where a guest's clock runs ahead and its copy still moves evenly.
 - **If it rarely clamps,** record the numbers in `copy-clock.md` and leave it.
+- **Measured (2026-11-02, a counter in `OnMovement`, not committed):** about 2.5 minutes of
+  `copy-strafes-with-guest`, `party-stacks-on-arrival`, `party-uses-door`, `guest-bump-moves-host` (3 runs each, all
+  pass). The guest: 1170 of 4857 snapshots clamped (24%; 30% in walking windows), mean cut 8.9 ms, largest 179 (100-106
+  through most of the run); 673 gaps (14%) changed by more than 1 ms. The host's own route: 64 of 4812 (1.3%),
+  mean 41 ms, largest 139, nearly all around loads. The host's time is its last update's, up to a frame stale,
+  so a guest stamping its frame's time is often ahead of it.
+- **Fixed (2026-11-02):** the clamp is gone; `OnMovement` passes the owner's stamp on. HostAuthorityTests "Movement:
+  a guest's stamp reaches the other games as it sent it even ahead of the host's time"; GameTests "A guest's player
+  moves evenly on the host's game though its clock runs ahead": steady frames, the two games' updates interleaved, the
+  guest's clock synchronized 60 ms ahead (in-process delivery takes 2-4 frames, so less never arrives ahead). Without
+  the fix 62 of 92 snapshots reached the copy with a cut stamp (more often than Skyrim's 24%) and 30 of 179 frames
+  stepped over a third off; with it, none. Why Skyrim's guest runs ahead is not known (the guest logs neither its
+  ping nor its syncs); the ping's frame waits are the guess.
+  Duo: `copy-strafes-with-guest` 8 of 9 with the fix (one run a single frame off), 6 of 6 without in the same
+  session; `party-uses-door` 3 of 3.
 
 ## 3. `SaveAnimationGraphState` on every player action: measure first
 

@@ -48,8 +48,8 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     NotifyReferencesMove notify;
-    // The owner's time, as its actions carry: copies replay both on one timeline (never in the future).
-    notify.Tick = std::min(acRequest.Tick, m_network.GetTick());
+    // The owner's time, as its actions carry: copies replay both on one timeline; CopyClock never plays ahead.
+    notify.Tick = acRequest.Tick;
     for (const auto& [cSessionId, cUpdate] : acRequest.Updates)
     {
         auto it = m_characters.find(cSessionId);

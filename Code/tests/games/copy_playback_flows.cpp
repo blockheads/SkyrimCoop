@@ -6,6 +6,7 @@
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
 
+#include <set>
 #include <thread>
 
 namespace
@@ -245,4 +246,73 @@ SCENARIO("A player's actions play on its copy where its movement was when it act
                       << cSpeed * cFrameMs / 1000.0 << " a frame)");
     CHECK(highest - lowest <= 2.f); // the same each time: within 3 ms
     CHECK(std::abs(lowest) <= cSpeed * cFrameMs / 1000.0 + 2.f); // at most a frame off
+}
+
+SCENARIO("A guest's player moves evenly on the host's game though its clock runs ahead", "[copies][copy-clock]")
+{
+    // Skyrim showed a guest's stamps arriving ahead of the host's time as read: 24% of them, by 9 ms on average
+    // (red-flags.md, 2). Its clock runs ahead here, past the in-process delivery; its stamps go to copies as they are.
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(host) != 0; }, "the host's game makes a copy of the guest's player");
+    const uint32_t cCopy = HostPlayerCopy(host);
+    constexpr float cSpeed = 300.f;
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    constexpr uint64_t cAheadMs = 60;
+    host.FrameMs = guest.FrameMs = cFrameMs;
+    auto& clock = const_cast<Net::SynchronizedClock&>(party.Guest().GetTransport().GetClock());
+
+    const auto cStart = std::chrono::steady_clock::now();
+    const float cFrom = guest.Actors.at(FakeEngine::kPlayer).Position[0];
+    std::vector<float> seen;
+    std::set<uint64_t> stamped;  // the guest's frame times, which its snapshots carry
+    std::set<uint64_t> received; // the stamps of the host copy's snapshots
+    for (int frame = 0; frame < 360; ++frame)
+    {
+        // Steady engine frames (S10).
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] = cFrom + cSpeed * static_cast<float>(frame * cFrameMs / 1000.0);
+        if (frame % 30 == 0) // as a sync would, eased in over a second (SynchronizedClock)
+        {
+            clock.Update();
+            clock.Synchronize(party.Host().GetTick() + cAheadMs, 0);
+        }
+        // Two processes: the guest's update lands 0-11 ms into its frame, the host's 6, so the host takes the
+        // guest's snapshot in the same frame or the next.
+        const auto cFrameStart = cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs);
+        constexpr int cGuestLate[] = {0, 11, 3};
+        const auto cGuestAt = cFrameStart + std::chrono::milliseconds(cGuestLate[frame % 3]);
+        const auto cHostAt = cFrameStart + std::chrono::milliseconds(6);
+        const bool cGuestFirst = cGuestAt < cHostAt;
+        std::this_thread::sleep_until(cGuestFirst ? cGuestAt : cHostAt);
+        const auto cStep = [&](World& aGame) {
+            party.Step(aGame);
+            if (&aGame == &party.Guest())
+                stamped.insert(party.Guest().GetFrameTick());
+            else if (const auto cEntity = CopyEntity(party.Host(), cCopy); frame >= 180 && cEntity != entt::null)
+                for (const auto& cPoint : party.Host().get<InterpolationComponent>(cEntity).TimePoints)
+                    received.insert(cPoint.Tick);
+        };
+        cStep(cGuestFirst ? party.Guest() : party.Host());
+        std::this_thread::sleep_until(cGuestFirst ? cHostAt : cGuestAt);
+        cStep(cGuestFirst ? party.Host() : party.Guest());
+        if (frame >= 180)
+            seen.push_back(host.Actors.at(cCopy).Position[0]);
+    }
+    size_t changed = 0;
+    for (const uint64_t cTick : received)
+        changed += !stamped.contains(cTick);
+    REQUIRE(received.size() > 50);
+
+    // Frames where the copy's step is off its owner's steady one by over a third.
+    const float cOwnerStep = cSpeed * static_cast<float>(cFrameMs / 1000.0);
+    size_t uneven = 0;
+    for (size_t i = 1; i < seen.size(); ++i)
+        if (std::abs((seen[i] - seen[i - 1]) - cOwnerStep) > cOwnerStep / 3.f)
+            ++uneven;
+    INFO(changed << " of " << received.size() << " snapshots reached the copy with a stamp the guest never sent");
+    CHECK(changed == 0);
+    INFO(uneven << " of " << seen.size() - 1 << " frames the copy stepped over a third off its owner's steady step");
+    CHECK(uneven <= 2);
 }

@@ -73,6 +73,11 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-02: the host passes a guest's movement stamps on as sent (red flag 2, uncommitted): it clamped them to its own
+time, 24% of a guest's snapshots, by 9 ms on average and up to 179, which made the gaps uneven; `CopyClock` never plays
+ahead anyway. HostAuthorityTests "Movement: a guest's stamp reaches ..."; GameTests "A guest's player moves evenly on
+the host's game though its clock runs ahead".
+
 2026-11-02: actions are stamped with the frame clock, as movement is (red flag 1, uncommitted): with the session's
 time as read a copy played an owner's action up to 15 ms off its movement, unevenly; now a steady 11 ms early
 ([red-flags.md](design/red-flags.md)). GameTests "A player's actions play on its copy where its movement was when it
