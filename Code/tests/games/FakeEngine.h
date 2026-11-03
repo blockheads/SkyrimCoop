@@ -6,6 +6,7 @@
 // world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
+#include <Services/PartyMarkers.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
 #include "../FakeFlight.h"
@@ -764,6 +765,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Waypoint = Marker{{aX, aY, aZ}, aWorldSpaceFormId};
     }
     void RemovePlayerWaypoint() noexcept override { Waypoint.reset(); }
+    PartyMarkerSet PartyMarkers;
+    void SetPartyMarkers(const PartyMarkerSet& acMarkers) noexcept override { PartyMarkers = acMarkers; }
     // The clock's speed: this game's own wish (a kill cam, raised by our BSTimer hook) and the party's, the slower
     // running (BSTimer::SetSharedMultiplier).
     float WantedTimeScale = 1.f;

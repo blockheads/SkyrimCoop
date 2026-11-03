@@ -45,6 +45,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept override
     {
     }
+    void SetPartyMarkers(const PartyMarkerSet&) noexcept override {}
     void RemovePlayerWaypoint() noexcept override
     {
     }

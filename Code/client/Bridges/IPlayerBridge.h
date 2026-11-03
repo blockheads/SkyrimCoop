@@ -7,6 +7,8 @@
 #include <Structs/Inventory.h>
 #include <Structs/ActionEvent.h>
 
+struct PartyMarkerSet;
+
 /// PlayerCharacter::Get() and all pPlayer->* operations.
 /// No SKSE types in any signature.
 class IPlayerBridge
@@ -28,6 +30,8 @@ public:
     virtual uint32_t GetPlayerWorldSpaceId() const noexcept = 0;
     virtual void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept = 0;
     virtual void RemovePlayerWaypoint() noexcept = 0;
+    // UI-only party locations; a complete replacement, including an empty set on disconnect.
+    virtual void SetPartyMarkers(const PartyMarkerSet& acMarkers) noexcept = 0;
 
     // --- Location / discord presence ---
     /// Returns the display name of the player's current location form (e.g. "Riverwood").

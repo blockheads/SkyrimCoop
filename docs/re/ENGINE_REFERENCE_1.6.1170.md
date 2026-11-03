@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3458** distinct engine addresses used; **3042** have code in CommonLib or SKSE; **120** have no community name at all.
-- **218** hooks (these replace engine code, so check them first when the game crashes).
+- **3464** distinct engine addresses used; **3045** have code in CommonLib or SKSE; **119** have no community name at all.
+- **219** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -183,6 +183,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 52857 | `0x9770c0` | `?` | - | hook → `HookShowList` | `RealShowList` | [DialogueBridge.cpp:371](../../Code/client/Bridges/DialogueBridge.cpp#L371) | **undocumented** |
 | 52933 | `0x97a5e0` | `SendHUDMessage::ShowHUDMessage` | CL meh | hook → `HookShowHudMessage` | `RealShowHudMessage` | [HudMessages.cpp:33](../../Code/client/TestHarness/HudMessages.cpp#L33) |  |
 | 53102 | `0x984a80` | `MapMenu::sub_53102` | meh | hook → `MapProcess` | `RealMapProcess` | [LiveMenuHooks.cpp:191](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L191) |  |
+| 53111 | `0x986360` | `MapMenu::RefreshMarkers` | IDA meh | hook → `MapUpdate` | `RealMapUpdate` | [PartyMarkers.cpp:246](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L246) |  |
 | 53112 | `0x986ee0` | `MapMenu::sub_53112` | meh | hook → `LocalMap` | `RealLocalMap` | [LiveMenuHooks.cpp:190](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L190) |  |
 | 53290 | `0x9909a0` | `FadeThenMainMenuCallback::Func1_53290` | meh | hook → `HookMenuQuit` | `RealMenuQuit` | [QuitToMainMenu.cpp:35](../../Code/client/Games/Skyrim/Interface/QuitToMainMenu.cpp#L35) |  |
 | 53429 | `0x99b680` | `SkyrimVM::FindQuestFragment` | IDA | hook → `HookFindFragment` | `RealFindFragment` | [QuestFragments.cpp:82](../../Code/client/TestHarness/QuestFragments.cpp#L82) |  |
@@ -3585,7 +3586,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 389102 | `0x202c6b8` | `gIni_fMaxTime_HAVOK` | meh | data | `s_maxTime` | [HavokStepFix.cpp:27](../../Code/client/Games/Skyrim/Fixes/HavokStepFix.cpp#L27) |  |
 | 389138 | `0x202c820` | `gIni_uMaxNumPhysicsStepsPerUpdate_HAVOK` | meh | data | `s_maxSteps` | [HavokStepFix.cpp:29](../../Code/client/Games/Skyrim/Fixes/HavokStepFix.cpp#L29) |  |
 | 389144 | `0x202c850` | `gIni_fMaxTimeComplex_HAVOK` | meh | data | `s_maxTimeComplex` | [HavokStepFix.cpp:28](../../Code/client/Games/Skyrim/Fixes/HavokStepFix.cpp#L28) |  |
-| 415022 | `0x338c8a0` | `?` | - | data | `s_culler` | [PortalGraphFix.cpp:52](../../Code/client/Games/Skyrim/Fixes/PortalGraphFix.cpp#L52) | **undocumented** |
+| 415022 | `0x338c8a0` | `?` | CL | data | `s_culler` | [PortalGraphFix.cpp:52](../../Code/client/Games/Skyrim/Fixes/PortalGraphFix.cpp#L52) |  |
 
 ## Games/Skyrim/Forms
 
@@ -3652,6 +3653,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
 | 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | data | `s_addMessage` | [UI.cpp:108](../../Code/client/Games/Skyrim/Interface/UI.cpp#L108) |  |
+| 20496 | `0x307bd0` | `TESWorldSpace::AdjustWorldMapPosition` | IDA meh | call | `s_coordinates` | [PartyMarkers.cpp:160](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L160) |  |
 | 35406 | `0x5fc020` | `?` | - | data | `menuMode` | [LiveMenuHooks.cpp:199](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L199) | **undocumented** |
 | 35855 | `0x61bba0` | `CreateUIMessageData` | SKSE | call | `s_create` | [UI.cpp:100](../../Code/client/Games/Skyrim/Interface/UI.cpp#L100) |  |
 | 36548 | `0x641190` | `?` | - | data | `MainInit` | [UI.cpp:131](../../Code/client/Games/Skyrim/Interface/UI.cpp#L131) | **undocumented** |
@@ -3659,7 +3661,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36581 | `0x6474c0` | `Main::sub_36581` | meh | hook → `UpdatePlayer` | `RealUpdatePlayer` | [LiveMenuHooks.cpp:185](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L185) |  |
 | 51049 | `0x8f0620` | `BookMenu::sub_51049` | meh | data | `bookProcess` | [LiveMenuHooks.cpp:197](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L197) |  |
 | 51538 | `0x916a60` | `MenuEventHandler::CanProcess` | meh | data | `FavoritesCanProcess` | [UI.cpp:136](../../Code/client/Games/Skyrim/Interface/UI.cpp#L136) |  |
+| 51668 | `0x9222c0` | `Compass::Update` | IDA meh | data | `update` | [PartyMarkers.cpp:240](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L240) |  |
 | 53102 | `0x984a80` | `MapMenu::sub_53102` | meh | hook → `MapProcess` | `RealMapProcess` | [LiveMenuHooks.cpp:191](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L191) |  |
+| 53111 | `0x986360` | `MapMenu::RefreshMarkers` | IDA meh | hook → `MapUpdate` | `RealMapUpdate` | [PartyMarkers.cpp:246](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L246) |  |
 | 53112 | `0x986ee0` | `MapMenu::sub_53112` | meh | patch | `localMap` | [LiveMenuHooks.cpp:188](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L188) |  |
 | 53112 | `0x986ee0` | `MapMenu::sub_53112` | meh | hook → `LocalMap` | `RealLocalMap` | [LiveMenuHooks.cpp:190](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L190) |  |
 | 53290 | `0x9909a0` | `FadeThenMainMenuCallback::Func1_53290` | meh | hook → `HookMenuQuit` | `RealMenuQuit` | [QuitToMainMenu.cpp:35](../../Code/client/Games/Skyrim/Interface/QuitToMainMenu.cpp#L35) |  |
@@ -3667,12 +3671,15 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 82074 | `0xfa37b0` | `Unknown3::IsMenuOpen` | SKSE | data | `s_isMenuOpen` | [UI.cpp:32](../../Code/client/Games/Skyrim/Interface/UI.cpp#L32) |  |
 | 82082 | `0xfa3fa0` | `ProcessEventQueue_HookTarget_Enter` | SKSE | patch | `ProcessHook` | [UI.cpp:126](../../Code/client/Games/Skyrim/Interface/UI.cpp#L126) |  |
 | 82088 | `0xfa5630` | `?` | - | data | `s_CloseAll` | [UI.cpp:40](../../Code/client/Games/Skyrim/Interface/UI.cpp#L40) | **undocumented** |
+| 82256 | `0xfac020` | `GFxValue::ObjectInterface::Invoke` | CL SKSE meh | data | `invoke` | [PartyMarkers.cpp:240](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L240) |  |
+| 82270 | `0xfac750` | `GFxValue::ObjectInterface::ObjectRelease` | CL SKSE meh | call | `s_release` | [PartyMarkers.cpp:63](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L63) |  |
 | 400327 | `0x20f6a00` | `UI::singleton` | CL SKSE meh | data | `s_instance` | [UI.cpp:16](../../Code/client/Games/Skyrim/Interface/UI.cpp#L16) |  |
 | 400445 | `0x20f8950` | `UIMessageQueue::singleton` | CL SKSE meh | data | `s_singleton` | [UI.cpp:93](../../Code/client/Games/Skyrim/Interface/UI.cpp#L93) |  |
 | 401585 | `0x3138ed0` | `CrosshairPickData::singleton` | CL SKSE meh | data | `s_instance` | [CrosshairPickData.cpp:6](../../Code/client/Games/Skyrim/Interface/CrosshairPickData.cpp#L6) |  |
 | 403551 | `0x3169190` | `MenuCursor::singleton` | CL meh | data | `s_instance` | [MenuCursor.cpp:6](../../Code/client/Games/Skyrim/Interface/MenuCursor.cpp#L6) |  |
 | 405823 | `0x31ac8e4` | `BarterMenu::handle` | CL meh | data | `s_handle` | [LiveMenuHooks.cpp:92](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L92) |  |
 | 405962 | `0x31ace80` | `ContainerMenu::handle` | CL meh | data | `s_handle` | [LiveMenuHooks.cpp:86](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L86) |  |
+| 406118 | `0x31ad3e0` | `Compass::MarkerFrames` | IDA | data | `s_frames` | [PartyMarkers.cpp:100](../../Code/client/Games/Skyrim/Interface/PartyMarkers.cpp#L100) |  |
 
 ## Games/Skyrim/Interface/Menus
 

@@ -234,6 +234,7 @@ public:
     uint32_t GetPlayerWorldSpaceId() const noexcept override;
     void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept override;
     void RemovePlayerWaypoint() noexcept override;
+    void SetPartyMarkers(const PartyMarkerSet& acMarkers) noexcept override;
     std::string GetPlayerLocationName() const noexcept override;
     std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
