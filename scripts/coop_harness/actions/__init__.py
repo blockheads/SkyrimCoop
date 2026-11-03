@@ -13,6 +13,7 @@ from .combat import CombatActions
 from .physics import PhysicsActions
 from .magic import MagicActions
 from .interface import InterfaceActions
+from .play import PlayActions
 
 
 class Actions(
@@ -30,5 +31,6 @@ class Actions(
     PhysicsActions,
     MagicActions,
     InterfaceActions,
+    PlayActions,
 ):
     pass

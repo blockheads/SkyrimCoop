@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Actions.h"
 #include "AnimationTrace.h"
 #include "BodyTrace.h"
 #include "CommandServer.h"
@@ -26,6 +27,7 @@ struct Harness
     DialogueTrace Dialogue;
     EngineEvents Events;
     InputTrace Inputs;
+    class Actions Actions;
     bool CommandsStarted = false;
 };
 } // namespace TestHarness

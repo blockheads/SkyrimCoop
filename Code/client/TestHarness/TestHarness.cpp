@@ -51,7 +51,10 @@ void Poll()
     harness.Events.Poll();
 
     if (harness.Files.InWorld())
+    {
+        harness.Actions.Poll(harness);
         harness.Input.Poll();
+    }
     if (harness.Trace.Recording())
         harness.Trace.Poll();
     if (harness.Bodies.Recording() && harness.Files.InWorld())

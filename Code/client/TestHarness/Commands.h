@@ -34,6 +34,8 @@ std::span<const Command> QuestFragmentsCommands();
 void StopQuestTrace() noexcept;
 // Spikes kept for measuring: story events, engine probes (PlayerEvents.cpp).
 std::span<const Command> PlayerEventsCommands();
+// Checked actions (Actions.h).
+std::span<const Command> ActionCommands();
 // Whole-process stack sampling (Sampler.cpp): coop_test.py profile --stacks.
 std::span<const Command> SamplerCommands();
 void StopSampler() noexcept;

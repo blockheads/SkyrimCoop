@@ -11,6 +11,50 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
+## Next (2026-11-02)
+
+In order. Each bug follows the bug-fix flow (CLAUDE.md).
+
+1. **Checked in-game actions, then an MCP layer.** Slim version built 2026-11-02 (`checked-actions.md`, "As built"):
+   the physics scenario runs on it, `guest-holds-into-npc` 10 of 10. Left: walk/push verbs, scene control, the broad
+   migration (only when a scenario flakes), then the MCP. Actions that check their own outcome, ticked in the harness each
+   frame:
+   - a ready gate before acting;
+   - steering every frame;
+   - checks that must keep holding;
+   - an outcome or a named failure with its frame.
+
+   Why: open-loop actions silently miss their intent (the carry step in `guest-holds-into-npc` sometimes drops the
+   bucket). Audit and plan: `docs/design/checked-actions.md`; notes: `docs/research/sync-and-testing-references.md`.
+2. **Exclusive object ownership**, after Fiedler (memory decision 2026-11-02). It is not built: today a held object
+   is its holder's, but the host still steers a guest's hold with its own physics ("Steered holds") and nothing
+   refuses a second grab.
+   - Grabbing claims the object from the host, which accepts or refuses; a refused grab drops it.
+   - Owner and authority each carry a sequence number.
+   - Every other game plays the holder's frames, so nobody else can grab or push it.
+   - Authority returns to the host at the rest. This replaces Steered holds.
+   - Plan: `docs/design/physics-sync.md` and the plan of 2026-11-02 (part B).
+   - It likely covers: the host's copy of a sword the guest dropped rests 44 to 67 units from the guest's
+     (`guest-drops-item-stays`, 2 of 5).
+3. **The handoff's red flags:** the action clock, unreliable movement, the tick clamp, the cost of
+   `SaveAnimationGraphState`, and one rest path. Then cleanup and explainer docs.
+4. **Open bugs found 2026-11-02**, failing the same with the old copy placement:
+   - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
+   - `knockdown-lies-as-host`: the copy turns away for about 0.3 s at its get-up (1 in 2 runs).
+5. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
+   - **C2 freezes in our code:** Windows only. Needs a package with the PDB kept, and one trigger replayed on
+     Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
+   - **C3 crash on quit:** fixed on Linux, verify on Windows.
+   - **P1 performance:** parked; check in the same Windows session.
+   - **S3 a guest's "go to jail":** the jail choice by mouse is still to try (pay fine is done; the freeze is C2).
+   - **S8 missed kill moves:** needs a `/bug` taken right after one fails.
+   - **S6 remainder:** an NPC's detection reads higher in co-op (51 against 13 alone).
+   - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
+     vanilla, S9 didn't reproduce, P2 works as designed.
+
+Done 2026-11-02 (`3b8124d0`): copies step through the engine (`actor-movement.md`, "Copies step"), and a held body
+held still is not at rest (`physics-sync.md`, "Held still is not at rest").
+
 2026-11-01: a guest can take a chest's fresh roll (S5, uncommitted): the host's game found none of a freshly rolled
 leveled item to give (its read counted the changes' 0, not the engine's count through the base's leveled list) and
 removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEngine::TransferContainer` now counts

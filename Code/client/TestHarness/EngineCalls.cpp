@@ -9,6 +9,7 @@
 #include <Bridges/ContainerItems.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/LooseItems.h>
+#include <Bridges/ReferenceBodies.h>
 #include <ExtraData/ExtraContainerChanges.h>
 #include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
@@ -1630,6 +1631,25 @@ void ForcePlayerFirstPerson() noexcept
     POINTER_SKYRIMSE(TForceFirstPerson, s_forceFirstPerson, 50790); // PlayerCamera::ForceFirstPerson
     if (void* pCamera = *camera.Get())
         s_forceFirstPerson(pCamera);
+}
+
+std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pRef)
+        return std::nullopt;
+    if (!Cast<Actor>(pRef))
+        if (const auto cFrames = ReferenceBodies::ReadFrames(*pRef); !cFrames.empty())
+            return std::array{cFrames[0].Position.x, cFrames[0].Position.y, cFrames[0].Position.z};
+    return std::array{pRef->position.x, pRef->position.y, pRef->position.z};
+}
+
+std::optional<std::array<float, 2>> PlayerAngles() noexcept
+{
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return std::nullopt;
+    return std::array{glm::degrees(pPlayer->rotation.z), glm::degrees(pPlayer->rotation.x)};
 }
 
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept

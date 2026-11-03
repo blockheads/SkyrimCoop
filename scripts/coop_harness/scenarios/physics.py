@@ -337,36 +337,29 @@ def describe_controller(read):
 
 def drags_into_npc(ctx, carrier, press_for=0):
     """`carrier`'s player grabs a bucket, a restrained Lydia stands beside it as far off as the bucket, and it turns
-    toward her, swinging the bucket into her at chest height. Her capsule must stop the bucket, in the carrier's game, as in a game
-    without co-op: it never comes within INTO_CAPSULE of her axis below her capsule's top. Logs her character
-    controller in both games (a copy's capsule only pushes bodies when the engine integrates it,
+    toward her, swinging the bucket into her at chest height. Her capsule must stop the bucket, in the carrier's game,
+    as in a game without co-op: it never comes within INTO_CAPSULE of her axis below her capsule's top. Logs her
+    character controller in both games (a copy's capsule only pushes bodies when the engine integrates it,
     docs/re/systems/actor-movement.md). With `press_for` seconds, the player first carries the bucket about, then stops
-    turning once it aims at her and holds it against her that long (the 2026-11-02 playtest: it sank in slowly)."""
+    turning once it aims at her and holds it against her that long (the 2026-11-02 playtest: it sank in slowly), and the
+    other game must show the bucket in the carrier's hand, never falling (it fell and was put back, over and over).
+    Every step is a checked action: it fails on the frame the bucket leaves the player's hands."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
     her = {"": npc, "client": copy}
+    other = "client" if carrier == "" else ""
     ids = None
     nearest = {"side": 1e9, "over": None}
-    dropped_at = None
     try:
         ids = spawn_shared_bucket(ctx)
         target = ids[carrier]
         ctx.place_before(carrier, target, 90)
         ctx.face(carrier, target)
-        ctx.press(carrier, "activate")
-        try:
-            ctx.wait_for(f"[{carrier or 'host'}] grabs the bucket", lambda: ctx.local_player(carrier).get("grabbed") == target, 3)
-        finally:
-            ctx.release(carrier, "activate")
-        ctx.console_on(carrier, "player.setangle x 10")
-        time.sleep(0.5)
+        ctx.grab(carrier, target)
+        holding = {"holding": target}
+        ctx.turn_to(carrier, pitch=10, rate=30, keep=[holding], name="lifts the bucket to chest height")
         if press_for:
             for button in ("forward", "back"):
-                ctx.press(carrier, button)
-                time.sleep(1.5)
-                ctx.release(carrier, button)
-            time.sleep(0.5)
-            if ctx.local_player(carrier).get("grabbed") != target:
-                raise ctx.failure(f"[{carrier or 'host'}] dropped the bucket while carrying it about")
+                ctx.carry(carrier, target, [button], 1.5)
         # She stands as far off as the bucket is held, 50 degrees to the right: turning toward her swings the bucket
         # into her while the carrier stays clear of her.
         me, held = ctx.my_position(carrier), ctx.body_of(carrier, target)["position"]
@@ -381,53 +374,45 @@ def drags_into_npc(ctx, carrier, press_for=0):
         for game in ("", "client"):
             log(f"[{game or 'host'}] Lydia's controller before: {describe_controller(controller_of(ctx, game, her[game]))}")
         log(f"[{carrier or 'host'}] holds the bucket {reach:.0f} out, turns from {yaw:.0f} toward her at {yaw + 50:.0f}")
-        def sample():
-            body = ctx.body_of(carrier, target)
-            at = (ctx.host_npc_state(npc).get("position") if carrier == ""
-                  else ctx.actors_on("client").get(str(copy), {}).get("actual"))
-            if not (body and at):
-                return None
-            off, over = math.dist(body["position"][:2], at[:2]), body["position"][2] - at[2]
-            if 0 < over < CAPSULE_TOP and off < nearest["side"]:
-                nearest.update(side=off, over=over)
-            return off
-        # A degree and a half at a time (a sudden turn drops a held object), on past her (or up to her, to press).
-        for step in range(1, 34 if press_for else 54):
-            ctx.console_on(carrier, f"player.setangle z {yaw + step * 1.5:.1f}")
-            time.sleep(0.05)
-            sample()
-            if ctx.local_player(carrier).get("grabbed") != target:
-                dropped_at = round(step * 1.5)
-                break
-            if step == 33:
-                for game in ("", "client"):
-                    log(f"[{game or 'host'}] Lydia's controller pushed: {describe_controller(controller_of(ctx, game, her[game]))}")
-        if press_for and dropped_at is None:
-            # Pressed against her: the bucket's distance from her axis each second, to show a slow creep.
-            # The other game shows the held bucket in the carrier's hand: never below it (the 2026-11-02 report: the
-            # guest's fell and was put back, over and over, while the host pressed it against her).
-            other = "client" if carrier == "" else ""
-            fell = {"most": 0.0, "times": 0, "falling": False}
-            start, trail, window = time.monotonic(), [], []
-            while time.monotonic() - start < press_for:
-                off = sample()
-                if off is not None:
-                    window.append(off)
-                held_at, shown = ctx.body_of(carrier, target), ctx.body_of(other, ids[other])
-                if held_at and shown:
-                    below = held_at["position"][2] - shown["position"][2]
-                    fell["most"] = max(fell["most"], below)
-                    if below > 10 and not fell["falling"]:
-                        fell["times"] += 1
-                    fell["falling"] = below > 10
-                if len(window) >= 10:
-                    trail.append(round(min(window), 1))
-                    window = []
-                if ctx.local_player(carrier).get("grabbed") != target:
-                    dropped_at = f"pressing {time.monotonic() - start:.1f} s"
-                    break
-                time.sleep(0.1)
+        # Off her axis and over her feet, every frame: the nearest while the bucket is level with her capsule.
+        against = [{"name": "off", "distance_xy": [target, her[carrier]]}, {"name": "over", "z_between": [target, her[carrier]]}]
+
+        def nearest_in(outcome):
+            for row in outcome.get("series") or []:
+                off, over = row[1], row[2]
+                if off is not None and over is not None and 0 < over < CAPSULE_TOP and off < nearest["side"]:
+                    nearest.update(side=off, over=over)
+
+        # 30 degrees a second (a sudden turn drops a held object), up to her to press, else on past her.
+        swing = ctx.act(carrier, {"name": "swings the bucket into her", "ready": ["takes_input"],
+                                  "turn": {"yaw": yaw + (50 if press_for else 79.5), "rate": 30},
+                                  "until": ["aimed"], "keep": [holding], "watch": against, "series": True, "seconds": 10})
+        nearest_in(swing)
+        for game in ("", "client"):
+            log(f"[{game or 'host'}] Lydia's controller pushed: {describe_controller(controller_of(ctx, game, her[game]))}")
+        if press_for:
+            # Pressed against her; the other game watches its own bucket at the same time (the wall clock lines them up).
+            shown = [{"name": "z", "z": ids[other]}]
+            outcomes = ctx.act_both({
+                carrier: {"name": f"holds the bucket against her for {press_for} s", "ready": ["takes_input"],
+                          "until": [{"for": press_for}], "keep": [holding], "series": True, "seconds": press_for + 2,
+                          "watch": [*against, {"name": "z", "z": target}]},
+                other: {"name": "watches its bucket", "until": [{"for": press_for}], "series": True,
+                        "seconds": press_for + 2, "watch": shown, "allow_menus": True}})
+            pressed = outcomes[carrier]
+            nearest_in(pressed)
+            trail = [round(min(r[1] for r in pressed["series"][i:i + 60] if r[1] is not None), 1)
+                     for i in range(0, len(pressed["series"]), 60)]
             log(f"[{carrier or 'host'}] pressed against her, nearest off her axis each second: {trail}")
+            fell = {"most": 0.0, "times": 0, "falling": False}
+            for row in pressed["series"]:
+                shown_z = ctx.series_at(outcomes[other], 0, row[0])
+                if row[3] is None or shown_z is None:
+                    continue
+                below = row[3] - shown_z
+                fell["most"] = max(fell["most"], below)
+                fell["times"] += below > 10 and not fell["falling"]
+                fell["falling"] = below > 10
             log(f"[{other or 'host'}] its bucket fell below the held one {fell['times']} times, up to {fell['most']:.0f} units")
             if fell["times"]:
                 raise ctx.failure(f"[{other or 'host'}] the bucket {carrier or 'host'} holds against her falls in its game "
@@ -442,8 +427,7 @@ def drags_into_npc(ctx, carrier, press_for=0):
             ctx.console_on("", f"{ids['']:X}.disable")
             ctx.console_on("", f"{ids['']:X}.markfordelete")
         ctx.remove_host_npc(npc)
-    report = (f"nearest {nearest['side']:.1f} off her axis at {nearest['over'] or 0:.0f} over her feet, "
-              f"{'dropped (' + str(dropped_at) + ')' if dropped_at is not None else 'held throughout'}")
+    report = f"nearest {nearest['side']:.1f} off her axis at {nearest['over'] or 0:.0f} over her feet, held throughout"
     log(f"drags-into-npc ({carrier or 'host'} carries): {report}")
     if nearest["side"] < INTO_CAPSULE:
         raise ctx.failure(f"[{carrier or 'host'}] the held bucket went into Lydia: {report}")

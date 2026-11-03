@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <functional>
 
 #include <Havok/Raycast.h>
@@ -518,6 +520,13 @@ struct CameraView
     float TargetOffCenter = 0.f; // degrees between the view and the target's head
 };
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
+
+// Where a reference is now: its first dynamic body for an object that has one (a held or flying bucket), else its own
+// position; 0x14 the player. None if there is no such reference.
+std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept;
+// The player's heading and pitch in degrees (z clockwise from north, x positive looking down): in first person, where
+// its camera looks.
+std::optional<std::array<float, 2>> PlayerAngles() noexcept;
 
 // Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
 bool IsInRagdollState(uint32_t aFormId) noexcept;
