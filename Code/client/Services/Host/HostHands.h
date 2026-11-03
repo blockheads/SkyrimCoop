@@ -18,9 +18,9 @@ struct HostPlayers;
  * "Owners"):
  *
  *   push       the guest's character's impulse, given to the host's body alike
- *   hold       the holder's frames go to the host's game, which steers its body onto them (BodyService, Held): its
- *              physics meets its actors (a head stops it), and HostPhysics sends its result to the others; the first
- *              holder keeps it
+ *   hold       the holder's alone: its frames go to every other game, the host's too, which play them keyframed
+ *              (BodyService), so nobody else grabs or pushes it; its own game's physics, copies included, has the
+ *              last word (docs/re/systems/actor-movement.md, "Copies step"); the first holder keeps it
  *   let go     the host's game simulates it again from the holder's last frame (also when the holder leaves, or
  *              sends no frame for kSilentMs)
  *   ragdoll    its own character's (the sender owns it): its frames and rests to every other game, the host's too

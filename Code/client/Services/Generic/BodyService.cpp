@@ -30,7 +30,25 @@ void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
     m_ragdollRests.erase(acKey);
     m_pendingRests.erase(acKey);
     m_following.erase(acKey);
-    m_held.erase(acKey);
+    Hold(acKey, false);
+}
+
+void BodyService::Hold(const BodyKey& acKey, bool aHeld) noexcept
+{
+    if (aHeld && !m_held.contains(acKey))
+    {
+        if (const uint32_t cFormId = m_bridge.ReferenceFormId(acKey))
+        {
+            m_held[acKey] = cFormId;
+            m_heldElsewhere.insert(cFormId);
+        }
+    }
+    else if (!aHeld)
+        if (const auto it = m_held.find(acKey); it != m_held.end())
+        {
+            m_heldElsewhere.erase(it->second);
+            m_held.erase(it);
+        }
 }
 
 void BodyService::EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept
@@ -53,8 +71,8 @@ void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
         if (!cFrame.Key.Actor && !m_playback.Has(cFrame.Key))
             if (const auto cShown = m_bridge.ReadPose(cFrame.Key))
                 m_playback.StartFrom(*cShown);
-        if (acMessage.Held && !cFrame.Key.Actor)
-            m_held.insert(cFrame.Key);
+        if (!cFrame.Key.Actor)
+            Hold(cFrame.Key, acMessage.Held);
         (cFrame.Key.Actor ? ragdolls : frames).push_back(cFrame);
     }
     m_playback.Add(acMessage.Tick, frames);
@@ -67,8 +85,11 @@ void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
 {
     std::vector<BodyPose> rests, ragdolls;
     for (const auto& cRest : acMessage.Rests)
+    {
+        Hold(cRest.Key, false);
         if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest.Key))
             (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
+    }
     m_playback.Rest(acMessage.Tick, rests);
     m_ragdolls.Rest(acMessage.Tick, ragdolls);
 }
@@ -79,6 +100,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_ragdolls = {};
     m_following.clear();
     m_held.clear();
+    m_heldElsewhere.clear();
     m_ragdollRests.clear();
     m_pendingRests.clear();
     m_missing.clear();
@@ -161,9 +183,8 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
             m_ragdollRests[cKey] = {cPose.Tick, cAt};
         else
             m_ragdollRests.erase(cKey);
-        const bool cDone = cPose.Rest             ? m_bridge.Rest(cAt, cCopy)
-                           : m_held.contains(cKey) ? m_bridge.Steer(cPose.Body)
-                                                   : m_bridge.Drive(cPose.Body, cCopy);
+        // A held body too: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
+        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy);
         if (cPose.Rest && !cKey.Actor && !cDone)
         {
             m_pendingRests[cKey] = {cPose.Tick, cAt};

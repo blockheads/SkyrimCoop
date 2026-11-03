@@ -323,9 +323,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         FakeFlight Flight;
         bool Awake = false;
         bool Held = false;    // keyframed by the host's frames (a guest's; a reference's freed at its rest)
-        bool Steered = false; // simulated, steered onto a holder's frames (the host's, while a guest's player holds it)
         size_t Drives = 0;    // frames of the host's followed
-        size_t Steers = 0;    // a holder's frames steered toward
         // Its node (a reference's 3D): the engine writes it from the body each step, except while it leaves it behind
         // (docs/re/systems/physics.md). A node write on a body the engine already followed re-places the body, which
         // loses its contacts (the bucket that sank into a head): counted in Replaced.
@@ -367,7 +365,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
-    bool Steer(const BodyFrame& acFrame) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
     // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
@@ -377,9 +374,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static constexpr float kCapsuleTop = 128.f;
     // Where a simulated body moving from acFrom toward acTo stops: outside every capsule that pushes.
     [[nodiscard]] glm::vec3 OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& acTo) const noexcept;
+    // This game's player grabs it (Activate held: StartGrabObject 40552), which the engine refuses for a keyframed body
+    // (another game's frames move it): whether it holds it now.
+    bool TryGrab(const BodyKey& acKey) noexcept;
     // This game's player holds a body toward acTo (the grab's spring): it stops outside every capsule that pushes.
     void HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept;
     bool Free(const BodyFrame& acFrame) noexcept override;
+    [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override { return acKey.Actor ? 0 : ReferenceOf(acKey); }
     bool Push(const BodyPush& acPush) noexcept override;
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
     bool Settle(const BodyKey&) noexcept override { return false; }

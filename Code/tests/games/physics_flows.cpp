@@ -166,7 +166,7 @@ SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the h
     }
 }
 
-SCENARIO("A guest's player carries the plate and lets go: the host's is steered after its hands, then flies on", "[physics]")
+SCENARIO("A guest's player carries the plate and lets go: the host shows it in its hands, then it flies on", "[physics]")
 {
     Party party(1, Plugins);
     auto& hostPlate = BodyOf(party, party.Host(), kPlate);
@@ -186,23 +186,20 @@ SCENARIO("A guest's player carries the plate and lets go: the host's is steered 
         guestPlate.Flight.Body.Position = cStart + cCarry * cNow;
         guestPlate.Flight.Body.LinearVelocity = cCarry;
     };
-    party.Until([&] { cMove(); return hostPlate.Steers > 0 && cCarried() > 0.5f; }, "the host's plate follows the guest's hands");
-    THEN("the host's is steered (simulated, so its physics meets its actors), a little behind the guest's hands")
+    party.Until([&] { cMove(); return hostPlate.Drives > 0 && cCarried() > 0.5f; }, "the host's plate follows the guest's hands");
+    THEN("the host's is keyframed on the holder's frames (its alone: the host's grab refuses it), a little behind")
     {
-        CHECK(hostPlate.Steered);
-        CHECK_FALSE(hostPlate.Held);
-        CHECK(hostPlate.Drives == 0);
+        CHECK(hostPlate.Held);
         const float cBehind = glm::length(cCarry) * (BodyService::kDelayMs / 1000.f + 2.f * longestFrame) + 5.f;
         INFO("longest frame " << longestFrame << " s");
         INFO("host tick " << party.Host().GetTransport().GetTick() << ", guest tick " << party.Guest().GetTransport().GetTick()
-             << ", RTT " << party.Guest().GetTransport().GetRoundTripTime() << ", host steers " << hostPlate.Steers
-             << ", host x " << hostPlate.Flight.Body.Position.x << ", guest x " << guestPlate.Flight.Body.Position.x);
+             << ", RTT " << party.Guest().GetTransport().GetRoundTripTime() << ", host x " << hostPlate.Flight.Body.Position.x << ", guest x " << guestPlate.Flight.Body.Position.x);
         CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < cBehind);
     }
 
     Party::Engine(party.Guest()).Grabbed.reset();
     glm::vec3 letGo{};
-    party.Until([&] { letGo = hostPlate.Flight.Body.Position; return !hostPlate.Steered; }, "the host's plate is let go");
+    party.Until([&] { letGo = hostPlate.Flight.Body.Position; return !hostPlate.Held; }, "the host's plate is let go");
     const glm::vec3 cLetGo = letGo;
     party.Until([&] { return !hostPlate.Awake && guestPlate.Rests > 0; }, "the plate rests on both games");
     THEN("it flew on from where the host had it, and the guest showed its own fall until the host's rest")
@@ -525,49 +522,83 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
         }
 }
 
-SCENARIO("A guest's player lowers the plate onto a host NPC's head: the host's stops on it, as every other game shows",
+SCENARIO("A guest's player holds the plate: the host's player cannot grab it, nor can another guest's", "[physics]")
+{
+    // host-cannot-take-guest-hold (2026-11-02): the host's game steered its own body after the guest's hands,
+    // simulated, so the host's player grabbed it out of them.
+    Party party(2, Plugins);
+    auto& guest = Party::Engine(party.Guest(0));
+    auto& host = Party::Engine(party.Host());
+    auto& other = Party::Engine(party.Guest(1));
+    guest.Grabbed = kPlate;
+    const glm::vec3 cHands{140.f, 260.f, 150.f};
+    party.Until([&] {
+        guest.HoldTo(kPlate, cHands);
+        BodyOf(party, party.Guest(0), kPlate).Flight.Body.LinearVelocity = {0.f, 0.f, 1.f};
+        return BodyOf(party, party.Host(), kPlate).Drives > 0 && BodyOf(party, party.Guest(1), kPlate).Drives > 0;
+    }, "every other game shows the guest's hold");
+    THEN("neither the host's player nor the other guest's can grab it, nor take it (activation refused)")
+    {
+        CHECK_FALSE(host.TryGrab(kPlate));
+        CHECK_FALSE(other.TryGrab(kPlate));
+        CHECK(guest.Grabbed == kPlate);
+        CHECK(party.Host().ctx().at<BodyService>().HeldElsewhere(FakeEngine::ReferenceOf(kPlate)));
+        CHECK(party.Guest(1).ctx().at<BodyService>().HeldElsewhere(FakeEngine::ReferenceOf(kPlate)));
+        CHECK_FALSE(party.Guest(0).ctx().at<BodyService>().HeldElsewhere(FakeEngine::ReferenceOf(kPlate)));
+    }
+    guest.Grabbed.reset();
+    party.Until([&] { return !party.Host().ctx().at<BodyService>().HeldElsewhere(FakeEngine::ReferenceOf(kPlate)) &&
+                             !party.Guest(1).ctx().at<BodyService>().HeldElsewhere(FakeEngine::ReferenceOf(kPlate)); },
+                "let go, anyone may take it again");
+}
+
+SCENARIO("A guest's player lowers the plate onto a host NPC's head: its copy stops it, as every other game shows",
          "[physics]")
 {
-    // S1 (playtests/2026-10-31-fabien.md, guest-bucket-on-npc-head): the host's game followed the guest's hold
-    // keyframed, through her head.
+    // S1 (playtests/2026-10-31-fabien.md, guest-bucket-on-npc-head): a held object went through heads. The hold is
+    // the holder's alone (2026-11-02): its own game's physics stops it on her copy (stepped, so its capsule pushes:
+    // actor-movement.md, "Copies step"), and every other game shows its frames.
     Party party(2, PluginsWithLydia);
-    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guest = Party::Engine(party.Guest(0));
     auto& guestPlate = BodyOf(party, party.Guest(0), kPlate);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
     auto& otherPlate = BodyOf(party, party.Guest(1), kPlate);
-    Party::Engine(party.Guest(0)).Grabbed = kPlate;
+    party.Until([&] { return guest.Actors.at(kLydia).Movements > 0; }, "the guest's game moves her copy by its owner's movement");
+    guest.Grabbed = kPlate;
     const glm::vec3 cAbove = kLydiaFeet + glm::vec3(0.f, 0.f, 200.f);
+    guestPlate.Flight.Body.Position = cAbove;
     const auto cBegan = std::chrono::steady_clock::now();
     const auto cHeld = [&] { return std::chrono::duration<float>(std::chrono::steady_clock::now() - cBegan).count(); };
-    // The guest's hands: over her head for half a second, then down through it at 100 units/s (its copy pushes
-    // nothing, as in Skyrim).
+    // The guest's hands: over her head for half a second, then down through it at 100 units/s.
     const auto cMove = [&] {
         const float cLowered = std::max(0.f, cHeld() - 0.5f) * 100.f;
-        guestPlate.Flight.Body.Position = cAbove - glm::vec3(0.f, 0.f, std::min(cLowered, 180.f));
-        guestPlate.Flight.Body.LinearVelocity = {0.f, 0.f, cLowered > 0.f && cLowered < 180.f ? -100.f : 0.f};
+        guest.HoldTo(kPlate, cAbove - glm::vec3(0.f, 0.f, std::min(cLowered, 180.f)));
+        guestPlate.Flight.Body.LinearVelocity = {};
     };
-    float hostLowest = 1e9f, otherLowest = 1e9f;
+    float guestLowest = 1e9f, hostLowest = 1e9f, otherLowest = 1e9f;
     const auto cOverHer = [](const FakeEngine::Body& acBody) {
         return glm::distance(glm::vec2(acBody.Flight.Body.Position), glm::vec2(kLydiaFeet)) < FakeEngine::kCapsuleRadius;
     };
     const auto cWatch = [&] {
-        if (cOverHer(hostPlate))
+        if (cOverHer(guestPlate))
+            guestLowest = std::min(guestLowest, guestPlate.Flight.Body.Position.z - kLydiaFeet.z);
+        if (cOverHer(hostPlate) && hostPlate.Drives)
             hostLowest = std::min(hostLowest, hostPlate.Flight.Body.Position.z - kLydiaFeet.z);
         if (cOverHer(otherPlate) && otherPlate.Drives)
             otherLowest = std::min(otherLowest, otherPlate.Flight.Body.Position.z - kLydiaFeet.z);
     };
     party.Until([&] { cMove(); cWatch(); return cHeld() > 2.8f; }, "the guest's player lowers the plate through her head", {}, nullptr,
                 std::chrono::seconds{5});
-    THEN("the host's plate sits on her head, and the other guest shows it there")
+    THEN("the plate sits on her copy's head in the guest's game, and the host and the other guest show it there")
     {
-        INFO("guest's plate at " << guestPlate.Flight.Body.Position.z << ", host drives " << hostPlate.Drives << ", steers "
-             << hostPlate.Steers << ", other guest's drives " << otherPlate.Drives);
+        INFO("guest's lowest " << guestLowest << ", host's " << hostLowest << " (drives " << hostPlate.Drives << "), other guest's " << otherLowest);
+        CHECK(guestLowest >= FakeEngine::kCapsuleTop - 1.f);
         CHECK(hostLowest >= FakeEngine::kCapsuleTop - 1.f);
         CHECK(hostLowest < FakeEngine::kCapsuleTop + 10.f);
-        CHECK(otherPlate.Drives > 0);
         CHECK(otherLowest >= FakeEngine::kCapsuleTop - 1.f);
     }
-    Party::Engine(party.Guest(0)).Grabbed.reset();
-    party.Until([&] { return !hostPlate.Steered && !hostPlate.Held; }, "the host's plate is let go");
+    guest.Grabbed.reset();
+    party.Until([&] { return !hostPlate.Held; }, "the host's plate is let go");
 }
 
 SCENARIO("A guest's player presses a held plate against a host NPC's copy: her copy's capsule keeps it out", "[physics]")

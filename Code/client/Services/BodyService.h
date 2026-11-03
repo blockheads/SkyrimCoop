@@ -55,11 +55,16 @@ struct BodyService
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
     // This game's own physics has the body again (a guest let go of the host's): its playback ends.
     void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
+    // A reference another game's player holds (its frames come as a hold): its holder's alone, so this game's player
+    // may not activate it (pick it up) meanwhile (physics-sync.md, "Exclusive holds").
+    [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }
     // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
     void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
 
 private:
     void OnFrames(const NotifyBodyFrames& acMessage) noexcept;
+    // Held in another game or not (a hold's frames, or any other's, a rest, a forget).
+    void Hold(const BodyKey& acKey, bool aHeld) noexcept;
     void OnRests(const NotifyBodyRests& acMessage) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void Apply() noexcept;
@@ -81,8 +86,9 @@ private:
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests;
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
-    std::set<BodyKey> m_held;      // a player's hold in another game: steered here
+    std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)
+    std::set<uint32_t> m_heldElsewhere;
     std::vector<entt::scoped_connection> m_connections;
     bool m_updateQueued{};
     MainLoopTasks::Scope m_mainTasks;

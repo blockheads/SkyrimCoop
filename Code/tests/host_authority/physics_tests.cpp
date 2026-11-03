@@ -28,17 +28,20 @@ TEST_CASE("Physics: a guest's push pushes the host's body, unless a player holds
     CHECK(session.Pushed.size() == 1);
 }
 
-TEST_CASE("Physics: a guest's player holds a body, the host's game steers its own after the holder's frames", "[HostAuthority][Physics]")
+TEST_CASE("Physics: a guest's player holds a body, its alone: every other game plays the holder's frames", "[HostAuthority][Physics]")
 {
+    // Exclusive ownership (2026-11-02): host-cannot-take-guest-hold, the host's player grabbed the guest's bucket.
     Session session;
     session.Receive(kPeer, Held(1000, 10.f));
     session.Receive(kPeer, Held(1050, 12.5f));
-    THEN("the host's game gets the holder's frames as a hold; the other guests get the host's result instead (HostPhysics)")
+    THEN("the host's game and the other guests get the holder's frames as a hold; the holder gets none back")
     {
-        REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 2);
-        CHECK(session.SentTo<NotifyBodyFrames>(kHost).back()->Held);
-        CHECK(session.SentTo<NotifyBodyFrames>(kHost).back()->Frames[0].Position.x == 12.5f);
-        CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).empty());
+        for (const auto cGame : {kHost, kOtherPeer})
+        {
+            REQUIRE(session.SentTo<NotifyBodyFrames>(cGame).size() == 2);
+            CHECK(session.SentTo<NotifyBodyFrames>(cGame).back()->Held);
+            CHECK(session.SentTo<NotifyBodyFrames>(cGame).back()->Frames[0].Position.x == 12.5f);
+        }
         CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
     }
     THEN("a second guest's hold of it is not taken")
@@ -46,6 +49,7 @@ TEST_CASE("Physics: a guest's player holds a body, the host's game steers its ow
         session.Outbox.clear();
         session.Receive(kOtherPeer, Held(1100, 40.f));
         CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
+        CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
     }
 }
 

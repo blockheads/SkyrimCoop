@@ -154,28 +154,19 @@ glm::vec3 FakeEngine::OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& 
     return at;
 }
 
+bool FakeEngine::TryGrab(const BodyKey& acKey) noexcept
+{
+    const auto it = Bodies.find(acKey);
+    if (it == Bodies.end() || it->second.Held)
+        return false;
+    Grabbed = acKey;
+    return true;
+}
+
 void FakeEngine::HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept
 {
     auto& body = Bodies.at(acKey).Flight.Body;
     body.Position = OutsideCapsules(body.Position, acTo);
-}
-
-bool FakeEngine::Steer(const BodyFrame& acFrame) noexcept
-{
-    const auto it = acFrame.Key.Actor ? Bodies.end() : Bodies.find(acFrame.Key);
-    if (it == Bodies.end())
-        return false;
-    Body& body = it->second;
-    body.Held = false;
-    body.Steered = true;
-    body.Awake = true;
-    body.Flight.Resting = false;
-    body.Flight.Body.Position = OutsideCapsules(body.Flight.Body.Position, acFrame.Position);
-    body.Flight.Body.Rotation = acFrame.Rotation;
-    body.Flight.Body.LinearVelocity = acFrame.LinearVelocity;
-    body.Flight.Body.AngularVelocity = acFrame.AngularVelocity;
-    ++body.Steers;
-    return true;
 }
 
 bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
@@ -221,12 +212,8 @@ bool FakeEngine::Free(const BodyFrame& acFrame) noexcept
         return false;
     Body& body = it->second;
     body.Held = false;
-    // Steered (simulated all along): it goes on from where this game has it.
-    if (!std::exchange(body.Steered, false))
-    {
-        body.Flight.Body = acFrame;
-        body.Flight.Body.Key = {};
-    }
+    body.Flight.Body = acFrame;
+    body.Flight.Body.Key = {};
     Knock(acFrame.Key, acFrame.LinearVelocity, acFrame.AngularVelocity);
     return true;
 }
@@ -239,9 +226,8 @@ constexpr uint64_t kStepMs = 16; // Havok's substeps (fTimePerSubStep)
 // unless it leaves the node behind.
 void StepBody(FakeEngine::Body& aBody, uint64_t aTick)
 {
-    if (!aBody.Tick || aBody.Steered)
+    if (!aBody.Tick)
         aBody.Tick = aTick;
-    // Steered, the holder's frames move it (the steer stands for its physics' steps).
     for (; aBody.Tick + kStepMs <= aTick && !aBody.Flight.Resting; aBody.Tick += kStepMs)
         aBody.Flight.Step(kStepMs / 1000.f);
     if (!aBody.NodeLeftBehind)
@@ -254,14 +240,14 @@ void StepBody(FakeEngine::Body& aBody, uint64_t aTick)
 
 uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
 {
-    return acKey.Actor ? acKey.Actor : FormIdOf(acKey.Object);
+    return acKey.Actor ? acKey.Actor : ::FormIdOf(acKey.Object);
 }
 
 std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
 {
     std::vector<uint32_t> moved;
     for (const auto& [cKey, cBody] : Bodies)
-        if ((cBody.Awake || cBody.Steered) && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
+        if (cBody.Awake && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
             moved.push_back(ReferenceOf(cKey));
     return moved;
 }
@@ -299,7 +285,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             StepBody(body, PhysicsTick);
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
         // 37996).
-        if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && (body.Awake || body.Steered))
+        if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && body.Awake)
         {
             std::copy_n(&body.Flight.Body.Position.x, 3, cActor->second.Position);
             cActor->second.Rotation[2] = HeadingOf(body.Flight.Body.Rotation);
@@ -310,7 +296,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = (body.Awake && !body.Flight.Resting) || body.Steered};
+                      .Dynamic = !body.Held, .Active = body.Awake && !body.Flight.Resting};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);

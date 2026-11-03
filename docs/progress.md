@@ -26,9 +26,9 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
    Why: open-loop actions silently miss their intent (the carry step in `guest-holds-into-npc` sometimes drops the
    bucket). Audit and plan: `docs/design/checked-actions.md`; notes: `docs/research/sync-and-testing-references.md`.
-2. **Exclusive object ownership**, after Fiedler (memory decision 2026-11-02). It is not built: today a held object
-   is its holder's, but the host still steers a guest's hold with its own physics ("Steered holds") and nothing
-   refuses a second grab.
+2. **Exclusive object ownership**, after Fiedler (memory decision 2026-11-02). **Holds built 2026-11-02**
+   (`physics-sync.md`, "Exclusive holds"): every other game plays a holder's frames keyframed, so nobody else grabs
+   or pushes it. Left: refusing a second holder who grabs within the same round trip, and the bullets below.
    - Grabbing claims the object from the host, which accepts or refuses; a refused grab drops it.
    - Owner and authority each carry a sequence number.
    - Every other game plays the holder's frames, so nobody else can grab or push it.
@@ -38,7 +38,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
      (`guest-drops-item-stays`, 2 of 5).
 3. **The handoff's red flags:** the action clock, unreliable movement, the tick clamp, the cost of
    `SaveAnimationGraphState`, and one rest path. Then cleanup and explainer docs.
-4. **Open bugs found 2026-11-02**, failing the same with the old copy placement:
+4. **Open bugs found 2026-11-02**:
+   - `guest-throw-lands-on-host` fails 2 of 3 at its grab (1 of 3 without exclusive holds too): on each Activate press
+     by the guest, the host's ladle wakes 50 to 140 ms later with no push logged. It's sent to the guest, whose copy turns
+     keyframed, and the engine's grab refuses it if those frames come first. What wakes the host's ladle is not known.
+   Failing the same with the old copy placement:
    - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
    - `knockdown-lies-as-host`: the copy turns away for about 0.3 s at its get-up (1 in 2 runs).
 5. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):

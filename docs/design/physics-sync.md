@@ -14,7 +14,7 @@ player's ragdoll, reaches nobody, and a copy takes ragdoll frames only once its 
 
 ```text
 who owns a body
-  a reference (world object)     the host; while a guest's player holds it, that guest
+  a reference (world object)     the host; while a player holds it, that player's game alone (Exclusive holds)
   an actor's ragdoll             the actor's owner (HostCharacters): the host's NPCs and player the host,
                                  a guest's player its game
 
@@ -182,7 +182,37 @@ host game: a held body is simulated and steered, so awake: HostPhysics sends it 
   leaves or goes silent for 2 s drops it
 ```
 
-### Steered holds (2026-11-01)
+### Exclusive holds (2026-11-02, replaces "Steered holds" below)
+
+An object is its mover's alone (memory `sync-model-decisions`), after Fiedler's ownership
+(`docs/research/sync-and-testing-references.md`). Under Steered holds the host's game simulated a guest's held body,
+so the host's player could grab it out of the guest's hands (`host-cannot-take-guest-hold`: at frame 14).
+
+```
+guest holds a body -> BodyFramesRequest (as before)
+  HostHands: the first holder keeps it; its frames (Held) to every other game, the host's too (were: the host's only)
+  each other game's BodyService: Drive, keyframed on the holder's frames (were: the host Steer-ed it, simulated)
+    -> the engine's grab refuses a keyframed body, so nobody else grabs it; pushes skip a held body (as before)
+    -> the holder's own game decides where it goes: its copies step and stop it (actor-movement.md, "Copies step")
+  let go: BodyReleaseRequest -> the host simulates it from the last frame (BodyBridge::Free), as before
+```
+
+- **What decides now:** the holder's own physics, as the decision intends. Part A made that safe: a guest's copy of
+  Lydia stops the bucket in the guest's game (`guest-holds-into-npc`), where before only the host's steer did.
+- **Removed:** `IBodyBridge::Steer` and its bridge and fake implementations.
+- **Tests:**
+  - scenarios `host-cannot-take-guest-hold` and `guest-cannot-take-host-hold` (checked actions: the taker holds
+    Activate 3 s and must hold nothing, the holder must keep it);
+  - GameTests "A guest's player holds the plate: the host's player cannot grab it, nor can another guest's" (the
+    fake's `TryGrab` refuses a keyframed body), and the carry and head flows rewritten for keyframed holds;
+  - HostAuthorityTests "a guest's player holds a body, its alone".
+- **Not built:**
+  - A refused second holder. Two players grabbing within one round trip both hold it locally. The host keeps the
+    first, and the second keeps its own until it lets go, while the first's frames reach it.
+  - Fiedler's authority chain: bodies a held or thrown body knocks stay the host's.
+  - Sequence numbers: the host's tick ordering and `m_released` already drop stale frames and releases.
+
+### Steered holds (2026-11-01, replaced 2026-11-02)
 
 S1 of `playtests/2026-10-31-fabien.md`: a guest's held object went through people's heads on the host. The host
 keyframed its body onto the holder's frames (`SetPositionAndRotation` each frame), and a keyframed body moved so

@@ -19,6 +19,11 @@ void BodyBridge::SetReferences(std::function<uint32_t(const GameId& acId)> aForm
     m_formIdOf = std::move(aFormIdOf);
 }
 
+uint32_t BodyBridge::ReferenceFormId(const BodyKey& acKey) const noexcept
+{
+    return acKey.Actor || !m_formIdOf ? 0 : m_formIdOf(acKey.Object);
+}
+
 bool BodyBridge::KnockedDown(Actor& aCopy, bool aKnock) noexcept
 {
     const uint8_t cState = aCopy.actorState.GetKnockState();
@@ -120,28 +125,6 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     return true;
 }
 
-bool BodyBridge::Steer(const BodyFrame& acFrame) noexcept
-{
-    const Found cFound = acFrame.Key.Actor ? Found{} : Find(acFrame.Key, 0, false);
-    if (!cFound.pBody || !cFound.pCollision)
-        return false;
-    // Held keyframed by an earlier owner's frames: simulated again first.
-    if (const auto it = m_motions.find(acFrame.Key); it != m_motions.end())
-    {
-        if (!::FreeBody(*cFound.pCollision, static_cast<hkpRigidBody::MotionType>(it->second), {}, {}))
-            return false;
-        m_motions.erase(it);
-    }
-    BodyRead read;
-    if (!ReadBody(*cFound.pBody, read) || !read.Dynamic)
-        return false;
-    m_steered.insert(acFrame.Key);
-    if (glm::distance(read.Position, acFrame.Position) > kSteerFar)
-        return PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity, true);
-    const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame);
-    return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
-}
-
 bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 {
     const Found cFound = Find(acPose.Key, aCopyFormId, false);
@@ -177,13 +160,6 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 bool BodyBridge::Free(const BodyFrame& acFrame) noexcept
 {
     const Found cFound = Find(acFrame.Key, 0, false);
-    // Steered here: simulated all along, where this game's physics put it.
-    if (m_steered.erase(acFrame.Key) && !m_motions.contains(acFrame.Key))
-    {
-        BodyRead read;
-        return cFound.pBody && ReadBody(*cFound.pBody, read) && read.Dynamic &&
-               SteerBody(*cFound.pBody, acFrame.LinearVelocity, acFrame.AngularVelocity);
-    }
     // The reliable release may be the first frame heard of this hold.
     RememberMotion(acFrame.Key, cFound);
     const auto it = m_motions.find(acFrame.Key);

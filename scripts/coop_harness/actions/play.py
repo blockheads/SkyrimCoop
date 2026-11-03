@@ -1,6 +1,7 @@
 """Checked actions (docs/design/checked-actions.md): the player acts frame by frame inside the game, which checks
 the action's conditions every frame and reports how it ended. The verbs scenarios and the MCP layer play with."""
 import bisect
+import math
 import time
 
 from ..utilities import log
@@ -71,6 +72,11 @@ class PlayActions:
         if i and abs(times[i - 1] - wall_ms) < abs(times[i] - wall_ms):
             i -= 1
         return rows[i][1 + column]
+
+    def bearing_of(ctx, instance, target):
+        """Which side of `target` that game's player stands on (degrees, 0 north, 90 east), as `place_before` takes it."""
+        me, at = ctx.my_position(instance), ctx.body_of(instance, target)["position"]
+        return math.degrees(math.atan2(me[0] - at[0], me[1] - at[1])) % 360
 
     # --- Verbs ---
 

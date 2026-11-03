@@ -80,9 +80,9 @@ def scenario_guest_bump_moves_host(ctx):
 def scenario_guest_throw_lands_on_host(ctx):
     """Physics sync's step 6 (docs/design/physics-sync.md, "A guest's own actions"): the client's player grabs a
     ladle (Activate held past fZKeyDelay; it stays held after the release), carries it and drops it (Activate again).
-    While it holds it, the host's ladle is steered after the client's hold (simulated: the host's physics meets its
-    actors); dropped, it flies on from where the host has it, and the client's own fall shows until the host's ladle
-    rests, then lies as the host's."""
+    While it holds it, the ladle is the client's alone: the host's is keyframed on the client's hold (its grab refuses
+    it: physics-sync.md, "Exclusive holds"); dropped, it flies on from where the host has it, and the client's own fall
+    shows until the host's ladle rests, then lies as the host's."""
     refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
     target = ctx.pick_reference(refs, "MISC", 0, ctx.resting_clutter_on_both(refs, guest_refs))
     start = first_body(refs[target])["position"]
@@ -116,9 +116,9 @@ def scenario_guest_throw_lands_on_host(ctx):
             ctx.release("client", way)
         def follows_hold():
             host, guest = ctx.body_of("", target), ctx.body_of("client", target)
-            return (host["motion"] in DYNAMIC_MOTIONS and not near(host["position"], start, 20)
+            return (host["motion"] not in DYNAMIC_MOTIONS and not near(host["position"], start, 20)
                     and near(host["position"], guest["position"], 10))
-        ctx.wait_for(f"[host] {target:X} follows the client's hold, simulated (steered)", follows_hold, 5)
+        ctx.wait_for(f"[host] {target:X} follows the client's hold, keyframed", follows_hold, 5)
         held_at = ctx.body_of("client", target)["position"]
     finally:
         if ctx.local_player("client").get("grabbed"):
@@ -570,6 +570,49 @@ def scenario_host_drops_item_stays(ctx):
 def scenario_guest_drops_item_stays(ctx):
     """The client's player drops a sword: the host shows it resting where the client's rests."""
     drops_and_watches(ctx, "client")
+
+
+def cannot_take_hold(ctx, holder):
+    """`holder`'s player grabs a bucket and holds it up; the other player stands by it, looks at it and holds
+    Activate. An object is its mover's alone (2026-11-02 decision): the other's grab is refused, the holder still holds
+    it, and both games show it in the holder's hands."""
+    taker = "client" if holder == "" else ""
+    ids = spawn_shared_bucket(ctx)
+    try:
+        mine, theirs = ids[holder], ids[taker]
+        ctx.place_before(holder, mine, 90)
+        ctx.face(holder, mine)
+        ctx.grab(holder, mine)
+        ctx.turn_to(holder, pitch=-10, rate=30, keep=[{"holding": mine}], name="lifts the bucket")
+        # The taker stands beside the bucket, 90 degrees round from the holder, and looks at it.
+        ctx.place_before(taker, theirs, 80, bearing=(ctx.bearing_of(holder, mine) + 90) % 360)
+        ctx.turn_to(taker, face=theirs, rate=60, name="looks at the held bucket")
+        both = ctx.act_both({
+            holder: {"name": "keeps holding it", "until": [{"for": 3}], "keep": [{"holding": mine}], "seconds": 4,
+                     "allow_menus": True},
+            taker: {"name": "tries to grab it", "ready": ["takes_input"], "buttons": ["activate"],
+                    "until": [{"for": 3}], "keep": [{"holding": 0}], "seconds": 4}}, expect=None)
+        for game, outcome in both.items():
+            if outcome["status"] != "done":
+                raise ctx.failure(f"[{game or 'host'}] the bucket {holder or 'host'} holds is not its alone: "
+                                  f"{outcome['status']}, {outcome.get('reason')}")
+    finally:
+        for game in ("", "client"):
+            if ctx.local_player(game).get("grabbed"):
+                ctx.tap(game, "activate")
+        ctx.console_on(holder, "player.setangle x 0")
+        ctx.console_on("", f"{ids['']:X}.disable")
+        ctx.console_on("", f"{ids['']:X}.markfordelete")
+
+
+def scenario_host_cannot_take_guest_hold(ctx):
+    """The client's player holds a bucket: the host's player cannot grab it from its hands."""
+    cannot_take_hold(ctx, "client")
+
+
+def scenario_guest_cannot_take_host_hold(ctx):
+    """The host's player holds a bucket: the client's player cannot grab it from its hands."""
+    cannot_take_hold(ctx, "")
 
 WIDE_BUCKET = "00012FDF"  # the bucket that stays on a head upside down (000747FB and the iron pot roll off)
 

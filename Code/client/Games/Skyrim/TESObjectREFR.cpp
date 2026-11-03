@@ -14,6 +14,7 @@
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
+#include <Services/BodyService.h>
 #include <Services/PapyrusService.h>
 #include <Events/ActivateEvent.h>
 #include <Games/Skyrim/Papyrus/GuestScripts.h>
@@ -1058,6 +1059,10 @@ bool HookPlayAnimation(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf,
 
 bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing)
 {
+    // Another game's player holds it: its holder's alone, this game's player may not take it (Exclusive holds).
+    if (apActivator && apActivator == PlayerCharacter::Get())
+        if (const auto* pBodies = World::Get().ctx().find<BodyService>(); pBodies && pBodies->HeldElsewhere(apThis->formID))
+            return false;
     Actor* pActivator = Cast<Actor>(apActivator);
     const bool cIsDoor = apThis->baseForm->formType == FormType::Door;
 

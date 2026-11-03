@@ -12,13 +12,10 @@ struct bhkNiCollisionObject;
 class BodyBridge final : public IBodyBridge
 {
 public:
-    // A steered body this far from its frame is put there (a teleport, a hold through a wall in the holder's game).
-    static constexpr float kSteerFar = 64.f;
-
     void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept override;
     [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
-    bool Steer(const BodyFrame& acFrame) noexcept override;
+    [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     bool Free(const BodyFrame& acFrame) noexcept override;
     bool Push(const BodyPush& acPush) noexcept override;
@@ -46,7 +43,6 @@ private:
 
     std::function<uint32_t(const GameId& acId)> m_formIdOf;
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type
-    std::set<BodyKey> m_steered;          // the reference bodies steered here (another game's player holds them)
     std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
     std::map<uint32_t, bool> m_knocked;   // living copies knocked down with their owners: lying yet
 };

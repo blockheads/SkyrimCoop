@@ -62,10 +62,9 @@ void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSende
     // A ragdoll: every other game sees it as its owner's game does, the host's too.
     if (!ragdolls.Frames.empty())
         m_players.SendToOthers(ragdolls, aSender, Net::kUnreliable);
-    // A hold: the host's game steers its own body; the others get the host's result (HostPhysics).
+    // A hold: the holder's alone (2026-11-02), so every other game, the host's too, plays its frames keyframed.
     if (!held.Frames.empty())
-        if (const ConnectionId_t cHost = m_players.Host(); cHost && cHost != aSender)
-            m_players.SendTo(cHost, held);
+        m_players.SendToOthers(held, aSender, Net::kUnreliable);
 }
 
 bool HostHands::TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_t aSender) noexcept
