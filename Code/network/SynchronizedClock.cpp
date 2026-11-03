@@ -40,6 +40,7 @@ namespace Net
             m_previousSimulatedTick = std::chrono::milliseconds(m_simulatedTick);
             const auto estimatedServerTime = std::chrono::milliseconds(m_lastServerTick) + std::chrono::milliseconds(tripTime);
             m_tickDelta = estimatedServerTime - m_previousSimulatedTick;
+            m_syncs[m_syncCount++ % m_syncs.size()] = {aServerTick, aPing, std::chrono::duration_cast<std::chrono::milliseconds>(m_tickDelta).count()};
         }
         else
         {
@@ -47,6 +48,15 @@ namespace Net
             m_simulatedTick = std::chrono::duration_cast<std::chrono::milliseconds>(m_previousSimulatedTick).count();
             m_tickDelta = 0ns;
         }
+    }
+
+    std::vector<SynchronizedClock::Sync> SynchronizedClock::Syncs() const noexcept
+    {
+        std::vector<Sync> syncs;
+        const size_t cKept = std::min(m_syncCount, m_syncs.size());
+        for (size_t i = m_syncCount - cKept; i < m_syncCount; ++i)
+            syncs.push_back(m_syncs[i % m_syncs.size()]);
+        return syncs;
     }
 
     void SynchronizedClock::Reset() noexcept

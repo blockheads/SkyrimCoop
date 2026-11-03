@@ -5,6 +5,8 @@
 #include "EngineCalls.h"
 #include "Harness.h"
 #include "Status.h"
+#include <Games/Skyrim/Main.h>
+#include <Diagnostics/Counters.h>
 
 #include <World.h>
 #include <Diagnostics/LogRing.h>
@@ -20,6 +22,49 @@ namespace TestHarness
 {
 namespace
 {
+// {"cmd": "counters", "reset": false}: the named counters (Diagnostics/Counters.h); reset zeroes them after reading.
+nlohmann::json CountersCommand(Harness&, const nlohmann::json& acRequest)
+{
+    nlohmann::json counters = CounterStatus();
+    if (acRequest.value("reset", false))
+        Diagnostics::Counters::Reset();
+    return {{"ok", true}, {"counters", counters}};
+}
+
+// {"cmd": "world_clock"}: the repro freeze's state: frozen, steps left, world updates counted (FrameStepper).
+nlohmann::json WorldClock(Harness& aHarness, const nlohmann::json&)
+{
+    const auto& cStepper = aHarness.Stepper;
+    return {{"ok", true}, {"frozen", cStepper.Frozen()}, {"steps_left", cStepper.StepsLeft()}, {"world_frames", cStepper.WorldFrames()}};
+}
+
+// {"cmd": "world_freeze", "frozen": true}: stops the world's update in this game (Main::freezeTime); false lets it run.
+nlohmann::json WorldFreeze(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    Main* pMain = Main::Get();
+    if (!pMain)
+        return Error("no Main");
+    const bool cFrozen = acRequest.value("frozen", true);
+    aHarness.Stepper.Freeze(cFrozen);
+    pMain->freezeTime = cFrozen;
+    return WorldClock(aHarness, acRequest);
+}
+
+// {"cmd": "step", "frames": n}: in a frozen world, lets n more world updates run, then freezes again.
+nlohmann::json Step(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    if (!aHarness.Stepper.Frozen())
+        return Error("the world is not frozen (world_freeze first)");
+    aHarness.Stepper.Step(acRequest.value("frames", 1u));
+    return WorldClock(aHarness, acRequest);
+}
+
+// {"cmd": "path_request", "target": id}: whether the engine builds a path request from the player to it.
+nlohmann::json PathRequest(Harness&, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"request", EngineCalls::PlayerPathRequest(acRequest.value("target", 0u), acRequest.value("speed", 0.5f))}};
+}
+
 // The native combat group's candidate set, separate from the current selected target.
 nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
 {
@@ -1019,6 +1064,11 @@ nlohmann::json PapyrusResult(Harness&, const nlohmann::json& acRequest)
 constexpr Command cCommands[] = {
     {"combat_targets", true, &ReadCombat},
     {"status", false, &GetStatus},
+    {"world_clock", false, &WorldClock},
+    {"counters", false, &CountersCommand},
+    {"world_freeze", true, &WorldFreeze},
+    {"step", true, &Step},
+    {"path_request", true, &PathRequest},
     {"camera", true, &Camera},
     {"screen", true, &Screen},
     {"papyrus_call", true, &PapyrusCall},

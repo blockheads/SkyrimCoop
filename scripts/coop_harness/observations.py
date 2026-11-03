@@ -133,9 +133,15 @@ class Observations:
             return time.monotonic() - seen["since"] >= 0.5
         return written
 
-    def save_both(ctx, name, noise_seconds, save_diff):
-        """Both games saved as `name`, and with `noise_seconds` the host's noise (save_diff.noise_from)."""
+    def save_both(ctx, name, noise_seconds, save_diff, guest_leaves=False):
+        """Both games saved as `name`, and with `noise_seconds` the host's noise (save_diff.noise_from). A guest in a
+        session saves nothing (SaveService): with guest_leaves it leaves first and saves its world as it left it."""
         _game = ctx.game()
+        if ctx.game_state("client").get("online"):
+            if not guest_leaves:
+                raise ctx.failure("[client] a guest saves nothing in a session (SaveService): leave first to compare saves")
+            ctx.player_command("client", {"cmd": "disconnect"})
+            ctx.wait_for("[client] left the session, to save its world", lambda: not ctx.game_state("client").get("online"), 15)
         host, client = ctx.save_game("", name), ctx.save_game("client", name)
         ctx.wait_for("both saves written", ctx.saves_written(host, client), 60)
         noise = None

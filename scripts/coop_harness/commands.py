@@ -81,12 +81,18 @@ class Commands:
             for name in ("", "client"):
                 _game = ctx.game(name)
                 log(f"--- {name or 'host'} ---")
-                ctx.launch(args, run_dir, _game=_game)
+                # From a save, the guest waits at the main menu and joins with the host's world, as a friend does:
+                # a save it loaded itself would be its own world, which it hosts (SteamService::HostWorld).
+                launch_args = argparse.Namespace(**{**vars(args), "main_menu": True}) if args.save and name else args
+                ctx.launch(launch_args, run_dir, _game=_game)
             _game = ctx.game('')
             port = ctx.start_session("", _game=_game)["port"]
             log(f"Host is hosting on port {port}")
             _game = ctx.game('client')
-            ctx.start_session(f"join {port}", _game=_game)
+            if args.save:
+                ctx.joins_with_world("joins the late save's session", make_character=True)
+            else:
+                ctx.start_session(f"join {port}", _game=_game)
             log("Client joined the host")
             # Test players never run low on magicka: the "Magicka Low" help popup blocks all input
             # (bShowTutorials does not suppress it).
@@ -289,7 +295,7 @@ class Commands:
             compare("guest rejoins")
 
         # The whole world at the end: every quest and global that differs, from both games' saves.
-        host_path, client_path, _ = ctx.save_both(f"questwalk-{args.quest}", 0, save_diff)
+        host_path, client_path, _ = ctx.save_both(f"questwalk-{args.quest}", 0, save_diff, guest_leaves=True)
         host_save, client_save = save_diff.Save(host_path), save_diff.Save(client_path)
         report = save_diff.compare(host_save, client_save, None, names)
         quests = [f for f in report["forms"] if f["type"] == "QUST"]

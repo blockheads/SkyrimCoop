@@ -193,7 +193,7 @@ guest's bucket never fell below the host's held one".
 | 4 | **Migrate the open-loop sites**: the 30 `time.sleep`, the `setangle` turns in scenarios (22) and actions (12), and the timed `press`/`release` pairs. The physics scenarios first (`drags_into_npc`, `bucket_on_npc_head`, `sets_down_and_watches`), then movement and combat. Other `console_on` staging stays: it's setup, not play. | ~60 sites |
 | 5 | Scene control: an input lock during a scenario, `freeze` for named actors as an action option, stat normalization in the baseline. | small |
 | 6 | Python matchers (`near`, `within`, `elements`) where failure strings repeat. A naming convention for playtest regressions. | small |
-| 7 | Then the MCP server: tools are `act` presets plus observe (`around`, `compare`, readouts) and stage (spawn, place), with handles and a recorder that writes `ctx.act` calls into a scenario. | later |
+| 7 | Then the MCP server: tools are `act` presets plus observe (`around`, `compare`, readouts) and stage (spawn, place), with handles and a recorder that writes `ctx.act` calls into a scenario. | built 2026-11-02: [repro-mcp.md](repro-mcp.md) |
 
 **What stays:** `run_flow`'s phases and oracles, the baseline, the evidence, the traces, `place_before`, the
 registry, GameTests below.

@@ -104,7 +104,8 @@ class InputActions:
         screen, the console or a kill cam (the player's killing blow, by chance) swallow a player's buttons."""
         _game = ctx.game(instance)
         status = _game.read_status() or {}
-        return not set(status.get("menus") or []) - {"HUD Menu"} and not status.get("kill_cam")
+        # LoadWaitSpinner can stay listed after a coc with nothing on screen, and keys still move the player.
+        return not set(status.get("menus") or []) - {"HUD Menu", "LoadWaitSpinner"} and not status.get("kill_cam")
 
 
     def press(ctx, instance, button):

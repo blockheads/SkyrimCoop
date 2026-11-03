@@ -273,6 +273,17 @@ void PlayerActivates(uint32_t aObjectFormId) noexcept
         (s_activate.Get())(pObject, PlayerCharacter::Get(), 0, nullptr, 1, 0);
 }
 
+int64_t PlayerPathRequest(uint32_t aTargetFormId, float aSpeed) noexcept
+{
+    // PathToReference's first step: a path request from the player to the reference; -1 when none is built.
+    using TPathRequest = uint32_t(Actor*, TESObjectREFR*, float);
+    POINTER_SKYRIMSE(TPathRequest, s_pathRequest, 37893);
+    auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
+    if (!pTarget)
+        return -2;
+    return static_cast<int32_t>((s_pathRequest.Get())(PlayerCharacter::Get(), pTarget, aSpeed));
+}
+
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
 {
     // As the player's lockpick or key does: its own change (ScopedPlayerLockOverride).

@@ -3,13 +3,47 @@
 #include "Harness.h"
 #include "Session.h"
 
+#include <Diagnostics/Counters.h>
 #include <Diagnostics/Snapshot.h>
 #include <World.h>
+#include <Services/HostService.h>
+#include <Services/Host/HostNetwork.h>
 #include <Bridges/IActorBridge.h>
 #include <Components.h>
 
 namespace TestHarness
 {
+// The named counters (Diagnostics/Counters.h): {name: {count, sum, max}}.
+nlohmann::json CounterStatus()
+{
+    nlohmann::json counters = nlohmann::json::object();
+    for (const auto& cReading : Diagnostics::Counters::Read())
+        counters[cReading.Name] = {{"count", cReading.Count}, {"sum", cReading.Sum}, {"max", cReading.Max}};
+    return counters;
+}
+
+// The line's readouts: the session time, and the host's round trips per connection or a guest's ping and clock syncs.
+nlohmann::json NetworkStatus()
+{
+    auto& world = World::Get();
+    const auto& cTransport = world.GetTransport();
+    nlohmann::json network = {{"tick", cTransport.GetTick()}};
+    if (const HostNetwork* pHost = world.GetHostService().GetNetwork())
+    {
+        nlohmann::json rtts = nlohmann::json::object();
+        for (const auto& [cId, cRtt] : pHost->RoundTripTimes())
+            rtts[std::to_string(cId)] = cRtt;
+        network["round_trips"] = rtts;
+        return network;
+    }
+    network["round_trip"] = cTransport.GetRoundTripTime();
+    nlohmann::json syncs = nlohmann::json::array();
+    for (const auto& cSync : cTransport.GetClock().Syncs())
+        syncs.push_back({{"server_tick", cSync.ServerTick}, {"ping", cSync.Ping}, {"correction_ms", cSync.CorrectionMs}});
+    network["syncs"] = syncs;
+    return network;
+}
+
 nlohmann::json ReloadStatus()
 {
     const HMODULE cLoader = GetModuleHandleW(L"SkyrimCoopLoader.dll");
@@ -107,6 +141,8 @@ nlohmann::json BuildStatus(const Harness& acHarness)
             {"lock_order", Diagnostics::LockOrderStatus()},
             {"reload", ReloadStatus()},
             {"frames", Diagnostics::FrameStatus()},
+            {"counters", CounterStatus()},
+            {"network", NetworkStatus()},
             {"steam", Diagnostics::SteamStatus()}};
 }
 } // namespace TestHarness

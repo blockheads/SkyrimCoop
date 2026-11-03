@@ -34,3 +34,23 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
   bytes; compare with SKSE's field comments and CommonLib `RE/N/NativeFunctionBase.h`.
 - The bound function targets the script `SkyrimTogetherVerifyLaunchScript` from the mod's data files
   (`GameFiles/`). Without it installed the VM cannot attach it.
+
+## Freezing the world: `Main::freezeTime` (2026-11-02, 1.7.104)
+
+`Main` (singleton 403449, `Games/Skyrim/Main.h`) has `freezeTime` at 0x16 and `freezeNextFrame` at 0x17 (CommonLibSSE
+`RE::Main`). `Main::Update` (36564, 0x140658870 in 1.7.104) tests `freezeTime` next to the menu-mode flag (UI +352,
+`numPausesGame`) at five places, and skips together what a pausing menu skips:
+
+- the world root's update, `Calendar::Update`, `BGSImpactManager`;
+- the sky cell's update;
+- the player's update (`TES::sub_13288` with the player);
+- `ProcessLists` (every actor's process and AI), `Projectile`, `TES::sub_13292`;
+- one more call just before the VM update.
+
+`SkyrimVM`'s update still runs, and our update with it (HookVMUpdate), so the network and the harness keep going.
+PhotoMode (`reference/plugins/PhotoMode`) toggles the same flag.
+
+The repro harness's `world_freeze` sets it, and `step` clears it for N frames (`TestHarness/FrameStepper.h`). Our
+update runs after the frame's world update, so clearing it there lets exactly the next frame run. On the duo: frozen,
+both games' world-frame counts stop, game time stays put and the guest stays connected; `step(10)` moves both by
+exactly 10. Not yet checked: whether Havok's step is among the skipped work (a body in the air while frozen).

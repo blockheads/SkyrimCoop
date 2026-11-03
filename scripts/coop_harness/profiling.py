@@ -86,7 +86,8 @@ class Profiling:
         pid = ctx.game_process(game.name)
         return {"time": time.monotonic(), "perf": response["perf"], "frames": (status.get("frames") or {}).get("frames", 0),
                 "stalls": (status.get("frames") or {}).get("stalls", 0), "cpu": ctx.process_cpu_seconds(pid),
-                "memory": ctx.process_memory(pid), "line": status.get("line") or {}}
+                "memory": ctx.process_memory(pid), "line": status.get("line") or {}, "counters": status.get("counters") or {},
+                "network": status.get("network") or {}}
 
     def add_fight_load(ctx, wolves):
         """A fight that loads both games: god mode for both players, wolves at the host's."""
@@ -125,6 +126,8 @@ class Profiling:
                 if not response.get("ok"):
                     raise ctx.failure(f"[{game.name or 'host'}] sampling refused: {response.get('error', 'no answer')}")
                 samples[game.name] = response["run"]
+        for game in games:  # the window's own counts and maxima (Diagnostics/Counters.h)
+            game.rpc({"cmd": "counters", "reset": True})
         before = {game.name: ctx.perf_sample(game) for game in games}
         log(f"Profiling {', '.join(game.name or 'host' for game in games)} for {args.seconds:.0f}s")
 
@@ -354,6 +357,16 @@ class Profiling:
                 lines += ["", f"Hooks and bridge calls: {sum(rate for rate, _ in rates):,.0f}/s in all", "",
                           "| call | /s |", "|---|---|"]
                 lines += [f"| {hook} | {rate:,.0f} |" for rate, hook in rates[:12] if rate > 0]
+            if counters := last.get("counters"):
+                lines += ["", "Counters (Diagnostics/Counters.h, this window)", "", "| counter | count | /s | mean | max |", "|---|---|---|---|---|"]
+                lines += [f"| {name} | {c['count']} | {c['count'] / seconds:.1f} | {c['sum'] / c['count'] if c['count'] else 0:.1f} | {c['max']} |"
+                          for name, c in sorted(counters.items()) if c["count"]]
+            if network := last.get("network"):
+                trips = network.get("round_trips") or ({"host": network["round_trip"]} if "round_trip" in network else {})
+                lines += ["", f"- round trips (ms): {', '.join(f'{k} {v}' for k, v in trips.items()) or 'none'}"]
+                if syncs := network.get("syncs"):
+                    shown = [f"ping {sync['ping']} -> {sync['correction_ms']:+d} ms" for sync in syncs[-4:]]
+                    lines += [f"- clock syncs: {', '.join(shown)}"]
             if game.name in zones:
                 ranked = sorted(zones[game.name].items(), key=lambda item: -item[1].get("total_ms", 0))
                 lines += ["", "Our zones (Tracy)", "", "| zone | calls | total ms | self ms | mean us | max us |",

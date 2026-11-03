@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "skyrim-coop": {
+      "command": "python3",
+      "args": ["scripts/coop_mcp.py"]
+    }
+  }
+}

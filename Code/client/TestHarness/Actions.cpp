@@ -25,10 +25,11 @@ double Since(std::chrono::steady_clock::time_point aStart) noexcept
 }
 
 // No menu but the HUD, no kill cam: a fade, a loading screen or the console swallows a player's input.
+// LoadWaitSpinner can stay open after a coc while keys still move the player (docs/design/repro-mcp.md).
 bool TakesInput() noexcept
 {
     for (const auto& cMenu : GetOpenMenus())
-        if (cMenu != "HUD Menu")
+        if (cMenu != "HUD Menu" && cMenu != "LoadWaitSpinner")
             return false;
     return !IsKillCamPlaying();
 }

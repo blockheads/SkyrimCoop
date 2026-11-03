@@ -1,6 +1,9 @@
 #pragma once
 
+#include <array>
+#include <chrono>
 #include <cstdint>
+#include <vector>
 
 namespace Net
 {
@@ -13,7 +16,19 @@ namespace Net
         void Reset() noexcept;
         void Update() noexcept;
 
+        // A sync as it was taken: the host's time sent, the ping it was read with, the correction it asked for.
+        struct Sync
+        {
+            uint64_t ServerTick;
+            uint32_t Ping;
+            int64_t CorrectionMs;
+        };
+        // The last few syncs, oldest first (the status's network readout).
+        [[nodiscard]] std::vector<Sync> Syncs() const noexcept;
+
     private:
+        std::array<Sync, 8> m_syncs{};
+        size_t m_syncCount{};
 
         uint64_t m_lastServerTick;
         uint64_t m_simulatedTick;

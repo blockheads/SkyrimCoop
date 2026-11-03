@@ -79,6 +79,26 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-02: the repro MCP (uncommitted, [repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
+session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
+`TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and
+`record_export` writing the session as a scenario (`scenarios/recorded/`) or a shared spec. Python units
+(`test_coop_harness.Repro`), ClientTests `[frame-stepper]`. Phase 2: named counters (`Diagnostics/Counters.h`, in
+status and `profile`), round trips and clock syncs in status, press timing against the vanilla stand-in. Phase 3:
+`walk_to` along the navmesh (AI-driven player, `PathToReference` in legs), `talk_to`, `pick`, `menu`, `travel`,
+`quest_walk` (the late-save duo boots and connects again). A quest played by the verbs on a late save ("A Lovely
+Letter": walk to Faendal, talk, three picks, stage 10 in both games) records and exports with its save
+(`needs_save`) and replays. Open: the guest's engine refuses paths to NPC copies it spawned (`walk_to` walks straight
+then); on `LateAfterDragonslayerBackinSkyrim` the summit's dragons (Paarthurnax, Odahviing, two more) are registered by
+neither game (session id -1 in both): they stand in an exterior cell the engine made at load (`FF000A15`, no plugin
+record), and `BuildAnnouncement` (and `ReadWhereabouts`) dropped an actor whose cell has no session id. Fixed
+(2026-11-03): outdoors such a cell goes as none (`ToSessionCell`, FormIds.h) and the copy is placed by worldspace and
+position (`TravelService::CellAt`); ClientTests `[FormIds]`, GameTests "The host's NPC in an exterior cell the engine
+made gets a copy on the guest" (failed before). On the duo the dragons now have session ids and copies. The runner's
+baseline check there then stops on two newer differences, open: Odahviing's copy is level 1 against the host's 20
+(NPC copies don't take their owner's level), and his copy trails him in flight by ~300 units (interpolation delay at
+flight speed against the walkers' tolerance).
+
 2026-11-02: one writer for a loaded body's rest, and a guest's movement sent unreliably (red flags 4 and 5): a live move row no longer places a body the host's body rest already placed (a script's move still
 does); `ReferencesMoveRequest` goes unreliably unless it carries actions or a teleport, as the host relays it (body
 frames stay reliable). GameTests "A loaded body takes its rest ..." and "Over a lossy line a guest's player reaches
@@ -1533,6 +1553,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Fixed 2026-11-02 (below): a duo booted from a late save never connects.** The guest loaded the save itself, a world
+  of its own, which it hosts (`SteamService::HostWorld`); `duo --save` now boots it to the main menu and it joins
+  with the host's world, making a character in the creator a late save's first join opens. Was:
 - **Open 2026-10-27: a duo booted from a late save never connects** (`duo --save LateAfterElderKnowledge`, twice):
   both games load it, the client joins, and neither shows the other in 30 s; the client's log shows it creating a host
   of its own ("port 10578 is in use, trying 10579"). The late-save scenarios (`--tag late-save`:

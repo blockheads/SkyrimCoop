@@ -7,7 +7,7 @@ target("HostAuthorityTests")
     set_pcxxheader("Pch.h")
     -- Conversation and aggro bind the host's game; GameTests covers their engine reads.
     add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
-              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/ReportPaths.cpp",
+              "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp")
     add_includedirs(".", "../../client")
     add_deps("SkyrimEncoding", "Network", "CommonLib")

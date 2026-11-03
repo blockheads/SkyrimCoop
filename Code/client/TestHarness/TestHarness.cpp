@@ -3,6 +3,8 @@
 #include "Commands.h"
 #include "EngineCalls.h"
 #include "Status.h"
+#include <Diagnostics/EngineReads.h>
+#include <Games/Skyrim/Main.h>
 
 namespace TestHarness
 {
@@ -49,6 +51,15 @@ void Poll()
     harness.Inputs.Poll();
     harness.Commands.Poll();
     harness.Events.Poll();
+
+    // A repro's frozen world: this frame's world update ran or not, and whether the next one runs.
+    if (Main* pMain = Main::Get())
+    {
+        const bool cRan = !pMain->freezeTime && !Diagnostics::EngineReads::GetMenuPauseCount();
+        const bool cFreeze = harness.Stepper.Poll(cRan);
+        if (harness.Stepper.Frozen())
+            pMain->freezeTime = cFreeze;
+    }
 
     if (harness.Files.InWorld())
     {

@@ -11,4 +11,6 @@ struct Harness;
 nlohmann::json BuildStatus(const Harness& acHarness);
 // The hot reload loader's reload count and last error; null without the loader (SKSE loaded us directly).
 nlohmann::json ReloadStatus();
+// The named counters (Diagnostics/Counters.h): {name: {count, sum, max}}.
+nlohmann::json CounterStatus();
 } // namespace TestHarness

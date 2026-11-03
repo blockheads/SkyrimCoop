@@ -7,6 +7,7 @@
 #include "ControlFiles.h"
 #include "DialogueTrace.h"
 #include "EngineEvents.h"
+#include "FrameStepper.h"
 #include "GaitWatch.h"
 #include "InputTrace.h"
 #include "PlayerInput.h"
@@ -28,6 +29,7 @@ struct Harness
     EngineEvents Events;
     InputTrace Inputs;
     class Actions Actions;
+    FrameStepper Stepper;
     bool CommandsStarted = false;
 };
 } // namespace TestHarness

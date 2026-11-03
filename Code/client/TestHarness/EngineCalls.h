@@ -299,6 +299,8 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // (the bridge's Activate and lock replays call past the hooks): the player activates the object
 // (pressing E on it), and the object's lock changes.
 void PlayerActivates(uint32_t aObjectFormId) noexcept;
+// The engine's path request from the player to a reference (Actor 37893): its id, -1 none built, -2 no reference.
+int64_t PlayerPathRequest(uint32_t aTargetFormId, float aSpeed) noexcept;
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept;
 // Freezes the actor in this game, as PapyrusExtender's FreezeActor does: out of furniture, no AI (kProcessMe), restrained (no
 // movement), no velocity, and its controller neither pushed nor colliding with characters, so it stands still and

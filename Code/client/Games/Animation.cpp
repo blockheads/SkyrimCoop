@@ -1,4 +1,5 @@
 #include <HookSwitch.h>
+#include <Diagnostics/Counters.h>
 
 #include <Games/References.h>
 
@@ -86,7 +87,11 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 
         // A copy whose clip already advanced can recover from the accepted action's result.
         if (!g_forceAnimation && !cPlayersPartner && action.TargetEventName.empty())
+        {
+            COUNT_TIME("graph state save us");
             pActor->SaveAnimationGraphState(action.GraphState);
+            COUNT("graph state bytes", action.GraphState.size());
+        }
 
         // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
         pExtension->LatestAnimation.Write(action);

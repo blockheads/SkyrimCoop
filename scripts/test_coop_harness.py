@@ -463,5 +463,170 @@ class Harness(unittest.TestCase):
             self.assertTrue(result.stdout.strip())
 
 
+class Repro(unittest.TestCase):
+    DUO = "# Duo\n\n## Now\n\nfree\n\n## Waiting\n\n\n## Log\n\n- old line\n"
+
+    def test_the_duo_reservation_is_read_claimed_and_logged(self):
+        from coop_harness.actions import repro
+        self.assertIsNone(repro.duo_holder(self.DUO))
+        claimed = repro.with_now(self.DUO, "repro-mcp, since 22:00, x")
+        self.assertEqual(repro.duo_holder(claimed), "repro-mcp, since 22:00, x")
+        freed = repro.with_log(repro.with_now(claimed, "free"), "22:00 to 22:10 repro-mcp: done")
+        self.assertIsNone(repro.duo_holder(freed))
+        self.assertLess(freed.index("22:00 to 22:10"), freed.index("old line"))
+
+    def test_a_held_duo_refuses_another_claim(self):
+        session = Session()
+        self.addCleanup(session.close)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "DUO.md"
+            path.write_text(self.DUO.replace("free", "party-markers, since 20:35, a batch"))
+            with patch("coop_harness.actions.repro.DUO_FILE", path), self.assertRaises(TestFailure):
+                session.duo_claim("repro-mcp", "a repro")
+
+    def test_freeing_a_duo_someone_else_holds_stops_nothing(self):
+        session = Session()
+        self.addCleanup(session.close)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "DUO.md"
+            path.write_text(self.DUO.replace("free", "party-aggro, since 22:54, a batch"))
+            with patch("coop_harness.actions.repro.DUO_FILE", path), patch.object(Session, "stop_duo") as stop, \
+                    self.assertRaises(TestFailure):
+                session.duo_free("repro-mcp", "done")
+            stop.assert_not_called()
+
+    def test_a_recording_exports_as_a_scenario_keeping_its_failing_expect(self):
+        from coop_harness.actions import repro
+        entries = [
+            {"tool": "duo_start", "args": {}, "ok": True},
+            {"tool": "stage", "args": {"spec": {"objects": [{"name": "sword", "base": "12EB7"}]}}, "ok": True},
+            {"tool": "world_freeze", "args": {"frozen": True}, "ok": True},
+            {"tool": "press", "args": {"game": "guest", "key": "r", "seconds": 0.2}, "ok": True},
+            {"tool": "console", "args": {"game": "host", "line": "bad"}, "ok": False},
+            {"tool": "observe", "args": {"names": ["sword"]}, "ok": True},
+            {"tool": "expect", "args": {"name": "sword", "check": "same_place", "within": 5.0}, "ok": False},
+        ]
+        code = repro.export_scenario(entries, "guest-drop-repro", "The guest's dropped sword.", ["recorded"])
+        namespace = {}
+        exec(compile(code, "recorded", "exec"), namespace)
+        self.assertEqual(namespace["NAME"], "guest-drop-repro")
+        ctx = Mock()
+        namespace["run"](ctx)
+        self.assertEqual([c[0] for c in ctx.method_calls],
+                         ["stage", "freeze_world", "hold_key", "expect", "unstage"])
+        ctx.hold_key.assert_called_with("client", "r", 0.2)
+        self.assertIsNone(repro.export_spec(entries, "guest-drop-repro", "x", []))
+
+    def test_a_recording_of_spec_steps_exports_as_a_spec(self):
+        from coop_harness.actions import repro
+        step = {"do": "add_items", "game": "host", "ref": "0xC2CE8", "item": "0x64B3D", "count": 2}
+        entries = [{"tool": "spec_step", "args": {"step": step}, "ok": True},
+                   {"tool": "observe", "args": {"names": []}, "ok": True}]
+        spec = repro.export_spec(entries, "chest-repro", "doc", ["inventory"])
+        self.assertEqual(spec["steps"], [step])
+
+    def test_player_verbs_record_as_their_session_calls(self):
+        from coop_harness.actions import repro
+        entries = [{"tool": "walk_to", "args": {"game": "guest", "target": "lydia", "within": 120.0}, "ok": True},
+                   {"tool": "talk_to", "args": {"game": "guest", "target": "lydia"}, "ok": True},
+                   {"tool": "pick", "args": {"game": "guest", "line": "follow me"}, "ok": True},
+                   {"tool": "leave_dialogue", "args": {}, "ok": True},
+                   {"tool": "menu", "args": {"game": "host", "name": "InventoryMenu", "show": True}, "ok": True}]
+        namespace = {}
+        exec(compile(repro.export_scenario(entries, "talk-repro", "doc", []), "recorded", "exec"), namespace)
+        ctx = Mock()
+        namespace["run"](ctx)
+        self.assertEqual([c[0] for c in ctx.method_calls], ["walk_to", "talk_to", "pick", "close_dialogues", "menu", "unstage"])
+        ctx.walk_to.assert_called_with("client", "lydia", 120.0)
+
+    def test_walk_to_walks_straight_when_the_engine_finds_no_path(self):
+        from coop_harness.actions.repro import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x837
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [650.0, 0.0, 0.0]
+        ctx.player_command.side_effect = lambda instance, request: (
+            {"ok": True, "id": 5} if request["cmd"] == "papyrus_call" else {"ok": True, "done": True, "value": False})
+        ctx.wait_for.side_effect = lambda what, check, seconds: check()
+        outcome = PlayerVerbs.walk_to(ctx, "client", "lydia", 150.0)
+        self.assertFalse(outcome["pathed"])
+        ctx.steer_to.assert_called_with("client", "lydia", 150.0)
+        ctx.player_script_call.assert_called_with("client", "Game", "SetPlayerAIDriven", [False])
+
+    def test_a_recording_started_after_staging_starts_from_the_scene(self):
+        from coop_harness.actions import repro
+        session = Session()
+        self.addCleanup(session.close)
+        session.REPRO_SCENE = [{"npcs": [{"name": "lydia", "base": "0xA2C8E"}]}]
+        session.booted_save = Mock(return_value=None)
+        with tempfile.TemporaryDirectory() as folder, patch.object(repro, "RECORDINGS", Path(folder)):
+            path = Path(session.record_start("walk"))
+            session.record_call("walk_to", {"game": "guest", "target": "lydia"}, True)
+            entries = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual([e["tool"] for e in entries], ["stage", "walk_to"])
+        self.assertEqual(entries[0]["args"]["spec"]["npcs"][0]["name"], "lydia")
+
+    def test_pick_waits_for_the_response(self):
+        from coop_harness.actions.repro import PlayerVerbs
+        ctx = Mock()
+        menus = iter([{"open": True, "current_info": 0, "options": [{"text": "a"}, {"text": "b"}]},
+                      {"open": True, "current_info": 7, "options": [{"text": "a"}, {"text": "b"}]},
+                      {"open": True, "current_info": 0, "options": [{"text": "a"}, {"text": "b"}]}])
+        ctx.dialogue.side_effect = lambda instance: next(menus)
+        ctx.player_command.return_value = {"ok": True}
+        def wait_for(what, check, seconds):
+            while not (result := check()):
+                pass
+            return result
+        ctx.wait_for.side_effect = wait_for
+        self.assertEqual(PlayerVerbs.pick(ctx, "", "b"), {"picked": "b", "options": ["a", "b"]})
+
+    def test_a_late_save_flow_exports_with_its_save_and_without_reads(self):
+        from coop_harness.actions import repro
+        entries = [{"tool": "needs_save", "args": {"save": "LateX"}, "ok": True},
+                   {"tool": "travel", "args": {"game": "host", "command": "coc Riverwood"}, "ok": True},
+                   {"tool": "console", "args": {"game": "host", "line": "getstage FreeformRiverwood01"}, "ok": True},
+                   {"tool": "harness", "args": {"game": "host", "request": {"cmd": "dialogue"}}, "ok": True},
+                   {"tool": "pick", "args": {"game": "host", "line": "0"}, "ok": True},
+                   {"tool": "expect", "args": {"name": "FreeformRiverwood01", "check": "stage", "value": [10]}, "ok": True}]
+        namespace = {}
+        exec(compile(repro.export_scenario(entries, "letter", "doc", []), "recorded", "exec"), namespace)
+        ctx = Mock()
+        namespace["run"](ctx)
+        self.assertEqual([c[0] for c in ctx.method_calls], ["needs_save", "go_far", "pick", "expect", "unstage"])
+        ctx.pick.assert_called_with("", 0)
+        self.assertIn("late-save", namespace["TAGS"])
+        ctx.expect.assert_called_with("FreeformRiverwood01", "stage", value=[10])
+
+    def test_walk_to_starts_another_leg_when_one_ends_short(self):
+        from coop_harness.actions.repro import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x1348C
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [700.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
+        ctx.my_position.side_effect = lambda instance: next(places)
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        results = iter([{"ok": True, "done": True, "value": True}, {"ok": True, "done": False}])
+        ctx.player_command.side_effect = lambda instance, request: (
+            {"ok": True, "id": 1} if request["cmd"] == "papyrus_call" else next(results))
+        def wait_for(what, check, seconds):
+            while not (result := check()):
+                pass
+            return result
+        ctx.wait_for.side_effect = wait_for
+        outcome = PlayerVerbs.walk_to(ctx, "", "faendal", 150.0)
+        self.assertEqual((outcome["pathed"], outcome["legs"]), (True, 2))
+        ctx.steer_to.assert_not_called()
+
+    def test_handles_resolve_per_game(self):
+        session = Session()
+        self.addCleanup(session.close)
+        session.name_handle("lydia", {"host": 0x812, "guest": 0x833})
+        self.assertEqual(session.resolve("lydia", "host"), 0x812)
+        self.assertEqual(session.resolve("lydia", "client"), 0x833)
+        self.assertEqual(session.resolve("player", "guest"), 0x14)
+        with self.assertRaises(TestFailure):
+            session.resolve("nobody", "host")
+
+
 if __name__ == "__main__":
     unittest.main()

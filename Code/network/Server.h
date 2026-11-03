@@ -7,6 +7,8 @@
 #include <chrono>
 #include "ENetInterface.h"
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace Net
 {
@@ -53,6 +55,8 @@ namespace Net
         [[nodiscard]] uint64_t GetTick() const noexcept;
         [[nodiscard]] bool IsAlive(ConnectionId_t aConnectionId) const noexcept;
         [[nodiscard]] ENetPeer* GetPeer(ConnectionId_t aConnectionId) const noexcept;
+        // Each connection's round trip as enet measures it (ms).
+        [[nodiscard]] std::vector<std::pair<ConnectionId_t, uint32_t>> RoundTripTimes() const noexcept;
         // The connection from a port on this machine (a tunnel's end, SteamService); 0 when none.
         [[nodiscard]] ConnectionId_t FindLocalConnection(uint16_t aPort) const noexcept;
 

@@ -159,6 +159,34 @@ a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SK
 - Each game is the process recorded at launch (`prefix-<game>/game.json`).
 - The `xdotool` input actions, `watch`, `screenshot` and the two-account flows are Linux only.
 
+## Repro with the MCP (2026-11-02)
+
+`scripts/coop_mcp.py` is an MCP server (`.mcp.json`, server `skyrim-coop`) holding one harness `Session` open, so a
+bug can be set up step by step in the duo instead of in a scenario rerun from the start. Design and status:
+[repro-mcp.md](repro-mcp.md).
+
+```
+duo_start / duo_wait / duo_stop     claims and frees build/coop-test/DUO.md itself; refused while it is held
+scene_reset                         the baseline, staged things gone, the world thawed
+world_freeze / step(n)              Main::freezeTime in both games; step runs exactly n world updates in each
+stage / drop / name_handle          a scene in one call; handles name things per game (host_player, guest_player)
+act / press / mouse / console       checked actions, real input, console lines
+observe / wait_rest / screenshot    both games side by side (apart: how far the two games have it)
+expect                              the correct behaviour; a failing expect is the bug
+spec_step                           one shared-spec step (a session of these exports as a spec)
+record_start / record_export        the session as scenarios/recorded/<name>.py (and Code/tests/specs/<name>.json)
+walk_to / steer_to                  navmesh walks (AI-driven, PathToReference, in legs) / straight by real input
+talk_to / pick / menu               conversations by Activate (pick waits for the response); menus
+travel / arrives_with_party         a far trip (coc) and the party tether's arrival
+needs_save                          a recording on a late save starts by checking the duo was booted from it
+counters / network / press_to_motion   readouts (Diagnostics/Counters.h, round trips and clock syncs, press timing)
+vanilla_start / quest_walk / job_wait  the vanilla stand-in; a quest walk on a duo booted from a late save
+harness                             any raw harness command
+```
+
+An exported scenario is an ordinary flow (`coop_test.py scenario <name>`): the runner resets the baseline first, and
+its body unstages and thaws in a `finally`. It is step 1 of the bug-fix flow; the GameTests flow still follows.
+
 ## Profiling
 
 `coop_test.py profile` shows where a running duo's time goes, per game, over one window (default 20 s). It writes

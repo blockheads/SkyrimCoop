@@ -405,3 +405,6 @@ def register_flows(registry):
     for spec in registry.specs():
         registry.add("spec:" + spec["name"], ["spec", *spec.get("tags", ["scripts"]), *(["session"] if spec["name"] in ("cutscene-controls-reach-party", "leaver-cutscene-gives-back") else [])],
                      lambda ctx, spec=spec: specs.run(ctx, spec), doc=spec.get("doc", spec["name"]))
+    from .scenarios import recorded
+    for module in recorded.modules():
+        registry.add(module.NAME, module.TAGS, module.run, doc=module.DOC)

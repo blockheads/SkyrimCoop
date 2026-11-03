@@ -1,5 +1,7 @@
 #include <Services/Host/HostCharacters.h>
 
+#include <Diagnostics/Counters.h>
+
 #include <Messages/TravelMessages.h>
 
 #include <Services/Host/HostNetwork.h>
@@ -51,6 +53,9 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
     NotifyReferencesMove notify;
     // The owner's time, as its actions carry: copies replay both on one timeline; CopyClock never plays ahead.
     notify.Tick = acRequest.Tick;
+    if (const uint64_t cNow = m_network.GetTick(); acRequest.Tick > cNow)
+        COUNT("movement stamp ahead ms", acRequest.Tick - cNow); // a game's clock ahead of the host's (red-flags.md, 2)
+    COUNT("movement messages", 1);
     for (const auto& [cSessionId, cUpdate] : acRequest.Updates)
     {
         auto it = m_characters.find(cSessionId);

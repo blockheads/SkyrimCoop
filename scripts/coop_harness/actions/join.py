@@ -210,12 +210,22 @@ class JoinActions:
         return port
 
 
-    def joins_with_world(ctx, what, timeout=240):
+    def joins_with_world(ctx, what, timeout=240, make_character=False):
         """The client's game joins the host's session with the host's world (harness `join_world`, as the join screen
-        will): gate, the host's save received and loaded, its character put on, then the session."""
+        will): gate, the host's save received and loaded, its character put on, then the session. With
+        make_character, a world that has no character of this player's (a late save's first join) gets a new one
+        made in the creator the join opens."""
         ctx.player_command("client", {"cmd": "join_world", "port": ctx.session_port()})
         ctx.wait_for(f"[client] {what}: the host's gate passes", lambda: ctx.join_status("client").get("state") in
-                 ("receiving_world", "loading", "connecting", "joined") or ctx.game_state("client").get("online"), 30)
+                 ("receiving_world", "loading", "connecting", "joined") or ctx.game_state("client").get("online")
+                 or (make_character and ctx.race_panel("_SubList1.selectedIndex") is not None), 30)
+        if make_character:
+            def creating_or_joined():
+                if ctx.game_state("client").get("online") and not ctx.join_status("client").get("joining"):
+                    return "joined"
+                return "creating" if ctx.race_panel("_SubList1.selectedIndex") is not None else None
+            if ctx.wait_for(f"[client] {what}: joins, or the creator opens", creating_or_joined, timeout) == "creating":
+                ctx.finishes_race_menu(f"{what}: names a new character", "Courier")
         def joined():
             status = ctx.join_status("client")
             if status.get("state") == "refused":
