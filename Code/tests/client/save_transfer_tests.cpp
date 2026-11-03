@@ -17,7 +17,7 @@ std::string Noise(size_t aSize)
     }
     return data;
 }
-}
+} // namespace
 
 TEST_CASE("Save blocks reconstruct the exact game and SKSE files", "[save-transfer]")
 {
@@ -37,14 +37,18 @@ TEST_CASE("Save blocks reconstruct the exact game and SKSE files", "[save-transf
     CHECK(SaveTransfer::Unpack(assembly.Data()) == files);
     CHECK_FALSE(SaveTransfer::Unpack("x"));
     CHECK_FALSE(SaveTransfer::Unpack(std::string(4, '\xff')));
-    CHECK(SaveTransfer::Digest("abc") == std::string("\xba\x78\x16\xbf\x8f\x01\xcf\xea\x41\x41\x40\xde\x5d\xae\x22\x23\xb0\x03\x61\xa3\x96\x17\x7a\x9c\xb4\x10\xff\x61\xf2\x00\x15\xad", 32));
+    CHECK(SaveTransfer::Digest("abc") == std::string("\xba\x78\x16\xbf\x8f\x01\xcf\xea\x41\x41\x40\xde\x5d\xae\x22\x23"
+                                                     "\xb0\x03\x61\xa3\x96\x17\x7a\x9c\xb4\x10\xff\x61\xf2\x00\x15\xad",
+                                                     32));
 }
 
 TEST_CASE("Save block references reuse a verified prior save even after insertion", "[save-transfer]")
 {
     SaveTransfer::SaveFiles old{Noise(400000), "old co-save"};
     auto files = old;
-    SECTION("unchanged save") {}
+    SECTION("unchanged save")
+    {
+    }
     SECTION("inserted data and a changed SKSE co-save")
     {
         files.Game.insert(80000, "new world state");
@@ -77,19 +81,49 @@ TEST_CASE("Bad save data never reaches the loader", "[save-transfer]")
     REQUIRE(chunks.size() > 2);
     auto chunk = chunks.front();
     SaveTransfer::Assembly assembly;
-    SECTION("missing advertised cache block") { chunk.Data.clear(); }
-    SECTION("corrupted payload") { chunk.Data[chunk.Data.size()/2] ^= 0x40; }
-    SECTION("wrong fingerprint") { chunk.Hash[0] ^= 0x40; }
-    SECTION("wrong declared block size") { ++chunk.RawSize; }
-    SECTION("excessive block size") { chunk.RawSize = SaveTransfer::kMaxBlock + 1; }
-    SECTION("excessive total") { chunk.Total = SaveTransfer::kMaxSave + 1; }
-    SECTION("empty block") { chunk.RawSize = 0; }
-    SECTION("wrong fingerprint size") { chunk.Hash.clear(); }
-    SECTION("truncated compressed block") { chunk.Data.pop_back(); }
-    SECTION("offset beyond end") { chunk.Offset = chunk.Total + 1; }
+    SECTION("missing advertised cache block")
+    {
+        chunk.Data.clear();
+    }
+    SECTION("corrupted payload")
+    {
+        chunk.Data[chunk.Data.size() / 2] ^= 0x40;
+    }
+    SECTION("wrong fingerprint")
+    {
+        chunk.Hash[0] ^= 0x40;
+    }
+    SECTION("wrong declared block size")
+    {
+        ++chunk.RawSize;
+    }
+    SECTION("excessive block size")
+    {
+        chunk.RawSize = SaveTransfer::kMaxBlock + 1;
+    }
+    SECTION("excessive total")
+    {
+        chunk.Total = SaveTransfer::kMaxSave + 1;
+    }
+    SECTION("empty block")
+    {
+        chunk.RawSize = 0;
+    }
+    SECTION("wrong fingerprint size")
+    {
+        chunk.Hash.clear();
+    }
+    SECTION("truncated compressed block")
+    {
+        chunk.Data.pop_back();
+    }
+    SECTION("offset beyond end")
+    {
+        chunk.Offset = chunk.Total + 1;
+    }
     SECTION("decompression expansion")
     {
-        const std::string bomb(1024*1024, 'x');
+        const std::string bomb(1024 * 1024, 'x');
         snappy::Compress(bomb.data(), bomb.size(), &chunk.Data);
     }
     REQUIRE_FALSE(assembly.Add(chunk));
@@ -103,7 +137,10 @@ TEST_CASE("Save blocks reject missing, repeated, and mixed transfers", "[save-tr
     REQUIRE(chunks.size() > 3);
     SaveTransfer::Assembly assembly;
     REQUIRE(assembly.Add(chunks[0]));
-    SECTION("gap") { CHECK_FALSE(assembly.Add(chunks[2])); }
+    SECTION("gap")
+    {
+        CHECK_FALSE(assembly.Add(chunks[2]));
+    }
     SECTION("repeat")
     {
         REQUIRE(assembly.Add(chunks[1]));

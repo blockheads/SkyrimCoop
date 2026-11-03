@@ -4,6 +4,7 @@
 #include <shlobj.h>
 
 #include <algorithm>
+#include <chrono>
 #include <array>
 #include <filesystem>
 #include <format>
@@ -51,6 +52,18 @@ std::filesystem::path KnownFolder(REFKNOWNFOLDERID aId)
     return path;
 }
 
+void Trace(std::string_view acMessage)
+{
+    const auto cFolder = KnownFolder(FOLDERID_Documents) / L"My Games" / L"Skyrim Special Edition" / L"SkyrimCoop";
+    std::error_code error;
+    std::filesystem::create_directories(cFolder, error);
+    const auto cFile = cFolder / L"launcher.log";
+    const bool cFull = std::filesystem::file_size(cFile, error) > 256 * 1024 && !error;
+    std::ofstream log(cFile, std::ios::binary | (cFull ? std::ios::trunc : std::ios::app));
+    const auto cNow = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    log << cNow << " " << acMessage << "\n";
+}
+
 // Bethesda's launcher writes the INIs on a first run; this one replaces it: the game's defaults if missing.
 void EnsureIni(const std::filesystem::path& acGame)
 {
@@ -91,40 +104,40 @@ bool EnablePlugins()
 // The settings process inherits Steam's environment and Proton prefix.
 HANDLE OpenGraphics(const std::filesystem::path& acGame)
 {
+    Trace("Opening Bethesda graphics settings");
     const auto cLauncher = acGame / L"SkyrimSELauncher.bethesda.exe";
-    std::error_code fileError;
-    if (!std::filesystem::is_regular_file(cLauncher, fileError))
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(cLauncher, error))
     {
         Fail(L"Bethesda's launcher hasn't been preserved yet.\n\n"
              L"Restore it with Steam's Verify integrity, rename SkyrimSELauncher.exe to "
              L"SkyrimSELauncher.bethesda.exe, then extract the SkyrimCoop zip again.");
         return nullptr;
     }
-    std::array<wchar_t, 32768> self{};
-    const DWORD cSelfLength = GetModuleFileNameW(nullptr, self.data(), static_cast<DWORD>(self.size()));
-    std::error_code error;
-    if (!cSelfLength || cSelfLength >= self.size())
-        return nullptr;
-    const std::filesystem::path cSelf(std::wstring(self.data(), cSelfLength));
-    const auto cBackupSize = std::filesystem::file_size(cLauncher, error);
-    if (!error && cBackupSize == std::filesystem::file_size(cSelf, error) && !error)
+    std::ifstream saved(cLauncher, std::ios::binary | std::ios::ate);
+    if (!saved || saved.tellg() <= 0 || saved.tellg() > 64 * 1024 * 1024)
     {
-        std::ifstream backup(cLauncher, std::ios::binary), current(cSelf, std::ios::binary);
-        if (std::equal(std::istreambuf_iterator<char>(backup), {}, std::istreambuf_iterator<char>(current), {}))
-        {
-            Fail(L"The saved launcher is SkyrimCoop's launcher. Restore Bethesda's launcher with Steam's Verify integrity, "
-                 L"then preserve that executable before reinstalling SkyrimCoop.");
-            return nullptr;
-        }
+        Fail(L"Couldn't read the preserved Bethesda launcher.");
+        return nullptr;
+    }
+    std::string bytes(static_cast<size_t>(saved.tellg()), '\0');
+    saved.seekg(0);
+    if (!saved.read(bytes.data(), bytes.size()) || Launcher::IsCoopLauncher(bytes))
+    {
+        Fail(L"The saved launcher isn't Bethesda's original. Restore it with Steam's Verify integrity, "
+             L"then preserve that executable before reinstalling SkyrimCoop.");
+        return nullptr;
     }
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     PROCESS_INFORMATION process{};
     if (!CreateProcessW(cLauncher.c_str(), nullptr, nullptr, nullptr, FALSE, 0, nullptr, acGame.c_str(), &startup, &process))
     {
+        Trace(std::format("Graphics CreateProcess failed: {}", GetLastError()));
         Fail(L"Couldn't open Bethesda's graphics settings launcher.");
         return nullptr;
     }
+    Trace(std::format("Graphics process started: {}", process.dwProcessId));
     CloseHandle(process.hThread);
     return process.hProcess;
 }
@@ -146,9 +159,12 @@ LRESULT CALLBACK MenuProc(HWND aWindow, UINT aMessage, WPARAM aWParam, LPARAM aL
     }
     if (aMessage == WM_COMMAND && pMenu)
     {
+        Trace(std::format("Menu command: {}", LOWORD(aWParam)));
         switch (LOWORD(aWParam))
         {
         case 1:
+            if (pMenu->Settings)
+                return 0;
             pMenu->Play = true;
             DestroyWindow(aWindow);
             return 0;
@@ -168,8 +184,13 @@ LRESULT CALLBACK MenuProc(HWND aWindow, UINT aMessage, WPARAM aWParam, LPARAM aL
     }
     if (aMessage == WM_TIMER && pMenu && pMenu->Settings && WaitForSingleObject(pMenu->Settings, 0) == WAIT_OBJECT_0)
     {
+        DWORD result = 1;
+        GetExitCodeProcess(pMenu->Settings, &result);
+        Trace(std::format("Graphics process exited: 0x{:08x}", result));
         CloseHandle(pMenu->Settings);
         pMenu->Settings = nullptr;
+        if (result)
+            Fail(std::format(L"Bethesda's launcher exited with error 0x{:08x}. See SkyrimCoop/launcher.log in your Skyrim settings folder.", result));
         KillTimer(aWindow, 1);
         EnableWindow(GetDlgItem(aWindow, 1), TRUE);
         EnableWindow(GetDlgItem(aWindow, 2), TRUE);
@@ -255,8 +276,11 @@ int WINAPI wWinMain(HINSTANCE aInstance, HINSTANCE, PWSTR, int)
         if (!settings)
             return 1;
         WaitForSingleObject(settings, INFINITE);
+        DWORD result = 1;
+        GetExitCodeProcess(settings, &result);
+        Trace(std::format("Graphics process exited: 0x{:08x}", result));
         CloseHandle(settings);
-        return 0;
+        return static_cast<int>(result);
     }
     if (cChoice == Launcher::Choice::Menu && !ShowMenu(aInstance, cGame))
         return 0;
@@ -271,6 +295,7 @@ int WINAPI wWinMain(HINSTANCE aInstance, HINSTANCE, PWSTR, int)
                          cRequired, cVersion.empty() ? L"unknown" : cVersion));
         return 1;
     }
+    Trace("Starting co-op through SKSE");
     EnsureIni(cGame);
     if (!EnablePlugins())
     {

@@ -25,6 +25,7 @@ Choose **Graphics settings** to open Bethesda's original launcher in the same St
 Bethesda's own **Play** button starts vanilla Skyrim without SKSE, so use our Play co-op button to play together.
 Invitations start co-op directly, skipping the menu. Steam launch options `--play` and `--graphics` also select those
 actions directly; `+connect_lobby` invitations always take priority.
+Launch/exit errors are recorded in `SkyrimCoop/launcher.log` under your Documents/My Games settings folder.
 
 If you have never started Skyrim, Play co-op creates missing settings files using the game's High preset. Existing
 settings are preserved.

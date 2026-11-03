@@ -57,9 +57,9 @@ reloads send a full fresh snapshot without assuming a cache negotiated on an ear
 Research: [rsync](https://rsync.samba.org/) and [restic's chunker](https://github.com/restic/chunker) demonstrate
 reusing verified content rather than old file names. The small deterministic Gear splitter follows the
 [content-defined chunking approach](https://www.usenix.org/conference/atc16/technical-sessions/presentation/xia),
-without introducing a full backup/sync runtime. SHA-256 comes from the unmodified MIT
-[PicoSHA2](https://github.com/okdshin/PicoSHA2) header pinned in `Code/external/picosha2/SOURCE.md`; its license is
-included in player packages. Compression remains [Snappy](https://github.com/google/snappy), and connection
+without introducing a full backup/sync runtime. Windows uses [CNG SHA-256](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcrypthash), with the
+unmodified MIT [PicoSHA2](https://github.com/okdshin/PicoSHA2) header as the portable fallback, pinned in
+`Code/external/picosha2/SOURCE.md`; its license is included in player packages. Compression remains [Snappy](https://github.com/google/snappy), and connection
 readings come from our existing [ENet6](https://github.com/SirLynix/enet6) transport.
 
 ## Evidence and limits
@@ -93,3 +93,32 @@ compressed expansion, bounds, order, repetition and mixed transfers. The real-se
 from a retained save, then change the host's lock state and corrupt cached files; the guest must get the current
 world. Native acceptance: `guest-reuses-world-cache` starts two fresh guest processes and checks cold/warm
 transfers, named connection readings and `/perf` through normal game input.
+
+## Final native checks
+
+Steam 1.7.104, 2026-11-03: `guest-reuses-world-cache` passed twice, including two fresh guest processes each time,
+`/perf` through normal chat input in each game, and named connection diagnostics. Cold/warm payload pairs were
+2,505,509 / 705,863 bytes and 2,505,417 / 874,112 bytes (72% and 65% reduction respectively). The second pair used
+CNG: cache preparation 17 ms and decode/verification 13 ms, compared with about 185 / 181 ms with the portable
+hash in the development DLL. Native Skyrim loading remained about 1.2 seconds in these small QASmoke samples.
+A cold transfer varied from 0.49 to 5.68 seconds across runs; the timings expose this variability rather than
+assuming every delay is disk loading. No Windows large-save loading-time claim is made from these samples.
+
+`host-quickloads-party` passed on both the saved prior-build control and the final build. One earlier run flagged
+a small ladle rotation difference after the reload; that comparison did not recur in the final repeats.
+`bug-report-writes-every-game` passed, including export. Fast checks: 209 ClientTests, 199 HostAuthorityTests,
+33 encoding cases, 291 GameTests flows, and 32 Python harness checks.
+
+Launcher: normal menu Play and `--graphics +connect_lobby 0` both booted SKSE and our plugin; the invitation
+argument skipped the menu. Bethesda's graphics window and Options opened, and selecting a preset wrote the
+expected settings in the same prefix. Full graphical save-and-close automation did not complete reliably in the
+headless test environment, so the Windows desktop save/return flow and a live two-account Steam cold invitation
+remain manual acceptance checks. The original launcher's own Play button still starts vanilla Skyrim; use our
+Play co-op button after closing settings.
+
+The native launcher investigation also found a test-fixture fault: Bethesda opens `Debug.log` in its working
+directory and unconditionally prints to that stream. The test game's read-only link to the player's Steam log
+made that fail with CRT exception `c0000417`. `ensure_duo_game` and package checks now keep mutable logs private;
+the Python regression verifies that writing the test log never changes the source Steam log. No filename
+workaround or extra copy of Bethesda's executable is needed. Startup/exit failures are recorded in the bounded
+`Documents/My Games/Skyrim Special Edition/SkyrimCoop/launcher.log`.

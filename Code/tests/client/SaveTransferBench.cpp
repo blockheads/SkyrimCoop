@@ -1,8 +1,8 @@
 #include <Services/SaveTransfer.h>
-#include <snappy.h>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <snappy.h>
 
 namespace
 {
@@ -15,7 +15,7 @@ std::optional<std::string> Read(const char* acpPath)
     file.seekg(0);
     return file.read(bytes.data(), bytes.size()) ? std::optional(std::move(bytes)) : std::nullopt;
 }
-}
+} // namespace
 
 int main(int aCount, char** apArguments)
 {
@@ -56,5 +56,5 @@ int main(int aCount, char** apArguments)
     std::cout << "raw_bytes=" << cPacked.size() << " legacy_whole_compressed=" << whole.size()
               << " cold_payload=" << cold << " warm_payload=" << warm << " reused_raw=" << reused
               << " cached_blocks=" << hits << "/" << chunks.size() << " cpu_ms=" << cMs
-              << " hash_advertisement_bytes=" << cache.Hashes().size()*33 << "\n";
+              << " hash_advertisement_bytes=" << cache.Hashes().size() * 33 << "\n";
 }

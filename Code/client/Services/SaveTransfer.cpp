@@ -3,6 +3,10 @@
 #include <snappy.h>
 #include <array>
 #include <cstring>
+#if defined(_WIN32)
+#include <windows.h>
+#include <bcrypt.h>
+#endif
 
 namespace SaveTransfer
 {
@@ -65,6 +69,13 @@ std::optional<SaveFiles> Unpack(std::string_view acPacked) noexcept
 std::string Digest(std::string_view acBytes) noexcept
 {
     std::string digest(picosha2::k_digest_size, '\0');
+#if defined(_WIN32)
+    // CNG avoids the portable implementation's iterator overhead in development builds.
+    if (BCryptHash(BCRYPT_SHA256_ALG_HANDLE, nullptr, 0,
+                   reinterpret_cast<PUCHAR>(const_cast<char*>(acBytes.data())), static_cast<ULONG>(acBytes.size()),
+                   reinterpret_cast<PUCHAR>(digest.data()), static_cast<ULONG>(digest.size())) >= 0)
+        return digest;
+#endif
     picosha2::hash256(acBytes.begin(), acBytes.end(), digest.begin(), digest.end());
     return digest;
 }

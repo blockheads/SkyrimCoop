@@ -19,6 +19,7 @@ target("ClientTests")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy")
+    if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()
 
 -- Compare actual save pairs offline, using the same cache and wire blocks as the game.
@@ -31,4 +32,5 @@ target("SaveTransferBench")
     add_includedirs("../../client")
     add_deps("SkyrimEncoding")
     add_packages("snappy")
+    if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()

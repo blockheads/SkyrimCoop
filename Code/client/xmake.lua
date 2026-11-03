@@ -70,7 +70,7 @@ target(name)
 
     -- ImGui (debug views), RmlUi (the in-game UI, Code/client/Ui)
     add_packages("imgui", "rmlui")
-    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32", "dxguid", "dinput8", "d3d11", "shell32")
+    add_syslinks("bcrypt", "d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32", "dxguid", "dinput8", "d3d11", "shell32")
 end
 
 
