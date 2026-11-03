@@ -73,6 +73,11 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-02: actions are stamped with the frame clock, as movement is (red flag 1, uncommitted): with the session's
+time as read a copy played an owner's action up to 15 ms off its movement, unevenly; now a steady 11 ms early
+([red-flags.md](design/red-flags.md)). GameTests "A player's actions play on its copy where its movement was when it
+acted"; the fake's engine frames can be steady while our update lands unevenly (`FakeEngine::FrameMs`).
+
 2026-11-01: other players move smoothly (S10, uncommitted): the copy clock and owners' snapshot stamps stepped with the
 session's time as read once a frame, which jumps (27 then 6 ms) while frames are steady, so copies stuttered. Both now
 step by the engine's frame (`FrameClock`, [copy-clock.md](design/copy-clock.md)); players and fights are sent every second

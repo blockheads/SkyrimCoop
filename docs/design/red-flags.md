@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **plan, not started.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1 done (2026-11-02, uncommitted); 2-5 open.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -39,6 +39,17 @@ copy's game: InterpolationSystem plays both on one timeline (CopyClock); an acti
   - otherwise a GameTests flow: an owner's action and its movement in one frame replay together on the copy. The
     fake's session time can be made to jump the way Skyrim's does (S10).
 - **Duo:** `copy-jumps-with-owner`, `copy-strafes-with-host`, `copy-strafes-with-guest`, `host-kill-move`.
+- **Done (2026-11-02).** The hook and the fake's actions stamp with `GetFrameTick()`; `FrameClock::Now` is atomic
+  (read in the animation jobs). The fake learned S10 (`FakeEngine::FrameMs`: steady engine frames, our update 0 or
+  11 ms into each). GameTests "A player's actions play on its copy where its movement was when it acted", 12
+  actions at 600 units/s (10 a frame), where the copy's movement stood at each action's stamp against where its owner
+  acted: raw stamp -2 to +7 units (15 ms spread), frame stamp -7.6 to -6.7 (under 1.5 ms).
+- **Open:** a steady 11 ms early. An action the engine performs before our update is stamped with the previous
+  update's frame tick, its movement with this one's. Even, so unseen; stamping with the coming frame needs to know
+  whether our update ran this frame (an engine frame counter). None of the four scenarios measures the offset.
+- **Duo (2026-11-02), with and without the fix:** `copy-jumps-with-owner`, `copy-strafes-with-guest` pass;
+  `host-kill-move` fails on both after its kill move, on the wolf copy's `ai_state.head_track` (a session id the owner
+  lacks); `copy-strafes-with-host`'s stutter is flaky on both (2/8 without, 2/10 with: the open S10 item).
 
 ## 2. The host's tick clamp: measure first
 

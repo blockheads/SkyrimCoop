@@ -90,7 +90,7 @@ owner's graph steps (a frame, but the uneven gaps made copies stutter).
   movement unreliably) leaves a gap the short extrapolation covers.
 - **A steered playback clock** (0.85-1.1 speed, a jump past 1 s), as adaptive jitter buffers do, so a delay change
   never jumps or reverses a copy.
-- **Stamped at the frame**, not at the read: owners stamp snapshots with the frame clock and copies step with the
+- **Stamped at the frame**, not at the read: owners stamp snapshots and actions with the frame clock and copies step with the
   engine's frame, as engines stamp with their tick (S10, above).
 - **Short extrapolation** (up to one interval, 100 ms at most; Source allows 250 ms), never while lying or knocked.
 - **Linear, not Hermite.** Fiedler's Hermite spline (velocity in each snapshot) smooths speed across samples; a

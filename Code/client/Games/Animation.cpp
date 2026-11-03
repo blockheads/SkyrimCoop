@@ -50,7 +50,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         action.State1 = pActor->actorState.flags1;
         action.State2 = pActor->actorState.flags2;
         action.Type = apAction->unkInput | (apAction->someFlag ? 0x4 : 0);
-        action.Tick = World::Get().GetTick();
+        action.Tick = World::Get().GetFrameTick(); // the frame's, as its movement is stamped (S10)
         action.ActorId = pActor->formID;
         action.ActionId = apAction->action->formID;
         action.TargetId = apAction->target ? apAction->target->formID : 0;

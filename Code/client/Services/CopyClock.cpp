@@ -6,11 +6,12 @@
 void FrameClock::Advance(uint64_t aSession, double aFrameMs) noexcept
 {
     const double cSession = static_cast<double>(aSession);
-    const double cStepped = m_now + std::max(aFrameMs, 0.0);
+    const double cNow = m_now.load(std::memory_order_relaxed);
+    const double cStepped = cNow + std::max(aFrameMs, 0.0);
     if (!m_started || std::abs(cSession - cStepped) > static_cast<double>(kSnapMs))
-        m_now = cSession;
+        m_now.store(cSession, std::memory_order_relaxed);
     else
-        m_now = std::max(m_now, cStepped + (cSession - cStepped) * kLean);
+        m_now.store(std::max(cNow, cStepped + (cSession - cStepped) * kLean), std::memory_order_relaxed);
     m_started = true;
 }
 

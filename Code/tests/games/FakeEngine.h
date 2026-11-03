@@ -893,6 +893,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     mutable std::vector<uint32_t> WorkerCellLoads;
     std::vector<uint32_t> WorkerQuestWrites;
     bool AtMainLoop = false;
+    // The engine's frame length (GetRealFrameSeconds), steady while our update lands unevenly in it (S10);
+    // 0: the wall time since our last update.
+    double FrameMs = 0.0;
     std::deque<std::function<void()>> MainTasks;
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;

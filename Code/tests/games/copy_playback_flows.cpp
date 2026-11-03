@@ -6,6 +6,8 @@
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
 
+#include <thread>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E; // the cell everyone stands in
@@ -182,4 +184,65 @@ SCENARIO("A strafing player's copy turns its animation with its movement", "[cop
         INFO("turn " << turn << ": the direction flipped " << cApartMs << " ms after the movement turned");
         CHECK(std::abs(cApartMs) <= 17);
     }
+}
+
+SCENARIO("A player's actions play on its copy where its movement was when it acted", "[copies][copy-clock][animation]")
+{
+    // S10: the engine's frames are steady, our update lands 0-11 ms into each, where the session's time is read.
+    // Owners stamp movement with the frame clock; actions stamped with the session's time as read land off their
+    // movement on the copy's one timeline, unevenly (red-flags.md, 1).
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+    const uint32_t cCopy = HostPlayerCopy(guest);
+    constexpr float cSpeed = 600.f;
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    host.FrameMs = guest.FrameMs = cFrameMs;
+
+    struct Seen { uint64_t Tick; float X; };
+    std::vector<Seen> seen; // the copy's playback time and place, each frame
+    std::vector<std::pair<uint64_t, float>> acted; // each action's stamp, and where its owner stood
+    const auto cStart = std::chrono::steady_clock::now();
+    const float cFrom = host.Actors.at(FakeEngine::kPlayer).Position[0];
+    for (int frame = 0; frame < 120; ++frame)
+    {
+        // The engine's frame: it moves the player and performs its actions, then our update runs, late by turns.
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        host.Actors.at(FakeEngine::kPlayer).Position[0] = cFrom + cSpeed * static_cast<float>(frame * cFrameMs / 1000.0);
+        if (frame >= 40 && frame % 7 == 0)
+        {
+            ActionEvent gesture;
+            gesture.ActionId = 0x489F1;
+            gesture.IdleId = frame % 2 ? 0xF779D : 0x10DEB8;
+            gesture.EventName = "MotionDrivenIdle";
+            party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, gesture)); });
+            acted.emplace_back(host.Actors.at(FakeEngine::kPlayer).LatestAnimation.Tick, host.Actors.at(FakeEngine::kPlayer).Position[0]);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(frame % 2 ? 11 : 0));
+        party.Frame();
+        seen.push_back({CopyTick(party.Guest(), cCopy), guest.Actors.at(cCopy).Position[0]});
+    }
+    party.Until([&] {
+        seen.push_back({CopyTick(party.Guest(), cCopy), guest.Actors.at(cCopy).Position[0]});
+        return seen.back().Tick > acted.back().first;
+    }, "the copy's playback passes the last action");
+
+    // Where the copy's movement is at each action's stamp, against where its owner acted.
+    float lowest = 1e9f, highest = -1e9f;
+    for (const auto& [cStamp, cX] : acted)
+    {
+        const auto cAfter = std::ranges::find_if(seen, [&](const Seen& acSeen) { return acSeen.Tick >= cStamp; });
+        REQUIRE(cAfter != seen.end());
+        REQUIRE(cAfter != seen.begin());
+        const auto& cBefore = *std::prev(cAfter);
+        const double cPart = cAfter->Tick > cBefore.Tick ? double(cStamp - cBefore.Tick) / double(cAfter->Tick - cBefore.Tick) : 1.0;
+        const float cShown = cBefore.X + static_cast<float>(cPart) * (cAfter->X - cBefore.X);
+        lowest = std::min(lowest, cShown - cX);
+        highest = std::max(highest, cShown - cX);
+    }
+    INFO(acted.size() << " actions: the copy's movement stood " << lowest << " to " << highest << " units from where its owner acted ("
+                      << cSpeed * cFrameMs / 1000.0 << " a frame)");
+    CHECK(highest - lowest <= 2.f); // the same each time: within 3 ms
+    CHECK(std::abs(lowest) <= cSpeed * cFrameMs / 1000.0 + 2.f); // at most a frame off
 }

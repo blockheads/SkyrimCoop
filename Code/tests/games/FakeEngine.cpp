@@ -348,7 +348,7 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
             aActor.DeadFrames = 0;
         }
         auto& action = aActor.LatestAnimation;
-        action.Tick = World::Get().GetTransport().GetTick();
+        action.Tick = World::Get().GetFrameTick();
         action.ActorId = aFormId;
         action.ActionId = 0x1337;
         action.State1 = DeathActions::kDying;
@@ -546,7 +546,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
     uint32_t flags = aQuery ? 1 : 0;
     aAction.Type = 2 | (flags ? 4 : 0);
-    aAction.Tick = World::Get().GetTick();
+    aAction.Tick = World::Get().GetFrameTick();
     aAction.ActorId = aFormId;
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
         // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
@@ -641,7 +641,7 @@ void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
             if (it->second.Dead && !forced)
             {
                 ActionEvent reset = it->second.LatestAnimation;
-                reset.Tick = World::Get().GetTransport().GetTick();
+                reset.Tick = World::Get().GetFrameTick();
                 reset.ActionId = 0xD1FDE;
                 reset.EventName = "IdleForceDefaultState";
                 World::Get().GetDispatcher().trigger(reset);

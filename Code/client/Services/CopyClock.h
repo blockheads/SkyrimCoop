@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -14,10 +15,11 @@ public:
     static constexpr uint64_t kSnapMs = 250;  // further off than this: jumps (a start, a load, a long stall)
 
     void Advance(uint64_t aSession, double aFrameMs) noexcept;
-    [[nodiscard]] uint64_t Now() const noexcept { return static_cast<uint64_t>(m_now); }
+    // Any thread: actions are stamped with it in the animation jobs.
+    [[nodiscard]] uint64_t Now() const noexcept { return static_cast<uint64_t>(m_now.load(std::memory_order_relaxed)); }
 
 private:
-    double m_now{};
+    std::atomic<double> m_now{};
     bool m_started{};
 };
 

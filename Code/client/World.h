@@ -76,7 +76,7 @@ struct World : entt::registry
     RecipeBook& GetRecipes() noexcept { return m_recipes; }
     // The copies' playback time, stepped once a frame before UpdateEvent.
     CopyClock& GetCopyClock() noexcept { return m_copyClock; }
-    // The session's time at this frame (FrameClock): what owners stamp their snapshots with.
+    // The session's time at this frame (FrameClock): what owners stamp their snapshots and actions with.
     [[nodiscard]] uint64_t GetFrameTick() const noexcept { return m_frameClock.Now(); }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
