@@ -69,6 +69,9 @@ public:
     // object, the activator or the item is not in this game.
     // aLoad: a cell's state, not a change; a state already as the host's is left alone (no events for it).
     bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad = false) noexcept;
+    // A move row's reference loaded here with dynamic bodies, already where the row puts it: placed by the host's body
+    // rest (BodyService). A script's move is somewhere else and still applies.
+    [[nodiscard]] bool RestsThere(const ObjectChange& acMove) noexcept;
     // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
     [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
     // The cells loaded here now and done loading (the interior, or the exterior grid's attached ones), by form id.

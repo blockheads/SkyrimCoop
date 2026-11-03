@@ -79,7 +79,18 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
-2026-11-02: actions are stamped with the frame clock, as movement is (red flag 1, uncommitted): with the session's
+2026-11-02: one writer for a loaded body's rest, and a guest's movement sent unreliably (red flags 4 and 5): a live move row no longer places a body the host's body rest already placed (a script's move still
+does); `ReferencesMoveRequest` goes unreliably unless it carries actions or a teleport, as the host relays it (body
+frames stay reliable). GameTests "A loaded body takes its rest ..." and "Over a lossy line a guest's player reaches
+the host without stalls" (5% loss: the longest wait for its next snapshot 65-98 ms, was 127-323); TPTests
+`[encoding.delivery]`. Flag 3 measured and left: 2 frames from a press to motion as host, guest and vanilla.
+
+2026-11-02: the host passes a guest's movement stamps on as sent (red flag 2): it clamped them to its own
+time, 24% of a guest's snapshots, by 9 ms on average and up to 179, which made the gaps uneven; `CopyClock` never plays
+ahead anyway. HostAuthorityTests "Movement: a guest's stamp reaches ..."; GameTests "A guest's player moves evenly on
+the host's game though its clock runs ahead".
+
+2026-11-02: actions are stamped with the frame clock, as movement is (red flag 1): with the session's
 time as read a copy played an owner's action up to 15 ms off its movement, unevenly; now a steady 11 ms early
 ([red-flags.md](design/red-flags.md)). GameTests "A player's actions play on its copy where its movement was when it
 acted"; the fake's engine frames can be steady while our update lands unevenly (`FakeEngine::FrameMs`).

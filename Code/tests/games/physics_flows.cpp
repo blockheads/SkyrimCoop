@@ -773,3 +773,34 @@ SCENARIO("A host's recorded rest places the observer's reference between frames"
     party.Until([&] { return watched.NodePosition.x == cPose[0]; }, "the observer applies the recorded rest");
     CHECK(watched.SceneWritesDuringJobs == 0);
 }
+
+SCENARIO("A loaded body takes its rest from the host's body rest alone and not from its move row", "[physics][world-rest-phase]")
+{
+    // Seen 2026-11-02 for a ladle: BodyService placed the host's rest, then the move row placed it again (red-flags.md, 4).
+    Party party(1, Plugins);
+    auto& held = BodyOf(party, party.Host(), kBucket);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    held.Flight.Floor = kTable;
+    Party::Engine(party.Host()).Knock(kBucket, {60.f, 0.f, 0.f});
+    party.Until([&] { return !held.Awake && watched.Rests > 0; }, "the bucket rests on both games");
+    const auto cRest = watched.NodePosition;
+
+    // The host's change log reports the same move as a live row.
+    NotifyObjectChanges changes;
+    const float cPose[6]{cRest.x + 0.25f, cRest.y, cRest.z, 0.f, 0.f, 0.f};
+    ObjectChange change{.Type = ObjectChange::Kind::kMove, .Object = kBucket.Object};
+    change.Data.assign(reinterpret_cast<const char*>(cPose), sizeof(cPose));
+    changes.Changes.push_back(change);
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(watched.MoveRows == 0);
+    CHECK(watched.NodePosition == cRest);
+
+    // A script's move (the console's setpos) has no body rest: its row places it.
+    const float cMoved[6]{cRest.x + 50.f, cRest.y, cRest.z, 0.f, 0.f, 0.f};
+    changes.Changes[0].Data.assign(reinterpret_cast<const char*>(cMoved), sizeof(cMoved));
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
+    party.Until([&] { return watched.MoveRows == 1; }, "the scripted move places the bucket");
+    CHECK(watched.NodePosition.x == cMoved[0]);
+}

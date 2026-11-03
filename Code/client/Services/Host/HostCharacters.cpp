@@ -7,6 +7,7 @@
 
 #include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/ReferencesMoveRequest.h>
+#include <Messages/Delivery.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/Relayed.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -48,8 +49,8 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     NotifyReferencesMove notify;
-    // The owner's time, as its actions carry: copies replay both on one timeline (never in the future).
-    notify.Tick = std::min(acRequest.Tick, m_network.GetTick());
+    // The owner's time, as its actions carry: copies replay both on one timeline; CopyClock never plays ahead.
+    notify.Tick = acRequest.Tick;
     for (const auto& [cSessionId, cUpdate] : acRequest.Updates)
     {
         auto it = m_characters.find(cSessionId);
@@ -68,8 +69,7 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
     }
     if (!notify.Updates.empty())
     {
-        const bool cActions = std::ranges::any_of(notify.Updates, [](const auto& acUpdate) { return !acUpdate.second.ActionEvents.empty(); });
-        m_players.SendToOthers(notify, aSender, cActions ? Net::kReliable : Net::kUnreliable);
+        m_players.SendToOthers(notify, aSender, MustArrive(notify.Updates) ? Net::kReliable : Net::kUnreliable);
     }
 }
 

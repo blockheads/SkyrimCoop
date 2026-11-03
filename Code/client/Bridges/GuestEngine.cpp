@@ -2,6 +2,7 @@
 #include <Games/QuestStarts.h>
 
 #include <Bridges/IBodyBridge.h>
+#include <Bridges/ReferenceBodies.h>
 
 #include <Bridges/ContainerItems.h>
 #include <Bridges/LooseItems.h>
@@ -497,6 +498,20 @@ void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
     }
     // Its twin is gone here (the host's deletion came first): the item itself, as a pickup raises it.
     pPlayer->AddOrRemoveItem(acGrant.Item);
+}
+
+bool GuestEngine::RestsThere(const ObjectChange& acMove) noexcept
+{
+    float pose[6];
+    TESObjectREFR* pObject = acMove.Object.ModId == ObjectChange::kCreatedModId ? nullptr : FindReference(acMove.Object);
+    if (!pObject || acMove.Data.size() != sizeof(pose) || !pObject->GetNiNode() || ReferenceBodies::ReadFrames(*pObject).empty())
+        return false;
+    std::memcpy(pose, acMove.Data.data(), sizeof(pose));
+    for (int axis = 0; axis < 3; ++axis)
+        if (std::abs(pObject->position[axis] - pose[axis]) > ReferenceBodies::kSameDistance ||
+            std::abs(pObject->rotation[axis] - pose[3 + axis]) > ReferenceBodies::kSameAngle)
+            return false;
+    return true;
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept

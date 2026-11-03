@@ -76,6 +76,12 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         std::vector<ObjectChange> applied;
         for (const auto& cChange : message.Changes)
         {
+            // A loaded body's live rest is BodyService's, between frames: one writer for its pose (red-flags.md, 4).
+            if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove && m_engine.RestsThere(cChange))
+            {
+                spdlog::debug("GuestWorldState: {} placed by its body rest already", WorldStateLog::Describe(cChange));
+                continue;
+            }
             if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))
                 applied.push_back(cChange);
             else

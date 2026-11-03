@@ -342,6 +342,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t SceneWritesDuringJobs = 0; // manual 3D writes outside the between-frames main-loop drain
         size_t Replaced = 0;
         size_t Rests = 0;     // rests of the host's placed
+        size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
     };

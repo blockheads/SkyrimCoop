@@ -302,3 +302,6 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   and shoes (hard-coded) and its race's spells through vanilla's `MQ101QuestScript.AddRaceSpells` on MQ101 (3372B).
   A mod that starts players differently (its own spells or kit outside MQ101's script) is not applied. When mods are
   in scope: a mod-settings override for the kit and starting spells, or running the start mod's own setup.
+
+- **Graph state only when a copy needs it (2026-11-02, red-flags.md 3).** Each accepted owner action carries its whole
+  graph state (4-15 KB, ~13.5 KB/s raw in a 15-wolf fight): send it only for actions whose clip a copy cannot follow.

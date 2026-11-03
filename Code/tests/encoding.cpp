@@ -20,6 +20,7 @@
 
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/RelayedMessages.h>
+#include <Messages/Delivery.h>
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
@@ -1982,4 +1983,19 @@ TEST_CASE("An actor's AI state carries what it looks at for each reason", "[enco
     CHECK(cState.HeadTrack[4].SessionId == 1);
     CHECK(cState.HeadTrack[5].RefId == GameId(0, 0x31D2E));
     CHECK(cState.HeadTrack[0] == AiTarget{});
+}
+
+TEST_CASE("A guest sends movement unreliably and movement with actions or a teleport reliably", "[encoding.delivery]")
+{
+    ReferencesMoveRequest movement;
+    movement.Updates[1].UpdatedMovement.Position = glm::vec3(1.f, 2.f, 3.f);
+    CHECK(DeliveryOf(movement) == Delivery::kUnreliable);
+    movement.Updates[2].UpdatedMovement.Teleported = true;
+    CHECK(DeliveryOf(movement) == Delivery::kReliable);
+    movement.Updates[2].UpdatedMovement.Teleported = false;
+    movement.Updates[2].ActionEvents.emplace_back();
+    CHECK(DeliveryOf(movement) == Delivery::kReliable);
+    CHECK(DeliveryOf(BodyFramesRequest{}) == Delivery::kReliable);
+    CHECK(DeliveryOf(BodyReleaseRequest{}) == Delivery::kReliable);
+    CHECK(DeliveryOf(PartyTravelRequest{}) == Delivery::kReliableNow);
 }

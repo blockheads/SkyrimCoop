@@ -1,6 +1,6 @@
 # The sync red flags: plan (2026-11-02)
 
-Status: **1 done (2026-11-02, uncommitted); 2-5 open.** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
+Status: **1, 2 done; 3 measured, left as is; 4, 5 fixed (2026-11-02).** Five issues found reviewing actor and physics sync (the 2026-11-02 handoff, item 6),
 looked at in code on 2026-11-02. Each is small on its own. Two are measurements that decide whether code changes at
 all. Work them in the order below, each through the bug-fix flow (CLAUDE.md) where it changes behaviour.
 
@@ -65,6 +65,21 @@ HostCharacters::OnMovement (HostCharacters.cpp:52)
   `CopyClock`, which never plays ahead (`copy-clock.md`). Test: HostAuthorityTests (stamps pass through) and a
   GameTests flow where a guest's clock runs ahead and its copy still moves evenly.
 - **If it rarely clamps,** record the numbers in `copy-clock.md` and leave it.
+- **Measured (2026-11-02, a counter in `OnMovement`, since removed):** about 2.5 minutes of
+  `copy-strafes-with-guest`, `party-stacks-on-arrival`, `party-uses-door`, `guest-bump-moves-host` (3 runs each, all
+  pass). The guest: 1170 of 4857 snapshots clamped (24%; 30% in walking windows), mean cut 8.9 ms, largest 179 (100-106
+  through most of the run); 673 gaps (14%) changed by more than 1 ms. The host's own route: 64 of 4812 (1.3%),
+  mean 41 ms, largest 139, nearly all around loads. The host's time is its last update's, up to a frame stale,
+  so a guest stamping its frame's time is often ahead of it.
+- **Fixed (2026-11-02):** the clamp is gone; `OnMovement` passes the owner's stamp on. HostAuthorityTests "Movement:
+  a guest's stamp reaches the other games as it sent it even ahead of the host's time"; GameTests "A guest's player
+  moves evenly on the host's game though its clock runs ahead": steady frames, the two games' updates interleaved, the
+  guest's clock synchronized 60 ms ahead (in-process delivery takes 2-4 frames, so less never arrives ahead). Without
+  the fix 62 of 92 snapshots reached the copy with a cut stamp (more often than Skyrim's 24%) and 30 of 179 frames
+  stepped over a third off; with it, none. Why Skyrim's guest runs ahead is not known (the guest logs neither its
+  ping nor its syncs); the ping's frame waits are the guess.
+  Duo: `copy-strafes-with-guest` 8 of 9 with the fix (one run a single frame off), 6 of 6 without in the same
+  session; `party-uses-door` 3 of 3.
 
 ## 3. `SaveAnimationGraphState` on every player action: measure first
 
@@ -83,6 +98,14 @@ Animation.cpp:89  pActor->SaveAnimationGraphState(action.GraphState)   on each a
   - Over about 0.5 ms a call, or a guest delay vanilla doesn't have: save it only when a copy needs it (the action
     has no target event and the copy's clip can't follow), or move it off the action's frame.
   - Otherwise record the numbers in `copy-clock.md` and leave it.
+- **Measured (2026-11-02), left as is:** a timer around the call (since removed), the duo and the vanilla stand-in.
+  - Cost: 0.10-0.15 ms a call for a player (DefaultMale), 0.05 for wolves; a 15-wolf fight about 4 calls a second,
+    0.2 ms a second on the host.
+  - Press to motion (real `w` key, the player's place each frame): host 2 frames (31-32 ms), guest 2 (31-37),
+    vanilla 2 (24-36). The owner's `moveStart` is taken the frame it moves. No delay of ours.
+  - Open: every save differs from the last, so each accepted action carries its whole state: 12-15 KB for a
+    player, 4-6 KB for a wolf, about 13.5 KB/s raw in the fight (the host's movement out is 23 KB/s on the wire).
+    Worth sending only when a copy needs it, if bandwidth comes up (`docs/ideas.md`).
 
 ## 4. One rest path
 
@@ -111,6 +134,18 @@ seen 2026-11-02 for one ladle: "BodyService: placed the owner's rest of 32AFF" A
   - GameTests: the fake counts both writers (`FakeEngine::Body::SceneWritesDuringJobs` and the rest counters exist).
 - **Duo:** `world-changes-reach-guest` (the world oracle), `clutter-rests-at-any-frame-rate`, the physics set,
   `late-join-gets-cell-state`.
+- **Fixed (2026-11-02):** a live move row is skipped when its reference is loaded with dynamic bodies and already
+  stands where the row puts it (`GuestEngine::RestsThere`, within the bodies' 0.5 units / 0.005 rad): the body rest
+  placed it. Any other live row still applies, and so do a cell load's rows (path A cannot reach those).
+  - First cut skipped every live row of a loaded dynamic body: the ladle resets broke (`physics-push-reaches-guest`,
+    `guest-bump-moves-host`, `guest-cast-moves-host` at "shows them back"). The console's `setpos`, as a script's
+    move, wakes no body and sends no rest: only its row reaches the guest.
+  - GameTests "A loaded body takes its rest from the host's body rest alone and not from its move row": the same
+    rest as a live row writes nothing (was a second write), a scripted move's row still places it. The fake counts
+    move-row writes (`Body::MoveRows`).
+  - Duo: physics push, bump, throw, cast, `late-join-gets-cell-state`, `clutter-rests-at-any-frame-rate`,
+    `world-changes-reach-guest` pass. `guest-drops-item-stays` fails on committed code too (the host's sword 124
+    units off the guest's rest).
 
 ## 5. A guest's movement goes unreliable
 
@@ -137,6 +172,17 @@ network: Net::Server and Client, 2 ENet channels: 0 reliable, 1 unreliable (Serv
     stalls the reliable path shows.
 - **Duo:** the movement and copy scenarios. **`scripts/net_check.sh` only with the user's OK** (memory
   `net-check-seldom`). It's the tier that shows the gain.
+- **Fixed (2026-11-02):** `DeliveryOf` (`Messages/Delivery.h`) picks the guest's flags:
+  `ReferencesMoveRequest` unreliable unless `MustArrive` (actions, or a teleport: said in one snapshot, so a lost
+  one would sweep the copy across), the rest reliable (`PartyTravelRequest` without Nagle). `BodyFramesRequest`
+  stays reliable: sent unreliably, `world-changes-reach-guest`'s create step passed 1 of 5 (7 of 8 without), the
+  created ladle ending turned differently; the host follows the last frame of a body the guest moves. The host's relay takes the same `MustArrive`, so teleports go reliably there too. Late snapshots are
+  inserted in tick order and the old pruned (`InterpolationSystem::AddPoint`, `RunRemoteUpdates`): no reordering.
+  - TPTests `[encoding.delivery]`; GameTests "Over a lossy line a guest's player reaches the host without stalls"
+    (`UdpRelay`, 30 ms, 10 jitter, 5% loss): the longest wait for the guest's next snapshot on the host, 8 runs
+    each: reliable 127-323 ms (one run 42), unreliable 65-98.
+  - Duo: `copy-strafes-with-guest`, `copy-jumps-with-owner`, `party-uses-door`, `party-stacks-on-arrival`, sneak and
+    cast pass. `scripts/net_check.sh` not run (the user's OK first).
 
 ## Where things stand (2026-11-02)
 
