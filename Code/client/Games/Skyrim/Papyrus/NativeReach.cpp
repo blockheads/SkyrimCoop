@@ -1,6 +1,7 @@
 #include <Papyrus/NativeReach.h>
 
 #include <VersionDb.h>
+#include <PlayerCharacter.h>
 
 #include <windows.h>
 
@@ -127,7 +128,7 @@ const Sinks& EngineSinks() noexcept
     POINTER_SKYRIMSE(void, s_setVehicle, 37903);          // Actor.SetVehicle's call
     POINTER_SKYRIMSE(void, s_setRestrained, 37488);       // Actor::SetRestrained
     static const Sinks s_sinks = [] {
-        constexpr uint32_t cPerkPoints = 0xB09; // PlayerCharacter's perk points (Game.AddPerkPoints writes it)
+        constexpr uint32_t cPerkPoints = offsetof(PlayerCharacter, perkPoints);
         Sinks sinks;
         const auto cAdd = [&](const auto& acFunction, Reach aIs, std::optional<uint64_t> aSecond = std::nullopt) {
             if (const auto cAddress = reinterpret_cast<uintptr_t>(acFunction.GetPtr()))

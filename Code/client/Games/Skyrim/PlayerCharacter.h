@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Actor.h>
+#include <RuntimeVersion.h>
 #include <Misc/TintMask.h>
 #include <Forms/ActorValueInfo.h>
 
@@ -185,7 +186,7 @@ struct PlayerCharacter : Actor
         uint8_t rank;
     };
 
-    uint8_t pad1[0x4B8 - sizeof(Actor)];
+    uint8_t pad1[0x4B8 + SkyrimRuntime::PlayerShift - sizeof(Actor)];
     GameArray<PerkRank*> perkRanks; // CommonLib addedPerks: what PlayerCharacter::AddPerk (40681) adds
     uint8_t pad4D0[0x588 - 0x4D0];
     GameArray<ObjectiveInstance> objectives;
@@ -220,20 +221,20 @@ struct PlayerCharacter : Actor
     [[nodiscard]] bool IsFlaggedInCombat() const noexcept { return playerFlags3 & 0x20; }
 };
 
-static_assert(offsetof(PlayerCharacter, perkRanks) == 0x4B8);
-static_assert(offsetof(PlayerCharacter, objectives) == 0x588);
-static_assert(offsetof(PlayerCharacter, queuedTarget) == 0x648);
-static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00);
-static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09);
+static_assert(offsetof(PlayerCharacter, perkRanks) == 0x4B8 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, objectives) == 0x588 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, queuedTarget) == 0x648 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09 + SkyrimRuntime::PlayerShift);
 static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);
-static_assert(offsetof(PlayerCharacter, grabbedObject) == 0x8D0);
-static_assert(offsetof(PlayerCharacter, sleepSeconds) == 0x8EC);
-static_assert(offsetof(PlayerCharacter, firstPerson3D) == 0x8F0);
-static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C);
-static_assert(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938);
-static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8);
-static_assert(offsetof(PlayerCharacter, locationForm) == 0xAD0);
-static_assert(offsetof(PlayerCharacter, baseTints) == 0xB18);
-static_assert(offsetof(PlayerCharacter, overlayTints) == 0xB30);
-static_assert(offsetof(PlayerCharacter, playerFlags3) == 0xBE3);
-static_assert(sizeof(PlayerCharacter) == 0xBE8);
+static_assert(offsetof(PlayerCharacter, grabbedObject) == 0x8D0 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, sleepSeconds) == 0x8EC + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, firstPerson3D) == 0x8F0 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, locationForm) == 0xAD0 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, baseTints) == 0xB18 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, overlayTints) == 0xB30 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, playerFlags3) == 0xBE3 + SkyrimRuntime::PlayerShift);
+static_assert(sizeof(PlayerCharacter) == 0xBE8 + SkyrimRuntime::PlayerShift);

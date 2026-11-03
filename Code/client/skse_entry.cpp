@@ -20,6 +20,7 @@
 #include <vector>
 #include "PluginPaths.h"
 #include "RunningGame.h"
+#include "RuntimeVersion.h"
 #include "CoSave.h"
 #include "HotReload/Handoff.h"
 #if COOP_TEST_HARNESS
@@ -70,10 +71,9 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
     "SkyrimTogether",
     "SkyrimCoop",
     "",
-    SKSEPluginVersionData::kVersionIndependentEx_NoStructUse,
-    SKSEPluginVersionData::kVersionIndependent_AddressLibraryPostAE
-        | SKSEPluginVersionData::kVersionIndependent_StructsPost629,
-    { MAKE_EXE_VERSION(1, 6, 1170), 0 },
+    1 << 1, // SKSE AddressLibraryV5 capability; compatibility is an exact runtime below.
+    0,
+    { SkyrimRuntime::PackedVersion, 0 },
     0,
 };
 
@@ -134,6 +134,13 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
     if (!apSkse)
         return false;
+    if (apSkse->runtimeVersion != SkyrimRuntime::PackedVersion)
+    {
+        const std::string message = "This SkyrimCoop build requires Skyrim " + std::string(SkyrimRuntime::Name) +
+                                    ". Install the matching build for your game.";
+        MessageBoxA(nullptr, message.c_str(), "SkyrimCoop: incompatible game version", MB_OK | MB_ICONERROR);
+        return false;
+    }
 
     // Data/SKSE/Plugins/SkyrimTogetherClient.dll -> Skyrim root
     std::filesystem::path pluginDirectory = s_pluginDirectory;
@@ -167,7 +174,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
         CoopReload::HandOff("skse_plugin_handle", std::to_string(cHandle));
     CoSave::Start(apSkse->QueryInterface(3), cHandle, !cHandedOff);
 
-    std::string exeVersion("1.6.1170.0");
+    const std::string exeVersion(SkyrimRuntime::Name);
 
     InitPlugin(gamePath, exeVersion);
     StartPlugin();

@@ -16,6 +16,10 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 ### Constraints
 
+- **Runtime**: Steam 1.7.104 is the default and primary target. Keep 1.6.1170 as a separate build:
+  `COOP_SKYRIM_VERSION=1.6.1170 scripts/xmake-msvc.sh f -m dev`, then the same environment for build and harness commands.
+  Legacy artifacts/configuration are isolated under `build/skyrim-1.6.1170` / `build/msvc-config-1.6.1170`.
+
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
 - **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the testing guide
 - **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
@@ -147,7 +151,9 @@ the host's own game: the same, over an in-process route instead of enet
 
 - Start at `docs/re/README.md`: generated `docs/re/ENGINE_REFERENCE.md` lists every engine address (Address Library ID) the client uses with its CommonLibSSE/SKSE/meh321 name and hook/call usage; `docs/re/systems/` and `docs/re/crashes/` hold hand-written findings
 - Regenerate after adding/changing `POINTER_SKYRIMSE` IDs: `python3 scripts/re/build_re_data.py` (references fetched by `scripts/re/fetch_references.sh` into git-ignored `reference/`)
-- IDA database (not committed): `build/re/SkyrimSE_1.6.1170.i64`, built by `scripts/re/make_ida_db.sh`; sync with `scripts/re/ida_apply.py` / `ida_export.py`
+- IDA databases (not committed): `build/re/SkyrimSE_1.7.104.i64` and the retained `SkyrimSE_1.6.1170.i64`, built by
+  `scripts/re/make_ida_db.sh` with the matching `COOP_SKYRIM_VERSION`; annotations live in `build/re/<version>/`.
+  Sync with `scripts/re/ida_apply.py` / `ida_export.py`; the importer verifies the executable SHA-256.
 
 ## Animation Synchronization
 

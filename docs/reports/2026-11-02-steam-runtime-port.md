@@ -1,5 +1,8 @@
 # Steam Skyrim 1.7.104 port assessment
 
+Historical assessment. The implementation and native acceptance are now recorded in
+[the port acceptance report](../../playtests/2026-11-02-steam-runtime-port.md).
+
 Assessed 2026-11-02 against `dev` commit `eb913f95`, in worktree `.worktrees/steam-runtime-audit`, branch
 `audit/latest-steam-runtime`. This is an offline assessment, not a completed port or a gameplay acceptance run.
 

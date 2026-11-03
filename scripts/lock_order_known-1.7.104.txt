@@ -1,0 +1,172 @@
+# Skyrim 1.7.104: reviewed 1.6.1170 patterns relocated through stable IDs.
+# Every lock-return site matched an matching instruction sequence and the same lock callee
+# in both executables (45 sites; smallest match 33 instructions).
+# Review history below describes the corresponding 1.6.1170 stacks; live overlaps still fail.
+
+# Lock-order patterns reviewed and accepted (coop_test.py ignores them).
+# One pattern per line, as the checker prints it between the brackets (either order); '#' starts a comment.
+# Only add a pattern after reading both stacks (scripts/re/symbolize_crash.py on the report).
+
+# Load: worker threads read extra-data while the main thread writes them; only our pass-through
+# hooks (HookCheckForNewPackage, HookForceState) are on the stack. Vanilla.
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x165490 vs SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x167487 vs SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x3d85c7 vs SkyrimSE.exe+0x3d9288 > SkyrimSE.exe+0x18772f
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x3d863f vs SkyrimSE.exe+0x3d9288 > SkyrimSE.exe+0x18772f
+# The same with the load's other writes (0x170402 > 0x182bca), seen loading a save mid-duo (2026-10-23): AI workers
+# (UpdateLowActorsAI through our pass-through HookUpdateAI, HookCheckForNewPackage) read extra-data. Vanilla.
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x175992 > SkyrimSE.exe+0x18820a
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x165490 vs SkyrimSE.exe+0x175992 > SkyrimSE.exe+0x18820a
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x167487 vs SkyrimSE.exe+0x175992 > SkyrimSE.exe+0x18820a
+# A guest applying the host's alias fills (GuestEngine::ApplyFills -> TESQuest::ForceRefIntoAlias, on our update
+# thread) against a save load's FinishLoadGame (TESObjectREFR::FinishLoadGame -> ExtraAliasInstanceArray, main thread).
+# Never at once: frames, and our update with them, stop while the main thread loads (the first update after a load logs
+# "Frame stalled: <the load's length>"). Both stacks read 2026-10-23 (loaded-save-hosts-then-joins-friend).
+SkyrimSE.exe+0x3d5006 > SkyrimSE.exe+0x18772f vs SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x3d85c7
+SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f vs SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x172a5b
+SkyrimSE.exe+0x3d5006 > SkyrimSE.exe+0x188838 vs SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x3d85c7
+# Native follower dismissal (TESQuest::ClearRefAlias -> ExtraAliasInstanceArray) after FinishLoadGame's reverse
+# alias -> quest order. The first pair is a Papyrus worker, the load pair the main thread during loading; our
+# hooks only pass through. Both stacks read and reproduced with unchanged dev's DLL (no follower hooks),
+# 2026-10-27: build/followers-review/followers-baseline-alias.log and -host.log; docs/re/systems/followers.md.
+SkyrimSE.exe+0x3d4c05 > SkyrimSE.exe+0x187881 vs SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x3d85c7
+# The same ClearRefAlias under ForceRefIntoAlias's outer quest lock (3cdf46). Both stacks read 2026-10-27:
+# build/followers-review/followers-dev-native.log; native ForceRef -> ClearRef -> alias removal, versus FinishLoadGame.
+SkyrimSE.exe+0x3d5006 > SkyrimSE.exe+0x187881 vs SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x3d85c7
+# A joining guest putting its character on after the host's save loaded (JoinBridge::ApplyPlayer -> Actor::SwitchRace
+# -> Character::sub_38754 -> ExtraAliasInstanceArray read, then a condition's ExtraDataList::GetExtraData on the
+# player, our update thread) against that load (TESObjectREFR::LoadGame -> ExtraAliasInstanceArray write under the
+# player's reference lock, main thread). Never at once, as above: ApplyPlayer runs on the GameLoadedEvent after the
+# load. Both stacks read 2026-10-24 (guest-makes-character-then-joins).
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x175992 > SkyrimSE.exe+0x18820a
+# A revived player's abilities cast again (PlayerCharacter::Revive -> Actor::CastPermanentMagic 38753 ->
+# CastAliasSpellVisitor under the ExtraAliasInstanceArray read -> MagicCaster::FindTargets -> Actor::IsGhost, the
+# player's reference lock; our update thread) against that load, as above. Vanilla takes the same order whenever an
+# actor's 3D loads (Actor::Load3D, Set3D and SwitchRace call 38753). Both stacks read 2026-10-26 (death-spectate-guest).
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x6756f4 vs SkyrimSE.exe+0x175992 > SkyrimSE.exe+0x18820a
+# The same revive against a coc's cell load (CenterOnCell -> TES::SetCurrentCell -> TESQuest ->
+# BGSRefAlias::InitializeRefAlias -> ExtraAliasInstanceArray write, main thread), as the ApplyFills entries above: never at
+# once. Both stacks read 2026-10-26 (death-spectate-host, the duo's start coc).
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x6756f4 vs SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f
+# One main thread at two times: a save load (BGSSaveLoadGame::InitAndFinishLoadedForms -> Actor::FinishLoadGame ->
+# ExtraAliasInstanceArray, then TESQuest) against an earlier coc (CenterOnCell -> TES::SetCurrentCell ->
+# BGSRefAlias::InitializeRefAlias -> ExtraAliasInstanceArray write). Ours: only the main loop and the harness's console
+# hooks, passing through. Both stacks read 2026-10-24 (a client restarted with coc QASmoke, then loading a save).
+SkyrimSE.exe+0x1884d1 > SkyrimSE.exe+0x3d85c7 vs SkyrimSE.exe+0x3d9288 > SkyrimSE.exe+0x18772f
+
+# coc while the exterior world steps: the main thread detaches a cell (CenterOnCell -> TES -> TESObjectCELL ->
+# TESObjectREFR::DetachHavok -> ExtraDataList::RemoveExtraData, then bhkWorld enter-write) while
+# UpdateExteriorWorldJob holds the bhkWorld write lock and a trap trigger reads a ref's keywords
+# (bhkTrapListener -> TriggerEntry -> TESObjectREFR::HasKeywordHelper -> ExtraDataList::GetExtraData). Both
+# stacks read on 2026-10-12 (the checker now prints the other thread's first stack); ours is only the main loop.
+SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d
+SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2
+
+# An NPC's package travel (UpdateLowActorsAI -> Character::UpdateAI -> AIProcess::UpdatePackageAndProcess ->
+# PackageLocation) against a Character being constructed during a cell load. Ours on the stacks: only the
+# pass-throughs HookUpdateAI (an owned actor) and HookCharacterConstructor. Both stacks read on 2026-10-12.
+SkyrimSE.exe+0x77b820 > SkyrimSE.exe+0x3d85c7 vs SkyrimSE.exe+0x3d9288 > SkyrimSE.exe+0x77a8cb
+SkyrimSE.exe+0x3d9288 > SkyrimSE.exe+0x77a8cb vs SkyrimSE.exe+0x77b820 > SkyrimSE.exe+0x3d85c7
+
+# The same coc detach, against the world step's Havok island activation (bhkWorld::Func50_77851 ->
+# ahkpWorld -> FOIslandActivationListener::islandActivatedCallback -> hkpRigidBody -> extra-data read at
+# 0x1650b0+0x55), seen leaving the river in dive-host-player. Both stacks read on 2026-10-12; ours is only
+# the main loop.
+SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x16a695
+SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x16a695 vs SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2
+# The same coc detach on one thread, leaving an exterior (dive-client-player, cow river -> coc QASmoke):
+# CenterOnCell_Impl -> 40438 -> TES::SetCurrentCell -> DetachHavok -> RemoveExtraData, then bhkWorld write;
+# and 40438 -> PositionPlayerEvent -> bhkWorld -> FOIslandActivationListener::islandDeactivatedCallback ->
+# GetExtraData under the bhkWorld lock. Both stacks read on 2026-10-13; ours is only HookMainLoop.
+SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x17e87d
+SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2
+# The same detach on the host leaving the river (dive-host-player, 2026-10-14; the client now follows by the
+# party tether, so only the host runs the coc): the read is under islandActivatedCallback (hkpRigidBody 25857 ->
+# sub_1401650B0) instead. Stacks read: ConsoleFunc CenterOnCell -> PositionPlayerEvent -> TESObjectCELL 13676 ->
+# bhkWorld; ours is only the main loop.
+SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2 vs SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x16a695
+SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x16a695 vs SkyrimSE.exe+0x17fa69 > SkyrimSE.exe+0x1047ff2
+# An owned NPC's package conditions (UpdateMiddleLowActorsAI -> Character::UpdateAI -> EvaluatePackage ->
+# CheckForNewPackage -> ExtraAliasInstanceArray 12721 -> TESConditionItem -> Actor::IsInFaction -> GetExtraData)
+# against Papyrus filling a quest alias (BGSRefAlias 24012 -> TESObjectREFR 19653 -> ExtraAliasInstanceArray 12719
+# write). Ours: only the pass-throughs HookUpdateAI and HookCheckForNewPackage. Both stacks read on 2026-10-13.
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x172a5b > SkyrimSE.exe+0x187881
+SkyrimSE.exe+0x172a5b > SkyrimSE.exe+0x187881 vs SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d
+# The same pair the other way round: a coc (CenterOnCell_Impl -> 40438 -> IOManager -> TESQuest 25083 ->
+# BGSRefAlias 24011 -> ExtraAliasInstanceArray 12718 write) against a low actor's package conditions
+# (UpdateLowActorsAI -> HookUpdateAI -> ... -> HookCheckForNewPackage -> 12721 -> GetIsID -> GetExtraData). Ours:
+# only the pass-throughs and HookMainLoop. Both stacks read on 2026-10-13.
+SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f vs SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d
+# A spell landing on an NPC held in quest aliases (MagicCaster::FindTargets -> MagicTarget::AddTarget -> the engine
+# relaying it to the reference's aliases, ExtraAliasInstanceArray read at +0x182315, then GetExtraData) against the
+# coc above writing the alias array. Ours: only the pass-throughs HookFindTargets and HookAddTarget (the host's own
+# actor, the caster no copy). Also reported with none of our frames (vilkas-counts-client-hits). Read on 2026-10-20.
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17294b > SkyrimSE.exe+0x18772f
+# A door's arrival autosaves: 40438 -> Actor 40445 -> BGSSaveLoadManager::Save_Impl -> TESObjectREFR::SaveGame
+# reads ExtraAliasInstanceArray (12729) while a quest alias fill on Job_IO (BGSRefAlias 24011 -> 39114
+# CheckForNewPackage -> package conditions -> Actor::IsInFaction) reads extra-data; and Papyrus
+# ForceRefIntoAlias (25052) the same chain against Job_Quest_for_events writing the alias (12719). Ours on the
+# stacks: only the pass-through HookCheckForNewPackage and HookMainLoop. Both stacks read on 2026-10-13
+# (party-uses-door).
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x174a1b > SkyrimSE.exe+0x1885d5
+SkyrimSE.exe+0x187a10 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x172a5b > SkyrimSE.exe+0x187881
+# The arrival's PositionPlayerEvent (40438 -> TESObjectCELL 13676 -> bhkWorld -> islandDeactivatedCallback ->
+# GetExtraData) against a cell attach on Job_IO (TES 13355 -> TESObjectREFR 19742 -> bhkRigidBody_setMotionType,
+# bhkWorld write). Ours only HookMainLoop. Both stacks read on 2026-10-13 (party-uses-door).
+SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x10587a6
+# An NPC's movement against the combat manager (party-fast-travels, 2026-10-14, the host in Riverwood):
+# Actor::UpdateMovement -> HookApplyMovement (ours, a pass-through for a real actor) -> MovementControllerAI ->
+# MovementPathManagerArbiter 90873 (path lock) -> Character 37766 -> sub_140803DF0 (combat group lock), against
+# Job_Combat_manager -> CombatGroup 46869 -> sub_140803710 (combat group lock) -> IMovementQueryPathingState 90868
+# (path lock). Both stacks read; vanilla.
+SkyrimSE.exe+0x11d4685 > SkyrimSE.exe+0x818c83 vs SkyrimSE.exe+0x8185a5 > SkyrimSE.exe+0x11d4493
+SkyrimSE.exe+0x8185a5 > SkyrimSE.exe+0x11d4493 vs SkyrimSE.exe+0x11d4685 > SkyrimSE.exe+0x818c83
+# A trap listener's OnTriggerEnter against a cell load (party-uses-door, 2026-10-21, the host): Job_Cell_animations ->
+# bhkWorld 77851 (world lock) -> bhkTrapListener 26053 -> TESTriggerEnterEvent sink 54001 -> HookSendEvent (ours, a
+# pass-through on the host) -> VirtualMachine::SendEvent 104800 -> ExtraDataList::GetUniqueIDs 12030 (extra-data lock),
+# against Job_IO -> TESObjectREFR 19742 (extra-data lock) -> bhkRigidBody_setMotionType 78077 (world lock). Both
+# stacks read; vanilla (seen engine-only the same morning).
+SkyrimSE.exe+0x104ad57 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x10587a6
+# Travel against a reference loading (party-uses-door, 2026-10-21, the guest): the main thread's
+# PlayerCharacter::ProcessQueuedTravel 40438 -> TESObjectCELL 13676 -> bhkWorld 77921 (world lock) ->
+# FOIslandActivationListener::islandDeactivated 25850 -> ExtraDataList 11968/12329 (extra-data lock), against
+# Job_IO -> TESObjectREFR 19742 (extra-data lock) -> bhkRigidBody 78081 (world lock). Ours only by HookMainLoop at
+# the bottom of the main thread's stack; the same pair as the 78077 line above. Both stacks read; vanilla.
+SkyrimSE.exe+0x1b5bfa > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x17014d > SkyrimSE.exe+0x1058a00
+# An actor's permanent effects relayed to its aliases against a quest clearing them (vilkas-counts-client-hits,
+# 2026-10-21, the host): BackgroundProcessThread -> Actor::Load3D 37177 -> CastPermanentMagic -> FindTargets/AddTarget
+# (HookFindTargets, HookAddTarget: pass-throughs here) -> SkyrimVM::RelayEvent 54033 -> ExtraAliasInstanceArray 12720
+# (alias lock, read) -> HookSendEvent (pass-through on the host) -> VM SendEvent -> ExtraDataList 12030 (extra-data
+# lock), against Job_Quest_for_events -> TESQuest 25049 -> BGSRefAlias 24012 -> ExtraAliasInstanceArray 12719. The
+# sibling of the 1823d0 load lines above. Both stacks read; vanilla.
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x172a5b > SkyrimSE.exe+0x187881
+
+# A quest's alias fill adding a spell on an IO job (BGSRefAlias::InitializeRefAlias -> Actor::AddSpell ->
+# MagicCaster::FindTargets -> MagicTarget -> TESMagicEffectApplyEvent -> SkyrimVM::RelayEvent under the alias
+# array's lock 12720 -> VM SendEvent -> GetExtraData on the actor) against the Wait menu's autosave
+# (PlayerCharacter::StartWaiting -> Save_Impl -> TESObjectREFR::SaveGame: reference lock, then the alias array
+# 12729). Ours on the stack: the pass-throughs HookFindTargets, HookAddTarget (an owned actor, our caster) and
+# HookSendEvent (host). Seen in vilkas-counts-client-hits after a wait scenario; both stacks read on 2026-10-21.
+SkyrimSE.exe+0x187955 > SkyrimSE.exe+0x17e87d vs SkyrimSE.exe+0x174a1b > SkyrimSE.exe+0x1885d5
+
+# The engine's inventory: InventoryChanges::RemoveItem (16059 -> 11591) takes one lock then the other, adding an
+# item (TESObjectREFR::AddToInventoryChanges 19688 -> 16053 -> 11594) the other way round. Ours: a copy's inventory
+# set from the owner's (SkyrimBridge::SetActorInventory: RemoveAllItems, then AddObjectToContainer per item) on the
+# update job, one call at a time; vanilla takes both from scripts and the player's own pickups. Both stacks read
+# on 2026-10-21 (keyhole-asks-client, client).
+SkyrimSE.exe+0x15adca > SkyrimSE.exe+0x15addd vs SkyrimSE.exe+0x15a35e > SkyrimSE.exe+0x15a370
+# The same pair at its next sites, the remove side under an outfit reset (Actor::ResetInventory 37322 through our
+# pass-through HookResetInventory -> RemoveOutfitItems -> RemoveItem). Both stacks read 2026-10-23
+# (late-join-gets-ring-pose, client).
+SkyrimSE.exe+0x15addd > SkyrimSE.exe+0x15ade9 vs SkyrimSE.exe+0x15a35e > SkyrimSE.exe+0x15a370
+
+# An NPC's sleep package reading extra-data for its idle conditions (Character::UpdateAI -> BGSProcedureSleep ->
+# BGSProcedureSitSleepExecState -> 39923 -> TESIdleForm conditions -> TESConditionItem::IsTrue -> 11778) against
+# the main thread demoting a reference (ProcessEvents -> BGSDynamicPersistenceManager::DemoteReference ->
+# GarbageCollector::Add -> 11597 -> 11787) or the loader thread initializing a cell's references
+# (InitTESThread -> LoadScripts -> TESObjectCELL::InitItemImpl -> TESObjectREFR::InitItemImpl -> 11596 -> 11786).
+# Ours on the stacks: only the pass-throughs HookUpdateAI and HookMainLoop. Both stacks read on 2026-10-22
+# (statue-fires-at-client, keyhole-asks-client, copy-made-later-shows-effects on the guest). Vanilla.
+SkyrimSE.exe+0x15eb3d > SkyrimSE.exe+0x167f97 vs SkyrimSE.exe+0x725564 > SkyrimSE.exe+0x167487
+SkyrimSE.exe+0x725564 > SkyrimSE.exe+0x167487 vs SkyrimSE.exe+0x15d694 > SkyrimSE.exe+0x167d55

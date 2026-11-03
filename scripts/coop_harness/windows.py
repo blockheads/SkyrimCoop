@@ -10,7 +10,11 @@ import os
 import shutil
 import subprocess
 import time
+from skyrim_runtime import game_executable
 from .common import (
+    VERSIONLIB_NAME,
+    SKSE_DLL_NAME,
+    SKYRIM_VERSION,
     ADDRESS_LIBRARY,
     BUNDLED_START,
     DLL,
@@ -163,7 +167,7 @@ class WindowsRuntime(Runtime):
 
     def check_prerequisites(ctx):
         ctx.ensure_duo_game()
-        required = [GAME / GAME_EXE, GAME / "skse64_loader.exe", PLUGINS / "versionlib-1-6-1170-0.bin", DLL]
+        required = [GAME / GAME_EXE, GAME / "skse64_loader.exe", PLUGINS / VERSIONLIB_NAME, DLL]
         missing = [str(path) for path in required if not path.exists()]
         if missing:
             raise ctx.failure("Missing:\n  " + "\n  ".join(missing) + "\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && "
@@ -176,16 +180,22 @@ class WindowsRuntime(Runtime):
         """The duo's game folder: the 1.6.1170 game's files and SKSE's linked, its own Data/SKSE/Plugins."""
         plugins = GAME / "Data/SKSE/Plugins"
         plugins.mkdir(parents=True, exist_ok=True)
-        own = {"Data", "SkyrimSELauncher.exe"}
-        own_data = {"SKSE", BUNDLED_START}
+        own = {"Data", "SkyrimSELauncher.exe", "SkyrimSE.exe"}
+        own.update(source.name for source in STEAM_GAME.glob("skse64_*") if source.suffix in (".exe", ".dll"))
+        own_data = {"SKSE", "Scripts", BUNDLED_START}
         sources = [(source, GAME / source.name) for source in STEAM_GAME.iterdir() if source.name not in own]
         sources += [(source, GAME / "Data" / source.name) for source in (STEAM_GAME / "Data").iterdir()
                     if source.name not in own_data]
-        sources += [(source, GAME / source.name) for source in SKSE_DIR.glob("skse64_*") if source.suffix in (".exe", ".dll")]
-        sources += [(ADDRESS_LIBRARY / "versionlib-1-6-1170-0.bin", plugins / "versionlib-1-6-1170-0.bin")]
+        sources += [(game_executable(STEAM_GAME, SKYRIM_VERSION), GAME / "SkyrimSE.exe")]
+        sources += [(SKSE_DIR / name, GAME / name) for name in ("skse64_loader.exe", SKSE_DLL_NAME)]
+        sources += [(ADDRESS_LIBRARY / VERSIONLIB_NAME, plugins / VERSIONLIB_NAME)]
         for source, target in sources:
+            if source.name in ("SkyrimSE.exe", "skse64_loader.exe", SKSE_DLL_NAME, VERSIONLIB_NAME) or target.name == "SkyrimSE.exe":
+                ctx.copy_if_changed(source, target, compare_contents=True)
+                continue
             if not target.is_symlink() and not target.exists() and source.exists():
                 link(source, target)
+        ctx.stage_skse_scripts()
 
     def crash_logs(ctx, name):
         """CrashLoggerSSE's logs of one game, oldest first. Both games write them into the shared My Games: a new log

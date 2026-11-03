@@ -348,7 +348,7 @@ namespace
 // RTTI (its base class descriptor's mdisp); CommonLibSSE's 0x380 is the SE layout.
 EventDispatcher<PositionPlayerEvent>* PositionPlayerSource() noexcept
 {
-    constexpr size_t cPositionPlayerSource = 0x388;
+    constexpr size_t cPositionPlayerSource = 0x388 + SkyrimRuntime::PlayerShift;
     auto* pPlayer = PlayerCharacter::Get();
     return pPlayer ? reinterpret_cast<EventDispatcher<PositionPlayerEvent>*>(reinterpret_cast<uint8_t*>(pPlayer) + cPositionPlayerSource)
                    : nullptr;

@@ -27,6 +27,20 @@ add_vectorexts("neon")
 -- build configurations
 add_rules("mode.debug", "mode.releasedbg", "mode.release", "mode.dev")
 
+option("skyrim_version")
+    set_default("latest")
+    set_values("latest", "1.7.104", "1.6.1170")
+    set_showmenu(true)
+    set_description("Skyrim Steam runtime (latest is 1.7.104)")
+    after_check(function (option)
+        if not table.contains(option:get("values"), option:value()) then
+            raise("unsupported skyrim_version: %s", tostring(option:value()))
+        end
+    end)
+option_end()
+add_defines(has_config("skyrim_version") and is_config("skyrim_version", "1.6.1170")
+    and "COOP_SKYRIM_1_6_1170=1" or "COOP_SKYRIM_1_6_1170=0")
+
 if is_plat("windows") then
     -- clang-cl targeting the MSVC ABI from Linux: configure through scripts/xmake-msvc.sh,
     -- which puts build/toolchains/msvc-bin first in PATH (clang-cl, lld-link shims) and

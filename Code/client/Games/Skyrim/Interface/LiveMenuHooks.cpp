@@ -195,6 +195,12 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(50945, &s_barter.Real, BarterProcess);
 
     VersionDbPtr<uint8_t> bookProcess(51049);
-    Hooks::SwapCall(bookProcess.Get() + 0x6F, RealBookMenuMode, &BookMenuMode);
+    constexpr size_t cBookModeCall = COOP_SKYRIM_1_6_1170 ? 0x6F : 0x71;
+    VersionDbPtr<uint8_t> menuMode(35406);
+    uint8_t* pCall = bookProcess.Get() + cBookModeCall;
+    if (*pCall == 0xE8 && pCall + 5 + *reinterpret_cast<const int32_t*>(pCall + 1) == menuMode.Get())
+        Hooks::SwapCall(pCall, RealBookMenuMode, &BookMenuMode);
+    else
+        spdlog::error("BookMenu: expected menu-mode call missing; keeping the engine's behavior");
 });
 } // namespace
