@@ -47,8 +47,15 @@ def clean_game():
 
 
 def install(package):
-    """docs/install.md: extract into the game folder; nothing else (the launcher enables the start)."""
+    """docs/install.md: preserve Bethesda's launcher, then extract (ours enables the start)."""
+    original = STEAM_GAME / "SkyrimSELauncher.bethesda.exe"
+    if not original.exists():
+        original = STEAM_GAME / "SkyrimSELauncher.exe"
+    if original.exists():
+        shutil.copy2(original, GAME / "SkyrimSELauncher.bethesda.exe")
     with zipfile.ZipFile(package) as archive:
+        if "SkyrimSELauncher.bethesda.exe" in archive.namelist():
+            raise TestFailure("the package must never replace the player's preserved Bethesda launcher")
         archive.extractall(GAME)
     ct.load_order_file().unlink(missing_ok=True)
 
@@ -71,7 +78,7 @@ def main():
     log(f"Booting {package.name} from {GAME} through SkyrimSELauncher.exe (SkyrimCoopLauncher)")
     output = open(HOME / "proton.log", "w")
     launcher = subprocess.Popen([str(RUNTIME / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
-                                 str(GAME / "SkyrimSELauncher.exe")], env=env, cwd=GAME, stdout=output,
+                                 str(GAME / "SkyrimSELauncher.exe"), "--play"], env=env, cwd=GAME, stdout=output,
                                 stderr=subprocess.STDOUT, start_new_session=True)
     try:
         ui = ct.wait_for("the plugin's UI is ready", lambda: plugin_log.exists() and next(
