@@ -89,16 +89,16 @@ def scenario_guest_throw_lands_on_host(ctx):
     starts = ctx.where_now([target])
     ctx.place_before("client", target, 90)
     ctx.face("client", target)
+    # Ready first: a ladle the host's frames still move is keyframed in the client's game, and the grab refuses it.
+    # Placed by teleport, the client's copy reaches the host a moment later, while its ladle may still stir.
+    ctx.wait_until_settled(target, "client")
     # A refused grab turns the release into an activation (ActivateHandler::ProcessButton 42420), which would pick
     # the ladle up: the player looks away from it first.
-    ctx.press("client", "activate")
     try:
-        ctx.wait_for(f"[client] grabs {target:X}", lambda: ctx.local_player("client").get("grabbed") == target, 3)
+        ctx.grab("client", target)
     except TestFailure:
         ctx.console_on("client", "player.setangle x -80")
         raise
-    finally:
-        ctx.release("client", "activate")
     try:
         # Carried off facing it (a turn drops it) where the floor is clear: back or to a side.
         me, at = ctx.my_position("client"), first_body(ctx.world_state("client", [target])[target])["position"]

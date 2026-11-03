@@ -39,9 +39,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 3. **The handoff's red flags:** the action clock, unreliable movement, the tick clamp, the cost of
    `SaveAnimationGraphState`, and one rest path. Then cleanup and explainer docs.
 4. **Open bugs found 2026-11-02**:
-   - `guest-throw-lands-on-host` fails 2 of 3 at its grab (1 of 3 without exclusive holds too): on each Activate press
-     by the guest, the host's ladle wakes 50 to 140 ms later with no push logged. It's sent to the guest, whose copy turns
-     keyframed, and the engine's grab refuses it if those frames come first. What wakes the host's ladle is not known.
+   - Fixed: `guest-throw-lands-on-host` failed 2 of 3 at its grab. The scenario teleported the client beside the ladle
+     and pressed at once, while its copy was still reaching the host. The host's ladle could stir then, and its frames
+     keyframed the client's copy mid-grab, which the engine refuses (by design: a body the host's frames move is the
+     host's). Waiting 0.5 s first, the grab took 8 of 8 (probe). The scenario now waits until the ladle is still in
+     both games and the copy has arrived (`ctx.wait_until_settled`), then grabs with the checked `ctx.grab`: 5 of 5.
    Failing the same with the old copy placement:
    - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
    - `knockdown-lies-as-host`: the copy turns away for about 0.3 s at its get-up (1 in 2 runs).
