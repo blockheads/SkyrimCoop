@@ -83,7 +83,8 @@ struct Actor : TESObjectREFR
     virtual void sub_C5();
     virtual void sub_C6();
     virtual void sub_C7();
-    virtual void sub_C8();
+    // C8 (CommonLibSSE-NG Move, 37507): Havok's character step by a translation in its own frame (x right, y forward).
+    virtual struct bhkCharacterController* Move(float aDelta, const NiPoint3& acLocalTranslation);
     virtual void sub_C9();
     virtual void sub_CA();
     virtual void sub_CB();

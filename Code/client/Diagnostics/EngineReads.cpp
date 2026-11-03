@@ -232,8 +232,19 @@ std::optional<ControllerRead> GetController(uint32_t aFormId) noexcept
     bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
     if (!pController)
         return std::nullopt;
-    ControllerRead read{.Flags = pController->flags};
+    ControllerRead read{.Flags = pController->flags, .State = pController->state};
     pController->GetCollisionFilterInfo(read.Filter);
+    alignas(16) float position[4]{};
+    alignas(16) float velocity[4]{};
+    pController->GetPositionImpl(position, false);
+    pController->GetLinearVelocityImpl(velocity);
+    for (int i = 0; i < 3; ++i)
+    {
+        read.Position[i] = position[i] * bhkCharacterController::kHavokToGame;
+        read.Velocity[i] = velocity[i] * bhkCharacterController::kHavokToGame;
+        read.StepVelocity[i] = pController->outVelocity[i] * bhkCharacterController::kHavokToGame;
+    }
+    read.ActorPosition = {pActor->position.x, pActor->position.y, pActor->position.z};
     return read;
 }
 

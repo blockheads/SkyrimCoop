@@ -141,6 +141,16 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Testing
 
+- **Checked in-game actions, then an MCP layer (parked 2026-11-02, next after copy presence).** Actions run in the
+  harness frame by frame, as OpenMW's integration tests do:
+  - a ready gate before acting;
+  - steering every frame;
+  - checks that must keep holding on every frame;
+  - an outcome or a named failure.
+
+  Then MCP tools on top, so Claude can play the duo, recreate bugs and turn them into scenarios. Why: an open-loop
+  action runs while other state changes, and its intent silently fails. Notes:
+  `docs/research/sync-and-testing-references.md`.
 - **Stress tests with more players:** 3-4 games (or bots) in one session, and headless games if Skyrim
   can run without rendering.
 - **A three-game duo** (`duo --players 3`, a second client `client2` on display :101). The archive's version

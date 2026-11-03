@@ -53,6 +53,8 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         if (const auto cReference = m_reads.ReadReference(cFormId, false); cReference && (m_allActors || !cReference->Actor || cReference->Player))
             m_awake.try_emplace(cFormId, Moving{Pose::Of(*cReference)});
 
+    // Held still (pressed against something) Havok puts it to sleep, but a hand holds it up: not a rest.
+    const uint32_t cHeld = m_reads.PlayerHolds();
     Update update;
     for (auto it = m_awake.begin(); it != m_awake.end();)
     {
@@ -86,7 +88,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
             frame.Knocked = cActor && !cReference->Dead;
             all.Read.push_back(frame);
-            if (cRead.Active)
+            if (cRead.Active || it->first == cHeld)
                 awake.Read.push_back(frame);
         }
         if (!awake.Read.empty())

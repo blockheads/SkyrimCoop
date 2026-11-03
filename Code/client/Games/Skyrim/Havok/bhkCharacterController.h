@@ -6,6 +6,8 @@ struct bhkCharacterController
 {
     // flags (CommonLibSSE-NG CHARACTER_FLAGS).
     static constexpr uint32_t kHitDamage = 1u << 7;
+    static constexpr uint32_t kSupport = 1u << 8;
+    static constexpr uint32_t kFarAway = 1u << 18;
     static constexpr uint32_t kNotPushable = 1u << 14;
     static constexpr uint32_t kRecordHits = 1u << 21;
     static constexpr uint32_t kNoCharacterCollisions = 1u << 27;
@@ -22,7 +24,16 @@ struct bhkCharacterController
     // Its bodies' filter info (CFilter): layer in the low 7 bits, the actor's system group in the high 16.
     virtual void GetCollisionFilterInfo(uint32_t& aFilterInfo) const = 0;          // 08
 
-    uint8_t pad08[0x218 - 0x8];
+    // Havok units: game units / 69.99.
+    static constexpr float kHavokToGame = 69.991249f;
+
+    uint8_t pad08[0x90 - 0x8];
+    float outVelocity[4]; // 090, the last step's velocity
+    uint8_t pad0A0[0x200 - 0xA0];
+    int32_t state; // 200, context (1E0) currentState: hkpCharacterStateType, 0 on the ground, 2 in the air
+    uint8_t pad204[0x218 - 0x204];
     uint32_t flags; // 218
 };
+static_assert(offsetof(bhkCharacterController, outVelocity) == 0x90);
+static_assert(offsetof(bhkCharacterController, state) == 0x200);
 static_assert(offsetof(bhkCharacterController, flags) == 0x218);

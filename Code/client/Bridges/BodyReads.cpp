@@ -76,6 +76,13 @@ uint32_t BodyReads::PlayerInRagdoll() noexcept
     return pPlayer && (pPlayer->IsDead() || pPlayer->actorState.IsKnockedDown()) ? pPlayer->formID : 0;
 }
 
+uint32_t BodyReads::PlayerHolds() noexcept
+{
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const TESObjectREFR* pObject = pPlayer && pPlayer->grabbedObject ? TESObjectREFR::GetByHandle(pPlayer->grabbedObject) : nullptr;
+    return pObject ? pObject->formID : 0;
+}
+
 std::optional<IBodyReads::Reference> BodyReads::ReadReference(uint32_t aFormId, bool aBodies) noexcept
 {
     NiNode* p3D = nullptr;

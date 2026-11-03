@@ -20,6 +20,8 @@ struct SceneReads final : IBodyReads
     }
     std::vector<uint32_t> TakeMovedReferences() noexcept override { return std::exchange(Moved, false) ? std::vector<uint32_t>{42} : std::vector<uint32_t>{}; }
     uint32_t PlayerInRagdoll() noexcept override { return 0; }
+    uint32_t Holds = 0;
+    uint32_t PlayerHolds() noexcept override { return Holds; }
     std::optional<Reference> ReadReference(uint32_t, bool = true) noexcept override { return Ref; }
     void WriteNode(uint32_t, uint8_t aIndex) noexcept override
     {
@@ -87,4 +89,19 @@ TEST_CASE("Leaving a physics session drops its queued scene writes", "[body-scen
     }
     MainLoopTasks::Run();
     CHECK(reads.Writes == 0);
+}
+
+TEST_CASE("A body this game's player holds still is not at rest: Havok sleeps it, a hand holds it up", "[body-scene-phase]")
+{
+    // host-holds-into-npc: pressed against Lydia, the host's bucket slept; sent as a rest, the guest's fell from the
+    // hand, was put back, and fell again (2026-11-02 report).
+    SceneReads reads;
+    reads.Holds = 42;
+    PhysicsBodies physics(reads);
+    const auto cHeld = physics.Take();
+    CHECK(cHeld.Rested.empty());
+    REQUIRE(cHeld.Awake.size() == 1);
+    CHECK(physics.Take().Awake.size() == 1); // still held, still asleep: still sent
+    reads.Holds = 0;
+    CHECK(physics.Take().Rested.size() == 1); // let go: its rest
 }

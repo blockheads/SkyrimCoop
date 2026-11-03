@@ -132,7 +132,7 @@ glm::vec3 FakeEngine::OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& 
     glm::vec3 at = acTo;
     for (const auto& [cFormId, cActor] : Actors)
     {
-        if (cActor.Copy || cActor.Dead || cActor.Disabled || !cActor.Loaded)
+        if ((cActor.Copy && !cActor.Stepped) || cActor.Dead || cActor.Disabled || !cActor.Loaded)
             continue;
         const glm::vec3 cFeet(cActor.Position[0], cActor.Position[1], cActor.Position[2]);
         const glm::vec2 cOff(at.x - cFeet.x, at.y - cFeet.y);
@@ -152,6 +152,12 @@ glm::vec3 FakeEngine::OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& 
         }
     }
     return at;
+}
+
+void FakeEngine::HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept
+{
+    auto& body = Bodies.at(acKey).Flight.Body;
+    body.Position = OutsideCapsules(body.Position, acTo);
 }
 
 bool FakeEngine::Steer(const BodyFrame& acFrame) noexcept
@@ -266,6 +272,11 @@ uint32_t FakeEngine::PlayerInRagdoll() noexcept
     return it != Actors.end() && (IsActorDead(kPlayer) || it->second.KnockedDown) ? kPlayer : 0;
 }
 
+uint32_t FakeEngine::PlayerHolds() noexcept
+{
+    return Grabbed ? ReferenceOf(*Grabbed) : 0;
+}
+
 std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId, bool aBodies) noexcept
 {
     const auto cActor = Actors.find(aFormId);
@@ -283,7 +294,8 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             reference.Position = body.NodePosition;
         if (!aBodies)
             continue;
-        if (body.Awake && !body.Held)
+        // This game's player's hold keeps it in its hands (the grab's spring), not falling.
+        if (body.Awake && !body.Held && Grabbed != cKey)
             StepBody(body, PhysicsTick);
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
         // 37996).

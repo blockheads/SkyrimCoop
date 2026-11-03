@@ -49,6 +49,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 
+#include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
 #include <Systems/CacheSystem.h>
@@ -1525,9 +1526,13 @@ void CharacterService::RunRemoteUpdates() noexcept
             }
             if (cPlace)
                 ease.Apply(currentTick, position, rotation.z);
+            // Stepped by its engine, so its capsule pushes what it meets; placed when far off (actor-movement.md).
+            glm::vec3 at{};
+            m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
+            const CopyMove cMove = CopyStep::Choose(!cPlace, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
-            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cPlace);
+            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }
 

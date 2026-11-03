@@ -727,6 +727,29 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   (`copy-contract.md`, "AI state"; `actor-ai-and-copies.md`, "Combat state and its readers"). Open: alarmed
   (engine-made packages), the scene's own state (`IsScenePlaying`, quest sync), furniture and follow target
   written. Graph events from outside the actions wait for mods.
+- **Built 2026-11-02 (uncommitted): copies step through the engine.**
+  - What changed: `Actor::Move` (37507) runs toward the owner's place each frame instead of `ForcePosition`, which
+    now happens only past 64 units. A stepped copy takes the engine's position write-back.
+  - Why: a held bucket pressed against a copy sank into it (2026-11-02 playtest).
+  - Result: the bucket now stops 18 to 21 units from her axis, as against an owner (`guest-holds-into-npc`).
+  - Details: `docs/re/systems/actor-movement.md`, "Copies step".
+  - Tests: GameTests "A guest's player presses a held plate against a host NPC's copy"; ClientTests
+    `[copy-step]`.
+  - Found while checking it, failing the same with the old placement:
+    - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
+    - `knockdown-lies-as-host`: the copy turns away for about 0.3 s at its get-up, in 1 of 2 runs.
+  - Found the same day (`guest-drops-item-stays`, 2 of 5 runs): the host's copy of a sword the guest dropped
+    rests 44 to 67 units from the guest's, and nothing corrects it.
+  - Fixed the same day: the host's held bucket fell on the guest and was put back, over and over. The user saw
+    it while watching `host-holds-into-npc`.
+    - Cause: pressed still against Lydia, Havok slept the host's held bucket, so `PhysicsBodies` sent it as a rest.
+      The guest's rest is free and asleep, in mid-air; it fell, the guest asked for the host's pose (1 s later), got
+      the same rest back, and fell again.
+    - Fix: a body this game's player holds is never at rest (`IBodyReads::PlayerHolds`).
+    - Measured: 26 falls in 30 s before, 0 after.
+    - Tests: the scenario now checks the other game's bucket; GameTests "The host's player holds a bucket still";
+      ClientTests "A body this game's player holds still is not at rest".
+    - `host-sets-down-item` and `host-drops-item-stays` pass 2 of 2.
 
 ## Test suite
 

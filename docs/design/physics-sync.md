@@ -200,7 +200,8 @@ guest holds a body -> BodyFramesRequest (as before)
 ```
 
 The holder still shows its own hold until the host's rest. A copy's capsule pushes held bodies only while its
-character controller integrates, and copies skip `Actor::ApplyMovement` (37356), which does that
+character controller integrates. Until 2026-11-02 copies skipped `Actor::ApplyMovement` (37356), which does that; they
+now step through `Actor::Move` (`actor-movement.md`, "Copies step")
 (`docs/re/systems/physics.md`, "What stops a held body"); the duo's later runs had the guest's own bucket stop on
 the copy's head anyway (168 to 170 units, 131 to 138 in two), so when the holder's own game lets one through is
 still open. Tests: GameTests "A guest's player lowers the plate onto a host NPC's head" (the fake's capsules:
@@ -208,6 +209,18 @@ still open. Tests: GameTests "A guest's player lowers the plate onto a host NPC'
 scenarios `guest-bucket-on-npc-head`, `host-bucket-on-npc-head`, `guest-throw-lands-on-host`, and the bucket trick
 (`guest-bucket-trick`, `host-bucket-trick`: the wide bucket 00012FDF upside down, centred, stays on her head in both
 games; the bucket 000747FB and the cast iron pot roll off, as in a game without co-op).
+
+### Held still is not at rest (2026-11-02)
+
+A bucket held still (pressed against Lydia) is put to sleep by Havok while the hand holds it.
+
+- Before: `PhysicsBodies` sent it as a rest. On the guest a rest is free and asleep, so in mid-air it fell; the
+  guest's "moved by itself" asked for the host's pose, got the same rest, and the bucket fell again, about once a
+  second.
+- Now: the body this game's player holds (`IBodyReads::PlayerHolds`, `PlayerCharacter::grabbedObject`) stays
+  awake for the send rule until it is let go.
+- Scenario: `host-holds-into-npc` checks the other game's bucket (26 falls in 30 s before, 0 after).
+- Flow: GameTests "The host's player holds a bucket still".
 
 ### Matches a game without co-op (2026-11-01)
 

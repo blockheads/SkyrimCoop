@@ -133,6 +133,36 @@ BUCKET = "000747FB"
 NPC_HEAD = 124  # a human's head top above its feet (the duo's player and copy read 124)
 
 
+def spawn_shared_bucket(ctx, base=BUCKET, upside_down=False):
+    """The host spawns a bucket (a created reference, each game its own id) halfway to the stage and lets it rest;
+    returns ({"": host id, "client": guest id}) once the client has it where it rests."""
+    before = set(ctx.world_state(""))
+    ctx.console_on("", f"player.placeatme {base} 1")
+    host_id = ctx.wait_for("[host] the bucket is in the world", lambda: next(
+        (i for i, r in ctx.world_state("").items() if i not in before and r["base"] == int(base, 16) and first_body(r)), None), 5)
+    # placeatme drops it at the host's feet, where its character controller keeps nudging it: set down halfway to
+    # the stage instead, then found on the client where it rests.
+    home, stage = ctx.load_home("")["position"], ctx.stage_spot()
+    spot = [(home[0] + stage[0]) / 2, (home[1] + stage[1]) / 2, home[2]]
+    ctx.place("", f"{host_id:X}", spot, ctx.world_state("", [host_id])[host_id]["position"])
+    if upside_down:
+        ctx.console_on("", f"{host_id:X}.setangle x 180")
+    try:
+        ctx.wait_for("[host] the bucket rests", lambda: not ctx.body_of("", host_id)["awake"], 15)
+    except TestFailure:
+        body = ctx.body_of("", host_id)
+        raise ctx.failure(f"[host] the bucket does not rest at {[round(x) for x in spot]}: at "
+                          f"{[round(x) for x in body['position']]}, awake {body['awake']}, velocity {body.get('velocity')}, "
+                          f"motion {body['motion']}") from None
+    def twin():
+        at = ctx.world_state("", [host_id])[host_id]["position"]
+        return next((i for i, r in ctx.world_state("client").items()
+                     if r["base"] == int(base, 16) and first_body(r) and near(r["position"], at, 10)), None)
+    guest_id = ctx.wait_for("[client] has the host's bucket where it rests", twin, 10)
+    log(f"bucket: host {host_id:X}, client {guest_id:X}")
+    return {"": host_id, "client": guest_id}
+
+
 def bucket_on_npc_head(ctx, carrier, base=BUCKET, upside_down=False, stays=False):
     """`carrier`'s player grabs a bucket (spawned by the host: a created reference, each game its own id), looks up
     to lift it over head height, a restrained Lydia is stood under it, then the player looks down a degree at a time
@@ -147,31 +177,8 @@ def bucket_on_npc_head(ctx, carrier, base=BUCKET, upside_down=False, stays=False
     off, ended = {}, {}
     lowered_to = None
     try:
-        before = set(ctx.world_state(""))
-        ctx.console_on("", f"player.placeatme {base} 1")
-        host_id = ctx.wait_for("[host] the bucket is in the world", lambda: next(
-            (i for i, r in ctx.world_state("").items() if i not in before and r["base"] == int(base, 16) and first_body(r)), None), 5)
-        # placeatme drops it at the host's feet, where its character controller keeps nudging it: set down halfway to
-        # the stage instead, then found on the client where it rests.
-        home, stage = ctx.load_home("")["position"], ctx.stage_spot()
-        spot = [(home[0] + stage[0]) / 2, (home[1] + stage[1]) / 2, home[2]]
-        ctx.place("", f"{host_id:X}", spot, ctx.world_state("", [host_id])[host_id]["position"])
-        if upside_down:
-            ctx.console_on("", f"{host_id:X}.setangle x 180")
-        try:
-            ctx.wait_for("[host] the bucket rests", lambda: not ctx.body_of("", host_id)["awake"], 15)
-        except TestFailure:
-            body = ctx.body_of("", host_id)
-            raise ctx.failure(f"[host] the bucket does not rest at {[round(x) for x in spot]}: at "
-                              f"{[round(x) for x in body['position']]}, awake {body['awake']}, velocity {body.get('velocity')}, "
-                              f"motion {body['motion']}") from None
-        def twin():
-            at = ctx.world_state("", [host_id])[host_id]["position"]
-            return next((i for i, r in ctx.world_state("client").items()
-                         if r["base"] == int(base, 16) and first_body(r) and near(r["position"], at, 10)), None)
-        guest_id = ctx.wait_for("[client] has the host's bucket where it rests", twin, 10)
-        ids = {"": host_id, "client": guest_id}
-        log(f"bucket: host {host_id:X}, client {guest_id:X}")
+        ids = spawn_shared_bucket(ctx, base, upside_down)
+        host_id = ids[""]
         target = ids[carrier]
         ctx.place_before(carrier, target, 90)
         ctx.face(carrier, target)
@@ -310,6 +317,275 @@ def scenario_guest_bucket_on_npc_head(ctx):
 def scenario_host_bucket_on_npc_head(ctx):
     """S2's case and S1's control: the host's player puts a bucket on its own NPC's head."""
     bucket_on_npc_head(ctx, "")
+
+CAPSULE_TOP = 128  # the character controller's capsule over the feet (physics.md, "What stops a held body")
+INTO_CAPSULE = 15  # a held bucket's centre this near an NPC's axis, under her capsule's top, is inside her
+
+
+def controller_of(ctx, game, actor):
+    """An actor's character controller readout (harness `controller`), with how far its capsule is from the actor."""
+    read = ctx.player_command(game, {"cmd": "controller", "actor": actor})
+    read["gap"] = math.dist(read["position"][:2], read["actor_position"][:2])
+    read["rise"] = read["position"][2] - read["actor_position"][2]
+    return read
+
+
+def describe_controller(read):
+    return (f"flags {read['flags']:08X}, state {read['state']}, capsule {read['gap']:.1f} off her axis and {read['rise']:.0f} up, velocity "
+            f"{[round(v) for v in read['velocity']]}, last step {[round(v) for v in read['step_velocity']]}")
+
+
+def drags_into_npc(ctx, carrier, press_for=0):
+    """`carrier`'s player grabs a bucket, a restrained Lydia stands beside it as far off as the bucket, and it turns
+    toward her, swinging the bucket into her at chest height. Her capsule must stop the bucket, in the carrier's game, as in a game
+    without co-op: it never comes within INTO_CAPSULE of her axis below her capsule's top. Logs her character
+    controller in both games (a copy's capsule only pushes bodies when the engine integrates it,
+    docs/re/systems/actor-movement.md). With `press_for` seconds, the player first carries the bucket about, then stops
+    turning once it aims at her and holds it against her that long (the 2026-11-02 playtest: it sank in slowly)."""
+    npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+    her = {"": npc, "client": copy}
+    ids = None
+    nearest = {"side": 1e9, "over": None}
+    dropped_at = None
+    try:
+        ids = spawn_shared_bucket(ctx)
+        target = ids[carrier]
+        ctx.place_before(carrier, target, 90)
+        ctx.face(carrier, target)
+        ctx.press(carrier, "activate")
+        try:
+            ctx.wait_for(f"[{carrier or 'host'}] grabs the bucket", lambda: ctx.local_player(carrier).get("grabbed") == target, 3)
+        finally:
+            ctx.release(carrier, "activate")
+        ctx.console_on(carrier, "player.setangle x 10")
+        time.sleep(0.5)
+        if press_for:
+            for button in ("forward", "back"):
+                ctx.press(carrier, button)
+                time.sleep(1.5)
+                ctx.release(carrier, button)
+            time.sleep(0.5)
+            if ctx.local_player(carrier).get("grabbed") != target:
+                raise ctx.failure(f"[{carrier or 'host'}] dropped the bucket while carrying it about")
+        # She stands as far off as the bucket is held, 50 degrees to the right: turning toward her swings the bucket
+        # into her while the carrier stays clear of her.
+        me, held = ctx.my_position(carrier), ctx.body_of(carrier, target)["position"]
+        reach = math.dist(me[:2], held[:2])
+        yaw = math.degrees(math.atan2(held[0] - me[0], held[1] - me[1]))
+        side = math.radians(yaw + 50)
+        spot = [me[0] + reach * math.sin(side), me[1] + reach * math.cos(side), me[2]]
+        ctx.player_command("", {"cmd": "move_actor", "actor": npc, "position": spot})
+        ctx.wait_for("[host] Lydia stands beside", lambda: distance(ctx.host_npc_state(npc)["position"][:2], spot[:2]) < 10, 5)
+        ctx.wait_on("client", "her copy stands beside",
+                    lambda actors: distance((actors.get(str(copy), {}).get("actual") or [1e9, 1e9])[:2], spot[:2]) < 10, 5)
+        for game in ("", "client"):
+            log(f"[{game or 'host'}] Lydia's controller before: {describe_controller(controller_of(ctx, game, her[game]))}")
+        log(f"[{carrier or 'host'}] holds the bucket {reach:.0f} out, turns from {yaw:.0f} toward her at {yaw + 50:.0f}")
+        def sample():
+            body = ctx.body_of(carrier, target)
+            at = (ctx.host_npc_state(npc).get("position") if carrier == ""
+                  else ctx.actors_on("client").get(str(copy), {}).get("actual"))
+            if not (body and at):
+                return None
+            off, over = math.dist(body["position"][:2], at[:2]), body["position"][2] - at[2]
+            if 0 < over < CAPSULE_TOP and off < nearest["side"]:
+                nearest.update(side=off, over=over)
+            return off
+        # A degree and a half at a time (a sudden turn drops a held object), on past her (or up to her, to press).
+        for step in range(1, 34 if press_for else 54):
+            ctx.console_on(carrier, f"player.setangle z {yaw + step * 1.5:.1f}")
+            time.sleep(0.05)
+            sample()
+            if ctx.local_player(carrier).get("grabbed") != target:
+                dropped_at = round(step * 1.5)
+                break
+            if step == 33:
+                for game in ("", "client"):
+                    log(f"[{game or 'host'}] Lydia's controller pushed: {describe_controller(controller_of(ctx, game, her[game]))}")
+        if press_for and dropped_at is None:
+            # Pressed against her: the bucket's distance from her axis each second, to show a slow creep.
+            # The other game shows the held bucket in the carrier's hand: never below it (the 2026-11-02 report: the
+            # guest's fell and was put back, over and over, while the host pressed it against her).
+            other = "client" if carrier == "" else ""
+            fell = {"most": 0.0, "times": 0, "falling": False}
+            start, trail, window = time.monotonic(), [], []
+            while time.monotonic() - start < press_for:
+                off = sample()
+                if off is not None:
+                    window.append(off)
+                held_at, shown = ctx.body_of(carrier, target), ctx.body_of(other, ids[other])
+                if held_at and shown:
+                    below = held_at["position"][2] - shown["position"][2]
+                    fell["most"] = max(fell["most"], below)
+                    if below > 10 and not fell["falling"]:
+                        fell["times"] += 1
+                    fell["falling"] = below > 10
+                if len(window) >= 10:
+                    trail.append(round(min(window), 1))
+                    window = []
+                if ctx.local_player(carrier).get("grabbed") != target:
+                    dropped_at = f"pressing {time.monotonic() - start:.1f} s"
+                    break
+                time.sleep(0.1)
+            log(f"[{carrier or 'host'}] pressed against her, nearest off her axis each second: {trail}")
+            log(f"[{other or 'host'}] its bucket fell below the held one {fell['times']} times, up to {fell['most']:.0f} units")
+            if fell["times"]:
+                raise ctx.failure(f"[{other or 'host'}] the bucket {carrier or 'host'} holds against her falls in its game "
+                                  f"and is put back: {fell['times']} times in {press_for} s, up to {fell['most']:.0f} units below")
+            for game in ("", "client"):
+                log(f"[{game or 'host'}] Lydia's controller after pressing: {describe_controller(controller_of(ctx, game, her[game]))}")
+    finally:
+        if ctx.local_player(carrier).get("grabbed"):
+            ctx.tap(carrier, "activate")
+        ctx.console_on(carrier, "player.setangle x 0")
+        if ids:
+            ctx.console_on("", f"{ids['']:X}.disable")
+            ctx.console_on("", f"{ids['']:X}.markfordelete")
+        ctx.remove_host_npc(npc)
+    report = (f"nearest {nearest['side']:.1f} off her axis at {nearest['over'] or 0:.0f} over her feet, "
+              f"{'dropped (' + str(dropped_at) + ')' if dropped_at is not None else 'held throughout'}")
+    log(f"drags-into-npc ({carrier or 'host'} carries): {report}")
+    if nearest["side"] < INTO_CAPSULE:
+        raise ctx.failure(f"[{carrier or 'host'}] the held bucket went into Lydia: {report}")
+
+
+def scenario_guest_drags_into_npc(ctx):
+    """The client's player swings a held bucket into a host NPC: her copy's capsule stops it."""
+    drags_into_npc(ctx, "client")
+
+
+def scenario_host_drags_into_npc(ctx):
+    """The reference: the host's player swings a held bucket into its own NPC; her capsule stops it."""
+    drags_into_npc(ctx, "")
+
+
+def scenario_guest_holds_into_npc(ctx):
+    """The client's player carries a bucket about, then holds it against a host NPC for 30 s: her copy's capsule
+    keeps it out the whole time."""
+    drags_into_npc(ctx, "client", press_for=30)
+
+
+def scenario_host_holds_into_npc(ctx):
+    """guest-holds-into-npc's reference: the host's player holds a bucket against its own NPC for 30 s."""
+    drags_into_npc(ctx, "", press_for=30)
+
+
+
+def sets_down_and_watches(ctx, placer):
+    """`placer`'s player grabs a bucket, holds it beside itself and lets go: it rests in the placer's game, and every
+    other game shows it resting there for 10 s, never falling on its own and snapped back (the user's 2026-11-02
+    report: the host's item stayed put, the guest's kept falling, then came back where the host had it)."""
+    other = "client" if placer == "" else ""
+    ids = spawn_shared_bucket(ctx)
+    try:
+        mine, theirs = ids[placer], ids[other]
+        ctx.place_before(placer, mine, 90)
+        ctx.face(placer, mine)
+        ctx.press(placer, "activate")
+        try:
+            ctx.wait_for(f"[{placer or 'host'}] grabs the bucket", lambda: ctx.local_player(placer).get("grabbed") == mine, 3)
+        finally:
+            ctx.release(placer, "activate")
+        time.sleep(1.0)
+        ctx.tap(placer, "activate")
+        ctx.wait_for(f"[{placer or 'host'}] lets go", lambda: not ctx.local_player(placer).get("grabbed"), 3)
+        ctx.wait_for(f"[{placer or 'host'}] the bucket rests", lambda: not ctx.body_of(placer, mine)["awake"], 10)
+        rest = ctx.body_of(placer, mine)["position"]
+        ctx.wait_for(f"[{other or 'host'}] shows it where it rests",
+                     lambda: math.dist(ctx.body_of(other, theirs)["position"], rest) < 5, 5)
+        log(f"[{placer or 'host'}] the bucket rests at {[round(x) for x in rest]}")
+        # Watched: how far below its rest the other game's falls, and how often it wakes on its own.
+        lowest, wakes, awake, worst = 0.0, 0, False, None
+        start = time.monotonic()
+        while time.monotonic() - start < 10:
+            body = ctx.body_of(other, theirs)
+            drop = rest[2] - body["position"][2]
+            off = math.dist(body["position"], rest)
+            if drop > lowest:
+                lowest = drop
+            if off > (worst or (0, 0))[0]:
+                worst = (off, round(time.monotonic() - start, 1))
+            if body["awake"] and not awake:
+                wakes += 1
+            awake = body["awake"]
+            time.sleep(0.1)
+        still = ctx.body_of(placer, mine)["position"]
+        report = (f"{other or 'host'}'s fell up to {lowest:.1f} below its rest, woke {wakes} times, farthest "
+                  f"{(worst or (0, 0))[0]:.1f} off at {(worst or (0, 0))[1]} s; the placer's moved {math.dist(still, rest):.1f}")
+        log(f"sets-down ({placer or 'host'} places): {report}")
+        if lowest > 5 or (worst and worst[0] > 5):
+            raise ctx.failure(f"[{other or 'host'}] the bucket {placer or 'host'} set down does not stay put: {report}")
+    finally:
+        if ctx.local_player(placer).get("grabbed"):
+            ctx.tap(placer, "activate")
+        ctx.console_on("", f"{ids['']:X}.disable")
+        ctx.console_on("", f"{ids['']:X}.markfordelete")
+
+
+def scenario_host_sets_down_item(ctx):
+    """The host's player sets a bucket down beside itself: the client shows it resting there, not falling."""
+    sets_down_and_watches(ctx, "")
+
+
+def scenario_guest_sets_down_item(ctx):
+    """The client's player sets a bucket down beside itself: the host shows it resting there, not falling."""
+    sets_down_and_watches(ctx, "client")
+
+
+def drops_and_watches(ctx, dropper):
+    """`dropper`'s player drops an iron sword from its inventory: once it rests in the dropper's game, every other
+    game shows it resting there for 10 s, never falling on its own and snapped back (2026-11-02 report)."""
+    other = "client" if dropper == "" else ""
+    sword = 0x00012EB7
+    before = {g: set(ctx.loose_swords(g)) for g in ("", "client")}
+    ctx.console_on(dropper, f"player.additem {sword:X} 1")
+    ctx.wait_for(f"[{dropper or 'host'}] the player carries a sword", lambda: (ctx.item_count(dropper, 0x14, sword) or 0) > 0, 5)
+    dropped = ctx.player_command(dropper, {"cmd": "drop", "item": sword, "plain": True})["object"]
+    try:
+        ctx.wait_for(f"[{dropper or 'host'}] the sword rests", lambda: (b := ctx.body_of(dropper, dropped)) and not b["awake"], 10)
+        rest = ctx.body_of(dropper, dropped)["position"]
+        twin = ctx.wait_for(f"[{other or 'host'}] the dropped sword lies in its world",
+                            lambda: ctx.new_loose_sword(other, before[other]), 10)
+        try:
+            ctx.wait_for(f"[{other or 'host'}] shows it where it rests",
+                         lambda: (b := ctx.body_of(other, twin)) and math.dist(b["position"], rest) < 5, 10)
+        except TestFailure:
+            body = ctx.body_of(other, twin)
+            raise ctx.failure(f"[{other or 'host'}] its sword is not where {dropper or 'host'}'s rests at "
+                              f"{[round(x) for x in rest]}: at {[round(x) for x in body['position']] if body else None}, "
+                              f"{math.dist(body['position'], rest):.1f} off, awake {body and body['awake']}") from None
+        log(f"[{dropper or 'host'}] the sword rests at {[round(x) for x in rest]}")
+        lowest, wakes, awake, worst = 0.0, 0, False, (0.0, 0.0)
+        start = time.monotonic()
+        while time.monotonic() - start < 10:
+            body = ctx.body_of(other, twin)
+            lowest = max(lowest, rest[2] - body["position"][2])
+            off = math.dist(body["position"], rest)
+            if off > worst[0]:
+                worst = (off, round(time.monotonic() - start, 1))
+            wakes += body["awake"] and not awake
+            awake = body["awake"]
+            time.sleep(0.1)
+        report = (f"{other or 'host'}'s fell up to {lowest:.1f} below its rest, woke {wakes} times, farthest "
+                  f"{worst[0]:.1f} off at {worst[1]} s")
+        log(f"drops ({dropper or 'host'} drops): {report}")
+        if lowest > 5 or worst[0] > 5:
+            raise ctx.failure(f"[{other or 'host'}] the sword {dropper or 'host'} dropped does not stay put: {report}")
+    finally:
+        # The host's world decides: removed there, it goes from every game.
+        for ref in set(ctx.loose_swords("")) - before[""]:
+            ctx.console_on("", f"{ref:X}.disable")
+            ctx.console_on("", f"{ref:X}.markfordelete")
+
+
+def scenario_host_drops_item_stays(ctx):
+    """The host's player drops a sword: the client shows it resting where the host's rests."""
+    drops_and_watches(ctx, "")
+
+
+def scenario_guest_drops_item_stays(ctx):
+    """The client's player drops a sword: the host shows it resting where the client's rests."""
+    drops_and_watches(ctx, "client")
 
 WIDE_BUCKET = "00012FDF"  # the bucket that stays on a head upside down (000747FB and the iron pot roll off)
 

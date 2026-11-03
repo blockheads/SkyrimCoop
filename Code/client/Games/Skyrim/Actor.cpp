@@ -7,6 +7,8 @@
 #include <Games/Skyrim/EquipManager.h>
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
+#include <Havok/bhkCharacterController.h>
+#include <Systems/CopyStep.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
 #include <Forms/TESNPC.h>
@@ -982,7 +984,9 @@ char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
     const auto pExtension = apThis ? apThis->GetExtension() : nullptr;
     const auto bIsCopy = pExtension && pExtension->IsCopy();
 
-    if (bIsCopy && !ScopedReferencesOverride::IsOverriden())
+    // A copy is placed by the sync, except while its engine steps it (its controller's place written back after
+    // the physics step: HookApplyMovement).
+    if (bIsCopy && !pExtension->HasCopyGoal && !ScopedReferencesOverride::IsOverriden())
         return 1;
 
     // A non-actor's move reaches the change funnel (RecordMove).
@@ -1329,13 +1333,30 @@ void HookResetInventory(Actor* apThis, bool aLeveledOnly)
     RealResetInventory(apThis, aLeveledOnly);
 }
 
-// Actor::ApplyMovement (37356): the sync positions copies.
+// Actor::ApplyMovement (37356): a copy runs none of its decisions, only its engine's step onto its owner's place
+// (Actor::Move, so its capsule collides and pushes: docs/re/systems/actor-movement.md).
 void HookApplyMovement(Actor* apThis, float aDelta)
 {
-    if (apThis->GetExtension()->IsCopy())
+    auto* pExtension = apThis->GetExtension();
+    if (!pExtension->IsCopy())
+    {
+        RealApplyMovement(apThis, aDelta);
         return;
-
-    RealApplyMovement(apThis, aDelta);
+    }
+    if (!pExtension->HasCopyGoal || aDelta <= 0.f)
+        return;
+    const NiPoint3 cGoal(glm::vec3(pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]));
+    auto* pProcess = apThis->currentProcess;
+    const bool cCanStep = pProcess && pProcess->middleProcess && pProcess->middleProcess->charController &&
+                          apThis->parentCell && apThis->parentCell->IsFullyLoaded();
+    if (!cCanStep)
+    {
+        apThis->ForcePosition(cGoal);
+        return;
+    }
+    const glm::vec3 cLocal = CopyStep::Local({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
+                                              cGoal.z - apThis->position.z}, apThis->rotation.z);
+    apThis->Move(aDelta, NiPoint3(cLocal));
 }
 
 // Character::UpdateAI (37347). Copies skip it but run its body upkeep below

@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] std::vector<uint32_t> TakeMovedReferences() noexcept override;
     [[nodiscard]] uint32_t PlayerInRagdoll() noexcept override;
+    [[nodiscard]] uint32_t PlayerHolds() noexcept override;
     [[nodiscard]] std::optional<Reference> ReadReference(uint32_t aFormId, bool aBodies = true) noexcept override;
     void WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept override;
 };

@@ -570,6 +570,66 @@ SCENARIO("A guest's player lowers the plate onto a host NPC's head: the host's s
     party.Until([&] { return !hostPlate.Steered && !hostPlate.Held; }, "the host's plate is let go");
 }
 
+SCENARIO("A guest's player presses a held plate against a host NPC's copy: her copy's capsule keeps it out", "[physics]")
+{
+    // guest-holds-into-npc (2026-11-02 playtest): the guest held a bucket against Lydia and it sank into her copy;
+    // a copy only placed (ForcePosition) never steps its character controller, the only thing that pushes bodies.
+    Party party(1, PluginsWithLydia);
+    auto& guest = Party::Engine(party.Guest());
+    const auto& cHerCopy = guest.Actors.at(kLydia);
+    party.Until([&] { return cHerCopy.Copy && cHerCopy.Movements > 0; },
+                "the guest's game moves her copy by its owner's movement");
+    guest.Grabbed = kPlate;
+    // The guest's hands at her chest, on her axis: the grab's spring pulls the plate into her.
+    const glm::vec3 cIntoHer = kLydiaFeet + glm::vec3(0.f, 0.f, 100.f);
+    const auto cBegan = std::chrono::steady_clock::now();
+    float nearest = 1e9f;
+    party.Until([&] {
+        guest.HoldTo(kPlate, cIntoHer);
+        const glm::vec3 cAt = guest.Bodies.at(kPlate).Flight.Body.Position;
+        const glm::vec3 cFeet(cHerCopy.Position[0], cHerCopy.Position[1], cHerCopy.Position[2]);
+        nearest = std::min(nearest, glm::distance(glm::vec2(cAt), glm::vec2(cFeet)));
+        return std::chrono::steady_clock::now() - cBegan > std::chrono::seconds(1);
+    }, "the guest's player holds the plate against her copy for a second", {}, nullptr, std::chrono::seconds{5});
+    THEN("the plate never enters her copy's capsule: the copy is stepped onto its owner's place, not placed")
+    {
+        INFO("nearest " << nearest << " off her axis, her copy stepped " << cHerCopy.Stepped);
+        CHECK(cHerCopy.Copy);
+        CHECK(cHerCopy.Stepped);
+        CHECK(nearest >= FakeEngine::kCapsuleRadius - 0.01f);
+    }
+    guest.Grabbed.reset();
+}
+
+SCENARIO("The host's player holds a bucket still: Havok sleeps it, every guest still shows it in the hand", "[physics]")
+{
+    // host-holds-into-npc (2026-11-02 report): pressed against Lydia, the host's bucket slept and was sent as a rest;
+    // the guest's, a rest in mid-air, fell, was put back by the host's pose, and fell again, over and over.
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    const glm::vec3 cInHand{100.f, 260.f, 200.f};
+    host.Grabbed = kBucket;
+    hostBucket.Flight.Floor = kTable;
+    hostBucket.Flight.Body.Position = cInHand;
+    hostBucket.Awake = true;
+    party.Until([&] { return guestBucket.Drives > 0; }, "the guest plays the host's held bucket");
+    // Pressed still against something: the engine sleeps it while the hand still holds it.
+    hostBucket.Awake = false;
+    const auto cBegan = std::chrono::steady_clock::now();
+    party.Until([&] { return std::chrono::steady_clock::now() - cBegan > std::chrono::milliseconds(800); },
+                "the host's player holds it still", {}, nullptr, std::chrono::seconds{5});
+    THEN("the guest never gets it as a rest while it is held, and shows it in the host's hand")
+    {
+        INFO("guest's bucket at " << guestBucket.Flight.Body.Position.z << ", rests " << guestBucket.Rests << ", drives "
+             << guestBucket.Drives);
+        CHECK(guestBucket.Rests == 0);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, cInHand) < 1.f);
+    }
+    host.Grabbed.reset();
+}
+
 SCENARIO("The host's engine moves a knocked bucket's 3D with it: the host's own physics is left alone", "[physics]")
 {
     // A node write on a body the engine already followed re-places it and loses its contacts: a dropped bucket sank

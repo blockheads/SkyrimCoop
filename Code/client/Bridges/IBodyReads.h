@@ -38,6 +38,8 @@ public:
     [[nodiscard]] virtual std::vector<uint32_t> TakeMovedReferences() noexcept = 0;
     // This game's player's form id while its ragdoll simulates it (dead, knocked down), else 0.
     [[nodiscard]] virtual uint32_t PlayerInRagdoll() noexcept = 0;
+    // The reference this game's player holds (PlayerCharacter::grabbedObject), else 0.
+    [[nodiscard]] virtual uint32_t PlayerHolds() noexcept = 0;
     // That reference now; none if it is gone, deleted or has no 3D. aBodies false: its own fields only.
     [[nodiscard]] virtual std::optional<Reference> ReadReference(uint32_t aFormId, bool aBodies = true) noexcept = 0;
     // The engine's own body to node write for that body of a reference (FollowBody).

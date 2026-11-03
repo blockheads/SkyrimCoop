@@ -61,6 +61,10 @@ uint32_t BodyReads::PlayerInRagdoll() noexcept
 {
     return FakeEngine::Current().PlayerInRagdoll();
 }
+uint32_t BodyReads::PlayerHolds() noexcept
+{
+    return FakeEngine::Current().PlayerHolds();
+}
 std::optional<IBodyReads::Reference> BodyReads::ReadReference(uint32_t aFormId, bool aBodies) noexcept
 {
     return FakeEngine::Current().ReadReference(aFormId, aBodies);

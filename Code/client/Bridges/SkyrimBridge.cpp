@@ -270,7 +270,7 @@ void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexce
 }
 
 bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
-    const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept
+    const float aRotation[3], float aDirection, const AnimationVariables& aVariables, CopyMove aMove) noexcept
 {
     Breadcrumbs::Record("ApplyRemoteMovement", aFormId);
     auto* actor = GetActor(aFormId);
@@ -280,8 +280,13 @@ bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3
     position.y = aPosition[1];
     position.z = aPosition[2];
     // A copy lying in its ragdoll is kept on it by the engine in its graph update, as its owner (HookTransformDelta).
-    const bool cPlace = aPlace && !actor->LiesInRagdoll();
-    if (cPlace)
+    const CopyMove cMove = actor->LiesInRagdoll() ? CopyMove::Leave : aMove;
+    const bool cPlace = cMove != CopyMove::Leave;
+    // Stepped in its movement job (HookApplyMovement), which places it when its engine cannot step it.
+    auto* pExtension = actor->GetExtension();
+    pExtension->HasCopyGoal = cMove == CopyMove::Step;
+    std::copy_n(aPosition, 3, pExtension->CopyGoal);
+    if (cMove == CopyMove::Place)
         actor->ForcePosition(position);
     actor->LoadAnimationVariables(aVariables);
     if (actor->currentProcess && actor->currentProcess->middleProcess)

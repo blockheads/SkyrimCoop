@@ -36,6 +36,10 @@ struct ActorExtension
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};
 
+    // A copy's owner's place, stepped to in its movement job (HookApplyMovement; set by SkyrimBridge).
+    float CopyGoal[3]{};
+    bool HasCopyGoal = false;
+
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;

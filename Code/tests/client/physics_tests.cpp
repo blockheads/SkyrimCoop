@@ -13,6 +13,9 @@
 #include <Physics/BodySends.h>
 #include <Physics/HavokStep.h>
 #include <Systems/CopyEase.h>
+#include <Systems/CopyStep.h>
+
+#include <glm/geometric.hpp>
 
 using namespace BodyPrediction;
 
@@ -405,4 +408,25 @@ TEST_CASE("Havok steps with the frame at any frame rate", "[physics][havok-step]
     CHECK(Physics::HavokStep(1.f / 25.f, cLongest, 5) == Approx(1.f / 75.f));
     CHECK(Physics::HavokStep(0.5f, cLongest, 5) == Approx(0.1f));
     CHECK(Physics::HavokStep(1.f / 25.f, cLongest, 1) == Approx(1.f / 25.f));
+}
+
+TEST_CASE("A copy near its owner's place is stepped there, far off placed, lying left to its ragdoll", "[physics][copy-step]")
+{
+    // guest-holds-into-npc: a copy only placed never pushes the bucket its player holds against it.
+    const glm::vec3 cAt{100.f, 200.f, 50.f};
+    CHECK(CopyStep::Choose(false, cAt, cAt) == CopyMove::Step);
+    CHECK(CopyStep::Choose(false, cAt, cAt + glm::vec3(40.f, -40.f, 10.f)) == CopyMove::Step);
+    CHECK(CopyStep::Choose(false, cAt, cAt + glm::vec3(0.f, 0.f, CopyStep::kSnap + 1.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(false, cAt, cAt + glm::vec3(50.f, 50.f, 0.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(true, cAt, cAt) == CopyMove::Leave);
+}
+
+TEST_CASE("A copy's step is in its own frame: forward along its heading, right across it", "[physics][copy-step]")
+{
+    // Skyrim's heading: 0 faces +y, pi/2 faces +x.
+    const auto cNear = [](const glm::vec3& a, const glm::vec3& b) { return glm::length(a - b) < 1e-4f; };
+    CHECK(cNear(CopyStep::Local({0.f, 10.f, 0.f}, 0.f), {0.f, 10.f, 0.f}));
+    CHECK(cNear(CopyStep::Local({10.f, 0.f, 0.f}, 0.f), {10.f, 0.f, 0.f}));
+    CHECK(cNear(CopyStep::Local({10.f, 0.f, 2.f}, 1.57079633f), {0.f, 10.f, 2.f}));
+    CHECK(cNear(CopyStep::Local({0.f, 10.f, 0.f}, 1.57079633f), {-10.f, 0.f, 0.f}));
 }

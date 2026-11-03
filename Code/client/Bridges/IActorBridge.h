@@ -8,6 +8,7 @@
 #include <vector>
 #include <Structs/ActorValues.h>
 #include <Structs/AnimationVariables.h>
+#include <Systems/CopyStep.h>
 #include <Structs/Inventory.h>
 #include <Structs/Faction.h>
 #include <Structs/Factions.h>
@@ -76,10 +77,10 @@ public:
     // --- Position / movement ---
     virtual void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept = 0;
     virtual void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept = 0;
-    // Resident game-thread operation; no pointers into a reloadable DLL retained. Not aPlace: only its graph's variables
-    // (its ragdoll places it).
+    // Resident game-thread operation; no pointers into a reloadable DLL retained. Leave: only its graph's variables
+    // (its ragdoll places it); Step: its engine steps it there this frame; Place: put there.
     virtual bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
-        const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept = 0;
+        const float aRotation[3], float aDirection, const AnimationVariables& aVariables, CopyMove aMove) noexcept = 0;
     virtual void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
     // Alive and in knock states 1-4.
     [[nodiscard]] virtual bool IsKnockedDown(uint32_t aFormId) const noexcept = 0;

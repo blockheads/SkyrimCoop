@@ -351,6 +351,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint64_t PhysicsTick = 0;
     std::vector<uint32_t> TakeMovedReferences() noexcept override;
     uint32_t PlayerInRagdoll() noexcept override;
+    uint32_t PlayerHolds() noexcept override;
     std::optional<IBodyReads::Reference> ReadReference(uint32_t aFormId, bool aBodies = true) noexcept override;
     void WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept override;
     // The reference a body belongs to (an actor's for its ragdoll's).
@@ -369,12 +370,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool Steer(const BodyFrame& acFrame) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
-    // object interactions); a keyframed body passes through, and so does a copy's capsule (copies skip
-    // Actor::ApplyMovement 37356, which integrates it). The duo's probe: the capsule's top 128 above the feet.
+    // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
+    // nothing: guest-holds-into-npc, its bucket 2 units off the copy's axis, 19.7 off an owner's). The duo's probe:
+    // the capsule's top 128 above the feet.
     static constexpr float kCapsuleRadius = 20.f;
     static constexpr float kCapsuleTop = 128.f;
     // Where a simulated body moving from acFrom toward acTo stops: outside every capsule that pushes.
     [[nodiscard]] glm::vec3 OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& acTo) const noexcept;
+    // This game's player holds a body toward acTo (the grab's spring): it stops outside every capsule that pushes.
+    void HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept;
     bool Free(const BodyFrame& acFrame) noexcept override;
     bool Push(const BodyPush& acPush) noexcept override;
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
@@ -420,6 +424,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Persistent = false; // kept when its cell unloads (SetActorPersistent)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
+        bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
+        uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
@@ -853,7 +859,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override;
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
-                             const AnimationVariables& aVariables, bool aPlace) noexcept override;
+                             const AnimationVariables& aVariables, CopyMove aMove) noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorTemporaryValue(uint32_t aFormId, int32_t aIndex) const noexcept override;

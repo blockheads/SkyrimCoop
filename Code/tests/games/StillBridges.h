@@ -497,7 +497,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
-                             const AnimationVariables& aVariables, bool aPlace) noexcept override
+                             const AnimationVariables& aVariables, CopyMove aMove) noexcept override
     {
         return {};
     }
