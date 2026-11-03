@@ -7,8 +7,8 @@
 #include <Forms/ActorValueInfo.h>
 #include <Forms/BGSEncounterZone.h>
 #include <Games/ActorExtension.h>
-#include <HookSwitch.h>
 #include <Havok/Raycast.h>
+#include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Services/Host/PartyThreat.h>
@@ -42,8 +42,10 @@ TSelect* RealSelect{};
 uint32_t* Select(CombatTargetSelectorStandard* apSelector, uint32_t* apResult)
 {
     auto* pResult = RealSelect(apSelector, apResult);
+    if (!pResult || !*pResult || !s_active.load(std::memory_order_acquire))
+        return pResult;
     const auto cState = s_state.load(std::memory_order_acquire);
-    if (!pResult || !*pResult || !cState || !cState->Active)
+    if (!cState || !cState->Active)
         return pResult;
     auto* pController = apSelector->pCombatController;
     auto* pActor = pController ? pController->GetAttacker() : nullptr;
@@ -127,7 +129,13 @@ Hooks::Initializer s_hooks([] {
 } // namespace
 void Publish(const PartyThreat::State& acState) noexcept
 {
+    if (!acState.Active)
+    {
+        s_active.store(false, std::memory_order_release);
+        s_state.store({}, std::memory_order_release);
+        return;
+    }
     s_state.store(std::make_shared<const PartyThreat::State>(acState), std::memory_order_release);
-    s_active.store(acState.Active, std::memory_order_release);
+    s_active.store(true, std::memory_order_release);
 }
 } // namespace PartyAggroNative

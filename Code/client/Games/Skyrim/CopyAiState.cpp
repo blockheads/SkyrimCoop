@@ -2,8 +2,10 @@
 
 #include <Actor.h>
 #include <Forms/TESQuest.h>
+#include <Forms/TESPackage.h>
 #include <Games/ActorExtension.h>
 #include <Games/CopyAiState.h>
+#include <CopyPackage.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
@@ -32,6 +34,18 @@ static BGSScene* HookGetCurrentScene(Actor* apThis)
 BGSScene* Actor::GetOwnCurrentScene() const noexcept
 {
     return RealGetCurrentScene ? RealGetCurrentScene(const_cast<Actor*>(this)) : nullptr;
+}
+
+using TGetCurrentPackage = TESPackage*(const Actor*);
+static TGetCurrentPackage* RealGetCurrentPackage = nullptr;
+
+// 37399 can return an old ExtraPackage behind the copy's idle placeholder. An owner's explicit none stays none.
+static TESPackage* HookGetCurrentPackage(const Actor* apActor)
+{
+    auto* pPackage = RealGetCurrentPackage(apActor);
+    const auto* pExtension = const_cast<Actor*>(apActor)->GetExtension();
+    return CopyPackage::Read(pExtension->IsCopy(), pExtension->OwnerPackageId.load(std::memory_order_relaxed),
+                             pPackage ? pPackage->formID : 0) ? pPackage : nullptr;
 }
 
 using TIsInCombat = bool(Actor*);
@@ -133,6 +147,7 @@ static Hooks::Initializer s_copyAiStateHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(37247, &RealGetCurrentScene, HookGetCurrentScene);
+        HOOK_ID(37399, &RealGetCurrentPackage, HookGetCurrentPackage);
         HOOK_ID(37273, &RealUpdateCombatSearchState, HookUpdateCombatSearchState);
         HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
         HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);

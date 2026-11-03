@@ -1,6 +1,6 @@
 # Party enemy targeting, 2026-11-02
 
-Branch: `feature/party-aggro`, based on `dev` at `f91f5983`. This batch is not merged into `dev`.
+Feature: `feature/party-aggro`, originally based on `dev` at `f91f5983`; reviewed with committed dev `1fa0233b` integrated for the user-authorized merge.
 
 ## Reproduction before the change
 
@@ -36,4 +36,14 @@ Final Steam 1.7.104 acceptance: **6/6 pass**, `build/aggro-evidence/native-colli
 
 Two further native facts were reproduced, taught to the fake, and fixed after failing smoke tests: copies lose the target during native search-state updates; a damaging attacker behind an enemy can remain LOST with cached LOS false. The final code restores the owner's weak handle on copies and uses a physical visibility ray for recent attackers rejected by native awareness. Unit cases cover hidden players, walls, decay, hold timing, switching margins and native reevaluation.
 
-The pair was stopped, its private prefixes verified empty, and the duo released immediately after acceptance. The user cancelled the queued 1.6 compatibility run: routine builds/tests now target 1.7 only. No dev merge or push was performed.
+The pair was stopped, its private prefixes verified empty, and the duo released immediately after acceptance. The user cancelled the queued 1.6 compatibility run: routine builds/tests now target 1.7 only. The implementation run did not merge or push; the later user-authorized review and merge is recorded below.
+
+## Review and merge acceptance
+
+Review fixed two issues before merging: a valid live target could roll back if selection ran again before its host snapshot updated, and a copied actor could expose its previous package after the owner cleared it. Both leave failing whole-game and pure regressions that pass after the fixes. The short native diagnostic did not repeat the target flip, but did reproduce the stale package in the cleanup oracle. Temporary native tracing was removed.
+
+Cleanup removes duplicate threat-score and native target reads, inactive snapshot allocation/lookup and duplicate physics-world reads. Weights and timing remain unchanged.
+
+The combined `scripts/check.sh` passes: **202 client / 199 host / 33 encoding / 290 game cases**, harness/runtime checks, UI fixtures, primary DLL and launcher. Final native **6/6 PASS** with current committed dev and the review fixes: `build/aggro-evidence/native-review-final104.log`, `review-final104-results.json`. The scenario runner deduplicates repeated names, so this is six distinct cases. Own games stopped and both private prefixes verified empty before offline work. Only Steam 1.7.104 was built and exercised for review.
+
+The merge preserves the main checkout's unrelated repro/profiling work without including it in the aggro commit.

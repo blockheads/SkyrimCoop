@@ -8,6 +8,7 @@
 #include "StillBridges.h"
 #include <Services/PartyMarkers.h>
 #include <Services/Host/PartyThreat.h>
+#include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
 #include "../FakeFlight.h"
@@ -55,6 +56,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::vector<PartyThreat::Candidate>> CombatCandidates;
     std::map<uint32_t, uint32_t> CombatProposals; // Periodic native recalculation (47191/47195).
     std::map<uint64_t, PartyThreat::Perception> CombatPerception;
+    uint32_t CombatSelectionsPerFrame{1};
     void RunNativeCombat() noexcept;
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
 
@@ -446,6 +448,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
         uint32_t OwnerCombatTarget{};
+        uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
         ActorValues Values = FullValues();
@@ -719,6 +722,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         const auto it = Actors.find(aFormId);
         ActorAiFields fields = it != Actors.end() ? it->second.Ai : ActorAiFields{};
+        if (it != Actors.end() && it->second.Copy)
+        {
+            const uint32_t cNativePackage = fields.PackageId ? fields.PackageId : it->second.ExtraPackageFallback;
+            fields.PackageId = CopyPackage::Read(true, it->second.Ai.PackageId, cNativePackage);
+        }
         // The rider's native horse has no current package, including when an older copy snapshot just arrived.
         if (it != Actors.end() && !it->second.Copy)
             if (const auto cMount = Mounts.find(kPlayer); cMount != Mounts.end() && cMount->second == aFormId)

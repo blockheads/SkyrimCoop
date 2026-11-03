@@ -9,6 +9,7 @@
 #include <World.h>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 HostAggro::HostAggro(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors,
                      std::function<void(const PartyThreat::State&)> aPublish) noexcept
@@ -55,6 +56,8 @@ void HostAggro::Update(const UpdateEvent& acEvent) noexcept
     for (const auto& [cPair, cDamage] : m_state.DamageByPair)
     {
         const uint32_t cActor = cPair >> 32;
+        if (combats.contains(cActor))
+            continue;
         const uint32_t cTarget = m_actors.GetActorAiFields(cActor).CombatTargetId;
         const auto cOld = m_state.Combats.find(cActor);
         combats[cActor] = cOld != m_state.Combats.end() && cOld->second.Target == cTarget

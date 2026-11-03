@@ -26,3 +26,11 @@ TEST_CASE("This game's own actors take whatever the engine picks", "[CopyPackage
     CHECK(CopyPackage::Put(false, 0, cCombatOverride) == cCombatOverride);
     CHECK(CopyPackage::Put(false, cFollow, cCombatOverride) == cCombatOverride);
 }
+
+TEST_CASE("An owner's empty package does not expose a copy's stale extra package", "[CopyPackage]")
+{
+    CHECK(CopyPackage::Read(true, 0, cFollow) == 0);
+    CHECK(CopyPackage::Read(true, 0, 0) == 0);
+    CHECK(CopyPackage::Read(true, cFollow, cFollow) == cFollow);
+    CHECK(CopyPackage::Read(false, 0, cFollow) == cFollow);
+}

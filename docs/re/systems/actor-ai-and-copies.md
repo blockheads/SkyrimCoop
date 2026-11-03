@@ -751,3 +751,8 @@ between hits, so a scenario steps up before each swing and judges each hit again
 that leaves the cell takes the client's copy of it (the client's own persistent reference) along, still a copy
 (`docs/design/copy-contract.md`, "When the owner's actor goes away"). `release_host_npc` sends the host's home
 while still frozen: thawed and unloaded, its AI walks it on in jumps of ~300 units, which the copy does not follow.
+
+
+### Empty copied packages (2026-11-02 review, Steam 1.7.104)
+
+`Actor::GetCurrentPackage` (37399, RVA `0x67F680`) reads the running slot, or `ExtraPackage` when that slot is an interrupt package. Combat scenarios exposed a copy returning an old form (`0x3EAB9`) after the host player's package became none. Copy package storage still holds a safe idle placeholder; the reader now masks the native fallback only for an explicit owner package of zero. Named owner packages still read the actual slot. `OwnerPackageId` is atomic for engine readers. The whole-game package-clear flow and `CopyPackage::Read` tests fail before the fix and pass afterward; final six-case native aggro/combat/casting acceptance passes with the cleanup oracle.

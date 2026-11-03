@@ -8,7 +8,7 @@ After a party player damages an NPC, keep a damage history for that fight. Appli
 
 Each eligible party player scores `20 / (1 + distance / 512) + 4 * recent damage`. Distance is in Skyrim units. Keep the current target on ties; a challenger needs more than 20% extra score. Keep a valid target for at least 1.5 seconds after a change. An invalid current target does not impose that hold. These rules have no host/guest preference.
 
-The rule runs only after damage in a party fight, when Skyrim's standard selector already selects a party player. It leaves other NPC targets, scripted scenes, custom selectors and attacks already in progress to Skyrim. The native controller applies the returned target and the existing AI-state path sends it to guests. Compare against the controller's actual current target, even when the periodic native selector proposes a different one. We do not stop/restart combat or write the actor's target directly.
+The rule runs only after damage in a party fight, when Skyrim's standard selector already selects a party player. It leaves other NPC targets, scripted scenes, custom selectors and attacks already in progress to Skyrim. The native controller applies the returned target and the existing AI-state path sends it to guests. Compare against the controller's actual current target, even when the periodic native selector proposes a different one. If AI jobs select again before the main-thread snapshot catches up, keep a valid live target rather than rolling back to the native proposal. We do not stop/restart combat or write the actor's target directly.
 
 Damage history is removed when the victim dies, disappears or leaves combat, or the attacker leaves the party. A three-second grace period allows the first damage callback to precede native combat startup. Ending or reloading the host session clears the published policy.
 
@@ -57,3 +57,11 @@ GameTests runs real combat services and AI replication with a fake native select
 ## Validation target
 
 Normal development and validation target Steam 1.7.104 only. The existing optional 1.6 configuration remains, but compatibility builds/tests and legacy RE work require an explicit request.
+
+## Review fixes
+
+Review adds a two-pass fake selector to cover AI selection before the next host snapshot. Its failing attack-order flows exposed a rollback path in `Resolve`; a valid live target now stays until the published snapshot catches up. Invalid targets and non-party native proposals still pass through.
+
+The native cleanup oracle also exposed an old package after the host player's package became empty. `GetCurrentPackage` (37399, RVA `0x67F680`) can read `ExtraPackage` under a do-nothing placeholder. A copy now answers none when its owner's package is explicitly zero; named packages still come from the actual native slot. The cached owner package ID is atomic for engine readers. A native reproduction, failing whole-game flow and failing pure test precede the fix.
+
+Cleanup caches candidate scores, reads each tracked NPC's combat target once per host update, avoids inactive native snapshot allocation/lookup, and avoids duplicate physics-world reads. No selection weights or timing constants changed.

@@ -19,6 +19,8 @@ void DamageSwitches(bool aGuestFirst)
     const uint32_t cFirst = aGuestFirst ? cGuest : FakeEngine::kPlayer;
     const uint32_t cSecond = aGuestFirst ? FakeEngine::kPlayer : cGuest;
     party.As(party.Host(), [&] {
+        host.CombatSelectionsPerFrame = 2;
+        host.CombatProposals[enemy] = cFirst;
         host.CombatCandidates[enemy] = {{FakeEngine::kPlayer, 250.f, true}, {cGuest, 250.f, true}};
         host.CombatPerception[PartyThreat::State::Key(enemy, cSecond)] = {
             .Known = false, .Lost = true, .Detection = 0, .ClearPath = true};

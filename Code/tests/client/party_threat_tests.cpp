@@ -149,3 +149,16 @@ TEST_CASE("Recent visible damage recovers a lost attacker without revealing hidd
     CHECK(state.CanTarget(500, 99, 99, p));
     CHECK_FALSE(state.CanTarget(500, 99, 14, p));
 }
+
+TEST_CASE("An eligible live target survives selection before the next host snapshot", "[party-aggro]")
+{
+    auto state = Fight(14);
+    state.Hit(500, 14, 5);
+    state.Hit(500, 99, 30);
+    std::array targets{PartyThreat::Candidate{14, 250, true}, PartyThreat::Candidate{99, 250, true}};
+    CHECK(state.Resolve(500, 99, 14, targets) == 99);
+    targets[1].Eligible = false;
+    CHECK(state.Resolve(500, 99, 14, targets) == 14);
+    targets[1].Eligible = true;
+    CHECK(state.Resolve(500, 99, 123, targets) == 123);
+}

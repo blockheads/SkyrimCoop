@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-// The copy contract for the running package, with no engine (docs/re/systems/actor-ai-and-copies.md): what
-// ActorPackage::InitFromPackage (38959) puts in a copy's running slot. Checked by ClientTests.
+// The copy contract for package storage and reads, without the engine (actor-ai-and-copies.md).
 namespace CopyPackage
 {
 // The package to put on: a copy holds its owner's once known, whatever the engine picks (a follower alias's combat
@@ -11,5 +10,10 @@ namespace CopyPackage
 [[nodiscard]] constexpr uint32_t Put(bool aCopy, uint32_t aOwnerPackage, uint32_t aRequested) noexcept
 {
     return aCopy && aOwnerPackage ? aOwnerPackage : aRequested;
+}
+// An explicit none must not fall back to an old package behind the copy's idle placeholder.
+[[nodiscard]] constexpr uint32_t Read(bool aCopy, uint32_t aOwnerPackage, uint32_t aNativePackage) noexcept
+{
+    return aCopy && !aOwnerPackage ? 0 : aNativePackage;
 }
 } // namespace CopyPackage

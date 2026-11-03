@@ -28,21 +28,25 @@ bool State::RecentlyHit(uint32_t aVictim, uint32_t aAttacker) const noexcept
     return it != DamageByPair.end() && it->second.Amount > 0 && Now >= it->second.At &&
            Now - it->second.At <= kRecentHit;
 }
-bool State::CanTarget(uint32_t aVictim, uint32_t aPlayer, uint32_t aCurrent, const Perception& p) const noexcept
+bool State::CanTarget(uint32_t aVictim, uint32_t aPlayer, uint32_t aCurrent,
+                      const Perception& acPerception) const noexcept
 {
-    if (!Active || !IsPlayer(aPlayer) || p.Invisible || (p.Sneaking && p.Detection <= 0))
+    if (!Active || !IsPlayer(aPlayer) || acPerception.Invisible ||
+        (acPerception.Sneaking && acPerception.Detection <= 0))
         return false;
-    if (!p.Lost && ((p.Detection > 0 && p.Stealth <= 0) || (aPlayer == aCurrent && p.Known)))
+    if (!acPerception.Lost &&
+        ((acPerception.Detection > 0 && acPerception.Stealth <= 0) || (aPlayer == aCurrent && acPerception.Known)))
         return true;
-    return (p.LineOfSight || p.ClearPath) && (aPlayer == aCurrent || RecentlyHit(aVictim, aPlayer));
+    return (acPerception.LineOfSight || acPerception.ClearPath) &&
+           (aPlayer == aCurrent || RecentlyHit(aVictim, aPlayer));
 }
 uint32_t State::Resolve(uint32_t aActor, uint32_t aCurrent, uint32_t aNative,
                         std::span<const Candidate> aCandidates) const noexcept
 {
     const auto combat = Combats.find(aActor);
-    if (!Active || !IsPlayer(aNative) || !IsPlayer(aCurrent) || combat == Combats.end() ||
-        combat->second.Target != aCurrent)
+    if (!Active || !IsPlayer(aNative) || !IsPlayer(aCurrent) || combat == Combats.end())
         return aNative;
+    // AI jobs can change the live target before the next main-thread snapshot.
     const uint32_t cChosen = Choose(aActor, aCurrent, aCandidates);
     for (const auto& cCandidate : aCandidates)
         if (cCandidate.ActorId == cChosen && cCandidate.Eligible && std::isfinite(cCandidate.Distance) &&
@@ -68,14 +72,19 @@ uint32_t State::Choose(uint32_t aActor, uint32_t aCurrent, std::span<const Candi
     if (cHasCurrent && Now - combat->second.ChangedAt < kTargetHold)
         return aCurrent;
     uint32_t best = cHasCurrent ? aCurrent : 0;
-    double bestScore = cHasCurrent ? score(*current) : -1;
+    const double cCurrentScore = cHasCurrent ? score(*current) : -1;
+    double bestScore = cCurrentScore;
     for (const auto& cCandidate : aCandidates)
-        if (valid(cCandidate) && score(cCandidate) > bestScore)
+        if (valid(cCandidate))
         {
-            best = cCandidate.ActorId;
-            bestScore = score(cCandidate);
+            const double cScore = score(cCandidate);
+            if (cScore > bestScore)
+            {
+                best = cCandidate.ActorId;
+                bestScore = cScore;
+            }
         }
-    if (!best || (cHasCurrent && best != aCurrent && bestScore <= score(*current) * kSwitchRatio))
+    if (!best || (cHasCurrent && best != aCurrent && bestScore <= cCurrentScore * kSwitchRatio))
         return aCurrent;
     return best;
 }

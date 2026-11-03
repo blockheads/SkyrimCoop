@@ -99,7 +99,10 @@ std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], ui
 
 bool HasClearPath(Actor* apFrom, Actor* apTo) noexcept
 {
-    if (!apFrom || !apTo || !WorldOf(apFrom->parentCell) || WorldOf(apFrom->parentCell) != WorldOf(apTo->parentCell))
+    if (!apFrom || !apTo)
+        return false;
+    const auto* pWorld = WorldOf(apFrom->parentCell);
+    if (!pWorld || pWorld != WorldOf(apTo->parentCell))
         return false;
     const auto cFrom = apFrom->GetLookingAtLocation();
     const auto cTo = apTo->GetLookingAtLocation();
