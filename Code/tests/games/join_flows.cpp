@@ -704,3 +704,54 @@ SCENARIO("Character startup has a deadline before the customization menu opens",
     CHECK(Join(guest).GetStatus().Reason == "creation_failed");
     CHECK(Party::Engine(guest).Loaded.empty());
 }
+
+SCENARIO("Repeated world joins reuse the save on disk and keep the host's current state", "[join][save-cache]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.References[0x2000] = {.Cell = 0x31D2E};
+    }, false);
+    auto& host = party.Host();
+    auto& guest = party.Guest();
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    auto& guestEngine = Party::Engine(guest);
+    guestEngine.SavedFiles.clear();
+    JoinsWithWorld(party, host, guest, "the first join receives a whole save");
+    CHECK(Join(guest).GetMetrics().Outcome == "joined");
+    CHECK(Join(guest).GetMetrics().CachedChunks == 0);
+    CHECK(Join(guest).GetMetrics().PayloadBytes > 0);
+    REQUIRE(guestEngine.ReadSave(JoinService::kJoinSave));
+    const auto cKey = KeyOf(guest);
+    party.Until([&] { return Records(host).Find(cKey) != nullptr; }, "the host keeps this guest before it leaves");
+
+    // The first arrival adds this guest's character to the host's next save.
+    ToMainMenu(party, guest);
+    JoinsWithWorld(party, host, guest, "the second join refreshes the host's saved character record");
+    ToMainMenu(party, guest);
+    JoinsWithWorld(party, host, guest, "an unchanged host save reuses matching disk blocks");
+    const auto metrics = Join(guest).GetMetrics();
+    CHECK(metrics.Outcome == "joined");
+    CHECK(metrics.AdvertisedBlocks > 0);
+    CHECK(metrics.CachedChunks > 0);
+    CHECK(metrics.ReusedBytes > 0);
+    CHECK(metrics.TotalMs >= metrics.CacheMs);
+    CHECK(metrics.TransferMs >= 0);
+    CHECK(metrics.DecodeMs >= 0);
+
+    SECTION("corrupted cached files fall back to a fresh current world")
+    {
+        guestEngine.SavedFiles[JoinService::kJoinSave] = {"damaged disk save", "bad SKSE"};
+    }
+    SECTION("the host's world changes while the guest is away") {}
+    ToMainMenu(party, guest);
+    auto& hostEngine = Party::Engine(host);
+    REQUIRE_FALSE(hostEngine.References.empty());
+    const auto cObject = hostEngine.References.begin()->first;
+    hostEngine.References[cObject].Locked = !hostEngine.References[cObject].Locked;
+    const bool cLocked = hostEngine.References[cObject].Locked;
+    JoinsWithWorld(party, host, guest, "changed data replaces the cached world");
+    CHECK(guestEngine.References[cObject].Locked == cLocked);
+    CHECK(Join(guest).GetMetrics().Outcome == "joined");
+    CHECK(Join(guest).GetMetrics().PayloadBytes > 0);
+}

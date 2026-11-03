@@ -23,19 +23,20 @@ struct MessageEntry
     uint64_t SessionTick; // TransportService::GetTick: the host's clock in every game
     MessageWay Way;
     const char* Name; // the opcode's name (Opcodes.h), static
-    uint32_t Peer;    // the host's rules: the game's connection; a game: 0
-    uint32_t Size;    // bytes on the wire
+    uint64_t Peer;    // the host's rules: the game's connection; a game: 0
+    uint32_t Size;    // serialized bytes, before transport compression
     uint64_t Seq{};   // its number in the trail
+    bool Local{};     // an in-process route, never network traffic
 };
 
 // The newest messages, for a bug report's messages.txt.
 using MessageTrail = Trail<MessageEntry>;
 
-// One line per entry: "<unix ms> t=<tick> <way> <name> peer=<peer> <size>B".
+// One line per entry: "<unix ms> t=<tick> <way> <name> peer=<peer> <size>B <local|network>".
 [[nodiscard]] std::string FormatMessages(const std::vector<MessageEntry>& acEntries);
 
 // This game's, the last 5 minutes.
 MessageTrail& Messages() noexcept;
 // Records one now (the wall clock's time).
-void RecordMessage(uint64_t aSessionTick, MessageWay aWay, const char* acpName, uint32_t aPeer, uint32_t aSize) noexcept;
+void RecordMessage(uint64_t aSessionTick, MessageWay aWay, const char* acpName, uint64_t aPeer, uint32_t aSize, bool aLocal = false) noexcept;
 } // namespace Diagnostics

@@ -5,6 +5,6 @@ target("SkyrimCoopLauncher")
     set_languages("cxx23")
     add_files("Main.cpp")
     add_ldflags("/SUBSYSTEM:WINDOWS", {force = true})
-    add_syslinks("kernel32", "user32", "shell32", "ole32", "version")
+    add_syslinks("kernel32", "user32", "shell32", "ole32", "version", "gdi32")
 target_end()
 end

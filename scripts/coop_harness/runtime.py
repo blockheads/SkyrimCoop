@@ -292,7 +292,12 @@ class Runtime:
         plugins = GAME / "Data/SKSE/Plugins"
         plugins.mkdir(parents=True, exist_ok=True)
         # Ours, SKSE's plugin folder and the bundled start are the duo's own; everything else is the Steam install's.
-        own = {"Data", "SkyrimSELauncher.exe", "SkyrimSE.exe"}
+        own = {"Data", "SkyrimSELauncher.exe", "SkyrimSE.exe", "Debug.log", "Logs"}
+        # Mutable logs must never point into the player's Steam install (Bethesda opens Debug.log on startup).
+        for name in ("Debug.log", "Logs"):
+            log = GAME / name
+            if log.is_symlink():
+                log.unlink()
         own.update(source.name for source in STEAM_GAME.glob("skse64_*") if source.suffix in (".exe", ".dll"))
         own_data = {"SKSE", "Scripts", BUNDLED_START}
         for folder, skip in ((STEAM_GAME, own), (STEAM_GAME / "Data", own_data)):

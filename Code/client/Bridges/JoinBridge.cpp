@@ -1,4 +1,5 @@
 #include <Events/GameLoadFailedEvent.h>
+#include <chrono>
 #include <World.h>
 #include <Bridges/JoinBridge.h>
 #include <CreationStart.h>
@@ -56,10 +57,17 @@ std::vector<TESShout*> ShoutsOf(const TESNPC& acBase) noexcept
 
 std::optional<std::string> ReadFile(const std::filesystem::path& acPath) noexcept
 {
-    std::ifstream file(acPath, std::ios::binary);
+    std::ifstream file(acPath, std::ios::binary | std::ios::ate);
     if (!file)
         return std::nullopt;
-    return std::string(std::istreambuf_iterator<char>(file), {});
+    const auto cSize = file.tellg();
+    if (cSize < 0 || cSize > SaveTransfer::kMaxSave)
+        return std::nullopt;
+    std::string data(static_cast<size_t>(cSize), '\0');
+    file.seekg(0);
+    if (!file.read(data.data(), static_cast<std::streamsize>(data.size())))
+        return std::nullopt;
+    return data;
 }
 
 bool WriteFile(const std::filesystem::path& acPath, const std::string& acData) noexcept
@@ -135,6 +143,7 @@ namespace
 // On the main thread between frames: the save and its two files.
 std::optional<IJoinBridge::SaveFiles> MakeSave(const std::string& acName) noexcept
 {
+    const auto cStarted = std::chrono::steady_clock::now();
     BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
     const auto cGame = BGSSaveLoadManager::SaveFilePath(acName.c_str());
     if (!pManager || cGame.empty() || !pManager->Save(acName.c_str()))
@@ -148,7 +157,8 @@ std::optional<IJoinBridge::SaveFiles> MakeSave(const std::string& acName) noexce
     std::filesystem::remove(cGame, error);
     std::filesystem::remove(coSave, error);
     if (files)
-        spdlog::info("JoinBridge: saved {} ({} and {} bytes)", acName, files->Game.size(), files->CoSave.size());
+        spdlog::info("JoinBridge: saved {} ({} and {} bytes) in {:.1f} ms", acName, files->Game.size(), files->CoSave.size(),
+                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cStarted).count());
     return files;
 }
 } // namespace

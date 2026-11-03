@@ -11,14 +11,24 @@ installations; install the package matching your executable. The default build a
 
 1. In Steam, right-click Skyrim Special Edition > Manage > Browse local files. That opens the game folder (the one
    with `SkyrimSE.exe`).
-2. Extract the whole zip into that folder. Say yes when asked to replace `SkyrimSELauncher.exe`.
-3. Press Play in Steam.
+2. Before the first installation, rename Bethesda's `SkyrimSELauncher.exe` to `SkyrimSELauncher.bethesda.exe`.
+   Keep that file: it provides the graphics options. If SkyrimCoop already replaced the launcher, use Steam's
+   Properties > Installed Files > Verify integrity once to restore it, then rename it.
+3. Extract the whole zip into that folder.
+4. Press Play in Steam, then **Play co-op**.
 
 That's it. Each start checks your game version, enables the zip's plugins and starts Skyrim through SKSE. A message box
 says what's wrong if something is missing.
 
-If you have never started Skyrim on this computer, the launcher makes its settings files from the game's High
-preset; change graphics in the game's Settings menu.
+Choose **Graphics settings** to open Bethesda's original launcher in the same Steam/Proton environment. Choose
+**Options** there to change resolution, window mode and graphics quality; then **Exit** and return to **Play co-op**.
+Bethesda's own **Play** button starts vanilla Skyrim without SKSE, so use our Play co-op button to play together.
+Invitations start co-op directly, skipping the menu. Steam launch options `--play` and `--graphics` also select those
+actions directly; `+connect_lobby` invitations always take priority.
+Launch/exit errors are recorded in `SkyrimCoop/launcher.log` under your Documents/My Games settings folder.
+
+If you have never started Skyrim, Play co-op creates missing settings files using the game's High preset. Existing
+settings are preserved.
 
 ## Playing
 
@@ -33,7 +43,7 @@ preset; change graphics in the game's Settings menu.
 
 ## Updating and uninstalling
 
-- A new zip: extract it the same way, replacing everything.
+- A new zip: extract it the same way. Keep `SkyrimSELauncher.bethesda.exe`; updates do not include or replace it.
 - Verifying the game's files in Steam puts Steam's own launcher back: extract the zip again.
 - To uninstall: in Steam, Properties > Installed Files > Verify integrity of game files (restores Steam's launcher),
   then delete `Data/SKSE/Plugins/SkyrimTogetherClient.dll`, `Data/SkyrimCoopStart.esp` and the

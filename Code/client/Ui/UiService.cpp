@@ -20,6 +20,7 @@
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <World.h>
+#include <Diagnostics/Snapshot.h>
 
 #include <RmlUi/Core.h>
 
@@ -503,6 +504,30 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
         m_world.ctx().at<BugReportService>().Report(acLine.size() > 5 ? acLine.substr(5) : "");
         return;
     }
+    if (acLine == "/perf")
+    {
+        const auto cPerf = Diagnostics::PerfStatus(false, 10000);
+        ShowSystemLine(std::format("Frame p95 {:.1f} ms; co-op update p95 {:.1f} ms; working memory {} MiB.",
+            cPerf["frame_ms"]["p95"].get<double>(), cPerf["update_ms"]["p95"].get<double>(),
+            cPerf.value("memory_mb", nlohmann::json::object()).value("working_set", 0)));
+        ShowSystemLine(std::format("Network messages: {:.1f} KiB/s over 10 s, before compression. /bug or /export keeps details.",
+            cPerf["messages"]["bytes_per_second"].get<double>() / 1024.0));
+        const auto cLine = Diagnostics::LineStatus();
+        for (const auto& cConnection : cLine["connections"])
+            ShowSystemLine(std::format("{}: {} ms round trip; {:.1f}% reliable loss; {} bytes awaiting acknowledgement.",
+                cConnection["player"].get<std::string>(), cConnection["rtt_ms"].get<uint32_t>(),
+                cConnection["loss_percent"].get<double>(), cConnection["reliable_in_flight_bytes"].get<uint32_t>()));
+        size_t shown = 0;
+        for (const auto& cMessage : cPerf["messages"]["top"])
+            if (!cMessage["local"].get<bool>() && shown++ < 3)
+                ShowSystemLine(std::format("{} ({}): {} KiB in 10 s.", cMessage["name"].get<std::string>(),
+                    cMessage["way"].get<std::string>(), cMessage["bytes"].get<uint64_t>() / 1024));
+        const auto& cJoin = m_world.ctx().at<JoinService>().GetMetrics();
+        if (cJoin.Chunks)
+            ShowSystemLine(std::format("Last world join: {:.1f} s total, {:.1f} s transfer, {:.1f} s load; {} KiB reused.",
+                cJoin.TotalMs / 1000, cJoin.TransferMs / 1000, cJoin.LoadMs / 1000, cJoin.ReusedBytes / 1024));
+        return;
+    }
     if (acLine == "/export")
     {
         m_world.ctx().at<BugReportService>().Export();
@@ -520,7 +545,7 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
     }
-    ShowSystemLine("Commands: /bug <what happened>, /export, /settime <hours> <minutes>");
+    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>");
 }
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept

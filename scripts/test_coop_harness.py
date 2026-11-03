@@ -24,6 +24,32 @@ class Harness(unittest.TestCase):
         self.session = Session()
         self.addCleanup(self.session.close)
 
+    @unittest.skipIf(WINDOWS, "isolated Linux test-game asset links")
+    def test_test_game_logs_never_write_through_links_into_the_steam_install(self):
+        from coop_harness import runtime
+        with tempfile.TemporaryDirectory() as temp:
+            source, game = Path(temp) / "steam", Path(temp) / "game"
+            (source / "Data").mkdir(parents=True)
+            game.mkdir()
+            (source / "Debug.log").write_text("the player's log")
+            (source / "Logs").mkdir()
+            (game / "Debug.log").symlink_to(source / "Debug.log")
+            (game / "Logs").symlink_to(source / "Logs", target_is_directory=True)
+            with patch.multiple(runtime, STEAM_GAME=source, GAME=game), \
+                 patch.object(runtime, "game_executable", return_value=source / "SkyrimSE.exe"), \
+                 patch.object(self.session, "copy_if_changed"), \
+                 patch.object(self.session, "stage_skse_scripts"), \
+                 patch.object(self.session, "instance_users", return_value=[]):
+                self.session.ensure_duo_game()
+                self.session.ensure_duo_game()
+            self.assertFalse((game / "Debug.log").is_symlink())
+            self.assertFalse((game / "Logs").is_symlink())
+            (game / "Debug.log").write_text("Bethesda writes its log")
+            (game / "Logs").mkdir()
+            (game / "Logs" / "ours.log").write_text("test log")
+            self.assertEqual((source / "Debug.log").read_text(), "the player's log")
+            self.assertEqual(list((source / "Logs").iterdir()), [])
+
     def test_dialogue_pick_completion_requires_usable_matching_menus_or_a_complete_close(self):
         session = self.session
         option = {'topic': 0x1001, 'info': 0x2001, 'quest': 0, 'text': 'News?'}

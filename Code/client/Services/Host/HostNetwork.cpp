@@ -42,6 +42,7 @@ void HostNetwork::CloseRoute(ConnectionId_t aConnection) noexcept
         return;
     if (aConnection == m_hostConnection)
         m_hostConnection = 0;
+    m_names.erase(aConnection);
     m_recipesSent.erase(aConnection);
     OnDisconnection(aConnection, EDisconnectReason::Quit);
 }
@@ -55,7 +56,7 @@ void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aCo
         spdlog::error("HostNetwork: could not read a message from {:x}", aConnection);
         return;
     }
-    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostIn, RequestName(pMessage->GetOpcode()), static_cast<uint32_t>(aConnection), aSize);
+    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostIn, RequestName(pMessage->GetOpcode()), aConnection, aSize, m_routes.contains(aConnection));
     if (!m_frontDoor || !m_frontDoor(*pMessage, aConnection))
         spdlog::debug("HostNetwork: dropped opcode {} from {:x}", uint32_t(pMessage->GetOpcode()), aConnection);
 }
@@ -81,14 +82,14 @@ void HostNetwork::SendNow(ConnectionId_t aConnection, const NotifyMessage& acMes
     if (cRoute != m_routes.end())
     {
         acMessage.Serialize(writer);
-        Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostOut, NotifyName(acMessage.GetOpcode()), static_cast<uint32_t>(aConnection), static_cast<uint32_t>(writer.Size()));
+        Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostOut, NotifyName(acMessage.GetOpcode()), aConnection, static_cast<uint32_t>(writer.Size()), true);
         return cRoute->second(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()));
     }
     // An enet packet starts with a type byte, which the packet fills in.
     writer.WriteBits(0, 8);
     acMessage.Serialize(writer);
     Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), static_cast<uint32_t>(writer.Size()));
-    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostOut, NotifyName(acMessage.GetOpcode()), static_cast<uint32_t>(aConnection), static_cast<uint32_t>(writer.Size()));
+    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::HostOut, NotifyName(acMessage.GetOpcode()), aConnection, static_cast<uint32_t>(writer.Size()));
     Server::Send(aConnection, &packet, aFlags);
 }
 
@@ -100,6 +101,7 @@ void HostNetwork::OnConnection(ConnectionId_t aConnection)
 void HostNetwork::OnDisconnection(ConnectionId_t aConnection, EDisconnectReason aReason)
 {
     spdlog::info("HostNetwork: connection {:x} ended ({})", aConnection, int(aReason));
+    m_names.erase(aConnection);
     m_recipesSent.erase(aConnection);
     if (m_disconnected)
         m_disconnected(aConnection);

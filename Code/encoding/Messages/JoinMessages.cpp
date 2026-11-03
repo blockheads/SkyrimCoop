@@ -16,6 +16,8 @@ void NotifySaveChunk::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Offset);
     Serialization::WriteVarInt(aWriter, Total);
+    Serialization::WriteVarInt(aWriter, RawSize);
+    Serialization::WriteString(aWriter, Hash);
     Serialization::WriteString(aWriter, Data);
 }
 
@@ -23,5 +25,7 @@ void NotifySaveChunk::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     Offset = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Total = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    RawSize = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Hash = Serialization::ReadString(aReader);
     Data = Serialization::ReadString(aReader);
 }

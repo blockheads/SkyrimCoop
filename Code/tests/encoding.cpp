@@ -325,7 +325,7 @@ TEST_CASE("Session packets carry only difficulty and chat content", "[encoding.s
         request.Level = 7;
         request.PlayerTime = {0.f, 0.f, 0, 0, 0, 0};
         std::vector<uint8_t> expected{uint8_t(kAuthenticationRequest), 1, 2, 1, 'v', 0, 0x20, 0, 'L', 0, 0, 0, 0, 7};
-        expected.resize(28, 0); // ... an empty player key, not from the main menu
+        expected.resize(29, 0); // ... empty player key and cached-save block list
         check(request, RequestMessageFactory{}, expected);
     }
 
@@ -1311,6 +1311,8 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         NotifySaveChunk chunk;
         chunk.Offset = 65536;
         chunk.Total = 3'500'000;
+        chunk.RawSize = 24000;
+        chunk.Hash = std::string(32, 'h');
         chunk.Data = std::string(NotifySaveChunk::kMaxData, '\x7F');
         roundTrip(chunk, NotifyMessageFactory{});
     }
@@ -1320,6 +1322,7 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         AuthenticationRequest request;
         request.Version = "v";
         request.PlayerKey = "id:0123456789abcdef";
+        request.CachedSaveBlocks = {std::string(32, 'h'), std::string(32, 'i')};
         request.WantsWorld = true;
         roundTrip(request, RequestMessageFactory{});
     }

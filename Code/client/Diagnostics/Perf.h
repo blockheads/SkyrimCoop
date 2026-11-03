@@ -41,13 +41,15 @@ struct FrameTimes
 // The main thread's (World::Update).
 FrameTimes& Frames() noexcept;
 
-// Messages of one name one way: how many and their bytes on the wire.
+// Serialized application messages per connection and direction, before transport compression.
 struct TrafficRow
 {
     const char* Name;
     MessageWay Way;
     uint32_t Count;
     uint64_t Bytes;
+    uint64_t Peer{};
+    bool Local{};
 };
 // The entries at or after aSinceMs by name and way, the most bytes first.
 [[nodiscard]] std::vector<TrafficRow> Traffic(const std::vector<MessageEntry>& acEntries, int64_t aSinceMs);

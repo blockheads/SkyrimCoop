@@ -46,8 +46,8 @@ leaving (or the session ending): the friend's game goes back to the main menu, a
 - **Check:** the Skyrim runtime version is the same; a mismatch is always an error, never synced.
 - **Today (3a.2):** the join request carries the Skyrim and SKSE versions SKSE gives our plugin at
   load (`GameVersions`, `RunningGame`); the host refuses any difference (`wrong_game`, with its own
-  versions). The plugin declares 1.6.1170 as its only compatible runtime, so SKSE does not load it on
-  any other version and two players' Skyrim cannot differ yet; their SKSE can.
+  versions). Each build declares its selected runtime to SKSE, normally Steam 1.7.104. A joining game must match
+  both the host's runtime and its SKSE version.
 
 ### 3. Identical installs
 
@@ -170,6 +170,10 @@ next invite -> load the kept character, without creation
   shouts, lasting effects). Copies already carry appearance, face tints, inventory and values.
 - Design details are `docs/design/world-state-sync.md` (change forms through save and load); its rule
   "each player's character stays their own" is replaced by stage 4.
+
+**2026-11-03:** transfers now reuse SHA-256-verified blocks from the guest's last received save, with independent
+block compression and join-stage timings. The host still supplies its current world and Skyrim still loads it.
+Implementation, bounds and measurements: [network-performance.md](network-performance.md).
 
 ### 6. Arrival
 

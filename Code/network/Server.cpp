@@ -15,6 +15,15 @@ using namespace std::chrono;
 
 namespace Net
 {
+    std::vector<ConnectionQuality> Server::GetConnections() const noexcept
+    {
+        std::vector<ConnectionQuality> connections;
+        for (const auto& [id, pPeer] : m_peers)
+            if (pPeer && pPeer->state == ENET_PEER_STATE_CONNECTED)
+                connections.push_back(ReadQuality(id, *pPeer));
+        return connections;
+    }
+
     Server::Server() noexcept
         : m_pHost(nullptr)
         , m_tickRate(10)

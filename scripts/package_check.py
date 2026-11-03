@@ -5,7 +5,7 @@ the bundled start and the plugin loads with its UI from the installed files. A p
 this is a boot check read from the plugin's log, not a joined session.
 
 The clean game folder (build/clean-install/game) links the Steam install's files, without SKSE, its plugins or
-anything of ours: the package brings them. Its own display (:105), so it can run beside the duo.
+anything of ours: the package brings them. Uses the shared duo display (:99): reserve build/coop-test/DUO.md before running it.
   scripts/package_check.py [ZIP]
 """
 import os
@@ -29,7 +29,7 @@ ct = Session()
 HOME = ROOT / "build/clean-install"
 GAME = HOME / "game"
 # What the package brings: SKSE (its loader, runtime and scripts), its plugins, ours, and Steam's launcher name.
-OURS = ("SKSE", "Scripts", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe", "SkyrimSELauncher.exe",
+OURS = ("Debug.log", "Logs", "SKSE", "Scripts", "SkyrimCoop", "SkyrimCoopStart.esp", "SkyrimCoopLauncher.exe", "SkyrimSELauncher.exe",
         "unofficial skyrim special edition patch", "alternate start - live another life")
 
 
@@ -47,8 +47,15 @@ def clean_game():
 
 
 def install(package):
-    """docs/install.md: extract into the game folder; nothing else (the launcher enables the start)."""
+    """docs/install.md: preserve Bethesda's launcher, then extract (ours enables the start)."""
+    original = STEAM_GAME / "SkyrimSELauncher.bethesda.exe"
+    if not original.exists():
+        original = STEAM_GAME / "SkyrimSELauncher.exe"
+    if original.exists():
+        shutil.copy2(original, GAME / "SkyrimSELauncher.bethesda.exe")
     with zipfile.ZipFile(package) as archive:
+        if "SkyrimSELauncher.bethesda.exe" in archive.namelist():
+            raise TestFailure("the package must never replace the player's preserved Bethesda launcher")
         archive.extractall(GAME)
     ct.load_order_file().unlink(missing_ok=True)
 
@@ -56,7 +63,7 @@ def install(package):
 def main():
     package = Path(sys.argv[1]) if len(sys.argv) > 1 else max((ROOT / "build/package").glob("*.zip"),
                                                                  key=lambda path: path.stat().st_mtime)
-    ct.host = Game("", install=GAME, prefix=HOME / "prefix", display=":105")
+    ct.host = Game("", install=GAME, prefix=HOME / "prefix", display=":99")
     ct.games = (ct.host, ct.guest)
     if ct.prefix_processes():
         ct.stop_game()
@@ -71,7 +78,7 @@ def main():
     log(f"Booting {package.name} from {GAME} through SkyrimSELauncher.exe (SkyrimCoopLauncher)")
     output = open(HOME / "proton.log", "w")
     launcher = subprocess.Popen([str(RUNTIME / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
-                                 str(GAME / "SkyrimSELauncher.exe")], env=env, cwd=GAME, stdout=output,
+                                 str(GAME / "SkyrimSELauncher.exe"), "--play"], env=env, cwd=GAME, stdout=output,
                                 stderr=subprocess.STDOUT, start_new_session=True)
     try:
         ui = ct.wait_for("the plugin's UI is ready", lambda: plugin_log.exists() and next(

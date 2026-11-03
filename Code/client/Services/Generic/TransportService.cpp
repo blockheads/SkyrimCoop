@@ -146,7 +146,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
         Wire::Buffer buffer(1 << 16);
         Wire::Buffer::Writer writer(&buffer);
         acMessage.Serialize(writer);
-        Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Sent, RequestName(acMessage.GetOpcode()), 0, static_cast<uint32_t>(writer.Size()));
+        Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Sent, RequestName(acMessage.GetOpcode()), 0, static_cast<uint32_t>(writer.Size()), true);
         m_pHostNetwork->Receive(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), kLocalConnectionId);
         return true;
     }
@@ -163,7 +163,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 
 void TransportService::SendPacket(const RequestMessage& acMessage) const noexcept
 {
-    Wire::Buffer buffer(1 << 16);
+    Wire::Buffer buffer(acMessage.GetOpcode() == kAuthenticationRequest ? 1 << 20 : 1 << 16);
     Wire::Buffer::Writer writer(&buffer);
     writer.WriteBits(0, 8); // Write first byte as packet needs it
 
@@ -206,7 +206,7 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
         return;
     }
 
-    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Received, NotifyName(pMessage->GetOpcode()), 0, aSize);
+    Diagnostics::RecordMessage(GetTick(), Diagnostics::MessageWay::Received, NotifyName(pMessage->GetOpcode()), 0, aSize, IsConnectedLocally());
     m_messageHandlers[pMessage->GetOpcode()](pMessage);
 }
 
@@ -243,6 +243,8 @@ void TransportService::OnConnected()
         request.PlayerKey = pJoin->PlayerKey();
         request.WantsWorld = pJoin->WantsWorld();
         request.HasCharacter = pJoin->HasCharacter();
+        if (request.WantsWorld)
+            request.CachedSaveBlocks = pJoin->CachedSaveBlocks();
     }
 
     Send(request);

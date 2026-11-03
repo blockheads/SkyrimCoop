@@ -4,6 +4,7 @@
 #include <map>
 #include <string_view>
 #include <utility>
+#include <tuple>
 
 namespace Diagnostics
 {
@@ -71,13 +72,13 @@ FrameTimes& Frames() noexcept
 std::vector<TrafficRow> Traffic(const std::vector<MessageEntry>& acEntries, int64_t aSinceMs)
 {
     // By the name's text: two literals of one name may differ in address.
-    std::map<std::pair<std::string_view, char>, TrafficRow> rows;
+    std::map<std::tuple<std::string_view, char, uint64_t, bool>, TrafficRow> rows;
     for (const auto& cEntry : acEntries)
     {
         if (cEntry.TimeMs < aSinceMs)
             continue;
         const char* pName = cEntry.Name ? cEntry.Name : "?";
-        auto [it, _] = rows.try_emplace({pName, static_cast<char>(cEntry.Way)}, TrafficRow{pName, cEntry.Way, 0, 0});
+        auto [it, _] = rows.try_emplace({pName, static_cast<char>(cEntry.Way), cEntry.Peer, cEntry.Local}, TrafficRow{pName, cEntry.Way, 0, 0, cEntry.Peer, cEntry.Local});
         ++it->second.Count;
         it->second.Bytes += cEntry.Size;
     }

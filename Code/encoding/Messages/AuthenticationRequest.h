@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <vector>
 #include <Structs/Mods.h>
 #include <Wire/Buffer.h>
 #include <Structs/GameId.h>
@@ -26,7 +27,7 @@ struct AuthenticationRequest final : RequestMessage
         return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
             && PlayerTime == achRhs.PlayerTime && PlayerKey == achRhs.PlayerKey && WantsWorld == achRhs.WantsWorld &&
-               HasCharacter == achRhs.HasCharacter;
+               HasCharacter == achRhs.HasCharacter && CachedSaveBlocks == achRhs.CachedSaveBlocks;
     }
 
     GameVersions Game{};
@@ -43,4 +44,6 @@ struct AuthenticationRequest final : RequestMessage
     bool WantsWorld{};
     // Its game brings a character of its own (joined from a game it plays), for a host's save that has none.
     bool HasCharacter{};
+    // SHA-256 blocks read from the last received save, bounded to a 128 MB basis.
+    std::vector<std::string> CachedSaveBlocks;
 };

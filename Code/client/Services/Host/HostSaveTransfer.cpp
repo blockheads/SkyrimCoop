@@ -12,9 +12,13 @@ HostSaveTransfer::HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame
 {
 }
 
-void HostSaveTransfer::Want(ConnectionId_t aConnection) noexcept
+void HostSaveTransfer::Want(ConnectionId_t aConnection, const std::vector<std::string>& acCachedBlocks) noexcept
 {
-    m_receivers[aConnection] = {};
+    auto& receiver = m_receivers[aConnection] = {};
+    if (acCachedBlocks.size() <= 16384)
+        for (const auto& hash : acCachedBlocks)
+            if (hash.size() == 32)
+                receiver.Cached.insert(hash);
 }
 
 void HostSaveTransfer::OnDisconnected(ConnectionId_t aConnection) noexcept
@@ -32,19 +36,26 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
         const ConnectionId_t cConnection = it->first;
         if (!receiver.Save)
         {
+            bool invalidSave = false;
             if (!receiver.Since)
                 receiver.Since = aTick;
             if (!pSave && m_game.SaveWorld)
                 if (auto save = m_game.SaveWorld())
                 {
-                    pSave = std::make_shared<const Chunks>(std::move(*save));
-                    spdlog::info("HostSaveTransfer: the host's save made, {} chunk(s)", pSave->size());
+                    if (save->empty())
+                        invalidSave = true;
+                    else
+                    {
+                        pSave = std::make_shared<const Chunks>(std::move(*save));
+                        spdlog::info("HostSaveTransfer: the host's save made, {} chunk(s)", pSave->size());
+                    }
                 }
             if (pSave)
                 receiver.Save = pSave;
-            else if (aTick - receiver.Since > kSaveSeconds * 1000)
+            else if (invalidSave || aTick - receiver.Since > kSaveSeconds * 1000)
             {
-                spdlog::warn("HostSaveTransfer: no save for {:x} in {} s: refused", cConnection, kSaveSeconds);
+                spdlog::warn("HostSaveTransfer: no transferable save for {:x} (invalid {}, waited {} ms): refused",
+                             cConnection, invalidSave, aTick - receiver.Since);
                 AuthenticationResponse response;
                 response.Type = AuthenticationResponse::ResponseType::kTransferFailed;
                 m_network.Send(cConnection, response);
@@ -55,11 +66,39 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
         }
         if (receiver.Save)
         {
+            // Keep bulk data from growing an unbounded ENet backlog on a slow line.
+            if (const auto* pPeer = m_network.GetPeer(cConnection); pPeer &&
+                enet_list_size(const_cast<ENetList*>(&pPeer->outgoingSendReliableCommands)) > 512)
+            {
+                ++it;
+                continue;
+            }
+            size_t bytes = 0;
             for (size_t i = 0; i < kChunksPerUpdate && receiver.Next < receiver.Save->size(); ++i)
-                m_network.Send(cConnection, (*receiver.Save)[receiver.Next++]);
+            {
+                const auto& chunk = (*receiver.Save)[receiver.Next];
+                const size_t cCost = (receiver.Cached.contains(chunk.Hash) ? 0 : chunk.Data.size()) + 64;
+                if (bytes && bytes + cCost > kBytesPerUpdate)
+                    break;
+                bytes += cCost;
+                ++receiver.Next;
+                if (receiver.Cached.contains(chunk.Hash))
+                {
+                    auto reference = chunk;
+                    receiver.ReusedBytes += chunk.RawSize;
+                    reference.Data.clear();
+                    m_network.Send(cConnection, reference);
+                }
+                else
+                {
+                    receiver.SentBytes += chunk.Data.size();
+                    m_network.Send(cConnection, chunk);
+                }
+            }
             if (receiver.Next == receiver.Save->size())
             {
-                spdlog::info("HostSaveTransfer: {:x} has the host's save", cConnection);
+                spdlog::info("HostSaveTransfer: {:x} save queued: {} payload bytes sent, {} raw bytes reused",
+                             cConnection, receiver.SentBytes, receiver.ReusedBytes);
                 it = m_receivers.erase(it);
                 continue;
             }

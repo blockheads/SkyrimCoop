@@ -44,4 +44,5 @@ target("GameTests")
     add_deps("SkyrimEncoding", "Network", "CommonLib")
     add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv", "nlohmann_json")
     add_syslinks("pthread")
+    if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()

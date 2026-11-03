@@ -21,7 +21,7 @@ nlohmann::json LocalActors();
 nlohmann::json Copies();
 // The session each game holds: clock, weather, players, party panel, chat, join, HUD, death.
 nlohmann::json GameStatus();
-// A guest's line to the host over the last second.
+// Compressed guest traffic and current ENet quality per actual network connection.
 nlohmann::json LineStatus();
 // The Steam account and session.
 nlohmann::json SteamStatus();

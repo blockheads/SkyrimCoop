@@ -1,6 +1,8 @@
 #pragma once
 
 #include <NoCopyMove.h>
+#include "ConnectionQuality.h"
+#include <vector>
 
 #include <enet6/enet.h>
 #include <cstdint>
@@ -48,6 +50,8 @@ namespace Net
         void Send(ConnectionId_t aConnectionId, Packet* apPacket, EPacketFlags aPacketFlags = kReliable) const noexcept;
         void Kick(ConnectionId_t aConnectionId) noexcept;
 
+        [[nodiscard]] WireTotals GetWireTotals() const noexcept { return ReadTotals(m_pHost); }
+        [[nodiscard]] std::vector<ConnectionQuality> GetConnections() const noexcept;
         [[nodiscard]] uint16_t GetPort() const noexcept;
         [[nodiscard]] bool IsListening() const noexcept;
         [[nodiscard]] uint32_t GetClientCount() const noexcept;
