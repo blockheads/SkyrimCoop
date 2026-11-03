@@ -5,6 +5,7 @@
 #include <NoCopyMove.h>
 
 #include <map>
+#include <unordered_set>
 #include <memory>
 #include <vector>
 
@@ -20,7 +21,8 @@ struct HostSaveTransfer
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    static constexpr size_t kChunksPerUpdate = 8;
+    static constexpr size_t kChunksPerUpdate = 64;
+    static constexpr size_t kBytesPerUpdate = 256 * 1024;
     static constexpr uint64_t kSaveSeconds = 60;
 
     HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame) noexcept;
@@ -28,7 +30,7 @@ struct HostSaveTransfer
     NO_COPY_MOVE(HostSaveTransfer);
 
     // A game passed the gate from the main menu: it gets the next save.
-    void Want(ConnectionId_t aConnection) noexcept;
+    void Want(ConnectionId_t aConnection, const std::vector<std::string>& acCachedBlocks = {}) noexcept;
     // Every frame (the session's tick, in milliseconds).
     void Update(uint64_t aTick) noexcept;
     // A party wipe's save to acGuests and to every game still joining, each told first (NotifyPartyReload).
@@ -43,6 +45,9 @@ private:
     {
         std::shared_ptr<const Chunks> Save; // null: waiting for the next save
         size_t Next{};
+        std::unordered_set<std::string> Cached;
+        uint64_t ReusedBytes{};
+        uint64_t SentBytes{};
         uint64_t Since{}; // the tick it started waiting
     };
 

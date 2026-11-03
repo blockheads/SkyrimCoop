@@ -234,6 +234,7 @@ void HostService::MakeAuthority() noexcept
         return pRecords && pRecords->Find(acKey) != nullptr;
     };
     game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
+        PROFILE_ZONE("Host save preparation");
         auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
         if (!files)
             return std::nullopt;

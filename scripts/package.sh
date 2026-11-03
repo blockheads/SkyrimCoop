@@ -48,6 +48,7 @@ files = {
     "INSTALL.md": root / "docs/install.md",
     "playtest.md": root / "docs/playtest.md",
     "LICENSE": root / "LICENSE",
+    "licenses/PicoSHA2.txt": root / "Code/external/picosha2/LICENSE",
 }
 for line in pins.read_text().splitlines():
     name = line.split("  ", 1)[1]

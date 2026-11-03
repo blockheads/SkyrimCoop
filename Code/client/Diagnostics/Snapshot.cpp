@@ -2,6 +2,7 @@
 #include "EngineReads.h"
 
 #include <Services/DeathService.h>
+#include <Services/Host/HostNetwork.h>
 
 #include <World.h>
 #include <Systems/InterpolationSystem.h>
@@ -354,8 +355,14 @@ nlohmann::json GameStatus()
     }
     // The last attempt to join, and if it was refused, why.
     const auto& cJoin = world.ctx().at<JoinService>().GetStatus();
-    const nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message},
+    nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message},
                                  {"details", cJoin.Details}, {"progress", cJoin.Progress}, {"joining", world.ctx().at<JoinService>().IsJoining()}};
+    const auto& cTiming = world.ctx().at<JoinService>().GetMetrics();
+    join["timings"] = {{"outcome", cTiming.Outcome}, {"total_ms", cTiming.TotalMs}, {"cache_ms", cTiming.CacheMs}, {"check_ms", cTiming.CheckMs}, {"creation_ms", cTiming.CreationMs},
+        {"wait_for_world_ms", cTiming.WaitForWorldMs}, {"transfer_ms", cTiming.TransferMs}, {"decode_ms", cTiming.DecodeMs},
+        {"write_ms", cTiming.WriteMs}, {"load_ms", cTiming.LoadMs}, {"apply_character_ms", cTiming.ApplyMs},
+        {"world_bytes", cTiming.WorldBytes}, {"payload_bytes", cTiming.PayloadBytes}, {"reused_bytes", cTiming.ReusedBytes},
+        {"blocks", cTiming.Chunks}, {"cached_blocks", cTiming.CachedChunks}, {"advertised_blocks", cTiming.AdvertisedBlocks}};
     nlohmann::json cursor = nullptr;
     if (const auto cCursor = EngineReads::GetMenuCursor())
         cursor = {cCursor->first, cCursor->second};
@@ -441,7 +448,7 @@ nlohmann::json Copies()
     return result;
 }
 
-// A guest's line to the host over the last second (enet, compressed and not); the host's own route counts nothing.
+// Frame times and serialized application traffic; local routes are reported separately from network traffic.
 nlohmann::json PerfStatus(bool aHooks, int64_t aWindowMs)
 {
     const int64_t cWindowMs = std::clamp<int64_t>(aWindowMs, 1, 60000);
@@ -453,15 +460,21 @@ nlohmann::json PerfStatus(bool aHooks, int64_t aWindowMs)
         {"update_ms", {{"p50", cFrames.UpdateP50}, {"p95", cFrames.UpdateP95}, {"max", cFrames.UpdateMax}}}};
 
     const auto cNowMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    nlohmann::json messages = nlohmann::json::array();
-    uint64_t bytes = 0;
+    nlohmann::json messages = nlohmann::json::array(), localMessages = nlohmann::json::array();
+    uint64_t bytes = 0, localBytes = 0;
     for (const auto& cRow : Traffic(Messages().Since(), cNowMs - cWindowMs))
     {
-        bytes += cRow.Bytes;
-        if (messages.size() < 25)
-            messages.push_back({{"name", cRow.Name}, {"way", std::string(1, static_cast<char>(cRow.Way))}, {"count", cRow.Count}, {"bytes", cRow.Bytes}});
+        if (cRow.Local)
+            localBytes += cRow.Bytes;
+        else
+            bytes += cRow.Bytes;
+        auto& rows = cRow.Local ? localMessages : messages;
+        if (rows.size() < 25)
+            rows.push_back({{"name", cRow.Name}, {"way", std::string(1, static_cast<char>(cRow.Way))}, {"count", cRow.Count}, {"bytes", cRow.Bytes}, {"connection", cRow.Peer}, {"local", cRow.Local}});
     }
-    result["messages"] = {{"bytes", bytes}, {"top", std::move(messages)}};
+    result["messages"] = {{"bytes", bytes}, {"local_bytes", localBytes}, {"window_s", cWindowMs / 1000.0},
+        {"bytes_per_second", bytes * 1000.0 / cWindowMs}, {"layer", "serialized_before_transport_compression"},
+        {"top", std::move(messages)}, {"local_top", std::move(localMessages)}};
 
     PROCESS_MEMORY_COUNTERS_EX memory{};
     if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory)))
@@ -492,8 +505,26 @@ nlohmann::json PerfStatus(bool aHooks, int64_t aWindowMs)
 nlohmann::json LineStatus()
 {
     const auto cStats = World::Get().GetTransport().GetStatistics();
+    nlohmann::json connections = nlohmann::json::array();
+    const auto add = [&](const Net::ConnectionQuality& acLine, const std::string& acName) {
+        connections.push_back({{"connection", acLine.Connection}, {"player", acName}, {"rtt_ms", acLine.RoundTripMs},
+            {"rtt_variation_ms", acLine.VariationMs}, {"loss_percent", acLine.LossPercent},
+            {"reliable_in_flight_bytes", acLine.ReliableInFlight}, {"queued_reliable_commands", acLine.QueuedReliable}});
+    };
+    auto& world = World::Get();
+    if (const auto* pNetwork = world.GetHostService().GetNetwork())
+        for (const auto& cConnection : pNetwork->GetConnections())
+            add(cConnection, pNetwork->ConnectionName(cConnection.Connection));
+    else if (const auto cConnection = world.GetTransport().GetConnectionQuality())
+        add(*cConnection, "host");
+    const auto* pHostNetwork = world.GetHostService().GetNetwork();
+    const auto cWire = pHostNetwork ? pHostNetwork->GetWireTotals() : world.GetTransport().GetWireTotals();
     return {{"sent_bytes", cStats.SentBytes}, {"recv_bytes", cStats.RecvBytes},
-            {"sent_uncompressed", cStats.UncompressedSentBytes}, {"recv_uncompressed", cStats.UncompressedRecvBytes}};
+            {"sent_uncompressed", cStats.UncompressedSentBytes}, {"recv_uncompressed", cStats.UncompressedRecvBytes},
+            {"connections", std::move(connections)},
+            {"wire_totals", {{"sent_bytes", cWire.SentBytes}, {"received_bytes", cWire.ReceivedBytes},
+                {"sent_packets", cWire.SentPackets}, {"received_packets", cWire.ReceivedPackets},
+                {"counter_bits", 32}, {"layer", "enet_datagrams_before_steam_tunnel"}}}};
 }
 
 // The Steam account this game signed in as, from Skyrim's steam_api64 (flat API, SDK 1.5x); empty without Steam.

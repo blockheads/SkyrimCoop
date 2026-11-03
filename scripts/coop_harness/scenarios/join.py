@@ -404,3 +404,35 @@ def scenario_guest_changes_looks_in_session(ctx):
     finally:  # the duo's character again, in QASmoke, joined
         ctx.restart_client(load_order, dropped=bool(ctx.game_state("client").get("online")))
         ctx.rejoin_client()
+
+
+def scenario_guest_reuses_world_cache(ctx):
+    """Two fresh game processes join the current host world; the second reuses verified saved blocks."""
+    # This is our internal received-save cache, not a player's own save.
+    cache = ctx.save_file("client", "SkyrimCoopJoin")
+    for path in (cache, cache.with_suffix(".skse")):
+        path.unlink(missing_ok=True)
+    samples = []
+    for attempt in range(2):
+        ctx.restart_client_at_main_menu()
+        ctx.joins_with_world(f"world cache attempt {attempt + 1}")
+        timing = ctx.join_status("client").get("timings", {})
+        if timing.get("outcome") != "joined" or not timing.get("blocks") or not timing.get("payload_bytes"):
+            raise ctx.failure(f"no completed measured world join: {timing}")
+        if attempt == 0 and timing.get("cached_blocks") != 0:
+            raise ctx.failure(f"the cold join claims cached blocks: {timing}")
+        if attempt == 1 and not (timing.get("advertised_blocks") and timing.get("cached_blocks") and timing.get("reused_bytes")):
+            raise ctx.failure(f"the second process did not reuse its saved world blocks: {timing}")
+        samples.append(timing)
+    for instance in ("", "client"):
+        ctx.say(instance, "/perf")
+        ctx.wait_for(f"[{instance or 'host'}] /perf reports frame and network costs",
+                     lambda: any(line.startswith("Network messages:") for line in ctx.system_chat(instance)), 10)
+        status = ctx.game(instance).read_status() or {}
+        connections = status.get("line", {}).get("connections", [])
+        if not connections or not all("rtt_ms" in row and "loss_percent" in row and row.get("player") for row in connections):
+            raise ctx.failure(f"[{instance or 'host'}] missing named connection diagnostics: {connections}")
+    TRACES.mkdir(parents=True, exist_ok=True)
+    path = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-world-cache.json"
+    path.write_text(json.dumps(samples, indent=2))
+    print(f"World join measurements: {path}")

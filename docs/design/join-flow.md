@@ -171,6 +171,10 @@ next invite -> load the kept character, without creation
 - Design details are `docs/design/world-state-sync.md` (change forms through save and load); its rule
   "each player's character stays their own" is replaced by stage 4.
 
+**2026-11-03:** transfers now reuse SHA-256-verified blocks from the guest's last received save, with independent
+block compression and join-stage timings. The host still supplies its current world and Skyrim still loads it.
+Implementation, bounds and measurements: [network-performance.md](network-performance.md).
+
 ### 6. Arrival
 
 - The friend appears in the host's world next to the host, as their character; the live sync takes

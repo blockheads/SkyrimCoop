@@ -19,6 +19,15 @@
 #include <World.h>
 #include <Diagnostics/Profile.h>
 
+namespace
+{
+using Clock = std::chrono::steady_clock;
+double Since(Clock::time_point aStart) noexcept
+{
+    return std::chrono::duration<double, std::milli>(Clock::now() - aStart).count();
+}
+}
+
 JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBridge& aBridge) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
@@ -64,6 +73,9 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
         spdlog::warn("JoinService: no join (joining {}, connected {})", IsJoining(), m_world.GetTransport().IsConnected());
         return false;
     }
+    m_metrics = {};
+    m_metrics.Outcome = "joining";
+    m_joinStarted = Clock::now();
     m_partyReload = false;
     m_playerKey.clear();
     m_playerKey = PlayerKey();
@@ -78,6 +90,12 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
     }
     spdlog::info("JoinService: joining {} as {}, {}", acEndpoint, PlayerKey(),
                  m_brought ? std::format("bringing {} (level {})", m_brought->Name, m_brought->Level) : "from the main menu");
+    const auto cCacheStart = Clock::now();
+    m_cache.Clear();
+    if (const auto cPrevious = m_bridge.ReadSave(kJoinSave))
+        m_cache.Load(*cPrevious);
+    m_metrics.CacheMs = Since(cCacheStart);
+    m_metrics.AdvertisedBlocks = m_cache.Hashes().size();
     m_endpoint = acEndpoint;
     m_save = {};
     m_reached = false;
@@ -96,6 +114,7 @@ void JoinService::Cancel(const std::string& acReason) noexcept
     m_step = Step::kIdle;
     m_playerKey.clear();
     m_save = {};
+    m_cache.Clear();
     m_brought.reset();
     m_joinedCharacter.reset();
     m_partyReload = false;
@@ -117,6 +136,10 @@ void JoinService::Fail(const char* acpReason) noexcept
 
 void JoinService::Fail(JoinStatus aStatus) noexcept
 {
+    m_metrics.Outcome = aStatus.Reason;
+    m_metrics.TotalMs = Since(m_joinStarted);
+    m_cache.Clear();
+    m_save = {};
     spdlog::error("JoinService: couldn't join ({}): {}", aStatus.Reason, aStatus.Message);
     m_bridge.CancelCharacterCreation();
     const bool cConnected = m_world.GetTransport().IsConnected();
@@ -205,6 +228,8 @@ void JoinService::OnAuthentication(const AuthenticationResponse& acResponse) noe
     {
         spdlog::info("JoinService: the host's gate passed; receiving its save");
         m_reached = true;
+        m_worldRequested = Clock::now();
+        m_metrics.CheckMs = Since(m_joinStarted) - m_metrics.CacheMs - m_metrics.CreationMs;
         To(Step::kReceiving, JoinStatus::State::kReceivingWorld);
         return;
     }
@@ -215,6 +240,7 @@ void JoinService::OnAuthentication(const AuthenticationResponse& acResponse) noe
 
 void JoinService::BeginCreation() noexcept
 {
+    m_creationStarted = Clock::now();
     To(Step::kCreating, JoinStatus::State::kCreatingCharacter);
     m_creatingCharacter = true;
     // The refused transport closes; Steam's identity, lobby and tunnel stay alive.
@@ -229,6 +255,7 @@ void JoinService::BeginCreation() noexcept
 
 void JoinService::FinishCreation() noexcept
 {
+    m_metrics.CreationMs += Since(m_creationStarted);
     m_creatingCharacter = false;
     m_createdCharacter = m_bridge.ReadPlayer();
     m_createdCharacter->Knowledge = m_bridge.ReadKnowledge();
@@ -251,32 +278,59 @@ void JoinService::CreationHostLost() noexcept
 
 void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
 {
+    PROFILE_ZONE("Receive world block");
     if (m_step != Step::kReceiving)
         return;
-    if (!m_save.Add(acChunk))
+    if (m_metrics.Chunks == 0)
+    {
+        m_metrics.WaitForWorldMs = Since(m_worldRequested);
+        m_transferStarted = Clock::now();
+    }
+    const auto cDecodeStart = Clock::now();
+    if (!m_save.Add(acChunk, &m_cache))
         return Fail("transfer_failed");
+    m_metrics.DecodeMs += Since(cDecodeStart);
+    ++m_metrics.Chunks;
+    m_metrics.WorldBytes = acChunk.Total;
+    m_metrics.PayloadBytes += acChunk.Data.size();
+    if (acChunk.Data.empty())
+    {
+        ++m_metrics.CachedChunks;
+        m_metrics.ReusedBytes += acChunk.RawSize;
+    }
     m_waited = 0.0;
     m_status.Progress = m_save.Progress();
     if (!m_save.Complete())
         return;
 
+    const auto cUnpackStart = Clock::now();
     auto files = SaveTransfer::Unpack(m_save.Data());
+    m_metrics.DecodeMs += Since(cUnpackStart);
+    m_metrics.TransferMs = std::max(0.0, Since(m_transferStarted) - m_metrics.DecodeMs);
     spdlog::info("JoinService: the host's save is here ({} bytes packed, {} and {} unpacked)", m_save.Data().size(),
                  files ? files->Game.size() : 0, files ? files->CoSave.size() : 0);
     m_save = {};
+    m_cache.Clear();
     if (!files)
         return Fail("transfer_failed");
     // Our connection goes while the save loads; the join after it is a new one.
     To(Step::kLoading, JoinStatus::State::kLoading);
     m_world.GetTransport().Close();
-    if (!m_bridge.WriteAndLoad(kJoinSave, *files))
+    m_loadStarted = Clock::now();
+    const bool cWritten = m_bridge.WriteAndLoad(kJoinSave, *files);
+    m_metrics.WriteMs = Since(m_loadStarted);
+    m_loadStarted = Clock::now();
+    if (!cWritten)
         Fail("transfer_failed");
 }
 
 void JoinService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
     if (m_step == Step::kLoading)
+    {
+        m_metrics.LoadMs = Since(m_loadStarted);
         Arrive();
+    }
 }
 
 void JoinService::Arrive() noexcept
@@ -290,8 +344,10 @@ void JoinService::Arrive() noexcept
                  cpKept ? "kept in the host's save" : "brought from its own game");
     PlayerRecord character = *cpCharacter;
     m_world.ctx().at<SaveService>().GetRecords().ApplyStorySpells(character);
+    const auto cApplyStart = Clock::now();
     m_bridge.ApplyPlayer(character);
     m_bridge.ApplyKnowledge(character.Knowledge);
+    m_metrics.ApplyMs = Since(cApplyStart);
     m_brought.reset();
     // A new character, or a kept one without a place (it would stand on the save's player, the host's own spot).
     if (!cpKept || !character.HasPlace())
@@ -329,7 +385,12 @@ void JoinService::OnConnected(const ConnectedEvent&) noexcept
         m_status = {};
     if (m_step != Step::kJoining)
         return;
-    spdlog::info("JoinService: joined");
+    m_metrics.Outcome = "joined";
+    m_metrics.TotalMs = Since(m_joinStarted);
+    spdlog::info("JoinService: joined in {:.0f} ms: cache {:.0f}, wait {:.0f}, transfer {:.0f}, decode {:.0f}, write {:.0f}, load {:.0f}, character {:.0f}; {} payload bytes, {} raw bytes reused",
+                 m_metrics.TotalMs, m_metrics.CacheMs, m_metrics.WaitForWorldMs, m_metrics.TransferMs,
+                 m_metrics.DecodeMs, m_metrics.WriteMs, m_metrics.LoadMs, m_metrics.ApplyMs,
+                 m_metrics.PayloadBytes, m_metrics.ReusedBytes);
     m_step = Step::kIdle;
     m_status = {};
 }
@@ -409,6 +470,10 @@ void JoinService::Retry() noexcept
 
 void JoinService::OnPartyReload(const NotifyPartyReload&) noexcept
 {
+    m_metrics = {};
+    m_metrics.Outcome = "party_reload";
+    m_joinStarted = Clock::now();
+    m_worldRequested = m_joinStarted;
     m_partyReload = true;
     m_endpoint = m_world.GetTransport().GetEndpoint();
     if (!m_brought)

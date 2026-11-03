@@ -4,8 +4,8 @@ target("ClientTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")
-    add_files("*.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
-    add_files("../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
+    add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
+    add_files("../../client/Services/SaveTransfer.cpp", "../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
               "../../client/Services/Host/PartyThreat.cpp")
     add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Perf.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
@@ -18,5 +18,17 @@ target("ClientTests")
               "../../client/Physics/BodyRelevance.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "zydis", "glm", "spdlog", "zlib")
+    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy")
+target_end()
+
+-- Compare actual save pairs offline, using the same cache and wire blocks as the game.
+target("SaveTransferBench")
+    set_kind("binary")
+    set_optimize("fastest")
+    set_group("Tools")
+    set_languages("cxx23")
+    add_files("SaveTransferBench.cpp", "../../client/Services/SaveTransfer.cpp")
+    add_includedirs("../../client")
+    add_deps("SkyrimEncoding")
+    add_packages("snappy")
 target_end()

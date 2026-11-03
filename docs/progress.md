@@ -1,5 +1,9 @@
 # Progress
 
+2026-11-03: launcher Play co-op / Bethesda graphics settings menu, invitation bypass, `/perf` and per-connection
+network diagnostics, and verified save-block reuse for world joins. Details and current validation:
+`docs/design/network-performance.md`; launcher preservation: `docs/install.md`.
+
 Where SkyrimCoop stands. Update it when a phase, system or known failure changes.
 Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, joining a session
 (build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, how the

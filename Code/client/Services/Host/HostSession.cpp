@@ -99,12 +99,14 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         }
         spdlog::info("HostSession: {:x} '{}' joins ({}): the host's save follows", aSender, acRequest.PlayerKey,
                      cKnown ? "the host's save keeps its character" : "it brings its character");
+        m_network.NameConnection(aSender, acRequest.Username);
         response.Type = kWorldFollows;
         m_network.Send(aSender, response);
-        m_transfer.Want(aSender);
+        m_transfer.Want(aSender, acRequest.CachedSaveBlocks);
         return;
     }
 
+    m_network.NameConnection(aSender, acRequest.Username);
     response.Type = kAccepted;
     response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection(), acRequest.PlayerKey);
     response.CharacterId = m_characters.ReservePlayerCharacter(aSender);

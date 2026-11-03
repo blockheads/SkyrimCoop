@@ -9,8 +9,8 @@ std::string FormatMessages(const std::vector<MessageEntry>& acEntries)
 {
     std::string text;
     for (const auto& cEntry : acEntries)
-        text += std::format("{} t={} {} {} peer={:x} {}B\n", cEntry.TimeMs, cEntry.SessionTick, static_cast<char>(cEntry.Way), cEntry.Name,
-                            cEntry.Peer, cEntry.Size);
+        text += std::format("{} t={} {} {} peer={:x} {}B {}\n", cEntry.TimeMs, cEntry.SessionTick, static_cast<char>(cEntry.Way), cEntry.Name,
+                            cEntry.Peer, cEntry.Size, cEntry.Local ? "local" : "network");
     return text;
 }
 
@@ -20,9 +20,9 @@ MessageTrail& Messages() noexcept
     return s_trail;
 }
 
-void RecordMessage(uint64_t aSessionTick, MessageWay aWay, const char* acpName, uint32_t aPeer, uint32_t aSize) noexcept
+void RecordMessage(uint64_t aSessionTick, MessageWay aWay, const char* acpName, uint64_t aPeer, uint32_t aSize, bool aLocal) noexcept
 {
     const auto cMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    Messages().Add({cMs, aSessionTick, aWay, acpName, aPeer, aSize});
+    Messages().Add({cMs, aSessionTick, aWay, acpName, aPeer, aSize, 0, aLocal});
 }
 } // namespace Diagnostics

@@ -393,6 +393,13 @@ namespace Net
         return m_pPeer != nullptr && m_connected && m_clock.IsSynchronized();
     }
 
+    std::optional<ConnectionQuality> Client::GetConnectionQuality() const noexcept
+    {
+        if (!m_pPeer || m_pPeer->state != ENET_PEER_STATE_CONNECTED)
+            return std::nullopt;
+        return ReadQuality(0, *m_pPeer);
+    }
+
     uint32_t Client::GetRoundTripTime() const noexcept
     {
         if (m_pPeer == nullptr)

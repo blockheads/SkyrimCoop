@@ -45,7 +45,7 @@ TEST_CASE("The message trail keeps the newest messages and writes one line each"
     const auto cAll = trail.Since();
     REQUIRE(cAll.size() == 2);
     CHECK(cAll[0].TimeMs == 2);
-    CHECK(FormatMessages(cAll) == "2 t=11 R NotifyBugReport peer=0 40B\n3 t=12 O NotifyBugReport peer=2a 40B\n");
+    CHECK(FormatMessages(cAll) == "2 t=11 R NotifyBugReport peer=0 40B network\n3 t=12 O NotifyBugReport peer=2a 40B network\n");
 }
 
 TEST_CASE("Report ids and folders are file names", "[diagnostics]")
@@ -258,4 +258,24 @@ TEST_CASE("Traffic: messages by name and way since a time, the most bytes first"
     CHECK(cRows[1].Count == 2);
     CHECK(cRows[1].Bytes == 100);
     CHECK(std::string(cRows[2].Name) == "ChatRequest");
+}
+
+TEST_CASE("Traffic keeps each game's connection separate and identifies in-process copies", "[diagnostics][perf]")
+{
+    const std::vector<Diagnostics::MessageEntry> entries{
+        {100, 0, Diagnostics::MessageWay::HostOut, "Move", 0x100000001ULL, 40},
+        {110, 0, Diagnostics::MessageWay::HostOut, "Move", 0x200000001ULL, 60},
+        {120, 0, Diagnostics::MessageWay::HostOut, "Move", 1, 1000, 0, true},
+        {130, 0, Diagnostics::MessageWay::HostOut, "Move", 0x100000001ULL, 50},
+    };
+    const auto rows = Diagnostics::Traffic(entries, 100);
+    REQUIRE(rows.size() == 3);
+    CHECK(rows[0].Local);
+    CHECK(rows[0].Bytes == 1000);
+    CHECK_FALSE(rows[1].Local);
+    CHECK(rows[1].Peer == 0x100000001ULL);
+    CHECK(rows[1].Bytes == 90);
+    CHECK(rows[1].Count == 2);
+    CHECK(rows[2].Peer == 0x200000001ULL);
+    CHECK(rows[2].Bytes == 60);
 }

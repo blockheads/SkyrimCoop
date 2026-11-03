@@ -7,6 +7,7 @@
 #include <Structs/PlayerRecord.h>
 
 #include <optional>
+#include <chrono>
 #include <string>
 
 class IJoinBridge;
@@ -42,6 +43,16 @@ struct JoinService
     JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBridge& aBridge) noexcept;
 
     NO_COPY_MOVE(JoinService);
+
+    struct Metrics
+    {
+        double CacheMs{}, CheckMs{}, CreationMs{}, WaitForWorldMs{}, TransferMs{}, DecodeMs{}, WriteMs{}, LoadMs{}, ApplyMs{}, TotalMs{};
+        uint64_t WorldBytes{}, PayloadBytes{}, ReusedBytes{}, Chunks{}, CachedChunks{}, AdvertisedBlocks{};
+        std::string Outcome{"idle"};
+    };
+    [[nodiscard]] const Metrics& GetMetrics() const noexcept { return m_metrics; }
+
+    [[nodiscard]] std::vector<std::string> CachedSaveBlocks() const { return m_cache.Hashes(); }
 
     // Joins the session at acEndpoint, from a game this player plays (its character comes along) or from the main
     // menu; false when this game is busy or in a session (one it hosts alone it leaves first).
@@ -119,6 +130,9 @@ private:
     std::optional<PlayerRecord> m_joinedCharacter;
     std::optional<PlayerRecord> m_brought; // the character of the game the join started in
     SaveTransfer::Assembly m_save;
+    SaveTransfer::Cache m_cache;
+    Metrics m_metrics;
+    std::chrono::steady_clock::time_point m_joinStarted{}, m_transferStarted{}, m_loadStarted{}, m_worldRequested{}, m_creationStarted{};
     double m_waited{}; // seconds in the current step, or since the last chunk
     bool m_reached{};  // the transport reached the host this attempt
     int m_tries{};     // reconnecting: the tries made

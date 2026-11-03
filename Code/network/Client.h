@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <optional>
+#include "ConnectionQuality.h"
 #include <enet6/enet.h>
 #include "ENetInterface.h"
 #include "SynchronizedClock.h"
@@ -52,7 +54,9 @@ namespace Net
         void Send(Packet* apPacket, EPacketFlags acPacketFlags = kReliable) const noexcept;
 
         [[nodiscard]] bool IsConnected() const noexcept;
+        [[nodiscard]] WireTotals GetWireTotals() const noexcept { return ReadTotals(m_pHost); }
         [[nodiscard]] uint32_t GetRoundTripTime() const noexcept;
+        [[nodiscard]] std::optional<ConnectionQuality> GetConnectionQuality() const noexcept;
         [[nodiscard]] Statistics GetStatistics() const noexcept;
         [[nodiscard]] const SynchronizedClock& GetClock() const noexcept;
 

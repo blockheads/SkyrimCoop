@@ -68,7 +68,7 @@ def find_parts(roots):
 
 
 LOG_LINE = re.compile(r"^(\d+) (\S+) \[(\w+)\] (.*)$")
-MESSAGE_LINE = re.compile(r"^(\d+) t=(\d+) (\w) (\S+) peer=(\w+) (\d+)B$")
+MESSAGE_LINE = re.compile(r"^(\d+) t=(\d+) (\w) (\S+) peer=(\w+) (\d+)B(?: (local|network))?$")
 
 
 def read_lines(path, pattern):
@@ -95,7 +95,7 @@ def timeline(parts, since, with_messages):
             if t < -since * 1000:
                 continue
             if with_messages:
-                events.append((t, game, f"{m[3]} {m[4]} peer={m[5]} {m[6]}B"))
+                events.append((t, game, f"{m[3]} {m[4]} peer={m[5]} {m[6]}B {m[7] or 'unclassified'}"))
             key = (game, m[3], m[4])
             counts[key] = counts.get(key, 0) + 1
     events.sort(key=lambda e: e[0])

@@ -3,6 +3,8 @@
 #include <network/Server.h>
 
 #include <functional>
+#include <string>
+#include <unordered_map>
 #include <NoCopyMove.h>
 
 struct RequestMessage;
@@ -24,6 +26,13 @@ struct HostNetwork final : Net::Server
     using Inbox = std::function<void(const void*, uint32_t)>;
 
     HostNetwork() noexcept = default;
+
+    void NameConnection(ConnectionId_t aConnection, const std::string& acName) { m_names[aConnection] = acName; }
+    [[nodiscard]] std::string ConnectionName(ConnectionId_t aConnection) const
+    {
+        const auto it = m_names.find(aConnection);
+        return it == m_names.end() ? std::string{} : it->second;
+    }
 
     NO_COPY_MOVE(HostNetwork);
 
@@ -56,6 +65,7 @@ protected:
 private:
     void SendNow(ConnectionId_t aConnection, const NotifyMessage& acMessage, Net::EPacketFlags aFlags) const noexcept;
 
+    std::unordered_map<ConnectionId_t, std::string> m_names;
     FrontDoor m_frontDoor;
     Disconnected m_disconnected;
     std::unordered_map<ConnectionId_t, Inbox> m_routes;

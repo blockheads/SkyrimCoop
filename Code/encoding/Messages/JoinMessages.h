@@ -22,7 +22,7 @@ struct PlayerRecordRequest final : RequestMessage
     PlayerRecord Record{};
 };
 
-// A piece of the host's save for a game joining from the main menu: the .ess and the .skse, compressed together.
+// An independently compressed save block; empty Data reuses the advertised SHA-256 block.
 struct NotifySaveChunk final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifySaveChunk;
@@ -38,10 +38,12 @@ struct NotifySaveChunk final : NotifyMessage
 
     bool operator==(const NotifySaveChunk& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Offset == acRhs.Offset && Total == acRhs.Total && Data == acRhs.Data;
+        return GetOpcode() == acRhs.GetOpcode() && Offset == acRhs.Offset && Total == acRhs.Total && RawSize == acRhs.RawSize && Hash == acRhs.Hash && Data == acRhs.Data;
     }
 
-    uint32_t Offset{}; // where Data goes in the compressed save
-    uint32_t Total{};  // the compressed save's size
+    uint32_t Offset{}; // offset in the uncompressed packed save
+    uint32_t Total{};  // the uncompressed packed save's size
+    uint32_t RawSize{};
+    std::string Hash; // 32 binary SHA-256 bytes
     std::string Data;  // at most kMaxData bytes
 };
