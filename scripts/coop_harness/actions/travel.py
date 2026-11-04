@@ -102,9 +102,16 @@ class TravelActions:
                 ctx.release(diver, "forward")
             ctx.console_on(diver, "player.setangle x -80")
             ctx.press(diver, "forward")
+            seen = {}
+            def surfaced():
+                watch()
+                seen.update(water=ctx.water(diver), position=ctx.local_player(diver).get("position"),
+                            voice=(ctx.player_snapshot(diver).get("mod") or {}).get("voice"))
+                return not seen["water"].get("head_under") and lines["owner"]
             try:
-                ctx.wait_for(f"[{diver or 'host'}] surfaces and gasps",
-                         lambda: (watch(), not ctx.water(diver).get("head_under") and lines["owner"])[1], 10, _game=_game)
+                ctx.wait_for(f"[{diver or 'host'}] surfaces and gasps", surfaced, 10, _game=_game,
+                             explain=lambda: f"water {seen.get('water')}, at {[round(v) for v in seen.get('position') or []]}, "
+                                             f"its lines {lines['owner']}, its voice now {seen.get('voice')}")
             finally:
                 ctx.release(diver, "forward")
             ctx.console_on(diver, "player.setangle x 0")

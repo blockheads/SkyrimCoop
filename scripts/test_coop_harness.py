@@ -4,6 +4,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -258,6 +259,43 @@ class Harness(unittest.TestCase):
             result = session.run_flow("first", {})
         self.assertTrue(result.failures)
         output.assert_any_call("copies refused replayed animations: client FF001234 IdleStopInstant x1")
+
+    @unittest.skipIf(WINDOWS, "Wine audio drivers")
+    def test_games_run_as_another_user_play_to_the_null_audio_device(self):
+        # dive-*, copy-ends-voice-line: with no audio driver Skyrim queues voice lines that never start.
+        session = self.session
+        with patch.object(session, "instance_user", return_value="coop2"), patch.object(session, "shown", return_value=True), \
+             patch.dict("os.environ", {"WINEDLLOVERRIDES": "dxgi=n"}):
+            for game in (session.host, session.guest):
+                env = session.game_env(_game=game)
+                overrides = env["WINEDLLOVERRIDES"].split(";")
+                self.assertIn("winepulse.drv=d", overrides)
+                self.assertNotIn("winealsa.drv=d", overrides)
+                self.assertIn("dxgi=n", overrides)
+                config = Path(env["ALSA_CONFIG_PATH"])
+                self.assertIn("pcm.!default { type null }", config.read_text())
+                self.assertTrue(config.stat().st_mode & 0o004)
+
+    @unittest.skipIf(WINDOWS, "Wine audio drivers")
+    def test_games_run_as_this_user_keep_their_audio(self):
+        session = self.session
+        with patch.object(session, "instance_user", return_value=None), patch.object(session, "shown", return_value=True), \
+             patch.dict("os.environ", {"WINEDLLOVERRIDES": "dxgi=n"}):
+            os.environ.pop("ALSA_CONFIG_PATH", None)
+            env = session.game_env(_game=session.host)
+        self.assertEqual(env["WINEDLLOVERRIDES"], "dxgi=n")
+        self.assertNotIn("ALSA_CONFIG_PATH", env)
+
+    def test_a_timeout_says_what_was_seen_and_a_crash_stays_as_it_is(self):
+        session = self.session
+        with patch.object(session, "check_for_crash"), patch.object(session, "observe"):
+            with self.assertRaisesRegex(TestFailure, r"Timed out after 0s: surfaces \(head under\)"):
+                session.wait_for("surfaces", lambda: False, 0.01, explain=lambda: "head under")
+        crash = TestFailure("client crashed: report")
+        with patch.object(session, "check_for_crash", side_effect=crash), patch.object(session, "observe"):
+            with self.assertRaises(TestFailure) as raised:
+                session.wait_for("surfaces", lambda: False, 5, explain=lambda: "head under")
+        self.assertIs(raised.exception, crash)
 
     def test_checkpoints_preserve_original_failure_before_cleanup(self):
         def action(session):
