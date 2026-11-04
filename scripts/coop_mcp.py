@@ -36,7 +36,9 @@ take, fight; look, observe, why to see what happened; expect the correct behavio
 - duo_start waits in the shared queue. Hold the duo only while you use it.
 - Missing or awkward? Extend it, never script around it: add a verb (coop_harness/actions) or tool
   (coop_harness/mcp_tools.py), mcp_reload, then call it (a new verb by verb(name, args) at once).
-- rounds runs a call N times, one line each; trace_start/trace_read show animations; log greps the plugin logs."""
+- rounds runs a call N times, one line each; trace_start/trace_read show animations; log greps the plugin logs.
+- checkpoint after staging, retry to try again in seconds (the party loads the host's save), not a new duo.
+- expect stays checks a field holds all through `seconds` (nobody dies), not only that it gets there."""
 server = FastMCP("skyrim-coop", instructions=INSTRUCTIONS)
 # What outlives a reload: the session (its handles, recording and duo hold), the duo's boot, jobs, the trace, log offsets.
 state = {"session": Session(), "duo": {"process": None, "log": None}, "jobs": {}, "trace": None, "logs": {},

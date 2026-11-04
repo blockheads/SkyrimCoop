@@ -64,12 +64,26 @@ class AnimTrace:
                     stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
                 self.captures[game] = [capture, path, None]
         self.start = time.time()
-        for game, ids in self.actors.items():
-            _game = ctx.game(game)
-            if not (_game.rpc({"cmd": "anim_trace", "actors": list(ids), "bools": self.bools, "floats": self.floats}) or {}).get("ok"):
+        opened = ctx.__dict__.setdefault("OPEN_TRACES", [])
+        for game, ids in self.actors.items():  # what was recorded before this start goes to the traces already open
+            if self._pull(game, {"cmd": "anim_trace", "actors": list(ids), "bools": self.bools, "floats": self.floats}) is None:
                 self.__exit__(None, None, None)  # the captures and any game already recording
                 raise ctx.failure(f"[{game or 'host'}] the animation trace did not start")
+        opened.append(self)
         return self
+
+    def _pull(self, game, request):
+        """One anim_trace request; its entries go to every open trace watching that game (the harness has one recorder
+        per game: a trace inside another, such as a verb's inside the MCP's, must not drain it). None if refused."""
+        reply = self.session.game(game).rpc(request, timeout=10) or {}
+        if not reply.get("ok"):
+            return None
+        for trace in self.session.__dict__.get("OPEN_TRACES", []):
+            if game in trace.actors:
+                trace._add(game, [dict(entry) for entry in reply.get("entries", [])
+                                  if not entry.get("actor") or entry["actor"] in trace.actors[game]])
+                trace.entries.sort(key=lambda entry: entry["time"])
+        return reply
 
     def who(self, game, form_id):
         ctx = self.session
@@ -88,9 +102,7 @@ class AnimTrace:
         ctx = self.session
         _game = ctx.host
         for game in self.actors:
-            _game = ctx.game(game)
-            self._add(game, (_game.rpc({"cmd": "anim_trace"}, timeout=10) or {}).get("entries", []))
-        self.entries.sort(key=lambda entry: entry["time"])
+            self._pull(game, {"cmd": "anim_trace"})
 
     def find(self, game, who, event=None, kind="graph", after=0.0):
         """The first entry of that game's actor (by its name here) of that kind (graph event name, or action
@@ -153,10 +165,11 @@ class AnimTrace:
     def __exit__(self, *exc):
         ctx = self.session
         _game = ctx.host
-        for game in self.actors:
-            _game = ctx.game(game)
-            self._add(game, (_game.rpc({"cmd": "anim_trace", "stop": True}, timeout=10) or {}).get("entries", []))
-        self.entries.sort(key=lambda entry: entry["time"])
+        others = [trace for trace in ctx.__dict__.get("OPEN_TRACES", []) if trace is not self]
+        for game in self.actors:  # the recorder stops with the last trace open on that game
+            self._pull(game, {"cmd": "anim_trace", "stop": not any(game in trace.actors for trace in others)})
+        if self in ctx.__dict__.get("OPEN_TRACES", []):
+            ctx.OPEN_TRACES.remove(self)
         self.end = time.time()
         for game, capture in self.captures.items():
             process = capture[0]
@@ -745,8 +758,15 @@ def trace_lines(entries, who=(), kinds=(), grep="", origin="", before=0.4, limit
             text = f"{entry['event']} {entry.get('action', 0):X}" + (f" -> {entry['target']:X}" if entry.get("target") else "")
         elif kind == "log":
             text = entry["text"]
+        elif kind == "clips":
+            text = " ".join(entry.get("clips") or [])
         else:
             text = " ".join(f"{k}={v}" for k, v in entry.items() if k not in ("t", "f", "kind", "game", "who", "time", "actor"))
+        if kind not in ("graph", "action", "log") and not everything:  # samples: shown when they change, kept short
+            key = (entry["game"], entry.get("who"), kind, "text")
+            if last.get(key) == text:
+                continue
+            last[key], text = text, text if len(text) <= 160 else text[:157] + "..."
         frame = f"f{entry['f']}" if entry.get("f") is not None else "-"
         line = f"{entry['time'] - zero:7.3f} {entry['game'] or 'host':6} {entry.get('who', '?')} {frame} {kind} {text}"
         if not grep or re.search(grep, line):

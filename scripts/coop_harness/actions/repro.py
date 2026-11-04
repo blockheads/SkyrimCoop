@@ -188,6 +188,31 @@ class ReproActions:
         except (TypeError, ValueError):
             raise ctx.failure(f"unknown handle {value!r} (known: {', '.join(ctx.handles()) or 'none'})") from None
 
+    # --- Retrying from a checkpoint: the host's save, the party loads with it ---
+
+    def checkpoint(ctx, name="mcp-checkpoint"):
+        """The host saves the party where it stands (`save <name>`): `retry` comes back here in seconds, not a new duo."""
+        path = ctx.save_game("", name)
+        ctx.wait_for("the checkpoint and its co-save are written", ctx.saves_written(path), 20)
+        ctx.REPRO_CHECKPOINT = name
+        return {"saved": name}
+
+    def retry(ctx, name=None):
+        """The host loads the checkpoint and the party goes back to it (the guest loads with the host). Waits for both
+        games' `game_loaded` event, each showing the other player and taking input; handles follow the new copies."""
+        name = name or getattr(ctx, "REPRO_CHECKPOINT", None)
+        if not name:
+            raise ctx.failure("no checkpoint to retry from: checkpoint first")
+        started, games = time.monotonic(), ("", "client")
+        since = {game: ctx.engine_events(game)[1] for game in games}
+        ctx.console_on("", f"load {name}")
+        loaded = lambda game: any(e["kind"] == "game_loaded" for e in ctx.engine_events(game, since[game])[0])
+        ctx.wait_for(f"both games load the checkpoint {name}", lambda: all(loaded(game) for game in games), 120)
+        ctx.wait_for("each game shows the other player again", ctx.both_see_each_other, 60)
+        ctx.wait_for("both games take input", lambda: all(ctx.takes_input(game) for game in games), 30)
+        ctx.refresh_handles()
+        return {"seconds": round(time.monotonic() - started, 1)}
+
     # --- The recorder ---
 
     def record_start(ctx, name):
@@ -474,6 +499,9 @@ class ReproActions:
     def refresh_handles(ctx):
         """Follows the copies of what the handles name (`current_copies`); a repro's reads and verbs start with this."""
         ctx.handles().update(current_copies(ctx.handles(), *ctx.worlds()))
+        if "host_player" in ctx.handles():  # a player's copy is new after a death and respawn
+            with contextlib.suppress(TestFailure):
+                ctx.name_players()
 
     def read_handle(ctx, name, full=False):
         """Each game's flat reading of a handle: an actor's snapshot, or a reference's row."""
@@ -571,6 +599,8 @@ class ReproActions:
             return {"items": len(held["host"])}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
+        if check == "stays":
+            return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "dialogue":
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))
@@ -621,8 +651,9 @@ class ReproActions:
         raise ctx.failure(f"unknown check {check!r}")
 
 
-    def expect_actor(ctx, name, field, game, value, seconds=0.0):
-        """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`; see `expect`."""
+    def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
+        """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,
+        all through them (read every 0.2 s); see `expect`."""
         games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
         ctx.refresh_handles()
         read = lambda: {label: flatten(ctx.actor_row(instance, ctx.resolve(name, label))).get(field) for label, instance in games}
@@ -630,10 +661,19 @@ class ReproActions:
             if value is None:
                 return len(set(map(repr, got.values()))) > 1
             return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
-        ended = time.monotonic() + seconds
+        ended, started = time.monotonic() + seconds, time.monotonic()
+        expected = 'the same in both' if value is None else repr(value)
+        if stays:
+            while time.monotonic() < ended:
+                if wrong(got := read()):
+                    raise ctx.failure(f"{name}: {field} became {got} {time.monotonic() - started:.1f} s in, expected {expected} "
+                                      f"all through {seconds:g} s")
+                ctx.refresh_handles()
+                time.sleep(0.2)
+            return {field: got if seconds else read()}
         while wrong(got := read()):
             if time.monotonic() >= ended:
-                raise ctx.failure(f"{name}: {field} is {got}, expected {'the same in both' if value is None else value!r}")
+                raise ctx.failure(f"{name}: {field} is {got}, expected {expected}")
             time.sleep(0.2)
         return {field: got}
 
@@ -716,6 +756,14 @@ def _line(tool, args):
             return f"ctx.menu({game}, {args['name']!r}, {args.get('show', True)!r})"
         case "spec_step":
             return f"ctx.spec_step({args['step']!r})"
+        case "equip":
+            return f"ctx.equip_weapon({game}, {int(args['item'], 16)!r})"
+        case "kill_move_exchange":
+            return "ctx.kill_move_exchange({game: ctx.other_player(ctx.actors_on(game)) for game in ('', 'client')})"
+        case "checkpoint":
+            return f"ctx.checkpoint({args.get('name', 'mcp-checkpoint')!r})"
+        case "retry":
+            return f"ctx.retry({args.get('name') or None!r})"
         case "verb":
             verb_args = {**(args.get("args") or {})}
             if "instance" in verb_args:
@@ -734,7 +782,7 @@ def _line(tool, args):
 # tool is a Session verb).
 LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
-         "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload"}
+         "scene_reset", "verbs", "rounds", "kill_move_check", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload"}
 
 
 def _called(name, args):
@@ -762,6 +810,8 @@ def export_scenario(entries, name, doc, tags, recorded=None):
              if (line := _line(entry["tool"], _replayed(entry)))]
     if not lines:
         raise ValueError("nothing recorded to replay")
+    if any(re.search(r"'(host|guest)_player'", line) for line in lines):  # named by scene_reset, which isn't recorded
+        lines.insert(0, "ctx.name_players()")
     body = "\n".join("\n".join(f"        {part}" for part in line.split("\n")) for line in lines)
     if any(entry["tool"] == "needs_save" for entry in entries):  # the runner's saved-story fixture
         tags = [*tags, "late-save"]

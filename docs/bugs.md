@@ -238,6 +238,38 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   - Start: `coop_test.py unsynced` and `save-diff` right after the scenario on the six-mod profile; if the host
     lacks a move the guest has, which engine path moved the clutter on the guest only.
 
+## Combat
+
+- **Crossed kill moves still kill a player, a second later** (2026-11-04, found through the repro MCP on PR #13's
+  branch, `agent/kill-move-review`, with its fix). Both players, one hit from death, swing at each other at once; each
+  game starts its own pair and both clear `kill_move` within 0.2 s, so PR #13's `kill_move_exchange` passes its checks
+  (within `KILL_MOVE_CLASH`, 1.5 s). Then one player dies anyway: 3 of 3 runs (the host player twice, the guest once).
+  - Trace (both games, seconds from the host's `pa_KillMove1HMStabUpFace`): 0.02 the guest's own
+    `pa_KillMove1HMGrappleStab`; 0.16-0.22 `KillMoveStart` on both players in both games; 1.26 the host's `HitFrame`
+    (its pair runs on); 1.32 the guest's `Ragdoll`, `life=1`, `KillMoveEnd`. So the clash ends neither pair's clips:
+    whichever pair reaches its `HitFrame`/`KillActor` first kills.
+  - Repro, recorded and exported through the MCP (needs PR #13's verbs, so it lands with that branch; it failed alone
+    with `coop_test.py scenario`, 20 s):
+    ```python
+    ctx.name_players()
+    ctx.console_on('', 'set KillMoveRandom to 100')
+    ctx.console_on('client', 'set KillMoveRandom to 100')
+    ctx.equip_weapon('', 0x12EB7)
+    ctx.equip_weapon('client', 0x12EB7)
+    ctx.kill_move_exchange({game: ctx.other_player(ctx.actors_on(game)) for game in ('', 'client')})
+    ctx.expect('host_player', 'stays', value=False, field='state.dead', seconds=6.0)
+    ctx.expect('guest_player', 'stays', value=False, field='state.dead', seconds=6.0)
+    ```
+  - Start: `kill-moves-cross` in PR #13 checks too early; extend it with the `stays` expects above, then look at what
+    ends a pair's clips when it clashes (`docs/re/systems/kill-moves.md`, ReplayState in `Animation/ReplayState.h`).
+
+- **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
+  are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen
+  before and after a host load. Start: where a copy's display name comes from the owner's character record.
+- **A scenario whose player died leaves the baseline check failing** (2026-11-04): `kill-moves-cross-late-death` ended
+  with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
+  so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).
+
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged
