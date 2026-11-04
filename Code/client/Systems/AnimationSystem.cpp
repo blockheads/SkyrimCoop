@@ -211,6 +211,8 @@ void AnimationSystem::TargetFromNetwork(ActionEvent& aAction) noexcept
 bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept
 {
     const auto& cAction = acStep.Action;
+    if (ReplayState::HeldByPair(apActor->IsInKillMove(), !cAction.TargetEventName.empty()))
+        return true;
     const auto pAction = Cast<BGSAction>(TESForm::GetById(cAction.ActionId));
     const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(cAction.TargetId));
 

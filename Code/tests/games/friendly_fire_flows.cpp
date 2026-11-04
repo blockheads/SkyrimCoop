@@ -188,6 +188,44 @@ SCENARIO("A kill move plays both halves on the victim's game", "[combat][friendl
     CHECK(host.CollapsedPairs + guest.CollapsedPairs == 0);
 }
 
+SCENARIO("A victim's last move, sent before it heard of the kill move, leaves the pair alone", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    REQUIRE(host.Actors.at(CopyOfPlayer(party, party.Host(), party.Guest())).InKillMove);
+    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1000);
+    CHECK(host.BrokenPairs == 0);
+    CHECK(host.Actors.at(CopyOfPlayer(party, party.Host(), party.Guest())).InKillMove);
+}
+
+SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
+         "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    guest.PairMarkBlocked = true;
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+
+    host.Actors.at(FakeEngine::kPlayer).InKillMove = guest.Actors.at(FakeEngine::kPlayer).InKillMove = false;
+    ActionEvent own;
+    own.ActionId = 0x13005;
+    own.EventName = "pa_KillMoveI";
+    own.TargetEventName = "KillMoveI";
+    own.TargetId = CopyOfPlayer(party, party.Guest(), party.Host());
+    party.As(party.Guest(), [&] { CHECK_FALSE(guest.PerformAnimation(FakeEngine::kPlayer, own)); });
+}
+
 SCENARIO("Two players' kill moves on each other cross: they clash, and neither game's pair collapses",
          "[combat][friendly-fire][kill-move]")
 {

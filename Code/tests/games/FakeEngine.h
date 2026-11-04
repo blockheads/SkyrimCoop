@@ -535,8 +535,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
+    uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
+    bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
     void EndKillMove(uint32_t aFormId); // Character 38614: the flag cleared, and a recorded killer's kill queued
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override

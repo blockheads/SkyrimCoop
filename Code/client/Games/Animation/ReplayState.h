@@ -12,6 +12,20 @@ constexpr uint32_t Flags2(uint32_t aOwner, uint32_t aCopy) noexcept
     return (aOwner & ~kWeaponMask) | (aCopy & kWeaponMask);
 }
 
+// A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.
+// A replayed pair was judged on its owner's game (docs/re/systems/kill-moves.md).
+constexpr bool PairMarkClear(bool aMoved, bool aReplayed) noexcept
+{
+    return aMoved || aReplayed;
+}
+
+// A copy in a pair keeps it: its owner's plain action was sent before its game heard of the pair, and would take the
+// copy out of the clip, ending the pair before the blow (docs/re/systems/kill-moves.md).
+constexpr bool HeldByPair(bool aCopyInKillMove, bool aPaired) noexcept
+{
+    return aCopyInKillMove && !aPaired;
+}
+
 struct PairedReplay
 {
     std::string_view EventName;    // the replayed action's

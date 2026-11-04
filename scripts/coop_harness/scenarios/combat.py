@@ -261,6 +261,46 @@ def scenario_kill_moves_cross(ctx):
             ctx.console_on(game, "player.restoreav health 10000")
 
 
+def scenario_kill_move_runs_full_length(ctx):
+    """The host's backstab on the moving guest plays out: the guest dies with the clip's end, after the blow, on both games.
+    The guest's half coming back to the host used to fire stray KillActor events, and the guest could die 0.4 s in."""
+    copy = ctx.other_player(ctx.actors_on(""))
+    host_copy = ctx.other_player(ctx.actors_on("client"))
+    ctx.console_on("", "set KillMoveRandom to 100")
+    ctx.give_sword("")
+    try:
+        ctx.draw("")
+        ctx.place_before("", copy, 140, (math.degrees(ctx.player_snapshot("client")["placement"]["rotation"][2]) + 180) % 360)
+        health = ctx.player_health("client") or 100
+        ctx.console_on("client", f"player.damageav health {health - 3:.3f}")
+        ctx.wait_on("", "the host sees the guest one hit from death", lambda a: (a.get(str(copy), {}).get("health") or 100) <= 10, 5)
+        trace = AnimTrace(ctx, "kill-move-runs-full-length", {"": {0x14: "attacker", copy: "victim"}, "client": {0x14: "victim", host_copy: "attacker"}},
+                          video=False)
+        with trace:
+            ctx.press("", "forward")
+            ctx.press("client", "strafe_left")
+            ctx.face("", copy)
+            ctx.press("", "right")
+            try:
+                start = trace.wait("", "attacker", "pa_KillMove1HMBackStab", 2, kind="action")
+            finally:
+                for game, button in (("", "right"), ("", "forward"), ("client", "strafe_left")):
+                    ctx.release(game, button)
+            blow = trace.wait("", "attacker", "HitFrame", 5, after=start["time"])
+            death = trace.wait("client", "victim", "KillActor", 6, after=start["time"])
+            if death["time"] < blow["time"]:
+                raise ctx.failure(f"[client] the guest died {death['time'] - start['time']:.2f} s in, before the blow at "
+                                  f"{blow['time'] - start['time']:.2f} s")
+            early = [e for e in trace.entries if e["game"] == "" and e["who"] == "victim" and e["kind"] == "graph"
+                     and e["event"] == "KillActor" and e["time"] < blow["time"]]
+            if early:
+                raise ctx.failure(f"[host] the guest's copy took {len(early)} KillActor before the blow")
+        ctx.wait_for("[client] the guest respawns", lambda: not ctx.death_state("client").get("down"), 30)
+    finally:
+        ctx.console_on("", f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        ctx.console_on("client", "player.restoreav health 10000")
+
+
 def scenario_spectator_watches_kill_move(ctx):
     """The guest is dead and spectates the host while the host kills a wolf with a kill move: the guest's view stays
     third person behind the host, with nothing between them, through the whole kill move."""
@@ -355,6 +395,12 @@ def scenario_host_kill_move(ctx):
             front = math.degrees(ctx.host_world(npc)["placement"]["rotation"][2])
             ctx.place_before("", npc, MELEE_GAP, front)
             ctx.place_before("client", copy, 300, front + 90)
+            # The wolf fights on: it may have stepped away from the spot the host took.
+            def in_reach():
+                ctx.face("", npc)
+                check = ctx.player_command("", {"cmd": "kill_move_check", "victim": npc})
+                return check["should_attack_kill"] and check["attack_target"] == npc
+            ctx.wait_for("[host] a blow now is a kill move", in_reach, 3)
             with trace:
                 trace.mark("before the swing")
                 ctx.press("", "right")

@@ -1425,11 +1425,13 @@ class KillMoveActions(unittest.TestCase):
 
     def test_bare_hands_clear_a_spell_and_a_weapon_from_their_own_hands(self):
         ctx = MagicMock()
-        ctx.player_snapshot.return_value = {"state": {"hands": [0x12FCD, 0x12EB7]}}
+        hands = [{"state": {"hands": [0x12FCD, 0x12EB7]}}, {"state": {"hands": [0x12FCD, 0]}}]
+        ctx.player_snapshot.side_effect = lambda instance: hands.pop(0) if len(hands) > 1 else hands[0]
         CombatActions.equip_weapon(ctx, "", 0)
         lines = [call.args[1] for call in ctx.console_on.call_args_list]
         self.assertIn("player.unequipspell 00012FCD left", lines)
         self.assertIn("player.unequipitem 00012EB7", lines)
+        self.assertNotIn("player.unequipspell 00012EB7 right", lines)
         ctx.wait_for.assert_called_once()
 
 

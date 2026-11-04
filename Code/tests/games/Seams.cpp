@@ -236,7 +236,7 @@ void World::Update() noexcept
             {
                 step.Phase.store(Step::kBusy);
                 engine.ActorLoadAnimationVariables(form.Id, step.Variables);
-                step.Phase.store(engine.ReplayAnimation(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
+                step.Phase.store(engine.PlayReplayed(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
             }
             continue;
         }
@@ -289,7 +289,7 @@ void World::Update() noexcept
             auto& step = engine.Actors.at(form.Id).Replay;
             RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
                 engine.ActorLoadAnimationVariables(form.Id, acVariables);
-            }, [&] { return engine.ReplayAnimation(form.Id, step.Action); });
+            }, [&] { return engine.PlayReplayed(form.Id, step.Action); });
         }
     ctx().at<GuestSeam>().Update();
     auto& waitEngine = ctx().at<FakeEngine&>();

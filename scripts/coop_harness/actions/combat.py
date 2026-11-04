@@ -38,9 +38,12 @@ class CombatActions:
             ctx.equip_in_hand(instance, [f"player.additem {item:08X} 1", f"player.equipitem {item:08X}"], item, "holds the weapon")
             return
         hands = lambda: (ctx.player_snapshot(instance).get("state") or {}).get("hands", [])
-        for slot, held in zip(("left", "right"), hands()):
-            if held:  # a weapon or a spell: the command for the other kind does nothing
+        for held in hands():
+            if held:
                 ctx.console_on(instance, f"player.unequipitem {held:08X}")
+        # What is still held is a spell: the console refuses unequipspell for a weapon.
+        for slot, held in zip(("left", "right"), hands()):
+            if held:
                 ctx.console_on(instance, f"player.unequipspell {held:08X} {slot}")
         ctx.wait_for(f"[{instance or 'host'}] both hands are empty", lambda: not any(hands()), 5)
 

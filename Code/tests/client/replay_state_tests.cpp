@@ -23,3 +23,17 @@ TEST_CASE("A replayed pair plays only on a free partner; two games' pairs on the
     CHECK(ReplayState::SettlePairedReplay(PairedReplay{"pa_A", 5, true, true, "B", 5}, cEnd));
     CHECK(ended == 2);
 }
+
+TEST_CASE("A blocked mark refuses an owner's pair, never a replayed one", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::PairMarkClear(true, false));
+    CHECK_FALSE(ReplayState::PairMarkClear(false, false));
+    CHECK(ReplayState::PairMarkClear(false, true));
+}
+
+TEST_CASE("A copy in a pair takes no plain action of its owner", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::HeldByPair(true, false));
+    CHECK_FALSE(ReplayState::HeldByPair(true, true));
+    CHECK_FALSE(ReplayState::HeldByPair(false, false));
+}
