@@ -175,6 +175,9 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   logs of the v1-gate session (`FollowersDiag` lines: resolves keep arriving and are substituted).
   - Start: a case without the harness teleport (a follower left behind that catches up, then a fight); then which
     engine path writes the package target without 29846.
+  - Not reproduced that way (2026-11-03, repro MCP, 1 of 1): recruited, the party away and back, a wolf on the guest: on
+    the host she kept both targets. Read it on the host: a copy's `ai.*` is 0 by design. Lead: she stood still 1,388
+    units from the host for a minute with her target set; the entry's runs had a Load-menu round first.
 - **The guest's copy of a follower once played another action** (2026-10-29, v1-gate). `save-load-gate`'s desync
   check after the door round's fight: Lydia's `animation.action` on the host 522467 vs the client's copy 297. Once.
 
@@ -205,6 +208,8 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   showed an empty chest. A created reference's create row carries no contents, and `HostEngine::ReadCellState`
   sends contents only for placed containers (`IsTemporary()` skipped); a guest rolls no container itself. Mostly
   mods' and scripts' chests. Test: the host places one, the guest opens it and sees the host's items.
+  - Scenario `created-chest-reaches-guest-empty` (2026-11-03) fails on it, in 6 s. Start at `HostEngine.cpp`'s contents
+    loop, which skips temporary references. The fake has no created containers yet: its flow lands with the fix.
 
 ## Physics and ragdolls
 

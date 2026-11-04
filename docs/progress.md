@@ -1,5 +1,13 @@
 # Progress
 
+2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
+pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
+`use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
+fixture. From `bugs.md` alone: the created chest reproduced and exported (`created-chest-reaches-guest-empty`, fails
+until fixed; its GameTests flow lands with the fix); the follower entry not reproduced. `faendal-letter` runs through
+the runner and fails only its end comparison on real desyncs. Seen in Riverwood, open: a Whiterun Guard's copy level 1 against
+1000, the player's copy `state.hands` empty against 77772. Python units in `test_coop_harness` (GoalVerbs, Scenes).
+
 2026-11-03: launcher Play co-op / Bethesda graphics settings menu, invitation bypass, `/perf` and per-connection
 network diagnostics, and verified save-block reuse for world joins. Details and current validation:
 `docs/design/network-performance.md`; launcher preservation: `docs/install.md`.

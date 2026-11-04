@@ -1,4 +1,59 @@
-# Repro MCP (2026-11-02: phases 1-3 built)
+# Repro MCP (2026-11-02: phases 1-3 built; 2026-11-03: the play flow)
+
+## The play flow (2026-11-03)
+
+An agent works alone from a `docs/bugs.md` entry; the user can steer through the same tools. Drive it in this order:
+
+```
+1 scene    a place with the world held still; NPCs named
+2 play  <-----------------+
+3 watch    what changed?  |  not reproduced: adjust
+4 expect   oracle --------+
+5 export   scenario (fails on the duo) + spec draft + leftovers
+   duo_stop, then GameTests
+```
+
+- **scene** (`actions/repro.py`): `scene(save, at, pin)` goes to `at`, pins, names the NPCs both games show (`faendal`,
+  `whiterun_guard_2`), and returns `disagree`. `scene_reset` is the blank QASmoke start. `find(name)` names one more.
+  - Pin: the host's `timescale` 0 and `fw` weather. The guest's clock follows. It holds schedules, not a package already
+    running: Faendal walked 1,000 units on a stopped clock. `world_freeze` stays the frame-level tool.
+  - A real world never starts in agreement (Riverwood, 2026-11-03: `head_track`, a guard's level, the player's hands),
+    so differences at the start are shown and kept (`SCENE_KNOWN`), and only new ones fail, as the runner already
+    treats a baseline's world and lock differences. They are read each run, not a list of known bugs.
+  - A flow tagged `scene` (fixture `scene`, `registry.py`) has no baseline: run by name, one per boot, no restore.
+  - `stage` spots (`scene_spot`): the home stage while the party is near it, else ahead of the host on a floor it can
+    see by rays, refused otherwise.
+- **play** (`actions/play_verbs.py`): `go_to`, `talk`, `use`, `take`, `fight`. Each returns or fails with one outcome:
+  `{done, how, why, seconds, trace}`. `why`: `no_path`, `stalled`, `moved_off`, `timeout`, `menu_blocked`, `no_line`,
+  `refused`, `player_down`. `go_to` is AI-driven: for getting there, not for testing movement (`by_input` for that).
+  `talk` goes on with an open conversation. `walk_to`, `steer_to`, `talk_to` and `pick` are their parts, no longer tools.
+- **watch**: `look(game)`; `observe(names)` shows only what changed since the last look, `apart` and `differs`; `why()` is
+  the last verb's outcome with its trace summary (speeds, stalls, last events; the raw timeline in a file).
+  - A handle follows its copy by session id (`current_copies`): a copy's form id changes when its cell reloads, and the
+    guest reused one for a wolf. Copies' `ai.*` read 0 by design: read an NPC's AI on the host.
+- **expect** kinds: `stage`, `same_place`, `at`, `at_rest_of`, `items` (a container, by `container_items`: `item_stacks`
+  sees only stacks with extra data), `actor` (`field`, `value`, `seconds`), `dialogue`, `agree`.
+- **export**: the scenario always; a spec when every call was a `spec_step`; else a draft in `build/coop-test/mcp/` and
+  `leftovers`, the calls a flow on the fake says by hand. Walking and talking mean nothing on the fake, so no full export.
+
+### First proofs (2026-11-03, agent from the bug entries)
+
+- **A container the host creates reaches a guest empty: reproduced.** `stage` the chest, `use` as the guest, `expect
+  items`: `F: 50 (host) vs 0 (guest); 63B45: 1 (host) vs 0 (guest)`. Exported as `created-chest-reaches-guest-empty`; it
+  fails the same way alone, in 6 s. Step 2 is open: the fake's created references are loose items only, and a failing flow
+  can't sit in `check.sh`, so the flow lands with the fix.
+- **A guest's follower can stop following: not reproduced.** Recruited with `talk`, party away and back by `coc`, a wolf on
+  the guest (god mode): on the host she kept `follow_target` and `package_target`. The entry needed a Load-menu round.
+  Lead, unread: she stood 1,388 units from the host for a minute, target set.
+- **`faendal-letter`:** through `coop_test.py scenario`, all its steps pass (stage 10 in both games, 129 s), then the end
+  comparison fails on new differences: `head_track` (deferred, `bugs.md`) and a guest copy with no owner (a rabbit).
+- What the proofs found in the tools: a run cancelled before it set off (`SET_OFF_SECONDS`), `dialogue_pick` not landing a
+  guest's recruit (`pick` uses real keys now), `expect items` passing on 0 of 0, `use` reporting before the menu, a
+  stale handle on a reused form id.
+
+Not built: a fast retry on a save (reload a checkpoint, the guest rejoining; loads froze guests in the 2026-10-31
+playtest), `equip`, `cast`, `together`. Open: these runs called the tool functions from a scratch process, not through
+a connected MCP client, so the client's call limit is untested; `talk` took about 90 s in the Faendal run.
 
 ## Context
 
@@ -23,7 +78,7 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   `skyrim-coop`). The harness's prints go to stderr: MCP speaks on stdout. Tools: `duo_start` (attaches when our duo
   already runs), `duo_wait`, `duo_stop`, `scene_reset`, `world_freeze`, `step`, `stage`, `drop`, `wait_rest`,
   `observe`, `expect`, `act`, `press`, `mouse`, `console`, `spec_step`, `screenshot`, `harness`, `name_handle`,
-  `record_start`, `record_export`, `status`, `unstage`.
+  `record_start`, `record_export`, `status`, `unstage`, and the play flow's (above).
 - **Verbs as Session methods** (`actions/repro.py`), so exported scenarios call the same code.
 - **Freeze:** `world_freeze` / `step` / `world_clock` harness commands, `Games/Skyrim/Main.h`, `TestHarness/FrameStepper.h`.
   Engine fact: `docs/re/systems/main-loop-and-papyrus-vm.md`, "Freezing the world".
