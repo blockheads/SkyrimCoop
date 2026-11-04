@@ -55,6 +55,23 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
+- **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
+  `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
+  copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
+  too (Embry, Hod, 135 to 169 units, feet 3 to 40). Also listed under progress.md item 4, "failing the same with the old
+  copy placement".
+  - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
+    scenario's `check_gait` names each actor and its distance.
+  - Test: `actors-walk-after-arrival`.
+- **Kill moves leave the guest's wolf copy looking at a player** (2026-11-04, `host-kill-move` and `client-kill-move`:
+  0 of 6 each on dialogue-anim-desync, the same with and without its changes). The kill move itself plays; the
+  scenario then fails its final comparison: `ai_state.head_track` host (owner) `[None x6]`, guest copy
+  `['session 2', None x5]`. Most likely the "Headtracking left over" entry above, unproven. It hides any later
+  kill-move failure, since the scenario stops there. One unexplained one-off besides: `host-kill-move` timed out on
+  `[host] player's kill_move is True` before the comparison, not seen again in six runs (progress.md "S8 missed kill
+  moves" may be the same). Evidence: dialogue-anim-desync worktree, `build/coop-test/results/20261104-012732-4d8ec7` and
+  `20261104-012746-3e87e9`. Another agent (kill-move-review) works on kill moves.
+  - Test: `host-kill-move`, `client-kill-move`.
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
   marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
   wolf refusal was an already-playing duplicate; the other refusals still need classification.
