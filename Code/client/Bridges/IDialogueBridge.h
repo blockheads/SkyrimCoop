@@ -92,6 +92,8 @@ public:
     /// Says this topic's line, as clicking its option does: the list's option with it, else one built for it (a line
     /// judged for another player's character). False: no conversation, or no such line.
     virtual bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept = 0;
+    /// A line is being said: the greeting or an answer.
+    virtual bool IsLineSaid() const noexcept = 0;
     /// Moves past the line being said, as a press in the menu does (with or without the menu).
     virtual void SkipLine() noexcept = 0;
     /// Another player picked: an open menu showing its list shows that option's text picked, as after its own click

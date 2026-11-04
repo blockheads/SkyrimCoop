@@ -27,6 +27,7 @@ public:
 
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;
+    bool IsLineSaid() const noexcept override;
     void SkipLine() noexcept override;
     void ShowPicked(const std::string& acText) noexcept override;
 

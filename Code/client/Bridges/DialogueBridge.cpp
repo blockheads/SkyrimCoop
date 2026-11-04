@@ -558,6 +558,12 @@ bool DialogueBridge::PickOption(uint32_t aTopic, uint32_t aInfo) noexcept
     return true;
 }
 
+bool DialogueBridge::IsLineSaid() const noexcept
+{
+    const MenuTopicManager* pManager = Conversation();
+    return pManager && pManager->currentTopicInfo;
+}
+
 void DialogueBridge::SkipLine() noexcept
 {
     if (MenuTopicManager* pManager = Conversation())

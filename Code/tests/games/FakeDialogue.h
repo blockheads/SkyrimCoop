@@ -57,6 +57,10 @@ struct FakeDialogue final : IDialogueBridge
     std::string PickedText;
     // Lines take time (a voiced line): the next list waits for LineEnds, as the engine builds it after the line.
     bool LinesTakeTime = false;
+    // The greeting takes time too (currentTopicInfo set); its list is built at the start all the same (35282).
+    bool GreetingTakesTime = false;
+    // The menu shows the greeting (SHOW_GREETING): a press is a skip, its list not taking picks yet.
+    bool ShowingGreeting = false;
     std::vector<Option> Said; // every option said here, in order
     uint32_t Skips = 0;       // lines this game's engine was told to move past (35290)
 
@@ -93,13 +97,14 @@ struct FakeDialogue final : IDialogueBridge
     // The speaker's line ends: the engine builds and shows its list (52857, after each line, a copy's too).
     void LineEnds()
     {
+        m_saying = false;
         Build(std::exchange(m_next, std::nullopt).value_or(m_source));
     }
     // This game's player presses through the line (the SWF's SkipText, 51508): the Skip filter hears of it, then this
     // game's engine moves on (35290), a guest's own held conversation too.
     void PlayerSkips()
     {
-        if (!MenuOpen || ListShown || !AllowProgress)
+        if (!MenuOpen || (ListShown && !ShowingGreeting) || !AllowProgress)
             return;
         if (m_filters.Skip)
             m_filters.Skip();
@@ -158,6 +163,7 @@ struct FakeDialogue final : IDialogueBridge
         if (SpeakerLooks)
             SpeakerLooks(Speaker, 0x14);
         Build(Greeting);
+        m_saying = GreetingTakesTime;
         return true;
     }
     bool ShowMenu() noexcept override
@@ -243,6 +249,10 @@ struct FakeDialogue final : IDialogueBridge
         if (MenuOpen && aIndex < Options.size())
             Highlight = aIndex;
     }
+    bool IsLineSaid() const noexcept override
+    {
+        return Speaker && m_saying;
+    }
     void SkipLine() noexcept override
     {
         ++Skips;
@@ -277,6 +287,7 @@ struct FakeDialogue final : IDialogueBridge
             End();
             return;
         }
+        m_saying = LinesTakeTime;
         if (LinesTakeTime)
             m_next = cNext->second;
         else
@@ -339,6 +350,7 @@ struct FakeDialogue final : IDialogueBridge
 
     Filters m_filters;
     bool m_heldShow = false;
+    bool m_saying = false;
     bool m_pickedShown = false;
     bool m_suspended = false;
     std::vector<Option> m_shownElsewhere;

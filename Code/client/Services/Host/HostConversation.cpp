@@ -82,7 +82,7 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
 
 void HostConversation::OnLineSkipped() noexcept
 {
-    if (m_awaitingList)
+    if (m_dialogue.Bridge().IsLineSaid())
         m_dialogue.Bridge().SkipLine();
 }
 

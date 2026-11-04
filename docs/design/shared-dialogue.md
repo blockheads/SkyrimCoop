@@ -161,8 +161,10 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    A press during the NPC's line (the SWF's `SkipText`, 51508) sends `DialogueSkipRequest` (conversation, step) and still
    runs that game's own engine skip, which on a guest re-arms the SWF's 750 ms gate. `HostDialogue` takes it from anyone
    in the conversation at the current step and tells every game, but a host that pressed. `HostConversation` moves the
-   line on (35290) only while it waits for the next list, so a press that crossed the line's end skips nothing; a
+   line on (35290) only while a line is said (`currentTopicInfo`, the greeting too), so a press that crossed its end skips nothing; a
    guest's game stops its copy's voice (`ActorStopCurrentDialogue`, vfunc 0x4F, as 35290 stops a speaker).
+   A guest's menu shows the party's list during the greeting (SWF state 1, not `SHOW_GREETING`): there E picks and Tab
+   leaves, so Skyrim has not shown a guest skipping a greeting; the fast test covers the rule.
 5. **The line's script.** Each line's fragment is queued in `TESTopicInfo::Begin` (25616), at its start and
    its end. On the host's game, after a guest's pick, the bridge's `LineFor` filter names that guest's
    character for the conversation's speaker (`HostConversation`, until the next pick; the host's own click clears

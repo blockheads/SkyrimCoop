@@ -349,6 +349,33 @@ SCENARIO("A guest presses through the NPC's line: the host's game moves on, as a
     }
 }
 
+SCENARIO("A guest presses through the NPC's greeting: the host's game moves on before any pick", "[dialogue]")
+{
+    // The SWF skips in SHOW_GREETING too: the host's game has no list to wait for yet, only a line to say.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    hostTalk.GreetingTakesTime = true;
+    party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.IsLineSaid(); }, "the host's NPC greets, the guest's menu opens");
+    for (int i = 0; i < 20; ++i)
+        party.Frame();
+
+    guestTalk.ShowingGreeting = true;
+    party.As(party.Guest(), [&] { guestTalk.PlayerSkips(); });
+    party.Until([&] { return !guest.LinesStopped.empty(); }, "the guest's copy goes quiet");
+    party.Until([&] { return !hostTalk.IsLineSaid(); }, "the press ends the host's greeting", [&] {
+        return std::format("host skips {}", hostTalk.Skips);
+    });
+    CHECK(hostTalk.Skips == 1);
+}
+
 SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")
 {
     Party party(1, SmokeWorld);

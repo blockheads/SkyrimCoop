@@ -35,7 +35,7 @@ struct HostConversation final : DialogueService::Role
     void OnOpen(const NotifyDialogueOpen& acMessage) noexcept override;
     void OnPicked(const NotifyDialoguePicked& acMessage, uint32_t aTopic, uint32_t aInfo, bool aOwnPick) noexcept override;
     void OnClosed() noexcept override;
-    // A press that crossed the line's end is dropped.
+    // Whichever line is being said, the greeting too; a press that crossed its end is dropped.
     void OnLineSkipped() noexcept override;
     void OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept override;
 
