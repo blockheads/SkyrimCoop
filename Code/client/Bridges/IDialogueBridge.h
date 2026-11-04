@@ -31,6 +31,8 @@ public:
         std::function<bool(uint32_t aActorFormId)> Talk;
         /// The player clicks an option in the menu (its index). True: handled, the menu's pick is skipped.
         std::function<bool(uint32_t aIndex)> Pick;
+        /// The player presses through the line being said (the menu's SkipText); the engine moves on all the same.
+        std::function<void()> Skip;
         /// The engine has built a list and shows it (52857; any thread). Options returned are shown in its place; an
         /// empty list holds the show (the menu keeps what it shows).
         std::function<std::optional<std::vector<Option>>()> List;
@@ -90,6 +92,8 @@ public:
     /// Says this topic's line, as clicking its option does: the list's option with it, else one built for it (a line
     /// judged for another player's character). False: no conversation, or no such line.
     virtual bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept = 0;
+    /// Moves past the line being said, as a press in the menu does (with or without the menu).
+    virtual void SkipLine() noexcept = 0;
     /// Another player picked: an open menu showing its list shows that option's text picked, as after its own click
     /// (the SWF's TOPIC_CLICKED), until the next list is shown.
     virtual void ShowPicked(const std::string& acText) noexcept = 0;

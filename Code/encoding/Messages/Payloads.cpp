@@ -575,6 +575,18 @@ void Payloads::BugReport::DeserializePayload(Wire::Buffer::Reader& aReader) noex
     SessionTick = Serialization::ReadVarInt(aReader);
 }
 
+void Payloads::DialogueSkip::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Conversation);
+    Serialization::WriteVarInt(aWriter, Step);
+}
+
+void Payloads::DialogueSkip::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Conversation = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Step = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
 void Payloads::DialogueHighlight::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);

@@ -1967,6 +1967,29 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     CHECK(static_cast<const DialogueHighlightRequest&>(*decodedMove) == moved);
 }
 
+TEST_CASE("A press through a line names its conversation and step", "[encoding.dialogue]")
+{
+    DialogueSkipRequest asked;
+    asked.Conversation = 3;
+    asked.Step = 4;
+    NotifyDialogueSkip told;
+    told.Conversation = 5;
+    told.Step = 6;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    asked.Serialize(writer);
+    told.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedAsked = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedAsked);
+    REQUIRE(decodedAsked->GetOpcode() == kDialogueSkipRequest);
+    CHECK(static_cast<const DialogueSkipRequest&>(*decodedAsked) == asked);
+    auto decodedTold = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedTold);
+    REQUIRE(decodedTold->GetOpcode() == kNotifyDialogueSkip);
+    CHECK(static_cast<const NotifyDialogueSkip&>(*decodedTold) == told);
+}
+
 TEST_CASE("An actor's AI state carries what it looks at for each reason", "[encoding.ai_state]")
 {
     AiStateRequest sent;

@@ -435,6 +435,17 @@ struct BugReport
     std::string By;          // the player who typed it
     uint64_t SessionTick{};  // the host's clock when it got it
 };
+// A game's player pressed through the NPC's line: the host's game, which says it, moves on.
+struct DialogueSkip
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const DialogueSkip&) const noexcept = default;
+
+    uint32_t Conversation{};
+    uint32_t Step{};
+};
 // The conversation's one highlight (docs/design/shared-dialogue.md): a game's player moved it, every other menu in
 // the conversation shows it there. Index: the option's place in the step's merged list.
 struct DialogueHighlight

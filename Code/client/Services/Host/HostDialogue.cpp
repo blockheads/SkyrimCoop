@@ -26,6 +26,7 @@ HostDialogue::HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, con
     aAuthority.On(*this, &HostDialogue::OnJoin);
     aAuthority.On(*this, &HostDialogue::OnStartFailed);
     aAuthority.On(*this, &HostDialogue::OnHighlight);
+    aAuthority.On(*this, &HostDialogue::OnSkip);
 }
 
 DialogueOptions MergeDialogueLists(const DialogueOptions& acBase, const std::vector<PartyDialogueList>& acMembers)
@@ -235,6 +236,17 @@ void HostDialogue::OnHighlight(const DialogueHighlightRequest& acRequest, Connec
     for (const ConnectionId_t cPlayer : pConversation->Players)
         if (cPlayer != aSender)
             m_network.Send(cPlayer, moved);
+}
+
+void HostDialogue::OnSkip(const DialogueSkipRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    Conversation* pConversation = Current(acRequest.Conversation, acRequest.Step);
+    if (!pConversation || !pConversation->Has(aSender))
+        return;
+    NotifyDialogueSkip skip;
+    static_cast<Payloads::DialogueSkip&>(skip) = acRequest;
+    // A host that pressed has moved on already; every copy of the NPC goes quiet with it, heard from anywhere.
+    m_players.SendToOthers(skip, aSender == m_players.Host() ? aSender : 0);
 }
 
 void HostDialogue::OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept

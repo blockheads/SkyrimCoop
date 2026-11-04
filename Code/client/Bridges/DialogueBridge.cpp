@@ -196,6 +196,17 @@ void HookTopicClicked(const FxDelegateArgs* apArgs)
     RealTopicClicked(apArgs);
 }
 
+// DialogueMenu's SkipText (51508): the SWF's press during a line; the original moves this game's conversation on (35290).
+using TSkipText = void(const FxDelegateArgs* apArgs);
+TSkipText* RealSkipText = nullptr;
+
+void HookSkipText(const FxDelegateArgs* apArgs)
+{
+    if (s_filters.Skip)
+        s_filters.Skip();
+    RealSkipText(apArgs);
+}
+
 // Shows the dialogue menu with the speaker's name (52853, from MenuTopicManager::StartDialogue 35282).
 using TShowMenu = uint64_t(const char* acpSpeakerName);
 TShowMenu* RealShowMenu = nullptr;
@@ -366,6 +377,7 @@ Hooks::Initializer s_dialogueHooks(
         HOOK_ID(25616, &RealBeginTopicInfo, HookBeginTopicInfo);
         HOOK_ID(24715, &RealNpcActivate, HookNpcActivate);
         HOOK_ID(51509, &RealTopicClicked, HookTopicClicked);
+        HOOK_ID(51508, &RealSkipText, HookSkipText);
         HOOK_ID(52853, &RealShowMenu, HookShowMenu);
         HOOK_ID(40496, &RealTurnToSpeaker, HookTurnToSpeaker);
         HOOK_ID(52857, &RealShowList, HookShowList);
@@ -544,6 +556,12 @@ bool DialogueBridge::PickOption(uint32_t aTopic, uint32_t aInfo) noexcept
     pManager->SetOptions(options);
     pManager->Pick(static_cast<uint32_t>(options.size() - 1));
     return true;
+}
+
+void DialogueBridge::SkipLine() noexcept
+{
+    if (MenuTopicManager* pManager = Conversation())
+        pManager->SkipLine();
 }
 
 namespace
