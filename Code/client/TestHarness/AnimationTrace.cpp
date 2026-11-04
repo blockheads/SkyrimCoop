@@ -215,10 +215,16 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     }
 
     nlohmann::json clipDetail = nlohmann::json::object();
-    if (auto clips = ActiveClips(*pActor, clipDetail); clips != aWatched.Clips)
+    auto clips = ActiveClips(*pActor, clipDetail);
+    // Also when a clip's file arrives or it ends, its name unchanged: a clip started without one ends in a frame.
+    nlohmann::json status = nlohmann::json::object();
+    for (const auto& [cName, cDetail] : clipDetail.items())
+        status[cName] = {cDetail["loaded"], cDetail["at_end"]};
+    if (clips != aWatched.Clips || status != aWatched.ClipStatus)
     {
         Record({{"kind", "clips"}, {"actor", aFormId}, {"clips", clips}, {"detail", clipDetail}});
         aWatched.Clips = std::move(clips);
+        aWatched.ClipStatus = std::move(status);
     }
 
     nlohmann::json state = {{"graph_updates", (pActor->flags2 & Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE) != 0},

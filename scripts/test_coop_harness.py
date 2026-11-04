@@ -872,5 +872,32 @@ class DuoLockTests(unittest.TestCase):
         self.assertLess(text.index("a (/wt/a): x. done"), text.index("old line"))
 
 
+class SkippedClipTests(unittest.TestCase):
+    def trace(self, *states):
+        from types import SimpleNamespace
+        return SimpleNamespace(entries=[{"kind": "clips", "game": "client", "who": "lucan", "detail": {name: state}} for name, state in states])
+
+    def test_a_clip_that_ends_without_its_file_is_named(self):
+        from coop_harness.scenarios.dialogue import skipped_clips
+        trace = self.trace(("Enter", {"loaded": False, "at_end": False}), ("Enter", {"loaded": False, "at_end": True}),
+                           ("Idle", {"loaded": True, "at_end": False}))
+        self.assertEqual(skipped_clips(trace), ["[client] lucan: Enter"])
+
+    def test_a_clip_whose_file_arrives_in_time_is_not(self):
+        from coop_harness.scenarios.dialogue import skipped_clips
+        trace = self.trace(("Enter", {"loaded": False, "at_end": False}), ("Enter", {"loaded": True, "at_end": True}))
+        self.assertEqual(skipped_clips(trace), [])
+
+    def test_only_idles_and_gestures_start_a_clip_of_their_own(self):
+        from coop_harness.scenarios.dialogue import is_clip_action
+        def action(event, at=2.0):
+            return {"kind": "action", "event": event, "time": at}
+        self.assertTrue(is_clip_action(action("IdleHDLeftAngry"), 1.0))
+        self.assertTrue(is_clip_action(action("DialogueNeutral"), 1.0))
+        self.assertFalse(is_clip_action(action("IdleStopInstant"), 1.0))
+        self.assertFalse(is_clip_action(action("moveStart"), 1.0))
+        self.assertFalse(is_clip_action(action("IdleHDLeftAngry", 0.5), 1.0))
+
+
 if __name__ == "__main__":
     unittest.main()

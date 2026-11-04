@@ -79,5 +79,8 @@ read `t=0.01333 at_end` with no file and none on the host; after, none in three 
 the sets' `+0x60`, clips kept by 40055, cancelled by 39258, which process teardown also uses). The replay step waits in
 `kClips`, at most 120 updates. Restrained NPCs perform no idles, so restrained scenarios cannot show this.
 
+`npc-clips-match` needs a fresh duo: repeated in one session, Lucan can run out of topics without an idle, and it fails at
+that step, with or without this fix (no idle means nothing shown, never a pass).
+
 Not this bug: an idle's variant is the graph's own random pick, so two games can differ (`docs/bugs.md`).
 `OffsetArmsCrossed`, the player-visible case, played only in a run before the readout could tell loaded clips.
