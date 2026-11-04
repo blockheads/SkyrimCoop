@@ -90,6 +90,11 @@ then swings normally. Measured: 3 of 13 sweeps failed in the layout above, 2 of 
 missed kill moves of S8. Sneak kill moves were refused only because the test's mark sat in a wall: with room behind the
 victim, `KillMoveSneakBackA` played 4 of 4.
 
+By weapon, on a player: sword, dagger, greatsword and battleaxe pair; unarmed plays `pa_KillMoveH2HSuplex` 3 of 3; a mace from
+the front plays `ShortA` and `ShortC`. A mace or war axe from behind picks `pa_KillingBlow`, which the engine refuses, and
+swings normally (6 of 6). A real NPC gets the normal swing too (mace, 4 of 4, where a sword paired 7 of 7), so this does not
+come from copies. Bows were not tried.
+
 Not settled: whether a copy's capsule blocks a sweep a real NPC's would not. A real NPC in open floor paired 7 of 7, but the
 same-spot control never started a kill move, so it says nothing.
 
