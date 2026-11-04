@@ -54,6 +54,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
 
+6. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order.
 ## News
 
 Newest first.
@@ -107,7 +108,7 @@ On its null audio device Orgnar's alchemy answer takes 16.1 s, was 36.8 s ([how 
 driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
 `copy-ends-voice-line` failed every time. Wine's ALSA driver now plays to ALSA's null device
 ([testing.md](design/testing.md)). `copy-ends-voice-line` passes; both dives now pass their gasp and fail later on
-the deferred "Headtracking left over" (bugs.md). The dive's surfacing step names what it saw when it fails.
+the open "Headtracking left over" (bugs.md). The dive's surfacing step names what it saw when it fails.
 
 2026-11-03: launcher Play co-op / Bethesda graphics settings menu, invitation bypass, `/perf` and per-connection
 network diagnostics, and verified save-block reuse for world joins. Details and current validation:
@@ -1340,8 +1341,8 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 ## Loose ends
 
 Native bug pass and audit (2026-10-28): 11 of the 16 reports addressed, including two fixture corrections.
-The three remaining ragdoll/get-up reports are accepted for v1.0.0; the AI/quest lock report is deferred.
-Plugin quest start/stop compatibility is deferred with mod work. The audit removed unsuccessful pose
+The three remaining ragdoll/get-up reports are open; the AI/quest lock report is open.
+Plugin quest start/stop compatibility is open (mod work). The audit removed unsuccessful pose
 reconstruction and the additional plugin event relay. Barter Speech is implemented and tested for both players.
 Mod-dependent Experience work is outside v1.0.0. Evidence:
 [native-bugs.md](design/native-bugs.md); accepted reports: [bugs.md](bugs.md).
@@ -1401,7 +1402,7 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 ### World state
 
-- **Done 2026-10-31: a bought horse is the party's on a guest's game.** An actor's ownership change is the one actor change the host sends as a row (`FormChangeRows::Form::kActor`; `HostEngine` live and in a cell's state, none as base id 0); `GuestEngine` applies it as a reference's owner. GameTests `[world][ownership]`, ClientTests `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways; both still fail afterwards on the rider's body kneeling (deferred player body).
+- **Done 2026-10-31: a bought horse is the party's on a guest's game.** An actor's ownership change is the one actor change the host sends as a row (`FormChangeRows::Form::kActor`; `HostEngine` live and in a cell's state, none as base id 0); `GuestEngine` applies it as a reference's owner. GameTests `[world][ownership]`, ClientTests `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways; both still fail afterwards on the rider's body kneeling (open player body bug).
 - **Done 2026-10-20: a guest's story manager starts no quest.** `BGSStoryManager::ProcessEvent` (32372) is skipped while a guest, so its story events (arrivals, kills, script events) are handled with none started (`docs/re/systems/story-manager.md`, scenario `guest-story-starts-no-quest`). Still open: quests a guest's own scripts or console start (`EnsureQuestStarted`), with step 5. A guest's story events go to the host since 2026-10-27 (every type since 2026-10-28).
 - **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
@@ -1636,7 +1637,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Fixed 2026-10-20: the client's `GameDaysPassed` missed host time jumps** (measured 2026-10-19 after `party-fast-travels`: 0.4376 / 0.3866). `TimeModel` carries the whole days passed; a guest writes the host's calendar as `Calendar::Update` does, `rawDaysPassed` included (`docs/re/systems/calendar.md`). Its date is the host's too: `SyncPlayerCalendar` is no longer read. Scenarios `host-wait-reaches-guest` (the Wait menu across midnight), `late-join-gets-calendar`, `party-fast-travels`. Also fixed: a guest rejoining ran ahead by the time it was away (`CalendarService` counted the gap).
 - **Fixed 2026-10-20: set-time set nothing.** `SetGameTimeHours` was a stub, and only the compiled-out CEF overlay sent the command. Now `/settime <hours> <minutes>` in the RmlUi chat sends it; the host runs its clock on to that hour (the next day's if earlier) with `Calendar::Update`, as a wait does (`HostEngine::SetHour`). Scenario `guest-sets-time`.
 - **Tether gaps** (2026-10-14, `docs/design/host-authority-migration.md`, "Party tether"):
-  - Ready for v1.0.0 testing, accepted by the user 2026-10-27. Remaining observed travel issues are deferred in `docs/bugs.md`; validation details and retained limits are in `docs/design/party-travel.md`.
+  - Ready for v1.0.0 testing, accepted by the user 2026-10-27. Remaining observed travel issues are open in `docs/bugs.md`; validation details and retained limits are in `docs/design/party-travel.md`.
   - Departure announcements built 2026-10-27 (`party-travel.md`): 40438 observes queuedTarget before loading, including coc's inline queue. Followers no longer wait for arrival. Actual load starts retain network/frame skew (21–40 ms locally); cached 8 ms loads can still finish before a follower starts.
   - Guest fast-travel time fixed 2026-10-27: the native calendar step is sent to HostClock, which advances the host once and shares the result. A three-player midnight flow and the native fast-travel scenario cover it.
   - Every travel of a player's own leads: a scripted move on a client (a quest teleport, jail) takes the
@@ -1895,7 +1896,7 @@ What the first playtest build has besides what works today (the table above):
     events runs (a copy's kill too); a party arriving together is one arrival. HostAuthorityTests, ClientTests, GameTests; Skyrim
     `guest-story-starts-no-quest`, `guest-location-change-starts-story`, `guest-craft-raises-story` pass. A copy can
     stay getting up after its guest leaves the crafting menu (`docs/bugs.md`).
-13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are deferred known issues in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
+13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are open bugs in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
 14. **Small visible bugs** (built 2026-10-27, merged into dev): the same resurrected NPC
     copy draws and attacks again; a brought character gets checked placement beside the host; a copy's base level
     follows its owner; instant FX Persist effects flash; looks update the existing actor and base. Fast tests were
@@ -1994,7 +1995,7 @@ See `docs/design/join-flow.md`, `Code/client/Ui/README.md` and the integration r
 
 Animation action snapshots now copy and replace their owned strings/vectors under one mutex; refused death
 actions preserve newer actions and body resets. Fast concurrency/restoration tests and native checks pass.
-The original reload corruption remains open (v1); the historical werewolf crash is out of v1 scope (2026-10-29,
+The original reload corruption remains open (v1); the historical werewolf crash is not reproduced (2026-10-29,
 `docs/bugs.md`). See the [stability report](v1-session-items-2026-10-28.md#concurrent-animation-snapshots).
 
 - **V1 delivery (2026-10-31):** one zip for friends, extracted into the Skyrim folder, then Play: SKSE and Address

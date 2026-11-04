@@ -200,7 +200,7 @@ join, puzzle rings, both players' furniture animations, ability retention, effec
 copy, guest location story events, potion retention across rejoin and checkpoint recovery pass.
 Vampirism retention/rejoin completes, but its postcheck finds movement-record flags on three
 clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`) only on the guest. That failed check is
-deferred past v1 ([bugs.md](bugs.md#plugin-compatibility), 2026-10-29). A separate earlier standalone join passed the corrected pose assertion but failed
+open ([bugs.md](bugs.md#plugin-compatibility), 2026-10-29). A separate earlier standalone join passed the corrected pose assertion but failed
 because arrival displaced the host about 50 units; its planned repetitions were skipped.
 
 Both final games report zero frozen/saving/loading updates and zero update overlaps. Evidence:
@@ -325,7 +325,7 @@ straight to `AbandonedPrison01` with the race menu (no Helgen cart), through rea
 
 22 scenarios (v1 tag plus loads, joins, first-time creation, quests, dialogue): no crash, no freeze; the
 documented USSEP guest crash during a host load did not reproduce. Both first-time-join creations pass. Failures
-matching the vanilla run are the deferred desyncs (headtracking, Aela's torch). Two failures follow the mods: with
+matching the vanilla run are the open desyncs (headtracking, Aela's torch). Two failures follow the mods: with
 them `guest-joins-from-main-menu-as-kept-character` (the host's record of the guest not at level 11 with Armsman in
 20 s) and `host-saves-with-guest-menu-open` (chest C2CE8's lid pose after cleanup) pass 1 of 2 each; without them,
 same setup, 3 of 3 each. Evidence: `build/coop-test/aslal-scen.log`, `aslal-rerun.log`, `vanilla-rerun.log`.

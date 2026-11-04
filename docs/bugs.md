@@ -1,6 +1,6 @@
-# Known bugs (after v1.0.0)
+# Open bugs
 
-Bugs we have seen and chose to ship with in 1.0. Each entry: what a player sees, the evidence, where to start, and the
+Every entry is a valid, open bug: none is accepted or shipped with. Each entry: what a player sees, the evidence, where to start, and the
 test that shows it. Fixing one: a test in the fastest tier that can show it first (CLAUDE.md), then the fix, then
 delete the entry and say where the evidence went. Unfinished work and unexplained behaviour stay in
 `docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
@@ -10,13 +10,12 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixe
 
 ## Copy-desync follow-ups
 
-Deferred past v1 by the user on **2026-10-31**: all remaining findings from the
+All remaining findings from the
 [copy-desync batch](reports/2026-10-30-copy-desync.md#retained-final-native-failures), including18 failing
-scenarios and earlier intermittent observations. Existing assertions and evidence remain; deferral changes
-release scope, not the recorded results. The implemented fixes and fast regressions remain in place.
+scenarios and earlier intermittent observations. Existing assertions and evidence remain. The implemented fixes and fast regressions remain in place.
 
 **Superseding investigation, 2026-10-31:** the three reopened risks are classified and corrected;
-all other findings below stay deferred. [Evidence, regressions and exact native results](reports/2026-10-31-v1-three-risks.md).
+all other findings below stay open. [Evidence, regressions and exact native results](reports/2026-10-31-v1-three-risks.md).
 
 - **Lock-order reports:** border cell loading and checkpoint alias writes moved from our VM worker to
   between-frame tasks. Mounted/placed reports are native engine order incorrectly attributed through a
@@ -54,7 +53,7 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
     boundary later).
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
-  default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
+  default slot on itself reads as none on its copy.
 - **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
   `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
   copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
@@ -76,13 +75,12 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
   wolf refusal was an already-playing duplicate; the other refusals still need classification.
 - **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
-  readings. Several occur on the owner too. Revived-player kneeling was already outside v1 scope.
+  readings. Several occur on the owner too. Revived-player kneeling is the same bug.
 - **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
-  documented story save. Combined-dev acceptance remains separate from these deferred bug investigations.
+  documented story save. Combined-dev acceptance remains separate from these bug investigations.
 
 Full scenario names, observed values and ignored evidence paths are in the batch report. A future fix follows
-the native scenario -> failing GameTests flow -> unit tests/fix -> passing gate workflow. Reassess priority if
-normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
+the native scenario -> failing GameTests flow -> unit tests/fix -> passing gate workflow.
 
 ## Party scripts
 
@@ -99,7 +97,7 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
   `host-beast-form-stays-host` the client crashed in its copy's graph update (hkbBehaviorGraph 58360, after the
   copy refused `IdleWerewolfTransformation`), once in the heap (bhkThreadMemorySource) on dev's DLL, and one run
   ended with the copy still on the transform's idle and the werewolf's values.
-  - Out of v1 scope (2026-10-29): repeated transitions pass and the historical crash is unproven; a crash in play arrives
+  - Not reproduced (2026-10-29): repeated transitions pass and the historical crash is unproven; a crash in play arrives
     as a crash bundle ([bug-reports.md](design/bug-reports.md)).
   - Follow-up: graph bounds/types, descriptor invalidation and owner-value restoration are implemented; concurrent animation-snapshot protection is also implemented. Repeated native transitions pass, but the historical crash remains open. See [stability follow-up](v1-session-items-2026-10-28.md#stability-follow-up).
   - Start: what the copy's graph holds when the owner's race changes back (the respawn from its new base data).
@@ -137,7 +135,7 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
   `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
   copy, already flagged deleted (client prefix `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced since; the play
   path (`dialogue-npc-removed-mid-conversation`) passes and the scenario baseline now ends conversations first.
-  - Out of v1 scope (2026-10-29).
+  - Not reproduced (2026-10-29).
   - Start: what 39372 reads at RCX; whether a copy removed after a trade (container menu closed, conversation still on
     the engine) is the path.
   - Test: a scenario that removes the NPC right after a follower trade, if it ever reproduces.
@@ -146,7 +144,7 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
   `dialogue-options-are-the-partys`, when an option is picked the dialogue text shows duplicated, overlapping. Not
   captured. Likely `DialogueBridge::ShowPicked` writing the picked line into `TextCopy_mc` where the menu already
   shows one (the claw topic lists two lines).
-  - Out of v1 scope (2026-10-30, the user): small and visual.
+  - Found 2026-10-30: small and visual.
   - Start: a screenshot of both menus at the pick (`coop_test.py screenshot`) in that scenario.
   - Test: the scenario's pick, both screens.
 
@@ -155,16 +153,16 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
   (`DialogueBridge` `HookShowList`; running it instead resets the 750 ms pick delay, worse). A press in that same frame
   never reaches `TopicClicked` (the SWF stays `allow_progress` 1, state 1); a player presses again. 1 in ~5 runs while
   `dialogue-pick-reaches-host` pressed as the host's greeting ended; 20 of 20 since it waits for the client's greeting.
-  - Out of v1 scope (2026-10-29): a one-frame window.
+  - Found 2026-10-29: a one-frame window.
   - Start: what the engine does at the greeting's end beyond `ShowList` (52857) that the skip leaves out; whether
     vanilla drops a press in that frame too (`repro --vanilla`).
   - Test: `dialogue-pick-reaches-host` without its wait for the client's greeting, `--until-fail 20`.
 
 ## Party travel
 
-Party travel was accepted for v1.0.0 testing by the user on 2026-10-27. Jail cleanup, horse packages, physics
+Party travel was ready for v1.0.0 testing on 2026-10-27. Jail cleanup, horse packages, physics
 carry/loss checks and the release-time physics lock ordering now have fixes and evidence in
-[native-bugs.md](design/native-bugs.md). The separate AI/quest pair below remains deferred by the user (2026-10-28).
+[native-bugs.md](design/native-bugs.md). The separate AI/quest pair below remains open (2026-10-28).
 
 - **An AI/quest lock inversion was reported during travel** (2026-10-27, party-travel). The departure timing
   assertions pass, but `party-loads-overlap` fails the scenario's final lock audit. The reported path is native
@@ -220,15 +218,15 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
 
 ## Plugin compatibility
 
-- **Quest start/stop notification parity is deferred with mod work.** Vanilla guest journal, stage and completion
+- **Quest start/stop notification parity is open (mod work).** Vanilla guest journal, stage and completion
   synchronization works, but a plugin consuming only TESQuestStartStopEvent can miss a stop. The audit removed
   the additional relay after it produced host stop 1 / guest stop 2 on a native turn-in
-  (`build/check/evidence-audit/native-gameplay.log`). Experience and Skill Uncapper are outside v1.0.0 scope.
+  (`build/check/evidence-audit/native-gameplay.log`). Experience and Skill Uncapper compatibility is not started.
   - Start: investigate actual native notification sources with the intended consumer installed. Do not synthesize
     another stop from flag changes or add a timing-based duplicate filter. Native counters remain available through
     `quest_fragments`; journal/reward tests keep their vanilla stage and completion assertions.
 
-- **Movement-record flags on guest clutter after a vampire rejoin** (B8, deferred past v1 by the user 2026-10-29).
+- **Movement-record flags on guest clutter after a vampire rejoin** (B8, 2026-10-29).
   With all six fix mods, `vampirism-kept-across-rejoin` passes its behavior checks, then the world check finds only
   movement-record change flags differing on three clutter references (`32AFF`, `32AFE`, `32B00`, base `319E5`), set
   only on the guest; positions agree within the check's tolerance. Once, not seen on vanilla (2026-10-29: the scenario
@@ -243,7 +241,7 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
 ### Found 2026-11-01, not yet triaged
 
 From the S1 work (`playtests/2026-10-31-fabien.md`; `docs/design/physics-sync.md`, "Steered holds" and "Matches a
-game without co-op"). Not accepted for v1 yet: the user decides.
+game without co-op").
 
 - **A guest's held object can pass through a host NPC in the guest's own view.** The host now steers the hold, so the
   host and the other guests see it stop on her head, but the holder shows its own physics until the host's rest. Seen
@@ -280,14 +278,14 @@ game without co-op"). Not accepted for v1 yet: the user decides.
     host dragged never came to rest within 30 s (2 of 2), with the fix it rests (every run). Check a play session's
     log for the repeating `HostPhysics: sent N rests` before deleting this entry.
 
-The user accepted these three remaining reports for v1.0.0 on 2026-10-28. Further fixes are deferred.
+These three remaining reports are open.
 The audit removed unsuccessful pose reconstruction; existing native checks and failed traces remain.
 Retained changes and their evidence are in [native-bugs.md](design/native-bugs.md).
 
 - **A respawned guest can stay ragdolled, sunk into the floor** (2026-10-29, v1 triage). `death-spectate-guest` once
   timed out on "the respawned player can walk again": the guest's player had its 18 ragdoll bodies awake and stood
   49 units into the floor after its revive. 0 of 14 runs since.
-  - Out of v1 scope (2026-10-29).
+  - Found 2026-10-29.
   - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
     body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
   - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
@@ -298,7 +296,7 @@ Retained changes and their evidence are in [native-bugs.md](design/native-bugs.m
   kneels (pelvis ~29, head ~55, like the bleedout pose), then stands again later. Once its death ragdoll was left
   awake too (18 bodies). Only the guest sees it (third person); the host sees its copy standing. A later
   conversation with no death first does not show it.
-  - Out of v1 scope (2026-10-30, the user): cosmetic, the guest's own view only, after a death.
+  - Found 2026-10-30: cosmetic, the guest's own view only, after a death.
   - Start: the behavior graph's state after `PlayerCharacter::Revive` (it resets neither the graph nor its state
     machine; the open revive item in [death.md](design/death.md)), and what the conversation sends the graph.
   - Test: `scenario follower-anchor-dies follower-anchor-saved` (its mid-conversation body check), then a GameTests
@@ -312,7 +310,7 @@ Retained changes and their evidence are in [native-bugs.md](design/native-bugs.m
     experiments and traces are retained; implementation-only cache tests did not establish native fidelity.
 - **Dead guest's copy can have a displaced pose.** The original report was a 16-unit body offset with three bones
   displaced up to 17 units. The reduced build passes one complete guest death/revive and one kill-move scenario
-  (`build/check/evidence-audit/native-physics.log`). Retained as accepted; consecutive verification is incomplete.
+  (`build/check/evidence-audit/native-physics.log`). Consecutive verification is incomplete.
   - Start: repeat `death-spectate-guest` and compare the owner/copy `RagdollTrace` if alignment fails.
 - **Occasional ragdoll bone jitter or get-up snap.** The reduced build passes regular lying, knockdown smoke and
   kill-move checks. The added front/back check still catches jitter, with about 11 units of visible owner/copy

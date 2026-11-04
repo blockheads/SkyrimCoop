@@ -9,7 +9,7 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   (17751) installed, verify that a guest killing a host NPC earns kill XP only on the killer's game; with
   Skill Uncapper AE and Experience installed, verify that a routed Speech gain applies the receiver's
   multiplier once. Installations, mod-specific scenarios and compatibility claims are outside v1.0.0
-  acceptance. Plugin TESQuestStartStopEvent parity is deferred with this compatibility work (`bugs.md`);
+  acceptance. Plugin TESQuestStartStopEvent parity is open with this compatibility work (`bugs.md`);
   the audit removed its additional event relay. Native personal XP, barter Speech and vanilla quest reward
   regressions remain in scope. Notes:
   `docs/re/systems/experience.md`, `docs/design/party-model.md` ("Experience").
