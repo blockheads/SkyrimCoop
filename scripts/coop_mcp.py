@@ -24,7 +24,20 @@ from coop_harness.common import ROOT, TEST_HOME  # noqa: E402
 from coop_harness.errors import TestFailure  # noqa: E402
 
 OWNER = f"repro-mcp ({ROOT.name})"
-server = FastMCP("skyrim-coop")
+INSTRUCTIONS = """Plays the shared duo (two Skyrims) to recreate a bug: step 1 of the bug-fix flow in CLAUDE.md. Guide:
+docs/design/repro-mcp.md, "The play flow".
+
+Order: duo_start, duo_wait; scene (a place; scene_reset for the blank QASmoke) or stage; record_start; go_to, talk, use,
+take, fight; look, observe, why to see what happened; expect the correct behaviour; record_export; duo_stop.
+
+- A failing expect is the bug: export it, and the scenario keeps it. Then duo_stop: the next steps need no Skyrim.
+- State the property the bug breaks. Check an expect can fail: 0 items in both games agrees too.
+- Read an NPC's AI on the host: a copy's ai.* is 0 by design, and copies run no AI.
+- A verb's `why` says why it stopped, and its trace how it moved: read them before writing a script.
+- scene's `disagree` lists real desyncs already there; only new ones fail after it.
+- duo_start waits in the shared queue. Hold the duo only while you use it.
+- This server loads its code once: a change to the verbs needs it restarted."""
+server = FastMCP("skyrim-coop", instructions=INSTRUCTIONS)
 session = Session()
 duo = {"process": None, "log": None}
 

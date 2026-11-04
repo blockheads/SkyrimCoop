@@ -2,7 +2,9 @@
 
 ## The play flow (2026-11-03)
 
-An agent works alone from a `docs/bugs.md` entry; the user can steer through the same tools. Drive it in this order:
+An agent works alone from a `docs/bugs.md` entry; the user can steer through the same tools. This is how step 1 of the
+bug-fix flow is written by default, not a step before it: the session exports as the scenario. The server gives its
+clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
 
 ```
 1 scene    a place with the world held still; NPCs named
