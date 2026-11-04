@@ -424,6 +424,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
+        bool InAir = false; // its controller jumping or falling, else on the ground
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -632,6 +633,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    bool IsOnGround(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && !Actors.at(aFormId).InAir; }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
@@ -945,6 +947,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool IsPlayerLoaded() const noexcept override { return true; }
     void GetPlayerPosition(float& aX, float& aY, float& aZ) const noexcept override { GetActorPosition(kPlayer, aX, aY, aZ); }
     bool ConsumeTeleported() noexcept override { return std::exchange(Teleported, false); }
+    // The actors passing through each other (PlayerCollision's collision filter).
+    std::vector<uint32_t> PassingThrough;
+    void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept override { PassingThrough = acActorFormIds; }
+    // A stepped NPC copy overlapping the player shoves it out unless they pass through (actor-movement.md).
+    void ShovePlayer() noexcept;
+    uint32_t PlayerShoves = 0;
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }

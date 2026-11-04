@@ -33,7 +33,8 @@ scripts/check.sh                  # Linux tests, harness checks, UI, Windows DLL
 scripts/check.sh --no-dll         # same checks without the Windows build
 ```
 
-Logs are in `build/check/`. GameTests runs in eight shards, with separate `GAMETESTS_PORT` values, and the gate
+A run takes about 1.5-3 minutes in a worktree. It first configures whichever xmake build has no `xmake.conf` yet, and
+prints each step's name as it starts. Logs are in `build/check/`. GameTests runs in eight shards, with separate `GAMETESTS_PORT` values, and the gate
 checks that every discovered case ran. Unit-test organization is unchanged by the flow refactor.
 
 ## Discover and select

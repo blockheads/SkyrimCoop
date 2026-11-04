@@ -285,6 +285,12 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   heading; the engine levels the pitch on every arrival), so every game shows the same view. Scenarios
   `party-stacks-on-arrival` (the inn, then home: stacked, the same view, walk off, bump into the other) and
   `party-uses-door` (the same view after each door).
+- Actors landing on the spot join the stack (2026-11-03): within the arrival's 5 s, any actor on the spot (a
+  follower the engine brings along, a copy placed there) passes through the others until it walks off, then never
+  joins again (`ArrivalStack`). A copy's capsule never yields since copies are stepped (`Actor::Move`, 2026-11-02),
+  so one landing on a player shoved the player out of it, through a table beside the spot:
+  `follower-lands-on-guest` measured 27 units on the guest's own game. The collision filter marks any number of
+  groups (a bit each).
 - Copies converge on their owner (2026-10-13): the owner's movement says where it is every 100 ms (cell,
   worldspace, position), and each game checks its copy against that (`CharacterService::RunPresence`).
   A copy whose owner is around this game's player (the same cell; outdoors the same worldspace, within
