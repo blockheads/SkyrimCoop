@@ -107,6 +107,15 @@ baseline check there then stops on two newer differences, open: Odahviing's copy
 (NPC copies don't take their owner's level), and his copy trails him in flight by ~300 units (interpolation delay at
 flight speed against the walkers' tolerance).
 
+2026-11-03: a jumping player's copy no longer stutters in the air. Since copies are stepped by their engine
+(2026-11-02) a copy stayed on the ground while its owner rose, was placed past 64 units off and fell by its own
+gravity, twice a jump. The owner now sends `Movement::OnGround` (its controller on the ground) and a copy is stepped
+only then: placed on its path from take-off to landing and in any other state (swimming, climbing, flying, ones not
+met yet), its height held when a snapshot is late
+([actor-movement.md](re/systems/actor-movement.md#a-copy-in-the-air-2026-11-03)). Scenarios
+`copy-jumps-smoothly-host` / `-guest` (failed both ways, pass); GameTests "A jumping player's copy rises and falls
+with it, never stuck on the ground"; ClientTests `[copy-step]`.
+
 2026-11-02: one writer for a loaded body's rest, and a guest's movement sent unreliably (red flags 4 and 5): a live move row no longer places a body the host's body rest already placed (a script's move still
 does); `ReferencesMoveRequest` goes unreliably unless it carries actions or a teleport, as the host relays it (body
 frames stay reliable). GameTests "A loaded body takes its rest ..." and "Over a lossy line a guest's player reaches

@@ -581,6 +581,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Direction = movement.Direction;
         point.Lying = movement.Lying;
         point.Knocked = movement.Knocked;
+        point.OnGround = movement.OnGround;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -1457,6 +1458,7 @@ void CharacterService::RunLocalUpdates() noexcept
         {
             it->second.UpdatedMovement.Lying = m_actorBridge.IsLyingInRagdoll(formIdComponent.Id);
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
+            it->second.UpdatedMovement.OnGround = m_actorBridge.IsOnGround(formIdComponent.Id);
         }
     }
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
@@ -1473,11 +1475,6 @@ void CharacterService::RunRemoteUpdates() noexcept
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
 
-    static auto s_nextDiagnostic = std::chrono::steady_clock::now();
-    const bool cLogDiagnostic = std::chrono::steady_clock::now() >= s_nextDiagnostic;
-    if (cLogDiagnostic)
-        s_nextDiagnostic = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-
     for (auto entity : interpolatedEntities)
     {
         auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);
@@ -1485,10 +1482,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         const uint64_t tick = InterpolationSystem::PlaybackTick(m_world, entity);
 
         auto& points = interpolationComponent.TimePoints;
-        if (cLogDiagnostic)
-            spdlog::debug("RunRemoteUpdates: entity {} formId {:X} points {} tick {} first {} last {}",
-                          entt::to_integral(entity), pFormIdComponent ? pFormIdComponent->Id : 0, points.size(), tick,
-                          points.empty() ? 0 : points.front().Tick, points.empty() ? 0 : points.back().Tick);
         if (points.size() < 2) continue;
         while (points.size() > 2 && tick > std::next(points.begin())->Tick)
             points.pop_front();
@@ -1545,10 +1538,12 @@ void CharacterService::RunRemoteUpdates() noexcept
             }
             if (cPlace)
                 ease.Apply(currentTick, position, rotation.z);
-            // Stepped by its engine, so its capsule pushes what it meets; placed when far off (actor-movement.md).
+            // Stepped by its engine, so its capsule pushes what it meets, only while its owner is on the ground (from
+            // take-off to landing and in any other state placed); placed when far off too (actor-movement.md).
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
-            const CopyMove cMove = CopyStep::Choose(!cPlace, at, position);
+            const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
+            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
