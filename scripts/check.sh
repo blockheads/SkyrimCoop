@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The gate every change passes (docs/design/testing.md, tiers 1-2): build and run the native tests, and build the
-# plugin. About 5 s incremental; the pre-push hook (scripts/hooks/pre-push) runs it.
+# plugin. About 1.5-3 minutes in a worktree; the pre-push hook (scripts/hooks/pre-push) runs it. Configures xmake first
+# if this checkout never has.
 #   scripts/check.sh            # everything
 #   scripts/check.sh --no-dll   # the native tests only (no Windows toolchain)
 # Skyrim's scenarios are not part of it: run the affected ones before a feature push (coop_test.py scenario).
@@ -21,12 +22,13 @@ mkdir -p "$LOGS"
 FAILED=()
 START=$SECONDS
 
-# One step: its name, then the command; its output goes to build/check/<name>.log, shown only if it fails.
+# One step: its name when it starts, then its result; its output goes to build/check/<name>.log, shown only if it fails.
 step() {
     local name="$1"; shift
     local log="$LOGS/${name// /-}.log"
     local begin=$SECONDS
-    if "$@" > "$log" 2>&1; then
+    printf '  %-24s ...\n' "$name"
+    if "$@" > "$log" 2>&1 < /dev/null; then
         printf '  %-24s ok    %3ds  %s\n' "$name" $((SECONDS - begin)) "$(grep -E "^All tests passed" "$log" | tail -n 1)"
     else
         printf '  %-24s FAIL  %3ds  (%s)\n' "$name" $((SECONDS - begin)) "${log#"$ROOT"/}"
@@ -70,7 +72,30 @@ game_tests() {
         | xargs -I{} echo "All tests passed ({} assertions in $ran test cases, $SHARDS shards)"
 }
 
+# xmake writes xmake.conf last, after the packages install; its folder is under the host's name.
+configured() {
+    compgen -G "$1/.xmake/*/*/xmake.conf" > /dev/null
+}
+
+finish() {
+    if (( ${#FAILED[@]} )); then
+        echo "check: FAILED (${FAILED[*]}) in $((SECONDS - START))s"
+        exit 1
+    fi
+    echo "check: passed in $((SECONDS - START))s"
+    exit 0
+}
+
 echo "check: tiers 1-2"
+MSVC_CONFIG="build/msvc-config"
+[[ ${COOP_SKYRIM_VERSION:-latest} == 1.6.1170 ]] && MSVC_CONFIG+="-1.6.1170"
+configured build/linux-config || step "configure Linux" scripts/xmake-linux.sh f
+if (( DLL )) && ! configured "$MSVC_CONFIG"; then
+    step "configure Windows" scripts/xmake-msvc.sh f -m dev -y
+fi
+# An unconfigured build would wait minutes on its packages and then fail.
+(( ${#FAILED[@]} )) && finish
+
 for target in ClientTests HostAuthorityTests TPTests GameTests; do
     step "build $target" scripts/xmake-linux.sh build -j8 "$target"
     [[ " ${FAILED[*]-} " == *" build $target "* ]] && continue
@@ -85,6 +110,7 @@ step "check Skyrim runtimes" python3 -m unittest discover -s scripts -p test_sky
 step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
 step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py
+step "check gate configure" python3 -m unittest discover -s scripts -p test_check.py
 step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
 if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
     step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check
@@ -94,8 +120,4 @@ if (( DLL )); then
     step "build launcher" scripts/xmake-msvc.sh build -j8 SkyrimCoopLauncher
 fi
 
-if (( ${#FAILED[@]} )); then
-    echo "check: FAILED (${FAILED[*]}) in $((SECONDS - START))s"
-    exit 1
-fi
-echo "check: passed in $((SECONDS - START))s"
+finish
