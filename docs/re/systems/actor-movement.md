@@ -103,9 +103,43 @@ after the physics step: the engine writes the actor's place from its controller 
   - her copy's controller stays on her (0.0 off).
 - **Tests:** GameTests "A guest's player presses a held plate against a host NPC's copy" (the fake's capsule pushes
   only for a stepped copy: `FakeEngine::Actor::Stepped`); ClientTests `[copy-step]`.
+- **A stepped copy shoves a player it lands on** (2026-11-03, `follower-lands-on-guest`): the host's Lydia moved
+  onto the guest's arrival spot; on the guest's game her copy kept its place and the guest was pushed 27 units out
+  (ending 55 to 60 units apart). The arrival stack lets them pass through
+  (`docs/design/host-authority-migration.md`, "Arriving together"); the fake models it (`FakeEngine::ShovePlayer`).
 - **References:** TES3MP writes a copy's direction into the engine's movement settings, so the engine steps it, and
   snaps it past 40 to 80 units. PLANCK ignores an actor's collision for a moment after a warp. Notes:
   `docs/research/sync-and-testing-references.md`.
+
+## A copy in the air (2026-11-03)
+
+A stepped copy cannot jump. Havok's character step moves it across, but its height is up to its own support
+and gravity: an upward step on the ground does nothing. Measured in `copy-jumps-smoothly-host`, before the fix
+(heights above the ground, the owner's 74-unit standing jump in 0.9 s):
+
+```
+owner  0 → 10 → 27 → 43 → 55 → 64 → 70 → 73.8 → 70 → 61 → 49 → 33 → 13 → 0
+copy  -1.8 (180 ms on the ground) → placed at 62.7 (past kSnap 64 off)
+      → falls by its own gravity to 0.2 in 250 ms → placed at 71 → falls to 0
+```
+
+Two hops a jump, both ways (host's player on a guest, a guest's on the host): the stutter players saw.
+
+```
+owner: Movement::OnGround = its controller on the ground (state 0: SkyrimBridge::IsOnGround)
+copy:  both snapshots around its playback time on the ground -> Step (Place past kSnap)
+       otherwise (take-off to landing, swimming, climbing, flying, any state not met yet) -> Place
+       late snapshots off the ground carry it on across, its height held (never into the floor)
+```
+
+The step is the exception, used where it was seen to follow faithfully (a controller on the ground, where it
+gives a copy's capsule its pushes); a state we have not met falls to Place, right for position, without pushes.
+
+skymp moves its copies with `TranslateTo` (kinematic: no gravity or support) the whole time; we keep the step on
+the ground for its pushes. After the fix: copy peaks 73-74 against its owner's 74, turning once in the air.
+Tests: GameTests "A jumping player's copy rises and falls with it, never stuck on the ground" (the fake's step
+never rises), ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenarios `copy-jumps-smoothly-host`,
+`copy-jumps-smoothly-guest`.
 
 ## Others
 

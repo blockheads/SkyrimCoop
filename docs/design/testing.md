@@ -33,7 +33,8 @@ scripts/check.sh                  # Linux tests, harness checks, UI, Windows DLL
 scripts/check.sh --no-dll         # same checks without the Windows build
 ```
 
-Logs are in `build/check/`. GameTests runs in eight shards, with separate `GAMETESTS_PORT` values, and the gate
+A run takes about 1.5-3 minutes in a worktree. It first configures whichever xmake build has no `xmake.conf` yet, and
+prints each step's name as it starts. Logs are in `build/check/`. GameTests runs in eight shards, with separate `GAMETESTS_PORT` values, and the gate
 checks that every discovered case ran. Unit-test organization is unchanged by the flow refactor.
 
 ## Discover and select
@@ -165,10 +166,11 @@ Since 2026-10-31 (the user: keep the player's Steam free) both duo games run as 
 with its own Steam account in netns `coop2`, and from the duo's own game folder `build/coop-test/game` (the Steam
 install's files linked, its own `Data/SKSE/Plugins`): the player's Steam and Skyrim folder are never used. The
 client joins the host over loopback inside the namespace. `COOP_DUO_USER=` runs them as this user, on its Steam.
-As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01): the
-harness turns Wine's audio drivers off for them (`WINEDLLOVERRIDES` `winealsa.drv=d;winepulse.drv=d`, `game_env`);
-they are muted anyway. With no audio every voice line is timed from its text, about twice its spoken length
-(`docs/re/systems/dialogue.md`, "How long a line lasts"): a conversation there is slower than a player's.
+As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01). With
+no audio driver at all, though, Skyrim queues voice lines that never start, and every scenario waiting on one fails
+(`dive-*`, `copy-ends-voice-line`, 2026-11-03). So Wine's Pulse driver is off and its ALSA driver plays to ALSA's
+null device (`ALSA_CONFIG_PATH`, `/tmp/skyrimcoop-alsa-null.conf`, `game_env`): it discards the sound and keeps
+time, and never touches a sound card. The games are muted anyway.
 The ordinary duo uses one account and the session network. Invite/lobby flows need `COOP_CLIENT_USER=coop2`, that
 user's Steam account, a client prefix it owns and the existing `coop2` network namespace setup. The harness prepares
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when
