@@ -44,6 +44,16 @@ death action
   killer it queues the kill too. Nothing else clears the flag soon: without the `KillMoveEnd` event it stayed set for 10 s.
 - **`2_` triggers** on a paired clip go to the partner's graph.
 
+## Names given in IDA (1.7.104)
+
+`BGSSynchronizedAnimationManager::StartPair` 32803, `::IsInInstance`, `::GetParticipants`,
+`g_BGSSynchronizedAnimationManager`; `BGSSynchronizedAnimationInstance::AddParticipant` 32782, `::LayoutParticipants` 32792,
+`::AllAtMark` 32794, `::Activate` 32796, `::Deactivate` 32797 (ends the instance once any half deactivates),
+`::BindGenerators` 32783, `::HasParticipant` 32784; `BSSynchronizedClipGenerator::Update` 63050, `::Activate` 63048,
+`::RemapClipEvents` 63060 (`2_` events to the partner), `::GetClipRootTransform` 63058;
+`BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093;
+`Character::EndKillMove` 38614. Each has a comment in the database.
+
 ## The clip's own timing
 
 `KillActor` comes from the victim's clip (`1hm_behavior.hkx`). Read with the behaviour files' `hkbClipTriggerArray`
@@ -62,9 +72,8 @@ Four faults, all from each game running its half of one pair. The first three ar
 `AnimationSystem` and the fake's replay; the fourth by the hook on 78260.
 
 **1. The pair's other half came back.** The victim's game sends its half as an action, and the attacker's game replayed it
-on a copy already in that pair. That fired stray `KillActor` events through the clip, and a victim could die at 0.43, 0.99
-or 1.38 s of a 2.4 s `BackStab`, the "instant" kill move with one attacker. Measured on one setup (attacker running at the
-victim's back): 8 of 8 clean with the rule, early or stray in most rounds with it off. `SettlePairedReplay` now skips it.
+on a copy already in that pair: by 32803 a second pair on two paired actors looks accepted and its graph event still goes out.
+`SettlePairedReplay` now skips it. Earlier this was blamed for victims dying early; that was wrong (next section).
 
 **2. A copy's owner moved as the pair began.** The owner's `moveStart`, sent before its game heard of the pair, took the
 copy out of the clip. `PairEnd` came at 0.28 s, the blow never landed, and with no `KillMoveEnd` both actors stayed flagged
@@ -82,6 +91,24 @@ after passing on the attacker's: the attacker's kill move ran 5 s alone and the 
 1.4 s. 4 of 10 rounds in one layout (victim facing east, attacker to its south-west). Now a replayed pair passes the sweep
 (`PairMarkClear`, `HookTryMoveTo`): the attacker's game judged it. Same layout: 4 sweeps blocked, 0 refused, 10 of 10 halves
 played. An early counter read 0 here only because those rounds never used this layout.
+
+## Early deaths: the victim touched a wall
+
+A victim dying 0.4 to 1.4 s into a 2.4 s backstab is not its clip. `1hm_behavior.hkx` has a
+`BSRagdollContactListenerModifier`, `VictimState_RagdollListener`: event `KillActor` (0x4A) on ragdoll bones 0, 3, 6, 9.
+`AddRagdollToWorld` at the pair's start puts the victim's ragdoll in the world, and the listener's contact callback (63092)
+fires on any penetrating contact (distance below 0) with a body it does not watch. So a victim pushed into a wall dies on
+the spot, crediting its partner (`KillActorHandler` 42838).
+
+Measured with a contact hook: the guest's player touched static `402152B` (a wall, layer 1) 15 ms before its `KillActor`
+at 0.71 s. The host's copy touched the same wall 0.14 s later; its `KillActor` does not kill a copy (deferred kill).
+The clips readout showed the victim's clip at its normal time (0.26 s into 3.17 s): nothing skipped it.
+
+This is the engine's own rule. In co-op it shows more because the attacker's game judges the room at the mark from a
+moving victim's position on its game, then the clip carries the victim on the victim's game, from its own position. A real
+NPC standing at the same wall never got a kill move (10 of 10 normal swings): with a still victim the room check refuses
+the pair first. Not changed: making the victim's game refuse its half would leave the attacker's kill move playing alone,
+which is worse. A fix would be the victim's game moving the pair off the wall, not built.
 
 ## Attacker's own refusals
 
