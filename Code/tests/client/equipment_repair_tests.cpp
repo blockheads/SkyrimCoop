@@ -11,15 +11,17 @@ struct Equipment
 {
     Worn Current;
     bool Stuck = false;
+    uint32_t HandSpell = 0;
     uint32_t Resets = 0;
     uint32_t Equips = 0;
 
-    void Restore(const Worn& acWanted)
+    void Restore(const Worn& acWanted, uint32_t aHandSpell = 0)
     {
         const auto cBefore = Current;
-        EquipmentRepair::Apply(acWanted, cBefore, [&] {
+        EquipmentRepair::Apply(acWanted, cBefore, HandSpell == aHandSpell, [&] {
             ++Resets;
             Current.clear();
+            HandSpell = aHandSpell;
             Stuck = false;
         }, [&](uint32_t aId, bool aLeft) {
             ++Equips;
@@ -57,6 +59,18 @@ TEST_CASE("A matching outfit remains untouched", "[equipment-repair]")
     CHECK(gear.Current == cWanted);
     CHECK(gear.Resets == 0);
     CHECK(gear.Equips == 0);
+}
+
+TEST_CASE("A copy's hand spell dropped by a move comes back with its outfit", "[equipment-repair][hand-spell]")
+{
+    const Worn cWanted{{1, false}};
+    Equipment gear{cWanted};
+    gear.Restore(cWanted, 0x12FCC);
+    CHECK(gear.HandSpell == 0x12FCC);
+    CHECK(gear.Current == cWanted);
+    CHECK(gear.Resets == 1);
+    gear.Restore(cWanted, 0x12FCC);
+    CHECK(gear.Resets == 1);
 }
 
 TEST_CASE("Taking everything off clears a copy's old worn set", "[equipment-repair]")

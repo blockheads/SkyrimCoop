@@ -33,3 +33,11 @@ TEST_CASE("A selected NPC sends only the name section while a custom actor keeps
     CHECK(NpcSnapshot::SaveFlags(0x20A, false, true, false) == (0x20A | NpcSnapshot::kFullName));
     CHECK(NpcSnapshot::SaveFlags(0x3000800, true, true, true) == 0x3000800);
 }
+
+TEST_CASE("A copy keeps its game's resolved leveled base only when it has the owner's face", "[copies][npc-snapshot][copy-level]")
+{
+    CHECK(NpcSnapshot::KeepsResolvedBase(true, 0x3DEE0, 0x3DEE0));
+    CHECK_FALSE(NpcSnapshot::KeepsResolvedBase(true, 0x3DEE1, 0x3DEE0));
+    CHECK_FALSE(NpcSnapshot::KeepsResolvedBase(false, 0x3DEE0, 0x3DEE0));
+    CHECK_FALSE(NpcSnapshot::KeepsResolvedBase(true, 0, 0));
+}

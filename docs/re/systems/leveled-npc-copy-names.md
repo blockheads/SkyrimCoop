@@ -125,3 +125,15 @@ The fake now models that pool for reference names. `[npc-name-pool]` fails the a
 using the engine's SameName equality. A Python comparison unit fails too; its separate Chief-versus-Outlaw
 check continues to reject a different resolved choice. Both observers now use native case-insensitive name
 equality. This does not change tolerances or ignore identity.name. See [engine names](engine-names.md).
+
+## A copy keeps its game's resolved base (level, 2026-11-04)
+
+A leveled NPC's stats live on its resolved temporary base, not on the face record: a Whiterun Guard's resolved base
+holds level 1000 (PC level mult 1.0, stored times 1000), its face record level 1 (Odahviing's 20 against 1 is likely the same, not rechecked).
+A copy of a placed reference was always given the owner's face record (`SetActorBaseFormId`), so it dropped its own
+game's resolved base and read the face's stats. When this game's reference already resolved to the same face (both
+games load one save), the copy keeps that engine-owned base; the engine manages its lifetime as in a vanilla game,
+unlike the private bases above. Only a different face still swaps to the face record. GameTests `[copy-level]`.
+
+Open: a copy whose game picked another face, and created copies (`SpawnActorFromNpc` of the face), still take the face
+record's stats; a resolved base for them needs the engine's leveled build (14375) with the owner's pick.

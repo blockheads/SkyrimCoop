@@ -303,9 +303,14 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
         return items;
     };
     const auto cWanted = worn(acMessage.Equipment);
-    const auto cCurrent = worn(m_formBridge.GetActorEquipment(cActorFormId));
+    const auto cEquipment = m_formBridge.GetActorEquipment(cActorFormId);
+    const auto cCurrent = worn(cEquipment);
+    // A copy's move to another cell drops its hand spells (docs/re/systems/copy-hand-spells.md).
+    const auto& cWantedMagic = acMessage.Equipment.CurrentMagicEquipment;
+    const bool cSameHands = cWantedMagic.LeftHandSpell == cEquipment.CurrentMagicEquipment.LeftHandSpell &&
+                            cWantedMagic.RightHandSpell == cEquipment.CurrentMagicEquipment.RightHandSpell;
 
-    EquipmentRepair::Apply(cWanted, cCurrent,
+    EquipmentRepair::Apply(cWanted, cCurrent, cSameHands,
         [&] {
             spdlog::info("Equipment reconcile {:X}: reset worn set", cActorFormId);
             m_formBridge.ActorResetEquipment(cActorFormId, acMessage.Equipment.CurrentMagicEquipment);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The gate every change passes (docs/design/testing.md, tiers 1-2): build and run the native tests, and build the
-# plugin. About 1.5-3 minutes in a worktree; the pre-push hook (scripts/hooks/pre-push) runs it. Configures xmake first
+# plugin. About 1.5-3 minutes in a worktree (skipped when only .md files changed); the pre-push hook (scripts/hooks/pre-push) runs it. Configures xmake first
 # if this checkout never has.
 #   scripts/check.sh            # everything
 #   scripts/check.sh --no-dll   # the native tests only (no Windows toolchain)
@@ -16,6 +16,18 @@ for argument in "$@"; do
         *) echo "unknown argument: $argument" >&2; exit 2 ;;
     esac
 done
+
+# Only Markdown differs from origin/dev (committed, staged, unstaged or new): nothing to build or test.
+docs_only() {
+    local base files
+    base="$(git merge-base HEAD origin/dev 2>/dev/null)" || return 1
+    files="$( { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u)"
+    [[ -n "$files" ]] && ! grep -qvE '\.md$' <<< "$files"
+}
+if [[ "${CHECK_FORCE:-}" != 1 ]] && docs_only; then
+    echo "check: only docs (.md) changed since origin/dev; skipped (CHECK_FORCE=1 runs it all)"
+    exit 0
+fi
 
 LOGS="$ROOT/build/check"
 mkdir -p "$LOGS"

@@ -266,3 +266,21 @@ TEST_CASE("Aela's torch survives full equipment repair in its native slot", "[eq
     CHECK(Wears(host, cCopy, kIronSword));
     CHECK(host.CountOf(cCopy, cTorch) == 1);
 }
+
+SCENARIO("A player's copy holds its owner's spell after party travel", "[equipment][hand-spell][travel]")
+{
+    constexpr uint32_t kSinkhole = 0x0009C5E1;
+    const GameId cHealing{0, 0x12FCC};
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    host.Actors.at(FakeEngine::kPlayer).Items.CurrentMagicEquipment.LeftHandSpell = cHealing;
+    party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
+    const auto cHands = [&] { return guest.GetActorEquipment(PlayerCopy(guest)).CurrentMagicEquipment.LeftHandSpell; };
+    party.Until([&] { return cHands() == cHealing; }, "the copy holds the host's spell");
+
+    party.As(party.Host(), [&] { host.PlayerTravels(kSinkhole, {100.f, 200.f, 0.f}); });
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).Cell == kSinkhole && guest.Actors.at(PlayerCopy(guest)).Cell == kSinkhole; },
+                "the party arrives in the sinkhole");
+    party.Until([&] { return cHands() == cHealing; }, "the copy holds the host's spell again", {}, nullptr, std::chrono::seconds(5));
+}

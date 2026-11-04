@@ -5,7 +5,8 @@ test that shows it. Fixing one: a test in the fastest tier that can show it firs
 delete the entry and say where the evidence went. Unfinished work and unexplained behaviour stay in
 `docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
 visible actor bugs are in [small-bugs.md](design/small-bugs.md). Native bug fixes and regression evidence are in
-[native-bugs.md](design/native-bugs.md).
+[native-bugs.md](design/native-bugs.md). Fixes that landed after a playtest (S2's green flash, the
+2026-11-01 dialogue fixes) keep their evidence in `playtests/` and a dated entry in `docs/progress.md`.
 
 ## Copy-desync follow-ups
 
@@ -92,28 +93,12 @@ normal play demonstrates a freeze, lost progress or blocked combat/dialogue.
 
 ## Dialogue
 
-- **A refused dialogue choice leaves the chooser's list hidden** (2026-11-01, reproduced on Linux). A Nord host
-  selects Onmund's Breton guest-only answer: its refusal notice appears, but its menu stays in `TOPIC_CLICKED`
-  with input disabled; the guest's list remains usable. Tab still exits, so this does not establish S9 or S3.
-  - Native: `dialogue-refused-pick-restores-list`; [evidence](../playtests/2026-11-01-dialogue-reproduction.md).
-  - Fixed on `repro/s3-guest-arrest` (not merged): refresh the hidden unchanged list and retain its shared highlight.
-    Native recovery and host/guest GameTests pass; [fix verification](../playtests/2026-11-01-dialogue-fixes.md).
-
-
-- **Simultaneous different choices leave the losing menu displaying its rejected text** (2026-11-01, Linux).
-  Reproduced with 150 ms UDP delay: the host accepts one option but the guest's already-clicked text stays on its
-  losing option. Fixed on `repro/s3-guest-arrest` (not merged): replace text in `TOPIC_CLICKED` without replaying
-  its animation. Native 3/3 and GameTests pass; [evidence](../playtests/2026-11-01-dialogue-fixes.md).
-
-- **Guest barter can return to a list with input disabled** (2026-11-01, Linux). Host barter followed by guest
-  barter reproduces state 1 / progress 0 beyond 15 seconds; a fresh guest-only trade passed. Fixed on
-  `repro/s3-guest-arrest` (not merged): explicitly re-arm input readiness when resuming the menu. Native alternating
-  sequence 4/4 and GameTests pass; [evidence](../playtests/2026-11-01-dialogue-fixes.md).
-
 - **Lydia's greeting can remain queued on the guest before any pick** (2026-11-01, Linux/Wine audio off).
   `dialogue-pick-reaches-host` fails at its existing voice-end precondition on a fresh duo as well as after Onmund.
   Capture: callback 3 / sound 162 / seconds -1, subtitle "Hey, slug-breath!"; the host's greeting has ended.
   Cause and regression status unknown; still open. [Evidence and limits](../playtests/2026-11-01-dialogue-fixes.md#remaining-voice-failure-and-limits).
+  The duo had no audio driver then (voice lines queued, never started; a silent device since 2026-11-03,
+  progress.md): rerun before deleting.
 
 - **A guest crashed once in a conversation whose NPC was deleted** (2026-10-29, party dialogue). In
   `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
@@ -237,15 +222,6 @@ game without co-op"). Not accepted for v1 yet: the user decides.
     stops a held body"). Find what made the first run differ, then whether the copy's controller pushes at all.
   - Test: `guest-bucket-on-npc-head --until-fail`, reading the client's lowest; then teach the fake (it already
     has copies push nothing: `FakeEngine::OutsideCapsules`).
-
-- **S2: a held object flashes green on the watching game** (2026-11-02, fixed on `repro/s2-green-flash`, not merged).
-  Manual scene updates ran in the Papyrus VM job. Body playback, left-behind node repairs and received object
-  placements now run between frames. The native tankard detector fails before the fix (18/340 sampled frames)
-  and passes after it (0/2,773 across three observer checks); throw and push controls pass.
-  - Three RED-to-GREEN GameTests guard scene-write timing; four unit cases cover deferred repair/rest bookkeeping
-    and cancellation. Full `scripts/check.sh` passes. [Evidence and scope](../playtests/2026-11-01-s2-green-flash.md).
-  - The user's manual two-way reproduction stands. The automated host-watching-guest controls were negative
-    before the fix too; the guest watching the host provides the native before/after proof.
 
 - **A dragged object blinks in and out of existence** (the user, 2026-11-01). Not reproduced (2026-11-01): a ladle
   dragged left and right by either player, traced each frame on both games (`body_trace`, which now also gives its 3D's
