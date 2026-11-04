@@ -34,11 +34,12 @@ struct Snapshots
     }
 };
 
-// A copy's worn set differing from its owner's: cleared and equipped again whole.
+// A copy's worn set or hand spells differing from its owner's: cleared and equipped again whole (the reset puts
+// the owner's spells back).
 template <class Set, class Reset, class Equip>
-void Apply(const Set& acWanted, const Set& acCurrent, Reset&& aReset, Equip&& aEquip)
+void Apply(const Set& acWanted, const Set& acCurrent, bool aSameHands, Reset&& aReset, Equip&& aEquip)
 {
-    if (acWanted == acCurrent)
+    if (acWanted == acCurrent && aSameHands)
         return;
     aReset();
     for (const auto& item : acWanted)

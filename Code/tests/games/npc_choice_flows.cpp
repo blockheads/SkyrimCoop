@@ -117,3 +117,39 @@ TEST_CASE("An ordinary named NPC retains its dialogue base despite saved runtime
     CHECK(guest.GetActorBaseFormId(copy) == cOnmund);
     CHECK(guest.GetActorDisplayName(copy) == "Onmund");
 }
+
+TEST_CASE("A placed leveled NPC's copy keeps its game's resolved base and level", "[copies][npc-choice][copy-level]")
+{
+    // A Whiterun Guard from the save: each game resolved the reference to a temporary base with the same face,
+    // its stats (level 1000: 1.0 times the player's) on the resolved base, the face record's own level 1.
+    constexpr uint32_t cFace = 0x3DEE0, cPlaced = 0xD8C56, cResolved = 0xFF000F00;
+    constexpr uint16_t cResolvedLevel = 1000;
+    Party party(1, [&](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.Npcs[cFace].Name = "Whiterun Guard";
+        aEngine.Npcs[cResolved] = aEngine.Npcs[cFace];
+        aEngine.Npcs[cResolved].FaceBase = cFace;
+        aEngine.Npcs[cResolved].Level = cResolvedLevel;
+        aEngine.PlaceNpc(cPlaced, cResolved, 0x31D2E, {});
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t sid = 0;
+    party.Until([&] {
+        for (auto&& [entity, form, local] : party.Host().view<FormIdComponent, LocalComponent>().each())
+            if (form.Id == cPlaced)
+                sid = local.Id;
+        return sid != 0;
+    }, "the host owns the guard");
+    party.Until([&] {
+        for (auto&& [entity, form, remote] : party.Guest().view<FormIdComponent, RemoteComponent>().each())
+            if (remote.Id == sid)
+                return guest.ActorHas3D(form.Id);
+        return false;
+    }, "the guest shows the guard's copy");
+    const auto cLevel = [](FakeEngine& aEngine) { return aEngine.Npcs.at(aEngine.GetActorBaseFormId(cPlaced)).Level; };
+    CHECK(cLevel(host) == cResolvedLevel);
+    CHECK(cLevel(guest) == cLevel(host));
+    CHECK(guest.GetActorNpcTemplateBaseFormId(cPlaced) == cFace);
+    CHECK(guest.Npcs.at(cFace).Level == 1);
+}
