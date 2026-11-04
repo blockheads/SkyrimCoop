@@ -198,9 +198,21 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Open = false; // a door's (BGSOpenCloseForm's open state)
         glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
+        uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    // The container bases: a created one is a container reference, not a loose item.
+    std::set<uint32_t> ContainerBases;
+    // A container reference made here (ModManager::CreateReference): it holds nothing, the engine rolls no leveled
+    // entries for it until opened, and a guest's never rolls (the host's contents fill it). Its id: the next temporary.
+    uint32_t PlaceContainer(uint32_t aCell, uint32_t aBase);
+    // The host's script places a container (PlaceAtMe of a leveled chest) that rolled aRolled: made and recorded.
+    uint32_t ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const std::map<uint32_t, int32_t>& acRolled);
+    // A created container's contents (HostGame::ReadContents); none for no such container.
+    std::optional<ObjectChange> ContentsOf(uint32_t aContainer) const;
+    // A container holds exactly the kContents change's items (ApplyContainerContents).
+    void ApplyContents(Reference& aContainer, const ObjectChange& acContents);
     // Each cell's owner (its ExtraOwnership), by cell: every game has the cells.
     std::map<uint32_t, uint32_t> CellOwners;
     // A script makes a cell another's (Cell.SetFactionOwner, a house bought): the engine records the cell's

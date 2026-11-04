@@ -206,6 +206,7 @@ void HostService::MakeAuthority() noexcept
     game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return m_pEngine->ReadCellState(acCell, acChanged);
     };
+    game.ReadContents = [this](const GameId& acObject) { return m_pEngine->ReadContents(acObject); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };

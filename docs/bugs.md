@@ -201,16 +201,6 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   - Start: `coop_test.py unsynced` and `save-diff` right after the scenario on the six-mod profile; if the host
     lacks a move the guest has, which engine path moved the clutter on the guest only.
 
-## Containers
-
-- **A container the host creates reaches a guest empty** (found 2026-11-01 with S5). The host's `placeatme` of a
-  leveled chest (`TGTributeChest` `F68AE`) rolled a garnet and 50 gold; the guest's copy held nothing, so its menu
-  showed an empty chest. A created reference's create row carries no contents, and `HostEngine::ReadCellState`
-  sends contents only for placed containers (`IsTemporary()` skipped); a guest rolls no container itself. Mostly
-  mods' and scripts' chests. Test: the host places one, the guest opens it and sees the host's items.
-  - Scenario `created-chest-reaches-guest-empty` (2026-11-03) fails on it, in 6 s. Start at `HostEngine.cpp`'s contents
-    loop, which skips temporary references. The fake has no created containers yet: its flow lands with the fix.
-
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged
