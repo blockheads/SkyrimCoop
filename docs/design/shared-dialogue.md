@@ -58,6 +58,8 @@ its picker (its items, gold, Speech experience and training the picker's), refus
 - **A start the host's game cannot make is refused** with a chat line: the NPC fighting or dead (as talking
   to them is in the game), the host's player talking to someone else. The host in a menu, in combat or far
   away does not stop it (its world paused pauses the lines).
+- **Anyone skips a line** (2026-11-03, the user): a press while the NPC speaks moves it on, as in the game, from any
+  player in the conversation: the next response, then the next list, on every menu.
 - **Anyone leaves on their own** (Tab, Esc). The conversation ends only when the last player in it leaves,
   or when the host's engine ends it (a goodbye line, the NPC walking off, combat, travel): then every menu
   in it closes. Walking off does not end it (the engine has no distance rule); the party travelling does, and
@@ -156,6 +158,11 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    line). Any other pick (a stale step, one from a guest's menu before its list arrived) is not said, and the picker gets the step's
    list back (`HostDialogue::SendList`), so no menu stays in the picked state. The other menus keep their list
    until the next step's.
+   A press during the NPC's line (the SWF's `SkipText`, 51508) sends `DialogueSkipRequest` (conversation, step) and still
+   runs that game's own engine skip, which on a guest re-arms the SWF's 750 ms gate. `HostDialogue` takes it from anyone
+   in the conversation at the current step and tells every game, but a host that pressed. `HostConversation` moves the
+   line on (35290) only while it waits for the next list, so a press that crossed the line's end skips nothing; a
+   guest's game stops its copy's voice (`ActorStopCurrentDialogue`, vfunc 0x4F, as 35290 stops a speaker).
 5. **The line's script.** Each line's fragment is queued in `TESTopicInfo::Begin` (25616), at its start and
    its end. On the host's game, after a guest's pick, the bridge's `LineFor` filter names that guest's
    character for the conversation's speaker (`HostConversation`, until the next pick; the host's own click clears
@@ -211,6 +218,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → each game in it | conversation, step, choices, options (topic, info, quest, text); the request also each other player's own list (`Players`); the notification the party's list, each option's `Players` (who has it, none: everyone) |
 | `DialoguePickRequest` / `NotifyDialoguePicked` | game → host → all | a topic of the picker's own list (topic, line shown, text) / the next step, topic, the picker's line, the picker; another's option is not said (the picker's chat gets `kSystemMessage` "I'm sorry ...") |
 | `DialogueHighlightRequest` / `NotifyDialogueHighlight` | game → host → the others in it | conversation, step, the highlighted option's place in the list, who moved it |
+| `DialogueSkipRequest` / `NotifyDialogueSkip` | game → host → every game (not a host that pressed) | conversation, step: a player pressed through the line |
 | `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerChat`, the picker's name, its line's text |
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |

@@ -12,6 +12,17 @@ Implementation evidence is preserved in `followers-review/`; log names below use
 | ContainerMenu::OpenMenu | 51140 | `void(TESObjectREFR*, int32_t mode)`. Mode 3 is follower trading. Capture that request on the host and open it through the real function on the authorized picker's game. |
 | Actor::EvaluatePackage | 37401 | `void(Actor*, bool immediate, bool resetAI)`. A target change needs a procedure rebuild, subject to the current package and combat/favor restrictions. |
 
+The follow procedure's target, read on 1.7.104 (2026-11-04):
+
+- `PackageTarget::resolve` (29846), type 0, returns the handle stored in the target.
+- `sub_14046EAD0` (unnamed, beside BGSProcedureFollow's functions; likely its start) resolves the target through the procedure's parameter, stores it in
+  `BGSProcedureFollowExecState` +8 and in `AIProcess::followTarget` (+0x110, setter `sub_1406E9790`).
+- 28640 (the state's update) copies +8 to `followTarget` every update, with no resolve. 28638 (its end) writes the
+  invalid handle. 28641 saves +8 as a form ID.
+
+So an unchanged state keeps its first target until the procedure restarts, which is why a new anchor needs the
+rebuild below.
+
 DialogueFollower (750BA) has humanoid alias 0 and animal alias 1. Recruitment already fills the host's alias
 through the existing dialogue path. PlayerFollowerPackage (5C84B) still stores a reference to player 14;
 the existing script context does not change that package data.

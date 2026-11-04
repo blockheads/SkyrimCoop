@@ -7,6 +7,10 @@ changes to a created container go as its whole contents (a guest rolls no world 
 `HostAuthorityTests` for the three call sites; GameTests flow "A chest the host's script places reaches a guest with what it
 rolled" (the fake learned created containers); scenario `created-chest-reaches-guest-empty` left to the next combined run.
 
+2026-11-04: the follower that stops following is not reproduced on 1.7.104 (0 of 2 in the entry's order, with the Load
+menu and door rounds), and no fix is made; findings in `bugs.md`. The 1,388 lead is closed: she stood by the guest she
+follows. `load_latest_from_menu` works on 1.7.104 again: it passes the character list and clears a reload's scratch save.
+
 2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
 pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
 `use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
@@ -206,6 +210,12 @@ GameTests and unit tests preceded each fix. Six coverage improvements include st
 postconditions, duplicate/competing choices, stale notifications after reopen, same-topic mouse INFO selection,
 and barter/training returns. Full check passes; native fixes and exit controls pass. A separate queued Lydia
 greeting still blocks `dialogue-pick-reaches-host` before any pick; [results and limits](../playtests/2026-11-01-dialogue-fixes.md).
+
+2026-11-03: dialogue lag on a guest (Orgnar, 30 s after each pick). Two causes. A guest's press through a line never
+reached the host's game, which said it to its end: now `DialogueSkipRequest` / `NotifyDialogueSkip`, from anyone in the
+conversation, and every copy goes quiet with it (`dialogue-guest-skips-line`, GameTests, HostAuthorityTests). The 30 s
+itself came from the duo having no audio driver: a voice line was timed from its text, about twice its spoken length.
+On its null audio device Orgnar's alchemy answer takes 16.1 s, was 36.8 s ([how long a line lasts](re/systems/dialogue.md)).
 
 ## Direct authority migration
 

@@ -39,6 +39,8 @@ struct MenuTopicManager
 
     // Selects and says the option at this index, as the menu's TopicClicked does (51509: 35269, then 35283).
     void Pick(uint32_t aIndex) noexcept;
+    // Moves past the line being said, as the menu's SkipText does (35290).
+    void SkipLine() noexcept;
     // Clears the conversation as starting and ending one do (35274): no speaker, no list, every flag down.
     void Clear() noexcept;
     // The topics of the said line's choices (rootTopicInfo's, 25659 as the list build 35287 reads them), in order,
