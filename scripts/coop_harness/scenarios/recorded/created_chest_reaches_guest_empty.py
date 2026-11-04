@@ -1,9 +1,9 @@
-"""The host creates a leveled chest; it should hold the same on the guest, whose copy is empty (docs/bugs.md, Containers).
+"""The host creates a leveled chest; it should hold the same on the guest, whose copy was empty (fixed 2026-11-04, docs/progress.md).
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 NAME = 'created-chest-reaches-guest-empty'
 TAGS = ['containers', 'recorded']
-DOC = 'The host creates a leveled chest; it should hold the same on the guest, whose copy is empty (docs/bugs.md, Containers).'
+DOC = 'The host creates a leveled chest; it should hold the same on the guest, whose copy was empty (fixed 2026-11-04, docs/progress.md).'
 
 
 def run(ctx):

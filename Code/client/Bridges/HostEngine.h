@@ -79,6 +79,8 @@ public:
     // The physics bodies physics moves: the awake ones read now, and those that fell asleep (HostGame::TakeBodies); an
     // actor's ragdoll by its session id (aSessionOf: 0 for an actor the guests do not have).
     [[nodiscard]] HostBodies TakeBodies(const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept;
+    // A created container's contents (HostGame::ReadContents), its leveled entries rolled first.
+    [[nodiscard]] std::optional<ObjectChange> ReadContents(const GameId& acObject) const noexcept;
     // Every row of each reference in the cell that this game, or a guest's (acChanged), holds changes for, then each
     // container's contents after this game rolled it; none while the cell is not attached here.
     [[nodiscard]] std::optional<std::vector<ObjectChange>> ReadCellState(const GameId& acCell,

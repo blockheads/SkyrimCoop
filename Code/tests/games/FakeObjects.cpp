@@ -204,6 +204,46 @@ void FakeEngine::ToggleDoor(uint32_t aObject)
         SetOpen(aObject, !it->second.Open);
 }
 
+uint32_t FakeEngine::PlaceContainer(uint32_t aCell, uint32_t aBase)
+{
+    const uint32_t cId = NewTemporary();
+    References[cId] = {.Cell = aCell, .Base = aBase};
+    return cId;
+}
+
+uint32_t FakeEngine::ScriptPlacesContainer(uint32_t aCell, uint32_t aBase, const std::map<uint32_t, int32_t>& acRolled)
+{
+    const uint32_t cId = PlaceContainer(aCell, aBase);
+    References.at(cId).Items = acRolled;
+    // ReadCreate: its base and where, no contents.
+    ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(cId), .Item = SessionIdOf(aBase)};
+    create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(aCell)});
+    Recorded.push_back(std::move(create));
+    return cId;
+}
+
+std::optional<ObjectChange> FakeEngine::ContentsOf(uint32_t aContainer) const
+{
+    const auto it = References.find(aContainer);
+    if (it == References.end() || !ContainerBases.contains(it->second.Base))
+        return std::nullopt;
+    ObjectChange contents{.Type = ObjectChange::Kind::kContents, .Object = ToSessionOrCreated(aContainer).value_or(GameId{})};
+    std::vector<ObjectChange::ItemCount> items;
+    for (const auto& [cItem, cCount] : it->second.Items)
+        items.push_back({ItemId(cItem).value_or(GameId{}), cCount});
+    contents.Data = ObjectChange::PackContents(items);
+    contents.Stacks = it->second.Stacks;
+    return contents;
+}
+
+void FakeEngine::ApplyContents(Reference& aContainer, const ObjectChange& acContents)
+{
+    aContainer.Items.clear();
+    for (const auto& cItem : ObjectChange::UnpackContents(acContents.Data))
+        SetCount(aContainer, ::ItemForm(cItem.Item), cItem.Count);
+    aContainer.Stacks = acContents.Stacks;
+}
+
 std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
 {
     const auto& cReference = References.at(aReference);
@@ -264,6 +304,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         SetCount(reference, ::ItemForm(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
         break;
     case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
+    case ObjectChange::Kind::kContents: ApplyContents(reference, acChange); break;
     default: break;
     }
     (void)aLoad; // a state already as the host's is left as it is: the same either way here

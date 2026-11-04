@@ -387,8 +387,25 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAn
 
 void HostEngine::RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
+    // A created container's guest twin has its own ids for its entries: its whole contents.
+    if (IsCreatedForm(aObjectFormId))
+    {
+        if (auto contents = IsShared(aObjectFormId) ? ReadContents(CreatedId(aObjectFormId)) : std::nullopt)
+            m_events.push_back(std::move(*contents));
+        return;
+    }
     if (auto change = ReadContainerItems(aObjectFormId, aItemFormId))
         m_events.push_back(std::move(*change));
+}
+
+std::optional<ObjectChange> HostEngine::ReadContents(const GameId& acObject) const noexcept
+{
+    const uint32_t cFormId = acObject.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acObject.BaseId : 0;
+    auto* pObject = cFormId && IsShared(cFormId) ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
+    if (!pObject || pObject->IsDeleted() || pObject->formType != FormType::Reference || !pObject->GetContainer())
+        return std::nullopt;
+    pObject->InitInventoryIfRequired();
+    return ReadContainerContents(*pObject);
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
