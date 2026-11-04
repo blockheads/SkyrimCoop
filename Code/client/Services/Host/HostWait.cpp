@@ -4,6 +4,7 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
+#include <Services/Host/HostWorldState.h>
 #include <spdlog/spdlog.h>
 
 namespace
@@ -115,7 +116,9 @@ void HostWait::OnWorldRequest(const WaitWorldRequest& acRequest, ConnectionId_t 
 {
     if (m_wait || !m_completedId || acRequest.Id != m_completedId || aSender == m_players.Host() || !m_game.ReadCellState)
         return;
-    const auto cChanges = m_game.ReadCellState(acRequest.State.Cell, acRequest.State.Changed);
+    auto cChanges = m_game.ReadCellState(acRequest.State.Cell, acRequest.State.Changed);
+    if (cChanges)
+        AddCreatedContents(m_game, *cChanges);
     // An unloaded host cell gets an empty reply. Ordinary cell loading will request its state later.
     const std::vector<ObjectChange> cEmpty;
     const auto& cRows = cChanges ? *cChanges : cEmpty;

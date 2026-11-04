@@ -164,6 +164,9 @@ void HostService::MakeAuthority() noexcept
     game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return engine.CellState(acCell, acChanged);
     };
+    game.ReadContents = [&engine](const GameId& acObject) {
+        return acObject.ModId == ObjectChange::kCreatedModId ? engine.ContentsOf(0xFF000000 | acObject.BaseId) : std::nullopt;
+    };
     game.RaiseStoryEvent = [&engine](const StoryEvent& acEvent) { engine.StoriesRaised.push_back(acEvent); };
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);

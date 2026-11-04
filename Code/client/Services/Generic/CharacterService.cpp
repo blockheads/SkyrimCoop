@@ -518,7 +518,9 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
     if (acMessage.BaseId == GameId{})
         return true;
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
-    if (!cBaseId || !m_actorBridge.SetActorBaseFormId(aFormId, cBaseId))
+    const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
+        m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
+    if (!cBaseId || (!cResolvedAlike && !m_actorBridge.SetActorBaseFormId(aFormId, cBaseId)))
     {
         spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to actor {:X}", acMessage.BaseId.ModId,
                       acMessage.BaseId.BaseId, aFormId);

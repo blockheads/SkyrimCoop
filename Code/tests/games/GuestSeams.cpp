@@ -194,7 +194,7 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         return engine.Apply(acChange, aLoad);
     // The host's loose items: a twin made once (Create), deleted with the host's.
     const auto cTwin = m_created.find(acChange.Object.BaseId);
-    const bool cHere = cTwin != m_created.end() && engine.Loose.contains(cTwin->second);
+    const bool cHere = cTwin != m_created.end() && (engine.Loose.contains(cTwin->second) || engine.References.contains(cTwin->second));
     if (acChange.Type == ObjectChange::Kind::kCreate)
     {
         if (cHere)
@@ -202,6 +202,11 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         ObjectChange::Placement placement;
         if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
             return false;
+        if (engine.ContainerBases.contains(FormIdOf(acChange.Item)))
+        {
+            m_created[acChange.Object.BaseId] = engine.PlaceContainer(FormIdOf(placement.Cell), FormIdOf(acChange.Item));
+            return true;
+        }
         Inventory::Entry item = acChange.Stacks.empty() ? Inventory::Entry{.BaseId = acChange.Item, .Count = 1} : acChange.Stacks[0];
         const uint32_t cId = engine.PlaceLoose(FormIdOf(placement.Cell), item);
         m_created[acChange.Object.BaseId] = cId;
@@ -210,6 +215,17 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     }
     if (!cHere)
         return false;
+    if (const auto cContainer = engine.References.find(cTwin->second); cContainer != engine.References.end())
+    {
+        if (acChange.Type == ObjectChange::Kind::kContents)
+            engine.ApplyContents(cContainer->second, acChange);
+        else if (acChange.Type == ObjectChange::Kind::kEnabled && acChange.Value & 2)
+        {
+            engine.References.erase(cContainer);
+            m_created.erase(cTwin);
+        }
+        return true;
+    }
     if (acChange.Type == ObjectChange::Kind::kEnabled && acChange.Value & 2)
     {
         engine.Loose.erase(cTwin->second);

@@ -163,3 +163,35 @@ SCENARIO("A guest taking a party item from a chest gives it to every player", "[
                                cTagged(host, FakeEngine::kPlayer), cTagged(host, PlayerCopies(host)[0]), cTagged(guest, PlayerCopies(guest)[0]));
         });
 }
+
+namespace
+{
+constexpr uint32_t kTributeChest = 0xF68AE, kGarnet = 0x63B42, kGold = 0xF;
+void WithTributeChest(FakeEngine& aEngine)
+{
+    Plugins(aEngine);
+    aEngine.ContainerBases.insert(kTributeChest);
+}
+} // namespace
+
+SCENARIO("A chest the host's script places reaches a guest with what it rolled", "[container-transfer][created]")
+{
+    Party party(1, WithTributeChest);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] { host.ScriptPlacesContainer(kCell, kTributeChest, {{kGarnet, 1}, {kGold, 50}}); });
+    const auto cGuestChest = [&]() -> const FakeEngine::Reference* {
+        for (const auto& [cId, cReference] : guest.References)
+            if (cReference.Base == kTributeChest)
+                return &cReference;
+        return nullptr;
+    };
+    party.Until([&] { return cGuestChest() != nullptr; }, "the guest's game makes the chest");
+    party.Until(
+        [&] {
+            const auto cItems = cGuestChest()->Items;
+            return cItems.size() == 2 && cItems.contains(kGarnet) && cItems.at(kGarnet) == 1 && cItems.contains(kGold) &&
+                   cItems.at(kGold) == 50;
+        },
+        "the guest's chest holds the host's garnet and 50 gold");
+}

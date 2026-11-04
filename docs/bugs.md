@@ -182,10 +182,29 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   - Start: a case without the harness teleport (a follower left behind that catches up, then a fight); then which
     engine path writes the package target without 29846.
   - Not reproduced that way (2026-11-03, repro MCP, 1 of 1): recruited, the party away and back, a wolf on the guest: on
-    the host she kept both targets. Read it on the host: a copy's `ai.*` is 0 by design. Lead: she stood still 1,388
-    units from the host for a minute with her target set; the entry's runs had a Load-menu round first.
+    the host she kept both targets. Read it on the host: a copy's `ai.*` is 0 by design.
+  - Not reproduced with the Load-menu round either (2026-11-04, 1.7.104, 0 of 2): recruited by the guest, Load menu, a
+    wolf, the door round with its `coc` and `move_actor`, the door's autosave loaded, a wolf. After each fight her
+    targets read 0 while she ran her combat package, then returned to the guest's copy in 9-15 s. The entry's 3 of 3
+    were on 1.6.1170 with a longer fight (`plays_on`, 60 s of healing); the targeting code has not changed since.
+  - The 1,388 lead is closed: she stands by her anchor, not the host. In QASmoke she stood 92 units from the guest and
+    1,364 from the host, targets set. Separately, she does not walk across QASmoke (1,500 units, guest or host anchor,
+    so not our target); outdoors she caught up every time (both anchors, 1,500 units each way, about 9 s).
+  - Also ruled out: the guest killed in the fight, respawning as a new copy while she fights. She turned to the host,
+    then took the new copy about 12 s after the fight.
+  - The entry's question, read in IDA: `BGSProcedureFollowExecState` caches the target at +8 and each update (28640)
+    copies it to `followTarget` without 29846 ([followers.md](re/systems/followers.md)). So a stale cached handle
+    would look like this entry; nothing has shown one yet.
 - **The guest's copy of a follower once played another action** (2026-10-29, v1-gate). `save-load-gate`'s desync
   check after the door round's fight: Lydia's `animation.action` on the host 522467 vs the client's copy 297. Once.
+
+## Saves
+
+- **A party reload's scratch save tops the Load list** (2026-11-04, Linux). `SkyrimCoopWipe` stays in the Saves folder
+  after a reload and sorted above a newer quicksave, so "the newest save" loaded an older world: the slot held the
+  previous run's Lydia. Seen in the harness, which now deletes the file first; a player sees the same list.
+  - Start: whether the scratch save can leave the list once its load is done (`HostServiceReload.cpp`).
+  - Test: a `host_load_flows.cpp` case.
 
 ## Plugin compatibility
 
@@ -206,16 +225,6 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   [lock-history follow-up](re/crashes/2026-10-29-lock-history-and-button-pose.md).
   - Start: `coop_test.py unsynced` and `save-diff` right after the scenario on the six-mod profile; if the host
     lacks a move the guest has, which engine path moved the clutter on the guest only.
-
-## Containers
-
-- **A container the host creates reaches a guest empty** (found 2026-11-01 with S5). The host's `placeatme` of a
-  leveled chest (`TGTributeChest` `F68AE`) rolled a garnet and 50 gold; the guest's copy held nothing, so its menu
-  showed an empty chest. A created reference's create row carries no contents, and `HostEngine::ReadCellState`
-  sends contents only for placed containers (`IsTemporary()` skipped); a guest rolls no container itself. Mostly
-  mods' and scripts' chests. Test: the host places one, the guest opens it and sees the host's items.
-  - Scenario `created-chest-reaches-guest-empty` (2026-11-03) fails on it, in 6 s. Start at `HostEngine.cpp`'s contents
-    loop, which skips temporary references. The fake has no created containers yet: its flow lands with the fix.
 
 ## Physics and ragdolls
 

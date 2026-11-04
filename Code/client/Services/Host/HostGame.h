@@ -75,6 +75,8 @@ struct HostGame
     // while that cell is not loaded here.
     std::function<std::optional<std::vector<ObjectChange>>(const GameId& acCell, const std::vector<ChangedReference>& acChanged)>
         ReadCellState;
+    // Everything a created container of the host's holds (kContents, its roll made now); none for no container.
+    std::function<std::optional<ObjectChange>(const GameId& acObject)> ReadContents;
     // The host's world's physics bodies: awake ones read now, and those that fell asleep since the last call.
     std::function<HostBodies()> TakeBodies;
     // Where the host's game shows a guest's character (its copy), by player id; none without one.

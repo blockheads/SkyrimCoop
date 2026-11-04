@@ -19,6 +19,9 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 
+// Each created container's contents right after its create row: a guest's own made one holds nothing.
+void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChanges) noexcept;
+
 struct HostNetwork;
 
 /**
