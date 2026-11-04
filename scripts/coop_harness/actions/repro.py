@@ -712,6 +712,10 @@ def _line(tool, args):
             return f"ctx.go_far({game}, {args['command']!r})"
         case "leave_dialogue":
             return "ctx.close_dialogues()"
+        case "equip":
+            return f"ctx.equip_weapon({game}, {int(args.get('item') or '0', 16)!r})"
+        case "kill_move_exchange":
+            return "ctx.kill_move_exchange({g: ctx.other_player(ctx.actors_on(g)) for g in ('', 'client')})"
         case "menu":
             return f"ctx.menu({game}, {args['name']!r}, {args.get('show', True)!r})"
         case "spec_step":
@@ -734,7 +738,7 @@ def _line(tool, args):
 # tool is a Session verb).
 LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
-         "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload"}
+         "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 
 
 def _called(name, args):
