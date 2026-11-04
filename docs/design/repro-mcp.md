@@ -58,6 +58,63 @@ Not built: a fast retry on a save (reload a checkpoint, the guest rejoining; loa
 playtest), `equip`, `cast`, `together`. Open: these runs called the tool functions from a scratch process, not through
 a connected MCP client, so the client's call limit is untested; `talk` took about 90 s in the Faendal run.
 
+## Robustness (2026-11-04): grow it, don't leave it
+
+The kill-move work (PR #13) left the MCP for scratch scripts: rounds of a setup and a swing (`km.py`), a pull of both
+games' `anim_trace` and a filter over it (`take.py`, `show.py`). The cause: the server loaded its code once, so a verb
+written mid-task needed a restart an agent can't do, and raw `anim_trace` through `harness` was unreadable. Now:
+
+```
+agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
+                   │ mcp_reload: drop coop_harness.* from sys.modules (errors, duo_lock kept), import again,
+                   │             session.__class__ = the new Session (handles, recording, hold stay),
+                   │             tools checked on a scratch server, then re-registered, tools/list_changed sent;
+                   │             an import or registration error keeps the old code and tools
+                   v
+            coop_harness/mcp_tools.py   every tool; verb(name, args) calls any Session method
+                   v
+            Session ── Game.rpc ──> games   (a driving command refused without the duo)
+```
+
+- **Grow:** a verb in `coop_harness/actions/` (or a tool in `mcp_tools.py`), then `mcp_reload`, then use it.
+  `verb(name, args)` reaches a new method at once, even if the client doesn't refresh its tool list; `verbs(match)`
+  lists them. A verb call records and exports as `ctx.<name>(...)`; an `instance` argument takes host or guest.
+  A reload doesn't run `Session.__init__`: new state on the session is read with `getattr(ctx, NAME, default)`.
+- **rounds**(call, args, count, until, reset): a tool or verb N times, one line each (`3 FAIL {...}`), stopping at the
+  first line matching `until`; full results in `build/coop-test/mcp/rounds-*.jsonl`. Exported as a `for` loop of the
+  rounds it ran. A failing `expect*` called through `verb` stays in the export, as a failing `expect` does.
+- **trace_start**(names) / **trace_read**(origin, who, kinds, grep) / **trace_mark** / **trace_stop**: `AnimTrace` of
+  handles in both games; `trace_read` is `objects.trace_lines` (show.py's filter): seconds from the first event
+  matching `origin` (`^pa_` for a kill move), no positions, steps, sounds or first-person graph, a state only when
+  it changed.
+- **log**(game, pattern, since): the plugin log since the last read, the last N seconds, or all.
+- **Unexpected errors** come back as `{error, where}` (the last frames) instead of killing the call.
+- **Bypass refused:** `Game.rpc` refuses a driving command (`READ_COMMANDS` are free) from a process that neither
+  holds the duo (nor descends from its holder or a joined process) nor came in through `coop_test.py`
+  (testing.md, The duo lock), checked on every such command so a released hold stops at once; `script_var` with a
+  value and `trainings` with `set` count as driving. `COOP_HARNESS_FREE=1` is the deliberate way past.
+- **Proof:** `record_export` stamps the scenario `# recorded: <session file>, <n> calls`; `scripts/check_scenarios.py`
+  (in `check.sh`) fails a new `registry.add` line without `# hand-written: <why>` and a new recorded file without
+  either line.
+- **The rule:** CLAUDE.md's bug-fix flow and the worker prompts (`.claude/skills/task`, `session`): extend the MCP,
+  never script around it. The PR template asks which MCP tools a change added.
+- **Python units:** `scripts/test_coop_mcp.py` (in `check.sh`).
+- **One call at a time, off the loop:** FastMCP runs a sync tool on its event loop, so `duo_start` waiting in the
+  queue blocked every call (mcp_reload too) past the client's 120 s. Tools now run in a worker thread under one lock
+  (`state["lock"]`), and `duo_start`/`vanilla_start` wait 90 s by default, then fail keeping their place.
+- **Checked live (2026-11-04, through the connected server):** with no games, a verb added to `actions/repro.py`
+  worked after `mcp_reload` through `verb` and `rounds`; a new tool showed in Claude Code's tool list after the reload
+  (`tools/list_changed` honoured); a syntax error was refused with its line and the old code kept serving. On the duo:
+  `trace_start` on both players, `verb` (`give_sword`, `draw`), a swing and `rounds` of three jumps, `trace_read`
+  showing the draw and the jump in both games (the guest's copy 100-190 ms behind), `log` on the guest, `mcp_reload`
+  with the games running (the trace and handles kept), a bare `Session` refused `input` while `coop_test.py console`
+  passed, and `record_export` (stamped; `rounds` as a loop of the three it ran) replayed by `coop_test.py scenario`:
+  PASS. `rounds` of presses fires them back to back: two of the three jumps fell in the air.
+- **Fresh worktrees didn't boot (fixed):** `prepare_prefix` made `My Games/Skyrim Special Edition` as this user after
+  the prefix went to the game's user (`coop2`), so SKSE couldn't write its logs and CrashLogger failed to load (a
+  modal dialog before our heartbeat). It now gives the game's user an ACL there, as for `Data/SKSE`
+  (`test_the_games_user_can_write_my_games_this_user_creates`).
+
 ## Context
 
 Today a repro means writing a Python scenario and rerunning it from the start for every change: 30–90 s per try, with
@@ -81,7 +138,8 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   `skyrim-coop`). The harness's prints go to stderr: MCP speaks on stdout. Tools: `duo_start` (attaches when our duo
   already runs), `duo_wait`, `duo_stop`, `scene_reset`, `world_freeze`, `step`, `stage`, `drop`, `wait_rest`,
   `observe`, `expect`, `act`, `press`, `mouse`, `console`, `spec_step`, `screenshot`, `harness`, `name_handle`,
-  `record_start`, `record_export`, `status`, `unstage`, and the play flow's (above).
+  `record_start`, `record_export`, `status`, `unstage`, the play flow's (above), and since 2026-11-04 `mcp_reload`,
+  `verb`, `verbs`, `rounds`, `trace_*` and `log` (Robustness). The tools live in `coop_harness/mcp_tools.py`.
 - **Verbs as Session methods** (`actions/repro.py`), so exported scenarios call the same code.
 - **Freeze:** `world_freeze` / `step` / `world_clock` harness commands, `Games/Skyrim/Main.h`, `TestHarness/FrameStepper.h`.
   Engine fact: `docs/re/systems/main-loop-and-papyrus-vm.md`, "Freezing the world".

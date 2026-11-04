@@ -515,7 +515,7 @@ class ReproActions:
         entries = [json.loads(line) for line in ctx.REPRO_RECORDING.read_text().splitlines() if line]
         module = name.replace("-", "_")
         path = ROOT / "scripts/coop_harness/scenarios/recorded" / f"{module}.py"
-        path.write_text(export_scenario(entries, name, doc, tags))
+        path.write_text(export_scenario(entries, name, doc, tags, recorded=ctx.REPRO_RECORDING.name))
         written = {"scenario": str(path)}
         if spec := export_spec(entries, name, doc, tags):
             spec_path = ROOT / "Code/tests/specs" / f"{name}.json"
@@ -716,22 +716,59 @@ def _line(tool, args):
             return f"ctx.menu({game}, {args['name']!r}, {args.get('show', True)!r})"
         case "spec_step":
             return f"ctx.spec_step({args['step']!r})"
+        case "verb":
+            verb_args = {**(args.get("args") or {})}
+            if "instance" in verb_args:
+                verb_args["instance"] = _INSTANCE.get(verb_args["instance"], verb_args["instance"])
+            return f"ctx.{args['name']}(" + ", ".join(f"{key}={value!r}" for key, value in verb_args.items()) + ")"
+        case "rounds":
+            body = [line for name, given in ((args.get("reset"), args.get("reset_args")), (args["call"], args.get("args")))
+                    if name and (line := _called(name, given or {}))]
+            if not body:
+                return None
+            return f"for _ in range({args.get('count', 10)!r}):\n" + "\n".join(f"    {line}" for line in body)
     return None
 
 
-def export_scenario(entries, name, doc, tags):
+# Tools that only look or run the duo: never part of a test (a name in `rounds` that is neither these nor a replayed
+# tool is a Session verb).
+LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
+         "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
+         "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload"}
+
+
+def _called(name, args):
+    """A call `rounds` repeats as its scenario line: a replayed tool's, else a verb's."""
+    if (line := _line(name, args)) or name in LOOKS:
+        return line
+    return _line("verb", {"name": name, "args": args})
+
+
+def _is_expect(entry):
+    """A check, kept even when it failed (a failing expect is the bug): the tool, or an expect* verb through `verb`."""
+    return entry["tool"] == "expect" or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+
+
+def _replayed(entry):
+    """A call's arguments as it ran: `rounds` replays the rounds it ran (it may have stopped at `until`)."""
+    ran = (entry.get("result") or {}).get("ran") if isinstance(entry.get("result"), dict) else None
+    return {**entry["args"], "count": ran} if entry["tool"] == "rounds" and ran is not None else entry["args"]
+
+
+def export_scenario(entries, name, doc, tags, recorded=None):
     """A recorded session as a scenario module: its calls in order (failed ones left out, except expects: a failing
-    expect is the bug), in a try that unstages and thaws the world."""
-    lines = [line for entry in entries if entry["ok"] or entry["tool"] == "expect"
-             if (line := _line(entry["tool"], entry["args"]))]
+    expect is the bug), in a try that unstages and thaws the world. `recorded` (the session's file) stamps it."""
+    lines = [line for entry in entries if entry["ok"] or _is_expect(entry)
+             if (line := _line(entry["tool"], _replayed(entry)))]
     if not lines:
         raise ValueError("nothing recorded to replay")
-    body = "\n".join(f"        {line}" for line in lines)
+    body = "\n".join("\n".join(f"        {part}" for part in line.split("\n")) for line in lines)
     if any(entry["tool"] == "needs_save" for entry in entries):  # the runner's saved-story fixture
         tags = [*tags, "late-save"]
     if any(entry["tool"] == "scene" and (entry["args"].get("save") or entry["args"].get("at")) for entry in entries):
         tags = [*tags, "scene"]  # away from the baseline: the flow checks its own start (registry.py)
-    return (f'"""{doc}\n\nRecorded with the repro MCP (docs/design/repro-mcp.md)."""\n'
+    stamp = f"# recorded: {recorded or 'unnamed session'}, {len(entries)} calls (scripts/check_scenarios.py)\n"
+    return (f'"""{doc}\n\nRecorded with the repro MCP (docs/design/repro-mcp.md)."""\n{stamp}'
             f"NAME = {name!r}\nTAGS = {sorted(set(tags))!r}\nDOC = {doc!r}\n\n\n"
             f"def run(ctx):\n    try:\n{body}\n    finally:\n        ctx.unstage()\n")
 
@@ -768,7 +805,7 @@ def spec_draft(entries, name, doc):
     flow starts from this; a flow on the fake is written by hand from what is left."""
     steps, leftovers = [], []
     for entry in entries:
-        if not (entry["ok"] or entry["tool"] == "expect") or not (line := _line(entry["tool"], entry["args"])):
+        if not (entry["ok"] or _is_expect(entry)) or not (line := _line(entry["tool"], _replayed(entry))):
             continue
         if (mapped := _spec_steps(entry["tool"], entry["args"])) is None:
             leftovers.append(f"no spec step: {line}")

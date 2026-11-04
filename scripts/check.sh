@@ -123,6 +123,8 @@ step "check harness comparisons" python3 -m unittest discover -s scripts -p test
 step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py
 step "check gate configure" python3 -m unittest discover -s scripts -p test_check.py
+step "check repro MCP" python3 -m unittest discover -s scripts -p test_coop_mcp.py
+step "check scenario origins" python3 scripts/check_scenarios.py
 step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
 if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
     step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check
