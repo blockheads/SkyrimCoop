@@ -54,6 +54,9 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   guest's recruit (`pick` uses real keys now), `expect items` passing on 0 of 0, `use` reporting before the menu, a
   stale handle on a reused form id.
 
+Kill moves (2026-11-04): `equip` (hex item, "0" bare hands), `kill_move_check`, `kill_move_exchange` (both players swing
+at once, moving). They appear once the server restarts; the scenario `kill-moves-cross` runs the same code.
+
 Not built: a fast retry on a save (reload a checkpoint, the guest rejoining; loads froze guests in the 2026-10-31
 playtest), `equip`, `cast`, `together`. Open: these runs called the tool functions from a scratch process, not through
 a connected MCP client, so the client's call limit is untested; `talk` took about 90 s in the Faendal run.

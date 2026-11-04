@@ -276,6 +276,8 @@ struct Actor : TESObjectREFR
     // A kill move's victim: the kill move kills it (KillActorHandler 42838, crediting its partner).
     [[nodiscard]] bool IsHeldByKillMove() const noexcept;
     [[nodiscard]] bool IsInKillMove() const noexcept;
+    // What the KillMoveEnd event does (KillMoveEndHandler 42871).
+    void EndKillMove() noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;

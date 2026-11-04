@@ -437,6 +437,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
         bool InAir = false; // its controller jumping or falling, else on the ground
+        bool InKillMove = false; // either half of a pair (Actor::IsInKillMove 38615)
+        ActionEvent LatestPairAction; // its half of the pair it last took
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -533,6 +535,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override

@@ -1,5 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
+#include <Games/Animation/ReplayState.h>
+#include <SessionIds.h>
 #include "FakeDialogue.h"
 #include <MainLoopTasks.h>
 #include "FakeWait.h"
@@ -254,7 +256,23 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
-        step.Action = action;
+        ActionEvent replayed = action;
+        if (replayed.TargetActor)
+            replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
+        const auto cPartner = engine.Actors.find(replayed.TargetId);
+        const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() && !cPartner->second.Copy;
+        if (cLocalPartner && cPartner->second.InKillMove)
+        {
+            const auto& cPair = cPartner->second.LatestPairAction;
+            if (::ReplayState::ReplayPair(true, true, cPair.TargetEventName == replayed.EventName, cPair.TargetId == form.Id) ==
+                ::ReplayState::PairReplay::kClash)
+                actor.InKillMove = cPartner->second.InKillMove = false;
+            animation.LastRanAction = replayed;
+            engine.SetActorLatestAnimation(form.Id, replayed);
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        step.Action = replayed;
         if (action.Tick >= animation.VariablesTick)
         {
             animation.Variables = action.Variables;

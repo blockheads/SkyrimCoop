@@ -39,8 +39,9 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
-  marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
-  wolf refusal was an already-playing duplicate; the other refusals still need classification.
+  marker during trade (not reproduced in the final run); one HorseExit refusal. The kill-move refusals were
+  the pair's other half coming back, now skipped (`docs/re/systems/kill-moves.md`); a victim's game refusing a pair is
+  still open there.
 - **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
   readings. Several occur on the owner too. Revived-player kneeling was already outside v1 scope.
 - **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its

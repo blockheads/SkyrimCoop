@@ -97,6 +97,8 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         pExtension->LatestAnimation.Write(action);
         if (apAction->action->formID == 0x132AF)
             pExtension->LatestWeapEquipAnimation.Write(action);
+        if (!action.TargetEventName.empty())
+            pExtension->LatestPairAction.Write(action);
 
         // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
         if (g_forceAnimation || cPlayersPartner)

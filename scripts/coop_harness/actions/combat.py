@@ -14,6 +14,7 @@ from ..common import (
     FIREBOLT,
     HOME_CELL,
     INN,
+    KILL_MOVE_CLASH,
     KILL_MOVE_RANDOM,
     LYDIA,
     MELEE_GAP,
@@ -27,10 +28,65 @@ from ..common import (
 from ..errors import TestFailure
 from ..comparisons import distance
 from ..utilities import log
-from ..objects import GodMode
+from ..objects import AnimTrace, GodMode
 
 
 class CombatActions:
+    def equip_weapon(ctx, instance, item):
+        """That game's player gets `item` (a form id) and holds it in its hand; 0 is bare hands."""
+        if item:
+            ctx.equip_in_hand(instance, [f"player.additem {item:08X} 1", f"player.equipitem {item:08X}"], item, "holds the weapon")
+            return
+        for hand in (ctx.player_snapshot(instance).get("state") or {}).get("hands", []):
+            if hand:
+                ctx.console_on(instance, f"player.unequipitem {hand:08X}")
+
+
+    def kill_move_exchange(ctx, copies):
+        """Both players, one hit from death and moving, swing at each other at once. Returns whether the two games' pairs
+        crossed; crossed, they must clash: both free again, nobody down. `copies`: each game's copy of the other player."""
+        games = ("", "client")
+        ctx.wait_for("both players are up", lambda: not any(ctx.death_state(game).get("down") for game in games), 40)
+        for game in games:
+            ctx.console_on(game, "player.restoreav health 10000")
+            ctx.draw(game)
+        ctx.place_before("", copies[""], MELEE_GAP + 40)
+        for game in games:
+            ctx.console_on(game, f"player.damageav health {(ctx.player_health(game) or 100) - 3:.3f}")
+        for game in games:
+            other = copies[game]
+            ctx.wait_on(game, "the other player shows one hit from death", lambda a, c=other: (a.get(str(c), {}).get("health") or 100) <= 10, 5)
+        trace = AnimTrace(ctx, "kill-moves-cross", {game: {0x14: "player", copies[game]: "other"} for game in games}, video=False)
+        with trace:
+            ctx.player_command("", {"cmd": "input", "button": "forward", "down": True})
+            ctx.player_command("client", {"cmd": "input", "button": "strafe_left", "down": True})
+            for game in games:
+                ctx.face(game, copies[game])
+                ctx.player_command(game, {"cmd": "input", "button": "right", "down": True})
+            def own_pairs():
+                trace.take()
+                return all(any(e["game"] == game and e["who"] == "player" and e["kind"] == "action" and e["event"].startswith("pa_")
+                               for e in trace.entries) for game in games)
+            try:
+                ctx.wait_for("each game started its own pair", own_pairs, 1)
+                crossed = True
+            except TestFailure:
+                crossed = False
+            finally:
+                for game, button in (("", "forward"), ("client", "strafe_left"), ("", "right"), ("client", "right")):
+                    ctx.player_command(game, {"cmd": "input", "button": button, "down": False})
+            if crossed:
+                for game in games:
+                    start = trace.wait_state(game, "player", "kill_move", True, 1)
+                    end = trace.wait_state(game, "player", "kill_move", False, KILL_MOVE_CLASH + 1, after=start["time"])
+                    if end["time"] - start["time"] > KILL_MOVE_CLASH:
+                        raise ctx.failure(f"[{game or 'host'}] the crossed kill move held the player {end['time'] - start['time']:.2f} s")
+                for game in games:
+                    if ctx.death_state(game).get("down") or ctx.is_dead(ctx.actor_snapshot(game, copies[game])):
+                        raise ctx.failure(f"[{game or 'host'}] a player dropped when the kill moves crossed")
+        return crossed
+
+
     def actor_snapshot(ctx, instance, actor):
         _game = ctx.game(instance)
         return ((_game.read_status() or {}).get("world") or {}).get(str(actor), {})

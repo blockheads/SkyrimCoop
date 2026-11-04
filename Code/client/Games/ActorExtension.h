@@ -25,6 +25,7 @@ struct ActorExtension
 
     AnimationActionState LatestAnimation;
     AnimationActionState LatestWeapEquipAnimation;
+    AnimationActionState LatestPairAction; // its half of the pair it last took
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back

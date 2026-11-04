@@ -164,7 +164,24 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         // BeginGetUp (40150) sets its input and performs the action together. A graph update between them advances
         // the copy's get-up before the action. Paired actions also start here, with a partner this game owns.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
-        if (cGetUp || (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount()))
+        const bool cLocalPartner = pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount();
+        if (cLocalPartner && pPartner->IsInKillMove())
+        {
+            const ActionEvent cPair = pPartner->GetExtension()->LatestPairAction.Read();
+            const auto cReplay = ReplayState::ReplayPair(true, true, cPair.TargetEventName == first.EventName, cPair.TargetId == apActor->formID);
+            spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} is in a kill move ({})", apActor->formID, first.ActionId,
+                          first.EventName, pPartner->formID, cReplay == ReplayState::PairReplay::kClash ? "they clash" : "skipped");
+            if (cReplay == ReplayState::PairReplay::kClash)
+            {
+                apActor->EndKillMove();
+                pPartner->EndKillMove();
+            }
+            aAnimationComponent.LastRanAction = first;
+            apActor->GetExtension()->LatestAnimation.Write(first);
+            actions.pop_front();
+            return;
+        }
+        if (cGetUp || cLocalPartner)
         {
             step.Phase.store(ReplayStep::kBusy, std::memory_order_release);
             apActor->LoadAnimationVariables(step.Variables);

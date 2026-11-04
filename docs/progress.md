@@ -98,7 +98,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - **C3 crash on quit:** fixed on Linux, verify on Windows.
    - **P1 performance:** parked; check in the same Windows session.
    - **S3 a guest's "go to jail":** the jail choice by mouse is still to try (pay fine is done; the freeze is C2).
-   - **S8 missed kill moves:** needs a `/bug` taken right after one fails.
+   - **S8 missed kill moves:** likely the engine's own room check at the mark (`docs/re/systems/kill-moves.md`); a `/bug` right after one would confirm it.
    - **S6 remainder:** an NPC's detection reads higher in co-op (51 against 13 alone).
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
@@ -836,7 +836,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26, uncommitted); after a wipe each guest stands where it stood at the checkpoint; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-checkpoint`, GameTests `[death]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Friendly fire (`docs/design/friendly-fire.md`) | built 2026-10-26 (uncommitted): a player's sword or spell on another player is applied by the victim's game; a kill is a real death named in every chat; not a crime; kill moves on players work (a copy's ragdoll steered, and kept on it by the engine as its owner; a copy getting up on its own timing: open) | `friendly-fire-*`, `spectator-watches-kill-move`, `kill-move-kills-guest` (fails on the open jitter), GameTests `[friendly-fire]` |
-| Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
+| Kill moves | works, both ways, with kill credit; two players' crossed kill moves clash (2026-11-04, `docs/re/systems/kill-moves.md`) | `host-kill-move`, `client-kill-move`, `kill-moves-cross` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |

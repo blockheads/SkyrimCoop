@@ -547,6 +547,14 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 {
     auto& actor = Actors.at(aFormId);
+    if (const auto cPartner = Actors.find(acAction.TargetId); !acAction.TargetEventName.empty() && cPartner != Actors.end())
+    {
+        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
+        const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
+        CollapsedPairs += cCollapsed;
+        actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+        actor.LatestPairAction = acAction;
+    }
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
         actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);

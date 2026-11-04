@@ -382,8 +382,12 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     animationComponent.Actions.clear();
 }
 
-void AnimationSystem::TargetToNetwork(ActionEvent&) noexcept
+void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
 {
+    const auto cSessionId = Utils::GetSessionIdByFormId(aAction.TargetId);
+    aAction.TargetActor = cSessionId ? *cSessionId + 1 : 0;
+    if (cSessionId)
+        aAction.TargetId = 0;
 }
 
 // CombatService's engine upkeep (Actor.cpp): no remote-player anger or hang watch in the fake.
