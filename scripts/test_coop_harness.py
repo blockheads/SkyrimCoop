@@ -670,6 +670,46 @@ class Repro(unittest.TestCase):
         self.assertTrue(stalled(stuck, 2.9))
         self.assertFalse(stalled(stuck[:5], 0.4))  # not under way long enough to tell
 
+    def clock(self, module):
+        """A controlled clock in that module's `time`: time.sleep moves it on."""
+        now = [0.0]
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(module.time, "monotonic", lambda: now[0]))
+        stack.enter_context(patch.object(module.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)))
+        return now
+
+    def test_a_run_by_input_waits_out_its_ready_conditions(self):
+        from coop_harness.actions import repro as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.act_start.return_value = 1
+        ctx.player_command.side_effect = lambda instance, request: {"id": 1, "phase": "ready" if now[0] < 3 else "ended",
+                                                                    "outcome": {"status": "done"}}
+        self.assertTrue(verbs.PlayerVerbs.run_straight(ctx, "", 0x837, 100.0))
+
+    def test_a_long_walk_to_an_object_gets_a_walk_s_time(self):
+        from coop_harness.actions import repro as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.resolve.return_value = 0x837
+        ctx.is_actor.return_value = False
+        ctx.my_position.side_effect = lambda instance: [now[0] * 80.0, 0.0, 0.0]
+        ctx.place_of.return_value = [10000.0, 0.0, 0.0]
+        def leg(*args):
+            now[0] += 4.0
+            return "done"
+        ctx.path_leg.side_effect = leg
+        self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])
+
+    def test_a_run_gets_its_time_to_set_off_before_standing_still_counts(self):
+        from coop_harness.actions.repro import set_off
+        self.assertFalse(set_off([0, 0, 0], [0, 0, 0], 2.0))  # the engine has not started it yet
+        self.assertTrue(set_off([0, 0, 0], [50, 0, 0], 2.0))
+        self.assertTrue(set_off([0, 0, 0], [0, 0, 0], 6.0))
+
     def test_always_run_is_switched_on_for_a_walk_and_back_after(self):
         from coop_harness.actions.repro import always_running
         ctx = Mock()

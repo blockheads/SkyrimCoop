@@ -18,10 +18,11 @@ from ..errors import TestFailure
 RECORDINGS = TEST_HOME / "mcp"
 # Measured on the duo (docs/design/repro-mcp.md, Phase 3), units/s: a player running by input (sprint ~500); a walk
 # to an NPC in Riverwood, runs and walked legs together, is planned at TRAVEL_SPEED.
-RUN_SPEED, TRAVEL_SPEED = 350.0, 200.0
+RUN_SPEED, TRAVEL_SPEED, WALK_SPEED = 350.0, 200.0, 80.0  # WALK_SPEED: PathToReference's fastest
 SPRINT_AFTER = 50.0  # units moved before Sprint is pressed: the engine ignores it from standing
 STALL_UNITS, STALL_SECONDS = 40.0, 1.5  # a run that moves less in this long has met something
 PATH_LEG_SECONDS = 4.0  # a walked leg round what stopped a run
+SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
 CAPS_LOCK, LEFT_ALT = 0x3A, 0x38  # DirectInput scan codes: Toggle Always Run, Sprint
 
 
@@ -37,6 +38,11 @@ def stalled(track, now, units=STALL_UNITS, seconds=STALL_SECONDS):
         return False
     past = [p for t, p in track if now - t >= seconds]
     return math.dist(past[-1][:2], track[-1][1][:2]) < units
+
+
+def set_off(start, here, seconds):
+    """Whether a run is under way, so standing still means something: it has moved, or had its time to."""
+    return seconds >= SET_OFF_SECONDS or math.dist(start[:2], here[:2]) >= STALL_UNITS
 
 
 @contextlib.contextmanager
@@ -551,16 +557,14 @@ class PlayerVerbs:
     through the engine's dispatch (checked actions), so a flow goes as a player's would."""
 
     def walk_to(ctx, instance, target, within=100.0, seconds=None):
-        """The player travels to `target` along the navmesh as the engine moves an actor (AI-driven, as vanilla's
-        scenes drive the player): running after an actor (Actor.KeepOffsetFromActor, catching up), and where that
-        stalls (or for an object) a stretch of Actor.PathToReference, which only walks. Until within `within` units;
-        then the player's controls are its own again. When the engine finds no way, it runs straight (`steer_to`)."""
+        """The AI-driven player travels to `target` along the navmesh, within `within` units (repro-mcp.md, Phase 3);
+        with no way there it runs straight (`steer_to`)."""
         game = "guest" if instance else "host"
         ref = ctx.resolve(target, game)
         start = ctx.my_position(instance)
-        limit = seconds or travel_seconds(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), TRAVEL_SPEED)
+        follows = ctx.is_actor(instance, ref)  # an object takes walked legs only
+        limit = seconds or travel_seconds(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), TRAVEL_SPEED if follows else WALK_SPEED)
         deadline = time.monotonic() + limit
-        follows = ctx.is_actor(instance, ref)
         walk = {"legs": 0, "runs": 0, "closest": math.inf, "refused": False}
         apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
         ctx.player_script_call(instance, "Game", "SetPlayerAIDriven", [True])
@@ -597,14 +601,15 @@ class PlayerVerbs:
                                       "args": [{"form": ref}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, within, within / 2],
                                       "player_action": True, "self": 0x14})
         try:
-            track = [(time.monotonic(), ctx.my_position(instance))]
+            start = ctx.my_position(instance)
+            track, began = [(time.monotonic(), start)], time.monotonic()
             while time.monotonic() < deadline:
                 here = ctx.my_position(instance)
                 if math.dist(here[:2], ctx.place_of(instance, ref)[:2]) <= within:
                     return "arrived"
                 now = time.monotonic()
                 track.append((now, here))
-                if stalled(track, now):
+                if set_off(start, here, now - began) and stalled(track, now):
                     return "stalled"
                 time.sleep(0.1)
             return "late"
@@ -637,12 +642,16 @@ class PlayerVerbs:
                 "seconds": travel_seconds(math.dist(here[:2], ctx.place_of(instance, ref)[:2]))}
         action, sprinting = ctx.act_start(instance, spec), False
         try:
-            track = [(time.monotonic(), here)]
+            track = []
             while True:
                 state = ctx.player_command(instance, {"cmd": "act_state"})
                 if state.get("id") != action or state.get("phase") == "ended":
                     return (state.get("outcome") or {}).get("status") == "done"
+                if state.get("phase") != "running":  # its ready conditions can hold it for seconds
+                    time.sleep(0.1)
+                    continue
                 now, at = time.monotonic(), ctx.my_position(instance)
+                track = track or [(now, at)]
                 if sprint and not sprinting and math.dist(at[:2], here[:2]) > SPRINT_AFTER:  # sprint starts only once moving
                     sprinting = ctx.sprint_key(instance, True)
                 track.append((now, at))
