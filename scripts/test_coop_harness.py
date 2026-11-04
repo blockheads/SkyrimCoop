@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from coop_harness import Session
 from coop_harness.common import WINDOWS
@@ -554,6 +554,366 @@ class Harness(unittest.TestCase):
             self.assertTrue(result.stdout.strip())
 
 
+class GoalVerbs(unittest.TestCase):
+    def verb_ctx(self, entries=()):
+        ctx = MagicMock()
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        trace = ctx.verb_trace.return_value.__enter__.return_value
+        trace.entries, trace.dir = list(entries), Path("/traces/x")
+        ctx.verb_trace.return_value.__exit__.return_value = False
+        return ctx
+
+    def test_a_trace_sums_up_speeds_and_where_the_player_stood(self):
+        from coop_harness.actions.play_verbs import trace_summary
+        pos = lambda t, x: {"kind": "pos", "who": "me", "time": t, "pos": [x, 0, 0]}
+        moving = [pos(i * 0.25, i * 100.0) for i in range(5)]
+        stopped = [pos(1.0 + i * 0.25, 400.0) for i in range(1, 7)]
+        again = [pos(2.5 + i * 0.25, 400.0 + i * 100.0) for i in range(1, 4)]
+        graph = [{"kind": "graph", "who": "me", "event": f"e{i}"} for i in range(8)]
+        summary = trace_summary(moving + stopped + again + graph)
+        self.assertEqual(summary["speed"]["max"], 400)
+        self.assertEqual(summary["speed"]["min"], 0)
+        self.assertEqual(summary["stalls"], [[1.0, 1.5]])
+        self.assertEqual(summary["events"], ["e2", "e3", "e4", "e5", "e6", "e7"])
+        self.assertEqual(trace_summary([])["stalls"], [])
+
+    def test_a_walk_that_ran_out_of_time_says_why(self):
+        from coop_harness.actions.play_verbs import walk_why
+        self.assertEqual(walk_why({"closest": 100, "stalls": 2}, 900), "moved_off")
+        self.assertEqual(walk_why({"closest": 100, "stalls": 2}, 150), "stalled")
+        self.assertEqual(walk_why({"closest": 100, "stalls": 0}, 150), "timeout")
+
+    def test_a_goal_verb_keeps_its_outcome_and_a_failure_carries_it(self):
+        from coop_harness.actions.play_verbs import goal, verb_failure
+        ctx = self.verb_ctx()
+
+        @goal
+        def fine(ctx, instance, target):
+            return {"how": "run"}
+
+        @goal
+        def blocked(ctx, instance, target):
+            raise verb_failure(ctx, "no_path", "no way", closest=300)
+
+        outcome = fine(ctx, "client", "lydia")
+        self.assertEqual((outcome["done"], outcome["how"], outcome["game"], outcome["verb"]), (True, "run", "guest", "fine"))
+        self.assertIs(ctx.LAST_VERB, outcome)
+        with self.assertRaises(TestFailure) as caught:
+            blocked(ctx, "", "lydia")
+        report = caught.exception.outcome
+        self.assertEqual((report["done"], report["why"], report["closest"], report["failure"]), (False, "no_path", 300, "no way"))
+        self.assertIs(ctx.LAST_VERB, report)
+
+    def test_a_refused_path_fails_unless_straight_is_allowed(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.resolve.return_value = 0x837
+        ctx.my_position.return_value = [0, 0, 0]
+        ctx.place_of.return_value = [500, 0, 0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.return_value = "refused"
+        with self.assertRaises(TestFailure) as caught:
+            PlayerVerbs.walk_to(ctx, "client", "lydia", 100.0, straight=False)
+        self.assertEqual(caught.exception.outcome["why"], "no_path")
+        ctx.steer_to.assert_not_called()
+        ctx.player_script_call.assert_called_with("client", "Game", "SetPlayerAIDriven", [False])
+
+    def test_a_menu_blocks_a_verb_by_name(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.takes_input.return_value = False
+        ctx.menus.return_value = {"HUD Menu", "Dialogue Menu"}
+        with self.assertRaises(TestFailure) as caught:
+            PlayerVerbs.can_play(ctx, "")
+        self.assertEqual(caught.exception.outcome, {"why": "menu_blocked", "menus": ["Dialogue Menu"]})
+
+    def test_talk_goes_on_with_the_open_conversation(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.talking_to.return_value = True
+        ctx.dialogue.return_value = {"options": [{"text": "a"}]}
+        ctx.pick.return_value = {"picked": "a", "options": ["b"]}
+        outcome = PlayerVerbs.talk(ctx, "", "faendal", ["a"])
+        ctx.talk_to.assert_not_called()
+        self.assertEqual((outcome["said"], outcome["options"]), (["a"], ["b"]))
+
+    def test_use_fails_when_activating_changes_nothing(self):
+        from coop_harness.actions import play_verbs
+        ctx = self.verb_ctx()
+        ctx.use_state.return_value = {"menus": set(), "sit": 0, "cell": 1, "object": {}}
+        with patch.object(play_verbs, "USE_SECONDS", 0.05), self.assertRaises(TestFailure) as caught:
+            play_verbs.PlayerVerbs.use(ctx, "", "chest")
+        self.assertEqual(caught.exception.outcome["why"], "refused")
+
+    def use_ctx(self, *states):
+        ctx = self.verb_ctx()
+        ctx.use_state.side_effect = [dict(zip(("menus", "sit", "cell", "object"), state)) for state in states]
+        return ctx
+
+    def test_use_on_a_chest_waits_past_its_lid_for_the_menu(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        chest, lid = {"items": {}}, {"items": {}, "lid": 1}
+        ctx = self.use_ctx((set(), 0, 1, chest), (set(), 0, 1, lid), (set(), 0, 1, lid), ({"ContainerMenu"}, 0, 1, lid))
+        outcome = PlayerVerbs.use(ctx, "", "chest")
+        self.assertEqual((outcome["changed"], outcome["menus"]), (["menus", "object"], ["ContainerMenu"]))
+
+    def test_use_on_a_chest_whose_menu_never_opens_is_refused(self):
+        from coop_harness.actions import play_verbs
+        ctx = self.verb_ctx()
+        states = iter([{"menus": set(), "sit": 0, "cell": 1, "object": {"items": {}}}])
+        lid = {"menus": set(), "sit": 0, "cell": 1, "object": {"items": {}, "lid": 1}}
+        ctx.use_state.side_effect = lambda instance, ref: next(states, lid)
+        with patch.object(play_verbs, "USE_SECONDS", 0.05), self.assertRaises(TestFailure) as caught:
+            play_verbs.PlayerVerbs.use(ctx, "", "chest")
+        self.assertEqual(caught.exception.outcome["why"], "refused")
+
+    def test_use_on_a_door_is_done_when_only_the_door_moved(self):
+        from coop_harness.actions import play_verbs
+        ctx = self.verb_ctx()
+        states = iter([{"menus": set(), "sit": 0, "cell": 1, "object": {"open": 0}}])
+        swung = {"menus": set(), "sit": 0, "cell": 1, "object": {"open": 1}}
+        ctx.use_state.side_effect = lambda instance, ref: next(states, swung)
+        with patch.object(play_verbs, "USE_SECONDS", 0.05):
+            self.assertEqual(play_verbs.PlayerVerbs.use(ctx, "", "door")["changed"], ["object"])
+
+    def test_fight_swings_when_a_moving_target_stays_just_out_of_reach(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.resolve.return_value = 0x837
+        rows = iter([False, True, True])  # standing; dead after the swing, read by the loop and the check after it
+        ctx.actor_row.side_effect = lambda instance, who: {"state": {"dead": who != 0x14 and next(rows)}}
+        ctx.reach.side_effect = TestFailure("closest 125 units")
+        self.assertEqual(PlayerVerbs.fight(ctx, "client", "wolf")["swings"], 1)
+        ctx.attack.assert_called_once()
+
+    def test_fight_stops_when_the_player_falls(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.resolve.return_value = 0x837
+        ctx.actor_row.side_effect = lambda instance, who: {"state": {"dead": who == 0x14}}
+        with self.assertRaises(TestFailure) as caught:
+            PlayerVerbs.fight(ctx, "", "wolf")
+        self.assertEqual(caught.exception.outcome["why"], "player_down")
+        ctx.attack.assert_not_called()
+
+
+class Scenes(unittest.TestCase):
+    def actor(self, name, session_id, x, role="own", player=False):
+        return {"identity": {"name": name}, "mod": {"session_id": session_id}, "role": role, "player": player,
+                "placement": {"position": [x, 0, 0]}}
+
+    def test_handles_pair_the_games_by_session_and_number_shared_names(self):
+        from coop_harness.actions import repro
+        host = {"100": self.actor("Whiterun Guard", 1, 900), "101": self.actor("Whiterun Guard", 2, 100),
+                "102": self.actor("Faendal", 3, 500), "103": self.actor("Alone", 4, 10),
+                "20": self.actor("Hero", 5, 0, player=True)}
+        guest = {"500": self.actor("Whiterun Guard", 1, 900, "copy"), "501": self.actor("Whiterun Guard", 2, 100, "copy"),
+                 "102": self.actor("Faendal", 3, 500, "copy"), "20": self.actor("Friend", 6, 0, player=True)}
+        named = repro.name_handles(repro.shared_actors(host, guest, [0, 0, 0]))
+        self.assertEqual(list(named), ["whiterun_guard", "faendal", "whiterun_guard_2"])
+        self.assertEqual((named["whiterun_guard"]["host"], named["whiterun_guard"]["guest"]), (101, 501))
+
+    def test_a_handle_follows_its_copy_and_never_a_reused_id(self):
+        from coop_harness.actions.repro import current_copies
+        host = {"100": self.actor("Lydia", 7, 0), "20": self.actor("Hero", 1, 0, player=True)}
+        wolf_on_the_old_id = {"500": self.actor("Wolf", 9, 0, "copy")}
+        handles = {"lydia": {"host": 100, "guest": 500}, "host_player": {"host": 20, "guest": 300}, "chest": {"host": 1, "guest": 2}}
+        fresh = current_copies(handles, host, wolf_on_the_old_id)
+        self.assertEqual(fresh["lydia"], {"host": 100})  # gone from the guest: not the wolf
+        self.assertEqual(fresh["host_player"], handles["host_player"])
+        self.assertEqual(fresh["chest"], handles["chest"])
+        back = {**wolf_on_the_old_id, "600": self.actor("Lydia", 7, 0, "copy")}
+        self.assertEqual(current_copies(handles, host, back)["lydia"], {"host": 100, "guest": 600})
+
+    def test_a_scene_shows_what_differs_at_its_start_and_only_new_differences_fail(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock()
+        ctx.scene_start.return_value = {"guard level": "Whiterun Guard: level 1000 vs 1"}
+        ctx.name_nearby.return_value = {}
+        started = ReproActions.scene(ctx, at="coc Riverwood")
+        self.assertEqual(started["disagree"], ["Whiterun Guard: level 1000 vs 1"])
+        self.assertEqual(ctx.SCENE_KNOWN, {"guard level"})
+        ctx.go_far.assert_called_with("", "coc Riverwood")
+        ctx.pin_world.assert_called_once()
+
+    def test_known_differences_are_left_out_of_the_lasting_ones(self):
+        from coop_harness.observations import Observations
+        ctx = Mock()
+        ctx.find_desyncs.return_value = [("guard level", "old"), ("lydia hands", "new")]
+        self.assertEqual(Observations.lasting_desyncs(ctx, samples=2, interval=0, known={"guard level"}), {"lydia hands": "new"})
+        self.assertEqual(Observations.lasting_desyncs(ctx, samples=1, interval=0, known={"guard level", "lydia hands"}), {})
+
+    def test_a_scene_is_remembered_for_a_recording_started_after_it(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock()
+        ctx.scene_start.return_value = {}
+        ctx.name_nearby.return_value = {"faendal": 300}
+        self.assertEqual(ReproActions.scene(ctx, save="Late", at="coc Riverwood")["named"], {"faendal": 300})
+        self.assertEqual(ctx.REPRO_PLACE, {"save": "Late", "at": "coc Riverwood", "pin": True})
+        ctx.needs_save.assert_called_with("Late")
+
+    def test_pinning_keeps_the_scale_to_put_back(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock(REPRO_PIN=None)
+        ctx.calendar.return_value = {"scale": 20}
+        ctx.game_state.return_value = {"weather": 0x81A}
+        ReproActions.pin_world(ctx)
+        ctx.console_on.assert_any_call("", "fw 81A")
+        ctx.console_on.assert_called_with("", "set timescale to 0")
+        ctx.calendar.return_value = {"scale": 0}
+        ReproActions.pin_world(ctx)  # pinned twice: the scale before the first
+        ReproActions.unpin_world(ctx)
+        ctx.console_on.assert_called_with("", "set timescale to 20")
+        self.assertIsNone(ctx.REPRO_PIN)
+
+    def spot_ctx(self, floor, sight=None):
+        ctx = Mock()
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        ctx.my_position.return_value = [75000.0, 0.0, 100.0]
+        ctx.stage_spot.return_value = [0.0, 0.0, 0.0]
+        ctx.player_snapshot.return_value = {"placement": {"rotation": [0, 0, 0.0]}}
+        ctx.player_command.side_effect = [{"ray": floor}, {"ray": sight or {"hit": False}}]
+        return ctx
+
+    def test_stage_stands_ahead_of_the_host_when_the_party_left_home(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = self.spot_ctx({"hit": True, "point": [75000, 250, 90]})
+        self.assertEqual(ReproActions.scene_spot(ctx), [75000.0, 250.0, 90])
+
+    def test_stage_refuses_a_spot_with_no_floor_or_out_of_sight(self):
+        from coop_harness.actions.repro import ReproActions
+        with self.assertRaisesRegex(TestFailure, "no floor"):
+            ReproActions.scene_spot(self.spot_ctx({"hit": False}))
+        with self.assertRaisesRegex(TestFailure, "between"):
+            ReproActions.scene_spot(self.spot_ctx({"hit": True, "point": [0, 0, 0]}, {"hit": True}))
+
+    def test_stage_keeps_the_home_stage_at_home(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock()
+        ctx.my_position.return_value = [100.0, 0.0, 0.0]
+        ctx.stage_spot.return_value = [300.0, 0.0, 0.0]
+        self.assertEqual(ReproActions.scene_spot(ctx), [300.0, 0.0, 0.0])
+        ctx.player_command.assert_not_called()
+
+    def test_observe_shows_only_what_changed_after_the_first_look(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock(spec=["handles", "read_handle", "refresh_handles"])
+        ctx.handles.return_value = {"lydia": {}}
+        host = {"placement.position": [0, 0, 0], "ai_state.package": 1, "ai.follow_target": 20, "state.dead": False}
+        guest = {"placement.position": [30, 40, 0], "ai_state.package": 2, "ai.follow_target": 0, "state.dead": False}
+        ctx.read_handle.return_value = {"host": host, "guest": guest}
+        first = ReproActions.watch(ctx, ["lydia"])["lydia"]
+        self.assertEqual(first["host"], host)
+        self.assertEqual(first["apart"], 50)
+        self.assertEqual(first["differs"], {"ai_state.package": [1, 2]})  # a copy's own AI and its place aren't compared
+        ctx.read_handle.return_value = {"host": {**host, "state.dead": True}, "guest": guest}
+        later = ReproActions.watch(ctx, ["lydia"])["lydia"]
+        self.assertEqual((later["host"], later["guest"]), ({"state.dead": [False, True]}, {}))
+
+    def test_observe_names_the_handles_it_knows(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock(spec=["handles", "failure", "refresh_handles"])
+        ctx.handles.return_value = {"lydia": {}}
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        with self.assertRaisesRegex(TestFailure, "known: lydia"):
+            ReproActions.watch(ctx, ["bandit"])
+
+    def test_a_snapshot_reads_brief_unless_asked_for_all(self):
+        from coop_harness.actions.repro import brief
+        row = {"identity": {"name": "Lydia"}, "placement": {"position": [1.4, 2.6, 3.0]}, "graph": {"Speed": 1.0}}
+        self.assertEqual(brief(row), {"identity.name": "Lydia", "placement.position": [1, 3, 3]})
+        self.assertEqual(brief(row, full=True)["graph.Speed"], 1.0)
+
+    def expect_ctx(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock()
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        ctx.expect_actor = lambda *args: ReproActions.expect_actor(ctx, *args)  # the real check, through ctx
+        return ctx, ReproActions
+
+    def test_expect_items_compares_what_both_games_hold(self):
+        ctx, actions = self.expect_ctx()
+        ctx.container_items.side_effect = [{0xF: 5}, {}]
+        ctx.item_differences.return_value = "F: 5 (host) vs 0 (guest)"
+        with self.assertRaisesRegex(TestFailure, "5 \\(host\\) vs 0"):
+            actions.expect(ctx, "chest", "items")
+        ctx.item_differences.assert_called_with({0xF: 5}, {}, "host", "guest")
+
+    def test_expect_actor_reads_a_field_of_the_snapshot(self):
+        ctx, actions = self.expect_ctx()
+        ctx.actor_row.side_effect = lambda instance, ref: {"ai": {"follow_target": 0 if instance else 20}}
+        self.assertEqual(actions.expect(ctx, "lydia", "actor", game="host", field="ai.follow_target", value="set"),
+                         {"ai.follow_target": {"host": 20}})
+        with self.assertRaisesRegex(TestFailure, "follow_target"):
+            actions.expect(ctx, "lydia", "actor", game="guest", field="ai.follow_target", value="set")
+        with self.assertRaisesRegex(TestFailure, "the same in both"):
+            actions.expect(ctx, "lydia", "actor", field="ai.follow_target")
+
+    def test_expect_agree_is_about_the_handle_unless_all(self):
+        ctx, actions = self.expect_ctx()
+        ctx.handles.return_value = {"lydia": {"host": 0xA2C8E}}
+        ctx.check_desync.return_value = ["Lydia [host 000A2C8E, sid 3]: health", "Wolf [host 00000999, sid 4]: pose"]
+        with self.assertRaisesRegex(TestFailure, "Lydia"):
+            actions.expect(ctx, "lydia", "agree")
+        ctx.handles.return_value = {"bandit": {"host": 0x111}}
+        self.assertEqual(actions.expect(ctx, "bandit", "agree"), {"agree": True})
+        with self.assertRaisesRegex(TestFailure, "Wolf"):
+            actions.expect(ctx, "all", "agree")
+
+    def test_expect_actor_waits_up_to_its_seconds(self):
+        ctx, actions = self.expect_ctx()
+        readings = iter([0, 0, 20])
+        ctx.actor_row.side_effect = lambda instance, ref: {"ai": {"follow_target": next(readings)}}
+        self.assertEqual(actions.expect(ctx, "lydia", "actor", game="guest", field="ai.follow_target", value="set", seconds=5),
+                         {"ai.follow_target": {"guest": 20}})
+
+    def test_an_expected_false_or_zero_survives_the_export(self):
+        from coop_harness.actions import repro
+        for value in (False, 0):
+            entries = [{"tool": "expect", "ok": False,
+                        "args": {"name": "wolf", "check": "actor", "game": "host", "field": "state.dead", "value": value}}]
+            namespace = {}
+            exec(compile(repro.export_scenario(entries, "x", "doc", []), "recorded", "exec"), namespace)
+            ctx = Mock()
+            namespace["run"](ctx)
+            self.assertIs(ctx.expect.call_args.kwargs["value"], value)
+
+    def test_a_reset_forgets_the_scene_for_the_next_recording(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock(REPRO_PLACE={"at": "coc Riverwood"}, SCENE_KNOWN={"guard level"}, REPRO_SEEN={"lydia": {}})
+        ReproActions.forget_scene(ctx)
+        self.assertEqual((ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN), (None, set(), {}))
+
+    def test_a_goal_recording_exports_with_its_scene_and_a_spec_draft(self):
+        from coop_harness.actions import repro
+        entries = [{"tool": "scene", "args": {"save": "Late", "at": "coc Riverwood", "pin": True}, "ok": True},
+                   {"tool": "stage", "args": {"spec": {"npcs": [{"name": "wolf", "base": "23ABE"}]}}, "ok": True},
+                   {"tool": "go_to", "args": {"game": "host", "target": "wolf"}, "ok": True},
+                   {"tool": "fight", "args": {"game": "host", "target": "wolf"}, "ok": False},
+                   {"tool": "expect", "args": {"name": "all", "check": "agree"}, "ok": False}]
+        code = repro.export_scenario(entries, "scene-repro", "doc", ["recorded"])
+        namespace = {}
+        exec(compile(code, "recorded", "exec"), namespace)
+        self.assertIn("scene", namespace["TAGS"])
+        ctx = Mock()
+        namespace["run"](ctx)
+        self.assertEqual([c[0] for c in ctx.method_calls], ["scene", "stage", "go_to", "expect", "unstage"])
+        ctx.scene.assert_called_with(save="Late", at="coc Riverwood", pin=True)
+        draft, leftovers = repro.spec_draft(entries, "scene-repro", "doc")
+        self.assertEqual(draft["steps"], [{"do": "spawn_npc", "base": "23ABE", "as": "wolf"}, {"expect": "actors agree"}])
+        self.assertEqual(len(leftovers), 2)  # the scene and the walk; a failed fight isn't replayed
+        self.assertTrue(all(line.startswith("no spec step: ctx.") for line in leftovers))
+
+    def test_a_scene_flow_is_run_only_by_name_and_alone(self):
+        session = Session()
+        self.addCleanup(session.close)
+        session.registry.add("place", ["scene"], lambda session: None)
+        self.assertEqual(session.registry["place"].fixture, "scene")
+        self.assertNotIn("place", session.scenario_names([], None))
+        self.assertEqual(session.scenario_names(["place"], None), ["place"])
+        self.assertEqual(session.registry["faendal-letter"].fixture, "scene")
+
+
 class Repro(unittest.TestCase):
     def test_a_recording_exports_as_a_scenario_keeping_its_failing_expect(self):
         from coop_harness.actions import repro
@@ -587,20 +947,20 @@ class Repro(unittest.TestCase):
 
     def test_player_verbs_record_as_their_session_calls(self):
         from coop_harness.actions import repro
-        entries = [{"tool": "walk_to", "args": {"game": "guest", "target": "lydia", "within": 120.0}, "ok": True},
-                   {"tool": "talk_to", "args": {"game": "guest", "target": "lydia"}, "ok": True},
-                   {"tool": "pick", "args": {"game": "guest", "line": "follow me"}, "ok": True},
+        entries = [{"tool": "go_to", "args": {"game": "guest", "target": "lydia", "within": 120.0}, "ok": True},
+                   {"tool": "talk", "args": {"game": "guest", "target": "lydia", "say": ["follow me", "2"]}, "ok": True},
                    {"tool": "leave_dialogue", "args": {}, "ok": True},
                    {"tool": "menu", "args": {"game": "host", "name": "InventoryMenu", "show": True}, "ok": True}]
         namespace = {}
         exec(compile(repro.export_scenario(entries, "talk-repro", "doc", []), "recorded", "exec"), namespace)
         ctx = Mock()
         namespace["run"](ctx)
-        self.assertEqual([c[0] for c in ctx.method_calls], ["walk_to", "talk_to", "pick", "close_dialogues", "menu", "unstage"])
-        ctx.walk_to.assert_called_with("client", "lydia", 120.0)
+        self.assertEqual([c[0] for c in ctx.method_calls], ["go_to", "talk", "close_dialogues", "menu", "unstage"])
+        ctx.go_to.assert_called_with("client", "lydia", 120.0, False, False)
+        ctx.talk.assert_called_with("client", "lydia", ["follow me", 2])
 
     def test_walk_to_runs_straight_when_the_engine_finds_no_path(self):
-        from coop_harness.actions.repro import PlayerVerbs
+        from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x837
         ctx.my_position.return_value = [0.0, 0.0, 0.0]
@@ -627,7 +987,7 @@ class Repro(unittest.TestCase):
         self.assertEqual(entries[0]["args"]["spec"]["npcs"][0]["name"], "lydia")
 
     def test_pick_waits_for_the_response(self):
-        from coop_harness.actions.repro import PlayerVerbs
+        from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         menus = iter([{"open": True, "current_info": 0, "options": [{"text": "a"}, {"text": "b"}]},
                       {"open": True, "current_info": 7, "options": [{"text": "a"}, {"text": "b"}]},
@@ -640,6 +1000,7 @@ class Repro(unittest.TestCase):
             return result
         ctx.wait_for.side_effect = wait_for
         self.assertEqual(PlayerVerbs.pick(ctx, "", "b"), {"picked": "b", "options": ["a", "b"]})
+        ctx.pick_line_with_keys.assert_called_with("", 1)  # real input, as a player
 
     def test_a_late_save_flow_exports_with_its_save_and_without_reads(self):
         from coop_harness.actions import repro
@@ -647,19 +1008,19 @@ class Repro(unittest.TestCase):
                    {"tool": "travel", "args": {"game": "host", "command": "coc Riverwood"}, "ok": True},
                    {"tool": "console", "args": {"game": "host", "line": "getstage FreeformRiverwood01"}, "ok": True},
                    {"tool": "harness", "args": {"game": "host", "request": {"cmd": "dialogue"}}, "ok": True},
-                   {"tool": "pick", "args": {"game": "host", "line": "0"}, "ok": True},
+                   {"tool": "talk", "args": {"game": "host", "target": "faendal", "say": ["0"]}, "ok": True},
                    {"tool": "expect", "args": {"name": "FreeformRiverwood01", "check": "stage", "value": [10]}, "ok": True}]
         namespace = {}
         exec(compile(repro.export_scenario(entries, "letter", "doc", []), "recorded", "exec"), namespace)
         ctx = Mock()
         namespace["run"](ctx)
-        self.assertEqual([c[0] for c in ctx.method_calls], ["needs_save", "go_far", "pick", "expect", "unstage"])
-        ctx.pick.assert_called_with("", 0)
+        self.assertEqual([c[0] for c in ctx.method_calls], ["needs_save", "go_far", "talk", "expect", "unstage"])
+        ctx.talk.assert_called_with("", "faendal", [0])
         self.assertIn("late-save", namespace["TAGS"])
         ctx.expect.assert_called_with("FreeformRiverwood01", "stage", value=[10])
 
     def test_walk_to_walks_round_what_stops_a_run(self):
-        from coop_harness.actions.repro import PlayerVerbs
+        from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x1348C
         places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
@@ -673,7 +1034,7 @@ class Repro(unittest.TestCase):
         ctx.steer_to.assert_not_called()
 
     def test_walk_to_paths_to_an_object(self):
-        from coop_harness.actions.repro import PlayerVerbs
+        from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x5000
         places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
@@ -685,7 +1046,7 @@ class Repro(unittest.TestCase):
         ctx.follow_run.assert_not_called()
 
     def test_a_path_the_engine_ends_at_once_is_refused(self):
-        from coop_harness.actions.repro import PlayerVerbs
+        from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.my_position.return_value = [0.0, 0.0, 0.0]
         ctx.place_of.return_value = [650.0, 0.0, 0.0]
@@ -694,14 +1055,14 @@ class Repro(unittest.TestCase):
         self.assertEqual(PlayerVerbs.path_leg(ctx, "", 0x837, 150.0, time.monotonic() + 10), "refused")
 
     def test_a_walk_fails_in_seconds_not_minutes(self):
-        from coop_harness.actions.repro import travel_seconds, RUN_SPEED
+        from coop_harness.actions.play_verbs import travel_seconds, RUN_SPEED
         self.assertAlmostEqual(travel_seconds(2500, 250), 30.0)
         self.assertLess(travel_seconds(1000), 20.0)  # running: 1000 units take ~3 s
         self.assertEqual(travel_seconds(0), 10.0)
         self.assertGreater(RUN_SPEED, 300)
 
     def test_a_run_that_stops_moving_has_stalled(self):
-        from coop_harness.actions.repro import stalled
+        from coop_harness.actions.play_verbs import stalled
         moving = [(t / 10, [35.0 * t, 0.0, 0.0]) for t in range(30)]
         self.assertFalse(stalled(moving, 2.9))
         stuck = moving[:10] + [(t / 10, [315.0 + t * 0.5, 0.0, 0.0]) for t in range(10, 30)]
@@ -718,7 +1079,7 @@ class Repro(unittest.TestCase):
         return now
 
     def test_a_run_by_input_waits_out_its_ready_conditions(self):
-        from coop_harness.actions import repro as verbs
+        from coop_harness.actions import play_verbs as verbs
         now = self.clock(verbs)
         ctx = Mock()
         ctx.my_position.return_value = [0.0, 0.0, 0.0]
@@ -729,7 +1090,7 @@ class Repro(unittest.TestCase):
         self.assertTrue(verbs.PlayerVerbs.run_straight(ctx, "", 0x837, 100.0))
 
     def test_a_long_walk_to_an_object_gets_a_walk_s_time(self):
-        from coop_harness.actions import repro as verbs
+        from coop_harness.actions import play_verbs as verbs
         now = self.clock(verbs)
         ctx = Mock()
         ctx.resolve.return_value = 0x837
@@ -743,13 +1104,13 @@ class Repro(unittest.TestCase):
         self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])
 
     def test_a_run_gets_its_time_to_set_off_before_standing_still_counts(self):
-        from coop_harness.actions.repro import set_off
+        from coop_harness.actions.play_verbs import set_off
         self.assertFalse(set_off([0, 0, 0], [0, 0, 0], 2.0))  # the engine has not started it yet
         self.assertTrue(set_off([0, 0, 0], [50, 0, 0], 2.0))
         self.assertTrue(set_off([0, 0, 0], [0, 0, 0], 6.0))
 
     def test_always_run_is_switched_on_for_a_walk_and_back_after(self):
-        from coop_harness.actions.repro import always_running
+        from coop_harness.actions.play_verbs import always_running
         ctx = Mock()
         states = iter([{"always_run": False}, {"always_run": True}])
         ctx.local_player.side_effect = lambda instance: next(states)

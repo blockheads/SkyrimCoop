@@ -24,8 +24,8 @@ class Registry(Mapping):
         if name in self._flows:
             raise ValueError(f"duplicate flow: {name}")
         tags = frozenset(tags)
-        fixture = fixture or ("saved-story" if "late-save" in tags else "baseline")
-        if fixture not in ("baseline", "saved-story"):
+        fixture = fixture or ("scene" if "scene" in tags else "saved-story" if "late-save" in tags else "baseline")
+        if fixture not in ("baseline", "saved-story", "scene"):
             raise ValueError(f"unknown fixture: {fixture}")
         self._flows[name] = Flow(name, tags, fixture, run, doc or run.__doc__ or name)
 

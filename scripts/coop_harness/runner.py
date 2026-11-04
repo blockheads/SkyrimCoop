@@ -56,8 +56,10 @@ class Runner:
         names = list(dict.fromkeys(requested)) if requested else [name for name in ctx.registry if "input" not in ctx.registry[name].tags or tag]
         names = ctx.with_accounts(names, requested or [])
         # A late save's scenario needs the duo booted from it: only when named, or asked for by `--tag late-save`.
+        # A scene takes a boot of its own (run_scene_flow): only when named.
         if not tag or "late-save" not in tag.split(","):
             names = [name for name in names if "late-save" not in ctx.registry[name].tags or name in (requested or [])]
+        names = [name for name in names if ctx.registry[name].fixture != "scene" or name in (requested or [])]
         if tag:
             wanted = set(tag.split(","))
             # Restarting a game takes minutes: only when named, or asked for by its tag.
@@ -98,7 +100,7 @@ class Runner:
 
     def comparison_checks(ctx, known_world, known_locks):
         ctx.wait_for("the guest follows the host's weather and calendar", lambda: not ctx.world_sync_problems(), 5)
-        if problems := ctx.check_desync():
+        if problems := ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())):
             raise ctx.failure("desync afterwards: " + " | ".join(problems))
         if dialogue := ctx.check_dialogue_trace():
             raise ctx.failure("the menus differ in a conversation: " + " | ".join(dialogue[:6]))
@@ -175,7 +177,9 @@ class Runner:
                 log(f"copies refused replayed animations: {refused}")
             failures.extend(("cleanup", error) for error in ctx.cleanup_errors
                             if not any(error is existing for _, existing in failures))
-            if not (failures and until_fail):
+            if flow.fixture == "scene":  # no baseline to return to: the next flow boots again
+                restored = False
+            elif not (failures and until_fail):
                 ctx.phase = "cleanup"
                 ctx.observe("phase", name=name, phase="cleanup")
                 try:
@@ -244,8 +248,13 @@ class Runner:
         ctx.observe("order", order=order, seed=seed)
         suite_start = time.monotonic()
         ctx.phase = "setup"
+        scene = any(ctx.registry[name].fixture == "scene" for name in order)
+        if scene and len(order) > 1:
+            raise ctx.failure(f"a scene flow takes a boot of its own, one at a time: {order}")
         try:
-            if problems := ctx.settle_baseline():
+            if scene:  # it checks the two games where it starts (ctx.scene): the differences at boot aren't its own
+                baseline_world = ctx.check_world()
+            elif problems := ctx.settle_baseline():
                 if getattr(args, "no_restart", False):
                     raise ctx.failure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
                 log("the games are off the baseline before the first scenario (" + " | ".join(problems) + ")")

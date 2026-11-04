@@ -1,5 +1,13 @@
 # Progress
 
+2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
+pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
+`use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
+fixture. From `bugs.md` alone: the created chest reproduced and exported (`created-chest-reaches-guest-empty`, fails
+until fixed; its GameTests flow lands with the fix); the follower entry not reproduced. `faendal-letter` runs through
+the runner and fails only its end comparison on real desyncs. Seen in Riverwood, open: a Whiterun Guard's copy level 1 against
+1000, the player's copy `state.hands` empty against 77772. Python units in `test_coop_harness` (GoalVerbs, Scenes).
+
 2026-11-03: the duo's games have a silent audio device again. Running as `coop2` (2026-11-01) they had no audio
 driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
 `copy-ends-voice-line` failed every time. Wine's ALSA driver now plays to ALSA's null device

@@ -549,10 +549,10 @@ class Runtime:
 
     def prepare_prefix(ctx, bundled_start=True, *, _game=None):
         _game = ctx.game(_game)
+        _game.prefix.mkdir(parents=True, exist_ok=True)  # first: a fresh worktree's prefix is the game's user's too
         ctx.own_prefix(_game=_game)
         if not (_game.prefix / "pfx/drive_c/users/steamuser").exists():
             log("Creating the test Proton prefix (first run only, ~30s)...")
-            _game.prefix.mkdir(parents=True, exist_ok=True)
             subprocess.run(ctx.as_instance_user([str(ctx.instance_runtime(_game=_game) / "run"), "--", str(PROTON / "proton"), "run", "wineboot", "-u"],
                                             ctx.game_env(_game=_game), _game=_game), env=ctx.game_env(_game=_game), cwd=_game.install, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                            timeout=300)

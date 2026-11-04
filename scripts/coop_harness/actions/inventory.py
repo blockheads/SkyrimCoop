@@ -43,9 +43,14 @@ class InventoryActions:
 
     def take_all(ctx, instance, chest):
         """The player opens the chest (activates it) and takes everything (R), which closes it."""
-        who = f"[{instance or 'host'}]"
         ctx.place_before(instance, chest, 100)
         ctx.activate_on(instance, chest)
+        ctx.take_from_open_container(instance)
+
+
+    def take_from_open_container(ctx, instance):
+        """The container's menu shows its lists; the player takes everything (R), which closes it."""
+        who = f"[{instance or 'host'}]"
         ctx.wait_for(f"{who} the chest's menu shows its lists",
                  lambda: ctx.menu_var(instance, "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5)
         ctx.tap_key(instance, TAKE_ALL_KEY)

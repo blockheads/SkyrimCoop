@@ -16,7 +16,7 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
 ## The bug-fix flow (2026-10-30, the user: the most important rule)
 
 ```
-1 a coop scenario recreates the bug        tier 3, once
+1 a coop scenario recreates the bug        tier 3, once; by default played through the MCP and exported
 2 a GameTests flow fails on it             tier 2 (the "smoke test"); teach the fake first if needed
   -> free the duo: nothing below needs Skyrim
 3 unit tests for the logic, then the fix   tier 1
@@ -197,6 +197,10 @@ a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SK
 - The `xdotool` input actions, `watch`, `screenshot` and the two-account flows are Linux only.
 
 ## Repro with the MCP (2026-11-02)
+
+Play a repro as `scene`, goal verbs, `observe`/`why`, `expect`, `record_export`: [repro-mcp.md](repro-mcp.md), "The play
+flow". A recording with a scene away from the baseline exports with the tag `scene`: run it by name, on a duo booted for
+it, one per boot. In a fresh worktree a late save must be copied into `build/coop-test/prefix-host`'s Saves first.
 
 `scripts/coop_mcp.py` is an MCP server (`.mcp.json`, server `skyrim-coop`) holding one harness `Session` open, so a
 bug can be set up step by step in the duo instead of in a scenario rerun from the start. Design and status:

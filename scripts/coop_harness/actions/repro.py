@@ -12,52 +12,86 @@ import time
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
+from ..comparisons import flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 
 RECORDINGS = TEST_HOME / "mcp"
-# Measured on the duo (docs/design/repro-mcp.md, Phase 3), units/s: a player running by input (sprint ~500); a walk
-# to an NPC in Riverwood, runs and walked legs together, is planned at TRAVEL_SPEED.
-RUN_SPEED, TRAVEL_SPEED, WALK_SPEED = 350.0, 200.0, 80.0  # WALK_SPEED: PathToReference's fastest
-SPRINT_AFTER = 50.0  # units moved before Sprint is pressed: the engine ignores it from standing
-STALL_UNITS, STALL_SECONDS = 40.0, 1.5  # a run that moves less in this long has met something
-PATH_LEG_SECONDS = 4.0  # a walked leg round what stopped a run
-SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
-CAPS_LOCK, LEFT_ALT = 0x3A, 0x38  # DirectInput scan codes: Toggle Always Run, Sprint
+SCENE_RADIUS = 4000.0  # units around the host player a scene names and looks at
+STAGE_RANGE = 3000.0  # a stage spot further from the host player than this is not in the scene
+SETTLE_SECONDS = 8.0  # copies catch up after an arrival
+# What `observe` shows of an actor unless asked for everything.
+BRIEF_FIELDS = ("identity.name", "placement.position", "placement.cell", "state.dead", "state.bleeding_out",
+                "state.sit_sleep", "state.weapon_drawn", "state.knock", "values.health", "ai.combat_target",
+                "ai.running_package", "ai.package_target", "ai.follow_target", "ai_state.package", "ai_state.in_combat",
+                "animation.event")
+# Shown, not compared: a copy runs no AI, and a place is compared as `apart`.
+UNCOMPARED = ("ai.", "placement.position", "animation.")
 
 
-def travel_seconds(distance, speed=RUN_SPEED):
-    """A walk's time limit: twice its straight-line time at `speed` (paths bend) and 10 s to set off, so a stuck walk
-    fails in seconds."""
-    return 2.0 * distance / speed + 10.0
+def slug(name):
+    """A display name as a handle: "Faendal" -> faendal, "Whiterun Guard" -> whiterun_guard."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
-def stalled(track, now, units=STALL_UNITS, seconds=STALL_SECONDS):
-    """Whether a run's `track` [(time, position)] moved under `units` in its last `seconds` (once that long under way)."""
-    if now - track[0][0] < seconds:
-        return False
-    past = [p for t, p in track if now - t >= seconds]
-    return math.dist(past[-1][:2], track[-1][1][:2]) < units
+def shared_actors(host, guest, here):
+    """The NPCs both games show, nearest `here` first: {name, host, guest, distance}, paired by session id."""
+    copies = {row["mod"]["session_id"]: int(form) for form, row in guest.items() if row["mod"]["session_id"] >= 0}
+    shared = []
+    for form, row in host.items():
+        if row.get("player") or not (name := row["identity"].get("name")) or row["mod"]["session_id"] not in copies:
+            continue
+        shared.append({"name": name, "host": int(form), "guest": copies[row["mod"]["session_id"]],
+                       "distance": round(math.dist(row["placement"]["position"][:2], here[:2]))})
+    return sorted(shared, key=lambda actor: actor["distance"])
 
 
-def set_off(start, here, seconds):
-    """Whether a run is under way, so standing still means something: it has moved, or had its time to."""
-    return seconds >= SET_OFF_SECONDS or math.dist(start[:2], here[:2]) >= STALL_UNITS
+def current_copies(handles, host, guest):
+    """Handles with the guest's copy as it is now: a copy's form id changes when its cell reloads, and the old id can
+    go to another actor; its session id stays. A copy the guest doesn't show has no id there."""
+    copies = {row["mod"]["session_id"]: int(form) for form, row in guest.items() if row.get("role") == "copy"}
+    fresh = {}
+    for name, ids in handles.items():
+        fresh[name] = dict(ids)
+        row = host.get(str(ids.get("host")))
+        if row and row.get("role") == "own" and not row.get("player") and row["mod"]["session_id"] >= 0:
+            fresh[name].pop("guest", None)
+            if row["mod"]["session_id"] in copies:
+                fresh[name]["guest"] = copies[row["mod"]["session_id"]]
+    return fresh
 
 
-@contextlib.contextmanager
-def always_running(ctx, instance):
-    """Always Run on for a run by input (Caps Lock, as a player toggles it), then as it was."""
-    if ctx.local_player(instance).get("always_run") is not False:  # on, or a build without the readout
-        yield
-        return
-    ctx.toggle_always_run(instance)
-    try:
-        ctx.wait_for(f"[{instance or 'host'}] Always Run is on",
-                     lambda: ctx.local_player(instance).get("always_run") is True, 3)
-        yield
-    finally:
-        ctx.toggle_always_run(instance)
+def name_handles(actors):
+    """Each actor's handle by its name: the nearest of a name takes it, the next name_2, and so on."""
+    named = {}
+    for actor in actors:
+        base = handle = slug(actor["name"])
+        count = 1
+        while handle in named:
+            count += 1
+            handle = f"{base}_{count}"
+        named[handle] = actor
+    return named
+
+
+def brief(row, full=False):
+    """An actor's snapshot or a reference's row, flat: the fields a repro reads, places rounded."""
+    fields = flatten(row or {})
+    if "identity.name" in fields and not full:
+        fields = {key: fields[key] for key in BRIEF_FIELDS if key in fields}
+    return {key: [round(v) for v in value] if key.endswith("position") and isinstance(value, list) else value
+            for key, value in fields.items()}
+
+
+def changes(before, after):
+    """What moved between two flat readings: {field: [was, is]}."""
+    return {key: [before.get(key), after.get(key)] for key in sorted(set(before) | set(after))
+            if before.get(key) != after.get(key)}
+
+
+def game_differences(host, guest):
+    """Fields a copy should hold as its owner does and doesn't: {field: [host, guest]}."""
+    return {key: pair for key, pair in changes(host, guest).items() if not key.startswith(UNCOMPARED)}
 
 
 def duo_home():
@@ -162,6 +196,8 @@ class ReproActions:
         ctx.REPRO_RECORDING.write_text("")
         if save := ctx.booted_save():  # a late save's flow: the test needs the duo booted from it
             ctx.record_call("needs_save", {"save": save}, True)
+        if scene := getattr(ctx, "REPRO_PLACE", None):  # the scene it was set in
+            ctx.record_call("scene", scene, True)
         for spec in getattr(ctx, "REPRO_SCENE", []):  # the scene as staged so far: the test starts from it too
             ctx.record_call("stage", {"spec": spec}, True)
         return str(ctx.REPRO_RECORDING)
@@ -233,13 +269,14 @@ class ReproActions:
         if not hasattr(ctx, "REPRO_SCENE"):
             ctx.REPRO_SCENE = []
         ctx.REPRO_SCENE.append(spec)
-        for npc in spec.get("npcs", []):
+        for index, npc in enumerate(spec.get("npcs", [])):
+            spot = ctx.scene_spot(index)
             if "ref" in npc:
                 host = int(str(npc["ref"]), 16) if isinstance(npc["ref"], str) else npc["ref"]
-                copy = ctx.stage_host_npc(host)
+                copy = ctx.stage_host_npc(host, spot)
             else:
                 base = npc["base"] if isinstance(npc["base"], str) else f"{npc['base']:X}"
-                host, _, copy = ctx.spawn_host_npc(base, restrained=npc.get("frozen", True))
+                host, _, copy = ctx.spawn_host_npc(base, restrained=npc.get("frozen", True), goal=spot)
                 ctx.staged().append(("npc", host))
             if npc.get("frozen", True):
                 ctx.freeze("", host)
@@ -260,6 +297,26 @@ class ReproActions:
                 continue
             ctx.name_handle(thing["name"], ctx.place_object(thing["base"]))
         return ctx.handles()
+
+    def scene_spot(ctx, index=0, gap=250.0):
+        """Where a staged NPC stands: the stage while the party is home, else ahead of the host player on a floor it
+        can see (rays). None of that near the players fails: a stage far off is never what a repro means."""
+        here = ctx.my_position("")
+        spot = ctx.stage_spot()
+        if math.dist(spot[:2], here[:2]) <= STAGE_RANGE:
+            return spot
+        heading = ctx.player_snapshot("")["placement"]["rotation"][2]
+        reach = gap + 100.0 * index
+        x, y = here[0] + math.sin(heading) * reach, here[1] + math.cos(heading) * reach
+        chest = [here[0], here[1], here[2] + 100.0]
+        floor = (ctx.player_command("", {"cmd": "ray", "from": [x, y, here[2] + 200.0], "to": [x, y, here[2] - 500.0]}) or {}).get("ray") or {}
+        if not floor.get("hit"):
+            raise ctx.failure(f"no floor {reach:.0f} units ahead of the host at {[round(v) for v in here]}: turn, or stage elsewhere")
+        goal = [x, y, floor["point"][2]]
+        sight = (ctx.player_command("", {"cmd": "ray", "from": chest, "to": [x, y, goal[2] + 100.0]}) or {}).get("ray") or {}
+        if sight.get("hit"):
+            raise ctx.failure(f"something stands between the host and the spot {reach:.0f} units ahead: {sight}")
+        return goal
 
     def twin_in(ctx, instance, before, host_row, seconds=10):
         """The reference new in that game since `before` with the same base, nearest the other game's: its twin."""
@@ -313,6 +370,7 @@ class ReproActions:
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
+        ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             game = "client" if kind == "guest-object" else ""
             ctx.console_on(game, f"{ref:X}.disable")
@@ -320,6 +378,132 @@ class ReproActions:
         ctx.staged().clear()
         ctx.handles().clear()
         ctx.REPRO_SCENE = []
+
+    # --- scene: a place with the world held still, checked where the repro starts ---
+
+    def pin_world(ctx):
+        """Holds the world for a repro that plays: the host's clock stopped (so schedules stay) and its weather forced;
+        the guest follows. `world_freeze` is the frame-level tool: it stops the players too."""
+        if getattr(ctx, "REPRO_PIN", None) is None:
+            ctx.REPRO_PIN = ctx.calendar("")["scale"]
+        ctx.console_on("", f"fw {ctx.game_state('').get('weather'):X}")
+        ctx.console_on("", "set timescale to 0")
+        ctx.wait_for("[guest] its clock stops with the host's", lambda: abs(ctx.calendar("client").get("scale", 1)) < 0.001, 5)
+
+    def unpin_world(ctx):
+        if (scale := getattr(ctx, "REPRO_PIN", None)) is not None:
+            ctx.console_on("", f"set timescale to {scale:g}")
+            ctx.REPRO_PIN = None
+
+    def scene_start(ctx):
+        """Where the two games stand once copies had time to catch up: the clock and weather must agree; what else
+        differs lasts, {key: message}, and is the scene's own start: real bugs, shown, not this repro's."""
+        ctx.wait_for("the guest follows the host's weather and calendar", lambda: not ctx.world_sync_problems(), SETTLE_SECONDS)
+        ended = time.monotonic() + SETTLE_SECONDS
+        while (differ := ctx.lasting_desyncs()) and time.monotonic() < ended:
+            time.sleep(0.2)
+        return differ
+
+    def scene(ctx, save=None, at=None, pin=True):
+        """Starts a repro: on the duo booted from `save`, the party goes to `at` (a console line such as coc Riverwood)
+        and the world is pinned. What differs here is returned as `disagree`; from now on only new differences fail
+        (`expect agree`, the runner's end check), as a baseline's known world differences don't. Names the NPCs around."""
+        if save:
+            ctx.needs_save(save)
+        if at:
+            ctx.go_far("", at)
+            ctx.arrives_with_party("client")
+        ctx.name_players()
+        if pin:
+            ctx.pin_world()
+        differ = ctx.scene_start()
+        ctx.SCENE_KNOWN = set(differ)
+        ctx.REPRO_PLACE = {"save": save, "at": at, "pin": pin}
+        named = ctx.name_nearby()
+        return {"cell": ctx.player_cell(""), "time": ctx.calendar("").get("hour"), "named": named, "disagree": list(differ.values())}
+
+    def forget_scene(ctx):
+        """Back at the blank baseline: a recording starts from there, and nothing is known to differ."""
+        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN = None, set(), {}
+
+    def worlds(ctx):
+        return tuple((ctx.game(instance).read_status() or {}).get("world") or {} for instance in ("", "client"))
+
+    def nearby_shared(ctx):
+        host, guest = ctx.worlds()
+        return [actor for actor in shared_actors(host, guest, ctx.my_position("")) if actor["distance"] <= SCENE_RADIUS]
+
+    def name_nearby(ctx):
+        """Handles for the NPCs around, by name: {handle: distance}."""
+        named = name_handles(ctx.nearby_shared())
+        for handle, actor in named.items():
+            ctx.name_handle(handle, actor)
+        return {handle: actor["distance"] for handle, actor in named.items()}
+
+    def find(ctx, name, handle=None):
+        """Names the nearest NPC both games show whose name holds `name`: replays by name, as ids differ between runs."""
+        actors = ctx.nearby_shared()
+        match = next((actor for actor in actors if name.lower() in actor["name"].lower()), None)
+        if not match:
+            raise ctx.failure(f"no {name!r} near the host: {sorted({actor['name'] for actor in actors})}")
+        handle = handle or slug(match["name"])
+        ctx.name_handle(handle, match)
+        return {"handle": handle, "name": match["name"], "distance": match["distance"]}
+
+    # --- watch: what is going on, without a throwaway script ---
+
+    def look(ctx, instance):
+        """That game around its player: cell, menus, what the player is doing, the actors near it, nearest first."""
+        status = ctx.game(instance).read_status() or {}
+        world = status.get("world") or {}
+        me = world.get("20") or {}
+        here = (me.get("placement") or {}).get("position") or [0.0, 0.0, 0.0]
+        around = []
+        for form, row in world.items():
+            place = row["placement"]["position"]
+            if form != "20" and math.dist(place[:2], here[:2]) <= SCENE_RADIUS:
+                around.append({"name": row["identity"].get("name"), "id": f"{int(form):X}", "role": row.get("role"),
+                               "distance": round(math.dist(place[:2], here[:2])), "dead": row["state"].get("dead"),
+                               "package": f"{row['ai'].get('running_package') or 0:X}",
+                               "combat_target": f"{row['ai'].get('combat_target') or 0:X}"})
+        return {"cell": (me.get("placement") or {}).get("cell"), "position": [round(v) for v in here],
+                "menus": sorted(set(status.get("menus") or []) - {"HUD Menu"}), "health": (me.get("values") or {}).get("health"),
+                "character_state": (status.get("player") or {}).get("character_state"),
+                "nearby": sorted(around, key=lambda actor: actor["distance"])[:12]}
+
+    def refresh_handles(ctx):
+        """Follows the copies of what the handles name (`current_copies`); a repro's reads and verbs start with this."""
+        ctx.handles().update(current_copies(ctx.handles(), *ctx.worlds()))
+
+    def read_handle(ctx, name, full=False):
+        """Each game's flat reading of a handle: an actor's snapshot, or a reference's row."""
+        shown = {}
+        for game, instance in (("host", ""), ("guest", "client")):
+            if ref := ctx.handles().get(name, {}).get(game):
+                row = ctx.actor_row(instance, ref) or ctx.world_state(instance, [ref]).get(ref)
+                shown[game] = brief(row, full)
+        return shown
+
+    def watch(ctx, names, full=False):
+        """What changed in each handle since the last look ({field: [was, is]}; everything the first time), how far
+        apart the two games have it, and which fields they hold differently."""
+        if not hasattr(ctx, "REPRO_SEEN"):
+            ctx.REPRO_SEEN = {}
+        ctx.refresh_handles()
+        seen = {}
+        for name in names:
+            if name not in ctx.handles():
+                raise ctx.failure(f"unknown handle {name!r} (known: {', '.join(ctx.handles()) or 'none'})")
+            shown, before = ctx.read_handle(name, full), ctx.REPRO_SEEN.get(name)
+            entry = {game: changes(before[game], row) if before and game in before else row for game, row in shown.items()}
+            if len(shown) == 2:
+                entry["differs"] = game_differences(shown["host"], shown["guest"])
+                places = [row.get("placement.position") or row.get("position") for row in shown.values()]
+                if all(places):
+                    entry["apart"] = round(math.dist(places[0], places[1]))
+            ctx.REPRO_SEEN[name] = shown
+            seen[name] = entry
+        return seen
 
     def spec_step(ctx, step):
         """One shared-spec step (Code/tests/specs, scenarios/specs.run_step): a session of these exports as a spec."""
@@ -337,6 +521,11 @@ class ReproActions:
             spec_path = ROOT / "Code/tests/specs" / f"{name}.json"
             spec_path.write_text(json.dumps(spec, indent=2) + "\n")
             written["spec"] = str(spec_path)
+        else:  # out of Code/tests/specs: every file there is a test
+            draft, written["leftovers"] = spec_draft(entries, name, doc)
+            draft_path = RECORDINGS / f"{name}.spec-draft.json"
+            draft_path.write_text(json.dumps(draft, indent=2) + "\n")
+            written["spec_draft"] = str(draft_path)
         return written
 
     # --- observe and expect ---
@@ -368,10 +557,30 @@ class ReproActions:
             seen[name] = entry
         return seen
 
-    def expect(ctx, name, check, within=5.0, game=None, value=None, of=None):
+    def expect(ctx, name, check, within=5.0, game=None, value=None, of=None, field=None, seconds=0.0):
         """The correct behaviour, checked now: "same_place" (the two games within `within` units), "at" (that game's
-        place within `within` of `value`), or "at_rest_of" (that game's place within `within` of where the `of`
-        game's body rested, as wait_rest saw it), or "stage" (quest `name` at stage value[0] in both games)."""
+        place within `within` of `value`), "at_rest_of" (that game's place within `within` of where the `of` game's body
+        rested, as wait_rest saw it), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
+        holds the same in both games), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
+        value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
+        `name`, or anywhere with name "all")."""
+        if check == "items":
+            held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
+            if held["host"] != held["guest"]:
+                raise ctx.failure(f"{name}: holds differently: " + ctx.item_differences(held["host"], held["guest"], "host", "guest"))
+            return {"items": len(held["host"])}
+        if check == "actor":
+            return ctx.expect_actor(name, field, game, value, seconds)
+        if check == "dialogue":
+            if problems := ctx.check_dialogue_trace():
+                raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))
+            return {"agree": True}
+        if check == "agree":
+            ids = [f"{ref:08X}" for ref in ctx.handles().get(name, {}).values()]
+            problems = [p for p in ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())) if name == "all" or any(ref in p for ref in ids)]
+            if problems:
+                raise ctx.failure(f"{name}: the games disagree: " + " | ".join(problems[:8]))
+            return {"agree": True}
         if check == "stage":  # `name` a quest's editor id, `value` [stage]: both games at it
             stages = {}
             for label, instance in (("host", ""), ("guest", "client")):
@@ -412,6 +621,23 @@ class ReproActions:
         raise ctx.failure(f"unknown check {check!r}")
 
 
+    def expect_actor(ctx, name, field, game, value, seconds=0.0):
+        """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`; see `expect`."""
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        ctx.refresh_handles()
+        read = lambda: {label: flatten(ctx.actor_row(instance, ctx.resolve(name, label))).get(field) for label, instance in games}
+        def wrong(got):
+            if value is None:
+                return len(set(map(repr, got.values()))) > 1
+            return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
+        ended = time.monotonic() + seconds
+        while wrong(got := read()):
+            if time.monotonic() >= ended:
+                raise ctx.failure(f"{name}: {field} is {got}, expected {'the same in both' if value is None else value!r}")
+            time.sleep(0.2)
+        return {field: got}
+
+
 def where(row):
     """A shown thing's place: an actor's actual or position, a reference's position."""
     if not row:
@@ -427,9 +653,28 @@ _INSTANCE = {"host": "", "guest": "client", "client": "client", "": ""}
 _READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "screen", "item_count"}
 
 
+def _lines(say):
+    """Dialogue lines as `pick` takes them: a number is an index."""
+    return [int(line) if str(line).isdigit() else line for line in say]
+
+
 def _line(tool, args):
     game = repr(_INSTANCE.get(args.get("game", "host"), ""))
     match tool:
+        case "scene":
+            return f"ctx.scene(save={args.get('save') or None!r}, at={args.get('at') or None!r}, pin={args.get('pin', True)!r})"
+        case "find":
+            return f"ctx.find({args['name']!r}, {args.get('handle') or None!r})"
+        case "go_to":
+            return f"ctx.go_to({game}, {args['target']!r}, {args.get('within', 100.0)!r}, {args.get('straight', False)!r}, {args.get('by_input', False)!r})"
+        case "talk":
+            return f"ctx.talk({game}, {args['target']!r}, {_lines(args.get('say') or [])!r})"
+        case "use":
+            return f"ctx.use({game}, {args['target']!r})"
+        case "take":
+            return f"ctx.take({game}, {args['target']!r})"
+        case "fight":
+            return f"ctx.fight({game}, {args['target']!r})"
         case "world_freeze":
             return f"ctx.freeze_world({args.get('frozen', True)!r})"
         case "step":
@@ -455,25 +700,16 @@ def _line(tool, args):
         case "mouse":
             return f"ctx.mouse_on({game}, {args.get('action', 'click')!r}, {args.get('button', 1)!r})"
         case "expect":
-            extra = "".join(f", {key}={args[key]!r}" for key in ("within", "game", "value", "of") if args.get(key) not in (None, ""))
+            extra = "".join(f", {key}={args[key]!r}" for key in ("within", "game", "value", "of", "field", "seconds") if args.get(key) not in (None, ""))
             return f"ctx.expect({args['name']!r}, {args['check']!r}{extra})"
         case "drop":
             return f"ctx.drop_item({args['game']!r}, {args['item']!r}, {args['name']!r})"
         case "wait_rest":
             return f"ctx.wait_rest({args['name']!r}, {args.get('game', 'host')!r})"
-        case "walk_to":
-            return f"ctx.walk_to({game}, {args['target']!r}, {args.get('within', 100.0)!r})"
-        case "steer_to":
-            return f"ctx.steer_to({game}, {args['target']!r}, {args.get('within', 100.0)!r})"
         case "arrives_with_party":
             return f"ctx.arrives_with_party({game}, {args.get('within', 3000.0)!r})"
         case "travel":
             return f"ctx.go_far({game}, {args['command']!r})"
-        case "talk_to":
-            return f"ctx.talk_to({game}, {args['target']!r})"
-        case "pick":
-            line = args["line"]
-            return f"ctx.pick({game}, {int(line) if str(line).isdigit() else line!r})"
         case "leave_dialogue":
             return "ctx.close_dialogues()"
         case "menu":
@@ -493,6 +729,8 @@ def export_scenario(entries, name, doc, tags):
     body = "\n".join(f"        {line}" for line in lines)
     if any(entry["tool"] == "needs_save" for entry in entries):  # the runner's saved-story fixture
         tags = [*tags, "late-save"]
+    if any(entry["tool"] == "scene" and (entry["args"].get("save") or entry["args"].get("at")) for entry in entries):
+        tags = [*tags, "scene"]  # away from the baseline: the flow checks its own start (registry.py)
     return (f'"""{doc}\n\nRecorded with the repro MCP (docs/design/repro-mcp.md)."""\n'
             f"NAME = {name!r}\nTAGS = {sorted(set(tags))!r}\nDOC = {doc!r}\n\n\n"
             f"def run(ctx):\n    try:\n{body}\n    finally:\n        ctx.unstage()\n")
@@ -504,6 +742,39 @@ def export_spec(entries, name, doc, tags):
     if not replayed or any(entry["tool"] != "spec_step" for entry in replayed):
         return None
     return {"name": name, "doc": doc, "tags": sorted(set(tags)), "steps": [entry["args"]["step"] for entry in replayed]}
+
+
+def _spec_steps(tool, args):
+    """A recorded call as shared-spec steps, None when it has none (the fake has no walking, talking or menus)."""
+    match tool:
+        case "spec_step":
+            return [args["step"]]
+        case "stage":
+            spec = args["spec"]
+            if spec.get("players") or spec.get("objects"):
+                return None
+            steps = [{"do": "stage_npc", "ref": npc["ref"], "as": npc["name"]} if "ref" in npc else
+                     {"do": "spawn_npc", "base": npc["base"], "as": npc["name"]} for npc in spec.get("npcs", [])]
+            steps += [{"do": "add_items", "game": item.get("who", "host"), "ref": "0x14", "item": f"0x{item['item']}"
+                       if isinstance(item["item"], str) else hex(item["item"]), "count": item.get("count", 1)} for item in spec.get("items", [])]
+            return steps
+        case "expect" if args.get("check") == "agree":
+            return [{"expect": "actors agree"}]
+    return None
+
+
+def spec_draft(entries, name, doc):
+    """As much of a recording as the shared specs can say, and a line for each call they can't: step 2 of the bug-fix
+    flow starts from this; a flow on the fake is written by hand from what is left."""
+    steps, leftovers = [], []
+    for entry in entries:
+        if not (entry["ok"] or entry["tool"] == "expect") or not (line := _line(entry["tool"], entry["args"])):
+            continue
+        if (mapped := _spec_steps(entry["tool"], entry["args"])) is None:
+            leftovers.append(f"no spec step: {line}")
+        else:
+            steps += mapped
+    return {"name": name, "doc": doc, "steps": steps}, leftovers
 
 
 class PressTiming:
@@ -550,219 +821,3 @@ class PressTiming:
             rows.append({"frames": None if moved is None else moved + 1,
                          "ms": None if moved is None else round((after[moved][0] - pressed) * 1000)})
         return rows
-
-
-class PlayerVerbs:
-    """A player's verbs for playing real flows (docs/design/repro-mcp.md, phase 3): walking, talking, menus. Real input
-    through the engine's dispatch (checked actions), so a flow goes as a player's would."""
-
-    def walk_to(ctx, instance, target, within=100.0, seconds=None):
-        """The AI-driven player travels to `target` along the navmesh, within `within` units (repro-mcp.md, Phase 3);
-        with no way there it runs straight (`steer_to`)."""
-        game = "guest" if instance else "host"
-        ref = ctx.resolve(target, game)
-        start = ctx.my_position(instance)
-        follows = ctx.is_actor(instance, ref)  # an object takes walked legs only
-        limit = seconds or travel_seconds(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), TRAVEL_SPEED if follows else WALK_SPEED)
-        deadline = time.monotonic() + limit
-        walk = {"legs": 0, "runs": 0, "closest": math.inf, "refused": False}
-        apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
-        ctx.player_script_call(instance, "Game", "SetPlayerAIDriven", [True])
-        try:
-            while (left := apart()) > within and not walk["refused"]:
-                walk["closest"] = min(walk["closest"], left)
-                if time.monotonic() > deadline:
-                    raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in {limit:.0f} s along the navmesh: "
-                                      f"closest {walk['closest']:.0f} units (at most {within}), {walk['runs']} runs and "
-                                      f"{walk['legs']} walked legs")
-                if follows:
-                    walk["runs"] += 1
-                    if ctx.follow_run(instance, ref, within, deadline) != "stalled":
-                        continue
-                walk["legs"] += 1
-                walk["refused"] = ctx.path_leg(instance, ref, within, deadline) == "refused"
-        finally:
-            ctx.player_script_call(instance, "Game", "SetPlayerAIDriven", [False])
-        walked = lambda: round(math.dist(start[:2], ctx.my_position(instance)[:2]), 1)
-        if walk["refused"] and apart() > within:  # no navmesh path to it (a guest's NPC copy, docs/design/repro-mcp.md)
-            ctx.steer_to(instance, target, within)
-            return {"walked": walked(), "pathed": False, "runs": walk["runs"], "legs": walk["legs"]}
-        return {"walked": walked(), "pathed": True, "runs": walk["runs"], "legs": walk["legs"]}
-
-    def is_actor(ctx, instance, ref):
-        """Whether that game has `ref` as an actor (a player, a copy, its own NPC), not an object."""
-        return (ref == 0x14 or str(ref) in ctx.actors_on(instance)
-                or str(ref) in (ctx.local_player(instance).get("local_actors") or {}))
-
-    def follow_run(ctx, instance, ref, within, deadline):
-        """The AI-driven player runs after actor `ref` (KeepOffsetFromActor: catching up beyond `within`, which
-        runs): "arrived", "stalled" (under STALL_UNITS in STALL_SECONDS: something in the way) or "late"."""
-        ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "KeepOffsetFromActor",
-                                      "args": [{"form": ref}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, within, within / 2],
-                                      "player_action": True, "self": 0x14})
-        try:
-            start = ctx.my_position(instance)
-            track, began = [(time.monotonic(), start)], time.monotonic()
-            while time.monotonic() < deadline:
-                here = ctx.my_position(instance)
-                if math.dist(here[:2], ctx.place_of(instance, ref)[:2]) <= within:
-                    return "arrived"
-                now = time.monotonic()
-                track.append((now, here))
-                if set_off(start, here, now - began) and stalled(track, now):
-                    return "stalled"
-                time.sleep(0.1)
-            return "late"
-        finally:
-            ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "ClearKeepOffsetFromActor",
-                                          "args": [], "player_action": True, "self": 0x14})
-
-    def path_leg(ctx, instance, ref, within, deadline, seconds=PATH_LEG_SECONDS):
-        """A stretch along the navmesh at the engine's walk (PathToReference, its fastest: 1.0), round what stopped a
-        run: until "arrived", the engine ends it ("refused" at once: no path; "ended"), or `seconds` pass ("done")."""
-        call = ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "PathToReference",
-                                             "args": [{"form": ref}, 1.0], "player_action": True, "self": 0x14})["id"]
-        began = time.monotonic()
-        while time.monotonic() < min(deadline, began + seconds):
-            if math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]) <= within:
-                return "arrived"
-            answer = ctx.player_command(instance, {"cmd": "papyrus_result", "id": call})
-            if answer.get("done"):
-                return "ended" if answer.get("value") or time.monotonic() - began > 1.0 else "refused"
-            time.sleep(0.1)
-        return "done"  # the next run (or leg) replaces this path
-
-    def run_straight(ctx, instance, ref, within, sprint=True):
-        """The player turns toward `ref` and runs there by real input (forward held, Always Run on, Sprint once
-        moving). True when within `within`; False when it stalls (a wall, a fence) or time is up."""
-        here = ctx.my_position(instance)
-        spec = {"name": f"runs to {ref:X}", "ready": ["takes_input", "on_ground"],
-                "turn": {"face": ref, "rate": 180}, "buttons": ["forward"],
-                "until": [{"near_xy": ["player", ref, within]}],
-                "seconds": travel_seconds(math.dist(here[:2], ctx.place_of(instance, ref)[:2]))}
-        action, sprinting = ctx.act_start(instance, spec), False
-        try:
-            track = []
-            while True:
-                state = ctx.player_command(instance, {"cmd": "act_state"})
-                if state.get("id") != action or state.get("phase") == "ended":
-                    return (state.get("outcome") or {}).get("status") == "done"
-                if state.get("phase") != "running":  # its ready conditions can hold it for seconds
-                    time.sleep(0.1)
-                    continue
-                now, at = time.monotonic(), ctx.my_position(instance)
-                track = track or [(now, at)]
-                if sprint and not sprinting and math.dist(at[:2], here[:2]) > SPRINT_AFTER:  # sprint starts only once moving
-                    sprinting = ctx.sprint_key(instance, True)
-                track.append((now, at))
-                if now - track[0][0] > 1.0 and stalled(track[1:], now):  # a second to turn and set off
-                    ctx.player_command(instance, {"cmd": "act_cancel"})
-                    return False
-                time.sleep(0.1)
-        finally:
-            if sprinting:
-                ctx.sprint_key(instance, False)
-
-    def steer_to(ctx, instance, target, within=100.0, sprint=True):
-        """The player turns toward `target` and runs (real input, Always Run, sprinting once moving) until within
-        `within` units of it, in a straight line: no pathing, so a wall stops it and it fails naming how close it got."""
-        game = "guest" if instance else "host"
-        ref = ctx.resolve(target, game)
-        with always_running(ctx, instance):
-            if not ctx.run_straight(instance, ref, within, sprint):
-                closest = math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
-                raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in a straight line: stopped "
-                                  f"{closest:.0f} units off (at most {within})")
-        return {"apart": round(math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]))}
-
-    def toggle_always_run(ctx, instance):
-        """Caps Lock pressed and released through the game's input dispatch (Toggle Always Run)."""
-        ctx.player_command(instance, {"cmd": "key", "scan": CAPS_LOCK, "down": True})
-        frame = ctx.game_frame(instance)
-        ctx.wait_for(f"[{instance or 'host'}] a frame for the key", lambda: ctx.game_frame(instance) > frame, 3)
-        ctx.player_command(instance, {"cmd": "key", "scan": CAPS_LOCK, "down": False})
-
-    def sprint_key(ctx, instance, down):
-        """Left Alt (Sprint) down or up through the game's input dispatch; True once sent."""
-        return bool(ctx.player_command(instance, {"cmd": "key", "scan": LEFT_ALT, "down": down}).get("ok"))
-
-    def go_far(ctx, instance, command):
-        """That game's player goes far by a console command (coc): until it is 2000+ units off."""
-        before = ctx.my_position(instance)
-        ctx.console_on(instance, command)
-        ctx.wait_for(f"[{instance or 'host'}] arrives after '{command}'",
-                     lambda: (here := ctx.local_player(instance).get("position")) and math.dist(here, before) > 2000, 90)
-        ctx.wait_for(f"[{instance or 'host'}] the arrival's fade is over", lambda: ctx.takes_input(instance), 15)
-        return {"at": [round(v) for v in ctx.my_position(instance)]}
-
-    def arrives_with_party(ctx, instance, within=3000.0):
-        """That game's player arrives near the other player (the party tether after the other's trip), its fade over."""
-        other = "" if instance else "client"
-        ctx.wait_for(f"[{instance or 'host'}] arrives with the other player (the party tether)",
-                     lambda: math.dist(ctx.my_position(instance)[:2], ctx.my_position(other)[:2]) <= within, 90)
-        ctx.wait_for(f"[{instance or 'host'}] the arrival's fade is over", lambda: ctx.takes_input(instance), 15)
-        return {"apart": round(math.dist(ctx.my_position(instance)[:2], ctx.my_position(other)[:2]))}
-
-    def place_of(ctx, instance, ref):
-        """Where that game has a reference or actor (its status entry, or its world-state row)."""
-        if ref == 0x14:
-            return ctx.my_position(instance)
-        actor = ctx.actors_on(instance).get(str(ref))
-        if actor and actor.get("actual"):
-            return actor["actual"]
-        local = (ctx.local_player(instance).get("local_actors") or {}).get(str(ref))  # this game's own actors
-        if local and local.get("position"):
-            return local["position"]
-        row = ctx.world_state(instance, [ref]).get(ref)
-        if not row:
-            raise ctx.failure(f"[{instance or 'host'}] {ref:X} is not in this game")
-        return row["position"]
-
-    def talk_to(ctx, instance, target):
-        """The player faces `target` and presses Activate, as a player starts a conversation; returns its options."""
-        game = "guest" if instance else "host"
-        ref = ctx.resolve(target, game)
-        if math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]) > 150:  # out of reach (it moved off)
-            ctx.walk_to(instance, target, 100.0)
-        if ctx.player_command(instance, {"cmd": "camera"}).get("state") in (8, 9):  # third person: the view key, as a player
-            ctx.hold_key(instance, "f", 0.1)
-            ctx.wait_for(f"[{instance or 'host'}] first person", lambda: ctx.player_command(instance, {"cmd": "camera"}).get("state") == 0, 5)
-        ctx.act(instance, {"name": f"talks to {target}", "ready": ["takes_input"], "turn": {"face": ref, "rate": 180},
-                           "until": ["aimed"], "seconds": 3})
-        ctx.act(instance, {"name": "presses Activate", "ready": ["takes_input"], "buttons": ["activate"],
-                           "until": [{"for": 0.15}], "seconds": 1, "allow_menus": True})
-        ctx.wait_for(f"[{instance or 'host'}] the conversation with {target} opens", lambda: ctx.talking_to(instance, ref), 10)
-        return ctx.wait_for(f"[{instance or 'host'}] the menu lists options", lambda: ctx.dialogue(instance).get("options"), 10)
-
-    def pick(ctx, instance, line):
-        """Picks a line in that game's open conversation: its index, or (a string) the first whose text contains it."""
-        options = ctx.dialogue(instance).get("options") or []
-        if isinstance(line, str):
-            index = next((i for i, option in enumerate(options) if line.lower() in option.get("text", "").lower()), None)
-            if index is None:
-                raise ctx.failure(f"[{instance or 'host'}] no line like {line!r}: {[o.get('text') for o in options]}")
-        else:
-            index = line
-        reply = ctx.player_command(instance, {"cmd": "dialogue_pick", "index": index})
-        if not reply or not reply.get("ok"):
-            raise ctx.failure(f"[{instance or 'host'}] the pick was refused: {reply}")
-        before = [option.get("text") for option in options]
-        speaking = {"seen": False}
-        def answered():  # the speaker has said the response: new options, its line over, or the conversation over
-            shown = ctx.dialogue(instance)
-            if not shown.get("open"):
-                return {"closed": True}
-            speaking["seen"] = speaking["seen"] or bool(shown.get("current_info"))
-            after = [option.get("text") for option in shown.get("options") or []]
-            done = after and (after != before or (speaking["seen"] and not shown.get("current_info")))
-            return done and {"options": after}
-        said = ctx.wait_for(f"[{instance or 'host'}] the response to {before[index] if index < len(before) else index!r}",
-                            answered, 60)
-        return {"picked": before[index] if index < len(before) else index, **said}
-
-    def menu(ctx, instance, name, show=True):
-        """Opens or closes a menu in that game, as the game does."""
-        reply = ctx.player_command(instance, {"cmd": "menu", "name": name, "show": show})
-        if not reply or not reply.get("ok"):
-            raise ctx.failure(f"[{instance or 'host'}] menu {name} refused: {reply}")
-        return reply
