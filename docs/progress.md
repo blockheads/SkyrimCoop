@@ -17,8 +17,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 1. **Checked in-game actions.** Slim version built 2026-11-02 (`checked-actions.md`, "As built"):
    the physics scenario runs on it, `guest-holds-into-npc` 10 of 10. The MCP layer is built too
-   ([repro-mcp.md](design/repro-mcp.md)). Left: walk/push verbs, scene control, the broad migration (only when a
-   scenario flakes). Actions that check their own outcome, ticked in the harness each frame:
+   ([repro-mcp.md](design/repro-mcp.md)). Left: walk/push verbs, scene control, the broad migration. **Plan ready
+   for an agent (2026-11-04):** `checked-actions.md`, "Finishing it": `move` with "blocked" in the plugin,
+   `push_toward`, `act_wait` instead of polling, freeze per action, then the open-loop sites (physics first); two
+   questions for the user at its end. Actions that check their own outcome, ticked in the harness each frame:
    - a ready gate before acting;
    - steering every frame;
    - checks that must keep holding;
@@ -55,6 +57,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 ## News
 
 Newest first.
+
+2026-11-04: the repro MCP grows instead of being left ([repro-mcp.md](design/repro-mcp.md), "Robustness"). The kill-move
+work left it for scratch scripts (rounds, a trace filter) because its code loaded once. Now `mcp_reload` loads the
+harness again keeping the session, `verb(name, args)` calls any Session method (recorded, exported as `ctx.<name>(...)`),
+`rounds` repeats a call with a line each, `trace_start`/`trace_read` show a filtered animation trace, `log` greps the
+plugin logs. A bare `Session` that drives the games without the duo is refused (`Game.rpc`); `scripts/check_scenarios.py`
+(in `check.sh`) fails a new scenario that says neither `# recorded:` (stamped by `record_export`) nor `# hand-written:`.
+Python units: `scripts/test_coop_mcp.py`.
 
 2026-11-04: copy state from Riverwood, both fixed. Level: a placed leveled NPC's copy (a Whiterun Guard, 1000 against
 1; Odahviing's 20 against 1 the same kind) was given the owner's face record, dropping its own game's resolved base and

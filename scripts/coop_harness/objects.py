@@ -710,3 +710,45 @@ class RagdollTrace:
         if not compared or worst > self.MAX_STRAY or jitter:
             raise ctx.failure(f"the copy's visible skeleton differs from its owner by up to {worst:.1f} units; "
                               f"{compared} frames compared; jitter={bool(jitter)} (samples: {self.folder.name})")
+
+
+# What a brief trace leaves out besides TRACE_NOISE: steps, swings and idles that fire every few frames.
+BRIEF_NOISE = re.compile(r"^(sound|foot|anim|weaponswing|tail|picknewidle|disablebumper|enablebumper|interruptcast|idleoffset|"
+                         r"arrow|pitch|beginweapon|weapequip)", re.I)
+
+
+def trace_lines(entries, who=(), kinds=(), grep="", origin="", before=0.4, limit=200, everything=False):
+    """An AnimTrace's entries as short lines for a reader: positions and noise left out, a state only when it changed,
+    seconds from the first action or graph event matching `origin` (regex; else the first entry), from `before` s
+    ahead of it. Returns {lines, shown, total}."""
+    zero = next((e["time"] for e in entries if origin and e["kind"] in ("action", "graph")
+                 and re.search(origin, e.get("event") or "")), entries[0]["time"] if entries else 0.0)
+    last, lines = {}, []
+    for entry in entries:
+        kind = entry["kind"]
+        if entry["time"] < zero - before or kind in ("pos", "listen", "watch") or (who and entry.get("who") not in who) \
+                or (kinds and kind not in kinds):
+            continue
+        if kind == "graph" and not everything and (entry.get("project") == "FirstPerson" or TRACE_NOISE.match(entry.get("event", ""))
+                                                   or BRIEF_NOISE.match(entry.get("event", ""))):
+            continue
+        if kind in ("state", "game"):
+            state = {k: v for k, v in entry["state"].items() if everything or k not in ("health", "graph_updates")}
+            key = (entry["game"], entry.get("who"), kind)
+            if last.get(key) == state:
+                continue
+            last[key] = state
+            text = " ".join(f"{k}={v}" for k, v in state.items())
+        elif kind == "graph":
+            text = entry["event"] + (f" ({entry['payload']})" if entry.get("payload") else "")
+        elif kind == "action":
+            text = f"{entry['event']} {entry.get('action', 0):X}" + (f" -> {entry['target']:X}" if entry.get("target") else "")
+        elif kind == "log":
+            text = entry["text"]
+        else:
+            text = " ".join(f"{k}={v}" for k, v in entry.items() if k not in ("t", "f", "kind", "game", "who", "time", "actor"))
+        frame = f"f{entry['f']}" if entry.get("f") is not None else "-"
+        line = f"{entry['time'] - zero:7.3f} {entry['game'] or 'host':6} {entry.get('who', '?')} {frame} {kind} {text}"
+        if not grep or re.search(grep, line):
+            lines.append(line)
+    return {"lines": lines[:limit], "shown": min(len(lines), limit), "total": len(lines)}

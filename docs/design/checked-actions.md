@@ -37,6 +37,85 @@ action can silently fail its intent:
 
 The user's words: "you say an action, it happens, other state changes, and the thing you wanted to happen didn't."
 
+## Finishing it (plan 2026-11-04, not started)
+
+Written for the next agent; the user asked for it as a pick-up. Open questions at the end go to the user first.
+
+**There already:** walking (`steer_to`/`run_straight`: turn plus forward through the runner; `go_to` along the
+navmesh), stat normalization (the baseline's `setlevel`/`setav`/`restoreav`, `fixtures.py`), `freeze` as a command.
+**Missing:** the stall check lives in Python (polls `act_state` every 0.1 s: a wall is Python giving up, not the
+action's "blocked"); no `act_wait`; no `push_toward`; no freeze per action; no input lock; open-loop sites left
+(2026-11-04): 37 `time.sleep` (12 in `scenarios/physics.py`), 33 `setangle` (21 scenarios, 12 actions), 7 timed
+press/release pairs.
+
+**A. `move`: walking in the plugin, with "blocked"**
+
+```
+ctx.act(game, {"ready": [...], "move": {"to": ref | [x,y,z], "within": d, "speed": "walk"|"run"|"sprint"},
+               "keep": [...], "watch": [...]})
+plugin, each running frame:
+  turn: face `to` (ActionSteer::Axis, as turn.face)
+  buttons: forward; run: Always Run on; sprint: Sprint once moving
+  until near_xy(player, to, within)          -> done
+  moved < 40 units over the last 1.5 s       -> failed "blocked at N units"
+  past `seconds` (from the distance)         -> timeout
+```
+
+The stall ring is pure, in `ActionSteer.h`, with ClientTests `[action-steer]`. `steer_to`/`run_straight` become one
+`ctx.act`, the Python loop goes.
+
+**B. `push_toward`**
+
+```
+push_toward(game, target, toward, within, holding=None)
+  = act move {to: toward, speed: walk}
+      until near_xy(target, toward, within)    # the pushed or carried thing arrives
+      keep  holding(held) if holding
+      watch min distance_xy(target, toward)
+```
+
+A preset in `actions/play.py`; the MCP gets a `push` tool (and `verb` reaches it anyway).
+
+**C. `act_wait`: no polling**
+
+```
+rpc {"cmd": "act_wait", "id", "seconds": s}   the command server holds the reply until the action ends or s passes
+ctx.act: start, then act_wait in 5 s chunks   (no act_state loop, no sleep)
+```
+
+**D. Scene control**
+
+```
+act spec "freeze": [refs]   frozen at the start, thawed at the end (failure or cancel too)
+input lock                  open question 1
+stats                       done (the baseline)
+```
+
+**E. Migrating the open-loop sites**
+
+```
+for each site (time.sleep, setangle, timed press/release):
+  turn  -> turn_to (keeps a held object; setangle drops it)
+  press -> act buttons + until (the state it pressed for)
+  sleep -> wait for the state it slept for, or an act watch
+order: physics.py, physics_green.py -> crime.py -> the rest -> actions/*.py
+```
+
+Waits on state inside verbs (a menu, a fade) stay. Checked by one combined duo run of the affected scenarios at the
+end (offered, not the full suite).
+
+**Files:** `TestHarness/Actions.{h,cpp}` (move, freeze, act_wait), `ActionSteer.h` (the stall ring),
+`CommandServer` (a deferred reply), `actions/play.py`, `actions/play_verbs.py`, the scenarios in E. **Tests:**
+ClientTests (stalls); `test_coop_harness` (spec building, outcome to failure); duo: `move` ends at a wall "blocked",
+not a timeout; `push_toward` with a bucket held; the physics scenarios; the carry step of `guest-holds-into-npc` 10 of
+10. **Order:** C, A, B, D on the fake and units, one duo session; then E, physics first.
+
+**Open questions (ask the user):**
+1. Input lock: what should it block? The harness's own real input (`xdotool`, the MCP's `press`/`mouse`) looks like
+   a person's. (a) skip it: the games run off-screen (proposed); (b) block window input and move `press`/`mouse` onto
+   the plugin's input path.
+2. E's scope: all ~77 sites now, or physics only and the rest by the flake rule?
+
 ## 1. OpenMW's test system, all of it
 
 Read from the source: `scripts/integration_tests.py`, `scripts/data/integration_tests/{testing_util,test_lua_api}`,

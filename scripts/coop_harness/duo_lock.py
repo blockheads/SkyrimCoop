@@ -130,6 +130,30 @@ def age(seconds):
     return f"{minutes // 60}h{minutes % 60:02d}m" if minutes >= 60 else f"{minutes}m"
 
 
+def ancestors(pid):
+    """pid and its parents up to init, from /proc."""
+    chain = []
+    while pid > 1 and pid not in chain:
+        chain.append(pid)
+        try:
+            pid = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return chain
+
+
+def holds_duo(home, pid=None):
+    """Whether this process, or one it descends from, holds or joined the duo's live hold (duo.json)."""
+    try:
+        holder = json.loads((Path(home) / "duo.json").read_text()).get("holder")
+    except (OSError, ValueError):
+        return False
+    if not holder:
+        return False
+    live = {entry["pid"] for entry in [holder, *holder.get("joined", [])] if alive(entry.get("token"))}
+    return bool(live & set(ancestors(pid or os.getpid())))
+
+
 def run_stop(command, worktree):
     """The stop path of a holder's checkout (coop_test.py stop), allowed to stop a stale holder's games."""
     if not command:

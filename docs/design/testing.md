@@ -98,6 +98,9 @@ command ends
 ```
 
 - One checkout holds at a time; its other commands (and the MCP's `duo` subprocess) join that hold.
+- A process that drives the games (`Game.rpc` with anything but a read or a trace) must hold or have joined the hold,
+  descend from a process that did, or have come in through `coop_test.py`'s CLI; a bare `Session` in a scratch script
+  is refused with a pointer to the MCP. `COOP_HARNESS_FREE=1` bypasses on purpose (`game.py`, `READ_COMMANDS`).
 - The MCP server holds it from `duo_start` (waits `wait` seconds, then fails keeping its queue place for the next
   call) until `duo_stop` or the server's exit.
 - `scripts/duo.py status` shows the holder, the queue and ages; `scripts/duo.py run -- <command>` waits, holds for

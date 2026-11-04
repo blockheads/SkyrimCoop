@@ -31,6 +31,7 @@ from .common import (
     VANILLA_HARNESS,
 )
 from .duo_lock import TAKEOVER_ENV
+from . import game as game_module
 from .errors import TestFailure
 from .comparisons import (
     describe_world_differences,
@@ -824,6 +825,7 @@ class Commands:
 
     def cli(ctx):
         _game = ctx.game()
+        game_module.FRONTS.add("coop_test.py")  # a sanctioned way in: its own commands take the duo when they drive it
         try:
             ctx.validate_source_tags()
         except TestFailure as error:

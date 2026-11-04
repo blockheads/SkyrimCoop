@@ -10,6 +10,32 @@ from .common import (
     TEST_HOME,
     WINDOWS,
 )
+from .errors import TestFailure
+
+FREE_ENV = "COOP_HARNESS_FREE"  # set: drive the games without holding the duo (a deliberate bypass)
+# Harness commands that only read or trace: any process may send them (the diagnostics: look, desync, world-diff).
+READ_COMMANDS = frozenset("""act_state actor_pools anim_trace body_trace camera change_log combat_targets container_items counters
+    dialogue dialogue_trace engine_events form form_known graph_state graph_writers hud_messages idle_conditions
+    info_conditions info_responses info_said input_state is_current_package item_count item_stacks judged_line log_trail
+    npc_templates objects papyrus_result player_probe_read quest_fragments ray records ref_enabled reference_effects
+    screen script_stacks script_state stack_extras status story_trace surroundings trainings ui_element world_clock
+    world_state""".split())
+FRONTS = set()  # the sanctioned ways in running in this process (coop_test.py's CLI)
+_held = {"until": 0.0}
+
+
+def check_duo_held(request):
+    """Refuses a command that drives the games unless this process holds the duo or came in by coop_test.py
+    (docs/design/repro-mcp.md, Robustness): a bare Session in a scratch script goes through the MCP instead."""
+    if WINDOWS or FRONTS or os.environ.get(FREE_ENV) or request.get("cmd") in READ_COMMANDS or time.monotonic() < _held["until"]:
+        return
+    from .actions.repro import duo_home
+    from .duo_lock import holds_duo
+    if not holds_duo(duo_home()):
+        raise TestFailure(f"{request.get('cmd')}: this process holds no duo. Drive the games through the skyrim-coop MCP "
+                          f"(extend it if it lacks something), coop_test.py, or `scripts/duo.py run -- <command>`; "
+                          f"{FREE_ENV}=1 bypasses on purpose")
+    _held["until"] = time.monotonic() + 30
 
 
 def known_folder(guid):
@@ -62,6 +88,7 @@ class Game:
 
     def rpc(self, request, timeout=3.0):
         """Sends one request to the game; returns the decoded response, or None."""
+        check_duo_held(request)
         key = str(self.control)
         try:
             info = json.loads((self.control / "rpc.json").read_text())
