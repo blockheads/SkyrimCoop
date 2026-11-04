@@ -363,6 +363,28 @@ bool TESObjectREFR::SetGraphCounters(const std::vector<GraphRandom::Counter>& ac
     return set >= acCounters.size();
 }
 
+void TESObjectREFR::SaveGraphPoint(uint32_t& aSeed, std::string& aState, std::vector<GraphRandom::Counter>& aCounters) const noexcept
+{
+    WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
+        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
+        aSeed = GetGraphRandom();
+        SaveAnimationGraphState(aState);
+        aCounters = GetGraphCounters();
+        return true;
+    });
+}
+
+bool TESObjectREFR::LoadGraphPoint(uint32_t aSeed, const std::string& acState) const noexcept
+{
+    return WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
+        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
+        if (!LoadAnimationGraphState(acState))
+            return false;
+        SetGraphRandom(aSeed);
+        return true;
+    });
+}
+
 uint32_t TESObjectREFR::GetCellId() const noexcept
 {
     if (!parentCell)

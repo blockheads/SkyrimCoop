@@ -216,6 +216,9 @@ struct TESObjectREFR : TESForm
     // Its selected graph's active every-N counters, which a saved graph leaves out. Set: false until all are active.
     [[nodiscard]] std::vector<GraphRandom::Counter> GetGraphCounters() const noexcept;
     bool SetGraphCounters(const std::vector<GraphRandom::Counter>& acCounters) const noexcept;
+    // A sync point's seed and graph as one, no graph update between them: the manager's lock, which its updates take.
+    void SaveGraphPoint(uint32_t& aSeed, std::string& aState, std::vector<GraphRandom::Counter>& aCounters) const noexcept;
+    bool LoadGraphPoint(uint32_t aSeed, const std::string& acState) const noexcept;
     // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
     bool SaveGraphs(std::string& aGraphs) const noexcept;
     bool LoadGraphs(const std::string& acGraphs) const noexcept;

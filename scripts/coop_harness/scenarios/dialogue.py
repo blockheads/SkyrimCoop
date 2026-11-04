@@ -195,11 +195,12 @@ def scenario_npc_clips_match(ctx):
                 trace.take()
                 return any(e["game"] == "client" and e["who"] == lucan and e["kind"] == "clips" and e["time"] >= taken["time"] for e in trace.entries)
             ctx.wait_for("[client] the copy's clips change with it", copy_clips_after, 10)
+            through = watch_through(ctx, trace, taken["time"])
         played = sum(len(e["detail"]) for e in trace.entries if e["kind"] == "clips" and e["game"] == "client")
         if skipped := skipped_clips(trace):
             raise ctx.failure(f"{len(skipped)} of {played} clips started without their files: " + " | ".join(skipped[:6]))
         log(f"[client] all {played} clips read had their files")
-        require_clips_match(ctx, trace)
+        require_clips_match(ctx, trace, through=through)
     finally:
         ctx.wait_for("[host] Lucan finishes his line", lambda: ctx.line_over("", LUCAN), 60)
         ctx.close_dialogues()
@@ -211,6 +212,8 @@ def scenario_npc_clips_match(ctx):
 def scenario_npc_counter_matches(ctx):
     """Lucan at his counter crosses and uncrosses his arms by his graph alone, no action starting it: his copy does the
     same at the same moments. Nobody talks to him, so a repeat finds him as this run did."""
+    # His shop hours: by evening his schedule takes him from the counter.
+    ctx.console_on("", "set gamehour to 12")
     ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
     try:
         watch_counter(ctx)
@@ -221,6 +224,8 @@ def scenario_npc_counter_matches(ctx):
 def scenario_npc_counter_copy_falls_back_in(ctx):
     """Lucan's copy pushed out of step, his crossed arms loaded into it alone while his are down (as a copy arrives
     mid-loop, which a tethered guest cannot stage): it falls back in with him at his next pick."""
+    # His shop hours: by evening his schedule takes him from the counter.
+    ctx.console_on("", "set gamehour to 12")
     ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
     try:
         watch_counter(ctx, push=True)
@@ -270,11 +275,31 @@ def watch_counter(ctx, push=False):
         ctx.wait_for("[host] Lucan crosses his arms again", lambda: arms("", first + 2), 90)
         crossed = len([s for s in clip_starts(trace, "client", lucan) if s[1] == COUNTER_ARMS and s[0] >= since])
         ctx.wait_for("[client] his copy crosses its arms with him", lambda: arms("client", crossed + 1) or crossed >= 2, CLIP_DELAY * 3)
-    require_clips_match(ctx, trace, since)
+        through = watch_through(ctx, trace, clip_starts(trace, "", lucan)[-1][0])
+    require_clips_match(ctx, trace, since, through)
 
 
-def require_clips_match(ctx, trace, since=0.0):
-    """Fails naming every clip one game started and the other did not, within the delay, from `since`."""
+def watch_through(ctx, trace, moment):
+    """Keeps the trace on until both games have been watched a clip's delay past that moment. Returns that time."""
+    through = moment + CLIP_DELAY + 0.1
+    def watched():
+        trace.take()
+        return watched_until(trace) >= through
+    ctx.wait_for("[both] a clip's delay is watched", watched, CLIP_DELAY * 5)
+    return through
+
+
+def watched_until(trace):
+    """The last moment both games' traces cover, by anything they recorded (a place each frame), clips or not."""
+    ends = [max((e["time"] for e in trace.entries if e["game"] == game), default=0.0) for game in ("", "client")]
+    return min(ends)
+
+
+def require_clips_match(ctx, trace, since=0.0, through=None):
+    """Fails naming every clip one game started and the other did not, within the delay, from `since`; and if the trace
+    does not reach `through`, the last moment that must be compared."""
+    if through is not None and watched_until(trace) < through:
+        raise ctx.failure(f"the trace stops {through - watched_until(trace):.1f}s short of the last clip's comparison")
     different, blended = clip_mismatches(trace, since=since)
     if blended:
         log(f"not compared, blended by variables: {blended} clip starts")
@@ -313,7 +338,10 @@ def clip_mismatches(trace, delay=CLIP_DELAY, since=0.0):
         copy_clips = [e["time"] for e in trace.entries if e["kind"] == "clips" and e["game"] == "client" and e["who"] == who]
         if not owner_clips or not copy_clips:
             continue
-        first, last = max(owner_clips[0], copy_clips[0], since), min(owner_clips[-1], copy_clips[-1])
+        # Clips are recorded when they change: how long each game was watched is in everything it recorded.
+        first = max(owner_clips[0], copy_clips[0], since)
+        owner_end = max(e["time"] for e in trace.entries if e["game"] == "" and e.get("who") == who)
+        copy_end = max(e["time"] for e in trace.entries if e["game"] == "client" and e.get("who") == who)
         blended += sum(s[1].startswith(BLENDED_CLIPS) for s in owner + copy)
         owner = [s for s in owner if not s[1].startswith(BLENDED_CLIPS)]
         copy = [s for s in copy if not s[1].startswith(BLENDED_CLIPS)]
@@ -322,10 +350,10 @@ def clip_mismatches(trace, delay=CLIP_DELAY, since=0.0):
             match = next((i for i, (when, name) in enumerate(copy) if i not in taken and name == clip and at - 0.2 <= when <= at + delay), None)
             if match is not None:
                 taken.add(match)
-            elif first <= at <= last - delay:
+            elif first <= at <= copy_end - delay:
                 different.append(f"{who} host {clip} at {at - first:.1f}s")
         different += [f"{who} guest {clip} at {at - first:.1f}s" for i, (at, clip) in enumerate(copy)
-                      if i not in taken and first + delay <= at <= last]
+                      if i not in taken and first + delay <= at <= owner_end]
     return different, blended
 
 

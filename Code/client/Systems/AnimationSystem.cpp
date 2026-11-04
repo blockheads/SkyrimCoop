@@ -85,7 +85,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
         aAnimationComponent.CounterUpdates = 0;
-    if (phase == ReplayStep::kIdle && aAnimationComponent.GraphPoint)
+    // After the actions before it: played later, they would undo what it loaded.
+    if (phase == ReplayStep::kIdle && aAnimationComponent.GraphPoint && (actions.empty() || actions.front().Tick > aAnimationComponent.GraphPoint->Tick))
         RunGraphPoint(apActor, aAnimationComponent, aTick);
 
     if (phase == ReplayStep::kTaken || phase == ReplayStep::kRefused)
@@ -175,7 +176,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         }
 
         // An action carries its own seed: an older sync point has nothing to add.
-        if (aAnimationComponent.GraphPoint && aAnimationComponent.GraphPoint->Tick <= first.Tick)
+        if (aAnimationComponent.GraphPoint && aAnimationComponent.GraphPoint->Tick < first.Tick)
             aAnimationComponent.GraphPoint.reset();
 
         step.Action = first;
@@ -280,10 +281,9 @@ void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aA
     if (cVerdict == GraphRandom::Point::kLoad && !apActor->IsDead())
     {
         const uint32_t cFlags1 = apActor->actorState.flags1;
-        if (apActor->LoadAnimationGraphState(cPoint.GraphState))
+        if (apActor->LoadGraphPoint(cSeed, cPoint.GraphState))
         {
             spdlog::debug("Copy {:X} fell in with its owner's graph at a sync point", apActor->formID);
-            apActor->SetGraphRandom(cSeed);
             GraphRandom::Track(aAnimationComponent.Random, cSeed, aTick);
             aAnimationComponent.GraphCounters = GraphRandom::Unpack(cPoint.GraphCounters);
             aAnimationComponent.CounterUpdates = 30;
@@ -374,9 +374,10 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
         ActionEvent point;
         point.Tick = cNow;
         point.ActorId = pActor->formID;
-        point.Variables.GraphRandom = animationComponent.Random.Seed;
-        pActor->SaveAnimationGraphState(point.GraphState);
-        point.GraphCounters = GraphRandom::Pack(pActor->GetGraphCounters());
+        std::vector<GraphRandom::Counter> counters;
+        pActor->SaveGraphPoint(point.Variables.GraphRandom, point.GraphState, counters);
+        animationComponent.Random.Seed = point.Variables.GraphRandom;
+        point.GraphCounters = GraphRandom::Pack(counters);
         if (!point.GraphState.empty())
             update.ActionEvents.push_back(std::move(point));
     }

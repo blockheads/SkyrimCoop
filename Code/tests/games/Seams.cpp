@@ -230,7 +230,8 @@ void World::Update() noexcept
         // As AnimationSystem::RunGraphPoint.
         const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
         GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-        if (cPhase == Step::kIdle && animation.GraphPoint)
+        if (cPhase == Step::kIdle && animation.GraphPoint &&
+            (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))
         {
             const auto& cPoint = *animation.GraphPoint;
             const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
@@ -284,7 +285,7 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
-        if (animation.GraphPoint && animation.GraphPoint->Tick <= action.Tick)
+        if (animation.GraphPoint && animation.GraphPoint->Tick < action.Tick)
             animation.GraphPoint.reset();
         step.Action = action;
         if (action.Tick >= animation.VariablesTick)

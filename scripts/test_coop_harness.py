@@ -1463,6 +1463,23 @@ class ClipMismatchTests(unittest.TestCase):
                            (26.7, "", {arms: 0.0}), (40.0, "", {"Loop": 1.5}), (40.0, "client", {"Loop": 1.5}))
         self.assertEqual(sorted(clip_mismatches(trace)[0]), [f"lucan guest {arms} at 7.3s", f"lucan host {arms} at 26.7s"])
 
+    def test_a_final_gesture_is_compared_once_watched_past_it(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        rows = [(0.0, "", {"Idle": 1.0}), (0.1, "client", {"Idle": 1.0}), (2.0, "", {"ExpressiveE": 0.0}), (2.3, "client", {"ExpressiveH": 0.0})]
+        trace = self.trace(*rows)
+        self.assertEqual(clip_mismatches(trace)[0], [])  # not watched past it: require_clips_match fails on `through`
+        for game in ("", "client"):  # places, each frame, no clip changing
+            trace.entries.append({"kind": "pos", "game": game, "who": "lucan", "time": 5.0})
+        self.assertEqual(clip_mismatches(trace)[0], ["lucan host ExpressiveE at 1.9s", "lucan guest ExpressiveH at 2.2s"])
+
+    def test_a_trace_stopped_before_its_last_clip_is_compared_fails(self):
+        from coop_harness.scenarios.dialogue import require_clips_match
+        from types import SimpleNamespace
+        trace = self.trace((0.0, "", {"Idle": 1.0}), (0.1, "client", {"Idle": 1.0}))
+        ctx = SimpleNamespace(failure=lambda message: AssertionError(message))
+        with self.assertRaisesRegex(AssertionError, "short of the last clip"):
+            require_clips_match(ctx, trace, through=3.0)
+
     def test_clips_before_since_are_not_compared(self):
         from coop_harness.scenarios.dialogue import clip_mismatches
         trace = self.trace((0.0, "", {"Loop": 1.0}), (0.0, "client", {"Loop": 1.0}), (2.0, "client", {"Loop": 1.2, "Early": 0.0}),

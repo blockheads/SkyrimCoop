@@ -231,6 +231,49 @@ TEST_CASE("A copy arriving mid-loop falls in with its owner at the next pick", "
     CHECK(apart * 4 < frames);
 }
 
+TEST_CASE("A sync point waits for the actions before it", "[animation][replay-points]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+        engine->GraphTransitions = {{{"Standing", "Gesture"}, "Gestured"}, {{"Later", "Gesture"}, "Gestured"}};
+    uint32_t lucan = 0;
+    party.As(party.Host(), [&] {
+        lucan = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(lucan).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "Lucan's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Standing"; }, "the spawn graph loads");
+    uint32_t sid = 0;
+    for (auto&& [entity, form, local] : party.Host().view<FormIdComponent, LocalComponent>().each())
+        if (form.Id == lucan) sid = local.Id;
+    REQUIRE(sid != 0);
+
+    // Both overdue when the copy looks: its older action plays first, or it undoes what the point loaded.
+    auto& copied = guest.Actors.at(cCopy);
+    copied.GraphState = "Later";
+    const std::string cLater = guest.SaveActorGraphState(cCopy);
+    copied.GraphState = "Standing";
+    NotifyReferencesMove snapshot;
+    snapshot.Tick = party.Guest().GetTransport().GetTick() - 2000;
+    ActionEvent gesture;
+    gesture.Tick = snapshot.Tick;
+    gesture.ActionId = 0x13002;
+    gesture.EventName = "Gesture";
+    gesture.IdleId = 0xF64D7;
+    ActionEvent point;
+    point.Tick = snapshot.Tick + 500;
+    point.Variables.GraphRandom = 0x7DE6C53E;
+    point.GraphState = cLater;
+    snapshot.Updates[sid].ActionEvents = {gesture, point};
+    party.As(party.Guest(), [&] { party.Guest().GetCharacterService().OnReferencesMoveRequest(snapshot); });
+    party.Until([&] { return guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId; }, "the copy takes the older action");
+    party.Until([&] { return copied.GraphState == "Later"; }, "the sync point lands after it");
+    CHECK(copied.GraphRandom == point.Variables.GraphRandom);
+}
+
 TEST_CASE("NPC actions wait for the same playback time as their movement", "[animation][replay-time]")
 {
     Party party(1, SmokeWorld);
