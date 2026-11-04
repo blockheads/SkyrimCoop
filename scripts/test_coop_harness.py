@@ -554,6 +554,57 @@ class Harness(unittest.TestCase):
             self.assertTrue(result.stdout.strip())
 
 
+class LoadMenu(unittest.TestCase):
+    """load_latest_from_menu against a fake System page: E steps it through its states."""
+    def load(self, first_state, saves):
+        from coop_harness.actions.join import JoinActions
+        state = {"now": 0}
+        def tap(_, key):
+            if key == 0x12:
+                state["now"] = {0: first_state, 17: 1, 1: 2}[state["now"]]
+        def menu_var(_, __, path):
+            if path.endswith("iCurrentTab"):
+                return 2
+            if path.endswith("iCurrentState"):
+                return state["now"]
+            if path.endswith("selectedIndex"):
+                return 0
+            if path.endswith("entryList.length"):
+                return 1
+            return "$LOAD"
+        def wait_for(what, check, *_):
+            if not check():
+                raise TestFailure(what)
+        ctx = MagicMock()
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        ctx.game.return_value.my_games = saves.parent
+        ctx.menus.return_value = ["Journal Menu"]
+        ctx.menu_var.side_effect, ctx.tap_key.side_effect, ctx.wait_for.side_effect = menu_var, tap, wait_for
+        JoinActions.load_latest_from_menu(ctx, "")
+        return state["now"]
+
+    def saves(self, root):
+        saves = Path(root) / "Saves"
+        saves.mkdir()
+        for name in ("SkyrimCoopWipe.ess", "SkyrimCoopWipe.skse", "Quicksave0.ess", "Quicksave0.skse"):
+            (saves / name).touch()
+        return saves
+
+    def test_the_character_list_leads_to_the_saves(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertEqual(self.load(17, self.saves(root)), 2)
+
+    def test_a_game_going_straight_to_its_saves_still_loads(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertEqual(self.load(1, self.saves(root)), 2)
+
+    def test_a_reloads_scratch_save_goes_and_the_players_stay(self):
+        with tempfile.TemporaryDirectory() as root:
+            saves = self.saves(root)
+            self.load(1, saves)
+            self.assertEqual(sorted(path.name for path in saves.iterdir()), ["Quicksave0.ess", "Quicksave0.skse"])
+
+
 class GoalVerbs(unittest.TestCase):
     def verb_ctx(self, entries=()):
         ctx = MagicMock()
