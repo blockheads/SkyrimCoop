@@ -9,7 +9,6 @@ import socket
 import subprocess
 import time
 import uuid
-from ..errors import TestFailure
 from ..common import (
     DIVE_SECONDS,
     DO_NOTHING_PACKAGE,
@@ -110,10 +109,9 @@ class TravelActions:
                             voice=(ctx.player_snapshot(diver).get("mod") or {}).get("voice"))
                 return not seen["water"].get("head_under") and lines["owner"]
             try:
-                ctx.wait_for(f"[{diver or 'host'}] surfaces and gasps", surfaced, 10, _game=_game)
-            except TestFailure:
-                raise ctx.failure(f"[{diver or 'host'}] did not surface and gasp: water {seen.get('water')}, at "
-                                  f"{[round(v) for v in seen.get('position') or []]}, its lines {lines['owner']}, its voice now {seen.get('voice')}")
+                ctx.wait_for(f"[{diver or 'host'}] surfaces and gasps", surfaced, 10, _game=_game,
+                             explain=lambda: f"water {seen.get('water')}, at {[round(v) for v in seen.get('position') or []]}, "
+                                             f"its lines {lines['owner']}, its voice now {seen.get('voice')}")
             finally:
                 ctx.release(diver, "forward")
             ctx.console_on(diver, "player.setangle x 0")

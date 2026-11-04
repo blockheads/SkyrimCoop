@@ -581,7 +581,9 @@ class Runtime:
         if bundled_start:
             ctx.enable_bundled_start(_game=_game)
 
-    def wait_for(ctx, description, predicate, timeout, launcher=None, *, _game=None):
+    def wait_for(ctx, description, predicate, timeout, launcher=None, *, explain=None, _game=None):
+        """Polls predicate until truthy. explain(): what was seen, added to a timeout's message only (a crash stays
+        as it is)."""
         _game = ctx.game(_game)
         log(description + "...")
         ctx.CURRENT_STEP.update(description=description, time=time.time())
@@ -595,7 +597,7 @@ class Runtime:
                 raise ctx.failure(f"Skyrim exited while waiting: {description}")
             ctx.check_for_crash()
             time.sleep(0.05)
-        raise ctx.failure(f"Timed out after {timeout:.0f}s: {description}")
+        raise ctx.failure(f"Timed out after {timeout:.0f}s: {description}" + (f" ({explain()})" if explain else ""))
 
     def launch(ctx, args, run_dir, *, _game=None):
         _game = ctx.game(_game)
