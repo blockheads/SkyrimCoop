@@ -192,10 +192,9 @@ response or the list. A guest's only moved its own idle conversation, so the hos
 **How long a line lasts** (1.7.104, 2026-11-03). Two timers: `Actor::SpeakSound` (37542) returns the lip file's length
 (frames / 30), but the list waits for the voice timer (`Actor` +0x110), set by `Actor::UpdateSoundCallback` (0x14068e150):
 the sound handle's duration + `fGameplayVoiceFilePadding` (0.5 s), and with a duration of 0, the response's text length x
-`fAIDefaultSpeechMult` + the padding (`Skyrim.esm`: 0.15 s a character; the executable's default is 0.05). Measured on the
-duo, whose games have no audio driver so every duration is 0: Orgnar's 121-character rumor has 8.1 s of lip data and its
-list came 19.2 s later. Text-timed lines are about twice as long as spoken ones. Scenarios that wait for a line's end
-see that; so does anyone playing in the duo's windows.
+`fAIDefaultSpeechMult` + the padding (`Skyrim.esm`: 0.15 s a character; the executable's default is 0.05). Without an audio
+device every duration is 0 and lines run about twice their spoken length: Orgnar's "Can I use the alchemy lab?" (three
+responses) took 36.8 s from pick to list with no audio driver, 16.1 s on the duo's null device (`docs/design/testing.md`).
 
 **The highlight moving** (2026-10-29, `skyrimui` source in `reference/plugins/skyrimui`): nothing reaches the game. W
 and S call `CenteredScrollingList.moveSelectionUp/Down`, which set `iSelectedIndex` and dispatch `listMovedUp/Down`
