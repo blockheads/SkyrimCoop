@@ -948,9 +948,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actors passing through each other (PlayerCollision's collision filter).
     std::vector<uint32_t> PassingThrough;
     void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept override { PassingThrough = acActorFormIds; }
-    // A stepped NPC copy overlapping this game's player shoves the player out of it each frame (its capsule never
-    // yields: follower-lands-on-guest measured 27 units), unless the two pass through each other. Players' copies
-    // are not modelled.
+    // A stepped NPC copy overlapping the player shoves it out unless they pass through (actor-movement.md).
     void ShovePlayer() noexcept;
     uint32_t PlayerShoves = 0;
     float GetPlayerHeading() const noexcept override { return Heading; }

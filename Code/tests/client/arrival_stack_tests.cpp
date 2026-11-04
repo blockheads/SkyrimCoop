@@ -1,9 +1,11 @@
-// ArrivalStack: who passes through whom on the party's arrival spot (host-authority-migration.md, "Arriving together").
+// ArrivalStack and CollisionGroups: who passes through whom on the party's arrival spot (host-authority-migration.md).
 #include <catch2/catch.hpp>
 
+#include <Games/Skyrim/CollisionGroups.h>
 #include <Services/ArrivalStack.h>
 
 #include <algorithm>
+#include <thread>
 
 namespace
 {
@@ -63,4 +65,24 @@ TEST_CASE("An actor on the stack that is gone leaves it; a player away is still 
     // A player who never came within the arrival leaves it.
     ArrivalStack late(cSpot, cStart, {kPlayer, kGuest});
     CHECK_FALSE(Has(late.Update({{kPlayer, cSpot}}, {}, cStart + ArrivalStack::kArrival + 1s), kGuest));
+}
+
+TEST_CASE("Groups kept across a publish never read as unmarked", "[arrival-stack]")
+{
+    CollisionGroups groups;
+    groups.Publish({1, 65});
+    std::atomic<bool> done = false;
+    std::atomic<uint64_t> collided = 0;
+    std::thread physics([&] {
+        while (!done)
+            collided += !(groups.Has(1) && groups.Has(65));
+    });
+    for (int i = 0; i < 200000; ++i)
+        groups.Publish(i % 2 ? std::vector<uint16_t>{1, 65} : std::vector<uint16_t>{1, 65, 130});
+    done = true;
+    physics.join();
+    CHECK(collided == 0);
+    groups.Publish({});
+    CHECK_FALSE(groups.Has(1));
+    CHECK_FALSE(groups.Has(130));
 }

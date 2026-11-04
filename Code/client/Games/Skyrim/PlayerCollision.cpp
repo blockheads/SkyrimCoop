@@ -1,5 +1,7 @@
 #include <Games/Skyrim/PlayerCollision.h>
 
+#include <Games/Skyrim/CollisionGroups.h>
+
 #include <Actor.h>
 #include <AI/AIProcess.h>
 #include <Havok/bhkCharacterController.h>
@@ -7,8 +9,6 @@
 #include <Misc/MiddleProcess.h>
 
 #include <algorithm>
-#include <array>
-#include <atomic>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
@@ -16,15 +16,8 @@
 
 namespace
 {
-// The stacked actors' collision groups (an actor's bodies all share one), one bit each: written by the main
-// thread, read by the physics threads without a lock.
-std::array<std::atomic<uint64_t>, 0x10000 / 64> s_stacked{};
-std::vector<uint16_t> s_marked; // main thread: the groups set in s_stacked
-
-bool IsStacked(uint32_t aGroup) noexcept
-{
-    return s_stacked[aGroup >> 6].load(std::memory_order_relaxed) & (1ull << (aGroup & 63));
-}
+// The stacked actors' collision groups (an actor's bodies all share one).
+CollisionGroups s_stacked;
 
 // The actor's collision group: its character controller's (0 without one).
 uint16_t GroupOf(uint32_t aFormId) noexcept
@@ -51,7 +44,7 @@ bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
     const uint32_t cGroupB = aFilterB >> 16;
     if (cGroupA && cGroupB && cGroupA != cGroupB)
     {
-        if (IsStacked(cGroupA) && IsStacked(cGroupB))
+        if (s_stacked.Has(cGroupA) && s_stacked.Has(cGroupB))
             return false;
     }
     return RealCompareFilterInfo(apThis, aFilterA, aFilterB);
@@ -75,13 +68,7 @@ void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept
     if (groups.size() < 2)
         groups.clear();
     std::ranges::sort(groups);
-    if (groups == s_marked)
-        return;
-    for (const uint16_t cGroup : s_marked)
-        s_stacked[cGroup >> 6].fetch_and(~(1ull << (cGroup & 63)), std::memory_order_relaxed);
-    for (const uint16_t cGroup : groups)
-        s_stacked[cGroup >> 6].fetch_or(1ull << (cGroup & 63), std::memory_order_relaxed);
-    s_marked = std::move(groups);
-    spdlog::info("Player collision: {} stacked actors pass through each other", s_marked.size());
+    if (s_stacked.Publish(groups))
+        spdlog::info("Player collision: {} stacked actors pass through each other", groups.size());
 }
 } // namespace PlayerCollision

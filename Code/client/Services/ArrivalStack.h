@@ -35,9 +35,7 @@ struct ArrivalStack
             Members.push_back({cPlayer, true});
     }
 
-    // acPlayers: the players here and where they stand; acOthers: every other actor here. Returns who passes
-    // through whom: the members on the spot or still coming (one off it collides at once, but leaves only if it
-    // stays off).
+    // Where the players and every other actor here stand; returns who passes through whom (on the spot or coming).
     std::vector<uint32_t> Update(const std::unordered_map<uint32_t, glm::vec3>& acPlayers,
                                  const std::unordered_map<uint32_t, glm::vec3>& acOthers, Clock::time_point aNow) noexcept
     {
