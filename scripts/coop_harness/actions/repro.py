@@ -744,11 +744,22 @@ def _called(name, args):
     return _line("verb", {"name": name, "args": args})
 
 
+def _is_expect(entry):
+    """A check, kept even when it failed (a failing expect is the bug): the tool, or an expect* verb through `verb`."""
+    return entry["tool"] == "expect" or (entry["tool"] == "verb" and entry["args"].get("name", "").startswith("expect"))
+
+
+def _replayed(entry):
+    """A call's arguments as it ran: `rounds` replays the rounds it ran (it may have stopped at `until`)."""
+    ran = (entry.get("result") or {}).get("ran") if isinstance(entry.get("result"), dict) else None
+    return {**entry["args"], "count": ran} if entry["tool"] == "rounds" and ran is not None else entry["args"]
+
+
 def export_scenario(entries, name, doc, tags, recorded=None):
     """A recorded session as a scenario module: its calls in order (failed ones left out, except expects: a failing
     expect is the bug), in a try that unstages and thaws the world. `recorded` (the session's file) stamps it."""
-    lines = [line for entry in entries if entry["ok"] or entry["tool"] == "expect"
-             if (line := _line(entry["tool"], entry["args"]))]
+    lines = [line for entry in entries if entry["ok"] or _is_expect(entry)
+             if (line := _line(entry["tool"], _replayed(entry)))]
     if not lines:
         raise ValueError("nothing recorded to replay")
     body = "\n".join("\n".join(f"        {part}" for part in line.split("\n")) for line in lines)
@@ -794,7 +805,7 @@ def spec_draft(entries, name, doc):
     flow starts from this; a flow on the fake is written by hand from what is left."""
     steps, leftovers = [], []
     for entry in entries:
-        if not (entry["ok"] or entry["tool"] == "expect") or not (line := _line(entry["tool"], entry["args"])):
+        if not (entry["ok"] or _is_expect(entry)) or not (line := _line(entry["tool"], _replayed(entry))):
             continue
         if (mapped := _spec_steps(entry["tool"], entry["args"])) is None:
             leftovers.append(f"no spec step: {line}")

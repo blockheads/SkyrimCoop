@@ -14,20 +14,23 @@ from .errors import TestFailure
 
 FREE_ENV = "COOP_HARNESS_FREE"  # set: drive the games without holding the duo (a deliberate bypass)
 # Harness commands that only read or trace: any process may send them (the diagnostics: look, desync, world-diff).
-READ_COMMANDS = frozenset("""act_state actor_pools anim_trace body_trace camera change_log combat_targets container_items counters
-    dialogue dialogue_trace engine_events form form_known graph_state graph_writers hud_messages idle_conditions
-    info_conditions info_responses info_said input_state is_current_package item_count item_stacks judged_line log_trail
-    npc_templates objects papyrus_result player_probe_read quest_fragments ray records ref_enabled reference_effects
-    screen script_stacks script_state stack_extras status story_trace surroundings trainings ui_element world_clock
-    world_state""".split())
+READ_COMMANDS = frozenset("""act_state actor_pools anim_trace body_trace camera change_log clipboard combat_targets
+    container_items controller counters dialogue dialogue_trace engine_events faction_rank form form_known form_save
+    gait global graph_bool graph_state graph_writers hud_messages idle_conditions info_conditions info_responses
+    info_said input_state is_current_package item_count item_stacks judged_line log_trail menu_var npc_templates objects
+    papyrus_result perf player_probe_read player_record quest quest_fragments ray recipe records ref_enabled
+    reference_effects relationship_rank screen script_stacks script_state script_var skill stack_extras status
+    story_trace surroundings trainings ui_element world_clock world_state""".split())
+# Reads that write when given this field.
+WRITES_WITH = {"script_var": "value", "trainings": "set"}
 FRONTS = set()  # the sanctioned ways in running in this process (coop_test.py's CLI)
-_held = {"until": 0.0}
 
 
 def check_duo_held(request):
     """Refuses a command that drives the games unless this process holds the duo or came in by coop_test.py
     (docs/design/repro-mcp.md, Robustness): a bare Session in a scratch script goes through the MCP instead."""
-    if WINDOWS or FRONTS or os.environ.get(FREE_ENV) or request.get("cmd") in READ_COMMANDS or time.monotonic() < _held["until"]:
+    command = request.get("cmd")
+    if WINDOWS or FRONTS or os.environ.get(FREE_ENV) or (command in READ_COMMANDS and WRITES_WITH.get(command) not in request):
         return
     from .actions.repro import duo_home
     from .duo_lock import holds_duo
@@ -35,7 +38,6 @@ def check_duo_held(request):
         raise TestFailure(f"{request.get('cmd')}: this process holds no duo. Drive the games through the skyrim-coop MCP "
                           f"(extend it if it lacks something), coop_test.py, or `scripts/duo.py run -- <command>`; "
                           f"{FREE_ENV}=1 bypasses on purpose")
-    _held["until"] = time.monotonic() + 30
 
 
 def known_folder(guid):

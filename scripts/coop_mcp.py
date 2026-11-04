@@ -52,8 +52,9 @@ def load_tools():
 
 
 def reload_harness():
-    """Imports coop_harness again (the new code of every verb and tool) and moves the live session onto it; on an
-    import error the old code stays. Returns (tools added, removed) or raises."""
+    """Imports coop_harness again (the new code of every verb and tool), registers its tools on a scratch server first,
+    then moves the live session and the tools onto it; an import or registration error leaves the old code and tools
+    in place. Returns (tools added, removed) or raises."""
     old = {name: module for name, module in sys.modules.items() if name.split(".")[0] == "coop_harness"}
     for name in old:
         if name not in KEEP:
@@ -61,7 +62,8 @@ def reload_harness():
     try:
         harness = importlib.import_module("coop_harness")
         game = importlib.import_module("coop_harness.game")
-        importlib.import_module("coop_harness.mcp_tools")
+        new_tools = importlib.import_module("coop_harness.mcp_tools")
+        new_tools.register(FastMCP("reload-check"), state)  # schemas built here: a bad one fails before the swap
     except BaseException:
         for name in [name for name in sys.modules if name.split(".")[0] == "coop_harness"]:
             del sys.modules[name]

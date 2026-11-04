@@ -473,19 +473,19 @@ def rounds(call: str, args: dict | None = None, count: int = 10, until: str = ""
     Every full result goes to the file."""
     path = TEST_HOME / "mcp" / f"rounds-{time.strftime('%Y%m%d-%H%M%S')}-{call}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines, hit = [], None
+    lines, hit, ran = [], None, 0
     with path.open("w") as file:
         for index in range(count):
             if reset and not (done := _call(reset, reset_args or {})).get("ok", True):
                 lines.append(f"{index} reset FAIL {_summary(done)}")
                 break
-            result = _call(call, args or {})
+            result, ran = _call(call, args or {}), ran + 1
             file.write(json.dumps({"round": index, "result": result}, default=str) + "\n")
             lines.append(f"{index} {'ok' if result.get('ok', True) else 'FAIL'} {_summary(result)}")
             if until and re.search(until, lines[-1]):
                 hit = index
                 break
-    return {"ok": True, "lines": lines, "hit": hit, "file": str(path)}
+    return {"ok": True, "lines": lines, "hit": hit, "ran": ran, "file": str(path)}
 
 
 # --- Seeing what happened: the animation trace and the plugin logs ---

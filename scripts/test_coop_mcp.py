@@ -140,6 +140,16 @@ class Export(unittest.TestCase):
         self.assertIn("        for _ in range(2):\n            ctx.swing()\n", text)
         compile(text, "x.py", "exec")
 
+    def test_rounds_replays_the_rounds_it_ran_and_a_failing_expect_verb_stays(self):
+        entries = [{"tool": "rounds", "args": {"call": "swing", "count": 10, "until": "open"}, "ok": True,
+                    "result": {"ok": True, "lines": ["0 ok {}"], "hit": 0, "ran": 1}},
+                   {"tool": "verb", "args": {"name": "expect", "args": {"name": "door", "check": "agree"}}, "ok": False},
+                   {"tool": "verb", "args": {"name": "swing", "args": {}}, "ok": False}]
+        text = repro.export_scenario(entries, "x", "Doc.", ["recorded"])
+        self.assertIn("for _ in range(1):", text)
+        self.assertIn("ctx.expect(name='door', check='agree')", text)
+        self.assertEqual(text.count("ctx.swing()"), 1, "a failed verb that is not a check is left out")
+
     def test_every_tool_replays_or_is_known_to_only_look(self):
         samples = {"game": "host", "target": "t", "name": "n", "check": "agree", "spec": {}, "frames": 1, "line": "x",
                    "request": {"cmd": "act"}, "key": "w", "item": "1", "step": {}, "save": "s", "command": "c", "call": "use"}
@@ -154,7 +164,6 @@ class DuoRefusal(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.home = Path(self.folder.name)
         self.token = Token(self.home / "duo-tokens")
-        game_module._held["until"] = 0.0
         self.environment = patch.dict(os.environ, {"COOP_DUO_HOME": str(self.home)})
         self.environment.start()
         os.environ.pop(game_module.FREE_ENV, None)
@@ -163,7 +172,6 @@ class DuoRefusal(unittest.TestCase):
         self.environment.stop()
         self.token.close()
         self.folder.cleanup()
-        game_module._held["until"] = 0.0
 
     def hold(self, pid, joined=()):
         holder = {"pid": pid, "token": str(self.token.path), "joined": [{"pid": p, "token": str(self.token.path)} for p in joined]}
@@ -192,9 +200,28 @@ class DuoRefusal(unittest.TestCase):
             self.hold(os.getpid())
             game_module.check_duo_held({"cmd": "input"})
         self.hold(1)
-        game_module._held["until"] = 0.0
         with patch.object(game_module, "FRONTS", {"coop_test.py"}):
             game_module.check_duo_held({"cmd": "input"})
+
+
+    @unittest.skipIf(game_module.WINDOWS, "no duo lock on Windows")
+    def test_losing_the_hold_refuses_the_next_command_at_once(self):
+        with patch.object(game_module, "FRONTS", set()):
+            self.hold(os.getpid())
+            game_module.check_duo_held({"cmd": "input"})
+            (self.home / "duo.json").write_text(json.dumps({"holder": None, "queue": []}))
+            with self.assertRaises(TestFailure):
+                game_module.check_duo_held({"cmd": "input"})
+
+    @unittest.skipIf(game_module.WINDOWS, "no duo lock on Windows")
+    def test_diagnostic_reads_pass_and_reads_that_set_do_not(self):
+        self.hold(1)
+        with patch.object(game_module, "FRONTS", set()):
+            for command in ("quest", "graph_bool", "gait", "perf", "global", "skill", "script_var", "trainings"):
+                game_module.check_duo_held({"cmd": command})
+            for request in ({"cmd": "script_var", "value": 1}, {"cmd": "trainings", "set": 2}):
+                with self.assertRaises(TestFailure):
+                    game_module.check_duo_held(request)
 
 
 class Reload(unittest.TestCase):
@@ -225,6 +252,23 @@ try:
 except SyntaxError:
     pass
 assert sys.modules["coop_harness"] is kept, "the old code stays"
+count = len(server.tools)
+def schema_fails(name):  # imports fine, then its registration fails (a tool FastMCP can't describe)
+    module = real(name)
+    if name.endswith("mcp_tools"):
+        module.register = lambda srv, state: (_ for _ in ()).throw(TypeError("bad schema"))
+    return module
+importlib.import_module = schema_fails
+try:
+    server.reload_harness()
+    raise AssertionError("the bad registration passed")
+except TypeError:
+    pass
+importlib.import_module = real
+import asyncio
+listed = [tool.name for tool in asyncio.run(server.server.list_tools())]
+assert len(server.tools) == count and "duo_stop" in listed, "the old tools stay registered"
+assert sys.modules["coop_harness"] is kept
 print("reload ok", file=sys.stderr)
 '''
         done = subprocess.run([sys.executable, "-c", script, str(Path(__file__).resolve().parent / "coop_mcp.py")],

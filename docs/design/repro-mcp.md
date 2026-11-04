@@ -68,7 +68,8 @@ written mid-task needed a restart an agent can't do, and raw `anim_trace` throug
 agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
                    │ mcp_reload: drop coop_harness.* from sys.modules (errors, duo_lock kept), import again,
                    │             session.__class__ = the new Session (handles, recording, hold stay),
-                   │             tools re-registered, tools/list_changed sent; an import error keeps the old code
+                   │             tools checked on a scratch server, then re-registered, tools/list_changed sent;
+                   │             an import or registration error keeps the old code and tools
                    v
             coop_harness/mcp_tools.py   every tool; verb(name, args) calls any Session method
                    v
@@ -80,7 +81,8 @@ agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
   lists them. A verb call records and exports as `ctx.<name>(...)`; an `instance` argument takes host or guest.
   A reload doesn't run `Session.__init__`: new state on the session is read with `getattr(ctx, NAME, default)`.
 - **rounds**(call, args, count, until, reset): a tool or verb N times, one line each (`3 FAIL {...}`), stopping at the
-  first line matching `until`; full results in `build/coop-test/mcp/rounds-*.jsonl`. Exported as a `for` loop.
+  first line matching `until`; full results in `build/coop-test/mcp/rounds-*.jsonl`. Exported as a `for` loop of the
+  rounds it ran. A failing `expect*` called through `verb` stays in the export, as a failing `expect` does.
 - **trace_start**(names) / **trace_read**(origin, who, kinds, grep) / **trace_mark** / **trace_stop**: `AnimTrace` of
   handles in both games; `trace_read` is `objects.trace_lines` (show.py's filter): seconds from the first event
   matching `origin` (`^pa_` for a kill move), no positions, steps, sounds or first-person graph, a state only when
@@ -89,7 +91,8 @@ agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
 - **Unexpected errors** come back as `{error, where}` (the last frames) instead of killing the call.
 - **Bypass refused:** `Game.rpc` refuses a driving command (`READ_COMMANDS` are free) from a process that neither
   holds the duo (nor descends from its holder or a joined process) nor came in through `coop_test.py`
-  (testing.md, The duo lock). `COOP_HARNESS_FREE=1` is the deliberate way past.
+  (testing.md, The duo lock), checked on every such command so a released hold stops at once; `script_var` with a
+  value and `trainings` with `set` count as driving. `COOP_HARNESS_FREE=1` is the deliberate way past.
 - **Proof:** `record_export` stamps the scenario `# recorded: <session file>, <n> calls`; `scripts/check_scenarios.py`
   (in `check.sh`) fails a new `registry.add` line without `# hand-written: <why>` and a new recorded file without
   either line.
