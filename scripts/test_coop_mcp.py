@@ -75,6 +75,9 @@ class Tools(unittest.TestCase):
         self.assertEqual(shown["outline"], {"name": "Prisoner", "level": 1, "tints": "<list, 40>"})
         self.assertEqual(json.loads(Path(shown["file"]).read_text()), record)
         self.assertEqual(mcp_tools._jsonable({"small": 1}), {"small": 1})
+        first, second = mcp_tools._jsonable({"data": "a" * 4000}), mcp_tools._jsonable({"data": "b" * 4000})
+        self.assertNotEqual(first["file"], second["file"])
+        self.assertEqual(json.loads(Path(first["file"]).read_text()), {"data": "a" * 4000})
 
     def test_rounds_gives_a_line_each_records_itself_only_and_stops_at_until(self):
         session = FakeSession()
@@ -209,6 +212,100 @@ class Stays(unittest.TestCase):
                 ReproActions.expect_actor(self.ctx([alive, alive, dead, alive]), "p", "state.dead", "host", False, 1.0, stays=True)
             self.assertEqual(ReproActions.expect_actor(self.ctx([dead, alive]), "p", "state.dead", "host", False, 1.0),
                              {"state.dead": {"host": False}})
+
+
+class Clock:
+    """time.monotonic and time.sleep for repro: sleeping moves the clock."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class StaysBoundaries(unittest.TestCase):
+    def run_stays(self, dead_from, seconds):
+        from coop_harness.actions.repro import ReproActions
+        clock, ctx = Clock(), unittest.mock.MagicMock()
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.actor_row.side_effect = lambda instance, ref: {"state": {"dead": clock.now >= dead_from}}
+        with patch("coop_harness.actions.repro.time", clock):
+            return ReproActions.expect_actor(ctx, "p", "state.dead", "host", False, seconds, stays=True)
+
+    def test_a_change_just_before_the_deadline_fails(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=0.9, seconds=1.0)
+
+    def test_a_change_at_the_deadline_fails(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=1.0, seconds=1.0)
+
+    def test_zero_seconds_checks_the_one_reading(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=0.0, seconds=0.0)
+        self.assertEqual(self.run_stays(dead_from=5.0, seconds=0.0), {"state.dead": {"host": False}})
+
+    def test_holding_all_through_passes(self):
+        self.assertEqual(self.run_stays(dead_from=5.0, seconds=1.0), {"state.dead": {"host": False}})
+
+
+class Checkpoints(unittest.TestCase):
+    """checkpoint/retry on a scripted session: the order of what they wait for."""
+
+    def ctx(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx, steps = unittest.mock.MagicMock(), []
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.save_game.side_effect = lambda instance, name: steps.append(("save", instance, name)) or Path(f"/saves/{name}.ess")
+        ctx.saves_written.side_effect = lambda path: (lambda: steps.append(("written", path.name)) or True)
+        ctx.console_on.side_effect = lambda instance, line: steps.append(("console", instance, line))
+        events = {"": [{"kind": "game_loaded", "seq": 0}], "client": []}  # a load from before the retry
+        ctx.engine_events.side_effect = lambda game, since=0: ([e for e in events[game] if e["seq"] >= since],
+                                                               len(events[game]))
+        def wait_for(description, predicate, timeout, **kwargs):
+            steps.append(("wait", description))
+            if "load the checkpoint" in description:
+                self.assertFalse(predicate(), "a load from before the retry counts")
+                events[""].append({"kind": "game_loaded", "seq": 1})
+                self.assertFalse(predicate(), "the host's load alone is enough")
+                events["client"].append({"kind": "game_loaded", "seq": 0})
+            if not predicate():
+                raise TestFailure(f"never: {description}")
+        ctx.wait_for.side_effect = wait_for
+        ctx.both_see_each_other.side_effect = lambda: steps.append(("see",)) or True
+        ctx.takes_input.side_effect = lambda game: True
+        ctx.refresh_handles.side_effect = lambda: steps.append(("refresh",))
+        ctx.checkpoint.side_effect = lambda name="mcp-checkpoint": ReproActions.checkpoint(ctx, name)
+        return ctx, steps, ReproActions
+
+    def test_retry_without_a_checkpoint_fails(self):
+        ctx, _, actions = self.ctx()
+        del ctx.REPRO_CHECKPOINT
+        with self.assertRaisesRegex(TestFailure, "no checkpoint"):
+            actions.retry(ctx)
+
+    def test_the_checkpoint_counts_once_its_save_and_co_save_are_written(self):
+        ctx, steps, actions = self.ctx()
+        del ctx.REPRO_CHECKPOINT
+        ctx.wait_for.side_effect = lambda description, predicate, timeout, **kwargs: (
+            steps.append(("checked", hasattr(ctx, "REPRO_CHECKPOINT"))), predicate())
+        actions.checkpoint(ctx, "here")
+        self.assertEqual(steps[:3], [("save", "", "here"), ("checked", False), ("written", "here.ess")])
+        self.assertEqual(ctx.REPRO_CHECKPOINT, "here")
+
+    def test_retry_waits_for_both_loads_then_both_players_then_refreshes(self):
+        ctx, steps, actions = self.ctx()
+        ctx.REPRO_CHECKPOINT = "here"
+        actions.retry(ctx)
+        self.assertEqual(steps[0], ("console", "", "load here"))
+        self.assertEqual([step for step in steps if step[0] in ("wait", "refresh")][-1], ("refresh",))
+        waits = [step[1] for step in steps if step[0] == "wait"]
+        self.assertEqual(waits, ["both games load the checkpoint here", "each game shows the other player again",
+                                 "both games take input"])
 
 
 class Export(unittest.TestCase):

@@ -16,7 +16,7 @@ production bug or a conflict with whichever mod was installed.
 | Save/load acceptance gate | Built: `save-load-gate` (quick, Load menu, named, wipe, door autosave; a follower kept through all of them; a minute of fighting after each) passes 3/3 on vanilla (2026-10-29, v1-gate). Still to run on the fix-mod profiles where the reload crashes were seen. |
 | Party-dialogue acceptance | Implemented, including the party's tagged options and shared highlight. Latest reported reruns: follower trade 3/3, party options 3/3, picked-line response 2/3. Retest the combined build and retain the intermittent failures below. |
 | Deleted-follower conversation safety | Confirm or rule out the suspected fixture teardown race. If ordinary play can delete/disable a conversation actor on this path, end the conversation safely and add a regression. It is now an explicit item in the v1 checklist. |
-| Final fix-mod profile | 2026-10-29 acceptance on the merged save fix (synchronous device-2 saves, [save-phase investigation](re/crashes/2026-10-29-synchronous-save-phase.md)): 131 pass / 24 fail / 0 not run of 155; the six-mod profile is not accepted for v1 ([report](reports/2026-10-29-v1-mod-profiles.md)). Earlier: all six pinned mods have been acquired and tested. Latest focused combined run is 14/15 without crashes (the one failure, B8, is deferred to [bugs.md](bugs.md#plugin-compatibility)); it does not replace the earlier full 27-case run or Windows acceptance. Resolve or explicitly accept retained failures before recommending a profile. [Matrix](mod-compatibility.md). |
+| Final fix-mod profile | 2026-10-29 acceptance on the merged save fix (synchronous device-2 saves, [save-phase investigation](re/crashes/2026-10-29-synchronous-save-phase.md)): 131 pass / 24 fail / 0 not run of 155; the six-mod profile is not accepted for v1 ([report](reports/2026-10-29-v1-mod-profiles.md)). Earlier: all six pinned mods have been acquired and tested. Latest focused combined run is 14/15 without crashes (the one failure, B8, is open in [bugs.md](bugs.md#plugin-compatibility)); it does not replace the earlier full 27-case run or Windows acceptance. Resolve or explicitly accept retained failures before recommending a profile. [Matrix](mod-compatibility.md). |
 | Real multiplayer acceptance | Separate Steam accounts/invites and 3–4 players, including quests/dungeons, scenes, combat/death, save/rejoin and guest-to-guest Fus Ro Dah. Two local games using the direct session transport do not cover these. |
 | Clean player package | `scripts/package.sh` builds it (see the [todo](v1-playtest-todo.md)); [install.md](install.md) has the steps; `scripts/package_check.py` installs it into a clean folder and prefix and boots it (PASS 2026-10-29). Remaining: a joined session of two packaged games, and Windows. |
 | Easy playtest modlist installation | Still a publishing-stage task, after functionality and acceptance. Pin the tested files/settings and provide the agreed easy install for friends. |
@@ -32,7 +32,7 @@ rejoin, which hit the arrival push). Not run yet: the playtest mod profile, B8/B
 
 - Pass: dialogue pick, follower trade, training, both Fus Ro Dah, host loads and quickloads, the frozen-VM save.
 - Arrival push and combat after death: below (fixed).
-- **New, out of v1 scope ([bugs.md](bugs.md)): a respawned guest can stay ragdolled.** `death-spectate-guest` once timed out on "the respawned player can
+- **New, open ([bugs.md](bugs.md)): a respawned guest can stay ragdolled.** `death-spectate-guest` once timed out on "the respawned player can
   walk again": its player's 18 ragdoll bodies awake, sunk 49 units into the floor. 0 of 6 since; the same family as
   the open revive item in [death.md](design/death.md) (a revived player knocked down later stays getting up) and
   the walking timeout after a shout. Kept under `--until-fail`.
@@ -48,7 +48,7 @@ rejoin, which hit the arrival push). Not run yet: the playtest mod profile, B8/B
   greeting over the party list we showed early (which also makes `menu_takes_pick` true too soon). Next: the
   dialogue event trace (plan H2: list shown by us, engine `ShowList`/refill, voice-ready, `TopicClicked`), then
   the fix (likely one show per step, and the host not resending an unchanged list).
-- **New, out of v1 scope ([bugs.md](bugs.md)): owners kneel after a follower trade.** `follower-trade-to-picker` failed its afterwards check once:
+- **New, open ([bugs.md](bugs.md)): owners kneel after a follower trade.** `follower-trade-to-picker` failed its afterwards check once:
   both players' own bodies read kneeling (pelvis 32 and 44) while their copies stand, both in first person. Either an
   idle the copies do not replay, or the body check misreading a first-person player; not yet told apart.
 
@@ -84,7 +84,7 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
   conversation its own body kneels (pelvis ~29, head ~55, like the bleedout pose) and later stands again; once its
   death ragdoll was left awake too (18 bodies). The host sees its copy standing. Likely the open revive item in
   [death.md](design/death.md) (the behavior graph is not reset by a revive). A later conversation without a death
-  first does not show it. Not the trade. Out of v1 scope (the user, 2026-10-30): in [bugs.md](bugs.md).
+  first does not show it. Not the trade. Open (2026-10-30): in [bugs.md](bugs.md).
 - Found 2026-10-30 (merged build): after the guest hands Lucan the claw (`dialogue-options-are-the-partys`, its
   script run for the guest), the host's copy of the guest's player wears only one item: its armor and weapon gone
   (`copy lacks 12E46, 12E4B, 12E4D, 13790`). **Fast fix verified (`v1-copy-desync`):** the native
@@ -126,7 +126,7 @@ left Lydia's copy unarmored; GameTests `[equipment]`), and a copy's running pack
   (`--no-restart` keeps the old stop; testing.md, `scripts/test_coop_harness.py`).
 - Dialogue's harness check found and the fixes closed: each menu its own claw line, a list a step behind after a
   pick, a guest's menu blank while the NPC answered. The picked line overlapping in the claw conversation is in
-  bugs.md (out of v1).
+  bugs.md (open).
 - Copies of leveled NPCs show different names: placed guards in QASmoke ("Whiterun Guard" vs "Imperial
   Soldier") and a spawned "Bandit Chief" vs "Bandit Outlaw" (2026-10-30).
   **Fixed, native name comparisons pass (`v1-copy-desync`):** the host's composite base has Chief's name and Outlaw's
@@ -195,11 +195,11 @@ attempts remain logged (four kill moves and HorseExit); the earlier wolf trace e
 duplicate, not a blanket explanation for every paired refusal. No lock allowlist or tolerance increases.
 [Full final results, open failures and smoke evidence](reports/2026-10-30-copy-desync.md).
 
-**Scope decision, 2026-10-31 (user): all remaining findings from this copy-desync batch are deferred past v1.**
+**Scope decision, 2026-10-31 (user): all remaining findings from this copy-desync batch stay open bugs.**
 This includes the intermittent zero marker, facing/scene differences, paired refusals, death/baseline and
 body/ragdoll failures, gait investigation, lock reports and missing story-save validation. They remain open
 in the [post-v1 backlog](bugs.md#copy-desync-follow-ups), with their evidence and failing checks preserved.
-The 18 failing scenarios are accepted deferred findings for this batch; their results are not changed to passes.
+The 18 failing scenarios are open findings for this batch; their results are not changed to passes.
 The lock reports and enemy-copy death delay deserve earlier follow-up because their gameplay impact remains
 uncertain. This decision does not change the disposition of unrelated findings elsewhere in this document.
 
@@ -222,7 +222,7 @@ They retain failures that later passing runs did not reproduce.
 | --- | --- |
 | Historical save/reload corruption or freeze | The confirmed frozen-VM re-entry is fixed; corrected lock-history attribution also has a fast regression. Six Engine Fixes cycles pass 30/30, and the final combined profile does not crash. The originating write for every historical crash was not caught. Keep the broader save/load gate and merged-build acceptance open. [VM investigation](re/crashes/2026-10-29-save-vm-reentry.md), [follow-up](re/crashes/2026-10-29-lock-history-and-button-pose.md). |
 | Picked dialogue line sometimes does not play | `dialogue-pick-reaches-host` still times out waiting for the picked line in one of the latest three reruns. Record separately from whether the option list/highlight works. Latest handoff: `build/coop-test/CHAT.md`, `party-dialogue`'s 10:20 report. Reproduce on the combined DLL. |
-| One dialogue worker crash involving deleted Lydia | Out of v1 scope (2026-10-29), in [bugs.md](bugs.md#dialogue). Not reproduced. The play path passes: `dialogue-npc-removed-mid-conversation` (new, tag `v1`) removes the NPC on the host mid-conversation; the guest's menu closes, both games end it, no crash. The scenario baseline now ends conversations before deleting NPCs, the fixture race the lead pointed at. Crash log `SKSE/crash-2026-10-29-09-52-36.log`; [progress](progress.md#loose-ends). |
+| One dialogue worker crash involving deleted Lydia | Open, in [bugs.md](bugs.md#dialogue). Not reproduced (2026-10-29). The play path passes: `dialogue-npc-removed-mid-conversation` (new, tag `v1`) removes the NPC on the host mid-conversation; the guest's menu closes, both games end it, no crash. The scenario baseline now ends conversations before deleting NPCs, the fixture race the lead pointed at. Crash log `SKSE/crash-2026-10-29-09-52-36.log`; [progress](progress.md#loose-ends). |
 | Equipment differences after dialogue or reload | The earlier USSEP dialogue check found the host's copy missing the guest's clothes/weapon; an earlier technical-profile reload left an extra iron sword (`12EB7`). The later dialogue tag also reported equipment desync after an earlier failed scenario; the latest party-options reruns pass 3/3. Keep the observations; establish which reproduce from a fresh combined session before assuming one common cause. [Matrix findings](mod-compatibility.md#failures-requiring-follow-up), shared chat. |
 | Combat targeting after host death | **Harness bug, fixed 2026-10-29.** The death scenarios froze the enemy (AI off) before `startcombat` on the standing player, so whether it took the new target was timing; the failure message read the target from a readout without AI fields (`host_npc_state`). The enemy now turns on the standing player before it is frozen; `death-spectate-guest`/`-host` pass 3 of 3 each. |
 | `first-time-join-breton` race press | ~1 in 3 runs lost an Up in the RaceSex menu. Cause 1 (fixed in the harness): a tapped key's press and release in one frame, which a menu's movie never takes ([input.md](re/systems/input.md)); `tap_key`/`press_key` hold a frame. Then 8 of 9 passed; run 9 lost a press held 84 ms with the Fader Menu up. Cause 2 (the scenario): it counted a press as taken only when the engine wore the new race within 5 s; the step now waits for the list's highlight to move, then up to 15 s for the engine's race (it loads the body behind the fade). 10/10 on vanilla (2026-10-29, v1-gate). |
@@ -234,13 +234,13 @@ Evidence paths beginning `v1-engine-fixes/build/` mean the ignored build directo
 `.worktrees/v1-engine-fixes`, not a committed test artifact. The compatibility reports retain
 the other original per-profile logs and failed batches.
 
-## Already accepted or deferred
+## Already listed as open
 
-These remain filed in [bugs.md](bugs.md); they have not silently become additional v1 blockers:
+These remain filed in [bugs.md](bugs.md); they are not forgotten:
 
-- Movement-record flags on guest clutter after a six-mod vampire rejoin (B8): deferred past v1 by the user
+- Movement-record flags on guest clutter after a six-mod vampire rejoin (B8): open in bugs.md
   (2026-10-29); positions agree, guest-only, not on vanilla. The six-mod run's 14/15 counts it.
-- Historical intermittent werewolf graph/heap crashes: currently marked out of v1 scope there.
+- Historical intermittent werewolf graph/heap crashes: listed there as not reproduced.
   This follow-up completes 14 transformations/reversions without a crash; longer play and crash
   bundles remain useful. Do not claim the historical faults are all explained by the VM fix.
 - Ragdoll jitter, get-up timing/facing/snap and displaced dead-copy poses; an interrupted chest

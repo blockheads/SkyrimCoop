@@ -8,8 +8,10 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
+from pathlib import Path
 from typing import Any
 
 import anyio
@@ -341,6 +343,26 @@ def fight(game: str, target: str, hits: int = 30) -> dict:
 
 
 @tool
+def equip(game: str, item: str) -> dict:
+    """That game's player gets `item` (hex form id) and holds it; "0" is bare hands."""
+    session.equip_weapon(_game(game), int(item, 16))
+    return {"ok": True}
+
+
+@tool
+def kill_move_check(game: str, target: str) -> dict:
+    """What decides a kill move now for that game's player on a handle: should_attack_kill, killable, attack_target."""
+    return session.player_command(_game(game), {"cmd": "kill_move_check", "victim": session.resolve(target, _game(game))})
+
+
+@tool
+def kill_move_exchange() -> dict:
+    """Both players, one hit from death and moving, swing at each other at once. crossed: each game started its own pair."""
+    copies = {game: session.other_player(session.actors_on(game)) for game in ("", "client")}
+    return {"ok": True, "crossed": session.kill_move_exchange(copies)}
+
+
+@tool
 def leave_dialogue() -> dict:
     """Closes every open conversation in both games."""
     session.close_dialogues()
@@ -426,9 +448,11 @@ def _jsonable(value):
     text = json.dumps(value, default=str)
     if len(text) <= BIG_RESULT:
         return json.loads(text)
-    path = TEST_HOME / "mcp" / f"result-{time.strftime('%H%M%S')}-{len(text)}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, default=str, indent=1))
+    (TEST_HOME / "mcp").mkdir(parents=True, exist_ok=True)
+    handle, name = tempfile.mkstemp(prefix=f"result-{time.strftime('%Y%m%d-%H%M%S')}-", suffix=".json", dir=TEST_HOME / "mcp")
+    with os.fdopen(handle, "w") as file:
+        file.write(json.dumps(value, default=str, indent=1))
+    path = Path(name)
     outline = ({key: (item if len(json.dumps(item, default=str)) <= 80 else f"<{type(item).__name__}, {len(item)}>")
                 for key, item in value.items()} if isinstance(value, dict) else f"<{type(value).__name__}, {len(value)}>")
     return {"outline": outline, "file": str(path)}

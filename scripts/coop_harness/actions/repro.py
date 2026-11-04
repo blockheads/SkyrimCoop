@@ -663,14 +663,15 @@ class ReproActions:
             return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
         ended, started = time.monotonic() + seconds, time.monotonic()
         expected = 'the same in both' if value is None else repr(value)
-        if stays:
-            while time.monotonic() < ended:
+        if stays:  # the first reading, every 0.2 s, and one at the deadline
+            while True:
                 if wrong(got := read()):
                     raise ctx.failure(f"{name}: {field} became {got} {time.monotonic() - started:.1f} s in, expected {expected} "
                                       f"all through {seconds:g} s")
+                if time.monotonic() >= ended:
+                    return {field: got}
+                time.sleep(min(0.2, max(0.0, ended - time.monotonic())))
                 ctx.refresh_handles()
-                time.sleep(0.2)
-            return {field: got if seconds else read()}
         while wrong(got := read()):
             if time.monotonic() >= ended:
                 raise ctx.failure(f"{name}: {field} is {got}, expected {expected}")
@@ -752,14 +753,14 @@ def _line(tool, args):
             return f"ctx.go_far({game}, {args['command']!r})"
         case "leave_dialogue":
             return "ctx.close_dialogues()"
+        case "equip":
+            return f"ctx.equip_weapon({game}, {int(args.get('item') or '0', 16)!r})"
+        case "kill_move_exchange":
+            return "ctx.kill_move_exchange({g: ctx.other_player(ctx.actors_on(g)) for g in ('', 'client')})"
         case "menu":
             return f"ctx.menu({game}, {args['name']!r}, {args.get('show', True)!r})"
         case "spec_step":
             return f"ctx.spec_step({args['step']!r})"
-        case "equip":
-            return f"ctx.equip_weapon({game}, {int(args['item'], 16)!r})"
-        case "kill_move_exchange":
-            return "ctx.kill_move_exchange({game: ctx.other_player(ctx.actors_on(game)) for game in ('', 'client')})"
         case "checkpoint":
             return f"ctx.checkpoint({args.get('name', 'mcp-checkpoint')!r})"
         case "retry":
@@ -782,7 +783,7 @@ def _line(tool, args):
 # tool is a Session verb).
 LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
-         "scene_reset", "verbs", "rounds", "kill_move_check", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload"}
+         "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 
 
 def _called(name, args):

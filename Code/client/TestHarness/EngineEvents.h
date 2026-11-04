@@ -6,9 +6,8 @@
 
 namespace TestHarness
 {
-// The engine's script events as they happen (the ones Papyrus's OnSpellCast, OnMagicEffectApply,
-// OnEffectStart/OnEffectFinish, OnHit, quest start and stop, and OnObjectEquipped come from) and each save loaded, numbered, the
-// last 512 kept: what a scenario checks when it has to see that a step happened.
+// The engine's script events (Papyrus's OnSpellCast, OnHit, OnObjectEquipped, quest start/stop, ...) and each save
+// loaded, numbered, the last 512 kept: what a scenario checks to see that a step happened.
 struct EngineEvents
 {
     // Listens once the engine's event sources exist. Once a frame.

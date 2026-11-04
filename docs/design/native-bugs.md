@@ -7,9 +7,9 @@ The pre-audit source and investigation are saved in `evidence-audit/before.tar.g
 
 ## Disposition
 
-Of the original 16 reports, 11 are addressed, three ragdoll/get-up reports are accepted for v1.0.0,
-the original AI/quest lock report is deferred by the user, and plugin quest start/stop compatibility
-is deferred with mod work. Two addressed reports were test-fixture problems, as distinguished below.
+Of the original 16 reports, 11 are addressed, three ragdoll/get-up reports are open,
+the original AI/quest lock report is open, and plugin quest start/stop compatibility
+is open (mod work). Two addressed reports were test-fixture problems, as distinguished below.
 Barter Speech is implemented. Neither Experience nor Skill Uncapper was installed; mod-specific work
 and compatibility claims remain outside v1.0.0.
 
@@ -19,9 +19,9 @@ and compatibility claims remain outside v1.0.0.
 | Host's purchased word unlocks inherited | Clear transferred purchased flags, then restore the joining character's own unlocks. Fast `native-bugs-word-{red,green}.log`; the same native offline/rejoin scenario checks personal Fus and no inherited purchased Ro. |
 | Player copies lack perks | Send owner ranks initially and when the live native list changes; apply them to the copy's unique temporary NPC base. Initial/rank/removal flows, owner-validation and encoding tests; real Mara turn-ins query HasPerk on both copies. Deferred removal is covered below. |
 | Created actor alias stays host-only | Use the actor's session ID, wait for its copy, and retry unresolved fills. Fast alias flow/encoding tests; native `quest-created-actor-alias-reaches-guest`. |
-| Plugin quest start/stop notifications | Deferred. Vanilla journal, stage and completion synchronization remains. The separate event relay and its additional stage-wait hook were removed in this audit. |
+| Plugin quest start/stop notifications | Open. Vanilla journal, stage and completion synchronization remains. The separate event relay and its additional stage-wait hook were removed in this audit. |
 | Horse package after ownership change | Republish unchanged empty packages in a new ownership term; copies install their holding package directly and remove stale ExtraPackage. Fast mount regression and native `guest-rides-host-horse`. |
-| AI/quest travel lock inversion | Deferred by the user after the original logs could not be located; no speculative lock change added. |
+| AI/quest travel lock inversion | Open: the original logs could not be located; no speculative lock change added. |
 | Jail guard cleanup | Fixture correction: return to the guard's fixture cell before clearing its alarm. Inventory comparison ignores a redundant change-record flag only when actual contents match. Four Python controls; native `host-guard-arrest-jail`. |
 | Copy gets up independently | Hold the copy's independent timer, replay native get-up preparation/action, and synchronize iGetUpType. Pure action-state tests and native timing checks; the delayed owner knock flag only ends resting-body correction. Remaining visual differences stay accepted. |
 | Intermittent guest death pose | Keep physical body correction in native physics, with dynamic rests. Current reduced-build native death and kill-move checks pass once; the historical intermittent report remains accepted. |
@@ -109,12 +109,12 @@ Native evidence is separated by build and purpose:
 - `evidence-audit/final-native.log`: eight of eight checks pass after removing the plugin event relay/hook:
   both real Mara turn-ins, created actor alias, native perk removal on both players, both barter purchases,
   jail and offline spell/word restoration. The guest turn-in logs stop 0 but completion 1, stage 1 and no guest
-  world fragments; plugin notification parity is explicitly deferred.
+  world fragments; plugin notification parity is open.
 - `evidence-audit/shadow-native.log`: after removing the redundant knock shadow state, owner/copy get-up
   comparisons show no facing gaps and timing within 0-20 ms of delayed playback; the death/revive/knock sequence
   passes. The strict lying audit still fails jitter, and smoke catches a 13-unit snap for one frame at knock
   state 5->6. These remain the accepted visual reports; their thresholds were not changed.
 
 Native tests are complete for this audit, both games are stopped and the duo is released. The original
-AI/quest lock report remains deferred, and Experience/Skill Uncapper compatibility is outside v1.0.0.
+AI/quest lock report remains open, and Experience/Skill Uncapper compatibility is not started.
 Changes remain uncommitted on dev. The other agent's unmerged work still needs its own integration review.
