@@ -161,6 +161,9 @@ class JoinActions:
     def load_latest_from_menu(ctx, instance):
         """The player opens System, Load, selects the newest save and confirms through menu input."""
         value = lambda field: ctx.menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
+        # An earlier reload's scratch copy sorts above the save just made.
+        for scratch in ctx.game(instance).my_games.glob("Saves/SkyrimCoopWipe.*"):
+            scratch.unlink()
         ctx.tap_key(instance, 0x01)
         ctx.wait_for("the journal opens", lambda: "Journal Menu" in ctx.menus(instance), 5)
         ctx.move_cursor(instance, (910, 100))
@@ -176,6 +179,10 @@ class JoinActions:
         else:
             raise ctx.failure("Load is absent from the system menu")
         ctx.tap_key(instance, 0x12)  # E, the menu's Accept action
+        # 1.7.104 lists the characters first (state 17): E takes the first, this game's.
+        ctx.wait_for("the load list opens", lambda: value("iCurrentState") in (1, 17), 10)
+        if value("iCurrentState") == 17:
+            ctx.tap_key(instance, 0x12)
         ctx.wait_for("the load list opens", lambda: value("SaveLoadListHolder.List_mc.entryList.length") and value("iCurrentState") == 1, 10)
         ctx.move_cursor(instance, (700, 150))
         for _ in range(40):

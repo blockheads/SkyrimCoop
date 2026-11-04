@@ -46,7 +46,8 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   can't sit in `check.sh`, so the flow lands with the fix.
 - **A guest's follower can stop following: not reproduced.** Recruited with `talk`, party away and back by `coc`, a wolf on
   the guest (god mode): on the host she kept `follow_target` and `package_target`. The entry needed a Load-menu round.
-  Lead, unread: she stood 1,388 units from the host for a minute, target set.
+  She stood 1,388 units from the host for a minute, target set: beside her anchor, the guest (2026-11-04, `bugs.md`,
+  with the Load-menu round: not reproduced either).
 - **`faendal-letter`:** through `coop_test.py scenario`, all its steps pass (stage 10 in both games, 129 s), then the end
   comparison fails on new differences: `head_track` (deferred, `bugs.md`) and a guest copy with no owner (a rabbit).
 - What the proofs found in the tools: a run cancelled before it set off (`SET_OFF_SECONDS`), `dialogue_pick` not landing a
