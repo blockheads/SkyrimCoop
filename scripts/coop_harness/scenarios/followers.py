@@ -4,12 +4,14 @@ from ..common import (
     HOME_CELL,
     INN,
     INN_DOOR_INSIDE,
+    INN_DOOR_OUTSIDE,
     ITEM_LISTS,
     LISTS_SHOWN,
     LYDIA,
     TAB_KEY,
 )
 
+from ..utilities import log
 from contextlib import contextmanager
 import math
 RECRUIT, FOLLOW, WAIT, DISMISS, TRADE = 0xB0EE6, 0x75083, 0x75084, 0x5C80C, 0x60020
@@ -80,6 +82,49 @@ def recruited(ctx, game="client", base=None, slot=0, topic=RECRUIT, outdoors=Fal
         else:
             ctx.remove_host_npc(npc)
         go_home(ctx)
+
+def arrives_on_spot(ctx, leader="client", recruiter="client", onto_guest=False):
+    """A follower comes into the inn behind the party, its leader through the inn's door: the guest stays on its
+    arrival spot on both games while the follower and its copy land beside it (nobody shoved off it)."""
+    other = "" if leader else "client"
+    with recruited(ctx, game=recruiter, cell=INN) as (npc, sid, copy):
+        follows(ctx, npc, (lambda: ctx.player_copy("")) if recruiter else 0x14)
+        before = ctx.player_cell(other)
+        ctx.travel(leader, lambda: ctx.activate_on(leader, INN_DOOR_INSIDE), ctx.player_cell(leader))
+        ctx.follows(other, before)
+        ctx.players_together("outside the inn with the follower")
+        ctx.wait_for("the follower comes out", lambda: ctx.actor_state("", npc).get("placement", {}).get("cell") == ctx.player_cell(""), 30)
+        before = ctx.player_cell(other)
+        ctx.travel(leader, lambda: ctx.activate_on(leader, INN_DOOR_OUTSIDE), ctx.player_cell(leader))
+        spot = ctx.my_position("client")
+        drift = {"client": 0.0, "": 0.0}
+        def guest_at(game):
+            at = ctx.my_position("client") if game else ctx.other_player_position("")
+            drift[game] = max(drift[game], math.dist(at[:2], spot[:2]))
+            return at
+        def where(game, actor):
+            return ctx.actor_state(game, actor).get("placement", {}).get("position")
+        ctx.wait_for("the party is back in the inn", lambda: guest_at("client") and guest_at("") and ctx.player_cell(other) not in (None, before), 60)
+        ctx.wait_for("the follower comes back in", lambda: guest_at("client") and guest_at("") and ctx.actor_state("", npc).get("placement", {}).get("cell") == ctx.player_cell(""), 30)
+        if onto_guest:
+            # A cramped arrival: the engine puts the follower where the guest stands.
+            ctx.player_command("", {"cmd": "move_actor", "actor": npc, "position": ctx.other_player_position("")})
+        current = ctx.wait_for("the follower has a session id", lambda: ctx.host_npc_state(npc).get("session_id"), 10)
+        copy = ctx.copy_of("client", current)
+        if onto_guest:
+            ctx.wait_for("the follower's copy lands on the guest", lambda: guest_at("client") and math.dist(where("client", copy)[:2], spot[:2]) < 40, 10)
+        copy_rested = ctx.comes_to_rest(lambda: where("client", copy), still=1.5)
+        npc_rested = ctx.comes_to_rest(lambda: where("", npc), still=1.5)
+        guest_rested = ctx.comes_to_rest(lambda: guest_at("client"), still=1.5)
+        ctx.wait_for("everyone settles on both games", lambda: guest_at("") and copy_rested() and npc_rested() and guest_rested(), 20)
+        shoved = []
+        for game in ("client", ""):
+            log(f"[{game or 'host'}] guest drifted up to {drift[game]:.0f} from its spot; follower "
+                f"{math.dist(where(game, copy if game else npc)[:2], guest_at(game)[:2]):.0f} from it")
+            if drift[game] > 10:
+                shoved.append(f"[{game or 'host'}] the follower shoved the guest {drift[game]:.0f} units off its arrival spot")
+        if shoved:
+            raise ctx.failure("; ".join(shoved))
 
 def follows(ctx, npc, member, timeout=15):
     def matches():

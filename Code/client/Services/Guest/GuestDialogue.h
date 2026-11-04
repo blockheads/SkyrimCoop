@@ -30,6 +30,8 @@ struct GuestDialogue final : DialogueService::Role
     // The party's list for the current step, in place of any its engine builds.
     std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept override;
     void OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept override;
+    // The host's NPC moved on: its copy's voice stops with it.
+    void OnLineSkipped() noexcept override;
 
 private:
     void OnRefused(const NotifyDialogueRefused& acMessage) noexcept;

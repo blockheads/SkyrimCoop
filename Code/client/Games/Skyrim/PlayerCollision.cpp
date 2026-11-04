@@ -1,5 +1,7 @@
 #include <Games/Skyrim/PlayerCollision.h>
 
+#include <Games/Skyrim/CollisionGroups.h>
+
 #include <Actor.h>
 #include <AI/AIProcess.h>
 #include <Havok/bhkCharacterController.h>
@@ -7,7 +9,6 @@
 #include <Misc/MiddleProcess.h>
 
 #include <algorithm>
-#include <atomic>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
@@ -15,18 +16,8 @@
 
 namespace
 {
-// The stacked players' collision groups (an actor's bodies all share one; 0: an empty slot).
-struct Groups
-{
-    uint16_t Ids[4]{};
-
-    bool Has(uint32_t aGroup) const noexcept { return std::find(std::begin(Ids), std::end(Ids), aGroup) != std::end(Ids); }
-    bool operator==(const Groups&) const noexcept = default;
-};
-
-// Written by the main thread each frame, read by the physics threads: 8 bytes, so read whole without a lock.
-std::atomic<Groups> s_stacked;
-static_assert(std::atomic<Groups>::is_always_lock_free);
+// The stacked actors' collision groups (an actor's bodies all share one).
+CollisionGroups s_stacked;
 
 // The actor's collision group: its character controller's (0 without one).
 uint16_t GroupOf(uint32_t aFormId) noexcept
@@ -48,13 +39,12 @@ TCompareFilterInfo* RealCompareFilterInfo = nullptr;
 
 bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
 {
-    // Two different stacked players pass through each other; anything else collides as the engine says.
+    // Two different stacked actors pass through each other; anything else collides as the engine says.
     const uint32_t cGroupA = aFilterA >> 16;
     const uint32_t cGroupB = aFilterB >> 16;
     if (cGroupA && cGroupB && cGroupA != cGroupB)
     {
-        const Groups cStacked = s_stacked.load(std::memory_order_relaxed);
-        if (cStacked.Has(cGroupA) && cStacked.Has(cGroupB))
+        if (s_stacked.Has(cGroupA) && s_stacked.Has(cGroupB))
             return false;
     }
     return RealCompareFilterInfo(apThis, aFilterA, aFilterB);
@@ -70,15 +60,15 @@ namespace PlayerCollision
 {
 void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept
 {
-    Groups stacked;
-    size_t count = 0;
+    std::vector<uint16_t> groups;
     for (const uint32_t cFormId : acActorFormIds)
-        if (const uint16_t cGroup = GroupOf(cFormId); cGroup && count < std::size(stacked.Ids))
-            stacked.Ids[count++] = cGroup;
-    // One player alone passes through nobody.
-    if (count < 2)
-        stacked = {};
-    if (s_stacked.exchange(stacked) != stacked)
-        spdlog::info("Player collision: {} stacked players pass through each other", count < 2 ? 0 : count);
+        if (const uint16_t cGroup = GroupOf(cFormId); cGroup && std::ranges::find(groups, cGroup) == groups.end())
+            groups.push_back(cGroup);
+    // One actor alone passes through nobody.
+    if (groups.size() < 2)
+        groups.clear();
+    std::ranges::sort(groups);
+    if (s_stacked.Publish(groups))
+        spdlog::info("Player collision: {} stacked actors pass through each other", groups.size());
 }
 } // namespace PlayerCollision

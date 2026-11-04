@@ -138,6 +138,15 @@ class Runtime:
         return ["sudo", "-n", "ip", "netns", "exec", CLIENT_NETNS, "sudo", "-u", user, "-H", "--", "env", *assignments,
                 "bash", "-c", 'umask 002; exec "$@"', "_", *command]
 
+    def null_alsa_config(ctx):
+        """An ALSA configuration whose only device discards what it plays: in /tmp, which the game's container sees."""
+        path = Path("/tmp/skyrimcoop-alsa-null.conf")
+        text = "pcm.!default { type null }\nctl.!default { type null }\n"
+        if not path.exists() or path.read_text() != text:
+            path.write_text(text)
+            path.chmod(0o644)
+        return path
+
     def user_bus(ctx, user):
         """A session bus for that user, started once and left running (the client user has no desktop session)."""
         path = Path(f"/tmp/skyrimcoop-{user}-bus")
@@ -162,10 +171,11 @@ class Runtime:
         env["TRACY_PORT"] = str(_game.tracy_port)
         if ctx.instance_user(_game=_game):  # in its namespace: reachable on its link
             env["SKYRIMCOOP_COMMAND_ADDRESS"] = CLIENT_ADDRESS
-            # No sound server as that user: Wine's ALSA driver would take this user's sound card itself. Muted
-            # anyway (fAudioMasterVolume), so no audio driver at all.
+            # No sound server as that user: Wine's ALSA driver plays to ALSA's null device (never this user's
+            # sound card). A device is needed: without one no voice line starts (dive-*, copy-ends-voice-line).
             overrides = [o for o in env.get("WINEDLLOVERRIDES", "").split(";") if o]
-            env["WINEDLLOVERRIDES"] = ";".join(overrides + ["winealsa.drv=d", "winepulse.drv=d"])
+            env["WINEDLLOVERRIDES"] = ";".join(overrides + ["winepulse.drv=d"])
+            env["ALSA_CONFIG_PATH"] = str(ctx.null_alsa_config())
             if _game.name and not ctx.instance_user(_game=ctx.host):  # the host across the link, else loopback
                 env["SKYRIMCOOP_JOIN_HOST"] = HOST_SIDE_ADDRESS
         if not ctx.shown(_game=_game):
@@ -539,10 +549,10 @@ class Runtime:
 
     def prepare_prefix(ctx, bundled_start=True, *, _game=None):
         _game = ctx.game(_game)
+        _game.prefix.mkdir(parents=True, exist_ok=True)  # first: a fresh worktree's prefix is the game's user's too
         ctx.own_prefix(_game=_game)
         if not (_game.prefix / "pfx/drive_c/users/steamuser").exists():
             log("Creating the test Proton prefix (first run only, ~30s)...")
-            _game.prefix.mkdir(parents=True, exist_ok=True)
             subprocess.run(ctx.as_instance_user([str(ctx.instance_runtime(_game=_game) / "run"), "--", str(PROTON / "proton"), "run", "wineboot", "-u"],
                                             ctx.game_env(_game=_game), _game=_game), env=ctx.game_env(_game=_game), cwd=_game.install, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                            timeout=300)
@@ -571,7 +581,9 @@ class Runtime:
         if bundled_start:
             ctx.enable_bundled_start(_game=_game)
 
-    def wait_for(ctx, description, predicate, timeout, launcher=None, *, _game=None):
+    def wait_for(ctx, description, predicate, timeout, launcher=None, *, explain=None, _game=None):
+        """Polls predicate until truthy. explain(): what was seen, added to a timeout's message only (a crash stays
+        as it is)."""
         _game = ctx.game(_game)
         log(description + "...")
         ctx.CURRENT_STEP.update(description=description, time=time.time())
@@ -585,7 +597,7 @@ class Runtime:
                 raise ctx.failure(f"Skyrim exited while waiting: {description}")
             ctx.check_for_crash()
             time.sleep(0.05)
-        raise ctx.failure(f"Timed out after {timeout:.0f}s: {description}")
+        raise ctx.failure(f"Timed out after {timeout:.0f}s: {description}" + (f" ({explain()})" if explain else ""))
 
     def launch(ctx, args, run_dir, *, _game=None):
         _game = ctx.game(_game)

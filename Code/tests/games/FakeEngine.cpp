@@ -76,6 +76,28 @@ bool FakeEngine::RagdollPosed(uint32_t aFormId) const noexcept
            (it->second.Dead && std::ranges::any_of(Bodies, [&](const auto& acBody) { return acBody.second.RagdollOf == aFormId && acBody.second.Held; }));
 }
 
+void FakeEngine::ShovePlayer() noexcept
+{
+    auto& player = Actors.at(kPlayer);
+    const auto cPasses = [this](uint32_t aFormId) { return std::ranges::find(PassingThrough, aFormId) != PassingThrough.end(); };
+    for (const auto& [cId, cActor] : Actors)
+    {
+        if (!cActor.Copy || cActor.Player || !cActor.Stepped || cActor.Dead || cActor.Disabled || !cActor.Loaded || cActor.Cell != player.Cell)
+            continue;
+        if (std::abs(cActor.Position[2] - player.Position[2]) >= kCapsuleTop || (cPasses(cId) && cPasses(kPlayer)))
+            continue;
+        glm::vec2 off(player.Position[0] - cActor.Position[0], player.Position[1] - cActor.Position[1]);
+        if (glm::length(off) >= 2 * kCapsuleRadius)
+            continue;
+        if (glm::length(off) < 1e-3f)
+            off = {1.f, 0.f};
+        off = glm::normalize(off) * (2 * kCapsuleRadius);
+        player.Position[0] = cActor.Position[0] + off.x;
+        player.Position[1] = cActor.Position[1] + off.y;
+        ++PlayerShoves;
+    }
+}
+
 void FakeEngine::Frame()
 {
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
@@ -90,6 +112,8 @@ void FakeEngine::Frame()
         it->Done->store(true);
         it = ClipLoads.erase(it);
     }
+    if (Actors.contains(kPlayer))
+        ShovePlayer();
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -732,8 +756,8 @@ void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 {
 }
 
-// Stepped (its step reaches the goal in the fake) or placed, never a copy lying in its ragdoll (the engine keeps it on
-// its ragdoll, as its owner: SkyrimBridge); the graph's variables are not modelled.
+// Stepped or placed, never a copy lying in its ragdoll (SkyrimBridge); graph variables not modelled. A step reaches the
+// goal across, never up: Havok's step leaves height to support and gravity (actor-movement.md; flat ground here).
 bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
                                      const AnimationVariables& acVariables, CopyMove aMove) noexcept
 {
@@ -745,7 +769,10 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
     ++it->second.Movements;
+    const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);
+    if (it->second.Stepped)
+        it->second.Position[2] = std::min(cHeight, aPosition[2]);
     std::copy_n(aRotation, 3, it->second.Rotation);
     // Outdoors its parent cell follows where it stands.
     if (it->second.WorldSpace)

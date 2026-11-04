@@ -30,6 +30,7 @@ DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, T
     Listen<NotifyDialogueClosed, &DialogueService::OnClosed>(m_connections, aDispatcher, this);
     Listen<NotifyDialogueList, &DialogueService::OnList>(m_connections, aDispatcher, this);
     Listen<NotifyDialogueHighlight, &DialogueService::OnHighlight>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueSkip, &DialogueService::OnSkip>(m_connections, aDispatcher, this);
 }
 
 DialogueService::~DialogueService() noexcept
@@ -50,6 +51,7 @@ void DialogueService::SetRole(Role* apRole) noexcept
         .Start = [this](uint32_t aActorFormId, bool aForceGreet) { return !m_pRole || m_pRole->OnStartAsked(aActorFormId, aForceGreet); },
         .Talk = [this](uint32_t aActorFormId) { return m_pRole && m_transport.IsOnline() && m_pRole->OnTalk(aActorFormId); },
         .Pick = [this](uint32_t aIndex) { return OnPickAsked(aIndex); },
+        .Skip = [this]() { OnSkipAsked(); },
         .List = [this]() { return m_pRole ? m_pRole->OnListBuilt() : std::nullopt; },
         .LineFor = [this](uint32_t aSpeakerFormId) { return m_pRole ? m_pRole->LineFor(aSpeakerFormId) : 0; },
         .Judged = [this]() { return m_pRole ? m_pRole->Judged() : std::vector<uint32_t>{}; },
@@ -131,6 +133,22 @@ void DialogueService::OnHighlight(const NotifyDialogueHighlight& acMessage) noex
 {
     if (acMessage.Conversation == m_conversation)
         m_pendingHighlight = std::pair{acMessage.Step, acMessage.Index};
+}
+
+void DialogueService::OnSkipAsked() noexcept
+{
+    if (!m_transport.IsOnline() || !m_conversation || !m_joined)
+        return;
+    DialogueSkipRequest skip;
+    skip.Conversation = m_conversation;
+    skip.Step = m_step;
+    m_transport.Send(skip);
+}
+
+void DialogueService::OnSkip(const NotifyDialogueSkip& acMessage) noexcept
+{
+    if (m_pRole && acMessage.Conversation == m_conversation && acMessage.Step == m_step)
+        m_pRole->OnLineSkipped();
 }
 
 void DialogueService::SyncHighlight() noexcept

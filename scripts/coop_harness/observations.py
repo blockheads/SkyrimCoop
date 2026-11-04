@@ -55,17 +55,21 @@ class Observations:
             worlds[game] = status["world"]
         return compare_actors(worlds)
 
-    def check_desync(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL):
-        """Only differences seen in every sample count (copies legitimately lag for a moment)."""
+    def lasting_desyncs(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, known=()):
+        """{key: message}: only differences seen in every sample count (copies legitimately lag for a moment), without
+        the `known` keys (a scene's own start: ReproActions.scene)."""
         persistent = None
         for index in range(samples):
-            current = dict(ctx.find_desyncs())
+            current = {k: v for k, v in ctx.find_desyncs() if k not in known}
             persistent = current if persistent is None else {k: v for k, v in current.items() if k in persistent}
             if not persistent:
-                return []
+                return {}
             if index + 1 < samples:
                 time.sleep(interval)
-        return list(persistent.values())
+        return persistent
+
+    def check_desync(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, known=()):
+        return list(ctx.lasting_desyncs(samples, interval, known).values())
 
     def check_gait(ctx, seconds=2.0):
         """Actors that moved over the last seconds without walking (sliding, or in slow motion), on either game:

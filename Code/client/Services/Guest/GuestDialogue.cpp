@@ -91,6 +91,12 @@ std::optional<std::vector<IDialogueBridge::Option>> GuestDialogue::OnListBuilt()
     return m_dialogue.Conversation() ? std::optional(std::vector<IDialogueBridge::Option>{}) : std::nullopt;
 }
 
+void GuestDialogue::OnLineSkipped() noexcept
+{
+    if (const uint32_t cCopy = Utils::GetFormIdBySessionId(m_dialogue.NpcSessionId()))
+        m_world.GetActorBridge().ActorStopCurrentDialogue(cCopy);
+}
+
 void GuestDialogue::OnRefused(const NotifyDialogueRefused& acMessage) noexcept
 {
     if (m_asked == acMessage.NpcId)

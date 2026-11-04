@@ -35,7 +35,9 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 Every bug, in this order:
 
-1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would.
+1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would. By default, write it
+   through the `skyrim-coop` MCP: play the bug, then `record_export` makes the scenario
+   ([the play flow](docs/design/repro-mcp.md)). By hand is fine when the bug is already understood.
 2. **A smoke test that fails on it:** a `GameTests` flow (whole games in-process on the fake engine). If the fake
    cannot show it, first teach the fake the engine fact Skyrim showed.
    **Then free the duo** (`scripts/coop_test.py stop` or the MCP's `duo_stop`; the lock frees itself, nobody edits

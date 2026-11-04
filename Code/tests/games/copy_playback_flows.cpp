@@ -68,6 +68,7 @@ TEST_CASE("A copy whose next snapshot is late carries on its way a little, then 
     InterpolationComponent::TimePoint first, second;
     first.Tick = 1000;
     second.Tick = 1100;
+    first.OnGround = second.OnGround = true;
     second.Position = {10.f, 0.f, 0.f};
     glm::vec3 position{}, rotation{};
 
@@ -79,6 +80,14 @@ TEST_CASE("A copy whose next snapshot is late carries on its way a little, then 
     {
         REQUIRE(InterpolationSystem::Interpolate(first, second, 1150, position, rotation));
         CHECK(position.x == Approx(10.f));
+    }
+    SECTION("off the ground only across: placed, it would sink through the floor at a landing")
+    {
+        second.Position.z = -30.f;
+        second.OnGround = false;
+        REQUIRE(InterpolationSystem::Interpolate(first, second, 1150, position, rotation, 100));
+        CHECK(position.x == Approx(15.f));
+        CHECK(position.z == Approx(-30.f));
     }
     SECTION("not while its owner lies in its ragdoll: its physics places it")
     {
@@ -358,4 +367,49 @@ SCENARIO("Over a lossy line a guest's player reaches the host without stalls", "
     REQUIRE(arrivals > 50);
     INFO("the longest wait for the guest's next snapshot: " << longestGapMs << " ms, over " << arrivals << " arrivals");
     CHECK(longestGapMs < 120.0); // a lost one or two: a few send intervals
+}
+
+SCENARIO("A jumping player's copy rises and falls with it, never stuck on the ground", "[copies][copy-clock][copy-step]")
+{
+    // copy-jumps-smoothly-*: a copy stepped by its engine stayed on the ground while its owner rose, was placed past
+    // CopyStep::kSnap and fell by its own gravity, twice a jump (actor-movement.md, "A copy in the air").
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) && HostPlayerCopy(host); }, "each game makes a copy of the other's player");
+    const bool cGuestJumps = GENERATE(true, false);
+    auto& owner = cGuestJumps ? guest : host;
+    auto& watcher = cGuestJumps ? host : guest;
+    World& watching = cGuestJumps ? party.Host() : party.Guest();
+    const uint32_t cCopy = HostPlayerCopy(watcher);
+    const auto cEntity = CopyEntity(watching, cCopy);
+    REQUIRE((cEntity != entt::null));
+    for (int frame = 0; frame < 30; ++frame)
+        party.Frame();
+
+    // Vanilla's standing jump, measured: 74 units up in 0.45 s, down in as long.
+    using Clock = std::chrono::steady_clock;
+    auto& jumper = owner.Actors.at(FakeEngine::kPlayer);
+    const float cGround = jumper.Position[2];
+    float worst = 0.f, peak = 0.f;
+    for (int jump = 0; jump < 2; ++jump)
+    {
+        const auto cStart = Clock::now();
+        float seconds = 0.f;
+        while ((seconds = std::chrono::duration<float>(Clock::now() - cStart).count()) < 1.4f)
+        {
+            const float cUp = 329.f * seconds - 365.f * seconds * seconds;
+            jumper.InAir = cUp > 0.f;
+            jumper.Position[2] = cGround + std::max(cUp, 0.f);
+            party.Frame();
+            const float cShown = watching.get<InterpolationComponent>(cEntity).Position.z;
+            const float cHeight = watcher.Actors.at(cCopy).Position[2];
+            worst = std::max(worst, std::abs(cHeight - cShown));
+            peak = std::max(peak, cHeight - cGround);
+        }
+    }
+    INFO((cGuestJumps ? "the guest" : "the host") << " jumps: its copy peaked " << peak << " up, at worst " << worst
+                                                  << " units off its playback's height");
+    CHECK(peak > 60.f);
+    CHECK(worst < 1.f);
 }

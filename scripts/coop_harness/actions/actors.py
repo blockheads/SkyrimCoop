@@ -43,8 +43,8 @@ class ActorsActions:
         return [host[0] + dx / length * STAGE_DEPTH, host[1] + dy / length * STAGE_DEPTH, host[2]]
 
 
-    def spawn_host_npc(ctx, base, restrained=False):
-        """The host spawns an NPC on the stage: (host ref id, session id, the client's copy).
+    def spawn_host_npc(ctx, base, restrained=False, goal=None):
+        """The host spawns an NPC on the stage (or at `goal`): (host ref id, session id, the client's copy).
         Restrained, it stays there (an NPC otherwise walks up to greet the players)."""
         before = set(ctx.local_player("").get("local_actors", {}))
         ctx.console_on("", f"player.placeatme {base} 1")
@@ -55,7 +55,7 @@ class ActorsActions:
                               lambda: (sid := ctx.host_npc_state(npc).get("session_id")) is not None and sid >= 0 and (sid,), 10)[0]
         if restrained:
             ctx.console_on("", f"{npc:08X}.setrestrained 1")
-        goal = ctx.stage_spot()
+        goal = goal or ctx.stage_spot()
         ctx.place("", f"{npc:08X}", goal, ctx.host_npc_state(npc)["position"])
         ctx.wait_for("[host] NPC on the stage", lambda: distance(ctx.host_npc_state(npc)["position"][:2], goal[:2]) < 40
                  and abs(ctx.host_npc_state(npc)["position"][2] - goal[2]) < 60, 10)
@@ -82,10 +82,10 @@ class ActorsActions:
         ctx.player_command(instance, {"cmd": "freeze", "actor": actor, "frozen": frozen})
 
 
-    def stage_host_npc(ctx, npc):
-        """Brings one of the host's placed NPCs (wherever it is, in furniture or not) onto the stage and freezes it there;
-        returns the client's copy. release_host_npc sends it back."""
-        goal = ctx.stage_spot()
+    def stage_host_npc(ctx, npc, goal=None):
+        """Brings one of the host's placed NPCs (wherever it is, in furniture or not) onto the stage (or to `goal`) and
+        freezes it there; returns the client's copy. release_host_npc sends it back."""
+        goal = goal or ctx.stage_spot()
         # Its own package can bring it into the cell elsewhere (an unloaded actor travelling to the player arrives at
         # the door): it is frozen once here, then moved within the cell.
         ctx.player_command("", {"cmd": "move_actor", "actor": npc, "position": goal})

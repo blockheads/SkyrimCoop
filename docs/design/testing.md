@@ -16,7 +16,7 @@ Fake-engine and Skyrim coverage exercise different boundaries; neither replaces 
 ## The bug-fix flow (2026-10-30, the user: the most important rule)
 
 ```
-1 a coop scenario recreates the bug        tier 3, once
+1 a coop scenario recreates the bug        tier 3, once; by default played through the MCP and exported
 2 a GameTests flow fails on it             tier 2 (the "smoke test"); teach the fake first if needed
   -> free the duo: nothing below needs Skyrim
 3 unit tests for the logic, then the fix   tier 1
@@ -166,9 +166,11 @@ Since 2026-10-31 (the user: keep the player's Steam free) both duo games run as 
 with its own Steam account in netns `coop2`, and from the duo's own game folder `build/coop-test/game` (the Steam
 install's files linked, its own `Data/SKSE/Plugins`): the player's Steam and Skyrim folder are never used. The
 client joins the host over loopback inside the namespace. `COOP_DUO_USER=` runs them as this user, on its Steam.
-As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01): the
-harness turns Wine's audio drivers off for them (`WINEDLLOVERRIDES` `winealsa.drv=d;winepulse.drv=d`, `game_env`);
-they are muted anyway.
+As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01). With
+no audio driver at all, though, Skyrim queues voice lines that never start, and every scenario waiting on one fails
+(`dive-*`, `copy-ends-voice-line`, 2026-11-03). So Wine's Pulse driver is off and its ALSA driver plays to ALSA's
+null device (`ALSA_CONFIG_PATH`, `/tmp/skyrimcoop-alsa-null.conf`, `game_env`): it discards the sound and keeps
+time, and never touches a sound card. The games are muted anyway.
 The ordinary duo uses one account and the session network. Invite/lobby flows need `COOP_CLIENT_USER=coop2`, that
 user's Steam account, a client prefix it owns and the existing `coop2` network namespace setup. The harness prepares
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when
@@ -195,6 +197,10 @@ a 1.6.1170 copy instead (`SKYRIM_STEAM_GAME_DIR`, with `SKYRIM_SKSE_DIR` and `SK
 - The `xdotool` input actions, `watch`, `screenshot` and the two-account flows are Linux only.
 
 ## Repro with the MCP (2026-11-02)
+
+Play a repro as `scene`, goal verbs, `observe`/`why`, `expect`, `record_export`: [repro-mcp.md](repro-mcp.md), "The play
+flow". A recording with a scene away from the baseline exports with the tag `scene`: run it by name, on a duo booted for
+it, one per boot. In a fresh worktree a late save must be copied into `build/coop-test/prefix-host`'s Saves first.
 
 `scripts/coop_mcp.py` is an MCP server (`.mcp.json`, server `skyrim-coop`) holding one harness `Session` open, so a
 bug can be set up step by step in the duo instead of in a scenario rerun from the start. Design and status:

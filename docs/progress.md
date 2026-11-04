@@ -1,5 +1,19 @@
 # Progress
 
+2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
+pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
+`use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
+fixture. From `bugs.md` alone: the created chest reproduced and exported (`created-chest-reaches-guest-empty`, fails
+until fixed; its GameTests flow lands with the fix); the follower entry not reproduced. `faendal-letter` runs through
+the runner and fails only its end comparison on real desyncs. Seen in Riverwood, open: a Whiterun Guard's copy level 1 against
+1000, the player's copy `state.hands` empty against 77772. Python units in `test_coop_harness` (GoalVerbs, Scenes).
+
+2026-11-03: the duo's games have a silent audio device again. Running as `coop2` (2026-11-01) they had no audio
+driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
+`copy-ends-voice-line` failed every time. Wine's ALSA driver now plays to ALSA's null device
+([testing.md](design/testing.md)). `copy-ends-voice-line` passes; both dives now pass their gasp and fail later on
+the deferred "Headtracking left over" (bugs.md). The dive's surfacing step names what it saw when it fails.
+
 2026-11-03: launcher Play co-op / Bethesda graphics settings menu, invitation bypass, `/perf` and per-connection
 network diagnostics, and verified save-block reuse for world joins. Details and current validation:
 `docs/design/network-performance.md`; launcher preservation: `docs/install.md`.
@@ -87,6 +101,13 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-03: `walk_to` runs (repro-mcp.md, Phase 3's speeds): `PathToReference`'s speed only scales the AI-driven
+player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
+and walks a `PathToReference` leg only round what stops it; `steer_to` turns Always Run on (status
+`player.always_run`) and sprints. Faendal flow 252 s to 113 s. Python units in `test_coop_harness.Repro`.
+Open: the runner's baseline refuses `LateAfterDragonslayerBackinSkyrim` (Odahviing's copy: level 1 vs 20, 300
+units off); `stage` put a staged NPC 75,000 units off after the players had hopped cells.
+
 2026-11-02: the repro MCP (uncommitted, [repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
 `TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and
@@ -106,6 +127,15 @@ made gets a copy on the guest" (failed before). On the duo the dragons now have 
 baseline check there then stops on two newer differences, open: Odahviing's copy is level 1 against the host's 20
 (NPC copies don't take their owner's level), and his copy trails him in flight by ~300 units (interpolation delay at
 flight speed against the walkers' tolerance).
+
+2026-11-03: a jumping player's copy no longer stutters in the air. Since copies are stepped by their engine
+(2026-11-02) a copy stayed on the ground while its owner rose, was placed past 64 units off and fell by its own
+gravity, twice a jump. The owner now sends `Movement::OnGround` (its controller on the ground) and a copy is stepped
+only then: placed on its path from take-off to landing and in any other state (swimming, climbing, flying, ones not
+met yet), its height held when a snapshot is late
+([actor-movement.md](re/systems/actor-movement.md#a-copy-in-the-air-2026-11-03)). Scenarios
+`copy-jumps-smoothly-host` / `-guest` (failed both ways, pass); GameTests "A jumping player's copy rises and falls
+with it, never stuck on the ground"; ClientTests `[copy-step]`.
 
 2026-11-02: one writer for a loaded body's rest, and a guest's movement sent unreliably (red flags 4 and 5): a live move row no longer places a body the host's body rest already placed (a script's move still
 does); `ReferencesMoveRequest` goes unreliably unless it carries actions or a teleport, as the host relays it (body
@@ -170,6 +200,12 @@ postconditions, duplicate/competing choices, stale notifications after reopen, s
 and barter/training returns. Full check passes; native fixes and exit controls pass. A separate queued Lydia
 greeting still blocks `dialogue-pick-reaches-host` before any pick; [results and limits](../playtests/2026-11-01-dialogue-fixes.md).
 
+2026-11-03: dialogue lag on a guest (Orgnar, 30 s after each pick). Two causes. A guest's press through a line never
+reached the host's game, which said it to its end: now `DialogueSkipRequest` / `NotifyDialogueSkip`, from anyone in the
+conversation, and every copy goes quiet with it (`dialogue-guest-skips-line`, GameTests, HostAuthorityTests). The 30 s
+itself came from the duo having no audio driver: a voice line was timed from its text, about twice its spoken length.
+On its null audio device Orgnar's alchemy answer takes 16.1 s, was 36.8 s ([how long a line lasts](re/systems/dialogue.md)).
+
 ## Direct authority migration
 
 Porting Skyrim Together's server to the host's game (`docs/design/host-authority-migration.md`).
@@ -194,7 +230,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
-| Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door` |
+| Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view; an NPC follower or copy landing on the spot joins the stack (2026-11-03: her copy shoved the guest through a table) | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door`, `follower-lands-on-guest`, GameTests "A follower landing on a guest's arrival spot...", ClientTests `[arrival-stack]` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
 | Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. quest rewards built 2026-10-27 (`design/quest-rewards.md`); measured combat XP sharing removed |

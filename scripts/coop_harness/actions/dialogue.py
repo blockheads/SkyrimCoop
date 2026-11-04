@@ -449,10 +449,15 @@ class DialogueActions:
         target = next((i for i, o in enumerate(options) if o["topic"] == topic and info in (None, o["info"])), None)
         if target is None:
             raise ctx.failure(f"[{instance or 'host'}] its menu does not list {topic:X}" + (f" with {info:X}" if info else ""))
+        log(f"[{instance or 'host'}] picks {topic:X}" + (f" ({info:X})" if info else ""))
+        ctx.pick_line_with_keys(instance, target)
+
+
+    def pick_line_with_keys(ctx, instance, target):
+        """The highlight moves to line `target` (W, S) and it is picked (E)."""
         while (here := ctx.cursor_index(instance)) != target:
             ctx.tap_key(instance, DOWN_KEY if here < target else UP_KEY)
             ctx.wait_for(f"[{instance or 'host'}] the key moves the highlight", lambda: ctx.cursor_index(instance) != here, 5)
-        log(f"[{instance or 'host'}] picks {topic:X}" + (f" ({info:X})" if info else ""))
         ctx.tap_key(instance, ACTIVATE_KEY)
 
 

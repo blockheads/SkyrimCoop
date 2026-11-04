@@ -171,9 +171,10 @@ void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCel
 void TravelService::StackOn(const glm::vec3& acSpot) noexcept
 {
     // Every player: a follower is still on its way.
-    m_stack = Stack{acSpot, std::chrono::steady_clock::now(), {{m_playerBridge.GetPlayerFormId(), false}}};
+    std::vector<uint32_t> players{m_playerBridge.GetPlayerFormId()};
     for (const entt::entity cEntity : m_world.view<FormIdComponent, RemoteComponent, PlayerComponent>())
-        m_stack->Players.push_back({m_world.get<FormIdComponent>(cEntity).Id, false});
+        players.push_back(m_world.get<FormIdComponent>(cEntity).Id);
+    m_stack.emplace(acSpot, std::chrono::steady_clock::now(), players);
     UpdateStack();
 }
 
@@ -182,47 +183,12 @@ void TravelService::UpdateStack() noexcept
     std::vector<uint32_t> stacked;
     if (m_stack)
     {
-        // Within a step of the spot is on it; a copy coming from afar has a few seconds to get there, and one
-        // off it in this cell for a moment has walked off (a stale follow takes a player out and back).
-        constexpr float cOnSpot = 60.f;
-        constexpr auto cArrival = std::chrono::seconds(5);
-        constexpr auto cWalkOff = std::chrono::milliseconds(500);
-        const auto cNow = std::chrono::steady_clock::now();
-        const bool cLate = cNow - m_stack->Since > cArrival;
-        const auto cHere = PlayersHere();
-        std::erase_if(m_stack->Players, [&](Stack::Player& aPlayer) {
-            const auto cAt = cHere.find(aPlayer.FormId);
-            const float cDistance =
-                cAt == cHere.end() ? 0.f : glm::distance(glm::vec2(cAt->second), glm::vec2(m_stack->Spot));
-            const bool cOff = cAt != cHere.end() && cDistance >= cOnSpot;
-            aPlayer.Arrived = aPlayer.Arrived || (cAt != cHere.end() && !cOff);
-            if (!aPlayer.Arrived)
-            {
-                if (cLate)
-                    spdlog::info("Stack: {:X} never came", aPlayer.FormId);
-                return cLate;
-            }
-            if (!cOff)
-            {
-                aPlayer.OffSince = {};
-                return false;
-            }
-            if (aPlayer.OffSince == std::chrono::steady_clock::time_point{})
-                aPlayer.OffSince = cNow;
-            if (cNow - aPlayer.OffSince < cWalkOff)
-                return false;
-            spdlog::info("Stack: {:X} walked off ({:.0f} from the spot)", aPlayer.FormId, cDistance);
-            return true;
-        });
-        // One off the spot collides at once; it leaves the stack only if it stays off.
-        for (const Stack::Player& cPlayer : m_stack->Players)
-            if (cPlayer.OffSince == std::chrono::steady_clock::time_point{})
-                stacked.push_back(cPlayer.FormId);
-        if (m_stack->Players.empty())
+        stacked = m_stack->Update(PlayersHere(), OthersHere(), std::chrono::steady_clock::now());
+        if (m_stack->Empty())
             m_stack.reset();
     }
 
-    // The stacked players pass through each other (every frame: a collision group is its current controller's).
+    // The stacked actors pass through each other (every frame: a collision group is its current controller's).
     m_playerBridge.SetPassThrough(stacked);
 }
 
@@ -245,6 +211,31 @@ std::unordered_map<uint32_t, glm::vec3> TravelService::PlayersHere() const noexc
         players[cFormId] = position;
     }
     return players;
+}
+
+std::unordered_map<uint32_t, glm::vec3> TravelService::OthersHere() const noexcept
+{
+    std::unordered_map<uint32_t, glm::vec3> others;
+    // After the arrival nobody joins: only the actors still on the stack are read.
+    const bool cJoining = m_stack && std::chrono::steady_clock::now() - m_stack->Since <= ArrivalStack::kArrival;
+    const auto cOnStack = [this](uint32_t aFormId) {
+        return m_stack && std::ranges::any_of(m_stack->Members, [aFormId](const auto& acMember) { return acMember.FormId == aFormId; });
+    };
+    const uint32_t cCellId = m_playerBridge.GetPlayerParentCellFormId();
+    const bool cOutdoors = m_playerBridge.GetPlayerWorldSpaceId() != 0;
+    glm::vec3 position;
+    for (const entt::entity cEntity : m_world.view<FormIdComponent>(entt::exclude<PlayerComponent>))
+    {
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (cFormId == m_playerBridge.GetPlayerFormId() || (!cJoining && !cOnStack(cFormId)))
+            continue;
+        const uint32_t cActorCellId = m_actorBridge.GetActorParentCellFormId(cFormId);
+        if (!cActorCellId || (!cOutdoors && cActorCellId != cCellId))
+            continue;
+        m_actorBridge.GetActorPosition(cFormId, position.x, position.y, position.z);
+        others[cFormId] = position;
+    }
+    return others;
 }
 
 void TravelService::OnFastTravel(const FastTravelEvent& acEvent) noexcept
