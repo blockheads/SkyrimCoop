@@ -54,8 +54,7 @@ def always_running(ctx, instance):
 
 REACH = 130.0  # units a player can activate from, with room to spare
 MELEE_REACH = 110.0
-USE_SECONDS = 3.0  # what an activation changes shows by then
-USE_SETTLE_SECONDS = 1.0
+USE_SECONDS = 5.0  # what an activation changes shows by then
 
 
 def verb_failure(ctx, why, text, **facts):
@@ -414,14 +413,17 @@ class PlayerVerbs:
         ref = ctx.resolve(target, instance)
         before = ctx.use_state(instance, ref)
         ctx.activate_ref(instance, ref, target)
-        ended = time.monotonic() + USE_SECONDS
+        container = "items" in (before["object"] or {})  # its lid moves first: done is its menu
+        ended, changed = time.monotonic() + USE_SECONDS, []
         while time.monotonic() < ended:
             after = ctx.use_state(instance, ref)
-            if changed := sorted(key for key in after if after[key] != before[key]):
-                time.sleep(USE_SETTLE_SECONDS)  # a chest's lid moves before its menu opens
-                return {"how": "input", "changed": changed, "menus": sorted(ctx.use_state(instance, ref)["menus"])}
+            changed = sorted(key for key in after if after[key] != before[key])
+            if set(changed) & {"menus", "sit", "cell"}:
+                return {"how": "input", "changed": changed, "menus": sorted(after["menus"])}
             time.sleep(0.1)
-        raise verb_failure(ctx, "refused", f"[{instance or 'host'}] activating {target} changed nothing in {USE_SECONDS:g} s")
+        if changed and not container:  # a door swung, a lever moved: only the object shows it
+            return {"how": "input", "changed": changed, "menus": []}
+        raise verb_failure(ctx, "refused", f"[{instance or 'host'}] activating {target} did nothing in {USE_SECONDS:g} s: {changed or 'no change'}")
 
     @goal
     def take(ctx, instance, target):

@@ -127,6 +127,7 @@ def harness(game: str, request: dict) -> dict:
 def scene_reset() -> dict:
     """The blank slate: both players home in the baseline cell, staged things gone, the world thawed."""
     session.unstage()
+    session.forget_scene()
     session.reset_baseline()
     if problems := session.check_baseline():
         raise session.failure("the baseline did not come back: " + "; ".join(problems))

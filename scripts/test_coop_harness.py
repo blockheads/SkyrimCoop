@@ -607,15 +607,36 @@ class GoalVerbs(unittest.TestCase):
             play_verbs.PlayerVerbs.use(ctx, "", "chest")
         self.assertEqual(caught.exception.outcome["why"], "refused")
 
-    def test_use_says_what_an_activation_changed(self):
-        from coop_harness.actions.play_verbs import PlayerVerbs
+    def use_ctx(self, *states):
         ctx = self.verb_ctx()
-        ctx.use_state.side_effect = [{"menus": set(), "sit": 0, "cell": 1, "object": {}},
-                                     {"menus": set(), "sit": 0, "cell": 1, "object": {"lid": 1}},  # the lid before the menu
-                                     {"menus": {"ContainerMenu"}, "sit": 0, "cell": 1, "object": {"lid": 1}}]
-        with patch("coop_harness.actions.play_verbs.USE_SETTLE_SECONDS", 0):
-            outcome = PlayerVerbs.use(ctx, "", "chest")
-        self.assertEqual((outcome["changed"], outcome["menus"]), (["object"], ["ContainerMenu"]))
+        ctx.use_state.side_effect = [dict(zip(("menus", "sit", "cell", "object"), state)) for state in states]
+        return ctx
+
+    def test_use_on_a_chest_waits_past_its_lid_for_the_menu(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        chest, lid = {"items": {}}, {"items": {}, "lid": 1}
+        ctx = self.use_ctx((set(), 0, 1, chest), (set(), 0, 1, lid), (set(), 0, 1, lid), ({"ContainerMenu"}, 0, 1, lid))
+        outcome = PlayerVerbs.use(ctx, "", "chest")
+        self.assertEqual((outcome["changed"], outcome["menus"]), (["menus", "object"], ["ContainerMenu"]))
+
+    def test_use_on_a_chest_whose_menu_never_opens_is_refused(self):
+        from coop_harness.actions import play_verbs
+        ctx = self.verb_ctx()
+        states = iter([{"menus": set(), "sit": 0, "cell": 1, "object": {"items": {}}}])
+        lid = {"menus": set(), "sit": 0, "cell": 1, "object": {"items": {}, "lid": 1}}
+        ctx.use_state.side_effect = lambda instance, ref: next(states, lid)
+        with patch.object(play_verbs, "USE_SECONDS", 0.05), self.assertRaises(TestFailure) as caught:
+            play_verbs.PlayerVerbs.use(ctx, "", "chest")
+        self.assertEqual(caught.exception.outcome["why"], "refused")
+
+    def test_use_on_a_door_is_done_when_only_the_door_moved(self):
+        from coop_harness.actions import play_verbs
+        ctx = self.verb_ctx()
+        states = iter([{"menus": set(), "sit": 0, "cell": 1, "object": {"open": 0}}])
+        swung = {"menus": set(), "sit": 0, "cell": 1, "object": {"open": 1}}
+        ctx.use_state.side_effect = lambda instance, ref: next(states, swung)
+        with patch.object(play_verbs, "USE_SECONDS", 0.05):
+            self.assertEqual(play_verbs.PlayerVerbs.use(ctx, "", "door")["changed"], ["object"])
 
     def test_fight_swings_when_a_moving_target_stays_just_out_of_reach(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
@@ -807,6 +828,23 @@ class Scenes(unittest.TestCase):
         ctx.actor_row.side_effect = lambda instance, ref: {"ai": {"follow_target": next(readings)}}
         self.assertEqual(actions.expect(ctx, "lydia", "actor", game="guest", field="ai.follow_target", value="set", seconds=5),
                          {"ai.follow_target": {"guest": 20}})
+
+    def test_an_expected_false_or_zero_survives_the_export(self):
+        from coop_harness.actions import repro
+        for value in (False, 0):
+            entries = [{"tool": "expect", "ok": False,
+                        "args": {"name": "wolf", "check": "actor", "game": "host", "field": "state.dead", "value": value}}]
+            namespace = {}
+            exec(compile(repro.export_scenario(entries, "x", "doc", []), "recorded", "exec"), namespace)
+            ctx = Mock()
+            namespace["run"](ctx)
+            self.assertIs(ctx.expect.call_args.kwargs["value"], value)
+
+    def test_a_reset_forgets_the_scene_for_the_next_recording(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = Mock(REPRO_PLACE={"at": "coc Riverwood"}, SCENE_KNOWN={"guard level"}, REPRO_SEEN={"lydia": {}})
+        ReproActions.forget_scene(ctx)
+        self.assertEqual((ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN), (None, set(), {}))
 
     def test_a_goal_recording_exports_with_its_scene_and_a_spec_draft(self):
         from coop_harness.actions import repro

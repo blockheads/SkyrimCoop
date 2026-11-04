@@ -422,6 +422,10 @@ class ReproActions:
         named = ctx.name_nearby()
         return {"cell": ctx.player_cell(""), "time": ctx.calendar("").get("hour"), "named": named, "disagree": list(differ.values())}
 
+    def forget_scene(ctx):
+        """Back at the blank baseline: a recording starts from there, and nothing is known to differ."""
+        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN = None, set(), {}
+
     def worlds(ctx):
         return tuple((ctx.game(instance).read_status() or {}).get("world") or {} for instance in ("", "client"))
 
@@ -696,7 +700,7 @@ def _line(tool, args):
         case "mouse":
             return f"ctx.mouse_on({game}, {args.get('action', 'click')!r}, {args.get('button', 1)!r})"
         case "expect":
-            extra = "".join(f", {key}={args[key]!r}" for key in ("within", "game", "value", "of", "field", "seconds") if args.get(key) not in (None, "", 0, 0.0))
+            extra = "".join(f", {key}={args[key]!r}" for key in ("within", "game", "value", "of", "field", "seconds") if args.get(key) not in (None, ""))
             return f"ctx.expect({args['name']!r}, {args['check']!r}{extra})"
         case "drop":
             return f"ctx.drop_item({args['game']!r}, {args['item']!r}, {args['name']!r})"
