@@ -32,15 +32,10 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   in the fresh5/5 run. Combined batch20/22 retains unrelated Sigurd registration and Belethor animation-marker
   failures; neither is exempted or silently closed.
 - **Animations drift in dialogue after a while** (user, 2026-10-31). Fixed 2026-11-04: copies played clips before their
-  files were in (animation-replay-recovery.md). One cause fixed earlier: copies never
+  files were in, and each game made its own random picks (animation-replay-recovery.md). One cause fixed earlier: copies never
   headtracked (progress.md, "copies look where their owners do"). Still open: an accepted replayed action can land
   in a different graph state, and nothing compares it (animation-replay-recovery.md); the proposed fix is to
   compare active states with the owner's snapshot after each replay and load it on a mismatch.
-- **Idle variants differ between games** (2026-11-04). A graph picks its idle and response variants itself (`PickNewIdle`:
-  `MT_IdleLookingA` on the host, `MT_IdleLookingD` on the guest; `MT_idle_A_*`), no action carries the pick.
-  - Start: `npc-clips-match`'s `clips` trace shows each game's picks; find the variable or seed behind the pick.
-  - Test: a GameTests flow once the fake has the graph's own pick.
-
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).

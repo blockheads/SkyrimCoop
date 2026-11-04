@@ -132,6 +132,105 @@ TEST_CASE("A copy plays an idle's first clip, not what follows it", "[animation]
     CHECK(guest.Actors.at(cCopy).GraphState == "IdleHDLeftEnter");
 }
 
+TEST_CASE("A copy's graph makes its owner's random picks", "[animation][dialogue][replay-picks]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    // Skyrim (Lucan): one action, ExpressiveE on the host and ExpressiveH on the guest; each graph draws its own.
+    for (auto* engine : {&host, &guest})
+    {
+        engine->GraphTransitions = {{{"Standing", "Gesture"}, "Expressive"}};
+        engine->GraphPicks = {{"Expressive", {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"}}};
+    }
+    uint32_t lucan = 0;
+    party.As(party.Host(), [&] {
+        lucan = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(lucan).GraphState = "Standing";
+        host.Actors.at(lucan).GraphRandom = 0x7DE6C53E;
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "Lucan's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Standing"; }, "the spawn graph loads");
+    guest.Actors.at(cCopy).GraphRandom = 0xC34A5C6E;
+
+    ActionEvent gesture;
+    gesture.ActionId = 0x13002;
+    gesture.EventName = "Gesture";
+    gesture.IdleId = 0xF64D7;
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(lucan, gesture)); });
+    party.Until([&] { return guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId; }, "the copy takes the gesture");
+    CHECK(guest.Actors.at(cCopy).GraphState == host.Actors.at(lucan).GraphState);
+}
+
+TEST_CASE("A copy's graph loops as its owner's with no action to follow", "[animation][replay-picks]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    // Skyrim (Lucan's counter): the host drew 3 loops and the guest 1, their clips 0.45 s apart: arms cross 19 s apart.
+    for (auto* engine : {&host, &guest})
+        engine->Loop = FakeEngine::GraphLoop{"CounterIdle", "CounterArms", 4000, 3};
+    uint32_t lucan = 0;
+    party.As(party.Host(), [&] {
+        lucan = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(lucan).GraphState = "CounterIdle";
+        host.Actors.at(lucan).GraphRandom = 0x7DE6C53E;
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "Lucan's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "CounterIdle"; }, "the spawn graph loads");
+    guest.Actors.at(cCopy).GraphRandom = 0xC34A5C6E;
+
+    const auto& cOwner = host.Actors.at(lucan);
+    const auto& cCopied = guest.Actors.at(cCopy);
+    party.Until([&] { return cCopied.LoopDraws.size() >= 6; }, "the copy's graph draws six times", {}, nullptr, std::chrono::seconds{60});
+    // A copy's first draw can be its own, made before its owner's first sync point. From then on they are one sequence.
+    const std::vector<uint32_t> cLast(cCopied.LoopDraws.end() - 3, cCopied.LoopDraws.end());
+    CHECK(std::ranges::search(cOwner.LoopDraws, cLast).begin() != cOwner.LoopDraws.end());
+}
+
+TEST_CASE("A copy arriving mid-loop falls in with its owner at the next pick", "[animation][replay-points]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    // Skyrim (Lucan's counter, a second visit): the copy came up a loop ahead, in the other clip, and stayed there.
+    for (auto* engine : {&host, &guest})
+        engine->Loop = FakeEngine::GraphLoop{"CounterIdle", "CounterArms", 4000, 2};
+    uint32_t lucan = 0;
+    party.As(party.Host(), [&] {
+        lucan = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(lucan).GraphState = "CounterIdle";
+        host.Actors.at(lucan).GraphRandom = 0x7DE6C53E;
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "Lucan's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "CounterIdle"; }, "the spawn graph loads");
+    auto& copied = guest.Actors.at(cCopy);
+    copied.GraphState = "CounterArms";
+    copied.GraphRandom = 0xC34A5C6E;
+    copied.LoopFrames = 700;
+
+    const auto& cOwner = host.Actors.at(lucan);
+    const size_t cDraws = cOwner.LoopDraws.size();
+    party.Until([&] { return cOwner.LoopDraws.size() >= cDraws + 2; }, "the owner picks twice", {}, nullptr, std::chrono::seconds{60});
+    // From here its picks and its clip are its owner's, a moment behind.
+    const size_t cFrom = copied.LoopDraws.size();
+    const size_t cOwnerFrom = cOwner.LoopDraws.size();
+    uint32_t apart = 0, frames = 0;
+    party.Until([&] {
+        apart += copied.GraphState != cOwner.GraphState;
+        ++frames;
+        return cOwner.LoopDraws.size() >= cOwnerFrom + 4;
+    }, "the owner picks four more times", {}, nullptr, std::chrono::seconds{60});
+    REQUIRE(copied.LoopDraws.size() >= cFrom + 3);
+    const std::vector<uint32_t> cLast(copied.LoopDraws.end() - 3, copied.LoopDraws.end());
+    CHECK(std::ranges::search(cOwner.LoopDraws, cLast).begin() != cOwner.LoopDraws.end());
+    // Frames against a delay in real time: a loaded machine reads more apart. Out of step reads 38% and up.
+    CHECK(apart * 4 < frames);
+}
+
 TEST_CASE("NPC actions wait for the same playback time as their movement", "[animation][replay-time]")
 {
     Party party(1, SmokeWorld);

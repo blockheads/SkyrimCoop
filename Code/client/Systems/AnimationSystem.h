@@ -41,6 +41,8 @@ struct AnimationSystem
      * @param aAnimationComponent The animation component attached to the actor in question.
      * @param acActionDiff The differential data of the animation.
      */
+    // A sync point's verdict (GraphRandom.h): ignored by a copy in step, loaded by any other.
+    static void RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aAnimationComponent, uint64_t aTick) noexcept;
     static void AddAction(RemoteAnimationComponent& aAnimationComponent, const std::string& acActionDiff) noexcept;
     /**
      * @brief Serializes the actions to-be-sent.

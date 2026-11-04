@@ -4,7 +4,7 @@
 
 bool AnimationVariables::operator==(const AnimationVariables& acRhs) const noexcept
 {
-    return Booleans == acRhs.Booleans && Integers == acRhs.Integers && Floats == acRhs.Floats;
+    return Booleans == acRhs.Booleans && Integers == acRhs.Integers && Floats == acRhs.Floats && GraphRandom == acRhs.GraphRandom;
 }
 
 bool AnimationVariables::operator!=(const AnimationVariables& acRhs) const noexcept
@@ -51,6 +51,7 @@ void AnimationVariables::Load(std::istream& aInput)
     String_to_VectorBool(chars, Booleans);
     aInput.read(reinterpret_cast<char*>(Integers.data()), Integers.size() * sizeof(uint32_t));
     aInput.read(reinterpret_cast<char*>(Floats.data()), Floats.size() * sizeof(float));
+    aInput.read(reinterpret_cast<char*>(&GraphRandom), sizeof(GraphRandom));
 }
 
 void AnimationVariables::Save(std::ostream& aOutput) const
@@ -62,6 +63,7 @@ void AnimationVariables::Save(std::ostream& aOutput) const
     aOutput.write(reinterpret_cast<const char*>(chars.data()), chars.size());
     aOutput.write(reinterpret_cast<const char*>(Integers.data()), Integers.size() * sizeof(uint32_t));
     aOutput.write(reinterpret_cast<const char*>(Floats.data()), Floats.size() * sizeof(float));
+    aOutput.write(reinterpret_cast<const char*>(&GraphRandom), sizeof(GraphRandom));
 }
 
 // Wire format description.
@@ -100,6 +102,11 @@ void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Wire:
     for (size_t i = 0; i < Floats.size(); i++)
         if (*biter++)
             Wire::Serialization::WriteFloat(aWriter, Floats[i]);
+
+    const bool cRandomChanged = aPrevious.GraphRandom != GraphRandom;
+    Wire::Serialization::WriteBool(aWriter, cRandomChanged);
+    if (cRandomChanged)
+        Wire::Serialization::WriteVarInt(aWriter, GraphRandom);
 }
 
 // Reads 3 VarInts that represent the size of the Booleans, Integers and Floats.
@@ -131,4 +138,7 @@ void AnimationVariables::ApplyDiff(Wire::Buffer::Reader& aReader)
     for (size_t i = 0; i < floatsSize; i++)
         if (*biter++)
             Floats[i] = Wire::Serialization::ReadFloat(aReader);
+
+    if (Wire::Serialization::ReadBool(aReader))
+        GraphRandom = uint32_t(Wire::Serialization::ReadVarInt(aReader));
 }

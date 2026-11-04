@@ -605,7 +605,10 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
 
         for (const auto& action : update.ActionEvents)
         {
-            animationComponent.TimePoints.push_back(action);
+            if (!action.ActionId && !action.GraphState.empty())
+                animationComponent.GraphPoint = action;
+            else
+                animationComponent.TimePoints.push_back(action);
         }
     }
 }

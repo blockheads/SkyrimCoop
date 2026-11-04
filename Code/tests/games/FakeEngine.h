@@ -1,4 +1,6 @@
 #pragma once
+
+#include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
@@ -487,6 +489,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::string GraphState;
         std::set<std::string> LoadedClips; // the events whose clip files this actor's process holds
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
+        uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
+        uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
+        std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
         struct BodyPose { float Head; float Pelvis; float FloorGap; };
@@ -540,6 +545,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
     std::map<std::string, std::string> ClipFiles;    // an event to its clip's state: it needs a file loaded first
+    // A state to the states its machine starts in at random (hkbStateMachine 59406): gestures, idle variants.
+    std::map<std::string, std::vector<std::string>> GraphPicks;
+    // A state whose clip loops, and after a random number of loops sends to the other (Lucan's counter): no action.
+    struct GraphLoop
+    {
+        std::string State;
+        std::string Other;
+        uint32_t Frames = 1; // a loop's length
+        uint32_t Most = 3;   // loops before it sends, 1 up to this
+    };
+    std::optional<GraphLoop> Loop;
+    uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
     std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent);

@@ -100,6 +100,22 @@ void FakeEngine::ShovePlayer() noexcept
 
 void FakeEngine::Frame()
 {
+    // Clips loop on each game's own clock; an event every N of them is the graph's, no action behind it.
+    if (Loop)
+        for (auto& [cId, actor] : Actors)
+        {
+            if (actor.GraphState != Loop->State && actor.GraphState != Loop->Other)
+                continue;
+            if (++actor.LoopFrames < Loop->Frames)
+                continue;
+            actor.LoopFrames = 0;
+            if (++actor.LoopsSeen < actor.LoopsToSend)
+                continue;
+            actor.LoopsSeen = 0;
+            actor.LoopsToSend = 1 + (DrawGraphRandom(actor) >> 13) % Loop->Most;
+            actor.LoopDraws.push_back(actor.LoopsToSend);
+            actor.GraphState = actor.GraphState == Loop->State ? Loop->Other : Loop->State;
+        }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
         if (it->Frames-- > 0)
@@ -579,12 +595,19 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         else
         {
             actor.GraphState = it->second;
+            if (const auto cPicks = GraphPicks.find(actor.GraphState); cPicks != GraphPicks.end())
+                actor.GraphState = cPicks->second[(DrawGraphRandom(actor) >> 13) % cPicks->second.size()];
             if (ClipFiles.contains(acAction.EventName) && !actor.LoadedClips.contains(acAction.EventName))
                 if (const auto cNext = SkippedClips.find(actor.GraphState); cNext != SkippedClips.end())
                     actor.GraphState = cNext->second;
         }
     }
     return true;
+}
+
+uint32_t FakeEngine::DrawGraphRandom(Actor& aActor) noexcept
+{
+    return aActor.GraphRandom = aActor.GraphRandom * 1664525 + 1013904223;
 }
 
 std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)
@@ -603,6 +626,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.Type = 2 | (flags ? 4 : 0);
     aAction.Tick = World::Get().GetFrameTick();
     aAction.ActorId = aFormId;
+    aAction.Variables.GraphRandom = Actors.at(aFormId).GraphRandom;
     if (ClipFiles.contains(aAction.EventName))
         Actors.at(aFormId).LoadedClips.insert(aAction.EventName);
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
@@ -645,6 +669,7 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
     if (it == Actors.end())
         return false;
     auto& actor = it->second;
+    actor.LoopFrames = 0; // clip times are not saved: a loaded graph's clips start over
     // TESObjectREFR::SaveAnimationGraphState prefixes its graph with both ActorState words.
     if (acState.size() >= 8 && acState.compare(0, 4, std::string(4, '\0')) == 0)
     {

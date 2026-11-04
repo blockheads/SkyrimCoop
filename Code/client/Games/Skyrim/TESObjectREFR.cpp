@@ -281,6 +281,88 @@ void TESObjectREFR::LoadAnimationVariables(const AnimationVariables& aVariables)
     });
 }
 
+// The generator of the graph aIndex selects, the manager locked while aWork runs.
+template <class T> static void WithGraphRandom(const TESObjectREFR& acRef, int aIndex, T&& aWork) noexcept
+{
+    WithGraphs(acRef, [&](BSAnimationGraphManager* apManager) {
+        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
+        const auto* pGraph = apManager->GetGraph(aIndex);
+        if (!pGraph || !pGraph->behaviorGraph || !pGraph->behaviorGraph->random)
+            return false;
+        aWork(*pGraph->behaviorGraph->random);
+        return true;
+    });
+}
+
+uint32_t TESObjectREFR::GetGraphRandom() const noexcept
+{
+    uint32_t seed = 0;
+    WithGraphRandom(*this, formID == 0x14 ? 0 : -1, [&](const hkPseudoRandomGenerator& acRandom) { seed = acRandom.current; });
+    return seed;
+}
+
+void TESObjectREFR::SetGraphRandom(uint32_t aSeed) const noexcept
+{
+    WithGraphRandom(*this, -1, [&](hkPseudoRandomGenerator& aRandom) { aRandom.current = aSeed; });
+}
+
+// aWork on each active BSEventEveryNEventsModifier of a graph and the sub-behaviours in it.
+template <class T> static void EachCounter(const hkbBehaviorGraphNode* apGraph, T&& aWork, int aDepth = 0) noexcept
+{
+    if (!apGraph || !apGraph->activeNodes || aDepth > 8)
+        return;
+    const auto& cNodes = *apGraph->activeNodes;
+    for (int32_t i = 0; i < cNodes.size; ++i)
+    {
+        hkbNode* pNode = cNodes.data[i].nodeClone;
+        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
+        if (!pClass || !pClass->name)
+            continue;
+        const std::string_view cClass = pClass->name;
+        if (cClass == "hkbBehaviorReferenceGenerator")
+            EachCounter(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aWork, aDepth + 1);
+        else if (cClass == "BSEventEveryNEventsModifier" && pNode->name)
+            aWork(*static_cast<BSEventEveryNEventsModifier*>(pNode));
+    }
+}
+
+template <class T> static void WithCounters(const TESObjectREFR& acRef, T&& aWork) noexcept
+{
+    WithGraphs(acRef, [&](BSAnimationGraphManager* apManager) {
+        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
+        const auto* pGraph = apManager->GetGraph(-1);
+        if (!pGraph || !pGraph->behaviorGraph)
+            return false;
+        EachCounter(reinterpret_cast<const hkbBehaviorGraphNode*>(pGraph->behaviorGraph), aWork);
+        return true;
+    });
+}
+
+std::vector<GraphRandom::Counter> TESObjectREFR::GetGraphCounters() const noexcept
+{
+    std::vector<GraphRandom::Counter> counters;
+    WithCounters(*this, [&](const BSEventEveryNEventsModifier& acEvery) {
+        counters.push_back({acEvery.name, acEvery.numberOfEventsSeen, acEvery.calculatedNumberOfEventsBefore});
+    });
+    return counters;
+}
+
+bool TESObjectREFR::SetGraphCounters(const std::vector<GraphRandom::Counter>& acCounters) const noexcept
+{
+    size_t set = 0;
+    WithCounters(*this, [&](BSEventEveryNEventsModifier& aEvery) {
+        for (const auto& cCounter : acCounters)
+            if (cCounter.Name == aEvery.name)
+            {
+                aEvery.numberOfEventsSeen = cCounter.Seen;
+                aEvery.calculatedNumberOfEventsBefore = int8_t(cCounter.Needed);
+                ++set;
+                break;
+            }
+    });
+    return set >= acCounters.size();
+}
+
 uint32_t TESObjectREFR::GetCellId() const noexcept
 {
     if (!parentCell)

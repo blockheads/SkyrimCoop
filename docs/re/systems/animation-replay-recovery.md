@@ -82,5 +82,40 @@ the sets' `+0x60`, clips kept by 40055, cancelled by 39258, which process teardo
 `npc-clips-match` needs a fresh duo: repeated in one session, Lucan can run out of topics without an idle, and it fails at
 that step, with or without this fix (no idle means nothing shown, never a pass).
 
-Not this bug: an idle's variant is the graph's own random pick, so two games can differ (`docs/bugs.md`).
-`OffsetArmsCrossed`, the player-visible case, played only in a run before the readout could tell loaded clips.
+## A graph's random picks (2026-11-04)
+
+Files loaded, a copy still played other clips: one action gave `DialogueNeutralExpressiveE` on the host and `...H` on the
+guest, and at Lucan's counter his arms crossed 9 to 19 s apart with no action at all. The saved traces matched Lucan
+exactly 90%, 62% and 23% of the time (`npc-clips-match` compared nothing then, only that files were in).
+
+Every pick draws from one generator per behaviour graph, shared with its sub-behaviours (`hkbBehaviorGraph` +0x78, seed at
++4, one per actor in the trace's `random`): `seed * 1664525 + 1013904223`.
+
+- `hkbStateMachine` random start (59406): 59 machines in `mt_behavior`, 31 in `idlebehavior`.
+  `DialogueNeutralExpressive_Behavior` has 14 states and no transitions: the pick is all that chooses a gesture.
+- `random()` in expressions (60025).
+- `BSEventEveryNEventsModifier` (63213): Lucan's `AnimObjectCounterIdleLoopRight` loops 1 to 3 times, then
+  `AnimObjectCounterRightToArm`. Host N=3, guest N=1, clips 0.45 s apart: that was the crossed arms. `OffsetArmsCrossed`,
+  which the first pass chased, played on both games.
+
+Two carriers, because some picks have no action:
+
+```
+pick an action made   the action's Variables.GraphRandom, set just before ForceAction
+pick no action made   a sync point: an ActionEvent with ActionId 0
+                      (seed, GraphState, GraphCounters), kept out of the action queue
+```
+
+A copy in step made the same pick itself, on its playback time, and ignores the point. Any other loads it, as a refused
+action recovers. A pick starts a clip, so loading at the point's own moment puts the copy on its owner's time without clip
+times (a saved graph has none). A copy whose seed cannot reach the point's in a few draws is out of step for certain and
+loads at once. One a draw behind gets 500 ms; waiting and then loading leaves it that late, so the next point does not
+wait (`GraphRandom::Judge`). A saved graph has no every-N counters either, so the point carries them, written once the
+loaded graph's nodes are active.
+
+A seed alone did not do: following it through the movement stream passed 3 of 5 runs. A copy a loop ahead kept being pulled
+back to the owner's older seed and never settled. Sync points are not sent for players, actors dying or in a pair.
+
+`npc-counter-matches` and `npc-counter-copy-falls-back-in` show this. The second loads the host's crossed arms into the
+copy alone: a tethered guest cannot arrive late, and `sae` on a copy does nothing. Havok fields and flags: hkxcmd
+`compat/`. Open Animation Replacer's Random condition has its own generator, so a seed does not cover it.

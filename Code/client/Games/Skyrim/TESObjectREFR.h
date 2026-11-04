@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Games/Primitives.h>
+#include <Games/Animation/GraphRandom.h>
 #include <Forms/TESForm.h>
 #include <NetImmerse/BSFaceGenNiNode.h>
 #include <ExtraData/ExtraContainerChanges.h>
@@ -209,6 +210,12 @@ struct TESObjectREFR : TESForm
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
     void LoadAnimationVariables(const AnimationVariables& aReader) const noexcept;
+    // The seed of its selected graph's random picks (hkbBehaviorGraph's generator); 0 with no graph.
+    [[nodiscard]] uint32_t GetGraphRandom() const noexcept;
+    void SetGraphRandom(uint32_t aSeed) const noexcept;
+    // Its selected graph's active every-N counters, which a saved graph leaves out. Set: false until all are active.
+    [[nodiscard]] std::vector<GraphRandom::Counter> GetGraphCounters() const noexcept;
+    bool SetGraphCounters(const std::vector<GraphRandom::Counter>& acCounters) const noexcept;
     // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
     bool SaveGraphs(std::string& aGraphs) const noexcept;
     bool LoadGraphs(const std::string& acGraphs) const noexcept;

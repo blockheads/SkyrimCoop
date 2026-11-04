@@ -1392,11 +1392,16 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   as "[P] Gold"; gold is the purse's (`PartyItems::ArrivesAsParty` excludes `0xF`). `quest-gold-turn-in-host` 3/3
   (was 1/3), GameTests `[purse]`, ClientTests `[PartyItems]`. `dialogue-host-in-background` walked the host into a
   wall (checked placement had moved it off the asked bearing): it now walks straight away from the NPC, 3/3.
+- **Fixed 2026-11-04: a copy's graph makes its owner's random picks.** Gestures, idle variants and looped idles (Lucan's
+  crossed arms at his counter, which no action starts) were each game's own pick. Actions carry the graph's seed; a pick no
+  action made sends a sync point on the action path, ignored by a copy in step and loaded by any other
+  (animation-replay-recovery.md, "A graph's random picks"). `npc-counter-matches`, `npc-counter-copy-falls-back-in`,
+  `npc-clips-match` (now compares the games' clips), GameTests `[replay-picks]`, `[replay-points]`, ClientTests
+  `[graph-random]`. Open: mods' own picks (Open Animation Replacer's Random), and players send no sync points.
 - **Fixed 2026-11-04: copies skipped animations.** A copy's replay started clips before their files were in, so they ended
   at once and the graph ran on: on every NPC, most visibly idles like crossed arms. A copy now loads an action's clips first,
   as an owner's game does (`ActionClips`, `AnimationSystem` phase `kClips`; `animation-replay-recovery.md`). Scenario
-  `npc-clips-match`, GameTests `[replay-clips]`, harness trace `clips` (each graph's playing files, time, loaded). Open:
-  idle variants differ between games (`docs/bugs.md`).
+  `npc-clips-match`, GameTests `[replay-clips]`, harness trace `clips` (each graph's playing files, time, loaded).
 - **Done 2026-10-31: copies look where their owners do.** In dialogue an NPC's head turns to the talking player;
   its copy's never did (copies run no AI, which sets the headtrack slots), so dialogue animations drifted. The owner's
   six slots ride `ActorAiState::HeadTrack`, raised from an `Actor::ProcessTracking` (38009) hook and put into the

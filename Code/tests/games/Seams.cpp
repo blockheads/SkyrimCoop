@@ -227,6 +227,27 @@ void World::Update() noexcept
             step.Phase.store(Step::kIdle);
             continue;
         }
+        // As AnimationSystem::RunGraphPoint.
+        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
+        GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
+        if (cPhase == Step::kIdle && animation.GraphPoint)
+        {
+            const auto& cPoint = *animation.GraphPoint;
+            const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
+            if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
+            {
+                actor.GraphRandom = cPoint.Variables.GraphRandom;
+                GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
+                const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
+                if (!cCounters.empty())
+                {
+                    actor.LoopsSeen = uint32_t(cCounters.front().Seen);
+                    actor.LoopsToSend = uint32_t(cCounters.front().Needed);
+                }
+            }
+            if (cVerdict != GraphRandom::Point::kWait)
+                animation.GraphPoint.reset();
+        }
         if (cPhase == Step::kClips)
         {
             if (ClipWaitOver(step, ++animation.StagedUpdates))
@@ -263,6 +284,8 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
+        if (animation.GraphPoint && animation.GraphPoint->Tick <= action.Tick)
+            animation.GraphPoint.reset();
         step.Action = action;
         if (action.Tick >= animation.VariablesTick)
         {
@@ -282,7 +305,11 @@ void World::Update() noexcept
             auto& step = engine.Actors.at(form.Id).Replay;
             RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
                 engine.ActorLoadAnimationVariables(form.Id, acVariables);
-            }, [&] { return engine.ReplayAnimation(form.Id, step.Action); });
+            }, [&] {
+                if (step.Action.Variables.GraphRandom)
+                    engine.Actors.at(form.Id).GraphRandom = step.Action.Variables.GraphRandom;
+                return engine.ReplayAnimation(form.Id, step.Action);
+            });
         }
     ctx().at<GuestSeam>().Update();
     auto& waitEngine = ctx().at<FakeEngine&>();

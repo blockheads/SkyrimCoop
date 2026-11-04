@@ -150,16 +150,40 @@ struct hkbNodeInfo
 static_assert(offsetof(hkbNodeInfo, nodeClone) == 0x58);
 static_assert(sizeof(hkbNodeInfo) == 0x90);
 
+// What a graph's random picks draw from: seed = seed * 1664525 + 1013904223 (59406, 60025, 63213).
+struct hkPseudoRandomGenerator
+{
+    uint32_t seed;    // 0
+    uint32_t current; // 4
+};
+static_assert(offsetof(hkPseudoRandomGenerator, current) == 4);
+
+// Sends its event after a random number of another (63213): a shopkeeper's loop ending in crossed arms.
+struct BSEventEveryNEventsModifier : hkbNode
+{
+    uint8_t pad48[0x70 - 0x48];
+    int8_t numberOfEventsBeforeSend;        // 70
+    int8_t minimumNumberOfEventsBeforeSend; // 71
+    bool randomizeNumberOfEvents;           // 72
+    uint8_t pad73;
+    int32_t numberOfEventsSeen;            // 74
+    int8_t calculatedNumberOfEventsBefore; // 78
+};
+static_assert(offsetof(BSEventEveryNEventsModifier, numberOfEventsSeen) == 0x74);
+static_assert(offsetof(BSEventEveryNEventsModifier, calculatedNumberOfEventsBefore) == 0x78);
+
 // Behaviour graph as a node: its root generator and its own variable names (sub-behaviours index
 // variables locally).
 struct hkbBehaviorGraphNode : hkbNode
 {
-    uint8_t pad48[0x80 - 0x48];
-    hkbNode* rootGenerator;     // 80
-    hkbBehaviorGraphData* data; // 88
+    uint8_t pad48[0x78 - 0x48];
+    hkPseudoRandomGenerator* random; // 78
+    hkbNode* rootGenerator;          // 80
+    hkbBehaviorGraphData* data;      // 88
     uint8_t pad90[0x98 - 0x90];
     hkArrayView<hkbNodeInfo>* activeNodes; // 98
 };
+static_assert(offsetof(hkbBehaviorGraphNode, random) == 0x78);
 static_assert(offsetof(hkbBehaviorGraphNode, rootGenerator) == 0x80);
 static_assert(offsetof(hkbBehaviorGraphNode, data) == 0x88);
 static_assert(offsetof(hkbBehaviorGraphNode, activeNodes) == 0x98);
