@@ -319,12 +319,12 @@ bool SkyrimBridge::IsLyingInRagdoll(uint32_t aFormId) const noexcept
     return pActor && pActor->LiesInRagdoll();
 }
 
-bool SkyrimBridge::IsInAir(uint32_t aFormId) const noexcept
+bool SkyrimBridge::IsOnGround(uint32_t aFormId) const noexcept
 {
     const Actor* pActor = GetActor(aFormId);
     const auto* pProcess = pActor ? pActor->currentProcess : nullptr;
     const auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
-    return pController && (pController->state == bhkCharacterController::kJumping || pController->state == bhkCharacterController::kInAir);
+    return pController && pController->state == bhkCharacterController::kOnGround;
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept

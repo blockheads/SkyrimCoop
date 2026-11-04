@@ -122,10 +122,14 @@ copy  -1.8 (180 ms on the ground) → placed at 62.7 (past kSnap 64 off)
 Two hops a jump, both ways (host's player on a guest, a guest's on the host): the stutter players saw.
 
 ```
-owner: Movement::InAir = its controller jumping or in the air (state 1, 2: SkyrimBridge::IsInAir)
-copy:  either snapshot around its playback time in the air -> CopyStep::Choose gives Place
-       (take-off to landing); late snapshots carry it on across, its height held (never into the floor)
+owner: Movement::OnGround = its controller on the ground (state 0: SkyrimBridge::IsOnGround)
+copy:  both snapshots around its playback time on the ground -> Step (Place past kSnap)
+       otherwise (take-off to landing, swimming, climbing, flying, any state not met yet) -> Place
+       late snapshots off the ground carry it on across, its height held (never into the floor)
 ```
+
+The step is the exception, used where it was seen to follow faithfully (a controller on the ground, where it
+gives a copy's capsule its pushes); a state we have not met falls to Place, right for position, without pushes.
 
 skymp moves its copies with `TranslateTo` (kinematic: no gravity or support) the whole time; we keep the step on
 the ground for its pushes. After the fix: copy peaks 73-74 against its owner's 74, turning once in the air.

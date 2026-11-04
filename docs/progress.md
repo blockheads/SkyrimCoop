@@ -109,8 +109,9 @@ flight speed against the walkers' tolerance).
 
 2026-11-03: a jumping player's copy no longer stutters in the air. Since copies are stepped by their engine
 (2026-11-02) a copy stayed on the ground while its owner rose, was placed past 64 units off and fell by its own
-gravity, twice a jump. The owner now sends `Movement::InAir` (its controller jumping or falling) and a copy is placed
-on its path from take-off to landing, its height held when a snapshot is late
+gravity, twice a jump. The owner now sends `Movement::OnGround` (its controller on the ground) and a copy is stepped
+only then: placed on its path from take-off to landing and in any other state (swimming, climbing, flying, ones not
+met yet), its height held when a snapshot is late
 ([actor-movement.md](re/systems/actor-movement.md#a-copy-in-the-air-2026-11-03)). Scenarios
 `copy-jumps-smoothly-host` / `-guest` (failed both ways, pass); GameTests "A jumping player's copy rises and falls
 with it, never stuck on the ground"; ClientTests `[copy-step]`.

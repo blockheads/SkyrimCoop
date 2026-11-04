@@ -581,7 +581,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Direction = movement.Direction;
         point.Lying = movement.Lying;
         point.Knocked = movement.Knocked;
-        point.InAir = movement.InAir;
+        point.OnGround = movement.OnGround;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -1458,7 +1458,7 @@ void CharacterService::RunLocalUpdates() noexcept
         {
             it->second.UpdatedMovement.Lying = m_actorBridge.IsLyingInRagdoll(formIdComponent.Id);
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
-            it->second.UpdatedMovement.InAir = m_actorBridge.IsInAir(formIdComponent.Id);
+            it->second.UpdatedMovement.OnGround = m_actorBridge.IsOnGround(formIdComponent.Id);
         }
     }
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
@@ -1538,12 +1538,12 @@ void CharacterService::RunRemoteUpdates() noexcept
             }
             if (cPlace)
                 ease.Apply(currentTick, position, rotation.z);
-            // Stepped by its engine, so its capsule pushes what it meets; placed when far off or its owner is in the
-            // air, from take-off to landing (actor-movement.md).
+            // Stepped by its engine, so its capsule pushes what it meets, only while its owner is on the ground (from
+            // take-off to landing and in any other state placed); placed when far off too (actor-movement.md).
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
-            const bool cOwnerInAir = tick >= second.Tick ? second.InAir : (first.InAir || second.InAir);
-            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerInAir, at, position);
+            const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
+            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);

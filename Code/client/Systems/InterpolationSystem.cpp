@@ -33,13 +33,13 @@ bool InterpolationSystem::Interpolate(const InterpolationComponent::TimePoint& a
         aRotation[axis] = angle;
     }
 
-    // The next snapshot is late: on its way a little longer, its facing held; in the air its height held (placed, it
+    // The next snapshot is late: on its way a little longer, its facing held; off the ground its height held (placed, it
     // would sink through the floor at a landing).
     if (aTick > acSecond.Tick && aAheadMs && cStanding && acSecond.Tick > acFirst.Tick)
     {
         const float cAhead = static_cast<float>(std::min(aTick - acSecond.Tick, aAheadMs)) / static_cast<float>(acSecond.Tick - acFirst.Tick);
         aPosition = acSecond.Position + (acSecond.Position - acFirst.Position) * cAhead;
-        if (acFirst.InAir || acSecond.InAir)
+        if (!acFirst.OnGround || !acSecond.OnGround)
             aPosition.z = acSecond.Position.z;
     }
 

@@ -68,6 +68,7 @@ TEST_CASE("A copy whose next snapshot is late carries on its way a little, then 
     InterpolationComponent::TimePoint first, second;
     first.Tick = 1000;
     second.Tick = 1100;
+    first.OnGround = second.OnGround = true;
     second.Position = {10.f, 0.f, 0.f};
     glm::vec3 position{}, rotation{};
 
@@ -80,10 +81,10 @@ TEST_CASE("A copy whose next snapshot is late carries on its way a little, then 
         REQUIRE(InterpolationSystem::Interpolate(first, second, 1150, position, rotation));
         CHECK(position.x == Approx(10.f));
     }
-    SECTION("in the air only across: placed, it would sink through the floor at a landing")
+    SECTION("off the ground only across: placed, it would sink through the floor at a landing")
     {
         second.Position.z = -30.f;
-        second.InAir = true;
+        second.OnGround = false;
         REQUIRE(InterpolationSystem::Interpolate(first, second, 1150, position, rotation, 100));
         CHECK(position.x == Approx(15.f));
         CHECK(position.z == Approx(-30.f));

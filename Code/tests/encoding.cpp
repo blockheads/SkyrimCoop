@@ -1190,7 +1190,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Teleported = true;
         move.Lying = true;
         move.Knocked = true;
-        move.InAir = true;
+        move.OnGround = true;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

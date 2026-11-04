@@ -48,7 +48,7 @@ public:
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override;
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
-    bool IsInAir(uint32_t aFormId) const noexcept override;
+    bool IsOnGround(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
