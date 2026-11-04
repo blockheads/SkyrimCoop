@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -68,6 +69,16 @@ class Tools(unittest.TestCase):
         self.assertFalse(mcp_tools.TOOLS["verb"](name="_private")["ok"])
         self.assertEqual(mcp_tools.TOOLS["verbs"](match="swing")["verbs"], ["swing(instance, times): Swings."])
 
+    def test_a_big_result_goes_to_a_file_with_its_outline(self):
+        record = {"name": "Prisoner", "level": 1, "tints": [{"name": "x" * 100}] * 40}
+        shown = mcp_tools._jsonable(record)
+        self.assertEqual(shown["outline"], {"name": "Prisoner", "level": 1, "tints": "<list, 40>"})
+        self.assertEqual(json.loads(Path(shown["file"]).read_text()), record)
+        self.assertEqual(mcp_tools._jsonable({"small": 1}), {"small": 1})
+        first, second = mcp_tools._jsonable({"data": "a" * 4000}), mcp_tools._jsonable({"data": "b" * 4000})
+        self.assertNotEqual(first["file"], second["file"])
+        self.assertEqual(json.loads(Path(first["file"]).read_text()), {"data": "a" * 4000})
+
     def test_rounds_gives_a_line_each_records_itself_only_and_stops_at_until(self):
         session = FakeSession()
         registered(session)
@@ -121,7 +132,180 @@ class Trace(unittest.TestCase):
                                           "  0.100 host   player f1 state kill_move=True",
                                           "  0.500 client other f1 graph KillActor"])
         self.assertEqual(trace_lines(entries, who=["other"])["total"], 1)
+        clips = [self.entry(10.0 + i / 10, "clips", clips=["Idle", "pa_X"], detail={"Idle": {}}) for i in range(3)]
+        self.assertEqual(trace_lines(clips)["lines"], ["  0.000 host   player f1 clips Idle pa_X"])
         self.assertEqual(trace_lines(entries, origin="^pa_", grep="Kill", limit=1)["shown"], 1)
+
+
+class NestedTraces(unittest.TestCase):
+    def test_a_trace_inside_another_shares_the_recorder_and_leaves_it_running(self):
+        from coop_harness.objects import AnimTrace
+
+        class Recorder:  # the harness's one anim_trace per game: start adds actors, every call takes what's new
+            def __init__(self):
+                self.pending, self.stopped, self.t = [], False, 0
+
+            def record(self, actor, event):
+                self.t += 1
+                self.pending.append({"t": self.t * 1000, "f": self.t, "kind": "graph", "actor": actor, "event": event})
+
+            def rpc(self, request, timeout=3.0):
+                self.stopped = self.stopped or request.get("stop", False)
+                taken, self.pending = self.pending, []
+                return {"ok": True, "entries": taken}
+
+        class Ctx:
+            def __init__(self):
+                self.recorder = Recorder()
+                self.host = self.recorder
+
+            def game(self, name):
+                return self.recorder
+
+            def failure(self, text):
+                return TestFailure(text)
+
+        ctx = Ctx()
+        with tempfile.TemporaryDirectory() as folder, patch("coop_harness.objects.TRACES", Path(folder)), \
+             patch.object(AnimTrace, "_logs"):
+            outer = AnimTrace(ctx, "outer", {"": {0x14: "player"}}, video=False).__enter__()
+            ctx.recorder.record(0x14, "before")
+            with AnimTrace(ctx, "inner", {"": {0x14: "me", 0x99: "other"}}, video=False) as inner:
+                ctx.recorder.record(0x14, "during")
+                ctx.recorder.record(0x99, "other's")
+                inner.take()
+            self.assertFalse(ctx.recorder.stopped, "the outer trace still records")
+            ctx.recorder.record(0x14, "after")
+            outer.take()
+            self.assertEqual([e["event"] for e in outer.entries], ["before", "during", "after"])
+            self.assertEqual([e["event"] for e in inner.entries], ["during", "other's"])
+            outer.__exit__(None, None, None)
+            self.assertTrue(ctx.recorder.stopped)
+
+
+class Handles(unittest.TestCase):
+    def test_player_handles_follow_a_new_copy_after_a_respawn(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx = unittest.mock.MagicMock()
+        ctx.REPRO_HANDLES = {"host_player": {"host": 0x14, "guest": 0xFF000832}}
+        ctx.handles.side_effect = lambda: ctx.REPRO_HANDLES
+        ctx.worlds.return_value = ({}, {})
+        ctx.player_copy.side_effect = lambda game: 0xFF00084D if game == "client" else 0xFF000835
+        ctx.name_players.side_effect = lambda: ReproActions.name_players(ctx)
+        ctx.name_handle.side_effect = lambda name, ids: ctx.REPRO_HANDLES.__setitem__(name, ids)
+        ReproActions.refresh_handles(ctx)
+        self.assertEqual(ctx.REPRO_HANDLES["host_player"], {"host": 0x14, "guest": 0xFF00084D})
+
+
+class Stays(unittest.TestCase):
+    def ctx(self, rows):
+        ctx = unittest.mock.MagicMock()
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.actor_row.side_effect = lambda instance, ref: rows.pop(0) if len(rows) > 1 else rows[0]
+        return ctx
+
+    def test_stays_fails_when_the_field_changes_inside_the_window_and_actor_does_not(self):
+        from coop_harness.actions.repro import ReproActions
+        alive, dead = {"state": {"dead": False}}, {"state": {"dead": True}}
+        with patch("coop_harness.actions.repro.time.sleep"):
+            with self.assertRaisesRegex(TestFailure, "became .*True"):
+                ReproActions.expect_actor(self.ctx([alive, alive, dead, alive]), "p", "state.dead", "host", False, 1.0, stays=True)
+            self.assertEqual(ReproActions.expect_actor(self.ctx([dead, alive]), "p", "state.dead", "host", False, 1.0),
+                             {"state.dead": {"host": False}})
+
+
+class Clock:
+    """time.monotonic and time.sleep for repro: sleeping moves the clock."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class StaysBoundaries(unittest.TestCase):
+    def run_stays(self, dead_from, seconds):
+        from coop_harness.actions.repro import ReproActions
+        clock, ctx = Clock(), unittest.mock.MagicMock()
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.actor_row.side_effect = lambda instance, ref: {"state": {"dead": clock.now >= dead_from}}
+        with patch("coop_harness.actions.repro.time", clock):
+            return ReproActions.expect_actor(ctx, "p", "state.dead", "host", False, seconds, stays=True)
+
+    def test_a_change_just_before_the_deadline_fails(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=0.9, seconds=1.0)
+
+    def test_a_change_at_the_deadline_fails(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=1.0, seconds=1.0)
+
+    def test_zero_seconds_checks_the_one_reading(self):
+        with self.assertRaisesRegex(TestFailure, "became"):
+            self.run_stays(dead_from=0.0, seconds=0.0)
+        self.assertEqual(self.run_stays(dead_from=5.0, seconds=0.0), {"state.dead": {"host": False}})
+
+    def test_holding_all_through_passes(self):
+        self.assertEqual(self.run_stays(dead_from=5.0, seconds=1.0), {"state.dead": {"host": False}})
+
+
+class Checkpoints(unittest.TestCase):
+    """checkpoint/retry on a scripted session: the order of what they wait for."""
+
+    def ctx(self):
+        from coop_harness.actions.repro import ReproActions
+        ctx, steps = unittest.mock.MagicMock(), []
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.save_game.side_effect = lambda instance, name: steps.append(("save", instance, name)) or Path(f"/saves/{name}.ess")
+        ctx.saves_written.side_effect = lambda path: (lambda: steps.append(("written", path.name)) or True)
+        ctx.console_on.side_effect = lambda instance, line: steps.append(("console", instance, line))
+        events = {"": [{"kind": "game_loaded", "seq": 0}], "client": []}  # a load from before the retry
+        ctx.engine_events.side_effect = lambda game, since=0: ([e for e in events[game] if e["seq"] >= since],
+                                                               len(events[game]))
+        def wait_for(description, predicate, timeout, **kwargs):
+            steps.append(("wait", description))
+            if "load the checkpoint" in description:
+                self.assertFalse(predicate(), "a load from before the retry counts")
+                events[""].append({"kind": "game_loaded", "seq": 1})
+                self.assertFalse(predicate(), "the host's load alone is enough")
+                events["client"].append({"kind": "game_loaded", "seq": 0})
+            if not predicate():
+                raise TestFailure(f"never: {description}")
+        ctx.wait_for.side_effect = wait_for
+        ctx.both_see_each_other.side_effect = lambda: steps.append(("see",)) or True
+        ctx.takes_input.side_effect = lambda game: True
+        ctx.refresh_handles.side_effect = lambda: steps.append(("refresh",))
+        ctx.checkpoint.side_effect = lambda name="mcp-checkpoint": ReproActions.checkpoint(ctx, name)
+        return ctx, steps, ReproActions
+
+    def test_retry_without_a_checkpoint_fails(self):
+        ctx, _, actions = self.ctx()
+        del ctx.REPRO_CHECKPOINT
+        with self.assertRaisesRegex(TestFailure, "no checkpoint"):
+            actions.retry(ctx)
+
+    def test_the_checkpoint_counts_once_its_save_and_co_save_are_written(self):
+        ctx, steps, actions = self.ctx()
+        del ctx.REPRO_CHECKPOINT
+        ctx.wait_for.side_effect = lambda description, predicate, timeout, **kwargs: (
+            steps.append(("checked", hasattr(ctx, "REPRO_CHECKPOINT"))), predicate())
+        actions.checkpoint(ctx, "here")
+        self.assertEqual(steps[:3], [("save", "", "here"), ("checked", False), ("written", "here.ess")])
+        self.assertEqual(ctx.REPRO_CHECKPOINT, "here")
+
+    def test_retry_waits_for_both_loads_then_both_players_then_refreshes(self):
+        ctx, steps, actions = self.ctx()
+        ctx.REPRO_CHECKPOINT = "here"
+        actions.retry(ctx)
+        self.assertEqual(steps[0], ("console", "", "load here"))
+        self.assertEqual([step for step in steps if step[0] in ("wait", "refresh")][-1], ("refresh",))
+        waits = [step[1] for step in steps if step[0] == "wait"]
+        self.assertEqual(waits, ["both games load the checkpoint here", "each game shows the other player again",
+                                 "both games take input"])
 
 
 class Export(unittest.TestCase):
@@ -149,6 +333,10 @@ class Export(unittest.TestCase):
         self.assertIn("for _ in range(1):", text)
         self.assertIn("ctx.expect(name='door', check='agree')", text)
         self.assertEqual(text.count("ctx.swing()"), 1, "a failed verb that is not a check is left out")
+
+    def test_a_scenario_using_the_players_handles_names_them_first(self):
+        entries = [{"tool": "expect", "args": {"name": "guest_player", "check": "stays", "field": "state.dead", "value": False}, "ok": False}]
+        self.assertIn("try:\n        ctx.name_players()\n        ctx.expect('guest_player'", repro.export_scenario(entries, "x", "D.", []))
 
     def test_every_tool_replays_or_is_known_to_only_look(self):
         samples = {"game": "host", "target": "t", "name": "n", "check": "agree", "spec": {}, "frames": 1, "line": "x",

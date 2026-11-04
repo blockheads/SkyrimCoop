@@ -8,8 +8,10 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
+from pathlib import Path
 from typing import Any
 
 import anyio
@@ -153,7 +155,7 @@ def console(game: str, line: str) -> dict:
 def harness(game: str, request: dict) -> dict:
     """Sends one raw harness command (TestHarness, {"cmd": ...}) to that game: the escape hatch for anything the
     other tools don't cover. Its reply as the plugin gives it."""
-    return {"ok": True, "reply": session.player_command(_game(game), request)}
+    return {"ok": True, "reply": _jsonable(session.player_command(_game(game), request))}
 
 
 @tool
@@ -237,7 +239,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
     `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
     `name` holds the same in both games), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
+    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
@@ -438,8 +440,22 @@ def name_handle(name: str, host: int = 0, guest: int = 0) -> dict:
 
 # --- Growing the server: any Session verb by name (mcp_reload, in coop_mcp.py, picks up new code) ---
 
+BIG_RESULT = 3000  # characters: a larger result goes to a file, the reply keeps its outline
+
+
 def _jsonable(value):
-    return json.loads(json.dumps(value, default=str))
+    """A result as JSON; a big one (a whole character record) is written to a file and outlined: keys and sizes."""
+    text = json.dumps(value, default=str)
+    if len(text) <= BIG_RESULT:
+        return json.loads(text)
+    (TEST_HOME / "mcp").mkdir(parents=True, exist_ok=True)
+    handle, name = tempfile.mkstemp(prefix=f"result-{time.strftime('%Y%m%d-%H%M%S')}-", suffix=".json", dir=TEST_HOME / "mcp")
+    with os.fdopen(handle, "w") as file:
+        file.write(json.dumps(value, default=str, indent=1))
+    path = Path(name)
+    outline = ({key: (item if len(json.dumps(item, default=str)) <= 80 else f"<{type(item).__name__}, {len(item)}>")
+                for key, item in value.items()} if isinstance(value, dict) else f"<{type(value).__name__}, {len(value)}>")
+    return {"outline": outline, "file": str(path)}
 
 
 def _instance_args(args):
@@ -506,6 +522,18 @@ def rounds(call: str, args: dict | None = None, count: int = 10, until: str = ""
                 hit = index
                 break
     return {"ok": True, "lines": lines, "hit": hit, "ran": ran, "file": str(path)}
+
+
+@tool
+def checkpoint(name: str = "mcp-checkpoint") -> dict:
+    """The host saves the party here; retry comes back to it in seconds instead of a new duo (staged things included)."""
+    return {"ok": True, **session.checkpoint(name)}
+
+
+@tool
+def retry(name: str = "") -> dict:
+    """Back to the checkpoint: the host loads it, the guest loads with it, both show each other again; handles follow."""
+    return {"ok": True, **session.retry(name or None)}
 
 
 # --- Seeing what happened: the animation trace and the plugin logs ---

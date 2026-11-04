@@ -43,7 +43,8 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
                      BSTEventSink<TESOpenCloseEvent>,
                      BSTEventSink<TESMoveAttachDetachEvent>,
                      BSTEventSink<TESObjectLoadedEvent>,
-                     BSTEventSink<TESContainerChangedEvent>
+                     BSTEventSink<TESContainerChangedEvent>,
+                     BSTEventSink<TESLoadGameEvent>
 {
     BSTEventResult OnEvent(const TESSpellCastEvent* apEvent, const EventDispatcher<TESSpellCastEvent>*) override
     {
@@ -129,6 +130,13 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
         return BSTEventResult::kOk;
     }
 
+    // A save finished loading in this game (the host's load, or a guest reloading with it).
+    BSTEventResult OnEvent(const TESLoadGameEvent*, const EventDispatcher<TESLoadGameEvent>*) override
+    {
+        Record({{"kind", "game_loaded"}});
+        return BSTEventResult::kOk;
+    }
+
     BSTEventResult OnEvent(const TESEquipEvent* apEvent, const EventDispatcher<TESEquipEvent>*) override
     {
         if (apEvent)
@@ -161,6 +169,7 @@ void ListenAll(EventDispatcherManager& aManager, bool aOn) noexcept
     Listen(aManager.moveAttachDetachEvent, aOn);
     Listen(aManager.objectLoadedEvent, aOn);
     Listen(aManager.containerChangedEvent, aOn);
+    Listen(aManager.loadGameEvent, aOn);
 }
 } // namespace
 

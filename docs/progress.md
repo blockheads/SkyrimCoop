@@ -59,6 +59,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real
+bug"). The kill-move redo through it found crossed kill moves still kill a player a second later (`bugs.md`, Combat;
+for PR #13). `checkpoint`/`retry` roll the party back to a host save in 3.9 s instead of a new duo (the harness's
+`game_loaded` engine event). Built on the way: nested traces sharing the recorder, `expect stays`, player handles after
+a respawn, brief `clips`, big results to a file. Units in `scripts/test_coop_mcp.py`.
+
 2026-11-04: the repro MCP grows instead of being left ([repro-mcp.md](design/repro-mcp.md), "Robustness"). The kill-move
 work left it for scratch scripts (rounds, a trace filter) because its code loaded once. Now `mcp_reload` loads the
 harness again keeping the session, `verb(name, args)` calls any Session method (recorded, exported as `ctx.<name>(...)`),

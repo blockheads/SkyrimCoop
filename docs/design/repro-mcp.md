@@ -118,6 +118,42 @@ agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
   modal dialog before our heartbeat). It now gives the game's user an ACL there, as for `Data/SKSE`
   (`test_the_games_user_can_write_my_games_this_user_creates`).
 
+## Used on a real bug (2026-11-04): the kill-move redo, checkpoints
+
+Redone through the MCP on PR #13's branch: `equip`, `kill_move_exchange` through `rounds(until="crossed.: true")`,
+`trace_start`/`trace_read` from `^pa_`, then `expect stays`. It found that crossed kill moves still kill a player a
+second later, 3 of 3 (`bugs.md`, Combat), exported as a scenario that failed alone. What the run needed from the MCP,
+built then:
+
+- **Nested traces:** a verb's own `AnimTrace` (inside `kill_move_exchange`) drained the harness's one recorder per
+  game, so the MCP's trace read nothing. The open traces of a session now share each pull, each keeping its actors'
+  entries from its own start; the last one open stops the recorder (`AnimTrace._pull`).
+- **`expect stays`:** a field holds its value all through `seconds` (nobody dies), where `actor` only waits for it.
+  The death came after `kill_move_exchange`'s own checks.
+- **Player handles follow a respawn:** `refresh_handles` names the players' copies again (a dead player's copy is
+  new), and an export that uses `host_player`/`guest_player` starts with `ctx.name_players()`.
+- **Brief traces:** sample kinds the brief view didn't know (`clips`, every clip every frame) show once per change,
+  short; big results (`verb`, `harness`) go to a file with an outline (`BIG_RESULT`).
+- **PR #13's tools export:** `equip` and `kill_move_exchange` have scenario lines, `kill_move_check` only looks
+  (`repro._line`, `LOOKS`). When PR #13 lands, its three tools move from `coop_mcp.py` into `mcp_tools.py`.
+
+**Checkpoints:** `checkpoint(name)` saves on the host; `retry(name)` loads it, the guest loads with the host (the
+party load), and waits for both games' `game_loaded` (`EngineEvents`, `TESLoadGameEvent`), each showing the other and
+taking input; handles follow the new copies. Measured: 3.9 s a retry against about a minute for a new duo; the host's
+place, a staged NPC and a guest's gold came back, and `expect agree all` held after two retries.
+
+**Next for the MCP** (another agent can pick these up):
+
+1. `cast` (a spell at a handle) and `together` (both players act in one frame window, as `kill_move_exchange` does by
+   hand), when a bug needs them.
+2. Long verbs (`talk`, ~90 s) still pass the client's 120 s and go to the background: return early with a job to
+   wait on, as `quest_walk` does.
+3. `rounds(between=...)`: a wait for the game to be ready between rounds (on the ground, menus closed); back to back,
+   two of three jumps fell in the air.
+4. `scene_reset` as a `rounds` reset exports nothing; it should replay as the baseline reset.
+5. The guest's path to copies of host-spawned NPCs is refused (`go_to` runs straight): why is open.
+6. Checked actions (`checked-actions.md`, "Finishing it"): `move`/`push_toward` become tools.
+
 ## Context
 
 Today a repro means writing a Python scenario and rerunning it from the start for every change: 30–90 s per try, with
