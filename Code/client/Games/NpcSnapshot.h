@@ -24,4 +24,10 @@ inline bool HasResolvedName(uint32_t aChanges) noexcept
     return (aChanges & kFullName) != 0;
 }
 
+// A copy keeps this game's resolved leveled base when it has the owner's face: its stats (level) live there.
+inline bool KeepsResolvedBase(bool aTemporary, uint32_t aTemplateBase, uint32_t aOwnerBase) noexcept
+{
+    return aOwnerBase && aTemporary && aTemplateBase == aOwnerBase;
+}
+
 } // namespace NpcSnapshot

@@ -20,6 +20,10 @@ def compare_choice(ctx, npc, copy):
     if owner.get("name") != duplicate.get("name"):
         raise ctx.failure(f"leveled NPC {npc:X} name: host {owner.get('name')!r}, copy {duplicate.get('name')!r}; "
                           + json.dumps(states, sort_keys=True))
+    # Its stats live on the resolved base: a guard's level 1000 (PC level mult 1.0), the face record's 1.
+    if owner.get("level") != duplicate.get("level"):
+        raise ctx.failure(f"leveled NPC {npc:X} level: host {owner.get('level')}, copy {duplicate.get('level')}; "
+                          + json.dumps(states, sort_keys=True))
 
 
 def spawned_choice(ctx):

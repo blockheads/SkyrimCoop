@@ -1,5 +1,16 @@
 # Progress
 
+2026-11-04: copy state from Riverwood, both fixed. Level: a placed leveled NPC's copy (a Whiterun Guard, 1000 against
+1; Odahviing's 20 against 1 the same kind) was given the owner's face record, dropping its own game's resolved base and
+its stats; it now keeps that engine-made base when its face matches the owner's (both games load one save), and reads
+the same level on the duo ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md), "A copy keeps its game's
+resolved base"; GameTests and ClientTests `[copy-level]`; `leveled-placed-npc-is-hosts` now compares level, and passes
+it, then fails its cleanup: the guest loses its own guard reference once the host sends it home, on its unchanged
+permanent-base path). Open: a different face, and created copies, still take the face record's
+stats. Hands: a copy's move to another cell drops its hand spells, and the equipment snapshot compared only worn items;
+it now compares the hand spells too ([copy-hand-spells.md](re/systems/copy-hand-spells.md); scenario
+`copy-keeps-spell-after-party-travel`, GameTests and ClientTests `[hand-spell]`).
+
 2026-11-04: a container the host creates reaches a guest with what it holds (`bugs.md`, Containers, deleted). Each
 create row of a container is followed by its contents, rolled on the host first (`AddCreatedContents` in
 `HostWorldState`, for object changes, cell states and a wait's world; `HostGame::ReadContents`); the host's later item
@@ -16,8 +27,8 @@ pinned clock, named NPCs, what already differs shown), goal verbs with one outco
 `use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
 fixture. From `bugs.md` alone: the created chest reproduced and exported (`created-chest-reaches-guest-empty`, fails
 until fixed; its GameTests flow lands with the fix); the follower entry not reproduced. `faendal-letter` runs through
-the runner and fails only its end comparison on real desyncs. Seen in Riverwood, open: a Whiterun Guard's copy level 1 against
-1000, the player's copy `state.hands` empty against 77772. Python units in `test_coop_harness` (GoalVerbs, Scenes).
+the runner and fails only its end comparison on real desyncs. Seen in Riverwood: a Whiterun Guard's copy level 1 against
+1000, the player's copy `state.hands` empty against 77772 (both fixed 2026-11-04, above). Python units in `test_coop_harness` (GoalVerbs, Scenes).
 
 2026-11-03: the duo's games have a silent audio device again. Running as `coop2` (2026-11-01) they had no audio
 driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
@@ -116,8 +127,8 @@ with the engine (16108) and takes from the matching list ([inventory-changes.md]
 player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
 and walks a `PathToReference` leg only round what stops it; `steer_to` turns Always Run on (status
 `player.always_run`) and sprints. Faendal flow 252 s to 113 s. Python units in `test_coop_harness.Repro`.
-Open: the runner's baseline refuses `LateAfterDragonslayerBackinSkyrim` (Odahviing's copy: level 1 vs 20, 300
-units off); `stage` put a staged NPC 75,000 units off after the players had hopped cells.
+Open: the runner's baseline refuses `LateAfterDragonslayerBackinSkyrim` (Odahviing's copy: level 1 vs 20, likely fixed
+2026-11-04 above; 300 units off); `stage` put a staged NPC 75,000 units off after the players had hopped cells.
 
 2026-11-02: the repro MCP (uncommitted, [repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
@@ -136,7 +147,7 @@ record), and `BuildAnnouncement` (and `ReadWhereabouts`) dropped an actor whose 
 position (`TravelService::CellAt`); ClientTests `[FormIds]`, GameTests "The host's NPC in an exterior cell the engine
 made gets a copy on the guest" (failed before). On the duo the dragons now have session ids and copies. The runner's
 baseline check there then stops on two newer differences, open: Odahviing's copy is level 1 against the host's 20
-(NPC copies don't take their owner's level), and his copy trails him in flight by ~300 units (interpolation delay at
+(a copy took the face record's stats; likely fixed 2026-11-04, above), and his copy trails him in flight by ~300 units (interpolation delay at
 flight speed against the walkers' tolerance).
 
 2026-11-03: a jumping player's copy no longer stutters in the air. Since copies are stepped by their engine

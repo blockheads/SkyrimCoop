@@ -971,6 +971,9 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;
+    // An NPC moved to another cell loses its hand spells (seen on a player's copy, 2026-11-04).
+    if (aFormId != kPlayer && it->second.Cell != cFrom)
+        it->second.Items.CurrentMagicEquipment.LeftHandSpell = it->second.Items.CurrentMagicEquipment.RightHandSpell = {};
     CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
