@@ -184,6 +184,19 @@ the keyboard **E** (Activate, the menu's Accept) selects; Enter does nothing, in
 (2026-10-18, both games, with `bAllowProgress` set and the list shown). The harness `dialogue` command reads
 `bAllowProgress`, `eMenuState` and `TopicList.selectedIndex` through `GFxMovie::GetVariable` (vfunc 0x11).
 
+**A press during a line** (`DialogueMenu.as` `SkipText`, read in IDA on 1.7.104, 2026-11-03): 51508 calls 35290 under the
+critical section on the game whose menu was pressed. 35290 stops the speaker while it talks, else moves to the next
+response or the list. A guest's only moved its own idle conversation, so the host's game said the line to its end;
+**hooked** (`HookSkipText`), the press also goes to the host's game (`MenuTopicManager::SkipLine`).
+
+**How long a line lasts** (1.7.104, 2026-11-03). Two timers: `Actor::SpeakSound` (37542) returns the lip file's length
+(frames / 30), but the list waits for the voice timer (`Actor` +0x110), set by `Actor::UpdateSoundCallback` (0x14068e150):
+the sound handle's duration + `fGameplayVoiceFilePadding` (0.5 s), and with a duration of 0, the response's text length x
+`fAIDefaultSpeechMult` + the padding (`Skyrim.esm`: 0.15 s a character; the executable's default is 0.05). Measured on the
+duo, whose games have no audio driver so every duration is 0: Orgnar's 121-character rumor has 8.1 s of lip data and its
+list came 19.2 s later. Text-timed lines are about twice as long as spoken ones. Scenarios that wait for a line's end
+see that; so does anyone playing in the duo's windows.
+
 **The highlight moving** (2026-10-29, `skyrimui` source in `reference/plugins/skyrimui`): nothing reaches the game. W
 and S call `CenteredScrollingList.moveSelectionUp/Down`, which set `iSelectedIndex` and dispatch `listMovedUp/Down`
 to the SWF's own listeners (`DialogueMenu.playListUpAnim`); the mouse goes through `doSetSelectedIndex`

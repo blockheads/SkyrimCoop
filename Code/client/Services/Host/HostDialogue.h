@@ -65,6 +65,7 @@ struct HostDialogue
     void OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnHighlight(const DialogueHighlightRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnSkip(const DialogueSkipRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: it leaves the conversation.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 

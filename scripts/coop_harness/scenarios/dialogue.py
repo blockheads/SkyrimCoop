@@ -867,6 +867,42 @@ def scenario_dialogue_several_questions_deep(ctx):
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
 
+def scenario_dialogue_guest_skips_line(ctx):
+    """A guest presses E through the NPC's answer, as a player skips a line: the host's game, running the conversation
+    without its menu, moves on at each press (the next response, then the next list), and the guest's copy goes
+    quiet with it. Left alone Andurs answers for tens of seconds."""
+    npc, _, copy = ctx.spawn_host_npc(ANDURS, restrained=True)
+    def left():
+        return ctx.voice("", npc).get("seconds") or -1
+    try:
+        ctx.place_before("", npc, 800, 90)
+        ctx.place_before("client", copy, 110)
+        ctx.activate_on("client", copy)
+        ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
+        ctx.wait_for("[client] the menu lists Andurs' question", lambda: ctx.lists_topic("client", ANDURS_KNOW_ARKAY), 30)
+        ctx.pick_with_keys("client", ANDURS_KNOW_ARKAY)
+        ctx.wait_for(f"[host] {npc:08X} answers", lambda: ctx.line_playing("", npc), 10)
+        skipped = 0
+        while not ctx.list_shown("client"):
+            ctx.wait_for("[client] the menu takes a press",
+                         lambda: (ctx.dialogue("client").get("swf") or {}).get("allow_progress") == 1 or ctx.list_shown("client"), 5)
+            before = left()
+            if ctx.list_shown("client") or before < 3:
+                ctx.wait_for("[host] the short line ends", lambda: ctx.list_shown("client") or left() > before, 5)
+                continue
+            log(f"[client] presses E with {before:.1f} s of the line left")
+            ctx.tap_key("client", ACTIVATE_KEY)
+            ctx.wait_for(f"[host] the press ends the line ({before:.1f} s left)",
+                         lambda: ctx.list_shown("client") or left() <= 0 or left() > before, 2)
+            skipped += 1
+        if not skipped:
+            raise ctx.failure("no line was long enough to skip")
+        ctx.wait_for(f"[client] copy {copy:08X} goes quiet with the host's NPC", lambda: ctx.line_over("client", copy), 2)
+        ctx.hold()
+    finally:
+        ctx.close_dialogues()
+        ctx.remove_host_npc(npc)
+
 def scenario_dialogue_said_once_line(ctx):
     """A say-once line is not said again once said, on any game: the client asks Hulda about the College (one of
     her two say-once lines), leaves and talks to her again: its menu, as the host's (joined by talking), offers

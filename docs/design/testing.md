@@ -167,7 +167,8 @@ install's files linked, its own `Data/SKSE/Plugins`): the player's Steam and Sky
 client joins the host over loopback inside the namespace. `COOP_DUO_USER=` runs them as this user, on its Steam.
 As `coop2` a game has no sound server, and Wine's ALSA driver took this user's sound card itself (2026-11-01): the
 harness turns Wine's audio drivers off for them (`WINEDLLOVERRIDES` `winealsa.drv=d;winepulse.drv=d`, `game_env`);
-they are muted anyway.
+they are muted anyway. With no audio every voice line is timed from its text, about twice its spoken length
+(`docs/re/systems/dialogue.md`, "How long a line lasts"): a conversation there is slower than a player's.
 The ordinary duo uses one account and the session network. Invite/lobby flows need `COOP_CLIENT_USER=coop2`, that
 user's Steam account, a client prefix it owns and the existing `coop2` network namespace setup. The harness prepares
 the namespace when needed. Restore prefix ownership and test launch options afterwards. Those flows run only when

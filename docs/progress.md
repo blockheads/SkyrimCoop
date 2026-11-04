@@ -170,6 +170,12 @@ postconditions, duplicate/competing choices, stale notifications after reopen, s
 and barter/training returns. Full check passes; native fixes and exit controls pass. A separate queued Lydia
 greeting still blocks `dialogue-pick-reaches-host` before any pick; [results and limits](../playtests/2026-11-01-dialogue-fixes.md).
 
+2026-11-03: dialogue lag on a guest (Orgnar, 30 s after each pick). Two causes. A guest's press through a line never
+reached the host's game, which said it to its end: now `DialogueSkipRequest` / `NotifyDialogueSkip`, from anyone in the
+conversation (`dialogue-guest-skips-line`, GameTests, HostAuthorityTests). The 30 s itself comes from the duo: its games
+have no audio driver, so a voice line is timed from its text, about twice its spoken length
+([how long a line lasts](re/systems/dialogue.md)).
+
 ## Direct authority migration
 
 Porting Skyrim Together's server to the host's game (`docs/design/host-authority-migration.md`).

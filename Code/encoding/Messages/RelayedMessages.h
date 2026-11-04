@@ -39,6 +39,7 @@ struct SystemQuests;
 struct Recipes;
 struct BugReport;
 struct DialogueHighlight;
+struct DialogueSkip;
 } // namespace Payloads
 
 template <class TPayload, auto cOpcode> struct Relayed;
@@ -110,3 +111,5 @@ using BugReportRequest = Relayed<Payloads::BugReport, kBugReportRequest>;
 using NotifyBugReport = Relayed<Payloads::BugReport, kNotifyBugReport>;
 using DialogueHighlightRequest = Relayed<Payloads::DialogueHighlight, kDialogueHighlightRequest>;
 using NotifyDialogueHighlight = Relayed<Payloads::DialogueHighlight, kNotifyDialogueHighlight>;
+using DialogueSkipRequest = Relayed<Payloads::DialogueSkip, kDialogueSkipRequest>;
+using NotifyDialogueSkip = Relayed<Payloads::DialogueSkip, kNotifyDialogueSkip>;

@@ -288,6 +288,67 @@ SCENARIO("A pick takes every menu's list away until the next one, which every me
                 "the NPC has answered: both menus show the next list");
 }
 
+SCENARIO("A guest presses through the NPC's line: the host's game moves on, as a press in its own menu does", "[dialogue]")
+{
+    // Orgnar's answers in the Sleeping Giant (2026-11-03): the host's game runs the line without a menu, so a guest's
+    // press only moved its own idle conversation and the line played to its end.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    hostTalk.LinesTakeTime = true;
+    party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the guard");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.ListShown; }, "the guest's menu opens on the party's list");
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
+    party.Until([&] { return hostTalk.Said.size() == 1 && !guestTalk.ListShown; }, "the host's NPC answers the guest's pick");
+    party.As(party.Guest(), [&] { guestTalk.PlayerSkips(); });
+    party.Until([&] { return guestTalk.ListShown && guestTalk.Options == std::vector{kMore, kGoodbye}; },
+                "the press ends the host's line: the guest's menu shows the next list", [&] {
+                    return std::format("host skips {}, guest skips {}, guest shown {}", hostTalk.Skips, guestTalk.Skips, guestTalk.ListShown);
+                });
+    CHECK(hostTalk.Skips == 1);
+    party.Until([&] { return !guest.LinesStopped.empty(); }, "the guest's copy goes quiet with the host's NPC");
+    CHECK(guest.LinesStopped == std::vector{guest.CopiesOf(kGuard)[0]});
+
+    WHEN("the host presses through a line, in its own menu")
+    {
+        party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(hostTalk.Speaker); });
+        party.Until([&] { return party.Host().ctx().at<DialogueService>().Joined() && hostTalk.ListShown; }, "the host joins by talking");
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
+        party.Until([&] { return hostTalk.Said.size() == 2 && !guestTalk.ListShown; }, "the host's NPC answers the host");
+        party.As(party.Host(), [&] { hostTalk.PlayerSkips(); });
+        party.Until([&] { return guest.LinesStopped.size() == 2; }, "the guest's copy goes quiet too");
+        for (int i = 0; i < 20; ++i)
+            party.Frame();
+        THEN("the host's engine moved once, by its own press")
+        {
+            CHECK(hostTalk.Skips == 2);
+        }
+    }
+
+    WHEN("a press crosses the line's own end")
+    {
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(0); });
+        party.Until([&] { return hostTalk.Said.size() == 2 && !guestTalk.ListShown; }, "the host's NPC answers again");
+        party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+        party.As(party.Guest(), [&] { guestTalk.PlayerSkips(); });
+        party.Until([&] { return guestTalk.ListShown && guestTalk.Options == std::vector{kGoodbye}; }, "the next list shows");
+        for (int i = 0; i < 20; ++i)
+            party.Frame();
+        THEN("the host's engine is not told to move past a line it no longer says")
+        {
+            CHECK(hostTalk.Skips == 1);
+            CHECK(hostTalk.Speaker != 0);
+        }
+    }
+}
+
 SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")
 {
     Party party(1, SmokeWorld);

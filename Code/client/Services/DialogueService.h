@@ -36,6 +36,8 @@ struct DialogueService
         virtual bool OnTalk(uint32_t aActorFormId) noexcept = 0;
         // The conversation runs on this game without its menu (the host's).
         [[nodiscard]] virtual bool RunsWithoutMenu() const noexcept = 0;
+        // A player pressed through the NPC's line, this game's unless the host's own press.
+        virtual void OnLineSkipped() noexcept {}
         // The engine has built a list and shows it (any thread): the options to show instead (none: its own).
         virtual std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept { return std::nullopt; }
         // An actor's line runs its script (any thread): the player character it runs for (0: this game's).
@@ -85,6 +87,9 @@ private:
     void OnClosed(const NotifyDialogueClosed& acMessage) noexcept;
     void OnList(const NotifyDialogueList& acMessage) noexcept;
     void OnHighlight(const NotifyDialogueHighlight& acMessage) noexcept;
+    void OnSkip(const NotifyDialogueSkip& acMessage) noexcept;
+    // This game's player pressed through the line: every game moves on with it.
+    void OnSkipAsked() noexcept;
     // This game's highlight moved: the others' menus follow; another's move shows here once its list does.
     void SyncHighlight() noexcept;
     void SendHighlight(uint32_t aIndex) noexcept;
