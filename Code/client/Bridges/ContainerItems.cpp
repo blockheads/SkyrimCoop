@@ -68,8 +68,6 @@ bool ApplyContainerContents(TESObjectREFR& aObject, const ObjectChange& acChange
 {
     if (aObject.formType != FormType::Reference || !aObject.GetContainer())
         return false;
-    // Rolled now, so opening it later adds no roll of this game's own to the host's contents.
-    aObject.InitInventoryIfRequired();
     std::vector<std::pair<TESBoundObject*, int32_t>> wanted;
     for (const auto& cItem : ObjectChange::UnpackContents(acChange.Data))
         if (auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ItemForm(cItem.Item))))
