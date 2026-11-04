@@ -518,9 +518,8 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
     if (acMessage.BaseId == GameId{})
         return true;
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
-    // This game's resolved leveled base with the owner's face keeps its stats (level); the face record has none.
-    const bool cResolvedAlike = cBaseId && m_actorBridge.IsActorNpcTemporary(aFormId) &&
-                                m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId) == cBaseId;
+    const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
+        m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
     if (!cBaseId || (!cResolvedAlike && !m_actorBridge.SetActorBaseFormId(aFormId, cBaseId)))
     {
         spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to actor {:X}", acMessage.BaseId.ModId,

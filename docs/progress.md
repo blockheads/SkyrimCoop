@@ -4,7 +4,9 @@
 1; Odahviing's 20 against 1 the same kind) was given the owner's face record, dropping its own game's resolved base and
 its stats; it now keeps that engine-made base when its face matches the owner's (both games load one save), and reads
 the same level on the duo ([leveled-npc-copy-names.md](re/systems/leveled-npc-copy-names.md), "A copy keeps its game's
-resolved base"; GameTests `[copy-level]`). Open: a different face, and created copies, still take the face record's
+resolved base"; GameTests and ClientTests `[copy-level]`; `leveled-placed-npc-is-hosts` now compares level, and passes
+it, then fails its cleanup: the guest loses its own guard reference once the host sends it home, on its unchanged
+permanent-base path). Open: a different face, and created copies, still take the face record's
 stats. Hands: a copy's move to another cell drops its hand spells, and the equipment snapshot compared only worn items;
 it now compares the hand spells too ([copy-hand-spells.md](re/systems/copy-hand-spells.md); scenario
 `copy-keeps-spell-after-party-travel`, GameTests and ClientTests `[hand-spell]`).
