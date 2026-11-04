@@ -165,6 +165,32 @@ class Harness(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "unknown tag"):
             session.scenario_names([], "does-not-exist")
 
+    def play_vanilla(self, control="host", built=True):
+        session = self.session
+        session.command_launch, session.command_duo = Mock(), Mock()
+        args = argparse.Namespace(vanilla=True, control=control, attach=False)
+        monitors = Mock(stdout="Monitors: 1\n 0: +*DP-1 2560/600x1440/340+0+0  DP-1\n")
+        harness = Mock(exists=Mock(return_value=built))
+        with patch("coop_harness.commands.VANILLA_HARNESS", harness), \
+                patch("coop_harness.commands.subprocess.run", return_value=monitors), \
+                patch("coop_harness.commands.subprocess.Popen") as view:
+            session.command_play(args)
+        return args, view
+
+    def test_play_vanilla_boots_one_game_in_a_window_and_no_view(self):
+        args, view = self.play_vanilla()
+        self.session.command_launch.assert_called_once_with(args, _game=self.session.host)
+        self.session.command_duo.assert_not_called()
+        self.assertEqual(self.session.VISIBLE, {""})
+        view.assert_not_called()
+
+    def test_play_vanilla_refuses_a_guest_and_a_missing_stand_in(self):
+        with self.assertRaisesRegex(TestFailure, "solo"):
+            self.play_vanilla(control="guest")
+        with self.assertRaisesRegex(TestFailure, "SkyrimCoopVanillaHarness"):
+            self.play_vanilla(built=False)
+        self.session.command_launch.assert_not_called()
+
     def test_games_own_paths_connections_and_do_not_change_one_another(self):
         session = self.session
         self.assertNotEqual(session.host.control, session.guest.control)

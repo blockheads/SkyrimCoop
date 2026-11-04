@@ -126,6 +126,10 @@ played window in front; the off-screen game never stops. Playing the other side 
 again. Tried and dropped (2026-11-01): both games visible (a window covered while booting hung for good) and VNC
 views of the off-screen games (`x11vnc`: the mouse never reached Skyrim).
 
+`play --vanilla [--cell CELL]` is the same window and cell for one solo game without our plugin, to compare by hand
+how the game plays without us: `launch --vanilla`'s stand-in plugin (build `SkyrimCoopVanillaHarness` first), no guest
+and no view. The game keeps running until `stop`, and the next normal launch redeploys ours.
+
 The runner restores the baseline before the batch and after each flow. A baseline records placement, equipment,
 level, maximum actor values, weather/calendar and actor population. Saved stories keep quest weather/time and
 placed story actors; new test actors still fail cleanup. The same actor, world and lock comparisons run after actions.

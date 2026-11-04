@@ -28,6 +28,7 @@ from .common import (
     ROOT,
     TEST_HOME,
     UNSYNCED_LINE,
+    VANILLA_HARNESS,
 )
 from .duo_lock import TAKEOVER_ENV
 from .errors import TestFailure
@@ -734,7 +735,13 @@ class Commands:
         """Manual play: the game you control in a window on the primary monitor (your mouse and keyboard go straight
         to it), the other off-screen as always, shown by a `watch` view on the second monitor. Keep your window
         uncovered: a covered window stops getting frames back from the compositor. Chat `!watch` turns the other
-        player to face yours. Ctrl+C closes the view; the games keep running until `stop`."""
+        player to face yours. Ctrl+C closes the view; the games keep running until `stop`. With --vanilla: one solo
+        game without our plugin, in the same window and cell, and no view."""
+        vanilla = args.vanilla
+        if vanilla and args.control != "host":
+            raise TestFailure("--vanilla is one solo game: there is no guest to control")
+        if vanilla and not VANILLA_HARNESS.exists():
+            raise TestFailure(f"no {VANILLA_HARNESS.name}: scripts/xmake-msvc.sh build -j8 SkyrimCoopVanillaHarness")
         monitors = []
         for line in subprocess.run(["xrandr", "--listmonitors"], capture_output=True, text=True).stdout.splitlines()[1:]:
             if m := re.search(r"\s(\d+)/\d+x(\d+)/\d+\+(\d+)\+(\d+)", line):
@@ -771,11 +778,19 @@ class Commands:
             thread = threading.Thread(target=placer, daemon=True)
             thread.start()
             try:
-                args.keep_running = True
-                ctx.command_duo(args)
+                if vanilla:
+                    ctx.command_launch(args, _game=ctx.game(""))
+                else:
+                    args.keep_running = True
+                    ctx.command_duo(args)
             finally:
                 booting.clear()
                 thread.join(2)
+        if vanilla:
+            if window := game_window():
+                subprocess.run(["xdotool", "windowactivate", window], capture_output=True)
+            log("Playing vanilla Skyrim in its window; `coop_test.py stop` ends it.")
+            return
         x, y = centred(side)
         view = subprocess.Popen(
             ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {'guest' if other else 'host'} (watching)",
@@ -947,6 +962,9 @@ class Commands:
         play.add_argument("--npc", default="", help="NPC base form the host spawns (default none)")
         play.add_argument("--level", type=int)
         play.add_argument("--attach", action="store_true", help="the games already run: only open the view")
+        play.add_argument("--vanilla", action="store_true",
+                          help="one solo game without our plugin (the stand-in harness plugin only runs the boot "
+                               "command); no guest, no view; the next normal launch redeploys ours")
         watch = commands.add_parser("watch", help="live view of the off-screen game display in a window (ffplay)")
         commands.add_parser("setup-display", help="one-time: install the off-screen dummy X server (sudo)")
         shot = commands.add_parser("screenshot", help="save a PNG of the off-screen game display")
