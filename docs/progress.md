@@ -1,5 +1,9 @@
 # Progress
 
+2026-11-04: the follower that stops following is not reproduced on 1.7.104 (0 of 2 in the entry's order, with the Load
+menu and door rounds), and no fix is made; findings in `bugs.md`. The 1,388 lead is closed: she stood by the guest she
+follows. `load_latest_from_menu` works on 1.7.104 again: it passes the character list and clears a reload's scratch save.
+
 2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
 pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
 `use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
