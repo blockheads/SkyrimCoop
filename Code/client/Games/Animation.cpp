@@ -63,6 +63,7 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         action.TargetId = apAction->target ? apAction->target->formID : 0;
 
         pActor->SaveAnimationVariables(action.Variables);
+        action.Variables.GraphRandom = pActor->GetGraphRandom();
 
         const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
         s_playerAction |= cOuterPlayerAction;

@@ -229,6 +229,37 @@ void World::Update() noexcept
             step.Phase.store(Step::kIdle);
             continue;
         }
+        // As AnimationSystem::RunGraphPoint.
+        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
+        GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
+        if (cPhase == Step::kIdle && animation.GraphPoint &&
+            (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))
+        {
+            const auto& cPoint = *animation.GraphPoint;
+            const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
+            if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
+            {
+                actor.GraphRandom = cPoint.Variables.GraphRandom;
+                GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
+                const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
+                if (!cCounters.empty())
+                {
+                    actor.LoopsSeen = uint32_t(cCounters.front().Seen);
+                    actor.LoopsToSend = uint32_t(cCounters.front().Needed);
+                }
+            }
+            if (cVerdict != GraphRandom::Point::kWait)
+                animation.GraphPoint.reset();
+        }
+        if (cPhase == Step::kClips)
+        {
+            if (ClipWaitOver(step, ++animation.StagedUpdates))
+            {
+                animation.StagedUpdates = 0;
+                step.Phase.store(Step::kVariables);
+            }
+            continue;
+        }
         if (cPhase != Step::kIdle)
         {
             // Native Update falls back after ten main-thread updates if no graph job takes the step.
@@ -256,6 +287,8 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
+        if (animation.GraphPoint && animation.GraphPoint->Tick < action.Tick)
+            animation.GraphPoint.reset();
         ActionEvent replayed = action;
         if (replayed.TargetActor)
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
@@ -280,7 +313,8 @@ void World::Update() noexcept
         step.Variables = animation.Variables;
         step.Retries = 0;
         animation.StagedUpdates = 0;
-        step.Phase.store(Step::kVariables);
+        step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);
+        step.Phase.store(step.ClipsLoaded ? Step::kClips : Step::kVariables);
     }
     // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
@@ -289,7 +323,11 @@ void World::Update() noexcept
             auto& step = engine.Actors.at(form.Id).Replay;
             RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {
                 engine.ActorLoadAnimationVariables(form.Id, acVariables);
-            }, [&] { return engine.PlayReplayed(form.Id, step.Action); });
+            }, [&] {
+                if (step.Action.Variables.GraphRandom)
+                    engine.Actors.at(form.Id).GraphRandom = step.Action.Variables.GraphRandom;
+                return engine.PlayReplayed(form.Id, step.Action);
+            });
         }
     ctx().at<GuestSeam>().Update();
     auto& waitEngine = ctx().at<FakeEngine&>();

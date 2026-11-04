@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """The repro MCP server (docs/design/repro-mcp.md): one harness Session kept open between calls, so Claude can stage
-a bug in the duo step by step, look at both games, and export the session as a scenario."""
+a bug in the duo step by step, look at both games, and export the session as a scenario. The tools are in
+coop_harness/mcp_tools.py; mcp_reload loads them and the verbs again."""
 import contextlib
-import functools
-import inspect
-import json
+import importlib
 import os
-import subprocess
 import sys
-import time
+import traceback
 from pathlib import Path
-from typing import Any
+
+import anyio
 
 # MCP speaks on stdout: keep its own handle, and point fd 1 (prints, child processes) at stderr.
 _mcp_out = os.fdopen(os.dup(1), "w", buffering=1)
@@ -18,12 +17,11 @@ os.dup2(2, 1)
 sys.stdout = _mcp_out
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.fastmcp import Context, FastMCP  # noqa: E402
+from mcp.server.lowlevel.server import NotificationOptions  # noqa: E402
+from mcp.server.stdio import stdio_server  # noqa: E402
 from coop_harness import Session  # noqa: E402
-from coop_harness.common import ROOT, TEST_HOME  # noqa: E402
-from coop_harness.errors import TestFailure  # noqa: E402
 
-OWNER = f"repro-mcp ({ROOT.name})"
 INSTRUCTIONS = """Plays the shared duo (two Skyrims) to recreate a bug: step 1 of the bug-fix flow in CLAUDE.md. Guide:
 docs/design/repro-mcp.md, "The play flow".
 
@@ -36,385 +34,77 @@ take, fight; look, observe, why to see what happened; expect the correct behavio
 - A verb's `why` says why it stopped, and its trace how it moved: read them before writing a script.
 - scene's `disagree` lists real desyncs already there; only new ones fail after it.
 - duo_start waits in the shared queue. Hold the duo only while you use it.
-- This server loads its code once: a change to the verbs needs it restarted."""
+- Missing or awkward? Extend it, never script around it: add a verb (coop_harness/actions) or tool
+  (coop_harness/mcp_tools.py), mcp_reload, then call it (a new verb by verb(name, args) at once).
+- rounds runs a call N times, one line each; trace_start/trace_read show animations; log greps the plugin logs."""
 server = FastMCP("skyrim-coop", instructions=INSTRUCTIONS)
-session = Session()
-duo = {"process": None, "log": None}
-
-
-def tool(function):
-    """A tool: the harness's prints to stderr, failures as text, every call recorded."""
-    @functools.wraps(function)
-    def run(*args, **kwargs):
-        arguments = inspect.signature(function).bind(*args, **kwargs).arguments
-        with contextlib.redirect_stdout(sys.stderr):
-            try:
-                result = function(*args, **kwargs)
-                session.record_call(function.__name__, arguments, True, result)
-                return result
-            except TestFailure as error:
-                session.record_call(function.__name__, arguments, False, str(error))
-                outcome = getattr(error, "outcome", None)
-                facts = {key: value for key, value in (outcome or {}).items() if key != "failure"}
-                return {"ok": False, "failure": str(error), **({"outcome": facts} if facts else {})}
-    return server.tool()(run)
-
-
-def _game(game):
-    return "" if game in ("host", "", None) else "client"
-
-
-@tool
-def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 300) -> dict:
-    """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
-    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again.
-    This server holds the duo until duo_stop or until it exits."""
-    session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
-    if duo["process"] and duo["process"].poll() is None:
-        return {"ok": True, "booting": True}
-    if all(game.read_status() for game in session.games):  # ours, already running: attach
-        return {"ok": True, "ready": True, "attached": True}
-    duo["log"] = TEST_HOME / "mcp" / f"duo-{time.strftime('%Y%m%d-%H%M%S')}.log"
-    duo["log"].parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "duo", "--keep-running", "--cell", cell]
-    if save:
-        command += ["--save", save]
-    duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"])}
-
-
-@tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 300) -> dict:
-    """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
-    in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true)."""
-    session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
-    duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
-    duo["log"].parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", "--vanilla", "--cell", cell]
-    duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"])}
-
-
-@tool
-def duo_wait(seconds: int = 50) -> dict:
-    """Waits up to `seconds` for the duo's boot: ready, still booting, or failed with the boot log's end."""
-    process = duo["process"]
-    if not process:
-        return {"ok": True, "ready": bool(session.game_state("").get("online") is not None)}
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        process.wait(timeout=seconds)
-    if process.poll() is None:
-        return {"ok": True, "ready": False, "booting": True}
-    tail = duo["log"].read_text().splitlines()[-8:]
-    ready = process.returncode == 0
-    duo["process"] = None
-    return {"ok": ready, "ready": ready, "log_tail": tail}
-
-
-@tool
-def duo_stop(summary: str = "repro session") -> dict:
-    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits)."""
-    return {"ok": True, "result": session.duo_free(OWNER, summary)}
-
-
-@tool
-def status(game: str = "host") -> dict:
-    """The game's harness status (session, player, menus, frame)."""
-    return {"ok": True, "status": session.game(_game(game)).read_status()}
-
-
-@tool
-def console(game: str, line: str) -> dict:
-    """Runs a console command in that game (host or guest) and returns what it printed."""
-    return {"ok": True, "printed": session.console_on(_game(game), line)}
-
-
-@tool
-def harness(game: str, request: dict) -> dict:
-    """Sends one raw harness command (TestHarness, {"cmd": ...}) to that game: the escape hatch for anything the
-    other tools don't cover. Its reply as the plugin gives it."""
-    return {"ok": True, "reply": session.player_command(_game(game), request)}
-
-
-@tool
-def scene_reset() -> dict:
-    """The blank slate: both players home in the baseline cell, staged things gone, the world thawed."""
-    session.unstage()
-    session.forget_scene()
-    session.reset_baseline()
-    if problems := session.check_baseline():
-        raise session.failure("the baseline did not come back: " + "; ".join(problems))
-    session.name_players()
-    return {"ok": True, "handles": session.handles()}
-
-
-@tool
-def scene(save: str = "", at: str = "", pin: bool = True) -> dict:
-    """Starts a repro where it happens: on the duo booted from `save` (duo_start save=...), the party goes to `at` (a
-    console line: coc Riverwood) and time and weather are pinned. Returns the NPCs around by handle (faendal,
-    whiterun_guard_2) and `disagree`: what already differs here, real desyncs to read; from now on only new ones fail.
-    scene_reset is the same for the blank QASmoke baseline."""
-    return {"ok": True, **session.scene(save or None, at or None, pin)}
-
-
-@tool
-def find(name: str, handle: str = "") -> dict:
-    """Names the nearest NPC both games show whose name holds `name` (replays by name: ids differ between runs)."""
-    return {"ok": True, **session.find(name, handle or None)}
-
-
-@tool
-def world_freeze(frozen: bool = True) -> dict:
-    """Stops (or restarts) the world's update in both games: time, AI, the player, projectiles (Main::freezeTime).
-    Our update and the network keep running."""
-    return {"ok": True, "world_frames": session.freeze_world(frozen)}
-
-
-@tool
-def step(frames: int = 1) -> dict:
-    """In a frozen world, runs both games `frames` world updates, then waits until both froze again."""
-    return {"ok": True, "world_frames": session.step_world(frames)}
-
-
-@tool
-def stage(spec: dict) -> dict:
-    """Sets up a scene in one call: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen}],
-    objects: [{name, base | ref}], items: [{who, item, count, equip}]}. Names are handles for later calls;
-    host_player and guest_player always exist. Returns every handle's form id per game."""
-    return {"ok": True, "handles": session.stage(spec)}
-
-
-@tool
-def unstage() -> dict:
-    """Removes what stage made in both games and thaws the world."""
-    session.unstage()
-    return {"ok": True}
-
-
-@tool
-def look(game: str = "host") -> dict:
-    """That game around its player: cell, menus, health, and the actors near it with distance and package."""
-    return {"ok": True, **session.look(_game(game))}
-
-
-@tool
-def observe(names: list[str], full: bool = False) -> dict:
-    """Each handle in both games: everything the first time, then only what changed ({field: [was, is]}), plus how far
-    apart the games have it (apart) and what they hold differently (differs). full=true reads every field."""
-    return {"ok": True, "seen": session.watch(names, full)}
-
-
-@tool
-def why() -> dict:
-    """The last goal verb's outcome: done, how, why it stopped, seconds, its trace (speeds, stalls, last events, file)."""
-    return {"ok": True, "last": session.last_verb()}
-
-
-@tool
-def expect(name: str, check: str = "same_place", within: float = 5.0, game: str = "", value: Any = None, of: str = "",
-           field: str = "", seconds: float = 0.0) -> dict:
-    """The correct behaviour, checked now and recorded; a failing expect is the bug, and the exported scenario keeps it.
-    "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
-    `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
-    `name` holds the same in both games), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
-    return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
-
-
-@tool
-def act(game: str, spec: dict) -> dict:
-    """A checked action in that game (actions/play.py, docs/design/checked-actions.md): ready, do (turn, buttons),
-    until, keep, watch. Returns its outcome."""
-    return {"ok": True, "outcome": session.act(_game(game), spec, expect=None)}
-
-
-@tool
-def press(game: str, key: str, seconds: float = 0.1) -> dict:
-    """Holds a key in that game's window for `seconds` (real input, as a player presses it)."""
-    session.hold_key(_game(game), key, seconds)
-    return {"ok": True}
-
-
-@tool
-def mouse(game: str, action: str = "click", button: int = 1) -> dict:
-    """A mouse action in that game's window (xdotool click, mousedown, mouseup): button 1 attacks or casts right."""
-    session.mouse_on(_game(game), action, button)
-    return {"ok": True}
-
-
-@tool
-def drop(game: str, item: str, name: str) -> dict:
-    """That game's player gets one `item` (hex form id) and drops it; `name` is a handle for it and its twin."""
-    return {"ok": True, "handle": session.drop_item(game, item, name)}
-
-
-@tool
-def wait_rest(name: str, game: str = "host") -> dict:
-    """Waits until that game's body of the handle is at rest; returns where."""
-    return {"ok": True, **session.wait_rest(name, game)}
-
-
-@tool
-def press_to_motion(game: str = "host", key: str = "w", presses: int = 5, vanilla: bool = False) -> dict:
-    """Real key presses in that game: for each, frames and ms until the player moves. vanilla=true for the vanilla
-    stand-in (vanilla_start), so the same number is had with and without our plugin."""
-    return {"ok": True, "presses": session.press_to_motion(_game(game), key, presses, vanilla=vanilla)}
-
-
-@tool
-def counters(game: str = "host", reset: bool = False) -> dict:
-    """That game's named counters (Diagnostics/Counters.h): count, sum, max each; reset zeroes them after reading."""
-    return {"ok": True, "counters": (session.player_command(_game(game), {"cmd": "counters", "reset": reset}) or {}).get("counters")}
-
-
-@tool
-def network(game: str = "host") -> dict:
-    """That game's line: the session time, round trips (the host's per connection), a guest's clock syncs."""
-    return {"ok": True, "network": (session.game(_game(game)).read_status() or {}).get("network")}
-
-
-@tool
-def go_to(game: str, target: str, within: float = 100.0, straight: bool = False, by_input: bool = False) -> dict:
-    """That game's player gets within `within` units of a handle: AI-driven along the navmesh, so for getting there, not
-    for testing movement. Fails with why: no_path (straight=true runs there in a line), stalled, moved_off, timeout,
-    menu_blocked. by_input=true runs in a line by real input, for a bug in the movement itself."""
-    return {"ok": True, **session.go_to(_game(game), target, within, straight, by_input)}
-
-
-@tool
-def travel(game: str, command: str) -> dict:
-    """That game's player travels far by a console command (`coc Riverwood`); waits until it arrives there. The
-    other player stays (the party tether is the game's to show, not this verb's)."""
-    return {"ok": True, **session.go_far(_game(game), command)}
-
-
-@tool
-def arrives_with_party(game: str = "guest", within: float = 3000.0) -> dict:
-    """Waits until that game's player arrives near the other player: the party tether after the other's trip."""
-    return {"ok": True, **session.arrives_with_party(_game(game), within)}
-
-
-@tool
-def talk(game: str, target: str, say: list[str] | None = None) -> dict:
-    """That game's player starts a conversation with a handle (or goes on with the open one) and picks each line of
-    `say`: text it contains, or an index. Returns what was said and the lines on offer; why no_line lists them."""
-    return {"ok": True, **session.talk(_game(game), target, [int(l) if l.isdigit() else l for l in say or []])}
-
-
-@tool
-def use(game: str, target: str) -> dict:
-    """That game's player walks up and activates a handle (door, chest, furniture) with real input; says what changed,
-    or fails with why refused."""
-    return {"ok": True, **session.use(_game(game), target)}
-
-
-@tool
-def take(game: str, target: str) -> dict:
-    """That game's player opens a container and takes everything; returns how many items left it."""
-    return {"ok": True, **session.take(_game(game), target)}
-
-
-@tool
-def fight(game: str, target: str, hits: int = 30) -> dict:
-    """That game's player draws what it holds and hits a handle until it dies; why player_down if the player falls."""
-    return {"ok": True, **session.fight(_game(game), target, hits)}
-
-
-@tool
-def equip(game: str, item: str) -> dict:
-    """That game's player gets `item` (hex form id) and holds it; "0" is bare hands."""
-    session.equip_weapon(_game(game), int(item, 16))
-    return {"ok": True}
-
-
-@tool
-def kill_move_check(game: str, target: str) -> dict:
-    """What decides a kill move now for that game's player on a handle: should_attack_kill, killable, attack_target."""
-    return session.player_command(_game(game), {"cmd": "kill_move_check", "victim": session.resolve(target, _game(game))})
-
-
-@tool
-def kill_move_exchange() -> dict:
-    """Both players, one hit from death and moving, swing at each other at once. crossed: each game started its own pair."""
-    copies = {game: session.other_player(session.actors_on(game)) for game in ("", "client")}
-    return {"ok": True, "crossed": session.kill_move_exchange(copies)}
-
-
-@tool
-def leave_dialogue() -> dict:
-    """Closes every open conversation in both games."""
-    session.close_dialogues()
-    return {"ok": True}
-
-
-@tool
-def menu(game: str, name: str, show: bool = True) -> dict:
-    """Opens or closes a menu (Console, InventoryMenu, MapMenu, ...) in that game, as the game does."""
-    return {"ok": True, "reply": session.menu(_game(game), name, show)}
-
-
-jobs = {}
-
-
-@tool
-def quest_walk(quest: str, arguments: list[str]) -> dict:
-    """Starts coop_test.py quest-walk <quest> <arguments> (a real quest driven through its stages; the research doc
-    docs/research/world-state-drift.md, "Quest walks") in the background, on our duo booted from the late save
-    (duo_start save=...); then job_wait("quest-walk")."""
-    log = TEST_HOME / "mcp" / f"quest-walk-{time.strftime('%Y%m%d-%H%M%S')}.log"
-    jobs["quest-walk"] = (subprocess.Popen([sys.executable, str(ROOT / "scripts/coop_test.py"), "quest-walk", quest, *arguments],
-                                           cwd=ROOT, stdout=log.open("w"), stderr=subprocess.STDOUT), log)
-    return {"ok": True, "log": str(log)}
-
-
-@tool
-def job_wait(name: str, seconds: int = 50) -> dict:
-    """Waits up to `seconds` for a background job (quest-walk); done or not, with its log's end."""
-    process, log = jobs[name]
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        process.wait(timeout=seconds)
-    done = process.poll() is not None
-    if done:
-        jobs.pop(name)
-    return {"ok": not done or process.returncode == 0, "done": done, "log_tail": log.read_text().splitlines()[-10:]}
-
-
-@tool
-def spec_step(step: dict) -> dict:
-    """One shared-spec step (Code/tests/specs: do add_items, kill, stage_npc, script...; expect items, actor...).
-    A session of these exports as a spec that runs in GameTests and on the duo."""
-    session.spec_step(step)
-    return {"ok": True}
-
-
-@tool
-def screenshot(game: str = "host") -> dict:
-    """A PNG of that game's screen; returns its path (read it to see the image)."""
-    path = TEST_HOME / "mcp" / f"{game}-{time.strftime('%H%M%S')}.png"
-    subprocess.run([sys.executable, str(ROOT / "scripts/coop_test.py"), "screenshot", "--instance",
-                    "client" if _game(game) else "host", str(path)], cwd=ROOT, check=True, stdout=sys.stderr)
-    return {"ok": True, "path": str(path)}
-
-
-@tool
-def record_export(name: str, doc: str, tags: list[str] | None = None) -> dict:
-    """Writes the recording as scripts/coop_harness/scenarios/recorded/<name>.py (run with coop_test.py scenario
-    <name>), and as Code/tests/specs/<name>.json when every replayed call was a spec_step; otherwise a spec draft and
-    the leftovers: the calls a flow on the fake has to say by hand."""
-    return {"ok": True, "written": session.record_export(name, doc, tags or ["recorded"])}
-
-
-@tool
-def record_start(name: str) -> dict:
-    """Starts recording this session's calls under a name (build/coop-test/mcp/<time>-<name>.jsonl)."""
-    return {"ok": True, "recording": session.record_start(name)}
-
-
-@tool
-def name_handle(name: str, host: int = 0, guest: int = 0) -> dict:
-    """Names a form id (per game) so later calls can say `name` instead."""
-    return {"ok": True, "handle": session.name_handle(name, {"host": host, "guest": guest})}
-
+# What outlives a reload: the session (its handles, recording and duo hold), the duo's boot, jobs, the trace, log offsets.
+state = {"session": Session(), "duo": {"process": None, "log": None}, "jobs": {}, "trace": None, "logs": {},
+         "lock": anyio.Lock()}  # one harness call at a time, reloads included
+# Kept on reload: the live lock and the failure type every verb raises.
+KEEP = ("coop_harness.errors", "coop_harness.duo_lock")
+tools = []
+
+
+def load_tools():
+    from coop_harness import mcp_tools
+    tools[:] = mcp_tools.register(server, state)
+
+
+def reload_harness():
+    """Imports coop_harness again (the new code of every verb and tool), registers its tools on a scratch server first,
+    then moves the live session and the tools onto it; an import or registration error leaves the old code and tools
+    in place. Returns (tools added, removed) or raises."""
+    old = {name: module for name, module in sys.modules.items() if name.split(".")[0] == "coop_harness"}
+    for name in old:
+        if name not in KEEP:
+            del sys.modules[name]
+    try:
+        harness = importlib.import_module("coop_harness")
+        game = importlib.import_module("coop_harness.game")
+        new_tools = importlib.import_module("coop_harness.mcp_tools")
+        new_tools.register(FastMCP("reload-check"), state)  # schemas built here: a bad one fails before the swap
+    except BaseException:
+        for name in [name for name in sys.modules if name.split(".")[0] == "coop_harness"]:
+            del sys.modules[name]
+        sys.modules.update(old)
+        raise
+    session = state["session"]
+    session.__class__ = harness.Session  # same instance: handles, recording and the hold stay
+    for each in session.games:
+        each.__class__ = game.Game
+    session.registry = harness.session.Registry()
+    harness.session.register_flows(session.registry)
+    before = list(tools)
+    for name in before:
+        server.remove_tool(name)
+    load_tools()
+    return sorted(set(tools) - set(before)), sorted(set(before) - set(tools))
+
+
+@server.tool()
+async def mcp_reload(ctx: Context) -> dict:
+    """Loads the harness's code again (coop_harness: verbs, scenarios, these tools) without a restart, keeping the
+    session, its handles, recording and duo. After writing or fixing a verb or tool: call this, then use it."""
+    try:
+        async with state["lock"]:
+            added, removed = reload_harness()
+    except BaseException as error:
+        return {"ok": False, "error": f"{type(error).__name__}: {error}", "kept": "the old code",
+                "where": traceback.format_exc().splitlines()[-6:]}
+    with contextlib.suppress(Exception):
+        await ctx.session.send_tool_list_changed()
+    return {"ok": True, "tools": len(tools), "added": added, "removed": removed}
+
+
+async def serve():
+    """FastMCP's stdio run, announcing that the tool list changes (mcp_reload)."""
+    async with stdio_server() as (read, write):
+        await server._mcp_server.run(read, write, server._mcp_server.create_initialization_options(
+            NotificationOptions(tools_changed=True)))
+
+
+load_tools()
 
 if __name__ == "__main__":
-    server.run()
+    anyio.run(serve)

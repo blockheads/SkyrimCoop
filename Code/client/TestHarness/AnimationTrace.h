@@ -33,6 +33,8 @@ private:
     {
         nlohmann::json State;
         std::string Action;
+        std::vector<std::string> Clips;
+        nlohmann::json ClipStatus;
     };
 
     void Update();

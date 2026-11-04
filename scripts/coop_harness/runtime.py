@@ -557,6 +557,8 @@ class Runtime:
                                             ctx.game_env(_game=_game), _game=_game), env=ctx.game_env(_game=_game), cwd=_game.install, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                            timeout=300)
         _game.my_games.mkdir(parents=True, exist_ok=True)
+        if user := ctx.instance_user(_game=_game):  # made by this user: the game's user writes its SKSE logs and saves here
+            ctx.sudo("setfacl", "-R", "-m", f"u:{user}:rwX,d:u:{user}:rwX", str(_game.my_games))
         skyrim_ini, prefs_ini = _game.my_games / "Skyrim.ini", _game.my_games / "SkyrimPrefs.ini"
         if not skyrim_ini.exists():
             shutil.copy(_game.install / "Skyrim_Default.ini", skyrim_ini)

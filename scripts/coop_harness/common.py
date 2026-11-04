@@ -316,6 +316,8 @@ RAISED_PELVIS = 85.0
 LOW_PELVIS = 40.0
 DESYNC_WINDOW = 0.8
 DESYNC_INTERVAL = 0.1
+# A speaker turning to face a player: a 180 takes over 2 s, its copy that turn on the playback delay behind (about 30 deg).
+TURN_SAMPLES = int(3.0 / DESYNC_INTERVAL) + 1
 LOCK_PATTERN = re.compile(r"^(\[ours\] )?(live lock order inversion|lock order inversion|self-deadlock) \[([^\]]*)\]")
 KNOWN_LOCK_PATTERNS = ROOT / ("scripts/lock_order_known.txt" if SKYRIM_VERSION == "1.6.1170.0"
                               else "scripts/lock_order_known-1.7.104.txt")

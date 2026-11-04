@@ -32,13 +32,46 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   with failing GameTests/units first. Spawned/original host/guest controls all complete two transactions
   in the fresh5/5 run. Combined batch20/22 retains unrelated Sigurd registration and Belethor animation-marker
   failures; neither is exempted or silently closed.
-- **Animations drift in dialogue after a while** (user, 2026-10-31). One cause fixed the same day: copies never
+- **Animations drift in dialogue after a while** (user, 2026-10-31). Fixed 2026-11-04: copies played clips before their
+  files were in, and each game made its own random picks (animation-replay-recovery.md). One cause fixed earlier: copies never
   headtracked (progress.md, "copies look where their owners do"). Still open: an accepted replayed action can land
   in a different graph state, and nothing compares it (animation-replay-recovery.md); the proposed fix is to
   compare active states with the owner's snapshot after each replay and load it on a mismatch.
+- **Players' idle variants can differ between games** (2026-11-04). Sync points (animation-replay-recovery.md, "A
+  graph's random picks") are sent for NPCs only: a player's own character on the other game still makes its own random
+  picks for gestures and idle variants no action starts.
+  - Start: `AnimationSystem::Serialize` skips the player; a player's copy needs the same sync point, and a check that
+    the player's first-person graph is not the one read.
+  - Test: an `npc-counter-matches`-style scenario on a player's copy.
+- **Animation mods' random picks are not synced** (2026-11-04). Open Animation Replacer's Random condition draws from its
+  own generator, not the graph's, so each game can choose a different replacement clip.
+  - Start: OAR's `RandomCondition` state data (`reference/plugins/OpenAnimationReplacer/src/Conditions.cpp`).
+  - Test: a modded run through `npc-clips-match` first, to see what breaks.
+- **A guest walking in on an NPC mid-loop is untested** (2026-11-04). `npc-counter-copy-falls-back-in` forces the copy
+  out of step by loading the host's graph into it: the party tether brings the guest along, so a real late arrival
+  cannot be staged. Sync points should cover it, unproven.
+  - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
+    boundary later).
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
+- **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
+  `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
+  copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
+  too (Embry, Hod, 135 to 169 units, feet 3 to 40). Also listed under progress.md item 4, "failing the same with the old
+  copy placement".
+  - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
+    scenario's `check_gait` names each actor and its distance.
+  - Test: `actors-walk-after-arrival`.
+- **Kill moves leave the guest's wolf copy looking at a player** (2026-11-04, `host-kill-move` and `client-kill-move`:
+  0 of 6 each on dialogue-anim-desync, the same with and without its changes). The kill move itself plays; the
+  scenario then fails its final comparison: `ai_state.head_track` host (owner) `[None x6]`, guest copy
+  `['session 2', None x5]`. Most likely the "Headtracking left over" entry above, unproven. It hides any later
+  kill-move failure, since the scenario stops there. One unexplained one-off besides: `host-kill-move` timed out on
+  `[host] player's kill_move is True` before the comparison, not seen again in six runs (progress.md "S8 missed kill
+  moves" may be the same). Evidence: dialogue-anim-desync worktree, `build/coop-test/results/20261104-012732-4d8ec7` and
+  `20261104-012746-3e87e9`. Another agent (kill-move-review) works on kill moves.
+  - Test: `host-kill-move`, `client-kill-move`.
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
   marker during trade (not reproduced in the final run); one HorseExit refusal. The kill-move refusals were
   the pair's other half coming back, now skipped (`docs/re/systems/kill-moves.md`).

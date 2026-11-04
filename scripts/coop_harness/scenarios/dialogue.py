@@ -1,5 +1,6 @@
 """Scenarios dialogue for the co-op harness."""
 import math
+import time
 
 from ..common import (
     ACTIVATE_KEY,
@@ -54,8 +55,15 @@ from ..common import (
     UP_KEY,
 )
 from ..errors import TestFailure
+from ..objects import AnimTrace
 from ..comparisons import distance
 from ..utilities import log
+
+CLIP_TOPICS = 6  # topics asked before Lucan is taken to have no gesture to give
+CLIP_DELAY = 1.0  # seconds a copy's clip may start after its owner's: 99% of saved starts were within 0.85
+BLENDED_CLIPS = ("MT_Walk", "MT_Run", "MT_Turn", "Sneak_")  # a blender's children: variables weigh them, none is started
+COUNTER_ARMS = "AnimObjectCounterRightToArm"  # a shopkeeper at a counter crossing their arms: no action starts it
+COUNTER_CROSSED, COUNTER_DOWN = "AnimObjectCounterIdleArmsLoopRight", "AnimObjectCounterIdleLoopRight"
 
 
 def scenario_copy_ends_voice_line(ctx):
@@ -123,6 +131,244 @@ def scenario_dialogue_copy_looks_at_speaker(ctx):
     finally:
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
+
+def scenario_npc_clips_match(ctx):
+    """At Lucan's in Riverwood every NPC, Lucan unrestrained in conversation with the host until his copy takes an idle,
+    has each clip's file before its copy starts it (harness trace `clips`), as its owner does. Names the clips skipped.
+    The talk is quest-gold-turn-in-host's teleport and activation, from behind him and with him unrestrained."""
+    started = not ctx.quest_running("", GOLDEN_CLAW_QUEST)
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    try:
+        # His topics are this quest's: a run before this one left it stopped.
+        if started:
+            ctx.console_on("", "resetquest MS13")
+            ctx.console_on("", "startquest MS13")
+            ctx.wait_for("[host] MS13 runs", lambda: ctx.quest_running("", GOLDEN_CLAW_QUEST), 10)
+        ctx.wait_for(f"[host] Lucan {LUCAN:X} is here", lambda: ctx.host_npc_state(LUCAN).get("session_id", -1) >= 0, 30)
+        owners = {int(i): s["session_id"] for i, s in ctx.local_player("").get("local_actors", {}).items() if s.get("session_id", -1) >= 0}
+        names = {i: f"{i:X}" for i in owners}
+        copies = {ctx.copy_of("client", sid): names[i] for i, sid in owners.items()}
+        log(f"watching {sorted(names.values())}")
+        lucan = names[LUCAN]
+        lucan_copy = next(copy for copy, name in copies.items() if name == lucan)
+        with AnimTrace(ctx, "npc-clips", {"": names, "client": copies}) as trace:
+            def yaw():
+                trace.take()
+                return next((e["yaw"] for e in reversed(trace.entries) if e["game"] == "" and e["who"] == lucan and e["kind"] == "pos"), None)
+            # As a player found it: teleported behind him and talked, the other game looking on.
+            behind = (math.degrees(ctx.wait_for("[host] Lucan's heading is read", yaw, 10)) + 180) % 360
+            ctx.place_before("", LUCAN, 110, behind)
+            ctx.place_before("client", lucan_copy, 200, (behind + 180) % 360)
+            ctx.activate_on("", LUCAN)
+            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15)
+            talking = time.time()
+            def owner_idle():
+                trace.take()
+                return next((e for e in trace.entries if e["game"] == "" and e["who"] == lucan and is_clip_action(e, talking)), None)
+            # Past his greeting he stands silent: asking him things makes him speak, and a line brings its gesture.
+            for _ in range(CLIP_TOPICS):
+                if owner_idle():
+                    break
+                if not ctx.talking_to("", LUCAN):
+                    ctx.activate_on("", LUCAN)
+                    ctx.wait_for("[host] the menu opens on Lucan again", lambda: ctx.talking_to("", LUCAN), 15)
+                # His last line can end the talk, and a run before this one may have asked everything: his greeting
+                # brings a line and a gesture too.
+                ctx.wait_for("[host] Lucan's menu takes a pick or closes",
+                             lambda: ctx.menu_takes_pick("") or not ctx.talking_to("", LUCAN), 30)
+                if not ctx.talking_to("", LUCAN):
+                    continue
+                if not ctx.topics_shown(""):
+                    ctx.wait_for("[host] Lucan finishes his greeting", lambda: ctx.line_over("", LUCAN), 60)
+                    ctx.close_dialogues()
+                    continue
+                ctx.pick_with_keys("", ctx.topics_shown("")[0])
+                ctx.wait_for("[host] Lucan answers", lambda: ctx.line_playing("", LUCAN) or not ctx.talking_to("", LUCAN), 15)
+                ctx.wait_for("[host] Lucan finishes", lambda: ctx.line_over("", LUCAN), 60)
+            idle = ctx.wait_for("[host] Lucan performs an idle in conversation", owner_idle, 5)
+            def copy_idle():
+                trace.take()
+                return next((e for e in trace.entries if e["game"] == "client" and e["who"] == lucan and is_clip_action(e, talking)
+                             and e["idle"] == idle["idle"]), None)
+            taken = ctx.wait_for(f"[client] Lucan's copy takes {idle['event']}", copy_idle, 10)
+            def copy_clips_after():
+                trace.take()
+                return any(e["game"] == "client" and e["who"] == lucan and e["kind"] == "clips" and e["time"] >= taken["time"] for e in trace.entries)
+            ctx.wait_for("[client] the copy's clips change with it", copy_clips_after, 10)
+            through = watch_through(ctx, trace, taken["time"])
+        played = sum(len(e["detail"]) for e in trace.entries if e["kind"] == "clips" and e["game"] == "client")
+        if skipped := skipped_clips(trace):
+            raise ctx.failure(f"{len(skipped)} of {played} clips started without their files: " + " | ".join(skipped[:6]))
+        log(f"[client] all {played} clips read had their files")
+        require_clips_match(ctx, trace, through=through)
+    finally:
+        ctx.wait_for("[host] Lucan finishes his line", lambda: ctx.line_over("", LUCAN), 60)
+        ctx.close_dialogues()
+        # What he was asked moved his quest on: the next run starts it again.
+        ctx.console_on("", "stopquest MS13")
+        ctx.both_go(HOME_CELL)
+
+
+def scenario_npc_counter_matches(ctx):
+    """Lucan at his counter crosses and uncrosses his arms by his graph alone, no action starting it: his copy does the
+    same at the same moments. Nobody talks to him, so a repeat finds him as this run did."""
+    # His shop hours: by evening his schedule takes him from the counter.
+    ctx.console_on("", "set gamehour to 12")
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    try:
+        watch_counter(ctx)
+    finally:
+        ctx.both_go(HOME_CELL)
+
+
+def scenario_npc_counter_copy_falls_back_in(ctx):
+    """Lucan's copy pushed out of step, his crossed arms loaded into it alone while his are down (as a copy arrives
+    mid-loop, which a tethered guest cannot stage): it falls back in with him at his next pick."""
+    # His shop hours: by evening his schedule takes him from the counter.
+    ctx.console_on("", "set gamehour to 12")
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    try:
+        watch_counter(ctx, push=True)
+    finally:
+        ctx.both_go(HOME_CELL)
+
+
+def watch_counter(ctx, push=False):
+    """Two crossings of Lucan's arms from his first, compared from there. With `push`, his copy is put out of step first."""
+    ctx.wait_for(f"[host] Lucan {LUCAN:X} is here", lambda: ctx.host_npc_state(LUCAN).get("session_id", -1) >= 0, 30)
+    session = ctx.host_npc_state(LUCAN)["session_id"]
+    ctx.wait_for("[client] Lucan's copy is here", lambda: ctx.copy_of("client", session), 30)
+    lucan = f"{LUCAN:X}"
+    with AnimTrace(ctx, "npc-counter", {"": {LUCAN: lucan}, "client": {ctx.copy_of("client", session): lucan}}) as trace:
+        def arms(game, count):
+            trace.take()
+            return len([s for s in clip_starts(trace, game, lucan) if s[1] == COUNTER_ARMS]) >= count
+        def at_counter():
+            trace.take()
+            return any(e["kind"] == "clips" and e["game"] == "" and any("AnimObjectCounter" in c for c in e["clips"]) for e in trace.entries)
+        ctx.wait_for("[host] Lucan stands at his counter", at_counter, 60)
+        # In front of him, so the trace's videos show his arms.
+        heading = math.degrees(next(e["yaw"] for e in reversed(trace.entries) if e["kind"] == "pos" and e["game"] == "")) % 360
+        ctx.place_before("", LUCAN, 170, heading)
+        ctx.place_before("client", ctx.copy_of("client", session), 170, heading)
+        pushed = 0.0
+        if push:
+            def host_plays(clip):
+                def plays():
+                    trace.take()
+                    now = [e for e in trace.entries if e["kind"] == "clips" and e["game"] == ""]
+                    return now and now[-1]["clips"] == [clip]
+                return plays
+            def apart():
+                trace.take()
+                last = {g: [e for e in trace.entries if e["kind"] == "clips" and e["game"] == g][-1]["clips"] for g in ("", "client")}
+                return last[""] == [COUNTER_DOWN] and COUNTER_CROSSED in last["client"]
+            ctx.wait_for("[host] Lucan's arms are crossed", host_plays(COUNTER_CROSSED), 120)
+            crossed_state = ctx.game("").rpc({"cmd": "graph_state", "actor": LUCAN}, timeout=10)["state"]
+            ctx.wait_for("[host] Lucan's arms are down", host_plays(COUNTER_DOWN), 120)
+            ctx.game("client").rpc({"cmd": "load_graph_state", "actor": ctx.copy_of("client", session), "state": crossed_state}, timeout=10)
+            ctx.wait_for("[client] his copy's arms are crossed while his are down", apart, 5)
+            pushed = time.time()
+        first = len([s for s in clip_starts(trace, "", lucan) if s[1] == COUNTER_ARMS and s[0] < pushed])
+        ctx.wait_for("[host] Lucan crosses his arms", lambda: arms("", first + 1), 90)
+        since = [s[0] for s in clip_starts(trace, "", lucan) if s[1] == COUNTER_ARMS][first]
+        ctx.wait_for("[host] Lucan crosses his arms again", lambda: arms("", first + 2), 90)
+        crossed = len([s for s in clip_starts(trace, "client", lucan) if s[1] == COUNTER_ARMS and s[0] >= since])
+        ctx.wait_for("[client] his copy crosses its arms with him", lambda: arms("client", crossed + 1) or crossed >= 2, CLIP_DELAY * 3)
+        through = watch_through(ctx, trace, clip_starts(trace, "", lucan)[-1][0])
+    require_clips_match(ctx, trace, since, through)
+
+
+def watch_through(ctx, trace, moment):
+    """Keeps the trace on until both games have been watched a clip's delay past that moment. Returns that time."""
+    through = moment + CLIP_DELAY + 0.1
+    def watched():
+        trace.take()
+        return watched_until(trace) >= through
+    ctx.wait_for("[both] a clip's delay is watched", watched, CLIP_DELAY * 5)
+    return through
+
+
+def watched_until(trace):
+    """The last moment both games' traces cover, by anything they recorded (a place each frame), clips or not."""
+    ends = [max((e["time"] for e in trace.entries if e["game"] == game), default=0.0) for game in ("", "client")]
+    return min(ends)
+
+
+def require_clips_match(ctx, trace, since=0.0, through=None):
+    """Fails naming every clip one game started and the other did not, within the delay, from `since`; and if the trace
+    does not reach `through`, the last moment that must be compared."""
+    if through is not None and watched_until(trace) < through:
+        raise ctx.failure(f"the trace stops {through - watched_until(trace):.1f}s short of the last clip's comparison")
+    different, blended = clip_mismatches(trace, since=since)
+    if blended:
+        log(f"not compared, blended by variables: {blended} clip starts")
+    if different:
+        raise ctx.failure(f"{len(different)} clips differ between the games: " + " | ".join(different[:8]))
+    log("every clip started in both games")
+
+
+def clip_starts(trace, game, who):
+    """(time, clip) for each clip that actor's graph started: one new in the list, or one whose start moved on (time less
+    local time), which a loop's does by whole lengths. Whatever was playing when the trace began started earlier."""
+    starts, before = [], None
+    for entry in trace.entries:
+        if entry["kind"] != "clips" or entry["game"] != game or entry["who"] != who:
+            continue
+        detail = entry.get("detail") or {}
+        now = {clip: entry["time"] - (detail.get(clip) or {}).get("local_time", 0.0) for clip in entry["clips"]}
+        if before is not None:
+            for clip, began in now.items():
+                local = (detail.get(clip) or {}).get("local_time", 0.0)
+                length = (detail.get(clip) or {}).get("duration", 0.0)
+                moved = began - before.get(clip, began)
+                loops = length > 0 and abs(moved - round(moved / length) * length) < 0.25
+                if clip not in before or (moved > 0.3 and local < 0.5 and not loops):
+                    starts.append((entry["time"], clip))
+        before = now
+    return starts
+
+
+def clip_mismatches(trace, delay=CLIP_DELAY, since=0.0):
+    """([each clip only one game started], blended clip starts left out) for the actors both games traced, from `since`."""
+    different, blended = [], 0
+    for who in sorted({e["who"] for e in trace.entries if e["kind"] == "clips"}):
+        owner, copy = clip_starts(trace, "", who), clip_starts(trace, "client", who)
+        owner_clips = [e["time"] for e in trace.entries if e["kind"] == "clips" and e["game"] == "" and e["who"] == who]
+        copy_clips = [e["time"] for e in trace.entries if e["kind"] == "clips" and e["game"] == "client" and e["who"] == who]
+        if not owner_clips or not copy_clips:
+            continue
+        # Clips are recorded when they change: how long each game was watched is in everything it recorded.
+        first = max(owner_clips[0], copy_clips[0], since)
+        owner_end = max(e["time"] for e in trace.entries if e["game"] == "" and e.get("who") == who)
+        copy_end = max(e["time"] for e in trace.entries if e["game"] == "client" and e.get("who") == who)
+        blended += sum(s[1].startswith(BLENDED_CLIPS) for s in owner + copy)
+        owner = [s for s in owner if not s[1].startswith(BLENDED_CLIPS)]
+        copy = [s for s in copy if not s[1].startswith(BLENDED_CLIPS)]
+        taken = set()
+        for at, clip in owner:
+            match = next((i for i, (when, name) in enumerate(copy) if i not in taken and name == clip and at - 0.2 <= when <= at + delay), None)
+            if match is not None:
+                taken.add(match)
+            elif first <= at <= copy_end - delay:
+                different.append(f"{who} host {clip} at {at - first:.1f}s")
+        different += [f"{who} guest {clip} at {at - first:.1f}s" for i, (at, clip) in enumerate(copy)
+                      if i not in taken and first + delay <= at <= owner_end]
+    return different, blended
+
+
+def is_clip_action(entry, since):
+    """An action that starts an idle or a gesture, after `since` (a move or a stop starts none of its own)."""
+    event = entry.get("event", "")
+    return (entry["kind"] == "action" and entry["time"] >= since and event.startswith(("Idle", "Dialogue", "MotionDriven"))
+            and not event.startswith("IdleStop"))
+
+
+def skipped_clips(trace):
+    """Every clip a game started without its file: it reads as over at once (the engine's 0.01333 s), and the graph runs on."""
+    return [f"[{e['game'] or 'host'}] {e['who']}: {clip}" for e in trace.entries if e["kind"] == "clips"
+            for clip, state in e["detail"].items() if not state["loaded"] and state["at_end"]]
+
 
 def scenario_dialogue_last_one_out_ends_it(ctx):
     """A player leaving (Tab) leaves the conversation on for the others; the last one out ends it. The host talks
