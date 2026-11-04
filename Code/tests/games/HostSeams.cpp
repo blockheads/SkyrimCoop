@@ -379,6 +379,22 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
         update.ActionEvents.push_back(entry);
     if (auto latestAction = animationComponent.GetLatestAction())
         localComponent.CurrentAction = std::move(*latestAction);
+    auto& engine = aWorld.ctx().at<FakeEngine&>();
+    const auto cActor = engine.Actors.find(formIdComponent.Id);
+    const uint64_t cNow = aWorld.GetFrameTick();
+    if (!animationComponent.Actions.empty())
+        animationComponent.Random.ActionAt = cNow;
+    if (cActor != engine.Actors.end() && GraphRandom::Picked(animationComponent.Random, cActor->second.GraphRandom, cNow))
+    {
+        ActionEvent point;
+        point.Tick = cNow;
+        point.ActorId = formIdComponent.Id;
+        point.Variables.GraphRandom = animationComponent.Random.Seed;
+        point.GraphState = engine.SaveActorGraphState(formIdComponent.Id);
+        point.GraphCounters = GraphRandom::Pack({{"Loop", int32_t(cActor->second.LoopsSeen), int32_t(cActor->second.LoopsToSend)}});
+        if (!point.GraphState.empty())
+            update.ActionEvents.push_back(std::move(point));
+    }
     animationComponent.Actions.clear();
 }
 

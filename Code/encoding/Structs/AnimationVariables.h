@@ -11,6 +11,7 @@ struct AnimationVariables
     std::vector<bool> Booleans{};
     std::vector<uint32_t> Integers{};
     std::vector<float> Floats{};
+    uint32_t GraphRandom{}; // the seed of the graph's picks (hkbBehaviorGraph's generator); 0: none read
 
     bool operator==(const AnimationVariables& acRhs) const noexcept;
     bool operator!=(const AnimationVariables& acRhs) const noexcept;

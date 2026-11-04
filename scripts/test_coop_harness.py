@@ -1430,5 +1430,99 @@ class DuoLockTests(unittest.TestCase):
         self.assertLess(text.index("a (/wt/a): x. done"), text.index("old line"))
 
 
+class SkippedClipTests(unittest.TestCase):
+    def trace(self, *states):
+        from types import SimpleNamespace
+        return SimpleNamespace(entries=[{"kind": "clips", "game": "client", "who": "lucan", "detail": {name: state}} for name, state in states])
+
+    def test_a_clip_that_ends_without_its_file_is_named(self):
+        from coop_harness.scenarios.dialogue import skipped_clips
+        trace = self.trace(("Enter", {"loaded": False, "at_end": False}), ("Enter", {"loaded": False, "at_end": True}),
+                           ("Idle", {"loaded": True, "at_end": False}))
+        self.assertEqual(skipped_clips(trace), ["[client] lucan: Enter"])
+
+    def test_a_clip_whose_file_arrives_in_time_is_not(self):
+        from coop_harness.scenarios.dialogue import skipped_clips
+        trace = self.trace(("Enter", {"loaded": False, "at_end": False}), ("Enter", {"loaded": True, "at_end": True}))
+        self.assertEqual(skipped_clips(trace), [])
+
+    def test_only_idles_and_gestures_start_a_clip_of_their_own(self):
+        from coop_harness.scenarios.dialogue import is_clip_action
+        def action(event, at=2.0):
+            return {"kind": "action", "event": event, "time": at}
+        self.assertTrue(is_clip_action(action("IdleHDLeftAngry"), 1.0))
+        self.assertTrue(is_clip_action(action("DialogueNeutral"), 1.0))
+        self.assertFalse(is_clip_action(action("IdleStopInstant"), 1.0))
+        self.assertFalse(is_clip_action(action("moveStart"), 1.0))
+        self.assertFalse(is_clip_action(action("IdleHDLeftAngry", 0.5), 1.0))
+
+
+class ClipMismatchTests(unittest.TestCase):
+    def trace(self, *rows):
+        from types import SimpleNamespace
+        return SimpleNamespace(entries=[{"kind": "clips", "game": game, "who": "lucan", "time": at, "clips": list(clips),
+                                         "detail": {c: {"local_time": t, "duration": 3.0} for c, t in clips.items()}}
+                                        for at, game, clips in rows])
+
+    def test_the_same_clip_a_moment_later_matches(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        trace = self.trace((0.0, "", {"Idle": 1.0}), (0.1, "client", {"Idle": 1.0}), (5.0, "", {"Arms": 0.0}),
+                           (5.3, "client", {"Arms": 0.0}), (9.0, "", {"Idle": 1.5}), (9.0, "client", {"Idle": 1.5}))
+        self.assertEqual(clip_mismatches(trace), ([], 0))
+
+    def test_an_action_playing_another_clip_is_named_on_both_sides(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        trace = self.trace((0.0, "", {"Idle": 1.0}), (0.0, "client", {"Idle": 1.0}), (2.0, "", {"NPC_TurnLeft180": 0.0}),
+                           (2.2, "client", {"NPC_TurnLeft90": 0.0}), (9.0, "", {"Idle": 1.5}), (9.0, "client", {"Idle": 1.5}))
+        self.assertEqual(clip_mismatches(trace)[0], ["lucan host NPC_TurnLeft180 at 2.0s", "lucan guest NPC_TurnLeft90 at 2.2s"])
+
+    def test_the_counter_loop_running_on_its_own_clock_is_named(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        arms = "AnimObjectCounterRightToArm"
+        trace = self.trace((0.0, "", {"Loop": 1.0}), (0.0, "client", {"Loop": 1.0}), (7.3, "client", {arms: 0.0}),
+                           (26.7, "", {arms: 0.0}), (40.0, "", {"Loop": 1.5}), (40.0, "client", {"Loop": 1.5}))
+        self.assertEqual(sorted(clip_mismatches(trace)[0]), [f"lucan guest {arms} at 7.3s", f"lucan host {arms} at 26.7s"])
+
+    def test_a_final_gesture_is_compared_once_watched_past_it(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        rows = [(0.0, "", {"Idle": 1.0}), (0.1, "client", {"Idle": 1.0}), (2.0, "", {"ExpressiveE": 0.0}), (2.3, "client", {"ExpressiveH": 0.0})]
+        trace = self.trace(*rows)
+        self.assertEqual(clip_mismatches(trace)[0], [])  # not watched past it: require_clips_match fails on `through`
+        for game in ("", "client"):  # places, each frame, no clip changing
+            trace.entries.append({"kind": "pos", "game": game, "who": "lucan", "time": 5.0})
+        self.assertEqual(clip_mismatches(trace)[0], ["lucan host ExpressiveE at 1.9s", "lucan guest ExpressiveH at 2.2s"])
+
+    def test_a_trace_stopped_before_its_last_clip_is_compared_fails(self):
+        from coop_harness.scenarios.dialogue import require_clips_match
+        from types import SimpleNamespace
+        trace = self.trace((0.0, "", {"Idle": 1.0}), (0.1, "client", {"Idle": 1.0}))
+        ctx = SimpleNamespace(failure=lambda message: AssertionError(message))
+        with self.assertRaisesRegex(AssertionError, "short of the last clip"):
+            require_clips_match(ctx, trace, through=3.0)
+
+    def test_clips_before_since_are_not_compared(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        trace = self.trace((0.0, "", {"Loop": 1.0}), (0.0, "client", {"Loop": 1.0}), (2.0, "client", {"Loop": 1.2, "Early": 0.0}),
+                           (9.0, "", {"Loop": 1.5}), (9.0, "client", {"Loop": 1.5}))
+        self.assertEqual(clip_mismatches(trace, since=5.0), ([], 0))
+
+    def test_blended_clips_are_counted_not_compared(self):
+        from coop_harness.scenarios.dialogue import clip_mismatches
+        trace = self.trace((0.0, "", {"Idle": 1.0}), (0.0, "client", {"Idle": 1.0}), (2.0, "", {"Idle": 1.5, "MT_WalkForwardLeft": 0.0}),
+                           (9.0, "", {"Idle": 1.5}), (9.0, "client", {"Idle": 1.5}))
+        self.assertEqual(clip_mismatches(trace), ([], 1))
+
+    def test_a_clip_cut_short_and_begun_again_is_a_start_a_loop_is_not(self):
+        from coop_harness.scenarios.dialogue import clip_starts
+        trace = self.trace((0.0, "", {"Turn": 1.0, "Idle": 2.9}), (0.5, "", {"Turn": 0.02, "Idle": 0.4}))
+        self.assertEqual(clip_starts(trace, "", "lucan"), [(0.5, "Turn")])
+
+    def test_a_restart_between_samples_shows_in_its_start_time(self):
+        from coop_harness.scenarios.dialogue import clip_starts
+        # Skyrim: 0.02 at both samples, 0.58 s apart: the host's MT_IdleHHDRightEnter begun again by a moveStop.
+        trace = self.trace((11.24, "", {"Enter": 0.02}), (11.82, "", {"Enter": 0.02}))
+        self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
+
+
 if __name__ == "__main__":
     unittest.main()

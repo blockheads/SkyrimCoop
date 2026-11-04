@@ -45,3 +45,16 @@ TEST_CASE("A graph job never takes another job's busy action", "[animation][repl
     });
     CHECK(step.Phase.load() == AnimationReplayStep::kBusy);
 }
+
+TEST_CASE("An action waits for its clips, not forever", "[animation][replay-step][replay-clips]")
+{
+    AnimationReplayStep step;
+    CHECK(ClipWaitOver(step, 0));
+
+    step.ClipsLoaded = std::make_shared<std::atomic<bool>>(false);
+    CHECK_FALSE(ClipWaitOver(step, 1));
+    CHECK(ClipWaitOver(step, 1000));
+
+    step.ClipsLoaded->store(true);
+    CHECK(ClipWaitOver(step, 1));
+}

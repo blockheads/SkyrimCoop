@@ -45,7 +45,8 @@ struct hkbBehaviorGraph
         int count;
     };
 
-    uint8_t pad8[0x80 - 0x8];
+    uint8_t pad8[0x78 - 0x8];
+    hkPseudoRandomGenerator* random; // 78
     hkbStateMachine* stateMachine;
     hkbBehaviorGraphData* data; // 88
     uint8_t pad90[0x98 - 0x90];
@@ -60,6 +61,7 @@ struct hkbBehaviorGraph
     uint8_t byte12E;
 };
 
+static_assert(offsetof(hkbBehaviorGraph, random) == 0x78);
 static_assert(offsetof(hkbBehaviorGraph, data) == 0x88);
 static_assert(offsetof(hkbBehaviorGraph, struct98) == 0x98);
 static_assert(offsetof(hkbBehaviorGraph, symbolIdMap) == 0xB8);

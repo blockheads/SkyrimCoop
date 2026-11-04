@@ -5,6 +5,7 @@
 #include <BSAnimationGraphManager.h>
 #include <Games/Events.h>
 #include <Havok/BShkbAnimationGraph.h>
+#include <Havok/hkbNode.h>
 #include <Utils.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
@@ -58,6 +59,60 @@ GraphEventSink s_sink;
 Actor* GetActor(uint32_t aFormId) noexcept
 {
     return Cast<Actor>(TESForm::GetById(aFormId));
+}
+
+// The clips a graph plays now, by node name: its active nodes, and those of the sub-behaviours among them.
+void ActiveClips(const hkbBehaviorGraphNode* apGraph, std::vector<std::string>& aClips, nlohmann::json& aDetail, nlohmann::json& aRandom, int aDepth = 0)
+{
+    if (!apGraph || !apGraph->activeNodes || aDepth > 8)
+        return;
+    if (apGraph->random)
+        aRandom["generators"][std::format("{:X}", reinterpret_cast<uintptr_t>(apGraph->random))] = apGraph->random->current;
+    const auto& cNodes = *apGraph->activeNodes;
+    for (int32_t i = 0; i < cNodes.size; ++i)
+    {
+        const hkbNode* pNode = cNodes.data[i].nodeClone;
+        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
+        if (!pClass || !pClass->name)
+            continue;
+        const std::string_view cClass = pClass->name;
+        if (cClass == "hkbBehaviorReferenceGenerator")
+            ActiveClips(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aClips, aDetail, aRandom, aDepth + 1);
+        else if (cClass == "BSEventEveryNEventsModifier" && pNode->name)
+        {
+            const auto* pEvery = static_cast<const BSEventEveryNEventsModifier*>(pNode);
+            aRandom["every_n"][pNode->name] = {pEvery->numberOfEventsSeen, pEvery->calculatedNumberOfEventsBefore};
+        }
+        else if (cClass.ends_with("ClipGenerator") && pNode->name)
+        {
+            aClips.emplace_back(pNode->name);
+            if (cClass == "hkbClipGenerator")
+            {
+                const auto* pClip = static_cast<const hkbClipGenerator*>(pNode);
+                const auto* pBinding = pClip->animationControl ? pClip->animationControl->binding : nullptr;
+                const hkaAnimation* pAnimation = pBinding ? pBinding->animation : nullptr;
+                aDetail[pNode->name] = {{"local_time", pClip->localTime}, {"loaded", pAnimation != nullptr},
+                                        {"duration", pAnimation ? pAnimation->duration : 0.f}, {"at_end", pClip->atEnd}};
+            }
+        }
+    }
+}
+
+std::vector<std::string> ActiveClips(Actor& aActor, nlohmann::json& aDetail, nlohmann::json& aRandom)
+{
+    std::vector<std::string> clips;
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!EngineVirtual(aActor.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return clips;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        if (pManager->animationGraphIndex < pManager->animationGraphs.size)
+            if (const BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(pManager->animationGraphIndex))
+                ActiveClips(reinterpret_cast<const hkbBehaviorGraphNode*>(pGraph->behaviorGraph), clips, aDetail, aRandom);
+    }
+    pManager->Release();
+    std::ranges::sort(clips);
+    return clips;
 }
 } // namespace
 
@@ -164,6 +219,21 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
             Record({{"kind", "action"}, {"actor", aFormId}, {"action", cLatest.ActionId}, {"event", cLatest.EventName.c_str()},
                     {"idle", cLatest.IdleId}, {"target", cLatest.TargetId}});
         aWatched.Action = std::move(action);
+    }
+
+    nlohmann::json clipDetail = nlohmann::json::object();
+    nlohmann::json random = nlohmann::json::object();
+    auto clips = ActiveClips(*pActor, clipDetail, random);
+    // Also when a clip's file arrives or it ends, its name unchanged: a clip started without one ends in a frame.
+    nlohmann::json status = nlohmann::json::object();
+    for (const auto& [cName, cDetail] : clipDetail.items())
+        status[cName] = {cDetail["loaded"], cDetail["at_end"]};
+    status["random"] = random;
+    if (clips != aWatched.Clips || status != aWatched.ClipStatus)
+    {
+        Record({{"kind", "clips"}, {"actor", aFormId}, {"clips", clips}, {"detail", clipDetail}, {"random", random}});
+        aWatched.Clips = std::move(clips);
+        aWatched.ClipStatus = std::move(status);
     }
 
     nlohmann::json state = {{"graph_updates", (pActor->flags2 & Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE) != 0},

@@ -104,16 +104,89 @@ struct hkbBehaviorGraphData
 static_assert(offsetof(hkbBehaviorGraphData, variableInfos) == 0x20);
 static_assert(offsetof(hkbBehaviorGraphData, stringData) == 0x78);
 
+struct hkaAnimation
+{
+    uint8_t pad0[0x14];
+    float duration; // 14
+};
+static_assert(offsetof(hkaAnimation, duration) == 0x14);
+
+struct hkaAnimationBinding
+{
+    uint8_t pad0[0x18];
+    hkaAnimation* animation; // 18, null until its file is loaded
+};
+static_assert(offsetof(hkaAnimationBinding, animation) == 0x18);
+
+struct hkaDefaultAnimationControl
+{
+    uint8_t pad0[0x38];
+    hkaAnimationBinding* binding; // 38
+};
+static_assert(offsetof(hkaDefaultAnimationControl, binding) == 0x38);
+
+// A clip playing in a graph (CommonLib hkbClipGenerator). With no animation its duration reads 0.01333 (59263).
+struct hkbClipGenerator : hkbNode
+{
+    uint8_t pad48[0x88 - 0x48];
+    hkaDefaultAnimationControl* animationControl; // 88
+    uint8_t pad90[0xF0 - 0x90];
+    float localTime; // F0
+    float time;      // F4
+    uint8_t padF8[0x104 - 0xF8];
+    bool atEnd; // 104
+};
+static_assert(offsetof(hkbClipGenerator, animationControl) == 0x88);
+static_assert(offsetof(hkbClipGenerator, localTime) == 0xF0);
+static_assert(offsetof(hkbClipGenerator, atEnd) == 0x104);
+
+// One active node of a behaviour graph (CommonLib hkbNodeInfo).
+struct hkbNodeInfo
+{
+    uint8_t pad0[0x58];
+    hkbNode* nodeClone; // 58
+    uint8_t pad60[0x90 - 0x60];
+};
+static_assert(offsetof(hkbNodeInfo, nodeClone) == 0x58);
+static_assert(sizeof(hkbNodeInfo) == 0x90);
+
+// What a graph's random picks draw from: seed = seed * 1664525 + 1013904223 (59406, 60025, 63213).
+struct hkPseudoRandomGenerator
+{
+    uint32_t seed;    // 0
+    uint32_t current; // 4
+};
+static_assert(offsetof(hkPseudoRandomGenerator, current) == 4);
+
+// Sends its event after a random number of another (63213): a shopkeeper's loop ending in crossed arms.
+struct BSEventEveryNEventsModifier : hkbNode
+{
+    uint8_t pad48[0x70 - 0x48];
+    int8_t numberOfEventsBeforeSend;        // 70
+    int8_t minimumNumberOfEventsBeforeSend; // 71
+    bool randomizeNumberOfEvents;           // 72
+    uint8_t pad73;
+    int32_t numberOfEventsSeen;            // 74
+    int8_t calculatedNumberOfEventsBefore; // 78
+};
+static_assert(offsetof(BSEventEveryNEventsModifier, numberOfEventsSeen) == 0x74);
+static_assert(offsetof(BSEventEveryNEventsModifier, calculatedNumberOfEventsBefore) == 0x78);
+
 // Behaviour graph as a node: its root generator and its own variable names (sub-behaviours index
 // variables locally).
 struct hkbBehaviorGraphNode : hkbNode
 {
-    uint8_t pad48[0x80 - 0x48];
-    hkbNode* rootGenerator;     // 80
-    hkbBehaviorGraphData* data; // 88
+    uint8_t pad48[0x78 - 0x48];
+    hkPseudoRandomGenerator* random; // 78
+    hkbNode* rootGenerator;          // 80
+    hkbBehaviorGraphData* data;      // 88
+    uint8_t pad90[0x98 - 0x90];
+    hkArrayView<hkbNodeInfo>* activeNodes; // 98
 };
+static_assert(offsetof(hkbBehaviorGraphNode, random) == 0x78);
 static_assert(offsetof(hkbBehaviorGraphNode, rootGenerator) == 0x80);
 static_assert(offsetof(hkbBehaviorGraphNode, data) == 0x88);
+static_assert(offsetof(hkbBehaviorGraphNode, activeNodes) == 0x98);
 
 struct hkbBehaviorReferenceGenerator : hkbNode
 {
