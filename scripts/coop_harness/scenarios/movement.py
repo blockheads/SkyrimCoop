@@ -1,6 +1,7 @@
 """Scenarios movement for the co-op harness."""
 import json
 import math
+import time
 from ..common import LYDIA, ON_GROUND
 from ..errors import TestFailure
 from ..comparisons import distance
@@ -284,12 +285,21 @@ def scenario_copy_jumps_smoothly(ctx, jumper=""):
     rest = ctx.local_player(jumper)["position"][2]
     with AnimTrace(ctx, f"jump-{jumper or 'host'}", {jumper: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False,
                    bools=("bInJumpState",)) as trace:
-        for _ in range(3):
+        def jumped(game, who, after):
+            """That actor's trace rose 20 units over the ground after `after`, then came back down."""
+            trace.take()
+            heights = [e["pos"][2] for e in trace.entries if e["kind"] == "pos" and e["game"] == game
+                       and e["who"] == who and e["time"] >= after]
+            up = next((i for i, z in enumerate(heights) if z > rest + 20), None)
+            return up is not None and any(z < rest + 3 for z in heights[up:])
+        for jump in range(3):
+            pressed = time.time()
             ctx.hold_key(jumper, "space", 0.1)
-            ctx.wait_for(f"[{jumper or 'host'}] lands", lambda: ctx.local_player(jumper).get("character_state") == ON_GROUND
+            ctx.wait_for(f"[{jumper or 'host'}] jump {jump + 1} rises and lands", lambda: jumped(jumper, "owner", pressed)
+                         and ctx.local_player(jumper).get("character_state") == ON_GROUND
                          and not ctx.graph_bools(jumper, "bInJumpState")["bInJumpState"], 5)
-            frame = ctx.game_frame(watcher)
-            ctx.wait_for("the copy has half a second to land", lambda: ctx.game_frame(watcher) > frame + 30, 5)
+            ctx.wait_for(f"[{watcher or 'host'}] the copy rises and lands with jump {jump + 1}",
+                         lambda: jumped(watcher, "copy", pressed), 5)
     owner = height_path(trace.entries, jumper, "owner")
     theirs = height_path(trace.entries, watcher, "copy")
     result = compare_strafe(owner, theirs)
@@ -306,9 +316,12 @@ def scenario_copy_jumps_smoothly(ctx, jumper=""):
                           f"{step(owner):.0f} at most")
     owner_turns, copy_turns = jump_reversals(owner, rest), jump_reversals(theirs, rest)
     log(f"[{watcher or 'host'}] turns in the air: owner {owner_turns}, copy {copy_turns}")
+    if len(owner_turns) != 3:
+        raise ctx.failure(f"[{jumper or 'host'}] the trace holds {len(owner_turns)} jumps, not 3: {owner_turns}")
     if len(copy_turns) > len(owner_turns):
         raise ctx.failure(f"[{watcher or 'host'}] the copy stutters in the air: it turns {len(copy_turns)} times, its owner "
                           f"{len(owner_turns)}, e.g. {copy_turns[:6]}")
-    if copy_peak < peak - 10 or result["worst"] > 20:
+    # One delay fitted to the whole trace: a steered clock leaves up to ~20 units in a fall (the stutter left 73-77).
+    if copy_peak < peak - 10 or result["worst"] > 35:
         raise ctx.failure(f"[{watcher or 'host'}] the copy's jump is off its owner's: peaks {peak:.0f} / {copy_peak:.0f}, "
                           f"{result}")

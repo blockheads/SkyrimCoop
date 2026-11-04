@@ -704,9 +704,8 @@ void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 {
 }
 
-// Stepped or placed, never a copy lying in its ragdoll (the engine keeps it on its ragdoll, as its owner: SkyrimBridge);
-// the graph's variables are not modelled. A step reaches the goal across, never up: Havok's character step leaves its
-// height to support and gravity (copy-jumps-smoothly-*; the fake's ground is flat).
+// Stepped or placed, never a copy lying in its ragdoll (SkyrimBridge); graph variables not modelled. A step reaches the
+// goal across, never up: Havok's step leaves height to support and gravity (actor-movement.md; flat ground here).
 bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
                                      const AnimationVariables& acVariables, CopyMove aMove) noexcept
 {

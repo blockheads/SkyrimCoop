@@ -1475,11 +1475,6 @@ void CharacterService::RunRemoteUpdates() noexcept
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
 
-    static auto s_nextDiagnostic = std::chrono::steady_clock::now();
-    const bool cLogDiagnostic = std::chrono::steady_clock::now() >= s_nextDiagnostic;
-    if (cLogDiagnostic)
-        s_nextDiagnostic = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-
     for (auto entity : interpolatedEntities)
     {
         auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);
@@ -1487,10 +1482,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         const uint64_t tick = InterpolationSystem::PlaybackTick(m_world, entity);
 
         auto& points = interpolationComponent.TimePoints;
-        if (cLogDiagnostic)
-            spdlog::debug("RunRemoteUpdates: entity {} formId {:X} points {} tick {} first {} last {}",
-                          entt::to_integral(entity), pFormIdComponent ? pFormIdComponent->Id : 0, points.size(), tick,
-                          points.empty() ? 0 : points.front().Tick, points.empty() ? 0 : points.back().Tick);
         if (points.size() < 2) continue;
         while (points.size() > 2 && tick > std::next(points.begin())->Tick)
             points.pop_front();
