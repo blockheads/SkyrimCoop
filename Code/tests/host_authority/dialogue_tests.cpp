@@ -617,6 +617,40 @@ TEST_CASE("Dialogue: the highlight goes to the others in the conversation, for t
     CHECK(session.SentTo<NotifyDialogueHighlight>(kHost).size() == 1);
 }
 
+TEST_CASE("Dialogue: a press through the line goes to the host's game, from anyone in it, for the current step", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    talking.List(kHost, 1);
+    session.Outbox.clear();
+
+    DialogueSkipRequest skip;
+    skip.Conversation = talking.Id;
+    skip.Step = 1;
+    session.Receive(kPeer, skip);
+    const auto cAtHost = session.SentTo<NotifyDialogueSkip>(kHost);
+    REQUIRE(cAtHost.size() == 1);
+    CHECK((cAtHost[0]->Conversation == talking.Id && cAtHost[0]->Step == 1));
+    CHECK(session.SentTo<NotifyDialogueSkip>(kPeer).size() == 1);      // its copy goes quiet
+    CHECK(session.SentTo<NotifyDialogueSkip>(kOtherPeer).size() == 1); // heard from anywhere
+
+    session.Receive(kOtherPeer, skip); // not in it
+    skip.Step = 2;                     // an old or future step
+    session.Receive(kPeer, skip);
+    skip.Step = 1;
+    skip.Conversation = talking.Id + 1; // another conversation
+    session.Receive(kPeer, skip);
+    CHECK(session.SentTo<NotifyDialogueSkip>(kHost).size() == 1);
+
+    skip.Conversation = talking.Id;
+    session.Receive(kHost, Join(talking.Id));
+    session.Outbox.clear();
+    session.Receive(kHost, skip); // its engine moved on by itself
+    CHECK(session.SentTo<NotifyDialogueSkip>(kHost).empty());
+    CHECK(session.SentTo<NotifyDialogueSkip>(kPeer).size() == 1);
+}
+
 TEST_CASE("Dialogue: a pick before the host's list is not said", "[HostAuthority][Dialogue]")
 {
     // The guest's menu opens on its own engine's list before the host's arrives.

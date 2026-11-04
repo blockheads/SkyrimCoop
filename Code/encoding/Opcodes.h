@@ -72,7 +72,8 @@
     X(SystemQuestsRequest)          \
     X(RecipesRequest)              \
     X(BugReportRequest)            \
-    X(DialogueHighlightRequest)
+    X(DialogueHighlightRequest)    \
+    X(DialogueSkipRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -148,7 +149,8 @@
     X(NotifyBugReport)             \
     X(NotifyDialogueHighlight)     \
     X(NotifyPartyItem)             \
-    X(NotifyPartyItems)
+    X(NotifyPartyItems)            \
+    X(NotifyDialogueSkip)
 
 #define COOP_OPCODE(aName) k##aName,
 

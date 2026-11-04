@@ -58,6 +58,7 @@ struct FakeDialogue final : IDialogueBridge
     // Lines take time (a voiced line): the next list waits for LineEnds, as the engine builds it after the line.
     bool LinesTakeTime = false;
     std::vector<Option> Said; // every option said here, in order
+    uint32_t Skips = 0;       // lines this game's engine was told to move past (35290)
 
     // This game's player talks to an actor (activates it), as the engine with our hooks: Talk first, then Start.
     void PlayerTalksTo(uint32_t aActorFormId)
@@ -93,6 +94,16 @@ struct FakeDialogue final : IDialogueBridge
     void LineEnds()
     {
         Build(std::exchange(m_next, std::nullopt).value_or(m_source));
+    }
+    // This game's player presses through the line (the SWF's SkipText, 51508): the Skip filter hears of it, then this
+    // game's engine moves on (35290), a guest's own held conversation too.
+    void PlayerSkips()
+    {
+        if (!MenuOpen || ListShown || !AllowProgress)
+            return;
+        if (m_filters.Skip)
+            m_filters.Skip();
+        SkipLine();
     }
     // This game's player leaves the menu.
     void PlayerLeaves()
@@ -231,6 +242,12 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (MenuOpen && aIndex < Options.size())
             Highlight = aIndex;
+    }
+    void SkipLine() noexcept override
+    {
+        ++Skips;
+        if (Speaker)
+            LineEnds();
     }
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override
     {

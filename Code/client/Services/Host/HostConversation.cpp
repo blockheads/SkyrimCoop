@@ -80,6 +80,12 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
     }
 }
 
+void HostConversation::OnLineSkipped() noexcept
+{
+    if (m_awaitingList)
+        m_dialogue.Bridge().SkipLine();
+}
+
 std::optional<std::vector<IDialogueBridge::Option>> HostConversation::OnListBuilt() noexcept
 {
     // Native arrest greetings can rebuild their choices before anyone picks.

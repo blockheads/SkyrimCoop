@@ -63,6 +63,14 @@ void MenuTopicManager::Pick(uint32_t aIndex) noexcept
     (s_saySelected.Get())(this, false, false);
 }
 
+void MenuTopicManager::SkipLine() noexcept
+{
+    using TSkipLine = void(MenuTopicManager*);
+    POINTER_SKYRIMSE(TSkipLine, s_skipLine, 35290);
+    ListLock lock(criticalSection);
+    (s_skipLine.Get())(this);
+}
+
 void MenuTopicManager::Clear() noexcept
 {
     using TClear = void(MenuTopicManager*);

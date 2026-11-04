@@ -707,6 +707,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Voice lines (Actor::SpeakSound 37542): it reads the actor's process unchecked, so one without 3D crashes the game.
     std::vector<std::pair<uint32_t, std::string>> Lines;
     uint32_t SpokeWithout3D = 0;
+    std::vector<uint32_t> LinesStopped; // actors told to stop their line
+    void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override
+    {
+        LinesStopped.push_back(aFormId);
+    }
     void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override
     {
         if (!ActorHas3D(aFormId))
