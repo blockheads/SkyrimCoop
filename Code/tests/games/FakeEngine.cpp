@@ -572,9 +572,34 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
     World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
 }
 
+bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
+{
+    return ::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()) || ReplayAnimation(aFormId, acAction);
+}
+
+void FakeEngine::EndKillMove(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.InKillMove = false;
+    if (actor.KilledBy)
+        KillActor(aFormId);
+}
+
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 {
     auto& actor = Actors.at(aFormId);
+    if (const auto cPartner = Actors.find(acAction.TargetId); !acAction.TargetEventName.empty() && cPartner != Actors.end())
+    {
+        if (!(actor.InKillMove && cPartner->second.InKillMove) && !::ReplayState::PairMarkClear(!PairMarkBlocked, actor.Copy))
+            return false;
+        // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
+        const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
+        CollapsedPairs += cCollapsed;
+        actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+        actor.LatestPairAction = acAction;
+    }
+    else if (actor.Copy && actor.InKillMove)
+        ++BrokenPairs;
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
         actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);

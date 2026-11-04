@@ -72,8 +72,8 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   `20261104-012746-3e87e9`. Another agent (kill-move-review) works on kill moves.
   - Test: `host-kill-move`, `client-kill-move`.
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
-  marker during trade (not reproduced in the final run); four kill-move and one HorseExit refusal. One earlier
-  wolf refusal was an already-playing duplicate; the other refusals still need classification.
+  marker during trade (not reproduced in the final run); one HorseExit refusal. The kill-move refusals were
+  the pair's other half coming back, now skipped (`docs/re/systems/kill-moves.md`).
 - **Player body/ragdoll.** Kneeling, sunken/lifted skeletons, unsettled death ragdolls and mounted zero-height
   readings. Several occur on the owner too. Revived-player kneeling is the same bug.
 - **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its

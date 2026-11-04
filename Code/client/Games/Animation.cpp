@@ -16,6 +16,7 @@
 
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BSSynchronizedClipGenerator.h>
+#include <Havok/bhkCharacterController.h>
 
 #include <World.h>
 #include <Systems/AnimationSystem.h>
@@ -23,6 +24,7 @@
 #include <Hooks/Initializer.h>
 #include <Utils.h>
 #include <Games/Animation/ReplayCapture.h>
+#include <Games/Animation/ReplayState.h>
 #include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
@@ -31,11 +33,15 @@ using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
 using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
 static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
+using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* apArgument, bool aIgnoreDepth);
+static TTryMoveTo* RealTryMoveTo;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
 // The local player's own action under way: a paired one (a kill move) starts its partner's half inside it.
 thread_local bool s_playerAction = false;
+// A replayed action under way: its owner's game judged it.
+thread_local bool s_replayedAction = false;
 
 uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 {
@@ -98,6 +104,8 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         pExtension->LatestAnimation.Write(action);
         if (apAction->action->formID == 0x132AF)
             pExtension->LatestWeapEquipAnimation.Write(action);
+        if (!action.TargetEventName.empty())
+            pExtension->LatestPairAction.Write(action);
 
         // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
         if (g_forceAnimation || cPlayersPartner)
@@ -138,6 +146,13 @@ void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbCo
                                                                       offsetof(BShkbAnimationGraph, character));
     if (pGraph->holder && pGraph->holder->GetExtension()->IsCopy())
         apThis->atMark = true;
+}
+
+// bhkCharacterController::TryMoveTo 78260, the sweep a pair starts with (32792): each game judges it on its own positions,
+// so a replayed pair could be refused after its owner's game started it (docs/re/systems/kill-moves.md).
+bool HookTryMoveTo(bhkCharacterController* apThis, const void* apPosition, void* apArgument, bool aIgnoreDepth)
+{
+    return ReplayState::PairMarkClear(RealTryMoveTo(apThis, apPosition, apArgument, aIgnoreDepth), s_replayedAction);
 }
 
 ActorMediator* ActorMediator::Get() noexcept
@@ -189,7 +204,9 @@ bool ActorMediator::ForceAction(TESActionData* apAction) noexcept
     auto pActor = static_cast<Actor*>(apAction->actor);
     if (!pActor || EngineVirtual(pActor->animationGraphHolder).IsReady())
     {
+        s_replayedAction = true;
         result = PerformComplexAction(this, apAction);
+        s_replayedAction = false;
     }
 
     return result;
@@ -258,4 +275,5 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(38949, &RealPerformAction, HookPerformAction);
         HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
         HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
+        HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
     });

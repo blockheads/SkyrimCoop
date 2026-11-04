@@ -873,6 +873,14 @@ bool Actor::IsInKillMove() const noexcept
     return (s_isInKillMove.Get())(this);
 }
 
+void Actor::EndKillMove() noexcept
+{
+    // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.
+    using TEndKillMove = void(Actor*);
+    POINTER_SKYRIMSE(TEndKillMove, s_endKillMove, 38614);
+    (s_endKillMove.Get())(this);
+}
+
 bool Actor::IsHeldByKillMove() const noexcept
 {
     // Character 38619 (in a deferred kill, as KillActorHandler tests it): a kill move holds its victim so until KillActor.

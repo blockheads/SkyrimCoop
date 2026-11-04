@@ -1,5 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
+#include <Games/Animation/ReplayState.h>
+#include <SessionIds.h>
 #include "FakeDialogue.h"
 #include <MainLoopTasks.h>
 #include "FakeWait.h"
@@ -265,7 +267,7 @@ void World::Update() noexcept
             {
                 step.Phase.store(Step::kBusy);
                 engine.ActorLoadAnimationVariables(form.Id, step.Variables);
-                step.Phase.store(engine.ReplayAnimation(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
+                step.Phase.store(engine.PlayReplayed(form.Id, step.Action) ? Step::kTaken : Step::kRefused);
             }
             continue;
         }
@@ -287,7 +289,22 @@ void World::Update() noexcept
         }
         if (animation.GraphPoint && animation.GraphPoint->Tick < action.Tick)
             animation.GraphPoint.reset();
-        step.Action = action;
+        ActionEvent replayed = action;
+        if (replayed.TargetActor)
+            replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
+        const auto cPartner = engine.Actors.find(replayed.TargetId);
+        const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() && !cPartner->second.Copy;
+        if (cLocalPartner && ::ReplayState::SettlePairedReplay({replayed.EventName.c_str(), form.Id, true, cPartner->second.InKillMove,
+                                                                cPartner->second.LatestPairAction.TargetEventName.c_str(),
+                                                                cPartner->second.LatestPairAction.TargetId},
+                                                               [&](bool aCopy) { engine.EndKillMove(aCopy ? form.Id : replayed.TargetId); }))
+        {
+            animation.LastRanAction = replayed;
+            engine.SetActorLatestAnimation(form.Id, replayed);
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        step.Action = replayed;
         if (action.Tick >= animation.VariablesTick)
         {
             animation.Variables = action.Variables;
@@ -309,7 +326,7 @@ void World::Update() noexcept
             }, [&] {
                 if (step.Action.Variables.GraphRandom)
                     engine.Actors.at(form.Id).GraphRandom = step.Action.Variables.GraphRandom;
-                return engine.ReplayAnimation(form.Id, step.Action);
+                return engine.PlayReplayed(form.Id, step.Action);
             });
         }
     ctx().at<GuestSeam>().Update();

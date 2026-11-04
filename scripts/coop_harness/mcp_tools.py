@@ -341,6 +341,26 @@ def fight(game: str, target: str, hits: int = 30) -> dict:
 
 
 @tool
+def equip(game: str, item: str) -> dict:
+    """That game's player gets `item` (hex form id) and holds it; "0" is bare hands."""
+    session.equip_weapon(_game(game), int(item, 16))
+    return {"ok": True}
+
+
+@tool
+def kill_move_check(game: str, target: str) -> dict:
+    """What decides a kill move now for that game's player on a handle: should_attack_kill, killable, attack_target."""
+    return session.player_command(_game(game), {"cmd": "kill_move_check", "victim": session.resolve(target, _game(game))})
+
+
+@tool
+def kill_move_exchange() -> dict:
+    """Both players, one hit from death and moving, swing at each other at once. crossed: each game started its own pair."""
+    copies = {game: session.other_player(session.actors_on(game)) for game in ("", "client")}
+    return {"ok": True, "crossed": session.kill_move_exchange(copies)}
+
+
+@tool
 def leave_dialogue() -> dict:
     """Closes every open conversation in both games."""
     session.close_dialogues()

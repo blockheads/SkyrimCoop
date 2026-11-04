@@ -137,6 +137,121 @@ SCENARIO("A guest killed by another guest: a real death, spectating, and every c
     });
 }
 
+// aAttacker's player starts a kill move on aVictim's player's copy, as PerformAction does on its game.
+void StartKillMove(Party& aParty, World& aAttacker, World& aVictim, const char* acpEvent)
+{
+    FakeEngine& attacker = Party::Engine(aAttacker);
+    ActionEvent action;
+    action.ActionId = 0x13005;
+    action.EventName = std::string("pa_") + acpEvent;
+    action.TargetEventName = acpEvent;
+    action.TargetId = CopyOfPlayer(aParty, aAttacker, aVictim);
+    aParty.As(aAttacker, [&] { REQUIRE(attacker.PerformAnimation(FakeEngine::kPlayer, action)); });
+}
+
+// aOwner's player performs a plain action; its copy on aOther takes it after every action before it.
+void CopyCatchesUp(Party& aParty, World& aOwner, World& aOther, uint32_t aIdle)
+{
+    FakeEngine& owner = Party::Engine(aOwner);
+    FakeEngine& other = Party::Engine(aOther);
+    ActionEvent action;
+    action.ActionId = 0x959F9;
+    action.IdleId = aIdle;
+    action.EventName = "moveStop";
+    aParty.As(aOwner, [&] { REQUIRE(owner.PerformAnimation(FakeEngine::kPlayer, action)); });
+    const uint32_t cCopy = CopyOfPlayer(aParty, aOther, aOwner);
+    aParty.Until([&] { return other.GetActorLatestAnimation(cCopy).IdleId == aIdle; }, "the copy caught up with its owner's actions");
+}
+
+SCENARIO("A kill move plays both halves on the victim's game", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+    CHECK(guest.Actors.at(CopyOfPlayer(party, party.Guest(), party.Host())).InKillMove);
+
+    // The victim's half comes back to the attacker's game: the same pair, which goes on.
+    ActionEvent half;
+    half.ActionId = 0x13005;
+    half.EventName = "KillMoveI";
+    half.TargetEventName = "pa_KillMoveI";
+    half.TargetId = CopyOfPlayer(party, party.Guest(), party.Host());
+    party.As(party.Guest(), [&] { guest.Actors.at(FakeEngine::kPlayer).InKillMove = false; REQUIRE(guest.PerformAnimation(FakeEngine::kPlayer, half)); });
+    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1001);
+    CHECK(host.Actors.at(FakeEngine::kPlayer).InKillMove);
+    CHECK(host.CollapsedPairs + guest.CollapsedPairs == 0);
+}
+
+SCENARIO("A victim's last move, sent before it heard of the kill move, leaves the pair alone", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    REQUIRE(host.Actors.at(CopyOfPlayer(party, party.Host(), party.Guest())).InKillMove);
+    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1000);
+    CHECK(host.BrokenPairs == 0);
+    CHECK(host.Actors.at(CopyOfPlayer(party, party.Host(), party.Guest())).InKillMove);
+}
+
+SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
+         "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    guest.PairMarkBlocked = true;
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+
+    host.Actors.at(FakeEngine::kPlayer).InKillMove = guest.Actors.at(FakeEngine::kPlayer).InKillMove = false;
+    ActionEvent own;
+    own.ActionId = 0x13005;
+    own.EventName = "pa_KillMoveI";
+    own.TargetEventName = "KillMoveI";
+    own.TargetId = CopyOfPlayer(party, party.Guest(), party.Host());
+    party.As(party.Guest(), [&] { CHECK_FALSE(guest.PerformAnimation(FakeEngine::kPlayer, own)); });
+}
+
+SCENARIO("Two players' kill moves on each other cross: they clash, and neither game's pair collapses",
+         "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveShortD");
+    StartKillMove(party, party.Guest(), party.Host(), "KillMove1HMGrappleStab");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1001);
+    CHECK(host.CollapsedPairs == 0);
+    CHECK(guest.CollapsedPairs == 0);
+    CHECK_FALSE(host.Actors.at(FakeEngine::kPlayer).InKillMove);
+    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+    CHECK(host.IsPlayerAlive());
+    CHECK(guest.IsPlayerAlive());
+
+    // Free again: the next kill move plays as one pair.
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1002);
+    CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+}
+
 SCENARIO("A player's melee stagger reaches the victim's owner once", "[friendly-fire][melee-stagger]")
 {
     Party party(2, SmokeWorld);
