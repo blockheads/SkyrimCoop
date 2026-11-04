@@ -100,6 +100,38 @@ TEST_CASE("A refused replay recovers the owner's graph after a local clip advanc
     CHECK(guest.RefusedAnimations[cCopy] > 0);
 }
 
+TEST_CASE("A copy plays an idle's first clip, not what follows it", "[animation][dialogue][replay-clips]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    // Skyrim (Lucan): the owner's MT_IdleHDLeftEnter plays 5 s; its copy's reads t=0.01333 at_end, then HDLeftIdle.
+    for (auto* engine : {&host, &guest})
+    {
+        engine->GraphTransitions = {{{"Standing", "IdleHDLeftAngry"}, "IdleHDLeftEnter"}};
+        engine->SkippedClips = {{"IdleHDLeftEnter", "IdleHDLeftIdle"}};
+        engine->ClipFiles = {{"IdleHDLeftAngry", "IdleHDLeftEnter"}};
+    }
+    uint32_t lucan = 0;
+    party.As(party.Host(), [&] {
+        lucan = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(lucan).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "Lucan's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Standing"; }, "the spawn graph loads");
+
+    ActionEvent idle;
+    idle.ActionId = 0x13002;
+    idle.EventName = "IdleHDLeftAngry";
+    idle.IdleId = 0xF64D7;
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(lucan, idle)); });
+    CHECK(host.Actors.at(lucan).GraphState == "IdleHDLeftEnter");
+    party.Until([&] { return guest.GetActorLatestAnimation(cCopy).IdleId == idle.IdleId; }, "the copy takes the idle");
+    CHECK(guest.Actors.at(cCopy).LoadedClips.contains("IdleHDLeftAngry"));
+    CHECK(guest.Actors.at(cCopy).GraphState == "IdleHDLeftEnter");
+}
+
 TEST_CASE("NPC actions wait for the same playback time as their movement", "[animation][replay-time]")
 {
     Party party(1, SmokeWorld);

@@ -466,11 +466,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                 Retries = acOther.Retries;
                 Action = acOther.Action;
                 Variables = acOther.Variables;
+                ClipsLoaded = acOther.ClipsLoaded;
                 return *this;
             }
         } Replay;
         ActionEvent LatestAnimation;
         std::string GraphState;
+        std::set<std::string> LoadedClips; // the events whose clip files this actor's process holds
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -522,6 +524,20 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, uint32_t> RefusedAnimations;
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
+    // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
+    std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
+    std::map<std::string, std::string> ClipFiles;    // an event to its clip's state: it needs a file loaded first
+    uint32_t ClipLoadFrames = 3;
+    // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
+    std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent);
+    struct ClipLoad
+    {
+        uint32_t FormId;
+        std::string Event;
+        uint32_t Frames;
+        std::shared_ptr<std::atomic<bool>> Done;
+    };
+    std::vector<ClipLoad> ClipLoads;
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);

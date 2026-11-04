@@ -5,6 +5,24 @@ struct BGSLoadFormBuffer;
 
 struct InventoryEntry;
 
+// A loaded clip set (BSTArray of the files' handles).
+struct AnimationClipSet
+{
+    void* data;
+    uint32_t capacity;
+    uint32_t pad0C;
+    uint32_t size; // 10
+};
+static_assert(offsetof(AnimationClipSet, size) == 0x10);
+
+// A process's clip sets, 0x20 apiece (39625, 40055): the action's is the fourth.
+struct AnimationSets
+{
+    uint8_t pad0[0x60];
+    void* actionLoad; // 60, the action's load under way
+};
+static_assert(offsetof(AnimationSets, actionLoad) == 0x60);
+
 struct MiddleProcess
 {
     // void SaveActiveEffects()
@@ -15,7 +33,11 @@ struct MiddleProcess
     float direction; // B8
     uint8_t padBC[0x1A0 - 0xBC];
     GameList<ActiveEffect>* ActiveEffects;
-    uint8_t pad1A8[0x208 - 0x1A8];
+    uint8_t pad1A8[0x1B8 - 0x1A8];
+    AnimationSets* animationSets; // 1B8
+    uint8_t pad1C0[0x1E8 - 0x1C0];
+    BSRecursiveLock animationLock; // 1E8, guards the sets
+    uint8_t pad1F0[0x208 - 0x1F0];
     uint32_t occupiedFurniture; // 208 ObjectRefHandle (CommonLib MiddleHighProcessData)
     uint8_t pad20C[0x218 - 0x20C];
     BSPointerHandle<TESObjectREFR> commandingActor;
@@ -32,6 +54,8 @@ struct MiddleProcess
 };
 
 static_assert(offsetof(MiddleProcess, direction) == 0xB8);
+static_assert(offsetof(MiddleProcess, animationSets) == 0x1B8);
+static_assert(offsetof(MiddleProcess, animationLock) == 0x1E8);
 static_assert(offsetof(MiddleProcess, occupiedFurniture) == 0x208);
 static_assert(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
 static_assert(offsetof(MiddleProcess, charController) == 0x250);

@@ -227,6 +227,15 @@ void World::Update() noexcept
             step.Phase.store(Step::kIdle);
             continue;
         }
+        if (cPhase == Step::kClips)
+        {
+            if (ClipWaitOver(step, ++animation.StagedUpdates))
+            {
+                animation.StagedUpdates = 0;
+                step.Phase.store(Step::kVariables);
+            }
+            continue;
+        }
         if (cPhase != Step::kIdle)
         {
             // Native Update falls back after ten main-thread updates if no graph job takes the step.
@@ -263,7 +272,8 @@ void World::Update() noexcept
         step.Variables = animation.Variables;
         step.Retries = 0;
         animation.StagedUpdates = 0;
-        step.Phase.store(Step::kVariables);
+        step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);
+        step.Phase.store(step.ClipsLoaded ? Step::kClips : Step::kVariables);
     }
     // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())

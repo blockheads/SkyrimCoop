@@ -2,6 +2,7 @@
 
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ActorMediator.h>
+#include <Games/Skyrim/ActionClips.h>
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
@@ -98,6 +99,15 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.Phase.store(ReplayStep::kIdle, std::memory_order_release);
         return;
     }
+    if (phase == ReplayStep::kClips)
+    {
+        if (ClipWaitOver(step, ++aAnimationComponent.StagedUpdates))
+        {
+            aAnimationComponent.StagedUpdates = 0;
+            step.Phase.store(ReplayStep::kVariables, std::memory_order_release);
+        }
+        return;
+    }
     if (phase != ReplayStep::kIdle)
     {
         // Staged for the copy's graph updates; a graph nobody updates gets it here after 10 of ours.
@@ -173,8 +183,9 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         }
 
         // Applied in step with the copy's graph: variables, one graph update, the action, as on the owner
-        // (docs/re/systems/actor-ai-and-copies.md, "Replay in step with the graph").
-        step.Phase.store(ReplayStep::kVariables, std::memory_order_release);
+        // (docs/re/systems/actor-ai-and-copies.md, "Replay in step with the graph"). Its clips first, as on the owner.
+        step.ClipsLoaded = ActionClips::Request(*apActor, first.EventName.c_str());
+        step.Phase.store(step.ClipsLoaded ? ReplayStep::kClips : ReplayStep::kVariables, std::memory_order_release);
     }
 }
 

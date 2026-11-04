@@ -1,5 +1,6 @@
 """Scenarios dialogue for the co-op harness."""
 import math
+import time
 
 from ..common import (
     ACTIVATE_KEY,
@@ -54,8 +55,11 @@ from ..common import (
     UP_KEY,
 )
 from ..errors import TestFailure
+from ..objects import AnimTrace
 from ..comparisons import distance
 from ..utilities import log
+
+CLIP_WATCH = 25  # seconds watched at the NPCs' business, then in conversation
 
 
 def scenario_copy_ends_voice_line(ctx):
@@ -123,6 +127,49 @@ def scenario_dialogue_copy_looks_at_speaker(ctx):
     finally:
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
+
+def scenario_npc_clips_match(ctx):
+    """At Lucan's in Riverwood every NPC, unrestrained at its own business and then Lucan in conversation with the host,
+    has each clip's file before its copy starts it (harness trace `clips`), as its owner does. Names the clips skipped.
+    The talk is quest-gold-turn-in-host's teleport and activation, from behind him and with him unrestrained."""
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    try:
+        ctx.wait_for(f"[host] Lucan {LUCAN:X} is here", lambda: ctx.host_npc_state(LUCAN).get("session_id", -1) >= 0, 30)
+        owners = {int(i): s["session_id"] for i, s in ctx.local_player("").get("local_actors", {}).items() if s.get("session_id", -1) >= 0}
+        names = {i: f"{i:X}" for i in owners}
+        copies = {ctx.copy_of("client", sid): names[i] for i, sid in owners.items()}
+        log(f"watching {sorted(names.values())}")
+        lucan_copy = next(copy for copy, name in copies.items() if name == names[LUCAN])
+        with AnimTrace(ctx, "npc-clips", {"": names, "client": copies}) as trace:
+            def watched(seconds):
+                end = time.time() + seconds
+                ctx.wait_for(f"both games record {seconds}s", lambda: time.time() >= end, seconds + 5)
+            watched(CLIP_WATCH)
+            # As a player found it: teleported behind him and talked, the other game looking on.
+            trace.take()
+            yaw = next(e["yaw"] for e in reversed(trace.entries) if e["game"] == "" and e["who"] == names[LUCAN] and e["kind"] == "pos")
+            behind = (math.degrees(yaw) + 180) % 360
+            ctx.place_before("", LUCAN, 110, behind)
+            ctx.place_before("client", lucan_copy, 200, (behind + 180) % 360)
+            ctx.activate_on("", LUCAN)
+            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15)
+            watched(CLIP_WATCH)
+        played = sum(len(e["detail"]) for e in trace.entries if e["kind"] == "clips" and e["game"] == "client")
+        if not played:
+            raise ctx.failure("[client] no clip read: this run shows nothing")
+        if skipped := skipped_clips(trace):
+            raise ctx.failure(f"{len(skipped)} of {played} clips started without their files: " + " | ".join(skipped[:6]))
+        log(f"[client] all {played} clips read had their files")
+    finally:
+        ctx.close_dialogues()
+        ctx.both_go(HOME_CELL)
+
+
+def skipped_clips(trace):
+    """Every clip a game started without its file: it reads as over at once (the engine's 0.01333 s), and the graph runs on."""
+    return [f"[{e['game'] or 'host'}] {e['who']}: {clip}" for e in trace.entries if e["kind"] == "clips"
+            for clip, state in e["detail"].items() if not state["loaded"] and state["at_end"]]
+
 
 def scenario_dialogue_last_one_out_ends_it(ctx):
     """A player leaving (Tab) leaves the conversation on for the others; the last one out ends it. The host talks

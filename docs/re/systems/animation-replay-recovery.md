@@ -61,3 +61,23 @@ revived guest's own lifted skeleton. Both Beast Forms and both kill-move replay 
 paired refusals remain logged (four kill moves and HorseExit). The earlier wolf trace proves that duplicate
 was already playing, but this does not close every paired refusal, facing drift, or unrelated AI scene state.
 Latest full gate:618 C++ cases /6,402 assertions, Python/UI checks and Windows builds pass.
+
+## Copies played clips before their files were in (2026-11-04)
+
+An owner's game loads an action's clip files first: `AIProcess` 39625 asks `AnimationFileManagerSingleton` (43621) and
+performs the action from `RunActionAnimationLoadedCallback`. A copy's replay went straight to `PerformComplexAction`
+(38953), so its clip started with no animation. `hkbClipGenerator` then reads a duration of 0.01333 s (59263): over at
+once, its end annotation fires and the graph runs on, one clip early. The graph, the actions and the clip list all agree,
+which is why nothing compared caught it; only what plays differs (Lucan's `MT_IdleHHRightEnter`: 5 s on the host, 1 s
+of blend on the guest).
+
+Skyrim, teleported behind Lucan and talking (`npc-clips-match`, the trace's `clips` readout): before, 8 clips on the guest
+read `t=0.01333 at_end` with no file and none on the host; after, none in three runs, and Enter clips match (4.74 s and
+4.71 s). A clip's control object exists either way: only `animationControl->binding->animation` tells.
+
+`ActionClips::Request` does the owner's half for a copy through the engine's own slots (callback at `high+0x430`, load at
+the sets' `+0x60`, clips kept by 40055, cancelled by 39258, which process teardown also uses). The replay step waits in
+`kClips`, at most 120 updates. Restrained NPCs perform no idles, so restrained scenarios cannot show this.
+
+Not this bug: an idle's variant is the graph's own random pick, so two games can differ (`docs/bugs.md`).
+`OffsetArmsCrossed`, the player-visible case, played only in a run before the readout could tell loaded clips.

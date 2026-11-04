@@ -78,6 +78,18 @@ bool FakeEngine::RagdollPosed(uint32_t aFormId) const noexcept
 
 void FakeEngine::Frame()
 {
+    for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
+    {
+        if (it->Frames-- > 0)
+        {
+            ++it;
+            continue;
+        }
+        if (const auto cActor = Actors.find(it->FormId); cActor != Actors.end())
+            cActor->second.LoadedClips.insert(it->Event);
+        it->Done->store(true);
+        it = ClipLoads.erase(it);
+    }
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -541,9 +553,23 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             }
         }
         else
+        {
             actor.GraphState = it->second;
+            if (ClipFiles.contains(acAction.EventName) && !actor.LoadedClips.contains(acAction.EventName))
+                if (const auto cNext = SkippedClips.find(actor.GraphState); cNext != SkippedClips.end())
+                    actor.GraphState = cNext->second;
+        }
     }
     return true;
+}
+
+std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)
+{
+    if (!ClipFiles.contains(acEvent))
+        return nullptr;
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done});
+    return done;
 }
 
 bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
@@ -553,6 +579,8 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.Type = 2 | (flags ? 4 : 0);
     aAction.Tick = World::Get().GetFrameTick();
     aAction.ActorId = aFormId;
+    if (ClipFiles.contains(aAction.EventName))
+        Actors.at(aFormId).LoadedClips.insert(aAction.EventName);
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
         // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
         if (flags & 1)
