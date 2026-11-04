@@ -7,7 +7,9 @@ everything there applies. The rule below is repeated here because it matters mos
 
 Every bug, in this order:
 
-1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would.
+1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would. By default, write it
+   through the `skyrim-coop` MCP: play the bug, then `record_export` makes the scenario
+   ([the play flow](docs/design/repro-mcp.md)). By hand is fine when the bug is already understood.
 2. **A smoke test that fails on it:** a `GameTests` flow (whole games in-process on the fake engine,
    `Code/tests/games/`). If the fake cannot show it, first teach the fake the engine fact Skyrim showed.
    **Then free the duo** (stop your games, release `build/coop-test/DUO.md`): steps 2-4 need no Skyrim. If the smoke

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 # MCP speaks on stdout: keep its own handle, and point fd 1 (prints, child processes) at stderr.
 _mcp_out = os.fdopen(os.dup(1), "w", buffering=1)
@@ -23,7 +24,20 @@ from coop_harness.common import ROOT, TEST_HOME  # noqa: E402
 from coop_harness.errors import TestFailure  # noqa: E402
 
 OWNER = f"repro-mcp ({ROOT.name})"
-server = FastMCP("skyrim-coop")
+INSTRUCTIONS = """Plays the shared duo (two Skyrims) to recreate a bug: step 1 of the bug-fix flow in CLAUDE.md. Guide:
+docs/design/repro-mcp.md, "The play flow".
+
+Order: duo_start, duo_wait; scene (a place; scene_reset for the blank QASmoke) or stage; record_start; go_to, talk, use,
+take, fight; look, observe, why to see what happened; expect the correct behaviour; record_export; duo_stop.
+
+- A failing expect is the bug: export it, and the scenario keeps it. Then duo_stop: the next steps need no Skyrim.
+- State the property the bug breaks. Check an expect can fail: 0 items in both games agrees too.
+- Read an NPC's AI on the host: a copy's ai.* is 0 by design, and copies run no AI.
+- A verb's `why` says why it stopped, and its trace how it moved: read them before writing a script.
+- scene's `disagree` lists real desyncs already there; only new ones fail after it.
+- duo_start waits in the shared queue. Hold the duo only while you use it.
+- This server loads its code once: a change to the verbs needs it restarted."""
+server = FastMCP("skyrim-coop", instructions=INSTRUCTIONS)
 session = Session()
 duo = {"process": None, "log": None}
 
@@ -40,7 +54,9 @@ def tool(function):
                 return result
             except TestFailure as error:
                 session.record_call(function.__name__, arguments, False, str(error))
-                return {"ok": False, "failure": str(error)}
+                outcome = getattr(error, "outcome", None)
+                facts = {key: value for key, value in (outcome or {}).items() if key != "failure"}
+                return {"ok": False, "failure": str(error), **({"outcome": facts} if facts else {})}
     return server.tool()(run)
 
 
@@ -124,11 +140,27 @@ def harness(game: str, request: dict) -> dict:
 def scene_reset() -> dict:
     """The blank slate: both players home in the baseline cell, staged things gone, the world thawed."""
     session.unstage()
+    session.forget_scene()
     session.reset_baseline()
     if problems := session.check_baseline():
         raise session.failure("the baseline did not come back: " + "; ".join(problems))
     session.name_players()
     return {"ok": True, "handles": session.handles()}
+
+
+@tool
+def scene(save: str = "", at: str = "", pin: bool = True) -> dict:
+    """Starts a repro where it happens: on the duo booted from `save` (duo_start save=...), the party goes to `at` (a
+    console line: coc Riverwood) and time and weather are pinned. Returns the NPCs around by handle (faendal,
+    whiterun_guard_2) and `disagree`: what already differs here, real desyncs to read; from now on only new ones fail.
+    scene_reset is the same for the blank QASmoke baseline."""
+    return {"ok": True, **session.scene(save or None, at or None, pin)}
+
+
+@tool
+def find(name: str, handle: str = "") -> dict:
+    """Names the nearest NPC both games show whose name holds `name` (replays by name: ids differ between runs)."""
+    return {"ok": True, **session.find(name, handle or None)}
 
 
 @tool
@@ -160,20 +192,33 @@ def unstage() -> dict:
 
 
 @tool
-def observe(names: list[str]) -> dict:
-    """What each game shows of each handle (an actor's status entry, a reference's world-state row), and how far
-    apart the two games have it."""
-    return {"ok": True, "seen": session.observe_handles(names)}
+def look(game: str = "host") -> dict:
+    """That game around its player: cell, menus, health, and the actors near it with distance and package."""
+    return {"ok": True, **session.look(_game(game))}
 
 
 @tool
-def expect(name: str, check: str = "same_place", within: float = 5.0, game: str = "", value: list[float] | None = None,
-           of: str = "") -> dict:
-    """The correct behaviour, checked now and recorded: "same_place" (both games within `within` units), "at" (that
-    game's place within `within` of `value`), or "at_rest_of" (that game's place within `within` of where the `of`
-    game's body rested, from wait_rest: replays without literal coordinates). A failing expect is the bug: the
-    exported scenario keeps it."""
-    return {"ok": True, **session.expect(name, check, within, game or None, value, of or None)}
+def observe(names: list[str], full: bool = False) -> dict:
+    """Each handle in both games: everything the first time, then only what changed ({field: [was, is]}), plus how far
+    apart the games have it (apart) and what they hold differently (differs). full=true reads every field."""
+    return {"ok": True, "seen": session.watch(names, full)}
+
+
+@tool
+def why() -> dict:
+    """The last goal verb's outcome: done, how, why it stopped, seconds, its trace (speeds, stalls, last events, file)."""
+    return {"ok": True, "last": session.last_verb()}
+
+
+@tool
+def expect(name: str, check: str = "same_place", within: float = 5.0, game: str = "", value: Any = None, of: str = "",
+           field: str = "", seconds: float = 0.0) -> dict:
+    """The correct behaviour, checked now and recorded; a failing expect is the bug, and the exported scenario keeps it.
+    "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
+    `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
+    `name` holds the same in both games), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
+    `seconds`; "set": not nothing; no value: equal in both), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
+    return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
 @tool
@@ -229,18 +274,11 @@ def network(game: str = "host") -> dict:
 
 
 @tool
-def walk_to(game: str, target: str, within: float = 100.0) -> dict:
-    """That game's player walks to a handle along the navmesh (round walls, through rooms), as the engine paths an
-    actor (AI-driven, PathToReference); the controls are the player's again afterwards."""
-    return {"ok": True, **session.walk_to(_game(game), target, within)}
-
-
-@tool
-def steer_to(game: str, target: str, within: float = 100.0) -> dict:
-    """That game's player walks to a handle by real input (turning toward it, forward held), in a straight line: a
-    wall stops it and the failure says how close it got."""
-    outcome = session.steer_to(_game(game), target, within)
-    return {"ok": True, "frames": outcome.get("frame"), "seconds": outcome.get("seconds")}
+def go_to(game: str, target: str, within: float = 100.0, straight: bool = False, by_input: bool = False) -> dict:
+    """That game's player gets within `within` units of a handle: AI-driven along the navmesh, so for getting there, not
+    for testing movement. Fails with why: no_path (straight=true runs there in a line), stalled, moved_off, timeout,
+    menu_blocked. by_input=true runs in a line by real input, for a bug in the movement itself."""
+    return {"ok": True, **session.go_to(_game(game), target, within, straight, by_input)}
 
 
 @tool
@@ -257,16 +295,29 @@ def arrives_with_party(game: str = "guest", within: float = 3000.0) -> dict:
 
 
 @tool
-def talk_to(game: str, target: str) -> dict:
-    """That game's player faces a handle and presses Activate, as a player starts a conversation; returns the lines."""
-    options = session.talk_to(_game(game), target)
-    return {"ok": True, "options": [option.get("text") for option in options]}
+def talk(game: str, target: str, say: list[str] | None = None) -> dict:
+    """That game's player starts a conversation with a handle (or goes on with the open one) and picks each line of
+    `say`: text it contains, or an index. Returns what was said and the lines on offer; why no_line lists them."""
+    return {"ok": True, **session.talk(_game(game), target, [int(l) if l.isdigit() else l for l in say or []])}
 
 
 @tool
-def pick(game: str, line: str) -> dict:
-    """Picks a line in that game's open conversation: a number is its index, text picks the first line containing it."""
-    return {"ok": True, **session.pick(_game(game), int(line) if line.isdigit() else line)}
+def use(game: str, target: str) -> dict:
+    """That game's player walks up and activates a handle (door, chest, furniture) with real input; says what changed,
+    or fails with why refused."""
+    return {"ok": True, **session.use(_game(game), target)}
+
+
+@tool
+def take(game: str, target: str) -> dict:
+    """That game's player opens a container and takes everything; returns how many items left it."""
+    return {"ok": True, **session.take(_game(game), target)}
+
+
+@tool
+def fight(game: str, target: str, hits: int = 30) -> dict:
+    """That game's player draws what it holds and hits a handle until it dies; why player_down if the player falls."""
+    return {"ok": True, **session.fight(_game(game), target, hits)}
 
 
 @tool
@@ -328,7 +379,8 @@ def screenshot(game: str = "host") -> dict:
 @tool
 def record_export(name: str, doc: str, tags: list[str] | None = None) -> dict:
     """Writes the recording as scripts/coop_harness/scenarios/recorded/<name>.py (run with coop_test.py scenario
-    <name>), and as Code/tests/specs/<name>.json when every replayed call was a spec_step."""
+    <name>), and as Code/tests/specs/<name>.json when every replayed call was a spec_step; otherwise a spec draft and
+    the leftovers: the calls a flow on the fake has to say by hand."""
     return {"ok": True, "written": session.record_export(name, doc, tags or ["recorded"])}
 
 

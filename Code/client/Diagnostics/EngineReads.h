@@ -145,6 +145,9 @@ float GetGlobalTimeMultiplier() noexcept;
 // A global variable's value (TESGlobal 0x34), none for no such global.
 std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept;
 
+// The player's Always Run toggle (PlayerControlsData::running; Caps Lock flips it): running or walking by input.
+bool GetAlwaysRun() noexcept;
+
 // What the player holds with Activate (a grabbed physics object): its form id, 0 for nothing.
 uint32_t GetGrabbedObject() noexcept;
 

@@ -14,7 +14,8 @@ from .physics import PhysicsActions
 from .magic import MagicActions
 from .interface import InterfaceActions
 from .play import PlayActions
-from .repro import PlayerVerbs, PressTiming, ReproActions
+from .play_verbs import PlayerVerbs
+from .repro import PressTiming, ReproActions
 
 
 class Actions(

@@ -1,5 +1,13 @@
 # Progress
 
+2026-11-03: the repro MCP plays toward a bug ([repro-mcp.md](design/repro-mcp.md), "The play flow"): `scene` (a place, a
+pinned clock, named NPCs, what already differs shown), goal verbs with one outcome and a named `why` (`go_to`, `talk`,
+`use`, `take`, `fight`), `look`/`observe` diffs/`why`, new `expect` kinds, a spec draft with leftovers, the `scene`
+fixture. From `bugs.md` alone: the created chest reproduced and exported (`created-chest-reaches-guest-empty`, fails
+until fixed; its GameTests flow lands with the fix); the follower entry not reproduced. `faendal-letter` runs through
+the runner and fails only its end comparison on real desyncs. Seen in Riverwood, open: a Whiterun Guard's copy level 1 against
+1000, the player's copy `state.hands` empty against 77772. Python units in `test_coop_harness` (GoalVerbs, Scenes).
+
 2026-11-03: the duo's games have a silent audio device again. Running as `coop2` (2026-11-01) they had no audio
 driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
 `copy-ends-voice-line` failed every time. Wine's ALSA driver now plays to ALSA's null device
@@ -92,6 +100,13 @@ leveled item to give (its read counted the changes' 0, not the engine's count th
 removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEngine::TransferContainer` now counts
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
+
+2026-11-03: `walk_to` runs (repro-mcp.md, Phase 3's speeds): `PathToReference`'s speed only scales the AI-driven
+player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
+and walks a `PathToReference` leg only round what stops it; `steer_to` turns Always Run on (status
+`player.always_run`) and sprints. Faendal flow 252 s to 113 s. Python units in `test_coop_harness.Repro`.
+Open: the runner's baseline refuses `LateAfterDragonslayerBackinSkyrim` (Odahviing's copy: level 1 vs 20, 300
+units off); `stage` put a staged NPC 75,000 units off after the players had hopped cells.
 
 2026-11-02: the repro MCP (uncommitted, [repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
