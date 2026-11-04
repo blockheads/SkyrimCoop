@@ -83,6 +83,13 @@ removed none from its list (`ExtraLeveledItem`); it worked after a load. `HostEn
 with the engine (16108) and takes from the matching list ([inventory-changes.md](re/systems/inventory-changes.md),
 "A fresh roll"). Scenario `guest-loots-hosts-roll`; no GameTests flow (below the bridges the fake replaces).
 
+2026-11-03: `walk_to` runs (repro-mcp.md, Phase 3's speeds): `PathToReference`'s speed only scales the AI-driven
+player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
+and walks a `PathToReference` leg only round what stops it; `steer_to` turns Always Run on (status
+`player.always_run`) and sprints. Faendal flow 252 s to 113 s. Python units in `test_coop_harness.Repro`.
+Open: the runner's baseline refuses `LateAfterDragonslayerBackinSkyrim` (Odahviing's copy: level 1 vs 20, 300
+units off); `stage` put a staged NPC 75,000 units off after the players had hopped cells.
+
 2026-11-02: the repro MCP (uncommitted, [repro-mcp.md](design/repro-mcp.md)): `scripts/coop_mcp.py` keeps one harness
 session open over the duo, so a bug is staged step by step: a frozen world stepped a frame at a time (`Main::freezeTime`,
 `TestHarness/FrameStepper.h`), `stage`/`drop` with handles per game, `observe` both games, `expect`, and

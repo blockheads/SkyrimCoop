@@ -229,17 +229,16 @@ def network(game: str = "host") -> dict:
 
 @tool
 def walk_to(game: str, target: str, within: float = 100.0) -> dict:
-    """That game's player walks to a handle along the navmesh (round walls, through rooms), as the engine paths an
-    actor (AI-driven, PathToReference); the controls are the player's again afterwards."""
+    """That game's player travels to a handle along the navmesh (round walls, through rooms) as the engine moves an
+    actor (AI-driven): running after an actor, walking round what stops it; the controls are the player's again after."""
     return {"ok": True, **session.walk_to(_game(game), target, within)}
 
 
 @tool
 def steer_to(game: str, target: str, within: float = 100.0) -> dict:
-    """That game's player walks to a handle by real input (turning toward it, forward held), in a straight line: a
-    wall stops it and the failure says how close it got."""
-    outcome = session.steer_to(_game(game), target, within)
-    return {"ok": True, "frames": outcome.get("frame"), "seconds": outcome.get("seconds")}
+    """That game's player runs to a handle by real input (turning toward it, forward held, Always Run, sprinting), in a
+    straight line: a wall stops it and the failure says how close it got."""
+    return {"ok": True, **session.steer_to(_game(game), target, within)}
 
 
 @tool

@@ -31,6 +31,7 @@ struct PlayerControlsData
     std::uint8_t unk2D;    // 2D
     std::uint16_t unk2E;   // 2E
 };
+static_assert(offsetof(PlayerControlsData, bRunning) == 0x25);
 
 struct PlayerControls
 {

@@ -296,6 +296,12 @@ std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept
     return pGlobal->f;
 }
 
+bool GetAlwaysRun() noexcept
+{
+    const PlayerControls* pControls = PlayerControls::GetInstance();
+    return pControls && pControls->Data.bRunning;
+}
+
 uint32_t GetGrabbedObject() noexcept
 {
     const PlayerCharacter* pPlayer = PlayerCharacter::Get();

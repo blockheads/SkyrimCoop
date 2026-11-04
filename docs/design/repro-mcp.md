@@ -63,11 +63,25 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
 
 ### Phase 3, as built
 
-- `walk_to(game, target, within)`: along the navmesh, as the engine paths an actor: the player AI-driven
-  (`Game.SetPlayerAIDriven`) with `Actor.PathToReference`, in legs (a leg the engine ends short of the target starts
-  the next, at most 5), the controls the player's again after. When the engine refuses the path (the call ends
-  false at once) it walks straight by real input (`steer_to`) and says `pathed: false`. `steer_to` is the straight
-  walk on its own (a checked action: turn toward it, forward held).
+- `walk_to(game, target, within)`: along the navmesh as the engine moves an actor, the player AI-driven
+  (`Game.SetPlayerAIDriven`). After an actor it runs: `Actor.KeepOffsetFromActor` with `within` as the catch-up
+  radius (an actor catches up running). When a run stalls (under 40 units in 1.5 s: a fence, a door) it walks a
+  4 s leg of `Actor.PathToReference` round it and runs again; an object gets legs only. When the engine refuses the
+  path (the call ends false at once) it runs straight by real input (`steer_to`) and says `pathed: false`. The time
+  limit is twice the distance at 200 units/s plus 10 s, so a stuck walk fails in seconds. `steer_to` is the
+  straight run on its own (a checked action: turn toward it, forward held, Always Run switched on with Caps Lock and
+  back after, Sprint pressed once moving).
+- **Speeds** (2026-11-03, units/s, the duo at ~55 fps):
+  - A player by real input: walk 81, run 350-360, sprint 490-500, the same in QASmoke, Riverwood and the plains.
+    Sprint only starts once moving and from a run (pressed while standing, or while walking, it does nothing).
+  - `PathToReference`'s float is `MovementParameters::walkRunPercent` (built in `Actor` 37893, which refuses values
+    outside 0-1). For the AI-driven player it scales a walk: 1.0 walks (80), 0.5 is 40 (the old default, the
+    "41 units/s" and outdoor crawl below), 0 stands. Always Run and Sprint don't change it. So a path never runs.
+  - `KeepOffsetFromActor` catching up runs at 300-450 whatever Always Run says; inside the radius it walks.
+  - Always Run is the status readout `player.always_run` (`PlayerControlsData::running`).
+  - The Faendal recorded flow (late save, Riverwood), host's walk / guest's walk / the whole flow: 71 / 83 / 252 s
+    before, 19 / 6.5 / 113 s after (the rest is dialogue). The runner's baseline refused this save (Odahviing's
+    copy differs), so both were timed through a Session.
 - `talk_to(game, target)`: walks up if it is out of reach (NPCs wander), switches a third-person camera to first with
   the view key, faces it, presses Activate (real input), waits for the conversation; returns its lines.
   `pick(game, line)` by index or text waits for the speaker's response (new lines, or its line over) and returns
@@ -295,6 +309,7 @@ Each piece lands with its tests, and commits only when the user asks.
     ignored now.
   - A long outdoor walk ended short with the latent call still running: the time limit assumed QASmoke's 41
     units/s (outdoors about 20); now distance/15 + 20 s, and a leg the engine ends short starts the next one.
+    (Later: both came from `PathToReference` at 0.5, half a walk; `walk_to` runs now, see Phase 3's speeds.)
   - `pick` returned before the response was said, so the next pick saw the old lines.
   - `talk_to` failed in third person (the late save's camera) and when the NPC had wandered off.
   - The export: a numeric pick replays as an index; reads (`get*` console lines, read-only harness commands) are
