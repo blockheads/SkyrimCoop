@@ -7,7 +7,6 @@ from ..common import (
     IRON_SWORD,
     KILL_MOVE_LAG,
     KILL_MOVE_RANDOM,
-    KILL_MOVES_CROSS_ROUNDS,
     LYDIA,
     MELEE_GAP,
     PAIR_TOLERANCE,
@@ -248,18 +247,14 @@ def scenario_kill_move_kills_guest(ctx):
 def scenario_kill_moves_cross(ctx):
     """The two players swing a killing blow at each other at once, moving, each from its own game. Crossed, each game has
     its own pair. They clash: both players free again at once, nobody hurt (taken as one pair, the engine ended both clips
-    and dropped a player with a plain death 0.35 s in). Rounds until the pairs cross: a swing a moment apart is an ordinary
-    kill move."""
+    and dropped a player with a plain death 0.35 s in)."""
     copies = {game: ctx.other_player(ctx.actors_on(game)) for game in ("", "client")}
     for game in ("", "client"):
         ctx.console_on(game, "set KillMoveRandom to 100")
         ctx.give_sword(game)
     try:
-        for round_number in range(1, KILL_MOVES_CROSS_ROUNDS + 1):
-            if ctx.kill_move_exchange(copies):
-                return
-            copies = {game: ctx.other_player(ctx.actors_on(game)) for game in ("", "client")}
-        raise ctx.failure(f"the two kill moves never crossed in {KILL_MOVES_CROSS_ROUNDS} rounds")
+        if not ctx.kill_move_exchange(copies):
+            raise ctx.failure("the two swings did not start a pair on each game: nothing crossed")
     finally:
         for game in ("", "client"):
             ctx.console_on(game, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")

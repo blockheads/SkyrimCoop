@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 from coop_harness import Session
+from coop_harness.actions.combat import CombatActions
 from coop_harness.common import WINDOWS
 from coop_harness.errors import TestFailure
 from coop_harness.game import Game
@@ -1408,6 +1409,28 @@ class DuoLockTests(unittest.TestCase):
         self.assertIn("keep me", text)
         self.assertIn("Claiming and freeing are automatic", text)
         self.assertLess(text.index("a (/wt/a): x. done"), text.index("old line"))
+
+
+class KillMoveActions(unittest.TestCase):
+    def test_a_failed_swing_lets_go_of_every_button_pressed(self):
+        ctx = MagicMock()
+        ctx.death_state.return_value = {}
+        ctx.player_health.return_value = 100
+        ctx.face.side_effect = TestFailure("no face")
+        with patch("coop_harness.actions.combat.AnimTrace"):
+            self.assertFalse(CombatActions.kill_move_exchange(ctx, {"": 1, "client": 2}))
+        sent = [call.args for call in ctx.player_command.call_args_list]
+        for game, button in (("", "forward"), ("client", "strafe_left")):
+            self.assertIn((game, {"cmd": "input", "button": button, "down": False}), sent)
+
+    def test_bare_hands_clear_a_spell_and_a_weapon_from_their_own_hands(self):
+        ctx = MagicMock()
+        ctx.player_snapshot.return_value = {"state": {"hands": [0x12FCD, 0x12EB7]}}
+        CombatActions.equip_weapon(ctx, "", 0)
+        lines = [call.args[1] for call in ctx.console_on.call_args_list]
+        self.assertIn("player.unequipspell 00012FCD left", lines)
+        self.assertIn("player.unequipitem 00012EB7", lines)
+        ctx.wait_for.assert_called_once()
 
 
 if __name__ == "__main__":

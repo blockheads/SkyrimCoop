@@ -261,12 +261,11 @@ void World::Update() noexcept
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
         const auto cPartner = engine.Actors.find(replayed.TargetId);
         const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() && !cPartner->second.Copy;
-        if (cLocalPartner && cPartner->second.InKillMove)
+        if (cLocalPartner && ::ReplayState::SettlePairedReplay({replayed.EventName.c_str(), form.Id, true, cPartner->second.InKillMove,
+                                                                cPartner->second.LatestPairAction.TargetEventName.c_str(),
+                                                                cPartner->second.LatestPairAction.TargetId},
+                                                               [&](bool aCopy) { engine.EndKillMove(aCopy ? form.Id : replayed.TargetId); }))
         {
-            const auto& cPair = cPartner->second.LatestPairAction;
-            if (::ReplayState::ReplayPair(true, true, cPair.TargetEventName == replayed.EventName, cPair.TargetId == form.Id) ==
-                ::ReplayState::PairReplay::kClash)
-                actor.InKillMove = cPartner->second.InKillMove = false;
             animation.LastRanAction = replayed;
             engine.SetActorLatestAnimation(form.Id, replayed);
             animation.TimePoints.pop_front();

@@ -537,6 +537,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, uint32_t> RefusedAnimations;
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
+    void EndKillMove(uint32_t aFormId); // Character 38614: the flag cleared, and a recorded killer's kill queued
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {

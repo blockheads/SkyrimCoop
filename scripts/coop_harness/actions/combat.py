@@ -37,9 +37,12 @@ class CombatActions:
         if item:
             ctx.equip_in_hand(instance, [f"player.additem {item:08X} 1", f"player.equipitem {item:08X}"], item, "holds the weapon")
             return
-        for hand in (ctx.player_snapshot(instance).get("state") or {}).get("hands", []):
-            if hand:
-                ctx.console_on(instance, f"player.unequipitem {hand:08X}")
+        hands = lambda: (ctx.player_snapshot(instance).get("state") or {}).get("hands", [])
+        for slot, held in zip(("left", "right"), hands()):
+            if held:  # a weapon or a spell: the command for the other kind does nothing
+                ctx.console_on(instance, f"player.unequipitem {held:08X}")
+                ctx.console_on(instance, f"player.unequipspell {held:08X} {slot}")
+        ctx.wait_for(f"[{instance or 'host'}] both hands are empty", lambda: not any(hands()), 5)
 
 
     def kill_move_exchange(ctx, copies):
@@ -58,23 +61,28 @@ class CombatActions:
             ctx.wait_on(game, "the other player shows one hit from death", lambda a, c=other: (a.get(str(c), {}).get("health") or 100) <= 10, 5)
         trace = AnimTrace(ctx, "kill-moves-cross", {game: {0x14: "player", copies[game]: "other"} for game in games}, video=False)
         with trace:
-            ctx.player_command("", {"cmd": "input", "button": "forward", "down": True})
-            ctx.player_command("client", {"cmd": "input", "button": "strafe_left", "down": True})
-            for game in games:
-                ctx.face(game, copies[game])
-                ctx.player_command(game, {"cmd": "input", "button": "right", "down": True})
             def own_pairs():
                 trace.take()
                 return all(any(e["game"] == game and e["who"] == "player" and e["kind"] == "action" and e["event"].startswith("pa_")
                                for e in trace.entries) for game in games)
+            held = []
+            def hold(game, button):
+                ctx.player_command(game, {"cmd": "input", "button": button, "down": True})
+                held.append((game, button))
             try:
+                hold("", "forward")
+                hold("client", "strafe_left")
+                for game in games:
+                    ctx.face(game, copies[game])
+                    hold(game, "right")
                 ctx.wait_for("each game started its own pair", own_pairs, 1)
                 crossed = True
             except TestFailure:
                 crossed = False
             finally:
-                for game, button in (("", "forward"), ("client", "strafe_left"), ("", "right"), ("client", "right")):
-                    ctx.player_command(game, {"cmd": "input", "button": button, "down": False})
+                for game, button in held:
+                    with contextlib.suppress(TestFailure):
+                        ctx.player_command(game, {"cmd": "input", "button": button, "down": False})
             if crossed:
                 for game in games:
                     start = trace.wait_state(game, "player", "kill_move", True, 1)

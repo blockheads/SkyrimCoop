@@ -544,6 +544,14 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
     World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
 }
 
+void FakeEngine::EndKillMove(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.InKillMove = false;
+    if (actor.KilledBy)
+        KillActor(aFormId);
+}
+
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 {
     auto& actor = Actors.at(aFormId);

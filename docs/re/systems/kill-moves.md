@@ -70,8 +70,8 @@ That is the "kill move played instantly".
 Skipping the replay alone is not enough: each copy goes on following its owner, leaves the pair, the clip ends at 0.25 s,
 and with no `KillMoveEnd` both players stay flagged for 10 s.
 
-Now a replayed pair on a partner already in a kill move does not play (`ReplayState::ReplayPair`, in
-`AnimationSystem::Update`):
+Now a replayed pair on a partner already in a kill move does not play (`ReplayState::SettlePairedReplay`, called
+by `AnimationSystem::Update` and the fake's replay):
 
 - **Clash:** the partner's own pair is with this copy, and this is not that pair's other half. Both end their kill move
   (38614), nobody is hurt, and both can swing again. No blow lands: `HitFrame` comes later than the clips end.
