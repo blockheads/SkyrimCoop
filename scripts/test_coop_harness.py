@@ -166,6 +166,32 @@ class Harness(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "unknown tag"):
             session.scenario_names([], "does-not-exist")
 
+    def play_vanilla(self, control="host", built=True):
+        session = self.session
+        session.command_launch, session.command_duo = Mock(), Mock()
+        args = argparse.Namespace(vanilla=True, control=control, attach=False)
+        monitors = Mock(stdout="Monitors: 1\n 0: +*DP-1 2560/600x1440/340+0+0  DP-1\n")
+        harness = Mock(exists=Mock(return_value=built))
+        with patch("coop_harness.commands.VANILLA_HARNESS", harness), \
+                patch("coop_harness.commands.subprocess.run", return_value=monitors), \
+                patch("coop_harness.commands.subprocess.Popen") as view:
+            session.command_play(args)
+        return args, view
+
+    def test_play_vanilla_boots_one_game_in_a_window_and_no_view(self):
+        args, view = self.play_vanilla()
+        self.session.command_launch.assert_called_once_with(args, _game=self.session.host)
+        self.session.command_duo.assert_not_called()
+        self.assertEqual(self.session.VISIBLE, {""})
+        view.assert_not_called()
+
+    def test_play_vanilla_refuses_a_guest_and_a_missing_stand_in(self):
+        with self.assertRaisesRegex(TestFailure, "solo"):
+            self.play_vanilla(control="guest")
+        with self.assertRaisesRegex(TestFailure, "SkyrimCoopVanillaHarness"):
+            self.play_vanilla(built=False)
+        self.session.command_launch.assert_not_called()
+
     def test_games_own_paths_connections_and_do_not_change_one_another(self):
         session = self.session
         self.assertNotEqual(session.host.control, session.guest.control)
@@ -491,37 +517,6 @@ class Harness(unittest.TestCase):
 
 
 class Repro(unittest.TestCase):
-    DUO = "# Duo\n\n## Now\n\nfree\n\n## Waiting\n\n\n## Log\n\n- old line\n"
-
-    def test_the_duo_reservation_is_read_claimed_and_logged(self):
-        from coop_harness.actions import repro
-        self.assertIsNone(repro.duo_holder(self.DUO))
-        claimed = repro.with_now(self.DUO, "repro-mcp, since 22:00, x")
-        self.assertEqual(repro.duo_holder(claimed), "repro-mcp, since 22:00, x")
-        freed = repro.with_log(repro.with_now(claimed, "free"), "22:00 to 22:10 repro-mcp: done")
-        self.assertIsNone(repro.duo_holder(freed))
-        self.assertLess(freed.index("22:00 to 22:10"), freed.index("old line"))
-
-    def test_a_held_duo_refuses_another_claim(self):
-        session = Session()
-        self.addCleanup(session.close)
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "DUO.md"
-            path.write_text(self.DUO.replace("free", "party-markers, since 20:35, a batch"))
-            with patch("coop_harness.actions.repro.DUO_FILE", path), self.assertRaises(TestFailure):
-                session.duo_claim("repro-mcp", "a repro")
-
-    def test_freeing_a_duo_someone_else_holds_stops_nothing(self):
-        session = Session()
-        self.addCleanup(session.close)
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "DUO.md"
-            path.write_text(self.DUO.replace("free", "party-aggro, since 22:54, a batch"))
-            with patch("coop_harness.actions.repro.DUO_FILE", path), patch.object(Session, "stop_duo") as stop, \
-                    self.assertRaises(TestFailure):
-                session.duo_free("repro-mcp", "done")
-            stop.assert_not_called()
-
     def test_a_recording_exports_as_a_scenario_keeping_its_failing_expect(self):
         from coop_harness.actions import repro
         entries = [
@@ -700,6 +695,229 @@ class Repro(unittest.TestCase):
         self.assertEqual(session.resolve("player", "guest"), 0x14)
         with self.assertRaises(TestFailure):
             session.resolve("nobody", "host")
+
+
+CONTENDER = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from coop_harness.duo_lock import DuoLock
+home, worktree, name, stops = sys.argv[2:6]
+def stop(command, holder_worktree):
+    open(stops, "a").write(holder_worktree + "\\n")
+    return True
+lock = DuoLock(home, worktree, name, stop=stop)
+print("role", lock.acquire(name, timeout=60), flush=True)
+sys.stdin.readline()
+lock.release("done")
+print("released", flush=True)
+"""
+
+
+@unittest.skipIf(WINDOWS, "the duo lock is Linux-only (fcntl)")
+class DuoLockTests(unittest.TestCase):
+    """The duo's lock (coop_harness/duo_lock.py) with contending processes in a temp home and fake games."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.home = Path(folder.name)
+        self.stops = self.home / "stops.txt"
+        self.script = self.home / "contender.py"
+        self.script.write_text(CONTENDER)
+
+    def lock(self, worktree="/wt/main", name="main", **kwargs):
+        from coop_harness.duo_lock import DuoLock
+        lock = DuoLock(self.home, worktree, name, out=io.StringIO(), **kwargs)
+        self.addCleanup(lock.release)
+        return lock
+
+    def contender(self, name):
+        """Another agent's process wanting the duo, from its own worktree."""
+        process = subprocess.Popen([sys.executable, str(self.script), str(Path(__file__).resolve().parent),
+                                    str(self.home), f"/wt/{name}", name, str(self.stops)],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        self.addCleanup(self.end, process)
+        return process
+
+    @staticmethod
+    def end(process):
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        for pipe in filter(None, (process.stdin, process.stdout)):
+            with contextlib.suppress(OSError):
+                pipe.close()
+
+    @staticmethod
+    def line(process, timeout=10):
+        """The process's next output line, or None if it printed none in time (it is still waiting)."""
+        import select
+        ready, _, _ = select.select([process.stdout], [], [], timeout)
+        return process.stdout.readline().strip() if ready else None
+
+    def until(self, condition, what):
+        import time
+        deadline = time.monotonic() + 10
+        while not condition():
+            if time.monotonic() > deadline:
+                self.fail(f"never happened: {what}")
+            time.sleep(0.02)
+
+    def queue(self):
+        return [entry["name"] for entry in self.lock().status()["queue"]]
+
+    def holder(self):
+        holder = self.lock().status()["holder"]
+        return holder and holder["name"]
+
+    def test_two_processes_contend_and_the_second_gets_it_when_the_first_releases(self):
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        second = self.contender("second")
+        self.until(lambda: self.queue() == ["second"], "second queued")
+        self.assertIsNone(self.line(second, timeout=0.3))
+        first.stdin.write("\n")
+        first.stdin.flush()
+        self.assertEqual(self.line(first), "released")
+        self.assertEqual(self.line(second), "role holder")
+        self.assertEqual(self.holder(), "second")
+        self.assertFalse(self.stops.exists())  # a release, not a takeover: nothing to stop
+        log = (self.home / "DUO.md").read_text()
+        self.assertIn("first (/wt/first): first. done", log)
+        self.assertIn("## Now\n\nsecond (worktree /wt/second)", log)
+
+    def test_waiters_get_it_in_arrival_order(self):
+        holder = self.contender("holder")
+        self.assertEqual(self.line(holder), "role holder")
+        waiters = []
+        for name in ("b", "c", "d"):
+            waiters.append(self.contender(name))
+            self.until(lambda name=name: self.queue()[-1:] == [name], f"{name} queued")
+        self.assertEqual(self.queue(), ["b", "c", "d"])
+        previous = holder
+        for waiter in waiters:
+            previous.stdin.write("\n")
+            previous.stdin.flush()
+            self.assertEqual(self.line(waiter), "role holder")
+            previous = waiter
+        self.assertEqual(self.queue(), [])
+
+    def test_a_killed_holder_frees_it_and_the_next_stops_its_games(self):
+        victim = self.contender("victim")
+        self.assertEqual(self.line(victim), "role holder")
+        heir = self.contender("heir")
+        self.until(lambda: self.queue() == ["heir"], "heir queued")
+        victim.kill()
+        self.assertEqual(self.line(heir), "role holder")
+        self.assertEqual(self.stops.read_text(), "/wt/victim\n")
+        self.assertIn("Stale (process ended); games stopped, taken over by heir", (self.home / "DUO.md").read_text())
+
+    def test_a_dead_pid_in_the_state_is_taken_over_after_its_fake_game_is_stopped(self):
+        import json
+        import time
+        game = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        self.addCleanup(self.end, game)
+        (self.home / "duo.json").write_text(json.dumps({"holder": {
+            "id": "old", "name": "gone", "worktree": "/wt/gone", "pid": 999999, "since": time.time() - 9000,
+            "what": "scenario x", "token": str(self.home / "duo-tokens/old.lock"), "stop": ["stop-gone"]}, "queue": []}))
+        stopped = []
+
+        def stop(command, worktree):
+            stopped.append((command, worktree))
+            game.kill()
+            return game.wait() is not None
+
+        lock = self.lock("/wt/new", "new", stop=stop)
+        self.assertEqual(lock.acquire("a repro", wait=False), "holder")
+        self.assertIsNotNone(game.poll())
+        # The stale holder's checkout is gone: this checkout's stop path runs instead of its own.
+        self.assertEqual(stopped, [(lock.stop_command, "/wt/gone")])
+        self.assertEqual(self.holder(), "new")
+
+    def test_a_stale_holder_whose_games_will_not_stop_is_not_taken_over(self):
+        from coop_harness.duo_lock import DuoBusy
+        victim = self.contender("victim")
+        self.assertEqual(self.line(victim), "role holder")
+        victim.kill()
+        victim.wait()
+        lock = self.lock("/wt/new", "new", stop=lambda command, worktree: False)
+        with self.assertRaisesRegex(DuoBusy, "would not stop"):
+            lock.acquire("x", wait=False)
+        self.assertEqual(self.queue(), [])
+
+    def test_the_same_checkout_joins_the_hold_and_others_wait(self):
+        from coop_harness.duo_lock import DuoBusy
+        holder = self.lock("/wt/a", "a")
+        self.assertEqual(holder.acquire("duo --keep-running"), "holder")
+        joiner = self.lock("/wt/a", "a")
+        self.assertEqual(joiner.acquire("scenario x"), "joined")
+        with self.assertRaisesRegex(DuoBusy, "held by a .*number 1 in the queue"):
+            self.lock("/wt/b", "b").acquire("y", wait=False)
+        self.assertEqual(self.queue(), [])  # no place kept without keep_place
+        holder.release("done")
+        self.assertEqual(self.holder(), None)
+
+    def test_an_mcp_session_holds_it_across_calls_until_duo_stop(self):
+        from coop_harness.actions import repro
+        session = Session()
+        self.addCleanup(session.close)
+        session.DUO_LOCK = self.lock("/wt/mcp", "repro-mcp")
+        self.assertEqual(session.duo_claim("repro-mcp", "repro session in QASmoke"), "holder")
+        self.assertEqual(session.duo_claim("repro-mcp", "again"), "holder")  # a later call: still ours
+        other = self.contender("other")
+        self.until(lambda: self.queue() == ["other"], "other queued")
+        with patch.object(Session, "stop_duo") as stop, patch.object(repro.ReproActions, "our_skyrims", return_value=[]):
+            self.assertEqual(session.duo_free("repro-mcp", "done"), "freed")
+        stop.assert_called_once()
+        self.assertEqual(self.line(other), "role holder")
+        with self.assertRaisesRegex(TestFailure, "not ours to stop"), patch.object(Session, "stop_duo") as stop:
+            session.duo_free("repro-mcp", "again")
+        stop.assert_not_called()
+
+    def test_a_busy_mcp_start_keeps_its_place_for_the_next_call(self):
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        session = Session()
+        self.addCleanup(session.close)
+        session.DUO_LOCK = self.lock("/wt/mcp", "repro-mcp")
+        with self.assertRaisesRegex(TestFailure, "number 1 in the queue"):
+            session.duo_claim("repro-mcp", "x", wait_seconds=0, keep_place=True)
+        late = self.contender("late")
+        self.until(lambda: self.queue() == ["repro-mcp", "late"], "late queued behind the session")
+        first.stdin.write("\n")
+        first.stdin.flush()
+        self.assertEqual(session.duo_claim("repro-mcp", "x", wait_seconds=10, keep_place=True), "holder")
+        self.assertIsNone(self.line(late, timeout=0.3))
+
+    def test_a_hold_whose_games_run_goes_to_a_keeper_until_stop(self):
+        keeper_script = self.home / "keeper.py"
+        keeper_script.write_text(
+            "import sys\nsys.path.insert(0, sys.argv[1])\nfrom coop_harness.duo_lock import DuoLock\n"
+            "lock = DuoLock(sys.argv[2], '/wt/k', 'k')\n"
+            "def ready():\n    print('ready', flush=True)\n"
+            "lock.keep(sys.argv[3], lambda: True, check_seconds=0.05, ready=ready)\n")
+        lock = self.lock("/wt/k", "k")
+        lock.acquire("duo --keep-running")
+        self.assertTrue(lock.park([sys.executable, str(keeper_script), str(Path(__file__).resolve().parent),
+                                   str(self.home)]))
+        self.assertIsNone(lock.role)
+        status = self.lock().status()["holder"]
+        self.assertTrue(status["keeper"] and status["alive"])
+        other = self.contender("other")
+        self.until(lambda: self.queue() == ["other"], "other queued")
+        self.assertTrue(self.lock("/wt/k", "k").release_checkout("Stopped"))
+        self.assertEqual(self.line(other), "role holder")
+
+    def test_the_view_keeps_other_sections_and_puts_new_log_lines_first(self):
+        (self.home / "DUO.md").write_text("# Duo\n\n## Rules\n\nold\n\n## Setup\n\nkeep me\n\n## Now\n\nfree\n\n"
+                                          "## Waiting\n\n\n## Log\n\n- old line\n")
+        lock = self.lock("/wt/a", "a")
+        lock.acquire("x")
+        lock.release("done")
+        text = (self.home / "DUO.md").read_text()
+        self.assertIn("keep me", text)
+        self.assertIn("Claiming and freeing are automatic", text)
+        self.assertLess(text.index("a (/wt/a): x. done"), text.index("old line"))
 
 
 if __name__ == "__main__":

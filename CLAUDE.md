@@ -38,14 +38,16 @@ Every bug, in this order:
 1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would.
 2. **A smoke test that fails on it:** a `GameTests` flow (whole games in-process on the fake engine). If the fake
    cannot show it, first teach the fake the engine fact Skyrim showed.
-   **Then free the duo** (stop your games, release `build/coop-test/DUO.md`): steps 2-4 need no Skyrim. If the smoke
-   test cannot show the bug yet, queue for the duo again only to learn the engine fact the fake lacks.
+   **Then free the duo** (`scripts/coop_test.py stop` or the MCP's `duo_stop`; the lock frees itself, nobody edits
+   `build/coop-test/DUO.md` or asks the user): steps 2-4 need no Skyrim. If the smoke test cannot show the bug yet,
+   queue for the duo again only to learn the engine fact the fake lacks.
 3. **Unit tests** for the logic (`ClientTests`, `HostAuthorityTests`), then the fix.
 4. **The smoke test passes**, with `scripts/check.sh`.
 
 Iterate in tiers 1-2, not in Skyrim: the duo is shared and slow (one pair of games, minutes a run). So the duo is queued
-only to recreate a bug, write a scenario or build a feature; step 1's scenarios are rerun together in combined runs
-(before a push or merge, or at a cadence; another agent can do it). Every bug fixed this way leaves a fast test that
+(automatically, by every command that uses it; `scripts/duo.py status` shows the queue) only to recreate a bug, write
+a scenario or build a feature; step 1's scenarios are rerun together in combined runs (before a push or merge, or at a
+cadence; another agent can do it). Every bug fixed this way leaves a fast test that
 keeps catching it, so the fast suite grows into the one that matters.
 
 ### Engineering rules

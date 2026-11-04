@@ -213,7 +213,6 @@ def boot(report_id, report):
         player = json.loads(snapshot.read_text()).get("player") or {}
         print(f"At the report the host's player was at {player.get('position')} in cell {player.get('cell')} "
               f"(the save is the newest before it)")
-    print("Claim the duo in build/coop-test/DUO.md first.")
     subprocess.run([sys.executable, str(ROOT / "scripts/coop_test.py"), "duo", "--save", name, "--keep-running"], check=False)
 
 

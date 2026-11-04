@@ -9,9 +9,12 @@ import json
 import math
 import random
 import re
+import os
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from .common import (
@@ -25,7 +28,9 @@ from .common import (
     ROOT,
     TEST_HOME,
     UNSYNCED_LINE,
+    VANILLA_HARNESS,
 )
+from .duo_lock import TAKEOVER_ENV
 from .errors import TestFailure
 from .comparisons import (
     describe_world_differences,
@@ -35,6 +40,10 @@ from .utilities import (
     atomic_write,
     log,
 )
+
+
+# Commands that boot or drive the duo: they hold its lock while they run.
+DUO_COMMANDS = {"launch", "duo", "play", "scenario", "profile", "affected", "soak", "reload", "repro", "quest-walk"}
 
 
 class Commands:
@@ -726,7 +735,13 @@ class Commands:
         """Manual play: the game you control in a window on the primary monitor (your mouse and keyboard go straight
         to it), the other off-screen as always, shown by a `watch` view on the second monitor. Keep your window
         uncovered: a covered window stops getting frames back from the compositor. Chat `!watch` turns the other
-        player to face yours. Ctrl+C closes the view; the games keep running until `stop`."""
+        player to face yours. Ctrl+C closes the view; the games keep running until `stop`. With --vanilla: one solo
+        game without our plugin, in the same window and cell, and no view."""
+        vanilla = args.vanilla
+        if vanilla and args.control != "host":
+            raise TestFailure("--vanilla is one solo game: there is no guest to control")
+        if vanilla and not VANILLA_HARNESS.exists():
+            raise TestFailure(f"no {VANILLA_HARNESS.name}: scripts/xmake-msvc.sh build -j8 SkyrimCoopVanillaHarness")
         monitors = []
         for line in subprocess.run(["xrandr", "--listmonitors"], capture_output=True, text=True).stdout.splitlines()[1:]:
             if m := re.search(r"\s(\d+)/\d+x(\d+)/\d+\+(\d+)\+(\d+)", line):
@@ -763,11 +778,19 @@ class Commands:
             thread = threading.Thread(target=placer, daemon=True)
             thread.start()
             try:
-                args.keep_running = True
-                ctx.command_duo(args)
+                if vanilla:
+                    ctx.command_launch(args, _game=ctx.game(""))
+                else:
+                    args.keep_running = True
+                    ctx.command_duo(args)
             finally:
                 booting.clear()
                 thread.join(2)
+        if vanilla:
+            if window := game_window():
+                subprocess.run(["xdotool", "windowactivate", window], capture_output=True)
+            log("Playing vanilla Skyrim in its window; `coop_test.py stop` ends it.")
+            return
         x, y = centred(side)
         view = subprocess.Popen(
             ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {'guest' if other else 'host'} (watching)",
@@ -939,6 +962,9 @@ class Commands:
         play.add_argument("--npc", default="", help="NPC base form the host spawns (default none)")
         play.add_argument("--level", type=int)
         play.add_argument("--attach", action="store_true", help="the games already run: only open the view")
+        play.add_argument("--vanilla", action="store_true",
+                          help="one solo game without our plugin (the stand-in harness plugin only runs the boot "
+                               "command); no guest, no view; the next normal launch redeploys ours")
         watch = commands.add_parser("watch", help="live view of the off-screen game display in a window (ffplay)")
         commands.add_parser("setup-display", help="one-time: install the off-screen dummy X server (sudo)")
         shot = commands.add_parser("screenshot", help="save a PNG of the off-screen game display")
@@ -950,78 +976,119 @@ class Commands:
         ctx.VISIBLE = getattr(args, "visible", False)
         _game = ctx.game('client' if getattr(args, 'instance', None) == 'client' else '')
         try:
-            if args.command == "launch":
-                ctx.command_launch(args, _game=_game)
-            elif args.command == "duo":
-                ctx.command_duo(args)
-            elif args.command == "play":
-                ctx.command_play(args)
-            elif args.command == "scenario":
-                ctx.command_scenario(args)
-            elif args.command == "profile":
-                ctx.command_profile(args)
-            elif args.command == "affected":
-                ctx.command_affected(args)
-            elif args.command == "soak":
-                ctx.command_soak(args)
-            elif args.command == "reload":
-                ctx.command_reload(args)
-            elif args.command == "console":
-                ctx.run_console(" ".join(args.text), _game=_game)
-                log("Done")
-            elif args.command == "locks":
-                ctx.command_locks(args)
-            elif args.command == "save-diff":
-                ctx.command_save_diff(args)
-            elif args.command == "change-rate":
-                ctx.command_change_rate(args)
-            elif args.command == "quest-walk":
-                ctx.command_quest_walk(args)
-            elif args.command == "report":
-                sys.path.insert(0, str(ROOT / "scripts"))
-                import coop_report
-                coop_report.main(args.rest)
-            elif args.command == "crash":
-                ctx.command_crash(args, _game=_game)
-            elif args.command == "repro":
-                ctx.command_repro(args, _game=_game)
-            elif args.command == "unsynced":
-                ctx.command_unsynced(args)
-            elif args.command == "world-diff":
-                ctx.command_world_diff(args)
-            elif args.command == "desync":
-                ctx.command_desync(args)
-            elif args.command == "look":
-                ctx.command_look(args)
-            elif args.command == "status":
-                ctx.command_status(args)
-            elif args.command == "watch":
-                names = ["", "client"] if args.instance == "both" else [_game.name]
-                viewers = []
-                for index, name in enumerate(names):
-                    _game = ctx.game(name)
-                    viewers.append(subprocess.Popen(
-                        ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {name or 'host'} (coop test)",
-                         "-left", str(40 + index * 660), "-top", "40", "-x", "640", "-y", "360",
-                         "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720", "-i", f"{_game.display}+4,30"]))
-                for viewer in viewers:
-                    viewer.wait()
-            elif args.command == "setup-display":
-                ctx.setup_display()
-            elif args.command == "screenshot":
-                args.output = args.output or ROOT / f"build/coop-test/screenshot-{_game.name or 'host'}.png"
-                args.output.parent.mkdir(parents=True, exist_ok=True)
-                subprocess.run(["import", "-display", _game.display, "-window", "root", str(args.output)], check=True)
-                log(f"Saved {args.output}")
-            else:
-                names = [_game.name] if args.instance else ["", "client"]
-                stopped = True
-                for name in names:
-                    _game = ctx.game(name)
-                    stopped = ctx.stop_game(_game=_game) and stopped
-                log("Stopped" if stopped else "Some processes would not exit")
+            ctx.hold_duo_for(args)
+            ctx.run_command(args, _game)
         except TestFailure as error:
             print(f"FAIL: {error}", file=sys.stderr)
             sys.exit(1)
         except KeyboardInterrupt:
             sys.exit(130)
+        finally:
+            ctx.duo_finish()
+
+    def hold_duo_for(ctx, args):
+        """Commands that boot or drive the duo hold its lock (coop_harness/duo_lock.py) while they run: they wait
+        their turn, and a SIGTERM/SIGHUP still frees it."""
+        command = args.command
+        if command not in DUO_COMMANDS or getattr(args, "dry_run", False) or \
+                (command == "affected" and not args.run):
+            return
+        from .duo_lock import DuoBusy
+        if not (lock := ctx.duo_lock()):
+            return
+        if threading.current_thread() is threading.main_thread():
+            for sig in (signal.SIGTERM, signal.SIGHUP):
+                signal.signal(sig, lambda number, _: sys.exit(128 + number))
+        wait = float(os.environ.get("COOP_DUO_WAIT", 7200))
+        try:
+            role = lock.acquire(" ".join(sys.argv[1:]), timeout=wait)
+        except DuoBusy as error:
+            raise ctx.failure(f"the duo stayed busy for {wait:.0f} s (COOP_DUO_WAIT): {error}") from None
+        log(f"duo: {'held' if role == 'holder' else 'joined this checkout’s hold'} ({lock.name})")
+
+    def command_stop(ctx, args, _game):
+        """Stops the games; refused while another checkout holds the duo; frees this checkout's keeper hold."""
+        lock = ctx.duo_lock()
+        if lock and not os.environ.get(TAKEOVER_ENV):
+            holder = lock.status()["holder"]
+            if holder and holder["alive"] and holder["worktree"] != lock.worktree:
+                raise ctx.failure(f"not ours to stop: the duo is held by {lock.describe(holder)}")
+        names = [_game.name] if args.instance else ["", "client"]
+        stopped = True
+        for name in names:
+            _game = ctx.game(name)
+            stopped = ctx.stop_game(_game=_game) and stopped
+        if not stopped:
+            raise ctx.failure("some processes would not exit")
+        if lock and not os.environ.get(TAKEOVER_ENV) and not ctx.duo_games_running() and \
+                lock.release_checkout("Stopped (coop_test.py stop), 0 Skyrim processes, freed"):
+            log("Stopped; duo freed")
+        else:
+            log("Stopped")
+
+    def run_command(ctx, args, _game):
+        if args.command == "launch":
+            ctx.command_launch(args, _game=_game)
+        elif args.command == "duo":
+            ctx.command_duo(args)
+        elif args.command == "play":
+            ctx.command_play(args)
+        elif args.command == "scenario":
+            ctx.command_scenario(args)
+        elif args.command == "profile":
+            ctx.command_profile(args)
+        elif args.command == "affected":
+            ctx.command_affected(args)
+        elif args.command == "soak":
+            ctx.command_soak(args)
+        elif args.command == "reload":
+            ctx.command_reload(args)
+        elif args.command == "console":
+            ctx.run_console(" ".join(args.text), _game=_game)
+            log("Done")
+        elif args.command == "locks":
+            ctx.command_locks(args)
+        elif args.command == "save-diff":
+            ctx.command_save_diff(args)
+        elif args.command == "change-rate":
+            ctx.command_change_rate(args)
+        elif args.command == "quest-walk":
+            ctx.command_quest_walk(args)
+        elif args.command == "report":
+            sys.path.insert(0, str(ROOT / "scripts"))
+            import coop_report
+            coop_report.main(args.rest)
+        elif args.command == "crash":
+            ctx.command_crash(args, _game=_game)
+        elif args.command == "repro":
+            ctx.command_repro(args, _game=_game)
+        elif args.command == "unsynced":
+            ctx.command_unsynced(args)
+        elif args.command == "world-diff":
+            ctx.command_world_diff(args)
+        elif args.command == "desync":
+            ctx.command_desync(args)
+        elif args.command == "look":
+            ctx.command_look(args)
+        elif args.command == "status":
+            ctx.command_status(args)
+        elif args.command == "watch":
+            names = ["", "client"] if args.instance == "both" else [_game.name]
+            viewers = []
+            for index, name in enumerate(names):
+                _game = ctx.game(name)
+                viewers.append(subprocess.Popen(
+                    ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {name or 'host'} (coop test)",
+                     "-left", str(40 + index * 660), "-top", "40", "-x", "640", "-y", "360",
+                     "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720", "-i", f"{_game.display}+4,30"]))
+            for viewer in viewers:
+                viewer.wait()
+        elif args.command == "setup-display":
+            ctx.setup_display()
+        elif args.command == "screenshot":
+            args.output = args.output or ROOT / f"build/coop-test/screenshot-{_game.name or 'host'}.png"
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["import", "-display", _game.display, "-window", "root", str(args.output)], check=True)
+            log(f"Saved {args.output}")
+        else:
+            ctx.command_stop(args, _game)

@@ -4,6 +4,10 @@
 network diagnostics, and verified save-block reuse for world joins. Details and current validation:
 `docs/design/network-performance.md`; launcher preservation: `docs/install.md`.
 
+2026-11-03: the duo manages itself (`scripts/coop_harness/duo_lock.py`, testing.md "The duo lock"): an flock'ed
+FIFO queue every duo command and the MCP wait in, freed when the holder's process ends (a keeper holds games left
+running), stale holders taken over after their games stop; `DUO.md` is a generated view, `scripts/duo.py status|run`.
+
 Where SkyrimCoop stands. Update it when a phase, system or known failure changes.
 Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, joining a session
 (build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, how the

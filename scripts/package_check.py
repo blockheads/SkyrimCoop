@@ -5,7 +5,7 @@ the bundled start and the plugin loads with its UI from the installed files. A p
 this is a boot check read from the plugin's log, not a joined session.
 
 The clean game folder (build/clean-install/game) links the Steam install's files, without SKSE, its plugins or
-anything of ours: the package brings them. Uses the shared duo display (:99): reserve build/coop-test/DUO.md before running it.
+anything of ours: the package brings them. Uses the shared duo display (:99): run it as `scripts/duo.py run -- python3 scripts/package_check.py`.
   scripts/package_check.py [ZIP]
 """
 import os
