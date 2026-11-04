@@ -1316,6 +1316,13 @@ reconstruction and the additional plugin event relay. Barter Speech is implement
 Mod-dependent Experience work is outside v1.0.0. Evidence:
 [native-bugs.md](design/native-bugs.md); accepted reports: [bugs.md](bugs.md).
 
+- **`npc-clips-match` times out before comparing clips (2026-11-04).** 2 of the final 3 runs failed: the host's dialogue
+  menu never opened on Lucan, or his conversation never ended (`close_dialogues`). Both with Lucan on package `1E603`;
+  passing runs had `1CB0B` or `AB87B`. Cause not found. A test-setup fault, not an animation mismatch (no clips
+  compared), but it makes the scenario unreliable. Start: what `1E603` is and whether `set gamehour` (as the counter
+  scenarios do) keeps him off it.
+- **Sync points add network cost, not measured (2026-11-04).** Each action now carries the graph seed and each pick no
+  action made sends a graph snapshot (about 7 KB, one per actor per second at most). `scripts/net_check.sh` not run.
 - **A guest crashed once in `follower-trade-to-picker` (2026-10-29, party dialogue).** `Actor::UpdateInDialogue`
   (37541) on a worker reached 39372, which dereferenced a null RCX; Lydia (`FF001E90`, the fixture's follower) was
   already flagged deleted (the client prefix's `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced: the scenario passed

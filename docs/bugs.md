@@ -36,6 +36,21 @@ all other findings below stay deferred. [Evidence, regressions and exact native 
   headtracked (progress.md, "copies look where their owners do"). Still open: an accepted replayed action can land
   in a different graph state, and nothing compares it (animation-replay-recovery.md); the proposed fix is to
   compare active states with the owner's snapshot after each replay and load it on a mismatch.
+- **Players' idle variants can differ between games** (2026-11-04). Sync points (animation-replay-recovery.md, "A
+  graph's random picks") are sent for NPCs only: a player's own character on the other game still makes its own random
+  picks for gestures and idle variants no action starts.
+  - Start: `AnimationSystem::Serialize` skips the player; a player's copy needs the same sync point, and a check that
+    the player's first-person graph is not the one read.
+  - Test: an `npc-counter-matches`-style scenario on a player's copy.
+- **Animation mods' random picks are not synced** (2026-11-04). Open Animation Replacer's Random condition draws from its
+  own generator, not the graph's, so each game can choose a different replacement clip.
+  - Start: OAR's `RandomCondition` state data (`reference/plugins/OpenAnimationReplacer/src/Conditions.cpp`).
+  - Test: a modded run through `npc-clips-match` first, to see what breaks.
+- **A guest walking in on an NPC mid-loop is untested** (2026-11-04). `npc-counter-copy-falls-back-in` forces the copy
+  out of step by loading the host's graph into it: the party tether brings the guest along, so a real late arrival
+  cannot be staged. Sync points should cover it, unproven.
+  - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
+    boundary later).
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy. Deferred past v1 with the other animation desyncs (the user).
