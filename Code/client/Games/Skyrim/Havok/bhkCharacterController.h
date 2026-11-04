@@ -11,6 +11,10 @@ struct bhkCharacterController
     static constexpr uint32_t kNotPushable = 1u << 14;
     static constexpr uint32_t kRecordHits = 1u << 21;
     static constexpr uint32_t kNoCharacterCollisions = 1u << 27;
+    // state (hkpCharacterStateType).
+    static constexpr int32_t kOnGround = 0;
+    static constexpr int32_t kJumping = 1;
+    static constexpr int32_t kInAir = 2;
 
     // 00 and 01 are NiRefObject's (its base); the controller's own start at 02.
     virtual ~bhkCharacterController() = 0;                                         // 00

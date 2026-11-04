@@ -15,6 +15,7 @@ struct InterpolationComponent
         float Direction{};
         bool Knocked{};
         bool Lying{}; // its owner lying in its ragdoll (Movement::Lying)
+        bool InAir{}; // its owner jumping or falling (Movement::InAir)
 
         TimePoint() = default;
         TimePoint(const TimePoint&) = default;

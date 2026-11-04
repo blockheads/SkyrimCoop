@@ -704,8 +704,9 @@ void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 {
 }
 
-// Stepped (its step reaches the goal in the fake) or placed, never a copy lying in its ragdoll (the engine keeps it on
-// its ragdoll, as its owner: SkyrimBridge); the graph's variables are not modelled.
+// Stepped or placed, never a copy lying in its ragdoll (the engine keeps it on its ragdoll, as its owner: SkyrimBridge);
+// the graph's variables are not modelled. A step reaches the goal across, never up: Havok's character step leaves its
+// height to support and gravity (copy-jumps-smoothly-*; the fake's ground is flat).
 bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
                                      const AnimationVariables& acVariables, CopyMove aMove) noexcept
 {
@@ -717,7 +718,10 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
     ++it->second.Movements;
+    const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);
+    if (it->second.Stepped)
+        it->second.Position[2] = std::min(cHeight, aPosition[2]);
     std::copy_n(aRotation, 3, it->second.Rotation);
     // Outdoors its parent cell follows where it stands.
     if (it->second.WorldSpace)

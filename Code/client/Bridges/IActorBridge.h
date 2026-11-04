@@ -86,6 +86,8 @@ public:
     [[nodiscard]] virtual bool IsKnockedDown(uint32_t aFormId) const noexcept = 0;
     // It lies in its ragdoll, dead or knocked down: the engine keeps it on the ragdoll (Actor::LiesInRagdoll).
     [[nodiscard]] virtual bool IsLyingInRagdoll(uint32_t aFormId) const noexcept = 0;
+    // Its character controller jumping or in the air (hkpCharacterStateType 1, 2).
+    [[nodiscard]] virtual bool IsInAir(uint32_t aFormId) const noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
 
     // --- Actor values ---

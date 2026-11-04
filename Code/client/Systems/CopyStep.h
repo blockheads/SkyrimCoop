@@ -18,10 +18,13 @@ struct CopyStep
     // Farther off than this it is placed, not stepped (TES3MP snaps past 40 to 80 units).
     static constexpr float kSnap = 64.f;
 
-    [[nodiscard]] static CopyMove Choose(bool aLies, const glm::vec3& acAt, const glm::vec3& acGoal) noexcept
+    // Its owner in the air: placed, as its engine's step keeps it on the ground (gravity and support decide its height).
+    [[nodiscard]] static CopyMove Choose(bool aLies, bool aOwnerInAir, const glm::vec3& acAt, const glm::vec3& acGoal) noexcept
     {
         if (aLies)
             return CopyMove::Leave;
+        if (aOwnerInAir)
+            return CopyMove::Place;
         const glm::vec3 cOff = acGoal - acAt;
         return cOff.x * cOff.x + cOff.y * cOff.y + cOff.z * cOff.z > kSnap * kSnap ? CopyMove::Place : CopyMove::Step;
     }

@@ -424,6 +424,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t GraphHash = 0;
         bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
         bool GraphReady = true; // attached 3D does not guarantee a behavior graph is ready for actions
+        bool InAir = false; // its controller jumping or falling
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -632,6 +633,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    bool IsInAir(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).InAir; }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override

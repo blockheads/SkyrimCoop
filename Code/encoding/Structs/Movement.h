@@ -33,4 +33,6 @@ struct Movement
     bool Lying{};
     // Alive and in knock states 1-4: ends resting-body correction on the owner's delayed timeline.
     bool Knocked{};
+    // Its controller jumping or falling: a copy is placed on its path, as its own step cannot rise off the ground.
+    bool InAir{};
 };

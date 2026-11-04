@@ -1,7 +1,7 @@
 """Scenarios movement for the co-op harness."""
 import json
 import math
-from ..common import LYDIA
+from ..common import LYDIA, ON_GROUND
 from ..errors import TestFailure
 from ..comparisons import distance
 from ..utilities import log
@@ -249,3 +249,66 @@ def scenario_copy_strafes_with_owner(ctx, strafer=""):
     if stutters := strafe_stutters(owner, theirs, result["delay"]):
         raise ctx.failure(f"[{watcher or 'host'}] the copy stutters: {len(stutters)} frames off its owner's steady speed by "
                           f"over a third, e.g. (owner, copy) {[(o, c) for _, o, c in stutters[:5]]}")
+
+
+def height_path(entries, game, who):
+    """[(time, z)]: that actor's height per frame."""
+    return [(e["time"], e["pos"][2]) for e in entries if e["kind"] == "pos" and e["game"] == game and e["who"] == who]
+
+
+def jump_reversals(path, rest, lift=8.0, still=0.3):
+    """The frames an airborne path (over `rest` + `lift`) turns back the way it came: a vanilla jump rises, then falls,
+    turning once; a stutter turns more. (time, z)."""
+    turns, way = [], 0
+    for (t0, z0), (t1, z1) in zip(path, path[1:]):
+        if min(z0, z1) < rest + lift:
+            way = 0  # landed: the next jump starts afresh
+            continue
+        if abs(z1 - z0) < still:
+            continue
+        now = 1 if z1 > z0 else -1
+        if way and now != way:
+            turns.append((round(t1, 3), round(z1, 1)))
+        way = now
+    return turns
+
+
+def scenario_copy_jumps_smoothly(ctx, jumper=""):
+    """The jumper's player jumps in place three times (real space presses): the other game's copy rises and falls
+    with it as a vanilla jump does, never stuttering mid-air (turning back and forth, or lagging off its owner)."""
+    watcher = "client" if jumper == "" else ""
+    copy = ctx.player_copy(watcher)
+    if copy is None:
+        raise ctx.failure(f"[{watcher or 'host'}] no copy of the other player")
+    ctx.show(watcher, lambda actors: copy)
+    rest = ctx.local_player(jumper)["position"][2]
+    with AnimTrace(ctx, f"jump-{jumper or 'host'}", {jumper: {0x14: "owner"}, watcher: {copy: "copy"}}, video=False,
+                   bools=("bInJumpState",)) as trace:
+        for _ in range(3):
+            ctx.hold_key(jumper, "space", 0.1)
+            ctx.wait_for(f"[{jumper or 'host'}] lands", lambda: ctx.local_player(jumper).get("character_state") == ON_GROUND
+                         and not ctx.graph_bools(jumper, "bInJumpState")["bInJumpState"], 5)
+            frame = ctx.game_frame(watcher)
+            ctx.wait_for("the copy has half a second to land", lambda: ctx.game_frame(watcher) > frame + 30, 5)
+    owner = height_path(trace.entries, jumper, "owner")
+    theirs = height_path(trace.entries, watcher, "copy")
+    result = compare_strafe(owner, theirs)
+    peak = max((z for _, z in owner), default=rest) - rest
+    copy_peak = max((z for _, z in theirs), default=rest) - rest
+    log(f"[{watcher or 'host'}] the copy's height against its owner's: {result}; peaks {peak:.0f} / {copy_peak:.0f}; "
+        f"trace {trace.dir}")
+    (trace.dir / "jump.json").write_text(json.dumps({"owner": owner, "copy": theirs, "result": result}))
+    if result is None or peak < 20:
+        raise ctx.failure(f"[{jumper or 'host'}] the player did not jump (peak {peak:.0f} units)")
+    step = lambda path: max((abs(z1 - z0) for (_, z0), (_, z1) in zip(path, path[1:])), default=0)
+    if step(theirs) > 2 * step(owner) + 2:  # a warp up (the owner's frames: 6-7 units at most)
+        raise ctx.failure(f"[{watcher or 'host'}] the copy hops: {step(theirs):.0f} units in a frame, its owner "
+                          f"{step(owner):.0f} at most")
+    owner_turns, copy_turns = jump_reversals(owner, rest), jump_reversals(theirs, rest)
+    log(f"[{watcher or 'host'}] turns in the air: owner {owner_turns}, copy {copy_turns}")
+    if len(copy_turns) > len(owner_turns):
+        raise ctx.failure(f"[{watcher or 'host'}] the copy stutters in the air: it turns {len(copy_turns)} times, its owner "
+                          f"{len(owner_turns)}, e.g. {copy_turns[:6]}")
+    if copy_peak < peak - 10 or result["worst"] > 20:
+        raise ctx.failure(f"[{watcher or 'host'}] the copy's jump is off its owner's: peaks {peak:.0f} / {copy_peak:.0f}, "
+                          f"{result}")

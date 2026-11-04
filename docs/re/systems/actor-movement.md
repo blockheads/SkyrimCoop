@@ -107,6 +107,32 @@ after the physics step: the engine writes the actor's place from its controller 
   snaps it past 40 to 80 units. PLANCK ignores an actor's collision for a moment after a warp. Notes:
   `docs/research/sync-and-testing-references.md`.
 
+## A copy in the air (2026-11-03)
+
+A stepped copy cannot jump. Havok's character step moves it across, but its height is up to its own support
+and gravity: an upward step on the ground does nothing. Measured in `copy-jumps-smoothly-host`, before the fix
+(heights above the ground, the owner's 74-unit standing jump in 0.9 s):
+
+```
+owner  0 → 10 → 27 → 43 → 55 → 64 → 70 → 73.8 → 70 → 61 → 49 → 33 → 13 → 0
+copy  -1.8 (180 ms on the ground) → placed at 62.7 (past kSnap 64 off)
+      → falls by its own gravity to 0.2 in 250 ms → placed at 71 → falls to 0
+```
+
+Two hops a jump, both ways (host's player on a guest, a guest's on the host): the stutter players saw.
+
+```
+owner: Movement::InAir = its controller jumping or in the air (state 1, 2: SkyrimBridge::IsInAir)
+copy:  either snapshot around its playback time in the air -> CopyStep::Choose gives Place
+       (take-off to landing); late snapshots carry it on across, its height held (never into the floor)
+```
+
+skymp moves its copies with `TranslateTo` (kinematic: no gravity or support) the whole time; we keep the step on
+the ground for its pushes. After the fix: copy peaks 73-74 against its owner's 74, turning once in the air.
+Tests: GameTests "A jumping player's copy rises and falls with it, never stuck on the ground" (the fake's step
+never rises), ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenarios `copy-jumps-smoothly-host`,
+`copy-jumps-smoothly-guest`.
+
 ## Others
 
 - Precision hooks the `ApplyMovement` call in `UpdateMovement` (+0xFB) to scale `dt` for hitstop; po3-Tweaks
