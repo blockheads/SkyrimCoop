@@ -208,6 +208,7 @@ struct Session
     uint32_t LooseMade = 0;
     uint32_t CreateCalls = 0;
     std::vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
+    std::map<uint32_t, ObjectChange> CreatedContents;             // the created containers' contents, by created base id
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
     std::vector<BodyPush> Pushed;   // guests' pushes the host's game took
@@ -289,6 +290,10 @@ private:
             if (it == LoadedCells.end())
                 return std::nullopt;
             return it->second;
+        };
+        game.ReadContents = [this](const GameId& acObject) -> std::optional<ObjectChange> {
+            const auto it = acObject.ModId == ObjectChange::kCreatedModId ? CreatedContents.find(acObject.BaseId) : CreatedContents.end();
+            return it != CreatedContents.end() ? std::optional(it->second) : std::nullopt;
         };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };

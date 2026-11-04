@@ -277,3 +277,23 @@ TEST_CASE("Shared rest refreshes split large cells and finish empty or unloaded 
         CHECK(replies[0]->State.Changes.empty());
     }
 }
+
+TEST_CASE("The rest world refresh gets a created container's contents after its create row", "[wait]")
+{
+    Session session;
+    const GameId cChest(ObjectChange::kCreatedModId, 0x801);
+    ObjectChange contents{.Type = ObjectChange::Kind::kContents, .Object = cChest};
+    contents.Data = ObjectChange::PackContents({{GameId(0, 0xF), 50}});
+    session.CreatedContents[cChest.BaseId] = contents;
+    WaitWorldRequest refresh;
+    refresh.State.Cell = GameId(0, 0x31D2E);
+    const ObjectChange cCreate{.Type = ObjectChange::Kind::kCreate, .Object = cChest};
+    session.LoadedCells[refresh.State.Cell.BaseId] = {cCreate};
+    refresh.Id = Start(session);
+    session.Receive(kPeer, Request(WaitAction::Cancel, refresh.Id));
+    session.Outbox.clear();
+    session.Receive(kPeer, refresh);
+    const auto replies = session.SentTo<NotifyWaitWorld>(kPeer);
+    REQUIRE(replies.size() == 1);
+    CHECK(replies[0]->State.Changes == std::vector<ObjectChange>{cCreate, contents});
+}

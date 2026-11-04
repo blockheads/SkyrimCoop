@@ -366,3 +366,45 @@ TEST_CASE("World state: a large cell's state goes in several messages", "[HostAu
     CHECK(cSent[0]->Changes.size() + cSent[1]->Changes.size() == 1500);
     CHECK(cSent[1]->Cell == kInn);
 }
+
+namespace
+{
+// A chest a script placed (a container) and a sword dropped (not one), both created by the host's game.
+const GameId kCreatedChest(ObjectChange::kCreatedModId, 0x801), kCreatedSword(ObjectChange::kCreatedModId, 0x802);
+
+ObjectChange Created(const GameId& acObject)
+{
+    return {.Type = ObjectChange::Kind::kCreate, .Object = acObject};
+}
+
+ObjectChange ChestContents()
+{
+    ObjectChange contents{.Type = ObjectChange::Kind::kContents, .Object = kCreatedChest};
+    contents.Data = ObjectChange::PackContents({{GameId(0, 0x63B42), 1}, {GameId(0, 0xF), 50}});
+    return contents;
+}
+} // namespace
+
+TEST_CASE("World state: a created container's contents follow its create row", "[HostAuthority][WorldState]")
+{
+    Session session;
+    session.CreatedContents[kCreatedChest.BaseId] = ChestContents();
+    session.ObjectChanges = {Created(kCreatedSword), ChestContents(), Created(kCreatedChest), InnDoorLocked()};
+    session.Frame(1000);
+    const auto cSent = session.SentTo<NotifyObjectChanges>(kPeer);
+    REQUIRE(cSent.size() == 1);
+    // The sword's create gets none; a later contents row stays where it was.
+    CHECK(cSent[0]->Changes == std::vector<ObjectChange>{Created(kCreatedSword), ChestContents(), Created(kCreatedChest), ChestContents(),
+                                                          InnDoorLocked()});
+}
+
+TEST_CASE("World state: a guest's loaded cell gets a created container's contents after its create row", "[HostAuthority][WorldState]")
+{
+    Session session;
+    session.CreatedContents[kCreatedChest.BaseId] = ChestContents();
+    session.LoadedCells[kInn.BaseId] = {Created(kCreatedChest), InnDoorLocked()};
+    session.Receive(kPeer, InnLoaded());
+    const auto cSent = session.SentTo<NotifyObjectChanges>(kPeer);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->Changes == std::vector<ObjectChange>{Created(kCreatedChest), ChestContents(), InnDoorLocked()});
+}

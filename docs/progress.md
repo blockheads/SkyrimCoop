@@ -1,5 +1,12 @@
 # Progress
 
+2026-11-04: a container the host creates reaches a guest with what it holds (`bugs.md`, Containers, deleted). Each
+create row of a container is followed by its contents, rolled on the host first (`AddCreatedContents` in
+`HostWorldState`, for object changes, cell states and a wait's world; `HostGame::ReadContents`); the host's later item
+changes to a created container go as its whole contents (a guest rolls no world container, `HookInitLeveledItems`).
+`HostAuthorityTests` for the three call sites; GameTests flow "A chest the host's script places reaches a guest with what it
+rolled" (the fake learned created containers); scenario `created-chest-reaches-guest-empty` left to the next combined run.
+
 2026-11-04: the follower that stops following is not reproduced on 1.7.104 (0 of 2 in the entry's order, with the Load
 menu and door rounds), and no fix is made; findings in `bugs.md`. The 1,388 lead is closed: she stood by the guest she
 follows. `load_latest_from_menu` works on 1.7.104 again: it passes the character list and clears a reload's scratch save.

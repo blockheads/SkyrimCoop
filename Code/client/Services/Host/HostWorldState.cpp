@@ -23,6 +23,16 @@ uint64_t Key(const GameId& acId) noexcept
 }
 } // namespace
 
+void AddCreatedContents(const HostGame& acGame, std::vector<ObjectChange>& aChanges) noexcept
+{
+    if (!acGame.ReadContents)
+        return;
+    for (size_t i = 0; i < aChanges.size(); ++i)
+        if (aChanges[i].Type == ObjectChange::Kind::kCreate)
+            if (auto contents = acGame.ReadContents(aChanges[i].Object))
+                aChanges.insert(aChanges.begin() + ++i, std::move(*contents));
+}
+
 HostWorldState::HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
@@ -107,6 +117,7 @@ void HostWorldState::UpdateObjectChanges() noexcept
         return;
     NotifyObjectChanges changes;
     changes.Changes = m_game.TakeObjectChanges();
+    AddCreatedContents(m_game, changes.Changes);
     const ConnectionId_t cHost = m_players.Host();
     if (!cHost || changes.Changes.empty())
         return;
@@ -138,6 +149,7 @@ bool HostWorldState::SendCellState(ConnectionId_t aPlayer, const CellStateReques
     auto changes = m_game.ReadCellState(acRequest.Cell, acRequest.Changed);
     if (!changes)
         return false;
+    AddCreatedContents(m_game, *changes);
     spdlog::info("HostWorldState: sent {:x} cell {:X}'s state, {} changes: {}", aPlayer, acRequest.Cell.LogFormat(), changes->size(),
                  WorldStateLog::List(*changes, &WorldStateLog::Describe, 16));
     // An empty answer too: the guest's changes there were the host's already.
