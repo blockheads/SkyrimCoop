@@ -78,6 +78,8 @@ static nlohmann::json PlayerStatus(const Harness& acHarness)
             {"character_state", EngineCalls::GetCharacterState(0x14)},
             // What it holds with Activate (a grabbed physics object), 0 for nothing.
             {"grabbed", EngineCalls::GetGrabbedObject()},
+            // Always Run (Caps Lock): whether forward held runs or walks.
+            {"always_run", EngineCalls::GetAlwaysRun()},
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", Diagnostics::LocalActors()},
             {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()}};
 }

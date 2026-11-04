@@ -6,6 +6,7 @@ import io
 import json
 import os
 import subprocess
+import time
 import sys
 import tempfile
 import unittest
@@ -598,15 +599,15 @@ class Repro(unittest.TestCase):
         self.assertEqual([c[0] for c in ctx.method_calls], ["walk_to", "talk_to", "pick", "close_dialogues", "menu", "unstage"])
         ctx.walk_to.assert_called_with("client", "lydia", 120.0)
 
-    def test_walk_to_walks_straight_when_the_engine_finds_no_path(self):
+    def test_walk_to_runs_straight_when_the_engine_finds_no_path(self):
         from coop_harness.actions.repro import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x837
         ctx.my_position.return_value = [0.0, 0.0, 0.0]
         ctx.place_of.return_value = [650.0, 0.0, 0.0]
-        ctx.player_command.side_effect = lambda instance, request: (
-            {"ok": True, "id": 5} if request["cmd"] == "papyrus_call" else {"ok": True, "done": True, "value": False})
-        ctx.wait_for.side_effect = lambda what, check, seconds: check()
+        ctx.is_actor.return_value = True
+        ctx.follow_run.return_value = "stalled"
+        ctx.path_leg.return_value = "refused"
         outcome = PlayerVerbs.walk_to(ctx, "client", "lydia", 150.0)
         self.assertFalse(outcome["pathed"])
         ctx.steer_to.assert_called_with("client", "lydia", 150.0)
@@ -657,24 +658,111 @@ class Repro(unittest.TestCase):
         self.assertIn("late-save", namespace["TAGS"])
         ctx.expect.assert_called_with("FreeformRiverwood01", "stage", value=[10])
 
-    def test_walk_to_starts_another_leg_when_one_ends_short(self):
+    def test_walk_to_walks_round_what_stops_a_run(self):
         from coop_harness.actions.repro import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x1348C
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [700.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
-        results = iter([{"ok": True, "done": True, "value": True}, {"ok": True, "done": False}])
-        ctx.player_command.side_effect = lambda instance, request: (
-            {"ok": True, "id": 1} if request["cmd"] == "papyrus_call" else next(results))
-        def wait_for(what, check, seconds):
-            while not (result := check()):
-                pass
-            return result
-        ctx.wait_for.side_effect = wait_for
+        ctx.is_actor.return_value = True
+        ctx.follow_run.side_effect = ["stalled", "arrived"]
+        ctx.path_leg.return_value = "done"
         outcome = PlayerVerbs.walk_to(ctx, "", "faendal", 150.0)
-        self.assertEqual((outcome["pathed"], outcome["legs"]), (True, 2))
+        self.assertEqual((outcome["pathed"], outcome["runs"], outcome["legs"]), (True, 2, 1))
         ctx.steer_to.assert_not_called()
+
+    def test_walk_to_paths_to_an_object(self):
+        from coop_harness.actions.repro import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x5000
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
+        ctx.my_position.side_effect = lambda instance: next(places)
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.return_value = "arrived"
+        self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["legs"], 1)
+        ctx.follow_run.assert_not_called()
+
+    def test_a_path_the_engine_ends_at_once_is_refused(self):
+        from coop_harness.actions.repro import PlayerVerbs
+        ctx = Mock()
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [650.0, 0.0, 0.0]
+        ctx.player_command.side_effect = lambda instance, request: (
+            {"ok": True, "id": 5} if request["cmd"] == "papyrus_call" else {"ok": True, "done": True, "value": False})
+        self.assertEqual(PlayerVerbs.path_leg(ctx, "", 0x837, 150.0, time.monotonic() + 10), "refused")
+
+    def test_a_walk_fails_in_seconds_not_minutes(self):
+        from coop_harness.actions.repro import travel_seconds, RUN_SPEED
+        self.assertAlmostEqual(travel_seconds(2500, 250), 30.0)
+        self.assertLess(travel_seconds(1000), 20.0)  # running: 1000 units take ~3 s
+        self.assertEqual(travel_seconds(0), 10.0)
+        self.assertGreater(RUN_SPEED, 300)
+
+    def test_a_run_that_stops_moving_has_stalled(self):
+        from coop_harness.actions.repro import stalled
+        moving = [(t / 10, [35.0 * t, 0.0, 0.0]) for t in range(30)]
+        self.assertFalse(stalled(moving, 2.9))
+        stuck = moving[:10] + [(t / 10, [315.0 + t * 0.5, 0.0, 0.0]) for t in range(10, 30)]
+        self.assertTrue(stalled(stuck, 2.9))
+        self.assertFalse(stalled(stuck[:5], 0.4))  # not under way long enough to tell
+
+    def clock(self, module):
+        """A controlled clock in that module's `time`: time.sleep moves it on."""
+        now = [0.0]
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(module.time, "monotonic", lambda: now[0]))
+        stack.enter_context(patch.object(module.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)))
+        return now
+
+    def test_a_run_by_input_waits_out_its_ready_conditions(self):
+        from coop_harness.actions import repro as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.act_start.return_value = 1
+        ctx.player_command.side_effect = lambda instance, request: {"id": 1, "phase": "ready" if now[0] < 3 else "ended",
+                                                                    "outcome": {"status": "done"}}
+        self.assertTrue(verbs.PlayerVerbs.run_straight(ctx, "", 0x837, 100.0))
+
+    def test_a_long_walk_to_an_object_gets_a_walk_s_time(self):
+        from coop_harness.actions import repro as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.resolve.return_value = 0x837
+        ctx.is_actor.return_value = False
+        ctx.my_position.side_effect = lambda instance: [now[0] * 80.0, 0.0, 0.0]
+        ctx.place_of.return_value = [10000.0, 0.0, 0.0]
+        def leg(*args):
+            now[0] += 4.0
+            return "done"
+        ctx.path_leg.side_effect = leg
+        self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])
+
+    def test_a_run_gets_its_time_to_set_off_before_standing_still_counts(self):
+        from coop_harness.actions.repro import set_off
+        self.assertFalse(set_off([0, 0, 0], [0, 0, 0], 2.0))  # the engine has not started it yet
+        self.assertTrue(set_off([0, 0, 0], [50, 0, 0], 2.0))
+        self.assertTrue(set_off([0, 0, 0], [0, 0, 0], 6.0))
+
+    def test_always_run_is_switched_on_for_a_walk_and_back_after(self):
+        from coop_harness.actions.repro import always_running
+        ctx = Mock()
+        states = iter([{"always_run": False}, {"always_run": True}])
+        ctx.local_player.side_effect = lambda instance: next(states)
+        ctx.wait_for.side_effect = lambda what, check, seconds: check()
+        with always_running(ctx, "client"):
+            self.assertEqual(ctx.toggle_always_run.call_count, 1)
+        self.assertEqual(ctx.toggle_always_run.call_count, 2)
+        ctx.reset_mock()
+        ctx.local_player.side_effect = None
+        ctx.local_player.return_value = {"always_run": True}
+        with always_running(ctx, ""):
+            pass
+        ctx.toggle_always_run.assert_not_called()
 
     def test_handles_resolve_per_game(self):
         session = Session()

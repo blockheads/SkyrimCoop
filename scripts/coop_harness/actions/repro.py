@@ -16,6 +16,48 @@ from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 
 RECORDINGS = TEST_HOME / "mcp"
+# Measured on the duo (docs/design/repro-mcp.md, Phase 3), units/s: a player running by input (sprint ~500); a walk
+# to an NPC in Riverwood, runs and walked legs together, is planned at TRAVEL_SPEED.
+RUN_SPEED, TRAVEL_SPEED, WALK_SPEED = 350.0, 200.0, 80.0  # WALK_SPEED: PathToReference's fastest
+SPRINT_AFTER = 50.0  # units moved before Sprint is pressed: the engine ignores it from standing
+STALL_UNITS, STALL_SECONDS = 40.0, 1.5  # a run that moves less in this long has met something
+PATH_LEG_SECONDS = 4.0  # a walked leg round what stopped a run
+SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
+CAPS_LOCK, LEFT_ALT = 0x3A, 0x38  # DirectInput scan codes: Toggle Always Run, Sprint
+
+
+def travel_seconds(distance, speed=RUN_SPEED):
+    """A walk's time limit: twice its straight-line time at `speed` (paths bend) and 10 s to set off, so a stuck walk
+    fails in seconds."""
+    return 2.0 * distance / speed + 10.0
+
+
+def stalled(track, now, units=STALL_UNITS, seconds=STALL_SECONDS):
+    """Whether a run's `track` [(time, position)] moved under `units` in its last `seconds` (once that long under way)."""
+    if now - track[0][0] < seconds:
+        return False
+    past = [p for t, p in track if now - t >= seconds]
+    return math.dist(past[-1][:2], track[-1][1][:2]) < units
+
+
+def set_off(start, here, seconds):
+    """Whether a run is under way, so standing still means something: it has moved, or had its time to."""
+    return seconds >= SET_OFF_SECONDS or math.dist(start[:2], here[:2]) >= STALL_UNITS
+
+
+@contextlib.contextmanager
+def always_running(ctx, instance):
+    """Always Run on for a run by input (Caps Lock, as a player toggles it), then as it was."""
+    if ctx.local_player(instance).get("always_run") is not False:  # on, or a build without the readout
+        yield
+        return
+    ctx.toggle_always_run(instance)
+    try:
+        ctx.wait_for(f"[{instance or 'host'}] Always Run is on",
+                     lambda: ctx.local_player(instance).get("always_run") is True, 3)
+        yield
+    finally:
+        ctx.toggle_always_run(instance)
 
 
 def duo_home():
@@ -514,72 +556,135 @@ class PlayerVerbs:
     """A player's verbs for playing real flows (docs/design/repro-mcp.md, phase 3): walking, talking, menus. Real input
     through the engine's dispatch (checked actions), so a flow goes as a player's would."""
 
-    def walk_to(ctx, instance, target, within=100.0, run=0.5, seconds=None):
-        """The player walks to `target` along the navmesh, round walls and through doors in the cell, as the engine paths
-        an actor: AI-driven (Game.SetPlayerAIDriven, as vanilla's scenes drive the player) with Actor.PathToReference
-        (`run`: its walk/run share). Until within `within` units; then the player's controls are its own again."""
+    def walk_to(ctx, instance, target, within=100.0, seconds=None):
+        """The AI-driven player travels to `target` along the navmesh, within `within` units (repro-mcp.md, Phase 3);
+        with no way there it runs straight (`steer_to`)."""
         game = "guest" if instance else "host"
         ref = ctx.resolve(target, game)
         start = ctx.my_position(instance)
-        limit = seconds or math.dist(start[:2], ctx.place_of(instance, ref)[:2]) / 15.0 + 20.0  # run 0.5: ~40 units/s in QASmoke, ~20 outdoors (late save)
+        follows = ctx.is_actor(instance, ref)  # an object takes walked legs only
+        limit = seconds or travel_seconds(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), TRAVEL_SPEED if follows else WALK_SPEED)
+        deadline = time.monotonic() + limit
+        walk = {"legs": 0, "runs": 0, "closest": math.inf, "refused": False}
+        apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
         ctx.player_script_call(instance, "Game", "SetPlayerAIDriven", [True])
-        walk = {"call": None, "legs": 0, "closest": math.inf, "refused": False}
-        def leg():  # one PathToReference; a walk is legs, as a package re-paths when a leg ends short
-            walk["legs"] += 1
-            walk["call"] = ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "PathToReference",
-                                                         "args": [{"form": ref}, run], "player_action": True, "self": 0x14})["id"]
-        def arrived():
-            apart = math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
-            walk["closest"] = min(walk["closest"], apart)
-            return apart <= within
-        def moving_on():  # arrived, refused (ended false: no path), or a leg ended short: the next leg
-            if arrived():
-                return True
-            answer = ctx.player_command(instance, {"cmd": "papyrus_result", "id": walk["call"]})
-            if not answer.get("done"):
-                return False
-            if not answer.get("value"):
-                walk["refused"] = True
-                return True
-            if walk["legs"] >= 5:
-                raise ctx.failure(f"[{instance or 'host'}] the engine ended 5 legs toward {target} short of it: "
-                                  f"closest {walk['closest']:.0f} units (at most {within})")
-            leg()
-            return False
         try:
-            leg()
-            try:
-                ctx.wait_for(f"[{instance or 'host'}] walks to {target} along the navmesh", moving_on, limit)
-            except TestFailure as error:
-                if "5 legs" in str(error):
-                    raise
-                raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in {limit:.0f} s along the navmesh: "
-                                  f"closest {walk['closest']:.0f} units (at most {within})") from None
+            while (left := apart()) > within and not walk["refused"]:
+                walk["closest"] = min(walk["closest"], left)
+                if time.monotonic() > deadline:
+                    raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in {limit:.0f} s along the navmesh: "
+                                      f"closest {walk['closest']:.0f} units (at most {within}), {walk['runs']} runs and "
+                                      f"{walk['legs']} walked legs")
+                if follows:
+                    walk["runs"] += 1
+                    if ctx.follow_run(instance, ref, within, deadline) != "stalled":
+                        continue
+                walk["legs"] += 1
+                walk["refused"] = ctx.path_leg(instance, ref, within, deadline) == "refused"
         finally:
             ctx.player_script_call(instance, "Game", "SetPlayerAIDriven", [False])
         walked = lambda: round(math.dist(start[:2], ctx.my_position(instance)[:2]), 1)
-        if walk["refused"] and not arrived():  # no navmesh path to it (a guest's NPC copy, docs/design/repro-mcp.md): walk straight
+        if walk["refused"] and apart() > within:  # no navmesh path to it (a guest's NPC copy, docs/design/repro-mcp.md)
             ctx.steer_to(instance, target, within)
-            return {"walked": walked(), "pathed": False, "legs": walk["legs"]}
-        return {"walked": walked(), "pathed": True, "legs": walk["legs"]}
+            return {"walked": walked(), "pathed": False, "runs": walk["runs"], "legs": walk["legs"]}
+        return {"walked": walked(), "pathed": True, "runs": walk["runs"], "legs": walk["legs"]}
 
-    def steer_to(ctx, instance, target, within=100.0, speed=120.0):
-        """The player turns toward `target` and walks (forward held, real input) until within `within` units of it, in a
-        straight line: no pathing, so a wall stops it and the action times out naming how close it got."""
+    def is_actor(ctx, instance, ref):
+        """Whether that game has `ref` as an actor (a player, a copy, its own NPC), not an object."""
+        return (ref == 0x14 or str(ref) in ctx.actors_on(instance)
+                or str(ref) in (ctx.local_player(instance).get("local_actors") or {}))
+
+    def follow_run(ctx, instance, ref, within, deadline):
+        """The AI-driven player runs after actor `ref` (KeepOffsetFromActor: catching up beyond `within`, which
+        runs): "arrived", "stalled" (under STALL_UNITS in STALL_SECONDS: something in the way) or "late"."""
+        ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "KeepOffsetFromActor",
+                                      "args": [{"form": ref}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, within, within / 2],
+                                      "player_action": True, "self": 0x14})
+        try:
+            start = ctx.my_position(instance)
+            track, began = [(time.monotonic(), start)], time.monotonic()
+            while time.monotonic() < deadline:
+                here = ctx.my_position(instance)
+                if math.dist(here[:2], ctx.place_of(instance, ref)[:2]) <= within:
+                    return "arrived"
+                now = time.monotonic()
+                track.append((now, here))
+                if set_off(start, here, now - began) and stalled(track, now):
+                    return "stalled"
+                time.sleep(0.1)
+            return "late"
+        finally:
+            ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "ClearKeepOffsetFromActor",
+                                          "args": [], "player_action": True, "self": 0x14})
+
+    def path_leg(ctx, instance, ref, within, deadline, seconds=PATH_LEG_SECONDS):
+        """A stretch along the navmesh at the engine's walk (PathToReference, its fastest: 1.0), round what stopped a
+        run: until "arrived", the engine ends it ("refused" at once: no path; "ended"), or `seconds` pass ("done")."""
+        call = ctx.player_command(instance, {"cmd": "papyrus_call", "class": "Actor", "function": "PathToReference",
+                                             "args": [{"form": ref}, 1.0], "player_action": True, "self": 0x14})["id"]
+        began = time.monotonic()
+        while time.monotonic() < min(deadline, began + seconds):
+            if math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]) <= within:
+                return "arrived"
+            answer = ctx.player_command(instance, {"cmd": "papyrus_result", "id": call})
+            if answer.get("done"):
+                return "ended" if answer.get("value") or time.monotonic() - began > 1.0 else "refused"
+            time.sleep(0.1)
+        return "done"  # the next run (or leg) replaces this path
+
+    def run_straight(ctx, instance, ref, within, sprint=True):
+        """The player turns toward `ref` and runs there by real input (forward held, Always Run on, Sprint once
+        moving). True when within `within`; False when it stalls (a wall, a fence) or time is up."""
+        here = ctx.my_position(instance)
+        spec = {"name": f"runs to {ref:X}", "ready": ["takes_input", "on_ground"],
+                "turn": {"face": ref, "rate": 180}, "buttons": ["forward"],
+                "until": [{"near_xy": ["player", ref, within]}],
+                "seconds": travel_seconds(math.dist(here[:2], ctx.place_of(instance, ref)[:2]))}
+        action, sprinting = ctx.act_start(instance, spec), False
+        try:
+            track = []
+            while True:
+                state = ctx.player_command(instance, {"cmd": "act_state"})
+                if state.get("id") != action or state.get("phase") == "ended":
+                    return (state.get("outcome") or {}).get("status") == "done"
+                if state.get("phase") != "running":  # its ready conditions can hold it for seconds
+                    time.sleep(0.1)
+                    continue
+                now, at = time.monotonic(), ctx.my_position(instance)
+                track = track or [(now, at)]
+                if sprint and not sprinting and math.dist(at[:2], here[:2]) > SPRINT_AFTER:  # sprint starts only once moving
+                    sprinting = ctx.sprint_key(instance, True)
+                track.append((now, at))
+                if now - track[0][0] > 1.0 and stalled(track[1:], now):  # a second to turn and set off
+                    ctx.player_command(instance, {"cmd": "act_cancel"})
+                    return False
+                time.sleep(0.1)
+        finally:
+            if sprinting:
+                ctx.sprint_key(instance, False)
+
+    def steer_to(ctx, instance, target, within=100.0, sprint=True):
+        """The player turns toward `target` and runs (real input, Always Run, sprinting once moving) until within
+        `within` units of it, in a straight line: no pathing, so a wall stops it and it fails naming how close it got."""
         game = "guest" if instance else "host"
         ref = ctx.resolve(target, game)
-        here, there = ctx.my_position(instance), ctx.place_of(instance, ref)
-        seconds = math.dist(here[:2], there[:2]) / speed + 3.0
-        outcome = ctx.act(instance, {
-            "name": f"walks to {target}", "ready": ["takes_input", "on_ground"],
-            "turn": {"face": ref, "rate": 180}, "buttons": ["forward"],
-            "until": [{"near_xy": ["player", ref, within]}],
-            "watch": [{"name": "apart", "distance_xy": ["player", ref]}], "seconds": seconds}, expect=None)
-        if outcome["status"] != "done":
-            closest = (outcome.get("watched") or {}).get("apart", {}).get("min")
-            raise ctx.failure(f"[{instance or 'host'}] did not reach {target}: {outcome['status']}, {outcome.get('reason')}"
-                              + (f"; closest {closest:.0f} units" if closest is not None else ""))
-        return outcome
+        with always_running(ctx, instance):
+            if not ctx.run_straight(instance, ref, within, sprint):
+                closest = math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
+                raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in a straight line: stopped "
+                                  f"{closest:.0f} units off (at most {within})")
+        return {"apart": round(math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]))}
+
+    def toggle_always_run(ctx, instance):
+        """Caps Lock pressed and released through the game's input dispatch (Toggle Always Run)."""
+        ctx.player_command(instance, {"cmd": "key", "scan": CAPS_LOCK, "down": True})
+        frame = ctx.game_frame(instance)
+        ctx.wait_for(f"[{instance or 'host'}] a frame for the key", lambda: ctx.game_frame(instance) > frame, 3)
+        ctx.player_command(instance, {"cmd": "key", "scan": CAPS_LOCK, "down": False})
+
+    def sprint_key(ctx, instance, down):
+        """Left Alt (Sprint) down or up through the game's input dispatch; True once sent."""
+        return bool(ctx.player_command(instance, {"cmd": "key", "scan": LEFT_ALT, "down": down}).get("ok"))
 
     def go_far(ctx, instance, command):
         """That game's player goes far by a console command (coc): until it is 2000+ units off."""
