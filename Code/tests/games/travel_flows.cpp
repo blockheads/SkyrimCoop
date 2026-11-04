@@ -215,6 +215,36 @@ SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it
     }
 }
 
+SCENARIO("A follower landing on a guest's arrival spot does not shove the guest", "[travel]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("the games agree on the players");
+    const glm::vec3 cSpot{300.f, 300.f, 0.f};
+
+    // The guest leads in through a door; the host's follower lands right where the guest stands
+    // (follower-lands-on-guest: her copy's capsule never yields).
+    party.As(party.Guest(), [&] { guest.PlayerTravels(kSinkhole, cSpot); });
+    party.Until([&] { return host.GetPlayerParentCellId() == kSinkhole; }, "the host follows to the sinkhole");
+    uint32_t follower = 0;
+    party.As(party.Host(), [&] { follower = host.LoadNpc(kGuard, kSinkhole, cSpot); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && guest.Actors.at(guest.CopiesOf(kGuard)[0]).Stepped; },
+                "the guest's copy of the follower is stepped on the spot");
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+
+    THEN("the guest stays on its spot, passing through the follower's copy")
+    {
+        const auto& cGuest = guest.Actors.at(FakeEngine::kPlayer);
+        INFO("shoves " << guest.PlayerShoves << ", passing " << guest.PassingThrough.size());
+        CHECK(guest.PlayerShoves == 0);
+        CHECK(glm::distance(glm::vec2(cGuest.Position[0], cGuest.Position[1]), glm::vec2(cSpot)) < 1.f);
+        CHECK(std::ranges::find(guest.PassingThrough, guest.CopiesOf(kGuard)[0]) != guest.PassingThrough.end());
+    }
+    (void)follower;
+}
+
 SCENARIO("A guest's native fast travel advances the party calendar once across midnight", "[travel][world]")
 {
     Party party(2, SmokeWorld);
