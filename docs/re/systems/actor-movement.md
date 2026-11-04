@@ -103,6 +103,10 @@ after the physics step: the engine writes the actor's place from its controller 
   - her copy's controller stays on her (0.0 off).
 - **Tests:** GameTests "A guest's player presses a held plate against a host NPC's copy" (the fake's capsule pushes
   only for a stepped copy: `FakeEngine::Actor::Stepped`); ClientTests `[copy-step]`.
+- **A stepped copy shoves a player it lands on** (2026-11-03, `follower-lands-on-guest`): the host's Lydia moved
+  onto the guest's arrival spot; on the guest's game her copy kept its place and the guest was pushed 27 units out
+  (ending 55 to 60 units apart). The arrival stack lets them pass through
+  (`docs/design/host-authority-migration.md`, "Arriving together"); the fake models it (`FakeEngine::ShovePlayer`).
 - **References:** TES3MP writes a copy's direction into the engine's movement settings, so the engine steps it, and
   snaps it past 40 to 80 units. PLANCK ignores an actor's collision for a moment after a warp. Notes:
   `docs/research/sync-and-testing-references.md`.

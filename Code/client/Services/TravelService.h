@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <Services/ArrivalStack.h>
 #include <Structs/GameId.h>
 
 #include <optional>
@@ -41,18 +42,19 @@ struct TravelService
 
   private:
     void FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept;
-    // The party arrived on one spot: the players on it pass through each other until each walks off it.
+    // The party arrived on one spot: the players and actors on it pass through each other until each walks off it.
     void StackOn(const glm::vec3& acSpot) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnTravelQueued(const PlayerTravelQueuedEvent& acEvent) noexcept;
     void OnFastTravel(const FastTravelEvent& acEvent) noexcept;
     // Another player travelled by itself: ours goes where it arrived, unless already there.
     void OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept;
-    // Who is still on the stack (a player leaves it once it walks off it in this cell, or if it never came
-    // within a few seconds), and so who passes through whom.
+    // Who is still on the stack (ArrivalStack), and so who passes through whom.
     void UpdateStack() noexcept;
     // Our player and the copies of the others whose owners are around it: where each stands, by form id.
     [[nodiscard]] std::unordered_map<uint32_t, glm::vec3> PlayersHere() const noexcept;
+    // Every other actor in our player's cell (outdoors: loaded), our own and copies: where each stands.
+    [[nodiscard]] std::unordered_map<uint32_t, glm::vec3> OthersHere() const noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -77,19 +79,7 @@ struct TravelService
         float Heading{}; // the leader's on arrival
     };
     std::vector<TetherTarget> m_tetherTargets;
-    struct Stack
-    {
-        struct Player
-        {
-            uint32_t FormId{};
-            bool Arrived{}; // has stood on the spot
-            std::chrono::steady_clock::time_point OffSince{}; // in this cell off the spot since (none: on it, or away)
-        };
-        glm::vec3 Spot{};
-        std::chrono::steady_clock::time_point Since;
-        std::vector<Player> Players;
-    };
-    std::optional<Stack> m_stack;
+    std::optional<ArrivalStack> m_stack;
 
     MainLoopTasks::Scope m_mainTasks;
     std::vector<entt::scoped_connection> m_connections;

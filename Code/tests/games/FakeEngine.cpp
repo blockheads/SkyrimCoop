@@ -76,8 +76,32 @@ bool FakeEngine::RagdollPosed(uint32_t aFormId) const noexcept
            (it->second.Dead && std::ranges::any_of(Bodies, [&](const auto& acBody) { return acBody.second.RagdollOf == aFormId && acBody.second.Held; }));
 }
 
+void FakeEngine::ShovePlayer() noexcept
+{
+    auto& player = Actors.at(kPlayer);
+    const auto cPasses = [this](uint32_t aFormId) { return std::ranges::find(PassingThrough, aFormId) != PassingThrough.end(); };
+    for (const auto& [cId, cActor] : Actors)
+    {
+        if (!cActor.Copy || cActor.Player || !cActor.Stepped || cActor.Dead || cActor.Disabled || !cActor.Loaded || cActor.Cell != player.Cell)
+            continue;
+        if (std::abs(cActor.Position[2] - player.Position[2]) >= kCapsuleTop || (cPasses(cId) && cPasses(kPlayer)))
+            continue;
+        glm::vec2 off(player.Position[0] - cActor.Position[0], player.Position[1] - cActor.Position[1]);
+        if (glm::length(off) >= 2 * kCapsuleRadius)
+            continue;
+        if (glm::length(off) < 1e-3f)
+            off = {1.f, 0.f};
+        off = glm::normalize(off) * (2 * kCapsuleRadius);
+        player.Position[0] = cActor.Position[0] + off.x;
+        player.Position[1] = cActor.Position[1] + off.y;
+        ++PlayerShoves;
+    }
+}
+
 void FakeEngine::Frame()
 {
+    if (Actors.contains(kPlayer))
+        ShovePlayer();
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
