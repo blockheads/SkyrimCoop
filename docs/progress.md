@@ -1,5 +1,11 @@
 # Progress
 
+2026-11-03: the duo's games have a silent audio device again. Running as `coop2` (2026-11-01) they had no audio
+driver, so voice lines were queued and never started: `dive-host-player`, `dive-client-player` and
+`copy-ends-voice-line` failed every time. Wine's ALSA driver now plays to ALSA's null device
+([testing.md](design/testing.md)). `copy-ends-voice-line` passes; both dives now pass their gasp and fail later on
+the deferred "Headtracking left over" (bugs.md). The dive's surfacing step names what it saw when it fails.
+
 2026-11-03: launcher Play co-op / Bethesda graphics settings menu, invitation bypass, `/perf` and per-connection
 network diagnostics, and verified save-block reuse for world joins. Details and current validation:
 `docs/design/network-performance.md`; launcher preservation: `docs/install.md`.
