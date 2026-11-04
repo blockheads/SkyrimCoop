@@ -64,7 +64,8 @@ harness again keeping the session, `verb(name, args)` calls any Session method (
 `rounds` repeats a call with a line each, `trace_start`/`trace_read` show a filtered animation trace, `log` greps the
 plugin logs. A bare `Session` that drives the games without the duo is refused (`Game.rpc`); `scripts/check_scenarios.py`
 (in `check.sh`) fails a new scenario that says neither `# recorded:` (stamped by `record_export`) nor `# hand-written:`.
-Python units: `scripts/test_coop_mcp.py`.
+Python units: `scripts/test_coop_mcp.py`. Checked on the duo, the exported scenario replayed. Also fixed: a fresh worktree's
+games stopped at a CrashLogger dialog (the game's user couldn't write `My Games`; `prepare_prefix` grants it now).
 
 2026-11-04: copy state from Riverwood, both fixed. Level: a placed leveled NPC's copy (a Whiterun Guard, 1000 against
 1; Odahviing's 20 against 1 the same kind) was given the owner's face record, dropping its own game's resolved base and

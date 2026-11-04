@@ -102,12 +102,18 @@ agent ── MCP ──> coop_mcp.py      server, the live state, mcp_reload
 - **One call at a time, off the loop:** FastMCP runs a sync tool on its event loop, so `duo_start` waiting in the
   queue blocked every call (mcp_reload too) past the client's 120 s. Tools now run in a worker thread under one lock
   (`state["lock"]`), and `duo_start`/`vanilla_start` wait 90 s by default, then fail keeping their place.
-- **Checked live (2026-11-04, through the connected server, no games):** a verb added to `actions/repro.py` worked
-  after `mcp_reload` through `verb` and `rounds`; a new tool showed in Claude Code's tool list after the reload
-  (`tools/list_changed` honoured); a syntax error was refused with its line and the old code kept serving. Not yet on
-  the duo: this worktree's first boots stopped at SKSE's "CrashLogger.dll: fatal error while loading" dialog (and
-  Steam's "Game already running"), before our heartbeat; the trace, `rounds` and `log` on real games are left for
-  the next MCP session (the kill-move redo, once PR #13 lands).
+- **Checked live (2026-11-04, through the connected server):** with no games, a verb added to `actions/repro.py`
+  worked after `mcp_reload` through `verb` and `rounds`; a new tool showed in Claude Code's tool list after the reload
+  (`tools/list_changed` honoured); a syntax error was refused with its line and the old code kept serving. On the duo:
+  `trace_start` on both players, `verb` (`give_sword`, `draw`), a swing and `rounds` of three jumps, `trace_read`
+  showing the draw and the jump in both games (the guest's copy 100-190 ms behind), `log` on the guest, `mcp_reload`
+  with the games running (the trace and handles kept), a bare `Session` refused `input` while `coop_test.py console`
+  passed, and `record_export` (stamped; `rounds` as a loop of the three it ran) replayed by `coop_test.py scenario`:
+  PASS. `rounds` of presses fires them back to back: two of the three jumps fell in the air.
+- **Fresh worktrees didn't boot (fixed):** `prepare_prefix` made `My Games/Skyrim Special Edition` as this user after
+  the prefix went to the game's user (`coop2`), so SKSE couldn't write its logs and CrashLogger failed to load (a
+  modal dialog before our heartbeat). It now gives the game's user an ACL there, as for `Data/SKSE`
+  (`test_the_games_user_can_write_my_games_this_user_creates`).
 
 ## Context
 

@@ -261,6 +261,26 @@ class Harness(unittest.TestCase):
         self.assertTrue(result.failures)
         output.assert_any_call("copies refused replayed animations: client FF001234 IdleStopInstant x1")
 
+    @unittest.skipIf(WINDOWS, "game users and ACLs")
+    def test_the_games_user_can_write_my_games_this_user_creates(self):
+        # A fresh worktree's My Games was this user's only: SKSE (run as coop2) could not log, CrashLogger failed to load.
+        session = self.session
+        with tempfile.TemporaryDirectory() as temp:
+            game = Game("", install=Path(temp) / "game", prefix=Path(temp) / "prefix-host")
+            (game.prefix / "pfx/drive_c/users/steamuser").mkdir(parents=True)
+            (game.install).mkdir()
+            (game.install / "Skyrim_Default.ini").write_text("[General]\n")
+            (game.install / "Low.ini").write_text("[Display]\n")
+            session.games = (game, session.guest)
+            session.host = game
+            calls = []
+            with patch.object(session, "instance_user", return_value="coop2"), patch.object(session, "own_prefix"), \
+                 patch.object(session, "sudo", side_effect=lambda *command: calls.append(command)), \
+                 patch.object(session, "enable_bundled_start"):
+                with contextlib.suppress(Exception):  # the rest of the preparation is not this test's
+                    session.prepare_prefix(_game=game)
+            self.assertIn(("setfacl", "-R", "-m", "u:coop2:rwX,d:u:coop2:rwX", str(game.my_games)), calls)
+
     @unittest.skipIf(WINDOWS, "Wine audio drivers")
     def test_games_run_as_another_user_play_to_the_null_audio_device(self):
         # dive-*, copy-ends-voice-line: with no audio driver Skyrim queues voice lines that never start.
