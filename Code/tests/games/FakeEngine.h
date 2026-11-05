@@ -441,6 +441,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool InAir = false; // its controller jumping or falling, else on the ground
         bool InKillMove = false; // either half of a pair (Actor::IsInKillMove 38615)
         ActionEvent LatestPairAction; // its half of the pair it last took
+        uint32_t PairBlowIn = 0;  // frames until its own pair's blow lands (HitFrame), 0 none
+        uint32_t PairVictim = 0;
+        uint32_t ClashPartner = 0;
+        uint64_t ClashUntil = 0;
+        uint8_t PairStops = 0;
+        bool PairedWithCopy = false;
+        uint64_t PoseHeldUntil = 0;
+        bool InPairClip = false;    // bIsSynced: on through a pair's clip
+        uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -454,6 +463,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
+        bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
+        bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -542,12 +553,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A behaviour's transitions; a clip's own annotation can advance only this game's graph.
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
+    bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
+    uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
+    uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
-    void EndKillMove(uint32_t aFormId); // Character 38614: the flag cleared, and a recorded killer's kill queued
+    void EndKillMove(uint32_t aFormId);
+    void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
+    [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
+    void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
+    void StopPairClip(uint32_t aFormId); // pairedStop: the clip leaves, unless its transition drops it
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
@@ -685,7 +703,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    // Units a stepped, colliding copy in furniture is pushed off its goal, at most 3 of these: the duo's 0.3 to 1.2 (actor-movement.md).
+    static constexpr float kFurnitureOffset = 0.4f;
     bool IsOnGround(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && !Actors.at(aFormId).InAir; }
+    bool CapsuleCollides(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).Collides; }
+    void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept override
+    {
+        if (Actors.contains(aFormId))
+            Actors.at(aFormId).Collides = aCollides;
+    }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override

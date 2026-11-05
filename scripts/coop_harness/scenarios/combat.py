@@ -246,8 +246,7 @@ def scenario_kill_move_kills_guest(ctx):
 
 def scenario_kill_moves_cross(ctx):
     """The two players swing a killing blow at each other at once, moving, each from its own game. Crossed, each game has
-    its own pair. They clash: both players free again at once, nobody hurt (taken as one pair, the engine ended both clips
-    and dropped a player with a plain death 0.35 s in)."""
+    its own pair. The first swing wins on both games: the later attacker plays the victim's half and dies, the other stands."""
     copies = {game: ctx.other_player(ctx.actors_on(game)) for game in ("", "client")}
     for game in ("", "client"):
         ctx.console_on(game, "set KillMoveRandom to 100")
@@ -255,6 +254,7 @@ def scenario_kill_moves_cross(ctx):
     try:
         if not ctx.kill_move_exchange(copies):
             raise ctx.failure("the two swings did not start a pair on each game: nothing crossed")
+        ctx.wait_for("the loser respawns", lambda: not any(ctx.death_state(game).get("down") for game in ("", "client")), 30)
     finally:
         for game in ("", "client"):
             ctx.console_on(game, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")

@@ -234,6 +234,10 @@ struct Actor : TESObjectREFR
     void SetFactions(const Factions& acFactions) noexcept;
     void SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept;
     void ForcePosition(const NiPoint3& acPosition) noexcept;
+    // Its capsule's collision (filter bit 0x8000 on layer 30, set by the engine in furniture: 40063); true without one.
+    [[nodiscard]] bool CapsuleCollides() const noexcept;
+    // Turns its capsule's collision off or on; false without a capsule.
+    bool SetCapsuleCollision(bool aCollides) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // The package conditions and Papyrus see (37399): the running one, or for an engine-made one the form package
@@ -278,6 +282,10 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsInKillMove() const noexcept;
     // What the KillMoveEnd event does (KillMoveEndHandler 42871).
     void EndKillMove() noexcept;
+    // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
+    void EndPairs() noexcept;
+    [[nodiscard]] bool InPairClip() noexcept;
+    void StopPairClip() noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;

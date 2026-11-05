@@ -74,6 +74,7 @@ void Poll()
     {
         harness.Dialogue.Poll();
         harness.Gait.Poll();
+        harness.Jitter.Poll();
     }
 
     const auto cNow = std::chrono::steady_clock::now();

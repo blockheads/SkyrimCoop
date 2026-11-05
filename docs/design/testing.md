@@ -88,8 +88,10 @@ command starts (duo, scenario, reload, repro, launch, play, profile, soak, quest
   holder is this checkout, alive   -> join the hold, run
   free, nobody ahead               -> hold, run
   holder's tokens all free (stale) -> stop its games (its checkout's `stop`), log it, hold, run
-  else                             -> join the queue's end, block on the token ahead (flock, no polling),
-                                      re-check when it frees; COOP_DUO_WAIT (2 h) then fail
+  else                             -> join the queue's end, watch the token ahead, re-check when it
+                                      frees and every 30 s (renews the place); COOP_DUO_WAIT (2 h) then fail
+every look at the state
+  a queued token that's free, or not polled for 5 min (COOP_DUO_QUEUE_STALE_MINUTES) -> dropped, logged
 command ends
   its games still run (duo --keep-running) -> hand the hold to a keeper (`duo.py keep`): it frees
       the hold on `coop_test.py stop`, 1 min after the games end, or after 30 idle minutes
@@ -103,10 +105,16 @@ command ends
   is refused with a pointer to the MCP. `COOP_HARNESS_FREE=1` bypasses on purpose (`game.py`, `READ_COMMANDS`).
 - The MCP server holds it from `duo_start` (waits `wait` seconds, then fails keeping its queue place for the next
   call) until `duo_stop` or the server's exit.
-- `scripts/duo.py status` shows the holder, the queue and ages; `scripts/duo.py run -- <command>` waits, holds for
-  the command, stops its games and frees the duo.
+- Nothing hands the duo over: a waiter takes it from inside its own `acquire`, when it is first and no hold lives. So a
+  live process that stopped calling (an idle agent's MCP server keeps its token) would block everyone behind it for
+  good, which is why a place lapses without polls. `duo_start` and `duo_wait` renew it; a lapsed session that calls
+  `duo_start` again rejoins at the end. The holder and keeper keep their own rules (above).
+- `duo_stop` on a session only queued leaves the queue ("left the queue, was number N").
+- `scripts/duo.py status` shows the holder, the queue, ages and each place's last poll and id;
+  `scripts/duo.py leave <name or id>` drops a stuck place by hand (sessions sharing a name need the id);
+  `scripts/duo.py run -- <command>` waits, holds for the command, stops its games and frees the duo.
 - Tests: `DuoLockTests` in `scripts/test_coop_harness.py` (contending processes, FIFO, a killed holder, a stale
-  takeover, the MCP's hold, the keeper).
+  takeover, the MCP's hold, the keeper, leaving the queue, a stale head skipped, a live waiter kept).
 
 ```bash
 python3 scripts/coop_test.py duo --keep-running
@@ -241,7 +249,12 @@ python3 scripts/coop_test.py profile                          # idle
 python3 scripts/coop_test.py profile --load wolves=15         # a fight: god mode, 15 wolves at the host
 python3 scripts/coop_test.py profile --scenario NAME... --seconds 60
 python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-process call stacks
+python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=33,p99=70,stalls_per_min=6
 ```
+
+- `--route whiterun` walks one console route through the window (the guest follows); it also works on the vanilla
+  stand-in (`vanilla_start`), so the same run with and without our plugin tells the machine from us.
+- `--budget` fails the run over the given frame percentiles or stalls a minute. The MCP's `profile` tool runs the same.
 
 | Section | From |
 |---|---|
@@ -272,6 +285,7 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 - Each thread's report ranks the samples where it ran. Its wait calls count as waiting; other system calls
   (`VirtualQuery`, say) count as work.
 - A flame graph per game: `<game>-stacks.speedscope.json` (open at speedscope.app).
+- Under Wine an unwind can fault on a suspended thread; `CrashHandler::Backtrace` then stops instead of crashing.
 
 **Player builds** keep the cheap part:
 - A bug report's `snapshot.json` has `perf`: the last minute's frame and update percentiles, messages by name,
@@ -282,6 +296,7 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 `as_instance_user`, and the Tracy tools are built from source there. Not yet run.
 
 The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+
 
 ## Python ownership
 

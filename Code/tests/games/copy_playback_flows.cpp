@@ -113,6 +113,60 @@ SCENARIO("A copy plays its owner's time as far behind as the line needs, not a f
     CHECK(cNow - cShown < 200);                       // and its owner's send interval
 }
 
+SCENARIO("A copy's capsule collides only when its owner's does: in furniture it is not pushed off", "[copies][copy-step]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+    Walk(party, std::chrono::milliseconds(300), 100.f);
+    const uint32_t cCopy = HostPlayerCopy(guest);
+    auto& owner = host.Actors.at(FakeEngine::kPlayer);
+    auto& copy = guest.Actors.at(cCopy);
+    // Moved along x: y shows a push from its furniture.
+    const auto cFurthestOff = [&](std::chrono::milliseconds aMs) {
+        const float cPathY = owner.Position[1];
+        float furthest = 0.f;
+        Walk(party, aMs, 100.f, [&] { furthest = std::max(furthest, std::abs(copy.Position[1] - cPathY)); });
+        return furthest;
+    };
+
+    WHEN("its capsule still collides in its furniture")
+    {
+        copy.InFurniture = true;
+        THEN("its furniture pushes it off its owner's path each step: the shake") { CHECK(cFurthestOff(std::chrono::milliseconds(300)) >= FakeEngine::kFurnitureOffset); }
+    }
+    WHEN("its owner sits, its capsule collision off (40063)")
+    {
+        owner.Collides = false;
+        party.Until([&] { return !copy.Collides; }, "the copy's capsule follows its owner's");
+        copy.InFurniture = true;
+        THEN("the copy is placed on its owner's path, its collision kept off")
+        {
+            CHECK(cFurthestOff(std::chrono::milliseconds(600)) < 0.1f);
+            CHECK_FALSE(copy.Stepped);
+            CHECK_FALSE(copy.Collides);
+        }
+        AND_WHEN("its owner gets up, its collision on again")
+        {
+            owner.Collides = true;
+            copy.InFurniture = false;
+            party.Until([&] { return copy.Collides && copy.Stepped; }, "the copy collides and is stepped again");
+        }
+    }
+    WHEN("its owner stands with its collision off (far off the host's player: MoveOnNavmeshUnseen)")
+    {
+        owner.Collides = false;
+        party.Until([&] { return !copy.Collides; }, "the copy's capsule follows its owner's");
+        cFurthestOff(std::chrono::milliseconds(300));
+        THEN("a step would turn it back on (Actor::Move): the copy is placed and stays off")
+        {
+            CHECK_FALSE(copy.Stepped);
+            CHECK_FALSE(copy.Collides);
+        }
+    }
+}
+
 SCENARIO("Over a slow, jittery line a walking copy never steps back", "[copies][copy-clock]")
 {
     Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 80, .JitterMs = 40, .Seed = 3});

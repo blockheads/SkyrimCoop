@@ -35,4 +35,6 @@ static_assert(offsetof(hkbRagdollDriver, ragdoll) == 0x88);
 
 static_assert(offsetof(hkbRagdollDriver, character) == 0x80);
 
+// A copy holding its pose takes no graph update, so nothing drives its ragdoll: its limbs would fall.
+void HoldCopyRagdollStill(Actor& aCopy) noexcept;
 void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace) noexcept;

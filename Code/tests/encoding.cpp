@@ -1193,6 +1193,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Lying = true;
         move.Knocked = true;
         move.OnGround = true;
+        move.CapsuleCollides = false;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

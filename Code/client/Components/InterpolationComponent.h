@@ -16,6 +16,7 @@ struct InterpolationComponent
         bool Knocked{};
         bool Lying{}; // its owner lying in its ragdoll (Movement::Lying)
         bool OnGround{}; // its owner's controller on the ground (Movement::OnGround)
+        bool CapsuleCollides{true}; // its owner's capsule collides (Movement::CapsuleCollides)
 
         TimePoint() = default;
         TimePoint(const TimePoint&) = default;

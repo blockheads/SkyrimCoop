@@ -26,28 +26,70 @@ constexpr bool HeldByPair(bool aCopyInKillMove, bool aPaired) noexcept
     return aCopyInKillMove && !aPaired;
 }
 
-struct PairedReplay
+// A yielded pair: a clip behind an uninterruptible transition (pa_KillMoveI: 0xd04) ignores pairedStop until its blend
+// ends, so it is sent again while that clip plays; a new kill move is left alone.
+constexpr uint8_t cClashStopUpdates = 30;
+constexpr uint64_t cClashGuardMs = 5000; // past the longest kill clip
+
+constexpr bool ResendPairStop(uint8_t aStopsLeft, bool aInKillMove, bool aInClip) noexcept
 {
-    std::string_view EventName;    // the replayed action's
-    uint32_t CopyId;               // the copy replaying it
-    bool LocalPartner;             // its partner is this game's own actor
-    bool PartnerInKillMove;
-    std::string_view PairEvent;    // the partner's pair: its target's event
-    uint32_t PairTargetId;         // and its target
+    return aStopsLeft && !aInKillMove && aInClip;
+}
+
+// A blow from a yielded clip: its hitter's kill move yielded and it has started no attack since, whatever half it plays
+// now (HitFrame and PairEnd can share a frame). Its own new swing or pair ends this.
+constexpr bool CancelledBlow(bool aInClashWindow) noexcept
+{
+    return aInClashWindow;
+}
+
+constexpr bool StartsAttack(std::string_view acEvent) noexcept
+{
+    return acEvent.starts_with("attack") || acEvent.starts_with("pa_");
+}
+
+// A kill move's victim dies on any ragdoll contact (63092). Only when both halves are this game's.
+constexpr bool ContactKills(bool aPairedWithCopy) noexcept
+{
+    return !aPairedWithCopy;
+}
+
+// A copy at its clip's KillActor does not die (deferred kill): its graph would blend to standing until its owner's death
+// action, then its ragdoll would start from there. It holds that pose instead (docs/re/systems/kill-moves.md).
+constexpr uint64_t cPoseHoldMs = 1500; // a death action that never comes: its owner lived
+
+constexpr bool PoseHeld(uint64_t aNow, uint64_t aHeldUntil, bool aDead) noexcept
+{
+    return !aDead && aNow < aHeldUntil;
+}
+
+enum class PairOutcome
+{
+    kPlay,  // the partner here is free
+    kSkip,  // the pair's other half came back, the partner is paired elsewhere, or this game's pair swung first
+    kYield, // crossed, and the replayed pair swung first: this game ends its own pair, then plays that one
 };
 
-// The engine takes a pair on two actors already paired as the same pair and ends both clips at once (32803;
-// docs/re/systems/kill-moves.md). True: the action is settled here. Crossed pairs end both (aEnd(copy), aEnd(partner));
-// the pair's other half coming back, or a partner paired with someone else, changes nothing.
-template <class End> bool SettlePairedReplay(const PairedReplay& acReplay, End&& aEnd)
+struct PairedReplay
 {
-    if (!acReplay.LocalPartner || !acReplay.PartnerInKillMove)
-        return false;
-    if (acReplay.PairEvent != acReplay.EventName && acReplay.PairTargetId == acReplay.CopyId)
-    {
-        aEnd(true);
-        aEnd(false);
-    }
-    return true;
+    std::string_view EventName;  // the replayed action's
+    uint32_t CopyId;             // the copy replaying it
+    bool PartnerInKillMove;      // its partner, this game's own actor
+    std::string_view PairEvent;  // the partner's pair: its target's event
+    uint32_t PairTargetId;       // and its target
+    uint64_t Tick, PairTick;     // when each pair was swung, on the session's clock
+    uint32_t Session, PairSession; // each attacker's session id: same tick, the lower wins
+};
+
+// The engine takes a pair on two actors already paired as the same pair and ends both clips at once (32803). Both games
+// see the same ticks, so they agree who swung first with no message (docs/re/systems/kill-moves.md).
+constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
+{
+    if (!acReplay.PartnerInKillMove)
+        return PairOutcome::kPlay;
+    if (acReplay.PairEvent == acReplay.EventName || acReplay.PairTargetId != acReplay.CopyId)
+        return PairOutcome::kSkip;
+    const bool cReplayedFirst = acReplay.Tick != acReplay.PairTick ? acReplay.Tick < acReplay.PairTick : acReplay.Session < acReplay.PairSession;
+    return cReplayedFirst ? PairOutcome::kYield : PairOutcome::kSkip;
 }
 } // namespace ReplayState

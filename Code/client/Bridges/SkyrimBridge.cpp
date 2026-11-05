@@ -63,6 +63,7 @@
 #include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
+#include <Games/Animation/ReplayState.h>
 #include <Papyrus/GuestScripts.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <AI/AIProcess.h>
@@ -325,6 +326,18 @@ bool SkyrimBridge::IsOnGround(uint32_t aFormId) const noexcept
     const auto* pProcess = pActor ? pActor->currentProcess : nullptr;
     const auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
     return pController && pController->state == bhkCharacterController::kOnGround;
+}
+
+bool SkyrimBridge::CapsuleCollides(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return !pActor || pActor->CapsuleCollides();
+}
+
+void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        pActor->SetCapsuleCollision(aCollides);
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept

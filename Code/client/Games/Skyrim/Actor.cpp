@@ -1,3 +1,4 @@
+#include <Games/Animation/ReplayState.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -8,6 +9,7 @@
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
 #include <Havok/bhkCharacterController.h>
+#include <Havok/bhkCollision.h>
 #include <Systems/CopyStep.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
@@ -134,6 +136,39 @@ void Actor::ForcePosition(const NiPoint3& acPosition) noexcept
 
     // It just works TM
     SetPosition(acPosition, true);
+}
+
+bool Actor::CapsuleCollides() const noexcept
+{
+    const auto* pProcess = currentProcess;
+    const auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pController)
+        return true;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    return (filter & 0x7F) != bhkCharacterController::kCapsuleLayer || !(filter & bhkCharacterController::kFilterNoCollision);
+}
+
+bool Actor::SetCapsuleCollision(bool aCollides) noexcept
+{
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    hkpRigidBody* pBody = pController ? pController->GetRigidBody() : nullptr;
+    if (!pBody || !pBody->userData)
+        return false;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    if ((filter & 0x7F) != bhkCharacterController::kCapsuleLayer)
+        return false;
+    const uint32_t cWanted = aCollides ? filter & ~bhkCharacterController::kFilterNoCollision : filter | bhkCharacterController::kFilterNoCollision;
+    if (cWanted != filter)
+    {
+        // bhkWorldObject::SetCollisionFilterInfo: its filter, re-filtered in the world.
+        using TSetFilter = void(bhkWorldObject*, uint32_t);
+        POINTER_SKYRIMSE(TSetFilter, s_setFilter, 37006);
+        s_setFilter(pBody->userData, cWanted);
+    }
+    return true;
 }
 
 void Actor::QueueUpdate() noexcept
@@ -873,6 +908,33 @@ bool Actor::IsInKillMove() const noexcept
     return (s_isInKillMove.Get())(this);
 }
 
+void Actor::EndPairs() noexcept
+{
+    // BGSSynchronizedAnimationManager::EndPairsOf 32809; its instances send the halves PairEnd, then PairedStop.
+    using TEndPairsOf = void(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TEndPairsOf, s_endPairsOf, 32809);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    (s_endPairsOf.Get())(*s_manager.Get(), &cHandle);
+    StopPairClip();
+}
+
+bool Actor::InPairClip() noexcept
+{
+    // The graph's bIsSynced, on through a pair's clip.
+    BSFixedString name("bIsSynced");
+    bool value = false;
+    EngineVirtual(animationGraphHolder).GetVariableBool(&name, &value);
+    return value;
+}
+
+void Actor::StopPairClip() noexcept
+{
+    // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
+    BSFixedString stop("pairedStop");
+    SendAnimationEvent(&stop);
+}
+
 void Actor::EndKillMove() noexcept
 {
     // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.
@@ -918,6 +980,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     // copy's own actions are refused unless forced.
     const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
     const auto cAttempt = pExtension->LatestAnimation.BeginAttempt();
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
     EndDeferredKill();
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
@@ -1065,6 +1128,9 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 {
     if (apHitter)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+
+    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+        return false;
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
 
@@ -1343,17 +1409,12 @@ void HookResetInventory(Actor* apThis, bool aLeveledOnly)
 
 // Actor::ApplyMovement (37356): a copy runs none of its decisions, only its engine's step onto its owner's place
 // (Actor::Move, so its capsule collides and pushes: docs/re/systems/actor-movement.md).
-void HookApplyMovement(Actor* apThis, float aDelta)
+// Out of line: a lock order its Move starts stays ours on the checker's stacks (LockOrder::IgnoreFrames below).
+__declspec(noinline) static void StepCopy(Actor* apThis, ActorExtension* apExtension, float aDelta)
 {
-    auto* pExtension = apThis->GetExtension();
-    if (!pExtension->IsCopy())
-    {
-        RealApplyMovement(apThis, aDelta);
+    if (!apExtension->HasCopyGoal || aDelta <= 0.f)
         return;
-    }
-    if (!pExtension->HasCopyGoal || aDelta <= 0.f)
-        return;
-    const NiPoint3 cGoal(glm::vec3(pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]));
+    const NiPoint3 cGoal(glm::vec3(apExtension->CopyGoal[0], apExtension->CopyGoal[1], apExtension->CopyGoal[2]));
     auto* pProcess = apThis->currentProcess;
     const bool cCanStep = pProcess && pProcess->middleProcess && pProcess->middleProcess->charController &&
                           apThis->parentCell && apThis->parentCell->IsFullyLoaded();
@@ -1365,6 +1426,14 @@ void HookApplyMovement(Actor* apThis, float aDelta)
     const glm::vec3 cLocal = CopyStep::Local({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
                                               cGoal.z - apThis->position.z}, apThis->rotation.z);
     apThis->Move(aDelta, NiPoint3(cLocal));
+}
+
+void HookApplyMovement(Actor* apThis, float aDelta)
+{
+    auto* pExtension = apThis->GetExtension();
+    if (pExtension->IsCopy())
+        return StepCopy(apThis, pExtension, aDelta);
+    RealApplyMovement(apThis, aDelta);
 }
 
 // Character::UpdateAI (37347). Copies skip it but run its body upkeep below
@@ -1665,6 +1734,8 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
         LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI), 0x50);
+        // Every actor's movement step (pathing locks): the engine's; a copy's step is StepCopy.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookApplyMovement), 0x60);
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
         HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

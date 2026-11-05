@@ -89,8 +89,8 @@ def _game(game):
 @tool
 def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
-    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again.
-    This server holds the duo until duo_stop or until it exits."""
+    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
+    minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits."""
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
     if duo["process"] and duo["process"].poll() is None:
         return {"ok": True, "booting": True}
@@ -106,20 +106,25 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
 
 
 @tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 90) -> dict:
+def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -> dict:
     """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
-    in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true)."""
+    in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
+    one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", "--vanilla", "--cell", cell]
+    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]
     duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
     return {"ok": True, "booting": True, "log": str(duo["log"])}
 
 
 @tool
 def duo_wait(seconds: int = 50) -> dict:
-    """Waits up to `seconds` for the duo's boot: ready, still booting, or failed with the boot log's end."""
+    """Waits up to `seconds` for the duo's boot: ready, still booting, or failed with the boot log's end. While only
+    queued: renews the place and says so (duo_start takes the duo when its turn comes)."""
+    lock = session.duo_lock(OWNER)
+    if lock and lock.role == "queued":
+        return {"ok": True, "ready": False, "queued": lock.poll_place(), "next": "not ours yet: call duo_start"}
     process = duo["process"]
     if not process:
         return {"ok": True, "ready": bool(session.game_state("").get("online") is not None)}
@@ -135,7 +140,8 @@ def duo_wait(seconds: int = 50) -> dict:
 
 @tool
 def duo_stop(summary: str = "repro session") -> dict:
-    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits)."""
+    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits).
+    A session only queued leaves the queue instead."""
     return {"ok": True, "result": session.duo_free(OWNER, summary)}
 
 
@@ -284,9 +290,49 @@ def press_to_motion(game: str = "host", key: str = "w", presses: int = 5, vanill
 
 
 @tool
+def profile(seconds: float = 60, route: str = "", budget: str = "", stacks: bool = False, game: str = "both",
+            no_tracy: bool = False) -> dict:
+    """coop_test.py profile on the held games (the duo, or the vanilla stand-in alone): frame-time percentiles, stalls,
+    CPU; route="whiterun" walks the same streaming route either way; budget="p95=33,p99=70,stalls_per_min=6" fails
+    over it. Returns the summary and its folder."""
+    import argparse
+    args = argparse.Namespace(seconds=seconds, instance=None if game == "both" else _game(game) or "host", load=None,
+                              scenario=None, stacks=stacks, no_tracy=no_tracy, route=route or None, budget=budget or None)
+    session.profile_run = None
+    try:
+        session.command_profile(args)
+        over = None
+    except TestFailure as error:  # over the budget, or failed before a window: the folder only if this call made one
+        if session.profile_run is None:
+            raise
+        over = str(error)
+    run = session.profile_run
+    summary = run / "summary.md"
+    return {"ok": over is None, "error": over, "folder": str(run), "summary": summary.read_text() if summary.exists() else None}
+
+
+@tool
 def counters(game: str = "host", reset: bool = False) -> dict:
     """That game's named counters (Diagnostics/Counters.h): count, sum, max each; reset zeroes them after reading."""
     return {"ok": True, "counters": (session.player_command(_game(game), {"cmd": "counters", "reset": reset}) or {}).get("counters")}
+
+
+@tool
+def jitter(game: str = "client", seconds: float = 8.0, top: int = 12) -> dict:
+    """What shakes in that game over `seconds`, frame by frame (TestHarness/JitterWatch): each actor's place, drawn root,
+    pelvis against its root and heading, by how often a step undid the last; and what all of a screen hangs on (hour
+    going back, clock speed changes, the player). The actors that turned back most first."""
+    game = _game(game)
+    session.player_command(game, {"cmd": "jitter", "start": True})
+    time.sleep(seconds)
+    reading = session.player_command(game, {"cmd": "jitter", "stop": True}) or {}
+    names = {int(a["id"], 16): a.get("name") for a in session.look(game).get("nearby", [])}
+    rows = []
+    for form_id, actor in (reading.pop("actors", None) or {}).items():
+        shakes = max(actor[part]["reversals"] for part in ("place", "root", "pelvis", "heading"))
+        rows.append({"id": f"{int(form_id):X}", "name": names.get(int(form_id)), "shakes": shakes, **actor})
+    rows.sort(key=lambda row: -row["shakes"])
+    return {"ok": True, **reading, "actors_seen": len(rows), "actors": rows[:top]}
 
 
 @tool

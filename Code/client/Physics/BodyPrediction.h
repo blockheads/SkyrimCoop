@@ -6,6 +6,13 @@
 // wrong"): the host sends a body again only where the guests' guess would be wrong. No engine: ClientTests.
 namespace BodyPrediction
 {
+// A copy's body this far from its frame is placed, not steered. Its first frame only when well off: a kill move's
+// victim starts within a few units of its owner, and a teleport there shows as a one-frame pop (kill-moves.md).
+constexpr float PlaceDistance(bool aFirstFrame) noexcept
+{
+    return aFirstFrame ? 16.f : 64.f;
+}
+
 // Vanilla Havok's gravity (bhkWorld's hkpWorld::gravity, -9.8 m/s²) in game units/s².
 constexpr float kGravity = -9.8f / 0.0142875f;
 // Past this long a frame's guess stops moving: a body the host sends nothing for is asleep or lost.

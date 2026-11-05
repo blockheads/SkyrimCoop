@@ -56,6 +56,10 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   guest's recruit (`pick` uses real keys now), `expect items` passing on 0 of 0, `use` reporting before the menu, a
   stale handle on a reused form id.
 
+Shaking (2026-11-05): `jitter(game, seconds)` ranks what turned back on itself frame by frame (`TestHarness/JitterWatch`:
+each actor's place, drawn root, pelvis, heading) and reads what a whole screen hangs on (hour, clock speed, weather,
+player, camera). The animation trace's `pos` entries also carry `sit`, `goal` and `controller`.
+
 Kill moves (2026-11-04): `equip` (hex item, "0" bare hands), `kill_move_check`, `kill_move_exchange` (both players swing
 at once, moving). They appear once the server restarts; the scenario `kill-moves-cross` runs the same code.
 
@@ -261,7 +265,8 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
     the guest's save path, now a dedicated multiplayer save). `BQ01` on `LateAfterDragonslayerBackinSkyrim` never
     got running after `startquest` (already noted in progress.md for that save).
 - All verbs record and export (`_line`); Python units cover the export of each.
-- **Safety:** `duo_free` refuses unless this server holds the duo's lock (testing.md, The duo lock), and counts leftovers only in this checkout's
+- **Safety:** `duo_free` refuses unless this server holds the duo's lock (testing.md, The duo lock; a session only
+  queued leaves the queue instead), and counts leftovers only in this checkout's
   game folder. An early `duo_stop` ran its stop while another agent held the duo, before checking the claim; their
   games ran from their own worktree's folder, which this checkout's stop doesn't touch.
 - **A quest by the verbs** (2026-11-03, through the MCP server's process, `LateAfterDragonslayerBackinSkyrim`): the
