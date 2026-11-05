@@ -45,7 +45,8 @@ engine's pool does ([engine names](engine-names.md)).
 
 - Copies of each other's player at join, party travel, rejoin, the host's load, a guest's death: played. A guest on another
   guest: fast (no third game on the duo).
-- A rename in the race menu: guest played, host and guest fast. Lists and copy both follow.
+- A rename in the race menu: guest played, host and guest fast. Lists and copy both follow, and a guest joining after gets
+  the new name (the host's stored spawn): fast.
 - A vanilla alias name on an NPC (`dunBlindCliffQST` alias Petra forced on Hulda, 1A66E): played, also for a guest rejoining
   after. Aliased and cleared, during a reference's load, and on a guest-ridden horse: fast.
 - Leveled NPCs (Bandit Chief on the Bandit Outlaw face): `GameTests [npc-choice]`; `leveled-spawned-npc-is-hosts` and
@@ -65,4 +66,4 @@ engine's pool does ([engine names](engine-names.md)).
 ## Not covered
 
 - A mod's `SetDisplayName` at run time: `docs/bugs.md`. It arrives on the next spawn or refresh.
-- A mod that renames a player's base with `SetName`: no event; it arrives on the next race menu close or load.
+- A mod that renames a player's base with `SetName`: `docs/bugs.md`.

@@ -796,7 +796,7 @@ Size: medium. Needs: duo, IDA, then GameTests.
 
 ### A mod's rename at run time
 
-Agent task: Make a script's `SetDisplayName` on an NPC reach its existing copies. Do step 0 in IDA first, then add one
+Agent task: Make a script's `SetDisplayName` on an NPC, and `SetName` on a player's base, reach the other games. Do step 0 in IDA first, then add one
 GameTests case for the rename.
 
 Size: small. Needs: IDA, GameTests. Waits for: nothing.
@@ -804,6 +804,9 @@ Size: small. Needs: IDA, GameTests. Waits for: nothing.
 - **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
   (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
   carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
+- **A mod's rename of a player's character isn't sent** (2026-11-05, read, not played): `PlayerService` sends a player's
+  name when the race menu closes or a save loads; a script's `SetName` on the player's base raises neither, so the party's
+  lists and copies keep the old name until one of them. Start: the same native, on the player's base.
 
 ### The baseline after a death
 
