@@ -38,4 +38,4 @@ id	rva	name	comment
 37996	0x6b1ab0	BSTEventSink_BSTransformDeltaEvent_::Handle	Graph root motion: stored in the process (sub_1407023E0) for ApplyMovement, not written to the actor; moves actor and controller directly only in ragdoll
 43691	0x7dd840	Actor::WriteBackControllerPosition	From bhkCharacterMoveFinishEvent's handler 37998: TESObjectREFR::SetPosition(event position), height kept under foot IK. The engine's write-back of an actor's controller place
 79142	0x1098920	bhkCharacterController::GetPositionImpl	GetPosition(out, aCenterOffset): proxy position, less the vector at +0xC0 rotated by the transform when aCenterOffset. Why a write-back can differ from where Move placed the capsule
-	0x6be2f0	Actor::MoveOnNavmeshUnseen	Navmesh move instead of the step when bUseNavMeshForMovement and past fVisibleNavmeshMoveDist 4096 (visible, not kFarAway) or fNotVisibleNavmeshMoveDist 2048. Capsule collision off (0x8000)
+38308	0x6be2f0	Actor::MoveOnNavmeshUnseen	Navmesh move instead of the step when bUseNavMeshForMovement and past fVisibleNavmeshMoveDist 4096 (visible, not kFarAway) or fNotVisibleNavmeshMoveDist 2048. Capsule collision off (0x8000)

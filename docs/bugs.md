@@ -52,7 +52,7 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
 - **Creature copies wobble a little around their goal** (2026-11-05). A stepped wolf's or deer's copy on the guest's game
-  turns back on itself up to 326 times in 25 s, by at most 0.35 units a step (seen on far-off creatures, `9F361` and
+  turns back on itself up to 326 times in 25 s, its biggest steps 1.6 to 3.3 units (seen on far-off creatures, `9F361` and
   `8CACD` in Riverwood; owners do not). Not in furniture, so not the fixed vibration (actor-movement.md).
   - Start: copies' goals are whole units (`Vector3_NetQuantize` truncates), while a step settles to 0.05.
   - Test: `jitter` on a creature, then a ClientTests case on the goal it is given.
