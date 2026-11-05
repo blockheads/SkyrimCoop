@@ -41,8 +41,6 @@ struct ActorExtension
     // A copy's owner's place, stepped to in its movement job (HookApplyMovement; set by SkyrimBridge).
     float CopyGoal[3]{};
     bool HasCopyGoal = false;
-    // A copy's capsule collision turned off by us while it is in furniture (SkyrimBridge::ApplyRemoteMovement).
-    bool CopyCollisionOff = false;
 
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;

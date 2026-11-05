@@ -584,6 +584,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Lying = movement.Lying;
         point.Knocked = movement.Knocked;
         point.OnGround = movement.OnGround;
+        point.CapsuleCollides = movement.CapsuleCollides;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -1464,6 +1465,7 @@ void CharacterService::RunLocalUpdates() noexcept
             it->second.UpdatedMovement.Lying = m_actorBridge.IsLyingInRagdoll(formIdComponent.Id);
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
             it->second.UpdatedMovement.OnGround = m_actorBridge.IsOnGround(formIdComponent.Id);
+            it->second.UpdatedMovement.CapsuleCollides = m_actorBridge.CapsuleCollides(formIdComponent.Id);
         }
     }
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
@@ -1548,9 +1550,11 @@ void CharacterService::RunRemoteUpdates() noexcept
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
             const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
-            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, m_actorBridge.IsInFurniture(pFormIdComponent->Id), at, position);
+            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
+            // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
+            m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, tick >= second.Tick ? second.CapsuleCollides : first.CapsuleCollides);
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }

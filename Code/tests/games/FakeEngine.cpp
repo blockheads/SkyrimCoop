@@ -824,7 +824,7 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     if (it->second.Stepped)
         it->second.Position[2] = std::min(cHeight, aPosition[2]);
     // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
-    if (it->second.Stepped && it->second.InFurniture)
+    if (it->second.Stepped && it->second.InFurniture && it->second.Collides)
         it->second.Position[1] -= kFurnitureOffset * static_cast<float>(1 + it->second.Movements % 3);
     std::copy_n(aRotation, 3, it->second.Rotation);
     // Outdoors its parent cell follows where it stands.

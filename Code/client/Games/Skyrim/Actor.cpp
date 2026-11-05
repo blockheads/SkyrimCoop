@@ -137,6 +137,17 @@ void Actor::ForcePosition(const NiPoint3& acPosition) noexcept
     SetPosition(acPosition, true);
 }
 
+bool Actor::CapsuleCollides() const noexcept
+{
+    const auto* pProcess = currentProcess;
+    const auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pController)
+        return true;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    return (filter & 0x7F) != bhkCharacterController::kCapsuleLayer || !(filter & bhkCharacterController::kFilterNoCollision);
+}
+
 bool Actor::SetCapsuleCollision(bool aCollides) noexcept
 {
     auto* pProcess = currentProcess;

@@ -35,4 +35,6 @@ struct Movement
     bool Knocked{};
     // Its controller on the ground: only then is a copy stepped by its engine; in any other state placed on its path.
     bool OnGround{};
+    // Its capsule collides: the engine turns that off in furniture and elsewhere, and its copy's matches it.
+    bool CapsuleCollides{true};
 };

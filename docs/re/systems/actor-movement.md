@@ -164,13 +164,14 @@ capsule kept colliding. In its chair or against its wall, physics pushed the cap
 lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy moved there, and the next frame pulled
 it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
 
-The fix does what the engine does for its owner, and places it:
+The fix: a copy's capsule collides when its owner's does. Each movement snapshot carries `CapsuleCollides` (filter bit
+`0x8000` clear on layer 30, `Actor::CapsuleCollides`), and the copy's capsule is set to match before it is stepped
+(`Actor::SetCapsuleCollision`, 37006). This is not a furniture rule: it follows whatever turned the owner's collision off
+(furniture 40063, mounting, a mod), and a copy in a chair no longer shoves a player walking past.
 
-- `SkyrimBridge::ApplyRemoteMovement` turns the copy's capsule collision off while its sit state is set, and back on
-  after (`Actor::SetCapsuleCollision`, 37006), as `EnterFurnitureCollision` does. A copy in a chair no longer shoves a
-  player walking past, which its owner never did.
-- `CopyStep::Choose` places a copy in furniture instead of stepping it: `Move` runs no step there, so nothing is lost,
-  and `HookSetPosition` then refuses the write-back.
+One trade-off: the engine also turns collision off for an NPC moving far from the host's player (`MoveOnNavmeshUnseen`,
+past `fVisibleNavmeshMoveDist` 4096 or `fNotVisibleNavmeshMoveDist` 2048). Its copy then lets the guest pass through it,
+as the owner would.
 
 Measured with the `jitter` readout, frames turning back on themselves while in furniture, two rounds of six Riverwood
 NPCs sent through their furniture (about 20 s each):
@@ -178,11 +179,11 @@ NPCs sent through their furniture (about 20 s each):
 - stepped, collision on (the old code): 824 and 134
 - stepped, collision off as the engine does it: 1 and 0
 - placed: 0 and 0
-- both, as shipped: 0 and 0; the scenario on two fresh boots: 0 in furniture, at most 3 overall
+- both: 0 and 0; the scenario on two fresh boots: 0 in furniture, at most 3 overall
 - owners: none
 
-Each change alone stops it. Both stay: the collision for the copy's physical presence, placement because a step there
-does nothing.
+Collision off alone stops it, so the first fix (placing copies in furniture, keyed on their sit state) was dropped for the
+generic one.
 
 The first account here blamed the controller's centre offset `+0xC0`. Its writers are constructors (bhkCharProxy
 ControllerCinfo, 0x1410970A0), so it does not change frame to frame. Also ruled out, by measurement or by reading:
@@ -197,9 +198,9 @@ ControllerCinfo, 0x1410970A0), so it does not change frame to frame. Also ruled 
 Why it appeared now: copies have been stepped since 2026-11-02 (above, "Copies step"). Before that they were placed every
 frame, and `HookSetPosition` refused every write-back. The animation merge (#12) is not the cause.
 
-Tests: GameTests "A copy in furniture stays on its owner's path" (the fake's stepped `InFurniture` copies are pushed off
-their goal), ClientTests `[copy-step]`, scenario `copy-leaves-furniture-steady`. The collision is bridge code, which
-GameTests cannot reach; the scenario and the measurements above cover it.
+Tests: GameTests "A copy's capsule collides only when its owner's does" (the fake's colliding copies in furniture are
+pushed off their goal; fails without the sync), TPTests `ReferencesMoveRequest` (the new field), scenario
+`copy-leaves-furniture-steady`.
 
 ## Others
 

@@ -234,7 +234,9 @@ struct Actor : TESObjectREFR
     void SetFactions(const Factions& acFactions) noexcept;
     void SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept;
     void ForcePosition(const NiPoint3& acPosition) noexcept;
-    // Turns its capsule's collision off or on, as the engine does entering and leaving furniture; false without a capsule.
+    // Its capsule's collision (filter bit 0x8000 on layer 30, set by the engine in furniture: 40063); true without one.
+    [[nodiscard]] bool CapsuleCollides() const noexcept;
+    // Turns its capsule's collision off or on; false without a capsule.
     bool SetCapsuleCollision(bool aCollides) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void InitiateDoNothingPackage() noexcept;
