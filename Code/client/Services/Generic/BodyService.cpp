@@ -108,6 +108,11 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
 
 entt::entity BodyService::CopyEntity(uint32_t aSessionId) const noexcept
 {
+    if (m_copiesIndexed)
+    {
+        const auto cFound = m_copyIndex.find(aSessionId);
+        return cFound != m_copyIndex.end() ? cFound->second : entt::null;
+    }
     for (const auto cEntity : m_world.view<RemoteComponent>())
         if (m_world.get<RemoteComponent>(cEntity).Id == aSessionId)
             return cEntity;
@@ -134,6 +139,10 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
 void BodyService::Apply() noexcept
 {
     PROFILE_ZONE("BodyService::Apply");
+    m_copyIndex.clear();
+    for (const auto cEntity : m_world.view<RemoteComponent>())
+        m_copyIndex.try_emplace(m_world.get<RemoteComponent>(cEntity).Id, cEntity);
+    m_copiesIndexed = true;
     const uint64_t cTick = m_world.GetTransport().GetTick();
     // What this game's player took is its own now: the owner's playback of it stops.
     if (m_pKeeper)
@@ -162,6 +171,7 @@ void BodyService::Apply() noexcept
         else
             ++it;
     }
+    m_copiesIndexed = false;
 }
 
 uint64_t BodyService::CopyTickOf(uint32_t aSessionId) noexcept

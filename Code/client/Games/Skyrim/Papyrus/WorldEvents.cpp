@@ -1,5 +1,6 @@
 #include <Papyrus/WorldEvents.h>
 
+#include <BSCore/LockOrder.h>
 #include <HookSwitch.h>
 #include <Misc/BSScript.h>
 #include <Papyrus/GuestScripts.h>
@@ -61,6 +62,8 @@ Hooks::Initializer s_hooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(104800, &RealSendEvent, HookSendEvent);
+        // Passes every script event through (trigger events under the Havok world lock): their lock orders are the engine's.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookSendEvent), 0x150);
     });
 } // namespace
 

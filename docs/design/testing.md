@@ -249,7 +249,12 @@ python3 scripts/coop_test.py profile                          # idle
 python3 scripts/coop_test.py profile --load wolves=15         # a fight: god mode, 15 wolves at the host
 python3 scripts/coop_test.py profile --scenario NAME... --seconds 60
 python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-process call stacks
+python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=33,p99=70,stalls_per_min=6
 ```
+
+- `--route whiterun` walks one console route through the window (the guest follows); it also works on the vanilla
+  stand-in (`vanilla_start`), so the same run with and without our plugin tells the machine from us.
+- `--budget` fails the run over the given frame percentiles or stalls a minute. The MCP's `profile` tool runs the same.
 
 | Section | From |
 |---|---|
@@ -280,6 +285,7 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 - Each thread's report ranks the samples where it ran. Its wait calls count as waiting; other system calls
   (`VirtualQuery`, say) count as work.
 - A flame graph per game: `<game>-stacks.speedscope.json` (open at speedscope.app).
+- Under Wine an unwind can fault on a suspended thread; `CrashHandler::Backtrace` then stops instead of crashing.
 
 **Player builds** keep the cheap part:
 - A bug report's `snapshot.json` has `perf`: the last minute's frame and update percentiles, messages by name,
@@ -290,6 +296,7 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 `as_instance_user`, and the Tracy tools are built from source there. Not yet run.
 
 The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+
 
 ## Python ownership
 

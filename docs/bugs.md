@@ -321,23 +321,20 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
   - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
     with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
 
-- **Freezes and slowness** (2026-11-04). The same export: 2845 frames over about 8 minutes, p50 17 ms, p95 32 ms, p99 71
-  ms, worst 2.6 s (`snapshot.json` `perf`), and the plugin's own `Frame stalled` warnings: 70 on the host, 77 on the
-  guest, about 6 a minute.
-  - Our code is not the cause of most: in 62 of 70 host stalls "our last update" took 1-6 ms. The 8 where it did:
-    1127 ms at 11:32 (the wipe's save load, `longest_frame_ms` 52 s), 499 ms at 11:37 (the new game after it), 275 ms
-    (05:04), 154 ms (05:15) and a few more; the guest's 548 ms at 11:37 and 250 ms at 11:49 go with the load too.
-  - The long stalls (1-2.6 s) hit **both games at the same instant**: 05:07.447 on the host (578 ms) and on the guest
-    (578 ms), 05:10.434 (573 / 574), 06:42.136 (664 / 603), 10:46.77 (2402 / 2466): the two games run on one machine,
-    so a shared cause (CPU/GPU, disk, Wine) stalls both. No kernel BUG in `journalctl -k` for the window; ext4
-    `nvme0n1p6`. That the stalls often end with no work of ours fits P1 perf (`playtests/2026-10-31-fabien.md`).
-  - Also logged: 17 `LockOrder: lock order inversion` errors on the host (04:42 on, three more at 11:37 right before
-    the long stalls; several "[ours]"). Whether they cost time is not shown; they are real inversions to read.
-  - Start: `scripts/coop_test.py profile --stacks` on this scene (Whiterun, both games) to see which threads wait at a
-    shared stall; the two games' stalls lining up points at the machine, not the plugin; separate it with one game
-    alone (`vanilla_start`) over the same route.
-  - Test: the `profile` run with a frame-time budget; later a GameTests case if a stall turns out ours.
-
+- **Freezes and slowness** (2026-11-04): the machine's, not ours (measured 2026-11-05). The export: 2845 frames in
+  about 8 minutes, p50 17 / p95 32 / p99 71 ms, worst 2.6 s; `Frame stalled` 70 on the host, 90 on the guest.
+  - Shared: 52 of the host's 70 stalls (17.2 of its 23.4 s) hit the guest within 300 ms, the long ones to the ms
+    with equal lengths (05:07.447 578/578 ms, 05:10.434 573/574): one thing outside both processes held both. Our
+    update was long in 8 host and 4 guest stalls, all at the wipe's load and new game (11:32-11:49).
+  - Not the lock inversions: none was live, all are the engine's own orders (`docs/re/systems/lock-order.md`).
+  - Measured 2026-11-05 (60 s windows, `profile --route whiterun`): idle, vanilla, our plugin alone and the duo
+    all hold 55-60 fps with no stalls; over the route vanilla stalls 10 times a minute (worst 4.2 s), our plugin
+    alone 9, the duo's host 8 and guest 5. Stalls are cell loads, and co-op adds none.
+  - Left open: what the shared stalls wait on. The guest's logs are silent through its longest ones (11:53 2.5 s,
+    12:34 1.8 s). Two games on one GPU and display, plus other agents' builds on the machine, are the candidates.
+  - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
+    off-screen, so it cannot show a display stall), during a stall.
+  - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged
