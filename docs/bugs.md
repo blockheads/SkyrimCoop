@@ -271,6 +271,81 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
   so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).
 
+## Found in the 2026-11-04 playtest (triaged from code; no recording found, no IDA)
+
+The user's report, one entry per point. Triaged from the code and design docs only: the playtest's export was not on
+the dev machine (the newest `SkyrimCoop-*.zip` there is 2026-10-31's) and the IDA MCP was not reachable, so every
+"mechanism" below is a hypothesis to prove in step 0 (CLAUDE.md), not a finding.
+
+- **A guest grabbing owned loose items in Whiterun earns no bounty** (2026-11-04). The guest walked into a shop and took
+  items off tables/shelves: no crime, no bounty on either game.
+  - Code path: the guest's `PlayerCharacter::PickUpObject` (37521) -> native `StealAlarm` (37422) -> `HookSteal`
+    (`CrimeBridge.cpp`) -> `QueueItemCrime(Theft)` -> `CrimeRequest` -> `HostCrime::OnRequest` -> `CrimeBridge::Judge`
+    -> `RealSteal` for the guest's host-side copy. The tests only cover container theft (`guest-theft` takes from a
+    chest whose owner the scenario set; `crime_flows.cpp`, `crime_tests.cpp`); a loose item taken off the world is
+    covered nowhere.
+  - Suspects, in the order the code makes likely (each is a silent `return`/drop, so the log shows nothing):
+    1. `Judge` drops the request when `target->GetParentCellEx() != actor->GetParentCellEx()`. A loose item is
+       consumed by the pickup, and the host's world-state/activation replay of the same pickup can disable or delete
+       the ref before the `CrimeRequest` arrives (a chest persists, so container theft is unaffected).
+    2. `Target()` leaves `Target` and `TargetActor` zero when the world reference has no session id, so the host
+       cannot resolve it (`IsValid` or `TESForm::GetById(0)` fails).
+    3. `StealAlarm` is not reached on a guest for this pickup at all (the pickup gate, `s_pickUpGate`, only intercepts
+       created party items; an ordinary loose item takes the engine's own path); or the engine skips it because the
+       item's ownership is a faction/cell owner the guest's copy of the ref lacks.
+    4. The host judges it, but no witness detects the guest (`ScopedCriminal` / 39515 redirect) because the
+       shopkeeper was not facing it: then there is nothing to see, which is vanilla.
+  - Start: `grep 'Party crime:'` in the host's plugin log (`CrimeBridge::Judge` logs every accepted request): if
+    present, 1 and 2 are out; if absent, find which `return` drops it. In IDA, read `PickUpObject` 37521 and every
+    caller of `StealAlarm` 37422 and note when a loose item's pickup calls it (owner via `GetOwner`, the
+    `ExtraOwnership`/cell owner), and write it to `docs/re/systems/` (a `crime.md` does not exist yet).
+  - Test: a `guest_loose_theft` scenario (the `guest_theft` control, the guest taking an owned loose item such as an
+    owned ladle with an owner set through `crime(action="set_owner")`), then a `CrimeFlows` case with a loose item that
+    the fake's pickup removes before the request is judged.
+
+- **The guest's aggro goes to the host first** (2026-11-04). After a while the guest aggro'd NPCs, and they attacked
+  the host at once.
+  - Not the damage rule: `HostAggro` / `party-aggro.md` run only after the guest has dealt damage, when the native
+    selector already selects a party player. A guest who aggros NPCs another way (seen, a shout, a missed arrow,
+    sneak breaking, a crime) never reaches the rule, so Skyrim's own pick stands, and the native selector prefers the
+    real player (the doc's measured baseline: "the visible host usually picked first").
+  - Suspects: (a) the aggro came from a crime or detection, so the native pick was the host; (b) the guest's host-side
+    copy is in the combat group but loses the native pick to the host while the guest has dealt no damage; (c) the first
+    hit's damage lands after the NPC chose (the three-second grace in the doc); (d) unlike (a)-(c): the NPCs became
+    hostile because of bounty (issue above) the host's player earned.
+  - Start: the host's log around the first aggro (`combat_targets` readout: controller target, candidates) tells which
+    of (a)-(d); the export's `snapshot.json` has every NPC's target. QUESTION 2 below.
+  - Test: GameTests: a guest starts combat without damage (`StartCombat` by the guest's copy, a shout, detection) with
+    the host nearer; assert the NPC's target. It needs the fake's selector to prefer the real player, as measured.
+
+- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). The NPCs drift around looking at the guest,
+  do not really attack, still attack up close, and stop when the guest walks away.
+  - The shape fits a target the NPCs cannot keep a track of, not a lost target: they react at melee range (the
+    proximity/hearing path) and not at range (the pursuit path that needs a detected, pathable target). Candidates:
+    1. The guest's host-side copy is a created `Character` with no AI (`copy-contract.md`); native combat pursuit and
+       detection are written for `PlayerCharacter`. Detection is redirected only inside scoped crime (39515 in
+       `shared-party-bounty.md`). While the host lives, the host's own player drives it (`HostAggro`'s visibility ray
+       recovers a damaging attacker); with the host dead, `HostAggro` also removes the host from the candidates (dead
+       is ineligible), leaving only the copy and the rule's "valid current target" path.
+    2. A dead real player (`PlayerCharacter` dead, reload held: `death.md`) stops processes the combat groups read (the
+       player's detection/stealth update `ProcessLists`), so groups keyed on the player lose their update tick.
+    3. NPCs keep the dead host as stale target (`HostAggro` removes damage history for a dead victim, not the
+       NPC's native target; `death.md` says combat since the fight started still counts for the timer).
+  - Start: reproduce with the MCP: host dies in a fight with the guest in it (`scene` + `fight`), then `observe` an
+    NPC on the host: controller target, `combat_targets`, detection level against the guest's copy, package. The first
+    thing to read is whether the target is the dead host, the copy, or null.
+  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in and attack a guest who steps back), then a
+    GameTests flow whose fake makes the host's player dead and checks the NPC's target is the guest and stays.
+
+- **The game freezes now and then and runs slow** (2026-11-04). The user recorded `/bug`, a perf capture and `/export`
+  during this playtest. They were not found on the dev machine (checked `My Games/.../SkyrimCoop`, the Steam prefix
+  489830, the Windows drive, `/tmp`, `build/`), so nothing is measured here. Not enough to tell a freeze (the
+  watchdog's C2, `playtests/2026-10-31-fabien.md`) from slowness (the known P1 perf).
+  - Start: QUESTION 1 below. Then read the `Frame` times and `Diagnostics` hook rates in the snapshot, and the
+    `watchdog`/`Zone` lines in `log.txt` around each freeze; `scripts/coop_test.py profile --stacks` on a duo with the
+    same scene for the slow spots.
+  - Test: the `profile` run with the same load (a town with NPCs), with a budget on the host's frame time.
+
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged
