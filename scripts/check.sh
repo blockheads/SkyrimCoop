@@ -17,16 +17,17 @@ for argument in "$@"; do
     esac
 done
 
-# Only Markdown differs from origin/dev (committed, staged, unstaged or new): nothing to build or test.
+# Only Markdown or RE journals differ from origin/dev (committed, staged, unstaged or new): nothing to build or test.
 docs_only() {
     local base files
     base="$(git merge-base HEAD origin/dev 2>/dev/null)" || return 1
     files="$( { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u)"
-    [[ -n "$files" ]] && ! grep -qvE '\.md$' <<< "$files"
+    [[ -n "$files" ]] && ! grep -qvE '\.md$|^docs/re/journal/' <<< "$files"
 }
 if [[ "${CHECK_FORCE:-}" != 1 ]] && docs_only; then
-    echo "check: only docs (.md) changed since origin/dev; skipped (CHECK_FORCE=1 runs it all)"
-    exit 0
+    echo "check: only docs (.md, RE journals) changed since origin/dev; skipped (CHECK_FORCE=1 runs it all)"
+    python3 scripts/check_re.py  # the RE notes' check is quick and docs are what it checks
+    exit $?
 fi
 
 LOGS="$ROOT/build/check"
@@ -125,6 +126,8 @@ step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test
 step "check gate configure" python3 -m unittest discover -s scripts -p test_check.py
 step "check repro MCP" python3 -m unittest discover -s scripts -p test_coop_mcp.py
 step "check scenario origins" python3 scripts/check_scenarios.py
+step "check IDA hooks" python3 -m unittest discover -s scripts -p 'test_ida_hook.py'
+step "check RE notes" bash -c "python3 -m unittest discover -s scripts -p test_check_re.py && python3 scripts/check_re.py"
 step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
 if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
     step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check

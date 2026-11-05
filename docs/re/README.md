@@ -9,6 +9,7 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
 | [systems/](systems/) | Notes per engine system: how it works, what we hook, gotchas | hand-written |
 | [crashes/](crashes/) | One page per crash investigation: dump, call chain, what was ruled out, fix | hand-written |
 | `ida_notes.tsv` | Names/comments exported from IDA (`ida_export.py`) | generated from IDA |
+| [journal/](#the-journal) | Every function read and name/comment/type written through ida-multi-mcp, per branch | hooks (`ida_hook.py`) |
 
 ## Sources (in priority order)
 
@@ -55,6 +56,40 @@ In IDA (open the database matching the selected executable):
   `[re]` marker line. Orange functions are hooked by SkyrimCoop, green ones are called/read.
 - **File > Script file… > `scripts/re/ida_export.py`** to push your names/comments into
   the matching `ida_notes_<version>.tsv` (legacy: `ida_notes.tsv`), then run `build_re_data.py` and commit both.
+
+## The journal
+
+Every checkout, worktrees included, works in one database: the main checkout's `build/re/SkyrimSE_1.7.104.i64`, open
+in the user's IDA. What agents do in it through ida-multi-mcp reaches the repo by itself: Claude Code hooks
+(`.claude/settings.json`, `scripts/re/ida_hook.py`) append each call to the branch's journal,
+`docs/re/journal/<version>/<branch>.tsv`, committed with the branch:
+
+```
+time                  op       id     rva       item
+2026-11-05T15:02:00Z  read     37507  0x689370  {"name": "sub_140689370"}
+2026-11-05T15:04:00Z  name     37507  0x689370  {"addr": "0x140689370", "name": "Actor::Move"}
+2026-11-05T15:04:30Z  comment  37507  0x689370  {"addr": "0x140689370", "comment": "Sit state 0: ..."}
+2026-11-05T15:05:00Z  local    37507  0x689370  {"func_addr": "0x140689370", "old": "v14", "new": "pProcess"}
+```
+
+- `read` is the first `decompile` or `disasm` of a function on the branch, with the name it had then; the writes
+  (`name`, `data`, `local`, `stack`, `comment`, `type`, `decl`) keep the item exactly as the tool got it.
+- `build_re_data.py` takes the journals' names and comments (newest win) over the exported notes, into
+  `ENGINE_REFERENCE.md`. `scripts/re/id.py <ID or address>` shows them with our code's uses and the IDA address.
+- `ida_replay.py` (`make_ida_db.sh` runs it) rebuilds a database from every journal through ida-multi-mcp's own
+  code, oldest first. Only for a new or lost database: on the shared one it would put older text back over edits
+  made since by hand.
+- Writes through `py_eval` and edits by hand in IDA are not journaled: for those, `ida_export.py` as before.
+- `set_comments` on a function replaces its whole comment (the `[re]` block comes back with the next `ida_apply.py`):
+  keep what was there.
+
+The hooks remind and never block: at session start (which instance has the shared database, the branch's RE so far),
+at every third function read with an auto name and nothing recorded since, when the duo or engine-facing code comes
+before any IDA read on the branch, and when `py_eval` writes names or types. The one refusal: a call to an IDA
+instance with another database open, since work there is lost to everyone else.
+
+`scripts/check_re.py` (in `check.sh`) checks what a branch adds: every notes or journal row's ID exists at its RVA,
+and the notes and `systems/` pages name functions rather than citing `sub_` auto names.
 
 The exe in `SkyrimSE.exe` is encrypted by SteamStub DRM; IDA needs the copy unpacked by
 Steamless (`make_ida_db.sh` does it). Never commit the exe or the database (Bethesda code).

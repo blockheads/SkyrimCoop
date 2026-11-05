@@ -100,6 +100,10 @@ void FakeEngine::ShovePlayer() noexcept
 
 void FakeEngine::Frame()
 {
+    // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
+    for (auto& [cId, actor] : Actors)
+        if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
+            Strikes(cId, actor.PairVictim, 1000.f);
     // Clips loop on each game's own clock; an event every N of them is the graph's, no action behind it.
     if (Loop)
         for (auto& [cId, actor] : Actors)
@@ -566,6 +570,7 @@ void FakeEngine::FinishDeath(uint32_t aFormId)
 
 void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction)
 {
+    Actors.at(aFormId).PoseHeldUntil = 0;
     if (!RefuseDeathActions)
         KillActor(aFormId);
     Actors.at(aFormId).LatestAnimation = acAction;
@@ -575,6 +580,36 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 {
     return ::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()) || ReplayAnimation(aFormId, acAction);
+}
+
+void FakeEngine::StopPairClip(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    if (actor.StopsDropped)
+    {
+        --actor.StopsDropped;
+        return;
+    }
+    actor.InPairClip = false;
+    actor.PairBlowIn = 0;
+}
+
+void FakeEngine::ClipKillActor(uint32_t aFormId)
+{
+    if (auto& actor = Actors.at(aFormId); actor.Copy)
+        actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;
+}
+
+bool FakeEngine::PoseHeld(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && ::ReplayState::PoseHeld(World::Get().GetFrameTick(), it->second.PoseHeldUntil, it->second.Dead);
+}
+
+void FakeEngine::RagdollContact(uint32_t aFormId)
+{
+    if (const auto& cActor = Actors.at(aFormId); cActor.InKillMove && ::ReplayState::ContactKills(cActor.PairedWithCopy))
+        KillActor(aFormId);
 }
 
 void FakeEngine::EndKillMove(uint32_t aFormId)
@@ -592,11 +627,23 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     {
         if (!(actor.InKillMove && cPartner->second.InKillMove) && !::ReplayState::PairMarkClear(!PairMarkBlocked, actor.Copy))
             return false;
+        // An uninterruptible transition still playing drops the new pair's event too.
+        if ((actor.InPairClip && actor.StopsDropped) || (cPartner->second.InPairClip && cPartner->second.StopsDropped))
+            return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
         CollapsedPairs += cCollapsed;
         actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
         actor.LatestPairAction = acAction;
+        if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
+        {
+            actor.PairBlowIn = PairBlowFrames;
+            actor.PairVictim = acAction.TargetId;
+        }
+        actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
+        actor.PairedWithCopy = cPartner->second.Copy;
+        cPartner->second.PairedWithCopy = actor.Copy;
+        actor.StopsDropped = cPartner->second.StopsDropped = PairStopsDropped;
     }
     else if (actor.Copy && actor.InKillMove)
         ++BrokenPairs;
@@ -665,6 +712,8 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     });
     if (cOutcome.Capture && cOutcome.Result)
     {
+        if (::ReplayState::StartsAttack(aAction.EventName))
+            Actors.at(aFormId).ClashUntil = 0;
         if (aAction.TargetEventName.empty())
             aAction.GraphState = SaveActorGraphState(aFormId);
         Actors.at(aFormId).LatestAnimation = aAction;
@@ -1635,6 +1684,10 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
+    // HookDamageActor's check.
+    if (const auto& cHitter = Actors.at(aHitter);
+        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil))
+        return;
     if (!Actors.contains(aHittee))
         return;
     World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));

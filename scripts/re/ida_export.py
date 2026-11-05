@@ -16,6 +16,7 @@ import ida_nalt
 import ida_name
 import ida_netnode
 import idautils
+import idc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -23,8 +24,8 @@ sys.path.insert(0, HERE)
 import build_re_data  # noqa: E402  (shares the Address Library decoder)
 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from skyrim_runtime import pe_version
-VERSION = pe_version(ida_nalt.get_input_file_path())
+from skyrim_runtime import database_executable, pe_version
+VERSION = pe_version(database_executable(ida_nalt.get_input_file_path(), idc.get_idb_path()))
 build_re_data.configure_runtime(VERSION)
 OUT = str(build_re_data.TARGET_NOTES)
 

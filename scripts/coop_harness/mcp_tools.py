@@ -89,8 +89,8 @@ def _game(game):
 @tool
 def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
-    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again.
-    This server holds the duo until duo_stop or until it exits."""
+    Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
+    minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits."""
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
     if duo["process"] and duo["process"].poll() is None:
         return {"ok": True, "booting": True}
@@ -120,7 +120,11 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -
 
 @tool
 def duo_wait(seconds: int = 50) -> dict:
-    """Waits up to `seconds` for the duo's boot: ready, still booting, or failed with the boot log's end."""
+    """Waits up to `seconds` for the duo's boot: ready, still booting, or failed with the boot log's end. While only
+    queued: renews the place and says so (duo_start takes the duo when its turn comes)."""
+    lock = session.duo_lock(OWNER)
+    if lock and lock.role == "queued":
+        return {"ok": True, "ready": False, "queued": lock.poll_place(), "next": "not ours yet: call duo_start"}
     process = duo["process"]
     if not process:
         return {"ok": True, "ready": bool(session.game_state("").get("online") is not None)}
@@ -136,7 +140,8 @@ def duo_wait(seconds: int = 50) -> dict:
 
 @tool
 def duo_stop(summary: str = "repro session") -> dict:
-    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits)."""
+    """Stops both games, checks no Skyrim is left and frees the duo with a log line (also freed when this server exits).
+    A session only queued leaves the queue instead."""
     return {"ok": True, "result": session.duo_free(OWNER, summary)}
 
 

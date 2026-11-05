@@ -16,6 +16,8 @@
 
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BSSynchronizedClipGenerator.h>
+#include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
 #include <Havok/bhkCharacterController.h>
 
 #include <World.h>
@@ -33,6 +35,10 @@ using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
 using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
 static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
+using TKillActorEvent = bool(void*, Actor*);
+static TKillActorEvent* RealKillActorEvent;
+using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent*);
+static TContactPoint* RealContactPoint;
 using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* apArgument, bool aIgnoreDepth);
 static TTryMoveTo* RealTryMoveTo;
 
@@ -100,12 +106,19 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
             COUNT("graph state bytes", action.GraphState.size());
         }
 
+        if (ReplayState::StartsAttack(action.EventName.c_str()))
+            pExtension->ClashUntil = 0;
+
         // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
         pExtension->LatestAnimation.Write(action);
         if (apAction->action->formID == 0x132AF)
             pExtension->LatestWeapEquipAnimation.Write(action);
         if (!action.TargetEventName.empty())
+        {
             pExtension->LatestPairAction.Write(action);
+            auto* pPartner = apAction->target && apAction->target->formType == Actor::Type ? static_cast<Actor*>(*apAction->target) : nullptr;
+            pExtension->PairedWithCopy = pPartner && pPartner->GetExtension()->IsCopy();
+        }
 
         // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
         if (g_forceAnimation || cPlayersPartner)
@@ -129,8 +142,15 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
-        if (pActor->GetExtension()->IsCopy())
+        if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
+        {
             AnimationSystem::RunReplayStep(pActor);
+            if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
+            {
+                HoldCopyRagdollStill(*pActor);
+                return false;
+            }
+        }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
 }
@@ -153,6 +173,35 @@ void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbCo
 bool HookTryMoveTo(bhkCharacterController* apThis, const void* apPosition, void* apArgument, bool aIgnoreDepth)
 {
     return ReplayState::PairMarkClear(RealTryMoveTo(apThis, apPosition, apArgument, aIgnoreDepth), s_replayedAction);
+}
+
+// The victim state's contact listener (63092): any penetrating contact kills a kill move's victim on the spot. Across
+// games the attacker's game judged the pair, and the victim's body stands elsewhere: its clip's KillActor kills it.
+void HookContactPoint(BSRagdollContactListener* apThis, const hkpContactPointEvent* apEvent)
+{
+    const bool cTriggered = apThis->triggered;
+    RealContactPoint(apThis, apEvent);
+    if (cTriggered || !apThis->triggered)
+        return;
+    for (const hkpRigidBody* pBody : apEvent->bodies)
+    {
+        TESObjectREFR* pRef = pBody ? ReferenceOf(*pBody) : nullptr;
+        const auto* pExtension = pRef && pRef->formType == Actor::Type ? static_cast<Actor*>(pRef)->GetExtension() : nullptr;
+        if (pExtension && !ReplayState::ContactKills(pExtension->PairedWithCopy || pExtension->IsCopy()))
+        {
+            spdlog::debug("{:X}: a kill move's contact kill held back, a copy is in the pair", pRef->formID);
+            apThis->triggered = false;
+            return;
+        }
+    }
+}
+
+// KillActorHandler::Handle 42838, on a graph's KillActor event: a copy holds its pose until its owner's death action.
+bool HookKillActorEvent(void* apThis, Actor* apActor)
+{
+    if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy())
+        pExtension->PoseHeldUntil.store(World::Get().GetFrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
+    return RealKillActorEvent(apThis, apActor);
 }
 
 ActorMediator* ActorMediator::Get() noexcept
@@ -275,5 +324,7 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(38949, &RealPerformAction, HookPerformAction);
         HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
         HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
+        HOOK_ID(63092, &RealContactPoint, HookContactPoint);
+        HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
     });

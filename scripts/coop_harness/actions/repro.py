@@ -129,9 +129,13 @@ class ReproActions:
             raise ctx.failure(str(error)) from None
 
     def duo_free(ctx, owner, summary):
-        """Stops the duo, checks none of its Skyrims is left and frees the hold with a log line. Refused unless this
-        process holds it: never stop a duo someone else started."""
+        """Stops the duo, checks none of its Skyrims is left and frees the hold with a log line. Only a queue place:
+        leaves the queue. Refused otherwise unless this process holds it: never stop a duo someone else started."""
         lock = ctx.duo_lock(owner)
+        if lock and lock.role == "queued":
+            number = lock.poll_place()
+            lock.leave()
+            return f"left the queue, was number {number}" if number else "left the queue (the place had already lapsed)"
         if lock and lock.role != "holder":
             raise ctx.failure(f"not ours to stop: this session holds no duo ({lock.role or 'none'})")
         ctx.stop_duo()

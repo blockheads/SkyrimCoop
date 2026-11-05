@@ -1,8 +1,8 @@
 """The shared duo's lock (docs/design/testing.md, The duo lock): one hold, a FIFO queue, freed when its process ends.
 
 duo.json (under the duo.lock mutex) is the truth; DUO.md is a view written from it. Each hold, join and queue place
-owns a token file it keeps flock'ed while its process lives: a dead process's token is free, so its place is stale,
-and waiters block on the token ahead of them (the kernel wakes them) instead of polling."""
+owns a token file it keeps flock'ed while its process lives: a dead process's token is free, so its place is stale.
+A live process can still stop calling, so a queue place also lapses when its owner has not polled for a while."""
 import contextlib
 import json
 import os
@@ -22,6 +22,8 @@ except ImportError:  # Windows: no shared duo, no lock (ReproActions.duo_lock)
     fcntl = None
 
 IDLE_MINUTES = float(os.environ.get("COOP_DUO_IDLE_MINUTES", 30))
+QUEUE_STALE_MINUTES = float(os.environ.get("COOP_DUO_QUEUE_STALE_MINUTES", 5))  # a queue place unpolled this long lapses
+POLL_SECONDS = float(os.environ.get("COOP_DUO_POLL_SECONDS", 30))  # a blocked waiter renews its place this often
 TAKEOVER_ENV = "COOP_DUO_TAKEOVER"  # set for the stop a takeover runs: it may stop a stale holder's games
 
 RULES = """1. Claiming and freeing are automatic (`scripts/coop_harness/duo_lock.py`): `coop_test.py duo`, `scenario`,
@@ -33,7 +35,9 @@ RULES = """1. Claiming and freeing are automatic (`scripts/coop_harness/duo_lock
    it idles (no command from the holder for 30 minutes: the keeper stops the games).
 3. A holder whose process is gone is stale: the next in line stops its games and takes over. Nobody asks the user.
 4. `scripts/duo.py status` shows the holder, the queue and their ages. Free the duo when Skyrim is not
-   needed (bug-fix flow, CLAUDE.md): `coop_test.py stop`, or the MCP's `duo_stop`."""
+   needed (bug-fix flow, CLAUDE.md): `coop_test.py stop`, or the MCP's `duo_stop`.
+5. A queue place is kept by waiting: one not polled for 5 minutes lapses and the next in line goes on. The MCP's
+   `duo_stop` leaves the queue; `scripts/duo.py leave <name or id>` drops a stuck place by hand."""
 
 TEMPLATE = "# Duo reservation\n\nThe two test Skyrims, shared by every agent and worktree.\n\n## Rules\n\n\n## Now\n\nfree\n\n" \
            "## Waiting\n\n\n## Log\n\n"
@@ -101,24 +105,14 @@ def alive(path):
 
 
 def wait_any(paths, timeout):
-    """Blocks until one of these tokens is freed, or the timeout: True when one was."""
-    done = threading.Event()
-
-    def watch(path):
-        try:
-            fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC)
-        except FileNotFoundError:
-            done.set()
-            return
-        try:
-            fcntl.flock(fd, fcntl.LOCK_SH)
-        finally:
-            os.close(fd)
-            done.set()
-
-    for path in paths:
-        threading.Thread(target=watch, args=(path,), daemon=True).start()
-    return done.wait(timeout) if paths else True
+    """Waits until one of these tokens is freed, or the timeout: True when one was."""
+    deadline = time.monotonic() + timeout
+    while paths and all(alive(path) for path in paths):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return False
+        time.sleep(min(left, 0.5))
+    return True
 
 
 def stamp(seconds):
@@ -128,6 +122,11 @@ def stamp(seconds):
 def age(seconds):
     minutes = int((time.time() - seconds) // 60)
     return f"{minutes // 60}h{minutes % 60:02d}m" if minutes >= 60 else f"{minutes}m"
+
+
+def polled(entry):
+    """When a queue place's owner last called (a place from before `polled` counts from its start)."""
+    return entry.get("polled", entry["since"])
 
 
 def ancestors(pid):
@@ -238,13 +237,19 @@ class DuoLock:
 
     @staticmethod
     def _prune(state):
-        state["queue"] = [entry for entry in state["queue"] if alive(entry["token"])]
+        live = [entry for entry in state["queue"] if alive(entry["token"])]
+        state["queue"] = [entry for entry in live if time.time() - polled(entry) <= QUEUE_STALE_MINUTES * 60]
+        for entry in live:
+            if entry not in state["queue"]:
+                state["log"].append(f"{time.strftime('%H:%M')} {entry['name']} ({entry['worktree']}): {entry['what']}. "
+                                    f"Dropped from the queue: no poll for {age(polled(entry))}")
         if holder := state["holder"]:
             holder["joined"] = [join for join in holder.get("joined", []) if alive(join["token"])]
 
     def _entry(self, what):
         return {"id": self.id, "name": self.name, "worktree": self.worktree, "pid": os.getpid(),
-                "since": time.time(), "what": what, "token": str(self.token.path), "stop": self.stop_command}
+                "since": time.time(), "polled": time.time(), "what": what, "token": str(self.token.path),
+                "stop": self.stop_command}
 
     def _log(self, state, holder, summary):
         state["log"].append(f"{stamp(holder['since'])} to {time.strftime('%H:%M')} {holder['name']} "
@@ -274,6 +279,8 @@ class DuoLock:
             with self._state() as state:
                 holder, queue = state["holder"], state["queue"]
                 place = next((index for index, entry in enumerate(queue) if entry["id"] == self.id), None)
+                if place is not None:
+                    queue[place]["polled"] = time.time()
                 held = holder and self.hold_alive(holder)
                 if held and holder["worktree"] == self.worktree:
                     state["queue"] = [entry for entry in queue if entry["id"] != self.id]
@@ -306,6 +313,7 @@ class DuoLock:
                 self.role = "queued"
                 message = (f"duo: held by {self.describe(holder)}" if holder else "duo: free, others first") + \
                           f"; {self.name} is number {place + 1} in the queue"
+                situation = (holder and holder["id"], place)
             if failure:
                 self.leave()
                 raise DuoBusy(failure)
@@ -314,11 +322,33 @@ class DuoLock:
                 if not keep_place:
                     self.leave()
                 raise DuoBusy(message)
-            if message != shown:
+            if situation != shown:
                 self.out.write(message + (f", waiting up to {remaining:.0f} s\n" if remaining is not None else "\n"))
                 self.out.flush()
-                shown = message
-            wait_any(ahead, remaining)
+                shown = situation
+            wait_any(ahead, POLL_SECONDS if remaining is None else min(remaining, POLL_SECONDS))
+
+    def poll_place(self):
+        """Renews this process's queue place: its number in the queue, None if it has none (lapsed or never had)."""
+        if self.role != "queued":
+            return None
+        with self._state() as state:
+            for number, entry in enumerate(state["queue"], 1):
+                if entry["id"] == self.id:
+                    entry["polled"] = time.time()
+                    return number
+        return None
+
+    def drop_queued(self, who):
+        """Drops someone's queue place by hand (its id or name). The places matching: only a single match is dropped,
+        several sessions can share a name."""
+        with self._state() as state:
+            matches = [entry for entry in state["queue"] if who in (entry["id"], entry["name"])]
+            if len(matches) == 1:
+                state["queue"].remove(matches[0])
+                state["log"].append(f"{time.strftime('%H:%M')} {matches[0]['name']} ({matches[0]['worktree']}): "
+                                    f"{matches[0]['what']}. Dropped from the queue by hand")
+            return matches
 
     def touch(self):
         with self._state() as state:

@@ -46,12 +46,13 @@ death action
 
 ## Names given in IDA (1.7.104)
 
-`BGSSynchronizedAnimationManager::StartPair` 32803, `::IsInInstance`, `::GetParticipants`,
-`g_BGSSynchronizedAnimationManager`; `BGSSynchronizedAnimationInstance::AddParticipant` 32782, `::LayoutParticipants` 32792,
+`BGSSynchronizedAnimationManager::StartPair` 32803, `::EndPairsOf` 32809, `::IsInInstance`, `::GetParticipants`,
+`g_BGSSynchronizedAnimationManager` 401100; `BGSSynchronizedAnimationInstance::AddParticipant` 32782, `::LayoutParticipants` 32792,
 `::AllAtMark` 32794, `::Activate` 32796, `::Deactivate` 32797 (ends the instance once any half deactivates),
 `::BindGenerators` 32783, `::HasParticipant` 32784; `BSSynchronizedClipGenerator::Update` 63050, `::Activate` 63048,
 `::RemapClipEvents` 63060 (`2_` events to the partner), `::GetClipRootTransform` 63058;
-`BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093;
+`BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093, `::Activate` 63088,
+`::Deactivate` 63089;
 `Character::EndKillMove` 38614. Each has a comment in the database.
 
 ## The clip's own timing
@@ -81,10 +82,25 @@ for 10 s. `HeldByPair` keeps a copy in a pair from taking a plain action, checke
 (`PlayReplayedAction`): one staged before the pair began gets there too.
 
 **3. Two players on each other.** Each started a pair on its own game, then each game replayed the other's onto the same
-two actors. By 32803 that is "the same pair": both clips ended at 0.32 s and a player dropped with a plain `DeathAnim` at
-0.35 s. Now they clash (`SettlePairedReplay`): both end their kill move (38614), nobody is hurt, both can swing again. It is
-symmetric on purpose: no game has to know who swung first. `ActorExtension::LatestPairAction` keeps the pair, because
-`LatestAnimation` is overwritten by the next `moveStop`.
+two actors. By 32803 that is "the same pair": both clips ended and a player dropped with a plain death. Now the first swing
+wins (`SettlePairedReplay`). Both games hold the same two ticks, a tie going to the lower session id, so they agree with no
+message: the winner's game skips the later pair; the loser's game yields, then plays the winner's pair as its victim.
+
+Yielding has to stop a playing pair, which took four things, each measured:
+
+- Clearing the flags (38614) is not enough: the clips run on and the first blow lands as a plain hit (PR #15 found this).
+- `EndPairsOf` 32809 ends the instance, as the engine does when graphs change (`Actor::EndPairs`). `Deactivate` sends each
+  half `PairEnd`, and `PairedStop` only if that went unanswered. The victim's state leaves on `PairEnd`; the attacker's
+  `KillMoveState` only on `pairedStop`, so that is sent too.
+- Entry transitions to `pa_KillMoveI` and `pa_KillMoveD` carry flags 0xd04: `FLAG_UNINTERRUPTIBLE_WHILE_PLAYING`. A
+  `pairedStop` during that blend is dropped, so it is sent again for up to 30 updates while that clip plays
+  (`ResendPairStop`), and the winner's pair waits for the local player's clip to leave. There is no engine event for a blend ending.
+- The loser's own clip can still land its blow (`ShortD` at 0.34 s). Its game drops that blow at the source (`CancelledBlow`,
+  `HookDamageActor`) until its player starts a new attack (`StartsAttack`).
+- The loser's own kill cam ends at the yield (`VATS::End`, `SetMode` 44282). Left running, its end at 1.24 s cut the winner's
+  `KillMoveI` clip short, 2 of 2 rounds, and nobody died. Why only that clip was not settled: the graph path was not reversed.
+
+`ActorExtension::LatestPairAction` keeps the pair: `LatestAnimation` is overwritten by the next `moveStop`.
 
 **4. The victim's game refused the pair.** 32792's sweep runs on each game's own positions, so it could fail on the victim's
 after passing on the attacker's: the attacker's kill move ran 5 s alone and the victim fell to the plain forwarded blow at
@@ -94,21 +110,42 @@ played. An early counter read 0 here only because those rounds never used this l
 
 ## Early deaths: the victim touched a wall
 
-A victim dying 0.4 to 1.4 s into a 2.4 s backstab is not its clip. `1hm_behavior.hkx` has a
-`BSRagdollContactListenerModifier`, `VictimState_RagdollListener`: event `KillActor` (0x4A) on ragdoll bones 0, 3, 6, 9.
-`AddRagdollToWorld` at the pair's start puts the victim's ragdoll in the world, and the listener's contact callback (63092)
-fires on any penetrating contact (distance below 0) with a body it does not watch. So a victim pushed into a wall dies on
-the spot, crediting its partner (`KillActorHandler` 42838).
+A victim dying 0.4 to 1.4 s into a 2.4 s backstab is not its clip. Only two things send `KillActor`: the paired clips'
+`2_KillActor` triggers and one node, `VictimState_RagdollListener` in `1hm_behavior.hkx` (a
+`BSRagdollContactListenerModifier`: event 0x4A, ragdoll bones 0, 3, 6, 9). While the victim state is active its keyframed
+ragdoll reports contacts (collidable quality 9), and 63092 fires on any penetrating contact with a body it does not watch.
+The victim dies on the spot, crediting its partner (`KillActorHandler` 42838).
 
-Measured with a contact hook: the guest's player touched static `402152B` (a wall, layer 1) 15 ms before its `KillActor`
-at 0.71 s. The host's copy touched the same wall 0.14 s later; its `KillActor` does not kill a copy (deferred kill).
-The clips readout showed the victim's clip at its normal time (0.26 s into 3.17 s): nothing skipped it.
+Measured with a contact hook: the guest's player touched static `402152B` 15 ms before its `KillActor` at 0.71 s, with
+the clip at its normal time. A later death at 0.36 s had the same signature: `KillActor` alone, no `PairEnd`, the clip near
+0.24 s against its trigger at 2.26 s, the victim beside that wall. Rare: 1 in 40 or so rounds on this stage.
 
-This is the engine's own rule. In co-op it shows more because the attacker's game judges the room at the mark from a
-moving victim's position on its game, then the clip carries the victim on the victim's game, from its own position. A real
-NPC standing at the same wall never got a kill move (10 of 10 normal swings): with a still victim the room check refuses
-the pair first. Not changed: making the victim's game refuse its half would leave the attacker's kill move playing alone,
-which is worse. A fix would be the victim's game moving the pair off the wall, not built.
+Vanilla checks room for the supporting actor only. Across games the attacker's game judges the pair on its positions, and
+the clip then carries the victim from wherever its own game has it. So with a copy in the pair the contact kill is held
+back (`ContactKills`, `HookContactPoint`) and the clip's own `KillActor` kills it. Pairs of two actors of one game stay vanilla.
+A real NPC standing at that wall got no kill move at all (10 of 10 normal swings): the room check refused the pair first.
+
+## A copy's death at the end of its clip
+
+The copy of a victim fired its clip's `PairEnd` and `KillActor` like its owner, but does not die from them (scripted deferred
+kill): it waits for its owner's death action, about 115 ms later. Traced on `kill-move-kills-guest`:
+
+1. `PairEnd` took its graph out of the victim state toward `1HM_PickIdle`: it blended to standing, pelvis rising, a body 10 units off.
+2. The death action started its ragdoll from there: its reference jumped 51 units.
+3. The next frame's owner data pulled every body back, up to 65 units: the flickers, on the copy only.
+
+Now it holds that pose: `KillActorHandler` 42838 starts the hold, `HookUpdateAnimationGraphs` gives its graph no update until
+the death action (or 1.5 s, `cPoseHoldMs`). Nothing drives a ragdoll with no graph update, and limbs free-fell 45 units in the
+hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Its first ragdoll frame steers instead of
+teleporting unless 16+ units off (`PlaceDistance`). Before: 0 of 3, up to 81-unit flickers. After: 6 of 6, 0 flickers, no
+bone over 25 units off. This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
+that hold is now deliberate.
+
+## `client-kill-move` timing
+
+Misses were 2 in about 10 runs (blow 1737 ms against 2143, start lag 611 ms against 600). The blow miss fits an early contact
+`KillActor` on one game, which the contact rule removed, but it was not traced. Since that rule: 11 of 11 `client-kill-move` runs within limits,
+blows about 40 ms apart, lag about 160 ms. The lag miss by 11 ms was during a loaded batch and is unexplained.
 
 ## Attacker's own refusals
 
@@ -136,6 +173,4 @@ about 60 degrees off the player's facing, so each swing missed. The scenario now
 - **`ai_state.head_track`.** `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move` and sometimes
   `kill-moves-cross` stop at the end comparison on a copy looking at a player: `bugs.md`, "Headtracking left over", deferred
   past v1.
-- **`kill-move-kills-guest`** fails on the host's copy of the guest: its body never comes to rest (`turned back`). 3 of 3
-  with these rules and 3 of 3 with them off, so older than this work.
-- **Clip loads (PR #12, not merged).** Copies may wait for an action's clips; check the paired branch against that wait.
+- **A dead copy's bodies never sleep:** `docs/bugs.md`, "A dead copy's ragdoll never sleeps".
