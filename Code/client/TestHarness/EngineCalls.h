@@ -39,6 +39,24 @@ struct CombatRead
     uint32_t PapyrusTarget{};
     uint8_t State{};
     std::vector<CombatCandidateRead> Candidates;
+    std::vector<std::string> Behavior; // each running thread's tree nodes, root first
+    bool Fleeing{};
+    bool Detected{};
+    bool TargetLost{};
+    bool Inactive{};
+    bool Ignoring{};
+    bool Stopped{};
+    float LowMovementDelta{};
+    uint32_t Unreachable{};
+    uint32_t Areas{};
+    std::array<float, 3> TargetPosition{};
+    std::array<float, 3> TargetPredicted{}; // Character 47309, what the out-of-range check reads
+    float CloseRange{};      // the out-of-range radius is CloseRange + Margin
+    float Margin{};          // 50643
+    float MarginMax{};
+    float Reach{};
+    float TargetReach{};     // 47336
+    float SinceAttacked{};
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 

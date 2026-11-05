@@ -314,25 +314,17 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
   - Test: GameTests: the guest starts combat with no damage, the host nearer; assert the NPC's target (the fake
     selector must prefer the real player, as measured).
 
-- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away.
-  - Evidence: the host's player died at 07:09 (`PlayerDeathRequest`, then `NotifyPartyDeath`) and respawned at 07:19,
-    died again at 07:57 and **stayed dead for 3.5 minutes** (no `NotifyPlayerRespawn`) until the guest died at 11:31
-    and the party loaded `SkyrimCoopWipe.ess` at 11:35. `death.md`: the respawn waits for the fight to end, 10 s after
-    the combat clears. So the NPCs stayed "in combat" the whole time without fighting the guest: the stuck
-    state is one of the bug, not only of the movement.
-  - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack, but they still count as
-    "in combat" for `HostDeath`. (2) The target is the guest's host-side copy, a created `Character` with no AI,
-    which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
-    collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
-    other-player candidate (the copy) never gets the native pick once the real player is dead.
-  - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
-    an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`; and watch `HostDeath`'s timer. In IDA, read how the combat controller treats a dead target and a
-    non-player target (selector 47191, validity 47196, target setter 33235).
-  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
+- **A guest walking past the host's loaded cells delays the host's respawn** (2026-11-05). Outdoors, about 10,700 units
+  from the host's body, the copy's `CombatTarget` reads detection -1000, then `LOST`, `combat_state` 2 (search). The
+  respawn came 60 to 90 s late, once the watching player lost its spectate target. What ended it was not measured
+  (`docs/re/systems/combat-targets.md`).
+- **The guest crashed on `cow` out of Riverwood** (2026-11-04). A null `CustomActorPackageData` saving Stump's form
+  (29554). Crash log not kept; recreate with `cow` during a fight in Riverwood.
+- **A guest's `player.kill` did nothing in a fight** (2026-11-05). In the inn, guest in a fight, after `tgm` off: health 99,
+  standing, party not wiped. Host's `player.kill` works.
+- **`expect` `at` ignores `seconds`** (2026-11-05): `actions/repro.py`, `check == "at"` reads once.
+- **A timed-out `duo_start` keeps its queue place, and the place blocks everyone until it calls again** (2026-11-05).
+  An MCP session that gives up stalls the queue (`scripts/duo.py status`).
 
 - **Freezes and slowness** (2026-11-04). The same export: 2845 frames over about 8 minutes, p50 17 ms, p95 32 ms, p99 71
   ms, worst 2.6 s (`snapshot.json` `perf`), and the plugin's own `Frame stalled` warnings: 70 on the host, 77 on the

@@ -1,6 +1,9 @@
 #include "EngineCalls.h"
 #include <Actor.h>
+#include <Combat/CombatBehavior.h>
+#include <AI/AITimer.h>
 #include <Combat/CombatController.h>
+#include <Combat/CombatInventory.h>
 #include <Combat/CombatGroup.h>
 #include <Forms/ActorValueInfo.h>
 #include <Games/Primitives.h>
@@ -27,6 +30,53 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
     if (!pController)
         return read;
     read.ControllerTarget = form(pController->targetHandle);
+    read.Inactive = pController->inactive;
+    read.Ignoring = pController->ignoringCombat;
+    read.Stopped = pController->stoppedCombat;
+    read.LowMovementDelta = pController->unk4C;
+    read.Areas = pController->areas.length;
+    if (auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(pController->targetHandle)))
+    {
+        using TPredicted = void(Actor*, float, float*);
+        POINTER_SKYRIMSE(TPredicted, s_predicted, 47309);
+        read.TargetPosition = {pTarget->position.x, pTarget->position.y, pTarget->position.z};
+        s_predicted.Get()(pTarget, 0.5f, read.TargetPredicted.data());
+        using TMargin = void(Actor*, Actor*, float*, float*);
+        POINTER_SKYRIMSE(TMargin, s_margin, 50643);
+        s_margin.Get()(pActor, pTarget, &read.Margin, &read.MarginMax);
+        using TReach = float(Actor*, Actor*);
+        POINTER_SKYRIMSE(TReach, s_reach, 47336);
+        read.TargetReach = s_reach.Get()(pTarget, pActor);
+    }
+    if (const auto* pInventory = pController->pInventory)
+    {
+        read.CloseRange = pInventory->closeRange;
+        read.Reach = pInventory->reach;
+    }
+    if (const auto* pState = pController->pState)
+    {
+        read.SinceAttacked = AITimer::GetAITime() - pState->lastAttackedTime;
+        read.Fleeing = pState->isFleeing;
+        read.Detected = pState->isDetected;
+        read.TargetLost = pState->targetLost;
+        read.Unreachable = pState->unreachableLocations.length;
+    }
+    if (const auto* pBehavior = pController->pBehaviorController)
+    {
+        const auto path = [&read](const CombatBehaviorThread* apThread) {
+            if (!apThread)
+                return;
+            std::string nodes;
+            for (uint32_t i = 0; i < apThread->frameCount; ++i)
+                if (const auto* pNode = apThread->Frames()[i].pNode)
+                    nodes += std::string(nodes.empty() ? "" : " > ") + (pNode->name.data ? pNode->name.data : "?");
+            read.Behavior.push_back(std::move(nodes));
+        };
+        path(pBehavior->pDefaultThread);
+        for (const auto* pThread : pBehavior->activeThreads)
+            if (pThread != pBehavior->pDefaultThread)
+                path(pThread);
+    }
     auto* pGroup = pController->pCombatGroup;
     if (!pGroup)
         return read;

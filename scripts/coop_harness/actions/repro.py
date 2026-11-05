@@ -24,9 +24,9 @@ SETTLE_SECONDS = 8.0  # copies catch up after an arrival
 BRIEF_FIELDS = ("identity.name", "placement.position", "placement.cell", "state.dead", "state.bleeding_out",
                 "state.sit_sleep", "state.weapon_drawn", "state.knock", "values.health", "ai.combat_target",
                 "ai.running_package", "ai.package_target", "ai.follow_target", "ai_state.package", "ai_state.in_combat",
-                "animation.event")
+                "animation.event", "mod.process_level", "mod.process_me")
 # Shown, not compared: a copy runs no AI, and a place is compared as `apart`.
-UNCOMPARED = ("ai.", "placement.position", "animation.")
+UNCOMPARED = ("ai.", "placement.position", "animation.", "mod.")
 
 
 def slug(name):

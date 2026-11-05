@@ -4,8 +4,9 @@
 //
 // It speaks the subset of the client's control files the harness falls back to without the
 // command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
-// up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), and status.json
-// (heartbeat_ms, pid, console_id, session.world_ready). Nothing else of ours is loaded.
+// up), console.txt ("<id> <command>", "<id> @show Menu" / "@hide Menu", or "<id> @on <form> <command>" to run it on
+// that reference), and status.json
+// (heartbeat_ms, pid, console_id, session.world_ready, and with watch.txt an actor's place). Nothing else of ours is loaded.
 //
 // Engine addresses come from the selected runtime's Address Library.
 #include <windows.h>
@@ -31,6 +32,9 @@ constexpr uint32_t cFixedString = 69161;
 constexpr uint32_t cPlayerSingleton = 401069;
 constexpr uint32_t cAddMessage = 13631;
 constexpr uint32_t cMessageQueue = 400445;
+constexpr uint32_t cFormById = 14617; // TESForm::GetById
+constexpr uint32_t cCompileAndRun = 441582; // Script::CompileAndRun_Impl
+constexpr size_t cScriptText = 0x38;        // Script::text (Forms/Script.h)
 constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
 constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
@@ -92,12 +96,52 @@ bool InWorld()
     return pPlayer && *reinterpret_cast<void* const*>(pPlayer + cParentCell);
 }
 
+// A line that names its reference: the console queues it, so the target waits here until its text runs.
+using TCompileAndRun = void(void* apScript, void* apCompiler, uint32_t aCompilerName, void* apTarget);
+TCompileAndRun* s_realCompileAndRun = nullptr;
+std::string s_targetLine;
+uint32_t s_targetForm = 0;
+
+void HookCompileAndRun(void* apScript, void* apCompiler, uint32_t aCompilerName, void* apTarget)
+{
+    const char* pText = *reinterpret_cast<const char**>(static_cast<uint8_t*>(apScript) + cScriptText);
+    if (s_targetForm && pText && s_targetLine == pText)
+    {
+        apTarget = At<void* (*)(uint32_t)>(cFormById)(s_targetForm);
+        s_targetForm = 0;
+    }
+    s_realCompileAndRun(apScript, apCompiler, aCompilerName, apTarget);
+}
+
 void Run(const std::string& acLine)
 {
     if (acLine.rfind("@show ", 0) == 0 || acLine.rfind("@hide ", 0) == 0)
         SetMenuShown(acLine.c_str() + 6, acLine[1] == 's');
+    else if (const auto cSpace = acLine.find(' ', 4); acLine.rfind("@on ", 0) == 0 && cSpace != std::string::npos)
+    {
+        s_targetForm = std::stoul(acLine.substr(4, cSpace - 4), nullptr, 16);
+        s_targetLine = acLine.substr(cSpace + 1);
+        ExecuteCommand(s_targetLine.c_str());
+    }
     else
         ExecuteCommand(acLine.c_str());
+}
+
+// watch.txt holds a form id in hex: its place and the player's go in the status, to compare an NPC's movement.
+void WriteWatched(std::ofstream& aFile)
+{
+    std::ifstream watch(s_control / "watch.txt");
+    uint32_t formId = 0;
+    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
+    if (!(watch >> std::hex >> formId) || !pPlayer)
+        return;
+    const auto* pActor = At<const uint8_t* (*)(uint32_t)>(cFormById)(formId);
+    if (!pActor)
+        return;
+    const auto* pAt = reinterpret_cast<const float*>(pActor + cLocation);
+    const auto* pMe = reinterpret_cast<const float*>(pPlayer + cLocation);
+    aFile << ", \"watched\": [" << pAt[0] << ", " << pAt[1] << ", " << pAt[2] << "], \"player\": [" << pMe[0] << ", "
+          << pMe[1] << ", " << pMe[2] << "]";
 }
 
 void WriteStatus()
@@ -113,7 +157,9 @@ void WriteStatus()
         std::ofstream file(cTemporary, std::ios::trunc);
         file << "{\"vanilla\": true, \"heartbeat_ms\": " << cEpochMs << ", \"pid\": " << GetCurrentProcessId()
              << ", \"console_id\": \"" << s_consoleId << "\", \"session\": {\"world_ready\": "
-             << (s_bootDone && InWorld() ? "true" : "false") << "}}";
+             << (s_bootDone && InWorld() ? "true" : "false") << "}";
+        WriteWatched(file);
+        file << "}";
     }
     MoveFileExW(cTemporary.c_str(), (s_control / "status.json").c_str(), MOVEFILE_REPLACE_EXISTING);
     s_tracing = std::filesystem::exists(s_control / "player_trace.on");
@@ -204,7 +250,7 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
     const auto game = std::filesystem::path(path).parent_path().parent_path().parent_path().parent_path();
     if (!VersionDb::Get().Load(game, std::string(SkyrimRuntime::Name)))
         return false;
-    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue})
+    for (uint32_t id : {cFormById, cCompileAndRun, cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue})
         if (!VersionDb::Get().FindAddressById(id)) return false;
     const char* pInstance = std::getenv("SKYRIMCOOP_INSTANCE");
     s_control = std::filesystem::path(path).parent_path() /
@@ -217,7 +263,10 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
     void* pTarget = At<void*>(cMainUpdate);
     if (MH_CreateHook(pTarget, reinterpret_cast<void*>(&HookMainUpdate), reinterpret_cast<void**>(&s_realMainUpdate)) != MH_OK)
         return false;
-    return MH_EnableHook(pTarget) == MH_OK;
+    void* pCompileAndRun = At<void*>(cCompileAndRun);
+    if (MH_CreateHook(pCompileAndRun, reinterpret_cast<void*>(&HookCompileAndRun), reinterpret_cast<void**>(&s_realCompileAndRun)) != MH_OK)
+        return false;
+    return MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
 }
 
 BOOL WINAPI DllMain(HINSTANCE aInstance, DWORD aReason, LPVOID)

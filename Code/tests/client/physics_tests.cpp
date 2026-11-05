@@ -19,6 +19,12 @@
 
 using namespace BodyPrediction;
 
+TEST_CASE("A copy's predicted place is its real place", "[physics][copy-step]")
+{
+    CHECK(CopyStep::PredictionSeconds(true, 0.5f) == 0.f);
+    CHECK(CopyStep::PredictionSeconds(false, 0.5f) == 0.5f);
+}
+
 TEST_CASE("A pending ragdoll bootstrap keeps the newest pose and stays a placement", "[physics][ragdoll-pending]")
 {
     RagdollPending pending;

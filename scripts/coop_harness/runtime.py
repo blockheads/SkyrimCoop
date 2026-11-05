@@ -701,6 +701,8 @@ class Runtime:
             log(f"Console: {command}")
             return []
         request_id = uuid.uuid4().hex[:12]
+        if on_reference:  # the stand-in: the console reads an all-digit `13485.` as a number
+            command = f"@on {on_reference.group(1)} {on_reference.group(2)}"
         atomic_write(_game.control / "console.txt", f"{request_id} {command}\n")
         ctx.wait_for(f"Console: {command}", lambda: (_game.read_status() or {}).get("console_id") == request_id, timeout, _game=_game)
 

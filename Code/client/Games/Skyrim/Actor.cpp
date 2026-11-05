@@ -1452,6 +1452,17 @@ bool HookIsFleeing(Actor* apThis)
     return RealIsFleeing(apThis);
 }
 
+// Actor::GetPredictedPosition (47309, our name): combat's range checks read it; takes any reference.
+using TGetPredictedPosition = void(TESObjectREFR*, float aSeconds, float* apPosition);
+static TGetPredictedPosition* RealGetPredictedPosition = nullptr;
+
+void HookGetPredictedPosition(TESObjectREFR* apThis, float aSeconds, float* apPosition)
+{
+    auto* pActor = Cast<Actor>(apThis);
+    const auto* pExtension = pActor ? pActor->GetExtension() : nullptr;
+    RealGetPredictedPosition(apThis, CopyStep::PredictionSeconds(pExtension && pExtension->IsCopy(), aSeconds), apPosition);
+}
+
 using TIsHostileToActor = bool(Actor*, Actor* apOther);
 static TIsHostileToActor* RealIsHostileToActor = nullptr;
 
@@ -1679,4 +1690,5 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
         HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);
+        HOOK_ID(47309, &RealGetPredictedPosition, HookGetPredictedPosition);
     });

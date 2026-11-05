@@ -65,6 +65,8 @@ messages         DeathMessages.h: PlayerDeathRequest, NotifyPartyDeath, NotifyPl
 - Combat comes from the owners' AI state (`AiStateRequest`, watched by HostDeath): a standing player fighting, or a
   host NPC fighting a standing player now or since its fight started (it switches targets). A downed player's stale
   combat flag holds nothing. A player who just joined holds the timer until its state is known.
+- **A fight holds the respawn for a minute at most** (`kCombatHoldSeconds`, from the first fall; then the 10 s timer). An
+  essential NPC gets up at full health, so its fight cannot end while the guest stands (`combat-targets.md`).
 - Respawn is the host's: `NotifyPlayerRespawn` names the anchor and where it stands (`HostCharacters::CharacterPlace`),
   each downed player 100 units off it, a sixth of a turn apart. The player travels as a follower (its arrival never
   pulls the party); if the party moves on first, it follows to where they went.

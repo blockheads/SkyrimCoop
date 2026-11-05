@@ -351,6 +351,23 @@ SCENARIO("A standing guest's combat holds a downed host", "[death]")
     CHECK(glm::distance(At(host), At(guest)) <= 200.f);
 }
 
+SCENARIO("A fight that never ends stops holding a downed host", "[death]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    party.As(party.Guest(), [&] { guest.Fights(FakeEngine::kPlayer, PlayerCopy(guest)); });
+    party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& death = party.Host().ctx().at<DeathService>();
+    party.Until([&] { return death.Status() == "Party in combat"; }, "the host counts the standing guest's combat");
+    Frames(party, 3000);
+    CHECK(death.IsDown());
+    Frames(party, 1500);
+    party.Until([&] { return !death.IsDown(); }, "the host respawns though the guest still fights");
+    CHECK(glm::distance(At(host), At(guest)) <= 200.f);
+}
+
 SCENARIO("Respawning a downed player does not give back a cutscene's controls", "[death][cutscene]")
 {
     Party party(1, Plugins);

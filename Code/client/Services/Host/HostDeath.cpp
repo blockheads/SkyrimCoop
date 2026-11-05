@@ -121,7 +121,11 @@ void HostDeath::Reconsider() noexcept
         return;
     }
 
-    const bool cCombat = StandingPlayerFights(standing);
+    if (!down)
+        m_holdUntil.reset();
+    else if (!m_holdUntil)
+        m_holdUntil = m_now + kCombatHoldSeconds;
+    const bool cCombat = StandingPlayerFights(standing) && (!m_holdUntil || m_now < *m_holdUntil);
     const bool cCombatChanged = cCombat != m_combat;
     m_combat = cCombat;
     // The timer runs while someone is down, everyone's state is known and no standing player fights; a fight starts
@@ -159,6 +163,8 @@ bool HostDeath::StandingPlayerFights(const std::set<uint32_t>& acStanding) const
 void HostDeath::Update(double aDelta) noexcept
 {
     m_now += std::max(0.0, aDelta);
+    if (m_combat && m_holdUntil && m_now >= *m_holdUntil)
+        Reconsider();
     if (m_recoveryAt && m_now >= *m_recoveryAt)
         Respawn();
 }

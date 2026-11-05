@@ -21,7 +21,8 @@ struct HostGame;
  *
  *   down         a player's game says its character went down (PlayerDeathRequest, one generation per fall)
  *   recovery     once kRecoverySeconds pass with no standing player fighting (its own combat, or a host NPC's on it),
- *                every downed player respawns beside the standing player with the lowest session id
+ *                every downed player respawns beside the standing player with the lowest session id; a fight holds
+ *                this for kCombatHoldSeconds at most (an essential NPC's fight cannot end)
  *   wipe         every player down: the host's game loads its previous save (HostGame::PartyWipe) and the party
  *                rolls back together
  *
@@ -33,6 +34,8 @@ struct HostDeath
 
     // Out of combat this long, the downed players respawn.
     static constexpr double kRecoverySeconds = 10.0;
+    // A fight holds the downed players this long at most, from the first fall.
+    static constexpr double kCombatHoldSeconds = 60.0;
     // Each one respawns this far from the standing player, a sixth of a turn round from the last.
     static constexpr float kRespawnDistance = 100.f;
     static constexpr float kRespawnTurn = 1.04719755f; // 60 degrees
@@ -81,6 +84,7 @@ private:
     std::map<uint32_t, std::set<uint32_t>> m_targets;      // each fighting character's targets since it started
     double m_now{};
     std::optional<double> m_recoveryAt;
+    std::optional<double> m_holdUntil;  // when a fight stops holding the downed players
     bool m_combat{};
     bool m_wiped{};
     std::string m_error;
