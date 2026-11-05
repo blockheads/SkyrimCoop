@@ -11,50 +11,41 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Guests own only their own player; the host owns
 every NPC and the world.
 
-## Next (2026-11-04)
+## Next (2026-11-05)
 
 In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
-1. **Checked in-game actions.** Slim version built 2026-11-02 (`checked-actions.md`, "As built"):
-   the physics scenario runs on it, `guest-holds-into-npc` 10 of 10. The MCP layer is built too
-   ([repro-mcp.md](design/repro-mcp.md)). Left: walk/push verbs, scene control, the broad migration. **Plan ready
-   for an agent (2026-11-04):** `checked-actions.md`, "Finishing it": `move` with "blocked" in the plugin,
-   `push_toward`, `act_wait` instead of polling, freeze per action, then the open-loop sites (physics first); two
-   questions for the user at its end. Actions that check their own outcome, ticked in the harness each frame:
-   - a ready gate before acting;
-   - steering every frame;
-   - checks that must keep holding;
-   - an outcome or a named failure with its frame.
+1. **Checked in-game actions: finish them.** Built: the slim version (2026-11-02, `checked-actions.md`, "As built": the
+   physics scenario runs on it, `guest-holds-into-npc` 10 of 10) and the MCP layer ([repro-mcp.md](design/repro-mcp.md)).
+   Left, **plan ready for an agent, not started:** `checked-actions.md`, "Finishing it": `move` with "blocked" in the
+   plugin, `push_toward`, `act_wait` instead of polling, freeze per action, then the open-loop sites (physics first); two
+   questions for the user at its end.
 
    Why: open-loop actions silently miss their intent (the carry step in `guest-holds-into-npc` sometimes drops the
    bucket). Audit and plan: `docs/design/checked-actions.md`; notes: `docs/research/sync-and-testing-references.md`.
-2. **Exclusive object ownership**, after Fiedler (memory decision 2026-11-02). **Holds built 2026-11-02**
-   (`physics-sync.md`, "Exclusive holds"): every other game plays a holder's frames keyframed, so nobody else grabs
-   or pushes it. Left: refusing a second holder who grabs within the same round trip, and the bullets below.
-   - Grabbing claims the object from the host, which accepts or refuses; a refused grab drops it.
-   - Owner and authority each carry a sequence number.
-   - Every other game plays the holder's frames, so nobody else can grab or push it.
-   - Authority returns to the host at the rest. This replaces Steered holds.
-   - Plan: `docs/design/physics-sync.md` and the plan of 2026-11-02 (part B).
-   - It likely covers: the host's copy of a sword the guest dropped rests 44 to 67 units from the guest's
-     (`guest-drops-item-stays`, 2 of 5).
-3. **The handoff's red flags:** done 2026-11-02 (flags 1, 2, 4, 5 fixed; 3 measured and left: news below,
-   `docs/design/red-flags.md`). Left: cleanup and explainer docs.
-4. **Open bugs found 2026-11-02**, failing the same with the old copy placement:
-   - `actors-walk-after-arrival`: the host's own Riverwood NPCs jump 125 to 573 units in 2 s;
-   - `knockdown-lies-as-host`: the copy turns away for about 0.3 s at its get-up (1 in 2 runs).
-5. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
+2. **Exclusive object ownership**, after Fiedler (memory decision 2026-11-02). Built 2026-11-02 (`physics-sync.md`,
+   "Exclusive holds", replacing Steered holds): every other game plays a holder's frames keyframed, so nobody else grabs
+   or pushes it, and the host takes it back at the release. Sequence numbers were not needed: the host's tick ordering
+   and `m_released` drop stale frames. Left:
+   - A refused second holder: two players grabbing within one round trip both hold it locally; the host should refuse
+     the second, which drops it.
+   - Fiedler's authority chain: bodies a held or thrown body knocks stay the host's.
+3. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
    - **C2 freezes in our code:** Windows only. Needs a package with the PDB kept, and one trigger replayed on
      Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
    - **C3 crash on quit:** fixed on Linux, verify on Windows.
    - **P1 performance:** parked; check in the same Windows session.
-   - **S3 a guest's "go to jail":** the jail choice by mouse is still to try (pay fine is done; the freeze is C2).
+   - **S3 a guest's "go to jail":** the jail choice by mouse is still to try (`guest-ivarstead-jail-mouse`; pay fine is
+     done; the freeze is C2).
    - **S8 missed kill moves:** likely the engine's own room check at the mark (`docs/re/systems/kill-moves.md`); a `/bug` right after one would confirm it.
    - **S6 remainder:** an NPC's detection reads higher in co-op (51 against 13 alone).
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
+4. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order, one section per agent. The two bugs
+   found 2026-11-02 (`actors-walk-after-arrival`, `knockdown-lies-as-host`) are there now.
+5. **Red flags' leftovers:** the flags themselves are done (2026-11-02: 1, 2, 4, 5 fixed; 3 measured and left: news
+   below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
-6. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order.
 ## News
 
 - **NPC copies no longer vibrate in furniture** (2026-11-05). On the guest's game, copies going in or out of a chair, bed
@@ -66,7 +57,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
-2026-11-05: the 2026-11-04 freezes are the machine's, not ours (`bugs.md`, Freezes and slowness). Fixed on the way:
+2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
+waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated
+failures stay as entries), the freezes (now a loose end), and host objects waking and resting every half second. For that
+last one, the entry's check on the 2026-11-04 play session's host log: 79 `HostPhysics: sent N rests` lines in 8 minutes,
+136 bodies, at most 14 rests of a body with gaps of 1 to 122 s, none of them the twice-a-second loop (fixed 2026-11-01).
+
+2026-11-05: the 2026-11-04 freezes are the machine's, not ours (Loose ends, Engine threading and crashes). Fixed on the way:
 the guest's `BodyService::Apply` copy scan, `profile --stacks` crashing under Wine, lock-order `[ours]` on pass-through
 hooks. New: `profile --route` and `--budget`, against the vanilla stand-in.
 
@@ -1624,6 +1621,20 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Freezes and slowness** (2026-11-04): the machine's, not ours (measured 2026-11-05). The export: 2845 frames in
+  about 8 minutes, p50 17 / p95 32 / p99 71 ms, worst 2.6 s; `Frame stalled` 70 on the host, 90 on the guest.
+  - Shared: 52 of the host's 70 stalls (17.2 of its 23.4 s) hit the guest within 300 ms, the long ones to the ms
+    with equal lengths (05:07.447 578/578 ms, 05:10.434 573/574): one thing outside both processes held both. Our
+    update was long in 8 host and 4 guest stalls, all at the wipe's load and new game (11:32-11:49).
+  - Not the lock inversions: none was live, all are the engine's own orders (`docs/re/systems/lock-order.md`).
+  - Measured 2026-11-05 (60 s windows, `profile --route whiterun`): idle, vanilla, our plugin alone and the duo
+    all hold 55-60 fps with no stalls; over the route vanilla stalls 10 times a minute (worst 4.2 s), our plugin
+    alone 9, the duo's host 8 and guest 5. Stalls are cell loads, and co-op adds none.
+  - Left open: what the shared stalls wait on. The guest's logs are silent through its longest ones (11:53 2.5 s,
+    12:34 1.8 s). Two games on one GPU and display, plus other agents' builds on the machine, are the candidates.
+  - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
+    off-screen, so it cannot show a display stall), during a stall.
+  - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
 - **Done 2026-11-01 (C1, `playtests/2026-10-31-fabien.md`): players can't loot each other.** Taking a dead guest's
   clothes crashed the host in `ContainerMenu`. Now `ContainerMenu::OpenMenu` (51140) refuses another player's copy
   (`party-items.md`). GameTests "Players can't loot each other" passes. The duo scenario `host-cannot-loot-guest`
