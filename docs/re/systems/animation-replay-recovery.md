@@ -171,3 +171,14 @@ copy:  HookUpdateAnimationGraphs (20123) -> RunReplayStep -> ForceAction -> kTak
   (1.08 s), so a copy following a transition 150-300 ms late never counts.
 - Counters `graph drift replays / players / skipped / matched / mismatches / transient ms / lasting / lasting ms / unreadable`,
   read by the harness's `counters`; `coop_test.py scenario` logs a `copies' graph drift:` line per flow.
+
+Measured 2026-11-05, a combined batch of 12 animation flows on a fresh duo (guest's copies unless noted):
+
+- NPC copies: 283 replays compared, 261 matched, 12 transient (mean 318-1112 ms per flow, longest 1.64 s), 4 lasting
+  (`npc-counter-matches` 1, `npc-counter-copy-falls-back-in` 1, `actors-walk-after-arrival` 2). Paired skipped: 1.
+- The lasting ones: Camilla's copy without `Behavior02=MT_Idle.HKX` after `MotionDrivenIdle` (2.4 s), Camilla's
+  copy missing a dialogue idle (`DialogueAngryA`) after `TurnLeft`, two Riverwood wolves (one copy walking while its
+  owner turned on the spot). An earlier run showed Lucan's copy with its arms crossed (`LeftOffsetArmsCrossed`) while
+  he had not, 3.7 s, and Camilla's copy kept in `MT IdleHHLeftEnter.HKX` while she idled, 5.5 s.
+- So accepted actions do land elsewhere now and then, past the 1.1 s seen before: loading the owner's snapshot on a
+  lasting mismatch is the next step (not built here).

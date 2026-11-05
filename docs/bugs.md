@@ -122,6 +122,9 @@ Size: small. Needs: GameTests (a forced mismatch), then a combined duo batch.
     follows every transition within 150-300 ms, no difference lasts over 1.1 s. One NPC: no lasting drift seen, not
     proof there is none. A graph save costs 62-112 us and about 7.5 KB.
   - Compare state names only (variables and clip times differ by design). Paired actions carry no snapshot.
+  - Detector built 2026-11-05 (`GraphDrift`, animation-replay-recovery.md "Drift detector"): a 12-flow batch had 4
+    lasting NPC mismatches in 283 replays (Camilla and Lucan at the counter, two Riverwood wolves). Next: load the
+    owner's snapshot on a lasting mismatch.
   - Pitfall: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in `JumpFall`/`JumpLand` for the
     session, which reads as drift. Measure on fresh, unstaged NPCs.
 
