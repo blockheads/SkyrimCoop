@@ -1,7 +1,8 @@
 """A guest loots an owned chest through the container menu while its owner watches: the party's bounty rises in both games (docs/re/systems/crime.md).
 
 Recorded with the repro MCP (docs/design/repro-mcp.md), trimmed to the steps that hold: the session's reads, retries
-and hot reloads are left out. The witness's detection is read (`wait_seen`), never requested."""
+and hot reloads are left out. `wait_seen` asks for the witness's detection: whether it sees the guest unasked is
+open (docs/bugs.md)."""
 # recorded: 20261104-223926-guest-theft-witnessed.jsonl, trimmed (scripts/check_scenarios.py)
 NAME = 'guest-theft-witnessed'
 TAGS = ['crime', 'scene']
@@ -20,7 +21,8 @@ def run(ctx):
         ctx.stage({'players': {'guest': {'near': 'witness', 'gap': 150}}})
         ctx.witness_faces(npc='witness', toward='guest_player')
         ctx.wait_seen(npc='witness', of='guest_player')
+        before = ctx.bounty_total()
         ctx.take('client', 'chest')
-        ctx.expect_bounty(at_least=1, seconds=10)
+        ctx.expect_bounty(at_least=before + 1, seconds=10)
     finally:
         ctx.unstage()

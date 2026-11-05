@@ -15,7 +15,6 @@ class CrimeBridge final : public ICrimeBridge
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override;
     void Confiscate(const GameId&) noexcept override;
     void UpdatePlayers(std::span<const uint32_t> aActorFormIds) noexcept override;
-    void AskWitnesses(uint32_t aActorFormId) noexcept override;
 
   private:
     std::vector<CrimeGold> m_reactionState;

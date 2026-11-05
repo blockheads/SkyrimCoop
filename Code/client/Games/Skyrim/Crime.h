@@ -86,10 +86,11 @@ static_assert(offsetof(GoldEntry, Next) == 0x18);
 static_assert(sizeof(GoldMap) == 0x28);
 static_assert(offsetof(GoldMap, Capacity) == 0x4);
 static_assert(offsetof(GoldMap, Entries) == 0x20);
-static_assert(offsetof(Player, Bounty) == 0x3F0 + Player::cShift);
-static_assert(offsetof(Player, JailFaction) == 0x720 + Player::cShift);
-static_assert(offsetof(Player, JailSentence) == 0x728 + Player::cShift);
-static_assert(offsetof(Player, Flags4) == 0xBE4 + Player::cShift);
+// Measured per runtime in 40641, 40655 and 37422, not derived from the shift.
+static_assert(offsetof(Player, Bounty) == (COOP_SKYRIM_1_6_1170 ? 0x3F0 : 0x3F8));
+static_assert(offsetof(Player, JailFaction) == (COOP_SKYRIM_1_6_1170 ? 0x720 : 0x728));
+static_assert(offsetof(Player, JailSentence) == (COOP_SKYRIM_1_6_1170 ? 0x728 : 0x730));
+static_assert(offsetof(Player, Flags4) == (COOP_SKYRIM_1_6_1170 ? 0xBE4 : 0xBEC));
 static_assert(offsetof(Faction, Flags) == 0x58);
 static_assert(offsetof(Faction, JailMarker) == 0x60);
 static_assert(offsetof(Faction, StolenContainer) == 0x70);

@@ -14,6 +14,10 @@ class CrimeActions:
                         for row in ctx.crime_command(instance, "read")["bounty"]}
                 for label, instance in (("host", ""), ("guest", "client"))}
 
+    def bounty_total(ctx):
+        """The host's bounty, every faction, violent + nonviolent."""
+        return sum(sum(amounts) for amounts in ctx.party_bounty()["host"].values())
+
     def report_crimes(ctx):
         """Turns crime reporting on in both games (Game.SetPlayerReportCrime), logging what it was."""
         for instance in ("", "client"):
@@ -44,9 +48,11 @@ class CrimeActions:
         return {"angle": round(angle)}
 
     def wait_seen(ctx, npc, of="guest_player", seconds=30.0):
-        """Waits until the host's `npc` sees a player (detection level above 0, computed under 2 s ago): a witness."""
-        seen = lambda: (lambda k: k.get("level", 0) > 0 and k.get("age", 99) < 2.0)(ctx.witness(npc, of))
-        ctx.wait_for(f"{npc} sees {of}", seen, seconds, explain=lambda: str(ctx.witness(npc, of)))
+        """Asks the host's `npc` for its detection of a player until it is above 0. The asking is a request (37764):
+        it makes the witness look, so this tests what follows a sighting, not whether one happens unasked."""
+        actor, target = ctx.resolve(npc, "host"), ctx.resolve(of, "host")
+        level = lambda: ctx.crime_command("", "detection", actor=actor, target=target)["level"]
+        ctx.wait_for(f"{npc} sees {of}", lambda: level() > 0, seconds, explain=lambda: str(ctx.witness(npc, of)))
         return ctx.witness(npc, of)
 
     def expect_bounty(ctx, at_least=1, seconds=10.0):

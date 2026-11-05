@@ -298,6 +298,14 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
     make the nearest player a fair target (`party-model.md`: the party is the Dragonborn).
   - Test: `expect stays` on `host_player` `state.dead`: a late `expect_target` passes after the host has died.
 
+- **A witness may not see a guest it wasn't asked about** (2026-11-04). Crime checks accept only a detection state under
+  2 s old and asking answers on a later pass (`crime.md`, Detection is on request). On the duo Hulda's state of the
+  guest's copy was missing, later 4.7 s old, while her state of the nearby host was 0.5 s old. So a guest's theft may go
+  unseen where the host's would not. Not proved: no theft was run with the offset fix and nobody asking.
+  - Start: a theft with `witness` showing a stale state and no `wait_seen`; compare the host's control.
+  - Tried: asking every frame for each copy (41408). The state stayed under 1 s, removed in review of PR #17: no failure
+    shown, cost unmeasured, polling. If the bug is real, ask at the theft and judge a frame later instead.
+
 - **A guest's theft of a created item is never judged** (2026-11-04). `CrimeBridge::Target` puts the stolen reference on
   the wire with `ToSession`, which has no id for a created form (`FF...`), so the host finds no target and `Judge`
   returns before its log line. Seen with a placed dagger owned by Hulda: picked up by the guest, no `Party crime` line.

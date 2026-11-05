@@ -72,8 +72,6 @@ void CrimeService::OnUpdate(const UpdateEvent&) noexcept
         for (auto entity : m_world.view<RemoteComponent, PlayerComponent, FormIdComponent>())
             copies.push_back(m_world.get<FormIdComponent>(entity).Id);
         m_bridge.UpdatePlayers(copies);
-        for (auto copy : copies)
-            m_bridge.AskWitnesses(copy); // crime checks read a state under 2 s old (crime.md)
     }
     for (auto& request : m_bridge.TakeActions())
     {

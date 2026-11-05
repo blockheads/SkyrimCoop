@@ -69,8 +69,9 @@ proved per-frame, and Hulda's state of the far host read 4.1 s old once.
 `CrimeEngine::Player` still had the 1.6 values, so `ReadGold` read 8 bytes off and found nothing. The engine wrote the
 bounty; the host never saw it change and sent no `NotifyCrimeState`. The fix applies the shift.
 
-Proof: with the shift, the host read a bounty of 8 that earlier thefts had already written, the guest received it, and
-`guest-theft-witnessed` passed; with the shift removed, that scenario failed with `{}` in both games.
+Proof: with the shift, the host read a bounty of 8 that earlier thefts had already written and the guest received it;
+from 0, a guest's chest theft through the menu made it 1 in both games. With the shift removed, `guest-theft-witnessed`
+failed with `{}` in both. Those runs also asked every frame (below), and the scenario then accepted a leftover bounty.
 
 Every "no bounty" read before that fix was blind, so none of them shows a theft went unwitnessed.
 
@@ -78,11 +79,10 @@ Every "no bounty" read before that fix was blind, so none of them shows a theft 
 
 Harness `crime knowledge` (39763) reads a witness's state without asking for one.
 
-- Bannered Mare, no `AskWitnesses`: Hulda knew the guest's copy with no state at all, later read it 4.7 s old while her
+- Bannered Mare, nobody asking: Hulda knew the guest's copy with no state at all, later read it 4.7 s old while her
   state of the nearby host was 0.5 s old.
-- With `AskWitnesses`: her state of the copy read 0.3 s, before the guest came near.
-- Not measured: a theft with the offset fix and without `AskWitnesses` (the control was queued, the duo never came).
-  So the freshness fix rests on the code above and these ages, not on a theft it turned from unseen to seen.
+- Asking for every copy each frame (41408, tried, since removed) held her state of the copy at 0.3 s.
+- Not measured: a theft with the offset fix and nobody asking (`docs/bugs.md`).
 - A value 200 chest theft raised the bounty by 1, and one of value 100 by 1 (8 to 9). Not explained.
 - `SetPlayerReportCrime` (+0xBEC bit 2) ends StealAlarm when clear. Whether the duo's characters start with it clear
   was not read: `report_crimes` logs it now.
@@ -92,8 +92,6 @@ Harness `crime knowledge` (39763) reads a witness's state without asking for one
 ## What SkyrimCoop does about it
 
 - `CrimeEngine::Player` applies `PlayerShift` (above).
-- Every frame the host's `CrimeService` asks every high actor for its detection of each guest copy
-  (`CrimeBridge::AskWitnesses`, 41408), so a crime check finds a recent state. Its frame cost was not profiled.
 - Not fixed: reactions still target the host's player (`docs/bugs.md`, The guest's aggro goes to the host).
 
 ## IDs

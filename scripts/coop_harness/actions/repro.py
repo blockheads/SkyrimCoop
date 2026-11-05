@@ -691,7 +691,7 @@ _INSTANCE = {"host": "", "guest": "client", "client": "client", "": ""}
 
 
 # Verbs that only read: left out of an exported scenario.
-READ_VERBS = {"witness", "party_bounty"}
+READ_VERBS = {"witness", "party_bounty", "bounty_total"}
 
 # Harness commands that only read: left out of an exported scenario.
 _READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "screen", "item_count"}
