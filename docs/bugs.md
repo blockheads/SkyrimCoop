@@ -340,9 +340,9 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
     with equal lengths (05:07.447 578/578 ms, 05:10.434 573/574): one thing outside both processes held both. Our
     update was long in 8 host and 4 guest stalls, all at the wipe's load and new game (11:32-11:49).
   - Not the lock inversions: none was live, all are the engine's own orders (`docs/re/systems/lock-order.md`).
-  - Measured (`docs/design/testing.md`, Profiling, "Machine against ours"): idle, vanilla, our plugin alone and the
-    duo all hold 55-60 fps with no stalls; over the same Whiterun route vanilla stalls 10 times a minute (worst 4.2 s),
-    our plugin alone 9, the duo's host 8 and guest 5. Stalls are cell loads, and co-op adds none.
+  - Measured 2026-11-05 (60 s windows, `profile --route whiterun`): idle, vanilla, our plugin alone and the duo
+    all hold 55-60 fps with no stalls; over the route vanilla stalls 10 times a minute (worst 4.2 s), our plugin
+    alone 9, the duo's host 8 and guest 5. Stalls are cell loads, and co-op adds none.
   - Left open: what the shared stalls wait on. The guest's logs are silent through its longest ones (11:53 2.5 s,
     12:34 1.8 s). Two games on one GPU and display, plus other agents' builds on the machine, are the candidates.
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
