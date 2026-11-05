@@ -145,6 +145,8 @@ def items_for(tool, arguments, response):
     if tool not in inputs:
         return []
     op, key = inputs[tool]
+    if isinstance(result, dict) and set(result) == {"result"}:
+        result = result["result"]  # the router wraps a list result as {"result": [...]}
     results = listed(result)
     for index, item in enumerate(listed(arguments.get(key))):
         if succeeded(results[index] if index < len(results) else None):
