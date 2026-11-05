@@ -355,28 +355,6 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
 From the S1 work (`playtests/2026-10-31-fabien.md`; `docs/design/physics-sync.md`, "Steered holds" and "Matches a
 game without co-op").
 
-- **A guest's held object can pass through a host NPC in the guest's own view.** The host now steers the hold, so the
-  host and the other guests see it stop on her head, but the holder shows its own physics until the host's rest. Seen
-  once (the first `guest-bucket-on-npc-head` run: the guest's bucket 50 units over Lydia's feet, her head at 124);
-  later runs stopped on her copy's head (127 to 170).
-  - Start: copies skip `Actor::ApplyMovement` (37356), which integrates their character controller, and a
-    controller keeps bodies out as it integrates (object interactions, 79133). The copy's controller reads no
-    `kSupport` or `kCanJump` (flags 40200000 against the host's NPC's 40240500: `docs/re/systems/physics.md`, "What
-    stops a held body"). Find what made the first run differ, then whether the copy's controller pushes at all.
-  - Test: `guest-bucket-on-npc-head --until-fail`, reading the client's lowest; then teach the fake (it already
-    has copies push nothing: `FakeEngine::OutsideCapsules`).
-
-- **A dragged object blinks in and out of existence** (the user, 2026-11-01). Not reproduced (2026-11-01): a ladle
-  dragged left and right by either player, traced each frame on both games (`body_trace`, which now also gives its 3D's
-  flags), was never hidden or culled (`kNotVisible`) and never left its body on the dragging game, with the host's
-  node writes as they were then and as fixed.
-  - Start: which game blinks (the holder's or another's). On the others the held object is played from the host's
-    frames now (steered on the host, sent by HostPhysics); a frame missing or late, a rest placed while it is held,
-    or its node written and then left behind (FollowBody, now only when left behind) could each show it elsewhere for
-    a frame. The fireball scenarios' `FlightTrace` catches a jump or a flicker in a flight; nothing traces a hold.
-  - Test: a scenario that drags an object across the room while both games trace it (`body_trace`), failing on a
-    frame where its 3D leaves its path.
-
 - **The guest's playback of a long roll jumps once** (2026-11-01). `physics-push-reaches-guest` (1 in 4: a ladle
   rolling 17 s, a 9.2-unit jump 11.6 s in) and `guest-cast-moves-host` (1 in 4: a jump just over the 6-unit limit)
   fail `FlightTrace.check`; both pass on reruns. Physics-sync's notes had one such failure (0.4 over) on 2026-10-25.
