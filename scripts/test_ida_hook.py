@@ -96,6 +96,12 @@ class Rows(HookTest):
         self.assertEqual(rows[0].item["comment"], comment)  # tabs and newlines survive the TSV
         self.assertEqual((rows[2].rva, rows[2].item), (None, {"decl": "struct Foo { int a; };"}))
 
+    def test_wrapped_comment_results_keep_only_what_succeeded(self):
+        self.post("mcp__ida-multi-mcp__set_comments",
+                  {"items": [{"addr": MOVE, "comment": "kept"}, {"addr": "0x140000010", "comment": "lost"}]},
+                  json.dumps({"result": [{"addr": MOVE, "ok": True}, {"addr": "0x140000010", "error": "bad address"}]}))
+        self.assertEqual([row.item["comment"] for row in journal.load(self.checkout.journal)], ["kept"])
+
     def test_reads_of_other_tools_are_not_rows(self):
         self.post("mcp__ida-multi-mcp__xrefs_to", {"addrs": MOVE, "instance_id": "good"}, "[]")
         self.assertFalse(self.checkout.journal.exists())

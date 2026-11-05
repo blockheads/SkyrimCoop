@@ -1,0 +1,44 @@
+time	op	id	rva	item
+2026-11-05T20:18:49Z	read	38009	0x6b3f20	{"name": "Actor::ProcessTracking"}
+2026-11-05T20:18:49Z	read	39783	0x71fa50	{"name": "HighProcessData::SetHeadtrackTarget"}
+2026-11-05T20:18:50Z	read	39484	0x6ff050	{"name": "AIProcess::GetHeadtrackTarget"}
+2026-11-05T20:19:04Z	read	39461	0x6fe690	{"name": "sub_1406FE690"}
+2026-11-05T20:19:05Z	read	39464	0x6fe6f0	{"name": "sub_1406FE6F0"}
+2026-11-05T20:19:05Z	read	39466	0x6fe730	{"name": "sub_1406FE730"}
+2026-11-05T20:19:06Z	read	39479	0x6fefa0	{"name": "sub_1406FEFA0"}
+2026-11-05T20:19:28Z	name	39461	0x6fe690	{"addr": "0x1406fe690", "name": "ActorProcess::SetDefaultHeadtrackSlot"}
+2026-11-05T20:19:28Z	name	39464	0x6fe6f0	{"addr": "0x1406fe6f0", "name": "ActorProcess::SetCombatHeadtrackSlot"}
+2026-11-05T20:19:28Z	name	39466	0x6fe730	{"addr": "0x1406fe730", "name": "ActorProcess::SetProcedureHeadtrackSlot"}
+2026-11-05T20:19:28Z	name	39479	0x6fefa0	{"addr": "0x1406fefa0", "name": "ActorProcess::CanPickAmbientHeadtrack"}
+2026-11-05T20:20:20Z	comment	39461	0x6fe690	{"addr": "0x1406fe690", "comment": "HighProcessData::SetHeadtrackTarget(slot 0, default). Actor::ProcessTracking 38009 stores its own ambient pick here, after a copy's owner's slots were pushed."}
+2026-11-05T20:20:20Z	comment	39464	0x6fe6f0	{"addr": "0x1406fe6f0", "comment": "HighProcessData::SetHeadtrackTarget(slot 3, combat)."}
+2026-11-05T20:20:20Z	comment	39466	0x6fe730	{"addr": "0x1406fe730", "comment": "HighProcessData::SetHeadtrackTarget(slot 5, procedure)."}
+2026-11-05T20:20:20Z	comment	39479	0x6fefa0	{"addr": "0x1406fefa0", "comment": "True when slots 5,4,3,1 are clear (slot 2 script ignored) and the float at HighProcessData+0x160 is below 0: ProcessTracking may make its ambient pick."}
+2026-11-05T20:20:20Z	comment		0x6b44b4	{"addr": "0x1406b44b4", "comment": "The ambient pick lands in slot 0 inside ProcessTracking, so a hook pushing slots before the call does not cover it: the slot holds the pick until the next push."}
+2026-11-05T20:20:21Z	read	38012	0x6b4ec0	{"name": "Character::sub_38012"}
+2026-11-05T20:20:21Z	read		0x66ac00	{"name": "BSTaskPool_HandleTask"}
+2026-11-05T20:21:44Z	read	42840	0x7cd5a0	{"name": "HeadTrackingOnHandler::Handle"}
+2026-11-05T20:21:45Z	read	42841	0x7cd5b0	{"name": "HeadTrackingOffHandler::Handle"}
+2026-11-05T20:21:45Z	read	37361	0x67d590	{"name": "Actor::UpdateAnimation"}
+2026-11-05T20:22:26Z	read		0x67da20	{"name": "Character::sub_37363"}
+2026-11-05T20:22:26Z	read		0x6b4357	{"name": "Actor::ProcessTracking"}
+2026-11-05T20:22:27Z	read	39770	0x71ea00	{"name": "sub_14071EA00"}
+2026-11-05T20:23:31Z	name	39463	0x6fe6d0	{"addr": "0x1406fe6d0", "name": "ActorProcess::SetScriptHeadtrackSlot"}
+2026-11-05T20:23:31Z	name	39465	0x6fe710	{"addr": "0x1406fe710", "name": "ActorProcess::SetDialogueHeadtrackSlot"}
+2026-11-05T20:23:31Z	name	38012	0x6b4ec0	{"addr": "0x1406b4ec0", "name": "Character::PickAmbientHeadtrackTarget"}
+2026-11-05T20:23:31Z	name	39770	0x71ea00	{"addr": "0x14071ea00", "name": "HighProcessData::RefreshHeadtrackLookPosition"}
+2026-11-05T20:24:00Z	name	37363	0x67d930	{"addr": "0x14067d930", "name": "Character::ProcessTrackingIfAllowed"}
+2026-11-05T20:24:02Z	read	37552	0x68f730	{"name": "Actor::EndDialogue"}
+2026-11-05T20:24:03Z	read	39471	0x6fe850	{"name": "sub_1406FE850"}
+2026-11-05T20:25:04Z	comment		0x67d614	{"addr": "0x14067d614", "comment": "ProcessTracking gate (vfunc 0x122), also in Character::ProcessTrackingIfAllowed: skipped when life state is 3 or 1, IsDead, knock state nonzero, sit state 7, not high process, or controller +0x29C out of range. A hook on ProcessTracking does not run in these states."}
+2026-11-05T20:25:04Z	comment		0x68faa5	{"addr": "0x14068faa5", "comment": "Actor::headTrackingUpdateDelay = 1.0: holds ProcessTracking's ambient pick back after a conversation."}
+2026-11-05T20:25:04Z	comment		0x6b4372	{"addr": "0x1406b4372", "comment": "Actor::headTrackingUpdateDelay reset to a random 1.0-1.5 s (dword_1420B6AC0, dword_1420B6AD8): the ambient pick runs at most this often."}
+2026-11-05T20:25:04Z	comment		0x6fe872	{"addr": "0x1406fe872", "comment": "Clears the dialogue slot (4); a2 true keeps the target by moving it to the default slot (HighProcessData::ClearHeadtrackTarget 39756)."}
+2026-11-05T20:38:24Z	read	39477	0x6fec80	{"name": "sub_1406FEC80"}
+2026-11-05T20:38:25Z	read	39478	0x6fee40	{"name": "sub_1406FEE40"}
+2026-11-05T20:38:42Z	name	39471	0x6fe850	{"addr": "0x1406fe850", "name": "ActorProcess::ClearDialogueHeadtrackSlot"}
+2026-11-05T20:38:42Z	name	39477	0x6fec80	{"addr": "0x1406fec80", "name": "ActorProcess::ClearAllHeadtrackSlots"}
+2026-11-05T20:38:42Z	name	39478	0x6fee40	{"addr": "0x1406fee40", "name": "ActorProcess::RemoveHeadtrackTargetFromSlots"}
+2026-11-05T20:58:43Z	comment		0x7464ad	{"addr": "0x1407464ad", "comment": "The player's ProcessTracking from this update only when PlayerCamera's current state id (+0x28, +0x18) is 9 or more; a lower camera state skips it here."}
+2026-11-05T20:58:43Z	comment		0x6aac2b	{"addr": "0x1406aac2b", "comment": "KillImpl clears all six headtrack slots. A copy reaches this before its local dying write lands, so that write stays."}
+2026-11-05T21:21:30Z	comment	39464	0x6fe6f0	{"addr": "0x1406fe6f0", "comment": "HighProcessData::SetHeadtrackTarget(slot 3, combat)."}

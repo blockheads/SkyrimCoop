@@ -650,8 +650,9 @@ meh321 where they have one, ours otherwise.
   dialogue, procedure), set by the AI, packages, dialogue and scripts through `HighProcessData::SetHeadtrackTarget`
   (39783; it also updates the cached look position, `sub_14070BEC0`) and `ClearHeadtrackTarget` (39756), with no
   event. `Actor::ProcessTracking` (38009, vfunc `0x122`: Actor, Character and PlayerCharacter share it; CommonLib
-  `(float delta, NiAVObject*)`, the body reads only `rcx` and `xmm1`) runs every frame from `Actor::UpdateAnimation`
-  (call at `0x14066AC22`, gated only by distance), copies included. It takes the highest set slot
+  `(float delta, NiAVObject*)`, the body reads only `rcx` and `xmm1`) runs from `Actor::UpdateAnimation` (37361) and
+  `Character::ProcessTrackingIfAllowed` (37363), copies included, behind a gate (see "When the slots are read" below).
+  It takes the highest set slot
   (`AIProcess::GetHeadtrackTarget` 39484; in a conversation it alternates the script and default slots), the
   target's look position (vfunc `0x2D8`), and `AIProcess::SetHeadtrackTarget` (39887) writes it to the graph
   (`SetGraphVariableNiPoint3`, the `TargetLocation` the look-at modifiers read) and sets `MiddleHigh +0x326`. A
@@ -662,6 +663,31 @@ meh321 where they have one, ours otherwise.
   session id or form), and a copy's owner's slots (`ActorExtension::HeadTrack`) are put in before the engine reads
   them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
+
+  **When the slots are read (read in IDA, 1.7.104, 2026-11-05).** Both callers skip ProcessTracking for an actor that
+  is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), in sit state 7, not high
+  process, or with its controller's `+0x29C` out of range. In those states nothing reads the slots, so a dead actor
+  looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither pushes nor reports.
+  The bit `actorState.flags2 & 8` (`HeadTrackingOn` 42840 sets it, `HeadTrackingOff` 42841) is checked first inside.
+
+  ProcessTracking also writes: every 1.0-1.5 s (`Actor::headTrackingUpdateDelay`, `+0xEC`) it may pick an ambient target
+  (`Character::PickAmbientHeadtrackTarget` 38012: this game's player, then the high process list) into slot 0, after our
+  push. `ActorProcess::CanPickAmbientHeadtrack` (39479) asks that slots 5, 4, 3 and 1 are clear, not slot 0. `EndDialogue`
+  (37552) sets the delay to 1.0, the engine's own way to hold the pick back, and moves the dialogue slot to slot 0;
+  `ClearHeadtrackTarget` (39756) with its third argument moves any cleared slot to slot 0.
+  `Actor::KillImpl` clears all six (`ActorProcess::ClearAllHeadtrackSlots` 39477).
+
+  Measured (a wolf killed on its owner, slots sampled on both games, 20/s): at dying, slot 1 becomes each game's own
+  player; about 2 s later it moves to slot 0 on both; the owner's clears at life state 2 (2.47 s). The copy reached life
+  state 2 at 0.62 s, before its local write, so its slot 0 stays on its own player for good: the failing
+  `['session 1', ...]` against `['session 2', ...]`. What writes slot 1 at dying is not found yet: it is written
+  inline in places (`+0x144`), so xrefs to 39783 do not show every writer.
+
+  A player's own shout does the same on the owner (`fus-ro-dah-host-hits-guest`): slot 1 on itself, moved to slot 0 as
+  the line ends. ProcessTracking skips a target that is the actor itself (`v19 != a1`), so that slot turns no head. Its
+  copy read none throughout with its gate open, and the host's log shows no send for the player then (weak: the log may
+  lag). `PlayerCharacter`'s update (0x140745200) calls ProcessTracking only with camera state 9 or more, which may be
+  why the owner's hook never reports it: inferred, not measured.
 - **Talking.** `IsTalking` (37266, read by the condition 21519 and the dialogue menu 35283/35290/35294): `boolBits &
   0x180` and the voice timer, which a copy's played voice line sets. Compared (`ai_state.talking`), nothing written.
 - **Alarmed** (`GetAlarmed` 21452: the running package's type is 21, an engine-made alarm package): not carried; a
