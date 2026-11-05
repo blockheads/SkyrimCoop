@@ -59,6 +59,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-04: the party's bounty works on 1.7.104 ([crime.md](re/systems/crime.md)). `CrimeEngine::Player` kept 1.6.1170's
+offsets, so the bridge read the bounty map 8 bytes off: the engine wrote bounty, nobody saw it, no `NotifyCrimeState`
+went out. That was the 2026-11-04 playtest's missing bounty. The host also now asks its NPCs for their detection of each
+guest copy every frame, since crime checks accept only a state under 2 s old (no theft control run for this one). The
+guest's aggro going to the host is still open (`bugs.md`). MCP: `own`, `witness`, `witness_faces`, `wait_seen`,
+`party_bounty`, `expect_bounty`, `expect_target`, `report_crimes`; harness `crime knowledge`, `crime owns`, `reporting`.
+Scenario `guest-theft-witnessed`; GameTests `[crime]`.
+
 2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real
 bug"). The kill-move redo through it found crossed kill moves still kill a player a second later (`bugs.md`, Combat;
 for PR #13). `checkpoint`/`retry` roll the party back to a host save in 3.9 s instead of a new duo (the harness's

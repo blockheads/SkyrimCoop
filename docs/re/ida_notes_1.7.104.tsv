@@ -32,3 +32,22 @@ id	rva	name	comment
 63091	0xbb2370	BSRagdollContactListenerModifier::Modify	Queues the contact event (+0x58) once triggered (+0x70), then clears it.
 63093	0xbb2500	BSRagdollContactListenerModifier::AddListeners	Adds a contact listener to each watched ragdoll bone's body (bones hkbBoneIndexArray +0x68), and turns on its contact reporting.
 63094	0xbb26c0	BSRagdollContactListenerModifier::RemoveListeners	Removes the listener from the watched bodies.
+39763	0x71e100	HighProcessData__FindKnowledge	Finds the witness's ActorKnowledge of a target without creating it (39515 creates)
+42702	0x7c3eb0	ActorKnowledge__GetFreshDetectionState	DetectionState (+0x20) only if updated within priority a2's max age (table 0x1420B8AB8 {refresh,max} s; priority 3 = {1,2}); else queues an update and returns null: RequestDetectionLevel answers -1000. A body nobody asked about lately is unseen (crime.md)
+42712	0x7c4580	ActorKnowledge__RequestDetectionUpdate	Queues a detection update for this witness->target knowledge, answered by a later detection pass (crime.md)
+42710	0x7c4340	ActorKnowledge__RunListeners	
+37556	0x690780	Actor__StartStealWarning	Steal warning: package type 34 targeting g_thePlayer on the owner; no bounty
+37679	0x69d730	Character__ReportCrimeAddBounty	Report a crime: faction (crime+0x60 or victim's); for the player's crime: bounty 37680 -> crime+0x58, ModCrimeGold vfunc 0xB6, SetPlayerEnemy if needed, HUD '%d Bounty added'
+37554	0x68fb70	Actor__StartAlarm	Alarm on a witness against crime+0x0C (or a5): faction swap of bounty, assault (39359) or alarm package type 21 at the criminal
+39361	0x6f5820	ActorProcess__AlertNearbyToCrime	
+39695	0x71abb0	ProcessLists__AlertCrimeResponders	
+41335	0x77fe30	ProcessLists__FindStolenOwnerActor	
+41349	0x781c50	ProcessLists__AddPlayerCrime	Keeps a crime in ProcessLists' per-type lists only if its criminal handle (+0x0C) is the player's
+42502	0x7b6d60	Crime__ctor	
+40652	0x759990	PlayerCharacter__AddWitnessedStolenValue	
+40650	0x7597d0	PlayerCharacter__AddUnwitnessedStolenValue	
+37765	0x6a2580	Actor__ForceDetected	
+38094	0x6b8570	ProcessLists__GatherCrimeWitnesses	Witness candidates: high actors not dead/mount/teammate; requests detection of criminal and victim
+37422	0x681de0		Theft judgment: needs the real player as criminal and ReportCrime (+0xBEC bit 2). Owner actor (41335) or a witness must detect the criminal NOW (37764 priority 3, state under 2 s) for 37679 to write the bounty; all reactions target the crime's criminal (crime.md)
+37764	0x6a2520		Detection level last computed (DetectionState+0x10), -1000 if none or stale (42702)
+40641	0x7591a0		1.7.104: bounty map at player +0x3F8 (capacity +0x3FC, entries +0x418), 1.6.1170's +0x3F0 plus SkyrimRuntime::PlayerShift (crime.md)

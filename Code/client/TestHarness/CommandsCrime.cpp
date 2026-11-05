@@ -1,6 +1,7 @@
 #include "Commands.h"
 
 #include <Actor.h>
+#include <AI/AIProcess.h>
 #include <Crime.h>
 #include <FormIds.h>
 #include <Forms/TESFaction.h>
@@ -13,6 +14,8 @@
 #include <Services/CrimeService.h>
 #include <VersionDb.h>
 #include <World.h>
+
+#include <limits>
 
 namespace TestHarness
 {
@@ -154,6 +157,38 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         static VersionDbPtr<TDetect> detect(37764);
         return {{"ok", true}, {"level", detect(actor, victim, 3)}};
     }
+    else if (action == "knowledge")
+    {
+        // What the witness last computed of the target, without requesting an update (39763 finds, never creates).
+        auto* other = Cast<Actor>(target);
+        if (!actor || !other)
+            return Error("missing witness or target");
+        using TFind = CrimeEngine::ActorKnowledge*(HighProcessData*, Actor*);
+        static VersionDbPtr<TFind> find(39763);
+        static VersionDbPtr<float> now(404125);
+        auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
+        const auto* known = high ? find(high, other) : nullptr;
+        if (!known)
+            return {{"ok", true}, {"known", false}, {"high", high != nullptr}};
+        nlohmann::json result{{"ok", true}, {"known", true}, {"high", true},
+                              {"queued", known->RequestedAt != -std::numeric_limits<float>::max()}};
+        if (known->State)
+        {
+            result["level"] = known->State->Level;
+            result["age"] = *now.Get() - known->State->UpdatedAt;
+        }
+        return result;
+    }
+    else if (action == "owns")
+    {
+        // PickUpObject's test (37521): not an owner (20210) means a theft.
+        if (!actor || !target)
+            return Error("missing actor or target");
+        using TOwns = bool(TESObjectREFR*, Actor*, bool, bool);
+        static VersionDbPtr<TOwns> owns(20210);
+        auto* owner = target->GetOwner();
+        return {{"ok", true}, {"owns", owns(target, actor, true, false)}, {"owner", owner ? owner->formID : 0}};
+    }
     else if (action == "set_cell_owner")
     {
         auto* cell = player->GetParentCellEx();
@@ -195,7 +230,8 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
     for (const auto& row : World::Get().ctx().at<CrimeService>().ReadGold())
         rows.push_back({{"faction", ToGame(row.Faction)}, {"violent", row.Violent}, {"nonviolent", row.NonViolent},
                         {"enemy", row.PlayerEnemy}});
-    return {{"ok", true}, {"bounty", rows}};
+    const bool cReporting = reinterpret_cast<const CrimeEngine::Player*>(player)->Flags4 & 4;
+    return {{"ok", true}, {"bounty", rows}, {"reporting", cReporting}};
 }
 } // namespace
 

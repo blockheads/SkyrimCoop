@@ -2,8 +2,9 @@
 
 #include <Bridges/ICrimeBridge.h>
 #include <functional>
+#include <unordered_map>
 
-// Engine seam only. Native witnesses/costs are covered by the Skyrim scenarios.
+// Engine seam. Native costs are covered by the Skyrim scenarios; the witness rule below is the engine's (crime.md).
 struct FakeCrime final : ICrimeBridge
 {
     Role CurrentRole{};
@@ -15,9 +16,20 @@ struct FakeCrime final : ICrimeBridge
     std::vector<CrimeConfiscation> Confiscations;
     std::vector<GameId> Confiscated;
     std::vector<uint32_t> CrimePlayers;
+    // An NPC watches every theft; StealAlarm sees the thief only if its detection was asked for within 2 s (37764).
+    bool Watched{};
+    CrimeGold WatchedBounty{GameId(0, 0x267EA), 0, 5};
+    static constexpr uint32_t kFreshFrames = 120;
+    uint32_t Frame{};
+    std::unordered_map<uint32_t, uint32_t> AskedAt;
     void UpdatePlayers(std::span<const uint32_t> aPlayers) noexcept override
     {
         CrimePlayers.assign(aPlayers.begin(), aPlayers.end());
+        ++Frame;
+    }
+    void AskWitnesses(uint32_t aActor) noexcept override
+    {
+        AskedAt[aActor] = Frame;
     }
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override
     {
@@ -47,7 +59,12 @@ struct FakeCrime final : ICrimeBridge
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
-        return JudgeAction && JudgeAction(aActor, aRequest);
+        if (JudgeAction)
+            return JudgeAction(aActor, aRequest);
+        const auto cAsked = AskedAt.find(aActor);
+        if (Watched && aRequest.Action == CrimeAction::Theft && cAsked != AskedAt.end() && Frame - cAsked->second <= kFreshFrames)
+            Gold = {WatchedBounty};
+        return false;
     }
     void LockCaught(uint32_t aAttempt) noexcept override
     {

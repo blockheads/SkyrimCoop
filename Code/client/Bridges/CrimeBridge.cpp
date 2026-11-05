@@ -497,6 +497,18 @@ void CrimeBridge::UpdatePlayers(std::span<const uint32_t> aActorFormIds) noexcep
     m_players.assign(aActorFormIds.begin(), aActorFormIds.end());
 }
 
+void CrimeBridge::AskWitnesses(uint32_t aActorFormId) noexcept
+{
+    // 41408 requests every high actor's detection of the target (42712): crime checks accept only a state under 2 s.
+    using THighest = int16_t(ProcessLists*, Actor*, uint32_t&);
+    static VersionDbPtr<THighest> highest(41408);
+    auto* actor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    auto* processes = ProcessLists::Get();
+    uint32_t seeing{};
+    if (OtherPlayer(actor) && processes)
+        highest(processes, actor, seeing);
+}
+
 void CrimeBridge::SetRole(Role aRole) noexcept
 {
     if (aRole != Role::Offline && !s_reactionHooksAttempted)
@@ -673,6 +685,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
             if (total > 0x7FFFFFFF)
                 return false;
         }
+        spdlog::info("Party crime: actor {:X}, container theft, target {:X}, value {}", aActorFormId, target->formID, total);
         if (total)
             RealSteal(player, target, nullptr, 0, static_cast<int32_t>(total), target->GetOwner(),
                       aRequest.AllowWarning);

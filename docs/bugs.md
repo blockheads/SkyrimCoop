@@ -279,40 +279,30 @@ both in `build/coop-test/prefix-client|prefix-host/.../My Games/Skyrim Special E
 logs' `mm:ss` from the host log's start (00:03:46 = 18:03:46 local). The IDA MCP's tools did not reach this session, so
 the engine paths are read from code and still to be proved in step 0 (CLAUDE.md).
 
-- **A guest's thefts earn no bounty** (2026-11-04). The user took items (a book among them) in Whiterun with an NPC
-  watching; neither game showed a bounty.
-  - Evidence: the thefts reach the host and are judged. The host log has 16 `Party crime: actor FF00085D, action 0
-    (Theft)` lines (05:34-06:13), among them the book `1060AD` at 06:07.191, 48 ms after the Book Menu's `Accept` in the
-    guest's input log. That line comes after `CrimeBridge::Judge`'s cell and `owns` (20210) checks, so the request was
-    valid, the target was in the actor's cell, and the host's native `RealSteal` (37422) then ran. `1060AD` is not
-    deleted afterwards (the host's physics still rests it at 06:21). No `NotifyCrimeState` was ever sent before the
-    wipe (`messages.txt`: one, at 11:38), so the party's bounty never changed. So the "request lost" suspects of the
-    first triage (a deleted target, no session id) are out; the failure is inside the host's native alarm.
-  - Suspects, in order: (1) the permission check uses the host's real player: `owns(target, player, true, false)`
-    answers for the host's character, not for the guest's, so an item the host's character may take (its house, a
-    faction it belongs to, a start choice from "Alternate Start") is no theft; the guest's own game reached
-    `StealAlarm` because for its character the item is owned. (2) `RealSteal` runs with `aTotal` 0 and the native
-    item path wants no value, but a witness is needed: the shopkeeper must detect the guest's host-side copy
-    (`HookProcessKnowledge`/39515 redirect only inside `ScopedCriminal`); `guest-theft` proves it for a chest and a
-    spawned witness, not for a townsperson across a room. (3) The alarm's owner argument (`target->GetOwner()`) is null
-    for a ref whose owner is the cell or a faction, so `StealAlarm` has nobody to wrong.
-  - Start: log, at each `Party crime`, `owns(...)` for the host's player and for the copy, `target->GetOwner()`, and the
-    detection level of the nearest NPC against the copy (the `crime` harness action `detection` does it). In IDA, read
-    `StealAlarm` 37422 and its caller `PlayerCharacter::PickUpObject` 37521 for what makes a pickup a crime
-    (owner, value, witnesses), and record it in `docs/re/systems/` (no `crime.md` yet).
-  - Test: a `guest_loose_theft` scenario (an owned loose item, a watching NPC, the guest takes it; the party's bounty
-    must rise), then a `CrimeFlows` case where the host's character has permission the guest's lacks.
-
 - **The guest's aggro goes to the host** (2026-11-04, user: "after a while I aggro'd the NPCs, which attacked the
-  host at once"). Not found in the logs: the host log has no aggro line (the readouts that would show it, the
-  `combat_targets` list, are test-build only), and the bug report was filed after the fights.
-  - Code: `HostAggro` / `party-aggro.md` choose between players only after a party player damages the NPC, and only
-    while the native selector already picks a party player. An NPC the guest aggroed any other way (seen, a theft,
-    a shout, sneak broken) keeps Skyrim's own pick, which the design doc measured to be the visible host.
-  - Start: ask the user how the guest aggroed them (QUESTION 1); reproduce with `fight` from the guest with the host
-    nearer and no damage first.
-  - Test: GameTests: the guest starts combat with no damage, the host nearer; assert the NPC's target (the fake
-    selector must prefer the real player, as measured).
+  host at once"; the user confirmed stealing, no damage). Still open; the theft's missing bounty, reported with it, was
+  a separate bug (`docs/re/systems/crime.md`, where its evidence went).
+  - Engine: every reaction aims at the crime's criminal, and the crime must name the host's real player or no bounty is
+    written. `Actor__StartAlarm` 37554, `Actor__StartStealWarning` 37556 and the guards' 39695 all land on
+    `g_thePlayer` (`crime.md`, Who the reactions target). `HostAggro` chooses between players only after damage.
+  - Seen on the duo (2026-11-04, QASmoke, Orgnar owning the chest, the guest taking from it through the menu):
+    from a checkpoint saved after earlier party thefts, with the host 90 units from Orgnar and the guest 260, Orgnar
+    killed the host within about 10 s and only then targeted the guest; `Party aggro` logged no switch. The same
+    setup with a freshly spawned Orgnar and no earlier bounty: the bounty rose and he fought nobody for 10 s.
+  - Not proved: why the first Orgnar attacked. The suspect is that he remembered earlier thefts, so `HookCrimeAttack`
+    / `HookCrimeReaction` made every party body hostile and Skyrim picked the nearest, with no new alarm.
+  - Tried and removed: counting a guest as provocation in `HostAggro` for each alarm (37554) during its judgment. Its
+    GameTests flow and unit test passed, but no Skyrim run showed it acting, and it would miss the case above.
+  - Start: a checkpoint with a witness that already knows a party crime; log `CriminalInterest`, `HookCrimeAttack`
+    and the first selector proposal (47191) for it, host nearer. Decide with the user whether a party crime should
+    make the nearest player a fair target (`party-model.md`: the party is the Dragonborn).
+  - Test: `expect stays` on `host_player` `state.dead`: a late `expect_target` passes after the host has died.
+
+- **A guest's theft of a created item is never judged** (2026-11-04). `CrimeBridge::Target` puts the stolen reference on
+  the wire with `ToSession`, which has no id for a created form (`FF...`), so the host finds no target and `Judge`
+  returns before its log line. Seen with a placed dagger owned by Hulda: picked up by the guest, no `Party crime` line.
+  Plugin references are judged.
+  - Test: a `CrimeFlows` case with a created owned item; the fix needs the created reference's session mapping.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
   only up close, and stop when the guest walks away.

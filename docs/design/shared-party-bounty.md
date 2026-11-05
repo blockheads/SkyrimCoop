@@ -33,6 +33,7 @@ All added hooks live in `CrimeBridge.cpp`; host rules and transport remain engin
 | Werewolf / trespass | Native alarms 37428 / 37427 use the same scoped criminal. Copies skip UpdateAI, so CrimeService separately refreshes their trespass flag/package using the NPC-safe portion of 37578; it never calls the PlayerCharacter-only tail 42676 on an NPC. |
 | Actor crime views | Native NPC-body bounty getter 37379 reads the party player's bounty for guest copies. Known-crime query 41354 aliases a guest culprit to the party record, preserving victim, witness, type and day filters. Ordinary NPCs keep their own bounty and crime queries. |
 | Criminal reactions | Faction computation 37667 applies the host player's native crime reaction to guests when the observer's crime faction is a player enemy or it remembers a player crime. Copies bypass knowledge caching, so adapting only cache refresh 42714 misses their direct queries. Attack check 37534 covers player-only crime branches. Both adapters chain below the existing friendly-hit hooks. Native morality, guard thresholds and surrender still decide hostility; existing guest-specific hostility is preserved. |
+| Witness freshness | Crime checks accept a detection state under 2 s and only ask for a new one. The host asks every high actor about each guest copy every frame (41408, `AskWitnesses`). Engine detail: [crime.md](../re/systems/crime.md) (2026-11-04). |
 | Witnesses | RequestDetectionLevel 37764, detection state 37758 (used by HighestDetection 41408) and murder's direct knowledge access all call process lookup 39515. Only that shared lookup needs a hook to redirect host-player detection to the scoped guest. |
 | Lockpicking | Menu open 51959 starts an attempt. Guest check 51981 asks the host. The host runs native 51981 with the proposed target and a scratch menu's reported flag (+0x10D), restoring the global target immediately. A caught attempt repeats its answer without another charge. |
 | Container close | Transfer 51141 records item descriptors, extras, taking direction and ownership-stack quantities. On close, the menu's null-item StealAlarm becomes a batch proposal. The host reconstructs temporary extras and uses GetStealValue 16045; the guest's monetary accumulator is never accepted. |
@@ -45,7 +46,7 @@ NPC body as PlayerCharacter. Guest actors nevertheless expose that same crime re
 native crime-condition queries; keeping one record does not exempt guest bodies from criminal state. KillImmediate's existing murder alarm supplies its recorded killer;
 this branch changes no death code.
 
-The bounty map is at PlayerCharacter +0x3F0: four uint32 values (violent current, nonviolent
+The bounty map is at PlayerCharacter +0x3F0 on 1.6.1170 and +0x3F8 on 1.7.104 (`PlayerShift`, as the jail fields below): four uint32 values (violent current, nonviolent
 current, nonviolent infamy, violent infamy). Getters 40641–40643 and setter virtual 0xB5 confirm
 this. The bridge uses measured scatter-table layout: capacity +0x04, entries +0x20, entry size
 0x20, next +0x18. The generic empty-base template and the checked-out CommonLib float layout do

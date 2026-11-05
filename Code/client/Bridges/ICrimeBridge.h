@@ -23,4 +23,6 @@ class ICrimeBridge
     virtual std::vector<CrimeConfiscation> TakeConfiscations() noexcept = 0;
     virtual void Confiscate(const GameId&) noexcept = 0;
     virtual void UpdatePlayers(std::span<const uint32_t> aActorFormIds) noexcept = 0;
+    // Nearby NPCs ask for their detection of this body, so crime checks find a recent one (crime.md).
+    virtual void AskWitnesses(uint32_t aActorFormId) noexcept = 0;
 };

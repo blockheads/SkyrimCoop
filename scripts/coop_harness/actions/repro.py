@@ -690,6 +690,9 @@ def where(row):
 _INSTANCE = {"host": "", "guest": "client", "client": "client", "": ""}
 
 
+# Verbs that only read: left out of an exported scenario.
+READ_VERBS = {"witness", "party_bounty"}
+
 # Harness commands that only read: left out of an exported scenario.
 _READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "screen", "item_count"}
 
@@ -766,6 +769,8 @@ def _line(tool, args):
         case "retry":
             return f"ctx.retry({args.get('name') or None!r})"
         case "verb":
+            if args["name"] in READ_VERBS:
+                return None
             verb_args = {**(args.get("args") or {})}
             if "instance" in verb_args:
                 verb_args["instance"] = _INSTANCE.get(verb_args["instance"], verb_args["instance"])

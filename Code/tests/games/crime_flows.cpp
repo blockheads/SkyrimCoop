@@ -191,3 +191,26 @@ SCENARIO("A guard's arrest greeting reaches both guests and their jail choice te
     }
     party.Agree("the three games agree on the jailed party");
 }
+
+SCENARIO("A guest's theft in front of a host NPC earns the party's bounty", "[crime]")
+{
+    // guest-loose-theft: the host's witnesses must have asked lately about the guest's copy, as about the host.
+    Party party(1, [](FakeEngine& aEngine) {
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = 0x31D2E;
+        aEngine.LoadCell(0x31D2E);
+    });
+    party.Agree("the guest's copy exists on the host");
+    auto& host = Crime(party.Host());
+    host.Watched = true;
+    for (int i = 0; i < 200; ++i)
+        party.Frame();
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0xF);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    Crime(party.Guest()).Actions.push_back(theft);
+    party.Until([&] { return host.Judged.size() == 1; }, "the host judges the guest's theft");
+    party.Until([&] { return Crime(party.Guest()).Gold == std::vector{host.WatchedBounty}; },
+                "the watching NPC saw the guest: the party's bounty reaches the guest");
+}
