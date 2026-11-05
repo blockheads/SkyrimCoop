@@ -38,6 +38,8 @@ private:
         Track Place, Root, Pelvis, Heading;
         float GoalOff = 0.f;
         uint32_t Stepped = 0;
+        uint32_t Furniture = 0;    // frames with its sit/sleep state set
+        float FurniturePath = 0.f; // how far its place went in them
     };
 
     bool m_running = false;

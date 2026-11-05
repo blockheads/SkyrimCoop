@@ -23,11 +23,15 @@ def run(ctx):
         ctx.wait_for('the guest to watch them', lambda: ctx.player_command('client', {'cmd': 'jitter'})['frames'] >= FRAMES, 60,
                      _game=ctx.game('client'))
         actors = ctx.player_command('client', {'cmd': 'jitter', 'stop': True})['actors']
-        places = {name: actors[str(npc)]['place'] for npc, name in NPCS.items()}
-        print('copy places:', places)
-        if all(place['path'] < 5 for place in places.values()):
-            raise ctx.failure(f'no copy moved ({places}): nothing was shown')
-        shaking = {name: place['reversals'] for name, place in places.items() if place['reversals'] > MOST_REVERSALS}
+        watched = {name: actors[str(npc)] for npc, name in NPCS.items() if str(npc) in actors}
+        print('copies:', {name: {key: actor[key] for key in ('copy', 'frames', 'furniture', 'furniture_path')} | actor['place']
+                          for name, actor in watched.items()})
+        # Only a copy seen moving in furniture shows anything: walking never had this bug.
+        shown = {name: actor for name, actor in watched.items() if actor['copy'] and actor['frames'] >= FRAMES // 2 and
+                 actor['furniture'] >= MOST_REVERSALS and actor['furniture_path'] >= 1}
+        if not shown:
+            raise ctx.failure(f'no copy was seen moving in furniture: nothing was shown ({list(watched)})')
+        shaking = {name: actor['place']['reversals'] for name, actor in shown.items() if actor['place']['reversals'] > MOST_REVERSALS}
         if shaking:
             raise ctx.failure(f'copies shook, frames turned back: {shaking}')
     finally:

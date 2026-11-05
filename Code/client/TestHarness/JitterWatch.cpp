@@ -112,7 +112,13 @@ void JitterWatch::Poll()
         auto& watched = m_actors[cFormId];
         ++watched.Frames;
         const float cPlace[3]{pActor->position.x, pActor->position.y, pActor->position.z};
+        const float cPathBefore = watched.Place.Path;
         watched.Place.Add(cPlace);
+        if (pActor->actorState.GetSitSleepState())
+        {
+            ++watched.Furniture;
+            watched.FurniturePath += watched.Place.Path - cPathBefore;
+        }
         const float cRoot[3]{p3D->world.translate.x, p3D->world.translate.y, p3D->world.translate.z};
         watched.Root.Add(cRoot);
         if (const NiAVObject* pPelvis = p3D->GetByName(s_pelvis))
@@ -145,6 +151,8 @@ nlohmann::json JitterWatch::Read() const
                                            {"pelvis", cWatched.Pelvis.Json()},
                                            {"heading", cWatched.Heading.Json()},
                                            {"stepped", cWatched.Stepped},
+                                           {"furniture", cWatched.Furniture},
+                                           {"furniture_path", cWatched.FurniturePath},
                                            {"goal_off", cWatched.GoalOff}};
     }
     return {{"frames", m_frames},        {"hour_back", m_hourBack},      {"biggest_hour_back", m_biggestHourBack},

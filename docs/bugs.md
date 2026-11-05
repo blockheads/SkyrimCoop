@@ -60,6 +60,12 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   fails the end comparison: about 55 references (ACTI `10C3BA`, fish controllers) posed differently in the two games,
   as `faendal-letter`'s end comparison fails on things around it.
   - Test: that scenario, after its steps.
+- **Hod's head height differs after he leaves furniture** (2026-11-05). One of three fixed runs of
+  `copy-leaves-furniture-steady` ended with `pose.head` 117 (host) against 88 (copy). It may be the stale off-screen skeleton
+  of [culled-npc-pose-readings.md](re/systems/culled-npc-pose-readings.md) (81-88 against 122) or a copy left seated by being
+  placed, not stepped: not told apart.
+  - Start: look at the copy with the camera, as that document did, and read `pose.head` again.
+  - Test: that scenario's end comparison.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
