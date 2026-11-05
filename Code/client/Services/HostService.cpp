@@ -1,4 +1,5 @@
 #include <Events/GameLoadFailedEvent.h>
+#include <Events/ActorRenamedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
@@ -49,6 +50,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
+    Listen<ActorRenamedEvent, &HostService::OnActorRenamed>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
     Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
 }
@@ -294,4 +296,13 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
+}
+
+// The host's game is the only one that names an NPC for the party; a guest's own quests stay on that guest.
+void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
+{
+    if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
+        return;
+    if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
+        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
 }

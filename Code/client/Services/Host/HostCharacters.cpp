@@ -360,6 +360,12 @@ uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcep
     return cNoCharacter;
 }
 
+void HostCharacters::SetPlayerName(ConnectionId_t aPlayer, const std::string& acName) noexcept
+{
+    if (const auto it = m_characters.find(PlayerCharacterOf(aPlayer)); it != m_characters.end())
+        it->second.PlayerRecord->DisplayName = acName;
+}
+
 uint32_t HostCharacters::NewCharacterId() noexcept
 {
     return ++m_lastSessionId;

@@ -1076,10 +1076,9 @@ uint32_t FakeEngine::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) n
 {
     if (aFormId == kPlayer)
     {
-        const uint32_t cFlags = NpcSnapshot::SaveFlags(Player.BaseFlags, true, false);
-        // As native FormState: the name only in its section (0x20).
-        aBuffer = cFlags & 0x20 ? PlayerCharacterName() + '\0' + Player.Base : Player.Base;
-        return cFlags;
+        // As native FormState: the name only in its section (0x20), which only naming marks.
+        aBuffer = Player.BaseFlags & 0x20 ? PlayerCharacterName() + '\0' + Player.Base : Player.Base;
+        return Player.BaseFlags;
     }
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
     if (it == Npcs.end())

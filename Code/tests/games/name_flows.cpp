@@ -139,6 +139,13 @@ SCENARIO("A character renamed in the race menu has its new name on every game", 
         }
     }
     WHEN("the host renames its character") { rename(party.Host(), "Rinara"); }
+    WHEN("a guest joins after the rename")
+    {
+        rename(party.Host(), "Rinara");
+        party.Leave(party.Guest(1));
+        party.Join(party.Guest(1));
+        party.Until([&] { return AllNamed(party); }, "the newcomer's copy has the new name");
+    }
 }
 
 SCENARIO("A host's load of another character renames it on every game", "[names]")

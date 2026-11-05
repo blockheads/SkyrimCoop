@@ -50,6 +50,8 @@ struct HostCharacters
     [[nodiscard]] uint32_t ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept;
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
+    // A spawn made from now on carries the player's new name.
+    void SetPlayerName(ConnectionId_t aPlayer, const std::string& acName) noexcept;
     // One of the players' characters.
     [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
     // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its

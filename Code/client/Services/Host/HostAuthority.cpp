@@ -134,7 +134,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
     On(*this, &HostAuthority::OnPlayerName);
-    On(*this, &HostAuthority::OnActorName);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
@@ -379,6 +378,7 @@ void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionI
     if (cName.empty())
         return;
     m_players.SetName(aSender, cName);
+    m_characters.SetPlayerName(aSender, cName);
     m_network.NameConnection(aSender, cName);
     NotifyPlayerName notify;
     notify.PlayerId = m_players.PlayerIdOf(aSender);
@@ -386,15 +386,12 @@ void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionI
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
-// From its owner, or the host, whose quests name an NPC even while a guest rides it (docs/re/systems/names.md).
-void HostAuthority::OnActorName(const ActorNameRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostAuthority::NameActor(uint32_t aSessionId, const std::string& acName) const noexcept
 {
-    if (aSender != m_players.Host() && m_characters.OwnerOf(acRequest.ActorId) != aSender)
-        return;
     NotifyActorName notify;
-    notify.ActorId = acRequest.ActorId;
-    notify.Name = acRequest.Name;
-    m_players.SendToOthers(notify, aSender, Net::kReliable);
+    notify.ActorId = aSessionId;
+    notify.Name = acName;
+    m_players.SendToOthers(notify, m_players.Host(), Net::kReliable);
 }
 
 void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept

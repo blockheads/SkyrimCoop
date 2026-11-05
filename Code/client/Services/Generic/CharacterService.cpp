@@ -38,7 +38,6 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRespawn.h>
-#include <Events/ActorRenamedEvent.h>
 #include <Games/EngineNames.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Events/PlayerArrivedEvent.h>
@@ -97,8 +96,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
-    Listen<ActorRenamedEvent, &CharacterService::OnActorRenamed>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
+    Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
 
@@ -543,36 +542,19 @@ void CharacterService::ApplyOwnerName(uint32_t aFormId, const std::string& acNam
         m_actorBridge.SetActorDisplayName(aFormId, acName);
 }
 
-void CharacterService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
-{
-    if (!m_transport.IsOnline() || acEvent.FormId == 0x14)
-        return;
-    const auto send = [&](uint32_t aSessionId) {
-        ActorNameRequest request;
-        request.ActorId = aSessionId;
-        request.Name = m_actorBridge.GetActorDisplayName(acEvent.FormId);
-        m_transport.Send(request);
-    };
-    for (auto&& [cEntity, cForm, cLocal] : m_world.view<FormIdComponent, LocalComponent>().each())
-        if (cForm.Id == acEvent.FormId)
-            return send(cLocal.Id);
-    // A copy here: the host's quests still name a horse its guest rider owns (the host's rule keeps a guest's own out).
-    for (auto&& [cEntity, cForm, cCopy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-        if (cForm.Id == acEvent.FormId)
-            return send(cCopy.Id);
-}
-
 void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) noexcept
 {
     // Still loading: its spawn applies the name.
     if (const auto cPending = m_pendingSpawns.find(acMessage.ActorId); cPending != m_pendingSpawns.end())
         cPending->second.DisplayName = acMessage.Name;
-    for (auto&& [cEntity, cForm, cCopy] : m_world.view<FormIdComponent, RemoteComponent>().each())
-        if (cCopy.Id == acMessage.ActorId)
-            return ApplyOwnerName(cForm.Id, acMessage.Name);
-    // The horse this game's player rides: the host told it.
-    for (auto&& [cEntity, cForm, cLocal] : m_world.view<FormIdComponent, LocalComponent>().each())
-        if (cLocal.Id == acMessage.ActorId)
+    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId))
+        ApplyOwnerName(cFormId, acMessage.Name);
+}
+
+void CharacterService::OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept
+{
+    for (auto&& [cEntity, cForm, cPlayer, cCopy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
+        if (cPlayer.Id == acMessage.PlayerId)
             return ApplyOwnerName(cForm.Id, acMessage.Name);
 }
 
@@ -1279,8 +1261,7 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     const auto changeFlags = m_actorBridge.SerializeActorNpc(formIdComponent.Id, message.AppearanceBuffer);
     message.ChangeFlags = changeFlags;
     message.Weight = m_actorBridge.GetActorBaseWeight(formIdComponent.Id);
-    if (!isPlayer)
-        message.DisplayName = m_actorBridge.GetActorDisplayName(formIdComponent.Id);
+    message.DisplayName = m_actorBridge.GetActorDisplayName(formIdComponent.Id);
 
     if (isPlayer)
     {

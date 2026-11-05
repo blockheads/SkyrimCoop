@@ -43,7 +43,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
-    // What its game shows for an NPC (GetDisplayFullName); empty for a player: its AppearanceBuffer carries its name.
+    // What its game shows for it (GetDisplayFullName): the copy's name, a player's too.
     std::string DisplayName{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};

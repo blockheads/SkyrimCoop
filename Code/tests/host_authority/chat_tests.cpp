@@ -120,18 +120,17 @@ TEST_CASE("A renamed player's name reaches everyone and its later chat lines", "
     CHECK(session.SentTo<NotifyPlayerName>(kHost).size() == 1); // a name of nothing printable is refused
 }
 
-TEST_CASE("An actor's name comes from the host, never from a guest that doesn't own it", "[HostAuthority][Chat]")
+TEST_CASE("The host's game names an actor for every guest", "[HostAuthority][Chat]")
 {
     Session session;
 
-    ActorNameRequest named;
-    named.ActorId = 77;
-    named.Name = "Petra";
-    session.Receive(kPeer, named);
+    session.Authority().NameActor(77, "Petra");
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifyActorName>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->ActorId == 77);
+        CHECK(cNotifies[0]->Name == "Petra");
+    }
     CHECK(session.SentTo<NotifyActorName>(kHost).empty());
-
-    session.Receive(kHost, named);
-    const auto cNotifies = session.SentTo<NotifyActorName>(kPeer);
-    REQUIRE(cNotifies.size() == 1);
-    CHECK(cNotifies[0]->Name == "Petra");
 }

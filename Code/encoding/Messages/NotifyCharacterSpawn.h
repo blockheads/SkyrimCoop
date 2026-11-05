@@ -45,7 +45,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
-    std::string DisplayName{}; // an NPC's, as its owner's game shows it (AnnounceCharacterRequest)
+    std::string DisplayName{}; // as its owner's game shows it (AnnounceCharacterRequest)
     Inventory InventoryContent{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};

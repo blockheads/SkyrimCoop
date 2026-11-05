@@ -74,8 +74,7 @@
     X(BugReportRequest)            \
     X(DialogueHighlightRequest)    \
     X(DialogueSkipRequest) \
-    X(PlayerNameRequest)            \
-    X(ActorNameRequest)
+    X(PlayerNameRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

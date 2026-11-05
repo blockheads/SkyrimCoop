@@ -7,7 +7,7 @@
 #include <VersionDb.h>
 #include <World.h>
 
-// A quest alias's name on an actor: only the owner's game runs the quest, so its copies are told (docs/re/systems/names.md).
+// A quest alias's name on an actor: the host's game tells the others (HostService, docs/re/systems/names.md).
 namespace
 {
 using TAliasOnReference = void(void* apAlias, const uint32_t* apHandle);

@@ -48,11 +48,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-- **Names (2026-11-05):** a copy shows what its owner's game shows and the party's lists follow the character. A player's
-  snapshot always carries its name (the host's copy showed ""), a rename or a host's load of another character updates
-  every list (`PlayerNameRequest`), an NPC's owner sends its display name at spawn and when a quest alias sets or clears it
-  (`DisplayName`, `ActorNameRequest`, replacing the resolved-name decode). Checks compare players' names now. What is
-  covered: `docs/re/systems/names.md`.
+- **Names (2026-11-05):** names go through the host and each game applies them one way. Spawns carry `DisplayName`, a player's too
+  (the host's copy showed ""); a rename or a host's load of another character sends `PlayerNameRequest`; the host's game
+  sends `NotifyActorName` when a quest alias sets or clears an NPC's name. This replaces the resolved-name decode. Checks
+  compare players' names now. What is covered: `docs/re/systems/names.md`.
 
 - **NPC copies no longer vibrate in furniture** (2026-11-05). On the guest's game, copies going in or out of a chair, bed
   or wall lean shook 0.6 to 1.8 units each frame: `Actor::Move` put them on their goal, then the engine's write-back moved

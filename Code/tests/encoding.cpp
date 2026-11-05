@@ -299,21 +299,20 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
     }
 
     {
-        ActorNameRequest request;
-        request.ActorId = 7;
-        request.Name = "Bj\xC3\xB6rn";
+        NotifyActorName notify;
+        notify.ActorId = 7;
+        notify.Name = "Bj\xC3\xB6rn";
 
         Buffer::Writer writer(&buff);
-        request.Serialize(writer);
+        notify.Serialize(writer);
 
         Buffer::Reader reader(&buff);
 
-        const RequestMessageFactory factory;
+        const NotifyMessageFactory factory;
         auto pMessage = factory.Extract(reader);
 
         REQUIRE(pMessage);
-        REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
-        REQUIRE(*CastUnique<ActorNameRequest>(std::move(pMessage)) == request);
+        REQUIRE(*CastUnique<NotifyActorName>(std::move(pMessage)) == notify);
     }
 
     {

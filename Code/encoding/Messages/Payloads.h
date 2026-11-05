@@ -208,7 +208,7 @@ struct PlayerName
     std::string Name{};
 };
 
-// An actor's display name, when its owner's changed (a quest alias's name set or cleared).
+// An actor's display name, when the host's game changed it (a quest alias's name set or cleared).
 struct ActorName
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

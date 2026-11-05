@@ -21,24 +21,25 @@ duo, "fast" is `GameTests [names]`.
   `ExtraDataList::SetQuestDisplayName` (11655), `BGSRefAlias::ClearRefAlias` (24012) removes it. Only the game running the quest
   does this: the host, for NPCs.
 
-## How a name reaches a copy
+## How a name travels
 
-1. **A player's copy** is built on a created base from the owner's snapshot (`CreateCustomActor`). `NpcSnapshot::SaveFlags`
-   always asks for `0x20` for a player, whatever it recorded. Measured before the fix: both duo bases had flags `0x3000C40`,
-   the copies showed ""; saved with `0x20`, the bytes hold `Prisoner`. A later rename goes the same way (`ApplyActorLooks`).
-2. **An NPC's copy** uses its own reference and base. The owner's announcement carries `DisplayName`, and
-   `CharacterService::ApplyOwnerName` overlays it (`ExtraTextDisplayData`, on the reference, never on the shared base) only if
-   the copy reads differently, compared as the engine's pool does ([engine names](engine-names.md)).
-3. **A name that changes on an NPC with copies:** hooks on 24011 and 24012 raise `ActorRenamedEvent` when the display name
-   actually changed, and that game sends `ActorNameRequest`. The host passes it on from the actor's owner or from itself: its
-   quests still name a horse a guest rides, so the rider's owned actor takes it too. A guest's own quest naming a copy
-   stays on that guest. A spawn still waiting on a loading reference takes the new name.
-4. **The party's lists** (`HostPlayers`, `SessionService`: party panel, map and compass markers, chat, join, leave and death
-   notices, spectating) hold the name from `AuthenticationRequest::Username`, taken after the join applied the
-   character. `PlayerService` sends `PlayerNameRequest` when it differs: the race menu closing, or a save loaded (a host's
-   load of another character keeps its session).
-5. **A guest's kept character** (`GuestRecord`) reaches the host at most every few seconds, at once after the race menu closes,
-   or a save right after a rename would keep the old name and the load bring it back (seen in `names-in-every-case`).
+One rule: the host passes every name on, and each game applies it one way, `CharacterService::ApplyOwnerName`. It overlays the
+name on the reference (`ExtraTextDisplayData`, never the shared base) only if it reads differently, compared as the
+engine's pool does ([engine names](engine-names.md)).
+
+1. **At spawn:** the owner's announcement carries `DisplayName`, a player's too, and the host passes it on. A player's
+   copy has an unnamed base when its character has no change flag `0x20` (measured on the duo: flags `0x3000C40`, copies showed
+   "" before this; saved with `0x20`, the bytes hold `Prisoner`), so the name comes from here, not the snapshot.
+2. **A player renames, or the host loads another character:** that game sends `PlayerNameRequest` (`PlayerService`: the race
+   menu closing, or a save loaded). The host updates its list and the stored spawn, and sends `NotifyPlayerName`; each
+   game updates its list (`SessionService`: party panel, markers, chat, join, leave and death notices, spectating) and the copy.
+3. **The host's game renames an NPC:** hooks on 24011 and 24012 raise `ActorRenamedEvent` when the display name actually changed,
+   because the engine has no event for it. `HostService` sends `NotifyActorName`, whoever owns the actor, so a horse a guest
+   rides needs nothing special. A guest's own quest naming a copy stays on that guest. A spawn still waiting on a loading
+   reference takes the new name.
+4. **A guest's kept character** (`GuestRecord`) is saving, not sync: it reaches the host at most every few seconds, at once after
+   the race menu closes, or a save right after a rename would keep the old name and the load bring it back (seen in
+   `names-in-every-case`).
 
 ## Checked
 

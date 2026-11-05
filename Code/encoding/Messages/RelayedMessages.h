@@ -70,7 +70,6 @@ using RemoveSpellRequest = Relayed<Payloads::RemoveSpell, kRemoveSpellRequest>;
 using NotifyRemoveSpell = Relayed<Payloads::RemoveSpell, kNotifyRemoveSpell>;
 using PlayerNameRequest = Relayed<Payloads::PlayerName, kPlayerNameRequest>;
 using NotifyPlayerName = Relayed<Payloads::PlayerName, kNotifyPlayerName>;
-using ActorNameRequest = Relayed<Payloads::ActorName, kActorNameRequest>;
 using NotifyActorName = Relayed<Payloads::ActorName, kNotifyActorName>;
 using MountRequest = Relayed<Payloads::Mount, kMountRequest>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;

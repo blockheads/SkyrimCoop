@@ -126,6 +126,7 @@ struct Session
     uint32_t CharacterId(ConnectionId_t aPlayer) const { return m_characterIds.at(aPlayer); }
     // A session id for one of the host's actors, as the host's game takes it.
     uint32_t NewCharacterId() { return m_authority.NewCharacterId(); }
+    HostAuthority& Authority() { return m_authority; }
 
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player. Returns its
     // session id once another game got its spawn; what the announcement sent is cleared.

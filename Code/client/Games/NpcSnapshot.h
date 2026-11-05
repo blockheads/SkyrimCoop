@@ -7,11 +7,9 @@ namespace NpcSnapshot
 // CommonLibSSE-NG TESNPC::ChangeFlags::kFullName.
 constexpr uint32_t kFullName = 1u << 5;
 
-// A created copy's base is built from these bytes, so its name must be in them: the engine only saves it with kFullName,
-// which only naming the player marks (TESActorBase::SaveGame 24387, RaceSexMenu::ChangeName 52415).
 inline uint32_t CaptureFlags(bool aPlayer, bool aTemporary) noexcept
 {
-    return aPlayer || aTemporary ? kFullName : 0;
+    return !aPlayer && aTemporary ? kFullName : 0;
 }
 
 // A leveled NPC with a chosen face: its copy uses that base and takes its name from the announcement's DisplayName.

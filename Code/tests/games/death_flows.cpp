@@ -11,6 +11,7 @@
 #include <Services/SaveService.h>
 #include <Services/JoinService.h>
 #include <Events/MenuEvent.h>
+#include <Events/PlayerLooksChangeEvent.h>
 
 namespace
 {
@@ -272,8 +273,8 @@ SCENARIO("Spectating follows a standing player's replacement copy", "[death]")
     auto& death = party.Guest().ctx().at<DeathService>();
     party.Until([&] { return death.Spectating() != 0; }, "the guest watches the standing host");
     const auto old = PlayerCopy(guest);
-    party.As(party.Host(), [&] { party.Host().GetDispatcher().trigger(PlayerRevivedEvent{}); });
-    party.Until([&] { return PlayerCopy(guest) && PlayerCopy(guest) != old; }, "the host's respawn replaces its copy");
+    party.As(party.Host(), [&] { party.Host().GetDispatcher().trigger(PlayerLooksChangeEvent{}); });
+    party.Until([&] { return PlayerCopy(guest) && PlayerCopy(guest) != old; }, "the host's changed looks replace its copy");
     party.Until([&] { return guest.CameraTarget == PlayerCopy(guest); }, "the camera watches the replacement copy", [&] { return std::format("target {:X} copy {:X} old {:X} spect {}", guest.CameraTarget, PlayerCopy(guest), old, death.Spectating()); });
     CHECK(death.IsDown());
 }
