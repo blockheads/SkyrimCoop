@@ -35,6 +35,15 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 Every bug, in this order:
 
+0. **Step 0, the most important: understand it.** Shared understanding of the engine is the point; a fix proven only by
+   switching it on and off, with the mechanism unexplained, is not done.
+   - Search GitHub/Nexus for an SKSE mod or write-up that already does it; add good ones to `scripts/re/fetch_references.sh`.
+   - Reverse the code path in IDA (`ida-multi-mcp`): the functions, what they read and write, the call order, the
+     conditions. Read the code; don't infer the mechanism from traces.
+   - Record every finding in the IDA database (renames, types, struct fields, comments), save it (`docs/re/README.md`,
+     `scripts/re/ida_export.py`), and write the short version in `docs/re/systems/<system>.md`.
+   - Only then reproduce: the scenario tests a stated hypothesis from the RE. A fix that works but can't be explained
+     means more RE, not done. A bug whose engine path is not yet understood is not ready for a fix.
 1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would. By default, write it
    through the `skyrim-coop` MCP: play the bug, then `record_export` makes the scenario
    ([the play flow](docs/design/repro-mcp.md)). By hand is fine when the bug is already understood (say so: a
@@ -60,7 +69,7 @@ keeps catching it, so the fast suite grows into the one that matters.
 - **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
-- **Every bug follows the bug-fix flow** (above): a scenario shows it, a GameTests flow fails on it, unit tests and the
+- **Every bug follows the bug-fix flow** (above), step 0 first (understand the engine code, documented): a scenario shows it, a GameTests flow fails on it, unit tests and the
   fix, the flow passes. The fake engine learns what Skyrim taught (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.

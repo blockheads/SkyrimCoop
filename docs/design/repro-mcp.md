@@ -2,6 +2,8 @@
 
 ## The play flow (2026-11-03)
 
+Step 0 comes first (CLAUDE.md, the bug-fix flow): understand the engine code in IDA and document it before playing.
+
 An agent works alone from a `docs/bugs.md` entry; the user can steer through the same tools. This is how step 1 of the
 bug-fix flow is written by default, not a step before it: the session exports as the scenario. The server gives its
 clients this order (`INSTRUCTIONS`, `coop_mcp.py`):

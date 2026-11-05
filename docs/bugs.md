@@ -245,6 +245,86 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
   with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
   so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).
 
+## Found in the 2026-11-04 playtest (triaged from the logs and code; IDA not reached)
+
+The user's report, one entry per point. The evidence is the 18:11 `/bug` and the 18:13 `/export` of that session: the
+guest's `SkyrimCoop-Courier-2026-11-04-1813-e25.zip` (and the host's `reports/2026-11-04-1811-d3b/host-Dragonborn/`),
+both in `build/coop-test/prefix-client|prefix-host/.../My Games/Skyrim Special Edition/SkyrimCoop/`. Times below are the
+logs' `mm:ss` from the host log's start (00:03:46 = 18:03:46 local). The IDA MCP's tools did not reach this session, so
+the engine paths are read from code and still to be proved in step 0 (CLAUDE.md).
+
+- **A guest's thefts earn no bounty** (2026-11-04). The user took items (a book among them) in Whiterun with an NPC
+  watching; neither game showed a bounty.
+  - Evidence: the thefts reach the host and are judged. The host log has 16 `Party crime: actor FF00085D, action 0
+    (Theft)` lines (05:34-06:13), among them the book `1060AD` at 06:07.191, 48 ms after the Book Menu's `Accept` in the
+    guest's input log. That line comes after `CrimeBridge::Judge`'s cell and `owns` (20210) checks, so the request was
+    valid, the target was in the actor's cell, and the host's native `RealSteal` (37422) then ran. `1060AD` is not
+    deleted afterwards (the host's physics still rests it at 06:21). No `NotifyCrimeState` was ever sent before the
+    wipe (`messages.txt`: one, at 11:38), so the party's bounty never changed. So the "request lost" suspects of the
+    first triage (a deleted target, no session id) are out; the failure is inside the host's native alarm.
+  - Suspects, in order: (1) the permission check uses the host's real player: `owns(target, player, true, false)`
+    answers for the host's character, not for the guest's, so an item the host's character may take (its house, a
+    faction it belongs to, a start choice from "Alternate Start") is no theft; the guest's own game reached
+    `StealAlarm` because for its character the item is owned. (2) `RealSteal` runs with `aTotal` 0 and the native
+    item path wants no value, but a witness is needed: the shopkeeper must detect the guest's host-side copy
+    (`HookProcessKnowledge`/39515 redirect only inside `ScopedCriminal`); `guest-theft` proves it for a chest and a
+    spawned witness, not for a townsperson across a room. (3) The alarm's owner argument (`target->GetOwner()`) is null
+    for a ref whose owner is the cell or a faction, so `StealAlarm` has nobody to wrong.
+  - Start: log, at each `Party crime`, `owns(...)` for the host's player and for the copy, `target->GetOwner()`, and the
+    detection level of the nearest NPC against the copy (the `crime` harness action `detection` does it). In IDA, read
+    `StealAlarm` 37422 and its caller `PlayerCharacter::PickUpObject` 37521 for what makes a pickup a crime
+    (owner, value, witnesses), and record it in `docs/re/systems/` (no `crime.md` yet).
+  - Test: a `guest_loose_theft` scenario (an owned loose item, a watching NPC, the guest takes it; the party's bounty
+    must rise), then a `CrimeFlows` case where the host's character has permission the guest's lacks.
+
+- **The guest's aggro goes to the host** (2026-11-04, user: "after a while I aggro'd the NPCs, which attacked the
+  host at once"). Not found in the logs: the host log has no aggro line (the readouts that would show it, the
+  `combat_targets` list, are test-build only), and the bug report was filed after the fights.
+  - Code: `HostAggro` / `party-aggro.md` choose between players only after a party player damages the NPC, and only
+    while the native selector already picks a party player. An NPC the guest aggroed any other way (seen, a theft,
+    a shout, sneak broken) keeps Skyrim's own pick, which the design doc measured to be the visible host.
+  - Start: ask the user how the guest aggroed them (QUESTION 1); reproduce with `fight` from the guest with the host
+    nearer and no damage first.
+  - Test: GameTests: the guest starts combat with no damage, the host nearer; assert the NPC's target (the fake
+    selector must prefer the real player, as measured).
+
+- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
+  only up close, and stop when the guest walks away.
+  - Evidence: the host's player died at 07:09 (`PlayerDeathRequest`, then `NotifyPartyDeath`) and respawned at 07:19,
+    died again at 07:57 and **stayed dead for 3.5 minutes** (no `NotifyPlayerRespawn`) until the guest died at 11:31
+    and the party loaded `SkyrimCoopWipe.ess` at 11:35. `death.md`: the respawn waits for the fight to end, 10 s after
+    the combat clears. So the NPCs stayed "in combat" the whole time without fighting the guest: the stuck
+    state is one of the bug, not only of the movement.
+  - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
+    the NPC's native target); a dead real player is unreachable for pursuit and attack, but they still count as
+    "in combat" for `HostDeath`. (2) The target is the guest's host-side copy, a created `Character` with no AI,
+    which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
+    collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
+    other-player candidate (the copy) never gets the native pick once the real player is dead.
+  - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
+    an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
+    `IsInCombat`; and watch `HostDeath`'s timer. In IDA, read how the combat controller treats a dead target and a
+    non-player target (selector 47191, validity 47196, target setter 33235).
+  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
+    with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
+
+- **Freezes and slowness** (2026-11-04). The same export: 2845 frames over about 8 minutes, p50 17 ms, p95 32 ms, p99 71
+  ms, worst 2.6 s (`snapshot.json` `perf`), and the plugin's own `Frame stalled` warnings: 70 on the host, 77 on the
+  guest, about 6 a minute.
+  - Our code is not the cause of most: in 62 of 70 host stalls "our last update" took 1-6 ms. The 8 where it did:
+    1127 ms at 11:32 (the wipe's save load, `longest_frame_ms` 52 s), 499 ms at 11:37 (the new game after it), 275 ms
+    (05:04), 154 ms (05:15) and a few more; the guest's 548 ms at 11:37 and 250 ms at 11:49 go with the load too.
+  - The long stalls (1-2.6 s) hit **both games at the same instant**: 05:07.447 on the host (578 ms) and on the guest
+    (578 ms), 05:10.434 (573 / 574), 06:42.136 (664 / 603), 10:46.77 (2402 / 2466): the two games run on one machine,
+    so a shared cause (CPU/GPU, disk, Wine) stalls both. No kernel BUG in `journalctl -k` for the window; ext4
+    `nvme0n1p6`. That the stalls often end with no work of ours fits P1 perf (`playtests/2026-10-31-fabien.md`).
+  - Also logged: 17 `LockOrder: lock order inversion` errors on the host (04:42 on, three more at 11:37 right before
+    the long stalls; several "[ours]"). Whether they cost time is not shown; they are real inversions to read.
+  - Start: `scripts/coop_test.py profile --stacks` on this scene (Whiterun, both games) to see which threads wait at a
+    shared stall; the two games' stalls lining up points at the machine, not the plugin; separate it with one game
+    alone (`vanilla_start`) over the same route.
+  - Test: the `profile` run with a frame-time budget; later a GameTests case if a stall turns out ours.
+
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged
