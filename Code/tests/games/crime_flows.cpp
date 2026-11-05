@@ -54,6 +54,27 @@ SCENARIO("Guest crime actions go to the host engine once and its judgment return
     CHECK(guest.Gold == host.Gold);
 }
 
+SCENARIO("A guest's theft is judged only after every witness was asked over several frames", "[crime]")
+{
+    Party party;
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    uint32_t asksWhenJudged{};
+    host.JudgeAction = [&](uint32_t, const CrimeRequest&) {
+        asksWhenJudged = host.Asks;
+        return false;
+    };
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0xF);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+
+    guest.Actions.push_back(theft);
+    party.Until([&] { return host.Judged.size() == 1; }, "the host judges the theft");
+    CHECK(asksWhenJudged > 1); // a detection pass answers later, so one ask at the theft is not enough
+}
+
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
 {
     Party party(2);

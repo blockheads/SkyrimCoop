@@ -1,5 +1,6 @@
 #include <Bridges/CrimeBridge.h>
 
+#include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Crime.h>
 #include <ExtraData/ExtraCount.h>
@@ -17,6 +18,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <PlayerCharacter.h>
 #include <RTTI.h>
+#include <Services/CrimeCulprits.h>
 #include <SessionIds.h>
 #include <VersionDb.h>
 #include <spdlog/spdlog.h>
@@ -37,6 +39,8 @@ thread_local Actor* t_payer{};
 uint32_t s_lockAttempt{};
 std::atomic<uint32_t> s_caughtLock{};
 bool s_reactionHooksAttempted{};
+std::mutex s_culpritMutex; // witnesses update on the AI jobs' threads
+CrimeCulprits s_culprits;
 
 struct ScopedCriminal
 {
@@ -128,6 +132,11 @@ using TAssault = void(Actor*, Actor*, bool, uint32_t);
 using TMurder = void(Actor*, Actor*);
 using TTrespass = void(Actor*, TESObjectREFR*, TESForm*, uint32_t);
 using TProcessKnowledge = void*(void*, Actor*, Actor*);
+using TSetPendingCrime = void(AIProcess*, void*);
+using TProcessPendingCrime = void(AIProcess*, Actor*);
+using TUpdateAlarmPackage = void*(AIProcess*, Actor*);
+using TWitnessAssault = bool(AIProcess*, Actor*, Actor*, void*);
+using TSetAngry = void(Actor*, bool);
 using TCrimeReaction = int32_t(Actor*, Actor*, bool);
 using TCrimeGold = uint32_t(Actor*, TESFaction*);
 using TCrimeAttack = bool(Actor*, Actor*, int32_t, uint8_t);
@@ -145,6 +154,11 @@ TMurder* RealMurder{};
 TMurder* RealWerewolf{};
 TTrespass* RealTrespass{};
 TProcessKnowledge* RealProcessKnowledge{};
+TSetPendingCrime* RealSetPendingCrime{};
+TProcessPendingCrime* RealProcessPendingCrime{};
+TUpdateAlarmPackage* RealUpdateAlarmPackage{};
+TWitnessAssault* RealWitnessAssault{};
+TSetAngry* RealSetAngry{};
 TCrimeReaction* RealCrimeReaction{};
 TCrimeGold* RealCrimeGold{};
 TCrimeAttack* RealCrimeAttack{};
@@ -355,6 +369,64 @@ int32_t HookCrimeReaction(Actor* aWitness, Actor* aTarget, bool aIgnoreCrime)
     return RealCrimeReaction(aWitness, player, aIgnoreCrime);
 }
 
+void HookSetPendingCrime(AIProcess* aProcess, void* aCrime)
+{
+    if (aCrime && s_role == ICrimeBridge::Role::Host)
+    {
+        std::lock_guard lock(s_culpritMutex);
+        s_culprits.Remember(aCrime, t_criminal ? t_criminal->formID : 0);
+    }
+    RealSetPendingCrime(aProcess, aCrime);
+}
+
+Actor* CulpritOf(void* aCrime) noexcept
+{
+    uint32_t culprit{};
+    if (aCrime)
+    {
+        std::lock_guard lock(s_culpritMutex);
+        culprit = s_culprits.Of(aCrime);
+    }
+    return culprit ? Cast<Actor>(TESForm::GetById(culprit)) : nullptr;
+}
+
+void HookProcessPendingCrime(AIProcess* aProcess, Actor* aWitness)
+{
+    // 39631 runs after the crime's own call, so its culprit's scope has to be taken up again here.
+    auto* high = aProcess ? aProcess->highProcess : nullptr;
+    auto* culprit = high && s_role == ICrimeBridge::Role::Host ? CulpritOf(high->pendingCrime) : nullptr;
+    if (culprit)
+        spdlog::debug("Party crime: {:X} judges {:X}'s crime", aWitness ? aWitness->formID : 0, culprit->formID);
+    ScopedCriminal scope(culprit ? culprit : t_criminal);
+    RealProcessPendingCrime(aProcess, aWitness);
+}
+
+void* HookUpdateAlarmPackage(AIProcess* aProcess, Actor* aWitness)
+{
+    // 39651 assaults the alarm's target, the crime's named player (crime.md, After the call).
+    const auto* alarm = aProcess ? reinterpret_cast<const CrimeEngine::AlarmPackage*>(aProcess->currentPackage.package) : nullptr;
+    auto* culprit = alarm && alarm->Type == CrimeEngine::AlarmPackage::cType && s_role == ICrimeBridge::Role::Host
+                        ? CulpritOf(alarm->Crime)
+                        : nullptr;
+    ScopedCriminal scope(culprit ? culprit : t_criminal);
+    return RealUpdateAlarmPackage(aProcess, aWitness);
+}
+
+bool HookWitnessAssault(AIProcess* aProcess, Actor* aWitness, Actor* aTarget, void* aLocation)
+{
+    // The crime names the host's player; the blow belongs to the guest who did it.
+    return RealWitnessAssault(aProcess, aWitness, t_criminal && aTarget == PlayerCharacter::Get() ? t_criminal : aTarget,
+                              aLocation);
+}
+
+void HookSetAngry(Actor* aActor, bool aAngry)
+{
+    // kAngryWithPlayer means the host's player: a guest's crime must not put it on the witness.
+    if (aAngry && t_criminal)
+        return;
+    RealSetAngry(aActor, aAngry);
+}
+
 uintptr_t HookPayGold(TESObjectREFR* aPlayer, TESObjectREFR* aContainer, uint32_t aGold)
 {
     // 37511 uses only TESObjectREFR's extra inventory, so a guest NPC is a valid payer.
@@ -459,6 +531,11 @@ static Hooks::Initializer s_hooks([] {
     HOOK_ID(37428, &RealWerewolf, HookWerewolf);
     HOOK_ID(37427, &RealTrespass, HookTrespass);
     HOOK_ID(39515, &RealProcessKnowledge, HookProcessKnowledge);
+    HOOK_ID(39557, &RealSetPendingCrime, HookSetPendingCrime);
+    HOOK_ID(39631, &RealProcessPendingCrime, HookProcessPendingCrime);
+    HOOK_ID(39651, &RealUpdateAlarmPackage, HookUpdateAlarmPackage);
+    HOOK_ID(39359, &RealWitnessAssault, HookWitnessAssault);
+    HOOK_ID(37463, &RealSetAngry, HookSetAngry);
     HOOK_ID(40659, &RealPayFine, HookPayFine);
     HOOK_ID(37511, &RealPayGold, HookPayGold);
     HOOK_ID(16120, &RealConfiscate, HookConfiscate);
@@ -524,6 +601,8 @@ void CrimeBridge::SetRole(Role aRole) noexcept
         s_caughtLock = 0;
         m_reactionState.clear();
         m_players.clear();
+        std::lock_guard culprits(s_culpritMutex);
+        s_culprits.Clear();
     }
 }
 
@@ -603,6 +682,22 @@ void CrimeBridge::ApplyGold(const std::vector<CrimeGold>& aRows) noexcept
             if (PlayerEnemy(faction) != row.PlayerEnemy)
                 setEnemy(faction, row.PlayerEnemy);
         }
+}
+
+void CrimeBridge::ForgetCulprits() noexcept
+{
+    std::lock_guard lock(s_culpritMutex);
+    s_culprits.Clear();
+}
+
+void CrimeBridge::AskWitnesses(uint32_t aActorFormId) noexcept
+{
+    // 41408 reads each high actor's fresh state (37758), which queues an update for a stale one.
+    using THighest = int32_t(ProcessLists*, Actor*, uint32_t&);
+    static VersionDbPtr<THighest> highest(41408);
+    uint32_t seeing{};
+    if (auto* actor = Cast<Actor>(TESForm::GetById(aActorFormId)))
+        highest(ProcessLists::Get(), actor, seeing);
 }
 
 bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noexcept

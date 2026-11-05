@@ -106,7 +106,26 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
             return Error("missing actor or faction");
         using TGet = uint32_t(Actor*, TESFaction*);
         auto get = reinterpret_cast<TGet**>(*reinterpret_cast<uintptr_t**>(actor))[0xB8];
-        return {{"ok", true}, {"bounty", get(actor, faction)}, {"attack_on_sight", (actor->flags2 & 0x8000) != 0}};
+        using TCrimeFaction = TESFaction*(Actor*);
+        static VersionDbPtr<TCrimeFaction> crimeFaction(37380);
+        const auto* own = reinterpret_cast<const CrimeEngine::Faction*>(crimeFaction(actor));
+        auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
+        return {{"ok", true}, {"bounty", get(actor, faction)}, {"attack_on_sight", (actor->flags2 & 0x8000) != 0},
+                {"angry", (actor->flags2 & 0x800) != 0}, {"pending_crime", high && high->pendingCrime},
+                {"faction_enemy", own && (own->Flags & 0x8) != 0}};
+    }
+    else if (action == "set_warnings")
+    {
+        reinterpret_cast<CrimeEngine::Player*>(player)->TheftWarnings = aRequest.value("warnings", 0u);
+    }
+    else if (action == "set_angry")
+    {
+        // kAngryWithPlayer as a save carries it (37463, crime.md).
+        if (!actor)
+            return Error("missing actor");
+        using TSet = void(Actor*, bool);
+        static VersionDbPtr<TSet> set(37463);
+        set(actor, aRequest.value("angry", true));
     }
     else if (action == "jail_state")
     {
@@ -230,8 +249,8 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
     for (const auto& row : World::Get().ctx().at<CrimeService>().ReadGold())
         rows.push_back({{"faction", ToGame(row.Faction)}, {"violent", row.Violent}, {"nonviolent", row.NonViolent},
                         {"enemy", row.PlayerEnemy}});
-    const bool cReporting = reinterpret_cast<const CrimeEngine::Player*>(player)->Flags4 & 4;
-    return {{"ok", true}, {"bounty", rows}, {"reporting", cReporting}};
+    const auto* state = reinterpret_cast<const CrimeEngine::Player*>(player);
+    return {{"ok", true}, {"bounty", rows}, {"reporting", (state->Flags4 & 4) != 0}, {"warnings", state->TheftWarnings}};
 }
 } // namespace
 

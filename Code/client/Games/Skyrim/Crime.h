@@ -33,7 +33,9 @@ struct Player
     static constexpr size_t cShift = SkyrimRuntime::PlayerShift;
     uint8_t pad0[0x3F0 + cShift];
     GoldMap Bounty;
-    uint8_t pad418[0x720 - 0x418];
+    uint8_t pad418[0x6D0 - 0x418];
+    uint32_t TheftWarnings; // StealAlarm warns below 2 and adds one (crime.md)
+    uint8_t pad6D4[0x720 - 0x6D4];
     TESFaction* JailFaction;
     int32_t JailSentence;
     uint8_t pad72C[0xBE4 - 0x72C];
@@ -76,6 +78,15 @@ struct ActorKnowledge
     uint8_t pad28[0x44 - 0x28];
     float RequestedAt; // -FLT_MAX when no update is queued (42712)
 };
+// A running alarm (TESPackage type 21): the crimes it answers, first at +0xE0, read by 39651.
+struct AlarmPackage
+{
+    static constexpr uint8_t cType = 21;
+    uint8_t pad0[0x24];
+    uint8_t Type;
+    uint8_t pad25[0xE0 - 0x25];
+    void* Crime;
+};
 struct LockpickMenu
 {
     uint8_t pad0[0x10D]{};
@@ -88,6 +99,7 @@ static_assert(offsetof(GoldMap, Capacity) == 0x4);
 static_assert(offsetof(GoldMap, Entries) == 0x20);
 // Measured per runtime in 40641, 40655 and 37422, not derived from the shift.
 static_assert(offsetof(Player, Bounty) == (COOP_SKYRIM_1_6_1170 ? 0x3F0 : 0x3F8));
+static_assert(offsetof(Player, TheftWarnings) == (COOP_SKYRIM_1_6_1170 ? 0x6D0 : 0x6D8));
 static_assert(offsetof(Player, JailFaction) == (COOP_SKYRIM_1_6_1170 ? 0x720 : 0x728));
 static_assert(offsetof(Player, JailSentence) == (COOP_SKYRIM_1_6_1170 ? 0x728 : 0x730));
 static_assert(offsetof(Player, Flags4) == (COOP_SKYRIM_1_6_1170 ? 0xBE4 : 0xBEC));
@@ -97,6 +109,8 @@ static_assert(offsetof(Faction, StolenContainer) == 0x70);
 static_assert(offsetof(DataHandler, Factions) == 0x118);
 static_assert(offsetof(ContainerMenu, StealValue) == 0xB0);
 static_assert(offsetof(LockpickMenu, Reported) == 0x10D);
+static_assert(offsetof(AlarmPackage, Type) == 0x24);
+static_assert(offsetof(AlarmPackage, Crime) == 0xE0);
 static_assert(offsetof(DetectionState, Level) == 0x10);
 static_assert(offsetof(DetectionState, UpdatedAt) == 0x38);
 static_assert(offsetof(ActorKnowledge, Target) == 0x14);

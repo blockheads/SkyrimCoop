@@ -697,40 +697,32 @@ Size: small. Needs: duo with mods.
 
 ## Crime and aggro
 
-### A guest's aggro
+### The older crime scenarios
 
-Who an NPC attacks when a guest provokes it without damage.
+The guard arrests have no passing run on 1.7.104, so nothing shows the arrest working.
 
-Agent task: Find why witnesses of a guest's crime attack the host and decide with the user who is a fair target.
+Agent task: Find why these stop at their theft, then check the arrest with a guest's crime.
 
-Size: medium. Needs: duo, then GameTests; ask the user the decision. Waits for: PR #17, which adds what it learned.
+Size: medium. Needs: duo.
 
-- **The guest's aggro goes to the host** (2026-11-04, user: "after a while I aggro'd the NPCs, which attacked the
-  host at once"; the user confirmed stealing, no damage). Still open; the theft's missing bounty, reported with it, was
-  a separate bug (`docs/re/systems/crime.md`, where its evidence went).
-  - Engine: every reaction aims at the crime's criminal, and the crime must name the host's real player or no bounty is
-    written. `Actor__StartAlarm` 37554, `Actor__StartStealWarning` 37556 and the guards' 39695 all land on
-    `g_thePlayer` (`crime.md`, Who the reactions target). `HostAggro` chooses between players only after damage.
-  - Seen on the duo (2026-11-04, QASmoke, Orgnar owning the chest, the guest taking from it through the menu):
-    from a checkpoint saved after earlier party thefts, with the host 90 units from Orgnar and the guest 260, Orgnar
-    killed the host within about 10 s and only then targeted the guest; `Party aggro` logged no switch. The same
-    setup with a freshly spawned Orgnar and no earlier bounty: the bounty rose and he fought nobody for 10 s.
-  - Not proved: why the first Orgnar attacked. The suspect is that he remembered earlier thefts, so `HookCrimeAttack`
-    / `HookCrimeReaction` made every party body hostile and Skyrim picked the nearest, with no new alarm.
-  - Tried and removed: counting a guest as provocation in `HostAggro` for each alarm (37554) during its judgment. Its
-    GameTests flow and unit test passed, but no Skyrim run showed it acting, and it would miss the case above.
-  - Start: a checkpoint with a witness that already knows a party crime; log `CriminalInterest`, `HookCrimeAttack`
-    and the first selector proposal (47191) for it, host nearer. Decide with the user whether a party crime should
-    make the nearest player a fair target (`party-model.md`: the party is the Dragonborn).
-  - Test: `expect stays` on `host_player` `state.dead`: a late `expect_target` passes after the host has died.
+- **The guard and control scenarios stop before their point** (2026-11-05). `guest-guard-arrest-fine`, `-resist`, `-jail`
+  and `host-guard-arrest-jail` time out on "the witnessed theft charges the party"; `guest-theft-host-witnesses`,
+  `guest-assault-party-alarm` on "the host is unseen in the guest theft control"; `guest-pickpocket-party-alarm`
+  passes or fails either way. `guest-crime-flags` passes.
+  - Same messages on `fdabf1d9`, before the reaction hooks, for the four run there (fine, host jail, host-witnesses,
+    pickpocket): not caused by them. `-resist`, `-jail` and `guest-assault` were not run on it.
+  - Suspects: the two theft warnings (`crime.md`): `crime theft` passes no warning, but the menu path does; a held guest
+    theft now judges 0.5 s later against the same 10 s wait.
+  - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
+    the code, not run.
 
-- **A witness may not see a guest it wasn't asked about** (2026-11-04). Crime checks accept only a detection state under
-  2 s old and asking answers on a later pass (`crime.md`, Detection is on request). On the duo Hulda's state of the
-  guest's copy was missing, later 4.7 s old, while her state of the nearby host was 0.5 s old. So a guest's theft may go
-  unseen where the host's would not. Not proved: no theft was run with the offset fix and nobody asking.
-  - Start: a theft with `witness` showing a stale state and no `wait_seen`; compare the host's control.
-  - Tried: asking every frame for each copy (41408). The state stayed under 1 s, removed in review of PR #17: no failure
-    shown, cost unmeasured, polling. If the bug is real, ask at the theft and judge a frame later instead.
+### A guest's theft of a created item
+
+A placed item has no session id for the request to carry.
+
+Agent task: Give a created reference a session mapping in the crime request.
+
+Size: small. Needs: GameTests, then duo.
 
 - **A guest's theft of a created item is never judged** (2026-11-04). `CrimeBridge::Target` puts the stolen reference on
   the wire with `ToSession`, which has no id for a created form (`FF...`), so the host finds no target and `Judge`

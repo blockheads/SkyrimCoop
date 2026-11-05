@@ -49,6 +49,15 @@ struct FakeCrime final : ICrimeBridge
         Judged.emplace_back(aActor, aRequest);
         return JudgeAction && JudgeAction(aActor, aRequest);
     }
+    // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).
+    uint32_t Asks{};
+    void AskWitnesses(uint32_t) noexcept override
+    {
+        ++Asks;
+    }
+    void ForgetCulprits() noexcept override
+    {
+    }
     void LockCaught(uint32_t aAttempt) noexcept override
     {
         Caught = aAttempt;

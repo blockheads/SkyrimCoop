@@ -23,6 +23,14 @@ struct CrimeService
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept;
 
   private:
+    // A theft held while every witness looks at the guest's copy (crime.md, Detection is on request).
+    struct HeldTheft
+    {
+        uint32_t ActorFormId;
+        CrimeRequest Request;
+        double Waited;
+    };
+    void JudgeHeld(double aDelta) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnState(const NotifyCrimeState&) noexcept;
     void OnLockCrime(const NotifyLockCrime&) noexcept;
@@ -36,5 +44,6 @@ struct CrimeService
     uint32_t m_lastConfiscation{};
     bool m_hasState{};
     std::vector<CrimeGold> m_gold;
+    std::vector<HeldTheft> m_held;
     std::vector<entt::scoped_connection> m_connections;
 };
