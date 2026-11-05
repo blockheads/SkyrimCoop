@@ -40,8 +40,9 @@ Every bug, in this order:
    - Search GitHub/Nexus for an SKSE mod or write-up that already does it; add good ones to `scripts/re/fetch_references.sh`.
    - Reverse the code path in IDA (`ida-multi-mcp`): the functions, what they read and write, the call order, the
      conditions. Read the code; don't infer the mechanism from traces.
-   - Record every finding in the IDA database (renames, types, struct fields, comments), save it (`docs/re/README.md`,
-     `scripts/re/ida_export.py`), and write the short version in `docs/re/systems/<system>.md`.
+   - Record every finding in the IDA database as you read (renames, types, struct fields, comments) through the MCP's
+     `rename` / `set_comments` / `set_type` / `declare_type`: hooks journal each into `docs/re/journal/` (`docs/re/README.md`,
+     The journal). Then write the short version in `docs/re/systems/<system>.md`. `scripts/re/id.py` maps IDs to addresses.
    - Only then reproduce: the scenario tests a stated hypothesis from the RE. A fix that works but can't be explained
      means more RE, not done. A bug whose engine path is not yet understood is not ready for a fix.
 1. **A coop scenario** (`scripts/coop_test.py`, the duo) that recreates it, as a player would. By default, write it
@@ -169,7 +170,8 @@ the host's own game: the same, over an in-process route instead of enet
 - Regenerate after adding/changing `POINTER_SKYRIMSE` IDs: `python3 scripts/re/build_re_data.py` (references fetched by `scripts/re/fetch_references.sh` into git-ignored `reference/`)
 - IDA databases (not committed): `build/re/SkyrimSE_1.7.104.i64` and the retained `SkyrimSE_1.6.1170.i64`, built by
   `scripts/re/make_ida_db.sh` with the matching `COOP_SKYRIM_VERSION`; annotations live in `build/re/<version>/`.
-  Sync with `scripts/re/ida_apply.py` / `ida_export.py`; the importer verifies the executable SHA-256.
+  Sync with `scripts/re/ida_apply.py` / `ida_export.py`; the importer verifies the executable SHA-256. Every checkout
+  shares the main checkout's database; MCP writes reach the repo through the journal (`ida_replay.py` rebuilds from it).
 
 ## Animation Synchronization
 

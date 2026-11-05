@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a separate runtime-specific IDA database headlessly: unpack SteamStub DRM (Steamless under
-# Wine), auto-analyse, apply annotations. Takes a while (full analysis of a 37MB exe).
+# Wine), auto-analyse, apply annotations and replay the RE journals (ida_replay.py). Takes a while (full analysis of a 37MB exe).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RE="$ROOT/build/re"
@@ -30,5 +30,5 @@ python3 "$ROOT/scripts/re/build_re_data.py"
 [[ -e "$DB" ]] && { echo "$DB exists; open it in IDA and run scripts/re/ida_apply.py to refresh."; exit 0; }
 echo "Analysing $EXE (log: $RE/ida.log)..."
 COOP_IDA_BATCH=1 TERM=xterm "$IDA_DIR/idat" -A -c -L"$RE/ida-${VERSION}.log" -o"$DB" \
-    -S"$ROOT/scripts/re/ida_apply.py" "$EXE" </dev/null >/dev/null
+    -S"$ROOT/scripts/re/ida_replay.py" "$EXE" </dev/null >/dev/null
 echo "Done: $DB"

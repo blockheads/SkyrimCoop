@@ -59,6 +59,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-05: IDA work reaches the repo by itself ([re/README.md](re/README.md), The journal). Hooks in
+`.claude/settings.json` (`scripts/re/ida_hook.py`) journal every function read and every name, comment and type
+written through ida-multi-mcp into `docs/re/journal/<version>/<branch>.tsv`; `build_re_data.py` reads the journals and
+`ida_replay.py` rebuilds a database from them. They remind, never block: when unnamed functions pile up read and
+unrecorded, and when the duo or engine code comes before any IDA read. The one refusal: an IDA instance with another
+database open (work there was lost). `scripts/re/id.py` maps IDs to addresses; `check_re.py` (in check.sh) catches
+added note rows with a bad ID or RVA and IDA auto names in the notes and systems docs. The shared database moved to
+the main checkout's `build/re/SkyrimSE_1.7.104.i64` (it had been a party-markers copy). Units in
+`scripts/test_ida_hook.py`, `scripts/test_check_re.py`.
+
 2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real
 bug"). The kill-move redo through it found crossed kill moves still kill a player a second later (`bugs.md`, Combat;
 for PR #13). `checkpoint`/`retry` roll the party back to a host save in 3.9 s instead of a new duo (the harness's
