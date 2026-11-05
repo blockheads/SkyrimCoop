@@ -82,21 +82,23 @@ for 10 s. `HeldByPair` keeps a copy in a pair from taking a plain action, checke
 (`PlayReplayedAction`): one staged before the pair began gets there too.
 
 **3. Two players on each other.** Each started a pair on its own game, then each game replayed the other's onto the same
-two actors. By 32803 that is "the same pair": both clips ended at 0.32 s and a player dropped with a plain `DeathAnim` at
-0.35 s. Now they clash (`SettlePairedReplay`): no game has to know who swung first, and nobody is hurt. Stopping a playing
-pair took three things, each measured in Skyrim (`kill-moves-cross`):
+two actors. By 32803 that is "the same pair": both clips ended and a player dropped with a plain death. Now the first swing
+wins (`SettlePairedReplay`). Both games hold the same two ticks, a tie going to the lower session id, so they agree with no
+message: the winner's game skips the later pair; the loser's game yields, then plays the winner's pair as its victim.
 
-- Clearing the flags (38614) is not enough: the clips run on, and the first blow lands as a plain hit (PR #15 found this).
+Yielding has to stop a playing pair, which took four things, each measured:
+
+- Clearing the flags (38614) is not enough: the clips run on and the first blow lands as a plain hit (PR #15 found this).
 - `EndPairsOf` 32809 ends the instance, as the engine does when graphs change (`Actor::EndPairs`). `Deactivate` sends each
   half `PairEnd`, and `PairedStop` only if that went unanswered. The victim's state leaves on `PairEnd`; the attacker's
   `KillMoveState` only on `pairedStop`, so that is sent too.
 - Entry transitions to `pa_KillMoveI` and `pa_KillMoveD` carry flags 0xd04: `FLAG_UNINTERRUPTIBLE_WHILE_PLAYING`. A
-  `pairedStop` during that blend is dropped, so it is sent again for up to 30 updates (`cClashStopUpdates`), only while
-  that clip plays (`ResendPairStop`): a new kill move is left alone.
-- A clip can still land its blow first (`ShortD` at 0.34 s). The attacker's game drops that blow at the source
-  (`CancelledBlow`, `HookDamageActor`) until its player starts a new attack (`StartsAttack`): `HitFrame` and `PairEnd` can
-  share a frame, so `bIsSynced` is already clear when the damage comes. There is no engine event for a blend ending, hence
-  the bounded resend.
+  `pairedStop` during that blend is dropped, so it is sent again for up to 30 updates while that clip plays
+  (`ResendPairStop`), and the winner's pair waits for the local player's clip to leave. There is no engine event for a blend ending.
+- The loser's own clip can still land its blow (`ShortD` at 0.34 s). Its game drops that blow at the source (`CancelledBlow`,
+  `HookDamageActor`) until its player starts a new attack (`StartsAttack`).
+- The loser's own kill cam ends at the yield (`VATS::End`, `SetMode` 44282). Left running, its end at 1.24 s cut the winner's
+  `KillMoveI` clip short, 2 of 2 rounds, and nobody died. Why only that clip was not settled: the graph path was not reversed.
 
 `ActorExtension::LatestPairAction` keeps the pair: `LatestAnimation` is overwritten by the next `moveStop`.
 
@@ -122,6 +124,28 @@ Vanilla checks room for the supporting actor only. Across games the attacker's g
 the clip then carries the victim from wherever its own game has it. So with a copy in the pair the contact kill is held
 back (`ContactKills`, `HookContactPoint`) and the clip's own `KillActor` kills it. Pairs of two actors of one game stay vanilla.
 A real NPC standing at that wall got no kill move at all (10 of 10 normal swings): the room check refused the pair first.
+
+## A copy's death at the end of its clip
+
+The copy of a victim fired its clip's `PairEnd` and `KillActor` like its owner, but does not die from them (scripted deferred
+kill): it waits for its owner's death action, about 115 ms later. Traced on `kill-move-kills-guest`:
+
+1. `PairEnd` took its graph out of the victim state toward `1HM_PickIdle`: it blended to standing, pelvis rising, a body 10 units off.
+2. The death action started its ragdoll from there: its reference jumped 51 units.
+3. The next frame's owner data pulled every body back, up to 65 units: the flickers, on the copy only.
+
+Now it holds that pose: `KillActorHandler` 42838 starts the hold, `HookUpdateAnimationGraphs` gives its graph no update until
+the death action (or 1.5 s, `cPoseHoldMs`). Nothing drives a ragdoll with no graph update, and limbs free-fell 45 units in the
+hold, so its bodies' velocities are zeroed each update (`HoldCopyRagdollStill`). Its first ragdoll frame steers instead of
+teleporting unless 16+ units off (`PlaceDistance`). Before: 0 of 3, up to 81-unit flickers. After: 6 of 6, 0 flickers, no
+bone over 25 units off. This also explains the note in `progress.md` about a wolf's copy holding its pose after its blow:
+that hold is now deliberate.
+
+## `client-kill-move` timing
+
+Misses were 2 in about 10 runs (blow 1737 ms against 2143, start lag 611 ms against 600). The blow miss fits an early contact
+`KillActor` on one game, which the contact rule removed, but it was not traced. Since that rule: 11 of 11 `client-kill-move` runs within limits,
+blows about 40 ms apart, lag about 160 ms. The lag miss by 11 ms was during a loaded batch and is unexplained.
 
 ## Attacker's own refusals
 
@@ -149,5 +173,4 @@ about 60 degrees off the player's facing, so each swing missed. The scenario now
 - **`ai_state.head_track`.** `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move` and sometimes
   `kill-moves-cross` stop at the end comparison on a copy looking at a player: `bugs.md`, "Headtracking left over", deferred
   past v1.
-- **`kill-move-kills-guest`** fails on the host's copy of the guest: its body never comes to rest (`turned back`). 3 of 3
-  with these rules and 3 of 3 with them off, so older than this work.
+- **A dead copy's bodies never sleep:** they jiggle about 0.2 units a frame while its owner's are at rest. Not visible; cause not found.

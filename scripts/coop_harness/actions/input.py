@@ -226,7 +226,7 @@ class InputActions:
         graph plays after the controller is down (bInJumpState), goes wrong. The controller notices the
         move a frame later, so the ground is checked from a few frames on."""
         moved = ctx.game_frame(instance)
-        request = {"cmd": "place", "target": target, "distance": gap}
+        request = {"cmd": "place", "target": ctx.resolve(target, instance), "distance": gap}  # a handle replays, a form id may not
         if bearing is not None:
             request["bearing"] = bearing  # its side of the target (0 north, 90 east): two players apart
         placed = ctx.player_command(instance, request)

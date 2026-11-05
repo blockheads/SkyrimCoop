@@ -238,6 +238,25 @@ SCENARIO("A kill move's victim brushing a wall lives on to the clip's own kill",
     CHECK(guest.IsPlayerAlive());
 }
 
+SCENARIO("A kill move's copy holds its pose from its clip's KillActor to its owner's death", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMGrappleStab");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    party.As(party.Host(), [&] {
+        host.ClipKillActor(cCopy);
+        CHECK(host.PoseHeld(cCopy));
+    });
+    party.As(party.Guest(), [&] { guest.KillActor(FakeEngine::kPlayer); });
+    party.Until([&] { return host.Actors.at(cCopy).Dead; }, "the copy dies with its owner");
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PoseHeld(cCopy)); });
+}
+
 SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
          "[combat][friendly-fire][kill-move]")
 {
@@ -261,104 +280,85 @@ SCENARIO("A kill move plays on a victim's game that has no room at the mark, and
     party.As(party.Guest(), [&] { CHECK_FALSE(guest.PerformAnimation(FakeEngine::kPlayer, own)); });
 }
 
-SCENARIO("Two players' kill moves on each other cross: they clash, and neither game's pair collapses",
-         "[combat][friendly-fire][kill-move]")
+namespace
+{
+// Crossed kill moves, aHostFirst's player a few frames ahead (same tick when aGap is 0); blows land on both games.
+void CrossKillMoves(Party& aParty, bool aHostFirst, int aGap, uint32_t aStopsDropped)
+{
+    FakeEngine& host = Party::Engine(aParty.Host());
+    FakeEngine& guest = Party::Engine(aParty.Guest());
+    aParty.Until([&] { return CopyOfPlayer(aParty, aParty.Host(), aParty.Guest()) && CopyOfPlayer(aParty, aParty.Guest(), aParty.Host()); },
+                 "both games have the other's player");
+    host.PairBlows = guest.PairBlows = true;
+    host.PairStopsDropped = guest.PairStopsDropped = aStopsDropped;
+    World& first = aHostFirst ? aParty.Host() : aParty.Guest();
+    World& second = aHostFirst ? aParty.Guest() : aParty.Host();
+    StartKillMove(aParty, first, second, "KillMoveI");
+    int frames = 0;
+    if (aGap)
+        aParty.Until([&] { return ++frames > aGap; }, "the second player swings a moment later");
+    StartKillMove(aParty, second, first, "KillMoveD");
+    int caught = 0;
+    BothCatchUp(aParty, 0x1000, 0x1001, caught);
+}
+} // namespace
+
+SCENARIO("Two players' kill moves cross: the first swing wins, on both games", "[combat][friendly-fire][kill-move]")
+{
+    const bool cHostFirst = GENERATE(true, false);
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    CrossKillMoves(party, cHostFirst, 5, 0);
+    FakeEngine& winner = cHostFirst ? host : guest;
+    FakeEngine& loser = cHostFirst ? guest : host;
+    CHECK(host.CollapsedPairs + guest.CollapsedPairs == 0);
+    CHECK(winner.Actors.at(FakeEngine::kPlayer).InPairClip);
+    CHECK(loser.Actors.at(FakeEngine::kPlayer).InKillMove); // the winner's pair: it plays the victim's half
+    CHECK(loser.Actors.at(FakeEngine::kPlayer).PairBlowIn == 0);
+
+    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
+    CHECK(winner.IsPlayerAlive());
+    CHECK_FALSE(loser.IsPlayerAlive());
+}
+
+SCENARIO("Two players' kill moves on the same tick: both games pick the same winner", "[combat][friendly-fire][kill-move]")
 {
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
-    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
-                "both games have the other's player");
-
-    host.PairBlows = guest.PairBlows = true;
-    StartKillMove(party, party.Host(), party.Guest(), "KillMoveShortD");
-    StartKillMove(party, party.Guest(), party.Host(), "KillMove1HMGrappleStab");
-    int caught = 0;
-    BothCatchUp(party, 0x1000, 0x1001, caught);
-    CHECK(host.CollapsedPairs == 0);
-    CHECK(guest.CollapsedPairs == 0);
-    CHECK_FALSE(host.Actors.at(FakeEngine::kPlayer).InKillMove);
-    CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
-    // Each pair's clip, left running, would land its blow a moment later (PairBlowFrames) and kill the other.
-    int frames = 0;
-    party.Until([&] { return ++frames > 3 * int(host.PairBlowFrames); }, "the pairs' blows would have landed");
-    CHECK(host.IsPlayerAlive());
-    CHECK(guest.IsPlayerAlive());
-    host.PairBlows = guest.PairBlows = false;
-
-    // Free again: the next kill move plays as one pair.
-    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
-    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1002);
-    CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+    CrossKillMoves(party, true, 0, 0);
+    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
+    CHECK(host.IsPlayerAlive() != guest.IsPlayerAlive());
 }
 
-SCENARIO("A clash stops clips that first drop pairedStop, and a clip's blow can't land", "[combat][friendly-fire][kill-move]")
+SCENARIO("A yielded clip that drops pairedStop never lands its blow", "[combat][friendly-fire][kill-move]")
 {
     const uint32_t cDropped = GENERATE(5u, 1000u); // cleared by the resends; or a clip that outlasts them
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
-    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
-                "both games have the other's player");
-    host.PairBlows = guest.PairBlows = true;
-    host.PairStopsDropped = guest.PairStopsDropped = cDropped;
-
-    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
-    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
-    int caught = 0;
-    BothCatchUp(party, 0x1000, 0x1001, caught);
-    int frames = 0;
-    party.Until([&] { return ++frames > 3 * int(host.PairBlowFrames); }, "the pairs' blows would have landed");
+    guest.PairBlowFrames = 1000; // the later swing's clip is shorter: its blow would land first
+    CrossKillMoves(party, true, 5, cDropped);
     if (cDropped < ReplayState::cClashStopUpdates)
-    {
-        CHECK_FALSE(host.Actors.at(FakeEngine::kPlayer).InPairClip);
-        CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).InPairClip);
-    }
+        CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove); // its clip left, so the winner's pair could play
+    party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
     CHECK(host.IsPlayerAlive());
-    CHECK(guest.IsPlayerAlive());
+    CHECK_FALSE(guest.IsPlayerAlive());
 }
 
-SCENARIO("After a clash a fresh hit lands, both ways", "[combat][friendly-fire][kill-move]")
+SCENARIO("After yielding, a player's fresh swing lands", "[combat][friendly-fire][kill-move]")
 {
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
-    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
-                "both games have the other's player");
-    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
-    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
-    int caught = 0;
-    BothCatchUp(party, 0x1000, 0x1001, caught);
-    REQUIRE_FALSE(host.Actors.at(FakeEngine::kPlayer).InPairClip);
-
+    host.PairBlowFrames = guest.PairBlowFrames = 1000000; // the winner's blow is not this flow's
+    CrossKillMoves(party, true, 5, 0);
     ActionEvent swing;
     swing.ActionId = 0x13005;
     swing.EventName = "attackStart";
-    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, swing)); });
     party.As(party.Guest(), [&] { REQUIRE(guest.PerformAnimation(FakeEngine::kPlayer, swing)); });
-    Strike(party, party.Host(), party.Guest(), 10.f);
     Strike(party, party.Guest(), party.Host(), 10.f);
-}
-
-SCENARIO("A new kill move right after a clash is left alone", "[combat][friendly-fire][kill-move]")
-{
-    Party party(1, SmokeWorld);
-    FakeEngine& host = Party::Engine(party.Host());
-    FakeEngine& guest = Party::Engine(party.Guest());
-    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
-                "both games have the other's player");
-    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
-    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
-    int caught = 0;
-    BothCatchUp(party, 0x1000, 0x1001, caught);
-    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
-    REQUIRE(host.Actors.at(cCopy).PairStops > 0); // resends are still to come
-
-    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
-    int frames = 0;
-    party.Until([&] { return ++frames > 2 * int(ReplayState::cClashStopUpdates); }, "the resends ran out");
-    CHECK(host.Actors.at(FakeEngine::kPlayer).InPairClip);
-    CHECK(host.Actors.at(FakeEngine::kPlayer).InKillMove);
 }
 
 SCENARIO("A player's melee stagger reaches the victim's owner once", "[friendly-fire][melee-stagger]")

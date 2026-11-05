@@ -447,6 +447,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t ClashUntil = 0;
         uint8_t PairStops = 0;
         bool PairedWithCopy = false;
+        uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
         uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
@@ -559,6 +560,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
     void EndKillMove(uint32_t aFormId);
+    void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
+    [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
     void StopPairClip(uint32_t aFormId); // pairedStop: the clip leaves, unless its transition drops it
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);

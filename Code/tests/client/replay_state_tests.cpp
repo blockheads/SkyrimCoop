@@ -9,19 +9,20 @@ TEST_CASE("Historical animation flags preserve the copy's current weapon transit
     CHECK((ReplayState::Flags2(0x64010A8, 0) & ~ReplayState::kWeaponMask) == 0x6401008);
 }
 
-TEST_CASE("A replayed pair plays only on a free partner; two games' pairs on the same two end", "[copies][replay-state][kill-move]")
+TEST_CASE("A replayed pair plays on a free partner; crossed, the first swing wins on both games", "[copies][replay-state][kill-move]")
 {
-    using ReplayState::PairedReplay;
-    int ended = 0;
-    const auto cEnd = [&](bool) { ++ended; };
-    CHECK_FALSE(ReplayState::SettlePairedReplay(PairedReplay{"pa_A", 5, true, false, "", 0}, cEnd));
-    CHECK_FALSE(ReplayState::SettlePairedReplay(PairedReplay{"pa_A", 5, false, true, "B", 5}, cEnd));
-    CHECK(ended == 0);
-    CHECK(ReplayState::SettlePairedReplay(PairedReplay{"A", 5, true, true, "A", 5}, cEnd)); // the pair's other half
-    CHECK(ReplayState::SettlePairedReplay(PairedReplay{"pa_A", 5, true, true, "B", 6}, cEnd)); // paired with someone else
-    CHECK(ended == 0);
-    CHECK(ReplayState::SettlePairedReplay(PairedReplay{"pa_A", 5, true, true, "B", 5}, cEnd));
-    CHECK(ended == 2);
+    using namespace ReplayState;
+    const auto cSettle = [](std::string_view aEvent, uint32_t aCopy, bool aInKillMove, std::string_view aPairEvent, uint32_t aTarget, uint64_t aTick, uint64_t aPairTick, uint32_t aSession = 2, uint32_t aPairSession = 1) {
+        return SettlePairedReplay(PairedReplay{aEvent, aCopy, aInKillMove, aPairEvent, aTarget, aTick, aPairTick, aSession, aPairSession});
+    };
+    CHECK(cSettle("pa_A", 5, false, "", 0, 10, 0) == PairOutcome::kPlay);
+    CHECK(cSettle("A", 5, true, "A", 5, 10, 10) == PairOutcome::kSkip);     // the pair's other half
+    CHECK(cSettle("pa_A", 5, true, "B", 6, 10, 20) == PairOutcome::kSkip);  // paired with someone else
+    CHECK(cSettle("pa_A", 5, true, "B", 5, 10, 20) == PairOutcome::kYield); // it swung first
+    CHECK(cSettle("pa_A", 5, true, "B", 5, 20, 10) == PairOutcome::kSkip);  // this game swung first
+    // The same two swings seen from each game: exactly one yields, a tie included.
+    CHECK(cSettle("pa_A", 5, true, "B", 5, 10, 10, 2, 1) == PairOutcome::kSkip);
+    CHECK(cSettle("pa_B", 7, true, "A", 7, 10, 10, 1, 2) == PairOutcome::kYield);
 }
 
 TEST_CASE("A blocked mark refuses an owner's pair, never a replayed one", "[copies][replay-state][kill-move]")
@@ -38,18 +39,14 @@ TEST_CASE("A copy in a pair takes no plain action of its owner", "[copies][repla
     CHECK_FALSE(ReplayState::HeldByPair(false, false));
 }
 
-TEST_CASE("A cancelled clip's blow is dropped; a new kill move's is not", "[copies][replay-state][kill-move]")
+TEST_CASE("A yielded clip's blow is dropped until its player attacks anew", "[copies][replay-state][kill-move]")
 {
-    CHECK(ReplayState::CancelledBlow(true, false));
-    CHECK_FALSE(ReplayState::CancelledBlow(true, true));
-    CHECK_FALSE(ReplayState::CancelledBlow(false, false));
-}
-
-TEST_CASE("A swing's own graph events end a clash's hold on its blows, a kill move's do not", "[copies][replay-state][kill-move]")
-{
+    CHECK(ReplayState::CancelledBlow(true));
+    CHECK_FALSE(ReplayState::CancelledBlow(false));
     CHECK(ReplayState::StartsAttack("attackStart"));
     CHECK(ReplayState::StartsAttack("attackPowerStartLeft"));
-    CHECK_FALSE(ReplayState::StartsAttack("pa_KillMoveI"));
+    CHECK(ReplayState::StartsAttack("pa_KillMoveI"));
+    CHECK_FALSE(ReplayState::StartsAttack("KillMoveI")); // the victim's half
     CHECK_FALSE(ReplayState::StartsAttack("moveStop"));
 }
 
@@ -65,4 +62,12 @@ TEST_CASE("Contact kills a kill move's victim only when both halves are this gam
 {
     CHECK(ReplayState::ContactKills(false));
     CHECK_FALSE(ReplayState::ContactKills(true));
+}
+
+TEST_CASE("A copy holds its pose until its owner's death, or its time", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::PoseHeld(100, 200, false));
+    CHECK_FALSE(ReplayState::PoseHeld(200, 200, false));
+    CHECK_FALSE(ReplayState::PoseHeld(100, 200, true));
+    CHECK_FALSE(ReplayState::PoseHeld(100, 0, false));
 }

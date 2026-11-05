@@ -36,3 +36,5 @@ id	rva	name	comment
 401100	0x31df410	g_BGSSynchronizedAnimationManager	BGSSynchronizedAnimationManager*.
 63088	0xbb1fa0	BSRagdollContactListenerModifier::Activate	Node activation: AddListeners, through the deferred interface qword_143267370 when it exists (physics-safe).
 63089	0xbb1fc0	BSRagdollContactListenerModifier::Deactivate	Node deactivation: RemoveListeners, deferred the same way. So the listener runs only while its state (VictimState) is active.
+42838	0x7cd430		Graph event KillActor. Clip order on a pair's victim: 2_PairEnd, 2_KillActor, 2_KillMoveEnd. A copy does not die here (scripted deferred kill): our hook holds its graph until its owner's death action.
+44282	0x805d50		SetMode(0) restores the camera, the player's controls and the clock. A yielded swing's kill cam is ended at the yield.

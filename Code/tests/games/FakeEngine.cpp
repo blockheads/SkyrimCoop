@@ -570,6 +570,7 @@ void FakeEngine::FinishDeath(uint32_t aFormId)
 
 void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction)
 {
+    Actors.at(aFormId).PoseHeldUntil = 0;
     if (!RefuseDeathActions)
         KillActor(aFormId);
     Actors.at(aFormId).LatestAnimation = acAction;
@@ -593,6 +594,18 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
     actor.PairBlowIn = 0;
 }
 
+void FakeEngine::ClipKillActor(uint32_t aFormId)
+{
+    if (auto& actor = Actors.at(aFormId); actor.Copy)
+        actor.PoseHeldUntil = World::Get().GetFrameTick() + ::ReplayState::cPoseHoldMs;
+}
+
+bool FakeEngine::PoseHeld(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && ::ReplayState::PoseHeld(World::Get().GetFrameTick(), it->second.PoseHeldUntil, it->second.Dead);
+}
+
 void FakeEngine::RagdollContact(uint32_t aFormId)
 {
     if (const auto& cActor = Actors.at(aFormId); cActor.InKillMove && ::ReplayState::ContactKills(cActor.PairedWithCopy))
@@ -613,6 +626,9 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     if (const auto cPartner = Actors.find(acAction.TargetId); !acAction.TargetEventName.empty() && cPartner != Actors.end())
     {
         if (!(actor.InKillMove && cPartner->second.InKillMove) && !::ReplayState::PairMarkClear(!PairMarkBlocked, actor.Copy))
+            return false;
+        // An uninterruptible transition still playing drops the new pair's event too.
+        if ((actor.InPairClip && actor.StopsDropped) || (cPartner->second.InPairClip && cPartner->second.StopsDropped))
             return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
@@ -1670,7 +1686,7 @@ void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
     // HookDamageActor's check.
     if (const auto& cHitter = Actors.at(aHitter);
-        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil, cHitter.InKillMove))
+        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil))
         return;
     if (!Actors.contains(aHittee))
         return;

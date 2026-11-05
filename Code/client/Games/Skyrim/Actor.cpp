@@ -946,6 +946,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     // copy's own actions are refused unless forced.
     const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
     const auto cAttempt = pExtension->LatestAnimation.BeginAttempt();
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
     EndDeferredKill();
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
@@ -1094,7 +1095,7 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     if (apHitter)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
 
-    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil, apHitter->IsInKillMove()))
+    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
         return false;
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);

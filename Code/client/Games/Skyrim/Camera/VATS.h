@@ -11,6 +11,7 @@ struct VATS
     };
 
     static VATS* Get() noexcept;
+    void End() noexcept; // SetMode (44282) to none: the camera, controls and clock come back
 
     uint8_t pad0[0x20];
     Mode mode;

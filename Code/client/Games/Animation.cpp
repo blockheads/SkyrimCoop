@@ -17,6 +17,7 @@
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BSSynchronizedClipGenerator.h>
 #include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
 #include <Havok/bhkCharacterController.h>
 
 #include <World.h>
@@ -34,6 +35,8 @@ using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
 using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
 static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
+using TKillActorEvent = bool(void*, Actor*);
+static TKillActorEvent* RealKillActorEvent;
 using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent*);
 static TContactPoint* RealContactPoint;
 using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* apArgument, bool aIgnoreDepth);
@@ -139,8 +142,15 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
-        if (pActor->GetExtension()->IsCopy())
+        if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
+        {
             AnimationSystem::RunReplayStep(pActor);
+            if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
+            {
+                HoldCopyRagdollStill(*pActor);
+                return false;
+            }
+        }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
 }
@@ -184,6 +194,14 @@ void HookContactPoint(BSRagdollContactListener* apThis, const hkpContactPointEve
             return;
         }
     }
+}
+
+// KillActorHandler::Handle 42838, on a graph's KillActor event: a copy holds its pose until its owner's death action.
+bool HookKillActorEvent(void* apThis, Actor* apActor)
+{
+    if (auto* pExtension = apActor->GetExtension(); pExtension->IsCopy())
+        pExtension->PoseHeldUntil.store(World::Get().GetFrameTick() + ReplayState::cPoseHoldMs, std::memory_order_relaxed);
+    return RealKillActorEvent(apThis, apActor);
 }
 
 ActorMediator* ActorMediator::Get() noexcept
@@ -307,5 +325,6 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
         HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
         HOOK_ID(63092, &RealContactPoint, HookContactPoint);
+        HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
     });

@@ -51,6 +51,9 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   cannot be staged. Sync points should cover it, unproven.
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
+- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
+  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
+  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
