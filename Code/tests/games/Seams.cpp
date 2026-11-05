@@ -213,6 +213,19 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
+        if (actor.PairStops)
+        {
+            --actor.PairStops;
+            if (::ReplayState::ResendPairStop(1, actor.InKillMove, actor.InPairClip))
+                engine.StopPairClip(form.Id);
+            if (engine.Actors.contains(actor.ClashPartner) &&
+                ::ReplayState::ResendPairStop(1, engine.Actors.at(actor.ClashPartner).InKillMove, engine.Actors.at(actor.ClashPartner).InPairClip))
+            {
+                engine.StopPairClip(actor.ClashPartner);
+                if (actor.PairStops)
+                    continue;
+            }
+        }
         auto& step = actor.Replay;
         using Step = AnimationReplayStep;
         const uint8_t cPhase = step.Phase.load();
@@ -294,15 +307,31 @@ void World::Update() noexcept
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
         const auto cPartner = engine.Actors.find(replayed.TargetId);
         const bool cLocalPartner = !replayed.TargetEventName.empty() && cPartner != engine.Actors.end() && !cPartner->second.Copy;
-        if (cLocalPartner && ::ReplayState::SettlePairedReplay({replayed.EventName.c_str(), form.Id, true, cPartner->second.InKillMove,
-                                                                cPartner->second.LatestPairAction.TargetEventName.c_str(),
-                                                                cPartner->second.LatestPairAction.TargetId},
-                                                               [&](bool aCopy) { engine.EndKillMove(aCopy ? form.Id : replayed.TargetId); }))
+        if (cLocalPartner)
         {
-            animation.LastRanAction = replayed;
-            engine.SetActorLatestAnimation(form.Id, replayed);
-            animation.TimePoints.pop_front();
-            continue;
+            const auto& cPair = cPartner->second.LatestPairAction;
+            const auto cOutcome = ::ReplayState::SettlePairedReplay(
+                {replayed.EventName.c_str(), form.Id, cPartner->second.InKillMove, cPair.TargetEventName.c_str(), cPair.TargetId,
+                 replayed.Tick, cPair.Tick, Utils::GetSessionIdByFormId(form.Id).value_or(0), Utils::GetSessionIdByFormId(replayed.TargetId).value_or(0)});
+            if (cOutcome == ::ReplayState::PairOutcome::kYield)
+            {
+                for (const uint32_t cHalf : {form.Id, replayed.TargetId})
+                {
+                    engine.StopPairClip(cHalf);
+                    engine.EndKillMove(cHalf);
+                }
+                actor.ClashPartner = replayed.TargetId;
+                actor.PairStops = ::ReplayState::cClashStopUpdates;
+                cPartner->second.ClashUntil = GetTick() + ::ReplayState::cClashGuardMs;
+                continue;
+            }
+            if (cOutcome == ::ReplayState::PairOutcome::kSkip)
+            {
+                animation.LastRanAction = replayed;
+                engine.SetActorLatestAnimation(form.Id, replayed);
+                animation.TimePoints.pop_front();
+                continue;
+            }
         }
         step.Action = replayed;
         if (action.Tick >= animation.VariablesTick)

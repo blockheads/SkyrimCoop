@@ -78,7 +78,7 @@ killer is the attacker's copy and the chat names it. Two bugs it found, both in 
   `PlayerCharacter::Revive` (`death.md`, "The ragdoll");
 - spectating could drop into first person, in the watched copy's head: spectating is third person only now.
 
-Two players' kill moves on each other at once clash: nobody is hurt (`docs/re/systems/kill-moves.md`).
+Two players' kill moves on each other at once: the first swing wins, on both games (`docs/re/systems/kill-moves.md`).
 
 ## Tests
 

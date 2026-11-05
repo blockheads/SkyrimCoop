@@ -9,6 +9,7 @@
 #include <Games/KnockReplay.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/Animation/ReplayState.h>
+#include <Camera/VATS.h>
 
 #include <PlayerCharacter.h>
 #include <Forms/BGSAction.h>
@@ -51,6 +52,22 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
     // Off-screen graphs update only now and then (38054); a copy's is driven every frame.
     apActor->flags2 |= Actor::kForceAnimGraphUpdate;
+
+    // A yielded pair: its clip has to leave before the pair that won can start.
+    if (auto* pExtension = apActor->GetExtension(); pExtension->PairStops)
+    {
+        --pExtension->PairStops;
+        auto* pPlayer = Cast<Actor>(TESForm::GetById(pExtension->ClashPartner));
+        if (ReplayState::ResendPairStop(1, apActor->IsInKillMove(), apActor->InPairClip()))
+            apActor->StopPairClip();
+        // A copy's bIsSynced outlasts its clip: only the local player's own clip holds the winner's pair back.
+        if (pPlayer && ReplayState::ResendPairStop(1, pPlayer->IsInKillMove(), pPlayer->InPairClip()))
+        {
+            pPlayer->StopPairClip();
+            if (pExtension->PairStops)
+                return;
+        }
+    }
 
     // A fresh copy starts in its owner's graph state; the queue waits for it.
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
@@ -192,9 +209,25 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         if (cLocalPartner)
         {
             const ActionEvent cPair = pPartner->GetExtension()->LatestPairAction.Read();
-            if (ReplayState::SettlePairedReplay({first.EventName.c_str(), apActor->formID, true, pPartner->IsInKillMove(),
-                                                 cPair.TargetEventName.c_str(), cPair.TargetId},
-                                                [&](bool aCopy) { (aCopy ? apActor : pPartner)->EndKillMove(); }))
+            const auto cOutcome = ReplayState::SettlePairedReplay(
+                {first.EventName.c_str(), apActor->formID, pPartner->IsInKillMove(), cPair.TargetEventName.c_str(), cPair.TargetId,
+                 first.Tick, cPair.Tick, Utils::GetSessionIdByFormId(apActor->formID).value_or(0), Utils::GetSessionIdByFormId(pPartner->formID).value_or(0)});
+            if (cOutcome == ReplayState::PairOutcome::kYield)
+            {
+                spdlog::debug("{:X}'s pair yields to {:X}'s '{}', swung first", pPartner->formID, apActor->formID, first.EventName);
+                apActor->EndPairs();
+                apActor->EndKillMove();
+                pPartner->EndPairs();
+                pPartner->EndKillMove();
+                apActor->GetExtension()->ClashPartner = pPartner->formID;
+                apActor->GetExtension()->PairStops = ReplayState::cClashStopUpdates;
+                pPartner->GetExtension()->ClashUntil = aWorld.GetTick() + ReplayState::cClashGuardMs;
+                // The kill cam of the swing that lost: left running, its end cuts the winner's pair short.
+                if (auto* pVats = VATS::Get(); pPartner == PlayerCharacter::Get() && pVats && pVats->mode == VATS::kKillCam)
+                    pVats->End();
+                return; // the action stays first: played once the clips have left
+            }
+            if (cOutcome == ReplayState::PairOutcome::kSkip)
             {
                 spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} was in a kill move", apActor->formID, first.ActionId,
                               first.EventName, pPartner->formID);

@@ -2,7 +2,8 @@
 """Merge known engine references into a runtime-specific dataset.
 
 Sources, in priority order for names:
-  1. docs/re/ida_notes.tsv            names/comments exported from our IDA database (ida_export.py)
+  1. docs/re/ida_notes*.tsv           names/comments exported from our IDA database (ida_export.py),
+     docs/re/journal/                 and those written through ida-multi-mcp (ida_hook.py, newest win)
   2. reference/CommonLibSSE(-NG)      community RE headers: functions, singletons, vtables, RTTI
                                       (powerof3's fork first, alandtse's NG fills the gaps)
   3. SKSE source (game dir src/)      SKSE's own engine bindings for this exact exe version
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from skyrim_runtime import runtime_version, library_name, pe_version
 from address_library import load as load_address_library
+import journal
 
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
                            "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
@@ -194,6 +196,16 @@ def load_ida_notes():
                 if path == IDA_NOTES and EXE_VERSION != "1.6.1170.0" and comment:
                     comment = "From 1.6.1170 (instruction offsets require review): " + comment
                 notes[int(parts[0])] = (parts[2], comment)
+    # The journals' names and comments (ida_hook.py), newest last, over the exported notes.
+    for row in journal.load_all(ROOT, EXE_VERSION.removesuffix(".0")):
+        if row.id is None or row.op not in ("name", "comment"):
+            continue
+        name, comment = notes.get(row.id, ("", ""))
+        if row.op == "name":
+            name = row.item.get("name", "")
+        else:
+            comment = row.item.get("comment", "").split("[re]")[0].strip().replace("\t", " ").replace("\n", " / ")
+        notes[row.id] = (name, comment)
     return notes
 
 

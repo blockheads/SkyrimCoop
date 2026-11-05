@@ -65,6 +65,9 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
   repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
   - Test: that scenario, after its steps.
+- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
+  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
+  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
@@ -76,15 +79,25 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
     scenario's `check_gait` names each actor and its distance.
   - Test: `actors-walk-after-arrival`.
-- **Kill moves leave the guest's wolf copy looking at a player** (2026-11-04, `host-kill-move` and `client-kill-move`:
-  0 of 6 each on dialogue-anim-desync, the same with and without its changes). The kill move itself plays; the
-  scenario then fails its final comparison: `ai_state.head_track` host (owner) `[None x6]`, guest copy
-  `['session 2', None x5]`. Most likely the "Headtracking left over" entry above, unproven. It hides any later
-  kill-move failure, since the scenario stops there. One unexplained one-off besides: `host-kill-move` timed out on
-  `[host] player's kill_move is True` before the comparison, not seen again in six runs (progress.md "S8 missed kill
-  moves" may be the same). Evidence: dialogue-anim-desync worktree, `build/coop-test/results/20261104-012732-4d8ec7` and
-  `20261104-012746-3e87e9`. Another agent (kill-move-review) works on kill moves.
-  - Test: `host-kill-move`, `client-kill-move`.
+- **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
+  the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
+  `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
+  `client-kill-move` 0 of 3 each, failing at the end comparison only (blow and lag checks pass); `spectator-watches-kill-move`
+  0 of 3, failing on it before it removes the wolf, so its later checks never run. `kill-moves-cross` hit it on the
+  players too (2026-11-04). Most likely the "Headtracking left over" entry above, unproven. The `host-kill-move` timeout
+  noted here before was the scenario (the wolf out of reach) and is fixed (`docs/re/systems/kill-moves.md`).
+  - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
+    graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
+  - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
+- **A dead copy's ragdoll never sleeps** (2026-11-05, every `kill-move-kills-guest` run on PR #16). Once its owner's
+  ragdoll is at rest (all 18 bodies asleep, about 3-8 s after death), the copy's 18 bodies stay awake, moving about
+  0.2-0.5 units a frame, until the trace ends. Not visible, and under `RagdollTrace`'s limits, so the scenario passes.
+  Copy and owner lie within 8 units. Cause not found: candidates are the owner's rest arriving as frames the copy keeps
+  steering towards (`BodyBridge::Rest` queues a frame for an actor's bodies, never puts them to sleep), or steering
+  velocities never reaching zero (`BodyPrediction::Steer`).
+  - Start: the copy's `body_trace` motion and awake bits after its owner's `BodyRestsRequest`; whether `CopyRagdollPhysics`
+    steers a body already at its frame.
+  - Test: a `RagdollTrace` check that a copy sleeps within a second of its owner (`kill-move-kills-guest`).
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
   marker during trade (not reproduced in the final run); one HorseExit refusal. The kill-move refusals were
   the pair's other half coming back, now skipped (`docs/re/systems/kill-moves.md`).
@@ -251,32 +264,6 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
     lacks a move the guest has, which engine path moved the clutter on the guest only.
 
 ## Combat
-
-- **Crossed kill moves still kill a player, a second later** (2026-11-04, found through the repro MCP on PR #13's
-  branch, `agent/kill-move-review`, with its fix). Both players, one hit from death, swing at each other at once; each
-  game starts its own pair and both clear `kill_move` within 0.2 s, so PR #13's `kill_move_exchange` passes its checks
-  (within `KILL_MOVE_CLASH`, 1.5 s). Then one player dies anyway: 3 of 3 runs (the host player twice, the guest once).
-  - Trace (both games, seconds from the host's `pa_KillMove1HMStabUpFace`): 0.02 the guest's own
-    `pa_KillMove1HMGrappleStab`; 0.16-0.22 `KillMoveStart` on both players in both games; 1.26 the host's `HitFrame`
-    (its pair runs on); 1.32 the guest's `Ragdoll`, `life=1`, `KillMoveEnd`. So the clash ends neither pair's clips:
-    whichever pair reaches its `HitFrame`/`KillActor` first kills.
-  - Repro, recorded and exported through the MCP (needs PR #13's verbs, so it lands with that branch; it failed alone
-    with `coop_test.py scenario`, 20 s):
-    ```python
-    ctx.name_players()
-    ctx.console_on('', 'set KillMoveRandom to 100')
-    ctx.console_on('client', 'set KillMoveRandom to 100')
-    ctx.equip_weapon('', 0x12EB7)
-    ctx.equip_weapon('client', 0x12EB7)
-    ctx.kill_move_exchange({game: ctx.other_player(ctx.actors_on(game)) for game in ('', 'client')})
-    ctx.expect('host_player', 'stays', value=False, field='state.dead', seconds=6.0)
-    ctx.expect('guest_player', 'stays', value=False, field='state.dead', seconds=6.0)
-    ```
-  - Run on PR #13's final pair fix (`8c8c5115`, `7e6b2e1d` included). The player who died was the victim of the other
-    game's half, which fits `kill-moves.md`, "Early deaths: the victim touched a wall" (the engine's own `KillActor` on
-    ragdoll contact; QASmoke's staging is near walls). Start there: run the repro with that section's contact hook and
-    see whether the death follows a wall contact; if it does, this is that deferred case, not the clash.
-  - `kill-moves-cross` (now on dev) checks within 1.5 s; the `stays` expects above cover the later death.
 
 - **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
   are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen

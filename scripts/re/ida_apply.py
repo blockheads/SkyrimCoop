@@ -22,8 +22,8 @@ import idc
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-from skyrim_runtime import pe_version
-VERSION = pe_version(ida_nalt.get_input_file_path())
+from skyrim_runtime import database_executable, pe_version
+VERSION = pe_version(database_executable(ida_nalt.get_input_file_path(), idc.get_idb_path()))
 DATA = os.environ.get("COOP_RE_ANNOTATIONS", os.path.join(ROOT, "build", "re", VERSION.removesuffix(".0"), "annotations.json"))
 MARKER = "[re]"
 HOOK_COLOR = 0x9CD0FF  # BGR: orange, engine code SkyrimCoop replaces

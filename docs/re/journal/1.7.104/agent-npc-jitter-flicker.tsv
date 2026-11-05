@@ -1,0 +1,26 @@
+time	op	id	rva	item
+2026-11-05T19:36:56Z	read	39590	0x7023e0	{"name": "sub_1407023E0"}
+2026-11-05T19:37:08Z	name	39590	0x7023e0	{"addr": "0x1407023e0", "name": "AIProcess::SetAnimationDelta"}
+2026-11-05T19:37:08Z	name	37507	0x689370	{"addr": "0x140689370", "name": "Actor::Move"}
+2026-11-05T19:37:08Z	name	78275	0x1064d20	{"addr": "0x141064d20", "name": "bhkCharacterController::CharacterStep"}
+2026-11-05T19:37:08Z	name	38308	0x6be2f0	{"addr": "0x1406be2f0", "name": "Actor::MoveOnNavmeshUnseen"}
+2026-11-05T19:37:08Z	name	43691	0x7dd840	{"addr": "0x1407dd840", "name": "Actor::WriteBackControllerPosition"}
+2026-11-05T19:37:08Z	name	39912	0x7246a0	{"addr": "0x1407246a0", "name": "AIProcess::SetSitSleepState"}
+2026-11-05T19:37:08Z	name	40063	0x72b3f0	{"addr": "0x14072b3f0", "name": "AIProcess::EnterFurnitureCollision"}
+2026-11-05T19:37:08Z	name	39432	0x6fc370	{"addr": "0x1406fc370", "name": "AIProcess::FinishLoadGame"}
+2026-11-05T19:37:08Z	name	38322	0x6c0470	{"addr": "0x1406c0470", "name": "BSTEventSource_bhkCharacterMoveFinishEvent::SendEvent"}
+2026-11-05T19:37:08Z	name	37148	0x66f750	{"addr": "0x14066f750", "name": "CharacterMoveFinish_PostSimulation::postSimulationCallback"}
+2026-11-05T19:37:08Z	name	38253	0x6bcea0	{"addr": "0x1406bcea0", "name": "CharacterMoveFinish_PostSimulation::Queue"}
+2026-11-05T19:37:08Z	name	79185	0x1099c20	{"addr": "0x141099c20", "name": "bhkCharRigidBodyController::postSimulationCallback"}
+2026-11-05T19:37:08Z	name	79194	0x109ae50	{"addr": "0x14109ae50", "name": "bhkCharRigidBodyController::GetPositionImpl"}
+2026-11-05T19:37:08Z	name	79193	0x109ab10	{"addr": "0x14109ab10", "name": "bhkCharRigidBodyController::SetPositionImpl"}
+2026-11-05T19:37:08Z	name	79198	0x109b1c0	{"addr": "0x14109b1c0", "name": "bhkCharRigidBodyController::SetLinearVelocityImpl"}
+2026-11-05T19:37:08Z	name	79142	0x1098920	{"addr": "0x141098920", "name": "bhkCharProxyController::GetPositionImpl"}
+2026-11-05T19:37:08Z	name	79141	0x1098800	{"addr": "0x141098800", "name": "bhkCharProxyController::SetPositionImpl"}
+2026-11-05T19:37:08Z	name	79143	0x1098a30	{"addr": "0x141098a30", "name": "bhkCharProxyController::GetTransformImpl"}
+2026-11-05T19:37:08Z	name	79150	0x1098e20	{"addr": "0x141098e20", "name": "bhkCharProxyController::ReportPosition"}
+2026-11-05T19:37:08Z	name	78276	0x1065c60	{"addr": "0x141065c60", "name": "bhkCharacterController::StepOrStop"}
+2026-11-05T19:37:08Z	name	78278	0x1065d20	{"addr": "0x141065d20", "name": "bhkCharacterController::UpdateShapeTransition"}
+2026-11-05T19:37:08Z	name	78294	0x10667c0	{"addr": "0x1410667c0", "name": "bhkCharacterController::ClearContacts"}
+2026-11-05T19:37:08Z	name	57212	0xaa7180	{"addr": "0x140aa7180", "name": "hkVector4::RotateBy3x3"}
+2026-11-05T19:37:08Z	name	37006	0x66cea0	{"addr": "0x14066cea0", "name": "bhkWorldObject::SetCollisionFilterInfo"}

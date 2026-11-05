@@ -1,5 +1,11 @@
 ## What changed
 
+## Engine path (RE)
+
+- Read in IDA, in call order (Address Library IDs; `docs/re/journal/` has the reads and writes):
+- What the engine does there, and what each claim rests on (read in IDA, measured, or inferred):
+- Still unknown:
+
 ## How it was checked
 
 - `scripts/check.sh`:
