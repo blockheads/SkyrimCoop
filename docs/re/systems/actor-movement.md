@@ -20,7 +20,7 @@ Job_Actor_movement → Actor::UpdateMovement (37350)
                               translation = dir × speed × dt, rotation = turn × dt
         ragdoll/bleedout    → kFollowRagdoll (0x1000) on the controller, no translation
       ModifyMovementData (vfunc 0x11A 37990)      zero if the controller is pinned
-      furniture: ActorMover (41633) for sit/sleep states (flags2 & 0x1C0000)
+      fly states (flags1 & 0x1C0000, not furniture as this said until 2026-11-05): ActorMover (41633)
       if the cell is attached:
         heading and pitch from the rotation
         Actor::Move (vfunc 0xC8, 37507)           ← the physical step, below
@@ -55,7 +55,7 @@ controller warped to `pos` (1406B01D0), its linear velocity zeroed (vfunc 0x38),
 | `MovementControllerNPC` update (41717), its output (vfunc 7) | decision: where the AI goes | its owner's motion instead |
 | `bIsSynced` paired offset | decision of the paired animation | its owner's motion |
 | `ModifyMovementData` (0x11A) | decision (pinned controller) | not needed |
-| Furniture `ActorMover` (41633) | decision: sit/sleep approach | its owner's motion |
+| `ActorMover` (41633) | decision: fly states (flags1 `0x1C0000`) | its owner's motion |
 | Heading/pitch from the turn | presence | its owner's rotation |
 | `Actor::Move` (37507): Havok's character step | **presence**: collision, support, pushes bodies | **needed** |
 | Fall/land actions in `Move` | decision of the graph | refused on copies (`HookPerformAction`), the owner's replay plays them |
@@ -140,6 +140,72 @@ the ground for its pushes. After the fix: copy peaks 73-74 against its owner's 7
 Tests: GameTests "A jumping player's copy rises and falls with it, never stuck on the ground" (the fake's step
 never rises), ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenarios `copy-jumps-smoothly-host`,
 `copy-jumps-smoothly-guest`.
+
+## A copy in furniture (2026-11-05)
+
+Players saw NPC copies vibrate on the guest's game, 0.6 to 1.8 units each frame, going in or out of a chair, bed or wall
+lean. Read in IDA (1.7.104); names and comments in the database and `ida_notes_1.7.104.tsv`.
+
+```
+NPCs have a bhkCharRigidBodyController (bUseCharacterRB, Character 37171): physics simulates the capsule.
+  (the player and flagged races have a proxy controller instead)
+each frame   Actor::Move (37507)
+               sit state 0:    CharacterStep (78275), velocity = delta / dt
+               sit state != 0: StepOrStop (78276) with no step; capsule placed at position + delta
+after physics  bhkCharRigidBodyController::postSimulationCallback (79185)
+                 -> move-finish (38322) -> 37998 -> 43691: SetPosition(GetPosition(true))
+into furniture BGSProcedureSit/Sleep -> AIProcess::SetSitSleepState (39912)
+                 -> AIProcess::EnterFurnitureCollision (40063): capsule filter |= 0x8000, collision off
+               leaving: SetSitSleepState clears 0x8000; Actor::Move clears it at sit state 0
+```
+
+A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its owner's replayed actions, and its
+capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
+lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy moved there, and the next frame pulled
+it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
+
+The fix: a copy's capsule collides when its owner's does. Each movement snapshot carries `CapsuleCollides` (filter bit
+`0x8000` clear on layer 30, `Actor::CapsuleCollides`), and the copy's capsule is set to match (`Actor::SetCapsuleCollision`,
+37006). This is not a furniture rule: it follows whatever turned the owner's collision off (furniture 40063, mounting, a
+mod), and a copy in a chair no longer shoves a player walking past.
+
+A copy whose owner's capsule collides with nothing is placed, not stepped (`CopyStep::Choose`): out of furniture
+`Actor::Move` clears `0x8000` before its step (`0x14068990A`, then 37006), so a step would turn the copy's collision back
+on. The engine does not step such an owner either: in furniture `Move` takes its no-step branch, far off it moves on the
+navmesh.
+
+So an NPC moving far from the host's player (`MoveOnNavmeshUnseen`, past `fVisibleNavmeshMoveDist` 4096 or
+`fNotVisibleNavmeshMoveDist` 2048), its collision off, has a copy the guest passes through, as the owner would.
+
+Measured with the `jitter` readout, frames turning back on themselves while in furniture, two rounds of six Riverwood
+NPCs sent through their furniture (about 20 s each):
+
+- stepped, collision on (the old code): 824 and 134
+- stepped, collision off as the engine does it: 1 and 0
+- placed: 0 and 0
+- both: 0 and 0; the scenario on two fresh boots: 0 in furniture, at most 3 overall
+- owners: none
+
+Collision off alone stops it, so the first fix (placing copies in furniture, keyed on their sit state) was dropped for the
+generic one.
+
+The first account here blamed the controller's centre offset `+0xC0`. Its writers are constructors (bhkCharProxy
+ControllerCinfo, 0x1410970A0), so it does not change frame to frame. Also ruled out, by measurement or by reading:
+
+- The calendar, sky and clock speed: about 10,000 frames with no hour going back and no weather or speed change. One
+  2.45 h jump came in the window after a hot reload's reconnect; none in the 1,805 frames after it. Not seen in play.
+- Sync points (#12): 6 loads in 10 s. A graph load cannot shake at frame rate.
+- The step's gain: velocity is delta / dt.
+- Root motion (37996): stored in the process for `ApplyMovement`; moves the actor directly only in ragdoll.
+- `Move`'s sit branch heading: `GetHeading` is `rotation.z`, as `CopyStep::Local`.
+
+Why it appeared now: copies have been stepped since 2026-11-02 (above, "Copies step"). Before that they were placed every
+frame, and `HookSetPosition` refused every write-back. The animation merge (#12) is not the cause.
+
+Tests: GameTests "A copy's capsule collides only when its owner's does" (the fake's colliding copies in furniture are
+pushed off their goal, and a step out of furniture turns collision back on; fails without the sync or without placing),
+ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
+`copy-leaves-furniture-steady`.
 
 ## Others
 

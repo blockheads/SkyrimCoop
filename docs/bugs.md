@@ -51,6 +51,21 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   cannot be staged. Sync points should cover it, unproven.
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
+- **Creature copies wobble a little around their goal** (2026-11-05). A stepped wolf's or deer's copy on the guest's game
+  turns back on itself up to 326 times in 25 s, its biggest steps 1.6 to 3.3 units (far-off creatures in Riverwood,
+  `9F361` and `8CACD`; owners do not). Not furniture: their sit state is 0 and placing copies in furniture did not change
+  it.
+  - Known from IDA: NPC capsules are rigid bodies whose place is written back after physics (actor-movement.md, "A copy in
+    furniture"); these creatures' controllers carry `kQuadruped` and `kCanPitch`/`kCanRoll`, which tilt the capsule to the
+    ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
+  - Test: `jitter` on a creature, then a fast test once the cause is read.
+- **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
+  Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
+  `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
+  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again), once
+  Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
+  repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
+  - Test: that scenario, after its steps.
 - **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
   other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
   vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
