@@ -1,4 +1,6 @@
 #include "AnimationTrace.h"
+
+#include <Games/ActorExtension.h>
 #include "EngineCalls.h"
 
 #include <Actor.h>
@@ -253,6 +255,12 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
     actors.GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
     nlohmann::json entry = {{"kind", "pos"}, {"actor", aFormId}, {"pos", {position[0], position[1], position[2]}}, {"yaw", rotation[2]}};
+    entry["sit"] = pActor->actorState.GetSitSleepState();
+    if (const auto cController = EngineCalls::GetController(aFormId))
+        entry["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}, {"state", cController->State},
+                               {"at", cController->Position}, {"step", cController->StepVelocity}};
+    if (const auto* pExtension = pActor->GetExtension(); pExtension && pExtension->HasCopyGoal)
+        entry["goal"] = {pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]};
     for (const auto& cName : m_graphFloats)
         entry["floats"][cName] = EngineCalls::GetGraphFloat(aFormId, cName.c_str());
     // A copy's clocks: the owner's time it shows, the game's copy clock and the session's time as read.

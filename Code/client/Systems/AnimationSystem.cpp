@@ -3,6 +3,7 @@
 #include <Games/Animation/TESActionData.h>
 #include <Games/Animation/ActorMediator.h>
 #include <Games/Skyrim/ActionClips.h>
+#include <Diagnostics/Counters.h>
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
@@ -334,6 +335,7 @@ void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aA
         const uint32_t cFlags1 = apActor->actorState.flags1;
         if (apActor->LoadGraphPoint(cSeed, cPoint.GraphState))
         {
+            COUNT("copy graph point loads", 1);
             spdlog::debug("Copy {:X} fell in with its owner's graph at a sync point", apActor->formID);
             GraphRandom::Track(aAnimationComponent.Random, cSeed, aTick);
             aAnimationComponent.GraphCounters = GraphRandom::Unpack(cPoint.GraphCounters);

@@ -463,6 +463,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
+        bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
+        bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -701,7 +703,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    // Units a stepped, colliding copy in furniture is pushed off its goal, at most 3 of these: the duo's 0.3 to 1.2 (actor-movement.md).
+    static constexpr float kFurnitureOffset = 0.4f;
     bool IsOnGround(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && !Actors.at(aFormId).InAir; }
+    bool CapsuleCollides(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).Collides; }
+    void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept override
+    {
+        if (Actors.contains(aFormId))
+            Actors.at(aFormId).Collides = aCollides;
+    }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override

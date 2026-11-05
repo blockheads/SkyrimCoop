@@ -328,6 +328,18 @@ bool SkyrimBridge::IsOnGround(uint32_t aFormId) const noexcept
     return pController && pController->state == bhkCharacterController::kOnGround;
 }
 
+bool SkyrimBridge::CapsuleCollides(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return !pActor || pActor->CapsuleCollides();
+}
+
+void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        pActor->SetCapsuleCollision(aCollides);
+}
+
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
