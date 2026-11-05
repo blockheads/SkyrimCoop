@@ -280,6 +280,7 @@ struct Actor : TESObjectREFR
     void EndKillMove() noexcept;
     // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
     void EndPairs() noexcept;
+    [[nodiscard]] bool InPairClip() noexcept;
     void StopPairClip() noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;

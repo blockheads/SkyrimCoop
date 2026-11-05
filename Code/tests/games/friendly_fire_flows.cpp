@@ -2,6 +2,7 @@
 // player's game, which applies it to its real player; a teammate's kill is a real death, named in every chat.
 #include "Party.h"
 #include "Fixtures.h"
+#include <Games/Animation/ReplayState.h>
 
 #include <Events/SessionNoticeEvent.h>
 #include <Events/MeleeStaggerEvent.h>
@@ -222,6 +223,21 @@ SCENARIO("A victim's last move, sent before it heard of the kill move, leaves th
     CHECK(host.Actors.at(CopyOfPlayer(party, party.Host(), party.Guest())).InKillMove);
 }
 
+SCENARIO("A kill move's victim brushing a wall lives on to the clip's own kill", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
+    REQUIRE(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+    party.As(party.Guest(), [&] { guest.RagdollContact(FakeEngine::kPlayer); });
+    CHECK(guest.IsPlayerAlive());
+}
+
 SCENARIO("A kill move plays on a victim's game that has no room at the mark, and an attacker's own check still counts",
          "[combat][friendly-fire][kill-move]")
 {
@@ -274,6 +290,75 @@ SCENARIO("Two players' kill moves on each other cross: they clash, and neither g
     StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
     CopyCatchesUp(party, party.Host(), party.Guest(), 0x1002);
     CHECK(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+}
+
+SCENARIO("A clash stops clips that first drop pairedStop, and a clip's blow can't land", "[combat][friendly-fire][kill-move]")
+{
+    const uint32_t cDropped = GENERATE(5u, 1000u); // cleared by the resends; or a clip that outlasts them
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    host.PairBlows = guest.PairBlows = true;
+    host.PairStopsDropped = guest.PairStopsDropped = cDropped;
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
+    int caught = 0;
+    BothCatchUp(party, 0x1000, 0x1001, caught);
+    int frames = 0;
+    party.Until([&] { return ++frames > 3 * int(host.PairBlowFrames); }, "the pairs' blows would have landed");
+    if (cDropped < ReplayState::cClashStopUpdates)
+    {
+        CHECK_FALSE(host.Actors.at(FakeEngine::kPlayer).InPairClip);
+        CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).InPairClip);
+    }
+    CHECK(host.IsPlayerAlive());
+    CHECK(guest.IsPlayerAlive());
+}
+
+SCENARIO("After a clash a fresh hit lands, both ways", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
+    int caught = 0;
+    BothCatchUp(party, 0x1000, 0x1001, caught);
+    REQUIRE_FALSE(host.Actors.at(FakeEngine::kPlayer).InPairClip);
+
+    ActionEvent swing;
+    swing.ActionId = 0x13005;
+    swing.EventName = "attackStart";
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, swing)); });
+    party.As(party.Guest(), [&] { REQUIRE(guest.PerformAnimation(FakeEngine::kPlayer, swing)); });
+    Strike(party, party.Host(), party.Guest(), 10.f);
+    Strike(party, party.Guest(), party.Host(), 10.f);
+}
+
+SCENARIO("A new kill move right after a clash is left alone", "[combat][friendly-fire][kill-move]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    StartKillMove(party, party.Guest(), party.Host(), "KillMoveD");
+    int caught = 0;
+    BothCatchUp(party, 0x1000, 0x1001, caught);
+    const uint32_t cCopy = CopyOfPlayer(party, party.Host(), party.Guest());
+    REQUIRE(host.Actors.at(cCopy).PairStops > 0); // resends are still to come
+
+    StartKillMove(party, party.Host(), party.Guest(), "KillMove1HMBackStab");
+    int frames = 0;
+    party.Until([&] { return ++frames > 2 * int(ReplayState::cClashStopUpdates); }, "the resends ran out");
+    CHECK(host.Actors.at(FakeEngine::kPlayer).InPairClip);
+    CHECK(host.Actors.at(FakeEngine::kPlayer).InKillMove);
 }
 
 SCENARIO("A player's melee stagger reaches the victim's owner once", "[friendly-fire][melee-stagger]")

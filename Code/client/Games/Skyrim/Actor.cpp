@@ -1,3 +1,4 @@
+#include <Games/Animation/ReplayState.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -884,6 +885,15 @@ void Actor::EndPairs() noexcept
     StopPairClip();
 }
 
+bool Actor::InPairClip() noexcept
+{
+    // The graph's bIsSynced, on through a pair's clip.
+    BSFixedString name("bIsSynced");
+    bool value = false;
+    EngineVirtual(animationGraphHolder).GetVariableBool(&name, &value);
+    return value;
+}
+
 void Actor::StopPairClip() noexcept
 {
     // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
@@ -1083,6 +1093,9 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 {
     if (apHitter)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+
+    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil, apHitter->IsInKillMove()))
+        return false;
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
 

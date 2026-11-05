@@ -27,13 +27,32 @@ constexpr bool HeldByPair(bool aCopyInKillMove, bool aPaired) noexcept
 }
 
 // After crossed pairs: a clip behind an uninterruptible transition (pa_KillMoveI: 0xd04) ignores pairedStop until its blend
-// ends, so it is sent again for a while; a clip can still land its blow, so the two players' hits are refused meanwhile.
+// ends, so it is sent again while that clip plays; a new kill move is left alone.
 constexpr uint8_t cClashStopUpdates = 30;
 constexpr uint64_t cClashGuardMs = 5000; // past the longest kill clip
 
-constexpr bool ClashRefusesHit(uint32_t aHitter, uint32_t aClashPartner, uint64_t aNow, uint64_t aClashUntil) noexcept
+constexpr bool ResendPairStop(uint8_t aStopsLeft, bool aInKillMove, bool aInClip) noexcept
 {
-    return aHitter && aHitter == aClashPartner && aNow < aClashUntil;
+    return aStopsLeft && !aInKillMove && aInClip;
+}
+
+// A blow from a cancelled clip: its hitter's kill move ended in a clash and it has started no attack since (HitFrame and
+// PairEnd can share a frame, so bIsSynced is no guide). A new kill move's blow is not one.
+constexpr bool CancelledBlow(bool aInClashWindow, bool aInKillMove) noexcept
+{
+    return aInClashWindow && !aInKillMove;
+}
+
+// Graph events that begin a fresh swing (attackStart, attackPowerStartLeft...); a kill move's are pa_.
+constexpr bool StartsAttack(std::string_view acEvent) noexcept
+{
+    return acEvent.starts_with("attack");
+}
+
+// A kill move's victim dies on any ragdoll contact (63092). Only when both halves are this game's.
+constexpr bool ContactKills(bool aPairedWithCopy) noexcept
+{
+    return !aPairedWithCopy;
 }
 
 struct PairedReplay

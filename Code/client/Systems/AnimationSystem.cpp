@@ -54,9 +54,9 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     if (auto* pExtension = apActor->GetExtension(); pExtension->PairStops)
     {
         --pExtension->PairStops;
-        apActor->StopPairClip();
-        if (auto* pPartner = Cast<Actor>(TESForm::GetById(pExtension->ClashPartner)))
-            pPartner->StopPairClip();
+        for (Actor* pHalf : {apActor, Cast<Actor>(TESForm::GetById(pExtension->ClashPartner))})
+            if (pHalf && ReplayState::ResendPairStop(1, pHalf->IsInKillMove(), pHalf->InPairClip()))
+                pHalf->StopPairClip();
     }
 
     // A fresh copy starts in its owner's graph state; the queue waits for it.

@@ -445,6 +445,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t PairVictim = 0;
         uint32_t ClashPartner = 0;
         uint64_t ClashUntil = 0;
+        uint8_t PairStops = 0;
+        bool PairedWithCopy = false;
+        bool InPairClip = false;    // bIsSynced: on through a pair's clip
+        uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -547,6 +551,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<std::pair<std::string, std::string>, std::string> GraphTransitions;
     std::map<uint32_t, uint32_t> RefusedAnimations;
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
+    uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
@@ -554,6 +559,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
     void EndKillMove(uint32_t aFormId);
+    void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
+    void StopPairClip(uint32_t aFormId); // pairedStop: the clip leaves, unless its transition drops it
     bool PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery = false);
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to

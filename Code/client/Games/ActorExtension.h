@@ -26,8 +26,9 @@ struct ActorExtension
     AnimationActionState LatestAnimation;
     AnimationActionState LatestWeapEquipAnimation;
     AnimationActionState LatestPairAction; // its half of the pair it last took
-    uint32_t ClashPartner = 0; // who its crossed kill move was with (ReplayState::ClashRefusesHit)
-    uint64_t ClashUntil = 0;
+    bool PairedWithCopy = false; // its last pair's partner is another game's (ReplayState::ContactKills)
+    uint32_t ClashPartner = 0; // who its crossed kill move was with
+    uint64_t ClashUntil = 0;   // its clip's blow is dropped until then (ReplayState::CancelledBlow)
     uint8_t PairStops = 0;     // a copy: pairedStops left to send after a clash
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;

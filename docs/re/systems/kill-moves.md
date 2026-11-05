@@ -51,7 +51,8 @@ death action
 `::AllAtMark` 32794, `::Activate` 32796, `::Deactivate` 32797 (ends the instance once any half deactivates),
 `::BindGenerators` 32783, `::HasParticipant` 32784; `BSSynchronizedClipGenerator::Update` 63050, `::Activate` 63048,
 `::RemapClipEvents` 63060 (`2_` events to the partner), `::GetClipRootTransform` 63058;
-`BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093;
+`BSRagdollContactListenerModifier::contactPointCallback` 63092, `::Modify` 63091, `::AddListeners` 63093, `::Activate` 63088,
+`::Deactivate` 63089;
 `Character::EndKillMove` 38614. Each has a comment in the database.
 
 ## The clip's own timing
@@ -90,8 +91,12 @@ pair took three things, each measured in Skyrim (`kill-moves-cross`):
   half `PairEnd`, and `PairedStop` only if that went unanswered. The victim's state leaves on `PairEnd`; the attacker's
   `KillMoveState` only on `pairedStop`, so that is sent too.
 - Entry transitions to `pa_KillMoveI` and `pa_KillMoveD` carry flags 0xd04: `FLAG_UNINTERRUPTIBLE_WHILE_PLAYING`. A
-  `pairedStop` during that blend is dropped, so it is sent again for 30 updates (`cClashStopUpdates`), and a clip can still
-  land its blow first (`ShortD` at 0.34 s), so each game refuses hits between the two for 5 s (`ClashRefusesHit`).
+  `pairedStop` during that blend is dropped, so it is sent again for up to 30 updates (`cClashStopUpdates`), only while
+  that clip plays (`ResendPairStop`): a new kill move is left alone.
+- A clip can still land its blow first (`ShortD` at 0.34 s). The attacker's game drops that blow at the source
+  (`CancelledBlow`, `HookDamageActor`) until its player starts a new attack (`StartsAttack`): `HitFrame` and `PairEnd` can
+  share a frame, so `bIsSynced` is already clear when the damage comes. There is no engine event for a blend ending, hence
+  the bounded resend.
 
 `ActorExtension::LatestPairAction` keeps the pair: `LatestAnimation` is overwritten by the next `moveStop`.
 
@@ -103,21 +108,20 @@ played. An early counter read 0 here only because those rounds never used this l
 
 ## Early deaths: the victim touched a wall
 
-A victim dying 0.4 to 1.4 s into a 2.4 s backstab is not its clip. `1hm_behavior.hkx` has a
-`BSRagdollContactListenerModifier`, `VictimState_RagdollListener`: event `KillActor` (0x4A) on ragdoll bones 0, 3, 6, 9.
-`AddRagdollToWorld` at the pair's start puts the victim's ragdoll in the world, and the listener's contact callback (63092)
-fires on any penetrating contact (distance below 0) with a body it does not watch. So a victim pushed into a wall dies on
-the spot, crediting its partner (`KillActorHandler` 42838).
+A victim dying 0.4 to 1.4 s into a 2.4 s backstab is not its clip. Only two things send `KillActor`: the paired clips'
+`2_KillActor` triggers and one node, `VictimState_RagdollListener` in `1hm_behavior.hkx` (a
+`BSRagdollContactListenerModifier`: event 0x4A, ragdoll bones 0, 3, 6, 9). While the victim state is active its keyframed
+ragdoll reports contacts (collidable quality 9), and 63092 fires on any penetrating contact with a body it does not watch.
+The victim dies on the spot, crediting its partner (`KillActorHandler` 42838).
 
-Measured with a contact hook: the guest's player touched static `402152B` (a wall, layer 1) 15 ms before its `KillActor`
-at 0.71 s. The host's copy touched the same wall 0.14 s later; its `KillActor` does not kill a copy (deferred kill).
-The clips readout showed the victim's clip at its normal time (0.26 s into 3.17 s): nothing skipped it.
+Measured with a contact hook: the guest's player touched static `402152B` 15 ms before its `KillActor` at 0.71 s, with
+the clip at its normal time. A later death at 0.36 s had the same signature: `KillActor` alone, no `PairEnd`, the clip near
+0.24 s against its trigger at 2.26 s, the victim beside that wall. Rare: 1 in 40 or so rounds on this stage.
 
-This is the engine's own rule. In co-op it shows more because the attacker's game judges the room at the mark from a
-moving victim's position on its game, then the clip carries the victim on the victim's game, from its own position. A real
-NPC standing at the same wall never got a kill move (10 of 10 normal swings): with a still victim the room check refuses
-the pair first. Not changed: making the victim's game refuse its half would leave the attacker's kill move playing alone,
-which is worse. A fix would be the victim's game moving the pair off the wall, not built.
+Vanilla checks room for the supporting actor only. Across games the attacker's game judges the pair on its positions, and
+the clip then carries the victim from wherever its own game has it. So with a copy in the pair the contact kill is held
+back (`ContactKills`, `HookContactPoint`) and the clip's own `KillActor` kills it. Pairs of two actors of one game stay vanilla.
+A real NPC standing at that wall got no kill move at all (10 of 10 normal swings): the room check refused the pair first.
 
 ## Attacker's own refusals
 

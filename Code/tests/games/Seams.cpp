@@ -213,6 +213,14 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
+        if (actor.PairStops)
+        {
+            --actor.PairStops;
+            for (const uint32_t cHalf : {form.Id, actor.ClashPartner})
+                if (engine.Actors.contains(cHalf) &&
+                    ::ReplayState::ResendPairStop(1, engine.Actors.at(cHalf).InKillMove, engine.Actors.at(cHalf).InPairClip))
+                    engine.StopPairClip(cHalf);
+        }
         auto& step = actor.Replay;
         using Step = AnimationReplayStep;
         const uint8_t cPhase = step.Phase.load();
@@ -299,10 +307,13 @@ void World::Update() noexcept
                                                                 cPartner->second.LatestPairAction.TargetId},
                                                                [&](bool aCopy) {
                                                                    const uint32_t cId = aCopy ? form.Id : replayed.TargetId;
+                                                                   engine.StopPairClip(cId);
                                                                    engine.EndKillMove(cId);
                                                                    auto& half = engine.Actors.at(cId);
                                                                    half.ClashPartner = aCopy ? replayed.TargetId : form.Id;
                                                                    half.ClashUntil = GetTick() + ::ReplayState::cClashGuardMs;
+                                                                   if (aCopy)
+                                                                       half.PairStops = ::ReplayState::cClashStopUpdates;
                                                                }))
         {
             animation.LastRanAction = replayed;

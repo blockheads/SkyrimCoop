@@ -581,6 +581,24 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
     return ::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()) || ReplayAnimation(aFormId, acAction);
 }
 
+void FakeEngine::StopPairClip(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    if (actor.StopsDropped)
+    {
+        --actor.StopsDropped;
+        return;
+    }
+    actor.InPairClip = false;
+    actor.PairBlowIn = 0;
+}
+
+void FakeEngine::RagdollContact(uint32_t aFormId)
+{
+    if (const auto& cActor = Actors.at(aFormId); cActor.InKillMove && ::ReplayState::ContactKills(cActor.PairedWithCopy))
+        KillActor(aFormId);
+}
+
 void FakeEngine::EndKillMove(uint32_t aFormId)
 {
     auto& actor = Actors.at(aFormId);
@@ -606,6 +624,10 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             actor.PairBlowIn = PairBlowFrames;
             actor.PairVictim = acAction.TargetId;
         }
+        actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
+        actor.PairedWithCopy = cPartner->second.Copy;
+        cPartner->second.PairedWithCopy = actor.Copy;
+        actor.StopsDropped = cPartner->second.StopsDropped = PairStopsDropped;
     }
     else if (actor.Copy && actor.InKillMove)
         ++BrokenPairs;
@@ -674,6 +696,8 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     });
     if (cOutcome.Capture && cOutcome.Result)
     {
+        if (::ReplayState::StartsAttack(aAction.EventName))
+            Actors.at(aFormId).ClashUntil = 0;
         if (aAction.TargetEventName.empty())
             aAction.GraphState = SaveActorGraphState(aFormId);
         Actors.at(aFormId).LatestAnimation = aAction;
@@ -777,8 +801,7 @@ void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
 bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
 {
     const auto it = Actors.find(aFormId);
-    if (it == Actors.end() ||
-        ::ReplayState::ClashRefusesHit(aAttackerFormId, it->second.ClashPartner, World::Get().GetTick(), it->second.ClashUntil))
+    if (it == Actors.end())
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
@@ -1645,6 +1668,10 @@ void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, 
 
 void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
 {
+    // HookDamageActor's check.
+    if (const auto& cHitter = Actors.at(aHitter);
+        ::ReplayState::CancelledBlow(World::Get().GetTick() < cHitter.ClashUntil, cHitter.InKillMove))
+        return;
     if (!Actors.contains(aHittee))
         return;
     World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));

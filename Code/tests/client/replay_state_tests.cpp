@@ -38,10 +38,31 @@ TEST_CASE("A copy in a pair takes no plain action of its owner", "[copies][repla
     CHECK_FALSE(ReplayState::HeldByPair(false, false));
 }
 
-TEST_CASE("After a clash only the partner's hits are refused, and only for a while", "[copies][replay-state][kill-move]")
+TEST_CASE("A cancelled clip's blow is dropped; a new kill move's is not", "[copies][replay-state][kill-move]")
 {
-    CHECK(ReplayState::ClashRefusesHit(7, 7, 100, 200));
-    CHECK_FALSE(ReplayState::ClashRefusesHit(8, 7, 100, 200));
-    CHECK_FALSE(ReplayState::ClashRefusesHit(7, 7, 200, 200));
-    CHECK_FALSE(ReplayState::ClashRefusesHit(0, 0, 100, 200));
+    CHECK(ReplayState::CancelledBlow(true, false));
+    CHECK_FALSE(ReplayState::CancelledBlow(true, true));
+    CHECK_FALSE(ReplayState::CancelledBlow(false, false));
+}
+
+TEST_CASE("A swing's own graph events end a clash's hold on its blows, a kill move's do not", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::StartsAttack("attackStart"));
+    CHECK(ReplayState::StartsAttack("attackPowerStartLeft"));
+    CHECK_FALSE(ReplayState::StartsAttack("pa_KillMoveI"));
+    CHECK_FALSE(ReplayState::StartsAttack("moveStop"));
+}
+
+TEST_CASE("pairedStop is sent again only while the cancelled clip plays", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::ResendPairStop(1, false, true));
+    CHECK_FALSE(ReplayState::ResendPairStop(0, false, true));
+    CHECK_FALSE(ReplayState::ResendPairStop(1, true, true)); // a new kill move
+    CHECK_FALSE(ReplayState::ResendPairStop(1, false, false));
+}
+
+TEST_CASE("Contact kills a kill move's victim only when both halves are this game's", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::ContactKills(false));
+    CHECK_FALSE(ReplayState::ContactKills(true));
 }
