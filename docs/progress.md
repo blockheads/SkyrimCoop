@@ -1378,6 +1378,8 @@ reconstruction and the additional plugin event relay. Barter Speech is implement
 Mod-dependent Experience work is outside v1.0.0. Evidence:
 [native-bugs.md](design/native-bugs.md); accepted reports: [bugs.md](bugs.md).
 
+- **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
+  scenario that drags an object while both games trace it would catch a recurrence.
 - **`npc-clips-match` times out before comparing clips (2026-11-04).** 2 of the final 3 runs failed: the host's dialogue
   menu never opened on Lucan, or his conversation never ended (`close_dialogues`). Both with Lucan on package `1E603`;
   passing runs had `1CB0B` or `AB87B`. Cause not found. A test-setup fault, not an animation mismatch (no clips
