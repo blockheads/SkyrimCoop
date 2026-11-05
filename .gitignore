@@ -16,6 +16,7 @@ Build/*.log
 Build/*.torrent
 .claude/*
 !.claude/settings.json
+!.claude/skills/
 nul
 
 Build/.deps
