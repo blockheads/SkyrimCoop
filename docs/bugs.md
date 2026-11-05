@@ -91,8 +91,8 @@ other section needs the duo.
 
 **Crime and aggro**
 
-- [A guest's thefts](#a-guests-thefts): small, waits
-- [A guest's aggro](#a-guests-aggro): medium, waits
+- [The older crime scenarios](#the-older-crime-scenarios): medium
+- [A guest's theft of a created item](#a-guests-theft-of-a-created-item): small
 
 **Combat**
 
@@ -737,57 +737,38 @@ Size: small. Needs: duo with mods.
 
 ## Crime and aggro
 
-### A guest's thefts
+### The older crime scenarios
 
-Fixed by PR #17 if it merges: it reads the bounty at 1.7.104's offset.
+The guard arrests have no passing run on 1.7.104, so nothing shows the arrest working.
 
-Agent task: Take this section only if PR #17 closes without it.
+Agent task: Find why these stop at their theft, then check the arrest with a guest's crime.
 
-Size: small. Needs: duo, then GameTests. Waits for: PR #17 (`theft-bounty-aggro`), which replaces this entry with
-`crime.md` and files two smaller ones.
+Size: medium. Needs: duo.
 
-- **A guest's thefts earn no bounty** (2026-11-04). The user took items (a book among them) in Whiterun with an NPC
-  watching; neither game showed a bounty.
-  - Evidence: the thefts reach the host and are judged. The host log has 16 `Party crime: actor FF00085D, action 0
-    (Theft)` lines (05:34-06:13), among them the book `1060AD` at 06:07.191, 48 ms after the Book Menu's `Accept` in the
-    guest's input log. That line comes after `CrimeBridge::Judge`'s cell and `owns` (20210) checks, so the request was
-    valid, the target was in the actor's cell, and the host's native `RealSteal` (37422) then ran. `1060AD` is not
-    deleted afterwards (the host's physics still rests it at 06:21). No `NotifyCrimeState` was ever sent before the
-    wipe (`messages.txt`: one, at 11:38), so the party's bounty never changed. So the "request lost" suspects of the
-    first triage (a deleted target, no session id) are out; the failure is inside the host's native alarm.
-  - Suspects, in order: (1) the permission check uses the host's real player: `owns(target, player, true, false)`
-    answers for the host's character, not for the guest's, so an item the host's character may take (its house, a
-    faction it belongs to, a start choice from "Alternate Start") is no theft; the guest's own game reached
-    `StealAlarm` because for its character the item is owned. (2) `RealSteal` runs with `aTotal` 0 and the native
-    item path wants no value, but a witness is needed: the shopkeeper must detect the guest's host-side copy
-    (`HookProcessKnowledge`/39515 redirect only inside `ScopedCriminal`); `guest-theft` proves it for a chest and a
-    spawned witness, not for a townsperson across a room. (3) The alarm's owner argument (`target->GetOwner()`) is null
-    for a ref whose owner is the cell or a faction, so `StealAlarm` has nobody to wrong.
-  - Start: log, at each `Party crime`, `owns(...)` for the host's player and for the copy, `target->GetOwner()`, and the
-    detection level of the nearest NPC against the copy (the `crime` harness action `detection` does it). In IDA, read
-    `StealAlarm` 37422 and its caller `PlayerCharacter::PickUpObject` 37521 for what makes a pickup a crime
-    (owner, value, witnesses), and record it in `docs/re/systems/` (no `crime.md` yet).
-  - Test: a `guest_loose_theft` scenario (an owned loose item, a watching NPC, the guest takes it; the party's bounty
-    must rise), then a `CrimeFlows` case where the host's character has permission the guest's lacks.
+- **The guard and control scenarios stop before their point** (2026-11-05). `guest-guard-arrest-fine`, `-resist`, `-jail`
+  and `host-guard-arrest-jail` time out on "the witnessed theft charges the party"; `guest-theft-host-witnesses`,
+  `guest-assault-party-alarm` on "the host is unseen in the guest theft control"; `guest-pickpocket-party-alarm`
+  passes or fails either way. `guest-crime-flags` passes.
+  - Same messages on `fdabf1d9`, before the reaction hooks, for the four run there (fine, host jail, host-witnesses,
+    pickpocket): not caused by them. `-resist`, `-jail` and `guest-assault` were not run on it.
+  - Suspects: the two theft warnings (`crime.md`): `crime theft` passes no warning, but the menu path does; a held guest
+    theft now judges 0.5 s later against the same 10 s wait.
+  - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
+    the code, not run.
 
-### A guest's aggro
+### A guest's theft of a created item
 
-Who an NPC attacks when a guest provokes it without damage.
+A placed item has no session id for the request to carry.
 
-Agent task: Find why witnesses of a guest's crime attack the host and decide with the user who is a fair target.
+Agent task: Give a created reference a session mapping in the crime request.
 
-Size: medium. Needs: duo, then GameTests; ask the user the decision. Waits for: PR #17, which adds what it learned.
+Size: small. Needs: GameTests, then duo.
 
-- **The guest's aggro goes to the host** (2026-11-04, user: "after a while I aggro'd the NPCs, which attacked the
-  host at once"). Not found in the logs: the host log has no aggro line (the readouts that would show it, the
-  `combat_targets` list, are test-build only), and the bug report was filed after the fights.
-  - Code: `HostAggro` / `party-aggro.md` choose between players only after a party player damages the NPC, and only
-    while the native selector already picks a party player. An NPC the guest aggroed any other way (seen, a theft,
-    a shout, sneak broken) keeps Skyrim's own pick, which the design doc measured to be the visible host.
-  - Start: ask the user how the guest aggroed them (QUESTION 1); reproduce with `fight` from the guest with the host
-    nearer and no damage first.
-  - Test: GameTests: the guest starts combat with no damage, the host nearer; assert the NPC's target (the fake
-    selector must prefer the real player, as measured).
+- **A guest's theft of a created item is never judged** (2026-11-04). `CrimeBridge::Target` puts the stolen reference on
+  the wire with `ToSession`, which has no id for a created form (`FF...`), so the host finds no target and `Judge`
+  returns before its log line. Seen with a placed dagger owned by Hulda: picked up by the guest, no `Party crime` line.
+  Plugin references are judged.
+  - Test: a `CrimeFlows` case with a created owned item; the fix needs the created reference's session mapping.
 
 ## Combat
 

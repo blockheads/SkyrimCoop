@@ -1,0 +1,34 @@
+time	op	id	rva	item
+2026-11-05T19:39:20Z	read	37554	0x68fb70	{"name": "Actor__StartAlarm"}
+2026-11-05T19:42:25Z	read	37679	0x69d730	{"name": "Character__ReportCrimeAddBounty"}
+2026-11-05T19:44:18Z	name	39631	0x703ca0	{"addr": "0x140703CA0", "name": "AIProcess__ProcessPendingCrime"}
+2026-11-05T19:44:18Z	name	39557	0x701320	{"addr": "0x140701320", "name": "AIProcess__SetPendingCrime"}
+2026-11-05T19:44:18Z	name	40076	0x72d690	{"addr": "0x14072D690", "name": "AIProcess__ConfrontAlarmTarget"}
+2026-11-05T19:44:18Z	name	39632	0x7042a0	{"addr": "0x1407042A0", "name": "AIProcess__UpdateGreetAndPlayerDetection"}
+2026-11-05T19:44:18Z	name	40079	0x72eb90	{"addr": "0x14072EB90", "name": "AIProcess__StartAssault"}
+2026-11-05T19:44:18Z	name	37463	0x6864b0	{"addr": "0x1406864b0", "name": "Actor__SetAngryWithPlayer"}
+2026-11-05T19:44:18Z	name	37429	0x684450	{"addr": "0x140684450", "name": "Actor__CrimeFactionIsHostileNow"}
+2026-11-05T19:44:18Z	name	24526	0x3b5590	{"addr": "0x1403B5590", "name": "TESFaction__PlayerEnemyIsActive"}
+2026-11-05T19:44:18Z	name	37720	0x6a0320	{"addr": "0x1406A0320", "name": "Actor__SetCrimeSearch"}
+2026-11-05T19:44:18Z	name	37533	0x68c110	{"addr": "0x14068c110", "name": "Actor__ShouldAttackAtOwnAggression"}
+2026-11-05T19:44:18Z	name	37534	0x68c170	{"addr": "0x14068c170", "name": "Actor__ShouldAttack"}
+2026-11-05T19:44:18Z	name	37667	0x69cad0	{"addr": "0x14069cad0", "name": "Actor__ComputeReaction"}
+2026-11-05T19:44:18Z	name	37303	0x676930	{"addr": "0x140676930", "name": "Actor__IgnoresCrime"}
+2026-11-05T19:44:59Z	comment	39631	0x703ca0	{"addr": "0x140703CA0", "comment": "A witness's deferred look at a crime, from UpdateHighProcessAI, out of StealAlarm's call. Takes process +0x440: if it detects the crime's criminal (+0x0C, 37764 priority 3) and doesn't ignore the crime, it assaults the criminal when ShouldAttack says so (SetAngryWithPlayer first), else raises an alarm. Writes no bounty (crime.md)."}
+2026-11-05T19:44:59Z	comment	39557	0x701320	{"addr": "0x140701320", "comment": "Process +0x440 = crime. StealAlarm gives every gathered witness the crime, seen or not; ProcessPendingCrime reads it on the witness's next update."}
+2026-11-05T19:44:59Z	comment	40076	0x72d690	{"addr": "0x14072D690", "comment": "Alarm package at its target (process +0x114). Target is the real player: no bounty in the witness's faction ends it; hostile faction assaults the player; else a force greet (arrest). Target is anyone else: the faction is made a player enemy and the target assaulted, whatever the crime (crime.md)."}
+2026-11-05T19:44:59Z	comment	39632	0x7042a0	{"addr": "0x1407042A0", "comment": "Greeting pass, every UpdateHighProcessAI: RequestDetectionLevel(npc, g_thePlayer, 3) at any distance. This is what keeps every high NPC's detection of the real player fresh; nothing does it for another actor (crime.md)."}
+2026-11-05T19:44:59Z	comment	40079	0x72eb90	{"addr": "0x14072EB90", "comment": "Assault: a combat package and Actor::StartCombat(attacker, target). 39359 is its gate."}
+2026-11-05T19:44:59Z	comment	37463	0x6864b0	{"addr": "0x1406864b0", "comment": "kAngryWithPlayer, +0x204 bit 0x800. Stays on the NPC and in saves; ShouldAttack answers yes for the real player while it is set (crime.md). StopCombat clears it."}
+2026-11-05T19:44:59Z	comment	37429	0x684450	{"addr": "0x140684450", "comment": "The actor's crime faction (or NPC base +0x230) has an active player-enemy state (24526)."}
+2026-11-05T19:44:59Z	comment	24526	0x3b5590	{"addr": "0x1403B5590", "comment": "Player-enemy flag (+0x58 bit 3) still within iCrimeEnemyCoolDownTimer; clears it when expired. Also true when 38553 says so (not read past its wrapper)."}
+2026-11-05T19:44:59Z	comment	37303	0x676930	{"addr": "0x140676930", "comment": "True when the witness's factions ignore this crime type (kIgnoresCrimes_*) or the owner rules excuse it. ProcessPendingCrime acts only when false."}
+2026-11-05T19:44:59Z	comment	37534	0x68c170	{"addr": "0x14068c170", "comment": "ShouldAttack(actor, target, aggression, mode). For the real player: yes when actor has kAngryWithPlayer, or a guard with a hostile faction; else by aggression and reaction (37667). CrimeBridge adapts it for copies."}
+2026-11-05T19:44:59Z	comment	37667	0x69cad0	{"addr": "0x14069cad0", "comment": "Reaction of actor to target (1 enemy, 2 ally, 3 friend). The real player reads the crime faction's player-enemy flag first (24504)."}
+2026-11-05T19:44:59Z	comment	37474	0x687080	{"addr": "0x140687080", "comment": "Ending a type 34 steal warning reports the warned theft (37679) unless given back. The only bounty a theft gets later than StealAlarm's own call (crime.md)."}
+2026-11-05T19:53:48Z	read	37556	0x690780	{"name": "Actor__StartStealWarning"}
+2026-11-05T19:59:40Z	name	39651	0x711780	{"addr": "0x140711780", "name": "AIProcess__UpdateAlarmPackage"}
+2026-11-05T19:59:40Z	name	39765	0x71e230	{"addr": "0x14071E230", "name": "StandardDetectionListener__ReactToDetection"}
+2026-11-05T20:00:02Z	comment	39651	0x711780	{"addr": "0x140711780", "comment": "Running alarm (type 21), non-guards: walks the package's crimes (+0xE0, next +0xE8). Assaults the package's target when ShouldAttack says so, or for the crime's owner when the thief stole today (+0xE8 bit 0x8000), then SetAngryWithPlayer first. Seen on the duo 16 ms after a guest's theft, aimed at the host (crime.md)."}
+2026-11-05T20:04:29Z	read		0x782880	{"name": "sub_140782870"}
+2026-11-05T20:05:00Z	read	37758	0x6a2300	{"name": "Character::sub_37758"}

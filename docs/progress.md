@@ -77,6 +77,19 @@ added note rows with a bad ID or RVA and IDA auto names in the notes and systems
 the main checkout's `build/re/SkyrimSE_1.7.104.i64` (it had been a party-markers copy). Units in
 `scripts/test_ida_hook.py`, `scripts/test_check_re.py`.
 
+2026-11-05: a guest's crime flags the whole party, and the NPC goes for the nearest player ([crime.md](re/systems/crime.md),
+the user's rule in `party-model.md`). `HostAggro` counts a crime-hostile NPC's fight as a party fight, so `PartyThreat`
+picks by distance; a copy had no greeting pass keeping detection fresh, so `CrimeService` holds a guest's theft 0.5 s,
+asking. Also found: the party's first two seen thefts only warn (`TheftWarnings`). Scenario `guest-theft-aggro`
+(replaces `guest-theft-witnessed`, which passed on a stale sighting); flows in `crime_flows.cpp` and
+`party_aggro_flows.cpp`. The older crime scenarios' failures are in `bugs.md`.
+
+2026-11-04: the party's bounty works on 1.7.104 ([crime.md](re/systems/crime.md)). `CrimeEngine::Player` kept 1.6.1170's
+offsets, so the bridge read the bounty map 8 bytes off: the engine wrote bounty, nobody saw it, no `NotifyCrimeState`
+went out. That was the 2026-11-04 playtest's missing bounty. MCP: `own`, `witness`, `witness_faces`, `wait_seen`,
+`party_bounty`, `bounty_total`, `expect_bounty`, `expect_target`, `report_crimes`; harness `crime knowledge`, `crime owns`, `reporting`.
+Scenario `guest-theft-witnessed`.
+
 2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real
 bug"). The kill-move redo through it found crossed kill moves still kill a player a second later (`bugs.md`, Combat;
 for PR #13). `checkpoint`/`retry` roll the party back to a host save in 3.9 s instead of a new duo (the harness's

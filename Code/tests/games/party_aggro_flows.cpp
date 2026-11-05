@@ -1,3 +1,4 @@
+#include "FakeCrime.h"
 #include "Fixtures.h"
 #include "Party.h"
 #include <Events/AiStateChangeEvent.h>
@@ -58,6 +59,49 @@ SCENARIO("A guest can draw aggro from the host with greater damage", "[party-agg
 SCENARIO("The host can draw aggro from a guest with greater damage", "[party-aggro][combat]")
 {
     DamageSwitches(true);
+}
+
+SCENARIO("An NPC hostile for a party crime goes for the nearest player, not the one who did it", "[party-aggro][crime]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    uint32_t witness = 0;
+    party.As(party.Host(), [&] { witness = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Until([&] { return PlayerCopy(host); }, "the host has the guest's copy");
+    const uint32_t cGuest = PlayerCopy(host);
+    party.As(party.Host(), [&] {
+        // Skyrim names the host's player in a guest's crime, so its fight starts on the host (crime.md).
+        host.CombatProposals[witness] = FakeEngine::kPlayer;
+        host.CombatCandidates[witness] = {{FakeEngine::kPlayer, 2000.f, true}, {cGuest, 150.f, true}};
+        // Skyrim: the guest it sees is known at detection 100 with stealth points left (2026-11-05).
+        host.CombatPerception[PartyThreat::State::Key(witness, cGuest)] = {.Known = true, .Detection = 100, .Stealth = 40};
+        host.Actors.at(witness).Ai.CombatState = 1;
+        host.Actors.at(witness).Ai.CombatTargetId = FakeEngine::kPlayer;
+        party.Host().ctx().at<FakeCrime&>().CriminalTo.insert(witness);
+        party.Host().GetRunner().Trigger(AiStateChangeEvent{witness});
+    });
+    party.Until([&] { return host.Actors.at(witness).Ai.CombatTargetId == cGuest; },
+                "the witness turns from the far host to the guest beside it");
+}
+
+SCENARIO("An NPC fighting the host for other reasons keeps Skyrim's pick", "[party-aggro][crime]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    uint32_t enemy = 0;
+    party.As(party.Host(), [&] { enemy = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Until([&] { return PlayerCopy(host); }, "the host has the guest's copy");
+    const uint32_t cGuest = PlayerCopy(host);
+    party.As(party.Host(), [&] {
+        host.CombatProposals[enemy] = FakeEngine::kPlayer;
+        host.CombatCandidates[enemy] = {{FakeEngine::kPlayer, 2000.f, true}, {cGuest, 150.f, true}};
+        host.CombatPerception[PartyThreat::State::Key(enemy, cGuest)] = {.Known = true, .Detection = 100, .Stealth = 40};
+        host.Actors.at(enemy).Ai.CombatState = 1;
+        host.Actors.at(enemy).Ai.CombatTargetId = FakeEngine::kPlayer;
+    });
+    for (int i = 0; i < 300; ++i)
+        party.Frame();
+    CHECK(host.Actors.at(enemy).Ai.CombatTargetId == FakeEngine::kPlayer);
 }
 
 SCENARIO("Party threat retires actors and players and stops with the host", "[party-aggro][combat]")

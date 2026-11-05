@@ -29,7 +29,36 @@ CrimeService::~CrimeService() noexcept
 
 bool CrimeService::Judge(uint32_t aActorSessionId, const CrimeRequest& aRequest) noexcept
 {
-    return m_bridge.Judge(Utils::GetFormIdBySessionId(aActorSessionId), aRequest);
+    const bool cTheft = aRequest.Action == CrimeAction::Theft || aRequest.Action == CrimeAction::ContainerTheft;
+    // The lock menu needs its answer now; anything else keeps its place behind a held theft.
+    if (aRequest.Action == CrimeAction::Lockpick || (!cTheft && m_held.empty()))
+        return m_bridge.Judge(Utils::GetFormIdBySessionId(aActorSessionId), aRequest);
+    m_held.push_back({aActorSessionId, aRequest, 0.0, 0});
+    if (cTheft)
+        m_bridge.AskWitnesses(Utils::GetFormIdBySessionId(aActorSessionId));
+    return false;
+}
+
+void CrimeService::JudgeHeld(double aDelta) noexcept
+{
+    // Asked each frame a witness's state stayed under 0.3 s old (crime.md), so all have answered by then.
+    constexpr double cWitnessWait = 0.5;
+    while (!m_held.empty())
+    {
+        auto& held = m_held.front();
+        const auto cActor = Utils::GetFormIdBySessionId(held.ActorSessionId);
+        const bool cTheft = held.Request.Action == CrimeAction::Theft || held.Request.Action == CrimeAction::ContainerTheft;
+        if (cActor && cTheft && (held.Asks < 2 || held.Waited < cWitnessWait))
+        {
+            m_bridge.AskWitnesses(cActor);
+            ++held.Asks;
+            held.Waited += aDelta;
+            return;
+        }
+        if (cActor) // a guest gone meanwhile has no copy to judge
+            m_bridge.Judge(cActor, held.Request);
+        m_held.erase(m_held.begin());
+    }
 }
 
 void CrimeService::OnLockCrime(const NotifyLockCrime& aState) noexcept
@@ -59,7 +88,7 @@ void CrimeService::OnConfiscation(const NotifyCrimeConfiscation& aDue) noexcept
     }
 }
 
-void CrimeService::OnUpdate(const UpdateEvent&) noexcept
+void CrimeService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     PROFILE_ZONE("CrimeService::OnUpdate");
     const auto role = !m_transport.IsOnline()            ? ICrimeBridge::Role::Offline
@@ -72,6 +101,7 @@ void CrimeService::OnUpdate(const UpdateEvent&) noexcept
         for (auto entity : m_world.view<RemoteComponent, PlayerComponent, FormIdComponent>())
             copies.push_back(m_world.get<FormIdComponent>(entity).Id);
         m_bridge.UpdatePlayers(copies);
+        JudgeHeld(acEvent.Delta);
     }
     for (auto& request : m_bridge.TakeActions())
     {
@@ -99,6 +129,7 @@ void CrimeService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_lastConfiscation = 0;
     m_hasState = false;
     m_gold.clear();
+    m_held.clear();
 }
 
 void CrimeService::OnLoaded(const GameLoadedEvent&) noexcept
@@ -106,4 +137,5 @@ void CrimeService::OnLoaded(const GameLoadedEvent&) noexcept
     // The join's fresh snapshot will follow the loaded host save.
     m_hasState = false;
     m_gold.clear();
+    m_held.clear();
 }

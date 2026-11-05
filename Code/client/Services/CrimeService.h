@@ -20,9 +20,22 @@ struct CrimeService
         return m_bridge.ReadGold();
     }
     bool Judge(uint32_t aActorSessionId, const CrimeRequest&) noexcept;
+    bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept
+    {
+        return m_bridge.PartyIsCriminalTo(aActorFormId);
+    }
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept;
 
   private:
+    // A guest's crime action, held behind a theft while every witness looks at the guest's copy (crime.md).
+    struct HeldCrime
+    {
+        uint32_t ActorSessionId;
+        CrimeRequest Request;
+        double Waited;
+        uint32_t Asks;
+    };
+    void JudgeHeld(double aDelta) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnState(const NotifyCrimeState&) noexcept;
     void OnLockCrime(const NotifyLockCrime&) noexcept;
@@ -36,5 +49,6 @@ struct CrimeService
     uint32_t m_lastConfiscation{};
     bool m_hasState{};
     std::vector<CrimeGold> m_gold;
+    std::vector<HeldCrime> m_held;
     std::vector<entt::scoped_connection> m_connections;
 };
