@@ -65,3 +65,18 @@ time	op	id	rva	item
 2026-11-05T22:12:45Z	comment	90724	0x11ce850	{"addr": "0x1411ce850", "comment": "IMovementQueryPathFollowing slot 9 (90724): predicted place along the follower's path, only in states 1-8 or 13 with a path. State 12 (KeepLastDirection range 8-12) gives no answer: an NPC walking reads 12 here (measured)."}
 2026-11-05T22:12:45Z	comment	90739	0x11cfab0	{"addr": "0x1411cfab0", "comment": "MovementAgentPathFollowerStandard load (90739): reads +0x118 state and picks the state object: 2,6 PlayIdle; 3,7 TurnToAngle; 4,13 FollowPathToParameter; 8-12 KeepLastDirection."}
 2026-11-05T22:12:45Z	comment	47094	0x85ed10	{"addr": "0x14085ed10", "comment": "CombatPathT<FindTargetLocation> dtor: CombatPath__StopMovingOwner on its owner (handle at +0x10) if still running. Seen on a copy: the copy's own combat tree started that path."}
+2026-11-05T23:16:22Z	read	37774	0x6a33b0	{"name": "Actor::CalculateDetection"}
+2026-11-05T23:16:41Z	read	39509	0x6ff470	{"name": "ActorProcess::GetLightLevel"}
+2026-11-05T23:17:24Z	read	39510	0x6ff490	{"name": "sub_1406FF490"}
+2026-11-05T23:17:28Z	read	39946	0x726250	{"name": "sub_140726250"}
+2026-11-05T23:17:30Z	name	39510	0x6ff490	{"addr": "0x1406ff490", "name": "ActorProcess__SetLightLevel"}
+2026-11-05T23:17:30Z	name	47899	0x882fb0	{"addr": "0x140882fb0", "name": "CombatBehaviorPath__Update"}
+2026-11-05T23:17:30Z	name	41407	0x786250	{"addr": "0x140786250", "name": "ProcessLists__StartCombatForCrimeFaction"}
+2026-11-05T23:17:33Z	read	41381	0x784240	{"name": "sub_140784240"}
+2026-11-05T23:17:45Z	read	37768	0x6a2830	{"name": "Character::sub_37768"}
+2026-11-05T23:18:45Z	read	37775	0x6a4030	{"name": "Actor::GetLightLevel"}
+2026-11-05T23:24:06Z	comment	39510	0x6ff490	{"addr": "0x1406ff490", "comment": "Sets MiddleHighProcess+0x3A8, the light level detection reads (ActorProcess::GetLightLevel 39509). Only caller 0x140726250 (ProcessActorAnimSG's per-actor update): copies get it too (measured 31 vs the host player's 33)."}
+2026-11-05T23:24:06Z	comment	39946	0x726250	{"addr": "0x140726250", "comment": "Per-actor light level: the shader manager's light at the actor's look point, every timer tick or when +0x328 is dirty; writes ActorProcess__SetLightLevel. Called from 0x140784240 (ProcessActorAnimSG), not UpdateAI."}
+2026-11-05T23:24:06Z	comment	37774	0x6a33b0	{"addr": "0x1406a33b0", "comment": "Actor::CalculateDetection 37774: detector a1, target a2: target's light (39509), LOS 37768, its movement, sneaking, equipped weight, then 0x14041CD90. A copy is judged as a real player is (combat-targets.md, measured 2026-11-05)."}
+2026-11-05T23:24:06Z	comment	47899	0x882fb0	{"addr": "0x140882fb0", "comment": "A combat path behaviour's update: stops the owner's movement (CombatPath__StopMovingOwner) when 0x140882730 says so; fails the thread on path state 5."}
+2026-11-05T23:24:06Z	comment	41407	0x786250	{"addr": "0x140786250", "comment": "Starts combat on the player for each actor of a crime faction that detects it: not on the copy path."}

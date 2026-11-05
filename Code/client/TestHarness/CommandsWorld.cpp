@@ -74,7 +74,7 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
     for (const auto& cCandidate : cRead->Candidates)
         candidates.push_back({{"actor", cCandidate.FormId}, {"detection", cCandidate.Detection},
                               {"attackers", cCandidate.Attackers}, {"flags", cCandidate.Flags}, {"stealth", cCandidate.Stealth},
-                              {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}});
+                              {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}, {"light", cCandidate.Light}, {"raw_light", cCandidate.RawLight}, {"request_detection", cCandidate.RequestedDetection}});
     return {{"ok", true}, {"controller_target", cRead->ControllerTarget}, {"actor_target", cRead->ActorTarget},
             {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates},
             {"behavior", cRead->Behavior}, {"fleeing", cRead->Fleeing}, {"detected", cRead->Detected}, {"target_lost", cRead->TargetLost},

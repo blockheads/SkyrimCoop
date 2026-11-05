@@ -96,7 +96,7 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, a spot's stall left
+- [After the host dies](#after-the-host-dies): small, a vanilla comparison left
 - [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -798,15 +798,18 @@ The NPCs' target.
 Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away. **Cause not proved** (`docs/re/systems/combat-targets.md`, "The
-  half-stop").
-  - Out, measured: the NPC's target stays on the dead host (it moves to the copy); a copy cannot be chased (closes in 5 of 5
-    on open floor). Fixed: an attack gave the copy a combat tree of its own, all through the playtest's wait
-    (`HookStartCombat`, scenario `host-dies-guest-still-fought`, flow "After the host dies...").
-  - The picture reproduced only at one spot of the inn, (-127, 374), and on the real player too: `Advance` / `Circle
-    Distant`, gap stuck near 400. Next: what that spot lacks, with the bare game (`vanilla_start`) as the check.
-  - The next report decides: the same symptoms with no `equip ...: the engine's, refused` line and the guest on open floor
-    mean a third cause; `combat_watch` shows the NPC's branch and gap.
+  only up close, and stop when the guest walks away (`docs/re/systems/combat-targets.md`, "The half-stop").
+  - Fixed on the way: an attack gave the guest's copy a combat tree of its own, all through the playtest's wait
+    (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
+  - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
+    the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
+    target (-5 to -10), the fight goes to search, and with the host dead nothing keeps it going.
+  - Left: compare with the bare game (`vanilla_start`, one player, same inn, same steps). Same in vanilla: not our bug,
+    delete this entry. Different: what keeps vanilla's NPC on the player that a copy lacks.
+
+- **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
+  without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
+  (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
 
 ### The host's copy has no name
 

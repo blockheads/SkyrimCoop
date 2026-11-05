@@ -111,6 +111,15 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
             candidate.ClearPath = GameRaycast::HasClearPath(pActor, pTarget);
             candidate.Invisible = pTarget->GetActorValue(ActorValueInfo::kInvisibility) > 0;
             candidate.Sneaking = pTarget->actorState.IsSneaking();
+            using TLight = float(Actor*);
+            POINTER_SKYRIMSE(TLight, s_light, 37775);
+            using TProcessLight = float(void*);
+            POINTER_SKYRIMSE(TProcessLight, s_processLight, 39509);
+            using TDetect = int32_t(Actor*, Actor*, uint32_t);
+            POINTER_SKYRIMSE(TDetect, s_detect, 37764);
+            candidate.Light = s_light.Get()(pTarget);
+            candidate.RawLight = pTarget->currentProcess ? s_processLight.Get()(pTarget->currentProcess) : -1.f;
+            candidate.RequestedDetection = s_detect.Get()(pActor, pTarget, 3);
         }
         read.Candidates.push_back(candidate);
     }

@@ -118,7 +118,10 @@ class CombatActions:
                          "predicted_off": round(math.dist(at[:2], (read.get("target_predicted") or at)[:2])),
                          "range": round(read.get("close_range", 0) + read.get("margin", 0)),
                          "path_state": read.get("target_path_state"), "path_points": read.get("target_path_points"),
-                         "branch": close.rsplit(" > ", 2)[-2:]})
+                         "branch": close.rsplit(" > ", 2)[-2:], "state": read.get("combat_state"),
+                         "lost": read.get("target_lost"), "detected": read.get("detected"),
+                         "candidates": [(f"{c['actor']:X}", c["detection"], c["flags"], c.get("request_detection"), round(c.get("light", 0)),
+                                         round(c.get("raw_light", 0)), c.get("line_of_sight")) for c in read.get("candidates", [])]})
             time.sleep(every)
         return rows
 
@@ -128,12 +131,14 @@ class CombatActions:
         ctx.act("client", {"name": f"walks back from {npc} {back_seconds:g} s", "ready": ["takes_input"], "buttons": ["back"],
                            "until": [{"for": back_seconds}], "seconds": back_seconds + 2})
         rows = []
+        seen = []
         end = time.monotonic() + seconds
         while time.monotonic() < end:
             rows = ctx.combat_watch(npc, seconds=0.1)
+            seen += rows
             if rows and rows[-1]["gap"] <= within and rows[-1]["target"] != "0":
                 return rows[-1]
-        raise ctx.failure(f"{npc} never came within {within:g} of the guest in {seconds:g} s: {rows}")
+        raise ctx.failure(f"{npc} never came within {within:g} of the guest in {seconds:g} s: {seen[:3]} ... {seen[-2:]}")
 
     def actor_snapshot(ctx, instance, actor):
         _game = ctx.game(instance)

@@ -88,20 +88,28 @@ enforcing it.
 
 ## The half-stop (2026-11-04 report): what is known
 
-**Not proved closed.** Measured on the duo, 2026-11-05, in the Sleeping Giant Inn, with a melee NPC (Orgnar; his reach gives
-R 174):
+**Not proved closed, but not a copy's.** Measured on the duo, 2026-11-05, Sleeping Giant Inn, melee NPC Orgnar (R 174):
 
 | Case | Result |
 |---|---|
-| host dead, target | `controller_target` becomes the copy (suspects 1 and 3 in the report: out) |
-| guest walks back by key, open floor, copy with its own tree | closes within 300, 5 of 5 |
-| same, the refusal on | closes within 300, 5 of 5 (suspect 2: out) |
-| guest at (-127, 374), copy with its own tree | `Advance` / `Circle Distant`, gap holds at 353 for 16 s |
-| same spot, the refusal on | same, gap 435-470 for 22 s |
-| same spot, **the real host player** as target, guest elsewhere | same, gap 389 for 20 s |
+| host dead, target | `controller_target` becomes the copy (report suspects 1 and 3: out) |
+| guest walks back by key, copy with its own tree | closes within 300, 5 of 5 |
+| same, the refusal on | closes within 300, 5 of 5 |
+| guest at (-127, 374), either build | `Advance` / `Circle Distant`, gap stuck at 350-470 |
+| same spot, **the real host player** as target | the same, gap 389 for 20 s |
+| scenario `host-dies-guest-still-fought` with the chase check, fix / control | 2 of 3 each; the failing fix run: combat over (state 0) during the walk back |
 
-The last row is the report's picture (they drift, look at the guest, come no closer) on a real player, so this stall is not
-a copy's. What the spot lacks is not read yet. It runs with the plugin loaded; the bare game is not measured there.
+The failures come from detection. `combat_targets` now reads, per candidate, `Actor::RequestDetectionLevel` (37764),
+`Actor::GetLightLevel` (37775) and the process light (39509; written by `ActorProcess__SetLightLevel` 0x1406FF490 from
+0x140726250 in `ProcessActorAnimSG`'s per-actor update, not `UpdateAI`, so a copy gets it). With Orgnar fighting both
+players at once, 80 units apart: light 31 (copy) and 33 (host), detection -7 and -7, then 33 and -10 as he turns: the copy
+is seen as the player is. In one boot he started a fight 41 units from the copy at detection -5, `LOST`, `combat_state` 2,
+and ended it in about 10 s with the host alive. `Actor::CalculateDetection` (37774) reads the target's light, line of sight
+(37768), movement noise and equipped weight; in this dim inn a still or retreating target is lost, real player or copy.
+
+So the report's picture (drifting, looking, hitting only up close, stopping when the guest walks away) is the engine losing a
+hard-to-see target; while the host lives, its player usually keeps the fight alive for the group, and with it dead the
+search ends. Whether vanilla does the same in this inn with one player is not measured (`vanilla_start`).
 
 **The frozen prediction.** PR #21 saw once `target_predicted` frozen 1,300 units off, the NPC "in range". The prediction has one
 source that can hold a place: the copy's path follower (47309 -> 90724, state 1-8 or 13 with a path). The copy's own tree is
@@ -134,7 +142,8 @@ death did (a copy is no candidate of theirs until it attacks them).
 
 ## Not yet known
 
-- Why a spot stalls `Advance` for a real player and a copy alike, and whether the playtest's guest stood on one.
+- Whether the bare game's NPC loses a single player in this inn the same way (the stand-in, `vanilla_start`).
+- Why detection of the same target in the same spot was -5 in one boot and 29-117 in others.
 - What sets an actor's process level. `ProcessLists__RebuildNearbyActorList` (0x14077E220, on a timer from the player's
   update 0x14075FA50) builds a nearby-actor list, not levels.
 - Why console `stopcombat` on an NPC fighting a copy is undone at once, and whether vanilla does the same.

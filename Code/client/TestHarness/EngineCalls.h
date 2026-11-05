@@ -31,6 +31,9 @@ struct CombatCandidateRead
     bool ClearPath{};
     bool Invisible{};
     bool Sneaking{};
+    float RawLight{};   // the target's process light (MiddleHighProcess+0x3A8, set by 0x140726250)
+    float Light{};      // Actor::GetLightLevel 37775: what detection's light term starts from
+    int32_t RequestedDetection{}; // Actor::RequestDetectionLevel 37764, the NPC's of this target now
 };
 struct CombatRead
 {
