@@ -1343,17 +1343,12 @@ void HookResetInventory(Actor* apThis, bool aLeveledOnly)
 
 // Actor::ApplyMovement (37356): a copy runs none of its decisions, only its engine's step onto its owner's place
 // (Actor::Move, so its capsule collides and pushes: docs/re/systems/actor-movement.md).
-void HookApplyMovement(Actor* apThis, float aDelta)
+// Out of line: a lock order its Move starts stays ours on the checker's stacks (LockOrder::IgnoreFrames below).
+__declspec(noinline) static void StepCopy(Actor* apThis, ActorExtension* apExtension, float aDelta)
 {
-    auto* pExtension = apThis->GetExtension();
-    if (!pExtension->IsCopy())
-    {
-        RealApplyMovement(apThis, aDelta);
+    if (!apExtension->HasCopyGoal || aDelta <= 0.f)
         return;
-    }
-    if (!pExtension->HasCopyGoal || aDelta <= 0.f)
-        return;
-    const NiPoint3 cGoal(glm::vec3(pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]));
+    const NiPoint3 cGoal(glm::vec3(apExtension->CopyGoal[0], apExtension->CopyGoal[1], apExtension->CopyGoal[2]));
     auto* pProcess = apThis->currentProcess;
     const bool cCanStep = pProcess && pProcess->middleProcess && pProcess->middleProcess->charController &&
                           apThis->parentCell && apThis->parentCell->IsFullyLoaded();
@@ -1365,6 +1360,14 @@ void HookApplyMovement(Actor* apThis, float aDelta)
     const glm::vec3 cLocal = CopyStep::Local({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
                                               cGoal.z - apThis->position.z}, apThis->rotation.z);
     apThis->Move(aDelta, NiPoint3(cLocal));
+}
+
+void HookApplyMovement(Actor* apThis, float aDelta)
+{
+    auto* pExtension = apThis->GetExtension();
+    if (pExtension->IsCopy())
+        return StepCopy(apThis, pExtension, aDelta);
+    RealApplyMovement(apThis, aDelta);
 }
 
 // Character::UpdateAI (37347). Copies skip it but run its body upkeep below
@@ -1654,6 +1657,8 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         // Every actor's AI runs through it: a lock order there is the engine's unless a copy's runs (UpdateCopyAI).
         LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookUpdateAI), 0x50);
+        // Every actor's movement step (pathing locks): the engine's; a copy's step is StepCopy.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookApplyMovement), 0x60);
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
         HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);

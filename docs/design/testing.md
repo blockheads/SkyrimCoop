@@ -241,7 +241,16 @@ python3 scripts/coop_test.py profile                          # idle
 python3 scripts/coop_test.py profile --load wolves=15         # a fight: god mode, 15 wolves at the host
 python3 scripts/coop_test.py profile --scenario NAME... --seconds 60
 python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-process call stacks
+python3 scripts/coop_test.py profile --route whiterun --seconds 60 --budget p95=33,p99=70,stalls_per_min=6
 ```
+
+- `--route whiterun` walks the same console route (Whiterun's plains, the city, the inn) through the window, on the
+  host; a guest follows by the tether. It works against the vanilla stand-in too (`launch --vanilla`, the MCP's
+  `vanilla_start`), whose `status.json` carries a frame histogram counted as the client counts frames (stalls over
+  100 ms). Profile vanilla and the duo over the same route to tell the machine from us.
+- `--budget` fails the run when a game's frame p50/p95/p99/max or stalls a minute are over the limits; the summary
+  ends with each verdict.
+- The MCP's `profile` tool runs the same on the games it holds.
 
 | Section | From |
 |---|---|
@@ -272,6 +281,8 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 - Each thread's report ranks the samples where it ran. Its wait calls count as waiting; other system calls
   (`VirtualQuery`, say) count as work.
 - A flame graph per game: `<game>-stacks.speedscope.json` (open at speedscope.app).
+- Under Wine a suspended thread can unwind through a null stack slot (`RtlVirtualUnwind` read it and killed both games,
+  2026-11-05): `CrashHandler::Backtrace` stops at a fault there instead of crashing.
 
 **Player builds** keep the cheap part:
 - A bug report's `snapshot.json` has `perf`: the last minute's frame and update percentiles, messages by name,
@@ -282,6 +293,26 @@ python3 scripts/coop_test.py profile --load wolves=15 --stacks  # plus whole-pro
 `as_instance_user`, and the Tracy tools are built from source there. Not yet run.
 
 The first finding is in [breadcrumbs-cost](../re/systems/breadcrumbs-cost.md).
+
+**Machine against ours (2026-11-05, Linux, Proton, one machine, 60 s windows):**
+
+| Run | fps | frame p50 / p95 / p99 / max ms | stalls | our update p95 |
+|---|---|---|---|---|
+| vanilla, idle | 60.4 | 16.5 / 16.5 / 21.5 / 48 | 0 | - |
+| vanilla, `--route whiterun` | 51.1 | 16.5 / 26.5 / 30.5 / 4183 | 10 | - |
+| our plugin alone, idle | 55.1 | 16.8 / 28.2 / 36.5 / 60 | 0 | 0.25 |
+| our plugin alone, route | 51.3 | 16.6 / 26.2 / 37.6 / 1641 | 9 | 0.27 |
+| duo host / guest, idle | 59.3 / 59.5 | 16.4 / 27 / 33 / 52 | 0 / 0 | 6.3 / 1.9 |
+| duo host / guest, route | 54.0 / 54.8 | 16.4 / 26.5 / 33 / 1792 | 8 / 5 | 5.4 / 1.5 |
+
+- Stalls (over 100 ms) come from cell loads on the route, vanilla's too: idle, no game stalls. Co-op adds none.
+- With `--stacks` (duo, route): the main thread waits about half its samples, 36-41% of them in the engine's frame
+  clamp (77246: `Sleep(0)` until 16.39 ms since the last Present), so it has spare time; job threads wait 86-88%.
+  Our code on the main thread: the harness's status (`TestHarness::Poll`, 5-6%, test builds only) and the guest's
+  `BodyService::Apply` (5.7%, a scan of the copies per body; now an index). The lock-order hooks: under 1% of each
+  job thread.
+- The playtest's long stalls hit both games at the same instant: the shared machine (GPU, display, disk), not
+  either plugin (`docs/bugs.md`, Freezes and slowness).
 
 ## Python ownership
 

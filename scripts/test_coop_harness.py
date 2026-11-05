@@ -1549,5 +1549,43 @@ class ClipMismatchTests(unittest.TestCase):
         self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
 
 
+class ProfileBudgetTests(unittest.TestCase):
+    """coop_test.py profile: a vanilla game's window from its histogram, and the budget verdicts."""
+
+    def window(self):
+        before, after = {"histogram": [0] * 1001, "time": 0, "stalls": 1}, {"histogram": [0] * 1001, "time": 60, "stalls": 4, "perf": {}}
+        before["histogram"][16] = 500  # before the window: must not count
+        after["histogram"][16] = 500 + 900
+        after["histogram"][33] = 90
+        after["histogram"][1000] = 10
+        after["longest_ms"] = 2500.0
+        return before, after
+
+    def test_percentiles_are_the_windows(self):
+        from coop_harness.profiling import histogram_percentiles
+        before, after = self.window()
+        self.assertEqual(histogram_percentiles(before, after), {"p50": 16.5, "p95": 33.5, "p99": 33.5, "max": 2500.0})
+        self.assertEqual(histogram_percentiles(after, after), {})
+
+    def test_budget_says_which_limit(self):
+        from coop_harness.profiling import check_budget, histogram_percentiles, parse_budget
+        before, after = self.window()
+        after["perf"]["frame_ms"] = histogram_percentiles(before, after)
+        game = Mock(); game.name = ""
+        verdicts = check_budget(parse_budget("p95=33,p99=70,stalls_per_min=6"), [game], {"": before}, {"": after})
+        self.assertEqual([within for _, within in verdicts], [False, True, True])
+        self.assertIn("host p95 33.5 (budget 33): OVER", verdicts[0][0])
+        with self.assertRaises(ValueError):
+            parse_budget("median=3")
+
+    def test_wine_paths(self):
+        from coop_harness.profiling import windows_path
+        if os.name == "nt":
+            self.skipTest("Wine's drives")
+        self.assertEqual(str(windows_path("Z:\\a\\b.txt")), "/a/b.txt")
+        self.assertIsNone(windows_path("C:\\windows\\ntdll.dll"))
+        self.assertEqual(str(windows_path("C:\\windows\\ntdll.dll", "/p/drive_c")), "/p/drive_c/windows/ntdll.dll")
+
+
 if __name__ == "__main__":
     unittest.main()

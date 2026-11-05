@@ -32,3 +32,8 @@ id	rva	name	comment
 63091	0xbb2370	BSRagdollContactListenerModifier::Modify	Queues the contact event (+0x58) once triggered (+0x70), then clears it.
 63093	0xbb2500	BSRagdollContactListenerModifier::AddListeners	Adds a contact listener to each watched ragdoll bone's body (bones hkbBoneIndexArray +0x68), and turns on its contact reporting.
 63094	0xbb26c0	BSRagdollContactListenerModifier::RemoveListeners	Removes the listener from the watched bodies.
+12046	0x1728e0	ExtraDataList::AddAliasInstance	Takes the list's lock (+0x18) for write, then the alias array's (extra 0x88) via ExtraAliasInstanceArray::sub_12718. Reverse of CastPermanentMagic's alias walk: an engine-internal lock order inversion (docs/re/systems/lock-order.md).
+38846	0x6da6d0		Visits alias spells with the alias array read-locked (ExtraAliasInstanceArray::sub_12720); the casts reach Actor::IsGhost, the actor's extra-data list lock: engine-internal inversion with ExtraDataList::AddAliasInstance (docs/re/systems/lock-order.md).
+77851	0x104ac30		Holds the Havok world for write while trigger events reach the VM (SendEvent -> GetUniqueIDs: ref extra-data read). Reverse: sub_1401700F0 (list write) > bhkRigidBody::SetMotionType (world write). Engine-internal (docs/re/systems/lock-order.md).
+90873	0x11d4650		Path arbiter write lock, then sub_140818C50's read; the combat manager job takes them the other way (sub_140818570 > IMovementQueryPathingState::Func9). Engine-internal (docs/re/systems/lock-order.md).
+77246	0x1009f70		Present with the frame clamp: when byte_1420D0200 is set, spins on Sleep(0) until 16.393 ms since gLastUpdatePerformanceCounterTicks (61 fps), then swapchain Present. A profile's Sleep samples here are spare frame time, on vanilla too (docs/design/testing.md, Profiling).

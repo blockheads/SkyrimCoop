@@ -59,6 +59,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-05: freezes and slowness are the machine's. The 2026-11-04 playtest's long stalls hit both games at
+the same instant, and none of the 12 lock-order reports is our order (`docs/re/systems/lock-order.md`). Measured:
+over one Whiterun route vanilla stalls as often as the duo, and idle nothing stalls (`docs/design/testing.md`,
+"Machine against ours"). Ours, fixed: the guest's `BodyService::Apply` scanned every copy per body and bone (5.7% of
+its main thread), now an index; `--stacks` crashed both games in Wine's unwinder (an unwind fault now ends the
+backtrace); the lock-order checker no longer tags pass-through hooks `[ours]`. New: `profile --route whiterun`,
+`--budget`, frame times from the vanilla stand-in, the MCP's `profile` tool and `vanilla_start(plugin=true)`.
+
 2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real
 bug"). The kill-move redo through it found crossed kill moves still kill a player a second later (`bugs.md`, Combat;
 for PR #13). `checkpoint`/`retry` roll the party back to a host save in 3.9 s instead of a new duo (the harness's

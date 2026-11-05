@@ -909,6 +909,9 @@ class Commands:
         profile.add_argument("--load", metavar="wolves=N", help="a fight first: god mode for both players, N wolves at the host")
         profile.add_argument("--scenario", nargs="+", metavar="NAME", help="run these scenarios inside the window")
         profile.add_argument("--stacks", action="store_true", help="also sample every busy thread's call stack (engine and ours)")
+        profile.add_argument("--route", choices=("whiterun",), help="walk this route through the window (also vanilla)")
+        profile.add_argument("--budget", metavar="p95=33,p99=70,stalls_per_min=6",
+                             help="fail when a game's frame times are over these limits")
         profile.add_argument("--no-tracy", action="store_true", help="skip the Tracy capture (the plugin's own readouts only)")
         stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
         console = commands.add_parser("console", help="run a console command in the running test game")
