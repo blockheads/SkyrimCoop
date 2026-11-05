@@ -24,7 +24,7 @@ def run(ctx):
                      _game=ctx.game('client'))
         actors = ctx.player_command('client', {'cmd': 'jitter', 'stop': True})['actors']
         watched = {name: actors[str(npc)] for npc, name in NPCS.items() if str(npc) in actors}
-        print('copies:', {name: {key: actor[key] for key in ('copy', 'frames', 'furniture', 'furniture_path')} | actor['place']
+        print('copies:', {name: {key: actor[key] for key in ('copy', 'frames', 'furniture', 'furniture_path', 'furniture_reversals')} | actor['place']
                           for name, actor in watched.items()})
         # Only a copy seen moving in furniture shows anything: walking never had this bug.
         shown = {name: actor for name, actor in watched.items() if actor['copy'] and actor['frames'] >= FRAMES // 2 and
