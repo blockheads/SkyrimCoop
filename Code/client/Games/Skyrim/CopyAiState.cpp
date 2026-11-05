@@ -5,6 +5,7 @@
 #include <Forms/TESPackage.h>
 #include <Games/ActorExtension.h>
 #include <Games/CopyAiState.h>
+#include <CopyCombat.h>
 #include <CopyPackage.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -130,6 +131,17 @@ uint8_t Actor::GetOwnCombatState() const noexcept
     return RealGetCombatState ? static_cast<uint8_t>(RealGetCombatState(const_cast<Actor*>(this))) : 0;
 }
 
+using TStartCombat = bool(Actor*, Actor* apTarget, void* apGroup);
+static TStartCombat* RealStartCombat = nullptr;
+
+// Actor::StartCombat (38561): an NPC's attack runs it on its victim (AIProcess::StartAssault); not on a copy.
+static bool HookStartCombat(Actor* apActor, Actor* apTarget, void* apGroup)
+{
+    if (!CopyCombat::MayStart(apActor->GetExtension()->IsCopy()))
+        return false;
+    return RealStartCombat(apActor, apTarget, apGroup);
+}
+
 using TUpdateCombatSearchState = uintptr_t(Actor*);
 static TUpdateCombatSearchState* RealUpdateCombatSearchState = nullptr;
 
@@ -149,6 +161,7 @@ static Hooks::Initializer s_copyAiStateHooks(
         HOOK_ID(37247, &RealGetCurrentScene, HookGetCurrentScene);
         HOOK_ID(37399, &RealGetCurrentPackage, HookGetCurrentPackage);
         HOOK_ID(37273, &RealUpdateCombatSearchState, HookUpdateCombatSearchState);
+        HOOK_ID(38561, &RealStartCombat, HookStartCombat);
         HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
         HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);
         HOOK_ID(41261, &RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);

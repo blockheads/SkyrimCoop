@@ -76,7 +76,13 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
                               {"attackers", cCandidate.Attackers}, {"flags", cCandidate.Flags}, {"stealth", cCandidate.Stealth},
                               {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}});
     return {{"ok", true}, {"controller_target", cRead->ControllerTarget}, {"actor_target", cRead->ActorTarget},
-            {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates}};
+            {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates},
+            {"behavior", cRead->Behavior}, {"fleeing", cRead->Fleeing}, {"detected", cRead->Detected}, {"target_lost", cRead->TargetLost},
+            {"inactive", cRead->Inactive}, {"ignoring", cRead->Ignoring}, {"stopped", cRead->Stopped},
+            {"low_movement_delta", cRead->LowMovementDelta}, {"unreachable", cRead->Unreachable}, {"areas", cRead->Areas},
+            {"target_position", cRead->TargetPosition}, {"target_predicted", cRead->TargetPredicted},
+            {"close_range", cRead->CloseRange}, {"margin", cRead->Margin}, {"margin_max", cRead->MarginMax},
+            {"reach", cRead->Reach}, {"target_reach", cRead->TargetReach}, {"since_attacked", cRead->SinceAttacked}, {"target_path_state", cRead->TargetPathState}, {"target_path_points", cRead->TargetPathPoints}};
 }
 // {"cmd": "status"}: the status (Status.h).
 nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)

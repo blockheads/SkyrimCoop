@@ -96,7 +96,7 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium
+- [After the host dies](#after-the-host-dies): medium, a spot's stall left
 - [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -798,20 +798,15 @@ The NPCs' target.
 Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away.
-  - The host staying dead while the guest fights is the design (`death.md`: the respawn waits for the fight to end), not
-    part of this bug.
-  - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack. (2) The target is the guest's host-side copy, a created `Character` with no AI,
-    which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
-    collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
-    other-player candidate (the copy) never gets the native pick once the real player is dead.
-  - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
-    an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`. In IDA, read how the combat controller treats a dead target and a
-    non-player target (selector 47191, validity 47196, target setter 33235).
-  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest.
+  only up close, and stop when the guest walks away. **Cause not proved** (`docs/re/systems/combat-targets.md`, "The
+  half-stop").
+  - Out, measured: the NPC's target stays on the dead host (it moves to the copy); a copy cannot be chased (closes in 5 of 5
+    on open floor). Fixed: an attack gave the copy a combat tree of its own, all through the playtest's wait
+    (`HookStartCombat`, scenario `host-dies-guest-still-fought`, flow "After the host dies...").
+  - The picture reproduced only at one spot of the inn, (-127, 374), and on the real player too: `Advance` / `Circle
+    Distant`, gap stuck near 400. Next: what that spot lacks, with the bare game (`vanilla_start`) as the check.
+  - The next report decides: the same symptoms with no `equip ...: the engine's, refused` line and the guest on open floor
+    mean a third cause; `combat_watch` shows the NPC's branch and gap.
 
 ### The host's copy has no name
 

@@ -102,6 +102,39 @@ class CombatActions:
         return crossed
 
 
+    def combat_watch(ctx, npc, seconds=5.0, every=0.33):
+        """An NPC of the host's in a fight, over time: its gap to its target, how far the target's predicted place (what its
+        close movement reads) is off the target's real one, the target's path follower and the close movement branch."""
+        actor = ctx.resolve(npc, "host")
+        rows = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            read = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
+            place = ctx.actor_snapshot("", actor).get("placement", {}).get("position") or [0, 0, 0]
+            at = read.get("target_position") or [0, 0, 0]
+            close = next((node for node in read.get("behavior", []) if "CloseMovement" in node), "")
+            rows.append({"t": round(seconds - (end - time.monotonic()), 1), "target": f"{read.get('controller_target', 0):X}",
+                         "gap": round(math.dist(place[:2], at[:2])),
+                         "predicted_off": round(math.dist(at[:2], (read.get("target_predicted") or at)[:2])),
+                         "range": round(read.get("close_range", 0) + read.get("margin", 0)),
+                         "path_state": read.get("target_path_state"), "path_points": read.get("target_path_points"),
+                         "branch": close.rsplit(" > ", 2)[-2:]})
+            time.sleep(every)
+        return rows
+
+    def closes_in(ctx, npc, back_seconds=6.0, within=300.0, seconds=15.0):
+        """The guest's player walks back and the host's `npc`, fighting it, must come to within `within`: fails with the
+        last combat_watch rows (a half-stop drifts at range)."""
+        ctx.act("client", {"name": f"walks back from {npc} {back_seconds:g} s", "ready": ["takes_input"], "buttons": ["back"],
+                           "until": [{"for": back_seconds}], "seconds": back_seconds + 2})
+        rows = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            rows = ctx.combat_watch(npc, seconds=0.1)
+            if rows and rows[-1]["gap"] <= within and rows[-1]["target"] != "0":
+                return rows[-1]
+        raise ctx.failure(f"{npc} never came within {within:g} of the guest in {seconds:g} s: {rows}")
+
     def actor_snapshot(ctx, instance, actor):
         _game = ctx.game(instance)
         return ((_game.read_status() or {}).get("world") or {}).get(str(actor), {})

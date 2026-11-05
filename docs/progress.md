@@ -581,6 +581,9 @@ Decisions made without the user are marked **Decided**.
     apply on the changed duo code; its half (a `--players` flag `duo` ignored, `client2`, `dialogue-three-players`)
     was removed at review (`docs/ideas.md`, Testing). Steps 4 (quest topics on guests) and 5 (event-driven lists)
     not done; step 5 is moot (step sync has no polled list).
+- **A copy's own combat (2026-11-05):** an NPC's attack ran `Actor::StartCombat` (38561) on its copied victim, which then
+  ran a whole combat tree. `HookStartCombat` refuses copies (`combat-targets.md`); a dead host's NPCs do turn on the copy
+  and chase it. The half-stop picture remains at one inn spot, for a real player too (`bugs.md`).
 - **Combat target on copies:** fixed in the reviewed aggro merge (2026-11-02). Native
   `Actor::UpdateCombatSearchState` (37273) clears the target on actors with no native combat. Copies restore their
   cached owner weak handle after that update; their AI/controller stays disabled. The strengthened

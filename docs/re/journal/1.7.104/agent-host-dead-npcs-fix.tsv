@@ -1,0 +1,67 @@
+time	op	id	rva	item
+2026-11-05T21:35:35Z	read	47191	0x862040	{"name": "CombatTargetSelectorStandard::sub_47191"}
+2026-11-05T21:35:36Z	read	47196	0x8629a0	{"name": "coop_isValidTarget"}
+2026-11-05T21:35:36Z	read	33235	0x5614a0	{"name": "CombatController::SetTarget"}
+2026-11-05T21:36:05Z	read	47309	0x869020	{"name": "Actor__GetPredictedPosition"}
+2026-11-05T21:36:06Z	read	90724	0x11ce850	{"name": "IMovementQueryPathFollowing__GetPredictedPosition"}
+2026-11-05T21:36:06Z	read	47891	0x882350	{"name": "CombatBehaviorContextCloseMovement__CheckOutOfRange"}
+2026-11-05T21:36:26Z	read	37818	0x6a61f0	{"name": "Actor::StopMovement"}
+2026-11-05T21:36:27Z	read	41717	0x7977b0	{"name": "MovementControllerNPC::sub_41717"}
+2026-11-05T21:37:16Z	read	41613	0x790400	{"name": "ActorMover::sub_41613"}
+2026-11-05T21:37:16Z	read	41614	0x790790	{"name": "ActorMover::sub_41614"}
+2026-11-05T21:37:17Z	read	90739	0x11cfab0	{"name": "MovementAgentPathFollowerStandard::Func12_90739"}
+2026-11-05T21:37:27Z	read	37817	0x6a6050	{"name": "Actor::StopMoving"}
+2026-11-05T21:37:29Z	read	90756	0x11d0630	{"name": "MovementAgentPathFollowerStandard::sub_90756"}
+2026-11-05T21:37:35Z	read		0x6758c0	{"name": "Character::ShouldOnlyCheckPackage"}
+2026-11-05T21:37:42Z	read	91877	0x1213180	{"name": "MovementControllerAI::Func7_91877"}
+2026-11-05T21:37:42Z	read	91878	0x12133a0	{"name": "MovementControllerAI::Func8_91878"}
+2026-11-05T21:37:43Z	read	91875	0x12130d0	{"name": "MovementControllerAI::Func5_91875"}
+2026-11-05T21:38:03Z	read	37501	0x688740	{"name": "Character::sub_37501"}
+2026-11-05T21:38:03Z	read	49945	0x8d91d0	{"name": "sub_1408D91D0"}
+2026-11-05T21:38:03Z	read	39455	0x6fe110	{"name": "sub_1406FE110"}
+2026-11-05T21:38:04Z	read	39456	0x6fe170	{"name": "sub_1406FE170"}
+2026-11-05T21:38:05Z	read	17928	0x2841d0	{"name": "sub_1402841D0"}
+2026-11-05T21:38:14Z	read	17927	0x284040	{"name": "sub_140284040"}
+2026-11-05T21:38:17Z	name	49945	0x8d91d0	{"addr": "0x1408d91d0", "name": "CombatPath__StopMovingOwner"}
+2026-11-05T21:38:17Z	name	39455	0x6fe110	{"addr": "0x1406fe110", "name": "ActorProcess__SetFadeOutAndStopMoving"}
+2026-11-05T21:38:17Z	name	39456	0x6fe170	{"addr": "0x1406fe170", "name": "ActorProcess__SetFadeOutResetAndStopMoving"}
+2026-11-05T21:38:17Z	name	41613	0x790400	{"addr": "0x140790400", "name": "ActorMover__RequestStopMovingPath"}
+2026-11-05T21:38:17Z	name	41614	0x790790	{"addr": "0x140790790", "name": "ActorMover__ClearPath"}
+2026-11-05T21:38:21Z	comment	41613	0x790400	{"addr": "0x140790400", "comment": "Builds a PathingRequestStopMoving at the actor's place and posts it to the movement controller's planner (unk_143350980 interface, slot 1); skipped if the current request already is a stop. Called only from Actor::StopMoving 37817."}
+2026-11-05T21:38:21Z	comment	41614	0x790790	{"addr": "0x140790790", "comment": "Clears the mover's path through the planner interface (unk_143350980, slot 3). Actor::StopMovement 37818; StopMoving's no-parent-cell branch."}
+2026-11-05T21:38:21Z	comment	49945	0x8d91d0	{"addr": "0x1408d91d0", "comment": "A combat path's owner: not on a copy's path, needs that actor's combat behaviour (copies have no CombatController)."}
+2026-11-05T21:38:21Z	comment	39455	0x6fe110	{"addr": "0x1406fe110", "comment": "Process+0x130 state 5, then StopMoving: not on a copy's path unless ProcessLists' fade (0x14077D350) runs it on a copy."}
+2026-11-05T21:38:21Z	comment	39456	0x6fe170	{"addr": "0x1406fe170", "comment": "Process+0x130 state 6, then StopMoving: SummonCreatureEffect's (34991) fade: not a copy's."}
+2026-11-05T21:38:39Z	read	90703	0x11ccf00	{"name": "MovementAgentPathFollowerStandard::Func7_90703"}
+2026-11-05T21:38:39Z	read	90704	0x11ccfa0	{"name": "MovementAgentPathFollowerStandard::Func4_90704"}
+2026-11-05T21:39:03Z	read	90700	0x11ccbf0	{"name": "MovementAgentPathFollowerStandard::sub_90700"}
+2026-11-05T21:39:11Z	read	41365	0x782c90	{"name": "sub_140782C90"}
+2026-11-05T21:39:13Z	name	17928	0x2841d0	{"addr": "0x1402841d0", "name": "StopMovingActorsWithPlayerAfterDoor"}
+2026-11-05T21:39:13Z	name	17927	0x284040	{"addr": "0x140284040", "name": "TESObjectDOOR__OnPlayerTeleportDone"}
+2026-11-05T21:39:13Z	name	90711	0x11cd150	{"addr": "0x1411cd150", "name": "MovementAgentPathFollowerStandard__PlannerStage"}
+2026-11-05T21:39:15Z	comment	17928	0x2841d0	{"addr": "0x1402841d0", "comment": "After the player's door teleport: for each actor from ProcessLists 0x140782C90, Actor::StopMoving(1.0) and re-evaluate the package soon (process+0x48 = now - 1). Includes any copy on that list: a copy then holds a stop-moving path (docs/re/systems/combat-targets.md)."}
+2026-11-05T21:39:15Z	comment	90711	0x11cd150	{"addr": "0x1411cd150", "comment": "Path follower's planner stage (IMovementPlannerAgent slot 2): the follower's state machine (+0x118 state; 90756, 90761, 90758). State 1-8/13 with a path means GetPredictedPosition answers from the path."}
+2026-11-05T21:39:23Z	name	41365	0x782c90	{"addr": "0x140782c90", "name": "ProcessLists__CollectFollowersOf"}
+2026-11-05T21:39:25Z	comment	41365	0x782c90	{"addr": "0x140782c90", "comment": "Recursively lists an actor's followers: its extra-follower list and high actors whose running package (type 2 or 7, follow/escort) targets it."}
+2026-11-05T21:39:25Z	comment	17928	0x2841d0	{"addr": "0x1402841d0", "comment": "After the player's door teleport: for each follower of the player (0x140782C90), Actor::StopMoving(1.0) and re-evaluate its package soon (process+0x48 = now - 1). A copy has no running follow package of its own, so normally not one."}
+2026-11-05T21:46:55Z	read	37409	0x680b40	{"name": "Actor::sub_37409"}
+2026-11-05T21:46:56Z	read	37881	0x6a8620	{"name": "sub_1406A8620"}
+2026-11-05T21:46:57Z	read	39446	0x6fdda0	{"name": "sub_1406FDDA0"}
+2026-11-05T21:48:28Z	read	47094	0x85ed10	{"name": "sub_14085ED10"}
+2026-11-05T21:48:28Z	read	47899	0x882fb0	{"name": "sub_140882FB0"}
+2026-11-05T21:48:40Z	name	37881	0x6a8620	{"addr": "0x1406a8620", "name": "Actor__OnBumpedByActor"}
+2026-11-05T21:48:40Z	name	39446	0x6fdda0	{"addr": "0x1406fdda0", "name": "AIProcess__MaybeStartBumpPackage"}
+2026-11-05T21:48:40Z	name	37409	0x680b40	{"addr": "0x140680b40", "name": "Actor__StartBumpPackage"}
+2026-11-05T21:48:40Z	name	47094	0x85ed10	{"addr": "0x14085ed10", "name": "CombatPathT_FindTargetLocation__dtor"}
+2026-11-05T21:48:43Z	comment	37881	0x6a8620	{"addr": "0x1406a8620", "comment": "A bump (vfunc of Actor, data ref at 0x1406B95C8). Only when the bumper is g_thePlayer: Actor__StartBumpPackage. So the host's player walking into a copy runs this on the copy (measured, 2026-11-05)."}
+2026-11-05T21:48:43Z	comment	37409	0x680b40	{"addr": "0x140680b40", "comment": "Bumped by the player: StopMoving, then a type-32 run-once package. Runs on a copy too: copies run no AI, so this package and stop path are not theirs to carry (combat-targets.md)."}
+2026-11-05T21:48:43Z	comment	47094	0x85ed10	{"addr": "0x14085ed10", "comment": "CombatPathT dtor: stops the owner's (a1+0x10 handle) movement if the path was still running (CombatPath__StopMovingOwner). Seen on a copy: so the copy has a combat path."}
+2026-11-05T21:49:07Z	read	38561	0x6c93b0	{"name": "Actor::StartCombat"}
+2026-11-05T21:51:50Z	read	41407	0x786250	{"name": "sub_140786250"}
+2026-11-05T21:51:50Z	read		0x676100	{"name": "Character::sub_37287"}
+2026-11-05T22:12:42Z	read	40079	0x72eb90	{"name": "AIProcess__StartAssault"}
+2026-11-05T22:12:45Z	comment	38561	0x6c93b0	{"addr": "0x1406c93b0", "comment": "Actor::StartCombat 38561: makes the actor's combat controller and group (CombatManager 46873/46874), so CombatUpdateJob 46902 runs its tree. Refuses the player itself, not a copy: SkyrimCoop's HookStartCombat refuses copies (AIProcess__StartAssault runs this on an attacked copy, measured 2026-11-05, return 0x14072EE52)."}
+2026-11-05T22:12:45Z	comment	47309	0x869020	{"addr": "0x140869020", "comment": "Actor::GetPredictedPosition 47309 (our name). Position at t seconds: the movement controller's path follower if it answers (90724: state 1-8 or 13 with a path), else velocity * t. CheckOutOfRange 0x140882350 reads it at t 0.5 for the target. docs/re/systems/combat-targets.md."}
+2026-11-05T22:12:45Z	comment	90724	0x11ce850	{"addr": "0x1411ce850", "comment": "IMovementQueryPathFollowing slot 9 (90724): predicted place along the follower's path, only in states 1-8 or 13 with a path. State 12 (KeepLastDirection range 8-12) gives no answer: an NPC walking reads 12 here (measured)."}
+2026-11-05T22:12:45Z	comment	90739	0x11cfab0	{"addr": "0x1411cfab0", "comment": "MovementAgentPathFollowerStandard load (90739): reads +0x118 state and picks the state object: 2,6 PlayIdle; 3,7 TurnToAngle; 4,13 FollowPathToParameter; 8-12 KeepLastDirection."}
+2026-11-05T22:12:45Z	comment	47094	0x85ed10	{"addr": "0x14085ed10", "comment": "CombatPathT<FindTargetLocation> dtor: CombatPath__StopMovingOwner on its owner (handle at +0x10) if still running. Seen on a copy: the copy's own combat tree started that path."}
