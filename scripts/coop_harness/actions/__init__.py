@@ -16,6 +16,7 @@ from .interface import InterfaceActions
 from .play import PlayActions
 from .play_verbs import PlayerVerbs
 from .repro import PressTiming, ReproActions
+from .crime import CrimeActions
 
 
 class Actions(
@@ -37,5 +38,6 @@ class Actions(
     ReproActions,
     PressTiming,
     PlayerVerbs,
+    CrimeActions,
 ):
     pass

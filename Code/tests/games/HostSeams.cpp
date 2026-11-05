@@ -5,6 +5,7 @@
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
+#include <Services/CrimeService.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Games/Overrides.h>
 
@@ -79,7 +80,8 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
-        [&engine](const auto& acState) { engine.PartyThreats = acState; });
+        [&engine](const auto& acState) { engine.PartyThreats = acState; },
+        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;
