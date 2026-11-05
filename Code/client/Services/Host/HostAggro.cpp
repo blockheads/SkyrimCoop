@@ -1,6 +1,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
 #include <Components/PlayerComponent.h>
 #include <Events/ActorDamagedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -12,8 +13,9 @@
 #include <utility>
 
 HostAggro::HostAggro(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors,
-                     std::function<void(const PartyThreat::State&)> aPublish) noexcept
-    : m_world(aWorld), m_actors(aActors), m_publish(std::move(aPublish))
+                     std::function<void(const PartyThreat::State&)> aPublish,
+                     std::function<bool(uint32_t)> aCrimeHostile) noexcept
+    : m_world(aWorld), m_actors(aActors), m_publish(std::move(aPublish)), m_crimeHostile(std::move(aCrimeHostile))
 {
     Listen<ActorDamagedEvent, &HostAggro::OnDamage>(m_connections, aDispatcher, this);
 }
@@ -52,17 +54,32 @@ void HostAggro::Update(const UpdateEvent& acEvent) noexcept
                (!m_actors.GetActorAiFields(cActor).CombatState &&
                 m_state.Now - acEntry.second.At > PartyThreat::kRecentHit);
     });
-    std::unordered_map<uint32_t, PartyThreat::Combat> combats;
+    // A party fight: a player damaged the NPC, or a party crime made it hostile (the party shares one flag).
+    std::vector<uint32_t> fights;
+    m_state.CrimeFights.clear();
     for (const auto& [cPair, cDamage] : m_state.DamageByPair)
+        fights.push_back(cPair >> 32);
+    for (auto [entity, form, local] : m_world.view<FormIdComponent, LocalComponent>(entt::exclude<PlayerComponent>).each())
     {
-        const uint32_t cActor = cPair >> 32;
+        const auto cAi = m_actors.GetActorAiFields(form.Id);
+        if (cAi.CombatState && m_state.IsPlayer(cAi.CombatTargetId) && m_crimeHostile && m_crimeHostile(form.Id))
+        {
+            fights.push_back(form.Id);
+            m_state.CrimeFights.insert(form.Id);
+        }
+    }
+    std::unordered_map<uint32_t, PartyThreat::Combat> combats;
+    for (const uint32_t cActor : fights)
+    {
         if (combats.contains(cActor))
             continue;
         const uint32_t cTarget = m_actors.GetActorAiFields(cActor).CombatTargetId;
         const auto cOld = m_state.Combats.find(cActor);
+        // A crime fight's first pick is made at once: whoever is near when it starts (party-model.md).
+        const bool cNewCrimeFight = cOld == m_state.Combats.end() && m_state.CrimeFights.contains(cActor);
         combats[cActor] = cOld != m_state.Combats.end() && cOld->second.Target == cTarget
                               ? cOld->second
-                              : PartyThreat::Combat{cTarget, m_state.Now};
+                              : PartyThreat::Combat{cTarget, m_state.Now - (cNewCrimeFight ? PartyThreat::kTargetHold : 0)};
     }
     m_state.Combats = std::move(combats);
     m_publish(m_state);

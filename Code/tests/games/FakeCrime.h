@@ -2,6 +2,7 @@
 
 #include <Bridges/ICrimeBridge.h>
 #include <functional>
+#include <set>
 
 // Engine seam only. Native witnesses/costs are covered by the Skyrim scenarios.
 struct FakeCrime final : ICrimeBridge
@@ -55,8 +56,10 @@ struct FakeCrime final : ICrimeBridge
     {
         ++Asks;
     }
-    void ForgetCulprits() noexcept override
+    std::set<uint32_t> CriminalTo; // NPCs a party crime made hostile
+    bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept override
     {
+        return CriminalTo.contains(aActorFormId);
     }
     void LockCaught(uint32_t aAttempt) noexcept override
     {

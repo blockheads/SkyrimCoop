@@ -43,7 +43,9 @@ class CrimeActions:
         """The host's `npc`: angry (kAngryWithPlayer), pending_crime, faction_enemy, attack_on_sight and its combat target."""
         actor = ctx.resolve(npc, "host")
         state = ctx.crime_command("", "actor_state", actor=actor)
-        return {**state, "combat_target": flatten(ctx.actor_row("", actor)).get("ai.combat_target")}
+        combat = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
+        return {**state, "combat_target": flatten(ctx.actor_row("", actor)).get("ai.combat_target"),
+                "candidates": [(c["actor"], c["flags"], c["detection"]) for c in combat.get("candidates", [])]}
 
     def make_angry(ctx, npc):
         """Gives the host's `npc` kAngryWithPlayer, the state an NPC keeps from an earlier fight (crime.md)."""
@@ -57,7 +59,13 @@ class CrimeActions:
 
     def stand_witness(ctx, npc, near="guest_player", gap=180):
         """Moves the host's `npc` `gap` units north of a player, to witness what they do without them walking."""
-        ctx.console_on("", f"{ctx.resolve(npc, 'host'):X}.moveto {ctx.resolve(near, 'host'):X} 0 {gap} 0")
+        ctx.refresh_handles()
+        target = ctx.resolve(near, "host")
+        if near == "guest_player":  # the host's copy follows a teleport a moment later
+            there = lambda: ctx.place_of("client", 0x14)
+            ctx.wait_for("the host's copy of the guest reaches the guest",
+                         lambda: math.dist(ctx.place_of("", target), there()) < 60, 10)
+        ctx.console_on("", f"{ctx.resolve(npc, 'host'):X}.moveto {target:X} 0 {gap} 0")
         return {"near": near}
 
     def witness_faces(ctx, npc, toward="guest_player"):
@@ -85,13 +93,6 @@ class CrimeActions:
         except Exception:
             raise ctx.failure(f"the party's bounty is {ctx.party_bounty()}, expected at least {at_least} in both games") from None
         return ctx.party_bounty()
-
-    def expect_mood(ctx, npc, angry):
-        """The host's `npc` has kAngryWithPlayer or not: it means the host's player, whoever stole (crime.md)."""
-        mood = ctx.witness_mood(npc)
-        if mood["angry"] != angry:
-            raise ctx.failure(f"{npc}: angry {mood['angry']}, expected {angry}: {mood}")
-        return mood
 
     def expect_target(ctx, npc, player="guest_player", seconds=10.0):
         """The host's `npc` targets `player` (combat or package target) within `seconds`: a crime's reaction goes to

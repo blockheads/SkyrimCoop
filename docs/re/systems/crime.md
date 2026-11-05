@@ -33,9 +33,9 @@ if witnessed:
 else: unwitnessed stolen value only
 ```
 
-The bounty is written only by 37679, and only when an owner or witness detected the criminal at that instant. The one
-later report is a type 34 warning ending with the item kept (`Actor::EndInterruptPackage`). A witness who sees the
-criminal afterwards reacts (below) and writes nothing.
+The bounty is written by 37679, at StealAlarm's call when an owner or witness detected the criminal then. Later reports:
+a type 34 warning ending with the item kept (`Actor::EndInterruptPackage`), and in 39631 a guard searching for the crime
+(`kCrimeSearch`) that finds the criminal (0x140703CE5-0x140703D19). Other later witnesses only react (below).
 
 So the party's first two seen thefts only warn; the third alarms and adds bounty. The count is the host player's, so a
 guest's and the host's thefts share it. (Also gated by the thief's "stole today" flag, +0xE8 bit 0x8000, cleared by day.)
@@ -53,7 +53,7 @@ if owner and the target stole today: Actor__SetAngryWithPlayer, assault the pack
 ```
 
 This is what attacked the host on the duo: 16 ms after the guest's theft, `SetAngry` from `0x711B1B` and the assault from
-`0x711ADF`, target `0x14`, while `StandardDetectionListener__ReactToDetection` (39765) also assaulted the copy.
+`0x711ADF`, target `0x14`. Under the party rule that is right when the host is the nearest (below).
 
 Every other witness: `AIProcess__ProcessPendingCrime` (39631), also from `UpdateHighProcessAI`, after StealAlarm returned:
 
@@ -147,14 +147,21 @@ Harness `crime knowledge` (39763) reads a witness's state without asking for one
 
 ## What SkyrimCoop does about it
 
+The party rule (`party-model.md`, Crime): one player's crime flags the whole party, and a hostile NPC attacks whoever is
+near it.
+
 - `CrimeEngine::Player` applies `PlayerShift` (above).
-- A guest's crime stays on the host's player: the record, the bounty, the alarm and the arrest (`AIProcess__ConfrontAlarmTarget`
-  needs the real player). `CrimeCulprits` remembers who did it when StealAlarm hands it out (39557), and 39631 and 39651 run
-  in that guest's scope: detection reads the copy, an assault (39359) goes to the copy, and `SetAngry` is skipped, since it
-  means the host's player.
-- `CrimeService` holds a guest's theft for 0.5 s, asking every witness each frame (41408), then judges: the greeting pass
-  does this for the real player, and a copy's state has to be fresh in that one call.
-- Not covered: `AIProcess__ConfrontAlarmTarget` assaulting the player of an actively hostile faction (party-wide by design).
+- A guest's crime is the host's player's in the engine, as Skyrim needs: record, bounty, alarm, arrest and the angry flag.
+  `HookCrimeAttack` / `HookCrimeReaction` make every party body equally hostile to an NPC that knows a party crime.
+- Who it attacks: `HostAggro` counts an NPC fighting a player for a party crime (`CrimeBridge::PartyIsCriminalTo`) as a
+  party fight, so `PartyThreat` picks by distance, first pick at once. In such a fight a player the NPC sees is a target
+  without having hit it (`CanTarget`): the combat group showed the guest known at detection 60-100 with stealth points
+  left, which the damage rule turned away. The 1.2 switch ratio still applies, so a nearly equal distance keeps the target.
+- `CrimeService` holds a guest's theft 0.5 s, asking every witness each frame (41408), then judges: the greeting pass
+  does this for the real player, and a copy's state has to be fresh in that one call. Actions after it wait behind it;
+  a lock check is answered at once.
+- Tried and removed: remembering which guest did a crime and running 39631 / 39651 in its scope so only that guest was
+  attacked (wrong for the party rule, and one alarm can hold several players' crimes).
 
 ## IDs
 

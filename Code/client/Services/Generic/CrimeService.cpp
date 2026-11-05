@@ -29,10 +29,13 @@ CrimeService::~CrimeService() noexcept
 
 bool CrimeService::Judge(uint32_t aActorSessionId, const CrimeRequest& aRequest) noexcept
 {
-    const auto cActor = Utils::GetFormIdBySessionId(aActorSessionId);
-    if (aRequest.Action != CrimeAction::Theft && aRequest.Action != CrimeAction::ContainerTheft)
-        return m_bridge.Judge(cActor, aRequest);
-    m_held.push_back({cActor, aRequest, 0.0});
+    const bool cTheft = aRequest.Action == CrimeAction::Theft || aRequest.Action == CrimeAction::ContainerTheft;
+    // The lock menu needs its answer now; anything else keeps its place behind a held theft.
+    if (aRequest.Action == CrimeAction::Lockpick || (!cTheft && m_held.empty()))
+        return m_bridge.Judge(Utils::GetFormIdBySessionId(aActorSessionId), aRequest);
+    m_held.push_back({aActorSessionId, aRequest, 0.0, 0});
+    if (cTheft)
+        m_bridge.AskWitnesses(Utils::GetFormIdBySessionId(aActorSessionId));
     return false;
 }
 
@@ -40,16 +43,22 @@ void CrimeService::JudgeHeld(double aDelta) noexcept
 {
     // Asked each frame a witness's state stayed under 0.3 s old (crime.md), so all have answered by then.
     constexpr double cWitnessWait = 0.5;
-    std::erase_if(m_held, [&](HeldTheft& aHeld) {
-        aHeld.Waited += aDelta;
-        if (aHeld.Waited < cWitnessWait)
+    while (!m_held.empty())
+    {
+        auto& held = m_held.front();
+        const auto cActor = Utils::GetFormIdBySessionId(held.ActorSessionId);
+        const bool cTheft = held.Request.Action == CrimeAction::Theft || held.Request.Action == CrimeAction::ContainerTheft;
+        if (cActor && cTheft && (held.Asks < 2 || held.Waited < cWitnessWait))
         {
-            m_bridge.AskWitnesses(aHeld.ActorFormId);
-            return false;
+            m_bridge.AskWitnesses(cActor);
+            ++held.Asks;
+            held.Waited += aDelta;
+            return;
         }
-        m_bridge.Judge(aHeld.ActorFormId, aHeld.Request);
-        return true;
-    });
+        if (cActor) // a guest gone meanwhile has no copy to judge
+            m_bridge.Judge(cActor, held.Request);
+        m_held.erase(m_held.begin());
+    }
 }
 
 void CrimeService::OnLockCrime(const NotifyLockCrime& aState) noexcept
@@ -129,5 +138,4 @@ void CrimeService::OnLoaded(const GameLoadedEvent&) noexcept
     m_hasState = false;
     m_gold.clear();
     m_held.clear();
-    m_bridge.ForgetCulprits();
 }

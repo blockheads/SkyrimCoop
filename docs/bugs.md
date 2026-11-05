@@ -91,8 +91,8 @@ other section needs the duo.
 
 **Crime and aggro**
 
-- [A guest's thefts](#a-guests-thefts): small, waits
-- [A guest's aggro](#a-guests-aggro): medium, waits
+- [The older crime scenarios](#the-older-crime-scenarios): medium
+- [A guest's theft of a created item](#a-guests-theft-of-a-created-item): small
 
 **Combat**
 

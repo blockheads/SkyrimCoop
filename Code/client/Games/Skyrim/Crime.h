@@ -78,15 +78,6 @@ struct ActorKnowledge
     uint8_t pad28[0x44 - 0x28];
     float RequestedAt; // -FLT_MAX when no update is queued (42712)
 };
-// A running alarm (TESPackage type 21): the crimes it answers, first at +0xE0, read by 39651.
-struct AlarmPackage
-{
-    static constexpr uint8_t cType = 21;
-    uint8_t pad0[0x24];
-    uint8_t Type;
-    uint8_t pad25[0xE0 - 0x25];
-    void* Crime;
-};
 struct LockpickMenu
 {
     uint8_t pad0[0x10D]{};
@@ -109,8 +100,6 @@ static_assert(offsetof(Faction, StolenContainer) == 0x70);
 static_assert(offsetof(DataHandler, Factions) == 0x118);
 static_assert(offsetof(ContainerMenu, StealValue) == 0xB0);
 static_assert(offsetof(LockpickMenu, Reported) == 0x10D);
-static_assert(offsetof(AlarmPackage, Type) == 0x24);
-static_assert(offsetof(AlarmPackage, Crime) == 0xE0);
 static_assert(offsetof(DetectionState, Level) == 0x10);
 static_assert(offsetof(DetectionState, UpdatedAt) == 0x38);
 static_assert(offsetof(ActorKnowledge, Target) == 0x14);

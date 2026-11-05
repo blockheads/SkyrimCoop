@@ -112,7 +112,8 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
         return {{"ok", true}, {"bounty", get(actor, faction)}, {"attack_on_sight", (actor->flags2 & 0x8000) != 0},
                 {"angry", (actor->flags2 & 0x800) != 0}, {"pending_crime", high && high->pendingCrime},
-                {"faction_enemy", own && (own->Flags & 0x8) != 0}};
+                {"faction_enemy", own && (own->Flags & 0x8) != 0},
+                {"party_criminal", World::Get().ctx().at<CrimeService>().PartyIsCriminalTo(actor->formID)}};
     }
     else if (action == "set_warnings")
     {

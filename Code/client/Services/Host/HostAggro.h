@@ -12,7 +12,8 @@ class IActorBridge;
 struct HostAggro
 {
     HostAggro(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors,
-              std::function<void(const PartyThreat::State&)> aPublish) noexcept;
+              std::function<void(const PartyThreat::State&)> aPublish,
+              std::function<bool(uint32_t)> aCrimeHostile) noexcept;
     ~HostAggro() noexcept;
     NO_COPY_MOVE(HostAggro);
     void Update(const UpdateEvent&) noexcept;
@@ -24,5 +25,6 @@ struct HostAggro
     IActorBridge& m_actors;
     PartyThreat::State m_state;
     std::function<void(const PartyThreat::State&)> m_publish;
+    std::function<bool(uint32_t)> m_crimeHostile;
     std::vector<entt::scoped_connection> m_connections;
 };

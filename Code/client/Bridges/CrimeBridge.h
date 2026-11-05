@@ -12,7 +12,7 @@ class CrimeBridge final : public ICrimeBridge
     void ApplyGold(const std::vector<CrimeGold>&) noexcept override;
     bool Judge(uint32_t aActorFormId, const CrimeRequest&) noexcept override;
     void AskWitnesses(uint32_t aActorFormId) noexcept override;
-    void ForgetCulprits() noexcept override;
+    bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept override;
     void LockCaught(uint32_t aAttempt) noexcept override;
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept override;
     void Confiscate(const GameId&) noexcept override;
