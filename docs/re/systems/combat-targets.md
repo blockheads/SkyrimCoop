@@ -87,11 +87,10 @@ real hits, walking, `setpos` far off, bleedout, host dead, Orgnar dead, in that 
 (`placed-copy-is-chased`, written and deleted: it passed with and without a correction). Whether the playtest's NPCs were
 in this state is also not known: its log has no such readout.
 
-What is in place: `HookGetPredictedPosition` replaces a copy's prediction with its real place only when it is farther off
-than anything moves in that time (`CopyStep::PredictionStale`, 800 units/s, 400 at the 0.5 s the check asks), so aim keeps its
-lead. It logs `Copy ...: combat predicted ...: stale path`. That line in a report dates the trigger; no line and the same
-symptoms mean this is not the cause. It is a guard against a state seen once, not a proven fix. The bug stays in
-`docs/bugs.md`.
+What is in place: only a watch. `HookGetPredictedPosition` changes nothing and logs `Copy ...: combat predicted ...: stale
+path` when a copy's prediction is farther off than anything moves in that time (`CopyStep::PredictionStale`, 800 units/s, 400
+at the 0.5 s the check asks). That line in a report dates the trigger; no line and the same symptoms mean this is not the
+cause. Correcting the prediction waits for a reproduction: the bug stays in `docs/bugs.md`.
 
 Ruled out as causes, the chase working in each: the bleedout, the host's death, who the fight started on. The anger
 registry: no `is now angry` line in any run or the playtest's log.

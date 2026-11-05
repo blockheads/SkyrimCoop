@@ -34,7 +34,6 @@ constexpr uint32_t cAddMessage = 13631;
 constexpr uint32_t cMessageQueue = 400445;
 constexpr uint32_t cFormById = 14617; // TESForm::GetById
 constexpr uint32_t cCompileAndRun = 441582; // Script::CompileAndRun_Impl
-constexpr size_t cScriptText = 0x38;        // Script::text (Forms/Script.h)
 constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
 constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
@@ -105,6 +104,31 @@ bool InWorld()
     return pPlayer && *reinterpret_cast<void* const*>(pPlayer + cParentCell);
 }
 
+// What the watch and the target read of a form (CommonLibSSE; Forms/Script.h for the script).
+struct ScriptView
+{
+    uint8_t pad0[0x38];
+    const char* text;
+};
+static_assert(offsetof(ScriptView, text) == 0x38);
+
+struct ReferenceView
+{
+    uint8_t pad0[0x1A];
+    uint8_t formType; // TESForm::formType: 0x3D reference, 0x3E actor
+    uint8_t pad1B[0x54 - 0x1B];
+    float location[3];
+
+    [[nodiscard]] bool IsReference() const noexcept { return formType == 0x3D || formType == 0x3E; }
+};
+static_assert(offsetof(ReferenceView, formType) == 0x1A && offsetof(ReferenceView, location) == cLocation);
+
+const ReferenceView* ReferenceById(uint32_t aFormId)
+{
+    const auto* pForm = At<const ReferenceView* (*)(uint32_t)>(cFormById)(aFormId);
+    return pForm && pForm->IsReference() ? pForm : nullptr;
+}
+
 // A line that names its reference: the console queues it, so the target waits here until its text runs.
 using TCompileAndRun = void(void* apScript, void* apCompiler, uint32_t aCompilerName, void* apTarget);
 TCompileAndRun* s_realCompileAndRun = nullptr;
@@ -113,10 +137,10 @@ uint32_t s_targetForm = 0;
 
 void HookCompileAndRun(void* apScript, void* apCompiler, uint32_t aCompilerName, void* apTarget)
 {
-    const char* pText = *reinterpret_cast<const char**>(static_cast<uint8_t*>(apScript) + cScriptText);
+    const char* pText = static_cast<const ScriptView*>(apScript)->text;
     if (s_targetForm && pText && s_targetLine == pText)
     {
-        apTarget = At<void* (*)(uint32_t)>(cFormById)(s_targetForm);
+        apTarget = const_cast<ReferenceView*>(ReferenceById(s_targetForm));
         s_targetForm = 0;
     }
     s_realCompileAndRun(apScript, apCompiler, aCompilerName, apTarget);
@@ -141,14 +165,14 @@ void WriteWatched(std::ofstream& aFile)
 {
     std::ifstream watch(s_control / "watch.txt");
     uint32_t formId = 0;
-    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
+    const auto* pPlayer = *At<const ReferenceView**>(cPlayerSingleton);
     if (!(watch >> std::hex >> formId) || !pPlayer)
         return;
-    const auto* pActor = At<const uint8_t* (*)(uint32_t)>(cFormById)(formId);
+    const auto* pActor = ReferenceById(formId);
     if (!pActor)
         return;
-    const auto* pAt = reinterpret_cast<const float*>(pActor + cLocation);
-    const auto* pMe = reinterpret_cast<const float*>(pPlayer + cLocation);
+    const float* pAt = pActor->location;
+    const float* pMe = pPlayer->location;
     aFile << ", \"watched\": [" << pAt[0] << ", " << pAt[1] << ", " << pAt[2] << "], \"player\": [" << pMe[0] << ", "
           << pMe[1] << ", " << pMe[2] << "]";
 }

@@ -761,7 +761,7 @@ Size: medium. Needs: duo, IDA, then GameTests. Waits for: a reproduction or a `s
   do not follow when the guest walks away.
   - Evidence and what is ruled out: `docs/re/systems/combat-targets.md`, "The half-stop". Seen once on the duo: a copy's
     combat prediction frozen at an old place, the NPC "in range" 1,300 units off. Trigger unknown: not reproduced with
-    the same steps. `HookGetPredictedPosition` guards that state and logs `stale path`, unproven as the playtest's cause.
+    the same steps. `HookGetPredictedPosition` only watches for that state: it logs `stale path` and changes nothing.
   - Start: `combat_targets` prints the tree, R and the prediction. Look for the `stale path` line in the next report and read
     what happened just before it; in IDA, who sets the copy's path follower state (90724 reads it) when a copy runs no AI.
   - Test: none yet that fails. The dead-for-minutes half is fixed (`HostDeath::kCombatHoldSeconds`, GameTests "A fight that

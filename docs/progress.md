@@ -1456,7 +1456,7 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 - **A fight holds a downed player's respawn for a minute at most** (2026-11-05, `HostDeath::kCombatHoldSeconds`,
   `docs/design/death.md`): an essential NPC's fight cannot end. The half-stop after a host's death is still open
-  (`docs/bugs.md`): a guard for a copy's frozen combat prediction logs `stale path`, trigger unknown
+  (`docs/bugs.md`): a watch on a copy's frozen combat prediction logs `stale path`, trigger unknown
   (`docs/re/systems/combat-targets.md`). `combat_targets` prints the combat tree's running nodes, R's terms and the prediction.
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
