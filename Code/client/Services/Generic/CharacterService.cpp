@@ -1548,7 +1548,7 @@ void CharacterService::RunRemoteUpdates() noexcept
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
             const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
-            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, at, position);
+            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, m_actorBridge.IsInFurniture(pFormIdComponent->Id), at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);

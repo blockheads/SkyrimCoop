@@ -10,6 +10,7 @@
 #include "FrameStepper.h"
 #include "GaitWatch.h"
 #include "InputTrace.h"
+#include "JitterWatch.h"
 #include "PlayerInput.h"
 
 namespace TestHarness
@@ -25,6 +26,7 @@ struct Harness
     AnimationTrace Trace;
     BodyTrace Bodies;
     GaitWatch Gait;
+    JitterWatch Jitter;
     DialogueTrace Dialogue;
     EngineEvents Events;
     InputTrace Inputs;

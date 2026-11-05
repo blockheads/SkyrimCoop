@@ -169,6 +169,18 @@ nlohmann::json Gait(Harness& aHarness, const nlohmann::json& acRequest)
     return {{"ok", true}, {"actors", aHarness.Gait.Read(acRequest.value("seconds", 2.0))}};
 }
 
+// {"cmd": "jitter", "start": true}, then {"cmd": "jitter"}, {"stop": true}: what turned back on itself frame by frame.
+nlohmann::json Jitter(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    if (acRequest.value("start", false))
+        aHarness.Jitter.Start();
+    nlohmann::json reply = aHarness.Jitter.Read();
+    reply["ok"] = true;
+    if (acRequest.value("stop", false))
+        aHarness.Jitter.Stop();
+    return reply;
+}
+
 nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
 {
     if (acRequest.value("stop", false))
@@ -1091,6 +1103,7 @@ constexpr Command cCommands[] = {
     {"anim_trace", true, &AnimTrace},
     {"body_trace", true, &BodyTraceCommand},
     {"gait", true, &Gait},
+    {"jitter", true, &Jitter},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"world_state", true, &WorldState},

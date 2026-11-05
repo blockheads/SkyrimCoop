@@ -454,6 +454,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
+        bool InFurniture = false; // sit/sleep state set: a step lands off the goal along its facing, its write-back's offset
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -685,7 +686,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    // Units a stepped copy in furniture lands off its goal, at most 3 of these: the duo's 0.3 to 1.2 (actor-movement.md).
+    static constexpr float kFurnitureOffset = 0.4f;
     bool IsOnGround(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && !Actors.at(aFormId).InAir; }
+    bool IsInFurniture(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).InFurniture; }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override

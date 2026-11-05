@@ -113,6 +113,28 @@ SCENARIO("A copy plays its owner's time as far behind as the line needs, not a f
     CHECK(cNow - cShown < 200);                       // and its owner's send interval
 }
 
+SCENARIO("A copy in furniture stays on its owner's path, its engine's write-back kept out", "[copies][copy-step]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+    Walk(party, std::chrono::milliseconds(300), 100.f);
+    const uint32_t cCopy = HostPlayerCopy(guest);
+    const float cPathY = host.Actors.at(FakeEngine::kPlayer).Position[1];
+
+    // Moved along x: y is what a write-back's offset would show. As on the way into a chair or a wall lean.
+    guest.Actors.at(cCopy).InFurniture = true;
+    float furthest = 0.f;
+    Walk(party, std::chrono::milliseconds(600), 100.f, [&] {
+        furthest = std::max(furthest, std::abs(guest.Actors.at(cCopy).Position[1] - cPathY));
+    });
+
+    INFO("furthest off its owner's path: " << furthest);
+    CHECK_FALSE(guest.Actors.at(cCopy).Stepped);
+    CHECK(furthest < 0.1f);
+}
+
 SCENARIO("Over a slow, jittery line a walking copy never steps back", "[copies][copy-clock]")
 {
     Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 80, .JitterMs = 40, .Seed = 3});

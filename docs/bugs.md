@@ -51,6 +51,15 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   cannot be staged. Sync points should cover it, unproven.
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
+- **Creature copies wobble a little around their goal** (2026-11-05). A stepped wolf's or deer's copy on the guest's game
+  turns back on itself up to 326 times in 25 s, by at most 0.35 units a step (seen on far-off creatures, `9F361` and
+  `8CACD` in Riverwood; owners do not). Not in furniture, so not the fixed vibration (actor-movement.md).
+  - Start: copies' goals are whole units (`Vector3_NetQuantize` truncates), while a step settles to 0.05.
+  - Test: `jitter` on a creature, then a ClientTests case on the goal it is given.
+- **A town's world comparison finds ambient fish** (2026-11-05). `copy-leaves-furniture-steady` passes all its steps, then
+  fails the end comparison: about 55 references (ACTI `10C3BA`, fish controllers) posed differently in the two games,
+  as `faendal-letter`'s end comparison fails on things around it.
+  - Test: that scenario, after its steps.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.

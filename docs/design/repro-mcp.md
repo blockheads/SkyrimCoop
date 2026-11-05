@@ -56,6 +56,10 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   guest's recruit (`pick` uses real keys now), `expect items` passing on 0 of 0, `use` reporting before the menu, a
   stale handle on a reused form id.
 
+Shaking (2026-11-05): `jitter(game, seconds)` ranks what turned back on itself frame by frame (`TestHarness/JitterWatch`:
+each actor's place, drawn root, pelvis, heading) and reads what a whole screen hangs on (hour, clock speed, weather,
+player, camera). The animation trace's `pos` entries also carry `sit`, `goal` and `controller`.
+
 Kill moves (2026-11-04): `equip` (hex item, "0" bare hands), `kill_move_check`, `kill_move_exchange` (both players swing
 at once, moving). They appear once the server restarts; the scenario `kill-moves-cross` runs the same code.
 

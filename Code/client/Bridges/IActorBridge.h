@@ -88,6 +88,8 @@ public:
     [[nodiscard]] virtual bool IsLyingInRagdoll(uint32_t aFormId) const noexcept = 0;
     // Its character controller on the ground (hkpCharacterStateType 0): not jumping, falling, swimming or flying.
     [[nodiscard]] virtual bool IsOnGround(uint32_t aFormId) const noexcept = 0;
+    // Its sit/sleep state is set: seated, lying in bed, leaning, or on the way in or out.
+    [[nodiscard]] virtual bool IsInFurniture(uint32_t aFormId) const noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
 
     // --- Actor values ---

@@ -15,6 +15,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetCopyPerks(uint32_t, const Perks&) noexcept override {}
     bool IsKnockedDown(uint32_t) const noexcept override { return false; }
     bool IsOnGround(uint32_t) const noexcept override { return true; }
+    bool IsInFurniture(uint32_t) const noexcept override { return false; }
     void StaggerActor(uint32_t, float, uint32_t) noexcept override {}
     std::string Name;
     uint16_t Level = 1;

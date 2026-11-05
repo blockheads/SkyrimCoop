@@ -57,6 +57,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 6. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order.
 ## News
 
+- **NPC copies no longer vibrate in furniture** (2026-11-05). On the guest's game, copies going in or out of a chair, bed
+  or wall lean shook 0.6 to 1.8 units each frame: `Actor::Move` put them on their goal, then the engine's write-back moved
+  them off it. They are placed there now, never stepped (`actor-movement.md`, "A copy in furniture"). The clocks and sky
+  measured clean; the lights the user saw were not reproduced. New: the `jitter` MCP tool, `JitterWatch`.
+
 Newest first.
 
 2026-11-04: the repro MCP on a real bug and with checkpoints ([repro-mcp.md](design/repro-mcp.md), "Used on a real

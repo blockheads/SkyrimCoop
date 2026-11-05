@@ -781,7 +781,7 @@ def _line(tool, args):
 
 # Tools that only look or run the duo: never part of a test (a name in `rounds` that is neither these nor a replayed
 # tool is a Session verb).
-LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
+LOOKS = {"jitter", "duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
          "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 

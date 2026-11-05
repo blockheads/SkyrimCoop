@@ -290,6 +290,24 @@ def counters(game: str = "host", reset: bool = False) -> dict:
 
 
 @tool
+def jitter(game: str = "client", seconds: float = 8.0, top: int = 12) -> dict:
+    """What shakes in that game over `seconds`, frame by frame (TestHarness/JitterWatch): each actor's place, drawn root,
+    pelvis against its root and heading, by how often a step undid the last; and what all of a screen hangs on (hour
+    going back, clock speed changes, the player). The actors that turned back most first."""
+    game = _game(game)
+    session.player_command(game, {"cmd": "jitter", "start": True})
+    time.sleep(seconds)
+    reading = session.player_command(game, {"cmd": "jitter", "stop": True}) or {}
+    names = {int(a["id"], 16): a.get("name") for a in session.look(game).get("nearby", [])}
+    rows = []
+    for form_id, actor in (reading.pop("actors", None) or {}).items():
+        shakes = max(actor[part]["reversals"] for part in ("place", "root", "pelvis", "heading"))
+        rows.append({"id": f"{int(form_id):X}", "name": names.get(int(form_id)), "shakes": shakes, **actor})
+    rows.sort(key=lambda row: -row["shakes"])
+    return {"ok": True, **reading, "actors_seen": len(rows), "actors": rows[:top]}
+
+
+@tool
 def network(game: str = "host") -> dict:
     """That game's line: the session time, round trips (the host's per connection), a guest's clock syncs."""
     return {"ok": True, "network": (session.game(_game(game)).read_status() or {}).get("network")}

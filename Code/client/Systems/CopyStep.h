@@ -19,12 +19,13 @@ struct CopyStep
     static constexpr float kSnap = 64.f;
 
     // Stepped only while its owner's controller is on the ground, where its engine's step follows faithfully; in any other
-    // state placed (a step leaves its height to support and gravity, so it could never jump).
-    [[nodiscard]] static CopyMove Choose(bool aLies, bool aOwnerOnGround, const glm::vec3& acAt, const glm::vec3& acGoal) noexcept
+    // state placed (a step leaves its height to support and gravity, so it could never jump). In furniture too: Move runs
+    // no step there, and the write-back a step lets through lands off the goal (actor-movement.md, "A copy in furniture").
+    [[nodiscard]] static CopyMove Choose(bool aLies, bool aOwnerOnGround, bool aInFurniture, const glm::vec3& acAt, const glm::vec3& acGoal) noexcept
     {
         if (aLies)
             return CopyMove::Leave;
-        if (!aOwnerOnGround)
+        if (!aOwnerOnGround || aInFurniture)
             return CopyMove::Place;
         const glm::vec3 cOff = acGoal - acAt;
         return cOff.x * cOff.x + cOff.y * cOff.y + cOff.z * cOff.z > kSnap * kSnap ? CopyMove::Place : CopyMove::Step;
