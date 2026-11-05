@@ -78,6 +78,14 @@ class Profiling:
 
     def perf_sample(ctx, game, window_ms=60000):
         """What the profile compares before and after: the plugin's perf readout, frames, the process's CPU time."""
+        status = game.read_status() or {}
+        if status.get("vanilla"):  # the vanilla stand-in: its frame histogram, no perf command (VanillaHarness.cpp)
+            frames = status.get("frames") or {}
+            pid = ctx.game_process(game.name)
+            return {"time": time.monotonic(), "vanilla": True, "perf": {}, "frames": frames.get("frames", 0),
+                    "stalls": frames.get("stalls", 0), "histogram": frames.get("histogram_ms") or [],
+                    "cpu": ctx.process_cpu_seconds(pid),
+                    "memory": ctx.process_memory(pid), "line": {}, "counters": {}, "network": {}}
         response = game.rpc({"cmd": "perf", "window_ms": int(window_ms)}, timeout=10) or {}
         if not response.get("ok"):
             raise ctx.failure(f"[{game.name or 'host'}] no perf readout ({response.get('error', 'no answer')}); "
@@ -99,11 +107,21 @@ class Profiling:
 
     def command_profile(ctx, args):
         games = [ctx.host, ctx.guest] if args.instance in (None, "both") else [ctx.game(args.instance)]
+        vanilla = bool((ctx.host.read_status() or {}).get("vanilla"))
+        if vanilla:  # one game without our plugin (vanilla_start): the baseline to compare a duo's profile with
+            games, args.no_tracy, args.stacks = [ctx.host], True, False
+            if args.load or args.scenario:
+                raise ctx.failure("against vanilla only --route (no --load or --scenario: they need our plugin)")
+        try:
+            budget = parse_budget(args.budget) if args.budget else None
+        except ValueError as error:
+            raise ctx.failure(str(error))
         for game in games:
             if not game.read_status():
                 raise ctx.failure(f"{game.name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first")
         run_dir = PROFILES / time.strftime("%Y%m%d-%H%M%S")
         run_dir.mkdir(parents=True, exist_ok=True)
+        ctx.profile_run = run_dir  # this call's folder, for the MCP's profile tool
         if args.load:
             kind, _, count = args.load.partition("=")
             if kind != "wolves" or not count.isdigit():
@@ -126,7 +144,7 @@ class Profiling:
                 if not response.get("ok"):
                     raise ctx.failure(f"[{game.name or 'host'}] sampling refused: {response.get('error', 'no answer')}")
                 samples[game.name] = response["run"]
-        for game in games:  # the window's own counts and maxima (Diagnostics/Counters.h)
+        for game in games if not vanilla else []:  # the window's own counts and maxima (Diagnostics/Counters.h)
             game.rpc({"cmd": "counters", "reset": True})
         before = {game.name: ctx.perf_sample(game) for game in games}
         log(f"Profiling {', '.join(game.name or 'host' for game in games)} for {args.seconds:.0f}s")
@@ -137,9 +155,14 @@ class Profiling:
                                            tag=None, fail_fast=False, dry_run=False, no_restart=True)
             with contextlib.suppress(TestFailure, SystemExit):
                 ctx.command_scenario(scenarios)
+        if args.route:
+            ctx.walk_route(ROUTES[args.route], args.seconds)
         time.sleep(max(0.0, args.seconds - (time.monotonic() - started)))
         window_ms = (time.monotonic() - started) * 1000
         after = {game.name: ctx.perf_sample(game, window_ms) for game in games}
+        for game in games:
+            if after[game.name].get("vanilla"):
+                after[game.name]["perf"]["frame_ms"] = histogram_percentiles(before[game.name], after[game.name])
 
         zones = {}
         for name, (output, process) in captures.items():
@@ -158,14 +181,28 @@ class Profiling:
             result = ctx.wait_for(f"[{name or 'host'}] stack samples written",
                                   lambda: (lambda r: r if r.get("finished", 0) >= run else None)(game.rpc({"cmd": "sample_result"}) or {}),
                                   60, _game=game)
-            stacks[name] = ctx.stack_report(Path(result["file"]), run_dir / f"{name or 'host'}-stacks")
+            stacks[name] = ctx.stack_report(windows_path(result["file"]), run_dir / f"{name or 'host'}-stacks")
 
         summary = ctx.profile_summary(games, before, after, zones, stacks, args)
+        verdicts = check_budget(budget, games, before, after) if budget else []
+        if verdicts:
+            summary += "\n## Frame-time budget\n\n" + "\n".join(f"- {line}" for line, _ in verdicts) + "\n"
         (run_dir / "summary.md").write_text(summary, encoding="utf-8")
         (run_dir / "raw.json").write_text(json.dumps({"before": before, "after": after}, indent=1, default=str))
         print(summary)
         log(f"Profile: {run_dir}" + (f"  (open a .tracy in Tracy's viewer: {TRACY_TOOLS / 'tracy-profiler.exe'})"
                                      if WINDOWS and captures else ""))
+        if over := [line for line, ok in verdicts if not ok]:
+            raise ctx.failure("over the frame-time budget: " + "; ".join(over))
+
+    def walk_route(ctx, route, seconds):
+        """The route's console lines on the host, evenly over the window (a guest follows by the party tether): the
+        same streaming load for a duo and for vanilla, so their frame times compare."""
+        dwell = seconds / len(route)
+        for line in route:
+            started = time.monotonic()
+            ctx.run_console(line, timeout=30, _game=ctx.host)
+            time.sleep(max(0.0, dwell - (time.monotonic() - started)))
 
     def tracy_zones(ctx, capture):
         """{zone: {calls, total_ms, self_ms, mean_us, max_us}} from a capture (tracy-csvexport, total and self)."""
@@ -265,7 +302,7 @@ class Profiling:
         """A system DLL's frame by its nearest preceding export (ntdll!NtWaitForSingleObject), else module+offset."""
         cache = ctx.__dict__.setdefault("_exports", {})
         if filename not in cache:
-            cache[filename] = pe_exports(windows_path(path))
+            cache[filename] = pe_exports(windows_path(path, ctx.host.prefix / "pfx/drive_c"))
         exports = cache[filename]
         index = bisect.bisect_right([start for start, _ in exports], rva) - 1
         if index < 0:
@@ -331,6 +368,10 @@ class Profiling:
             lines.append(f"Load: {args.load}")
         if args.scenario:
             lines.append(f"Scenarios: {', '.join(args.scenario)}")
+        if args.route:
+            lines.append(f"Route: {args.route}")
+        if any(after[game.name].get("vanilla") for game in games):
+            lines.append("Vanilla: no plugin of ours (the vanilla stand-in)")
         for game in games:
             name = game.name or "host"
             first, last = before[game.name], after[game.name]
@@ -385,12 +426,84 @@ class Profiling:
         return "\n".join(lines) + "\n"
 
 
-def windows_path(path):
-    """A path the game reported, readable here: Wine's Z: is /, its C: is the prefix's drive_c (not resolved: None)."""
+# Console lines for --route: Whiterun's plains to the city and the inn (cell loads and streaming, as the 2026-11-04
+# playtest walked).
+ROUTES = {
+    "whiterun": ["cow Tamriel 0 -4", "cow Tamriel 1 -3", "cow Tamriel 2 -2", "cow Tamriel 3 -1", "cow Tamriel 4 -1",
+                 "coc WhiterunOrigin", "coc WhiterunBanneredMare", "coc WhiterunOrigin"],
+}
+
+
+def parse_budget(text):
+    """"p95=33,p99=70,stalls_per_min=6" -> {"p95": 33.0, ...}: the frame-time limits a profile run must stay under."""
+    budget = {}
+    for part in text.split(","):
+        key, _, value = part.partition("=")
+        if key.strip() not in ("p50", "p95", "p99", "max", "stalls_per_min"):
+            raise ValueError(f"--budget {key}: p50, p95, p99, max or stalls_per_min")
+        budget[key.strip()] = float(value)
+    return budget
+
+
+def bucket_range(index):
+    """A vanilla frame-histogram bucket's (low, high) ms: one per ms below 1 s, per 100 ms below 30 s, then the rest."""
+    if index < 1000:
+        return float(index), float(index + 1)
+    if index < 1290:
+        return 1000.0 + 100 * (index - 1000), 1100.0 + 100 * (index - 1000)
+    return 30000.0, float("inf")
+
+
+def histogram_percentiles(before, after):
+    """{p50, p95, p99, max} over the window from a vanilla game's cumulative frame histogram (VanillaHarness.cpp): a
+    bucket's middle (its floor past 30 s), so a long frame keeps its size and the window's max is its own."""
+    old, new = before.get("histogram") or [], after.get("histogram") or []
+    counts = [n - (old[i] if i < len(old) else 0) for i, n in enumerate(new)]
+    total = sum(counts)
+    if not total:
+        return {}
+
+    def value(index):
+        low, high = bucket_range(index)
+        return low if high == float("inf") else (low + high) / 2
+
+    def percentile(fraction):
+        seen = 0
+        for index, count in enumerate(counts):
+            seen += count
+            if seen >= fraction * total:
+                return value(index)
+        return value(len(counts) - 1)
+    highest = max(index for index, count in enumerate(counts) if count)
+    low, high = bucket_range(highest)
+    return {"p50": percentile(0.50), "p95": percentile(0.95), "p99": percentile(0.99),
+            "max": low if high == float("inf") else high}
+
+
+def check_budget(budget, games, before, after):
+    """[(line, within)] per game and limit: the window's frame percentiles and stalls a minute against the budget."""
+    verdicts = []
+    for game in games:
+        first, last = before[game.name], after[game.name]
+        minutes = max(1e-6, (last["time"] - first["time"]) / 60)
+        frame = last["perf"].get("frame_ms") or {}
+        measured = {key: frame.get(key, 0.0) for key in ("p50", "p95", "p99", "max")}
+        measured["stalls_per_min"] = (last["stalls"] - first["stalls"]) / minutes
+        for key, limit in budget.items():
+            within = measured[key] <= limit
+            verdicts.append((f"{game.name or 'host'} {key} {measured[key]:.1f} (budget {limit:g}): "
+                             f"{'within' if within else 'OVER'}", within))
+    return verdicts
+
+
+def windows_path(path, drive_c=None):
+    """A path the game reported, readable here: Wine's Z: is /, its C: is the prefix's drive_c (without one: None)."""
     if WINDOWS:
         return Path(path)
     if path[:2].upper() == "Z:":
         return Path(path[2:].replace("\\", "/"))
+    if path[:3].upper() == "C:\\" and drive_c:
+        return Path(drive_c) / path[3:].replace("\\", "/")
     return None
 
 

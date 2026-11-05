@@ -347,6 +347,30 @@ class Export(unittest.TestCase):
                                 f"{name}: give it a scenario line (repro._line) or list it in repro.LOOKS")
 
 
+class Profile(unittest.TestCase):
+    """The profile tool returns this call's folder, never an earlier run's."""
+
+    def run_profile(self, behaviour):
+        session = FakeSession()
+        session.command_profile = lambda args: behaviour(session)
+        registered(session)
+        return mcp_tools.TOOLS["profile"]()
+
+    def test_a_failure_before_the_window_is_its_own(self):
+        def preflight(session):
+            raise TestFailure("host game is not running")
+        self.assertEqual(self.run_profile(preflight), {"ok": False, "failure": "host game is not running"})
+
+    def test_over_budget_gives_this_runs_summary(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def over(session):
+                session.profile_run = Path(folder)
+                (Path(folder) / "summary.md").write_text("# this run")
+                raise TestFailure("over the frame-time budget: host p95")
+            result = self.run_profile(over)
+        self.assertEqual((result["ok"], result["folder"], result["summary"]), (False, folder, "# this run"))
+
+
 class DuoRefusal(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()

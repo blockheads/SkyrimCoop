@@ -106,13 +106,14 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
 
 
 @tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 90) -> dict:
+def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -> dict:
     """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
-    in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true)."""
+    in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
+    one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", "--vanilla", "--cell", cell]
+    command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]
     duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
     return {"ok": True, "booting": True, "log": str(duo["log"])}
 
@@ -286,6 +287,28 @@ def press_to_motion(game: str = "host", key: str = "w", presses: int = 5, vanill
     """Real key presses in that game: for each, frames and ms until the player moves. vanilla=true for the vanilla
     stand-in (vanilla_start), so the same number is had with and without our plugin."""
     return {"ok": True, "presses": session.press_to_motion(_game(game), key, presses, vanilla=vanilla)}
+
+
+@tool
+def profile(seconds: float = 60, route: str = "", budget: str = "", stacks: bool = False, game: str = "both",
+            no_tracy: bool = False) -> dict:
+    """coop_test.py profile on the held games (the duo, or the vanilla stand-in alone): frame-time percentiles, stalls,
+    CPU; route="whiterun" walks the same streaming route either way; budget="p95=33,p99=70,stalls_per_min=6" fails
+    over it. Returns the summary and its folder."""
+    import argparse
+    args = argparse.Namespace(seconds=seconds, instance=None if game == "both" else _game(game) or "host", load=None,
+                              scenario=None, stacks=stacks, no_tracy=no_tracy, route=route or None, budget=budget or None)
+    session.profile_run = None
+    try:
+        session.command_profile(args)
+        over = None
+    except TestFailure as error:  # over the budget, or failed before a window: the folder only if this call made one
+        if session.profile_run is None:
+            raise
+        over = str(error)
+    run = session.profile_run
+    summary = run / "summary.md"
+    return {"ok": over is None, "error": over, "folder": str(run), "summary": summary.read_text() if summary.exists() else None}
 
 
 @tool

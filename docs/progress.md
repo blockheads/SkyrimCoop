@@ -66,6 +66,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-05: the 2026-11-04 freezes are the machine's, not ours (`bugs.md`, Freezes and slowness). Fixed on the way:
+the guest's `BodyService::Apply` copy scan, `profile --stacks` crashing under Wine, lock-order `[ours]` on pass-through
+hooks. New: `profile --route` and `--budget`, against the vanilla stand-in.
+
 2026-11-05: IDA work reaches the repo by itself ([re/README.md](re/README.md), The journal). Hooks in
 `.claude/settings.json` (`scripts/re/ida_hook.py`) journal every function read and every name, comment and type
 written through ida-multi-mcp into `docs/re/journal/<version>/<branch>.tsv`; `build_re_data.py` reads the journals and

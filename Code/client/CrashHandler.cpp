@@ -33,6 +33,46 @@ std::string SerializeTimePoint(const time_point& time, const std::string& format
 static std::atomic<DWORD64> s_spinLockWait{0};
 static std::atomic<CrashHandler::TSpinLockOfFrame> s_spinLockOfFrame{nullptr};
 
+// A suspended thread can unwind through a bad address under Wine (docs/design/testing.md, the stack sampler): a fault
+// here ends the backtrace. The vectored handler lets it through to these __except blocks.
+static thread_local bool t_unwinding = false;
+
+static bool UnwindFrame(DWORD64 aImageBase, PRUNTIME_FUNCTION apFunction, CONTEXT& aContext) noexcept
+{
+    void* pHandlerData = nullptr;
+    DWORD64 establisherFrame = 0;
+    bool unwound = true;
+    t_unwinding = true;
+    __try
+    {
+        RtlVirtualUnwind(UNW_FLAG_NHANDLER, aImageBase, aContext.Rip, apFunction, &aContext, &pHandlerData, &establisherFrame,
+                         nullptr);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        unwound = false;
+    }
+    t_unwinding = false;
+    return unwound;
+}
+
+static bool UnwindLeaf(CONTEXT& aContext) noexcept
+{
+    bool unwound = true;
+    t_unwinding = true;
+    __try
+    {
+        aContext.Rip = *reinterpret_cast<DWORD64*>(aContext.Rsp);
+        aContext.Rsp += sizeof(DWORD64);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        unwound = false;
+    }
+    t_unwinding = false;
+    return unwound;
+}
+
 // apSpinLock: the spin lock a frame of the registered wait function waits for (SetSpinLockWait), else untouched.
 static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames, DWORD64* apSpinLock = nullptr)
 {
@@ -51,16 +91,14 @@ static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMa
             const auto pLockOfFrame = s_spinLockOfFrame.load();
             if (apSpinLock && pLockOfFrame && imageBase + pFunction->BeginAddress == s_spinLockWait.load())
                 *apSpinLock = pLockOfFrame(context);
-            void* pHandlerData = nullptr;
-            DWORD64 establisherFrame = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, context.Rip, pFunction, &context, &pHandlerData,
-                             &establisherFrame, nullptr);
+            if (!UnwindFrame(imageBase, pFunction, context))
+                break;
         }
         else if (count == 1)
         {
             // Leaf function: the return address is on top of the stack.
-            context.Rip = *reinterpret_cast<DWORD64*>(context.Rsp);
-            context.Rsp += sizeof(DWORD64);
+            if (!UnwindLeaf(context))
+                break;
         }
         else
             break; // No unwind data mid-stack: JIT code or garbage, stop rather than guess.
@@ -93,6 +131,8 @@ static void LogBacktrace(const CONTEXT& acContext)
 
 LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
 {
+    if (t_unwinding)
+        return EXCEPTION_CONTINUE_SEARCH;
     static int alreadyCrashed = 0;
     auto retval = EXCEPTION_CONTINUE_SEARCH;
 

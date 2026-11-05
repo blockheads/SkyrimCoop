@@ -1,0 +1,4 @@
+time	op	id	rva	item
+2026-11-05T19:30:42Z	read	44706	0x818c50	{"name": "CombatGroup__HasTarget"}
+2026-11-05T19:30:49Z	name	44703	0x818570	{"addr": "0x140818570", "name": "CombatGroup__UpdateTargets"}
+2026-11-05T19:30:49Z	name	11979	0x1700f0	{"addr": "0x1401700F0", "name": "ExtraDataList__TakeExtra3C"}
