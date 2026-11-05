@@ -293,13 +293,15 @@ def profile(seconds: float = 60, route: str = "", budget: str = "", stacks: bool
     import argparse
     args = argparse.Namespace(seconds=seconds, instance=None if game == "both" else _game(game) or "host", load=None,
                               scenario=None, stacks=stacks, no_tracy=no_tracy, route=route or None, budget=budget or None)
-    from .profiling import PROFILES
-    over = None
+    session.profile_run = None
     try:
         session.command_profile(args)
-    except TestFailure as error:  # over the budget: the summary still says by how much
+        over = None
+    except TestFailure as error:  # over the budget, or failed before a window: the folder only if this call made one
+        if session.profile_run is None:
+            raise
         over = str(error)
-    run = max(PROFILES.glob("*"))
+    run = session.profile_run
     summary = run / "summary.md"
     return {"ok": over is None, "error": over, "folder": str(run), "summary": summary.read_text() if summary.exists() else None}
 

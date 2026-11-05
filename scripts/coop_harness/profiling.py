@@ -84,7 +84,7 @@ class Profiling:
             pid = ctx.game_process(game.name)
             return {"time": time.monotonic(), "vanilla": True, "perf": {}, "frames": frames.get("frames", 0),
                     "stalls": frames.get("stalls", 0), "histogram": frames.get("histogram_ms") or [],
-                    "longest_ms": frames.get("longest_frame_ms", 0), "cpu": ctx.process_cpu_seconds(pid),
+                    "cpu": ctx.process_cpu_seconds(pid),
                     "memory": ctx.process_memory(pid), "line": {}, "counters": {}, "network": {}}
         response = game.rpc({"cmd": "perf", "window_ms": int(window_ms)}, timeout=10) or {}
         if not response.get("ok"):
@@ -121,6 +121,7 @@ class Profiling:
                 raise ctx.failure(f"{game.name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first")
         run_dir = PROFILES / time.strftime("%Y%m%d-%H%M%S")
         run_dir.mkdir(parents=True, exist_ok=True)
+        ctx.profile_run = run_dir  # this call's folder, for the MCP's profile tool
         if args.load:
             kind, _, count = args.load.partition("=")
             if kind != "wolves" or not count.isdigit():
@@ -444,24 +445,39 @@ def parse_budget(text):
     return budget
 
 
+def bucket_range(index):
+    """A vanilla frame-histogram bucket's (low, high) ms: one per ms below 1 s, per 100 ms below 30 s, then the rest."""
+    if index < 1000:
+        return float(index), float(index + 1)
+    if index < 1290:
+        return 1000.0 + 100 * (index - 1000), 1100.0 + 100 * (index - 1000)
+    return 30000.0, float("inf")
+
+
 def histogram_percentiles(before, after):
-    """{p50, p95, p99, max} over the window from a vanilla game's cumulative frame histogram (one bucket per ms)."""
+    """{p50, p95, p99, max} over the window from a vanilla game's cumulative frame histogram (VanillaHarness.cpp): a
+    bucket's middle (its floor past 30 s), so a long frame keeps its size and the window's max is its own."""
     old, new = before.get("histogram") or [], after.get("histogram") or []
     counts = [n - (old[i] if i < len(old) else 0) for i, n in enumerate(new)]
     total = sum(counts)
     if not total:
         return {}
 
+    def value(index):
+        low, high = bucket_range(index)
+        return low if high == float("inf") else (low + high) / 2
+
     def percentile(fraction):
         seen = 0
-        for ms, count in enumerate(counts):
+        for index, count in enumerate(counts):
             seen += count
             if seen >= fraction * total:
-                return float(ms) + 0.5
-        return float(len(counts))
-    highest = max((ms for ms, count in enumerate(counts) if count), default=0)
-    longest = after.get("longest_ms", 0) if highest == len(counts) - 1 else highest + 1.0
-    return {"p50": percentile(0.50), "p95": percentile(0.95), "p99": percentile(0.99), "max": float(longest)}
+                return value(index)
+        return value(len(counts) - 1)
+    highest = max(index for index, count in enumerate(counts) if count)
+    low, high = bucket_range(highest)
+    return {"p50": percentile(0.50), "p95": percentile(0.95), "p99": percentile(0.99),
+            "max": low if high == float("inf") else high}
 
 
 def check_budget(budget, games, before, after):

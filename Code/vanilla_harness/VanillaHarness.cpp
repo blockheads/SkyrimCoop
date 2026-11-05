@@ -54,8 +54,8 @@ std::chrono::steady_clock::time_point s_nextStatus{};
 bool s_tracing = false; // player_trace.on exists: the player's place each frame into player_trace.txt
 
 // Frame times as the client's World::Update counts them (kStallMs 100), for `coop_test.py profile` against vanilla:
-// one bucket per ms, the last for longer frames.
-constexpr size_t cFrameBuckets = 1001;
+// one bucket per ms below 1 s, per 100 ms below 30 s, the last for longer frames (profiling.py, histogram_percentiles).
+constexpr size_t cFrameBuckets = 1000 + 290 + 1;
 constexpr double cStallMs = 100.0;
 std::chrono::steady_clock::time_point s_lastFrame{};
 uint64_t s_frames = 0, s_stalls = 0;
@@ -189,7 +189,8 @@ void CountFrame()
         ++s_frames;
         s_stalls += cMs > cStallMs;
         s_longestFrameMs = cMs > s_longestFrameMs ? cMs : s_longestFrameMs;
-        ++s_frameHistogram[cMs < cFrameBuckets - 1 ? static_cast<size_t>(cMs) : cFrameBuckets - 1];
+        const size_t cBucket = cMs < 1000.0 ? static_cast<size_t>(cMs) : 1000 + static_cast<size_t>((cMs - 1000.0) / 100.0);
+        ++s_frameHistogram[cBucket < cFrameBuckets - 1 ? cBucket : cFrameBuckets - 1];
     }
     s_lastFrame = cNow;
 }

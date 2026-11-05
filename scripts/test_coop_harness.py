@@ -1552,20 +1552,29 @@ class ClipMismatchTests(unittest.TestCase):
 class ProfileBudgetTests(unittest.TestCase):
     """coop_test.py profile: a vanilla game's window from its histogram, and the budget verdicts."""
 
-    def window(self):
-        before, after = {"histogram": [0] * 1001, "time": 0, "stalls": 1}, {"histogram": [0] * 1001, "time": 60, "stalls": 4, "perf": {}}
+    def window(self, long_frames=0, earlier_load=False):
+        before, after = {"histogram": [0] * 1291, "time": 0, "stalls": 1}, {"histogram": [0] * 1291, "time": 60, "stalls": 4, "perf": {}}
         before["histogram"][16] = 500  # before the window: must not count
+        if earlier_load:
+            before["histogram"][1290] = 1  # a 52 s load before the window
+            after["histogram"][1290] = 1
         after["histogram"][16] = 500 + 900
         after["histogram"][33] = 90
-        after["histogram"][1000] = 10
-        after["longest_ms"] = 2500.0
+        after["histogram"][1000 + 30] += long_frames  # 4000-4100 ms
         return before, after
 
     def test_percentiles_are_the_windows(self):
         from coop_harness.profiling import histogram_percentiles
         before, after = self.window()
-        self.assertEqual(histogram_percentiles(before, after), {"p50": 16.5, "p95": 33.5, "p99": 33.5, "max": 2500.0})
+        self.assertEqual(histogram_percentiles(before, after), {"p50": 16.5, "p95": 33.5, "p99": 33.5, "max": 34.0})
         self.assertEqual(histogram_percentiles(after, after), {})
+
+    def test_long_frames_keep_their_size(self):
+        from coop_harness.profiling import histogram_percentiles
+        before, after = self.window(long_frames=20)  # 2% of the window's frames at about 4 s
+        self.assertEqual(histogram_percentiles(before, after)["p99"], 4050.0)
+        before, after = self.window(long_frames=1, earlier_load=True)
+        self.assertEqual(histogram_percentiles(before, after)["max"], 4100.0)  # not the earlier load's
 
     def test_budget_says_which_limit(self):
         from coop_harness.profiling import check_budget, histogram_percentiles, parse_budget
