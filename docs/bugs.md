@@ -35,10 +35,10 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [Replay lands in another state](#replay-lands-in-another-state): medium, waits
-- [Headtracking on copies](#headtracking-on-copies): medium, waits
-- [Players' idle variants](#players-idle-variants): small, waits
-- [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small, waits
+- [Replay lands in another state](#replay-lands-in-another-state): small
+- [Headtracking on copies](#headtracking-on-copies): medium
+- [Players' idle variants](#players-idle-variants): small
+- [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
 - [Owners move without walking](#owners-move-without-walking): medium
@@ -96,7 +96,7 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, waits
+- [After the host dies](#after-the-host-dies): medium
 - [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -106,27 +106,64 @@ other section needs the duo.
 
 A copy accepts a replayed action and nothing checks where its graph ended up.
 
-Agent task: Compare a copy's active graph states with its owner's snapshot after each replay and load the snapshot on a
-mismatch.
+Agent task: Add a detector, not a fix: after each taken replay, compare the copy's active state names with the action's
+`GraphState` and count and log a mismatch. Run it across a combined batch; build loading on a mismatch only if lasting
+mismatches show up.
 
-Size: medium. Needs: duo, then GameTests. Waits for: the `copy-state-sync` session's plan, which sorts these bugs by
-cause (awaiting approval, 2026-11-05).
+Size: small. Needs: GameTests (a forced mismatch), then a combined duo batch.
 
 - **An accepted replayed action can land in a different graph state** (user, 2026-10-31: animations drift in dialogue
   after a while). Nothing compares it (animation-replay-recovery.md). Fixed so far: copies played clips before their
   files were in, each game made its own random picks (2026-11-04), and copies never headtracked (progress.md, "copies
   look where their owners do"). The proposed fix is to compare active states with the owner's snapshot after each
   replay and load it on a mismatch.
+  - Measured 2026-11-05 (copy-state-sync, animation-replay-recovery.md "Does a copy's graph drift?"): Lucan on a fresh
+    duo, active states sampled at 10/s on both games through `npc-counter-matches` and `npc-clips-match`: the copy
+    follows every transition within 150-300 ms, no difference lasts over 1.1 s. One NPC: no lasting drift seen, not
+    proof there is none. A graph save costs 62-112 us and about 7.5 KB.
+  - Compare state names only (variables and clip times differ by design). Paired actions carry no snapshot.
+  - Pitfall: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in `JumpFall`/`JumpLand` for the
+    session, which reads as drift. Measure on fresh, unstaged NPCs.
 
 ### Headtracking on copies
 
 A copy's look target differs from its owner's: the 17 v1-acceptance failures and the kill moves' end comparisons.
 
-Agent task: Find why a copy's ProcessTracking picks its own look target over its owner's slots and fix
-`ai_state.head_track`, kill moves included.
+Agent task: Make `ai_state.head_track` compare only what the engine reads (step 1), then chase the four failures that
+remain (step 2). Read every reader of the slots first: if anything besides `ProcessTracking` reads a dead actor's
+slots, step 1 changes.
 
-Size: medium. Needs: duo, then GameTests. Waits for: the `copy-state-sync` session's plan, which sorts these bugs by
-cause (awaiting approval, 2026-11-05).
+Size: medium. Needs: IDA, a harness readout of the tracking gate, comparison units, a GameTests flow once the fake has
+the gate; duo for step 2.
+
+Findings, 2026-11-05 (IDA and duo; actor-ai-and-copies.md, "When the slots are read"):
+
+- `Actor::UpdateAnimation` (37361) and `Character::ProcessTrackingIfAllowed` (37363) skip `ProcessTracking` (38009)
+  for an actor dead or dying, in life state 3, knocked, in sit state 7, not high process, or with its controller out of
+  range. Then nothing reads the slots (no head turns) and our hook neither pushes nor reports.
+- `ProcessTracking` itself may write an ambient pick into slot 0 every 1.0-1.5 s, after our push
+  (`Character::PickAmbientHeadtrackTarget` 38012). It skips a target that is the actor itself.
+- `KillImpl` clears all six slots (39477).
+- Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the
+  copy in 70 ms.
+
+The 17 failures sort by cause (shape of the reported values; one of each measured):
+
+1. **Dead or dying (8: wolves, Valdr): a check of state nothing reads.** Measured on a killed wolf: at dying, slot 1
+   becomes each game's own player, about 2 s later it moves to slot 0, the owner's clears at life state 2. The copy
+   reached life state 2 first (its clear-all ran before its local write), so its slot 0 keeps its own player. The
+   writer of slot 1 at dying is not found (written inline at `+0x144`, so xrefs to 39783 miss it). The kill-move
+   failures are this.
+2. **A player's slot on itself (4: dives, fus-ro-dah).** Measured: the host player's own shout sets slots 1 and 0 to
+   itself; its copy reads none. A self-target turns no head. Why the owner's change is never sent is unread:
+   `PlayerCharacter`'s update calls `ProcessTracking` only with camera state 9 or more (0x140745200; inferred).
+3. **A temporary form (1: `late-join-gets-calendar`, `FF000820`):** no id the other game shares, as with
+   `combat_target`.
+4. **Unexplained, real (4): Belethor, Elk (`follower-guest-recruits`), Proventus (`party-buys-house-host`), Chicken
+   (`guest-joins-elsewhere`).** Belethor's copy holds the guest's player in slot 1 while alive, where the push should
+   have overwritten it. If a copy's own write is the cause, the engine's lever is `Actor::headTrackingUpdateDelay`
+   (`+0xEC`; `EndDialogue` 37552 sets it to 1.0 to hold the pick back).
+
 
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
@@ -147,8 +184,8 @@ Sync points cover NPCs only.
 
 Agent task: Give a player's copy the same graph sync points NPCs have.
 
-Size: small. Needs: duo, then GameTests. Waits for: the `copy-state-sync` session's plan, which sorts these bugs by
-cause (awaiting approval, 2026-11-05).
+Size: small. Needs: duo, then GameTests. Cause read in code (2026-11-05): separate from the replay and headtracking
+sections.
 
 - **Players' idle variants can differ between games** (2026-11-04). Sync points (animation-replay-recovery.md, "A
   graph's random picks") are sent for NPCs only: a player's own character on the other game still makes its own random
@@ -163,8 +200,7 @@ Test only: sync points should already cover it.
 
 Agent task: Write the scenario where a guest's copy spawns while its owner is mid-loop.
 
-Size: small. Needs: duo. Waits for: the `copy-state-sync` session's plan, which sorts these bugs by cause (awaiting
-approval, 2026-11-05).
+Size: small. Needs: duo. A test gap, not part of the replay section (2026-11-05).
 
 - **A guest walking in on an NPC mid-loop is untested** (2026-11-04). `npc-counter-copy-falls-back-in` forces the copy
   out of step by loading the host's graph into it: the party tether brings the guest along, so a real late arrival
@@ -217,6 +253,10 @@ Size: medium. Needs: duo.
   units in 2 s).
   - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
     scenario's `check_gait` names each actor and its distance.
+  - 2026-11-05 (copy-state-sync, fresh duo): still 0 of 1 (Dorthe 146 units, feet 0; Gerdur 138, feet 6). Every sliding
+    sample was in the host's view (`was_in_frustum` true), so this is not the stale off-screen skeleton of
+    culled-npc-pose-readings.md: they slide about 75 units/s with their feet still. Next: a vanilla control
+    (`vanilla_start`) to see whether the engine does it without co-op.
   - Test: `actors-walk-after-arrival`.
 
 ### End comparisons in towns
@@ -734,32 +774,25 @@ Size: small. Needs: GameTests, then duo.
 
 ### After the host dies
 
-The NPCs' target and the respawn wait.
+The NPCs' target.
 
-Agent task: Already running as `host-dead-npcs`.
-
-Size: medium. Needs: duo, IDA, then GameTests. Waits for: the `host-dead-npcs` worker (running; its first commit caps a
-fight's hold on a respawn at a minute).
+Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
   only up close, and stop when the guest walks away.
-  - Evidence: the host's player died at 07:09 (`PlayerDeathRequest`, then `NotifyPartyDeath`) and respawned at 07:19,
-    died again at 07:57 and **stayed dead for 3.5 minutes** (no `NotifyPlayerRespawn`) until the guest died at 11:31
-    and the party loaded `SkyrimCoopWipe.ess` at 11:35. `death.md`: the respawn waits for the fight to end, 10 s after
-    the combat clears. So the NPCs stayed "in combat" the whole time without fighting the guest: the stuck
-    state is one of the bug, not only of the movement.
+  - The host staying dead while the guest fights is the design (`death.md`: the respawn waits for the fight to end), not
+    part of this bug.
   - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack, but they still count as
-    "in combat" for `HostDeath`. (2) The target is the guest's host-side copy, a created `Character` with no AI,
+    the NPC's native target); a dead real player is unreachable for pursuit and attack. (2) The target is the guest's host-side copy, a created `Character` with no AI,
     which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
     collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
     other-player candidate (the copy) never gets the native pick once the real player is dead.
   - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
     an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`; and watch `HostDeath`'s timer. In IDA, read how the combat controller treats a dead target and a
+    `IsInCombat`. In IDA, read how the combat controller treats a dead target and a
     non-player target (selector 47191, validity 47196, target setter 33235).
   - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
+    with a fake dead host player that checks the NPC's target is the guest.
 
 ### The host's copy has no name
 

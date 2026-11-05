@@ -119,3 +119,18 @@ back to the owner's older seed and never settled. Sync points are not sent for p
 `npc-counter-matches` and `npc-counter-copy-falls-back-in` show this. The second loads the host's crossed arms into the
 copy alone: a tethered guest cannot arrive late, and `sae` on a copy does nothing. Havok fields and flags: hkxcmd
 `compat/`. Open Animation Replacer's Random condition has its own generator, so a seed does not cover it.
+
+## Does a copy's graph drift? Measured 2026-11-05
+
+Owner and copy active states (`graph_state`'s `states` section) sampled at 10/s, Lucan, fresh duo, nothing staged:
+
+- `npc-counter-matches`: 60 s, 66 of 481 samples differ, every run 1.08 s or shorter.
+- Counter then talk, per-side timeline: 150 s, the copy follows every transition within 150 to 300 ms.
+- `npc-clips-match` alone: every action reaches the copy 150 to 300 ms later, in order.
+
+No lasting divergence was seen. That is one NPC, so it says accepted actions landing elsewhere are rare here, not that
+they never happen. Two false alarms to avoid: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in
+`JumpFall`/`JumpLand` for the session (a harness effect, cause not found), and a sampler that skips unreadable samples
+stretches a difference over a scenario change (an 18.6 s "run" that a per-side timeline did not reproduce).
+
+A save costs a median 62 to 112 us and 7.1 to 7.9 KB.
