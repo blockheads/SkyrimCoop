@@ -96,7 +96,7 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, waits
+- [After the host dies](#after-the-host-dies): medium
 - [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -793,32 +793,25 @@ Size: medium. Needs: duo, then GameTests; ask the user the decision. Waits for: 
 
 ### After the host dies
 
-The NPCs' target and the respawn wait.
+The NPCs' target.
 
-Agent task: Already running as `host-dead-npcs`.
-
-Size: medium. Needs: duo, IDA, then GameTests. Waits for: the `host-dead-npcs` worker (running; its first commit caps a
-fight's hold on a respawn at a minute).
+Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
   only up close, and stop when the guest walks away.
-  - Evidence: the host's player died at 07:09 (`PlayerDeathRequest`, then `NotifyPartyDeath`) and respawned at 07:19,
-    died again at 07:57 and **stayed dead for 3.5 minutes** (no `NotifyPlayerRespawn`) until the guest died at 11:31
-    and the party loaded `SkyrimCoopWipe.ess` at 11:35. `death.md`: the respawn waits for the fight to end, 10 s after
-    the combat clears. So the NPCs stayed "in combat" the whole time without fighting the guest: the stuck
-    state is one of the bug, not only of the movement.
+  - The host staying dead while the guest fights is the design (`death.md`: the respawn waits for the fight to end), not
+    part of this bug.
   - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack, but they still count as
-    "in combat" for `HostDeath`. (2) The target is the guest's host-side copy, a created `Character` with no AI,
+    the NPC's native target); a dead real player is unreachable for pursuit and attack. (2) The target is the guest's host-side copy, a created `Character` with no AI,
     which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
     collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
     other-player candidate (the copy) never gets the native pick once the real player is dead.
   - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
     an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`; and watch `HostDeath`'s timer. In IDA, read how the combat controller treats a dead target and a
+    `IsInCombat`. In IDA, read how the combat controller treats a dead target and a
     non-player target (selector 47191, validity 47196, target setter 33235).
   - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
+    with a fake dead host player that checks the NPC's target is the guest.
 
 ### The host's copy has no name
 
