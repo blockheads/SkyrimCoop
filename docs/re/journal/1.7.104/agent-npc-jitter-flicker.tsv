@@ -24,3 +24,4 @@ time	op	id	rva	item
 2026-11-05T19:37:08Z	name	78294	0x10667c0	{"addr": "0x1410667c0", "name": "bhkCharacterController::ClearContacts"}
 2026-11-05T19:37:08Z	name	57212	0xaa7180	{"addr": "0x140aa7180", "name": "hkVector4::RotateBy3x3"}
 2026-11-05T19:37:08Z	name	37006	0x66cea0	{"addr": "0x14066cea0", "name": "bhkWorldObject::SetCollisionFilterInfo"}
+2026-11-05T20:20:43Z	read		0x682a67	{"name": "PlayerCharacter::sub_37423"}

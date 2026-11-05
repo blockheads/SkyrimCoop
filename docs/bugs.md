@@ -61,7 +61,8 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   - Test: `jitter` on a creature, then a fast test once the cause is read.
 - **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
-  `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, once
+  `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
+  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again), once
   Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
   repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
   - Test: that scenario, after its steps.
