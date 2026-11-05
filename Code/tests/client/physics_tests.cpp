@@ -414,11 +414,11 @@ TEST_CASE("A copy near its owner's place is stepped there, far off placed, lying
 {
     // guest-holds-into-npc: a copy only placed never pushes the bucket its player holds against it.
     const glm::vec3 cAt{100.f, 200.f, 50.f};
-    CHECK(CopyStep::Choose(false, true, cAt, cAt) == CopyMove::Step);
-    CHECK(CopyStep::Choose(false, true, cAt, cAt + glm::vec3(40.f, -40.f, 10.f)) == CopyMove::Step);
-    CHECK(CopyStep::Choose(false, true, cAt, cAt + glm::vec3(0.f, 0.f, CopyStep::kSnap + 1.f)) == CopyMove::Place);
-    CHECK(CopyStep::Choose(false, true, cAt, cAt + glm::vec3(50.f, 50.f, 0.f)) == CopyMove::Place);
-    CHECK(CopyStep::Choose(true, true, cAt, cAt) == CopyMove::Leave);
+    CHECK(CopyStep::Choose(false, true, true, cAt, cAt) == CopyMove::Step);
+    CHECK(CopyStep::Choose(false, true, true, cAt, cAt + glm::vec3(40.f, -40.f, 10.f)) == CopyMove::Step);
+    CHECK(CopyStep::Choose(false, true, true, cAt, cAt + glm::vec3(0.f, 0.f, CopyStep::kSnap + 1.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(false, true, true, cAt, cAt + glm::vec3(50.f, 50.f, 0.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(true, true, true, cAt, cAt) == CopyMove::Leave);
 }
 
 TEST_CASE("A copy whose owner is off the ground is placed on its path, never stepped", "[physics][copy-step]")
@@ -426,9 +426,16 @@ TEST_CASE("A copy whose owner is off the ground is placed on its path, never ste
     // copy-jumps-smoothly-*: a stepped copy stayed on the ground while its owner rose, then was placed past kSnap and
     // fell by its own gravity, twice a jump.
     const glm::vec3 cAt{100.f, 200.f, 50.f};
-    CHECK(CopyStep::Choose(false, false, cAt, cAt + glm::vec3(0.f, 0.f, 5.f)) == CopyMove::Place);
-    CHECK(CopyStep::Choose(false, false, cAt, cAt) == CopyMove::Place);
-    CHECK(CopyStep::Choose(true, false, cAt, cAt) == CopyMove::Leave);
+    CHECK(CopyStep::Choose(false, false, true, cAt, cAt + glm::vec3(0.f, 0.f, 5.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(false, false, true, cAt, cAt) == CopyMove::Place);
+    CHECK(CopyStep::Choose(true, false, true, cAt, cAt) == CopyMove::Leave);
+}
+
+TEST_CASE("A copy whose owner's capsule collides with nothing is placed, never stepped", "[physics][copy-step]")
+{
+    const glm::vec3 cAt(100.f, 200.f, 300.f);
+    CHECK(CopyStep::Choose(false, true, false, cAt, cAt + glm::vec3(1.f, 0.f, 0.f)) == CopyMove::Place);
+    CHECK(CopyStep::Choose(true, true, false, cAt, cAt) == CopyMove::Leave);
 }
 
 TEST_CASE("A copy's step is in its own frame: forward along its heading, right across it", "[physics][copy-step]")

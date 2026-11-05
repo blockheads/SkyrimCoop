@@ -165,13 +165,17 @@ lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy
 it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
 
 The fix: a copy's capsule collides when its owner's does. Each movement snapshot carries `CapsuleCollides` (filter bit
-`0x8000` clear on layer 30, `Actor::CapsuleCollides`), and the copy's capsule is set to match before it is stepped
-(`Actor::SetCapsuleCollision`, 37006). This is not a furniture rule: it follows whatever turned the owner's collision off
-(furniture 40063, mounting, a mod), and a copy in a chair no longer shoves a player walking past.
+`0x8000` clear on layer 30, `Actor::CapsuleCollides`), and the copy's capsule is set to match (`Actor::SetCapsuleCollision`,
+37006). This is not a furniture rule: it follows whatever turned the owner's collision off (furniture 40063, mounting, a
+mod), and a copy in a chair no longer shoves a player walking past.
 
-One trade-off: the engine also turns collision off for an NPC moving far from the host's player (`MoveOnNavmeshUnseen`,
-past `fVisibleNavmeshMoveDist` 4096 or `fNotVisibleNavmeshMoveDist` 2048). Its copy then lets the guest pass through it,
-as the owner would.
+A copy whose owner's capsule collides with nothing is placed, not stepped (`CopyStep::Choose`): out of furniture
+`Actor::Move` clears `0x8000` before its step (`0x14068990A`, then 37006), so a step would turn the copy's collision back
+on. The engine does not step such an owner either: in furniture `Move` takes its no-step branch, far off it moves on the
+navmesh.
+
+So an NPC moving far from the host's player (`MoveOnNavmeshUnseen`, past `fVisibleNavmeshMoveDist` 4096 or
+`fNotVisibleNavmeshMoveDist` 2048), its collision off, has a copy the guest passes through, as the owner would.
 
 Measured with the `jitter` readout, frames turning back on themselves while in furniture, two rounds of six Riverwood
 NPCs sent through their furniture (about 20 s each):
@@ -199,7 +203,8 @@ Why it appeared now: copies have been stepped since 2026-11-02 (above, "Copies s
 frame, and `HookSetPosition` refused every write-back. The animation merge (#12) is not the cause.
 
 Tests: GameTests "A copy's capsule collides only when its owner's does" (the fake's colliding copies in furniture are
-pushed off their goal; fails without the sync), TPTests `ReferencesMoveRequest` (the new field), scenario
+pushed off their goal, and a step out of furniture turns collision back on; fails without the sync or without placing),
+ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
 `copy-leaves-furniture-steady`.
 
 ## Others

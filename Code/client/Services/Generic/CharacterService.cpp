@@ -1550,11 +1550,12 @@ void CharacterService::RunRemoteUpdates() noexcept
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
             const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
-            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, at, position);
+            const bool cOwnerCollides = tick >= second.Tick ? second.CapsuleCollides : first.CapsuleCollides;
+            const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, cOwnerCollides, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
-            m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, tick >= second.Tick ? second.CapsuleCollides : first.CapsuleCollides);
+            m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, cOwnerCollides);
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }
