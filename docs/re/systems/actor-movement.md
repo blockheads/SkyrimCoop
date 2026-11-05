@@ -209,15 +209,16 @@ ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scen
 
 ## A culled actor keeps its pose (2026-11-05)
 
-Read in IDA on 1.7.104 (`owners-walk-slide`), checked on the duo. Why the host's own NPCs seemed to "move without
-walking" after an arrival: the engine does not pose a skeleton the camera culls.
+Read in IDA on 1.7.104 (`owners-walk-slide`: 40335, 106433, 38054, 38009, 37361), checked on the duo. Why the host's
+own NPCs seemed to "move without walking" after an arrival: the engine does not pose a skeleton the camera culls.
 
 ```
 HighActorCuller::CullActor (40335, Precision's CullActors), each high actor, each frame:
   nibble = 2 if its 3D has a fade node | 4 if faded in (+0x130 >= 1e-5)
-  if faded in and not yet culled: | 1, frustum/occlusion test (141514CE0)
+  if faded in and not yet culled: | 1, occluder test (BSCullingProcess::IsNotOccluded 106433:
+                                        occlusion planes and boxes)
       failed -> 3D flags |= kNotVisible (1 << 20), nibble &= ~2
-  Actor+0x27C low nibble = nibble     7 drawn, 5 faded in but culled, 2 not tested
+  Actor+0x27C low nibble = nibble     7 drawn, 5 faded in but occluded, 2 not tested
 Actor::ModifyAnimationUpdateData (38054), the graph update's data:
   visible = !(3D flags & kNotVisible) or seen within a few frames
   force   = kForceOneAnimgraphUpdate / kForceAnimGraphUpdate (copies) / keyword
@@ -237,7 +238,7 @@ same NPCs walk with steady steps.
 
 ## Motion-driven and the Virtual Path Follower (2026-11-05)
 
-Read in IDA on 1.7.104. `MovementControllerNPC` (Actor+0x150, `Code/client/Games/Skyrim/AI/Movement/`) has a movement
+Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/client/Games/Skyrim/AI/Movement/`) has a movement
 state at +0x1C0 and two agent sets, picked through its `IMovementMotionDrivenControl` (+0x128):
 
 ```
@@ -245,13 +246,13 @@ slot 1 SwitchToLoadedSet (41701)    +0x1C9 = 1: standard path agents (Bethesda's
 slot 2 SwitchToUnloadedSet (41702)  +0x1C9 = 0: the set with the Virtual Path Follower
 slot 3 StartAnimationDriven (41704) graph event AnimationDriven (42875): the graph's root motion moves it
 slot 4 StartMotionDriven (41703)    graph event MotionDriven (42874): the controller moves it;
-                                    unloaded set -> state 10/11, the Virtual Path Follower (92556):
+                                    unloaded set -> state 10/11, the Virtual Path Follower (Advance 92556):
                                     speed x dt along the path, a position write, no animation
 slot 6 IsMotionDriven (41706)       states 1,2,3,7,8,10..14; slot 7 (41707) animation-driven 0,4,5,9
 who switches:
   Actor::CreateMovementController (37793)  high -> loaded set, else unloaded
   Actor::MoveToHigh (37621)                -> loaded set + StartMotionDriven
-  MoveToMiddleHigh (37624) / MovetoMiddleLow / MovetoLow -> unloaded set + StartMotionDriven
+  MoveToMiddleHigh (37624) / MoveToMiddleLow (37623) / MoveToLow (37622) -> unloaded set + StartMotionDriven
   MovementControllerNPC::LoadGame (41716)  saved state 10/11 -> unloaded set
 Character::UpdateProcessLevel (37501) <- GetDesiredProcessLevel (37503):
   3D and cell attached -> high; loaded, not attached -> middle-high

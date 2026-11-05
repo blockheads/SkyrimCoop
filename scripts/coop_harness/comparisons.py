@@ -434,6 +434,17 @@ def drawn(actor):
     return seen.get("drawn", seen.get("was_in_frustum", True))
 
 
+def drawn_walks(gait):
+    """{id: units} of the actors in a gait readout that walked in view: drawn travel with the feet moving."""
+    return {int(actor): g["travelled"] for actor, g in gait.items()
+            if g["travelled"] >= SLIDE_DISTANCE and g["feet"] >= SLIDE_RATIO * g["travelled"]}
+
+
+def unwatched_games(walked, games=("host", "client")):
+    """The games whose gait readouts never showed a drawn walk ({game: farthest units}): their check saw nothing."""
+    return [game for game in games if walked.get(game, 0.0) < SLIDE_DISTANCE]
+
+
 def sliding_actors(gait):
     """{id: (travelled, feet)} of the actors in a game's gait readout ({"cmd": "gait"}) that moved without walking."""
     return {int(actor): (g["travelled"], g["feet"]) for actor, g in gait.items()

@@ -450,6 +450,40 @@ class Harness(unittest.TestCase):
         self.assertEqual(restore.call_count, 2)
         self.assertEqual(len(session.cleanup_errors), 2)
 
+    def test_a_gait_window_with_nothing_drawn_proves_nothing(self):
+        from coop_harness.comparisons import drawn_walks, unwatched_games
+        culled = {"1": {"travelled": 0.0, "feet": 0.0, "frames": 0, "hidden_frames": 120}}
+        walking = {"2": {"travelled": 160.0, "feet": 150.0, "frames": 120, "hidden_frames": 0}}
+        self.assertEqual(drawn_walks(culled), {})
+        self.assertEqual(drawn_walks(walking), {2: 160.0})
+        self.assertEqual(unwatched_games({}), ["host", "client"])
+        self.assertEqual(unwatched_games({"host": 160.0, "client": 0.0}), ["client"])
+
+    def test_vanilla_ref_steps_turn_the_trace_off_when_the_arrival_fails(self):
+        from coop_harness.actions.repro import RefSteps
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = Mock()
+            ctx.game.return_value.control = Path(tmp)
+            ctx.console_on.side_effect = TestFailure("coc failed")
+            with self.assertRaises(TestFailure):
+                RefSteps.ref_steps(ctx, [0x13489], vanilla=True, arrive="Riverwood")
+            self.assertFalse((Path(tmp) / "ref_trace.on").exists())
+
+    def test_vanilla_ref_steps_count_jumps_in_the_traced_window(self):
+        from coop_harness.actions.repro import RefSteps
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / "ref_trace.txt"
+            # A walk of 1 unit a frame, then one 39-unit position write, then a row past the window and a half line.
+            lines = [f"{i * 16000} 13489 {float(i)} 0 0" for i in range(10)] + ["160000 13489 48.0 0 0",
+                     "5000000 13489 400.0 0 0", "5016000 13489"]
+            ctx = Mock()
+            ctx.game.return_value.control = Path(tmp)
+            ctx.wait_for.side_effect = lambda what, ready, seconds: trace.write_text("\n".join(lines)) or ready()
+            result = RefSteps.ref_steps(ctx, [0x13489], seconds=1.0, vanilla=True)
+            self.assertEqual(result["00013489"], {"travelled": 48, "frames": 10, "moving_frames": 10, "jumps": 1,
+                                                  "biggest": 39.0})
+            self.assertFalse((Path(tmp) / "ref_trace.on").exists())
+
     def test_sliding_actors_are_those_that_move_without_walking(self):
         from coop_harness.comparisons import sliding_actors
         gait = {"1": {"travelled": 160, "feet": 2}, "2": {"travelled": 160, "feet": 170},

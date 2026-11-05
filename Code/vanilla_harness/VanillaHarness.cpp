@@ -35,8 +35,19 @@ constexpr uint32_t cPlayerSingleton = 401069;
 constexpr uint32_t cAddMessage = 13631;
 constexpr uint32_t cMessageQueue = 400445;
 constexpr uint32_t cFormById = 14617;            // TESForm::LookupByID
-constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
-constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
+// The head of a TESObjectREFR (CommonLibSSE): what the traces read.
+struct Reference
+{
+    uint8_t pad0[0x1A];
+    uint8_t formType; // 1A: kReference 0x3D, kActor 0x3E
+    uint8_t pad1B[0x48 - 0x1B];
+    float angle[3];    // 48, data.angle
+    float location[3]; // 54, data.location
+    void* parentCell;  // 60
+};
+static_assert(offsetof(Reference, formType) == 0x1A && offsetof(Reference, angle) == 0x48 &&
+              offsetof(Reference, location) == 0x54 && offsetof(Reference, parentCell) == 0x60);
+constexpr uint8_t cReferenceType = 0x3D, cActorType = 0x3E;
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
 
 struct BSFixedString
@@ -102,8 +113,8 @@ void SetMenuShown(const char* apMenu, bool aShown)
 
 bool InWorld()
 {
-    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
-    return pPlayer && *reinterpret_cast<void* const*>(pPlayer + cParentCell);
+    const auto* pPlayer = *At<const Reference**>(cPlayerSingleton);
+    return pPlayer && pPlayer->parentCell;
 }
 
 void Run(const std::string& acLine)
@@ -145,11 +156,11 @@ void WriteStatus()
 // strafe scenarios compare a co-op player's movement against (S10).
 void TracePlayer()
 {
-    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
+    const auto* pPlayer = *At<const Reference**>(cPlayerSingleton);
     if (!s_tracing || !pPlayer)
         return;
-    const auto* pAngle = reinterpret_cast<const float*>(pPlayer + cAngle);
-    const auto* pLocation = reinterpret_cast<const float*>(pPlayer + cLocation);
+    const float* pAngle = pPlayer->angle;
+    const float* pLocation = pPlayer->location;
     const auto cEpochUs =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     std::ofstream file(s_control / "player_trace.txt", std::ios::app);
@@ -166,10 +177,10 @@ void TraceRefs()
     std::ostringstream lines;
     for (const uint32_t cId : s_refs)
     {
-        const auto* pRef = At<const uint8_t* (*)(uint32_t)>(cFormById)(cId);
-        if (!pRef || !*reinterpret_cast<void* const*>(pRef + cParentCell))
+        const auto* pRef = At<const Reference* (*)(uint32_t)>(cFormById)(cId); // a TESForm: checked below
+        if (!pRef || (pRef->formType != cReferenceType && pRef->formType != cActorType) || !pRef->parentCell)
             continue;
-        const auto* pLocation = reinterpret_cast<const float*>(pRef + cLocation);
+        const float* pLocation = pRef->location;
         lines << cEpochUs << ' ' << std::hex << cId << std::dec << ' ' << pLocation[0] << ' ' << pLocation[1] << ' '
               << pLocation[2] << '\n';
     }

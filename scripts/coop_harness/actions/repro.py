@@ -935,14 +935,21 @@ class RefSteps:
             game = ctx.game(instance)
             switch, trace = game.control / "ref_trace.on", game.control / "ref_trace.txt"
             trace.unlink(missing_ok=True)
-            switch.write_text(" ".join(f"{ref:X}" for ref in refs))
-            go()
-            time.sleep(seconds + 0.3)  # the stand-in reads the switch every 250 ms
-            switch.unlink(missing_ok=True)
-            time.sleep(0.3)
+            def rows():
+                lines = trace.read_text().splitlines() if trace.exists() else []
+                return [line.split() for line in lines[:-1]]  # the last line may be half written
+            try:
+                switch.write_text(" ".join(f"{ref:X}" for ref in refs))
+                go()
+                ctx.wait_for("[vanilla] the stand-in traces the references", lambda: rows(), 60)
+                first = int(rows()[0][0])
+                ctx.wait_for(f"[vanilla] {seconds}s traced", lambda: int(rows()[-1][0]) - first >= seconds * 1e6, seconds + 10)
+            finally:
+                switch.unlink(missing_ok=True)
             points = collections.defaultdict(list)
-            for us, ref, x, y, _ in (line.split() for line in trace.read_text().splitlines()):
-                points[int(ref, 16)].append((float(x), float(y)))
+            for us, ref, x, y, _ in rows():
+                if int(us) - first <= seconds * 1e6:
+                    points[int(ref, 16)].append((float(x), float(y)))
         else:
             from ..objects import AnimTrace
             with AnimTrace(ctx, f"ref-steps-{instance or 'host'}", {instance: {ref: f"{ref:X}" for ref in refs}},

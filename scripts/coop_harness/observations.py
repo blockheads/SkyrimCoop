@@ -14,7 +14,8 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import compare_actors, dialogue_differences, refused_replays, sliding_actors
+from .comparisons import (SLIDE_DISTANCE, compare_actors, dialogue_differences, drawn_walks, refused_replays,
+                          sliding_actors, unwatched_games)
 from .utilities import log
 
 
@@ -71,14 +72,17 @@ class Observations:
     def check_desync(ctx, samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, known=()):
         return list(ctx.lasting_desyncs(samples, interval, known).values())
 
-    def check_gait(ctx, seconds=2.0):
+    def check_gait(ctx, seconds=2.0, walked=None):
         """Actors that moved over the last seconds without walking (sliding, or in slow motion) while drawn, on either
         game: ["[client] copy 0001348C Faendal moved 160 units in 2s, its feet 2 (...)", ...]. A culled actor's skeleton
-        keeps its last pose (docs/re/systems/actor-movement.md), so GaitWatch counts drawn frames only."""
+        keeps its last pose (docs/re/systems/actor-movement.md), so GaitWatch counts drawn frames only. `walked`
+        ({game: units}) keeps the farthest drawn walk each game saw: the check's evidence it saw anything."""
         problems = []
         for game in ("", "client"):
             world = (ctx.game(game).read_status() or {}).get("world") or {}
             gait = ctx.player_command(game, {"cmd": "gait", "seconds": seconds})["actors"]
+            if walked is not None:
+                walked[game or "host"] = max([walked.get(game or "host", 0.0)] + list(drawn_walks(gait).values()))
             for actor, (travelled, feet) in sorted(sliding_actors(gait).items()):
                 entry = world.get(str(actor)) or {}
                 name = (entry.get("identity") or {}).get("name") or "?"
@@ -92,21 +96,23 @@ class Observations:
 
     def gait_after_arrival(ctx, cell, seconds=12.0):
         """The party arrives in `cell`, then for `seconds` every 2 s check_gait on both games: the first problem of
-        each actor seen (empty if every actor that moved walked)."""
+        each actor seen (empty if every actor that moved walked). A game where no actor walked in view gives a problem
+        too: an all-culled window shows nothing."""
         ctx.both_go(cell)
-        seen = {}
+        seen, walked = {}, {}
         started = time.monotonic()
         sampled = started
         def observed():
             nonlocal sampled
             now = time.monotonic()
             if now - sampled >= 2.0:
-                for problem in ctx.check_gait():
+                for problem in ctx.check_gait(walked=walked):
                     seen.setdefault(problem.split(" moved ")[0], problem)
                 sampled = now
             return now - started >= seconds
         ctx.wait_for(f"walking observations complete in {cell}", observed, seconds + 3)
-        return list(seen.values())
+        return list(seen.values()) + [f"[{game}] no actor walked {SLIDE_DISTANCE:.0f} units in view: nothing to check"
+                                      for game in unwatched_games(walked)]
 
     def known_lock_patterns(ctx):
         try:
