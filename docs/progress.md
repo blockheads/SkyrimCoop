@@ -124,6 +124,10 @@ network diagnostics, and verified save-block reuse for world joins. Details and 
 FIFO queue every duo command and the MCP wait in, freed when the holder's process ends (a keeper holds games left
 running), stale holders taken over after their games stop; `DUO.md` is a generated view, `scripts/duo.py status|run`.
 
+2026-11-05: a queue place whose owner stopped calling no longer blocks the queue (four sessions sat 10+ hours behind an
+idle head with the duo free): it lapses after 5 minutes without a poll, `duo_stop` leaves the queue,
+`scripts/duo.py leave` drops one by hand.
+
 2026-11-03: `walk_to` runs (repro-mcp.md, Phase 3's speeds): `PathToReference`'s speed only scales the AI-driven
 player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
 and walks a `PathToReference` leg only round what stops it; `steer_to` turns Always Run on (status

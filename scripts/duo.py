@@ -3,6 +3,7 @@
 
   scripts/duo.py status [--json]       who holds it, the queue, their ages
   scripts/duo.py run -- <command...>   wait for the duo, hold it while the command runs, stop its games, free it
+  scripts/duo.py leave <name or id>    drop a stuck queue place by hand
   scripts/duo.py keep <hold id>        (internal) the keeper of a hold whose games were left running"""
 import argparse
 import json
@@ -12,7 +13,7 @@ import sys
 import time
 
 from coop_harness import Session
-from coop_harness.duo_lock import DuoBusy, DuoLock, age
+from coop_harness.duo_lock import DuoBusy, DuoLock, age, polled
 
 
 def main():
@@ -25,6 +26,8 @@ def main():
     run.add_argument("argv", nargs=argparse.REMAINDER)
     keep = commands.add_parser("keep")
     keep.add_argument("hold")
+    leave = commands.add_parser("leave")
+    leave.add_argument("who", help="the queue place's name or id (scripts/duo.py status)")
     args = parser.parse_args()
 
     session = Session()
@@ -40,7 +43,15 @@ def main():
         print("Now: " + (f"{DuoLock.describe(holder)}{'' if holder['alive'] else ' (STALE: process ended)'}"
                          if holder else "free"))
         for index, entry in enumerate(state["queue"], 1):
-            print(f"  {index}. {DuoLock.describe(entry)} (waiting {age(entry['since'])})")
+            print(f"  {index}. {DuoLock.describe(entry)} (waiting {age(entry['since'])}, "
+                  f"last poll {age(polled(entry))} ago, id {entry['id']})")
+        return
+    if args.command == "leave":
+        matches = lock.drop_queued(args.who)
+        if len(matches) != 1:
+            sys.exit(f"{len(matches)} queue places match {args.who}; none dropped"
+                     + "".join(f"\n  id {entry['id']}: {DuoLock.describe(entry)}" for entry in matches))
+        print(f"dropped {DuoLock.describe(matches[0])}")
         return
     if args.command == "keep":
         sys.stdout.reconfigure(line_buffering=True)

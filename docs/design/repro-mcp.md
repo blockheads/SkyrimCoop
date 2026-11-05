@@ -261,7 +261,8 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
     the guest's save path, now a dedicated multiplayer save). `BQ01` on `LateAfterDragonslayerBackinSkyrim` never
     got running after `startquest` (already noted in progress.md for that save).
 - All verbs record and export (`_line`); Python units cover the export of each.
-- **Safety:** `duo_free` refuses unless this server holds the duo's lock (testing.md, The duo lock), and counts leftovers only in this checkout's
+- **Safety:** `duo_free` refuses unless this server holds the duo's lock (testing.md, The duo lock; a session only
+  queued leaves the queue instead), and counts leftovers only in this checkout's
   game folder. An early `duo_stop` ran its stop while another agent held the duo, before checking the claim; their
   games ran from their own worktree's folder, which this checkout's stop doesn't touch.
 - **A quest by the verbs** (2026-11-03, through the MCP server's process, `LateAfterDragonslayerBackinSkyrim`): the
