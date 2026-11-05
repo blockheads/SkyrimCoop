@@ -142,7 +142,7 @@ public:
     virtual bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept = 0;
     // Its name as the game shows it: the reference's name override, else its base's.
     virtual std::string GetActorDisplayName(uint32_t aFormId) const noexcept = 0;
-    // A copy's name over its base's: its owner's (ExtraTextDisplayData).
+    // An actor's name over its base's, as another game told it (ExtraTextDisplayData).
     virtual void SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept = 0;
     virtual uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept = 0;
     // Its NPC base's weight (TESNPC, 0 to 100); 50 without an NPC base. The engine saves it with the actor

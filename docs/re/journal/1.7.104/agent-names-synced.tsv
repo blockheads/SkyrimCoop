@@ -27,3 +27,4 @@ time	op	id	rva	item
 2026-11-05T21:09:35Z	comment		0x163110	{"addr": "0x140163110", "comment": "Removes the reference's ExtraTextDisplayData if it is this message's and quest's: back to the base's name. From BGSRefAlias::ClearRefAlias (24012)."}
 2026-11-05T21:09:35Z	comment	12773	0x189950	{"addr": "0x140189950", "comment": "ExtraTextDisplayData from a save: message, quest, alias id; a custom name (alias -2) follows as text."}
 2026-11-05T21:09:35Z	comment	24011	0x39fde0	{"addr": "0x14039fde0", "comment": "The alias's data onto the reference, its display name too: only with the alias's display name message or flag 0x4000, and only if the reference has no other ExtraTextDisplayData (+0x20 is this quest and the alias differs)."}
+2026-11-05T21:15:32Z	read	12774	0x189aa0	{"name": "ExtraTextDisplayData::SaveGame"}

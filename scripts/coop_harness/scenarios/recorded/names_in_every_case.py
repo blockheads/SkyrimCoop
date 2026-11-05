@@ -25,10 +25,14 @@ def run(ctx):
         ctx.expect_names_agree(seconds=15)
         ctx.host_loads_party(quick=False)
         ctx.expect_names_agree(seconds=15)
-        ctx.scene_reset()
-        ctx.death_spectate_respawn('client')
+        ctx.console_on('client', 'player.kill')
+        ctx.wait_for('[client] the player is down', lambda: ctx.game_state('client')['death']['down'], 15)
+        ctx.expect_names_agree(seconds=5)
+        ctx.wait_for('[client] the player respawns', lambda: not ctx.game_state('client')['death']['down'], 60)
         ctx.expect_names_agree(seconds=15)
-    finally:  # the duo's character again
+    finally:  # the duo's character again, at home
         ctx.unstage()
         ctx.restart_client(load_order, dropped=bool(ctx.game_state('client').get('online')))
         ctx.rejoin_client()
+        ctx.forget_scene()
+        ctx.reset_baseline()

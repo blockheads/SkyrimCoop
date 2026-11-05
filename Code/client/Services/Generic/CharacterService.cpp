@@ -547,21 +547,32 @@ void CharacterService::OnActorRenamed(const ActorRenamedEvent& acEvent) const no
 {
     if (!m_transport.IsOnline() || acEvent.FormId == 0x14)
         return;
+    const auto send = [&](uint32_t aSessionId) {
+        ActorNameRequest request;
+        request.ActorId = aSessionId;
+        request.Name = m_actorBridge.GetActorDisplayName(acEvent.FormId);
+        m_transport.Send(request);
+    };
     for (auto&& [cEntity, cForm, cLocal] : m_world.view<FormIdComponent, LocalComponent>().each())
         if (cForm.Id == acEvent.FormId)
-        {
-            ActorNameRequest request;
-            request.ActorId = cLocal.Id;
-            request.Name = m_actorBridge.GetActorDisplayName(cForm.Id);
-            m_transport.Send(request);
-            return;
-        }
+            return send(cLocal.Id);
+    // A copy here: the host's quests still name a horse its guest rider owns (the host's rule keeps a guest's own out).
+    for (auto&& [cEntity, cForm, cCopy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+        if (cForm.Id == acEvent.FormId)
+            return send(cCopy.Id);
 }
 
-void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) const noexcept
+void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) noexcept
 {
+    // Still loading: its spawn applies the name.
+    if (const auto cPending = m_pendingSpawns.find(acMessage.ActorId); cPending != m_pendingSpawns.end())
+        cPending->second.DisplayName = acMessage.Name;
     for (auto&& [cEntity, cForm, cCopy] : m_world.view<FormIdComponent, RemoteComponent>().each())
         if (cCopy.Id == acMessage.ActorId)
+            return ApplyOwnerName(cForm.Id, acMessage.Name);
+    // The horse this game's player rides: the host told it.
+    for (auto&& [cEntity, cForm, cLocal] : m_world.view<FormIdComponent, LocalComponent>().each())
+        if (cLocal.Id == acMessage.ActorId)
             return ApplyOwnerName(cForm.Id, acMessage.Name);
 }
 

@@ -147,6 +147,7 @@ private:
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnActorName(const ActorNameRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 

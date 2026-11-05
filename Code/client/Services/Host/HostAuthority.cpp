@@ -134,8 +134,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
     On(*this, &HostAuthority::OnPlayerName);
-    // An NPC's display name, when its owner's changes (docs/re/systems/names.md).
-    Relay<ActorNameRequest, NotifyActorName>(FromOwner, &ActorNameRequest::ActorId);
+    On(*this, &HostAuthority::OnActorName);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
@@ -384,6 +383,17 @@ void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionI
     NotifyPlayerName notify;
     notify.PlayerId = m_players.PlayerIdOf(aSender);
     notify.Name = cName;
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
+}
+
+// From its owner, or the host, whose quests name an NPC even while a guest rides it (docs/re/systems/names.md).
+void HostAuthority::OnActorName(const ActorNameRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (aSender != m_players.Host() && m_characters.OwnerOf(acRequest.ActorId) != aSender)
+        return;
+    NotifyActorName notify;
+    notify.ActorId = acRequest.ActorId;
+    notify.Name = acRequest.Name;
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
