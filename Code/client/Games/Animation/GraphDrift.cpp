@@ -142,7 +142,16 @@ void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& ac
     if (!aTracker.Open)
         return;
     aTracker.LastSample = aNow;
-    if (acActual && *acActual == aTracker.Expected)
+    // No reading is no evidence: the window ends uncounted, never stretched into a lasting one.
+    if (!acActual)
+    {
+        COUNT("graph drift unreadable", 1);
+        spdlog::debug("Graph drift: copy {:X} after {:X} '{}': graph unreadable after {} ms, dropped", aFormId, aTracker.ActionId,
+                      aTracker.Event, aNow - aTracker.Since);
+        aTracker = Tracker{};
+        return;
+    }
+    if (*acActual == aTracker.Expected)
     {
         End(aTracker, aFormId, aNow, "matched");
         return;
@@ -152,7 +161,7 @@ void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& ac
         aTracker.Lasting = true;
         COUNT("graph drift lasting", 1);
         spdlog::warn("Graph drift: copy {:X} after {:X} '{}' still apart after {} ms: owner [{}], copy [{}]", aFormId, aTracker.ActionId,
-                     aTracker.Event, aNow - aTracker.Since, Join(aTracker.Expected), acActual ? Join(*acActual) : "(unreadable)");
+                     aTracker.Event, aNow - aTracker.Since, Join(aTracker.Expected), Join(*acActual));
     }
 }
 

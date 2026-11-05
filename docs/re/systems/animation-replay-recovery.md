@@ -167,7 +167,8 @@ copy:  HookUpdateAnimationGraphs (20123) -> RunReplayStep -> ForceAction -> kTak
   state (`Weap_Equip_State`) with no new action leaves the copy nothing newer to match.
 - An open mismatch is read again every 100 ms (a graph save, about 100 us, only while open) until the copy matches
   (`transient`, its milliseconds kept), the next taken replay supersedes it, or 2 s pass (`lasting`, counted once).
-  A sync point retargets it to the owner's newer states. 2 s: about twice the longest difference measured above
+  A sync point retargets it to the owner's newer states. A read that fails drops it (`unreadable`): a gap in the
+  readings is not two seconds of drift. 2 s: about twice the longest difference measured above
   (1.08 s), so a copy following a transition 150-300 ms late never counts.
 - Counters `graph drift replays / players / skipped / matched / mismatches / transient ms / lasting / lasting ms / unreadable`,
   read by the harness's `counters`; `coop_test.py scenario` logs a `copies' graph drift:` line per flow.

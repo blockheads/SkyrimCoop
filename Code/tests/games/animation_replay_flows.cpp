@@ -396,7 +396,8 @@ TEST_CASE("Attached NPC copies retain actions until their behavior graph is read
 TEST_CASE("A copy landing in another state is counted: lasting past the threshold, transient if it catches up",
           "[animation][graph-drift]")
 {
-    const bool cCatchesUp = GENERATE(false, true);
+    enum class Then { kStays, kCatchesUp, kGraphLost };
+    const auto cThen = GENERATE(Then::kStays, Then::kCatchesUp, Then::kGraphLost);
     Diagnostics::Counters::Reset();
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
@@ -420,10 +421,13 @@ TEST_CASE("A copy landing in another state is counted: lasting past the threshol
     party.Until([&] { return guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId; }, "the copy takes the gesture");
     CHECK(guest.Actors.at(cCopy).GraphState == "Elsewhere");
     CHECK(CountOf("graph drift mismatches") == 1);
-    if (cCatchesUp)
+    if (cThen == Then::kCatchesUp)
         guest.Actors.at(cCopy).GraphState = "Gesture"; // following its owner a moment later
+    if (cThen == Then::kGraphLost)
+        guest.Actors.at(cCopy).GraphState.clear(); // its graph unreadable: no evidence either way
     const auto cTaken = party.Guest().GetTick();
     party.Until([&] { return party.Guest().GetTick() >= cTaken + GraphDrift::cLastingMs + 300; }, "the threshold passes", {}, nullptr, std::chrono::seconds{5});
-    CHECK(CountOf("graph drift lasting") == (cCatchesUp ? 0 : 1));
-    CHECK(CountOf("graph drift transient ms") == (cCatchesUp ? 1 : 0));
+    CHECK(CountOf("graph drift lasting") == (cThen == Then::kStays ? 1 : 0));
+    CHECK(CountOf("graph drift transient ms") == (cThen == Then::kCatchesUp ? 1 : 0));
+    CHECK(CountOf("graph drift unreadable") == (cThen == Then::kGraphLost ? 1 : 0));
 }

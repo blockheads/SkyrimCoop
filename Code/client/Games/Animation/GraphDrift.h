@@ -33,18 +33,17 @@ struct Tracker
     bool Lasting = false;
 };
 
-// A taken replay: a fresh comparison (an open one ends, superseded). Paired actions and missing snapshots are skipped;
-// so are players' copies: their owner's graphs run first-person machines a copy never has (FirstPerson, *_1stP_*).
-// Read the copy (acActual) only when Compares says so: a graph save costs about 100 us.
+// Paired actions, missing snapshots and players' copies (first-person graphs) are not compared: read the copy only if this holds.
 [[nodiscard]] inline bool Compares(bool aPaired, bool aPlayer, bool aHasSnapshot) noexcept
 {
     return !aPaired && !aPlayer && aHasSnapshot;
 }
+// A taken replay: a fresh comparison; an open one ends, superseded.
 void Taken(Tracker& aTracker, uint32_t aFormId, uint32_t aActionId, std::string_view acEvent, bool aPaired, bool aPlayer, bool aHasSnapshot,
            const std::optional<States>& acExpected, const std::optional<States>& acActual, uint64_t aNow) noexcept;
 // Whether an open mismatch wants a fresh read of the copy now.
 [[nodiscard]] bool SampleDue(const Tracker& acTracker, uint64_t aNow) noexcept;
-// A fresh read of the copy: matched ends it, still apart past cLastingMs counts it as lasting once.
+// A fresh read of the copy: matched ends it, unreadable drops it, apart past cLastingMs counts it lasting once.
 void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& acActual, uint64_t aNow) noexcept;
 // A sync point (GraphRandom.h) is the owner's newer snapshot: an open mismatch measures against it from now on.
 void Retarget(Tracker& aTracker, const std::optional<States>& acExpected) noexcept;

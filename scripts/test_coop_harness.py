@@ -1640,6 +1640,30 @@ class ClipMismatchTests(unittest.TestCase):
         self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
 
 
+class GraphDriftLineTests(unittest.TestCase):
+    """The per-flow drift line (observations.graph_drift_line) reports any counter change, not only new replays."""
+
+    @staticmethod
+    def counts(**values):
+        from coop_harness.observations import Observations
+        return {"host": {name: {"count": values.get(name.replace(" ", "_"), 0), "sum": 0, "max": 0} for name in Observations.GRAPH_DRIFT},
+                "client": {name: {} for name in Observations.GRAPH_DRIFT}}
+
+    def test_a_mismatch_turning_lasting_in_a_quiet_flow_is_reported(self):
+        from coop_harness.observations import Observations
+        ctx = Observations()
+        ctx.graph_drift_counts = lambda: self.counts(replays=1, mismatches=1, lasting=1)
+        line = ctx.graph_drift_line(self.counts(replays=1, mismatches=1))
+        self.assertIn("lasting 1", line)
+        self.assertIn("replays 0", line)
+
+    def test_nothing_changed_prints_nothing(self):
+        from coop_harness.observations import Observations
+        ctx = Observations()
+        ctx.graph_drift_counts = lambda: self.counts(replays=3)
+        self.assertEqual(ctx.graph_drift_line(self.counts(replays=3)), "")
+
+
 class ProfileBudgetTests(unittest.TestCase):
     """coop_test.py profile: a vanilla game's window from its histogram, and the budget verdicts."""
 

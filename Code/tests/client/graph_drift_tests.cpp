@@ -145,3 +145,16 @@ TEST_CASE("A sync point moves an open mismatch to the owner's newer states", "[a
     CHECK_FALSE(tracker.Open);
     CHECK(CountOf("graph drift transient ms") == 1);
 }
+
+TEST_CASE("A copy whose graph cannot be read during an open mismatch is dropped, never counted as lasting", "[animation][graph-drift]")
+{
+    Diagnostics::Counters::Reset();
+    GraphDrift::Tracker tracker;
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cElsewhere, 1000);
+    for (uint64_t now = 1100; now <= 3100; now += GraphDrift::cSampleMs)
+        GraphDrift::Sample(tracker, 0x10, std::nullopt, now);
+    CHECK_FALSE(tracker.Open);
+    CHECK(CountOf("graph drift unreadable") == 1);
+    CHECK(CountOf("graph drift lasting") == 0);
+    CHECK(CountOf("graph drift transient ms") == 0);
+}

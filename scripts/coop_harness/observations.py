@@ -62,7 +62,7 @@ class Observations:
         for game, now in ctx.graph_drift_counts().items():
             then = (before or {}).get(game, {})
             delta = {name: (now[name].get("count", 0) - then.get(name, {}).get("count", 0)) for name in ctx.GRAPH_DRIFT}
-            if not delta["replays"]:
+            if not any(delta.values()):  # a mismatch from an earlier flow can turn lasting in a quiet one
                 continue
             transient_ms = now["transient ms"].get("sum", 0) - then.get("transient ms", {}).get("sum", 0)
             parts.append(f"{game}: replays {delta['replays']}, players {delta['players']}, skipped {delta['skipped']}, matched {delta['matched']}, "
