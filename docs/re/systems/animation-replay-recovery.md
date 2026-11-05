@@ -134,3 +134,40 @@ they never happen. Two false alarms to avoid: `stage` with `ref` on a living NPC
 stretches a difference over a scenario change (an 18.6 s "run" that a per-side timeline did not reproduce).
 
 A save costs a median 62 to 112 us and 7.1 to 7.9 KB.
+
+## Drift detector (2026-11-05)
+
+A detector, not a fix: after each replay a copy takes, the copy's active states against the action's `GraphState`
+(`Games/Animation/GraphDrift`, called from `AnimationSystem::Update` where a taken step is collected).
+
+Engine path, read in IDA 1.7.104:
+
+```
+owner: PerformAction (38949) -> accepted -> TESObjectREFR::SaveAnimationGraphState
+         per graph BShkbAnimationGraph::SaveState (63601)
+           hkbCharacter::SnapshotGraphState (65148, our name)
+             root behaviour graph's active nodes (+152, 144-byte entries, node at +80)
+             keep hkbStateMachine (hkbStateMachine::StaticClass, 58901)
+             its clone: hkbBehaviorGraph::GetNodeClone (58359)
+             current state: states[GetStateIndex(59372, +128 currentStateId)] name (+96)
+           first section written: count, then (machine, u32, state, u32, u32)
+copy:  HookUpdateAnimationGraphs (20123) -> RunReplayStep -> ForceAction -> kTaken
+       main thread, next AnimationSystem::Update: GraphDrift::Taken
+```
+
+- A machine resting in its start state with no transition under way is not written (65148 checks the current
+  state against +104, active transitions at +184, a byte at +134; or a global flag): both sides leave the same
+  machines out, so the sets compare.
+- Compared: `project/machine=state`, sorted. Not variables or clip times (they differ by design).
+- Paired actions carry no snapshot: counted `skipped`. A snapshot that does not parse: `unreadable`.
+- Players' copies are not compared (`players`): measured 2026-11-05, a player's snapshot holds its `FirstPerson`
+  graph and first-person machines in its third-person one (`1HM_1stP_*`, `PlayerStagger_1stP`) that a copy never
+  runs, so every player replay read as a mismatch.
+- A lasting count is an upper bound: the snapshot is the owner's states at the action, and an owner leaving a passing
+  state (`Weap_Equip_State`) with no new action leaves the copy nothing newer to match.
+- An open mismatch is read again every 100 ms (a graph save, about 100 us, only while open) until the copy matches
+  (`transient`, its milliseconds kept), the next taken replay supersedes it, or 2 s pass (`lasting`, counted once).
+  A sync point retargets it to the owner's newer states. 2 s: about twice the longest difference measured above
+  (1.08 s), so a copy following a transition 150-300 ms late never counts.
+- Counters `graph drift replays / players / skipped / matched / mismatches / transient ms / lasting / lasting ms / unreadable`,
+  read by the harness's `counters`; `coop_test.py scenario` logs a `copies' graph drift:` line per flow.
