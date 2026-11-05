@@ -440,3 +440,9 @@ TEST_CASE("A copy's step is in its own frame: forward along its heading, right a
     CHECK(cNear(CopyStep::Local({10.f, 0.f, 2.f}, 1.57079633f), {0.f, 10.f, 2.f}));
     CHECK(cNear(CopyStep::Local({0.f, 10.f, 0.f}, 1.57079633f), {-10.f, 0.f, 0.f}));
 }
+
+TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[body-prediction][kill-move]")
+{
+    CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));
+    CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
+}

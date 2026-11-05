@@ -32,3 +32,9 @@ id	rva	name	comment
 63091	0xbb2370	BSRagdollContactListenerModifier::Modify	Queues the contact event (+0x58) once triggered (+0x70), then clears it.
 63093	0xbb2500	BSRagdollContactListenerModifier::AddListeners	Adds a contact listener to each watched ragdoll bone's body (bones hkbBoneIndexArray +0x68), and turns on its contact reporting.
 63094	0xbb26c0	BSRagdollContactListenerModifier::RemoveListeners	Removes the listener from the watched bodies.
+32809	0x5504b0	BGSSynchronizedAnimationManager::EndPairsOf	(handle). For each instance with this participant: Deactivate (vtable 7) and drop it from the manager. The engine's way to end a pair; called by TESObjectREFR::PostChangeAnimationManager. Deactivate sends each participant's graph PairEnd, then PairedStop if not taken.
+401100	0x31df410	g_BGSSynchronizedAnimationManager	BGSSynchronizedAnimationManager*.
+63088	0xbb1fa0	BSRagdollContactListenerModifier::Activate	Node activation: AddListeners, through the deferred interface qword_143267370 when it exists (physics-safe).
+63089	0xbb1fc0	BSRagdollContactListenerModifier::Deactivate	Node deactivation: RemoveListeners, deferred the same way. So the listener runs only while its state (VictimState) is active.
+42838	0x7cd430		Graph event KillActor. Clip order on a pair's victim: 2_PairEnd, 2_KillActor, 2_KillMoveEnd. A copy does not die here (scripted deferred kill): our hook holds its graph until its owner's death action.
+44282	0x805d50		SetMode(0) restores the camera, the player's controls and the clock. A yielded swing's kill cam is ended at the yield.

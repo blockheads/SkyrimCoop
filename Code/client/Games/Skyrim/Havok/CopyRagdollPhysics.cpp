@@ -39,7 +39,7 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         if (!pBody || !pRigid->IsDynamic())
             continue;
         BodyRead read;
-        if (!cDrive.Place && ReadBody(*pBody, read) && glm::distance(read.Position, cFrame.Position) < 64.f)
+        if (ReadBody(*pBody, read) && glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
         {
             const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, cFrame);
             SteerBody(*pBody, cSteer.Linear, cSteer.Angular);
@@ -86,6 +86,13 @@ Hooks::Initializer s_ragdollPhysicsHooks([] {
     HOOK_ID(58292, &RealDriveWithoutAnimation, HookDriveWithoutAnimation);
 });
 } // namespace
+
+void HoldCopyRagdollStill(Actor& aCopy) noexcept
+{
+    for (bhkWorldObject* pBody : RagdollBodiesOf(aCopy))
+        if (pBody && pBody->referencedObject && pBody->referencedObject->IsDynamic())
+            SteerBody(*pBody, {}, {});
+}
 
 void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace) noexcept
 {

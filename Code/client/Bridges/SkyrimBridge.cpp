@@ -63,6 +63,7 @@
 #include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
+#include <Games/Animation/ReplayState.h>
 #include <Papyrus/GuestScripts.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <AI/AIProcess.h>

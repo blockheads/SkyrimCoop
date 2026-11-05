@@ -1,3 +1,4 @@
+#include <Games/Animation/ReplayState.h>
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
@@ -873,6 +874,33 @@ bool Actor::IsInKillMove() const noexcept
     return (s_isInKillMove.Get())(this);
 }
 
+void Actor::EndPairs() noexcept
+{
+    // BGSSynchronizedAnimationManager::EndPairsOf 32809; its instances send the halves PairEnd, then PairedStop.
+    using TEndPairsOf = void(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TEndPairsOf, s_endPairsOf, 32809);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    (s_endPairsOf.Get())(*s_manager.Get(), &cHandle);
+    StopPairClip();
+}
+
+bool Actor::InPairClip() noexcept
+{
+    // The graph's bIsSynced, on through a pair's clip.
+    BSFixedString name("bIsSynced");
+    bool value = false;
+    EngineVirtual(animationGraphHolder).GetVariableBool(&name, &value);
+    return value;
+}
+
+void Actor::StopPairClip() noexcept
+{
+    // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
+    BSFixedString stop("pairedStop");
+    SendAnimationEvent(&stop);
+}
+
 void Actor::EndKillMove() noexcept
 {
     // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.
@@ -918,6 +946,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     // copy's own actions are refused unless forced.
     const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
     const auto cAttempt = pExtension->LatestAnimation.BeginAttempt();
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
     EndDeferredKill();
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
@@ -1065,6 +1094,9 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 {
     if (apHitter)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
+
+    if (apHitter && ReplayState::CancelledBlow(World::Get().GetTick() < apHitter->GetExtension()->ClashUntil))
+        return false;
 
     float realDamage = GameplayFormulas::CalculateRealDamage(apThis, aDamage, aKillMove);
 

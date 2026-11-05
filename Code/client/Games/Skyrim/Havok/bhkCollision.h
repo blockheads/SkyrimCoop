@@ -146,6 +146,22 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
 // game's units (mass x units/s); under its world's write lock.
 bool PushBody(bhkWorldObject& aBody, const glm::vec3& acImpulse, const glm::vec3& acPoint) noexcept;
 
+// What a contact listener hears (hkpContactPointEvent; contactPointCallback 63092).
+struct hkpContactPointEvent
+{
+    uint8_t pad0[0x8];
+    const hkpRigidBody* bodies[2]; // 08
+};
+static_assert(offsetof(hkpContactPointEvent, bodies) == 0x8);
+
+// BSRagdollContactListenerModifier's hkpContactListener, at +0x50 of the modifier.
+struct BSRagdollContactListener
+{
+    uint8_t pad0[0x20];
+    bool triggered; // 20, modifier +0x70: Modify sends its event
+};
+static_assert(offsetof(BSRagdollContactListener, triggered) == 0x20);
+
 struct TESObjectREFR;
 // The reference a body belongs to (TESHavokUtilities::FindCollidableRef 26003), none for the world's own.
 [[nodiscard]] TESObjectREFR* ReferenceOf(const hkpRigidBody& acBody) noexcept;
