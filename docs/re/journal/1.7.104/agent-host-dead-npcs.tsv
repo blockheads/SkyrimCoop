@@ -7,3 +7,9 @@ time	op	id	rva	item
 2026-11-05T20:38:51Z	name	47336	0x86b240	{"addr": "0x14086B240", "name": "CombatUtilities__GetActorReach"}
 2026-11-05T20:38:51Z	name	46946	0x856160	{"addr": "0x140856160", "name": "CombatState__MarkAttacked"}
 2026-11-05T20:38:51Z	name	44725	0x819ef0	{"addr": "0x140819EF0", "name": "CombatGroup__UpdateTargetDetection"}
+2026-11-05T21:10:18Z	read		0x869060	{"name": "Actor__GetPredictedPosition"}
+2026-11-05T21:10:21Z	read	90704	0x11ccfa0	{"name": "MovementAgentPathFollowerStandard::Func4_90704"}
+2026-11-05T21:10:30Z	read	90724	0x11ce850	{"name": "IMovementQueryPathFollowing::Func9_90724"}
+2026-11-05T21:10:31Z	read	90717	0x11ce3d0	{"name": "IMovementQueryPathFollowing::Func1_90717"}
+2026-11-05T21:10:31Z	read	90718	0x11ce470	{"name": "IMovementQueryPathFollowing::Func2_90718"}
+2026-11-05T21:10:57Z	name	90724	0x11ce850	{"addr": "0x1411ce850", "name": "IMovementQueryPathFollowing__GetPredictedPosition"}

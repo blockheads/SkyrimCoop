@@ -55,51 +55,53 @@ out of range = (no target location, or real distance >= R, or outside its arc)
                and predicted distance at 0.5 s (0x14086A5F0) > R
 ```
 
-- **Predicted place** (`Actor::GetPredictedPosition`, our name, 47309): the movement controller's answer if it gives one
-  (`IMovementQueryPathingState` through +0x150), else position + velocity x t. At t <= 0 the real position.
-- **Margin** (50643): from the combat style (defensive minus offensive), zero unless defensive; dropped when the
-  target's reach (47336) is outside the margin of the fighter's own, or 10 s after `CombatState+0x28`, the last attack
-  on it (`Actor::DoDamage`, the attacked handler). Measured 0 for Delphine and Orgnar, also 1.6 s after a hit.
+- **Predicted place** (`Actor::GetPredictedPosition`, our name, 47309): the path follower's answer if it gives one, else
+  position + velocity x t. At t <= 0 the real position.
+- **The path follower's answer** (`IMovementQueryPathFollowing`, 90724, slot 9, through the controller at +0x150): only
+  while its state (+240 from that interface) is 1-8 or 13 and it holds a path with points; then a place along that path.
+- **Margin** (50643): from the combat style (defensive minus offensive); dropped when the target's reach (47336) is
+  far from the fighter's own, or 10 s after `CombatState+0x28`, the last attack on it (`Actor::DoDamage`, the attacked
+  handler). Measured 0 for Delphine and Orgnar, also 1.6 s after a hit.
 
-Measured: R is 174 for Orgnar, 121 for Delphine; they stop just inside it, as vanilla. Stopping at 150 units is correct.
+Measured: R is 174 for Orgnar, 121 for Delphine with a blade, and they stop inside it (vanilla's Delphine stopped about
+105 from a real player). Stopping at 150 units is correct: read the tree and R, not the distance. NPCs also pause in
+`Close Movement Idle` for some seconds in a normal chase. With a ranged weapon the tree is `Ranged Movement`, and
+Delphine's R read 4,123: standing 970 units off and shooting is the engine's fight, not the half-stop.
 
-## The half-stop: a copy's stale predicted place
+## The half-stop (2026-11-04 report): not closed
 
-A copy never runs `MovementControllerNPC::Update` (41717: `actor-movement.md`), so what its controller remembers goes
-stale. After the copy was placed far off (`CopyMove::Place`, past `CopyStep::kSnap`, 64 units, or off the ground):
+Seen once on the duo (2026-11-05, host dead, Orgnar dead, Delphine recovered from bleedout, guest walked, then `setpos`):
 
 ```
 combat_targets, Delphine, target = the guest's copy, 1,300 units away:
   target_position   -264, -340       where it stands
-  target_predicted  -1313, 325       where it stood before the warp, beside her
+  target_predicted  -1313, 325       near where it last stood, beside her
   behavior          In Range Movement Selector > Close Movement Idle
 ```
 
-She stands still believing she is in range, turning to face it (`CombatTrackTargetAimController` reads the real place),
-and hits only when the guest comes to her: the 2026-11-04 report. A 350-unit walk afterwards left the prediction frozen,
-so the state lasts. The host's death is not the cause; the host's own player is never the stale target because the
-player's controller updates.
+The prediction stayed there while the copy moved on, so she stood "in range": the report's symptoms (facing the guest,
+hitting only up close, no chase). Holding a fixed place fits a path left in the copy's path follower, not velocity.
 
-The fix: `HookGetPredictedPosition` asks for t = 0 for a copy, so the engine gives its real place. A copy loses the
-half-second lead, which only matters to arrows and spells aimed at it.
+**What set it is not known.** With nothing correcting the prediction, the same steps in another run did not bring it back:
+real hits, walking, `setpos` far off, bleedout, host dead, Orgnar dead, in that order. Neither did `setpos` alone
+(`placed-copy-is-chased`, written and deleted: it passed with and without a correction). Whether the playtest's NPCs were
+in this state is also not known: its log has no such readout.
 
-### What is not known
+What is in place: `HookGetPredictedPosition` replaces a copy's prediction with its real place only when it is farther off
+than anything moves in that time (`CopyStep::PredictionStale`, 800 units/s, 400 at the 0.5 s the check asks), so aim keeps its
+lead. It logs `Copy ...: combat predicted ...: stale path`. That line in a report dates the trigger; no line and the same
+symptoms mean this is not the cause. It is a guard against a state seen once, not a proven fix. The bug stays in
+`docs/bugs.md`.
 
-- Which of the controller's fields answers: the query's slot resolves through `MovementPathManagerArbiter`, not followed
-  to the end. Measured from outside only: frozen at the place before the warp.
-- Why a walk after the warp does not clear it while steps before the warp tracked.
-- That the playtest's NPCs were in this state: its log has no such readout. The same symptoms, in the same cell,
-  are what is known. Its trigger would be any `Place`: a jump, a stagger past 64 units, a late frame.
-- `Character::sub_47310` asks the same controller for a place and heading (one caller), left as it is.
+Ruled out as causes, the chase working in each: the bleedout, the host's death, who the fight started on. The anger
+registry: no `is now angry` line in any run or the playtest's log.
 
-### Wrong turns, for whoever reads the older notes
+## The real player's chase, for comparison
 
-Bleedout, the host's death, who the fight started on, and the anger registry were each suspected and each ruled out with
-the chase working (2026-11-05, all in the inn): real hits landed, guest mortal or in god mode, host alive or dead. The
-earlier holds that seemed to need a bleedout came from `setpos` and `moveto` moves in the same runs. A hold of 6 s proves
-nothing: NPCs pause in `Close Movement Idle` for some seconds in a normal chase. Read the tree and R, not the distance.
-
-The spot a `coc` into the inn leaves the players, (-264, -340), took vanilla's Delphine more than 20 s to reach, if at all.
+Vanilla (the stand-in, no plugin, same inn, god mode): Delphine followed a teleporting player within a second before her
+bleedout, got up after about 18 s, and closed 285 units within a second after it, twice. With the plugin loaded, the same
+on the host's player (329 to 107 units in 4 s). The spot `coc` leaves the players, (-264, -340), took vanilla's Delphine
+more than 20 s to reach, if at all: not a place to measure a chase.
 
 ## An essential NPC's recovery
 
@@ -107,9 +109,10 @@ The spot a `coc` into the inn leaves the players, (-264, -340), took vanilla's D
 (`StopCombat`), sets life state 0 and restores health. She gets up at full health, so damage cannot end her fight, and
 console `stopcombat` lasts about 25 ms. A guest in a fight with an essential NPC has no way to end it but to leave or die.
 
-Measured with the chase working: the host stayed dead 3 minutes and more on this fight, the respawn waiting
-(`HostDeath`). This is the playtest's 3.5 minutes (`docs/design/death.md`, "A fight holds the respawn"), a second bug
-beside the half-stop: fixing the chase alone leaves it.
+Measured: the host stayed dead over two minutes on this fight, status `Party in combat`, until the run was stopped; only the
+guest's death would have ended it (`HostDeath`). So the playtest's 3.5 minutes needs no half-stop, only an NPC that does not
+go down for good: a second bug, fixed by a cap (`docs/design/death.md`). That Delphine held the playtest's wait is inferred:
+she and Orgnar are the only NPCs its log names in the inn.
 
 A host with only townsfolk fighting it: they clear combat when it dies and it respawns in 10 s, as the playtest's first
 death did (a copy is no candidate of theirs until it attacks them).

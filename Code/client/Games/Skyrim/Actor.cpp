@@ -1521,15 +1521,25 @@ bool HookIsFleeing(Actor* apThis)
     return RealIsFleeing(apThis);
 }
 
-// Actor::GetPredictedPosition (47309, our name): combat's range checks read it; takes any reference.
+// Actor::GetPredictedPosition (47309, our name): combat's range checks and aim read it; takes any reference.
 using TGetPredictedPosition = void(TESObjectREFR*, float aSeconds, float* apPosition);
 static TGetPredictedPosition* RealGetPredictedPosition = nullptr;
 
 void HookGetPredictedPosition(TESObjectREFR* apThis, float aSeconds, float* apPosition)
 {
+    RealGetPredictedPosition(apThis, aSeconds, apPosition);
     auto* pActor = Cast<Actor>(apThis);
-    const auto* pExtension = pActor ? pActor->GetExtension() : nullptr;
-    RealGetPredictedPosition(apThis, CopyStep::PredictionSeconds(pExtension && pExtension->IsCopy(), aSeconds), apPosition);
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return;
+    const glm::vec3 cAt(apThis->position.x, apThis->position.y, apThis->position.z);
+    if (!CopyStep::PredictionStale(cAt, {apPosition[0], apPosition[1], apPosition[2]}, aSeconds))
+        return;
+    // Once per copy in a row: the trigger is not known yet (docs/bugs.md).
+    static std::atomic<uint32_t> s_lastLogged{0};
+    if (s_lastLogged.exchange(apThis->formID, std::memory_order_relaxed) != apThis->formID)
+        spdlog::warn("Copy {:X}: combat predicted ({:.0f}, {:.0f}), it stands at ({:.0f}, {:.0f}): stale path", apThis->formID,
+                     apPosition[0], apPosition[1], cAt.x, cAt.y);
+    std::copy_n(&cAt.x, 3, apPosition);
 }
 
 using TIsHostileToActor = bool(Actor*, Actor* apOther);

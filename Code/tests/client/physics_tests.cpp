@@ -19,10 +19,12 @@
 
 using namespace BodyPrediction;
 
-TEST_CASE("A copy's predicted place is its real place", "[physics][copy-step]")
+TEST_CASE("A copy's prediction keeps its lead and drops a leftover path", "[physics][copy-step]")
 {
-    CHECK(CopyStep::PredictionSeconds(true, 0.5f) == 0.f);
-    CHECK(CopyStep::PredictionSeconds(false, 0.5f) == 0.5f);
+    const glm::vec3 cAt(-264.f, -340.f, 0.f);
+    CHECK_FALSE(CopyStep::PredictionStale(cAt, cAt, 0.5f));
+    CHECK_FALSE(CopyStep::PredictionStale(cAt, cAt + glm::vec3(250.f, 0.f, 0.f), 0.5f)); // a sprint's half second
+    CHECK(CopyStep::PredictionStale(cAt, glm::vec3(-1313.f, 325.f, 0.f), 0.5f));         // measured, 1,240 units off
 }
 
 TEST_CASE("A pending ragdoll bootstrap keeps the newest pose and stays a placement", "[physics][ragdoll-pending]")

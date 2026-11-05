@@ -1457,11 +1457,10 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 ### Copies and actor sync
 
-- **NPCs stopped closing on a copy that was placed far off** (2026-11-05): combat's range check read the copy's predicted
-  place from a movement controller that never updates, so a warped copy stayed "in range". `HookGetPredictedPosition`
-  gives combat a copy's real place (`docs/re/systems/combat-targets.md`, scenario `placed-copy-is-chased`). A fight
-  now holds a downed player's respawn for a minute at most (`HostDeath::kCombatHoldSeconds`, `docs/design/death.md`): an
-  essential NPC's fight cannot end. `combat_targets` prints the combat tree's running nodes, R's terms and the prediction.
+- **A fight holds a downed player's respawn for a minute at most** (2026-11-05, `HostDeath::kCombatHoldSeconds`,
+  `docs/design/death.md`): an essential NPC's fight cannot end. The half-stop after a host's death is still open
+  (`docs/bugs.md`): a guard for a copy's frozen combat prediction logs `stale path`, trigger unknown
+  (`docs/re/systems/combat-targets.md`). `combat_targets` prints the combat tree's running nodes, R's terms and the prediction.
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 

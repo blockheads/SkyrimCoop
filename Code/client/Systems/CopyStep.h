@@ -30,11 +30,14 @@ struct CopyStep
         return cOff.x * cOff.x + cOff.y * cOff.y + cOff.z * cOff.z > kSnap * kSnap ? CopyMove::Place : CopyMove::Step;
     }
 
-    // Actor 47309's lookahead: a copy's movement controller never updates, so what it predicts is a stale place
-    // (docs/re/systems/combat-targets.md); at 0 the engine gives its real place.
-    [[nodiscard]] static constexpr float PredictionSeconds(bool aCopy, float aSeconds) noexcept
+    // Faster than anything a copy does: a prediction past this is a leftover path, not its motion (combat-targets.md).
+    static constexpr float kFastestSpeed = 800.f;
+
+    [[nodiscard]] static bool PredictionStale(const glm::vec3& acAt, const glm::vec3& acPredicted, float aSeconds) noexcept
     {
-        return aCopy ? 0.f : aSeconds;
+        const glm::vec3 cOff = acPredicted - acAt;
+        const float cMost = kFastestSpeed * aSeconds;
+        return cOff.x * cOff.x + cOff.y * cOff.y + cOff.z * cOff.z > cMost * cMost;
     }
 
     // A world offset in an actor's own frame for Actor::Move: x right, y forward (heading aHeading, its rotation z).

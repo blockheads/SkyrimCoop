@@ -316,12 +316,22 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
   - Test: GameTests: the guest starts combat with no damage, the host nearer; assert the NPC's target (the fake
     selector must prefer the real player, as measured).
 
+- **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They face the guest, hit only up close, and
+  do not follow when the guest walks away.
+  - Evidence and what is ruled out: `docs/re/systems/combat-targets.md`, "The half-stop". Seen once on the duo: a copy's
+    combat prediction frozen at an old place, the NPC "in range" 1,300 units off. Trigger unknown: not reproduced with
+    the same steps. `HookGetPredictedPosition` guards that state and logs `stale path`, unproven as the playtest's cause.
+  - Start: `combat_targets` prints the tree, R and the prediction. Look for the `stale path` line in the next report and read
+    what happened just before it; in IDA, who sets the copy's path follower state (90724 reads it) when a copy runs no AI.
+  - Test: none yet that fails. The dead-for-minutes half is fixed (`HostDeath::kCombatHoldSeconds`, GameTests "A fight that
+    never ends stops holding a downed host").
+
 - **A guest walking past the host's loaded cells delays the host's respawn** (2026-11-05). Outdoors, about 10,700 units
   from the host's body, the copy's `CombatTarget` reads detection -1000, then `LOST`, `combat_state` 2 (search). The
   respawn came 60 to 90 s late, once the watching player lost its spectate target. What ended it was not measured
   (`docs/re/systems/combat-targets.md`).
 - **The guest crashed on `cow` out of Riverwood** (2026-11-04). A null `CustomActorPackageData` saving Stump's form
-  (29554). Crash log not kept; recreate with `cow` during a fight in Riverwood.
+  (29554). Recreate with `cow` during a fight in Riverwood.
 - **A guest's `player.kill` did nothing in a fight** (2026-11-05). In the inn, guest in a fight, after `tgm` off: health 99,
   standing, party not wiped. Host's `player.kill` works.
 - **`expect` `at` ignores `seconds`** (2026-11-05): `actions/repro.py`, `check == "at"` reads once.
