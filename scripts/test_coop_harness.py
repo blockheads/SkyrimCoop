@@ -1400,6 +1400,97 @@ class DuoLockTests(unittest.TestCase):
         self.assertEqual(session.duo_claim("repro-mcp", "x", wait_seconds=10, keep_place=True), "holder")
         self.assertIsNone(self.line(late, timeout=0.3))
 
+    def age_place(self, name, seconds):
+        """Backdates a queue place's last poll, as if its owner had gone quiet."""
+        with self.lock()._state() as state:
+            for entry in state["queue"]:
+                if entry["name"] == name:
+                    entry["polled"] -= seconds
+
+    def test_duo_free_on_a_queue_place_leaves_the_queue_and_stops_nothing(self):
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        session = Session()
+        self.addCleanup(session.close)
+        session.DUO_LOCK = self.lock("/wt/mcp", "repro-mcp")
+        with self.assertRaisesRegex(TestFailure, "number 1 in the queue"):
+            session.duo_claim("repro-mcp", "x", wait_seconds=0, keep_place=True)
+        late = self.contender("late")
+        self.until(lambda: self.queue() == ["repro-mcp", "late"], "late queued behind the session")
+        with patch.object(Session, "stop_duo") as stop:
+            self.assertEqual(session.duo_free("repro-mcp", "done"), "left the queue, was number 1")
+        stop.assert_not_called()
+        self.assertEqual(self.queue(), ["late"])
+        self.assertEqual(self.holder(), "first")
+        self.assertIsNone(session.DUO_LOCK.role)
+
+    def test_a_queue_head_that_stopped_polling_is_skipped(self):
+        from coop_harness.duo_lock import DuoBusy
+        with patch.dict(os.environ, {"COOP_DUO_POLL_SECONDS": "0.1"}):
+            first = self.contender("first")
+            self.assertEqual(self.line(first), "role holder")
+            head = self.lock("/wt/head", "head")
+            with self.assertRaises(DuoBusy):
+                head.acquire("x", wait=False, keep_place=True)  # alive, and never calls again
+            behind = self.contender("behind")
+        self.until(lambda: self.queue() == ["head", "behind"], "behind queued")
+        first.stdin.write("\n")
+        first.stdin.flush()
+        self.assertEqual(self.line(first), "released")
+        self.assertIsNone(self.line(behind, timeout=0.5))  # the head's turn: it may still call
+        self.age_place("head", 600)
+        self.assertEqual(self.line(behind), "role holder")
+        self.assertEqual(self.queue(), [])
+        self.assertIn("head (/wt/head): x. Dropped from the queue: no poll for 10m", (self.home / "DUO.md").read_text())
+        self.assertIsNone(head.poll_place())
+        with self.assertRaisesRegex(DuoBusy, "number 1 in the queue"):  # back, at the end
+            head.acquire("x", wait=False, keep_place=True)
+
+    def test_a_waiter_still_polling_keeps_its_place(self):
+        from coop_harness import duo_lock
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        with patch.dict(os.environ, {"COOP_DUO_POLL_SECONDS": "0.1"}):
+            waiter = self.contender("waiter")
+        self.until(lambda: self.queue() == ["waiter"], "waiter queued")
+        with patch.object(duo_lock, "QUEUE_STALE_MINUTES", 0.02):  # 1.2 s
+            time.sleep(2)
+            self.assertEqual(self.queue(), ["waiter"])
+        first.stdin.write("\n")
+        first.stdin.flush()
+        self.assertEqual(self.line(waiter), "role holder")
+
+    def test_a_repeated_mcp_call_renews_its_place(self):
+        from coop_harness.duo_lock import DuoBusy, polled
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        lock = self.lock("/wt/mcp", "repro-mcp")
+        with self.assertRaises(DuoBusy):
+            lock.acquire("x", wait=False, keep_place=True)
+        renewals = (lock.poll_place, lambda: self.assertRaises(DuoBusy, lock.acquire, "x", wait=False, keep_place=True))
+        for renew in renewals:
+            self.age_place("repro-mcp", 60)
+            before = polled(self.lock().status()["queue"][0])
+            renew()
+            self.assertGreater(polled(self.lock().status()["queue"][0]), before + 30)
+
+    def test_a_stuck_place_is_dropped_by_hand_by_name_or_id_never_a_shared_name(self):
+        from coop_harness.duo_lock import DuoBusy
+        first = self.contender("first")
+        self.assertEqual(self.line(first), "role holder")
+        one, two = self.lock("/wt/one", "repro-mcp"), self.lock("/wt/two", "repro-mcp")
+        for lock in (one, two):
+            with self.assertRaises(DuoBusy):
+                lock.acquire("x", wait=False, keep_place=True)
+        admin = self.lock()
+        self.assertEqual(len(admin.drop_queued("repro-mcp")), 2)
+        self.assertEqual(self.queue(), ["repro-mcp", "repro-mcp"])
+        self.assertEqual(admin.drop_queued("nobody"), [])
+        self.assertEqual(admin.drop_queued(one.id)[0]["worktree"], "/wt/one")
+        self.assertEqual([entry["worktree"] for entry in admin.status()["queue"]], ["/wt/two"])
+        self.assertEqual(len(admin.drop_queued("repro-mcp")), 1)
+        self.assertEqual(self.queue(), [])
+
     def test_a_hold_whose_games_run_goes_to_a_keeper_until_stop(self):
         keeper_script = self.home / "keeper.py"
         keeper_script.write_text(
@@ -1547,6 +1638,53 @@ class ClipMismatchTests(unittest.TestCase):
         # Skyrim: 0.02 at both samples, 0.58 s apart: the host's MT_IdleHHDRightEnter begun again by a moveStop.
         trace = self.trace((11.24, "", {"Enter": 0.02}), (11.82, "", {"Enter": 0.02}))
         self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
+
+
+class ProfileBudgetTests(unittest.TestCase):
+    """coop_test.py profile: a vanilla game's window from its histogram, and the budget verdicts."""
+
+    def window(self, long_frames=0, earlier_load=False):
+        before, after = {"histogram": [0] * 1291, "time": 0, "stalls": 1}, {"histogram": [0] * 1291, "time": 60, "stalls": 4, "perf": {}}
+        before["histogram"][16] = 500  # before the window: must not count
+        if earlier_load:
+            before["histogram"][1290] = 1  # a 52 s load before the window
+            after["histogram"][1290] = 1
+        after["histogram"][16] = 500 + 900
+        after["histogram"][33] = 90
+        after["histogram"][1000 + 30] += long_frames  # 4000-4100 ms
+        return before, after
+
+    def test_percentiles_are_the_windows(self):
+        from coop_harness.profiling import histogram_percentiles
+        before, after = self.window()
+        self.assertEqual(histogram_percentiles(before, after), {"p50": 16.5, "p95": 33.5, "p99": 33.5, "max": 34.0})
+        self.assertEqual(histogram_percentiles(after, after), {})
+
+    def test_long_frames_keep_their_size(self):
+        from coop_harness.profiling import histogram_percentiles
+        before, after = self.window(long_frames=20)  # 2% of the window's frames at about 4 s
+        self.assertEqual(histogram_percentiles(before, after)["p99"], 4050.0)
+        before, after = self.window(long_frames=1, earlier_load=True)
+        self.assertEqual(histogram_percentiles(before, after)["max"], 4100.0)  # not the earlier load's
+
+    def test_budget_says_which_limit(self):
+        from coop_harness.profiling import check_budget, histogram_percentiles, parse_budget
+        before, after = self.window()
+        after["perf"]["frame_ms"] = histogram_percentiles(before, after)
+        game = Mock(); game.name = ""
+        verdicts = check_budget(parse_budget("p95=33,p99=70,stalls_per_min=6"), [game], {"": before}, {"": after})
+        self.assertEqual([within for _, within in verdicts], [False, True, True])
+        self.assertIn("host p95 33.5 (budget 33): OVER", verdicts[0][0])
+        with self.assertRaises(ValueError):
+            parse_budget("median=3")
+
+    def test_wine_paths(self):
+        from coop_harness.profiling import windows_path
+        if os.name == "nt":
+            self.skipTest("Wine's drives")
+        self.assertEqual(str(windows_path("Z:\\a\\b.txt")), "/a/b.txt")
+        self.assertIsNone(windows_path("C:\\windows\\ntdll.dll"))
+        self.assertEqual(str(windows_path("C:\\windows\\ntdll.dll", "/p/drive_c")), "/p/drive_c/windows/ntdll.dll")
 
 
 if __name__ == "__main__":

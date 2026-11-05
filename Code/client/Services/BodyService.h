@@ -8,6 +8,7 @@
 #include <NoCopyMove.h>
 
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 struct World;
@@ -84,6 +85,9 @@ private:
     BodyPlayback m_playback; // references
     BodyPlayback m_ragdolls; // copies' ragdolls
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests;
+    // Apply's copies by session id: a lookup per body and bone each frame, not a scan of the copies.
+    std::unordered_map<uint32_t, entt::entity> m_copyIndex;
+    bool m_copiesIndexed{};
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here

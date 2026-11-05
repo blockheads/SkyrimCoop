@@ -2,6 +2,7 @@
 // host's: held keyframed, following the host's flight a little behind, resting exactly where the host's rests.
 #include "Party.h"
 
+#include <Components/RemoteComponent.h>
 #include <Services/BodyService.h>
 #include <Services/Guest/GuestHands.h>
 #include <Messages/Relayed.h>
@@ -313,6 +314,20 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
             party.Frame();
             CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position,
                                 host.Bodies.at({.Actor = guard, .Index = kRagdollBodies - 1}).Flight.Body.Position) < 0.01f);
+        }
+        AND_THEN("once the copy is gone, its held rest drives nothing (BodyService's copy index lasts one update)")
+        {
+            party.Until([&] { return guest.Bodies.at(cHead).Rests > 0; }, "the guard's ragdoll rests");
+            World& world = party.Guest();
+            for (const auto cEntity : world.view<RemoteComponent>())
+                if (world.get<RemoteComponent>(cEntity).Id == cSession)
+                    world.remove<RemoteComponent>(cEntity);
+            const size_t cDrives = guest.Bodies.at(cHead).Drives;
+            const size_t cRests = guest.Bodies.at(cHead).Rests;
+            party.Frame();
+            party.Frame();
+            CHECK(guest.Bodies.at(cHead).Drives == cDrives);
+            CHECK(guest.Bodies.at(cHead).Rests == cRests);
         }
     }
 }

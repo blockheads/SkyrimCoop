@@ -59,6 +59,20 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-05: the 2026-11-04 freezes are the machine's, not ours (`bugs.md`, Freezes and slowness). Fixed on the way:
+the guest's `BodyService::Apply` copy scan, `profile --stacks` crashing under Wine, lock-order `[ours]` on pass-through
+hooks. New: `profile --route` and `--budget`, against the vanilla stand-in.
+
+2026-11-05: IDA work reaches the repo by itself ([re/README.md](re/README.md), The journal). Hooks in
+`.claude/settings.json` (`scripts/re/ida_hook.py`) journal every function read and every name, comment and type
+written through ida-multi-mcp into `docs/re/journal/<version>/<branch>.tsv`; `build_re_data.py` reads the journals and
+`ida_replay.py` rebuilds a database from them. They remind, never block: when unnamed functions pile up read and
+unrecorded, and when the duo or engine code comes before any IDA read. The one refusal: an IDA instance with another
+database open (work there was lost). `scripts/re/id.py` maps IDs to addresses; `check_re.py` (in check.sh) catches
+added note rows with a bad ID or RVA and IDA auto names in the notes and systems docs. The shared database moved to
+the main checkout's `build/re/SkyrimSE_1.7.104.i64` (it had been a party-markers copy). Units in
+`scripts/test_ida_hook.py`, `scripts/test_check_re.py`.
+
 2026-11-04: the party's bounty works on 1.7.104 ([crime.md](re/systems/crime.md)). `CrimeEngine::Player` kept 1.6.1170's
 offsets, so the bridge read the bounty map 8 bytes off: the engine wrote bounty, nobody saw it, no `NotifyCrimeState`
 went out. That was the 2026-11-04 playtest's missing bounty. Still open (`bugs.md`): the guest's aggro going to the host, and
@@ -130,6 +144,10 @@ network diagnostics, and verified save-block reuse for world joins. Details and 
 2026-11-03: the duo manages itself (`scripts/coop_harness/duo_lock.py`, testing.md "The duo lock"): an flock'ed
 FIFO queue every duo command and the MCP wait in, freed when the holder's process ends (a keeper holds games left
 running), stale holders taken over after their games stop; `DUO.md` is a generated view, `scripts/duo.py status|run`.
+
+2026-11-05: a queue place whose owner stopped calling no longer blocks the queue (four sessions sat 10+ hours behind an
+idle head with the duo free): it lapses after 5 minutes without a poll, `duo_stop` leaves the queue,
+`scripts/duo.py leave` drops one by hand.
 
 2026-11-03: `walk_to` runs (repro-mcp.md, Phase 3's speeds): `PathToReference`'s speed only scales the AI-driven
 player's walk (0.5 was 40 units/s), so a walk now runs after an actor with `KeepOffsetFromActor` (300-450 units/s)
@@ -891,7 +909,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26); after a wipe each guest stands where it stood at the checkpoint; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-checkpoint`, GameTests `[death]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Friendly fire (`docs/design/friendly-fire.md`) | built 2026-10-26: a player's sword or spell on another player is applied by the victim's game; a kill is a real death named in every chat; not a crime; kill moves on players work (a copy's ragdoll steered, and kept on it by the engine as its owner; a copy getting up on its own timing: open) | `friendly-fire-*`, `spectator-watches-kill-move`, `kill-move-kills-guest` (fails on the open jitter), GameTests `[friendly-fire]` |
-| Kill moves | works, both ways, with kill credit; players moving and crossed kill moves fixed (2026-11-04, `docs/re/systems/kill-moves.md`) | `host-kill-move`, `client-kill-move`, `kill-move-runs-full-length`, `kill-moves-cross` |
+| Kill moves | works, both ways, with kill credit; players moving and crossed kill moves fixed; crossed, the first swing wins; a copy holds its pose until its owner's death (2026-11-05, `docs/re/systems/kill-moves.md`) | `host-kill-move`, `client-kill-move`, `kill-move-runs-full-length`, `kill-moves-cross` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |

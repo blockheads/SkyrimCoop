@@ -14,7 +14,7 @@ from ..common import (
     FIREBOLT,
     HOME_CELL,
     INN,
-    KILL_MOVE_CLASH,
+    KILL_MOVE_BLOW_WINDOW,
     KILL_MOVE_RANDOM,
     LYDIA,
     MELEE_GAP,
@@ -50,7 +50,7 @@ class CombatActions:
 
     def kill_move_exchange(ctx, copies):
         """Both players, one hit from death and moving, swing at each other at once. Returns whether the two games' pairs
-        crossed; crossed, they must clash: both free again, nobody down. `copies`: each game's copy of the other player."""
+        crossed; crossed, the first swing must win: one player down, the other standing. `copies`: each game's copy of the other player."""
         games = ("", "client")
         ctx.wait_for("both players are up", lambda: not any(ctx.death_state(game).get("down") for game in games), 40)
         for game in games:
@@ -87,14 +87,18 @@ class CombatActions:
                     with contextlib.suppress(TestFailure):
                         ctx.player_command(game, {"cmd": "input", "button": button, "down": False})
             if crossed:
+                # The first swing wins: one player dies, the other stands through the whole window.
+                down = {game: False for game in games}
+                watched = time.monotonic()
+                while time.monotonic() - watched < KILL_MOVE_BLOW_WINDOW:
+                    down = {game: bool(ctx.death_state(game).get("down")) for game in games}
+                    if all(down.values()):
+                        raise ctx.failure(f"both players died {time.monotonic() - watched:.1f} s after the kill moves crossed")
+                if not any(down.values()):
+                    raise ctx.failure("nobody died: the first swing should have won")
                 for game in games:
-                    start = trace.wait_state(game, "player", "kill_move", True, 1)
-                    end = trace.wait_state(game, "player", "kill_move", False, KILL_MOVE_CLASH + 1, after=start["time"])
-                    if end["time"] - start["time"] > KILL_MOVE_CLASH:
-                        raise ctx.failure(f"[{game or 'host'}] the crossed kill move held the player {end['time'] - start['time']:.2f} s")
-                for game in games:
-                    if ctx.death_state(game).get("down") or ctx.is_dead(ctx.actor_snapshot(game, copies[game])):
-                        raise ctx.failure(f"[{game or 'host'}] a player dropped when the kill moves crossed")
+                    if down[game]:
+                        trace.wait_state(game, "player", "kill_move", True, 1, after=trace.start)
         return crossed
 
 

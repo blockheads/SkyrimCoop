@@ -129,9 +129,13 @@ class ReproActions:
             raise ctx.failure(str(error)) from None
 
     def duo_free(ctx, owner, summary):
-        """Stops the duo, checks none of its Skyrims is left and frees the hold with a log line. Refused unless this
-        process holds it: never stop a duo someone else started."""
+        """Stops the duo, checks none of its Skyrims is left and frees the hold with a log line. Only a queue place:
+        leaves the queue. Refused otherwise unless this process holds it: never stop a duo someone else started."""
         lock = ctx.duo_lock(owner)
+        if lock and lock.role == "queued":
+            number = lock.poll_place()
+            lock.leave()
+            return f"left the queue, was number {number}" if number else "left the queue (the place had already lapsed)"
         if lock and lock.role != "holder":
             raise ctx.failure(f"not ours to stop: this session holds no duo ({lock.role or 'none'})")
         ctx.stop_duo()
@@ -786,7 +790,7 @@ def _line(tool, args):
 
 # Tools that only look or run the duo: never part of a test (a name in `rounds` that is neither these nor a replayed
 # tool is a Session verb).
-LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion",
+LOOKS = {"duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion", "profile",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
          "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 

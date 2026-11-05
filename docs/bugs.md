@@ -51,6 +51,9 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   cannot be staged. Sync points should cover it, unproven.
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
+- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
+  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
+  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
@@ -62,15 +65,25 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
     scenario's `check_gait` names each actor and its distance.
   - Test: `actors-walk-after-arrival`.
-- **Kill moves leave the guest's wolf copy looking at a player** (2026-11-04, `host-kill-move` and `client-kill-move`:
-  0 of 6 each on dialogue-anim-desync, the same with and without its changes). The kill move itself plays; the
-  scenario then fails its final comparison: `ai_state.head_track` host (owner) `[None x6]`, guest copy
-  `['session 2', None x5]`. Most likely the "Headtracking left over" entry above, unproven. It hides any later
-  kill-move failure, since the scenario stops there. One unexplained one-off besides: `host-kill-move` timed out on
-  `[host] player's kill_move is True` before the comparison, not seen again in six runs (progress.md "S8 missed kill
-  moves" may be the same). Evidence: dialogue-anim-desync worktree, `build/coop-test/results/20261104-012732-4d8ec7` and
-  `20261104-012746-3e87e9`. Another agent (kill-move-review) works on kill moves.
-  - Test: `host-kill-move`, `client-kill-move`.
+- **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
+  the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
+  `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
+  `client-kill-move` 0 of 3 each, failing at the end comparison only (blow and lag checks pass); `spectator-watches-kill-move`
+  0 of 3, failing on it before it removes the wolf, so its later checks never run. `kill-moves-cross` hit it on the
+  players too (2026-11-04). Most likely the "Headtracking left over" entry above, unproven. The `host-kill-move` timeout
+  noted here before was the scenario (the wolf out of reach) and is fixed (`docs/re/systems/kill-moves.md`).
+  - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
+    graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
+  - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
+- **A dead copy's ragdoll never sleeps** (2026-11-05, every `kill-move-kills-guest` run on PR #16). Once its owner's
+  ragdoll is at rest (all 18 bodies asleep, about 3-8 s after death), the copy's 18 bodies stay awake, moving about
+  0.2-0.5 units a frame, until the trace ends. Not visible, and under `RagdollTrace`'s limits, so the scenario passes.
+  Copy and owner lie within 8 units. Cause not found: candidates are the owner's rest arriving as frames the copy keeps
+  steering towards (`BodyBridge::Rest` queues a frame for an actor's bodies, never puts them to sleep), or steering
+  velocities never reaching zero (`BodyPrediction::Steer`).
+  - Start: the copy's `body_trace` motion and awake bits after its owner's `BodyRestsRequest`; whether `CopyRagdollPhysics`
+    steers a body already at its frame.
+  - Test: a `RagdollTrace` check that a copy sleeps within a second of its owner (`kill-move-kills-guest`).
 - **Copy visuals/state.** Lydia facing26° differently during follower travel; an intermittent zero animation
   marker during trade (not reproduced in the final run); one HorseExit refusal. The kill-move refusals were
   the pair's other half coming back, now skipped (`docs/re/systems/kill-moves.md`).
@@ -238,32 +251,6 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
 
 ## Combat
 
-- **Crossed kill moves still kill a player, a second later** (2026-11-04, found through the repro MCP on PR #13's
-  branch, `agent/kill-move-review`, with its fix). Both players, one hit from death, swing at each other at once; each
-  game starts its own pair and both clear `kill_move` within 0.2 s, so PR #13's `kill_move_exchange` passes its checks
-  (within `KILL_MOVE_CLASH`, 1.5 s). Then one player dies anyway: 3 of 3 runs (the host player twice, the guest once).
-  - Trace (both games, seconds from the host's `pa_KillMove1HMStabUpFace`): 0.02 the guest's own
-    `pa_KillMove1HMGrappleStab`; 0.16-0.22 `KillMoveStart` on both players in both games; 1.26 the host's `HitFrame`
-    (its pair runs on); 1.32 the guest's `Ragdoll`, `life=1`, `KillMoveEnd`. So the clash ends neither pair's clips:
-    whichever pair reaches its `HitFrame`/`KillActor` first kills.
-  - Repro, recorded and exported through the MCP (needs PR #13's verbs, so it lands with that branch; it failed alone
-    with `coop_test.py scenario`, 20 s):
-    ```python
-    ctx.name_players()
-    ctx.console_on('', 'set KillMoveRandom to 100')
-    ctx.console_on('client', 'set KillMoveRandom to 100')
-    ctx.equip_weapon('', 0x12EB7)
-    ctx.equip_weapon('client', 0x12EB7)
-    ctx.kill_move_exchange({game: ctx.other_player(ctx.actors_on(game)) for game in ('', 'client')})
-    ctx.expect('host_player', 'stays', value=False, field='state.dead', seconds=6.0)
-    ctx.expect('guest_player', 'stays', value=False, field='state.dead', seconds=6.0)
-    ```
-  - Run on PR #13's final pair fix (`8c8c5115`, `7e6b2e1d` included). The player who died was the victim of the other
-    game's half, which fits `kill-moves.md`, "Early deaths: the victim touched a wall" (the engine's own `KillActor` on
-    ragdoll contact; QASmoke's staging is near walls). Start there: run the repro with that section's contact hook and
-    see whether the death follows a wall contact; if it does, this is that deferred case, not the clash.
-  - `kill-moves-cross` (now on dev) checks within 1.5 s; the `stays` expects above cover the later death.
-
 - **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
   are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen
   before and after a host load. Start: where a copy's display name comes from the owner's character record.
@@ -332,23 +319,20 @@ the engine paths are read from code and still to be proved in step 0 (CLAUDE.md)
   - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
     with a fake dead host player that checks the NPC's target is the guest and the respawn timer still runs.
 
-- **Freezes and slowness** (2026-11-04). The same export: 2845 frames over about 8 minutes, p50 17 ms, p95 32 ms, p99 71
-  ms, worst 2.6 s (`snapshot.json` `perf`), and the plugin's own `Frame stalled` warnings: 70 on the host, 77 on the
-  guest, about 6 a minute.
-  - Our code is not the cause of most: in 62 of 70 host stalls "our last update" took 1-6 ms. The 8 where it did:
-    1127 ms at 11:32 (the wipe's save load, `longest_frame_ms` 52 s), 499 ms at 11:37 (the new game after it), 275 ms
-    (05:04), 154 ms (05:15) and a few more; the guest's 548 ms at 11:37 and 250 ms at 11:49 go with the load too.
-  - The long stalls (1-2.6 s) hit **both games at the same instant**: 05:07.447 on the host (578 ms) and on the guest
-    (578 ms), 05:10.434 (573 / 574), 06:42.136 (664 / 603), 10:46.77 (2402 / 2466): the two games run on one machine,
-    so a shared cause (CPU/GPU, disk, Wine) stalls both. No kernel BUG in `journalctl -k` for the window; ext4
-    `nvme0n1p6`. That the stalls often end with no work of ours fits P1 perf (`playtests/2026-10-31-fabien.md`).
-  - Also logged: 17 `LockOrder: lock order inversion` errors on the host (04:42 on, three more at 11:37 right before
-    the long stalls; several "[ours]"). Whether they cost time is not shown; they are real inversions to read.
-  - Start: `scripts/coop_test.py profile --stacks` on this scene (Whiterun, both games) to see which threads wait at a
-    shared stall; the two games' stalls lining up points at the machine, not the plugin; separate it with one game
-    alone (`vanilla_start`) over the same route.
-  - Test: the `profile` run with a frame-time budget; later a GameTests case if a stall turns out ours.
-
+- **Freezes and slowness** (2026-11-04): the machine's, not ours (measured 2026-11-05). The export: 2845 frames in
+  about 8 minutes, p50 17 / p95 32 / p99 71 ms, worst 2.6 s; `Frame stalled` 70 on the host, 90 on the guest.
+  - Shared: 52 of the host's 70 stalls (17.2 of its 23.4 s) hit the guest within 300 ms, the long ones to the ms
+    with equal lengths (05:07.447 578/578 ms, 05:10.434 573/574): one thing outside both processes held both. Our
+    update was long in 8 host and 4 guest stalls, all at the wipe's load and new game (11:32-11:49).
+  - Not the lock inversions: none was live, all are the engine's own orders (`docs/re/systems/lock-order.md`).
+  - Measured 2026-11-05 (60 s windows, `profile --route whiterun`): idle, vanilla, our plugin alone and the duo
+    all hold 55-60 fps with no stalls; over the route vanilla stalls 10 times a minute (worst 4.2 s), our plugin
+    alone 9, the duo's host 8 and guest 5. Stalls are cell loads, and co-op adds none.
+  - Left open: what the shared stalls wait on. The guest's logs are silent through its longest ones (11:53 2.5 s,
+    12:34 1.8 s). Two games on one GPU and display, plus other agents' builds on the machine, are the candidates.
+  - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
+    off-screen, so it cannot show a display stall), during a stall.
+  - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
 ## Physics and ragdolls
 
 ### Found 2026-11-01, not yet triaged

@@ -26,6 +26,14 @@ def skse_dll(version=None):
     return "skse64_" + runtime_version(version).removesuffix(".0").replace(".", "_") + ".dll"
 
 
+def database_executable(recorded, database):
+    """The executable an IDA database was made from: where IDA recorded it, else COOP_RE_EXE, else beside the database
+    (the recorded path dies with the worktree that made it)."""
+    if os.path.exists(recorded):
+        return recorded
+    return os.environ.get("COOP_RE_EXE") or os.path.join(os.path.dirname(database), os.path.basename(recorded))
+
+
 def pe_version(path):
     data = Path(path).read_bytes()
     start = data.find(struct.pack("<II", 0xFEEF04BD, 0x10000))

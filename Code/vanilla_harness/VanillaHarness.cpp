@@ -53,6 +53,15 @@ std::string s_consoleId;
 std::chrono::steady_clock::time_point s_nextStatus{};
 bool s_tracing = false; // player_trace.on exists: the player's place each frame into player_trace.txt
 
+// Frame times as the client's World::Update counts them (kStallMs 100), for `coop_test.py profile` against vanilla:
+// one bucket per ms below 1 s, per 100 ms below 30 s, the last for longer frames (profiling.py, histogram_percentiles).
+constexpr size_t cFrameBuckets = 1000 + 290 + 1;
+constexpr double cStallMs = 100.0;
+std::chrono::steady_clock::time_point s_lastFrame{};
+uint64_t s_frames = 0, s_stalls = 0;
+double s_longestFrameMs = 0.0;
+uint64_t s_frameHistogram[cFrameBuckets]{};
+
 using TMainUpdate = short(void*);
 TMainUpdate* s_realMainUpdate = nullptr;
 
@@ -113,7 +122,11 @@ void WriteStatus()
         std::ofstream file(cTemporary, std::ios::trunc);
         file << "{\"vanilla\": true, \"heartbeat_ms\": " << cEpochMs << ", \"pid\": " << GetCurrentProcessId()
              << ", \"console_id\": \"" << s_consoleId << "\", \"session\": {\"world_ready\": "
-             << (s_bootDone && InWorld() ? "true" : "false") << "}}";
+             << (s_bootDone && InWorld() ? "true" : "false") << "}, \"frames\": {\"frames\": " << s_frames
+             << ", \"stalls\": " << s_stalls << ", \"longest_frame_ms\": " << s_longestFrameMs << ", \"histogram_ms\": [";
+        for (size_t i = 0; i < cFrameBuckets; ++i)
+            file << (i ? "," : "") << s_frameHistogram[i];
+        file << "]}}";
     }
     MoveFileExW(cTemporary.c_str(), (s_control / "status.json").c_str(), MOVEFILE_REPLACE_EXISTING);
     s_tracing = std::filesystem::exists(s_control / "player_trace.on");
@@ -167,8 +180,24 @@ void Poll()
     TracePlayer();
 }
 
+void CountFrame()
+{
+    const auto cNow = std::chrono::steady_clock::now();
+    if (s_lastFrame.time_since_epoch().count() != 0)
+    {
+        const double cMs = std::chrono::duration<double, std::milli>(cNow - s_lastFrame).count();
+        ++s_frames;
+        s_stalls += cMs > cStallMs;
+        s_longestFrameMs = cMs > s_longestFrameMs ? cMs : s_longestFrameMs;
+        const size_t cBucket = cMs < 1000.0 ? static_cast<size_t>(cMs) : 1000 + static_cast<size_t>((cMs - 1000.0) / 100.0);
+        ++s_frameHistogram[cBucket < cFrameBuckets - 1 ? cBucket : cFrameBuckets - 1];
+    }
+    s_lastFrame = cNow;
+}
+
 short HookMainUpdate(void* apMain)
 {
+    CountFrame();
     Poll();
     return s_realMainUpdate(apMain);
 }
