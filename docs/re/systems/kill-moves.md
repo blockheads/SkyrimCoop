@@ -173,4 +173,4 @@ about 60 degrees off the player's facing, so each swing missed. The scenario now
 - **`ai_state.head_track`.** `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move` and sometimes
   `kill-moves-cross` stop at the end comparison on a copy looking at a player: `bugs.md`, "Headtracking left over", deferred
   past v1.
-- **A dead copy's bodies never sleep:** they jiggle about 0.2 units a frame while its owner's are at rest. Not visible; cause not found.
+- **A dead copy's bodies never sleep:** `docs/bugs.md`, "A dead copy's ragdoll never sleeps".
