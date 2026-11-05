@@ -518,6 +518,8 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
             guest.Knock({.Actor = FakeEngine::kPlayer, .Index = i}, {40.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
     });
+    party.Until([&] { return std::ranges::all_of(cOthers, [&](World* apGame) { return Party::Engine(*apGame).IsActorDead(cCopyOn(*apGame)); }); },
+                "the guest's copy dies on every game");
     const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
     party.Until([&] {
         for (uint8_t i = 0; i < kRagdollBodies; ++i)
@@ -531,7 +533,6 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
             const auto& cOwnBone = guest.Bodies.at({.Actor = FakeEngine::kPlayer, .Index = i});
             const auto& cCopyBone = Party::Engine(*pGame).Bodies.at({.Actor = cSession, .Index = i});
             INFO((pGame == &party.Host() ? "the host's copy" : "the other guest's copy") << ", bone " << int(i));
-            CHECK(Party::Engine(*pGame).IsActorDead(cCopyOn(*pGame)));
             CHECK(cCopyBone.Drives > 0);
             CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < 0.01f);
         }

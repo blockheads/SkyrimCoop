@@ -1,0 +1,9 @@
+time	op	id	rva	item
+2026-11-05T20:38:51Z	name	47891	0x882350	{"addr": "0x140882350", "name": "CombatBehaviorContextCloseMovement__CheckOutOfRange"}
+2026-11-05T20:38:51Z	name	47892	0x882580	{"addr": "0x140882580", "name": "CombatBehaviorContextCloseMovement__CheckOutOfPosition"}
+2026-11-05T20:38:51Z	name	47321	0x86a5f0	{"addr": "0x14086A5F0", "name": "CombatUtilities__PredictedDistanceSquared"}
+2026-11-05T20:38:51Z	name	47309	0x869020	{"addr": "0x140869020", "name": "Actor__GetPredictedPosition"}
+2026-11-05T20:38:51Z	name	50643	0x8f1c90	{"addr": "0x1408f1c90", "name": "CombatUtilities__GetCloseRangeMargin"}
+2026-11-05T20:38:51Z	name	47336	0x86b240	{"addr": "0x14086B240", "name": "CombatUtilities__GetActorReach"}
+2026-11-05T20:38:51Z	name	46946	0x856160	{"addr": "0x140856160", "name": "CombatState__MarkAttacked"}
+2026-11-05T20:38:51Z	name	44725	0x819ef0	{"addr": "0x140819EF0", "name": "CombatGroup__UpdateTargetDetection"}
