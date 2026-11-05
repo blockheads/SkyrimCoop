@@ -6,6 +6,7 @@
 #include <Games/ActorExtension.h>
 #include <Games/CopyAiState.h>
 #include <CopyCombat.h>
+#include <Diagnostics/Counters.h>
 #include <CopyPackage.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
@@ -138,7 +139,10 @@ static TStartCombat* RealStartCombat = nullptr;
 static bool HookStartCombat(Actor* apActor, Actor* apTarget, void* apGroup)
 {
     if (!CopyCombat::MayStart(apActor->GetExtension()->IsCopy()))
+    {
+        COUNT("copy combat refused", 1);
         return false;
+    }
     return RealStartCombat(apActor, apTarget, apGroup);
 }
 

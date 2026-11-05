@@ -6,13 +6,13 @@ Read in IDA on 1.7.104 and measured on the duo, 2026-11-04 and 11-05 (the "host 
 
 ```
 CombatTargetSelectorStandard::SelectTarget (47191, vfunc 6)
-  cached target still good? (CombatGroup__IsTargetStillValid, 0x14081CCE0)
-    actor exists, not deleted or disabled, not dead (vfunc 0x99), in the group's targets (0x140818C50)
+  cached target still good? (CombatGroup__IsTargetStillValid, 0x14081CCE0, no Address Library name)
+    actor exists, not deleted or disabled, not dead (vfunc 0x99), in the group's targets (CombatGroup__HasTarget 0x140818C50)
   no, or the re-pick timer ran out:
     pick (47195) -> cached handle, timer reset
 ```
 
-- A dead cached target fails the check, so the selector re-picks at once, not at the timer.
+- Read in IDA (47191, 47195, 2026-11-04/05): a dead cached target fails the check, so the selector re-picks at once, not at the timer.
 - **47195** walks the combat group's targets (`CombatTarget`, 0xA8 each). One counts if `detectLevel > 0`,
   `stealthPoints <= 0` and not `LOST`, or if it is the current target and `KNOWN`.
 - It scores distance, recent hits and attackers. A dead target only loses points there, it is not excluded, and with a
@@ -52,14 +52,14 @@ Root - CloseMovement > Close Movement Context > Movement Selector
 ```
 R = CombatInventory+0x19C (own extents + equipment range) + margin (50643)
 out of range = (no target location, or real distance >= R, or outside its arc)
-               and predicted distance at 0.5 s (0x14086A5F0) > R
+               and predicted distance at 0.5 s (47321, read) > R
 ```
 
-- **Predicted place** (`Actor::GetPredictedPosition`, our name, 47309): the path follower's answer if it gives one, else
+- **Predicted place** (read in IDA: `Actor::GetPredictedPosition`, our name, 47309): the path follower's answer if it gives one, else
   position + velocity x t. At t <= 0 the real position.
 - **The path follower's answer** (`IMovementQueryPathFollowing`, 90724, slot 9, through the controller at +0x150): only
   while its state (+240 from that interface) is 1-8 or 13 and it holds a path with points; then a place along that path.
-- **Margin** (50643): from the combat style (defensive minus offensive); dropped when the target's reach (47336) is
+- **Margin** (read in IDA: `CombatUtilities__GetCloseRangeMargin`, 50643): from the combat style (defensive minus offensive); dropped when the target's reach (`CombatUtilities__GetActorReach` 47336, read) is
   far from the fighter's own, or 10 s after `CombatState+0x28`, the last attack on it (`Actor::DoDamage`, the attacked
   handler). Measured 0 for Delphine and Orgnar, also 1.6 s after a hit.
 
@@ -107,9 +107,10 @@ is seen as the player is. In one boot he started a fight 41 units from the copy 
 and ended it in about 10 s with the host alive. `Actor::CalculateDetection` (37774) reads the target's light, line of sight
 (37768), movement noise and equipped weight; in this dim inn a still or retreating target is lost, real player or copy.
 
-So the report's picture (drifting, looking, hitting only up close, stopping when the guest walks away) is the engine losing a
-hard-to-see target; while the host lives, its player usually keeps the fight alive for the group, and with it dead the
-search ends. Whether vanilla does the same in this inn with one player is not measured (`vanilla_start`).
+Measured: the report's picture (drifting, looking, hitting only up close, stopping when the guest walks away) comes with the
+engine losing a hard-to-see target, the real player as much as the copy. **Inferred, not read or measured:** that while the
+host lives its player keeps the group's fight going and its death lets the search end. Whether vanilla does the same in this
+inn with one player is not measured (`vanilla_start`).
 
 **The frozen prediction.** PR #21 saw once `target_predicted` frozen 1,300 units off, the NPC "in range". The prediction has one
 source that can hold a place: the copy's path follower (47309 -> 90724, state 1-8 or 13 with a path). The copy's own tree is

@@ -18,20 +18,26 @@ def run(ctx):
         copy_of_guest = ctx.client_on_host()
         ctx.console_on('', f'{ORGNAR:X}.resurrect')
         ctx.console_on('client', 'tgm')
+        ctx.console_on('', 'tgm')  # the host stands through the guest's part of the fight
         ctx.console_on('client', f'player.moveto {ORGNAR:X}')
-        ctx.console_on('', f'{ORGNAR:X}.startcombat {copy_of_guest:X}')
+        ctx.console_on('', f'player.moveto {ORGNAR:X} 80 0 0')
+        refused = lambda: ctx.counter('', 'copy combat refused')
+        before = refused()
         combat = lambda: ctx.player_command('', {'cmd': 'combat_targets', 'actor': ORGNAR})
-        ctx.wait_for('the NPC fights the guest in melee (its tree runs Root - Melee)',
-                     lambda: any('Root - Melee' in node for node in combat().get('behavior', [])), 45)
-
+        ctx.console_on('', f'{ORGNAR:X}.startcombat {copy_of_guest:X}')
+        ctx.wait_for("the attack reaches the copy's StartCombat (38561), refused", lambda: refused() > before, 30)
         own = ctx.player_command('', {'cmd': 'combat_targets', 'actor': copy_of_guest})
         if own.get('behavior') or own.get('controller_target'):
             raise ctx.failure(f"the attack gave the guest's copy a combat tree of its own, on {own.get('controller_target'):X}: "
                               f"{own.get('behavior')[-1:]}")
 
+        ctx.console_on('', f'{ORGNAR:X}.startcombat 14')
+        ctx.wait_for('the NPC fights the host', lambda: combat().get('controller_target') == 0x14, 15)
+        ctx.console_on('', 'tgm')
         ctx.console_on('', 'player.kill')
         ctx.wait_for('the host is down', lambda: ctx.death_state('').get('down'), 15)
-        ctx.wait_for("the NPC fights the guest's copy", lambda: combat().get('controller_target') == copy_of_guest, 15)
+        ctx.wait_for("the NPC's target moves from the dead host to the guest's copy",
+                     lambda: combat().get('controller_target') == copy_of_guest, 15)
         if ctx.death_state('').get('down') is not True:
             raise ctx.failure('the host came back while the guest still fought (death.md: the respawn waits)')
     finally:

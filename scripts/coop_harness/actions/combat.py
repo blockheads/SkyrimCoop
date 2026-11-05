@@ -125,20 +125,27 @@ class CombatActions:
             time.sleep(every)
         return rows
 
+    def counter(ctx, instance, name):
+        """How many times that game's named counter (Diagnostics/Counters.h) was bumped; 0 before its first use."""
+        counters = (ctx.player_command(instance, {"cmd": "counters"}) or {}).get("counters") or {}
+        return (counters.get(name) or {}).get("count", 0)
+
     def closes_in(ctx, npc, back_seconds=6.0, within=300.0, seconds=15.0):
-        """The guest's player walks back and the host's `npc`, fighting it, must come to within `within`: fails with the
-        last combat_watch rows (a half-stop drifts at range)."""
+        """The guest's player walks back and the host's `npc` must come to within `within` of the guest's copy while
+        fighting that copy: fails with what combat_watch saw (a half-stop drifts at range, or fights someone else)."""
+        guest = ctx.client_on_host()
         ctx.act("client", {"name": f"walks back from {npc} {back_seconds:g} s", "ready": ["takes_input"], "buttons": ["back"],
                            "until": [{"for": back_seconds}], "seconds": back_seconds + 2})
-        rows = []
         seen = []
         end = time.monotonic() + seconds
         while time.monotonic() < end:
-            rows = ctx.combat_watch(npc, seconds=0.1)
-            seen += rows
-            if rows and rows[-1]["gap"] <= within and rows[-1]["target"] != "0":
-                return rows[-1]
-        raise ctx.failure(f"{npc} never came within {within:g} of the guest in {seconds:g} s: {seen[:3]} ... {seen[-2:]}")
+            seen += ctx.combat_watch(npc, seconds=0.1)
+            here = ctx.actor_snapshot("", ctx.resolve(npc, "host")).get("placement", {}).get("position")
+            there = ctx.actor_snapshot("", guest).get("placement", {}).get("position")
+            if seen[-1]["target"] == f"{guest:X}" and here and there and math.dist(here[:2], there[:2]) <= within:
+                return seen[-1]
+        raise ctx.failure(f"{npc} never came within {within:g} of the guest's copy {guest:X} while fighting it in "
+                          f"{seconds:g} s: {seen[:3]} ... {seen[-2:]}")
 
     def actor_snapshot(ctx, instance, actor):
         _game = ctx.game(instance)

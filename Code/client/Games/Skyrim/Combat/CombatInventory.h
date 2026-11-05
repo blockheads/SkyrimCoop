@@ -10,4 +10,5 @@ struct CombatInventory
     uint8_t unk1BC[0x1C8 - 0x1BC];
 };
 static_assert(offsetof(CombatInventory, closeRange) == 0x19C);
+static_assert(offsetof(CombatInventory, reach) == 0x1A0);
 static_assert(sizeof(CombatInventory) == 0x1C8);

@@ -47,13 +47,10 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
         using TReach = float(Actor*, Actor*);
         POINTER_SKYRIMSE(TReach, s_reach, 47336);
         read.TargetReach = s_reach.Get()(pTarget, pActor);
-        if (auto* pMover = pTarget->movementDrivenControl)
+        if (auto* pMover = reinterpret_cast<MovementController*>(pTarget->movementDrivenControl))
         {
-            // Movement controller slot 3: an interface by its type id (412229: IMovementQueryPathFollowing).
-            POINTER_SKYRIMSE(void, s_pathFollowing, 412229);
-            using TQuery = void*(void*, const void*);
-            auto* pQuery = reinterpret_cast<TQuery*>((*reinterpret_cast<void***>(pMover))[3]);
-            if (const auto* pFollowing = static_cast<const MovementQueryPathFollowing*>(pQuery(pMover, s_pathFollowing.Get())))
+            POINTER_SKYRIMSE(void, s_pathFollowing, 412229); // IMovementQueryPathFollowing's type id
+            if (const auto* pFollowing = pMover->PathFollowing(s_pathFollowing.Get()))
             {
                 read.TargetPathState = pFollowing->state;
                 read.TargetPathPoints = pFollowing->pPath ? pFollowing->pPath->pointCount : 0;

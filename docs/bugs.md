@@ -803,7 +803,7 @@ Size: medium. Needs: duo, IDA, then GameTests.
     (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
   - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
     the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
-    target (-5 to -10), the fight goes to search, and with the host dead nothing keeps it going.
+    target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
   - Left: compare with the bare game (`vanilla_start`, one player, same inn, same steps). Same in vanilla: not our bug,
     delete this entry. Different: what keeps vanilla's NPC on the player that a copy lacks.
 

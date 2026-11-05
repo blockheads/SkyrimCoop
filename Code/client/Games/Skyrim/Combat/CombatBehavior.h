@@ -78,3 +78,22 @@ struct MovementQueryPathFollowing
 };
 static_assert(offsetof(MovementQueryPathFollowing, state) == 0xF0);
 static_assert(offsetof(MovementQueryPathFollowing, pPath) == 0x100);
+
+// A movement controller's first vtable slots (MovementControllerNPC, CommonLibSSE-NG): slot 3 finds an interface by
+// its type id, as Actor::GetPredictedPosition (47309) asks for IMovementQueryPathFollowing (type id 412229).
+struct MovementControllerVtable
+{
+    void* slots[3];
+    void* (*QueryInterface)(void* apController, const void* apTypeId);
+};
+static_assert(offsetof(MovementControllerVtable, QueryInterface) == 0x18);
+
+struct MovementController
+{
+    const MovementControllerVtable* pVtable;
+
+    [[nodiscard]] const MovementQueryPathFollowing* PathFollowing(const void* apTypeId) noexcept
+    {
+        return static_cast<const MovementQueryPathFollowing*>(pVtable->QueryInterface(this, apTypeId));
+    }
+};

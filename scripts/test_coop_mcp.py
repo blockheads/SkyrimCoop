@@ -500,3 +500,24 @@ class ScenarioOrigins(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClosesIn(unittest.TestCase):
+    def ctx(self, rows, places):
+        ctx = unittest.mock.MagicMock()
+        ctx.failure.side_effect = lambda text: TestFailure(text)
+        ctx.client_on_host.return_value = 0xFF000800
+        ctx.resolve.return_value = 0x13486
+        ctx.combat_watch.side_effect = lambda *a, **k: [rows[0]]
+        ctx.actor_snapshot.side_effect = lambda instance, actor: {"placement": {"position": places[actor]}}
+        return ctx
+
+    def test_an_npc_near_but_on_another_target_does_not_pass(self):
+        from coop_harness.actions.combat import CombatActions
+        near = {0x13486: [0, 0, 0], 0xFF000800: [100, 0, 0]}
+        with patch("coop_harness.actions.combat.time.monotonic", side_effect=[0, 0, 1, 2, 99]):
+            with self.assertRaisesRegex(TestFailure, "never came within"):
+                CombatActions.closes_in(self.ctx([{"target": "14", "gap": 100}], near), "orgnar", seconds=3)
+        with patch("coop_harness.actions.combat.time.monotonic", side_effect=[0, 0]):
+            self.assertEqual(CombatActions.closes_in(self.ctx([{"target": "FF000800", "gap": 100}], near), "orgnar",
+                                                     seconds=3)["target"], "FF000800")
