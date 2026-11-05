@@ -273,10 +273,14 @@ def scenario_actors_walk_after_arrival(ctx):
     walks on both games (its feet move against its body about as far as it goes). An NPC sliding with its feet still,
     or walking in slow motion, fails it, the host's own actors and the guest's copies alike (check_gait). A culled
     actor's skeleton keeps its last pose by engine design, so its steps are not counted (actor-movement.md)."""
+    walked = {}
     try:
         for cell in (OUTDOOR_CELL, INN):
-            seen = ctx.gait_after_arrival(cell)
+            seen = ctx.gait_after_arrival(cell, walked=walked)
             if seen:
                 raise ctx.failure(f"in {cell}, {len(seen)} actors moved without walking: " + " | ".join(seen))
+        # Each game saw someone walk in view somewhere: an all-culled run checks nothing.
+        if unseen := ctx.unwatched(walked):
+            raise ctx.failure(" | ".join(unseen))
     finally:
         ctx.both_go(HOME_CELL)

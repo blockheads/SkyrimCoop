@@ -94,12 +94,13 @@ class Observations:
                                 f"package {mod.get('package_type')})")
         return problems
 
-    def gait_after_arrival(ctx, cell, seconds=12.0):
+    def gait_after_arrival(ctx, cell, seconds=12.0, walked=None):
         """The party arrives in `cell`, then for `seconds` every 2 s check_gait on both games: the first problem of
-        each actor seen (empty if every actor that moved walked). A game where no actor walked in view gives a problem
-        too: an all-culled window shows nothing."""
+        each actor seen (empty if every actor that moved walked). Without `walked`, a game where no actor walked in
+        view is a problem too (an all-culled window shows nothing); with it ({game: units}), the caller judges that."""
         ctx.both_go(cell)
-        seen, walked = {}, {}
+        seen, own = {}, walked is None
+        walked = {} if own else walked
         started = time.monotonic()
         sampled = started
         def observed():
@@ -111,8 +112,12 @@ class Observations:
                 sampled = now
             return now - started >= seconds
         ctx.wait_for(f"walking observations complete in {cell}", observed, seconds + 3)
-        return list(seen.values()) + [f"[{game}] no actor walked {SLIDE_DISTANCE:.0f} units in view: nothing to check"
-                                      for game in unwatched_games(walked)]
+        return list(seen.values()) + (ctx.unwatched(walked) if own else [])
+
+    def unwatched(ctx, walked):
+        """A problem for each game whose gait readouts never showed a drawn walk (check_gait's `walked`)."""
+        return [f"[{game}] no actor walked {SLIDE_DISTANCE:.0f} units in view: nothing was checked"
+                for game in unwatched_games(walked)]
 
     def known_lock_patterns(ctx):
         try:
