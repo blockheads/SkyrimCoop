@@ -163,6 +163,25 @@ void CopyCatchesUp(Party& aParty, World& aOwner, World& aOther, uint32_t aIdle)
     aParty.Until([&] { return other.GetActorLatestAnimation(cCopy).IdleId == aIdle; }, "the copy caught up with its owner's actions");
 }
 
+// Both players act at once; each copy takes it after every action before it (aFrames: how long that took).
+void BothCatchUp(Party& aParty, uint32_t aHostIdle, uint32_t aGuestIdle, int& aFrames)
+{
+    FakeEngine& host = Party::Engine(aParty.Host());
+    FakeEngine& guest = Party::Engine(aParty.Guest());
+    ActionEvent action;
+    action.ActionId = 0x959F9;
+    action.EventName = "moveStop";
+    action.IdleId = aHostIdle;
+    aParty.As(aParty.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, action)); });
+    action.IdleId = aGuestIdle;
+    aParty.As(aParty.Guest(), [&] { REQUIRE(guest.PerformAnimation(FakeEngine::kPlayer, action)); });
+    const uint32_t cOnGuest = CopyOfPlayer(aParty, aParty.Guest(), aParty.Host());
+    const uint32_t cOnHost = CopyOfPlayer(aParty, aParty.Host(), aParty.Guest());
+    aParty.Until([&] { ++aFrames; return guest.GetActorLatestAnimation(cOnGuest).IdleId == aHostIdle &&
+                                        host.GetActorLatestAnimation(cOnHost).IdleId == aGuestIdle; },
+                 "both copies caught up with their owners' actions");
+}
+
 SCENARIO("A kill move plays both halves on the victim's game", "[combat][friendly-fire][kill-move]")
 {
     Party party(1, SmokeWorld);
@@ -235,16 +254,21 @@ SCENARIO("Two players' kill moves on each other cross: they clash, and neither g
     party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
                 "both games have the other's player");
 
+    host.PairBlows = guest.PairBlows = true;
     StartKillMove(party, party.Host(), party.Guest(), "KillMoveShortD");
     StartKillMove(party, party.Guest(), party.Host(), "KillMove1HMGrappleStab");
-    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000);
-    CopyCatchesUp(party, party.Guest(), party.Host(), 0x1001);
+    int caught = 0;
+    BothCatchUp(party, 0x1000, 0x1001, caught);
     CHECK(host.CollapsedPairs == 0);
     CHECK(guest.CollapsedPairs == 0);
     CHECK_FALSE(host.Actors.at(FakeEngine::kPlayer).InKillMove);
     CHECK_FALSE(guest.Actors.at(FakeEngine::kPlayer).InKillMove);
+    // Each pair's clip, left running, would land its blow a moment later (PairBlowFrames) and kill the other.
+    int frames = 0;
+    party.Until([&] { return ++frames > 3 * int(host.PairBlowFrames); }, "the pairs' blows would have landed");
     CHECK(host.IsPlayerAlive());
     CHECK(guest.IsPlayerAlive());
+    host.PairBlows = guest.PairBlows = false;
 
     // Free again: the next kill move plays as one pair.
     StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");

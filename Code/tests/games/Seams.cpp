@@ -297,7 +297,13 @@ void World::Update() noexcept
         if (cLocalPartner && ::ReplayState::SettlePairedReplay({replayed.EventName.c_str(), form.Id, true, cPartner->second.InKillMove,
                                                                 cPartner->second.LatestPairAction.TargetEventName.c_str(),
                                                                 cPartner->second.LatestPairAction.TargetId},
-                                                               [&](bool aCopy) { engine.EndKillMove(aCopy ? form.Id : replayed.TargetId); }))
+                                                               [&](bool aCopy) {
+                                                                   const uint32_t cId = aCopy ? form.Id : replayed.TargetId;
+                                                                   engine.EndKillMove(cId);
+                                                                   auto& half = engine.Actors.at(cId);
+                                                                   half.ClashPartner = aCopy ? replayed.TargetId : form.Id;
+                                                                   half.ClashUntil = GetTick() + ::ReplayState::cClashGuardMs;
+                                                               }))
         {
             animation.LastRanAction = replayed;
             engine.SetActorLatestAnimation(form.Id, replayed);

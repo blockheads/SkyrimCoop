@@ -26,6 +26,16 @@ constexpr bool HeldByPair(bool aCopyInKillMove, bool aPaired) noexcept
     return aCopyInKillMove && !aPaired;
 }
 
+// After crossed pairs: a clip behind an uninterruptible transition (pa_KillMoveI: 0xd04) ignores pairedStop until its blend
+// ends, so it is sent again for a while; a clip can still land its blow, so the two players' hits are refused meanwhile.
+constexpr uint8_t cClashStopUpdates = 30;
+constexpr uint64_t cClashGuardMs = 5000; // past the longest kill clip
+
+constexpr bool ClashRefusesHit(uint32_t aHitter, uint32_t aClashPartner, uint64_t aNow, uint64_t aClashUntil) noexcept
+{
+    return aHitter && aHitter == aClashPartner && aNow < aClashUntil;
+}
+
 struct PairedReplay
 {
     std::string_view EventName;    // the replayed action's

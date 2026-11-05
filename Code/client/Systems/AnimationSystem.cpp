@@ -51,6 +51,14 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     // Off-screen graphs update only now and then (38054); a copy's is driven every frame.
     apActor->flags2 |= Actor::kForceAnimGraphUpdate;
 
+    if (auto* pExtension = apActor->GetExtension(); pExtension->PairStops)
+    {
+        --pExtension->PairStops;
+        apActor->StopPairClip();
+        if (auto* pPartner = Cast<Actor>(TESForm::GetById(pExtension->ClashPartner)))
+            pPartner->StopPairClip();
+    }
+
     // A fresh copy starts in its owner's graph state; the queue waits for it.
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
     {
@@ -193,7 +201,16 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             const ActionEvent cPair = pPartner->GetExtension()->LatestPairAction.Read();
             if (ReplayState::SettlePairedReplay({first.EventName.c_str(), apActor->formID, true, pPartner->IsInKillMove(),
                                                  cPair.TargetEventName.c_str(), cPair.TargetId},
-                                                [&](bool aCopy) { (aCopy ? apActor : pPartner)->EndKillMove(); }))
+                                                [&](bool aCopy) {
+                                                    Actor* pHalf = aCopy ? apActor : pPartner;
+                                                    Actor* pOther = aCopy ? pPartner : apActor;
+                                                    pHalf->EndPairs();
+                                                    pHalf->EndKillMove();
+                                                    pHalf->GetExtension()->ClashPartner = pOther->formID;
+                                                    pHalf->GetExtension()->ClashUntil = aWorld.GetTick() + ReplayState::cClashGuardMs;
+                                                    if (aCopy)
+                                                        pHalf->GetExtension()->PairStops = ReplayState::cClashStopUpdates;
+                                                }))
             {
                 spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} was in a kill move", apActor->formID, first.ActionId,
                               first.EventName, pPartner->formID);

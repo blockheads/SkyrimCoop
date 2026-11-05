@@ -63,6 +63,7 @@
 #include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
+#include <Games/Animation/ReplayState.h>
 #include <Papyrus/GuestScripts.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <AI/AIProcess.h>
@@ -209,6 +210,9 @@ bool SkyrimBridge::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId,
     // The kill move decides its victim's death: a hit now would only queue a kill credited to the local player
     // (EndDeferredKill 38618), not to the kill move's partner.
     if (!pActor || pActor->IsHeldByKillMove())
+        return false;
+    const auto* pExtension = pActor->GetExtension();
+    if (ReplayState::ClashRefusesHit(aAttackerFormId, pExtension->ClashPartner, World::Get().GetTick(), pExtension->ClashUntil))
         return false;
     pActor->DamageHealth(aDamage, aAttackerFormId ? GetActor(aAttackerFormId) : nullptr);
     return true;

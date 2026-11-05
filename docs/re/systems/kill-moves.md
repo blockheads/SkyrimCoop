@@ -46,8 +46,8 @@ death action
 
 ## Names given in IDA (1.7.104)
 
-`BGSSynchronizedAnimationManager::StartPair` 32803, `::IsInInstance`, `::GetParticipants`,
-`g_BGSSynchronizedAnimationManager`; `BGSSynchronizedAnimationInstance::AddParticipant` 32782, `::LayoutParticipants` 32792,
+`BGSSynchronizedAnimationManager::StartPair` 32803, `::EndPairsOf` 32809, `::IsInInstance`, `::GetParticipants`,
+`g_BGSSynchronizedAnimationManager` 401100; `BGSSynchronizedAnimationInstance::AddParticipant` 32782, `::LayoutParticipants` 32792,
 `::AllAtMark` 32794, `::Activate` 32796, `::Deactivate` 32797 (ends the instance once any half deactivates),
 `::BindGenerators` 32783, `::HasParticipant` 32784; `BSSynchronizedClipGenerator::Update` 63050, `::Activate` 63048,
 `::RemapClipEvents` 63060 (`2_` events to the partner), `::GetClipRootTransform` 63058;
@@ -82,9 +82,18 @@ for 10 s. `HeldByPair` keeps a copy in a pair from taking a plain action, checke
 
 **3. Two players on each other.** Each started a pair on its own game, then each game replayed the other's onto the same
 two actors. By 32803 that is "the same pair": both clips ended at 0.32 s and a player dropped with a plain `DeathAnim` at
-0.35 s. Now they clash (`SettlePairedReplay`): both end their kill move (38614), nobody is hurt, both can swing again. It is
-symmetric on purpose: no game has to know who swung first. `ActorExtension::LatestPairAction` keeps the pair, because
-`LatestAnimation` is overwritten by the next `moveStop`.
+0.35 s. Now they clash (`SettlePairedReplay`): no game has to know who swung first, and nobody is hurt. Stopping a playing
+pair took three things, each measured in Skyrim (`kill-moves-cross`):
+
+- Clearing the flags (38614) is not enough: the clips run on, and the first blow lands as a plain hit (PR #15 found this).
+- `EndPairsOf` 32809 ends the instance, as the engine does when graphs change (`Actor::EndPairs`). `Deactivate` sends each
+  half `PairEnd`, and `PairedStop` only if that went unanswered. The victim's state leaves on `PairEnd`; the attacker's
+  `KillMoveState` only on `pairedStop`, so that is sent too.
+- Entry transitions to `pa_KillMoveI` and `pa_KillMoveD` carry flags 0xd04: `FLAG_UNINTERRUPTIBLE_WHILE_PLAYING`. A
+  `pairedStop` during that blend is dropped, so it is sent again for 30 updates (`cClashStopUpdates`), and a clip can still
+  land its blow first (`ShortD` at 0.34 s), so each game refuses hits between the two for 5 s (`ClashRefusesHit`).
+
+`ActorExtension::LatestPairAction` keeps the pair: `LatestAnimation` is overwritten by the next `moveStop`.
 
 **4. The victim's game refused the pair.** 32792's sweep runs on each game's own positions, so it could fail on the victim's
 after passing on the attacker's: the attacker's kill move ran 5 s alone and the victim fell to the plain forwarded blow at
@@ -138,4 +147,3 @@ about 60 degrees off the player's facing, so each swing missed. The scenario now
   past v1.
 - **`kill-move-kills-guest`** fails on the host's copy of the guest: its body never comes to rest (`turned back`). 3 of 3
   with these rules and 3 of 3 with them off, so older than this work.
-- **Clip loads (PR #12, not merged).** Copies may wait for an action's clips; check the paired branch against that wait.

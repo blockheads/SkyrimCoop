@@ -14,6 +14,7 @@ from ..common import (
     FIREBOLT,
     HOME_CELL,
     INN,
+    KILL_MOVE_BLOW_WINDOW,
     KILL_MOVE_CLASH,
     KILL_MOVE_RANDOM,
     LYDIA,
@@ -92,9 +93,13 @@ class CombatActions:
                     end = trace.wait_state(game, "player", "kill_move", False, KILL_MOVE_CLASH + 1, after=start["time"])
                     if end["time"] - start["time"] > KILL_MOVE_CLASH:
                         raise ctx.failure(f"[{game or 'host'}] the crossed kill move held the player {end['time'] - start['time']:.2f} s")
-                for game in games:
-                    if ctx.death_state(game).get("down") or ctx.is_dead(ctx.actor_snapshot(game, copies[game])):
-                        raise ctx.failure(f"[{game or 'host'}] a player dropped when the kill moves crossed")
+                # The pairs' clips must have stopped too: left running, the first blow (HitFrame, ~1.3 s) kills.
+                watched = time.monotonic()
+                while time.monotonic() - watched < KILL_MOVE_BLOW_WINDOW:
+                    for game in games:
+                        if ctx.death_state(game).get("down") or ctx.is_dead(ctx.actor_snapshot(game, copies[game])):
+                            raise ctx.failure(f"[{game or 'host'}] a player dropped "
+                                              f"{time.monotonic() - watched:.1f} s after the kill moves crossed and clashed")
         return crossed
 
 

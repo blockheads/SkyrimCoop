@@ -100,6 +100,10 @@ void FakeEngine::ShovePlayer() noexcept
 
 void FakeEngine::Frame()
 {
+    // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
+    for (auto& [cId, actor] : Actors)
+        if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
+            Strikes(cId, actor.PairVictim, 1000.f);
     // Clips loop on each game's own clock; an event every N of them is the graph's, no action behind it.
     if (Loop)
         for (auto& [cId, actor] : Actors)
@@ -597,6 +601,11 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         CollapsedPairs += cCollapsed;
         actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
         actor.LatestPairAction = acAction;
+        if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
+        {
+            actor.PairBlowIn = PairBlowFrames;
+            actor.PairVictim = acAction.TargetId;
+        }
     }
     else if (actor.Copy && actor.InKillMove)
         ++BrokenPairs;
@@ -768,7 +777,8 @@ void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
 bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
 {
     const auto it = Actors.find(aFormId);
-    if (it == Actors.end())
+    if (it == Actors.end() ||
+        ::ReplayState::ClashRefusesHit(aAttackerFormId, it->second.ClashPartner, World::Get().GetTick(), it->second.ClashUntil))
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;

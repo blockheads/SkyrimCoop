@@ -873,6 +873,24 @@ bool Actor::IsInKillMove() const noexcept
     return (s_isInKillMove.Get())(this);
 }
 
+void Actor::EndPairs() noexcept
+{
+    // BGSSynchronizedAnimationManager::EndPairsOf 32809; its instances send the halves PairEnd, then PairedStop.
+    using TEndPairsOf = void(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TEndPairsOf, s_endPairsOf, 32809);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    (s_endPairsOf.Get())(*s_manager.Get(), &cHandle);
+    StopPairClip();
+}
+
+void Actor::StopPairClip() noexcept
+{
+    // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
+    BSFixedString stop("pairedStop");
+    SendAnimationEvent(&stop);
+}
+
 void Actor::EndKillMove() noexcept
 {
     // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.

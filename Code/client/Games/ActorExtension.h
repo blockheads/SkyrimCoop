@@ -26,6 +26,9 @@ struct ActorExtension
     AnimationActionState LatestAnimation;
     AnimationActionState LatestWeapEquipAnimation;
     AnimationActionState LatestPairAction; // its half of the pair it last took
+    uint32_t ClashPartner = 0; // who its crossed kill move was with (ReplayState::ClashRefusesHit)
+    uint64_t ClashUntil = 0;
+    uint8_t PairStops = 0;     // a copy: pairedStops left to send after a clash
     size_t GraphDescriptorHash = 0;
     uint64_t GraphDescriptorProjectKey = 0;
     // A copy: its owner's AI state (SkyrimBridge::SetCopyAiFields). The package (0: none or engine-made) is put back

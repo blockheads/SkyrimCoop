@@ -37,3 +37,11 @@ TEST_CASE("A copy in a pair takes no plain action of its owner", "[copies][repla
     CHECK_FALSE(ReplayState::HeldByPair(true, true));
     CHECK_FALSE(ReplayState::HeldByPair(false, false));
 }
+
+TEST_CASE("After a clash only the partner's hits are refused, and only for a while", "[copies][replay-state][kill-move]")
+{
+    CHECK(ReplayState::ClashRefusesHit(7, 7, 100, 200));
+    CHECK_FALSE(ReplayState::ClashRefusesHit(8, 7, 100, 200));
+    CHECK_FALSE(ReplayState::ClashRefusesHit(7, 7, 200, 200));
+    CHECK_FALSE(ReplayState::ClashRefusesHit(0, 0, 100, 200));
+}
