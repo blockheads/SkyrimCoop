@@ -142,6 +142,8 @@ public:
     virtual bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept = 0;
     // Its name as the game shows it: the reference's name override, else its base's.
     virtual std::string GetActorDisplayName(uint32_t aFormId) const noexcept = 0;
+    // A copy's name over its base's: its owner's (ExtraTextDisplayData).
+    virtual void SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept = 0;
     virtual uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept = 0;
     // Its NPC base's weight (TESNPC, 0 to 100); 50 without an NPC base. The engine saves it with the actor
     // (Actor::SaveGame 37649), not in the base's sections, so it travels beside AppearanceBuffer.
@@ -251,10 +253,6 @@ public:
     /// acAppearance is a raw byte buffer stored as std::string (same type as AppearanceBuffer in messages).
     virtual uint32_t CreateCustomActor(const std::string& acAppearance,
                                         uint32_t aChangeFlags, float aWeight) noexcept = 0;
-    /// Deserialize appearance data onto an existing actor's NPC base form.
-    /// acAppearance is a raw byte buffer stored as std::string.
-    virtual void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance,
-                                      uint32_t aChangeFlags) noexcept = 0;
     // On the main thread between frames: loads a copy's base and rebuilds its 3D. False while a save/load holds FormState.
     virtual bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept = 0;
     /// Serialize the actor's NPC base form into a std::string buffer. Returns change flags.

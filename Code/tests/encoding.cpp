@@ -297,6 +297,41 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
         auto pRequest = CastUnique<PlayerLevelRequest>(std::move(pMessage));
         REQUIRE(pRequest->NewLevel == request.NewLevel);
     }
+
+    {
+        ActorNameRequest request;
+        request.ActorId = 7;
+        request.Name = "Bj\xC3\xB6rn";
+
+        Buffer::Writer writer(&buff);
+        request.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const RequestMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
+        REQUIRE(*CastUnique<ActorNameRequest>(std::move(pMessage)) == request);
+    }
+
+    {
+        NotifyPlayerName notify;
+        notify.PlayerId = 3;
+        notify.Name = "Bj\xC3\xB6rn";
+
+        Buffer::Writer writer(&buff);
+        notify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const NotifyMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(*CastUnique<NotifyPlayerName>(std::move(pMessage)) == notify);
+    }
 }
 
 TEST_CASE("Session packets carry only difficulty and chat content", "[encoding.session]")

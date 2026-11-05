@@ -15,6 +15,7 @@
 
 struct ActorAddedEvent;
 struct ActorRemovedEvent;
+struct ActorRenamedEvent;
 struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
@@ -83,6 +84,10 @@ struct CharacterService
     // The player's owned horse accompanies a tether move.
     void CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
+    // A copy shows its owner's name; an owned NPC's changing name reaches its copies (docs/re/systems/names.md).
+    void ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept;
+    void OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept;
+    void OnNotifyActorName(const NotifyActorName& acMessage) const noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.

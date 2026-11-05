@@ -92,3 +92,30 @@ TEST_CASE("Bug report: one report, named once, to every game with who typed it",
         CHECK(cNotifies[0]->Id == id);
     }
 }
+
+TEST_CASE("A renamed player's name reaches everyone and its later chat lines", "[HostAuthority][Chat]")
+{
+    Session session;
+
+    PlayerNameRequest renamed;
+    renamed.Name = "Rinara";
+    session.Receive(kPeer, renamed);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifyPlayerName>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->Name == "Rinara");
+    }
+    CHECK(session.SentTo<NotifyPlayerName>(kPeer).empty());
+
+    SendChatMessageRequest line;
+    line.ChatMessage = "hello";
+    session.Receive(kPeer, line);
+    const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kHost);
+    REQUIRE(cLines.size() == 1);
+    CHECK(cLines[0]->PlayerName == "Rinara");
+
+    renamed.Name = "\x01";
+    session.Receive(kPeer, renamed);
+    CHECK(session.SentTo<NotifyPlayerName>(kHost).size() == 1); // a name of nothing printable is refused
+}

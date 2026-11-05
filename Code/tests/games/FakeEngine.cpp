@@ -2,6 +2,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Events/ActorRenamedEvent.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
@@ -487,11 +488,27 @@ bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noex
     return true;
 }
 
+void FakeEngine::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.DisplayName = PooledNames.try_emplace(NameKey(acName), acName).first->second;
+}
+
+std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
+{
+    if (aFormId == 0x7)
+        return PlayerCharacterName();
+    const auto it = FormNames.find(aFormId);
+    return it != FormNames.end() ? it->second : Name;
+}
+
 std::string FakeEngine::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
     const auto actor = Actors.find(aFormId);
     if (actor != Actors.end() && !actor->second.DisplayName.empty())
         return actor->second.DisplayName;
+    if (aFormId == kPlayer)
+        return PlayerCharacterName();
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
     return it != Npcs.end() ? it->second.Name : std::string{};
 }
@@ -1030,12 +1047,22 @@ uint32_t RaceInLooks(const std::string& acAppearance)
 } // namespace
 
 // A player's copy: a temporary NPC made from their appearance, and an actor of it.
-uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t, float aWeight) noexcept
+// A base built from a snapshot: the name only if its section (0x20) came, as FormState::Load.
+void FakeEngine::LoadBase(uint32_t aBase, const std::string& acAppearance, uint32_t aChangeFlags)
+{
+    auto& base = Npcs[aBase];
+    const size_t cNameEnd = aChangeFlags & 0x20 ? acAppearance.find('\0') : std::string::npos;
+    if (cNameEnd != std::string::npos)
+        base.Name = acAppearance.substr(0, cNameEnd);
+    base.Looks = cNameEnd == std::string::npos ? acAppearance : acAppearance.substr(cNameEnd + 1);
+}
+
+uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
 {
     const uint32_t cBase = NewTemporary();
     Npcs[cBase].Weight = aWeight;
-    Npcs[cBase].Looks = acAppearance;
-    Npcs[cBase].Race = RaceInLooks(acAppearance);
+    LoadBase(cBase, acAppearance, aChangeFlags);
+    Npcs[cBase].Race = RaceInLooks(Npcs[cBase].Looks);
     return SpawnActorFromNpc(cBase);
 }
 
@@ -1045,24 +1072,14 @@ uint32_t FakeEngine::GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexc
     return it == Npcs.end() ? 0 : it->second.FaceBase;
 }
 
-void FakeEngine::DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept
-{
-    const auto it = Actors.find(aFormId);
-    if (it == Actors.end() || acAppearance.empty())
-        return;
-    if (aChangeFlags & 0x20)
-    {
-        const std::string cName = acAppearance.substr(0, acAppearance.find('\0'));
-        it->second.DisplayName = PooledNames.try_emplace(NameKey(cName), cName).first->second;
-    }
-}
-
 uint32_t FakeEngine::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
 {
     if (aFormId == kPlayer)
     {
-        aBuffer = Player.Base;
-        return Player.BaseFlags;
+        const uint32_t cFlags = NpcSnapshot::SaveFlags(Player.BaseFlags, true, false);
+        // As native FormState: the name only in its section (0x20).
+        aBuffer = cFlags & 0x20 ? PlayerCharacterName() + '\0' + Player.Base : Player.Base;
+        return cFlags;
     }
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
     if (it == Npcs.end())
@@ -1452,6 +1469,18 @@ void FakeEngine::PlayerUsesRaceMenu(const std::function<void()>& acChanges)
     World::Get().GetRunner().Trigger(MenuEvent{"RaceSex Menu", false});
 }
 
+void FakeEngine::PlayerNames(const std::string& acName)
+{
+    Player.Name = acName;
+    Player.BaseFlags |= 0x20;
+}
+
+void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
+{
+    Actors.at(aFormId).DisplayName = acName;
+    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId});
+}
+
 std::string FakeEngine::PlayerId() noexcept
 {
     return std::format("id:{:016x}", std::hash<std::string>{}(Name));
@@ -1808,8 +1837,8 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
     if (!AtMainLoop || BlockAppearance || !Actors.contains(aFormId) || !Actors.at(aFormId).Copy)
         return false;
     auto& base = Npcs.at(GetActorBaseFormId(aFormId));
-    base.Looks = acAppearance;
-    const uint32_t cRace = RaceInLooks(acAppearance);
+    LoadBase(GetActorBaseFormId(aFormId), acAppearance, aChangeFlags);
+    const uint32_t cRace = RaceInLooks(base.Looks);
     if (base.Race != cRace)
     {
         auto& actor = Actors.at(aFormId);

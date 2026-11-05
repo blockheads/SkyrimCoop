@@ -295,6 +295,30 @@ void Dismount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Whereabouts.Deserialize(aReader);
 }
 
+void PlayerName::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, PlayerId);
+    Serialization::WriteString(aWriter, Name);
+}
+
+void PlayerName::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Name = Serialization::ReadString(aReader);
+}
+
+void ActorName::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ActorId);
+    Serialization::WriteString(aWriter, Name);
+}
+
+void ActorName::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Name = Serialization::ReadString(aReader);
+}
+
 void Mount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, RiderId);

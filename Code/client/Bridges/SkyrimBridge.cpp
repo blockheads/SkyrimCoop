@@ -568,6 +568,12 @@ std::string SkyrimBridge::GetActorDisplayName(uint32_t aFormId) const noexcept
     return {};
 }
 
+void SkyrimBridge::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        pActor->extraData.SetCustomName(acName.c_str(), true);
+}
+
 void SkyrimBridge::SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept
 {
     if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
@@ -2044,30 +2050,6 @@ uint32_t SkyrimBridge::CreateCustomActor(const std::string& acAppearance, uint32
     pNpc->weight = aWeight; // before the actor's 3D, which takes its build from it
     Actor* pActor = Actor::Create(pNpc);
     return pActor ? pActor->formID : 0;
-}
-
-void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept
-{
-    Breadcrumbs::Record("DeserializeActorNpc", aFormId, aChangeFlags);
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return;
-    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
-    if (!pNpc || acAppearance.empty())
-        return;
-    if (!NpcSnapshot::HasResolvedName(aChangeFlags))
-        return;
-    // Decode the native snapshot without giving an actor a temporary name-only base.
-    auto* pSnapshot = IFormFactory::Create<TESNPC>();
-    if (!pSnapshot)
-        return;
-    if (FormState::Load(*pSnapshot, aChangeFlags, acAppearance))
-    {
-        const char* cpName = pSnapshot->fullName.value.AsAscii();
-        pActor->extraData.SetCustomName(cpName ? cpName : "");
-    }
-    // The engine's deleting destructor (vtable 0) frees it on the game's heap.
-    delete pSnapshot;
 }
 
 bool SkyrimBridge::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept

@@ -266,9 +266,9 @@ carry/loss checks and the release-time physics lock ordering now have fixes and 
 
 ## Combat
 
-- **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
-  are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen
-  before and after a host load. Start: where a copy's display name comes from the owner's character record.
+- **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
+  (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
+  carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
 - **A scenario whose player died leaves the baseline check failing** (2026-11-04): `kill-moves-cross-late-death` ended
   with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
   so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).

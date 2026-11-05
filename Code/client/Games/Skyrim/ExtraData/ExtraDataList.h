@@ -34,7 +34,7 @@ struct ExtraDataList
     void SetCount(uint16_t aCount) noexcept;
     // A player's name for the item (ExtraTextDisplayData, custom), as CommonLib's SetOverrideName; none over a quest's
     // or a message's name.
-    void SetCustomName(const char* acpName) noexcept;
+    void SetCustomName(const char* acpName, bool aOverQuest = false) noexcept;
 
     [[nodiscard]] bool HasQuestObjectAlias() noexcept;
 

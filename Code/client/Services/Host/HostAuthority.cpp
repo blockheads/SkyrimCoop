@@ -133,6 +133,9 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
+    On(*this, &HostAuthority::OnPlayerName);
+    // An NPC's display name, when its owner's changes (docs/re/systems/names.md).
+    Relay<ActorNameRequest, NotifyActorName>(FromOwner, &ActorNameRequest::ActorId);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
@@ -368,6 +371,19 @@ void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, Connectio
     NotifyPlayerLevel notify;
     notify.PlayerId = m_players.PlayerIdOf(aSender);
     notify.NewLevel = acRequest.NewLevel;
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
+}
+
+void HostAuthority::OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const std::string cName = ChatText(acRequest.Name);
+    if (cName.empty())
+        return;
+    m_players.SetName(aSender, cName);
+    m_network.NameConnection(aSender, cName);
+    NotifyPlayerName notify;
+    notify.PlayerId = m_players.PlayerIdOf(aSender);
+    notify.Name = cName;
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 

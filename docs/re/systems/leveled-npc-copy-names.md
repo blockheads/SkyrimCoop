@@ -137,3 +137,9 @@ unlike the private bases above. Only a different face still swaps to the face re
 
 Open: a copy whose game picked another face, and created copies (`SpawnActorFromNpc` of the face), still take the face
 record's stats; a resolved base for them needs the engine's leveled build (14375) with the owner's pick.
+
+## The name travels by itself now (2026-11-05)
+
+The snapshot decode above (`DeserializeActorNpc`, the `0x20` section of a selected NPC) is gone: every NPC's announcement
+carries its `DisplayName`, and the copy overlays it on its reference only if it reads differently. Same result, and it
+also covers alias names. See [names](names.md).

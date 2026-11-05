@@ -73,7 +73,9 @@
     X(RecipesRequest)              \
     X(BugReportRequest)            \
     X(DialogueHighlightRequest)    \
-    X(DialogueSkipRequest)
+    X(DialogueSkipRequest) \
+    X(PlayerNameRequest)            \
+    X(ActorNameRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -150,7 +152,9 @@
     X(NotifyDialogueHighlight)     \
     X(NotifyPartyItem)             \
     X(NotifyPartyItems)            \
-    X(NotifyDialogueSkip)
+    X(NotifyDialogueSkip) \
+    X(NotifyPlayerName)            \
+    X(NotifyActorName)
 
 #define COOP_OPCODE(aName) k##aName,
 
