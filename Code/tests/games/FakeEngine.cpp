@@ -823,7 +823,7 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     std::copy_n(aPosition, 3, it->second.Position);
     if (it->second.Stepped)
         it->second.Position[2] = std::min(cHeight, aPosition[2]);
-    // Move places the capsule on the goal, the write-back reports it less its centre offset (actor-movement.md).
+    // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
     if (it->second.Stepped && it->second.InFurniture)
         it->second.Position[1] -= kFurnitureOffset * static_cast<float>(1 + it->second.Movements % 3);
     std::copy_n(aRotation, 3, it->second.Rotation);

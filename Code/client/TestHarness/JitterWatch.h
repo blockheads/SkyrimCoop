@@ -40,6 +40,7 @@ private:
         uint32_t Stepped = 0;
         uint32_t Furniture = 0;    // frames with its sit/sleep state set
         float FurniturePath = 0.f; // how far its place went in them
+        uint32_t FurnitureReversals = 0; // its place turning back in them
     };
 
     bool m_running = false;

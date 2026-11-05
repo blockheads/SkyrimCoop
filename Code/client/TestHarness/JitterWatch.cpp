@@ -113,11 +113,13 @@ void JitterWatch::Poll()
         ++watched.Frames;
         const float cPlace[3]{pActor->position.x, pActor->position.y, pActor->position.z};
         const float cPathBefore = watched.Place.Path;
+        const uint32_t cReversalsBefore = watched.Place.Reversals;
         watched.Place.Add(cPlace);
         if (pActor->actorState.GetSitSleepState())
         {
             ++watched.Furniture;
             watched.FurniturePath += watched.Place.Path - cPathBefore;
+            watched.FurnitureReversals += watched.Place.Reversals - cReversalsBefore;
         }
         const float cRoot[3]{p3D->world.translate.x, p3D->world.translate.y, p3D->world.translate.z};
         watched.Root.Add(cRoot);
@@ -153,6 +155,7 @@ nlohmann::json JitterWatch::Read() const
                                            {"stepped", cWatched.Stepped},
                                            {"furniture", cWatched.Furniture},
                                            {"furniture_path", cWatched.FurniturePath},
+                                           {"furniture_reversals", cWatched.FurnitureReversals},
                                            {"goal_off", cWatched.GoalOff}};
     }
     return {{"frames", m_frames},        {"hour_back", m_hourBack},      {"biggest_hour_back", m_biggestHourBack},

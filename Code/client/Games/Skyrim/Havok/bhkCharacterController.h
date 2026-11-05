@@ -11,6 +11,9 @@ struct bhkCharacterController
     static constexpr uint32_t kNotPushable = 1u << 14;
     static constexpr uint32_t kRecordHits = 1u << 21;
     static constexpr uint32_t kNoCharacterCollisions = 1u << 27;
+    // Filter info: the capsule's layer (low 7 bits) and its no-collision bit (AIProcess::EnterFurnitureCollision 40063).
+    static constexpr uint32_t kCapsuleLayer = 30;
+    static constexpr uint32_t kFilterNoCollision = 1u << 15;
     // state (hkpCharacterStateType): 1 jumping, 2 in the air, 3 climbing, 4 flying, 5 swimming.
     static constexpr int32_t kOnGround = 0;
 
@@ -25,6 +28,14 @@ struct bhkCharacterController
     virtual void SetLinearVelocityImpl(const void* apVelocity) = 0;                // 07
     // Its bodies' filter info (CFilter): layer in the low 7 bits, the actor's system group in the high 16.
     virtual void GetCollisionFilterInfo(uint32_t& aFilterInfo) const = 0;          // 08
+    virtual void Unk09() = 0;                                                      // 09
+    virtual void Unk0A() = 0;                                                      // 0A
+    virtual void Unk0B() = 0;                                                      // 0B
+    virtual void Unk0C() = 0;                                                      // 0C
+    virtual void CheckSupportImpl() = 0;                                           // 0D
+    virtual void Unk0E() = 0;                                                      // 0E
+    virtual void* GetHavokWorld() const = 0;                                       // 0F
+    virtual struct hkpRigidBody* GetRigidBody() const = 0;                         // 10: its capsule
 
     // Havok units: game units / 69.99.
     static constexpr float kHavokToGame = 69.991249f;

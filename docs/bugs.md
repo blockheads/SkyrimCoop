@@ -52,20 +52,19 @@ all other findings below stay open. [Evidence, regressions and exact native resu
   - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
     boundary later).
 - **Creature copies wobble a little around their goal** (2026-11-05). A stepped wolf's or deer's copy on the guest's game
-  turns back on itself up to 326 times in 25 s, its biggest steps 1.6 to 3.3 units (seen on far-off creatures, `9F361` and
-  `8CACD` in Riverwood; owners do not). Not in furniture, so not the fixed vibration (actor-movement.md).
-  - Start: copies' goals are whole units (`Vector3_NetQuantize` truncates), while a step settles to 0.05.
-  - Test: `jitter` on a creature, then a ClientTests case on the goal it is given.
-- **A town's world comparison finds ambient fish** (2026-11-05). `copy-leaves-furniture-steady` passes all its steps, then
-  fails the end comparison: about 55 references (ACTI `10C3BA`, fish controllers) posed differently in the two games,
-  as `faendal-letter`'s end comparison fails on things around it.
+  turns back on itself up to 326 times in 25 s, its biggest steps 1.6 to 3.3 units (far-off creatures in Riverwood,
+  `9F361` and `8CACD`; owners do not). Not furniture: their sit state is 0 and placing copies in furniture did not change
+  it.
+  - Known from IDA: NPC capsules are rigid bodies whose place is written back after physics (actor-movement.md, "A copy in
+    furniture"); these creatures' controllers carry `kQuadruped` and `kCanPitch`/`kCanRoll`, which tilt the capsule to the
+    ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
+  - Test: `jitter` on a creature, then a fast test once the cause is read.
+- **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
+  Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
+  `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, once
+  Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
+  repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
   - Test: that scenario, after its steps.
-- **Hod's head height differs after he leaves furniture** (2026-11-05). One of three fixed runs of
-  `copy-leaves-furniture-steady` ended with `pose.head` 117 (host) against 88 (copy). It may be the stale off-screen skeleton
-  of [culled-npc-pose-readings.md](re/systems/culled-npc-pose-readings.md) (81-88 against 122) or a copy left seated by being
-  placed, not stepped: not told apart.
-  - Start: look at the copy with the camera, as that document did, and read `pose.head` again.
-  - Test: that scenario's end comparison.
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.

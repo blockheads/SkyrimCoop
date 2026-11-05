@@ -143,54 +143,63 @@ never rises), ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest`; scenar
 
 ## A copy in furniture (2026-11-05)
 
-Players saw NPCs vibrate on the guest's game: 0.6 to 1.8 units back and forth, each frame, on copies going in or out of
-furniture. Read on 1.7.104. `flags1 >> 14 & 0xF` is the sit/sleep state, set for chairs, beds and wall leans and on the
-way in or out.
+Players saw NPC copies vibrate on the guest's game, 0.6 to 1.8 units each frame, going in or out of a chair, bed or wall
+lean. Read in IDA (1.7.104); names and comments in the database and `ida_notes_1.7.104.tsv`.
 
 ```
-Actor::Move (37507)
-  sit state 0    CharacterStep (78275): capsule collides, pushes; filter bit 0x8000 cleared
-  sit state != 0 no step: position += delta (by GetHeading), capsule placed there, no collision
-                 MoveHavok (37551) sets 0x8000: an owner in furniture has no capsule collision
-then the write-back: bhkCharacterMoveFinishEvent -> 37998 -> 43691 -> TESObjectREFR::SetPosition
-  its position: GetPosition(centre offset true) (79142): the proxy's place less the vector at +0xC0, rotated
-HookSetPosition lets that write through on a copy while HasCopyGoal
+NPCs have a bhkCharRigidBodyController (bUseCharacterRB, Character 37171): physics simulates the capsule.
+  (the player and flagged races have a proxy controller instead)
+each frame   Actor::Move (37507)
+               sit state 0:    CharacterStep (78275), velocity = delta / dt
+               sit state != 0: StepOrStop (78276) with no step; capsule placed at position + delta
+after physics  bhkCharRigidBodyController::postSimulationCallback (79185)
+                 -> move-finish (38322) -> 37998 -> 43691: SetPosition(GetPosition(true))
+into furniture BGSProcedureSit/Sleep -> AIProcess::SetSitSleepState (39912)
+                 -> AIProcess::EnterFurnitureCollision (40063): capsule filter |= 0x8000, collision off
+               leaving: SetSitSleepState clears 0x8000; Actor::Move clears it at sit state 0
 ```
 
-So a stepped copy in furniture was written twice a frame, and the writes disagreed. Frodnar's copy, one frame:
+A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its owner's replayed actions, and its
+capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
+lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy moved there, and the next frame pulled
+it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
 
-```
-Move        after 23127.230, -44667.000   = goal
-write-back  to    23127.008, -44666.824   off along its facing, by 0.3 to 1.2, repeating every 3 frames
-next frame  Move pulls it back to the new goal
-```
+The fix does what the engine does for its owner, and places it:
 
-Placed instead (`CopyStep::Choose`), `HasCopyGoal` is false and `HookSetPosition` refuses the write-back. Nothing is lost:
-`Move` runs no step in furniture, so a step there never collided or pushed.
+- `SkyrimBridge::ApplyRemoteMovement` turns the copy's capsule collision off while its sit state is set, and back on
+  after (`Actor::SetCapsuleCollision`, 37006), as `EnterFurnitureCollision` does. A copy in a chair no longer shoves a
+  player walking past, which its owner never did.
+- `CopyStep::Choose` places a copy in furniture instead of stepping it: `Move` runs no step there, so nothing is lost,
+  and `HookSetPosition` then refuses the write-back.
 
-Measured with the `jitter` readout, frames turning back on themselves in the guest's game:
+Measured with the `jitter` readout, frames turning back on themselves while in furniture, two rounds of six Riverwood
+NPCs sent through their furniture (about 20 s each):
 
-- Before, a 10-25 s window: Embry 181, 120 and 14, Frodnar 264, Hod 148 and 62.
-- After, the same NPCs sent through furniture on two fresh boots: Embry 0 and 2, Frodnar 3 and 2. A 30 s window of all 22
-  actors: none above 15 on any part (that 15 a walking pelvis; its place 3).
-- Owners, in the two-game traces: at most 2.
+- stepped, collision on (the old code): 824 and 134
+- stepped, collision off as the engine does it: 1 and 0
+- placed: 0 and 0
+- both, as shipped: 0 and 0; the scenario on two fresh boots: 0 in furniture, at most 3 overall
+- owners: none
 
-Ruled out on the way, all by measurement or by reading the code:
+Each change alone stops it. Both stay: the collision for the copy's physical presence, placement because a step there
+does nothing.
 
-- The calendar, sky and clock speed: about 10,000 frames with no hour going back, no weather or speed change. One 2.45 h
-  jump, in the window after a hot reload's reconnect; none in the 1,805 frames after it. Not seen in play.
-- Sync points (#12): 6 loads in 10 s; a graph load cannot shake at frame rate.
-- The step's gain: velocity is delta / dt, 1 for a proxy controller.
-- Root motion (37996): stored in the process for `ApplyMovement`, moved by it directly only in ragdoll.
-- The sit branch's rotation: `GetHeading` is `rotation.z`, as `CopyStep::Local`; rotated twice only for the dead.
-- A third writer: return addresses on `SetPosition` for a copy showed only 43691 and our own re-entry.
+The first account here blamed the controller's centre offset `+0xC0`. Its writers are constructors (bhkCharProxy
+ControllerCinfo, 0x1410970A0), so it does not change frame to frame. Also ruled out, by measurement or by reading:
 
-Not known: what writes +0xC0 (the offset follows the facing and repeats every 3 frames), and so why it appears now.
-Copies loading an action's clips (#12, "Copies played clips before their files were in") would fit, since a clip that ends
-at once moves nothing, but that was not tested. Why the user's lights looked wrong was not reproduced either.
+- The calendar, sky and clock speed: about 10,000 frames with no hour going back and no weather or speed change. One
+  2.45 h jump came in the window after a hot reload's reconnect; none in the 1,805 frames after it. Not seen in play.
+- Sync points (#12): 6 loads in 10 s. A graph load cannot shake at frame rate.
+- The step's gain: velocity is delta / dt.
+- Root motion (37996): stored in the process for `ApplyMovement`; moves the actor directly only in ragdoll.
+- `Move`'s sit branch heading: `GetHeading` is `rotation.z`, as `CopyStep::Local`.
 
-Tests: GameTests "A copy in furniture stays on its owner's path", ClientTests `[copy-step]`, scenario
-`copy-leaves-furniture-steady`. The fake's `InFurniture` copies land off their goal when stepped.
+Why it appeared now: copies have been stepped since 2026-11-02 (above, "Copies step"). Before that they were placed every
+frame, and `HookSetPosition` refused every write-back. The animation merge (#12) is not the cause.
+
+Tests: GameTests "A copy in furniture stays on its owner's path" (the fake's stepped `InFurniture` copies are pushed off
+their goal), ClientTests `[copy-step]`, scenario `copy-leaves-furniture-steady`. The collision is bridge code, which
+GameTests cannot reach; the scenario and the measurements above cover it.
 
 ## Others
 

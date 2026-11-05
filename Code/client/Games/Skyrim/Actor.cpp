@@ -8,6 +8,7 @@
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
 #include <Havok/bhkCharacterController.h>
+#include <Havok/bhkCollision.h>
 #include <Systems/CopyStep.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
@@ -134,6 +135,28 @@ void Actor::ForcePosition(const NiPoint3& acPosition) noexcept
 
     // It just works TM
     SetPosition(acPosition, true);
+}
+
+bool Actor::SetCapsuleCollision(bool aCollides) noexcept
+{
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    hkpRigidBody* pBody = pController ? pController->GetRigidBody() : nullptr;
+    if (!pBody || !pBody->userData)
+        return false;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    if ((filter & 0x7F) != bhkCharacterController::kCapsuleLayer)
+        return false;
+    const uint32_t cWanted = aCollides ? filter & ~bhkCharacterController::kFilterNoCollision : filter | bhkCharacterController::kFilterNoCollision;
+    if (cWanted != filter)
+    {
+        // bhkWorldObject::SetCollisionFilterInfo: its filter, re-filtered in the world.
+        using TSetFilter = void(bhkWorldObject*, uint32_t);
+        POINTER_SKYRIMSE(TSetFilter, s_setFilter, 37006);
+        s_setFilter(pBody->userData, cWanted);
+    }
+    return true;
 }
 
 void Actor::QueueUpdate() noexcept

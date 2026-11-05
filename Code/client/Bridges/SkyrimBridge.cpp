@@ -289,6 +289,11 @@ bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3
     std::copy_n(aPosition, 3, pExtension->CopyGoal);
     if (cMove == CopyMove::Place)
         actor->ForcePosition(position);
+    // In furniture its owner's capsule collides with nothing (AIProcess::EnterFurnitureCollision 40063, from the AI a copy
+    // never runs): left on, physics pushes the copy out of its chair each step (actor-movement.md, "A copy in furniture").
+    const bool cInFurniture = actor->actorState.GetSitSleepState() != 0;
+    if (cInFurniture != pExtension->CopyCollisionOff && actor->SetCapsuleCollision(!cInFurniture))
+        pExtension->CopyCollisionOff = cInFurniture;
     actor->LoadAnimationVariables(aVariables);
     if (actor->currentProcess && actor->currentProcess->middleProcess)
         actor->currentProcess->middleProcess->direction = aDirection;
