@@ -5,7 +5,8 @@
 // It speaks the subset of the client's control files the harness falls back to without the
 // command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
 // up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), and status.json
-// (heartbeat_ms, pid, console_id, session.world_ready). Nothing else of ours is loaded.
+// (heartbeat_ms, pid, console_id, session.world_ready). player_trace.on and ref_trace.on trace places
+// each frame. Nothing else of ours is loaded.
 //
 // Engine addresses come from the selected runtime's Address Library.
 #include <windows.h>
@@ -19,7 +20,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -31,6 +34,7 @@ constexpr uint32_t cFixedString = 69161;
 constexpr uint32_t cPlayerSingleton = 401069;
 constexpr uint32_t cAddMessage = 13631;
 constexpr uint32_t cMessageQueue = 400445;
+constexpr uint32_t cFormById = 14617;            // TESForm::LookupByID
 constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
 constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
@@ -52,6 +56,7 @@ bool s_bootDone = false;
 std::string s_consoleId;
 std::chrono::steady_clock::time_point s_nextStatus{};
 bool s_tracing = false; // player_trace.on exists: the player's place each frame into player_trace.txt
+std::vector<uint32_t> s_refs; // ref_trace.on's form IDs (hex): their places each frame into ref_trace.txt
 
 // Frame times as the client's World::Update counts them (kStallMs 100), for `coop_test.py profile` against vanilla:
 // one bucket per ms below 1 s, per 100 ms below 30 s, the last for longer frames (profiling.py, histogram_percentiles).
@@ -130,6 +135,10 @@ void WriteStatus()
     }
     MoveFileExW(cTemporary.c_str(), (s_control / "status.json").c_str(), MOVEFILE_REPLACE_EXISTING);
     s_tracing = std::filesystem::exists(s_control / "player_trace.on");
+    s_refs.clear();
+    std::ifstream refs(s_control / "ref_trace.on");
+    for (std::string id; refs >> id;)
+        s_refs.push_back(static_cast<uint32_t>(std::stoul(id, nullptr, 16)));
 }
 
 // The player's place and heading this frame, wall-clock stamped (as the client's animation trace): what the
@@ -145,6 +154,26 @@ void TracePlayer()
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     std::ofstream file(s_control / "player_trace.txt", std::ios::app);
     file << cEpochUs << ' ' << pLocation[0] << ' ' << pLocation[1] << ' ' << pLocation[2] << ' ' << pAngle[2] << '\n';
+}
+
+// Each ref_trace.on reference's place this frame: how an NPC moves without co-op (owners-move-without-walking).
+void TraceRefs()
+{
+    if (s_refs.empty())
+        return;
+    const auto cEpochUs =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    std::ostringstream lines;
+    for (const uint32_t cId : s_refs)
+    {
+        const auto* pRef = At<const uint8_t* (*)(uint32_t)>(cFormById)(cId);
+        if (!pRef || !*reinterpret_cast<void* const*>(pRef + cParentCell))
+            continue;
+        const auto* pLocation = reinterpret_cast<const float*>(pRef + cLocation);
+        lines << cEpochUs << ' ' << std::hex << cId << std::dec << ' ' << pLocation[0] << ' ' << pLocation[1] << ' '
+              << pLocation[2] << '\n';
+    }
+    std::ofstream(s_control / "ref_trace.txt", std::ios::app) << lines.str();
 }
 
 void Poll()
@@ -178,6 +207,7 @@ void Poll()
     }
     WriteStatus();
     TracePlayer();
+    TraceRefs();
 }
 
 void CountFrame()
@@ -233,7 +263,7 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
     const auto game = std::filesystem::path(path).parent_path().parent_path().parent_path().parent_path();
     if (!VersionDb::Get().Load(game, std::string(SkyrimRuntime::Name)))
         return false;
-    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue})
+    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue, cFormById})
         if (!VersionDb::Get().FindAddressById(id)) return false;
     const char* pInstance = std::getenv("SKYRIMCOOP_INSTANCE");
     s_control = std::filesystem::path(path).parent_path() /

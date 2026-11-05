@@ -40,3 +40,13 @@ copy head122.40 has cull7/frustum=true; the qualified comparison is empty and di
 
 The gait sampler also reads skeleton nodes; its earlier off-screen results need visible-sample
 controls before diagnosing sliding. This change does not declare those gait results fixed.
+
+## 2026-11-05: `was_in_frustum` goes stale
+
+`kWasInFrustum` is written only by `Actor::ProcessTracking` (38009), as cull nibble == 7, and that function is gated
+off for many actors (`Actor::UpdateAnimation` 37361), so the bit can read true for an actor culled for seconds
+(Dorthe: cull 5, bit true, foot bones still for 5 s). The engine's own test for posing a graph is the 3D's
+`kNotVisible` (1 << 20), set by `HighActorCuller::CullActor` (40335) and read by `Actor::ModifyAnimationUpdateData`
+(38054). The harness now reports it as `pose_visibility.drawn`; the observer and the gait check use it. The gait
+results above are now controlled: `GaitWatch` counts drawn steps only (`actor-movement.md`, "A culled actor keeps its
+pose").

@@ -269,25 +269,14 @@ def scenario_party_travel_with_menu(ctx):
 
 
 def scenario_actors_walk_after_arrival(ctx):
-    """The party arrives in Riverwood, then in the Sleeping Giant: for 12 s in each, every actor that moves walks on
-    both games (its feet move against its body about as far as it goes). An NPC sliding with its feet still, or
-    walking in slow motion, fails it, the host's own actors and the guest's copies alike (check_gait)."""
+    """The party arrives in Riverwood, then in the Sleeping Giant: for 12 s in each, every actor that moves while drawn
+    walks on both games (its feet move against its body about as far as it goes). An NPC sliding with its feet still,
+    or walking in slow motion, fails it, the host's own actors and the guest's copies alike (check_gait). A culled
+    actor's skeleton keeps its last pose by engine design, so its steps are not counted (actor-movement.md)."""
     try:
         for cell in (OUTDOOR_CELL, INN):
-            ctx.both_go(cell)
-            seen = {}
-            started = time.monotonic()
-            sampled = started
-            def observed():
-                nonlocal sampled
-                now = time.monotonic()
-                if now - sampled >= 2.0:
-                    for problem in ctx.check_gait():
-                        seen.setdefault(problem.split(" moved ")[0], problem)
-                    sampled = now
-                return now - started >= 12.0
-            ctx.wait_for(f"walking observations complete in {cell}", observed, 15)
+            seen = ctx.gait_after_arrival(cell)
             if seen:
-                raise ctx.failure(f"in {cell}, {len(seen)} actors moved without walking: " + " | ".join(seen.values()))
+                raise ctx.failure(f"in {cell}, {len(seen)} actors moved without walking: " + " | ".join(seen))
     finally:
         ctx.both_go(HOME_CELL)

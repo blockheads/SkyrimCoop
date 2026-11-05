@@ -42,11 +42,22 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
 4. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order, one section per agent. The two bugs
-   found 2026-11-02 (`actors-walk-after-arrival`, `knockdown-lies-as-host`) are there now.
+   found 2026-11-02 are done or there: `actors-walk-after-arrival` passes since 2026-11-05 (News), `knockdown-lies-as-host`
+   is still open.
 5. **Red flags' leftovers:** the flags themselves are done (2026-11-02: 1, 2, 4, 5 fixed; 3 measured and left: news
    below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
 ## News
+
+- **Owners never moved without walking: the check read culled skeletons** (2026-11-05). The host's Riverwood NPCs the
+  gait check flagged (`actors-walk-after-arrival`, 0 of 6) were off camera: the engine does not pose a culled actor's
+  skeleton (`HighActorCuller` 40335 sets the 3D's `kNotVisible`, `ModifyAnimationUpdateData` 38054 then writes no
+  pose), so its feet hold still while it walks, and the `was_in_frustum` the check trusted goes stale (only
+  `ProcessTracking` writes it). `GaitWatch` now counts drawn steps only and the observer's pose comparison reads the new
+  `pose_visibility.drawn`: the scenario passes 3 of 3. Read on the way: how the movement controller switches to the
+  Virtual Path Follower for middle-high actors (`actor-movement.md`, both new sections). New: the `ref_steps` verb (with
+  the vanilla stand-in's `ref_trace`), `gait_after_arrival`, and root, feet, cull, process level and movement state in
+  the animation trace. Tests: ClientTests `[gait]`, `test_world_diff` (a stale `was_in_frustum`).
 
 - **NPC copies no longer vibrate in furniture** (2026-11-05). On the guest's game, copies going in or out of a chair, bed
   or wall lean shook 0.6 to 1.8 units each frame: `Actor::Move` put them on their goal, then the engine's write-back moved

@@ -100,6 +100,14 @@ class PoseVisibility(unittest.TestCase):
         worlds["client"]["200"]["identity"]["name"] = "bandit outlaw"
         self.assertTrue(any("identity.name" in key for key, _ in compare_actors(worlds)))
 
+    def test_a_culled_skeleton_is_stale_though_was_in_frustum_says_seen(self):
+        # kWasInFrustum is refreshed only by ProcessTracking; the 3D's kNotVisible is the frame's truth.
+        worlds = self.worlds()
+        worlds["host"]["100"]["mod"]["pose_visibility"]["drawn"] = False
+        self.assertEqual(compare_actors(worlds), [])
+        worlds["host"]["100"]["mod"]["pose_visibility"]["drawn"] = True
+        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(worlds)))
+
     def test_culled_copy_skeleton_is_a_stale_observation(self):
         self.assertEqual(compare_actors(self.worlds(copy_visible=False)), [])
 

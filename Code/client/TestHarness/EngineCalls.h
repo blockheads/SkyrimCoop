@@ -48,7 +48,9 @@ using namespace Diagnostics::EngineReads;
 uint8_t GetReplayPhase(uint32_t aFormId) noexcept;
 struct PoseVisibility
 {
-    bool WasInFrustum;
+    // Its 3D drawn this frame (not kNotVisible): only then does the engine pose its skeleton.
+    bool Drawn;
+    bool WasInFrustum; // stale for an actor ProcessTracking skips
     uint32_t CullingState;
     uint32_t LastSeen;
 };

@@ -363,9 +363,7 @@ def compare_actors(worlds):
                 # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
                 # output (native camera control: head88 ->124, same JumpLand). Never use that
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
-                if field.startswith("pose.") and not owned["player"] and any(
-                        not actor.get("mod", {}).get("pose_visibility", {}).get("was_in_frustum", True)
-                        for actor in (owned, copy)):
+                if field.startswith("pose.") and not owned["player"] and not all(map(drawn, (owned, copy))):
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:
@@ -427,6 +425,13 @@ def dialogue_differences(host, guest, end, grace=DIALOGUE_GRACE):
 # A walk moves the feet against the body about as far as the body goes (ratio ~1, a run ~0.7); sliding with no
 # animation moves them not at all, slow motion too little.
 SLIDE_DISTANCE, SLIDE_RATIO = 100.0, 0.35
+
+
+def drawn(actor):
+    """Whether the actor's 3D was drawn when read, so its bones are its current pose: the 3D's kNotVisible
+    (pose_visibility.drawn); kWasInFrustum (was_in_frustum) goes stale for an actor ProcessTracking skips."""
+    seen = actor.get("mod", {}).get("pose_visibility", {})
+    return seen.get("drawn", seen.get("was_in_frustum", True))
 
 
 def sliding_actors(gait):

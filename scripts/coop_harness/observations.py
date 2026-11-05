@@ -72,8 +72,9 @@ class Observations:
         return list(ctx.lasting_desyncs(samples, interval, known).values())
 
     def check_gait(ctx, seconds=2.0):
-        """Actors that moved over the last seconds without walking (sliding, or in slow motion), on either game:
-        ["[client] copy 0001348C Faendal moved 160 units in 2s, its feet 2", ...]."""
+        """Actors that moved over the last seconds without walking (sliding, or in slow motion) while drawn, on either
+        game: ["[client] copy 0001348C Faendal moved 160 units in 2s, its feet 2 (...)", ...]. A culled actor's skeleton
+        keeps its last pose (docs/re/systems/actor-movement.md), so GaitWatch counts drawn frames only."""
         problems = []
         for game in ("", "client"):
             world = (ctx.game(game).read_status() or {}).get("world") or {}
@@ -81,9 +82,31 @@ class Observations:
             for actor, (travelled, feet) in sorted(sliding_actors(gait).items()):
                 entry = world.get(str(actor)) or {}
                 name = (entry.get("identity") or {}).get("name") or "?"
+                mod = entry.get("mod") or {}
+                steps = gait[str(actor)]
                 problems.append(f"[{game or 'host'}] {entry.get('role') or 'actor'} {actor:08X} {name} moved {travelled:.0f} units "
-                                f"in {seconds:.0f}s, its feet {feet:.0f}")
+                                f"in {seconds:.0f}s, its feet {feet:.0f} (drawn steps {steps['frames']}, culled "
+                                f"{steps.get('hidden_frames', 0)}, process level {mod.get('process_level')}, "
+                                f"package {mod.get('package_type')})")
         return problems
+
+    def gait_after_arrival(ctx, cell, seconds=12.0):
+        """The party arrives in `cell`, then for `seconds` every 2 s check_gait on both games: the first problem of
+        each actor seen (empty if every actor that moved walked)."""
+        ctx.both_go(cell)
+        seen = {}
+        started = time.monotonic()
+        sampled = started
+        def observed():
+            nonlocal sampled
+            now = time.monotonic()
+            if now - sampled >= 2.0:
+                for problem in ctx.check_gait():
+                    seen.setdefault(problem.split(" moved ")[0], problem)
+                sampled = now
+            return now - started >= seconds
+        ctx.wait_for(f"walking observations complete in {cell}", observed, seconds + 3)
+        return list(seen.values())
 
     def known_lock_patterns(ctx):
         try:
