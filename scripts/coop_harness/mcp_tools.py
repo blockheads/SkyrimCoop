@@ -86,12 +86,18 @@ def _game(game):
     return "" if game in ("host", "", None) else "client"
 
 
+def forget_old_crashes():
+    """Crash logs from before this hold (another run's, between this server's calls) are not this session's crash."""
+    session.KNOWN_CRASHES = {game.name: set(session.crash_logs(game.name)) for game in session.games}
+
+
 @tool
 def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
     Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
     minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits."""
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
+    forget_old_crashes()
     if duo["process"] and duo["process"].poll() is None:
         return {"ok": True, "booting": True}
     if all(game.read_status() for game in session.games):  # ours, already running: attach
@@ -111,6 +117,7 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
     one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
+    forget_old_crashes()
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]

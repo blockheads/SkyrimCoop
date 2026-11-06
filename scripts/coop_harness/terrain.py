@@ -43,15 +43,16 @@ def standable(scan, row, col, headroom):
             if hit[1] > STANDABLE and (hit[4] < 0 or hit[4] >= headroom)]
 
 
-def walk(scan):
+def walk(scan, parents=None):
     """{(row, col): floor z} the player reaches from its cell, neighbour by neighbour, each step within the limit;
-    and {(row, col): why} for the cells next to those it can't step onto ("wall", "drop", "low", "nothing")."""
+    and {(row, col): why} for the cells next to those it can't step onto ("wall", "drop", "low", "nothing").
+    `parents` (a dict) gets each reached cell's step back toward the player."""
     step, headroom = limits(scan)
     start = cell_of(scan, scan["player"])
     reached, blocked = {}, {}
     if not start:
         return reached, blocked
-    floors = standable(scan, *start, headroom) or [scan["player"][2]]
+    floors = standable(scan, *start, 0) or [scan["player"][2]]  # where it stands, whatever is overhead
     reached[start] = min(floors, key=lambda z: abs(z - scan["player"][2]))
     queue = [start]
     while queue:
@@ -64,11 +65,49 @@ def walk(scan):
             fits = [z for z in floors if abs(z - here) <= step]
             if fits:
                 reached[near] = min(fits, key=lambda z: abs(z - here))
+                if parents is not None:
+                    parents[near] = (row, col)
                 blocked.pop(near, None)
                 queue.append(near)
             elif near not in blocked:
                 blocked[near] = why_blocked(scan, near, here, step, floors)
     return reached, blocked
+
+
+def on_navmesh(scan, cell, z):
+    """Whether that reached cell's floor is the navmesh's (a triangle under it at its height)."""
+    navmesh = scan.get("navmesh") or {}
+    index = cell[0] * scan["cols"] + cell[1]
+    pieces, navz = navmesh.get("piece") or [], navmesh.get("z") or []
+    return index < len(pieces) and pieces[index] >= 0 and navz[index] is not None and abs(navz[index] - z) < 60
+
+
+def route_to_navmesh(scan, inside=1):
+    """The walkable way from the player to the nearest navmesh floor, `inside` cells onto it: [x, y, z] cell centres
+    (the player's own cell first), or None when no navmesh is walkable from here."""
+    parents = {}
+    reached, _ = walk(scan, parents)
+    start = cell_of(scan, scan["player"])
+    order = sorted(reached, key=lambda cell: (steps(parents, cell), math.dist(cell, start)))
+    goal = next((cell for cell in order if on_navmesh(scan, cell, reached[cell])
+                 and all(on_navmesh(scan, near, reached[near]) for near in neighbours(cell, inside) if near in reached)), None)
+    if goal is None:
+        return None
+    cells = [goal]
+    while cells[-1] in parents:
+        cells.append(parents[cells[-1]])
+    return [[*centre(scan, *cell), reached[cell]] for cell in reversed(cells)]
+
+
+def steps(parents, cell):
+    count = 0
+    while cell in parents:
+        cell, count = parents[cell], count + 1
+    return count
+
+
+def neighbours(cell, reach):
+    return [(cell[0] + dr, cell[1] + dc) for dr in range(-reach, reach + 1) for dc in range(-reach, reach + 1) if dr or dc]
 
 
 def why_blocked(scan, cell, here, step, floors):

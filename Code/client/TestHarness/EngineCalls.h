@@ -318,6 +318,7 @@ struct PathProbe
     bool incomplete = false;
     uint32_t virtualNodes = 0;
     uint32_t nodes = 0;
+    float pathLength = 0.f; // the search's path through its nodes, then on to the goal, units
     PathEnd start;
     PathEnd goal;
     // Both ends on one navmesh: whether its triangles join them (edges only, no other navmesh), the fewest

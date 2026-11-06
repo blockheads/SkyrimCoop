@@ -20,6 +20,10 @@ STALL_UNITS, STALL_SECONDS = 40.0, 1.5  # a run that moves less in this long has
 PATH_LEG_SECONDS = 4.0  # a walked leg round what stopped a run
 CROSSING_SPACING, CROSSING_REACH = 30.0, 60.0  # a crossing's waypoints: kept apart, reached within
 MAX_CROSSINGS = 2  # cuts crossed by input in one walk
+OFF_NAVMESH = 40.0  # units from the start's navmesh point past which a walk first steps onto it
+NAVMESH_REACH = 20.0  # units, a waypoint of that step
+TALK_REACH = 150.0  # units, 3D, within the activation pick (fActivatePickLength 180 from the eyes)
+TALK_TRIES = 3  # presses at an NPC walking on, as a player follows it
 SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
 CAPS_LOCK, LEFT_ALT, SPACE = 0x3A, 0x38, 0x39  # DirectInput scan codes: Toggle Always Run, Sprint, Jump
 
@@ -97,6 +101,12 @@ def probe_line(probe):
         if crossing := probe.get("crossing"):
             line += f"; crossable by input: a {crossing['gap']:.0f}-unit step after {len(crossing['route'])} waypoints"
     return line
+
+
+def off_navmesh(end):
+    """How far a path_probe end's asked point is from its point on the navmesh, units."""
+    end = end or {}
+    return math.dist(end["at"], end["point"]) if end.get("resolved") and end.get("at") and end.get("point") else 0.0
 
 
 def crossing_points(crossing, spacing=CROSSING_SPACING):
@@ -196,13 +206,18 @@ class PlayerVerbs:
         ref = ctx.resolve(target, game)
         start = ctx.my_position(instance)
         follows = ctx.is_actor(instance, ref)  # an object takes walked legs only
-        limit = seconds or travel_seconds(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), TRAVEL_SPEED if follows else WALK_SPEED)
+        apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
+        probe = (ctx.path_probe(instance, ref) or {}) if apart() > within else {}
+        if probe and not probe.get("built") and off_navmesh(probe.get("start")) > OFF_NAVMESH and ctx.step_onto_navmesh(instance):
+            probe = ctx.path_probe(instance, ref) or {}  # the search again, from the navmesh
+        way = max(math.dist(start[:2], ctx.place_of(instance, ref)[:2]), probe.get("path_length") or 0)  # round a river
+        limit = seconds or travel_seconds(way, TRAVEL_SPEED if follows else WALK_SPEED)
         deadline = time.monotonic() + limit
         walk = {"legs": 0, "runs": 0, "stalls": 0, "closest": math.inf, "refused": False, "crossings": 0}
-        apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
         while apart() > within:
             # the navmesh's pieces don't join (an obstacle cuts it): across by input first, then on by path
-            probe = (ctx.path_probe(instance, ref) or {}) if walk["crossings"] < MAX_CROSSINGS else {}
+            if probe is None:
+                probe = (ctx.path_probe(instance, ref) or {}) if walk["crossings"] < MAX_CROSSINGS else {}
             crossing = None if probe.get("built") else probe.get("crossing")  # the engine paths there: no cut to cross
             if not crossing:
                 navmesh_walk(ctx, instance, target, ref, within, deadline, limit, walk, follows, apart)
@@ -213,6 +228,7 @@ class PlayerVerbs:
                     break
             ctx.cross(instance, crossing)  # an obstacle cuts the navmesh: across it by input, then on by path
             walk["crossings"] += 1
+            probe = None  # asked again from across
             walk["refused"] = False
             deadline = time.monotonic() + limit  # the crossing took its own time
         walked = lambda: round(math.dist(start[:2], ctx.my_position(instance)[:2]), 1)
@@ -250,7 +266,7 @@ class PlayerVerbs:
     def path_probe(ctx, instance, ref, start=0x14):
         """The engine's view of the refused path (path_probe: both ends' navmesh triangles, the search run at once)."""
         answer = ctx.game(instance).rpc({"cmd": "path_probe", "from": start, "target": ref}) or {}
-        keys = ("built", "incomplete", "virtual_nodes", "nodes", "start", "goal", "same_navmesh", "linked", "hops",
+        keys = ("built", "incomplete", "virtual_nodes", "nodes", "path_length", "start", "goal", "same_navmesh", "linked", "hops",
                 "way_length", "closed_doors_on_way", "ledges_on_way", "portals_on_way", "goal_piece", "goal_piece_exits", "obstacles",
                 "start_doors", "goal_doors", "closed_doors", "obstacle_refs", "crossing")
         if not answer.get("ok"):
@@ -266,6 +282,19 @@ class PlayerVerbs:
         walk to, the walls, drops and low ceilings at its edges, the navmesh's pieces; top-down and a side profile
         toward `toward` (a handle or id). The scan's JSON is saved; its path is in the answer."""
         game = "guest" if instance else "host"
+        scan = ctx.terrain_scan(instance, radius, cell, toward, at, up, down, seconds)
+        path = TEST_HOME / "terrain" / f"{time.strftime('%Y%m%d-%H%M%S')}-{game}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(scan))
+        top, side, said = terrain_views.top_view(scan), terrain_views.side_view(scan), terrain_views.summary(scan)
+        path.with_suffix(".txt").write_text("\n".join([said, "", *top, "", *side, "",
+                                                        terrain_views.LEGEND]) + "\n")
+        return {"summary": said, "top": top, "side": side, "legend": terrain_views.LEGEND,
+                "capsule": scan.get("capsule"), "frames": scan.get("frames"), "file": str(path)}
+
+    def terrain_scan(ctx, instance, radius=1000.0, cell=50.0, toward=None, at=None, up=600.0, down=1500.0, seconds=60):
+        """The `terrain` command's scan as JSON (it runs over frames: a ticket, then its result)."""
+        game = "guest" if instance else "host"
         request = {"cmd": "terrain", "radius": radius, "cell": cell, "up": up, "down": down}
         if toward is not None:
             request["toward"] = ctx.resolve(toward, game)
@@ -277,14 +306,22 @@ class PlayerVerbs:
             scan.update(ctx.game(instance).rpc({"cmd": "terrain_result", "ticket": ticket}) or {})
             return scan.get("done")
         ctx.wait_for(f"[{game}] the terrain scan", done, seconds)
-        path = TEST_HOME / "terrain" / f"{time.strftime('%Y%m%d-%H%M%S')}-{game}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(scan))
-        top, side, said = terrain_views.top_view(scan), terrain_views.side_view(scan), terrain_views.summary(scan)
-        path.with_suffix(".txt").write_text("\n".join([said, "", *top, "", *side, "",
-                                                        terrain_views.LEGEND]) + "\n")
-        return {"summary": said, "top": top, "side": side, "legend": terrain_views.LEGEND,
-                "capsule": scan.get("capsule"), "frames": scan.get("frames"), "file": str(path)}
+        return scan
+
+    def step_onto_navmesh(ctx, instance):
+        """The player, off the navmesh (a nook a trip left it in), runs by input along the terrain's walkable way to the
+        nearest navmesh floor, where the engine's search can start. False when the terrain shows no such way."""
+        route = terrain_views.route_to_navmesh(ctx.terrain_scan(instance, radius=300.0, cell=20.0))
+        if not route:
+            return False
+        points = route[1:] or route  # every cell: the way bends round walls
+        log(f"[{instance or 'host'}] off the navmesh: steps onto it by input, {len(points)} waypoints to "
+            f"{[round(v) for v in route[-1]]}")
+        with always_running(ctx, instance):
+            for at in points:
+                if not ctx.run_straight(instance, at, NAVMESH_REACH, sprint=False, jump=True):
+                    return False
+        return True
 
     def terrain_note(ctx, instance, toward=None, at=None):
         """A failure's picture of where it stopped: the terrain summary and the file with both views."""
@@ -474,16 +511,28 @@ class PlayerVerbs:
         """The player faces `target` and presses Activate, as a player starts a conversation; returns its options."""
         game = "guest" if instance else "host"
         ref = ctx.resolve(target, game)
-        if math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]) > 150:  # out of reach (it moved off)
-            ctx.walk_to(instance, target, 100.0)
-        try:
-            ctx.activate_ref(instance, ref, target)
-        except TestFailure as error:  # it walked on while the player turned: closer, and once more
-            if (getattr(error, "outcome", None) or {}).get("why") != "out_of_reach":
-                raise
-            ctx.walk_to(instance, target, 80.0)
-            ctx.activate_ref(instance, ref, target)
-        ctx.wait_for(f"[{instance or 'host'}] the conversation with {target} opens", lambda: ctx.talking_to(instance, ref), 10)
+        apart = lambda: math.dist(ctx.my_position(instance), ctx.place_of(instance, ref))  # 3D: a bank below counts
+        opens = f"[{instance or 'host'}] the conversation with {target} opens"
+        talking = lambda: ctx.talking_to(instance, ref)
+        for attempt in range(TALK_TRIES):
+            last = attempt == TALK_TRIES - 1
+            if apart() > TALK_REACH:  # out of reach (it walks on)
+                ctx.walk_to(instance, target, 80.0)
+            try:
+                ctx.activate_ref(instance, ref, target)
+            except TestFailure as error:  # it walked on while the player turned
+                if (getattr(error, "outcome", None) or {}).get("why") != "out_of_reach" or last:
+                    raise
+                log(f"[{instance or 'host'}] {target} walked out of reach while the player aimed; closer again")
+                continue
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(opens, talking, 2)
+            if talking():
+                break
+            if last or apart() <= TALK_REACH:  # in reach and still no conversation: not the walk
+                ctx.wait_for(opens, talking, 8)
+                break
+            log(f"[{instance or 'host'}] Activate found {target} {apart():.0f} units off (it walks on); closer again")
         return ctx.wait_for(f"[{instance or 'host'}] the menu lists options", lambda: ctx.dialogue(instance).get("options"), 10)
 
     def pick(ctx, instance, line):
@@ -702,8 +751,9 @@ class PlayerVerbs:
                 continue
             match = match or {"host": host_id, "name": f"{host_id:X}"}  # far off: a copy comes once the party is near
             probe = ctx.path_probe(instance, match["guest"] if instance else host_id)
-            if probe.get("built"):
-                reachable.append((probe.get("way_length") or flat, match))
+            # the search's path, or triangles joining them on a navmesh no obstacle cuts (the walk ignores cuts)
+            if probe.get("built") or (probe.get("linked") and not probe.get("obstacles")):
+                reachable.append((probe.get("path_length") or probe.get("way_length") or flat, match))
             else:
                 unreachable.append((match, probe_line(probe)))
         return [match for _, match in sorted(reachable, key=lambda pair: pair[0])], unreachable

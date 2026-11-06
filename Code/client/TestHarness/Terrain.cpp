@@ -2,7 +2,9 @@
 
 #include "EngineCalls.h"
 
+#include <Actor.h>
 #include <Bridges/IActorBridge.h>
+#include <Forms/TESForm.h>
 #include <World.h>
 
 #include <cmath>
@@ -19,6 +21,12 @@ constexpr size_t cMaxColumnsAFrame = 400;
 int Round(float aValue) noexcept
 {
     return static_cast<int>(std::lround(aValue));
+}
+
+// Actors move: the ground is what stays (a copy beside the player is not a ceiling).
+bool IsActor(uint32_t aReference) noexcept
+{
+    return aReference && Cast<Actor>(TESForm::GetById(aReference)) != nullptr;
 }
 } // namespace
 
@@ -61,18 +69,30 @@ bool TerrainScan::ScanColumn(size_t aIndex) noexcept
             return false;
         if (!cRay->Hit)
             break;
-        hits.push_back({cRay->Point[2], cRay->Normal[2], cRay->Reference, cRay->Layer, -1.f});
+        if (!IsActor(cRay->Reference))
+            hits.push_back({cRay->Point[2], cRay->Normal[2], cRay->Reference, cRay->Layer, -1.f});
         from = cRay->Point[2] - 4.f; // on through it, for what lies under
     }
     for (Hit& hit : hits)
     {
         if (hit.NormalZ <= 0.5f)
             continue;
-        const float cFrom[3]{x, y, hit.Z + 5.f}, cTo[3]{x, y, hit.Z + 5.f + cHeadroomCheck};
-        const auto cRay = EngineCalls::CastRay(cFrom, cTo);
-        if (!cRay)
-            return false;
-        hit.Headroom = cRay->Hit ? cRay->Distance + 5.f : -1.f;
+        hit.Headroom = -1.f;
+        for (float from = hit.Z + 5.f; from < hit.Z + 5.f + cHeadroomCheck;)
+        {
+            const float cFrom[3]{x, y, from}, cTo[3]{x, y, hit.Z + 5.f + cHeadroomCheck};
+            const auto cRay = EngineCalls::CastRay(cFrom, cTo);
+            if (!cRay)
+                return false;
+            if (!cRay->Hit)
+                break;
+            if (!IsActor(cRay->Reference))
+            {
+                hit.Headroom = cRay->Point[2] - hit.Z;
+                break;
+            }
+            from = cRay->Point[2] + 4.f; // through the actor
+        }
     }
     m_columns[aIndex] = std::move(hits);
     return true;

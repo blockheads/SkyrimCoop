@@ -112,3 +112,12 @@ invisible wall for the player too (a jump rises 19 units and stops there; `terra
 design. `clear` now fights only who the engine's search reaches (`reachable_hostiles`), and the crossing stays for
 cuts a player can pass.
 
+
+## Path length (2026-11-06)
+
+`path_probe`'s `path_length`: the built path through `BSPathingSolution`'s loaded nodes (+0x90, `BSPathingNode` 0x48:
+location first, CommonLib layout; the dtor 90962 steps 0x48), then on to the target. Riverwood to the Trader's door:
+7,541 units against 2,900 straight (round the river), so `walk_to` takes its time limit from it. `clear` counts a
+hostile reachable when the search builds a path, or when the triangles join on a navmesh no obstacle cuts (the walk
+ignores cuts). Open: at the lookout both games' searches fail (none, 0 nodes) where the triangles join and no obstacle
+cuts; and in the mine a search toward B6FDB that `clear` saw built came back none for the walk seconds later.

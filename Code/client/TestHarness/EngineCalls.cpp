@@ -576,6 +576,16 @@ PathProbe ProbePath(uint32_t aFromFormId, uint32_t aTargetFormId) noexcept
     probe.incomplete = pSolution->incompletePath;
     probe.virtualNodes = pSolution->virtualNodeCount;
     probe.nodes = pSolution->pathingNodeCount;
+    if (probe.built && pSolution->pathingNodes && probe.nodes)
+    {
+        NiPoint3 before = pActor->position;
+        for (uint32_t i = 0; i <= probe.nodes; ++i)
+        {
+            const NiPoint3& cHere = i < probe.nodes ? pSolution->pathingNodes[i].location.location : pTarget->position;
+            probe.pathLength += std::hypot(cHere.x - before.x, cHere.y - before.y, cHere.z - before.z);
+            before = cHere;
+        }
+    }
     (s_solutionDtor.Get())(pSolution);
     Memory::Free(pSolution);
     if (_InterlockedDecrement(reinterpret_cast<volatile long*>(&pRequest->refCount)) == 0) // as RequestPathToReference releases it

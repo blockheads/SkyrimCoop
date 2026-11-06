@@ -141,6 +141,22 @@ static_assert(offsetof(PathingRequest, refCount) == 0x08);
 static_assert(sizeof(PathingRequest) == 0x100);
 
 // The search's answer (BSPathingSolution, 0xB0, refcounted): navmesh-level nodes, then the triangles' path.
+// A path's points (CommonLib BSPathing.h; BSPathingSolution::dtor 90962 steps 0x38 and 0x48).
+struct BSVirtualPathingNode
+{
+    BSPathingLocation location; // 00
+    void* actionAtNode;         // 30
+};
+static_assert(sizeof(BSVirtualPathingNode) == 0x38);
+
+struct BSPathingNode
+{
+    BSPathingLocation location; // 00
+    void* actionAtNode;         // 30
+    NiPoint3 tangent;           // 38
+};
+static_assert(sizeof(BSPathingNode) == 0x48);
+
 struct BSPathingSolution
 {
     uint32_t refCount;                    // 00
@@ -151,7 +167,7 @@ struct BSPathingSolution
     uint8_t pad84[0x88 - 0x84];           // 84
     int32_t firstLoadedVirtualNodeIndex;  // 88
     int32_t lastLoadedVirtualNodeIndex;   // 8C
-    void* pathingNodes;                   // 90: BSTArray<BSPathingNode>
+    BSPathingNode* pathingNodes;          // 90: BSTArray<BSPathingNode>, the loaded stretch
     uint32_t pathingNodesCapacity;        // 98
     uint8_t pad9C[0xA0 - 0x9C];           // 9C
     uint32_t pathingNodeCount;            // A0
@@ -162,6 +178,7 @@ struct BSPathingSolution
 static_assert(offsetof(BSPathingSolution, virtualNodeCount) == 0x80);
 static_assert(offsetof(BSPathingSolution, pathingNodeCount) == 0xA0);
 static_assert(offsetof(BSPathingSolution, incompletePath) == 0xA8);
+static_assert(offsetof(BSPathingSolution, pathingNodes) == 0x90);
 static_assert(sizeof(BSPathingSolution) == 0xB0);
 
 // One reference's cut of navmeshes (the obstacle map's value): per cut, the navmeshes it touches.

@@ -766,7 +766,8 @@ class GoalVerbs(unittest.TestCase):
         ctx.nearby_shared.return_value = [{"host": h, "guest": h + 1, "name": n} for h, n in
                                           ((0xB6DBB, "below"), (0xB6DC0, "far way"), (0xB6DC1, "short way"))]
         off = {"resolved": False}
-        probes = {0xB6DBB: {"built": False, "nodes": 2, "start": off, "goal": off}, 0xB6DC0: {"built": True, "way_length": 3200},
+        probes = {0xB6DBB: {"built": False, "nodes": 2, "start": off, "goal": off, "linked": True, "obstacles": 6},  # behind a cut
+                  0xB6DC0: {"built": True, "way_length": 3200},
                   0xB6DC1: {"built": True, "way_length": 2600}}
         ctx.path_probe.side_effect = lambda instance, ref: probes[ref]
         reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "", 2600.0)
@@ -1111,8 +1112,9 @@ class Repro(unittest.TestCase):
     def test_walk_to_walks_round_what_stops_a_run(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x1348C
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = True
@@ -1125,14 +1127,29 @@ class Repro(unittest.TestCase):
     def test_walk_to_paths_to_an_object(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x5000
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = False
         ctx.path_leg.return_value = "arrived"
         self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["legs"], 1)
         ctx.follow_run.assert_not_called()
+
+    def test_talk_follows_an_npc_that_walked_out_of_reach_before_the_press(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x1348C
+        ctx.my_position.return_value = [0.0, 0.0, -60.0]  # a bank below him: 3D reach
+        ctx.place_of.side_effect = lambda *a: (  # in reach at the press, walked on after it, caught up
+            [80.0, 0.0, 0.0] if ctx.walk_to.called else [176.0, 0.0, 0.0] if ctx.activate_ref.called else [120.0, 0.0, 0.0])
+        ctx.talking_to.side_effect = lambda *a: ctx.activate_ref.call_count >= 2
+        ctx.wait_for.side_effect = lambda what, predicate, seconds: predicate() or (_ for _ in ()).throw(TestFailure(what))
+        ctx.dialogue.return_value = {"options": [{"text": "What's your problem with Sven?"}]}
+        PlayerVerbs.talk_to(ctx, "", "faendal")
+        self.assertEqual(ctx.activate_ref.call_count, 2)  # pressed, found him walked off, closer, pressed again
+        ctx.walk_to.assert_called_once_with("", "faendal", 80.0)
 
     def test_walk_to_a_target_already_in_reach_moves_nobody(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
@@ -1210,6 +1227,7 @@ class Repro(unittest.TestCase):
         from coop_harness.actions import play_verbs as verbs
         now = self.clock(verbs)
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x837
         ctx.is_actor.return_value = False
         ctx.my_position.side_effect = lambda instance: [now[0] * 80.0, 0.0, 0.0]
@@ -1219,6 +1237,21 @@ class Repro(unittest.TestCase):
             return "done"
         ctx.path_leg.side_effect = leg
         self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])
+
+    def test_a_walk_round_a_river_gets_the_engine_path_s_time(self):
+        from coop_harness.actions import play_verbs as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.resolve.return_value = 0x1341F
+        ctx.is_actor.return_value = False
+        ctx.path_probe.return_value = {"built": True, "path_length": 6000}  # 1000 straight, 6000 by the bridge
+        ctx.my_position.side_effect = lambda instance: [min(1000.0, max(0.0, now[0] - 60.0) * 80.0), 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        def leg(*args):
+            now[0] += 4.0
+            return "done"
+        ctx.path_leg.side_effect = leg
+        self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])  # 72 s along: within 6000's time
 
     def test_a_run_gets_its_time_to_set_off_before_standing_still_counts(self):
         from coop_harness.actions.play_verbs import set_off
@@ -1301,6 +1334,40 @@ class Terrain(unittest.TestCase):
         self.assertEqual(blocked[(3, 4)], "low")
         self.assertEqual(blocked[(2, 1)], "nothing")
         self.assertEqual(terrain.top_view(scan), ["@...#", ".//.#", ".???,", "....^"])  # , cut off by the low roof
+
+    def test_the_walk_starts_on_the_floor_under_the_player_not_a_canopy_over_it(self):
+        from coop_harness import terrain
+        scan = self.scan(["00"], low={(0, 0)})  # the player's floor reads low: something stands over it
+        scan["columns"][0].insert(0, [225, 0.96, 0, 13, -1])  # a tree's flat branches
+        reached, _ = terrain.walk(scan)
+        self.assertEqual(reached, {(0, 0): 0, (0, 1): 0})
+
+    def test_the_way_to_the_navmesh_goes_round_the_wall_of_a_nook(self):
+        from coop_harness import terrain
+        scan = self.scan(["000", "#00", "0#0"], player=(2, 0))  # the player's nook: a wall north, a wall east
+        scan["columns"][2 * 3 + 0] = [[0, 1.0, 0, 30, -1]]
+        scan["columns"][2 * 3 + 1] = [[500, 1.0, 0, 30, -1]]
+        scan["columns"][1 * 3 + 0] = [[500, 1.0, 0, 30, -1]]
+        self.assertIsNone(terrain.route_to_navmesh(scan))  # walled in: no way out
+        scan = self.scan(["000", "000", "0#0"], player=(2, 0))
+        scan["columns"][2 * 3 + 1] = [[500, 1.0, 0, 30, -1]]
+        scan["navmesh"] = {"piece": [0, 0, 0, -1, 0, 0, -1, -1, -1], "z": [0, 0, 0, None, 0, 0, None, None, None]}
+        route = terrain.route_to_navmesh(scan, inside=0)
+        self.assertEqual([terrain.cell_of(scan, at) for at in route], [(2, 0), (1, 0), (1, 1)])  # up, round the wall, onto it
+
+    def test_a_walk_off_the_navmesh_steps_onto_it_before_pathing(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0xB6CE1
+        ctx.my_position.side_effect = lambda instance: [950.0, 0.0, 0.0] if ctx.path_leg.called else [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.return_value = "arrived"
+        nook = {"resolved": True, "at": [0, 0, 0], "point": [59, 0, 0]}
+        ctx.path_probe.side_effect = lambda *a: {"built": True} if ctx.step_onto_navmesh.called else {"built": False, "start": nook}
+        ctx.step_onto_navmesh.return_value = True
+        self.assertTrue(PlayerVerbs.walk_to(ctx, "", "enemy_1", 100.0, straight=False)["pathed"])
+        ctx.step_onto_navmesh.assert_called_once_with("")
 
     def test_a_drop_is_not_walked_down(self):
         from coop_harness import terrain

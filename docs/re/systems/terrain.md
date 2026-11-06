@@ -48,3 +48,13 @@ The obstacle cutting the ramp (CollisionMarker 105C99, `pathing.md`) is an invis
 input crossing stops against it, and a jump rises 19 units and stops in the same place. The cut is the level's
 design; the first bandit (B6DBB) and three others are behind it. `clear` now fights who the engine's search reaches
 from the player, nearest along the way, and skips the rest: in the mine two bandits (B6FE4, B6FDB), four skipped.
+
+## Riverwood and the lookout (2026-11-06)
+
+- Rays pass through actors (Terrain.cpp `IsActor`): a copy standing beside the player read as a 13-unit ceiling, and
+  the walk started on a tree's branches (layer 13) above it. The walk starts on the floor nearest the player's feet.
+- `player.moveto` the mine's outer door (B6CCE) left the party in a nook off the navmesh, walled from the lookout's
+  slope. The flow now goes in (`coc EmbershardMine01`) and out by the door, so the game sets the party at the door's
+  marker. `step_onto_navmesh` (the terrain's walkable way to the nearest navmesh floor, by input) exists for such
+  nooks; in this one it stalled against the other player, so it is not relied on yet.
+- Outdoors the readout draws only the navmesh under the player's cell; neighbouring cells' read as walkable off it.

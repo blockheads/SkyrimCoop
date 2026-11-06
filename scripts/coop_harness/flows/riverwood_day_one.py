@@ -11,6 +11,7 @@ BOOT = {"save": "LateAfterDragonslayerBackinSkyrim"}
 QUEST, LETTER = 0x74A83, 0x5C846  # FreeformRiverwood01 "A Lovely Letter"; Faendal's Fake Letter from Sven
 TRADER_OUT, TRADER_IN = 0x1341F, 0x133E9  # the Riverwood Trader's front door, outside and in
 MINE_OUT, MINE_IN = 0xB6CCE, 0xB6CCD  # Embershard Mine's entrance, outside and in
+MINE_CELL = "EmbershardMine01"
 STEEL_SWORD = 0x13989
 INSIDE = 8000.0  # the whole mine: clear fights who it can walk to, nearest along the way
 
@@ -53,9 +54,11 @@ def reward(ctx):
 
 
 def lookout(ctx):
-    """The party travels to the mine (a console trip stands in for the road until a road verb exists) and the guest
-    fights the bandit lookout; the guest loots him."""
-    ctx.go_far("", f"player.moveto {MINE_OUT:X}")
+    """The party travels to the mine (a console trip stands in for the road until a road verb exists: into the mine
+    and out by its door, so the game sets the party at the door's marker; a moveto to the door's reference left both in
+    a nook off the navmesh) and the guest fights the bandit lookout; the guest loots him."""
+    ctx.go_far("", f"coc {MINE_CELL}")
+    ctx.door("", f"{MINE_IN:X}")
     ctx.arrives_with_party("client")
     ctx.clear("client", radius=1500.0)
     ctx.take("client", "enemy_1")
