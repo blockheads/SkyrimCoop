@@ -38,6 +38,9 @@ UpdateProcessLevel (37501)
 Our answer: `HookUpdateInDialogue` skips the update while online and the speaker has no process;
 `DialogueBridge::ClearOrphaned` treats that speaker as gone, so `DialogueService` clears it and closes the menu.
 
+Out of a session the hook changes nothing, so solo play should still fault the same way: read, not run. It is the
+engine's own path with no code of ours in it, and it needs a script to delete a placed NPC mid-conversation.
+
 ## A reference's place when it is not loaded
 
 - **Measured:** a persistent reference outdoors out of the loaded cells has no parent cell, only a worldspace and a

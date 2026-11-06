@@ -105,6 +105,10 @@ other section needs the duo.
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
+**Test tools**
+
+- [An old crash reported as new](#an-old-crash-reported-as-new): small, no duo
+
 ## Copy-desync follow-ups
 
 ### A copy's idle variant
@@ -203,6 +207,10 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
   - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
     graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
   - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
+- **`save-load-gate` stops on a wolf's look target** (2026-11-06, PR #27's branch, before dev was merged). 80 s in, at the
+  desync check before it removes the wolf: wolf `FF000DD6`, the owner's `[None x6]`, the guest's copy `['session 3', None x5]`.
+  The rest of the gate does not run. The same shape as the kill moves above; whether this wolf was dead was not read and
+  the run was not repeated on dev, so which cause it is stays open. Test: `save-load-gate`.
 
 ### Players' idle variants
 
@@ -328,7 +336,7 @@ Size: small. Needs: duo, then GameTests.
   Seen in the earlier checkpoint-followed-by-shop run too; passed in the fresh run (5 of 5)
   ([report](reports/2026-10-31-v1-three-risks.md#acceptance-and-retained-failures)).
   - Not reproduced 2026-11-06: `death-wipe-checkpoint` then the shop, 4 of 4 passed; `save-load-gate` (stopped 80 s in by a
-    wolf's `head_track`, Headtracking on copies) then the shop passed too.
+    wolf's `head_track`, Headtracking on copies) then the shop passed too. Run that pair again once the gate can finish.
   - Open idea, untested: a reference the engine collected and reloaded comes back as a new form with no copy flag
     ([copy-lifecycle.md](re/systems/copy-lifecycle.md)), and the guest shows it as its own until the host spawns it.
   - Test: a checkpoint, then `dialogue-host-barter-earns-speech`.
@@ -877,3 +885,22 @@ Size: small. Needs: duo (harness only).
   with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
   so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).
   - That scenario is not on dev (2026-11-05): stage a player who dies and respawns.
+
+## Test tools
+
+### An old crash reported as new
+
+Harness only: the game is right.
+
+Agent task: Make the MCP's crash check report only crashes of the running duo.
+
+Size: small. Needs: no duo.
+
+- **After a duo restart, an MCP verb fails on the last duo's crash** (2026-11-06, copy-lifecycle). A crash caused on
+  purpose at 10:47:55, read by hand, failed `both_go` a minute later on a freshly booted duo, with "client crashed" and
+  that crash's report. Moving the log aside cleared it; measured once.
+  - Read: `KNOWN_CRASHES` is filled when the `Session` is made (`session.py`), and in the MCP that is once per server.
+    Afterwards `check_for_crash` (`runtime.py`) adds to it when it reports a crash, and it runs only while a verb waits
+    (`wait_for`). `duo_stop` and `duo_start` do not touch the list. So a crash no check saw waits for the next verb that waits.
+  - Start: fill the list again when `duo_start` boots new games. A crash in the games a verb is using must still fail it.
+  - Test: a unit test over a directory of crash logs, if the check can be split from the games.

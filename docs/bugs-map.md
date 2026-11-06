@@ -117,6 +117,8 @@ Entry: [Headtracking on copies](bugs.md#headtracking-on-copies). Already sorted 
 - Cause 3 (`FF000820`) belongs to cluster E.
 - Kill-move scenarios (`host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`) wait on step 1 here:
   it is the only thing failing them. Inferred from the reported values, as the entry says.
+- `save-load-gate` stopped on a wolf's `head_track` on 2026-11-06, which also keeps it from answering
+  [Sigurd's registration](bugs.md#sigurds-registration). Same shape as the kill moves; its cause is not shown.
 
 ### D. Copy lifecycle
 
@@ -194,7 +196,7 @@ mandible difference above is a pick too: creatures' idle picks may not be covere
 
 No link found, each stays one task: creature wobble, Open Animation Replacer's picks, long roll, dropped sword, chest
 lid, `SendAnimationEvent`, the werewolf, crafting station exit, follower stops following, scratch save, quest
-start/stop events, older crime scenarios, a mod's rename, the baseline after a death, Greybeards validation.
+start/stop events, older crime scenarios, a mod's rename, the baseline after a death, Greybeards validation, an old crash reported as new.
 
 [After the host dies](bugs.md#after-the-host-dies) waits for PR #25, which refuses copies' combat trees and finds the
 half-stop is the engine's detection.
