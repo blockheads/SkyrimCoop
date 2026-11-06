@@ -22,6 +22,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -85,24 +87,31 @@ uint64_t s_frameHistogram[cFrameBuckets]{};
 using TMainUpdate = short(void*);
 TMainUpdate* s_realMainUpdate = nullptr;
 
-// What the console prints while Run executes a line (the command runs at once, 442672).
+// What the console prints for a line, for a while after it (results can print in later frames). Any thread prints.
 using TVPrint = void(void*, const char*, va_list);
 TVPrint* s_realVPrint = nullptr;
-bool s_capturing = false, s_printedChanged = false;
+constexpr auto cCaptureTime = std::chrono::seconds(2);
+std::mutex s_printLock;
+std::chrono::steady_clock::time_point s_captureUntil{};
+bool s_printedChanged = false;
 std::string s_printed;
 
 void HookVPrint(void* apThis, const char* apFormat, va_list aArguments)
 {
-    if (s_capturing && apFormat)
+    if (apFormat)
     {
-        va_list copy;
-        va_copy(copy, aArguments);
-        char line[1024];
-        std::vsnprintf(line, sizeof(line), apFormat, copy);
-        va_end(copy);
-        s_printed += line;
-        s_printed += '\n';
-        s_printedChanged = true;
+        std::scoped_lock lock(s_printLock);
+        if (std::chrono::steady_clock::now() < s_captureUntil)
+        {
+            va_list copy;
+            va_copy(copy, aArguments);
+            char line[1024];
+            std::vsnprintf(line, sizeof(line), apFormat, copy);
+            va_end(copy);
+            s_printed += line;
+            s_printed += '\n';
+            s_printedChanged = true;
+        }
     }
     s_realVPrint(apThis, apFormat, aArguments);
 }
@@ -146,17 +155,21 @@ bool InWorld()
 // "<form id>.<command>" runs on that reference, as the client's harness target (ConsoleOutput.cpp).
 using TCompileAndRun = void(void*, void*, uint32_t, void*);
 TCompileAndRun* s_realCompileAndRun = nullptr;
-void* s_pTarget = nullptr;
+void* s_pTarget = nullptr; // for the next compile only, cleared by the next line and after cTargetTime
+constexpr auto cTargetTime = std::chrono::seconds(1);
+std::chrono::steady_clock::time_point s_targetUntil{};
 
 void HookCompileAndRun(void* apScript, void* apCompiler, uint32_t aName, void* apTarget)
 {
-    void* pTarget = s_pTarget ? s_pTarget : apTarget;
-    s_pTarget = nullptr; // the queued line runs in a later frame (Console::RunQueuedCommands 442673)
+    // The queued line runs in a later frame (Console::RunQueuedCommands 442673).
+    void* pTarget = s_pTarget && std::chrono::steady_clock::now() < s_targetUntil ? s_pTarget : apTarget;
+    s_pTarget = nullptr;
     s_realCompileAndRun(apScript, apCompiler, aName, pTarget);
 }
 
 void Run(const std::string& acLine)
 {
+    s_pTarget = nullptr; // a line that never compiled leaves no target behind
     if (acLine.rfind("@show ", 0) == 0 || acLine.rfind("@hide ", 0) == 0)
     {
         SetMenuShown(acLine.c_str() + 6, acLine[1] == 's');
@@ -168,10 +181,14 @@ void Run(const std::string& acLine)
     {
         const uint32_t cId = std::stoul(acLine.substr(0, cDot), nullptr, 16);
         s_pTarget = At<void* (*)(uint32_t)>(cFormById)(cId);
+        s_targetUntil = std::chrono::steady_clock::now() + cTargetTime;
         if (s_pTarget)
             ExecuteCommand(acLine.c_str() + cDot + 1);
         else
+        {
+            std::scoped_lock lock(s_printLock);
             s_printed += "Reference not found (harness target): not run.\n";
+        }
         return;
     }
     ExecuteCommand(acLine.c_str());
@@ -264,21 +281,29 @@ void Poll()
             if (cSeparator != std::string::npos && line.compare(0, cSeparator, s_consoleId) != 0)
             {
                 s_consoleId = line.substr(0, cSeparator);
-                s_printed.clear();
-                s_capturing = true; // until the next line: results can print in later frames
+                {
+                    std::scoped_lock lock(s_printLock);
+                    s_printed.clear();
+                    s_captureUntil = std::chrono::steady_clock::now() + cCaptureTime;
+                    s_printedChanged = true;
+                }
                 Run(line.substr(cSeparator + 1));
-                s_printedChanged = true;
                 s_nextStatus = {};
             }
         }
     }
-    if (s_printedChanged)
+    std::optional<std::string> printed;
     {
-        s_printedChanged = false;
+        std::scoped_lock lock(s_printLock);
+        if (std::exchange(s_printedChanged, false))
+            printed = s_printed;
+    }
+    if (printed)
+    {
         const auto cTemporary = s_control / "console_out.txt.tmp";
         {
             std::ofstream out(cTemporary, std::ios::trunc);
-            out << s_consoleId << '\n' << s_printed;
+            out << s_consoleId << '\n' << *printed;
         }
         MoveFileExW(cTemporary.c_str(), (s_control / "console_out.txt").c_str(), MOVEFILE_REPLACE_EXISTING);
     }

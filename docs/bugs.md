@@ -832,6 +832,8 @@ Size: small. Needs: duo, IDA, then GameTests.
     units off; with the host's player left (`dies="guest"`), never. The copy is what isn't seen: this is the cause of
     [After the host dies](#after-the-host-dies). While the host lives, the copy's candidate read line of sight false and
     detection about -6, the host's 42 with line of sight.
+  - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
+    5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
   - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
 
 ### An NPC copy's swing picks the nearest

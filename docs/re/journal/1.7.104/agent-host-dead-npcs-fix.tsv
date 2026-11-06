@@ -127,3 +127,7 @@ time	op	id	rva	item
 2026-11-06T15:13:13Z	comment	49177	0x8b9200	{"addr": "0x1408b9200", "comment": "49177: caches the longest root-motion distance of the attacker's attack clips (scaled) at +0x30."}
 2026-11-06T15:13:13Z	comment	47325	0x86a7b0	{"addr": "0x14086a7b0", "comment": "Squared distance, horizontal only when the two heights overlap."}
 2026-11-06T15:13:13Z	comment	12037	0x172410	{"addr": "0x140172410", "comment": "not on the swing path: listed by the decompile, not read."}
+2026-11-06T16:32:55Z	read	37764	0x6a2520	{"name": "Actor::RequestDetectionLevel"}
+2026-11-06T16:33:13Z	read	39515	0x6ff550	{"name": "coop_RealProcessKnowledge"}
+2026-11-06T16:33:14Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-06T16:33:23Z	comment	37764	0x6a2520	{"addr": "0x1406a2520", "comment": "Detection level last computed (DetectionState+0x10), -1000 if none or stale (42702). Not a pure read: 39515 creates the knowledge entry if missing and 42702 queues a detection update."}

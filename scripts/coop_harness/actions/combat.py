@@ -120,7 +120,7 @@ class CombatActions:
                          "path_state": read.get("target_path_state"), "path_points": read.get("target_path_points"),
                          "branch": close.rsplit(" > ", 2)[-2:], "state": read.get("combat_state"),
                          "lost": read.get("target_lost"), "detected": read.get("detected"),
-                         "candidates": [(f"{c['actor']:X}", c["detection"], c["flags"], c.get("request_detection"), round(c.get("light", 0)),
+                         "candidates": [(f"{c['actor']:X}", c["detection"], c["flags"], round(c.get("light", 0)),
                                          round(c.get("raw_light", 0)), c.get("line_of_sight")) for c in read.get("candidates", [])]})
             time.sleep(every)
         return rows
@@ -130,6 +130,7 @@ class CombatActions:
         Returns the guest's place at the death, the longest stall (same gap past close range, in combat) and the rows'
         gaps. Use after a checkpoint in the inn; retry between rounds (the NPC stays hostile to the copy). dies="guest" is
         the comparison: the host's player is the one left standing."""
+        npc = ctx.resolve(npc, "host")
         copy = ctx.client_on_host()
         combat = lambda: ctx.player_command("", {"cmd": "combat_targets", "actor": npc})
         ctx.console_on("", f"{npc:X}.resurrect")

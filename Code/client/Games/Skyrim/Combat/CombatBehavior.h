@@ -20,8 +20,6 @@ struct CombatBehaviorThread
     };
     static_assert(sizeof(Frame) == 0x10);
 
-    [[nodiscard]] const Frame* Frames() const noexcept { return (frameCapacity >> 31) ? localFrames : pHeapFrames; }
-
     uint8_t stack[0x10];
     uint32_t frameCapacity; // top bit: the frames are local
     uint32_t pad14;
@@ -91,9 +89,4 @@ static_assert(offsetof(MovementControllerVtable, QueryInterface) == 0x18);
 struct MovementController
 {
     const MovementControllerVtable* pVtable;
-
-    [[nodiscard]] const MovementQueryPathFollowing* PathFollowing(const void* apTypeId) noexcept
-    {
-        return static_cast<const MovementQueryPathFollowing*>(pVtable->QueryInterface(this, apTypeId));
-    }
 };

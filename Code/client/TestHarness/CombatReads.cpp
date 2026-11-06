@@ -12,6 +12,20 @@
 
 namespace TestHarness::EngineCalls
 {
+namespace
+{
+// The frames live in the thread while they fit (frameCapacity's top bit), else on the heap.
+const CombatBehaviorThread::Frame* Frames(const CombatBehaviorThread& acThread) noexcept
+{
+    return (acThread.frameCapacity >> 31) ? acThread.localFrames : acThread.pHeapFrames;
+}
+
+const MovementQueryPathFollowing* PathFollowing(MovementController& aController, const void* apTypeId) noexcept
+{
+    return static_cast<const MovementQueryPathFollowing*>(aController.pVtable->QueryInterface(&aController, apTypeId));
+}
+} // namespace
+
 std::optional<CombatRead> ReadCombat(uint32_t aActorId)
 {
     auto* pActor = Cast<Actor>(TESForm::GetById(aActorId));
@@ -50,7 +64,7 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
         if (auto* pMover = reinterpret_cast<MovementController*>(pTarget->movementDrivenControl))
         {
             POINTER_SKYRIMSE(void, s_pathFollowing, 412229); // IMovementQueryPathFollowing's type id
-            if (const auto* pFollowing = pMover->PathFollowing(s_pathFollowing.Get()))
+            if (const auto* pFollowing = PathFollowing(*pMover, s_pathFollowing.Get()))
             {
                 read.TargetPathState = pFollowing->state;
                 read.TargetPathPoints = pFollowing->pPath ? pFollowing->pPath->pointCount : 0;
@@ -77,7 +91,7 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
                 return;
             std::string nodes;
             for (uint32_t i = 0; i < apThread->frameCount; ++i)
-                if (const auto* pNode = apThread->Frames()[i].pNode)
+                if (const auto* pNode = Frames(*apThread)[i].pNode)
                     nodes += std::string(nodes.empty() ? "" : " > ") + (pNode->name.data ? pNode->name.data : "?");
             read.Behavior.push_back(std::move(nodes));
         };
@@ -112,11 +126,8 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
             POINTER_SKYRIMSE(TLight, s_light, 37775);
             using TProcessLight = float(void*);
             POINTER_SKYRIMSE(TProcessLight, s_processLight, 39509);
-            using TDetect = int32_t(Actor*, Actor*, uint32_t);
-            POINTER_SKYRIMSE(TDetect, s_detect, 37764);
             candidate.Light = s_light.Get()(pTarget);
             candidate.RawLight = pTarget->currentProcess ? s_processLight.Get()(pTarget->currentProcess) : -1.f;
-            candidate.RequestedDetection = s_detect.Get()(pActor, pTarget, 3);
         }
         read.Candidates.push_back(candidate);
     }

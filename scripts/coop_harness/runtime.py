@@ -708,7 +708,10 @@ class Runtime:
         while time.monotonic() < deadline:
             lines = printed.read_text(errors="replace").splitlines() if printed.exists() else []
             time.sleep(0.05)
-        return [line for line in lines[1:] if line.strip()] if lines and lines[0] == request_id else []
+        output = [line for line in lines[1:] if line.strip()] if lines and lines[0] == request_id else []
+        if errors := [line for line in output if CONSOLE_ERRORS.search(line)]:
+            raise ctx.failure(f"console could not run `{command}`: {' | '.join(errors)}")
+        return output
 
     def face_actor(ctx, actor_id, *, _game=None):
         """Turns the player toward an actor so it is on screen (for screenshots / `watch`)."""

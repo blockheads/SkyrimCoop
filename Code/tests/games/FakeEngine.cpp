@@ -1716,6 +1716,7 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
 
 void FakeEngine::AttackedBy(uint32_t aVictim, uint32_t aAttacker)
 {
+    // HookStartCombat's check (38561); its wiring is checked in Skyrim (scenario host-dies-guest-still-fought).
     auto& victim = Actors.at(aVictim);
     if (CopyCombat::MayStart(victim.Copy))
         victim.OwnCombatTarget = aAttacker;

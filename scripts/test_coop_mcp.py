@@ -498,10 +498,6 @@ class ScenarioOrigins(unittest.TestCase):
         self.assertEqual(check_scenarios.unstated(diff, files), [f"a ({check_scenarios.REGISTRATIONS})", "r/y.py"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ClosesIn(unittest.TestCase):
     def ctx(self, rows, places):
         ctx = unittest.mock.MagicMock()
@@ -521,3 +517,7 @@ class ClosesIn(unittest.TestCase):
         with patch("coop_harness.actions.combat.time.monotonic", side_effect=[0, 0]):
             self.assertEqual(CombatActions.closes_in(self.ctx([{"target": "FF000800", "gap": 100}], near), "orgnar",
                                                      seconds=3)["target"], "FF000800")
+
+
+if __name__ == "__main__":
+    unittest.main()
