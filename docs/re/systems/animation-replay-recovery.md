@@ -181,5 +181,7 @@ Measured 2026-11-05, a combined batch of 12 animation flows on a fresh duo (gues
   copy missing a dialogue idle (`DialogueAngryA`) after `TurnLeft`, two Riverwood wolves (one copy walking while its
   owner turned on the spot). An earlier run showed Lucan's copy with its arms crossed (`LeftOffsetArmsCrossed`) while
   he had not, 3.7 s, and Camilla's copy kept in `MT IdleHHLeftEnter.HKX` while she idled, 5.5 s.
-- So accepted actions do land elsewhere now and then, past the 1.1 s seen before: loading the owner's snapshot on a
-  lasting mismatch is the next step (not built here).
+- So accepted actions do land elsewhere now and then, past the 1.1 s seen before. Each lasting case is a copy's graph
+  missing an input its owner's had, a bug of its own (bugs.md: idle variant, walks while its owner turns, interaction
+  idle). Loading the owner's snapshot over it was tried and reverted: it hides the missing input, and Sigrid's copy
+  left the loaded interaction idle at once.

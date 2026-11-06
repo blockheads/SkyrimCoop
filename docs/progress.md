@@ -61,7 +61,7 @@ Newest first.
   state names against the action's `GraphState` (SaveState 63601's machine section, hkbCharacter 65148), counted as
   matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
   line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
-  lasting (animation-replay-recovery.md, "Drift detector"). Loading the owner's snapshot on a lasting one is not built.
+  lasting (animation-replay-recovery.md, "Drift detector"). Each lasting one is a missing input, listed in bugs.md; no snapshot loading over it.
   ClientTests and GameTests `[graph-drift]`.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
