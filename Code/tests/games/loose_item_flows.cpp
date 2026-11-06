@@ -89,6 +89,29 @@ SCENARIO("The host's player drops an heirloom: the guest sees it with its extra 
     party.Until([&] { return host.CountOf(PlayerCopies(host)[0], kIronSword) == 1; }, "the host's copy of the guest carries it");
 }
 
+SCENARIO("A guest dies holding a sword in an inn: the host's sword has its owner, and taking it is no theft", "[items][loose]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        aEngine.CellOwners[kSmoke] = 0x13481; // the innkeeper's faction
+    });
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, Heirloom()); });
+    uint32_t dropped = 0;
+    party.As(party.Guest(), [&] { dropped = guest.DiesDropping(Heirloom()); });
+    party.Until([&] { return LooseOf(host, Heirloom()).size() == 1; }, "the host's world makes the sword");
+    Settle(party);
+    THEN("one sword lies on each game, the same owner") CHECK(guest.Loose.size() == 1);
+    const uint32_t cMade = LooseOf(host, Heirloom())[0];
+    CHECK(host.Loose.at(cMade).Owner == guest.Loose.at(dropped).Owner);
+
+    party.As(party.Host(), [&] { host.PicksUp(cMade); });
+    party.Until([&] { return host.Loose.empty() && guest.Loose.empty(); }, "it leaves both worlds");
+    THEN("the host's player stole nothing") CHECK(host.Thefts == 0);
+}
+
 SCENARIO("A guest drops an heirloom: the host's world makes it, the dropper's own is its twin, the host picks it up", "[items][loose]")
 {
     Party party(2, Plugins);

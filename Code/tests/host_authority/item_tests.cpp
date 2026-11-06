@@ -46,6 +46,18 @@ TEST_CASE("Items: a guest's drop is made in the host's world, its game told whic
     THEN("nobody else is told: the creation goes out as the host's world's") CHECK(session.SentTo<NotifyItemDropped>(kOtherPeer).empty());
 }
 
+TEST_CASE("Items: a guest's drop is made with the owner its own reference has", "[HostAuthority][Items]")
+{
+    Session session;
+    session.LoadedCells[kQaSmoke] = {};
+    DropItemRequest drop = Drop(0xFF000A31);
+    drop.Owner = GameId(0, 0x7);
+    session.Receive(kPeer, drop);
+
+    REQUIRE(session.LooseOwners.size() == 1);
+    CHECK(session.LooseOwners.begin()->second == GameId(0, 0x7));
+}
+
 TEST_CASE("Items: a drop in a cell the host's game has not loaded waits for it", "[HostAuthority][Items]")
 {
     Session session;

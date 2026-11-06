@@ -52,8 +52,8 @@ Decisions:
   one rebuilt from its effects, `EnchantmentItem::Create`), its charge, tempering (`ExtraHealth`), poison and its
   count, soul, and since this feature a custom name (`ExtraTextDisplayData` with owner instance -2; the name without
   the temper suffix, `customNameLength`). skymp keeps the same fields (`reference/plugins/skymp`,
-  `skymp5-client/src/sync/inventory.ts`); its name write constructs the extra the same way. Ownership (a stolen
-  item) does not travel.
+  `skymp5-client/src/sync/inventory.ts`); its name write constructs the extra the same way. The reference's owner
+  travels beside it (`DropItemRequest::Owner`), the item's stolen ownership does not.
 - **A drop the host's game cannot make** (an item it lacks) is answered with no id: the dropper's reference stays
   its own, picked up without asking.
 - **A pickup may come before the host's creation went out** (the dropper asks by its tag in the same frame):
@@ -129,4 +129,5 @@ Found by the scenarios (2026-10-26):
   `AddItem(ref)`) are the host's world: only the guest's player's pickup is gated.
 - Plugins' placed items (a sword on a table, not created) keep today's path: the guest's own pickup and the
   activation relay.
-- Ownership (stolen) and quest-item status do not travel with a dropped item.
+- Quest-item status does not travel with a dropped item. Its reference's owner does (2026-11-05): a dead player's
+  weapon is owned by the player (`re/systems/death-drops.md`), and made unowned on the host it read as the cell's.

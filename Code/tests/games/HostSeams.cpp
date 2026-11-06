@@ -197,8 +197,8 @@ void HostService::MakeAuthority() noexcept
         }
         return moved;
     };
-    game.CreateItem = [&engine](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
-        return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
+    game.CreateItem = [&engine](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner) {
+        return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell), acOwner);
     };
     game.TakeItem = [&engine](const GameId& acObject) { return engine.TakeLoose(acObject); };
     game.TakeQuestObject = [&engine](const GameId& acObject) { return engine.TakeQuestObject(acObject); };

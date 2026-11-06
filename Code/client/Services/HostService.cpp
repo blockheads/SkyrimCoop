@@ -211,8 +211,8 @@ void HostService::MakeAuthority() noexcept
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
     game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { m_pEngine->RaiseStoryEvent(acEvent); };
-    game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
-        return m_pEngine->CreateItem(acItem, acPlacement);
+    game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner) {
+        return m_pEngine->CreateItem(acItem, acPlacement, acOwner);
     };
     game.TransferContainer = [this](const ContainerTransferRequest& acRequest, uint32_t aPlayer) { return m_pEngine->TransferContainer(acRequest, aPlayer); };
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };

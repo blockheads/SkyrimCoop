@@ -3,7 +3,7 @@ import unittest
 import copy
 
 from coop_harness.common import log_time
-from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays
+from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
 
 
 class ContainerComparison(unittest.TestCase):
@@ -22,6 +22,40 @@ class ContainerComparison(unittest.TestCase):
 
     def test_inventory_flags_without_a_contents_snapshot_are_still_reported(self):
         self.assertIn("changes", reference_differences({"changes": 0x40}, {"changes": 0x60}))
+
+
+class DeadPlayersSword(unittest.TestCase):
+    """Measured 2026-11-05: the dying host's reference and the guest's twin, the same sword at rest."""
+    HOST = {"id": 0xFF00087D, "base": 0x12EB7, "type": 41, "cell": 0x32AE7, "flags": 0x100008, "owner": 7, "changes": 0x446,
+            "position": [-183.0, 2022.0, 7049.0], "position_3d": [-183.0, 2022.0, 7049.0], "rotation": [1.81, -0.32, 1.97],
+            "pose": {"Weapon  (00012EB7)": {"position": [-178.0, 2028.0, 6978.0], "rotate": [1.0] * 9}},
+            "collision": [{"node": "Weapon  (00012EB7)", "in_world": True, "motion": 3, "position": [-178.0, 2028.0, 6978.0],
+                           "rotation": [0.6, -0.8, 0.0, 0.0]}]}
+    GUEST = {"id": 0xFF000837, "base": 0x12EB7, "type": 41, "cell": 0x32AE7, "flags": 0x8, "owner": 7, "changes": 0x46,
+             "position": [-178.0, 2028.0, 6978.0], "position_3d": [-178.0, 2028.0, 6978.0], "rotation": [-3.1, 0.0, -1.8],
+             "pose": {"IronLongSword01": {"position": [-178.0, 2028.0, 6978.0], "rotate": [1.0] * 9}},
+             "collision": [{"node": "IronLongSword01", "in_world": True, "motion": 3, "position": [-178.0, 2028.0, 6978.0],
+                            "rotation": [0.6, -0.8, 0.0, 0.0]}]}
+
+    def differences(self, host=None, guest=None):
+        host, guest = {**self.HOST, **(host or {})}, {**self.GUEST, **(guest or {})}
+        return world_differences({host["id"]: host}, {guest["id"]: guest})
+
+    def test_one_sword_at_one_place_agrees(self):
+        self.assertEqual(self.differences(), {})
+
+    def test_a_missing_owner_is_reported(self):
+        differences = self.differences(guest={"owner": None})
+        self.assertEqual([list(fields) for fields in differences.values()], [["owner"]])
+
+    def test_a_body_elsewhere_is_two_swords(self):
+        body = {**self.GUEST["collision"][0], "position": [-100.0, 2028.0, 6978.0]}
+        self.assertEqual(len(self.differences(host={"collision": [body]})), 2)
+
+    def test_a_second_sword_is_reported(self):
+        second = {**self.GUEST, "id": 0xFF000838, "position": [0.0, 0.0, 0.0], "collision": []}
+        differences = world_differences({self.HOST["id"]: self.HOST}, {self.GUEST["id"]: self.GUEST, second["id"]: second})
+        self.assertEqual([fields for fields in differences.values()], [{"present": "client only"}])
 
 
 class RefusedReplays(unittest.TestCase):

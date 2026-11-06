@@ -298,8 +298,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory::Entry Item;
         // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
         bool QuestObject = false;
+        // Its own owner; with none a pickup reads its cell's (TESObjectREFR::GetOwner 19789).
+        GameId Owner{};
     };
     std::map<uint32_t, LooseItem> Loose;
+    // Pickups the player made of what its owner, not it, owns (PlayerCharacter::PickUpObject 40533 -> StealAlarm 37422).
+    uint32_t Thefts = 0;
     // A guest's loose items the host decides (twins, its own drops not answered yet), as GuestEngine's pickup gate
     // reads them; and GuestEngine::PickUp's own pickup, past the gate.
     std::set<uint32_t> HostDecides;
@@ -309,16 +313,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A loose item made here: its id (the engine's next temporary).
     uint32_t PlaceLoose(uint32_t aCell, const Inventory::Entry& acItem);
     // The player drops some of what it carries (aItem: its base, extra data and count) where it stands, as
-    // PlayerCharacter::DropObject: the inventory's removal raised as a drop; the host's made reference recorded, a
+    // PlayerCharacter::DropObject: the player owns it in an owned cell; the inventory's removal raised as a drop; the host's made reference recorded, a
     // guest's raised (ItemDroppedEvent). Returns the loose item's id here.
     uint32_t DropsInWorld(const Inventory::Entry& acItem);
+    // The player dies holding it drawn (Actor::DropHeldItemsOnDeath 37320): DropsInWorld, the reference owned by the
+    // player whatever the cell.
+    uint32_t DiesDropping(const Inventory::Entry& acItem);
     // The player picks a loose item up (PlayerCharacter::PickUpObject): the host's game takes it (its deletion
     // recorded, the item raised as an inventory change); a guest's asks the host first for one the host decides
     // (ItemPickUpEvent).
     void PicksUp(uint32_t aObject);
     // The host's game makes a loose item where the placement says (HostGame::CreateItem): none while that cell is not
     // loaded here, an empty id for a missing form. And takes one out of its world (HostGame::TakeItem).
-    std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell);
+    std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell, const GameId& acOwner = {});
     std::optional<Inventory::Entry> TakeLoose(const GameId& acObject);
     // A loose quest object the host's player picks up (HostGame::TakeQuestObject); false for any other.
     bool TakeQuestObject(const GameId& acObject);
@@ -1171,6 +1178,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t m_nextTemporary = 0xFF000800;
     uint32_t m_made = 0;
     std::set<uint32_t> m_freedTemporary;
+    GameId m_dropOwner{}; // DiesDropping's, for its DropsInWorld
 };
 
 // Game.DisablePlayerControls / EnablePlayerControls with Papyrus' defaults for the rest: movement, fighting, camera

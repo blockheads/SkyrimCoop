@@ -94,9 +94,9 @@ struct HostGame
     std::function<void(const ObjectChange& acItems)> SetItems;
     // Native transfer between a container and the guest's copy; returns the signed amount actually moved.
     std::function<Inventory::Entry(const ContainerTransferRequest&, uint32_t aPlayer)> TransferContainer;
-    // A guest's drop: the host's game makes the item (its count and extra data) there, the party's one reference; its
+    // A guest's drop: the host's game makes the item (its count, extra data and owner) there, the party's one reference; its
     // created id, none while that cell is not loaded here, an empty id when it cannot be made (no such item here).
-    std::function<std::optional<GameId>(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement)> CreateItem;
+    std::function<std::optional<GameId>(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner)> CreateItem;
     // A guest picks up the party's loose item: taken out of the host's world (the deletion goes out), what it held;
     // none when it is gone (another player was first).
     std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;

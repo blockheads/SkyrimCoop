@@ -203,6 +203,7 @@ struct Session
     std::vector<StoryEvent> StoriesRaised;                    // guests' story events the host's story manager queued
     std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
     std::unordered_map<GameId, Inventory::Entry> Loose;              // the host's loose items it made for guests' drops
+    std::unordered_map<GameId, GameId> LooseOwners;                  // and the owner each was made with
     std::set<GameId> QuestObjects;                                    // those a quest's alias holds
     std::vector<GameId> TakenForParty;                                // quest objects the host's player picked up
     uint32_t LooseMade = 0;
@@ -299,7 +300,7 @@ private:
         game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
         game.RaiseStoryEvent = [this](const StoryEvent& acEvent) { StoriesRaised.push_back(acEvent); };
         // A drop is made in a cell the host's game has loaded.
-        game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) -> std::optional<GameId> {
+        game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner) -> std::optional<GameId> {
             ++CreateCalls;
             if (!LoadedCells.contains(acPlacement.Cell.BaseId))
                 return std::nullopt;
@@ -307,6 +308,7 @@ private:
                 return GameId{}; // not in this game
             const GameId cId(ObjectChange::kCreatedModId, 0x800 + ++LooseMade);
             Loose[cId] = acItem;
+            LooseOwners[cId] = acOwner;
             return cId;
         };
         game.TakeQuestObject = [this](const GameId& acObject) {

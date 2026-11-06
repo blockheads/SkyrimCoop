@@ -20,6 +20,7 @@ from .common import (
     FLOAT_TOLERANCE,
     FORM_DELETED,
     FORM_NOT_SYNCED,
+    CHANGES_ITEM_EXTRA,
     FORM_TYPE_NAMES,
     LOW_PELVIS,
     POSE_TOLERANCE,
@@ -160,6 +161,27 @@ def reference_label(ref, game=None):
     return f"created {kind} {ref['base']:X} at {show_value('position', ref['position'])} ({ref['id']:X} on {game})"
 
 
+def held_node_view(ref, twin):
+    """A dead player's drop as the comparison reads it. On the dying player's game the reference took the hand's node as
+    its 3D (19706: root "Weapon  (<form>)") and keeps the position it had then, while the body falls; its twin is made
+    from the model. One sword: its place is its body's, its node names and its own record of its 3D are that game's."""
+    def adopted(r):
+        return (first_body(r) or {}).get("node", "").startswith("Weapon  (")
+    if not adopted(ref) and not adopted(twin):
+        return ref
+    view = {key: value for key, value in ref.items() if key not in ("pose", "position_3d")}
+    view["changes"] = (ref.get("changes") or 0) & ~CHANGES_ITEM_EXTRA
+    if body := first_body(ref):
+        view["position"] = body["position"]
+    return view
+
+
+def resting_place(ref):
+    """Where a created item is: a held node's stale reference position gives way to its body."""
+    body = first_body(ref) or {}
+    return body["position"] if body.get("node", "").startswith("Weapon  (") else ref["position"]
+
+
 def world_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's world differs from the host's: {reference: {field: 'host vs guest'}}. A reference one game
     lacks differs in "present"; created references pair up by base and position (their ids differ per game).
@@ -182,12 +204,12 @@ def world_differences(host, guest, host_again=(), guest_again=()):
                 and FORM_TYPE_NAMES.get(r["type"]) not in ("PROJ", "HAZD")]
     unpaired = alive_created(guest)
     for ref in alive_created(host):
-        twin = next((r for r in unpaired if r["base"] == ref["base"] and near(r["position"], ref["position"], 2.0)), None)
+        twin = next((r for r in unpaired if r["base"] == ref["base"] and near(resting_place(r), resting_place(ref), 2.0)), None)
         if twin is None:
             differences[reference_label(ref, "host")] = {"present": "host only"}
             continue
         unpaired.remove(twin)
-        if fields := reference_differences(ref, twin):
+        if fields := reference_differences(held_node_view(ref, twin), held_node_view(twin, ref)):
             differences[reference_label(ref, "host")] = fields
     for ref in unpaired:
         differences[reference_label(ref, "client")] = {"present": "client only"}

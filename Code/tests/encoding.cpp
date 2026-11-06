@@ -1552,6 +1552,7 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
     drop.Tag = 0xFF000A31;
     drop.Item = item;
     drop.Placement = {GameId(4, 0x31D2E), {}, {12.f, -40.5f, 64.f}, {0.f, 0.f, 3.1f}};
+    drop.Owner = GameId(0, 0x7);
     PickUpRequest pickUp;
     pickUp.Object = GameId(ObjectChange::kCreatedModId, 0xA31);
     pickUp.Tag = 0xFF000A31;

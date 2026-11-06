@@ -80,6 +80,36 @@ class InventoryActions:
                 if fields["base"] == IRON_SWORD and ref >> 24 == 0xFF and not fields["flags"] & (FORM_DELETED | FORM_DISABLED)}
 
 
+    def loose_sword_rows(ctx, instance):
+        """Each loose iron sword in that game in a line: id, flags, owner, where its reference and its body are, the body's state."""
+        def row(fields):
+            body = (fields.get("collision") or [{}])[0]
+            return {"id": f"{fields['id']:X}", "flags": f"{fields['flags']:X}", "owner": fields.get("owner"),
+                    "position": [round(v) for v in fields["position"]], "body": body.get("node"), "in_world": body.get("in_world"),
+                    "motion": body.get("motion"), "awake": body.get("awake"), "body_position": [round(v) for v in body.get("position", ())]}
+        return [row(fields) for fields in ctx.loose_swords(instance).values()]
+
+
+    def expect_dropped_sword_taken(ctx, instance, other):
+        """`instance`'s player takes the one loose sword `other`'s player dropped: one on each game, the same owner, no
+        theft (crime.md, StealAlarm 37422), gone from both, one more carried."""
+        lying = {game: ctx.wait_for(f"[{game or 'host'}] one sword lies there", lambda g=game: ctx.loose_swords(g) if len(ctx.loose_swords(g)) == 1 else None, 10)
+                 for game in (instance, other)}
+        ref, fields = next(iter(lying[instance].items()))
+        twin = next(iter(lying[other].values()))
+        if fields.get("owner") != twin.get("owner"):
+            raise ctx.failure(f"[{instance or 'host'}] the sword's owner is {fields.get('owner')}, {twin.get('owner')} on the other game: "
+                              "a cell's owner takes the place of none, and taking it is a theft")
+        warnings = ctx.crime_command(instance, "read")["warnings"]
+        carried = ctx.item_count(instance, 0x14, IRON_SWORD) or 0
+        ctx.player_command(instance, {"cmd": "activate", "object": ref})
+        ctx.wait_for(f"[{instance or 'host'}] the player carries it", lambda: (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) == carried + 1, 10)
+        for game in (instance, other):
+            ctx.wait_for(f"[{game or 'host'}] the sword is gone", lambda g=game: not ctx.loose_swords(g), 10)
+        if (now := ctx.crime_command(instance, "read")["warnings"]) != warnings:
+            raise ctx.failure(f"[{instance or 'host'}] taking a dead player's sword was a theft: warnings {warnings} -> {now}")
+
+
     def describe_stacks(ctx, stacks):
         return "; ".join(f"{s['count']}x {s['item']:X} health {s['health']:.2f} ench {s['enchantment']:X} ({s['enchant_charge']}, "
                          f"charge {s['charge']:.0f}) name '{s['name']}'" for s in stacks) or "none"

@@ -43,7 +43,6 @@ other section needs the duo.
 - [Creature copies wobble](#creature-copies-wobble): small
 - [Owners move without walking](#owners-move-without-walking): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
-- [A dead player's dropped weapon](#a-dead-players-dropped-weapon): small
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
@@ -177,6 +176,8 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
   - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
     graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
   - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
+  - Also `dead-guest-sword-no-theft` (2026-11-05): its sword steps pass, its end comparison fails on the guest player's
+    copy, `['session 1', ...]` against its owner's `['session 2', ...]`.
 
 ### Players' idle variants
 
@@ -275,19 +276,6 @@ Size: medium. Needs: duo.
   Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
   repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
   - Test: that scenario, after its steps.
-
-### A dead player's dropped weapon
-
-Stands alone: one created reference.
-
-Agent task: Make the weapon a dead player drops the same reference on both games, so `kill-moves-cross` passes its end
-comparison.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
-  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
-  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
 
 ### Trade markers
 
