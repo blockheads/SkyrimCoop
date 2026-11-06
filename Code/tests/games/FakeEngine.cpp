@@ -11,6 +11,7 @@
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Services/ContainerOpens.h>
+#include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -405,6 +406,19 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         {
             aActor.DyingFrames = kDyingFrames;
             aActor.DeadFrames = 0;
+            // KillImpl's death drop (37320): the drawn weapon falls, unless our hook keeps a player's.
+            if (aActor.Weapon == WeaponState::Drawn && !DeathDrops::Kept(aActor.Player, World::Get().GetTransport().IsOnline()))
+                if (const auto cHeld = std::ranges::find_if(aActor.Items.Entries, [&](const auto& acEntry) {
+                        const auto cForm = ItemForms.find(::ItemForm(acEntry.BaseId));
+                        return acEntry.ExtraWorn && cForm != ItemForms.end() && cForm->second.Type == kWeapon;
+                    });
+                    cHeld != aActor.Items.Entries.end())
+                {
+                    Inventory::Entry dropped = *cHeld;
+                    dropped.Count = 1;
+                    dropped.ExtraWorn = false;
+                    DropsInWorld(dropped);
+                }
         }
         auto& action = aActor.LatestAnimation;
         action.Tick = World::Get().GetFrameTick();

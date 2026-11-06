@@ -44,7 +44,6 @@ other section needs the duo.
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
 - [End comparisons in towns](#end-comparisons-in-towns): medium
-- [A dead player's dropped weapon](#a-dead-players-dropped-weapon): small
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
@@ -189,6 +188,8 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
+  `dead-player-keeps-weapon` (2026-11-06) passes its steps, then fails its end comparison on Sinmir in the Bannered
+  Mare: the host's `['session 1', None x5]` against the guest's copy `[None x6]`.
 - **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
   the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
   `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
@@ -276,19 +277,9 @@ Size: medium. Needs: duo.
   skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
   culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
-
-### A dead player's dropped weapon
-
-Stands alone: one created reference.
-
-Agent task: Make the weapon a dead player drops the same reference on both games, so `kill-moves-cross` passes its end
-comparison.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
-  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
-  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
+  - Also in the Bannered Mare (2026-11-06, the MCP's `expect agree all` while recording `dead-player-keeps-weapon`):
+    Olava the Feeble (`1A699`) was removed from the host's actors ("Actor discovery: 1A699 removed") seconds after the
+    scene loaded, and her copy stayed on the guest with no owner.
 
 ### Trade markers
 
