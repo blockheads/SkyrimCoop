@@ -15,7 +15,7 @@ from .magic import MagicActions
 from .interface import InterfaceActions
 from .play import PlayActions
 from .play_verbs import PlayerVerbs
-from .repro import PressTiming, ReproActions
+from .repro import PressTiming, RefSteps, ReproActions
 from .crime import CrimeActions
 
 
@@ -37,6 +37,7 @@ class Actions(
     PlayActions,
     ReproActions,
     PressTiming,
+    RefSteps,
     PlayerVerbs,
     CrimeActions,
 ):

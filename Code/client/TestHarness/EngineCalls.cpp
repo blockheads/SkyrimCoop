@@ -1807,11 +1807,14 @@ uint8_t GetReplayPhase(uint32_t aFormId) noexcept
 
 std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept
 {
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
     if (!pActor)
         return std::nullopt;
-    // CommonLib BOOL_BITS::kWasInFrustum; HighActorCuller's low nibble is also used by Precision.
-    return PoseVisibility{(pActor->flags1 & (1u << 21)) != 0, pActor->cullingState & 0xFu, pActor->iLastSeenTime};
+    // The 3D's kNotVisible is what Actor::ModifyAnimationUpdateData (38054) tests. CommonLib BOOL_BITS::kWasInFrustum
+    // and HighActorCuller's low nibble (40335) are shown too.
+    const NiAVObject* p3D = pActor->GetNiNode();
+    return PoseVisibility{p3D && !(p3D->flags & NiAVObject::kNotVisible), (pActor->flags1 & (1u << 21)) != 0,
+                          pActor->cullingState & 0xFu, pActor->iLastSeenTime};
 }
 
 NpcTemplates ReadNpcTemplates(uint32_t aFormId) noexcept

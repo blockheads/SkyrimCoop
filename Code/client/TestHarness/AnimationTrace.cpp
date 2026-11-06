@@ -9,6 +9,10 @@
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/hkbNode.h>
 #include <Utils.h>
+#include <Misc/BSFixedString.h>
+#include <AI/Movement/MovementControllerNPC.h>
+#include <AI/AIProcess.h>
+#include <NetImmerse/NiNode.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
 #include <Components.h>
@@ -259,6 +263,22 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     if (const auto cController = EngineCalls::GetController(aFormId))
         entry["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}, {"state", cController->State},
                                {"at", cController->Position}, {"step", cController->StepVelocity}};
+    // The drawn body: the 3D's root and feet (world), what GaitWatch reads against the actor's place.
+    if (NiNode* p3D = pActor->GetNiNode())
+    {
+        static const BSFixedString s_feet[2] = {BSFixedString("NPC L Foot [Lft ]"), BSFixedString("NPC R Foot [Rft ]")};
+        entry["root"] = {p3D->world.translate.x, p3D->world.translate.y, p3D->world.translate.z};
+        for (const auto& cFoot : s_feet)
+            if (const NiAVObject* pFoot = p3D->GetByName(cFoot))
+                entry["feet"].push_back({pFoot->world.translate.x, pFoot->world.translate.y, pFoot->world.translate.z});
+    }
+    // Who moves it: the graph (animation-driven) or the controller, by the Virtual Path Follower without a graph.
+    if (const auto* pMovement = reinterpret_cast<const MovementControllerNPC*>(pActor->movementDrivenControl))
+        entry["movement"] = {{"state", pMovement->movementState}, {"loaded_agents", pMovement->loadedAgents}};
+    if (pActor->currentProcess)
+        entry["process_level"] = pActor->currentProcess->processLevel;
+    if (const auto cSeen = EngineCalls::GetPoseVisibility(aFormId))
+        entry["cull"] = {cSeen->WasInFrustum, cSeen->CullingState, cSeen->Drawn};
     if (const auto* pExtension = pActor->GetExtension(); pExtension && pExtension->HasCopyGoal)
         entry["goal"] = {pExtension->CopyGoal[0], pExtension->CopyGoal[1], pExtension->CopyGoal[2]};
     for (const auto& cName : m_graphFloats)

@@ -361,9 +361,7 @@ def compare_actors(worlds):
                 # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
                 # output (native camera control: head88 ->124, same JumpLand). Never use that
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
-                if field.startswith("pose.") and not owned["player"] and any(
-                        not actor.get("mod", {}).get("pose_visibility", {}).get("was_in_frustum", True)
-                        for actor in (owned, copy)):
+                if field.startswith("pose.") and not owned["player"] and not all(map(drawn, (owned, copy))):
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:
@@ -425,6 +423,24 @@ def dialogue_differences(host, guest, end, grace=DIALOGUE_GRACE):
 # A walk moves the feet against the body about as far as the body goes (ratio ~1, a run ~0.7); sliding with no
 # animation moves them not at all, slow motion too little.
 SLIDE_DISTANCE, SLIDE_RATIO = 100.0, 0.35
+
+
+def drawn(actor):
+    """Whether the actor's 3D was drawn when read, so its bones are its current pose: the 3D's kNotVisible
+    (pose_visibility.drawn); kWasInFrustum (was_in_frustum) goes stale for an actor ProcessTracking skips."""
+    seen = actor.get("mod", {}).get("pose_visibility", {})
+    return seen.get("drawn", seen.get("was_in_frustum", True))
+
+
+def drawn_walks(gait):
+    """{id: units} of the actors in a gait readout that walked in view: drawn travel with the feet moving."""
+    return {int(actor): g["travelled"] for actor, g in gait.items()
+            if g["travelled"] >= SLIDE_DISTANCE and g["feet"] >= SLIDE_RATIO * g["travelled"]}
+
+
+def unwatched_games(walked, games=("host", "client")):
+    """The games whose gait readouts never showed a drawn walk ({game: farthest units}): their check saw nothing."""
+    return [game for game in games if walked.get(game, 0.0) < SLIDE_DISTANCE]
 
 
 def sliding_actors(gait):

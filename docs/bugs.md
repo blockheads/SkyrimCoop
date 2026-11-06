@@ -43,7 +43,6 @@ other section needs the duo.
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
-- [Owners move without walking](#owners-move-without-walking): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A dead player's dropped weapon](#a-dead-players-dropped-weapon): small
 - [Trade markers](#trade-markers): small
@@ -260,27 +259,6 @@ Size: small. Needs: IDA, duo (`jitter`), then a fast test.
     ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
   - Test: `jitter` on a creature, then a fast test once the cause is read.
 
-### Owners move without walking
-
-Stands alone: the host's own NPCs, not copies.
-
-Agent task: Find why the host's Riverwood NPCs move with their feet still after arrival.
-
-Size: medium. Needs: duo.
-
-- **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
-  `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
-  copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
-  too (Embry, Hod, 135 to 169 units, feet 3 to 40). Failing the same with the old copy placement (2026-11-02: 125 to 573
-  units in 2 s).
-  - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
-    scenario's `check_gait` names each actor and its distance.
-  - 2026-11-05 (copy-state-sync, fresh duo): still 0 of 1 (Dorthe 146 units, feet 0; Gerdur 138, feet 6). Every sliding
-    sample was in the host's view (`was_in_frustum` true), so this is not the stale off-screen skeleton of
-    culled-npc-pose-readings.md: they slide about 75 units/s with their feet still. Next: a vanilla control
-    (`vanilla_start`) to see whether the engine does it without co-op.
-  - Test: `actors-walk-after-arrival`.
-
 ### End comparisons in towns
 
 Ambient differences a Riverwood run's end comparison finds, a different one each run.
@@ -293,9 +271,10 @@ Size: medium. Needs: duo.
 - **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
   `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
-  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again), once
-  Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
-  repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
+  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
+  `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
+  skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
+  culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
 
 ### A dead player's dropped weapon
@@ -358,12 +337,13 @@ Size: small. Needs: duo.
 
 Test work, not a bug in the game.
 
-Agent task: Add a visible-skeleton control to the owner gait check and get the Greybeards scenario its story save.
+Agent task: Get the Greybeards scenario its story save.
 
 Size: small. Needs: duo.
 
-- **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
-  documented story save. Combined-dev acceptance remains separate from these bug investigations.
+- **Remaining validation.** The Greybeards scenario needs its documented story save. Combined-dev acceptance remains
+  separate from these bug investigations. (The owner gait's visible-skeleton control landed 2026-11-05: `GaitWatch`
+  counts drawn steps only, actor-movement.md "A culled actor keeps its pose".)
 
 ### A placed guard's trip home
 

@@ -6,7 +6,6 @@
 #include <Bridges/IActorBridge.h>
 #include <World.h>
 
-#include <cmath>
 #include <unordered_set>
 
 namespace TestHarness
@@ -14,16 +13,6 @@ namespace TestHarness
 namespace
 {
 constexpr auto cKept = std::chrono::seconds(5);
-// More in one frame is a teleport (MoveTo, a cell change), not a step.
-constexpr float cTeleport = 200.f;
-
-float Distance(const float* acA, const float* acB, int aAxes)
-{
-    float sum = 0.f;
-    for (int i = 0; i < aAxes; ++i)
-        sum += (acA[i] - acB[i]) * (acA[i] - acB[i]);
-    return std::sqrt(sum);
-}
 } // namespace
 
 void GaitWatch::Poll()
@@ -37,7 +26,7 @@ void GaitWatch::Poll()
         NiNode* p3D = pActor && !pActor->IsDeleted() ? pActor->GetNiNode() : nullptr;
         if (!p3D)
             continue;
-        Sample sample{cNow, {pActor->position.x, pActor->position.y, pActor->position.z}, {}};
+        GaitSample sample{cNow, {pActor->position.x, pActor->position.y, pActor->position.z}, {}, !(p3D->flags & NiAVObject::kNotVisible)};
         bool humanoid = true;
         for (int i = 0; i < 2 && humanoid; ++i)
         {
@@ -67,34 +56,9 @@ nlohmann::json GaitWatch::Read(double aSeconds) const
     nlohmann::json actors = nlohmann::json::object();
     for (const auto& [cFormId, cSamples] : m_samples)
     {
-        float travelled = 0.f, feet = 0.f;
-        size_t frames = 0;
-        const Sample* pLast = nullptr;
-        for (const Sample& cSample : cSamples)
-        {
-            if (cSample.Time < cFrom)
-                continue;
-            if (pLast)
-            {
-                const float cStep = Distance(cSample.Position, pLast->Position, 2);
-                if (cStep < cTeleport)
-                {
-                    travelled += cStep;
-                    feet += (Distance(cSample.Feet[0], pLast->Feet[0], 3) + Distance(cSample.Feet[1], pLast->Feet[1], 3)) / 2.f;
-                    ++frames;
-                }
-            }
-            pLast = &cSample;
-        }
-        const Sample* pFirst = nullptr;
-        for (const Sample& cSample : cSamples)
-            if (cSample.Time >= cFrom)
-            {
-                pFirst = &cSample;
-                break;
-            }
-        const double cCovered = pFirst && pLast ? std::chrono::duration<double>(pLast->Time - pFirst->Time).count() : 0.0;
-        actors[std::to_string(cFormId)] = {{"travelled", travelled}, {"feet", feet}, {"seconds", cCovered}, {"frames", frames}};
+        const GaitReading cReading = MeasureGait(cSamples, cFrom);
+        actors[std::to_string(cFormId)] = {{"travelled", cReading.Travelled}, {"feet", cReading.Feet}, {"seconds", cReading.Seconds},
+                                           {"frames", cReading.Frames}, {"hidden_frames", cReading.HiddenFrames}};
     }
     return actors;
 }
