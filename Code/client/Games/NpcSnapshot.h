@@ -12,16 +12,12 @@ inline uint32_t CaptureFlags(bool aPlayer, bool aTemporary) noexcept
     return !aPlayer && aTemporary ? kFullName : 0;
 }
 
+// A leveled NPC with a chosen face: its copy uses that base and takes its name from the announcement's DisplayName.
 inline uint32_t SaveFlags(uint32_t aRecorded, bool aPlayer, bool aTemporary, bool aSelectedFace = false) noexcept
 {
     if (!aPlayer && aTemporary && aSelectedFace)
-        return kFullName;
+        return 0;
     return aRecorded | CaptureFlags(aPlayer, aTemporary);
-}
-
-inline bool HasResolvedName(uint32_t aChanges) noexcept
-{
-    return (aChanges & kFullName) != 0;
 }
 
 // A copy keeps this game's resolved leveled base when it has the owner's face: its stats (level) live there.

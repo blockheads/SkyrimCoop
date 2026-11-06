@@ -17,6 +17,7 @@ struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
 struct DifficultyChangeEvent;
 struct GameSavingEvent;
+struct ActorRenamedEvent;
 struct GameLoadedEvent;
 struct GameLoadFailedEvent;
 
@@ -64,6 +65,7 @@ protected:
     void OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept;
     // The host's save is being written: the guests' records take their characters' places first.
     void OnGameSaving(const GameSavingEvent&) const noexcept;
+    void OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept;
     // That guest's game answered one returning a value: the script waiting on it goes on.
     void OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept;
     // A guest's own script changed the world (a quest's stage): this game makes the call, for that guest (rule 2).

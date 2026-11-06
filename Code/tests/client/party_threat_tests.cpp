@@ -162,3 +162,14 @@ TEST_CASE("An eligible live target survives selection before the next host snaps
     targets[1].Eligible = true;
     CHECK(state.Resolve(500, 99, 123, targets) == 123);
 }
+
+TEST_CASE("In a crime fight a seen player is fair game without a hit", "[party-aggro][crime]")
+{
+    auto state = Fight(14);
+    PartyThreat::Perception seen{.Known = true, .Lost = false, .Detection = 100, .Stealth = 40};
+    CHECK_FALSE(state.CanTarget(500, 99, 14, seen)); // an ordinary fight: the guest must have hit it
+    state.CrimeFights.insert(500);
+    CHECK(state.CanTarget(500, 99, 14, seen));
+    seen.Lost = true;
+    CHECK_FALSE(state.CanTarget(500, 99, 14, seen)); // still only one it sees
+}

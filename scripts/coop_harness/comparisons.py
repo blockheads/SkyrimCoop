@@ -247,8 +247,6 @@ def compare_field(field, owner, copy, owner_snapshot):
                                       extra and "copy also shows " + ",".join(f"{v:08X}" for v in sorted(extra))]))
     if field == "identity.base" and (owner_snapshot["player"] or owner_snapshot["identity"]["temporary_base"]):
         return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
-    if field == "identity.name" and owner_snapshot["player"]:
-        return None  # a player's copy shows the player's name, its own base is unnamed
     if field == "identity.name" and isinstance(owner, str) and isinstance(copy, str):
         return None if owner.lower() == copy.lower() else "differs"  # native BSFixedString equality
     if field.startswith("ragdoll."):

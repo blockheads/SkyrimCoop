@@ -37,6 +37,9 @@ bool State::CanTarget(uint32_t aVictim, uint32_t aPlayer, uint32_t aCurrent,
     if (!acPerception.Lost &&
         ((acPerception.Detection > 0 && acPerception.Stealth <= 0) || (aPlayer == aCurrent && acPerception.Known)))
         return true;
+    // A party crime flags the whole party: a player the NPC sees is as guilty as the one it saw steal.
+    if (CrimeFights.contains(aVictim) && !acPerception.Lost && acPerception.Known && acPerception.Detection > 0)
+        return true;
     return (acPerception.LineOfSight || acPerception.ClearPath) &&
            (aPlayer == aCurrent || RecentlyHit(aVictim, aPlayer));
 }

@@ -54,6 +54,33 @@ SCENARIO("Guest crime actions go to the host engine once and its judgment return
     CHECK(guest.Gold == host.Gold);
 }
 
+SCENARIO("A guest's theft is judged after the witnesses looked, and what follows keeps its order", "[crime]")
+{
+    Party party;
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    std::vector<std::pair<CrimeAction, uint32_t>> judged; // action, asks by then
+    host.JudgeAction = [&](uint32_t, const CrimeRequest& acCrime) {
+        judged.emplace_back(acCrime.Action, host.Asks);
+        return false;
+    };
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0xF);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    CrimeRequest fine;
+    fine.Action = CrimeAction::PayFine;
+    fine.Target = GameId(0, 0x28170);
+
+    guest.Actions.push_back(theft);
+    guest.Actions.push_back(fine);
+    party.Until([&] { return judged.size() == 2; }, "the host judges both");
+    CHECK(judged[0].first == CrimeAction::Theft);
+    CHECK(judged[0].second >= 3); // asked at the theft and on later frames: a detection pass answers late
+    CHECK(judged[1].first == CrimeAction::PayFine);
+}
+
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
 {
     Party party(2);

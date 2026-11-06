@@ -35,8 +35,12 @@ void GuestRecord::OnLeaving(const SessionLeavingEvent&) noexcept
 // Perks, spells, training and books change through menus.
 void GuestRecord::OnMenu(const MenuEvent& acEvent) noexcept
 {
-    if (!acEvent.Opening)
-        m_changed = true;
+    if (acEvent.Opening)
+        return;
+    m_changed = true;
+    // The race menu changes who the character is: the host's next save must have it (docs/re/systems/names.md).
+    if (acEvent.Menu == "RaceSex Menu")
+        m_sinceSent = kSeconds;
 }
 
 void GuestRecord::OnUpdate(const UpdateEvent& acEvent) noexcept

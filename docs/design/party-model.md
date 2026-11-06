@@ -224,3 +224,9 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
   now").
 - **Catch-up for a player who rarely lands hits** (a healer, a talker): none by default. A later option
   if play shows the party drifting apart in level.
+
+## Crime
+
+Decided 2026-11-05 (the user: "when anyone commits a crime in the party, everyone gets flagged equally, so enemies will
+attack whoever is near them"). One bounty and one criminal flag for the party; an NPC hostile for a crime treats every
+player alike and goes for the nearest. Mechanism: `docs/re/systems/crime.md`, What SkyrimCoop does.

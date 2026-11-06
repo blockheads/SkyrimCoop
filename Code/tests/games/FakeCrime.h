@@ -2,6 +2,7 @@
 
 #include <Bridges/ICrimeBridge.h>
 #include <functional>
+#include <set>
 
 // Engine seam only. Native witnesses/costs are covered by the Skyrim scenarios.
 struct FakeCrime final : ICrimeBridge
@@ -48,6 +49,17 @@ struct FakeCrime final : ICrimeBridge
     {
         Judged.emplace_back(aActor, aRequest);
         return JudgeAction && JudgeAction(aActor, aRequest);
+    }
+    // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).
+    uint32_t Asks{};
+    void AskWitnesses(uint32_t) noexcept override
+    {
+        ++Asks;
+    }
+    std::set<uint32_t> CriminalTo; // NPCs a party crime made hostile
+    bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept override
+    {
+        return CriminalTo.contains(aActorFormId);
     }
     void LockCaught(uint32_t aAttempt) noexcept override
     {

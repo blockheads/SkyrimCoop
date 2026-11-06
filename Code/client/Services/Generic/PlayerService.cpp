@@ -9,7 +9,9 @@
 #include <Events/PlayerFormChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 
+#include <Events/GameLoadedEvent.h>
 #include <Messages/PlayerLevelRequest.h>
+#include <Messages/Relayed.h>
 #include <Messages/NotifySettingsChange.h>
 
 #include <Bridges/IPlayerBridge.h>
@@ -37,6 +39,7 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     Listen<DifficultyChangeEvent, &PlayerService::OnDifficultySet>(m_connections, m_dispatcher, this);
     Listen<PlayerFormChangeEvent, &PlayerService::OnPlayerFormChange>(m_connections, m_dispatcher, this);
     Listen<MenuEvent, &PlayerService::OnMenu>(m_connections, m_dispatcher, this);
+    Listen<GameLoadedEvent, &PlayerService::OnGameLoaded>(m_connections, m_dispatcher, this);
 }
 
 void PlayerService::OnConnected(const ConnectedEvent&) noexcept
@@ -44,6 +47,7 @@ void PlayerService::OnConnected(const ConnectedEvent&) noexcept
     // What changes from here is sent on PlayerFormChangeEvent.
     m_lastLevel = m_playerBridge.GetPlayerLevel();
     m_lastRaceFormId = m_playerBridge.GetPlayerRaceFormId();
+    m_lastName = m_transport.GetLocalPlayerName();
     // World encounters are the host's world: only its game spawns them.
     m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.GetHostService().IsHosting() ? 1.f : 0.f);
 }
@@ -109,5 +113,23 @@ void PlayerService::OnMenu(const MenuEvent& acEvent) noexcept
     if (acEvent.Opening || !m_transport.IsConnected())
         return;
     m_lastRaceFormId = m_playerBridge.GetPlayerRaceFormId();
+    SendNameIfChanged();
     m_world.GetDispatcher().trigger(PlayerLooksChangeEvent());
+}
+
+void PlayerService::OnGameLoaded(const GameLoadedEvent&) noexcept
+{
+    if (m_transport.IsConnected())
+        SendNameIfChanged();
+}
+
+void PlayerService::SendNameIfChanged() noexcept
+{
+    std::string name = m_transport.GetLocalPlayerName();
+    if (name == m_lastName)
+        return;
+    m_lastName = name;
+    PlayerNameRequest request;
+    request.Name = std::move(name);
+    m_transport.Send(request);
 }
