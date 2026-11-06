@@ -79,6 +79,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void PlayerSwitchesRace(uint32_t aRace);
     // The player opens the race menu (showracemenu), makes aChanges in it and closes it (MenuEvent).
     void PlayerUsesRaceMenu(const std::function<void()>& acChanges);
+    // RaceSexMenu::ChangeName (52415): the base's name, FullName marked changed.
+    void PlayerNames(const std::string& acName);
+    // BGSRefAlias::InitializeRefAlias (24011) or ClearRefAlias (24012) on an actor; empty: back to its base's name.
+    void AliasNames(uint32_t aFormId, const std::string& acName);
     float GreetDistance = 150.f;
     // The join flow's engine (IJoinBridge). A save carries this game's player as a record and the co-save; loading one
     // makes the player the save's (the host's) until JoinService applies the joining player's own.
@@ -927,6 +931,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorDisplayName(uint32_t aFormId) const noexcept override;
+    void SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept override;
+    // Base 0x7's name, as the engine's GetFormName reads it: the character's.
+    std::string GetFormName(uint32_t aFormId) const noexcept override;
+    [[nodiscard]] std::string PlayerCharacterName() const noexcept { return Player.Name.empty() ? Name : Player.Name; }
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
     void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept override
     {
@@ -1005,8 +1013,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
-    void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
+    void LoadBase(uint32_t aBase, const std::string& acAppearance, uint32_t aChangeFlags);
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetPlayerRaceFormId() const noexcept override { return GetActorRaceFormId(kPlayer); }
     Tints GetPlayerFaceTints() const noexcept override { return Player.FaceTints; }

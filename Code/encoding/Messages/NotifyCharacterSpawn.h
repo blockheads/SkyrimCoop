@@ -32,7 +32,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
 
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {
-        return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
+        return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer && DisplayName == acRhs.DisplayName &&
                InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
                IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
@@ -45,6 +45,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
     std::string AppearanceBuffer{};
+    std::string DisplayName{}; // as its owner's game shows it (AnnounceCharacterRequest)
     Inventory InventoryContent{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};

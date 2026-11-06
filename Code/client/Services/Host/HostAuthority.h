@@ -80,6 +80,8 @@ struct HostAuthority
     void SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept;
     [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
     void FailReload(const std::string& acError) noexcept { m_death.FailReload(acError); }
+    // This game's engine renamed an actor (HostService): every guest's actor follows.
+    void NameActor(uint32_t aSessionId, const std::string& acName) const noexcept;
 
     // For the parts: TRequest is handled by aOwner's member function.
     template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) noexcept) noexcept
@@ -146,6 +148,7 @@ private:
     void OnBugReport(const BugReportRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnPlayerName(const PlayerNameRequest& acRequest, ConnectionId_t aSender) noexcept;
 
     void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 

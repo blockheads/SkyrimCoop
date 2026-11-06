@@ -97,7 +97,7 @@ other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): medium
-- [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
+- [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
 ## Copy-desync follow-ups
@@ -794,17 +794,19 @@ Size: medium. Needs: duo, IDA, then GameTests.
   - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
     with a fake dead host player that checks the NPC's target is the guest.
 
-### The host's copy has no name
+### A mod's rename at run time
 
-Stands alone.
+Agent task: Make a script's `SetDisplayName` on an NPC, and `SetName` on a player's base, reach the other games. Do step 0 in IDA first, then add one
+GameTests case for the rename.
 
-Agent task: Already running as `names-synced`.
+Size: small. Needs: IDA, GameTests. Waits for: nothing.
 
-Size: small. Needs: duo, then GameTests. Waits for: the `names-synced` worker (running).
-
-- **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
-  are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen
-  before and after a host load. Start: where a copy's display name comes from the owner's character record.
+- **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
+  (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
+  carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
+- **A mod's rename of a player's character isn't sent** (2026-11-05, read, not played): `PlayerService` sends a player's
+  name when the race menu closes or a save loads; a script's `SetName` on the player's base raises neither, so the party's
+  lists and copies keep the old name until one of them. Start: the same native, on the player's base.
 
 ### The baseline after a death
 

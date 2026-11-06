@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Messages/RelayedMessages.h>
+
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 
@@ -47,6 +49,7 @@ protected:
     void OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept;
     void OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept;
     void OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept;
+    void OnPlayerName(const NotifyPlayerName& acMessage) noexcept;
     void OnPlayerPerished(const NotifyPlayerPerished& acMessage) const noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 

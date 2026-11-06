@@ -1,0 +1,30 @@
+time	op	id	rva	item
+2026-11-05T20:31:46Z	read	19781	0x2f08d0	{"name": "TESObjectREFR::GetDisplayFullName"}
+2026-11-05T20:32:02Z	read	12768	0x189740	{"name": "ExtraTextDisplayData::GetDisplayName"}
+2026-11-05T20:32:03Z	read	14720	0x1e8460	{"name": "TESForm::GetFormName"}
+2026-11-05T20:32:22Z	read	24777	0x3c7640	{"name": "TESNPC::SaveGame"}
+2026-11-05T20:32:22Z	read	24778	0x3c7b10	{"name": "TESNPC::LoadGame"}
+2026-11-05T20:32:33Z	read		0x95a660	{"name": "sub_140959F90"}
+2026-11-05T20:32:41Z	read	24387	0x3b0550	{"name": "TESActorBase::SaveGame"}
+2026-11-05T20:33:06Z	read	52415	0x9718d0	{"name": "RaceSexMenu::ChangeName"}
+2026-11-05T20:33:50Z	read	12775	0x189b40	{"name": "ExtraTextDisplayData::sub_12775"}
+2026-11-05T20:33:51Z	read	12773	0x189950	{"name": "ExtraTextDisplayData::sub_12773"}
+2026-11-05T20:33:52Z	read	11655	0x162f60	{"name": "sub_140162F60"}
+2026-11-05T20:34:01Z	name	11655	0x162f60	{"addr": "0x140162f60", "name": "ExtraDataList::SetQuestDisplayName"}
+2026-11-05T20:34:01Z	name	12775	0x189b40	{"addr": "0x140189b40", "name": "ExtraTextDisplayData::GenerateName"}
+2026-11-05T20:34:01Z	name	12773	0x189950	{"addr": "0x140189950", "name": "ExtraTextDisplayData::LoadGame"}
+2026-11-05T20:34:01Z	name	12774	0x189aa0	{"addr": "0x140189aa0", "name": "ExtraTextDisplayData::SaveGame"}
+2026-11-05T20:35:58Z	read		0x3a01b2	{"name": "BGSRefAlias::InitializeRefAlias"}
+2026-11-05T20:47:36Z	read	11656	0x163110	{"name": "sub_140163110"}
+2026-11-05T20:47:37Z	read	24012	0x3a0210	{"name": "BGSRefAlias::sub_24012"}
+2026-11-05T20:47:47Z	name	24012	0x3a0210	{"addr": "0x1403a0210", "name": "BGSRefAlias::ClearRefAlias"}
+2026-11-05T20:47:47Z	name	11656	0x163110	{"addr": "0x140163110", "name": "ExtraDataList::ClearQuestDisplayName"}
+2026-11-05T20:47:47Z	name	19780	0x2f08a0	{"addr": "0x1402f08a0", "name": "TESObjectREFR::SetQuestDisplayName"}
+2026-11-05T21:09:35Z	comment	19781	0x2f08d0	{"addr": "0x1402f08d0", "comment": "A reference's display name, the one every UI reads (crosshair, activate text, subtitles, enemy health, barter): ExtraTextDisplayData on the reference if any, else the base's TESFullName (14720). Read 2026-11-05."}
+2026-11-05T21:09:35Z	comment	24387	0x3b0550	{"addr": "0x1403b0550", "comment": "Writes TESFullName only with change flag 0x20 (TESNPC kFullName). A player base never named this session has no 0x20, so a form built from those bytes stays unnamed."}
+2026-11-05T21:09:35Z	comment	52415	0x9718d0	{"addr": "0x1409718d0", "comment": "The race menu's name: writes the player base's TESFullName (0xE0) and marks change flag 0x20. Only this marks it."}
+2026-11-05T21:09:35Z	comment	11655	0x162f60	{"addr": "0x140162f60", "comment": "A quest alias's display name on a reference: ExtraTextDisplayData with message (+0x18), quest (+0x20), alias (+0x28); pooled name cleared. Called through TESObjectREFR::SetQuestDisplayName."}
+2026-11-05T21:09:35Z	comment		0x163110	{"addr": "0x140163110", "comment": "Removes the reference's ExtraTextDisplayData if it is this message's and quest's: back to the base's name. From BGSRefAlias::ClearRefAlias (24012)."}
+2026-11-05T21:09:35Z	comment	12773	0x189950	{"addr": "0x140189950", "comment": "ExtraTextDisplayData from a save: message, quest, alias id; a custom name (alias -2) follows as text."}
+2026-11-05T21:09:35Z	comment	24011	0x39fde0	{"addr": "0x14039fde0", "comment": "The alias's data onto the reference, its display name too: only with the alias's display name message or flag 0x4000, and only if the reference has no other ExtraTextDisplayData (+0x20 is this quest and the alias differs)."}
+2026-11-05T21:15:32Z	read	12774	0x189aa0	{"name": "ExtraTextDisplayData::SaveGame"}
