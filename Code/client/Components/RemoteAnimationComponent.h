@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Animation/GraphDrift.h>
 #include <Games/Animation/GraphRandom.h>
 #include <optional>
 
@@ -19,4 +20,6 @@ struct RemoteAnimationComponent
     // A loaded point's counters and the updates left to find them: a loaded graph's nodes activate as it updates.
     std::vector<GraphRandom::Counter> GraphCounters;
     uint8_t CounterUpdates = 0;
+    // Whether the copy's graph landed where its owner's did after its last replay.
+    GraphDrift::Tracker Drift;
 };

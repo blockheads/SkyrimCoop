@@ -142,6 +142,7 @@ class Runner:
         known_locks = {}
         original_step = {}
         replay_since = None
+        drift_before = None
         ctx.CURRENT_STEP.update(description=None, time=time.time())
         ctx.FAILING = False
         ctx.cleanup_errors = []
@@ -149,7 +150,7 @@ class Runner:
         ctx.STATUS_AT_FAILURE = True
 
         def setup():
-            nonlocal known_locks, replay_since
+            nonlocal known_locks, replay_since, drift_before
             if flow.fixture == "saved-story":
                 homes = [ctx.load_home(game.name) for game in ctx.games]
                 if not all(home and home.get("cell_name") is None and home.get("world", {}).get("live") for home in homes):
@@ -157,6 +158,7 @@ class Runner:
             known_locks = ctx.lock_order_reports()
             ctx.check_dialogue_trace()  # from here on: this flow's conversations
             ctx.flow_started = replay_since = time.time()
+            drift_before = ctx.graph_drift_counts()
 
         try:
             for phase, action in (("setup", setup), ("action", lambda: flow.run(ctx)),
@@ -175,6 +177,8 @@ class Runner:
                     break
             if replay_since is not None and (refused := ctx.replay_refusals_line(replay_since)):
                 log(f"copies refused replayed animations: {refused}")
+            if drift_before is not None and (drift := ctx.graph_drift_line(drift_before)):
+                log(f"copies' graph drift: {drift}")
             failures.extend(("cleanup", error) for error in ctx.cleanup_errors
                             if not any(error is existing for _, existing in failures))
             if flow.fixture == "scene":  # no baseline to return to: the next flow boots again

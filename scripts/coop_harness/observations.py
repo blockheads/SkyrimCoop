@@ -43,6 +43,33 @@ class Observations:
                 parts.append(f"{game or 'host'} {copy:08X} {event} x{count}")
         return "; ".join(parts)
 
+    GRAPH_DRIFT = ("replays", "players", "skipped", "matched", "mismatches", "transient ms", "lasting", "lasting ms", "unreadable")
+
+    def graph_drift_counts(ctx):
+        """Each game's drift detector counters (GraphDrift.h, read through the harness's `counters`): {game: {name: reading}}."""
+        counts = {}
+        for game in ("", "client"):
+            try:
+                counters = (ctx.game(game).rpc({"cmd": "counters"}) or {}).get("counters") or {}
+            except Exception:
+                counters = {}
+            counts[game or "host"] = {name: counters.get(f"graph drift {name}") or {} for name in ctx.GRAPH_DRIFT}
+        return counts
+
+    def graph_drift_line(ctx, before):
+        """What the drift detector saw since `before` (graph_drift_counts), one line per game with replays."""
+        parts = []
+        for game, now in ctx.graph_drift_counts().items():
+            then = (before or {}).get(game, {})
+            delta = {name: (now[name].get("count", 0) - then.get(name, {}).get("count", 0)) for name in ctx.GRAPH_DRIFT}
+            if not any(delta.values()):  # a mismatch from an earlier flow can turn lasting in a quiet one
+                continue
+            transient_ms = now["transient ms"].get("sum", 0) - then.get("transient ms", {}).get("sum", 0)
+            parts.append(f"{game}: replays {delta['replays']}, players {delta['players']}, skipped {delta['skipped']}, matched {delta['matched']}, "
+                         f"transient {delta['transient ms']} ({transient_ms // max(delta['transient ms'], 1)} ms mean, "
+                         f"max so far {now['transient ms'].get('max', 0)}), lasting {delta['lasting']}, unreadable {delta['unreadable']}")
+        return "; ".join(parts)
+
     def find_desyncs(ctx):
         """Compares both games once. Returns a list of (key, message)."""
         _game = ctx.game()
