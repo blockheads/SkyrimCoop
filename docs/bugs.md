@@ -35,7 +35,7 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [A copy's interaction idle](#a-copys-interaction-idle): small
+- [Replay lands in another state](#replay-lands-in-another-state): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
@@ -102,19 +102,31 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
-### A copy's interaction idle
+### Replay lands in another state
 
-A copy loaded into its owner's interaction idle leaves it at once.
+A copy accepts a replayed action and nothing checks where its graph ended up.
 
-Agent task: find what holds an NPC's graph in `InteractionObjectState` (an AI interaction object a copy does not run)
-and give the copy what keeps it there, or play the idle another way.
+Agent task: Add a detector, not a fix: after each taken replay, compare the copy's active state names with the action's
+`GraphState` and count and log a mismatch. Run it across a combined batch; build loading on a mismatch only if lasting
+mismatches show up.
 
-Size: small. Needs: the duo (Riverwood, `actors-walk-after-arrival`), then GameTests.
+Size: small. Needs: GameTests (a forced mismatch), then a combined duo batch.
 
-- **Sigrid's copy drops `IdlePickup_Ground`** (2026-11-05, drift detector, animation-replay-recovery.md "Loading a
-  lasting mismatch"): her owner stayed in `MT_BehaviorGraph=InteractionObjectState` after `turnStop`; her copy was
-  in `MT_Default_State`, loaded the owner's snapshot at 2 s and was back in `MT_Default_State` at its next read, until
-  the next action 7.1 s later. The other lasting mismatches matched within 25 ms of their load.
+- **An accepted replayed action can land in a different graph state** (user, 2026-10-31: animations drift in dialogue
+  after a while). Nothing compares it (animation-replay-recovery.md). Fixed so far: copies played clips before their
+  files were in, each game made its own random picks (2026-11-04), and copies never headtracked (progress.md, "copies
+  look where their owners do"). The proposed fix is to compare active states with the owner's snapshot after each
+  replay and load it on a mismatch.
+  - Measured 2026-11-05 (copy-state-sync, animation-replay-recovery.md "Does a copy's graph drift?"): Lucan on a fresh
+    duo, active states sampled at 10/s on both games through `npc-counter-matches` and `npc-clips-match`: the copy
+    follows every transition within 150-300 ms, no difference lasts over 1.1 s. One NPC: no lasting drift seen, not
+    proof there is none. A graph save costs 62-112 us and about 7.5 KB.
+  - Compare state names only (variables and clip times differ by design). Paired actions carry no snapshot.
+  - Detector built 2026-11-05 (`GraphDrift`, animation-replay-recovery.md "Drift detector"): a 12-flow batch had 4
+    lasting NPC mismatches in 283 replays (Camilla and Lucan at the counter, two Riverwood wolves). Next: load the
+    owner's snapshot on a lasting mismatch.
+  - Pitfall: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in `JumpFall`/`JumpLand` for the
+    session, which reads as drift. Measure on fresh, unstaged NPCs.
 
 ### Headtracking on copies
 

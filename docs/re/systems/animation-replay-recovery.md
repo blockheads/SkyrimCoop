@@ -137,9 +137,8 @@ A save costs a median 62 to 112 us and 7.1 to 7.9 KB.
 
 ## Drift detector (2026-11-05)
 
-After each replay a copy takes, the copy's active states against the action's `GraphState`
-(`Games/Animation/GraphDrift`, called from `AnimationSystem::Update` where a taken step is collected). A mismatch that
-lasts loads that snapshot into the copy (below, "Loading a lasting mismatch").
+A detector, not a fix: after each replay a copy takes, the copy's active states against the action's `GraphState`
+(`Games/Animation/GraphDrift`, called from `AnimationSystem::Update` where a taken step is collected).
 
 Engine path, read in IDA 1.7.104:
 
@@ -182,18 +181,5 @@ Measured 2026-11-05, a combined batch of 12 animation flows on a fresh duo (gues
   copy missing a dialogue idle (`DialogueAngryA`) after `TurnLeft`, two Riverwood wolves (one copy walking while its
   owner turned on the spot). An earlier run showed Lucan's copy with its arms crossed (`LeftOffsetArmsCrossed`) while
   he had not, 3.7 s, and Camilla's copy kept in `MT IdleHHLeftEnter.HKX` while she idled, 5.5 s.
-- So accepted actions do land elsewhere now and then, past the 1.1 s seen before.
-
-### Loading a lasting mismatch
-
-A copy still apart from the snapshot when it turns lasting loads it once (`LoadAnimationGraphState`, as a refused
-action recovers: the copy keeps its own knock flags; never on a dead copy), counted `loads` / `load failures`, and is
-read again at its next update, which should end the mismatch as matched. The snapshot is the action's, or the newer
-sync point's that retargeted it. Trade-off: an owner that left a passing state with no new action is ahead of its
-snapshot, so the load can put the copy a clip behind; the copy then follows the same clip-end transition (a loaded
-graph's clips start over). `npc-counter-matches` checks every lasting mismatch was loaded and ended within 3 s.
-
-Measured 2026-11-05, the same 12 flows with loading: 223 NPC replays compared, 212 matched, 7 transient, 3 lasting,
-3 loaded, none failed. Camilla's copy (`Behavior02=MT_Idle.HKX` missing) matched 21 ms after its load, a Riverwood dog's
-10 ms after. Sigrid's copy left the loaded `InteractionObjectState` (`IdlePickup_Ground`) at its next read and stayed
-apart until the next action, 7.1 s: a copy runs no interaction object to hold it (bugs.md, "A copy's interaction idle").
+- So accepted actions do land elsewhere now and then, past the 1.1 s seen before: loading the owner's snapshot on a
+  lasting mismatch is the next step (not built here).

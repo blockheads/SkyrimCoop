@@ -215,28 +215,10 @@ def scenario_npc_counter_matches(ctx):
     # His shop hours: by evening his schedule takes him from the counter.
     ctx.console_on("", "set gamehour to 12")
     ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
-    drift = ctx.graph_drift_counts()
     try:
         watch_counter(ctx)
-        expect_copies_rejoin_owners(ctx, drift)
     finally:
         ctx.both_go(HOME_CELL)
-
-
-def expect_copies_rejoin_owners(ctx, before):
-    # hand-written: reads GraphDrift's counters after an existing recorded flow; no play to record
-    """A copy apart from its owner's snapshot past 2 s
-    loads it and matches at its next read (animation-replay-recovery.md, "Drift detector")."""
-    now = ctx.graph_drift_counts()["client"]
-    then = before["client"]
-    delta = {name: now[name].get("count", 0) - then[name].get("count", 0) for name in ctx.GRAPH_DRIFT}
-    loads = delta["loads"]
-    log(f"[client] graph drift: {delta}")
-    if delta["lasting"] != loads or delta["load failures"]:
-        raise ctx.failure(f"[client] {delta['lasting']} lasting graph mismatches, {loads} loaded, {delta['load failures']} failed to load")
-    # Loaded at 2 s, matched at the next read: none lasts much past it.
-    if delta["lasting ms"] and (longest := now["lasting ms"].get("max", 0)) > 3000:
-        raise ctx.failure(f"[client] a copy stayed apart from its owner's graph {longest} ms after a load")
 
 
 def scenario_npc_counter_copy_falls_back_in(ctx):

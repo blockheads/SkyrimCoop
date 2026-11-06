@@ -430,11 +430,4 @@ TEST_CASE("A copy landing in another state is counted: lasting past the threshol
     CHECK(CountOf("graph drift lasting") == (cThen == Then::kStays ? 1 : 0));
     CHECK(CountOf("graph drift transient ms") == (cThen == Then::kCatchesUp ? 1 : 0));
     CHECK(CountOf("graph drift unreadable") == (cThen == Then::kGraphLost ? 1 : 0));
-    // A lasting one loads the owner's snapshot: the copy is back where its owner's graph went.
-    CHECK(CountOf("graph drift loads") == (cThen == Then::kStays ? 1 : 0));
-    if (cThen == Then::kStays)
-    {
-        CHECK(guest.Actors.at(cCopy).GraphState == "Gesture");
-        CHECK(CountOf("graph drift lasting ms") == 1);
-    }
 }

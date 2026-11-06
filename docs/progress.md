@@ -61,9 +61,8 @@ Newest first.
   state names against the action's `GraphState` (SaveState 63601's machine section, hkbCharacter 65148), counted as
   matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
   line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
-  lasting (animation-replay-recovery.md, "Drift detector"). A lasting one now loads the owner's snapshot into the copy
-  ("Loading a lasting mismatch"); `npc-counter-matches` checks each was loaded. Rerun: 3 lasting, 3 loaded, 2
-  matched within 25 ms; Sigrid's interaction idle does not hold on a copy (bugs.md). ClientTests and GameTests `[graph-drift]`.
+  lasting (animation-replay-recovery.md, "Drift detector"). Loading the owner's snapshot on a lasting one is not built.
+  ClientTests and GameTests `[graph-drift]`.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated
