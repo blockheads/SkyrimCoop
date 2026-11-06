@@ -150,6 +150,26 @@ Also seen: `Actor__OnBumpedByActor` (0x1406A8620) -> `Actor__StartBumpPackage` (
 about 90 times in 0.7 s (both players `moveto` one NPC, first session) and not on later tries. Only the host's player
 bumps (`g_thePlayer` check). What it leaves on a copy's follower is not measured, and it is not refused.
 
+### The melee swing start (read 2026-11-06)
+
+`CombatBehaviorContextMelee__TryStartAttack` (49170, 0x1408B7D60; kaputt's AttackActionHook, SCAR hooks its SE caller):
+
+1. No swing within `fCombatAttackAnimationDrivenDelayTime` of the last one while the NPC is pathing.
+2. Centre distance < weapon reach + the longest root motion of its attack clips (`...UpdateAttackMotionReach` 49177)
+   + a combat-state value + `fCombatAttackCheckTargetRangeDistance`.
+3. Per attack data: chance, stamina, the strike cone (47297), then `...CheckAttackInRange` (0x1408B8390): the distance
+   to the target's predicted place at the strike time (`Actor::GetPredictedPosition` 47309) within reach, the cone
+   from the attacker's end place, a clear line (0x1408689E0). Then PerformAction.
+
+So a stale prediction for the copy (the frozen prediction below) blocks every swing, not only close movement.
+
+**A/B at 196 units (duo, one run each, 2026-11-06).** With the guest standing still after the host's death, Orgnar sat
+196 from the copy for 20 s: detected, line of sight true, prediction exact, `Advance` reselected every ~0.5 s, no
+movement. The host's player pushed to 175-196 the same way: Orgnar closed back to 115-136 within seconds. A still copy
+600 off: closed to 136, fell back to 256, closed to 143. So a still copy is approachable; what held the 196 stall is
+not known (the spot, or the state left by the search before it). `tdetect` is no way to leave the host out: it turns off
+all AI detection.
+
 ## The real player's chase, for comparison
 
 Vanilla (the stand-in, no plugin, same inn, god mode): Delphine followed a teleporting player within a second before her

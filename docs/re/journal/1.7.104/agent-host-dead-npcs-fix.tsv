@@ -113,3 +113,17 @@ time	op	id	rva	item
 2026-11-06T07:03:25Z	read	47273	0x866600	{"name": "TESObjectREFR::sub_47273"}
 2026-11-06T07:16:40Z	read	39806	0x720660	{"name": "AIProcess::GetCurrentWeapon"}
 2026-11-06T07:16:40Z	read	37478	0x6874a0	{"name": "Character::sub_37478"}
+2026-11-06T15:08:51Z	read	49170	0x8b7d60	{"name": "sub_1408B7D60"}
+2026-11-06T15:12:21Z	read	49177	0x8b9200	{"name": "sub_1408B9200"}
+2026-11-06T15:12:29Z	read	49171	0x8b8390	{"name": "sub_1408B8390"}
+2026-11-06T15:12:42Z	read	37957	0x6af0d0	{"name": "Actor::sub_37957"}
+2026-11-06T15:12:42Z	read	47325	0x86a7b0	{"name": "sub_14086A7B0"}
+2026-11-06T15:13:09Z	name	49170	0x8b7d60	{"addr": "0x1408b7d60", "name": "CombatBehaviorContextMelee__TryStartAttack"}
+2026-11-06T15:13:09Z	name	49177	0x8b9200	{"addr": "0x1408b9200", "name": "CombatBehaviorContextMelee__UpdateAttackMotionReach"}
+2026-11-06T15:13:09Z	name	49171	0x8b8390	{"addr": "0x1408b8390", "name": "CombatBehaviorContextMelee__CheckAttackInRange"}
+2026-11-06T15:13:09Z	name	47325	0x86a7b0	{"addr": "0x14086a7b0", "name": "CombatUtilities__GetDistanceSquaredByHeight"}
+2026-11-06T15:13:13Z	comment	49170	0x8b7d60	{"addr": "0x1408b7d60", "comment": "49170 (kaputt AttackActionHook; SCAR hooks its SE caller 48147+0x164). Melee swing start: cooldown fCombatAttackAnimationDrivenDelayTime while pathing; centre distance < reach + motion reach + fCombatAttackCheckTargetRangeDistance; per attack data: chance, cone 47297, CheckAttackInRange; then PerformAction."}
+2026-11-06T15:13:13Z	comment	49171	0x8b8390	{"addr": "0x1408b8390", "comment": "Per attack data: distance to the target's predicted place (Actor::GetPredictedPosition 47309 at the strike time) within reach; cone 47297 from the attacker's end place; clear line 0x1408689E0. A stale prediction for the target fails every swing."}
+2026-11-06T15:13:13Z	comment	49177	0x8b9200	{"addr": "0x1408b9200", "comment": "49177: caches the longest root-motion distance of the attacker's attack clips (scaled) at +0x30."}
+2026-11-06T15:13:13Z	comment	47325	0x86a7b0	{"addr": "0x14086a7b0", "comment": "Squared distance, horizontal only when the two heights overlap."}
+2026-11-06T15:13:13Z	comment	12037	0x172410	{"addr": "0x140172410", "comment": "not on the swing path: listed by the decompile, not read."}

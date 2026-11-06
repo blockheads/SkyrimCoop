@@ -98,6 +98,7 @@ other section needs the duo.
 **Combat**
 
 - [After the host dies](#after-the-host-dies): medium, not reproduced as reported
+- [A still guest unseen up close](#a-still-guest-unseen-up-close): small
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -802,10 +803,28 @@ Size: medium. Needs: duo, IDA, then GameTests.
   - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
     with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
     off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
+  - Reproduced once (2026-11-06, the guest still, as the playtester saw): after the host's death Orgnar sat 196 from the
+    copy for 20 s on `Advance` without moving or swinging; the host's player at the same gap was closed on at once
+    (`combat-targets.md`, "A/B at 196 units"). Not repeated; the cause is not known.
 
 - **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
   without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
   (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
+
+### A still guest unseen up close
+
+Agent task: Find why an NPC fighting the host reads no line of sight to the guest's copy 74 units away. Do step 0 in IDA
+first (the detection's line-of-sight request for a candidate), then compare with the host's player in the same place.
+
+Size: small. Needs: duo, IDA, then GameTests.
+
+- **An NPC loses a still guest standing next to it** (2026-11-06, `host-dies-guest-still-fought` setup by hand, one run):
+  Orgnar fought the host with the guest 80 units off to his side; the host died, his target moved to the guest's copy and
+  the fight went to search (state 2) for 13 s at 74 units. `combat_watch`: the copy's candidate read `line_of_sight`
+  false, detection -6 to 15, until the copy was found again. A still guest makes no noise, so sight is all there is.
+  The host's player as candidate read true at the same time, at a different place: not yet compared in the same spot.
+  - Test: the setup above with the host's player in the guest's place (the vanilla answer), then a GameTests flow
+    once the engine fact is known.
 
 ### A mod's rename at run time
 
