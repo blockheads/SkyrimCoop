@@ -24,7 +24,6 @@
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
-#include <Games/Animation/GraphDrift.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
@@ -787,6 +786,39 @@ std::string FakeGraphBlock(const std::string& acState)
     block.append(reinterpret_cast<const char*>(&cSize), 4).append(graph);
     return block;
 }
+
+// FakeGraphBlock's state, after the save's 8 bytes of ActorState: none unless it is one graph with one machine.
+std::optional<std::string> FakeGraphState(const std::string& acSaved)
+{
+    size_t at = 8;
+    bool bad = false;
+    const auto cTake = [&]<class T>(T) {
+        T value{};
+        bad = bad || at + sizeof(T) > acSaved.size();
+        if (!bad)
+            std::memcpy(&value, acSaved.data() + at, sizeof(T));
+        at += sizeof(T);
+        return value;
+    };
+    const auto cString = [&] {
+        const auto cLength = cTake(uint16_t{});
+        bad = bad || at + cLength > acSaved.size();
+        std::string text = bad ? std::string{} : acSaved.substr(at, cLength);
+        at += cLength;
+        return text;
+    };
+    cString();
+    cTake(uint32_t{});
+    const auto cMachines = cTake(uint32_t{});
+    cString();
+    cTake(uint32_t{});
+    auto state = cString();
+    cTake(uint32_t{});
+    cTake(uint32_t{});
+    if (bad || cMachines != 1 || at != acSaved.size())
+        return std::nullopt;
+    return state;
+}
 } // namespace
 
 std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
@@ -812,11 +844,11 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
         std::memcpy(flags, acState.data(), sizeof(flags));
         const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
-        // One graph, one active machine: its state is the fake's GraphState (GraphDrift::ActiveStates reads it).
-        const auto cStates = GraphDrift::ActiveStates(acState);
-        if (!cStates || cStates->size() != 1)
+        // One graph, one active machine: its state is the fake's GraphState.
+        const auto cState = FakeGraphState(acState);
+        if (!cState)
             return false;
-        actor.GraphState = cStates->front().substr(cStates->front().find('=') + 1);
+        actor.GraphState = *cState;
     }
     else
         actor.GraphState = acState; // direct fixtures supply the graph alone

@@ -2,6 +2,7 @@
 import collections
 import math
 import re
+import time
 from .common import (
     DIALOGUE_FIELDS,
     DIALOGUE_GRACE,
@@ -252,6 +253,8 @@ def compare_field(field, owner, copy, owner_snapshot):
                      # graph changes every frame (compared over time by `coop_test.py graph`)
     if field == "ai_state.combat_target":
         return None  # each game's own form id for the target (a player is 14 on its own game): copy-in-owners-combat
+    if field == "ai_state.head_track" and "unread" in (owner, copy):
+        return None  # the engine reads no slot on that game: dead, knocked, asleep, far away (ai.head_track_shut says which)
     if field == "ai_state.package" and (owner or 0) >= 0xFF000000:
         return None  # a package the engine made has no id the other game shares: the copy holds do-nothing
     if field == "effects":
@@ -292,6 +295,97 @@ def compare_field(field, owner, copy, owner_snapshot):
     if isinstance(owner, (int, float)) and isinstance(copy, (int, float)) and not isinstance(owner, bool):
         return None if abs(owner - copy) <= VALUE_TOLERANCE else "differs"
     return None if owner == copy else "differs"
+
+
+def active_states(hex_state):
+    """The active states of `graph_state`'s reply (the first section of SaveState 63601): a set, empty for a graph with no
+    machine out of its start state; None for no reply or bytes that do not parse, which is no reading."""
+    try:
+        data = bytes.fromhex(hex_state or "")
+    except ValueError:
+        return None
+    if len(data) < 8:
+        return None
+
+    def take(size, offset, limit):
+        if offset + size > limit:
+            raise ValueError("past the end")
+        return int.from_bytes(data[offset:offset + size], "little")
+
+    def text(offset, limit):
+        length = take(2, offset, limit)
+        if offset + 2 + length > limit:
+            raise ValueError("past the end")
+        return data[offset + 2:offset + 2 + length].decode("latin-1"), offset + 2 + length
+
+    states, at = set(), 8
+    try:
+        while at < len(data):
+            project, at = text(at, len(data))
+            size = take(4, at, len(data))
+            at += 4
+            end = at + size
+            if end > len(data):
+                return None
+            cursor = at + 4
+            for _ in range(take(4, at, end)):
+                machine, cursor = text(cursor, end)
+                cursor += 4
+                state, cursor = text(cursor, end)
+                cursor += 8
+                if cursor > end:
+                    return None
+                states.add(f"{project}/{machine}={state}")
+            at = end
+    except ValueError:
+        return None
+    return states
+
+
+def graph_apart_line(apart, started):
+    """The per-flow line of a GraphApart: '' if it read nothing."""
+    if not apart.samples:
+        return ""
+    runs = apart.finish(time.time())
+    if not runs:
+        return f"{apart.samples} samples, no run of {apart.lasting:g} s"
+    return f"{apart.samples} samples, " + "; ".join(
+        f"{run['actor']:X} {run['seconds']} s at {run['at'] - started:.1f} (owner only {run['owner_only']}, copy only {run['copy_only']})"
+        for run in runs)
+
+
+class GraphApart:
+    """Owner against copy, both read live: the runs apart for `lasting` s or more. The action's GraphState would not do:
+    it is the owner mid-transition (docs/re/systems/animation-replay-recovery.md, "Drift detector")."""
+
+    def __init__(self, lasting=2.0):
+        self.lasting, self.samples, self.open, self.runs = lasting, 0, {}, []
+
+    def observe(self, actor, owner, copy, now):
+        """One reading of each game's active states; None for a graph not read: no evidence, the run ends uncounted."""
+        if owner is None or copy is None:
+            self.open.pop(actor, None)
+            return
+        self.samples += 1
+        if owner == copy:
+            self.close(actor, now)
+        else:
+            self.open.setdefault(actor, (now, sorted(owner - copy), sorted(copy - owner)))
+
+    def keep_only(self, actors):
+        """Actors no longer read (unloaded, dead: a graph nothing updates) end uncounted."""
+        for actor in set(self.open) - set(actors):
+            del self.open[actor]
+
+    def close(self, actor, now):
+        if (run := self.open.pop(actor, None)) and now - run[0] >= self.lasting:
+            self.runs.append({"actor": actor, "at": run[0], "seconds": round(now - run[0], 1),
+                              "owner_only": run[1][:6], "copy_only": run[2][:6]})
+
+    def finish(self, now):
+        for actor in list(self.open):
+            self.close(actor, now)
+        return self.runs
 
 
 def mod_problems(snapshot, role):

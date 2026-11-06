@@ -37,9 +37,8 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [A copy's idle variant](#a-copys-idle-variant): small
-- [A copy walks while its owner turns](#a-copy-walks-while-its-owner-turns): small
 - [A copy's interaction idle](#a-copys-interaction-idle): small
+- [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
@@ -109,102 +108,92 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
-### A copy's idle variant
-
-After an action that ends in an idle, Camilla's copy stays out of the idle clip her owner plays.
-
-Agent task: find what moves `IdleBehavior.hkb/Behavior02` into `MT_Idle.HKX` on the owner (an event the copy is not
-sent, or a variable it reads differently), and give the copy that input.
-
-Size: small. Needs: the duo (`npc-counter-matches`), then GameTests.
-
-- **Camilla's copy lacks `Behavior02=MT_Idle.HKX`** (drift detector, animation-replay-recovery.md "Drift detector"):
-  after `MotionDrivenIdle` her owner's `Behavior02` is in `MT_Idle.HKX`, her copy's in its start state; every other
-  machine matches. Seen in both 2026-11-05 batches (2.0 s, 2.4 s, each until the next action).
-- The detector's guest log line `still apart after` lists both sides' states.
-
-### A copy walks while its owner turns
-
-A copy keeps walking while its owner stands and turns on the spot.
-
-Agent task: find which input moves the owner's `QuadrupedBehavior.hkb/StandingBehavior` machine into
-`LoopingTurnLeft` (a turn event, the speed or direction variable) and why the copy's graph does not follow it.
-
-Size: small. Needs: the duo (`actors-walk-after-arrival`), then GameTests.
-
-- **A Riverwood dog's copy** (1E62B, 2026-11-05) after `moveStart`: the owner had `StandingBehavior=LoopingTurnLeft`
-  and `StandingIdleBehavior=NonCombatIdleState` (with `NonCombatIdle.hkb`'s head, tail and idle machines) active;
-  the copy only its forward walk. Lasted past 2 s.
-- The first batch the same day showed the same for a Riverwood wolf's copy (walking while its owner turned).
-
 ### A copy's interaction idle
 
-A copy does not enter its owner's interaction idle.
+A copy plays an idle its owner cancelled.
 
-Agent task: find what holds an NPC's graph in `InteractionObjectState` (an AI interaction object a copy does not run)
-and give the copy that input, or play the idle another way.
+Agent task: find what cancels the idle on the owner within about 60 ms (unread), and why the copy's graph takes the
+action and keeps it. Then either stop the copy the same way or do not send a cancelled action.
 
-Size: small. Needs: the duo (Riverwood, `actors-walk-after-arrival`), then GameTests.
+Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 
-- **Sigrid's copy misses `IdlePickup_Ground`** (13483, 2026-11-05): after `turnStop` her owner was in
-  `MT_BehaviorGraph=InteractionObjectState`, `InteractionObjectBehavior=IdlePickup_Ground`; her copy in
-  `MT_Default_State`, for 7.1 s until the next action. Loading the owner's snapshot (tried and reverted) put the
-  copy in it, and it left at once: the copy lacks what keeps the graph there.
+- **Sigrid `13483`, measured** (trace `20261106-093521-mcp-sigrid`, t=41): the owner takes `IdlePickup_Ground` and drops
+  it within about 60 ms, with no `PickUp` event; her copy plays the whole clip (`PickUp` at 42.7, `IdleStop` at 44.2). Where
+  the owner's clip plays (t=52), the games agree. The live runs were 3.9 to 8 s.
+- The fixed live check, 2026-11-06, Riverwood: no pick-up seen in 350 s of `graph_watch` on her (110 s, then 240 s; 3867
+  samples, six actors in the first), so it is not every pick-up. It did report her once in another shape, 8.9 s: her owner in
+  `MT_Standing_State` with `MT_Idle.HKX`, her copy in `MT_LocomotionType_State`. Same actor, not shown to be the same
+  cause. `actors-walk-after-arrival`'s 12 s in Riverwood is too short: watch her by `ids`.
+- Loading the owner's snapshot (tried and reverted) put the copy in it, and it left at once.
+
+### A copy's graph after a turn or a pick
+
+The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
+of 2 s or more on some creatures and a few NPCs. Each is below; none has been read in IDA yet.
+
+Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
+
+Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player`), then GameTests.
+
+- **A wolf's copy turning while its owner idles** (`9B0DC`, 2026-11-06, `actors-walk-after-arrival`): its copy in
+  `StandingBehavior=LoopingTurnLeft` 4.3 s, then `LoopingTurnRight` 2.2 s, its owner in `StandingIdleState`. The reverse
+  of what the old detector claimed, and the one a player could see most: a copy turning on the spot.
+- **Canned turns and short turns** (a chicken, a cow): `DefaultBehavior=CannedTurnState` on one side only, 2.0-2.3 s, about
+  the 2 s threshold.
+- **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
+  `death-spectate-guest`): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the owner's graph
+  held by the kill: [After the host dies](#after-the-host-dies).
+- **Idle picks on creatures, a [graph pick](#a-guest-arriving-mid-loop) by the shape** (measured, not read): a cow's
+  `BHR_Idle_TailWag` 2.2 s and 4.2 s, a mudcrab's `idle_MandibleBehavior` 2.2-3.2 s, a dog's standing idle 4.2 s (Riverwood
+  `graph_watch`, 150 s, 14 actors, 4018 samples: six runs).
+- **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
+  on the owner, `AnimObjectCounterArm` on the copy, 9.2-11.7 s, in both runs.
 
 ### Headtracking on copies
 
-A copy's look target differs from its owner's: the 17 v1-acceptance failures and the kill moves' end comparisons.
+A copy's look target differs from its owner's, where the engine reads it. Step 1 is done: the check compares what the
+engine reads (actor-ai-and-copies.md, "When the slots are read"); what stayed below are its real cases.
 
-Agent task: Make `ai_state.head_track` compare only what the engine reads (step 1), then chase the four failures that
-remain (step 2). Read every reader of the slots first: if anything besides `ProcessTracking` reads a dead actor's
-slots, step 1 changes.
+Agent task: find why a copy's slot holds a target its owner's does not, starting with the player's copy (the one that
+shows now). If a copy's own write is the cause, the engine's lever is `Actor::headTrackingUpdateDelay` (`+0xEC`;
+`EndDialogue` 37552 sets it to 1.0 to hold the pick back).
 
-Size: medium. Needs: IDA, a harness readout of the tracking gate, comparison units, a GameTests flow once the fake has
-the gate; duo for step 2.
+Size: medium. Needs: IDA, then the duo (`kill-moves-cross`), then GameTests.
 
-Findings, 2026-11-05 (IDA and duo; actor-ai-and-copies.md, "When the slots are read"):
+Each case by what was measured with the check fixed, 2026-11-06 (30 flows, run twice; `ai.head_track_slots` shows the
+raw slots, `ai.head_track_shut` what shuts the gate):
 
-- `Actor::UpdateAnimation` (37361) and `Character::ProcessTrackingIfAllowed` (37363) skip `ProcessTracking` (38009)
-  for an actor dead or dying, in life state 3, knocked, in sit state 7, not high process, or with its controller out of
-  range. Then nothing reads the slots (no head turns) and our hook neither pushes nor reports.
-- `ProcessTracking` itself may write an ambient pick into slot 0 every 1.0-1.5 s, after our push
-  (`Character::PickAmbientHeadtrackTarget` 38012). It skips a target that is the actor itself.
-- `KillImpl` clears all six slots (39477).
-- Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the
-  copy in 70 ms.
+- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 2.** The guest as owner
+  `[]`, in third person for the kill move, its copy on the host `['session 1']`, the host's own player (raw: slot 0).
+  It lasted the check's whole window, though the hook pushes the owner's slots each frame and the ambient pick
+  (`PickAmbientHeadtrackTarget` 38012) writes slot 0 only every 1.0-1.5 s, so the pick alone does not explain it: unread.
+  The same copy's slot read so through the flows after it in the same boot, with its owner in first person and the check
+  saying `unread`.
+- **Faendal fighting the guest** (2026-11-06, before the fix): his copy's slot 1 held himself, his owner's nothing. Now the
+  same reads as none on both, unless a lower slot of the owner's is what he looks at. Why the copy writes itself: unread.
+- **Not seen again, each on its one flow:**
+  - Belethor (`guest-menus-close-when-target-goes`): the copy held the guest's player in slot 1 while alive. The flow
+    fails first on its [chest lid](#a-chest-lids-pose) both runs; no lasting raw difference on him.
+  - Elk (`follower-guest-recruits`): the owner's slots 1 and 5 on the guest, the copy's none. The flow now fails first on
+    `vanilla recruitment fills the shared follower alias`, with its watch off too; no lasting raw difference on it.
+  - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. Passed once,
+    failed once on a lock-order report; no lasting raw difference on him.
+  - Chicken (`spec:guest-joins-elsewhere`): the copy's slot 0 on a player. Passed once, failed once on a facing.
+- **A temporary form in a slot** (`FF000820`, `late-join-gets-calendar`): no id the other game shares, as with
+  `combat_target`. Passes now because that slot was on a first-person player's owner, which nothing reads; an NPC's would
+  still show. [bugs-map.md](bugs-map.md), cluster E.
 
-The 17 failures sort by cause (shape of the reported values; one of each measured):
+Settled by the check, recorded so they are not filed again:
 
-1. **Dead or dying (8: wolves, Valdr): a check of state nothing reads.** Measured on a killed wolf: at dying, slot 1
-   becomes each game's own player, about 2 s later it moves to slot 0, the owner's clears at life state 2. The copy
-   reached life state 2 first (its clear-all ran before its local write), so its slot 0 keeps its own player. The
-   writer of slot 1 at dying is not found (written inline at `+0x144`, so xrefs to 39783 miss it). The kill-move
-   failures are this.
-2. **A player's slot on itself (4: dives, fus-ro-dah).** Measured: the host player's own shout sets slots 1 and 0 to
-   itself; its copy reads none. A self-target turns no head. Why the owner's change is never sent is unread:
-   `PlayerCharacter`'s update calls `ProcessTracking` only with camera state 9 or more (0x140745200; inferred).
-3. **A temporary form (1: `late-join-gets-calendar`, `FF000820`):** no id the other game shares, as with
-   `combat_target`.
-4. **Unexplained, real (4): Belethor, Elk (`follower-guest-recruits`), Proventus (`party-buys-house-host`), Chicken
-   (`guest-joins-elsewhere`).** Belethor's copy holds the guest's player in slot 1 while alive, where the push should
-   have overwritten it. If a copy's own write is the cause, the engine's lever is `Actor::headTrackingUpdateDelay`
-   (`+0xEC`; `EndDialogue` 37552 sets it to 1.0 to hold the pick back).
-
-
-- **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
-  ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
-  default slot on itself reads as none on its copy.
-  `dead-player-keeps-weapon` (2026-11-06) passes its steps, then fails its end comparison on Sinmir in the Bannered
-  Mare: the host's `['session 1', None x5]` against the guest's copy `[None x6]`.
-- **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
-  the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
-  `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
-  `client-kill-move` 0 of 3 each, failing at the end comparison only (blow and lag checks pass); `spectator-watches-kill-move`
-  0 of 3, failing on it before it removes the wolf, so its later checks never run. `kill-moves-cross` hit it on the
-  players too (2026-11-04). Most likely the "Headtracking left over" entry above, unproven.
-  - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
-    graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
-  - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
+- **Dead or dying.** `KillImpl` clears all six (39477). Measured on a killed wolf: at dying, slot 1 becomes each game's own
+  player, about 2 s later it moves to slot 0, the owner's clears at life state 2; the copy's clear-all ran before its local
+  write, so its slot 0 stays on its own player. The gate is shut on both. What writes slot 1 at dying is not found (written
+  inline at `+0x144`). `BSDirectAtModifier` (43657) reads the slots from the graph, outside the gate, but `KillImpl` stops a dead
+  actor's graph. For a knocked or sleeping actor that reader is unread: if a head turns there, this check will not show it.
+- **A player's slot on itself** (dives, fus-ro-dah): a self-target. Not one of `ProcessTracking`'s targets; that it turns
+  no head is inferred, not measured.
+- Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the copy in
+  70 ms.
 
 ### Players' idle variants
 

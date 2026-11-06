@@ -1,5 +1,6 @@
 #include "Snapshot.h"
 #include "EngineReads.h"
+#include "HeadTrackRead.h"
 
 #include <Services/DeathService.h>
 #include <Services/Host/HostNetwork.h>
@@ -98,6 +99,17 @@ static nlohmann::json SharedName(uint32_t aFormId)
     if (const int64_t cSessionId = SessionId(aFormId); cSessionId >= 0)
         return std::format("session {}", cSessionId);
     return std::format("{:08X}", aFormId);
+}
+
+// What the engine reads of its headtrack slots ("unread": nothing now), as every game names it.
+static nlohmann::json HeadTrackReadBy(const EngineReads::AiReadout& acAi, uint32_t aFormId)
+{
+    if (acAi.HeadTrackShutBy)
+        return "unread";
+    auto names = nlohmann::json::array();
+    for (const uint32_t cTarget : HeadTrackRead::Targets(acAi.HeadTrack, aFormId, acAi.HeadTrackAlternates))
+        names.push_back(SharedName(cTarget));
+    return names;
 }
 
 static nlohmann::json TintsOf(const Tints& acTints)
@@ -280,12 +292,15 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
         {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)},
                 {"running_package", EngineReads::GetRunningPackage(aFormId)}, {"package_target", cAi.PackageTarget}, {"furniture", cAi.Furniture}, {"follow_target", cAi.FollowTarget},
                 // A copy's own voice line state, which trails its owner's (not compared).
-                {"talking", EngineReads::IsTalking(aFormId)}}},
+                {"talking", EngineReads::IsTalking(aFormId)},
+                // The raw slots, and why the engine reads none of them now (null: it does).
+                {"head_track_slots", {SharedName(cAi.HeadTrack[0]), SharedName(cAi.HeadTrack[1]), SharedName(cAi.HeadTrack[2]),
+                                      SharedName(cAi.HeadTrack[3]), SharedName(cAi.HeadTrack[4]), SharedName(cAi.HeadTrack[5])}},
+                {"head_track_shut", cAi.HeadTrackShutBy ? nlohmann::json(cAi.HeadTrackShutBy) : nlohmann::json()}}},
         // The AI state every game reads 1:1: a copy holds its owner's (AiStateService), compared.
         {"ai_state", {{"package", cAi.Package}, {"scene", cAi.Scene},
                       {"combat", cAi.Combat}, {"combat_target", cAi.CombatTarget},
-                      {"head_track", {SharedName(cAi.HeadTrack[0]), SharedName(cAi.HeadTrack[1]), SharedName(cAi.HeadTrack[2]),
-                                      SharedName(cAi.HeadTrack[3]), SharedName(cAi.HeadTrack[4]), SharedName(cAi.HeadTrack[5])}},
+                      {"head_track", HeadTrackReadBy(cAi, aFormId)},
                       {"in_combat", EngineReads::IsInCombat(aFormId)}}},
     };
 }

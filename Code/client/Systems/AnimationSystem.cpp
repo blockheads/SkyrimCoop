@@ -7,7 +7,6 @@
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
-#include <Games/Animation/GraphDrift.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/Animation/ReplayState.h>
 #include <Camera/VATS.h>
@@ -42,16 +41,6 @@ bool IsDeathAction(uint32_t aActionId) noexcept
         if (pAction && pAction->formID == aActionId)
             return true;
     return false;
-}
-
-// The copy's active states now, for the drift detector (GraphDrift.h).
-std::optional<GraphDrift::States> CopyStates(const Actor* apActor) noexcept
-{
-    COUNT_TIME("graph drift read us");
-    std::string saved;
-    if (!apActor->SaveAnimationGraphState(saved))
-        return std::nullopt;
-    return GraphDrift::ActiveStates(saved);
 }
 } // namespace
 
@@ -112,8 +101,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
-    if (const uint64_t cNow = aWorld.GetTick(); GraphDrift::SampleDue(aAnimationComponent.Drift, cNow))
-        GraphDrift::Sample(aAnimationComponent.Drift, apActor->formID, CopyStates(apActor), cNow);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
         aAnimationComponent.CounterUpdates = 0;
     // After the actions before it: played later, they would undo what it loaded.
@@ -130,12 +117,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             if (step.Retries)
                 spdlog::debug("Copy {:X} took replayed action {:X} '{}' {} graph updates late", apActor->formID, cAction.ActionId,
                               cAction.EventName, step.Retries);
-            const bool cPaired = !cAction.TargetEventName.empty();
-            const bool cPlayer = apActor->GetExtension()->IsPlayer();
-            const bool cCompares = GraphDrift::Compares(cPaired, cPlayer, !cAction.GraphState.empty());
-            GraphDrift::Taken(aAnimationComponent.Drift, apActor->formID, cAction.ActionId, cAction.EventName, cPaired, cPlayer,
-                              !cAction.GraphState.empty(), cCompares ? GraphDrift::ActiveStates(cAction.GraphState) : std::nullopt,
-                              cCompares ? CopyStates(apActor) : std::nullopt, aWorld.GetTick());
         }
         else
             spdlog::debug("Copy {:X} refused replayed action {:X} '{}' (weapon state {})", apActor->formID, cAction.ActionId,
@@ -349,8 +330,6 @@ void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aA
     const auto cVerdict = GraphRandom::Judge(aAnimationComponent.Random, cSeed, cPoint.Tick, aTick);
     if (cVerdict == GraphRandom::Point::kWait)
         return;
-    if (aAnimationComponent.Drift.Open)
-        GraphDrift::Retarget(aAnimationComponent.Drift, GraphDrift::ActiveStates(cPoint.GraphState));
     if (cVerdict == GraphRandom::Point::kLoad && !apActor->IsDead())
     {
         const uint32_t cFlags1 = apActor->actorState.flags1;

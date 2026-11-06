@@ -1,8 +1,11 @@
 """Observations for the co-op harness."""
+import copy
 import math
 import os
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from .common import (
     CRASH_REGISTER,
     DESYNC_INTERVAL,
@@ -14,7 +17,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import (SLIDE_DISTANCE, compare_actors, dialogue_differences, drawn_walks, refused_replays,
+from .comparisons import (GraphApart, SLIDE_DISTANCE, active_states, compare_actors, graph_apart_line, dialogue_differences, drawn_walks, refused_replays,
                           sliding_actors, unwatched_games)
 from .utilities import log
 
@@ -44,32 +47,69 @@ class Observations:
                 parts.append(f"{game or 'host'} {copy:08X} {event} x{count}")
         return "; ".join(parts)
 
-    GRAPH_DRIFT = ("replays", "players", "skipped", "matched", "mismatches", "transient ms", "lasting", "lasting ms", "unreadable")
+    @staticmethod
+    def graph_runs(actor):
+        """In 3D and alive: KillImpl stops a graph's updates, and an unloaded actor's graph stands still."""
+        return (actor.get("placement") or {}).get("has_3d") and not (actor.get("state") or {}).get("dead")
 
-    def graph_drift_counts(ctx):
-        """Each game's drift detector counters (GraphDrift.h, read through the harness's `counters`): {game: {name: reading}}."""
-        counts = {}
-        for game in ("", "client"):
+    def copy_pairs(ctx, games=None):
+        """Each living NPC in 3D's owner and copy by form id, from each game's own world: {session id: (owner, copy)}."""
+        worlds = [((game.read_status() or {}).get("world") or {}) for game in (games or (ctx.game(""), ctx.game("client")))]
+        pairs, copies = {}, {}
+        for world in worlds:
+            for form, actor in world.items():
+                if actor.get("role") == "copy" and not actor.get("player") and ctx.graph_runs(actor):
+                    copies[(actor.get("mod") or {}).get("session_id")] = int(form)
+        for world in worlds:
+            for form, actor in world.items():
+                session = (actor.get("mod") or {}).get("session_id")
+                if actor.get("role") == "own" and not actor.get("player") and session in copies and ctx.graph_runs(actor):
+                    pairs[session] = (int(form), copies[session])
+        return pairs
+
+    def graph_watch_start(ctx, every=0.25):
+        """Watches every NPC's graph, owner against copy, on connections of its own until graph_watch_stop."""
+        games = [copy.copy(ctx.game("")), copy.copy(ctx.game("client"))]
+        for game in games:
+            game.rpc_connections = {}
+        stop, apart, started = threading.Event(), GraphApart(), time.time()
+
+        def read(game, form):
+            return active_states((game.rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
+
+        def watch():
+            pairs, refreshed = {}, 0.0
+            with ThreadPoolExecutor(1) as other:
+                while not stop.is_set():
+                    if time.time() - refreshed > 3.0:
+                        pairs, refreshed = ctx.copy_pairs(games), time.time()
+                        apart.keep_only(owner for owner, _ in pairs.values())
+                    for owner, copy_form in pairs.values():
+                        if stop.is_set():
+                            break
+                        reading = other.submit(read, games[1], copy_form)
+                        apart.observe(owner, read(games[0], owner), reading.result(), time.time())
+                    stop.wait(every)
+
+        def guarded():
             try:
-                counters = (ctx.game(game).rpc({"cmd": "counters"}) or {}).get("counters") or {}
-            except Exception:
-                counters = {}
-            counts[game or "host"] = {name: counters.get(f"graph drift {name}") or {} for name in ctx.GRAPH_DRIFT}
-        return counts
+                watch()
+            except Exception as error:  # a check's own failure says so, it never fails the flow
+                log(f"graph watch stopped: {error}")
+                apart.keep_only(())  # the gap is no evidence: what it finished already stands
+            finally:
+                for game in games:
+                    game.close()
 
-    def graph_drift_line(ctx, before):
-        """What the drift detector saw since `before` (graph_drift_counts), one line per game with replays."""
-        parts = []
-        for game, now in ctx.graph_drift_counts().items():
-            then = (before or {}).get(game, {})
-            delta = {name: (now[name].get("count", 0) - then.get(name, {}).get("count", 0)) for name in ctx.GRAPH_DRIFT}
-            if not any(delta.values()):  # a mismatch from an earlier flow can turn lasting in a quiet one
-                continue
-            transient_ms = now["transient ms"].get("sum", 0) - then.get("transient ms", {}).get("sum", 0)
-            parts.append(f"{game}: replays {delta['replays']}, players {delta['players']}, skipped {delta['skipped']}, matched {delta['matched']}, "
-                         f"transient {delta['transient ms']} ({transient_ms // max(delta['transient ms'], 1)} ms mean, "
-                         f"max so far {now['transient ms'].get('max', 0)}), lasting {delta['lasting']}, unreadable {delta['unreadable']}")
-        return "; ".join(parts)
+        thread = threading.Thread(target=guarded, daemon=True, name="graph-watch")
+        thread.start()
+        return {"thread": thread, "stop": stop, "apart": apart, "started": started}
+
+    def graph_watch_stop(ctx, watch):
+        """The runs apart since graph_watch_start, as one log line ('' if it read nothing)."""
+        watch["stop"].set()
+        watch["thread"].join(10)
+        return graph_apart_line(watch["apart"], watch["started"])
 
     def find_desyncs(ctx):
         """Compares both games once. Returns a list of (key, message)."""
