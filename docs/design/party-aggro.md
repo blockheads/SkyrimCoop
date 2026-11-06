@@ -12,6 +12,11 @@ The rule runs only after damage in a party fight, when Skyrim's standard selecto
 
 Damage history is removed when the victim dies, disappears or leaves combat, or the attacker leaves the party. A three-second grace period allows the first damage callback to precede native combat startup. Ending or reloading the host session clears the published policy.
 
+## Crime fights
+
+An NPC fighting a player because of a party crime is a party fight too, with no damage needed (`party-model.md`, Crime):
+the same score, the first pick made at once, and any player it sees eligible (`crime.md`).
+
 ## Evidence and engine bindings
 
 The original 1.7.104 game kept targeting the host after four guest Firebolts, despite verified health damage and the guest entering its native candidate list. With the host invisible before spawning the enemy, Skyrim selected the guest, then kept that target after the host was revealed and attacked four times. This isolates initial-target stickiness rather than guest ineligibility.

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace PartyThreat
@@ -44,6 +45,7 @@ struct State
     std::vector<uint32_t> Players;
     std::unordered_map<uint64_t, Damage> DamageByPair;
     std::unordered_map<uint32_t, Combat> Combats;
+    std::unordered_set<uint32_t> CrimeFights; // NPCs hostile for a party crime: every seen player is fair game
 
     static uint64_t Key(uint32_t aVictim, uint32_t aAttacker) noexcept
     {

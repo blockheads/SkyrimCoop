@@ -53,6 +53,12 @@ std::vector<HostPlayers::ConnectionId_t> HostPlayers::Connections() const noexce
     return connections;
 }
 
+void HostPlayers::SetName(ConnectionId_t aConnection, std::string aName) noexcept
+{
+    if (const auto it = m_players.find(aConnection); it != m_players.end())
+        it->second.Name = std::move(aName);
+}
+
 void HostPlayers::SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept
 {
     if (const auto it = m_players.find(aConnection); it != m_players.end())

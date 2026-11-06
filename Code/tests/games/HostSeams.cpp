@@ -1,9 +1,11 @@
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
+#include <Events/ActorRenamedEvent.h>
 // The host's side in this process: HostService hosting as in Skyrim (the network, HostAuthority, the host's own
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
+#include <Services/CrimeService.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Games/Overrides.h>
 
@@ -50,6 +52,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
+    Listen<ActorRenamedEvent, &HostService::OnActorRenamed>(m_connections, m_dispatcher, this);
 }
 
 HostService::~HostService() noexcept
@@ -77,7 +80,8 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
-        [&engine](const auto& acState) { engine.PartyThreats = acState; });
+        [&engine](const auto& acState) { engine.PartyThreats = acState; },
+        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;
@@ -327,6 +331,15 @@ void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
     const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
     if (const auto cCall = Utils::ToLocalCall(acMessage.Call); cGuest && cCall)
         m_world.ctx().at<FakeEngine&>().Queue(*cCall, cGuest);
+}
+
+// As HostService::OnActorRenamed.
+void HostService::OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept
+{
+    if (!IsHosting() || acEvent.FormId == m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId())
+        return;
+    if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId))
+        m_pAuthority->NameActor(*cSessionId, m_world.ctx().at<IActorBridge&>().GetActorDisplayName(acEvent.FormId));
 }
 
 void HostService::OnGameSaving(const GameSavingEvent&) const noexcept

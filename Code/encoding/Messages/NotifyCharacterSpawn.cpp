@@ -20,6 +20,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.Rotation = acAnnouncement.Rotation;
     spawn.ChangeFlags = acAnnouncement.ChangeFlags;
     spawn.AppearanceBuffer = acAnnouncement.AppearanceBuffer;
+    spawn.DisplayName = acAnnouncement.DisplayName;
     spawn.InventoryContent = acAnnouncement.CurrentActorData.InitialInventory;
     spawn.FactionsContent = acAnnouncement.FactionsContent;
     spawn.LatestAction = acAnnouncement.LatestAction;
@@ -48,6 +49,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Rotation.Serialize(aWriter);
     aWriter.WriteBits(ChangeFlags, 32);
     Serialization::WriteString(aWriter, AppearanceBuffer);
+    Serialization::WriteString(aWriter, DisplayName);
     InventoryContent.Serialize(aWriter);
     FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
@@ -83,6 +85,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     ChangeFlags = dest & 0xFFFFFFFF;
 
     AppearanceBuffer = Serialization::ReadString(aReader);
+    DisplayName = Serialization::ReadString(aReader);
     InventoryContent = {};
     InventoryContent.Deserialize(aReader);
 

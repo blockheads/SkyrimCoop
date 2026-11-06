@@ -15,6 +15,7 @@ struct DisconnectedEvent;
 struct NotifySettingsChange;
 struct DifficultyChangeEvent;
 struct PlayerFormChangeEvent;
+struct GameLoadedEvent;
 struct MenuEvent;
 
 /**
@@ -39,8 +40,12 @@ protected:
     void OnPlayerFormChange(const PlayerFormChangeEvent& acEvent) noexcept;
     // The race menu closing respawns them once, for all it changed.
     void OnMenu(const MenuEvent& acEvent) noexcept;
+    void OnGameLoaded(const GameLoadedEvent& acEvent) noexcept;
 
 private:
+    // The party's lists follow this player's character: renamed, or the host loaded another.
+    void SendNameIfChanged() noexcept;
+
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
@@ -53,6 +58,7 @@ private:
 
     uint16_t m_lastLevel = 0;
     uint32_t m_lastRaceFormId = 0;
+    std::string m_lastName;
     bool m_inRaceMenu = false;
 
     std::vector<entt::scoped_connection> m_connections;

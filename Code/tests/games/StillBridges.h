@@ -599,6 +599,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return false;
     }
+    void SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept override
+    {
+    }
     std::string GetActorDisplayName(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -764,9 +767,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override
     {
         return {};
-    }
-    void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override
-    {
     }
     bool ApplyActorLooks(uint32_t, const std::string&, uint32_t, float) noexcept override { return false; }
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override

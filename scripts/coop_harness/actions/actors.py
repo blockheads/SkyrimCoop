@@ -185,6 +185,58 @@ class ActorsActions:
         return {p["name"]: p["host"] for p in ctx.game_state(instance).get("players", [])}
 
 
+    def party_names(ctx):
+        """Every name a player sees, on both games: each character's own, its copy on the other game, the rosters, the
+        party panels, and each NPC copy against its owner (docs/re/systems/names.md)."""
+        games = {"host": "", "guest": "client"}
+        status = {label: ctx.game(instance).read_status() or {} for label, instance in games.items()}
+        names = {}
+        for label, instance in games.items():
+            actors = status[label].get("actors") or {}
+            other = actors.get(str(ctx.other_player(actors))) or {}
+            state = status[label].get("game") or {}
+            names[label] = {"character": ctx.player_command(instance, {"cmd": "player_record"})["record"]["name"],
+                            "other_copy": (other.get("identity") or {}).get("name"),
+                            "roster": sorted(p["name"] for p in state.get("players") or []),
+                            "party_panel": sorted(m["name"] for m in state.get("party_panel") or [])}
+        copies = {c.get("session_id"): c for c in (status["guest"].get("actors") or {}).values() if not c.get("other_player")}
+        npcs = {}
+        for npc, owned in ((status["host"].get("player") or {}).get("local_actors") or {}).items():
+            if copy := copies.get(owned.get("session_id")):
+                npcs[f"{int(npc):08X}"] = [(owned.get("identity") or {}).get("name"), (copy.get("identity") or {}).get("name")]
+        names["npcs"] = npcs
+        return names
+
+
+    def party_names_wrong(ctx, names):
+        """What `party_names` shows wrongly: a copy or list that disagrees with the character's real name."""
+        wrong = []
+        for label, other in (("host", "guest"), ("guest", "host")):
+            character = names[other]["character"]
+            if not character:
+                wrong.append(f"the {other}'s character has no name")
+            seen = names[label]
+            if (seen["other_copy"] or "").lower() != character.lower():
+                wrong.append(f"the {other}'s copy on the {label} shows {seen['other_copy']!r}, its character is {character!r}")
+            if seen["roster"] != [character]:
+                wrong.append(f"the {label}'s roster lists {seen['roster']}, the {other}'s character is {character!r}")
+            if seen["party_panel"] and seen["party_panel"] != [character]:
+                wrong.append(f"the {label}'s party panel shows {seen['party_panel']}, the {other}'s character is {character!r}")
+        wrong += [f"NPC {npc} is {owner!r} on the host, {copy!r} on the guest"
+                  for npc, (owner, copy) in names["npcs"].items() if (owner or "").lower() != (copy or "").lower()]
+        return wrong
+
+
+    def expect_names_agree(ctx, seconds=5.0):
+        """Every name on both games agrees (see `party_names`), within `seconds`: a failure lists each wrong one."""
+        ended = time.monotonic() + seconds
+        while wrong := ctx.party_names_wrong(names := ctx.party_names()):
+            if time.monotonic() >= ended:
+                raise ctx.failure("names disagree: " + "; ".join(wrong))
+            time.sleep(0.2)
+        return names
+
+
     def disconnect_client(ctx):
         """The client leaves the session like a player quitting."""
         ctx.player_command("client", {"cmd": "disconnect"})

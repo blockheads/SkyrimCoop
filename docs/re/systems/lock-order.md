@@ -4,7 +4,7 @@
 threads taking the same two locks in opposite orders, the first time it sees it. A report is history, not a wait.
 `[ours]` means our DLL is below an engine frame on that stack; pass-through hooks are excluded with
 `LockOrder::IgnoreFrames` (main loop, VM update, `HookUpdateAI`, `HookCheckForNewPackage`, `HookApplyMovement`'s
-engine path, `HookSendEvent`).
+engine path, `HookSendEvent`, the alias name hooks around 24011 and 24012).
 
 The 2026-11-04 playtest's reports (12 on the host, read in IDA 1.7.104) are all the engine's own orders, none live:
 
