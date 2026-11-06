@@ -125,6 +125,20 @@ class CombatActions:
             time.sleep(every)
         return rows
 
+    def console_watch(ctx, reads, seconds=10.0, every=1.0, instance=""):
+        """Console reads over time ({name: line}, e.g. {"state": "13486.getcombatstate"}): the numbers each line prints, also in
+        the vanilla stand-in (no harness readouts there), to compare a fight with the bare game."""
+        rows, start = [], time.monotonic()
+        while time.monotonic() - start < seconds:
+            row = {"t": round(time.monotonic() - start, 1)}
+            for name, line in reads.items():
+                printed = (ctx.console_on(instance, line) or [""])[-1]
+                numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", printed.split(">>")[-1].split(":")[-1])]
+                row[name] = numbers[0] if len(numbers) == 1 else numbers or None
+            rows.append(row)
+            time.sleep(every)
+        return rows
+
     def counter(ctx, instance, name):
         """How many times that game's named counter (Diagnostics/Counters.h) was bumped; 0 before its first use."""
         counters = (ctx.player_command(instance, {"cmd": "counters"}) or {}).get("counters") or {}

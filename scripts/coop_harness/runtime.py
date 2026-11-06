@@ -703,6 +703,12 @@ class Runtime:
         request_id = uuid.uuid4().hex[:12]
         atomic_write(_game.control / "console.txt", f"{request_id} {command}\n")
         ctx.wait_for(f"Console: {command}", lambda: (_game.read_status() or {}).get("console_id") == request_id, timeout, _game=_game)
+        # The vanilla stand-in's capture (VanillaHarness.cpp); results can print a few frames after the line ran.
+        printed, lines, deadline = _game.control / "console_out.txt", [], time.monotonic() + 0.3
+        while time.monotonic() < deadline:
+            lines = printed.read_text(errors="replace").splitlines() if printed.exists() else []
+            time.sleep(0.05)
+        return [line for line in lines[1:] if line.strip()] if lines and lines[0] == request_id else []
 
     def face_actor(ctx, actor_id, *, _game=None):
         """Turns the player toward an actor so it is on screen (for screenshots / `watch`)."""
