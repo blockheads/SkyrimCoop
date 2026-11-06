@@ -8,10 +8,8 @@
 
 namespace TestHarness
 {
-// The world around a spot as a walking player meets it (docs/re/systems/terrain.md): a grid of columns, each every
-// surface a downward ray meets (layer 30) with its slope and the headroom above the standable ones, plus the
-// navmesh drawn into the same grid. Rays have a time budget a frame (bhkWorld::PickObject 77860), so a scan runs over
-// frames: Start gives a ticket, Result reads it once done. Game thread.
+// The ground around a spot as a walking player meets it (docs/re/systems/terrain.md). Scans over frames, the ray
+// budget being per frame (bhkWorld::PickObject 77860): Start gives a ticket, Result reads it. Game thread.
 struct TerrainScan
 {
     // {"at": [x, y, z] (the player's feet by default), "radius": 1000, "cell": 50, "up": 600, "down": 1500,

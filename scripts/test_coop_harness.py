@@ -1112,7 +1112,7 @@ class Repro(unittest.TestCase):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x1348C
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = True
@@ -1126,13 +1126,25 @@ class Repro(unittest.TestCase):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
         ctx.resolve.return_value = 0x5000
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = False
         ctx.path_leg.return_value = "arrived"
         self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["legs"], 1)
         ctx.follow_run.assert_not_called()
+
+    def test_walk_to_a_target_already_in_reach_moves_nobody(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x5000
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [10.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_probe.return_value = {"crossing": {"route": [[0, 0, 0]], "to": [300, 0, 0], "gap": 300.0}}
+        self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["crossings"], 0)
+        ctx.cross.assert_not_called()
+        ctx.path_leg.assert_not_called()
 
     def test_walk_to_crosses_a_cut_navmesh_by_input_then_paths_on(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
@@ -1304,6 +1316,13 @@ class Terrain(unittest.TestCase):
         scan = self.scan(["00000"], toward=(0, 4))
         self.assertIn("the target is walkable from here", terrain.summary(scan))
 
+    def test_a_target_on_a_floor_stacked_over_the_walked_one_is_not_walkable(self):
+        from coop_harness import terrain
+        scan = self.scan(["00"], toward=(0, 1))
+        scan["columns"][1].insert(0, [500, 1.0, 0, 30, -1])  # a ledge 500 up over the floor walked
+        scan["toward"]["at"][2] = 500
+        self.assertIn("the target is not", terrain.summary(scan))
+
     def test_the_side_view_draws_the_floor_from_the_player_to_the_target(self):
         from coop_harness import terrain
         rows = terrain.side_view(self.scan(["00#00"], toward=(0, 4)))
@@ -1410,6 +1429,15 @@ class PlaythroughFlows(unittest.TestCase):
         self.assertIn("- leave: NOT RUN", text)
         self.assertIn("flows test-flow --from talk", text)
         self.assertIn("/results/at-failure.json", text)
+
+    def test_a_game_gone_while_comparing_copies_fails_that_step(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        ctx.lasting_desyncs.side_effect = [{}, TestFailure("guest's world is gone")]  # gone after the start
+        results = run_flow(ctx, self.flow(Step("arrive", lambda c: None), Step("talk", lambda c: None)))
+        self.assertEqual([(r.name, r.verdict) for r in results], [("arrive", "FAIL")])
+        self.assertIn("world is gone", results[0].error)
+        ctx.keep_failure.assert_called_once()
 
     def test_a_difference_players_see_fails_the_step_and_the_flow_goes_on(self):
         from coop_harness.flows.flow import Step, run_flow, verdict

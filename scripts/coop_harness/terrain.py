@@ -181,7 +181,8 @@ def summary(scan):
         line += " (edges: " + ", ".join(edges) + ")"
     toward = (scan.get("toward") or {}).get("at")
     if toward and (target := cell_of(scan, toward)):
-        if target in reached:
+        step, _ = limits(scan)
+        if target in reached and abs(reached[target] - toward[2]) <= step:  # its floor, not one stacked over it
             line += "; the target is walkable from here"
         elif reached:
             near = min(reached, key=lambda cell: math.dist(centre(scan, *cell), toward[:2]))

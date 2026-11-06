@@ -95,3 +95,9 @@ time	op	id	rva	item
 2026-11-06T16:47:44Z	name	79145	0x1098b20	{"addr": "0x141098b20", "name": "bhkCharProxyController::GetLinearVelocityImpl"}
 2026-11-06T16:47:45Z	comment	79145	0x1098b20	{"addr": "0x141098b20", "comment": "this = the bhkCharacterController part (+0x10 of bhkCharProxyController, vtable 0x141A89578); +0x340 = bhkCharacterProxy (full +0x340)'s hkpCharacterProxy* (its +0x10). hkpCharacterProxy::maxSlopeCosine +0xD8: the walkable slope; no step height in the proxy"}
 2026-11-06T16:48:04Z	read	77860	0x104be80	{"name": "bhkWorld::PickObject"}
+2026-11-06T20:11:55Z	comment	90396	0x11b90f0	{"addr": "0x1411b90f0", "comment": "Synchronous search: ignores a1 (the singleton 401950); looks up the request type's builder in a static table (CRC of type) and calls its build. Called on the game thread by Character::sub_37434, ActiveEffect::sub_34360 and Submit (background off), and by PathingTaskData (the search thread): the engine itself runs it from both, so a harness call from the game thread matches game code."}
+2026-11-06T20:11:55Z	comment		0x11f3355	{"addr": "0x1411f3355", "comment": "bBackgroundPathing off (or not asked): build now on this thread, then store the result under the queue's BSSpinLock (+40)."}
+2026-11-06T20:11:55Z	read	90350	0x11b6ab0	{"name": "PathingData_dtor"}
+2026-11-06T20:11:59Z	read	90962	0x11d7300	{"name": "BSPathingSolution::dtor"}
+2026-11-06T20:12:04Z	comment	90350	0x11b6ab0	{"addr": "0x1411b6ab0", "comment": "BSPathingLocation cleanup: releases the ref-counted navmesh info at +0x20 (refcount +8, deleting dtor at vtable 0). Harness: DestroyPathingLocation."}
+2026-11-06T20:12:04Z	comment	90962	0x11d7300	{"addr": "0x1411d7300", "comment": "Frees the solution's node array (+0x10, count +0x80) and its +0x90 array (count +0xA0, 72-byte entries), clears +0xA8 (incompletePath). Not the delete: Submit then frees the 176 bytes (sub_1415A743C). Harness ProbePath does the same."}

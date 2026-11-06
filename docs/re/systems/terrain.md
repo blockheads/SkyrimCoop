@@ -6,16 +6,21 @@ Read on 1.7.104, 2026-11-06, for the harness's `terrain` readout (`TestHarness/T
 
 ## The player's capsule
 
-The player's character controller (`middleProcess->charController`) is a `bhkCharProxyController`; the pointer is to
-its `bhkCharacterController` part, at +0x10 (vtable ID 240560).
+Each claim says how it is known: read (IDA), measured (in the game), CommonLib (its layout, checked by
+`static_assert`), or estimated.
 
-- `radius` +0x290 and `height` +0x294, in Havok units (x 69.99 for game units): 18 and 128 for the player.
-- `actorHeight` +0x260 (128), `scale` +0x258.
+- The player's character controller (`middleProcess->charController`) is a `bhkCharProxyController`; the pointer is to
+  its `bhkCharacterController` part, at +0x10 (vtable ID 240560). CommonLib; measured (the vtable at runtime).
+- `radius` +0x290 and `height` +0x294, in Havok units (x 69.99 for game units). CommonLib; measured 18 and 128 for the
+  player.
+- `actorHeight` +0x260 (measured 128), `scale` +0x258. CommonLib.
 - The proxy: `bhkCharacterProxy` at full +0x340, its `hkpCharacterProxy*` at the wrapper's +0x10, so +0x340 of the
-  controller part (`bhkCharProxyController::GetLinearVelocityImpl` 79145 reads it). `hkpCharacterProxy::maxSlopeCosine`
-  +0xD8 reads 0 on the player: not where Skyrim keeps the walkable slope. Open: where it does; the readout uses 50
-  degrees meanwhile.
-- No step height: the Havok proxy climbs by slope, and the capsule's round bottom rides small edges.
+  controller part: read (`bhkCharProxyController::GetLinearVelocityImpl` 79145 reads it).
+  `hkpCharacterProxy::maxSlopeCosine` +0xD8 (Havok's layout) measured 0 on the player: not where Skyrim keeps the
+  walkable slope. Open: where it does.
+- Step height: not found. Havok's proxy has none (it climbs by slope); whether Skyrim adds one is not read.
+- `terrain.py`'s limits are estimates until then: a 50-degree slope, 10 units a capsule's round bottom rides over, a
+  surface standable from normal z 0.5.
 
 ## Rays
 

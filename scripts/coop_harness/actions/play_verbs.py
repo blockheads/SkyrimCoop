@@ -200,7 +200,7 @@ class PlayerVerbs:
         deadline = time.monotonic() + limit
         walk = {"legs": 0, "runs": 0, "stalls": 0, "closest": math.inf, "refused": False, "crossings": 0}
         apart = lambda: math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
-        while True:
+        while apart() > within:
             # the navmesh's pieces don't join (an obstacle cuts it): across by input first, then on by path
             probe = (ctx.path_probe(instance, ref) or {}) if walk["crossings"] < MAX_CROSSINGS else {}
             crossing = None if probe.get("built") else probe.get("crossing")  # the engine paths there: no cut to cross

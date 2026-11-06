@@ -56,8 +56,12 @@ on one navmesh it walks that navmesh's triangles: edges, and linked edges that s
 gives whether they join (`linked`, `hops`, closed doors and ledges on the way), the goal's piece (`goal_piece`
 triangles, `goal_piece_exits` into other navmeshes), the door portals on each piece and the closed doors.
 `walk_to` and `fight` put it in their `no_path` failure (`probe_line`), and `fight` logs it when it starts.
-Open: the probe runs `BuildPathNow` on the game thread, as `Submit` does with `bBackgroundPathing` off; with it on,
-whether the search thread shares that builder (singleton 401950) at the same time is not yet read.
+Threads (read in IDA): `BuildPathNow` ignores its first argument (singleton 401950) and calls the request type's
+builder from a static table. Game code calls it on the game thread whatever `bBackgroundPathing` says
+(`Character::sub_37434`, `ActiveEffect::sub_34360`, `Submit` with background off) while the search thread runs it for
+queued requests (`PathingTaskData` 91414/91416), so the probe calling it from the game thread is what the game does.
+Cleanup as `Submit` does it: `BSPathingSolution::dtor` (90962) then free the 176 bytes; each location's
+`PathingData_dtor` (90350) releases its navmesh info.
 Structs: `Games/Skyrim/AI/Movement/Pathing.h` (CommonLibSSE-NG's BSNavmesh, BSPathingLocation, PathingDoor).
 
 ## Obstacles

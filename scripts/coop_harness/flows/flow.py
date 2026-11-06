@@ -226,6 +226,7 @@ def run_flow(ctx, flow, start=None):
                 raise ctx.failure(f"a hang during {step.name}: {hang}")
             if step.checkpoint:
                 save_checkpoint(ctx, checkpoint_name(flow.NAME, step.name))
+            problems, (visible, cosmetic) = copy_differences(ctx, known)  # a game gone here fails the step too
         except TestFailure as error:
             evidence = ""
             try:
@@ -234,7 +235,6 @@ def run_flow(ctx, flow, start=None):
                 evidence = f"(evidence capture failed: {capture})"
             results.append(StepResult(step.name, "FAIL", round(time.monotonic() - began, 1), str(error), evidence))
             break
-        problems, (visible, cosmetic) = copy_differences(ctx, known)
         known |= set(problems)  # each difference is reported at the step it appeared
         for check in step.sees:
             try:
