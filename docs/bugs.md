@@ -167,6 +167,8 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
+  `dead-player-keeps-weapon` (2026-11-06) passes its steps, then fails its end comparison on Sinmir in the Bannered
+  Mare: the host's `['session 1', None x5]` against the guest's copy `[None x6]`.
 - **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
   the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
   `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
