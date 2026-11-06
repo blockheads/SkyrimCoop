@@ -24,6 +24,21 @@ from ..common import (
 )
 
 
+PLAYER_BASE = 0x7  # the player's base: a dead player's drop is owned by it (37320)
+
+
+def theft_seen(before, after):
+    """What a pickup changed of the crime readout that a theft changes: a warning (two spare), else bounty (StealAlarm 37422)."""
+    def bounty(crime):
+        return sum(row["violent"] + row["nonviolent"] for row in crime.get("bounty") or [])
+    changes = []
+    if after.get("warnings") != before.get("warnings"):
+        changes.append(f"warnings {before.get('warnings')} -> {after.get('warnings')}")
+    if bounty(after) != bounty(before):
+        changes.append(f"bounty {bounty(before)} -> {bounty(after)}")
+    return ", ".join(changes)
+
+
 class InventoryActions:
     def actor_state(ctx, instance, form_id):
         _game = ctx.game(instance)
@@ -97,17 +112,17 @@ class InventoryActions:
                  for game in (instance, other)}
         ref, fields = next(iter(lying[instance].items()))
         twin = next(iter(lying[other].values()))
-        if fields.get("owner") != twin.get("owner"):
-            raise ctx.failure(f"[{instance or 'host'}] the sword's owner is {fields.get('owner')}, {twin.get('owner')} on the other game: "
-                              "a cell's owner takes the place of none, and taking it is a theft")
-        warnings = ctx.crime_command(instance, "read")["warnings"]
+        if (fields.get("owner"), twin.get("owner")) != (PLAYER_BASE, PLAYER_BASE):
+            raise ctx.failure(f"[{instance or 'host'}] the sword's owner is {fields.get('owner')}, {twin.get('owner')} on the other game, "
+                              "not the player: a cell's owner takes the place of none, and taking it is a theft")
+        crime = ctx.crime_command(instance, "read")
         carried = ctx.item_count(instance, 0x14, IRON_SWORD) or 0
         ctx.player_command(instance, {"cmd": "activate", "object": ref})
         ctx.wait_for(f"[{instance or 'host'}] the player carries it", lambda: (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) == carried + 1, 10)
         for game in (instance, other):
             ctx.wait_for(f"[{game or 'host'}] the sword is gone", lambda g=game: not ctx.loose_swords(g), 10)
-        if (now := ctx.crime_command(instance, "read")["warnings"]) != warnings:
-            raise ctx.failure(f"[{instance or 'host'}] taking a dead player's sword was a theft: warnings {warnings} -> {now}")
+        if theft := theft_seen(crime, ctx.crime_command(instance, "read")):
+            raise ctx.failure(f"[{instance or 'host'}] taking a dead player's sword was a theft: {theft}")
 
 
     def describe_stacks(ctx, stacks):

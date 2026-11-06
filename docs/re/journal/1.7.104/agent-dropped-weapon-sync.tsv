@@ -27,3 +27,6 @@ time	op	id	rva	item
 2026-11-05T22:51:41Z	comment	19550	0x2e3b30	{"addr": "0x1402e3b30", "comment": "19550. Sets or clears form flag 0x100000 on a non-actor reference. Only caller: PlayerCharacter::DropObject 40454, when the reference it made has no 3D yet (it also queues the handle at player+0x608)."}
 2026-11-05T22:51:41Z	comment		0x7471d9	{"addr": "0x1407471d9", "comment": "No 3D yet: queue the drop at player+0x608/+0x610 and flag it (0x100000). A dead player's death drop takes this path: its 3D (the held node, 19706) comes after DropObject returns."}
 2026-11-05T22:51:55Z	read		0x2e3af0	{"name": "<no function>"}
+2026-11-06T00:49:23Z	read	20194	0x300440	{"name": "TESObjectREFR::GetOwner"}
+2026-11-06T00:49:35Z	comment		0x2ea3eb	{"addr": "0x1402ea3eb", "comment": "Flag 0x100000 (set by 19550 from PlayerCharacter::DropObject 40454): place the reference from its model's offset as its 3D loads, once."}
+2026-11-06T00:49:35Z	comment		0x30047e	{"addr": "0x14030047e", "comment": "No ExtraOwnership: a linked door's owner, then the encounter zone's, then the cell's (TESObjectCELL::GetOwner). An unowned dropped item in an inn reads as the inn's: PickUpObject 40533 calls StealAlarm 37422."}

@@ -162,9 +162,8 @@ def reference_label(ref, game=None):
 
 
 def held_node_view(ref, twin):
-    """A dead player's drop as the comparison reads it. On the dying player's game the reference took the hand's node as
-    its 3D (19706: root "Weapon  (<form>)") and keeps the position it had then, while the body falls; its twin is made
-    from the model. One sword: its place is its body's, its node names and its own record of its 3D are that game's."""
+    """A dead player's drop (the hand's node as its 3D) read at its body, without what each game keeps itself
+    (docs/re/systems/death-drops.md)."""
     def adopted(r):
         return (first_body(r) or {}).get("node", "").startswith("Weapon  (")
     if not adopted(ref) and not adopted(twin):

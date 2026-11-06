@@ -298,7 +298,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory::Entry Item;
         // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
         bool QuestObject = false;
-        // Its own owner; with none a pickup reads its cell's (TESObjectREFR::GetOwner 19789).
+        // Its own owner; with none a pickup reads its cell's (TESObjectREFR::GetOwner 20194).
         GameId Owner{};
     };
     std::map<uint32_t, LooseItem> Loose;

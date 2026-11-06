@@ -18,16 +18,23 @@ Actor::KillImpl 37896
 - **The 3D is the hand's node.** 19706 hangs the node the actor held (root `Weapon  (00012EB7)`, children
   `IronLongSword:0`, blood nodes) under the cell, layer 32, dynamic. A drop made from the base gets its model
   (`IronLongSword01`). Same item, same body, different node names: nothing a player sees.
-- **0x100000 is the dropper's bookkeeping.** `PlayerCharacter::DropObject` (40454), finding no 3D on the reference it
-  made (the death drop's 3D comes after it returns), queues the handle (player +0x608) and sets form flag 0x100000
-  (`TESObjectREFR::SetDroppedBeforeItsLoad` 19550, its only caller). `TESObjectREFR::Load3D` tests it to place the
-  reference from its model's offset. Only the dying player's game sets it.
-- **The reference's position stays where the hand was.** The body falls; the reference's own position is not moved
-  after (only `PlayerCharacter::DropObject`'s 3D branch moves it, and the death drop has none then). Its body's position
-  is where the sword lies.
-- **The owner is the player** whatever the cell: 37320's `SetOwner(player base)` for a dead actor (the dying player is
-  dead by then). A reference with no owner takes its cell's when picked up: `PlayerCharacter::PickUpObject` (40533)
-  reads `GetOwner` and calls `Actor::StealAlarm` (37422, `crime.md`) for anyone not an owner.
+- **0x100000 is the dropper's bookkeeping** (read). `PlayerCharacter::DropObject` (40454), finding no 3D on the
+  reference it made (the death drop's 3D comes after it returns), queues the handle (player +0x608) and sets form flag
+  0x100000 (`TESObjectREFR::SetDroppedBeforeItsLoad` 19550, its only caller). Its one reader is
+  `TESObjectREFR::Load3D` (19727): as the reference's 3D loads it places the reference from its model's offset. The
+  model-made twin on another game never passes 40454's no-3D branch, so only the dropper's game has it.
+- **The reference's position stays where the hand was** (measured; inferred from what was read). On the duo the
+  dropper's reference kept the hand's position (z 7049) while its body rested 71 units lower, both games' bodies at the
+  same place. Of what was read, only 40454's 3D branch moves a dropped reference to its 3D, and the death drop has no
+  3D then; 19706 hands it the node without moving the reference. Not read: whatever else might move it later.
+- **`changes` 0x400** (`kItemExtraData`, CommonLibSSE-NG `TESObjectREFR::ChangeFlags`; measured): the dropper's
+  reference records it (0x446), the twin made from the base does not (0x46), after either game's death drop. Which
+  call records it was not traced. It is that game's save record of its own extra list; what the extra data holds is
+  compared through the item (`Stacks`) and the owner field.
+- **The owner is the player** whatever the cell (read): 37320's `SetOwner(player base)` (20198) for a dead actor (the
+  dying player is dead by then). A reference with no owner reads as another's: `TESObjectREFR::GetOwner` (20194)
+  falls back to a linked door's owner, the encounter zone's, then the cell's. `PlayerCharacter::PickUpObject` (40533)
+  reads it and calls `Actor::StealAlarm` (37422, `crime.md`) for anyone not an owner.
 
 ## In a session (measured)
 
