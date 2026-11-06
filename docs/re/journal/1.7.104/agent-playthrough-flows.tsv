@@ -1,0 +1,97 @@
+time	op	id	rva	item
+2026-11-06T06:38:32Z	read	54731	0xa017f0	{"name": "papyrus::Actor::PathToReference"}
+2026-11-06T06:38:32Z	read	37893	0x6a9950	{"name": "Actor::sub_37893"}
+2026-11-06T06:38:37Z	read	37820	0x6a6330	{"name": "Actor::sub_37820"}
+2026-11-06T06:38:41Z	read	37801	0x6a56b0	{"name": "Character::sub_37801"}
+2026-11-06T06:38:42Z	read	91842	0x1211840	{"name": "sub_141211840"}
+2026-11-06T06:38:49Z	read	41607	0x78fca0	{"name": "ActorMover::sub_41607"}
+2026-11-06T06:38:50Z	read	37799	0x6a5540	{"name": "Actor::GetActorMover"}
+2026-11-06T06:39:06Z	read	90853	0x11d3920	{"name": "IMovementSetGoal::Func1_90853"}
+2026-11-06T06:39:14Z	read	90654	0x11cc0a0	{"name": "PathingRequest::sub_90654"}
+2026-11-06T06:39:15Z	read	91394	0x11f30e0	{"name": "sub_1411F30E0"}
+2026-11-06T06:39:36Z	read	41642	0x792650	{"name": "sub_140792650"}
+2026-11-06T06:39:40Z	read	30640	0x4d75a0	{"name": "Pathing::sub_30640"}
+2026-11-06T06:39:44Z	read	30635	0x4d71a0	{"name": "Pathing_DataCtor1"}
+2026-11-06T06:40:01Z	read	90364	0x11b7070	{"name": "sub_1411B7070"}
+2026-11-06T06:40:07Z	read	30682	0x4db070	{"name": "Pathing::GetPathingCell"}
+2026-11-06T06:40:08Z	read	90346	0x11b6810	{"name": "BSPathingLocation::ctor"}
+2026-11-06T06:40:29Z	read	91841	0x1211750	{"name": "sub_141211750"}
+2026-11-06T06:40:29Z	read	53646	0x9c2a40	{"name": "sub_1409C2A40"}
+2026-11-06T06:40:33Z	read	53634	0x9c1c40	{"name": "sub_1409C1C40"}
+2026-11-06T06:40:40Z	read	53640	0x9c2260	{"name": "SkyrimScript__PathingCallbackMgr::Handle"}
+2026-11-06T06:40:44Z	read	91852	0x1211fd0	{"name": "sub_141211FD0"}
+2026-11-06T06:40:52Z	read	37884	0x6a9240	{"name": "sub_1406A9240"}
+2026-11-06T06:40:52Z	read	91840	0x1211670	{"name": "sub_141211670"}
+2026-11-06T06:40:56Z	read	91843	0x12119d0	{"name": "sub_1412119D0"}
+2026-11-06T06:41:01Z	read		0x6a91fd	{"name": "Actor::sub_37883"}
+2026-11-06T06:41:26Z	read		0x11d529d	{"name": "MovementPathManagerArbiter::sub_90880"}
+2026-11-06T06:41:36Z	read		0x11d4cb3	{"name": "MovementPathManagerArbiter::sub_90877"}
+2026-11-06T06:41:41Z	read		0x11d4370	{"name": "MovementPathManagerArbiter::Func14_90866"}
+2026-11-06T06:41:45Z	read		0x11d46fb	{"name": "MovementPathManagerArbiter::sub_90873"}
+2026-11-06T06:42:00Z	read	90396	0x11b90f0	{"name": "Pathing::sub_90396"}
+2026-11-06T06:42:07Z	read	90372	0x11b7d80	{"name": "sub_1411B7D80"}
+2026-11-06T06:42:26Z	name	37893	0x6a9950	{"addr": "0x1406a9950", "name": "Actor::RequestPathToReference"}
+2026-11-06T06:42:26Z	name	37820	0x6a6330	{"addr": "0x1406a6330", "name": "Actor::FillPathToLocation"}
+2026-11-06T06:42:26Z	name	37801	0x6a56b0	{"addr": "0x1406a56b0", "name": "Actor::SetMovementPath"}
+2026-11-06T06:42:26Z	name	41607	0x78fca0	{"addr": "0x14078fca0", "name": "ActorMover::SetGoal"}
+2026-11-06T06:42:26Z	name	90853	0x11d3920	{"addr": "0x1411d3920", "name": "MovementPathManagerArbiter::SetGoal"}
+2026-11-06T06:42:26Z	name	90654	0x11cc0a0	{"addr": "0x1411cc0a0", "name": "PathingRequest::IsValid"}
+2026-11-06T06:42:26Z	name	91394	0x11f30e0	{"addr": "0x1411f30e0", "name": "PathingRequestQueue::Submit"}
+2026-11-06T06:42:26Z	name	41642	0x792650	{"addr": "0x140792650", "name": "Actor::FillPathingRequest"}
+2026-11-06T06:42:26Z	name	90364	0x11b7070	{"addr": "0x1411b7070", "name": "BSPathingLocation::GetCellNavmeshes"}
+2026-11-06T06:42:26Z	name	90372	0x11b7d80	{"addr": "0x1411b7d80", "name": "BSPathingLocation::ClearTriangle"}
+2026-11-06T06:42:26Z	name	91840	0x1211670	{"addr": "0x141211670", "name": "PathRequestRegistry::ctor"}
+2026-11-06T06:42:26Z	name	91841	0x1211750	{"addr": "0x141211750", "name": "PathRequestRegistry::Clear"}
+2026-11-06T06:42:26Z	name	91852	0x1211fd0	{"addr": "0x141211fd0", "name": "PathRequestRegistry::dtor"}
+2026-11-06T06:42:26Z	name	91842	0x1211840	{"addr": "0x141211840", "name": "PathRequestRegistry::Register"}
+2026-11-06T06:42:26Z	name	91843	0x12119d0	{"addr": "0x1412119d0", "name": "PathRequestRegistry::Finish"}
+2026-11-06T06:42:26Z	name	53634	0x9c1c40	{"addr": "0x1409c1c40", "name": "SkyrimScript::PathingCallbackMgr::ctor"}
+2026-11-06T06:42:26Z	name	53646	0x9c2a40	{"addr": "0x1409c2a40", "name": "SkyrimScript::PathingCallbackMgr::ClearSingleton"}
+2026-11-06T06:42:26Z	name	37883	0x6a8d40	{"addr": "0x1406a8d40", "name": "Actor::OnMovementPathComplete"}
+2026-11-06T06:42:26Z	name	37884	0x6a9240	{"addr": "0x1406a9240", "name": "Actor::OnMovementPathFailed"}
+2026-11-06T06:42:26Z	name	90880	0x11d50c0	{"addr": "0x1411d50c0", "name": "MovementPathManagerArbiter::EndPath"}
+2026-11-06T06:42:26Z	name	90873	0x11d4650	{"addr": "0x1411d4650", "name": "MovementPathManagerArbiter::UpdatePath"}
+2026-11-06T06:42:26Z	name	90877	0x11d4c30	{"addr": "0x1411d4c30", "name": "MovementPathManagerArbiter::OnStateChange"}
+2026-11-06T06:42:26Z	name	90396	0x11b90f0	{"addr": "0x1411b90f0", "name": "Pathing::BuildPathNow"}
+2026-11-06T06:42:33Z	comment		0xa01829	{"addr": "0x140a01829", "comment": "-1: ActorMover::SetGoal refused the request at once (Papyrus log 'Could not build path', returns None). Else the latent waits for PathRequestRegistry::Finish."}
+2026-11-06T06:42:33Z	comment		0x6a9c0e	{"addr": "0x1406a9c0e", "comment": "SetGoal accepted: register the request; the id is the latent call's key"}
+2026-11-06T06:42:33Z	comment		0x11d395c	{"addr": "0x1411d395c", "comment": "IsValid: goal has a pathing cell (+88+32) or flag, and the actor walks/swims/flies (+208 & 0x70)"}
+2026-11-06T06:42:33Z	comment		0x11d3a88	{"addr": "0x1411d3a88", "comment": "submit to the path search (background when bBackgroundPathing); refused -> EndPath(failed)"}
+2026-11-06T06:42:33Z	comment		0x11f3152	{"addr": "0x1411f3152", "comment": "bDisableUnloadedPaths: refuse when neither start nor goal navmesh is loaded"}
+2026-11-06T06:42:33Z	comment		0x11f3362	{"addr": "0x1411f3362", "comment": "no background pathing: search now; result 0 ok, 1 failed (read in UpdatePath)"}
+2026-11-06T06:42:33Z	comment		0x11d46ab	{"addr": "0x1411d46ab", "comment": "search done: result 0 -> follow; else PathFailed, unless partial paths allowed (+186 & 1) with >=2 points"}
+2026-11-06T06:42:33Z	comment		0x11d4762	{"addr": "0x1411d4762", "comment": "following: arrived -> PathComplete (sub_90879); follower gave up (vfunc +16) -> PathFailed"}
+2026-11-06T06:42:33Z	comment		0x11d529d	{"addr": "0x1411d529d", "comment": "failed: MovementMessagePathFailed to the actor -> Actor::OnMovementPathFailed -> Papyrus latent false"}
+2026-11-06T06:42:33Z	comment		0x6a9282	{"addr": "0x1406a9282", "comment": "PathToReference's latent returns false (PathingCallbackMgr::Handle)"}
+2026-11-06T06:42:33Z	comment		0x6a91fd	{"addr": "0x1406a91fd", "comment": "PathToReference's latent returns true"}
+2026-11-06T06:42:33Z	comment		0x11b9218	{"addr": "0x1411b9218", "comment": "the path builder for this request type: start and goal triangles found from the locations' positions (ClearTriangle before)"}
+2026-11-06T06:51:28Z	read	90369	0x11b75a0	{"name": "BSPathingLocation::ResolveToClosestNavmeshAndTriangle"}
+2026-11-06T06:51:29Z	read	90391	0x11b8f70	{"name": "FindTriangleForLocationFilterCheckDeltaZ::IsValidTri"}
+2026-11-06T06:51:51Z	read	30875	0x4e3260	{"name": "sub_1404E3260"}
+2026-11-06T06:51:52Z	read	90961	0x11d7270	{"name": "sub_1411D7270"}
+2026-11-06T06:51:52Z	read	90968	0x11d7a50	{"name": "sub_1411D7A50"}
+2026-11-06T07:10:19Z	name	30875	0x4e3260	{"addr": "0x1404e3260", "name": "PathingRequest::ctor"}
+2026-11-06T07:10:19Z	name	90961	0x11d7270	{"addr": "0x1411d7270", "name": "BSPathingSolution::ctor"}
+2026-11-06T07:10:19Z	name	90962	0x11d7300	{"addr": "0x1411d7300", "name": "BSPathingSolution::dtor"}
+2026-11-06T07:10:19Z	name	90968	0x11d7a50	{"addr": "0x1411d7a50", "name": "BSPathingSolution::IsValid"}
+2026-11-06T07:27:58Z	read	30452	0x4ca3e0	{"name": "sub_1404CA3E0"}
+2026-11-06T07:27:59Z	read	19564	0x2e3dc0	{"name": "TESObjectREFR::GetObstacle"}
+2026-11-06T07:28:28Z	read	10891	0x1467d0	{"name": "TESForm::GetObstacle"}
+2026-11-06T07:28:59Z	comment	30452	0x4ca3e0	{"addr": "0x1404CA3E0", "comment": "NavMeshObstacleManager debug text: background tasks, next batch, each loaded navmesh's obstacles (navmesh +0xF8 array, +0x108 count; entry +0x10 state), then 'Current Obstacles' (map at manager +0x18)"}
+2026-11-06T07:28:59Z	comment	10891	0x1467d0	{"addr": "0x1401467d0", "comment": "a base form is a navmesh obstacle when its flag 0x2000000 is set (TESObjectREFR::GetObstacle asks the base)"}
+2026-11-06T07:30:20Z	name	30452	0x4ca3e0	{"addr": "0x1404CA3E0", "name": "NavMeshObstacleManager::PrintDebugText"}
+2026-11-06T15:07:20Z	read	93310	0x124b440	{"name": "sub_14124B440"}
+2026-11-06T15:07:24Z	read	30514	0x4d1910	{"name": "sub_1404D1910"}
+2026-11-06T15:07:59Z	read	30441	0x4c8c60	{"name": "sub_1404C8C60"}
+2026-11-06T15:08:10Z	read	30690	0x4db7d0	{"name": "Pathing::sub_30690"}
+2026-11-06T15:08:24Z	name	30441	0x4c8c60	{"addr": "0x1404C8C60", "name": "NavMeshObstacleManager::ctor"}
+2026-11-06T15:08:24Z	name	30514	0x4d1910	{"addr": "0x1404D1910", "name": "NavMeshObstacleManager::PrintObstacles"}
+2026-11-06T15:08:24Z	data			{"old": "qword_1421A05A8", "new": "NavMeshObstacleManager_singleton"}
+2026-11-06T15:08:27Z	comment	30441	0x4c8c60	{"addr": "0x1404C8C60", "comment": "NavMeshObstacleManager ctor (BSTSingletonSDM static buffer; singleton 400442 at 0x1421A05A8). +0x10 BSTHashMap<refFormId, obstacle> (capacity +0x1C, sentinel +0x28, entries +0x38: {key u32, value +8, next +0x10})"}
+2026-11-06T15:08:27Z	comment	30514	0x4d1910	{"addr": "0x1404D1910", "comment": "'Current Obstacles': per map entry, key = reference form id (LookupFormByID); value +0x18 array (count +0x28) of per-navmesh cuts, each +0xA0 array (count +0xB0) of BSNavmeshInfo* (navMeshId first)"}
+2026-11-06T15:08:27Z	comment	93310	0x124b440	{"addr": "0x14124B440", "comment": "Uses BSNavmeshObstacleUndoData vtable (0x141ACBD08): builds a navmesh cut's undo data. Not read: the obstacle readout goes through the manager map"}
+2026-11-06T15:08:27Z	comment	30690	0x4db7d0	{"addr": "0x1404DB7D0", "comment": "form id -> TESForm (LookupFormByID); the obstacle map's keys are references' form ids"}
+2026-11-06T16:47:32Z	read	79145	0x1098b20	{"name": "bhkCharacterController::Func6_79145"}
+2026-11-06T16:47:44Z	name	79145	0x1098b20	{"addr": "0x141098b20", "name": "bhkCharProxyController::GetLinearVelocityImpl"}
+2026-11-06T16:47:45Z	comment	79145	0x1098b20	{"addr": "0x141098b20", "comment": "this = the bhkCharacterController part (+0x10 of bhkCharProxyController, vtable 0x141A89578); +0x340 = bhkCharacterProxy (full +0x340)'s hkpCharacterProxy* (its +0x10). hkpCharacterProxy::maxSlopeCosine +0xD8: the walkable slope; no step height in the proxy"}
+2026-11-06T16:48:04Z	read	77860	0x104be80	{"name": "bhkWorld::PickObject"}

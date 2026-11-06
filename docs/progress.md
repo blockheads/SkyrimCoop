@@ -57,6 +57,30 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 Newest first.
 
+2026-11-06: why the player's paths are refused, read in IDA ([pathing.md](re/systems/pathing.md)): `PathToReference`
+returns false when `SetGoal` refuses the request or the navmesh search fails. A new harness read, `path_probe`, runs
+those steps without moving anyone: both ends' triangles, the search, and whether the navmesh's triangles join them.
+`walk_to` and `fight` print it on `no_path`. Inside Embershard Mine both ends are on one navmesh, but in 7 runs of 10
+its triangles don't join the entrance to the bandit, and the same save joins them in the others. That points at
+a navmesh obstacle: Skyrim.esm's CollisionMarker 105C99 cuts the ramp down (bisected by disabling obstacles; NPCs refused too). A game without a session cuts it the same (3 of 3): not ours. The marker is an invisible wall
+for the player too, so `clear` now fights only who the engine's search reaches, nearest along the way (four bandits
+skipped), and the flow runs to its end; `loot` and `leave` show the filed bugs. The flow's three bugs went to `bugs.md`.
+A `terrain` readout ([terrain.md](re/systems/terrain.md)): the ground around a spot as a walking player meets it,
+a column of rays a cell over frames (the pick budget), the navmesh's pieces, drawn top-down and in profile (MCP
+`terrain`; crossing and `fight` failures carry it). `walk_to` crosses a navmesh cut by input (`cross`: swims, jumps
+a low wall) where a player could.
+`DuoLock.acquire` now checks its hold is still listed: an MCP session whose hold another command freed ran on as
+holder, and the harness refused its commands ("holds no duo"). A running MCP server picks the fix up at its restart
+(`duo_lock` stays loaded across `mcp_reload`).
+
+2026-11-05: playthrough flows ([playthrough-flows.md](design/playthrough-flows.md)): `coop_test.py flows` plays a real
+stretch of the game as ordered, checked steps from a save, with checkpoints (`--from STEP`) and a summary per run; a
+copy difference players see marks a step `SEEN` and the flow goes on, cosmetic ones are listed only
+(`comparisons.classify_problem`). The first flow, `riverwood-day-one`: A Lovely Letter start to reward, the Trader's
+door, Embershard Mine's lookout, door, first room and loot. New verbs `door`, `clear`; `use`/`talk` check the crosshair
+first. Found: a looted corpse keeps items on the guest (5 of 5), the host's copy sunk in the floor after a door,
+players stacked by a door's tether arrival. Open: the player's paths refused inside Embershard Mine.
+
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated
 failures stay as entries), the freezes (now a loose end), and host objects waking and resting every half second. For that

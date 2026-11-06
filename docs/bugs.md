@@ -100,6 +100,12 @@ other section needs the duo.
 - [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
 - [The baseline after a death](#the-baseline-after-a-death): small
 
+**Found by the playthrough flow**
+
+- [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest): small
+- [The host's copy after a door](#the-hosts-copy-after-a-door): small
+- [Players stacked after a door](#players-stacked-after-a-door): small
+
 ## Copy-desync follow-ups
 
 ### Replay lands in another state
@@ -818,3 +824,60 @@ Size: small. Needs: duo (harness only).
   with "cleanup: left behind: host: player at ..., baseline ...". The dead and respawned player isn't put back home,
   so the next flow starts off its baseline. Start: the runner's cleanup after a player's death (`reset_baseline`).
   - That scenario is not on dev (2026-11-05): stage a player who dies and respawns.
+
+## Found by the playthrough flow
+
+From `riverwood-day-one` (`docs/design/playthrough-flows.md`), runs of 2026-11-05: each was seen at every run that
+reached it. Its summaries are in `build/coop-test/flows/<time>-riverwood-day-one/summary.md`; `--from` a step's
+checkpoint replays it in under a minute.
+
+### A looted corpse keeps items on the guest
+
+Stands alone: one container's items.
+
+Agent task: Make a loot taken from an NPC's corpse leave the corpse's copy on the other game as empty as the corpse.
+
+Size: small. Needs: duo, then GameTests.
+
+- **A looted corpse's copy still holds items** (5 of 5 runs, either player looting). After `take` from a bandit's
+  corpse the host's corpse is empty, and the guest's copy still holds 2 each of 37C1B, 4F78D and 10E0DD (once 4DEE0
+  too). Neither the looter nor its copy got them. A player who opens that corpse on the guest sees loot that isn't
+  there. Start: what a take-all from a dead NPC sends (the container change rows), and what the guest applies to a
+  dead copy.
+  - Test: the flow's `lookout` and `loot` steps (`sees: same_items("enemy_1")`); then a scenario of one bandit killed
+    and looted.
+
+### The host's copy after a door
+
+Copies of a player.
+
+Agent task: Find why the host's copy on the guest stands sunk and empty-handed after the host goes through a load
+door and back.
+
+Size: small. Needs: duo.
+
+- **The host's copy is 26 units in the floor, its left hand empty** (every run reaching `reward`). After the host
+  goes into the Riverwood Trader and out (two load doors) and walks to Faendal, the guest sees the host's copy sunk
+  26 units, and its left hand empty where the host holds 12FCC (`state.hands`). Start: how a copy is placed and
+  re-equipped when its owner changes cell and comes back.
+  - The 2026-11-06 run that reached `leave` (out of Embershard Mine) read every body sunk 21 to 25 units: both owners
+    and both copies. So "sunk" may be the body check's floor reading at a door's arrival spot (check it against
+    vanilla first), and the copy's empty hand is the part that's surely wrong: the guest's own left hand holds 77772
+    and its copy on the host holds nothing.
+  - Test: the flow's `reward` and `leave` steps (SEEN: `placement.position`, `state.hands`).
+
+### Players stacked after a door
+
+Party travel.
+
+Agent task: Make the player the tether brings through a door arrive beside the one who went through, not in them.
+
+Size: small. Needs: duo.
+
+- **A tether arrival lands on the other player** (every door in the flow). The player who goes through a load door
+  arrives at the door's marker; the tether brings the other to the same spot, under a unit apart. So the two stand
+  inside each other, and the one who didn't lead is in the doorway (the flow's `door` verb lets that player lead
+  out). Start: where party travel places the player it brings (`docs/design/party-travel.md`), and the engine's
+  free spot search near a marker.
+  - Test: the flow's `trader` and `enter` steps; `together` could check a minimum spacing.
+

@@ -158,7 +158,13 @@ class DialogueActions:
         # Ended meanwhile (the last one out, a goodbye): Tab outside the menu would open the Tween menu.
         if ctx.menu_closed(instance):
             return
+        speaking = ctx.dialogue(instance).get("current_info")
         ctx.tap_key(instance, TAB_KEY)
+        if speaking:  # a line was being said: that Tab skipped it, as a player's does
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"[{instance or 'host'}] Tab skips the line", lambda: ctx.menu_closed(instance), 3)
+            if not ctx.menu_closed(instance):
+                ctx.tap_key(instance, TAB_KEY)
         ctx.wait_for(f"[{instance or 'host'}] Tab closes its menu", lambda: ctx.menu_closed(instance), 10)
 
 

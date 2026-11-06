@@ -226,6 +226,13 @@ def look(game: str = "host") -> dict:
 
 
 @tool
+def terrain(game: str = "host", radius: float = 1000.0, cell: float = 50.0, toward: str = "", at: list[float] | None = None) -> dict:
+    """The ground around that game's player (or `at`) as a walking player meets it: a top-down view (one character a
+    cell, legend included), a side profile toward `toward` (a handle or id), what it can walk to and what stops it."""
+    return {"ok": True, **session.terrain(_game(game), radius, cell, toward or None, at)}
+
+
+@tool
 def observe(names: list[str], full: bool = False) -> dict:
     """Each handle in both games: everything the first time, then only what changed ({field: [was, is]}), plus how far
     apart the games have it (apart) and what they hold differently (differs). full=true reads every field."""
