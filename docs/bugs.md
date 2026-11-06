@@ -48,6 +48,7 @@ other section needs the duo.
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
 - [Remaining validation](#remaining-validation): small
+- [A placed guard's trip home](#a-placed-guards-trip-home): small
 
 **Ragdolls and death poses**
 
@@ -342,6 +343,24 @@ Size: small. Needs: duo.
 
 - **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
   documented story save. Combined-dev acceptance remains separate from these bug investigations.
+
+### A placed guard's trip home
+
+Agent task: Make `leveled-placed-npc-is-hosts` pass its cleanup: find whether the guest's copy should exist at the
+guard's home, then fix the game or the check.
+
+Size: small. Needs: duo, then GameTests.
+
+- **The placed guard's copy is missing on the guest after the guard goes home** (2026-11-05): the scenario's own checks
+  pass; its cleanup (`send_home`, `scenarios/specs.py`) fails at "[client] its D8C56 goes home with the host's". The
+  host's D8C56 is home in cell 39462 (worldspace 60, at 2452, -12693, -5413) with 3D; the guest has no copy (`client {}`).
+  Failed the same way in four runs on 2026-11-05, one of them on dev's code and harness, so it predates the names work.
+  Evidence: `build/coop-test/results/20261105-184243-343750/at-failure.json`.
+  - Open question first: whether that cell is in the guest's loaded area. If not, no copy is right and the check
+    (`copy_follows_host`) should accept it; if it is, the copy was removed or never respawned when the guard moved home.
+  - Start: rerun the scenario and `observe` D8C56 on both games after `move_actor home`; the guest's log for its
+    removal (`Actor removed`) or a spawn for its session id.
+  - Test: the scenario itself; a GameTests flow for a host NPC moved home while the guest stays.
 
 ## Ragdolls and death poses
 
