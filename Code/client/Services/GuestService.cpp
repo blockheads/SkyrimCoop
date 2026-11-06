@@ -7,7 +7,9 @@
 #include <Events/UpdateEvent.h>
 #include <Messages/Relayed.h>
 #include <Papyrus/PlayerNatives.h>
+#include <Bridges/IActorBridge.h>
 #include <Services/Guest/GuestClock.h>
+#include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
@@ -37,6 +39,7 @@ struct GuestService::Guest
         , Hands(aWorld, Engine)
         , Wait(aWorld, aDispatcher, Engine)
         , Scene(aWorld, aDispatcher, Engine)
+        , Copies(aWorld, aWorld.ctx().at<IActorBridge&>())
     {
     }
 
@@ -49,6 +52,7 @@ struct GuestService::Guest
     GuestHands Hands;
     GuestWait Wait;
     GuestScene Scene;
+    GuestCopies Copies;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
@@ -117,4 +121,5 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     // The host's rests a world state row placed: simulated again, asleep (BodyService plays the rest).
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
+    m_pGuest->Copies.Update();
 }

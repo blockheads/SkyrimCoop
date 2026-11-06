@@ -121,6 +121,11 @@ World::World()
         if (const auto it = engine.Actors.find(aSpeaker); it != engine.Actors.end() && !it->second.Copy)
             engine.LooksAt(aSpeaker, FakeEngine::kDialogueHeadTrack, aTarget);
     };
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerHasProcess = [](uint32_t aSpeaker) {
+        const FakeEngine& engine = FakeEngine::Current();
+        const auto it = engine.Actors.find(aSpeaker);
+        return it != engine.Actors.end() && !it->second.NoProcess;
+    };
     static_cast<FakeDialogue&>(*m_pDialogueBridge).DialogueLoaded = [](uint32_t aQuest) {
         return FakeEngine::Current().DialogueLoaded.contains(aQuest);
     };

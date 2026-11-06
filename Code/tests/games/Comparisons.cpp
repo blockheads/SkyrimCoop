@@ -139,7 +139,13 @@ std::vector<std::string> Party::ActorDifferences()
         {
             const uint32_t cFormId = game.get<FormIdComponent>(cEntity).Id;
             accounted.insert(cFormId);
-            if (&game != &Host())
+            // Hidden: no owner, and in this game's area (CharacterService::FollowOwner).
+            if (game.get<HeldCopyComponent>(cEntity).Hidden)
+            {
+                if (cEngine.ActorHas3D(cFormId))
+                    differences.push_back(std::format("{}'s hidden copy {:X} stands in its area", cEngine.Name, cFormId));
+            }
+            else if (&game != &Host())
                 Compare(std::format("{}'s held copy {:X}", cEngine.Name, cFormId), Engine(Host()), cFormId, cEngine,
                         cFormId, differences);
         }

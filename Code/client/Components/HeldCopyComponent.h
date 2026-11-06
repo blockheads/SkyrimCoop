@@ -4,4 +4,5 @@
 // with no AI of its own, until the owner spawns it again or the session ends (copy-contract.md).
 struct HeldCopyComponent
 {
+    bool Hidden = false; // disabled by us: it would stand in this game's loaded area with no owner
 };
