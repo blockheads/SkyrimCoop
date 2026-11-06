@@ -74,9 +74,15 @@ nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
     for (const auto& cCandidate : cRead->Candidates)
         candidates.push_back({{"actor", cCandidate.FormId}, {"detection", cCandidate.Detection},
                               {"attackers", cCandidate.Attackers}, {"flags", cCandidate.Flags}, {"stealth", cCandidate.Stealth},
-                              {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}});
+                              {"line_of_sight", cCandidate.LineOfSight}, {"clear_path", cCandidate.ClearPath}, {"invisible", cCandidate.Invisible}, {"sneaking", cCandidate.Sneaking}, {"light", cCandidate.Light}, {"raw_light", cCandidate.RawLight}});
     return {{"ok", true}, {"controller_target", cRead->ControllerTarget}, {"actor_target", cRead->ActorTarget},
-            {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates}};
+            {"papyrus_target", cRead->PapyrusTarget}, {"combat_state", cRead->State}, {"candidates", candidates},
+            {"behavior", cRead->Behavior}, {"fleeing", cRead->Fleeing}, {"detected", cRead->Detected}, {"target_lost", cRead->TargetLost},
+            {"inactive", cRead->Inactive}, {"ignoring", cRead->Ignoring}, {"stopped", cRead->Stopped},
+            {"low_movement_delta", cRead->LowMovementDelta}, {"unreachable", cRead->Unreachable}, {"areas", cRead->Areas},
+            {"target_position", cRead->TargetPosition}, {"target_predicted", cRead->TargetPredicted},
+            {"close_range", cRead->CloseRange}, {"margin", cRead->Margin}, {"margin_max", cRead->MarginMax},
+            {"reach", cRead->Reach}, {"target_reach", cRead->TargetReach}, {"since_attacked", cRead->SinceAttacked}, {"target_path_state", cRead->TargetPathState}, {"target_path_points", cRead->TargetPathPoints}};
 }
 // {"cmd": "status"}: the status (Status.h).
 nlohmann::json GetStatus(Harness& aHarness, const nlohmann::json&)
@@ -124,7 +130,11 @@ nlohmann::json KillMoveCheckCommand(Harness&, const nlohmann::json& acRequest)
             {"engaging_in_combat", cCheck.EngagingInCombat},
             {"in_kill_move", cCheck.InKillMove},
             {"crosshair_actor", cCheck.CrosshairActor},
-            {"attack_target", cCheck.AttackTarget}};
+            {"attack_target", cCheck.AttackTarget},
+            {"attack_reach", cCheck.AttackReach},
+            {"victim_gap", cCheck.VictimGap},
+            {"right_entry", cCheck.RightEntry},
+            {"right_object", cCheck.RightObject}};
 }
 
 // {"cmd": "idle_conditions", "idle": id, "subject": id, "target": id}: the idle and its parents with their

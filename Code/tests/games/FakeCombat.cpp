@@ -19,8 +19,20 @@ void FakeEngine::RunNativeCombat() noexcept
             if (it == Actors.end() || it->second.Copy || it->second.Dead || !it->second.Ai.CombatState)
                 continue;
             auto& ai = it->second.Ai;
-            const uint32_t cNative = CombatProposals.contains(cActor) ? CombatProposals.at(cActor) : ai.CombatTargetId;
+            uint32_t cNative = CombatProposals.contains(cActor) ? CombatProposals.at(cActor) : ai.CombatTargetId;
             auto candidates = cCandidates;
+            // 47191: a dead cached target fails its check, so 47195 picks again at once; the party rule skips the dead.
+            for (auto& candidate : candidates)
+                if (Actors.contains(candidate.ActorId) && IsActorDead(candidate.ActorId))
+                    candidate.Eligible = false;
+            // Only when the pick (a proposal or the cached target) is itself dead.
+            if (Actors.contains(cNative) && IsActorDead(cNative))
+                for (const auto& cCandidate : candidates)
+                    if (cCandidate.Eligible)
+                    {
+                        cNative = cCandidate.ActorId;
+                        break;
+                    }
             for (auto& candidate : candidates)
                 if (const auto sight = CombatPerception.find(PartyThreat::State::Key(cActor, candidate.ActorId));
                     sight != CombatPerception.end())

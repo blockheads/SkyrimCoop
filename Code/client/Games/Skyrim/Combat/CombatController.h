@@ -9,6 +9,7 @@ struct TESCombatStyle;
 struct CombatAreaStandard;
 struct CombatGroup;
 struct CombatState;
+struct CombatBehaviorController;
 struct CombatInventory;
 struct CombatAimController;
 
@@ -23,7 +24,7 @@ struct CombatController
     CombatState *pState;
     CombatInventory *pInventory;
     void *pCombatBlackboard;
-    void *pBehaviorController;
+    CombatBehaviorController *pBehaviorController;
     uint32_t attackerHandle;
     uint32_t targetHandle;
     uint32_t previousTargetHandle;

@@ -1,6 +1,7 @@
 // HookInitFromPackage's rule (actor-ai-and-copies.md): a copy runs its owner's package, never one its own game picks.
 #include <catch2/catch.hpp>
 
+#include <Games/Skyrim/CopyCombat.h>
 #include <Games/Skyrim/CopyPackage.h>
 
 namespace
@@ -33,4 +34,10 @@ TEST_CASE("An owner's empty package does not expose a copy's stale extra package
     CHECK(CopyPackage::Read(true, 0, 0) == 0);
     CHECK(CopyPackage::Read(true, cFollow, cFollow) == cFollow);
     CHECK(CopyPackage::Read(false, 0, cFollow) == cFollow);
+}
+
+TEST_CASE("A copy takes no combat controller, this game's own actors do", "[CopyCombat]")
+{
+    CHECK_FALSE(CopyCombat::MayStart(true));
+    CHECK(CopyCombat::MayStart(false));
 }
