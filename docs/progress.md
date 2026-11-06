@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-06: two checks that reported what did not happen are fixed.
+  - **Drift:** the plugin's `Games/Animation/GraphDrift` is gone: it compared a copy with the action's `GraphState`, the owner
+    mid-transition. `coop_test.py scenario` now reads each NPC's owner and copy live through each flow
+    (`comparisons.GraphApart`, a `copies' graphs, owner against copy:` line, logged, never failing). "A copy walks while its
+    owner turns" and "A copy's idle variant" deleted; "A copy's graph after a turn or a pick" is what the live check found.
+  - **`ai_state.head_track`** compares what the engine reads (`Diagnostics/HeadTrackRead.h`: its gate, the highest slot, slot
+    0 beside 2, none for a self-target; IDA, actor-ai-and-copies.md). 18 of 30 flows held a lasting raw slot difference at a
+    check and passed both runs, the three kill moves among them; `kill-moves-cross` shows a real case, 1 of 2 (bugs.md,
+    Headtracking on copies). ClientTests and GameTests `[headtrack]`, harness units.
+
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
 copy without its weapon, the user's report, not reproduced.
@@ -82,7 +92,7 @@ Newest first.
   matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
   line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
   lasting (animation-replay-recovery.md, "Drift detector"). Each lasting one is a missing input, listed in bugs.md; no snapshot loading over it.
-  ClientTests and GameTests `[graph-drift]`.
+  ClientTests and GameTests `[graph-drift]`. Replaced 2026-11-06 by a live read: those lasting counts were not drift.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated

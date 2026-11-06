@@ -115,7 +115,7 @@ def scenario_dialogue_peer_starts(ctx):
 def scenario_dialogue_copy_looks_at_speaker(ctx):
     """The client talks to its copy of the host's NPC: the NPC turns its head to the client's character (a
     headtrack slot, HighProcessData::headTrackTarget), and the client's copy looks at the same one, the client's
-    own player (ai_state.head_track: every slot, by session id). Copies run no AI, which sets those slots."""
+    own player (ai_state.head_track: what the engine reads of the slots, by session id). Copies run no AI, which sets those slots."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
     try:
         ctx.place_before("", npc, 110)

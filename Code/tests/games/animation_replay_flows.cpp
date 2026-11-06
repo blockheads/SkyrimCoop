@@ -4,7 +4,6 @@
 #include <Messages/NotifyReferencesMove.h>
 #include <Systems/InterpolationSystem.h>
 #include <Diagnostics/Counters.h>
-#include <Games/Animation/GraphDrift.h>
 
 namespace
 {
@@ -391,43 +390,4 @@ TEST_CASE("Attached NPC copies retain actions until their behavior graph is read
     // A ready graph without animation jobs still takes the native ten-update main-thread fallback.
     party.Agree("the queued gesture eventually reaches the ready graph even without graph jobs");
     CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId);
-}
-
-TEST_CASE("A copy landing in another state is counted: lasting past the threshold, transient if it catches up",
-          "[animation][graph-drift]")
-{
-    enum class Then { kStays, kCatchesUp, kGraphLost };
-    const auto cThen = GENERATE(Then::kStays, Then::kCatchesUp, Then::kGraphLost);
-    Diagnostics::Counters::Reset();
-    Party party(1, SmokeWorld);
-    auto& host = Party::Engine(party.Host());
-    auto& guest = Party::Engine(party.Guest());
-    // The same event takes the copy's graph elsewhere: an accepted replay landing in another state.
-    host.GraphTransitions = {{{"Idle", "gesture"}, "Gesture"}};
-    guest.GraphTransitions = {{{"Idle", "gesture"}, "Elsewhere"}};
-    uint32_t lydia = 0;
-    party.As(party.Host(), [&] {
-        lydia = host.LoadNpc(0xA2C8E, 0x31D2E, {});
-        host.Actors.at(lydia).GraphState = "Idle";
-    });
-    party.Until([&] { return guest.CopiesOf(0xA2C8E).size() == 1; }, "Lydia's copy appears");
-    const uint32_t cCopy = guest.CopiesOf(0xA2C8E).front();
-    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Idle"; }, "the copy loads its owner's starting graph");
-    ActionEvent gesture;
-    gesture.ActionId = 0x489F1;
-    gesture.EventName = "gesture";
-    gesture.IdleId = 0x10DEB8;
-    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(lydia, gesture)); });
-    party.Until([&] { return guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId; }, "the copy takes the gesture");
-    CHECK(guest.Actors.at(cCopy).GraphState == "Elsewhere");
-    CHECK(CountOf("graph drift mismatches") == 1);
-    if (cThen == Then::kCatchesUp)
-        guest.Actors.at(cCopy).GraphState = "Gesture"; // following its owner a moment later
-    if (cThen == Then::kGraphLost)
-        guest.Actors.at(cCopy).GraphState.clear(); // its graph unreadable: no evidence either way
-    const auto cTaken = party.Guest().GetTick();
-    party.Until([&] { return party.Guest().GetTick() >= cTaken + GraphDrift::cLastingMs + 300; }, "the threshold passes", {}, nullptr, std::chrono::seconds{5});
-    CHECK(CountOf("graph drift lasting") == (cThen == Then::kStays ? 1 : 0));
-    CHECK(CountOf("graph drift transient ms") == (cThen == Then::kCatchesUp ? 1 : 0));
-    CHECK(CountOf("graph drift unreadable") == (cThen == Then::kGraphLost ? 1 : 0));
 }

@@ -46,7 +46,10 @@ struct bhkCharacterController
     int32_t state; // 200, context (1E0) currentState: hkpCharacterStateType, 0 on the ground, 2 in the air
     uint8_t pad204[0x218 - 0x204];
     uint32_t flags; // 218
+    uint8_t pad21C[0x29C - 0x21C];
+    float lodDistance; // 29C (CommonLibSSE-NG): Actor::UpdateAnimation 37361 tracks heads only within range
 };
 static_assert(offsetof(bhkCharacterController, outVelocity) == 0x90);
 static_assert(offsetof(bhkCharacterController, state) == 0x200);
 static_assert(offsetof(bhkCharacterController, flags) == 0x218);
+static_assert(offsetof(bhkCharacterController, lodDistance) == 0x29C);

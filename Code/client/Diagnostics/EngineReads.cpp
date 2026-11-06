@@ -1,9 +1,11 @@
 #include "EngineReads.h"
+#include "HeadTrackRead.h"
 #include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
+#include <Forms/TESRace.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/IFormBridge.h>
 #include <ExtraData/ExtraContainerChanges.h>
@@ -160,7 +162,21 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
     if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
         readout.CombatTarget = pTarget->formID;
     if (const HighProcessData* pHigh = pActor->currentProcess->highProcess)
-        std::ranges::copy(pHigh->GetHeadTrackTargets(), readout.HeadTrack);
+        readout.HeadTrack = pHigh->GetHeadTrackTargets();
+    const auto* pMiddle = pActor->currentProcess->middleProcess;
+    const auto* pController = pMiddle ? pMiddle->charController : nullptr;
+    const PlayerCamera* pCamera = PlayerCamera::Get();
+    readout.HeadTrackShutBy = HeadTrackRead::ShutBy({.Life = ActorState::LifeStateOf(pActor->actorState.flags1),
+                                                     .Dead = pActor->IsDead(),
+                                                     .Knock = pActor->actorState.GetKnockState(),
+                                                     .SitSleep = pActor->actorState.GetSitSleepState(),
+                                                     .ProcessLevel = pActor->currentProcess->processLevel,
+                                                     .HasController = pController != nullptr,
+                                                     .LodDistance = pController ? pController->lodDistance : 0.f,
+                                                     .ExtraLarge = pActor->race && pActor->race->size == TESRace::kSizeExtraLarge,
+                                                     .TrackingOn = (pActor->actorState.flags2 & 8) != 0,
+                                                     .Player = pActor == PlayerCharacter::Get(),
+                                                     .ThirdPerson = pCamera && pCamera->state && pCamera->state->id >= TESCameraState::kThirdPerson});
     return readout;
 }
 

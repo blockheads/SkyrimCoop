@@ -1,4 +1,5 @@
 #include "Party.h"
+#include <Diagnostics/HeadTrackRead.h>
 #include <Games/EngineNames.h>
 
 namespace GameTest
@@ -102,6 +103,32 @@ std::vector<std::string> Party::Differences()
     return differences;
 }
 
+// A form as every game names it: an actor in the session by its session id (+1 << 32), else its form id.
+static uint64_t SharedName(World& aGame, uint32_t aFormId)
+{
+    for (const auto cEntity : aGame.view<FormIdComponent>())
+        if (aGame.get<FormIdComponent>(cEntity).Id == aFormId)
+        {
+            if (const auto* cpLocal = aGame.try_get<LocalComponent>(cEntity))
+                return (1ull << 32) | cpLocal->Id;
+            if (const auto* cpRemote = aGame.try_get<RemoteComponent>(cEntity))
+                return (1ull << 32) | cpRemote->Id;
+        }
+    return aFormId;
+}
+
+// What the engine reads of an actor's slots, as every game names it; none if its gate is shut (Diagnostics/HeadTrackRead.h).
+static std::optional<std::vector<uint64_t>> LooksAt(World& aGame, const FakeEngine& acEngine, uint32_t aActor)
+{
+    const auto& cActor = acEngine.Actors.at(aActor);
+    if (HeadTrackRead::ShutBy({.Dead = cActor.Dead, .Knock = uint8_t(cActor.KnockedDown ? 3 : 0)}))
+        return std::nullopt;
+    std::vector<uint64_t> names;
+    for (const uint32_t cTarget : HeadTrackRead::Targets(cActor.Ai.HeadTrackIds, aActor))
+        names.push_back(SharedName(aGame, cTarget));
+    return names;
+}
+
 std::vector<std::string> Party::ActorDifferences()
 {
     std::vector<std::string> differences;
@@ -134,6 +161,13 @@ std::vector<std::string> Party::ActorDifferences()
             }
             accounted.insert(copies[0]);
             Compare(cWhat, cOwnerEngine, cOwner.second, cEngine, copies[0], differences);
+            if (cOwnerEngine.Actors.contains(cOwner.second) && cEngine.Actors.contains(copies[0]))
+            {
+                const auto cOwnerLooks = LooksAt(*cOwner.first, cOwnerEngine, cOwner.second);
+                const auto cCopyLooks = LooksAt(game, cEngine, copies[0]);
+                if (cOwnerLooks && cCopyLooks && *cOwnerLooks != *cCopyLooks)
+                    differences.push_back(std::format("{} ({:X}) looks at something else than its owner", cWhat, copies[0]));
+            }
         }
         for (const auto cEntity : game.view<HeldCopyComponent, FormIdComponent>())
         {

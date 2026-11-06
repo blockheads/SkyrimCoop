@@ -1,0 +1,35 @@
+time	op	id	rva	item
+2026-11-06T16:40:59Z	read		0x5f3ba0	{"name": "sub_1405F3B80"}
+2026-11-06T16:41:04Z	read	37361	0x67d590	{"name": "Actor::UpdateAnimation"}
+2026-11-06T16:41:04Z	read	37363	0x67d930	{"name": "Character::ProcessTrackingIfAllowed"}
+2026-11-06T16:41:05Z	read	38009	0x6b3f20	{"name": "Actor::ProcessTracking"}
+2026-11-06T16:41:06Z	read	39484	0x6ff050	{"name": "AIProcess::GetHeadtrackTarget"}
+2026-11-06T16:41:23Z	read		0x43a607	{"name": "BSFaceGenNiNode::sub_26998"}
+2026-11-06T16:41:23Z	read	37571	0x6918b0	{"name": "sub_1406918B0"}
+2026-11-06T16:41:24Z	read		0x693b5d	{"name": "Character::sub_37617"}
+2026-11-06T16:41:25Z	read		0x6ad140	{"name": "Character::sub_37919"}
+2026-11-06T16:41:25Z	read		0x6b4ad6	{"name": "Character::ShouldRotateToTrack"}
+2026-11-06T16:41:26Z	read		0x7db8ad	{"name": "sub_1407DB5E0"}
+2026-11-06T16:42:33Z	read	26601	0x4256e0	{"name": "sub_1404256E0"}
+2026-11-06T16:42:45Z	comment	523783	0x5f3b80	{"addr": "0x1405f3b80", "comment": "Not on the headtrack path: a constructor (int, BSString, int, ...), opened by a wrong address while looking for a slot reader."}
+2026-11-06T16:42:45Z	comment	37571	0x6918b0	{"addr": "0x1406918b0", "comment": "ID 37571. Reads the highest headtrack slot (39484), looks the reference up, drops it and returns 0: a stub, no behaviour rests on the slot."}
+2026-11-06T16:42:45Z	comment	43657	0x7db5e0	{"addr": "0x1407db5e0", "comment": "BSDirectAtModifierInterface vfunc 1 (vtable off_14193BB38): a BSDirectAtModifier's target position by type a5. a5 == 1: the head bone of the highest headtrack slot (39484), only if that is another actor: a self-target gives no position (*a3 = 0). Reads the slots from the graph, outside ProcessTracking's gate (37361, 37363). a5 2/3: the actor's aim point."}
+2026-11-06T16:42:45Z	comment	26998	0x43a4e0	{"addr": "0x14043a4e0", "comment": "[re]\nAddressLib ID 26998\nBSFaceGenNiNode update: a set headtrack slot of any kind (39484 != 0) only lets the face's eye tracking run (0x1404256E0, fTrackSpeed): reads yes or no, never which target."}
+2026-11-06T16:42:45Z	comment	37617	0x693b20	{"addr": "0x140693b20", "comment": "[re]\nAddressLib ID 37617\nWhom a talking actor speaks to: its highest headtrack slot (39484), else its running package's target within range. Callers: Actor::UpdateSoundCallback, Actor::PauseCurrentDialogue."}
+2026-11-06T16:42:45Z	comment	37919	0x6acdc0	{"addr": "0x1406acdc0", "comment": "[re]\nAddressLib ID 37919\nIs a2 in this actor's view for headtracking: wider (pi, not 2pi/3) when a2 is already its highest slot (39484). Callers: PickAmbientHeadtrackTarget 38012 (inside ProcessTracking's gate), BGSSceneActionDialogue."}
+2026-11-06T16:42:46Z	name	43657	0x7db5e0	{"addr": "0x1407db5e0", "name": "BSDirectAtModifierInterface::GetTargetPosition"}
+2026-11-06T16:42:46Z	name	37617	0x693b20	{"addr": "0x140693b20", "name": "Character::GetSpeechTarget"}
+2026-11-06T16:42:46Z	name	37919	0x6acdc0	{"addr": "0x1406acdc0", "name": "Character::CanHeadtrackTarget"}
+2026-11-06T16:44:43Z	read	39486	0x6ff0e0	{"name": "sub_1406FF0E0"}
+2026-11-06T16:45:35Z	read	37851	0x6a7360	{"name": "Actor::sub_37851"}
+2026-11-06T16:45:53Z	read		0x722fb0	{"name": "sub_140722E10"}
+2026-11-06T16:45:56Z	read	39887	0x723510	{"name": "AIProcess::SetHeadtrackTarget"}
+2026-11-06T16:45:59Z	comment	39865	0x722e10	{"addr": "0x140722e10", "comment": "Leaves furniture by sit state: 3 sitting -> 4 wants to stand, 7 sleeping -> 8 wants to wake (BSFaceGen eyes cleared for 7). Why the headtrack gate's sit state 7 means asleep, not sitting. Reached by a wrong address while reading head tracking."}
+2026-11-06T16:45:59Z	comment	39486	0x6ff0e0	{"addr": "0x1406ff0e0", "comment": "The index of the highest headtrack slot marked set (HighProcessData::headTracked +0x158), 0 if none. Actor::ProcessTracking 38009 alternates slots 2 and 0 when this is 2 and the actor talks."}
+2026-11-06T16:46:00Z	name	39486	0x6ff0e0	{"addr": "0x1406ff0e0", "name": "ActorProcess::GetHighestHeadtrackSlot"}
+2026-11-06T16:53:27Z	read	58377	0xacfc70	{"name": "hkbBehaviorGraph::HandleEventOnActiveNodes"}
+2026-11-06T16:53:39Z	comment	65148	0xc3d8c0	{"addr": "0x140c3d8c0", "comment": "Our name (65148). (character+0xC0, fullSave, out snapshot): fills the graph snapshot SaveState 63601 writes. First section = active states: walks the root behaviour graph's active nodes (behaviorGraph +152, 144-byte entries, node at +80), keeps hkbStateMachines (StaticClass), takes their clone (GetNodeClone 58359) and records the current state's name (states[GetStateIndex(+128 currentStateId)] +96), the machine and its active transitions (+176, count +184). A machine is recorded only if mid-transition, or its current state differs from its start state (+104), or +134 > 1, or the global byte_1420C7978 is set: machines resting in their start state are left out. So a snapshot right after PerformAction 38949 holds the outgoing state's machines while they blend, and is no reading of where the owner stays: the harness's live watch reads it at each moment (docs/re/systems/animation-replay-recovery.md). Read in IDA."}
+2026-11-06T16:53:39Z	comment	37363	0x67d930	{"addr": "0x14067d930", "comment": "[re]\nAddressLib ID 37363\nThe gate of ProcessTracking 38009, as in Actor::UpdateAnimation 37361: life state not 3 or 1, not IsDead (vfunc 153), knock state 0, sit state not 7 (asleep: 3 is sitting, sub_140722E10), a high process (+0x137 == 0), a controller whose lodDistance (+0x29C) is 0 to 2000, 12000 for an extra large race (TESRace +0x128 == 3). Diagnostics/HeadTrackRead.h mirrors it."}
+2026-11-06T16:53:39Z	comment	38009	0x6b3f20	{"addr": "0x1406b3f20", "comment": "[re]\nAddressLib ID 38009\nSkyrimCoop: hooked by HookProcessTracking as RealProcessTracking (Code/client/Games/Skyrim/AiStateEvents.cpp:136)\nFirst asks flags2 bit 3 (HeadTrackingOn 42840). Reads the highest slot (39484); if that is slot 2 and the actor talks, also slot 0 by turns. A target's look position is used only if the actor is alive (life 0, 6, 7) and the target is not itself; otherwise the target's bare position goes down the same path (Actor::sub_37851). Ambient pick into slot 0 every 1.0-1.5 s, after a copy's push."}
+2026-11-06T17:15:13Z	read	40447	0x745200	{"name": "sub_140745200"}
+2026-11-06T18:09:01Z	name	39865	0x722e10	{"addr": "0x140722e10", "name": "ActorProcess::StandOrWakeFromFurniture"}

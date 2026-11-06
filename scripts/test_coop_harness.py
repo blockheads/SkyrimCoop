@@ -1674,28 +1674,97 @@ class ClipMismatchTests(unittest.TestCase):
         self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
 
 
-class GraphDriftLineTests(unittest.TestCase):
-    """The per-flow drift line (observations.graph_drift_line) reports any counter change, not only new replays."""
+class GraphApartTests(unittest.TestCase):
+    """The live comparison (comparisons.GraphApart): only what stays apart from the owner's state now counts."""
 
     @staticmethod
-    def counts(**values):
-        from coop_harness.observations import Observations
-        return {"host": {name: {"count": values.get(name.replace(" ", "_"), 0), "sum": 0, "max": 0} for name in Observations.GRAPH_DRIFT},
-                "client": {name: {} for name in Observations.GRAPH_DRIFT}}
+    def apart():
+        from coop_harness.comparisons import GraphApart
+        return GraphApart(lasting=2.0)
 
-    def test_a_mismatch_turning_lasting_in_a_quiet_flow_is_reported(self):
+    def test_an_owner_that_moved_on_is_read_where_it_is_now(self):
+        # Skyrim, 2026-11-06: the action's snapshot said 44 s apart; live, the two agree once the transition ends.
+        apart = self.apart()
+        apart.observe(1, {"Idle", "Leaving"}, {"Idle"}, 10.0)
+        apart.observe(1, {"Idle"}, {"Idle"}, 10.3)
+        self.assertEqual(apart.finish(60.0), [])
+        self.assertEqual(apart.samples, 2)
+
+    def test_a_copy_really_apart_counts_once_with_its_sides(self):
+        # Sigrid 13483: the owner dropped the idle, her copy plays it.
+        apart = self.apart()
+        for now in (10.0, 11.0, 12.0, 13.9):
+            apart.observe(2, {"Default"}, {"Default", "IdlePickup_Ground"}, now)
+        apart.observe(2, {"Default"}, {"Default"}, 14.0)
+        self.assertEqual(apart.finish(20.0), [{"actor": 2, "at": 10.0, "seconds": 4.0, "owner_only": [], "copy_only": ["IdlePickup_Ground"]}])
+
+    def test_a_copy_following_a_moment_late_does_not_count(self):
+        apart = self.apart()
+        apart.observe(3, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(3, {"Walk"}, {"Walk"}, 11.9)
+        self.assertEqual(apart.finish(20.0), [])
+
+    def test_a_graph_not_read_is_no_evidence(self):
+        apart = self.apart()
+        apart.observe(4, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(4, None, {"Idle"}, 11.0)
+        apart.observe(4, {"Walk"}, {"Idle"}, 12.0)
+        self.assertEqual(apart.finish(12.5), [])
+        self.assertEqual(apart.samples, 2)
+
+    def test_still_apart_at_the_end_counts(self):
+        apart = self.apart()
+        apart.observe(5, {"Walk"}, {"Idle"}, 10.0)
+        self.assertEqual(apart.finish(13.0)[0]["seconds"], 3.0)
+
+    def test_an_actor_no_longer_read_is_no_evidence(self):
+        # Skyrim: the party leaves Riverwood, and the graphs left behind stand still where each game last had them.
+        apart = self.apart()
+        apart.observe(6, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(7, {"Walk"}, {"Idle"}, 10.0)
+        apart.keep_only([7])
+        self.assertEqual([run["actor"] for run in apart.finish(13.0)], [7])
+
+    def test_only_a_living_npc_in_3d_is_watched(self):
         from coop_harness.observations import Observations
         ctx = Observations()
-        ctx.graph_drift_counts = lambda: self.counts(replays=1, mismatches=1, lasting=1)
-        line = ctx.graph_drift_line(self.counts(replays=1, mismatches=1))
-        self.assertIn("lasting 1", line)
-        self.assertIn("replays 0", line)
+        row = lambda role, sid, **more: {"role": role, "player": more.pop("player", False), "mod": {"session_id": sid},
+                                         "placement": {"has_3d": more.pop("has_3d", True)}, "state": {"dead": more.pop("dead", False)}}
+        class Game:
+            def __init__(self, world):
+                self.world = world
+            def read_status(self):
+                return {"world": self.world}
+        host = {"1": row("own", 1), "2": row("own", 2, dead=True), "3": row("own", 3), "4": row("own", 4, player=True), "5": row("own", 5)}
+        guest = {"11": row("copy", 1), "12": row("copy", 2, dead=True), "13": row("copy", 3, has_3d=False), "14": row("copy", 4, player=True)}
+        self.assertEqual(ctx.copy_pairs([Game(host), Game(guest)]), {1: (1, 11)})
 
-    def test_nothing_changed_prints_nothing(self):
-        from coop_harness.observations import Observations
-        ctx = Observations()
-        ctx.graph_drift_counts = lambda: self.counts(replays=3)
-        self.assertEqual(ctx.graph_drift_line(self.counts(replays=3)), "")
+    def test_the_flow_line_says_what_it_read(self):
+        from coop_harness.comparisons import graph_apart_line
+        self.assertEqual(graph_apart_line(self.apart(), 0.0), "")
+        apart = self.apart()
+        apart.observe(0x13483, {"A"}, {"A"}, 1.0)
+        self.assertIn("no run of 2 s", graph_apart_line(apart, 0.0))
+
+
+class HeadTrackComparisonTests(unittest.TestCase):
+    """ai_state.head_track: compared only where the engine reads the slots (compare_field)."""
+
+    @staticmethod
+    def differs(owner, copy):
+        from coop_harness.comparisons import compare_field
+        return compare_field("ai_state.head_track", owner, copy, {"player": False, "identity": {}})
+
+    def test_unread_on_either_game_is_no_difference(self):
+        # Skyrim: a killed wolf's copy holds each game's own player in slot 0; the engine reads neither.
+        self.assertIsNone(self.differs("unread", ["session 2"]))
+        self.assertIsNone(self.differs(["session 1"], "unread"))
+        self.assertIsNone(self.differs("unread", "unread"))
+
+    def test_read_on_both_compares_the_target(self):
+        self.assertEqual(self.differs(["session 1"], ["session 2"]), "differs")
+        self.assertEqual(self.differs([], ["session 2"]), "differs")
+        self.assertIsNone(self.differs(["session 1"], ["session 1"]))
 
 
 class ProfileBudgetTests(unittest.TestCase):

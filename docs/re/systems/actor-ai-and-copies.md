@@ -664,11 +664,34 @@ meh321 where they have one, ours otherwise.
   them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
 
-  **When the slots are read (read in IDA, 1.7.104, 2026-11-05).** Both callers skip ProcessTracking for an actor that
-  is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), in sit state 7, not high
-  process, or with its controller's `+0x29C` out of range. In those states nothing reads the slots, so a dead actor
-  looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither pushes nor reports.
+  **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an
+  actor that is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), asleep (sit state 7;
+  3 is sitting, which tracks: `ActorProcess::StandOrWakeFromFurniture` at `0x140722E10` wakes 7 and stands 3), not high process, or with its controller's
+  `lodDistance` (`+0x29C`) outside 0 to 2000, 12000 for an extra large race. In those states nothing reads the slots to
+  turn a head, so a dead actor looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither
+  pushes nor reports.
   The bit `actorState.flags2 & 8` (`HeadTrackingOn` 42840 sets it, `HeadTrackingOff` 42841) is checked first inside.
+
+  Every reader of the slots (xrefs of `GetHeadtrackTarget` 39484, read):
+
+  - `ProcessTracking` 38009: the highest set slot; with slot 2 highest and the actor talking, slots 2 and 0 by turns
+    (`GetHighestHeadtrackSlot`). A target's look position only if the actor lives (life 0, 6, 7) and the target is not
+    itself. A self-target goes down the no-target path with its own position (`Actor::sub_37851`, its vfunc unread):
+    that it turns no head is inferred from that and the next reader, not measured.
+  - `BSDirectAtModifierInterface::GetTargetPosition` (`0x1407DB5E0`), from the graph, outside the gate: target type 1 is
+    the highest slot's head bone, none for a self-target. **So a graph with a direct-at modifier could read a dead
+    actor's slot.** Whether one runs on a dead or knocked actor is unread; the slot written at dying would then turn a
+    dying head, on each game towards its own player. Not compared.
+  - `Character::ShouldRotateToTrack` 38011: from `UpdateAI` (a copy skips it) and `Character::sub_37405`; none for a
+    self-target.
+  - `Character::CanHeadtrackTarget` 37919: widens the view for the current target; from the ambient pick (inside the gate)
+    and `BGSSceneActionDialogue`. `Character::GetSpeechTarget` 37617: whom a talker speaks to.
+  - `BSFaceGenNiNode` 26998: any set slot lets the eye tracking run; yes or no, never which target. `0x1406918B0`: a stub.
+
+  **`ai_state.head_track` is what these read:** `Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
+  what shut it, `"unread"` compares with anything) and the highest slot, slot 0 beside slot 2, none for a self-target. The
+  six raw slots stay in the snapshot as `ai.head_track_slots`, not compared. A shadowed slot differs unseen until the
+  higher one clears; the comparison sees it then.
 
   ProcessTracking also writes: every 1.0-1.5 s (`Actor::headTrackingUpdateDelay`, `+0xEC`) it may pick an ambient target
   (`Character::PickAmbientHeadtrackTarget` 38012: this game's player, then the high process list) into slot 0, after our
