@@ -666,7 +666,7 @@ meh321 where they have one, ours otherwise.
 
   **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an
   actor that is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), asleep (sit state 7;
-  3 is sitting, which tracks: `ActorProcess::StandOrWakeFromFurniture` at `0x140722E10` wakes 7 and stands 3), not high process, or with its controller's
+  3 is sitting, which tracks: `ActorProcess::StandOrWakeFromFurniture` 39865 wakes 7 and stands 3), not high process, or with its controller's
   `lodDistance` (`+0x29C`) outside 0 to 2000, 12000 for an extra large race. In those states nothing reads the slots to
   turn a head, so a dead actor looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither
   pushes nor reports.
@@ -674,22 +674,29 @@ meh321 where they have one, ours otherwise.
 
   Every reader of the slots (xrefs of `GetHeadtrackTarget` 39484, read):
 
-  - `ProcessTracking` 38009: the highest set slot; with slot 2 highest and the actor talking, slots 2 and 0 by turns
-    (`GetHighestHeadtrackSlot`). A target's look position only if the actor lives (life 0, 6, 7) and the target is not
-    itself. A self-target goes down the no-target path with its own position (`Actor::sub_37851`, its vfunc unread):
-    that it turns no head is inferred from that and the next reader, not measured.
-  - `BSDirectAtModifierInterface::GetTargetPosition` (`0x1407DB5E0`), from the graph, outside the gate: target type 1 is
-    the highest slot's head bone, none for a self-target. **So a graph with a direct-at modifier could read a dead
-    actor's slot.** Whether one runs on a dead or knocked actor is unread; the slot written at dying would then turn a
-    dying head, on each game towards its own player. Not compared.
+  - `ProcessTracking` 38009: the highest set slot. Slots 2 and 0 by turns only with slot 2 highest, `boolBits & 0x180`, the
+    voice timer run out and not talking to this game's player (`IsTalkingToPC` 39347, through 37199). A target's look
+    position only if the actor lives (life 0, 6, 7) and the target is not itself. A self-target goes down the no-target
+    path with its own position (`Actor::sub_37851`, its vfunc unread): that it turns no head is **inferred** from that and
+    the next two readers, not measured.
+  - `BSDirectAtModifierInterface::GetTargetPosition` (43657), from the graph, outside the gate: target type 1 is the highest
+    slot's head bone, none for a self-target. It runs from the modifier's `modify` (63195) while a behaviour graph has one
+    active, which data decides, not code. **Dead: not a reader** (read: `KillImpl` clears `kShouldAnimGraphUpdate`,
+    `UpdateAnimationGraphManager` 32899 then updates no graph; death.md). **Knocked or asleep: unread**, so the check's
+    `"unread"` there means `ProcessTracking` does not read them, not that nothing could. Dying is the same as dead on the
+    owner; a living copy keeps its graph running until its owner's death action.
   - `Character::ShouldRotateToTrack` 38011: from `UpdateAI` (a copy skips it) and `Character::sub_37405`; none for a
     self-target.
   - `Character::CanHeadtrackTarget` 37919: widens the view for the current target; from the ambient pick (inside the gate)
     and `BGSSceneActionDialogue`. `Character::GetSpeechTarget` 37617: whom a talker speaks to.
-  - `BSFaceGenNiNode` 26998: any set slot lets the eye tracking run; yes or no, never which target. `0x1406918B0`: a stub.
+  - `BSFaceGenNiNode` 26998: any set slot lets the eye tracking run; yes or no, never which target. 37571: a stub.
+
+  The player: its own update (`PlayerCharacter::Update` 40447) calls ProcessTracking only in camera states from 9, read; not
+  through the gate above. That a player's life and knock state shut it too is **inferred**: `ProcessTracking`'s own life check
+  is read, the rest is carried over from the NPC gate.
 
   **`ai_state.head_track` is what these read:** `Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
-  what shut it, `"unread"` compares with anything) and the highest slot, slot 0 beside slot 2, none for a self-target. The
+  what shut it, `"unread"` compares with anything) and the highest slot, slot 0 beside slot 2 when they alternate, none for a self-target. The
   six raw slots stay in the snapshot as `ai.head_track_slots`, not compared. A shadowed slot differs unseen until the
   higher one clears; the comparison sees it then.
 
@@ -709,7 +716,7 @@ meh321 where they have one, ours otherwise.
   A player's own shout does the same on the owner (`fus-ro-dah-host-hits-guest`): slot 1 on itself, moved to slot 0 as
   the line ends. ProcessTracking skips a target that is the actor itself (`v19 != a1`), so that slot turns no head. Its
   copy read none throughout with its gate open, and the host's log shows no send for the player then (weak: the log may
-  lag). `PlayerCharacter`'s update (0x140745200) calls ProcessTracking only with camera state 9 or more, which may be
+  lag). `PlayerCharacter::Update` (40447) calls ProcessTracking only with camera state 9 or more, read, which may be
   why the owner's hook never reports it: inferred, not measured.
 - **Talking.** `IsTalking` (37266, read by the condition 21519 and the dialogue menu 35283/35290/35294): `boolBits &
   0x180` and the voice timer, which a copy's played voice line sets. Compared (`ai_state.talking`), nothing written.

@@ -20,7 +20,7 @@ struct Gate
     float LodDistance = 0.f;  // bhkCharacterController::lodDistance
     bool ExtraLarge = false;  // TESRace size 3
     bool TrackingOn = true;
-    // This game's player has no range: its own update (0x140745200) tracks only in the camera states from 9, third person.
+    // This game's player has no range: its own update (40447) tracks only in the camera states from 9, third person.
     bool Player = false;
     bool ThirdPerson = false;
 };
@@ -49,8 +49,8 @@ struct Gate
 }
 
 // The targets the engine reads, by form id: the highest set slot (AIProcess::GetHeadtrackTarget 39484), and slot 0 beside
-// slot 2, which ProcessTracking alternates in a conversation. A target that is the actor itself is no target.
-[[nodiscard]] inline std::vector<uint32_t> Targets(const std::array<uint32_t, 6>& acSlots, uint32_t aSelf)
+// slot 2 in the conversation ProcessTracking alternates them in. A target that is the actor itself is no target.
+[[nodiscard]] inline std::vector<uint32_t> Targets(const std::array<uint32_t, 6>& acSlots, uint32_t aSelf, bool aAlternates = false)
 {
     std::vector<uint32_t> targets;
     for (size_t i = acSlots.size(); i-- > 0;)
@@ -59,7 +59,7 @@ struct Gate
             continue;
         if (acSlots[i] != aSelf)
             targets.push_back(acSlots[i]);
-        if (i == 2 && acSlots[0] && acSlots[0] != aSelf)
+        if (i == 2 && aAlternates && acSlots[0] && acSlots[0] != aSelf)
             targets.push_back(acSlots[0]);
         break;
     }

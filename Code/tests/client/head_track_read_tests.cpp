@@ -54,10 +54,12 @@ TEST_CASE("Only the slot the engine reads counts: the highest set, and slot 0 be
     CHECK(Targets(Slots{cA}, cSelf) == Read{cA});
     // A lower slot is shadowed until the higher one clears.
     CHECK(Targets(Slots{cA, 0, 0, cB}, cSelf) == Read{cB});
-    // Slot 2 in a conversation alternates with slot 0 (38009).
-    CHECK(Targets(Slots{cA, 0, cB}, cSelf) == Read{cB, cA});
+    // Slot 2 alternates with slot 0 in a conversation (38009), and only there.
+    CHECK(Targets(Slots{cA, 0, cB}, cSelf) == Read{cB});
+    CHECK(Targets(Slots{cA, 0, cB}, cSelf, true) == Read{cB, cA});
+    CHECK(Targets(Slots{cA, 0, 0, cB}, cSelf, true) == Read{cB});
     // The actor itself: no target, and it shadows what is under it (Faendal's slot 1, a player's shout).
     CHECK(Targets(Slots{0, cSelf}, cSelf).empty());
     CHECK(Targets(Slots{cA, cSelf}, cSelf).empty());
-    CHECK(Targets(Slots{cSelf, 0, cB}, cSelf) == Read{cB});
+    CHECK(Targets(Slots{cSelf, 0, cB}, cSelf, true) == Read{cB});
 }

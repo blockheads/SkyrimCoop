@@ -36,6 +36,8 @@ struct AIProcess
     void KnockExplosion(Actor* apActor, const NiPoint3* aSourceLocation, float afMagnitude);
     // GetHeadtrackTarget (39484): what the actor looks at now (its highest set headtrack slot), or none.
     TESObjectREFR* GetHeadTrackTarget() const noexcept;
+    // IsTalkingToPC (39347): in a conversation with this game's player.
+    bool IsTalkingToPlayer() const noexcept;
 
     void* unk0;
     MiddleProcess* middleProcess; // 08 (CommonLib middleHigh)

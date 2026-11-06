@@ -186,8 +186,8 @@ Settled by the check, recorded so they are not filed again:
 - **Dead or dying.** `KillImpl` clears all six (39477). Measured on a killed wolf: at dying, slot 1 becomes each game's own
   player, about 2 s later it moves to slot 0, the owner's clears at life state 2; the copy's clear-all ran before its local
   write, so its slot 0 stays on its own player. The gate is shut on both. What writes slot 1 at dying is not found (written
-  inline at `+0x144`). `BSDirectAtModifier` reads the slots from the graph, outside the gate: whether one runs on a dying
-  actor is unread.
+  inline at `+0x144`). `BSDirectAtModifier` (43657) reads the slots from the graph, outside the gate, but `KillImpl` stops a dead
+  actor's graph. For a knocked or sleeping actor that reader is unread: if a head turns there, this check will not show it.
 - **A player's slot on itself** (dives, fus-ro-dah): a self-target. Not one of `ProcessTracking`'s targets; that it turns
   no head is inferred, not measured.
 - Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the copy in

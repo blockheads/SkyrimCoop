@@ -18,6 +18,13 @@ TESObjectREFR* AIProcess::GetHeadTrackTarget() const noexcept
     return TESObjectREFR::GetByHandle(*s_getHeadTrackTarget(this, &handle));
 }
 
+bool AIProcess::IsTalkingToPlayer() const noexcept
+{
+    using TIsTalkingToPC = bool(const AIProcess*);
+    POINTER_SKYRIMSE(TIsTalkingToPC, s_isTalkingToPC, 39347);
+    return s_isTalkingToPC(this);
+}
+
 void HighProcessData::SetHeadTrackTarget(HeadTrackType aType, TESObjectREFR* apTarget) noexcept
 {
     using TSetHeadTrackTarget = bool(HighProcessData*, uint32_t, TESObjectREFR*);

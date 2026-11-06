@@ -1747,6 +1747,64 @@ class GraphApartTests(unittest.TestCase):
         self.assertIn("no run of 2 s", graph_apart_line(apart, 0.0))
 
 
+class ActiveStatesTests(unittest.TestCase):
+    """graph_state's reply: an empty graph is a reading, no reply or broken bytes are none."""
+
+    @staticmethod
+    def saved(machines=(("m", "s"),)):
+        text = lambda value: len(value).to_bytes(2, "little") + value.encode()
+        section = len(machines).to_bytes(4, "little")
+        for machine, state in machines:
+            section += text(machine) + bytes(4) + text(state) + bytes(8)
+        return (bytes(8) + text("p") + len(section).to_bytes(4, "little") + section).hex()
+
+    def test_a_graph_reads_as_its_states(self):
+        from coop_harness.comparisons import active_states
+        self.assertEqual(active_states(self.saved()), {"p/m=s"})
+        self.assertEqual(active_states(self.saved(())), set())
+        self.assertEqual(active_states(bytes(8).hex()), set())
+
+    def test_no_reply_or_broken_bytes_is_no_reading(self):
+        from coop_harness.comparisons import active_states
+        for broken in ("", None, "00", "zz", self.saved()[:-2], self.saved()[:30]):
+            self.assertIsNone(active_states(broken), broken)
+
+    def test_a_failed_read_ends_a_run_uncounted(self):
+        # The reply's `{"ok": false}` has no state: without this a gap reads as an empty graph, apart.
+        from coop_harness.comparisons import GraphApart, active_states
+        apart = GraphApart()
+        apart.observe(1, {"Idle"}, active_states(""), 11.0)
+        apart.observe(1, {"Idle"}, active_states(""), 13.1)
+        self.assertEqual(apart.finish(13.2), [])
+
+    def test_a_watch_that_dies_leaves_no_open_run(self):
+        from coop_harness.observations import Observations
+        states = {"": self.saved((("m", "a"),)), "client": self.saved((("m", "b"),))}
+        role = lambda name: {"role": name, "player": False, "mod": {"session_id": 1}, "placement": {"has_3d": True}, "state": {}}
+
+        class Game:
+            def __init__(self, name):
+                self.name, self.calls = name, 0
+                self.rpc_connections = {}
+            def read_status(self):
+                return {"world": {"1" if not self.name else "2": role("own" if not self.name else "copy")}}
+            def rpc(self, request, timeout=3.0):
+                self.calls += 1
+                if self.calls > 2:
+                    raise OSError("the game went away")
+                return {"state": states[self.name]}
+            def close(self):
+                pass
+        ctx = Observations()
+        games = {"": Game(""), "client": Game("client")}
+        ctx.game = lambda name="": games[name]
+        watch = ctx.graph_watch_start(every=0.01)
+        watch["thread"].join(5)
+        self.assertFalse(watch["thread"].is_alive())
+        self.assertEqual(watch["apart"].open, {})
+        self.assertIn("no run", ctx.graph_watch_stop(watch))
+
+
 class HeadTrackComparisonTests(unittest.TestCase):
     """ai_state.head_track: compared only where the engine reads the slots (compare_field)."""
 

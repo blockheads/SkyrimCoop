@@ -177,6 +177,7 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
                                                      .TrackingOn = (pActor->actorState.flags2 & 8) != 0,
                                                      .Player = pActor == PlayerCharacter::Get(),
                                                      .ThirdPerson = pCamera && pCamera->state && pCamera->state->id >= TESCameraState::kThirdPerson});
+    readout.HeadTrackAlternates = (pActor->flags1 & 0x180) == 0x180 && pActor->fVoiceTimer <= 0.f && !pActor->currentProcess->IsTalkingToPlayer();
     return readout;
 }
 

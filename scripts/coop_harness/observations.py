@@ -96,6 +96,7 @@ class Observations:
                 watch()
             except Exception as error:  # a check's own failure says so, it never fails the flow
                 log(f"graph watch stopped: {error}")
+                apart.keep_only(())  # the gap is no evidence: what it finished already stands
             finally:
                 for game in games:
                     game.close()

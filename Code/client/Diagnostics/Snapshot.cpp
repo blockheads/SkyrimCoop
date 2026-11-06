@@ -107,7 +107,7 @@ static nlohmann::json HeadTrackReadBy(const EngineReads::AiReadout& acAi, uint32
     if (acAi.HeadTrackShutBy)
         return "unread";
     auto names = nlohmann::json::array();
-    for (const uint32_t cTarget : HeadTrackRead::Targets(acAi.HeadTrack, aFormId))
+    for (const uint32_t cTarget : HeadTrackRead::Targets(acAi.HeadTrack, aFormId, acAi.HeadTrackAlternates))
         names.push_back(SharedName(cTarget));
     return names;
 }

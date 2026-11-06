@@ -298,27 +298,46 @@ def compare_field(field, owner, copy, owner_snapshot):
 
 
 def active_states(hex_state):
-    """The active states of `graph_state`'s reply, the active states section of SaveState 63601; None if they do not parse."""
-    data, states, at = bytes.fromhex(hex_state), set(), 8
-    take = lambda size, offset: int.from_bytes(data[offset:offset + size], "little")
+    """The active states of `graph_state`'s reply (the first section of SaveState 63601): a set, empty for a graph with no
+    machine out of its start state; None for no reply or bytes that do not parse, which is no reading."""
+    try:
+        data = bytes.fromhex(hex_state or "")
+    except ValueError:
+        return None
+    if len(data) < 8:
+        return None
+
+    def take(size, offset, limit):
+        if offset + size > limit:
+            raise ValueError("past the end")
+        return int.from_bytes(data[offset:offset + size], "little")
+
+    def text(offset, limit):
+        length = take(2, offset, limit)
+        if offset + 2 + length > limit:
+            raise ValueError("past the end")
+        return data[offset + 2:offset + 2 + length].decode("latin-1"), offset + 2 + length
+
+    states, at = set(), 8
     try:
         while at < len(data):
-            length = take(2, at)
-            project = data[at + 2:at + 2 + length].decode("latin-1")
-            at += 2 + length
-            size = take(4, at)
+            project, at = text(at, len(data))
+            size = take(4, at, len(data))
             at += 4
-            cursor, end = at + 4, at + size
-            for _ in range(take(4, at)):
-                length = take(2, cursor)
-                machine = data[cursor + 2:cursor + 2 + length].decode("latin-1")
-                cursor += 2 + length + 4
-                length = take(2, cursor)
-                state = data[cursor + 2:cursor + 2 + length].decode("latin-1")
-                cursor += 2 + length + 8
+            end = at + size
+            if end > len(data):
+                return None
+            cursor = at + 4
+            for _ in range(take(4, at, end)):
+                machine, cursor = text(cursor, end)
+                cursor += 4
+                state, cursor = text(cursor, end)
+                cursor += 8
+                if cursor > end:
+                    return None
                 states.add(f"{project}/{machine}={state}")
             at = end
-    except (IndexError, ValueError):
+    except ValueError:
         return None
     return states
 
