@@ -703,14 +703,8 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
         deleted = true;
         spdlog::info("\tDeleted actor {:X}", cFormId);
     }
-    else if (cFormId && m_actorBridge.IsActorCopy(cFormId) && !FollowOwner(cEntity, cFormId, acMessage.Whereabouts) &&
-             !m_world.GetHostService().IsHosting())
-    {
-        // Only the host's game decides what is loaded: a copy with no owner goes from this game's area too.
-        spdlog::info("Copy {:X}: no owner and still in this game's area: hidden", cFormId);
-        m_actorBridge.DisableActor(cFormId, false);
-        m_world.get<HeldCopyComponent>(cEntity).Hidden = true;
-    }
+    else if (cFormId && m_actorBridge.IsActorCopy(cFormId))
+        FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
 
     DeleteRemoteEntityComponents(cEntity);
     // The engine reuses a deleted copy's form id for the next one: an entity left holding it
@@ -724,7 +718,7 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     }
 }
 
-bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
 {
     // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").
     m_world.emplace_or_replace<HeldCopyComponent>(aEntity);
@@ -737,7 +731,7 @@ bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
         {
             spdlog::warn("Copy {:X}: its owner's actor went to cell {:X} (worldspace {:X}), which this game lacks", aFormId,
                          acWhereabouts.CellId.BaseId, acWhereabouts.WorldSpaceId.BaseId);
-            return false;
+            return;
         }
         float x = 0.f, y = 0.f, z = 0.f;
         m_actorBridge.GetActorPosition(aFormId, x, y, z);
@@ -748,7 +742,7 @@ bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
             m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
             m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
         }
-        return !m_world.GetTravelService().IsAroundPlayer(acWhereabouts.WorldSpaceId, acWhereabouts.CellId, acWhereabouts.Position);
+        return;
     }
     case ActorWhereabouts::State::kDisabled:
     case ActorWhereabouts::State::kDeleted:
@@ -757,9 +751,9 @@ bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
         spdlog::info("Copy {:X}: its owner's actor was {}", aFormId,
                      acWhereabouts.Where == ActorWhereabouts::State::kDeleted ? "deleted" : "disabled");
         m_actorBridge.DisableActor(aFormId, false);
-        return true;
+        return;
     default:
-        return false;
+        return;
     }
 }
 

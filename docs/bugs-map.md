@@ -125,7 +125,7 @@ NPC crash. Decided the same day (the user): a copy with no owner goes too, as on
 
 - The guard did not share the guess made here: discovery drops him on the host (measured). The guest's reference is
   collected as it follows, so no copy there is right; the check was wrong.
-- The crash's link is read and measured: a placed reference marked deleted keeps its handle with no process.
+- The crash's cause is read and measured: a placed reference marked deleted keeps its handle with no process.
 - The rabbits in past failed runs were placed references, not temporary (`at-failure.json`, base `6DC9D`); which one
   was left with no owner was not recorded.
 

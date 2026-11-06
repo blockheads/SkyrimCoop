@@ -37,6 +37,7 @@
 #include <Games/TES.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
+#include <Services/SpeakerUpdate.h>
 #include <Services/PapyrusService.h>
 #include <Services/DeathDrops.h>
 
@@ -1390,14 +1391,13 @@ float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, ui
     return RealSpeakSoundFunction(apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
 }
 
-// Actor::UpdateInDialogue (37541, vfunc 0x4C): the conversation's update reads the speaker's process unchecked, and a
-// placed actor marked deleted keeps its handle with none (dialogue.md). DialogueBridge::ClearOrphaned ends it.
+// Actor::UpdateInDialogue (37541, vfunc 0x4C): SpeakerUpdate.h says why. DialogueBridge::ClearOrphaned ends it.
 using TUpdateInDialogue = bool(Actor*, void* apResponse, bool aUnused);
 static TUpdateInDialogue* RealUpdateInDialogue = nullptr;
 
 bool HookUpdateInDialogue(Actor* apThis, void* apResponse, bool aUnused)
 {
-    if (!apThis->currentProcess && World::Get().GetTransport().IsOnline())
+    if (SpeakerUpdate::Skipped(apThis->currentProcess != nullptr, World::Get().GetTransport().IsOnline()))
         return false;
     return RealUpdateInDialogue(apThis, apResponse, aUnused);
 }

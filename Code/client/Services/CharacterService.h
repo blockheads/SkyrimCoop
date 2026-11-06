@@ -135,8 +135,7 @@ private:
     // Where our actor is now, for its copies to follow when we stop simulating it.
     [[nodiscard]] ActorWhereabouts ReadWhereabouts(uint32_t aFormId) const noexcept;
     // One of this game's references whose owner's actor went: moved or disabled as it was, still a copy.
-    // Where its owner's went; false: nowhere this game can put it out of its own area (the caller decides).
-    bool FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
+    void FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept;
 
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
     // An actor as it is now: where, its values, inventory and hands, and the action it last took.

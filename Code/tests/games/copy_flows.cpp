@@ -506,6 +506,12 @@ SCENARIO("A quest moves the host's persistent NPC outdoors out of the loaded cel
         CHECK_FALSE(guest.IsActorDisabled(kOlava));
         party.Agree("the games agree on Olava away");
     }
+    AND_WHEN("the guest's loaded cells reach her, the host's not")
+    {
+        party.As(party.Guest(), [&] { guest.Attached.insert(guest.CellAt(kTamriel, kFarOutside)); });
+        party.Until([&] { return guest.IsActorDisabled(kOlava); }, "a copy with no owner stays gone");
+        party.Agree("the games agree with Olava hidden");
+    }
 }
 
 // A rabbit at the host's grid's edge; Olava read with nothing to follow (bugs-map.md, D).

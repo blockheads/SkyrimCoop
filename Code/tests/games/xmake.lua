@@ -25,7 +25,7 @@ target("GameTests")
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Generic/BodyService.cpp",
               "../../client/Services/Guest/GuestHands.cpp", "../../client/Services/Guest/GuestWait.cpp",
-              "../../client/Services/Guest/GuestScene.cpp",
+              "../../client/Services/Guest/GuestScene.cpp", "../../client/Services/Guest/GuestCopies.cpp",
               "../../client/Services/Generic/MapService.cpp", "../../client/Services/Generic/PartyMarkerService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/WaitService.cpp", "../../client/Services/Generic/CrimeService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp",
