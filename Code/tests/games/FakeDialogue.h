@@ -41,6 +41,7 @@ struct FakeDialogue final : IDialogueBridge
     // The speaker's AI looks at this game's player while they talk (its dialogue headtrack slot; Skyrim
     // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0.
     std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
+    std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
 
@@ -192,7 +193,10 @@ struct FakeDialogue final : IDialogueBridge
     }
     bool ClearOrphaned() noexcept override
     {
-        return false;
+        if (!Speaker || !SpeakerHasProcess || SpeakerHasProcess(Speaker))
+            return false;
+        End();
+        return true;
     }
     bool PlayerMenuOpen = false;
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override

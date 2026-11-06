@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-06: a copy with no owner goes ([copy-lifecycle.md](re/systems/copy-lifecycle.md)). A persistent NPC sent out of the
+loaded cells says where it went (Olava); a guest hides a reference that would stay in its area with no owner, and drops one
+its engine collected (the placed guard; `leveled-placed-npc-is-hosts` passes). A placed speaker marked deleted no longer
+crashes either game (`HookUpdateInDialogue` 37541). Sigurd's registration stays open, not reproduced.
+
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
 copy without its weapon, the user's report, not reproduced.

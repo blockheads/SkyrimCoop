@@ -45,7 +45,7 @@ struct Party
     std::vector<std::string> Differences();
 
     // The actor checksum: each actor a game owns in the session has one copy on every other game, matching it; a copy
-    // a guest holds for a host NPC that went (HeldCopyComponent) is as the host's; no other actor is a copy.
+    // a guest holds for a host NPC that went (HeldCopyComponent) is as the host's or hidden; no other actor is a copy.
     std::vector<std::string> ActorDifferences();
 
     // Frames until the games agree on every actor (ActorDifferences), failing with the differences left.

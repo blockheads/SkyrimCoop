@@ -1390,6 +1390,18 @@ float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, ui
     return RealSpeakSoundFunction(apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
 }
 
+// Actor::UpdateInDialogue (37541, vfunc 0x4C): the conversation's update reads the speaker's process unchecked, and a
+// placed actor marked deleted keeps its handle with none (dialogue.md). DialogueBridge::ClearOrphaned ends it.
+using TUpdateInDialogue = bool(Actor*, void* apResponse, bool aUnused);
+static TUpdateInDialogue* RealUpdateInDialogue = nullptr;
+
+bool HookUpdateInDialogue(Actor* apThis, void* apResponse, bool aUnused)
+{
+    if (!apThis->currentProcess && World::Get().GetTransport().IsOnline())
+        return false;
+    return RealUpdateInDialogue(apThis, apResponse, aUnused);
+}
+
 void Actor::SpeakSound(const char* pFile)
 {
     uint32_t handle[3]{};
@@ -1761,6 +1773,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37906, &RealDismount, HookDismount);
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
+        HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
         HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
         HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);

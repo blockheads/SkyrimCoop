@@ -30,10 +30,8 @@ How sure each link is:
 
  COPY LIFECYCLE: an owner's actor unloads, moves or is removed
  -------------------------------------------------------------
-   rabbit / Olava with no owner --+
-   placed guard's trip home ------+-- which game's loaded area decides
-   Sigurd marked own -------------+
-   deleted NPC crash ---- a copy with no process inside a conversation
+   fixed 11-06: rabbit / Olava with no owner, placed guard's trip home, deleted NPC crash
+   Sigurd marked own -------- open, cause not shown
 
  CREATED FORMS HAVE NO SESSION ID  (ToSession, FormIds.h)
  --------------------------------------------------------
@@ -122,21 +120,18 @@ Entry: [Headtracking on copies](bugs.md#headtracking-on-copies). Already sorted 
 
 ### D. Copy lifecycle
 
-Entries: [End comparisons in towns](bugs.md#end-comparisons-in-towns) (rabbit, Olava),
-[A placed guard's trip home](bugs.md#a-placed-guards-trip-home), [Sigurd's registration](bugs.md#sigurds-registration),
-[A conversation's deleted NPC](bugs.md#a-conversations-deleted-npc).
+Fixed 2026-11-06 ([copy-lifecycle.md](re/systems/copy-lifecycle.md)): the rabbit and Olava, the placed guard, the deleted
+NPC crash. Decided the same day (the user): a copy with no owner goes too, as on the host.
 
-Read in code: `CharacterService::ReleaseCharacter` deletes a temporary copy, but a permanent reference becomes a
-`HeldCopyComponent`, "a copy while the session lasts". **Decided 2026-11-06 (the user): a copy with no owner goes too, as on the host.** So a held copy left on the guest (Olava
-`1A699`) is a real bug, and the check is right. The rabbit depends on whether it was temporary: not known.
+- The guard did not share the guess made here: discovery drops him on the host (measured). The guest's reference is
+  collected as it follows, so no copy there is right; the check was wrong.
+- The crash's link is read and measured: a placed reference marked deleted keeps its handle with no process.
+- The rabbits in past failed runs were placed references, not temporary (`at-failure.json`, base `6DC9D`); which one
+  was left with no owner was not recorded.
 
-Read in IDA: 39372 reads the process it is given with no null check, and `UpdateInDialogue` (37541) passes the actor's
-process, so the crash was an actor with no process. Linked to this cluster by that only: inferred.
+Open: [Sigurd's registration](bugs.md#sigurds-registration), not reproduced and not shown to share this.
 
-Host discovery goes by the host's 3D alone (`RunActorDiscovery`), so a guard moved home stays "loaded" on the host in a
-cell the guest may not have. Inferred, and it is the entry's own open question.
-
-The rest of that entry's town findings (fish `10C3BA`, player heights) are not lifecycle: they stay there.
+The rest of the town entry (fish `10C3BA`, player heights, the inn's containers) is not lifecycle: it stays there.
 
 ### E. Created forms
 
@@ -208,5 +203,5 @@ half-stop is the engine's detection.
 
 1. Fix the checks first (A, C step 1): they fail scenarios and file bugs that are not there.
 2. Then anything a check was hiding reads true: Sigrid's cancelled idle, the four head-track cases.
-3. D's fix clears the town comparisons' missing owners: a copy goes when its owner's game drops the actor.
+3. Done: D's fix clears the town comparisons' missing owners: a copy goes when its owner's game drops the actor.
 4. Everything else is independent.

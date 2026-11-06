@@ -327,7 +327,11 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     for (const auto cEntity : std::vector<entt::entity>(cHeld.begin(), cHeld.end()))
     {
         if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && m_actorBridge.IsActorCopy(pFormId->Id))
+        {
             m_actorBridge.SetActorCopy(pFormId->Id, false);
+            if (m_world.get<HeldCopyComponent>(cEntity).Hidden)
+                m_actorBridge.EnableActor(pFormId->Id);
+        }
         m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
         if (m_world.orphan(cEntity))
             m_world.destroy(cEntity);
@@ -699,8 +703,14 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
         deleted = true;
         spdlog::info("\tDeleted actor {:X}", cFormId);
     }
-    else if (cFormId && m_actorBridge.IsActorCopy(cFormId))
-        FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+    else if (cFormId && m_actorBridge.IsActorCopy(cFormId) && !FollowOwner(cEntity, cFormId, acMessage.Whereabouts) &&
+             !m_world.GetHostService().IsHosting())
+    {
+        // Only the host's game decides what is loaded: a copy with no owner goes from this game's area too.
+        spdlog::info("Copy {:X}: no owner and still in this game's area: hidden", cFormId);
+        m_actorBridge.DisableActor(cFormId, false);
+        m_world.get<HeldCopyComponent>(cEntity).Hidden = true;
+    }
 
     DeleteRemoteEntityComponents(cEntity);
     // The engine reuses a deleted copy's form id for the next one: an entity left holding it
@@ -714,7 +724,7 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     }
 }
 
-void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
 {
     // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").
     m_world.emplace_or_replace<HeldCopyComponent>(aEntity);
@@ -727,17 +737,18 @@ void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
         {
             spdlog::warn("Copy {:X}: its owner's actor went to cell {:X} (worldspace {:X}), which this game lacks", aFormId,
                          acWhereabouts.CellId.BaseId, acWhereabouts.WorldSpaceId.BaseId);
-            return;
+            return false;
         }
         float x = 0.f, y = 0.f, z = 0.f;
         m_actorBridge.GetActorPosition(aFormId, x, y, z);
         const glm::vec3 cHere{x, y, z};
-        if (m_actorBridge.GetActorParentCellFormId(aFormId) == cCellId && glm::distance(cHere, glm::vec3(acWhereabouts.Position)) < 64.f)
-            return;
-        spdlog::info("Copy {:X} follows its owner's actor to cell {:X}", aFormId, cCellId);
-        m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
-        m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
-        return;
+        if (m_actorBridge.GetActorParentCellFormId(aFormId) != cCellId || glm::distance(cHere, glm::vec3(acWhereabouts.Position)) >= 64.f)
+        {
+            spdlog::info("Copy {:X} follows its owner's actor to cell {:X}", aFormId, cCellId);
+            m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
+            m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
+        }
+        return !m_world.GetTravelService().IsAroundPlayer(acWhereabouts.WorldSpaceId, acWhereabouts.CellId, acWhereabouts.Position);
     }
     case ActorWhereabouts::State::kDisabled:
     case ActorWhereabouts::State::kDeleted:
@@ -746,9 +757,9 @@ void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const
         spdlog::info("Copy {:X}: its owner's actor was {}", aFormId,
                      acWhereabouts.Where == ActorWhereabouts::State::kDeleted ? "deleted" : "disabled");
         m_actorBridge.DisableActor(aFormId, false);
-        return;
+        return true;
     default:
-        return;
+        return false;
     }
 }
 
@@ -765,7 +776,10 @@ ActorWhereabouts CharacterService::ReadWhereabouts(uint32_t aFormId) const noexc
     {
         const uint32_t cCellId = m_actorBridge.GetActorParentCellFormId(aFormId);
         const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(aFormId);
-        const auto cCell = cCellId ? ToSessionCell(cCellId, cWorldSpaceId) : std::nullopt;
+        // A persistent reference outdoors out of the loaded cells has no parent cell, only its worldspace.
+        if (!cCellId && !cWorldSpaceId)
+            return {};
+        const auto cCell = cCellId ? ToSessionCell(cCellId, cWorldSpaceId) : std::optional(GameId{});
         const auto cWorldSpace = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
         if (!cCell || !cWorldSpace)
             return {};
@@ -1730,6 +1744,16 @@ void CharacterService::RunPresence() noexcept
         return;
     const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
     const auto cNow = std::chrono::steady_clock::now();
+
+    // The engine collected a held reference (a plugin's, not persistent, out of the loaded cells: 37501).
+    const auto cHeld = m_world.view<HeldCopyComponent, FormIdComponent>();
+    for (const auto cEntity : std::vector<entt::entity>(cHeld.begin(), cHeld.end()))
+        if (!m_actorBridge.ActorExists(cHeld.get<FormIdComponent>(cEntity).Id))
+        {
+            m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
+            if (m_world.orphan(cEntity))
+                m_world.destroy(cEntity);
+        }
 
     std::vector<std::pair<entt::entity, uint32_t>> gone;
     std::unordered_set<uint32_t> goneElsewhere;

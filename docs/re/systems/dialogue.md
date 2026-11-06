@@ -283,13 +283,14 @@ Checked in IDA on 1.6.1170 for the open items of `shared-dialogue.md`.
 | 37266 | 0x662a90 | `Actor::IsTalking` | Voice flags (+0xE8 & 0x180) or its voice timer (+0x110) |
 
 - **What ends a conversation.** `Actor::UpdateInDialogue` (37541) calls 35294 when the speaker has no AI process
-  (unloaded), on `shutMenu`, or when a dialogue timer runs out without `waitingToAdvance`: no distance rule (the
+  (then faults on it: [copy-lifecycle.md](copy-lifecycle.md), hooked), on `shutMenu`, or when a dialogue timer runs out without `waitingToAdvance`: no distance rule (the
   host held one at 4000 units). Travel ends it through the `PositionPlayerEvent` sink. A party travelling ends
   the host's and closes every peer's menu (`dialogue-ends-on-travel`).
 - **A speaker deleted mid-conversation** leaves the conversation stuck: 35294 does nothing without a speaker
   (`speaker` handle invalid), so 35274 never runs and `menuOpen` stays set, and the game starts no conversation
   again (activating an NPC does nothing). A copy is deleted that way when its NPC is removed or left behind on
-  travel. `DialogueBridge::ClearOrphaned` calls 35274 then (`dialogue-npc-removed` fails without it).
+  travel. `DialogueBridge::ClearOrphaned` calls 35274 then (`dialogue-npc-removed` fails without it), and for a speaker
+  with a valid handle and no process, a placed one marked deleted ([copy-lifecycle.md](copy-lifecycle.md)).
 - **`StartDialogue` (35282) returns true exactly when it asks for the menu** (52853), so a peer's start that
   returns true always has its menu queued.
 - **A start from code has no combat check:** `SetDialogueWithPlayer` (37200) on an NPC in combat starts it

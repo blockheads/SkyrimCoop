@@ -272,6 +272,11 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
   its copy flag and the guest ran that NPC's AI wherever it was left. The copy follows where the host's actor was
   at removal; an unloaded host NPC walking on (its schedule) is not followed until it is spawned again.
   Scenario `host-npc-leaves-copy-follows`; `release_host_npc` no longer touches the client.
+- **A copy with no owner goes (decided 2026-11-06, the user).** Following can leave a guest's reference in that guest's
+  loaded area, or with nowhere to go: it is hidden (disabled, `HeldCopyComponent::Hidden`), enabled by the next spawn or
+  the session's end. The host's game decides what is loaded. A reference the guest's engine collects as it follows
+  simply goes, its entity with it. A persistent reference out of the loaded cells has no parent cell and its removal
+  says its worldspace. [copy-lifecycle.md](../re/systems/copy-lifecycle.md).
 - **Gone before its assignment came back (found 2026-10-23 by tier 2, `copy_flows.cpp`; gone with the answer the same
   day: the host's game owns an actor from its announcement).** The host's rules send a
   new NPC's spawn to the guests with its assignment, and the host's own game handles the answer on its next
