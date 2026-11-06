@@ -73,7 +73,7 @@ TEST_CASE("A copy landing where its owner did counts as matched", "[animation][g
 {
     Diagnostics::Counters::Reset();
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cOwner, 1000);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cOwner, 1000);
     CHECK_FALSE(tracker.Open);
     CHECK(CountOf("graph drift replays") == 1);
     CHECK(CountOf("graph drift matched") == 1);
@@ -87,15 +87,15 @@ TEST_CASE("Paired actions and actions with no snapshot are skipped, never compar
     CHECK_FALSE(GraphDrift::Compares(false, false, false));
     CHECK_FALSE(GraphDrift::Compares(false, true, true));
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "pa_KillMove", true, false, false, std::nullopt, std::nullopt, 1000);
-    GraphDrift::Taken(tracker, 0x10, 0x2, "gesture", false, false, false, std::nullopt, std::nullopt, 1100);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "pa_KillMove", true, false, "", std::nullopt, std::nullopt, 1000);
+    GraphDrift::Taken(tracker, 0x10, 0x2, "gesture", false, false, "", std::nullopt, std::nullopt, 1100);
     CHECK(CountOf("graph drift skipped") == 2);
     CHECK(CountOf("graph drift matched") == 0);
     // A snapshot that does not parse is not a skip.
-    GraphDrift::Taken(tracker, 0x10, 0x3, "gesture", false, false, true, std::nullopt, cOwner, 1200);
+    GraphDrift::Taken(tracker, 0x10, 0x3, "gesture", false, false, "snapshot", std::nullopt, cOwner, 1200);
     CHECK(CountOf("graph drift unreadable") == 1);
     // A player's copy: its owner's first-person graph is never the copy's.
-    GraphDrift::Taken(tracker, 0x10, 0x4, "WeapEquip", false, true, true, cOwner, cElsewhere, 1300);
+    GraphDrift::Taken(tracker, 0x10, 0x4, "WeapEquip", false, true, "snapshot", cOwner, cElsewhere, 1300);
     CHECK(CountOf("graph drift players") == 1);
     CHECK_FALSE(tracker.Open);
 }
@@ -104,12 +104,12 @@ TEST_CASE("A copy that catches up within the threshold counts as transient, with
 {
     Diagnostics::Counters::Reset();
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cElsewhere, 1000);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cElsewhere, 1000);
     CHECK(tracker.Open);
     CHECK_FALSE(GraphDrift::SampleDue(tracker, 1050));
     REQUIRE(GraphDrift::SampleDue(tracker, 1100));
-    GraphDrift::Sample(tracker, 0x10, cElsewhere, 1100);
-    GraphDrift::Sample(tracker, 0x10, cOwner, 1250);
+    (void)GraphDrift::Sample(tracker, 0x10, cElsewhere, 1100);
+    (void)GraphDrift::Sample(tracker, 0x10, cOwner, 1250);
     CHECK_FALSE(tracker.Open);
     const auto cAll = Diagnostics::Counters::Read();
     const auto it = std::ranges::find(cAll, std::string("graph drift transient ms"), &Diagnostics::Counters::Reading::Name);
@@ -123,13 +123,17 @@ TEST_CASE("A copy still apart past the threshold counts as lasting once", "[anim
 {
     Diagnostics::Counters::Reset();
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cElsewhere, 1000);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cElsewhere, 1000);
     for (uint64_t now = 1100; now <= 1000 + GraphDrift::cLastingMs + 500; now += GraphDrift::cSampleMs)
-        GraphDrift::Sample(tracker, 0x10, cElsewhere, now);
+    {
+        const bool cLoad = GraphDrift::Sample(tracker, 0x10, cElsewhere, now);
+        CHECK(cLoad == (now == 3000)); // once, as it turns lasting
+    }
     CHECK(tracker.Lasting);
+    CHECK(tracker.Snapshot == "snapshot");
     CHECK(CountOf("graph drift lasting") == 1);
     // The next replay ends it: its duration goes to the lasting ones.
-    GraphDrift::Taken(tracker, 0x10, 0x2, "gesture", false, false, true, cOwner, cOwner, 4000);
+    GraphDrift::Taken(tracker, 0x10, 0x2, "gesture", false, false, "snapshot", cOwner, cOwner, 4000);
     CHECK(CountOf("graph drift lasting ms") == 1);
     CHECK(CountOf("graph drift transient ms") == 0);
     CHECK(CountOf("graph drift matched") == 1);
@@ -139,9 +143,10 @@ TEST_CASE("A sync point moves an open mismatch to the owner's newer states", "[a
 {
     Diagnostics::Counters::Reset();
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cElsewhere, 1000);
-    GraphDrift::Retarget(tracker, cElsewhere);
-    GraphDrift::Sample(tracker, 0x10, cElsewhere, 1100);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cElsewhere, 1000);
+    GraphDrift::Retarget(tracker, "newer", cElsewhere);
+    CHECK(tracker.Snapshot == "newer");
+    (void)GraphDrift::Sample(tracker, 0x10, cElsewhere, 1100);
     CHECK_FALSE(tracker.Open);
     CHECK(CountOf("graph drift transient ms") == 1);
 }
@@ -150,11 +155,32 @@ TEST_CASE("A copy whose graph cannot be read during an open mismatch is dropped,
 {
     Diagnostics::Counters::Reset();
     GraphDrift::Tracker tracker;
-    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, true, cOwner, cElsewhere, 1000);
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cElsewhere, 1000);
     for (uint64_t now = 1100; now <= 3100; now += GraphDrift::cSampleMs)
-        GraphDrift::Sample(tracker, 0x10, std::nullopt, now);
+        (void)GraphDrift::Sample(tracker, 0x10, std::nullopt, now);
     CHECK_FALSE(tracker.Open);
     CHECK(CountOf("graph drift unreadable") == 1);
     CHECK(CountOf("graph drift lasting") == 0);
     CHECK(CountOf("graph drift transient ms") == 0);
+}
+
+TEST_CASE("A lasting mismatch's load is counted, and the copy is read again at once", "[animation][graph-drift]")
+{
+    const bool cLoaded = GENERATE(false, true);
+    Diagnostics::Counters::Reset();
+    GraphDrift::Tracker tracker;
+    GraphDrift::Taken(tracker, 0x10, 0x1, "gesture", false, false, "snapshot", cOwner, cElsewhere, 1000);
+    REQUIRE(GraphDrift::Sample(tracker, 0x10, cElsewhere, 1000 + GraphDrift::cLastingMs));
+    GraphDrift::Loaded(tracker, 0x10, cLoaded);
+    CHECK(CountOf("graph drift loads") == (cLoaded ? 1 : 0));
+    CHECK(CountOf("graph drift load failures") == (cLoaded ? 0 : 1));
+    CHECK(GraphDrift::SampleDue(tracker, 1000 + GraphDrift::cLastingMs + 1) == cLoaded);
+    if (cLoaded)
+    {
+        CHECK_FALSE(GraphDrift::Sample(tracker, 0x10, cOwner, 1000 + GraphDrift::cLastingMs + 16));
+        CHECK_FALSE(tracker.Open);
+        CHECK(CountOf("graph drift lasting ms") == 1);
+    }
+    // Never loaded twice for one mismatch.
+    CHECK_FALSE(GraphDrift::Sample(tracker, 0x10, cElsewhere, 1000 + 2 * GraphDrift::cLastingMs));
 }

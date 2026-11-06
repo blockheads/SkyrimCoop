@@ -99,8 +99,8 @@ std::optional<States> ActiveStates(std::string_view acSaved) noexcept
     return states;
 }
 
-void Taken(Tracker& aTracker, uint32_t aFormId, uint32_t aActionId, std::string_view acEvent, bool aPaired, bool aPlayer, bool aHasSnapshot,
-           const std::optional<States>& acExpected, const std::optional<States>& acActual, uint64_t aNow) noexcept
+void Taken(Tracker& aTracker, uint32_t aFormId, uint32_t aActionId, std::string_view acEvent, bool aPaired, bool aPlayer,
+           std::string_view acSnapshot, const std::optional<States>& acExpected, const std::optional<States>& acActual, uint64_t aNow) noexcept
 {
     COUNT("graph drift replays", 1);
     if (aTracker.Open)
@@ -111,7 +111,7 @@ void Taken(Tracker& aTracker, uint32_t aFormId, uint32_t aActionId, std::string_
         COUNT("graph drift players", 1);
         return;
     }
-    if (!Compares(aPaired, aPlayer, aHasSnapshot))
+    if (!Compares(aPaired, aPlayer, !acSnapshot.empty()))
     {
         COUNT("graph drift skipped", 1);
         return;
@@ -127,7 +127,7 @@ void Taken(Tracker& aTracker, uint32_t aFormId, uint32_t aActionId, std::string_
         return;
     }
     COUNT("graph drift mismatches", 1);
-    aTracker = Tracker{*acExpected, *acActual, aNow, aNow, aActionId, std::string(acEvent), true, false};
+    aTracker = Tracker{*acExpected, std::string(acSnapshot), *acActual, aNow, aNow, aActionId, std::string(acEvent), true, false};
     spdlog::debug("Graph drift: copy {:X} after {:X} '{}': owner [{}], copy [{}]", aFormId, aActionId, acEvent, Join(*acExpected),
                   Join(*acActual));
 }
@@ -137,10 +137,10 @@ bool SampleDue(const Tracker& acTracker, uint64_t aNow) noexcept
     return acTracker.Open && aNow - acTracker.LastSample >= cSampleMs;
 }
 
-void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& acActual, uint64_t aNow) noexcept
+bool Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& acActual, uint64_t aNow) noexcept
 {
     if (!aTracker.Open)
-        return;
+        return false;
     aTracker.LastSample = aNow;
     // No reading is no evidence: the window ends uncounted, never stretched into a lasting one.
     if (!acActual)
@@ -149,12 +149,12 @@ void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& ac
         spdlog::debug("Graph drift: copy {:X} after {:X} '{}': graph unreadable after {} ms, dropped", aFormId, aTracker.ActionId,
                       aTracker.Event, aNow - aTracker.Since);
         aTracker = Tracker{};
-        return;
+        return false;
     }
     if (*acActual == aTracker.Expected)
     {
         End(aTracker, aFormId, aNow, "matched");
-        return;
+        return false;
     }
     if (!aTracker.Lasting && aNow - aTracker.Since >= cLastingMs)
     {
@@ -162,12 +162,29 @@ void Sample(Tracker& aTracker, uint32_t aFormId, const std::optional<States>& ac
         COUNT("graph drift lasting", 1);
         spdlog::warn("Graph drift: copy {:X} after {:X} '{}' still apart after {} ms: owner [{}], copy [{}]", aFormId, aTracker.ActionId,
                      aTracker.Event, aNow - aTracker.Since, Join(aTracker.Expected), Join(*acActual));
+        return !aTracker.Snapshot.empty();
     }
+    return false;
 }
 
-void Retarget(Tracker& aTracker, const std::optional<States>& acExpected) noexcept
+void Retarget(Tracker& aTracker, std::string_view acSnapshot, const std::optional<States>& acExpected) noexcept
 {
-    if (aTracker.Open && acExpected)
-        aTracker.Expected = *acExpected;
+    if (!aTracker.Open || !acExpected)
+        return;
+    aTracker.Expected = *acExpected;
+    aTracker.Snapshot = acSnapshot;
+}
+
+void Loaded(Tracker& aTracker, uint32_t aFormId, bool aLoaded) noexcept
+{
+    if (!aLoaded)
+    {
+        COUNT("graph drift load failures", 1);
+        spdlog::warn("Graph drift: copy {:X} did not load its owner's graph after {:X} '{}'", aFormId, aTracker.ActionId, aTracker.Event);
+        return;
+    }
+    COUNT("graph drift loads", 1);
+    spdlog::info("Graph drift: copy {:X} loaded its owner's graph after {:X} '{}'", aFormId, aTracker.ActionId, aTracker.Event);
+    aTracker.LastSample = 0;
 }
 } // namespace GraphDrift

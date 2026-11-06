@@ -43,7 +43,7 @@ class Observations:
                 parts.append(f"{game or 'host'} {copy:08X} {event} x{count}")
         return "; ".join(parts)
 
-    GRAPH_DRIFT = ("replays", "players", "skipped", "matched", "mismatches", "transient ms", "lasting", "lasting ms", "unreadable")
+    GRAPH_DRIFT = ("replays", "players", "skipped", "matched", "mismatches", "transient ms", "lasting", "lasting ms", "unreadable", "loads", "load failures")
 
     def graph_drift_counts(ctx):
         """Each game's drift detector counters (GraphDrift.h, read through the harness's `counters`): {game: {name: reading}}."""
@@ -67,7 +67,7 @@ class Observations:
             transient_ms = now["transient ms"].get("sum", 0) - then.get("transient ms", {}).get("sum", 0)
             parts.append(f"{game}: replays {delta['replays']}, players {delta['players']}, skipped {delta['skipped']}, matched {delta['matched']}, "
                          f"transient {delta['transient ms']} ({transient_ms // max(delta['transient ms'], 1)} ms mean, "
-                         f"max so far {now['transient ms'].get('max', 0)}), lasting {delta['lasting']}, unreadable {delta['unreadable']}")
+                         f"max so far {now['transient ms'].get('max', 0)}), lasting {delta['lasting']} (loaded {delta['loads']}, failed {delta['load failures']}), unreadable {delta['unreadable']}")
         return "; ".join(parts)
 
     def find_desyncs(ctx):

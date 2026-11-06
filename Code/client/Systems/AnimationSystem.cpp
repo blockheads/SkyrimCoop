@@ -112,8 +112,15 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
-    if (const uint64_t cNow = aWorld.GetTick(); GraphDrift::SampleDue(aAnimationComponent.Drift, cNow))
-        GraphDrift::Sample(aAnimationComponent.Drift, apActor->formID, CopyStates(apActor), cNow);
+    if (const uint64_t cNow = aWorld.GetTick(); GraphDrift::SampleDue(aAnimationComponent.Drift, cNow) &&
+        GraphDrift::Sample(aAnimationComponent.Drift, apActor->formID, CopyStates(apActor), cNow) && !apActor->IsDead())
+    {
+        // As a refused action recovers: the saved state carries the owner's knock flags, our body owns its ragdoll.
+        const uint32_t cFlags1 = apActor->actorState.flags1;
+        const bool cLoaded = apActor->LoadAnimationGraphState(aAnimationComponent.Drift.Snapshot);
+        apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (cFlags1 & ActorState::kKnockMask);
+        GraphDrift::Loaded(aAnimationComponent.Drift, apActor->formID, cLoaded);
+    }
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
         aAnimationComponent.CounterUpdates = 0;
     // After the actions before it: played later, they would undo what it loaded.
@@ -134,7 +141,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             const bool cPlayer = apActor->GetExtension()->IsPlayer();
             const bool cCompares = GraphDrift::Compares(cPaired, cPlayer, !cAction.GraphState.empty());
             GraphDrift::Taken(aAnimationComponent.Drift, apActor->formID, cAction.ActionId, cAction.EventName, cPaired, cPlayer,
-                              !cAction.GraphState.empty(), cCompares ? GraphDrift::ActiveStates(cAction.GraphState) : std::nullopt,
+                              cAction.GraphState, cCompares ? GraphDrift::ActiveStates(cAction.GraphState) : std::nullopt,
                               cCompares ? CopyStates(apActor) : std::nullopt, aWorld.GetTick());
         }
         else
@@ -350,7 +357,7 @@ void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aA
     if (cVerdict == GraphRandom::Point::kWait)
         return;
     if (aAnimationComponent.Drift.Open)
-        GraphDrift::Retarget(aAnimationComponent.Drift, GraphDrift::ActiveStates(cPoint.GraphState));
+        GraphDrift::Retarget(aAnimationComponent.Drift, cPoint.GraphState, GraphDrift::ActiveStates(cPoint.GraphState));
     if (cVerdict == GraphRandom::Point::kLoad && !apActor->IsDead())
     {
         const uint32_t cFlags1 = apActor->actorState.flags1;
