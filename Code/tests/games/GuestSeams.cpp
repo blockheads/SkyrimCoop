@@ -247,7 +247,6 @@ std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
     drop.Tag = aFormId;
     drop.Item = it->second.Item;
     drop.Placement.Cell = SessionIdOf(it->second.Cell);
-    drop.Owner = it->second.Owner;
     return drop;
 }
 

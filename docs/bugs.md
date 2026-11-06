@@ -176,8 +176,6 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
   - Start: the copy's `ProcessTracking` after its kill move: which slot picks the player, and whether the copy's
     graph (`HeadTrackingOn` from the clip, `KillActor` handler) sets it where the owner's does not.
   - Test: `host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`.
-  - Also `dead-guest-sword-no-theft` (2026-11-05): its sword steps pass, its end comparison fails on the guest player's
-    copy, `['session 1', ...]` against its owner's `['session 2', ...]`.
 
 ### Players' idle variants
 
@@ -276,6 +274,9 @@ Size: medium. Needs: duo.
   Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
   repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
   - Test: that scenario, after its steps.
+  - Also in the Bannered Mare (2026-11-06, the MCP's `expect agree all` while recording `dead-player-keeps-weapon`):
+    Olava the Feeble (`1A699`) was removed from the host's actors ("Actor discovery: 1A699 removed") seconds after the
+    scene loaded, and her copy stayed on the guest with no owner.
 
 ### Trade markers
 

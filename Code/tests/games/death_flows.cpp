@@ -466,3 +466,47 @@ SCENARIO("Players can't loot each other: a dead player's body opens no loot menu
         CHECK(host.LootMenuOf == guard); // the engine's own corpse loot still opens
     }
 }
+
+SCENARIO("A player dies holding a drawn sword: it stays in their hands, out of reach, and is theirs again on respawn", "[death][items]")
+{
+    constexpr uint32_t cIronSword = 0x00012EB7;
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    party.As(party.Guest(), [&] {
+        guest.GetsItem(FakeEngine::kPlayer, cIronSword, 1);
+        guest.Equips(FakeEngine::kPlayer, cIronSword, FakeEngine::kRightHand);
+        guest.Draws(FakeEngine::kPlayer, true);
+    });
+    uint32_t guard{};
+    party.As(party.Host(), [&] {
+        guard = host.LoadNpc(kGuard, kSmoke, {750.f, 800.f, 0.f});
+        host.Fights(guard, FakeEngine::kPlayer);
+    });
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    party.Until([&] { return DeadPlayerCopies(host) == 1; }, "the host's copy of the guest dies");
+    Frames(party, 60);
+
+    THEN("nothing fell: no sword lies on either game, and the guest still holds it")
+    {
+        CHECK(guest.Loose.empty());
+        CHECK(host.Loose.empty());
+        CHECK(guest.CountOf(FakeEngine::kPlayer, cIronSword) == 1);
+        CHECK(guest.Worn(FakeEngine::kPlayer).contains({0, cIronSword, false}));
+    }
+
+    WHEN("combat ends and the guest respawns")
+    {
+        party.As(party.Host(), [&] { host.Fights(guard, 0); });
+        auto& death = party.Guest().ctx().at<DeathService>();
+        party.Until([&] { return !death.IsDown(); }, "the guest respawns after ten clear seconds", {}, nullptr, std::chrono::seconds(30));
+        THEN("the sword is in their hands, on their game and on the host's copy")
+        {
+            CHECK(guest.CountOf(FakeEngine::kPlayer, cIronSword) == 1);
+            CHECK(guest.Worn(FakeEngine::kPlayer).contains({0, cIronSword, false}));
+            party.Until([&] { return PlayerCopy(host) && host.Worn(PlayerCopy(host)).contains({0, cIronSword, false}); },
+                        "the respawned guest's copy holds the sword");
+        }
+    }
+}

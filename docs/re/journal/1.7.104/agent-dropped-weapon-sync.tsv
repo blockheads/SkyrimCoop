@@ -30,3 +30,6 @@ time	op	id	rva	item
 2026-11-06T00:49:23Z	read	20194	0x300440	{"name": "TESObjectREFR::GetOwner"}
 2026-11-06T00:49:35Z	comment		0x2ea3eb	{"addr": "0x1402ea3eb", "comment": "Flag 0x100000 (set by 19550 from PlayerCharacter::DropObject 40454): place the reference from its model's offset as its 3D loads, once."}
 2026-11-06T00:49:35Z	comment		0x30047e	{"addr": "0x14030047e", "comment": "No ExtraOwnership: a linked door's owner, then the encounter zone's, then the cell's (TESObjectCELL::GetOwner). An unowned dropped item in an inn reads as the inn's: PickUpObject 40533 calls StealAlarm 37422."}
+2026-11-06T06:49:04Z	read	37523	0x68b6b0	{"name": "Actor::GetDroppableDrawnWeapon"}
+2026-11-06T06:59:43Z	comment		0x6aae8c	{"addr": "0x1406aae8c", "comment": "Co-op: hooked (HookDropHeldItemsOnDeath, Services/DeathDrops.h): skipped for a player's character in a session, its hands keep what they held; Revive equips it again."}
+2026-11-06T06:59:47Z	comment		0x6aae8c	{"addr": "0x1406aae8c", "comment": "Death drop: gate 37523 passes and (vfunc 0xC5 false, or chance iDeathDropWeaponChance with 3D, process flag, no commander, combat count limit). Co-op: hooked (HookDropHeldItemsOnDeath, Services/DeathDrops.h), skipped for a player's character in a session; Revive equips what its hands kept."}

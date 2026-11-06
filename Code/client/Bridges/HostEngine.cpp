@@ -448,15 +448,13 @@ void HostEngine::SetItems(const ObjectChange& acItems) noexcept
                      acItems.Value, acItems.Item.LogFormat());
 }
 
-std::optional<GameId> HostEngine::CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner) noexcept
+std::optional<GameId> HostEngine::CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept
 {
     if (!IsPlacementLoaded(acPlacement))
         return std::nullopt;
     TESObjectREFR* pMade = MakeLooseItem(acItem.BaseId, &acItem, acPlacement);
     if (!pMade)
         return GameId{};
-    if (TESForm* pOwner = acOwner.BaseId ? TESForm::GetById(ToGame(acOwner)) : nullptr)
-        pMade->SetOwner(pOwner);
     // Made past our watch of the engine's creations: it goes out with them.
     OnCreated(pMade->formID);
     return CreatedId(pMade->formID);

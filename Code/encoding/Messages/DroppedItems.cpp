@@ -32,7 +32,6 @@ void DropItemRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, Tag);
     Item.Serialize(aWriter);
     WritePlacement(aWriter, Placement);
-    Owner.Serialize(aWriter);
 }
 
 void DropItemRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -41,7 +40,6 @@ void DropItemRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Tag = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     Item.Deserialize(aReader);
     ReadPlacement(aReader, Placement);
-    Owner.Deserialize(aReader);
 }
 
 void NotifyItemDropped::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

@@ -426,8 +426,6 @@ std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
     drop.Tag = aFormId;
     drop.Item = *cItem;
     drop.Placement = *cPlacement;
-    if (const TESForm* pOwner = pObject->GetOwner())
-        drop.Owner = ToSession(pOwner->formID).value_or(GameId{});
     return drop;
 }
 

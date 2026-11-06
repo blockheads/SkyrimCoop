@@ -54,7 +54,7 @@ void HostItems::OnDrop(const DropItemRequest& acRequest, ConnectionId_t aSender)
 
 bool HostItems::Make(ConnectionId_t aPlayer, const DropItemRequest& acRequest) noexcept
 {
-    const auto cObject = m_game.CreateItem(acRequest.Item, acRequest.Placement, acRequest.Owner);
+    const auto cObject = m_game.CreateItem(acRequest.Item, acRequest.Placement);
     if (!cObject)
         return false;
     if (*cObject == GameId{})

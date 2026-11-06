@@ -328,14 +328,6 @@ void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
     AddItems(aActor, aItem, -aCount);
 }
 
-uint32_t FakeEngine::DiesDropping(const Inventory::Entry& acItem)
-{
-    m_dropOwner = SessionIdOf(0x7);
-    const uint32_t cId = DropsInWorld(acItem);
-    m_dropOwner = GameId{};
-    return cId;
-}
-
 uint32_t FakeEngine::DropsInWorld(const Inventory::Entry& acItem)
 {
     Inventory::Entry removed = acItem;
@@ -346,7 +338,6 @@ uint32_t FakeEngine::DropsInWorld(const Inventory::Entry& acItem)
         AddEntry(kPlayer, removed);
     }
     const uint32_t cId = PlaceLoose(Actors.at(kPlayer).Cell, acItem);
-    Loose[cId].Owner = CellOwners.contains(Actors.at(kPlayer).Cell) ? SessionIdOf(0x7) : m_dropOwner;
     if (IsGuest)
         World::Get().GetRunner().Trigger(ItemDroppedEvent{cId});
     else
@@ -364,8 +355,6 @@ void FakeEngine::PicksUp(uint32_t aObject)
         World::Get().GetRunner().Trigger(ItemPickUpEvent{aObject});
         return;
     }
-    if (it->second.Owner == GameId{} && CellOwners.contains(it->second.Cell))
-        ++Thefts;
     Inventory::Entry cItem = it->second.Item;
     cItem.IsQuestItem = it->second.QuestObject;
     Loose.erase(it);
@@ -380,7 +369,7 @@ void FakeEngine::PicksUp(uint32_t aObject)
         RecordCreated(aObject);
 }
 
-std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, uint32_t aCell, const GameId& acOwner)
+std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, uint32_t aCell)
 {
     if (!Attached.contains(aCell))
         return std::nullopt;
@@ -388,7 +377,6 @@ std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, ui
     if (const uint32_t cBase = ::ItemForm(acItem.BaseId); !cBase || MissingForms.contains(cBase))
         return GameId{};
     const uint32_t cId = PlaceLoose(aCell, acItem);
-    Loose[cId].Owner = acOwner;
     RecordCreated(cId);
     return CreatedId(cId);
 }

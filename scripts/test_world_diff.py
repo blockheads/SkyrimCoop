@@ -2,7 +2,6 @@
 import unittest
 import copy
 
-from coop_harness.actions.inventory import theft_seen
 from coop_harness.common import log_time
 from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
 
@@ -25,8 +24,8 @@ class ContainerComparison(unittest.TestCase):
         self.assertIn("changes", reference_differences({"changes": 0x40}, {"changes": 0x60}))
 
 
-class DeadPlayersSword(unittest.TestCase):
-    """Measured 2026-11-05: the dying host's reference and the guest's twin, the same sword at rest."""
+class DeathDropSword(unittest.TestCase):
+    """A death drop and its twin, the same sword at rest (measured 2026-11-05 on the host's death, before players kept theirs)."""
     HOST = {"id": 0xFF00087D, "base": 0x12EB7, "type": 41, "cell": 0x32AE7, "flags": 0x100008, "owner": 7, "changes": 0x446,
             "position": [-183.0, 2022.0, 7049.0], "position_3d": [-183.0, 2022.0, 7049.0], "rotation": [1.81, -0.32, 1.97],
             "pose": {"Weapon  (00012EB7)": {"position": [-178.0, 2028.0, 6978.0], "rotate": [1.0] * 9}},
@@ -57,21 +56,6 @@ class DeadPlayersSword(unittest.TestCase):
         second = {**self.GUEST, "id": 0xFF000838, "position": [0.0, 0.0, 0.0], "collision": []}
         differences = world_differences({self.HOST["id"]: self.HOST}, {self.GUEST["id"]: self.GUEST, second["id"]: second})
         self.assertEqual([fields for fields in differences.values()], [{"present": "client only"}])
-
-
-class TheftSeen(unittest.TestCase):
-    """A pickup's crime readout before and after (harness `crime` read): a theft shows as a warning or as bounty."""
-    def crime(self, warnings, bounty=0):
-        return {"warnings": warnings, "bounty": [{"faction": 0x267EA, "violent": 0, "nonviolent": bounty}] if bounty else []}
-
-    def test_nothing_changed_is_no_theft(self):
-        self.assertEqual(theft_seen(self.crime(1), self.crime(1)), "")
-
-    def test_a_warning_is_a_theft(self):
-        self.assertIn("warnings", theft_seen(self.crime(0), self.crime(1)))
-
-    def test_bounty_with_warnings_spent_is_a_theft(self):
-        self.assertIn("bounty 0 -> 10", theft_seen(self.crime(2), self.crime(2, 10)))
 
 
 class RefusedReplays(unittest.TestCase):

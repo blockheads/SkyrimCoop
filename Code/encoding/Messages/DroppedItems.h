@@ -20,13 +20,12 @@ struct DropItemRequest final : RequestMessage
 
     bool operator==(const DropItemRequest& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Tag == acRhs.Tag && Item == acRhs.Item && Placement == acRhs.Placement && Owner == acRhs.Owner;
+        return GetOpcode() == acRhs.GetOpcode() && Tag == acRhs.Tag && Item == acRhs.Item && Placement == acRhs.Placement;
     }
 
     uint32_t Tag{};
     Inventory::Entry Item{};
     ObjectChange::Placement Placement{};
-    GameId Owner{}; // its reference's owner, none for none: a reference with none takes its cell's
 };
 
 // To the dropper: the host's game made its drop Tag as Object (a created id), whose twin its own reference is; an empty

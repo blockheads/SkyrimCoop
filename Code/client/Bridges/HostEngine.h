@@ -63,10 +63,10 @@ public:
     [[nodiscard]] Inventory::Entry TransferContainer(const ContainerTransferRequest&, uint32_t aPlayer) noexcept;
     // A guest's story event queued in this game's story manager, judged for its character (party-model.md rule 4).
     void RaiseStoryEvent(const StoryEvent& acEvent) noexcept;
-    // A guest's drop (docs/design/dropped-items.md): made here with its count, extra data and owner, where its cell is loaded;
+    // A guest's drop (docs/design/dropped-items.md): made here with its count and extra data, where its cell is loaded;
     // its created id (it goes out with this game's created references); none while the cell is not loaded here, an empty
     // id when its base or cell is not in this game.
-    [[nodiscard]] std::optional<GameId> CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement, const GameId& acOwner) noexcept;
+    [[nodiscard]] std::optional<GameId> CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept;
     // A guest's pickup granted: the party's loose item taken out of this world (disabled and deleted, the deletion goes
     // out), what it held; none when it is gone.
     [[nodiscard]] std::optional<Inventory::Entry> TakeItem(const GameId& acObject) noexcept;

@@ -21,22 +21,8 @@ from ..common import (
     ITEM_LISTS,
     LISTS_SHOWN,
     TAKE_ALL_KEY,
+    WEAPON_DRAWN,
 )
-
-
-PLAYER_BASE = 0x7  # the player's base: a dead player's drop is owned by it (37320)
-
-
-def theft_seen(before, after):
-    """What a pickup changed of the crime readout that a theft changes: a warning (two spare), else bounty (StealAlarm 37422)."""
-    def bounty(crime):
-        return sum(row["violent"] + row["nonviolent"] for row in crime.get("bounty") or [])
-    changes = []
-    if after.get("warnings") != before.get("warnings"):
-        changes.append(f"warnings {before.get('warnings')} -> {after.get('warnings')}")
-    if bounty(after) != bounty(before):
-        changes.append(f"bounty {bounty(before)} -> {bounty(after)}")
-    return ", ".join(changes)
 
 
 class InventoryActions:
@@ -105,24 +91,28 @@ class InventoryActions:
         return [row(fields) for fields in ctx.loose_swords(instance).values()]
 
 
-    def expect_dropped_sword_taken(ctx, instance, other):
-        """`instance`'s player takes the one loose sword `other`'s player dropped: one on each game, the same owner, no
-        theft (crime.md, StealAlarm 37422), gone from both, one more carried."""
-        lying = {game: ctx.wait_for(f"[{game or 'host'}] one sword lies there", lambda g=game: ctx.loose_swords(g) if len(ctx.loose_swords(g)) == 1 else None, 10)
-                 for game in (instance, other)}
-        ref, fields = next(iter(lying[instance].items()))
-        twin = next(iter(lying[other].values()))
-        if (fields.get("owner"), twin.get("owner")) != (PLAYER_BASE, PLAYER_BASE):
-            raise ctx.failure(f"[{instance or 'host'}] the sword's owner is {fields.get('owner')}, {twin.get('owner')} on the other game, "
-                              "not the player: a cell's owner takes the place of none, and taking it is a theft")
-        crime = ctx.crime_command(instance, "read")
+    def expect_death_weapon_kept(ctx, instance, other):
+        """`instance`'s player dies with its sword drawn: nothing falls on either game (DropHeldItemsOnDeath 37320 is
+        skipped for a player), and once respawned it holds the sword again (death-drops.md)."""
+        who = f"[{instance or 'host'}]"
         carried = ctx.item_count(instance, 0x14, IRON_SWORD) or 0
-        ctx.player_command(instance, {"cmd": "activate", "object": ref})
-        ctx.wait_for(f"[{instance or 'host'}] the player carries it", lambda: (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) == carried + 1, 10)
+        hands = lambda: (ctx.player_snapshot(instance).get("state") or {}).get("hands", [])
+        if IRON_SWORD not in hands() or ctx.weapon_state(instance) != WEAPON_DRAWN:
+            raise ctx.failure(f"{who} the player does not hold the sword drawn")
+        ctx.console_on(instance, "player.kill")
+        ctx.wait_for(f"{who} the player is dead", lambda: ctx.player_snapshot(instance).get("state", {}).get("dead"), 10)
         for game in (instance, other):
-            ctx.wait_for(f"[{game or 'host'}] the sword is gone", lambda g=game: not ctx.loose_swords(g), 10)
-        if theft := theft_seen(crime, ctx.crime_command(instance, "read")):
-            raise ctx.failure(f"[{instance or 'host'}] taking a dead player's sword was a theft: {theft}")
+            if swords := ctx.loose_swords(game):
+                raise ctx.failure(f"[{game or 'host'}] the dead player's sword fell: {sorted(f'{ref:X}' for ref in swords)}")
+        if (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) != carried:
+            raise ctx.failure(f"{who} the dead player no longer carries the sword")
+        ctx.wait_for(f"{who} the player respawns", lambda: not ctx.player_snapshot(instance).get("state", {}).get("dead"), 40)
+        ctx.wait_for(f"{who} the respawned player holds the sword", lambda: IRON_SWORD in hands(), 10)
+        for game in (instance, other):
+            if swords := ctx.loose_swords(game):
+                raise ctx.failure(f"[{game or 'host'}] a sword lies there after the respawn: {sorted(f'{ref:X}' for ref in swords)}")
+        if (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) != carried:
+            raise ctx.failure(f"{who} the respawned player carries {ctx.item_count(instance, 0x14, IRON_SWORD)} swords, not {carried}")
 
 
     def describe_stacks(ctx, stacks):

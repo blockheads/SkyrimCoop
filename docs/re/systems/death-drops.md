@@ -1,7 +1,8 @@
 # A dead actor's dropped weapon
 
 Read in IDA on 1.7.104, 2026-11-05 (names recorded in the database, `docs/re/journal/1.7.104/agent-dropped-weapon-sync.tsv`);
-measured on the duo the same day. Scenario `dead-guest-sword-no-theft`, GameTests "A guest dies holding a sword in an inn".
+measured on the duo the same day and 2026-11-06. Scenario `dead-player-keeps-weapon`, GameTests "A player dies holding a
+drawn sword".
 
 ## The engine path (read)
 
@@ -36,14 +37,21 @@ Actor::KillImpl 37896
   falls back to a linked door's owner, the encounter zone's, then the cell's. `PlayerCharacter::PickUpObject` (40533)
   reads it and calls `Actor::StealAlarm` (37422, `crime.md`) for anyone not an owner.
 
-## In a session (measured)
+## In a session: a player keeps it
 
-- One sword on each game, the same body: the dying guest's game makes its reference and asks the host
-  (`DropItemRequest`), the host's game makes the party's, the guest's becomes its twin (`dropped-items.md`). Either
-  player picks it up, it is gone from both; nothing left after a respawn or a cell reload (both checked, 2026-11-05).
-  The host's own death drop goes out as its created reference with its owner row.
-- **The bug: the owner did not travel with a guest's drop.** The host made the party's sword from the base, unowned. In
-  an owned cell (the Bannered Mare) the host taking a dead guest's sword was a theft (a theft warning, then bounty).
-  The drop now carries its reference's owner (`DropItemRequest::Owner`) and the host's reference is made with it.
-- Flags 0x100000, the 3D's node names, the reference's stale position and its `changes` bit 0x400 (the extra list) are
-  each game's own: the world comparison reads a held-node drop at its body and skips them (`comparisons.held_node_view`).
+Decided 2026-11-06 (the user): nobody takes a dead player's weapon, and it is theirs again when they respawn.
+
+- **Before (measured 2026-11-05/06):** a player's death drop left one sword on each game, the same body (the guest's
+  drop went to the host as a `DropItemRequest`, the host's own as its created reference). It left the player's own
+  inventory (2 to 1 on the guest's game and its copy on the host) and lay there after the respawn: `Revive` equips
+  only what the hands still hold. Anyone could pick it up.
+- **Now:** our hook on `Actor::DropHeldItemsOnDeath` (37320; its only caller is `KillImpl` 37896, so disarms, which
+  share the gate 37523, are untouched) skips it for a player's character, its own or a copy, in a session
+  (`Services/DeathDrops.h`). The shield, torch and drawn weapons stay in the dead body's hands, out of reach (a
+  player's body opens no loot menu, `party-items.md`); `PlayerCharacter::Revive` (`death.md`) takes them off and
+  equips them again. NPCs still drop theirs. Measured on the duo 2026-11-06: nothing on either game after the
+  guest's death or the host's, and each held its sword again once respawned (`dead-player-keeps-weapon`).
+- What differs between a death drop and its twin on another game is each game's own (measured on a player's drop):
+  the 3D's node names, the reference's stale position, its `changes` bit 0x400, and flag 0x100000 (set by the
+  player's 40454 only). The world comparison reads a held-node drop at its body and skips them
+  (`comparisons.held_node_view`); it still matters for an NPC's drop.
