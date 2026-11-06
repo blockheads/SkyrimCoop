@@ -21,6 +21,7 @@ from ..common import (
     ITEM_LISTS,
     LISTS_SHOWN,
     TAKE_ALL_KEY,
+    WEAPON_DRAWN,
 )
 
 
@@ -78,6 +79,40 @@ class InventoryActions:
         disabled one (picked up) is not lying there."""
         return {ref: fields for ref, fields in ctx.world_state(instance).items()
                 if fields["base"] == IRON_SWORD and ref >> 24 == 0xFF and not fields["flags"] & (FORM_DELETED | FORM_DISABLED)}
+
+
+    def loose_sword_rows(ctx, instance):
+        """Each loose iron sword in that game in a line: id, flags, owner, where its reference and its body are, the body's state."""
+        def row(fields):
+            body = (fields.get("collision") or [{}])[0]
+            return {"id": f"{fields['id']:X}", "flags": f"{fields['flags']:X}", "owner": fields.get("owner"),
+                    "position": [round(v) for v in fields["position"]], "body": body.get("node"), "in_world": body.get("in_world"),
+                    "motion": body.get("motion"), "awake": body.get("awake"), "body_position": [round(v) for v in body.get("position", ())]}
+        return [row(fields) for fields in ctx.loose_swords(instance).values()]
+
+
+    def expect_death_weapon_kept(ctx, instance, other):
+        """`instance`'s player dies with its sword drawn: nothing falls on either game (DropHeldItemsOnDeath 37320 is
+        skipped for a player), and once respawned it holds the sword again (death-drops.md)."""
+        who = f"[{instance or 'host'}]"
+        carried = ctx.item_count(instance, 0x14, IRON_SWORD) or 0
+        hands = lambda: (ctx.player_snapshot(instance).get("state") or {}).get("hands", [])
+        if IRON_SWORD not in hands() or ctx.weapon_state(instance) != WEAPON_DRAWN:
+            raise ctx.failure(f"{who} the player does not hold the sword drawn")
+        ctx.console_on(instance, "player.kill")
+        ctx.wait_for(f"{who} the player is dead", lambda: ctx.player_snapshot(instance).get("state", {}).get("dead"), 10)
+        for game in (instance, other):
+            if swords := ctx.loose_swords(game):
+                raise ctx.failure(f"[{game or 'host'}] the dead player's sword fell: {sorted(f'{ref:X}' for ref in swords)}")
+        if (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) != carried:
+            raise ctx.failure(f"{who} the dead player no longer carries the sword")
+        ctx.wait_for(f"{who} the player respawns", lambda: not ctx.player_snapshot(instance).get("state", {}).get("dead"), 40)
+        ctx.wait_for(f"{who} the respawned player holds the sword", lambda: IRON_SWORD in hands(), 10)
+        for game in (instance, other):
+            if swords := ctx.loose_swords(game):
+                raise ctx.failure(f"[{game or 'host'}] a sword lies there after the respawn: {sorted(f'{ref:X}' for ref in swords)}")
+        if (ctx.item_count(instance, 0x14, IRON_SWORD) or 0) != carried:
+            raise ctx.failure(f"{who} the respawned player carries {ctx.item_count(instance, 0x14, IRON_SWORD)} swords, not {carried}")
 
 
     def describe_stacks(ctx, stacks):

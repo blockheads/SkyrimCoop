@@ -12,6 +12,7 @@
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Services/ContainerOpens.h>
+#include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -23,6 +24,7 @@
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
+#include <Games/Animation/GraphDrift.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
@@ -405,6 +407,19 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         {
             aActor.DyingFrames = kDyingFrames;
             aActor.DeadFrames = 0;
+            // KillImpl's death drop (37320): the drawn weapon falls, unless our hook keeps a player's.
+            if (aActor.Weapon == WeaponState::Drawn && !DeathDrops::Kept(aActor.Player, World::Get().GetTransport().IsOnline()))
+                if (const auto cHeld = std::ranges::find_if(aActor.Items.Entries, [&](const auto& acEntry) {
+                        const auto cForm = ItemForms.find(::ItemForm(acEntry.BaseId));
+                        return acEntry.ExtraWorn && cForm != ItemForms.end() && cForm->second.Type == kWeapon;
+                    });
+                    cHeld != aActor.Items.Entries.end())
+                {
+                    Inventory::Entry dropped = *cHeld;
+                    dropped.Count = 1;
+                    dropped.ExtraWorn = false;
+                    DropsInWorld(dropped);
+                }
         }
         auto& action = aActor.LatestAnimation;
         action.Tick = World::Get().GetFrameTick();
@@ -746,13 +761,41 @@ ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
     return it != Actors.end() ? it->second.LatestAnimation : ActionEvent{};
 }
 
+namespace
+{
+// SaveState 63601's layout for one graph ("fake") with one active machine ("Root") in acState.
+std::string FakeGraphBlock(const std::string& acState)
+{
+    std::string graph;
+    const auto cPut = [&graph](const void* apData, size_t aSize) { graph.append(static_cast<const char*>(apData), aSize); };
+    const auto cString = [&](std::string_view acText) {
+        const auto cLength = uint16_t(acText.size());
+        cPut(&cLength, 2);
+        cPut(acText.data(), acText.size());
+    };
+    const uint32_t cOne = 1, cZero = 0;
+    cPut(&cOne, 4);
+    cString("Root");
+    cPut(&cZero, 4);
+    cString(acState);
+    cPut(&cZero, 4);
+    cPut(&cZero, 4);
+    std::string block;
+    const uint16_t cProject = 4;
+    block.append(reinterpret_cast<const char*>(&cProject), 2).append("fake");
+    const auto cSize = uint32_t(graph.size());
+    block.append(reinterpret_cast<const char*>(&cSize), 4).append(graph);
+    return block;
+}
+} // namespace
+
 std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
     const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
-    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + it->second.GraphState;
+    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState);
 }
 
 bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
@@ -769,7 +812,11 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
         std::memcpy(flags, acState.data(), sizeof(flags));
         const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
-        actor.GraphState = acState.substr(sizeof(flags));
+        // One graph, one active machine: its state is the fake's GraphState (GraphDrift::ActiveStates reads it).
+        const auto cStates = GraphDrift::ActiveStates(acState);
+        if (!cStates || cStates->size() != 1)
+            return false;
+        actor.GraphState = cStates->front().substr(cStates->front().find('=') + 1);
     }
     else
         actor.GraphState = acState; // direct fixtures supply the graph alone

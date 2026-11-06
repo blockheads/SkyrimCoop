@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-05T21:40:35Z	read	63601	0xbd0690	{"name": "BShkbAnimationGraph::SaveState"}
+2026-11-05T21:41:18Z	read	59372	0xaf4a30	{"name": "hkbStateMachine::sub_59372"}
+2026-11-05T21:41:19Z	read	58359	0xace3b0	{"name": "hkbBehaviorGraph::sub_58359"}
+2026-11-05T21:41:19Z	read	58901	0xadf8b0	{"name": "sub_140ADF8B0"}
+2026-11-05T21:41:25Z	name	59372	0xaf4a30	{"addr": "0x140af4a30", "name": "hkbStateMachine::GetStateIndex"}
+2026-11-05T21:41:25Z	name	58359	0xace3b0	{"addr": "0x140ace3b0", "name": "hkbBehaviorGraph::GetNodeClone"}
+2026-11-05T21:41:25Z	name	58901	0xadf8b0	{"addr": "0x140adf8b0", "name": "hkbStateMachine::StaticClass"}
+2026-11-05T21:41:25Z	name	65148	0xc3d8c0	{"addr": "0x140c3d8c0", "name": "hkbCharacter::SnapshotGraphState"}
+2026-11-05T21:41:32Z	comment	59372	0xaf4a30	{"addr": "0x140af4a30", "comment": "Our name. (machine, stateId) -> index into the machine's states (+144 array, +152 count): id 0 is index 0 unless state 0 has a nonzero id; else the id->index map at +168, -1 if absent. Read in IDA (59372)."}
+2026-11-05T21:41:32Z	comment	58359	0xace3b0	{"addr": "0x140ace3b0", "comment": "Our name. (behaviorGraph, templateNode) -> the graph's active clone of it (map at +224), or the node itself if it is already a clone (+66 == 2) or none. Read in IDA (58359)."}
+2026-11-05T21:41:32Z	comment	58901	0xadf8b0	{"addr": "0x140adf8b0", "comment": "Our name: returns hkbStateMachine's hkClass (unk_143260380); SnapshotGraphState compares a node's GetClassType (vtable +8) with it."}
+2026-11-05T21:41:32Z	comment	65148	0xc3d8c0	{"addr": "0x140c3d8c0", "comment": "Our name (65148). (character+0xC0, fullSave, out snapshot): fills the graph snapshot SaveState 63601 writes. First section = active states: walks the root behaviour graph's active nodes (behaviorGraph +152, 144-byte entries, node at +80), keeps hkbStateMachines (StaticClass), takes their clone (GetNodeClone 58359) and records the current state's name (states[GetStateIndex(+128 currentStateId)] +96), the machine and its active transitions (+176, count +184). A machine is recorded only if mid-transition, or its current state differs from its start state (+104), or +134 > 1, or the global byte_1420C7978 is set: machines resting in their start state are left out. SkyrimCoop: a copy's drift detector compares these names (docs/re/systems/animation-replay-recovery.md). Read in IDA."}
+2026-11-05T21:41:32Z	comment	63601	0xbd0690	{"addr": "0x140bd0690", "comment": "Our name. (graph, AnimationStream*, bool): writes the graph's state as a savegame keeps it (hkbCharacter::SnapshotGraphState 65148: active states, variables, clips) through the stream's typed slots. First section: count, then per active machine (string machine, u32, string current state, u32, u32), 32-byte records. From BSAnimationGraphManager::SaveGraphStates 63368. SkyrimCoop: AnimationGraphState::Save, for a copy's spawn and the action's GraphState; GraphDrift parses the first section."}
+2026-11-05T23:09:56Z	read	65148	0xc3d8c0	{"name": "hkbCharacter::SnapshotGraphState"}

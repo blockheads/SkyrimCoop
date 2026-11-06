@@ -207,6 +207,63 @@ pushed off their goal, and a step out of furniture turns collision back on; fail
 ClientTests `[copy-step]`, TPTests `ReferencesMoveRequest` (the new field), scenario
 `copy-leaves-furniture-steady`.
 
+## A culled actor keeps its pose (2026-11-05)
+
+Read in IDA on 1.7.104 (`owners-walk-slide`: 40335, 106433, 38054, 38009, 37361), checked on the duo. Why the host's
+own NPCs seemed to "move without walking" after an arrival: the engine does not pose a skeleton the camera culls.
+
+```
+HighActorCuller::CullActor (40335, Precision's CullActors), each high actor, each frame:
+  nibble = 2 if its 3D has a fade node | 4 if faded in (+0x130 >= 1e-5)
+  if faded in and not yet culled: | 1, occluder test (BSCullingProcess::IsNotOccluded 106433:
+                                        occlusion planes and boxes)
+      failed -> 3D flags |= kNotVisible (1 << 20), nibble &= ~2
+  Actor+0x27C low nibble = nibble     7 drawn, 5 faded in but occluded, 2 not tested
+Actor::ModifyAnimationUpdateData (38054), the graph update's data:
+  visible = !(3D flags & kNotVisible) or seen within a few frames
+  force   = kForceOneAnimgraphUpdate / kForceAnimGraphUpdate (copies) / keyword
+  neither -> the graph runs (its events fire, Speed follows the package) but no pose is
+             written: the bones keep their last pose while the controller moves the actor
+Actor::ProcessTracking (38009): kWasInFrustum (+0xE8 bit 21) = (nibble == 7)
+  written only here, and ProcessTracking is gated (37361), so the bit goes stale
+```
+
+Measured 2026-11-05 (duo, animation trace with root, feet, cull and movement state): host owners in cull state 5 move
+their feet 0.01-0.26 units per unit travelled, drawn ones (2 or 7) 0.74-1.17. Dorthe ran 1,234 units culled with her
+foot bones still, while `kWasInFrustum` read true. Copies on the guest stay posed when culled (0.51-1.42): we set
+`kForceAnimGraphUpdate` on them. The gait check (`GaitWatch`, `check_gait`) now counts drawn steps only, and the
+observer's pose comparison reads `pose_visibility.drawn` (the 3D's `kNotVisible`) instead of `was_in_frustum`
+(`culled-npc-pose-readings.md`). Vanilla control (`ref_steps vanilla=true`, the stand-in started in Riverwood): the
+same NPCs walk with steady steps.
+
+## Motion-driven and the Virtual Path Follower (2026-11-05)
+
+Read in IDA on 1.7.104 (every ID below read; measured where it says so). `MovementControllerNPC` (Actor+0x150, `Code/client/Games/Skyrim/AI/Movement/`) has a movement
+state at +0x1C0 and two agent sets, picked through its `IMovementMotionDrivenControl` (+0x128):
+
+```
+slot 1 SwitchToLoadedSet (41701)    +0x1C9 = 1: standard path agents (Bethesda's functor name)
+slot 2 SwitchToUnloadedSet (41702)  +0x1C9 = 0: the set with the Virtual Path Follower
+slot 3 StartAnimationDriven (41704) graph event AnimationDriven (42875): the graph's root motion moves it
+slot 4 StartMotionDriven (41703)    graph event MotionDriven (42874): the controller moves it;
+                                    unloaded set -> state 10/11, the Virtual Path Follower (Advance 92556):
+                                    speed x dt along the path, a position write, no animation
+slot 6 IsMotionDriven (41706)       states 1,2,3,7,8,10..14; slot 7 (41707) animation-driven 0,4,5,9
+who switches:
+  Actor::CreateMovementController (37793)  high -> loaded set, else unloaded
+  Actor::MoveToHigh (37621)                -> loaded set + StartMotionDriven
+  MoveToMiddleHigh (37624) / MoveToMiddleLow (37623) / MoveToLow (37622) -> unloaded set + StartMotionDriven
+  MovementControllerNPC::LoadGame (41716)  saved state 10/11 -> unloaded set
+Character::UpdateProcessLevel (37501) <- GetDesiredProcessLevel (37503):
+  3D and cell attached -> high; loaded, not attached -> middle-high
+```
+
+A middle-high actor is in no animation job (only high actors are, 41466), so the Virtual Path Follower steps it every
+few hundred ms while its graph stands. Seen 2026-11-05: Riverwood's 0x13491 went middle-high when the party entered the
+Sleeping Giant (the exterior stays loaded, not attached) and stepped 36 times until the party came out. No player can see
+it there. Once (unexplained, process level not yet recorded): Gerdur stepped 39 units every 0.46 s with an idle graph
+while the party stood in Riverwood; not seen again in 55 s of co-op or 60 s of vanilla traces.
+
 ## Others
 
 - Precision hooks the `ApplyMovement` call in `UpdateMovement` (+0xFB) to scale `dt` for hitstop; po3-Tweaks

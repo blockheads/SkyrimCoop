@@ -39,6 +39,8 @@ struct NiAVObject : NiObjectNET
         float radius;
     } worldBound; // E4
     uint32_t flags; // F4, kHidden 1 (CommonLibSSE-NG NiAVObject::Flag)
+    // flags: culled this frame (HighActorCuller 40335); then the actor's graph is not posed (38054).
+    static constexpr uint32_t kNotVisible = 1u << 20;
     struct TESObjectREFR* userData; // F8
     float fadeAmount; // 100
     uint32_t lastUpdatedFrame; // 104, UpdateWorldData 70539

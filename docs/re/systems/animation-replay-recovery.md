@@ -134,3 +134,54 @@ they never happen. Two false alarms to avoid: `stage` with `ref` on a living NPC
 stretches a difference over a scenario change (an 18.6 s "run" that a per-side timeline did not reproduce).
 
 A save costs a median 62 to 112 us and 7.1 to 7.9 KB.
+
+## Drift detector (2026-11-05)
+
+A detector, not a fix: after each replay a copy takes, the copy's active states against the action's `GraphState`
+(`Games/Animation/GraphDrift`, called from `AnimationSystem::Update` where a taken step is collected).
+
+Engine path, read in IDA 1.7.104:
+
+```
+owner: PerformAction (38949) -> accepted -> TESObjectREFR::SaveAnimationGraphState
+         per graph BShkbAnimationGraph::SaveState (63601)
+           hkbCharacter::SnapshotGraphState (65148, our name)
+             root behaviour graph's active nodes (+152, 144-byte entries, node at +80)
+             keep hkbStateMachine (hkbStateMachine::StaticClass, 58901)
+             its clone: hkbBehaviorGraph::GetNodeClone (58359)
+             current state: states[GetStateIndex(59372, +128 currentStateId)] name (+96)
+           first section written: count, then (machine, u32, state, u32, u32)
+copy:  HookUpdateAnimationGraphs (20123) -> RunReplayStep -> ForceAction -> kTaken
+       main thread, next AnimationSystem::Update: GraphDrift::Taken
+```
+
+- A machine resting in its start state with no transition under way is not written (65148 checks the current
+  state against +104, active transitions at +184, a byte at +134; or a global flag): both sides leave the same
+  machines out, so the sets compare.
+- Compared: `project/machine=state`, sorted. Not variables or clip times (they differ by design).
+- Paired actions carry no snapshot: counted `skipped`. A snapshot that does not parse: `unreadable`.
+- Players' copies are not compared (`players`): measured 2026-11-05, a player's snapshot holds its `FirstPerson`
+  graph and first-person machines in its third-person one (`1HM_1stP_*`, `PlayerStagger_1stP`) that a copy never
+  runs, so every player replay read as a mismatch.
+- A lasting count is an upper bound: the snapshot is the owner's states at the action, and an owner leaving a passing
+  state (`Weap_Equip_State`) with no new action leaves the copy nothing newer to match.
+- An open mismatch is read again every 100 ms (a graph save, about 100 us, only while open) until the copy matches
+  (`transient`, its milliseconds kept), the next taken replay supersedes it, or 2 s pass (`lasting`, counted once).
+  A sync point retargets it to the owner's newer states. A read that fails drops it (`unreadable`): a gap in the
+  readings is not two seconds of drift. 2 s: about twice the longest difference measured above
+  (1.08 s), so a copy following a transition 150-300 ms late never counts.
+- Counters `graph drift replays / players / skipped / matched / mismatches / transient ms / lasting / lasting ms / unreadable`,
+  read by the harness's `counters`; `coop_test.py scenario` logs a `copies' graph drift:` line per flow.
+
+Measured 2026-11-05, a combined batch of 12 animation flows on a fresh duo (guest's copies unless noted):
+
+- NPC copies: 283 replays compared, 261 matched, 12 transient (mean 318-1112 ms per flow, longest 1.64 s), 4 lasting
+  (`npc-counter-matches` 1, `npc-counter-copy-falls-back-in` 1, `actors-walk-after-arrival` 2). Paired skipped: 1.
+- The lasting ones: Camilla's copy without `Behavior02=MT_Idle.HKX` after `MotionDrivenIdle` (2.4 s), Camilla's
+  copy missing a dialogue idle (`DialogueAngryA`) after `TurnLeft`, two Riverwood wolves (one copy walking while its
+  owner turned on the spot). An earlier run showed Lucan's copy with its arms crossed (`LeftOffsetArmsCrossed`) while
+  he had not, 3.7 s, and Camilla's copy kept in `MT IdleHHLeftEnter.HKX` while she idled, 5.5 s.
+- So accepted actions do land elsewhere now and then, past the 1.1 s seen before. Each lasting case is a copy's graph
+  missing an input its owner's had, a bug of its own (bugs.md: idle variant, walks while its owner turns, interaction
+  idle). Loading the owner's snapshot over it was tried and reverted: it hides the missing input, and Sigrid's copy
+  left the loaded interaction idle at once.

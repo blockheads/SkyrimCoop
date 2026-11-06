@@ -1,7 +1,8 @@
-// Party items (Games/PartyItems.h, docs/design/party-items.md).
+// Party items (Games/PartyItems.h, docs/design/party-items.md) and a player's kept death drop (Services/DeathDrops.h).
 #include <catch2/catch.hpp>
 
 #include <Games/PartyItems.h>
+#include <Services/DeathDrops.h>
 
 TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot and gold do not", "[PartyItems]")
 {
@@ -72,4 +73,11 @@ TEST_CASE("An improved party stack is another party stack; a copy's own use is n
     used.ExtraCharge = 300.f;
     used.ExtraPoisonId = GameId(0, 0x3A5A4);
     CHECK(PartyItems::SameStack(enchanted, used));
+}
+
+TEST_CASE("A player's death drop is kept in a session; an NPC's, or one outside a session, falls", "[PartyItems][death]")
+{
+    CHECK(DeathDrops::Kept(true, true));
+    CHECK_FALSE(DeathDrops::Kept(false, true));
+    CHECK_FALSE(DeathDrops::Kept(true, false));
 }

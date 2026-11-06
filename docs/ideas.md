@@ -46,6 +46,15 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   the others (a spectator camera on a party member) until the party has been out of combat for 10 s, then gets
   up. Replaces upstream's respawn (`PlayerService`'s 5 s timer, `PlayerCharacter::RespawnPlayer`'s move to the
   cell's COC marker), which today only stops pulling the party (`EnterCellRequest::Travel::kRespawn`).
+- **A dead player's weapon on the ground** (user, 2026-11-06). Today the death drop is skipped, so the corpse keeps
+  it in hand (`docs/re/systems/death-drops.md`). Vanilla look instead: let it fall, out of reach, and give it back
+  on respawn. Needs, riskiest first:
+  - Activation blocked on every game (copies too).
+  - NPCs kept from picking it up (AI pickup, not activation; not reversed yet).
+  - A record of which world items belong to which dead player.
+  - On respawn: remove the world item, return it with its extra data, equip it in the right slot.
+  - Disconnect, session end, a save or a wipe while it lies there.
+  Roughly 3-5x the current fix, for looks only.
 
 ## Sync
 

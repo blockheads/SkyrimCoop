@@ -38,6 +38,7 @@
 #include <World.h>
 #include <Bridges/IActorBridge.h>
 #include <Services/PapyrusService.h>
+#include <Services/DeathDrops.h>
 
 #include <Forms/ActorValueInfo.h>
 #include <Forms/TESRace.h>
@@ -1508,6 +1509,18 @@ void HookAddDeathItems(Actor* apThis)
     RealAddDeathItems(apThis);
 }
 
+// KillImpl's (37896) only call: the shield, torch and drawn weapons fall. A player's stay in its hands.
+using TDropHeldItemsOnDeath = void(Actor*);
+static TDropHeldItemsOnDeath* RealDropHeldItemsOnDeath = nullptr;
+
+void HookDropHeldItemsOnDeath(Actor* apThis)
+{
+    if (DeathDrops::Kept(apThis->GetExtension()->IsPlayer(), World::Get().GetTransport().IsOnline()))
+        return;
+
+    RealDropHeldItemsOnDeath(apThis);
+}
+
 using TIsFleeing = bool(Actor*);
 static TIsFleeing* RealIsFleeing = nullptr;
 
@@ -1749,5 +1762,6 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);
+        HOOK_ID(37320, &RealDropHeldItemsOnDeath, HookDropHeldItemsOnDeath);
         HOOK_ID(37577, &RealIsFleeing, HookIsFleeing);
     });

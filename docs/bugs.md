@@ -35,15 +35,15 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [Replay lands in another state](#replay-lands-in-another-state): small
+- [A copy's idle variant](#a-copys-idle-variant): small
+- [A copy walks while its owner turns](#a-copy-walks-while-its-owner-turns): small
+- [A copy's interaction idle](#a-copys-interaction-idle): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
-- [Owners move without walking](#owners-move-without-walking): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
-- [A dead player's dropped weapon](#a-dead-players-dropped-weapon): small
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
@@ -103,28 +103,47 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
-### Replay lands in another state
+### A copy's idle variant
 
-A copy accepts a replayed action and nothing checks where its graph ended up.
+After an action that ends in an idle, Camilla's copy stays out of the idle clip her owner plays.
 
-Agent task: Add a detector, not a fix: after each taken replay, compare the copy's active state names with the action's
-`GraphState` and count and log a mismatch. Run it across a combined batch; build loading on a mismatch only if lasting
-mismatches show up.
+Agent task: find what moves `IdleBehavior.hkb/Behavior02` into `MT_Idle.HKX` on the owner (an event the copy is not
+sent, or a variable it reads differently), and give the copy that input.
 
-Size: small. Needs: GameTests (a forced mismatch), then a combined duo batch.
+Size: small. Needs: the duo (`npc-counter-matches`), then GameTests.
 
-- **An accepted replayed action can land in a different graph state** (user, 2026-10-31: animations drift in dialogue
-  after a while). Nothing compares it (animation-replay-recovery.md). Fixed so far: copies played clips before their
-  files were in, each game made its own random picks (2026-11-04), and copies never headtracked (progress.md, "copies
-  look where their owners do"). The proposed fix is to compare active states with the owner's snapshot after each
-  replay and load it on a mismatch.
-  - Measured 2026-11-05 (copy-state-sync, animation-replay-recovery.md "Does a copy's graph drift?"): Lucan on a fresh
-    duo, active states sampled at 10/s on both games through `npc-counter-matches` and `npc-clips-match`: the copy
-    follows every transition within 150-300 ms, no difference lasts over 1.1 s. One NPC: no lasting drift seen, not
-    proof there is none. A graph save costs 62-112 us and about 7.5 KB.
-  - Compare state names only (variables and clip times differ by design). Paired actions carry no snapshot.
-  - Pitfall: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in `JumpFall`/`JumpLand` for the
-    session, which reads as drift. Measure on fresh, unstaged NPCs.
+- **Camilla's copy lacks `Behavior02=MT_Idle.HKX`** (drift detector, animation-replay-recovery.md "Drift detector"):
+  after `MotionDrivenIdle` her owner's `Behavior02` is in `MT_Idle.HKX`, her copy's in its start state; every other
+  machine matches. Seen in both 2026-11-05 batches (2.0 s, 2.4 s, each until the next action).
+- The detector's guest log line `still apart after` lists both sides' states.
+
+### A copy walks while its owner turns
+
+A copy keeps walking while its owner stands and turns on the spot.
+
+Agent task: find which input moves the owner's `QuadrupedBehavior.hkb/StandingBehavior` machine into
+`LoopingTurnLeft` (a turn event, the speed or direction variable) and why the copy's graph does not follow it.
+
+Size: small. Needs: the duo (`actors-walk-after-arrival`), then GameTests.
+
+- **A Riverwood dog's copy** (1E62B, 2026-11-05) after `moveStart`: the owner had `StandingBehavior=LoopingTurnLeft`
+  and `StandingIdleBehavior=NonCombatIdleState` (with `NonCombatIdle.hkb`'s head, tail and idle machines) active;
+  the copy only its forward walk. Lasted past 2 s.
+- The first batch the same day showed the same for a Riverwood wolf's copy (walking while its owner turned).
+
+### A copy's interaction idle
+
+A copy does not enter its owner's interaction idle.
+
+Agent task: find what holds an NPC's graph in `InteractionObjectState` (an AI interaction object a copy does not run)
+and give the copy that input, or play the idle another way.
+
+Size: small. Needs: the duo (Riverwood, `actors-walk-after-arrival`), then GameTests.
+
+- **Sigrid's copy misses `IdlePickup_Ground`** (13483, 2026-11-05): after `turnStop` her owner was in
+  `MT_BehaviorGraph=InteractionObjectState`, `InteractionObjectBehavior=IdlePickup_Ground`; her copy in
+  `MT_Default_State`, for 7.1 s until the next action. Loading the owner's snapshot (tried and reverted) put the
+  copy in it, and it left at once: the copy lacks what keeps the graph there.
 
 ### Headtracking on copies
 
@@ -169,6 +188,8 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
+  `dead-player-keeps-weapon` (2026-11-06) passes its steps, then fails its end comparison on Sinmir in the Bannered
+  Mare: the host's `['session 1', None x5]` against the guest's copy `[None x6]`.
 - **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
   the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
   `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
@@ -239,27 +260,6 @@ Size: small. Needs: IDA, duo (`jitter`), then a fast test.
     ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
   - Test: `jitter` on a creature, then a fast test once the cause is read.
 
-### Owners move without walking
-
-Stands alone: the host's own NPCs, not copies.
-
-Agent task: Find why the host's Riverwood NPCs move with their feet still after arrival.
-
-Size: medium. Needs: duo.
-
-- **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
-  `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
-  copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
-  too (Embry, Hod, 135 to 169 units, feet 3 to 40). Failing the same with the old copy placement (2026-11-02: 125 to 573
-  units in 2 s).
-  - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
-    scenario's `check_gait` names each actor and its distance.
-  - 2026-11-05 (copy-state-sync, fresh duo): still 0 of 1 (Dorthe 146 units, feet 0; Gerdur 138, feet 6). Every sliding
-    sample was in the host's view (`was_in_frustum` true), so this is not the stale off-screen skeleton of
-    culled-npc-pose-readings.md: they slide about 75 units/s with their feet still. Next: a vanilla control
-    (`vanilla_start`) to see whether the engine does it without co-op.
-  - Test: `actors-walk-after-arrival`.
-
 ### End comparisons in towns
 
 Ambient differences a Riverwood run's end comparison finds, a different one each run.
@@ -272,23 +272,14 @@ Size: medium. Needs: duo.
 - **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
   `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
-  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again), once
-  Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
-  repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
+  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
+  `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
+  skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
+  culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
-
-### A dead player's dropped weapon
-
-Stands alone: one created reference.
-
-Agent task: Make the weapon a dead player drops the same reference on both games, so `kill-moves-cross` passes its end
-comparison.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
-  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
-  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
+  - Also in the Bannered Mare (2026-11-06, the MCP's `expect agree all` while recording `dead-player-keeps-weapon`):
+    Olava the Feeble (`1A699`) was removed from the host's actors ("Actor discovery: 1A699 removed") seconds after the
+    scene loaded, and her copy stayed on the guest with no owner.
 
 ### Trade markers
 
@@ -337,12 +328,13 @@ Size: small. Needs: duo.
 
 Test work, not a bug in the game.
 
-Agent task: Add a visible-skeleton control to the owner gait check and get the Greybeards scenario its story save.
+Agent task: Get the Greybeards scenario its story save.
 
 Size: small. Needs: duo.
 
-- **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
-  documented story save. Combined-dev acceptance remains separate from these bug investigations.
+- **Remaining validation.** The Greybeards scenario needs its documented story save. Combined-dev acceptance remains
+  separate from these bug investigations. (The owner gait's visible-skeleton control landed 2026-11-05: `GaitWatch`
+  counts drawn steps only, actor-movement.md "A culled actor keeps its pose".)
 
 ### A placed guard's trip home
 

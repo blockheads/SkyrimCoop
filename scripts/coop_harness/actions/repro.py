@@ -3,6 +3,7 @@ and the recorder that turns a session's calls into a scenario. The MCP server (s
 scenarios can too."""
 import contextlib
 import json
+import collections
 import math
 import os
 import re
@@ -918,3 +919,59 @@ class PressTiming:
             rows.append({"frames": None if moved is None else moved + 1,
                          "ms": None if moved is None else round((after[moved][0] - pressed) * 1000)})
         return rows
+
+
+class RefSteps:
+    """How references move frame by frame, on our games or the vanilla stand-in: walking or stepped by position
+    writes (owners-move-without-walking's vanilla control)."""
+
+    def ref_steps(ctx, refs, seconds=12.0, instance="", vanilla=False, arrive=None):
+        """How each reference in `refs` (form IDs) moved over the next `seconds`, frame by frame, on that game: the
+        distance, the frames it moved in, and its jumps (over 10 units in one frame, under 200: no teleport). A walk
+        moves a little every frame; an actor stepped by the virtual path follower jumps every few hundred ms.
+        vanilla=True reads the vanilla stand-in's ref_trace (vanilla_start), else the animation trace. With `arrive`
+        (a cell) the trace starts first, then the party (or the stand-in's player) goes there by coc."""
+        def go():
+            if arrive and vanilla:
+                ctx.console_on(instance, f"coc {arrive}")
+            elif arrive:
+                ctx.both_go(arrive)
+        if vanilla:
+            game = ctx.game(instance)
+            switch, trace = game.control / "ref_trace.on", game.control / "ref_trace.txt"
+            trace.unlink(missing_ok=True)
+            def rows():
+                lines = trace.read_text().splitlines() if trace.exists() else []
+                return [line.split() for line in lines[:-1]]  # the last line may be half written
+            try:
+                switch.write_text(" ".join(f"{ref:X}" for ref in refs))
+                go()
+                ctx.wait_for("[vanilla] the stand-in traces the references", lambda: rows(), 60)
+                first = int(rows()[0][0])
+                ctx.wait_for(f"[vanilla] {seconds}s traced", lambda: int(rows()[-1][0]) - first >= seconds * 1e6, seconds + 10)
+            finally:
+                switch.unlink(missing_ok=True)
+            points = collections.defaultdict(list)
+            for us, ref, x, y, _ in rows():
+                if int(us) - first <= seconds * 1e6:
+                    points[int(ref, 16)].append((float(x), float(y)))
+        else:
+            from ..objects import AnimTrace
+            with AnimTrace(ctx, f"ref-steps-{instance or 'host'}", {instance: {ref: f"{ref:X}" for ref in refs}},
+                           video=False) as recorded:
+                go()
+                started = time.monotonic()
+                ctx.wait_for(f"{seconds}s traced", lambda: time.monotonic() - started >= seconds, seconds + 5)
+            points = collections.defaultdict(list)
+            for e in recorded.entries:
+                if e["kind"] == "pos" and e.get("game", instance) == instance:
+                    points[int(e["who"], 16)].append(tuple(e["pos"][:2]))
+        result = {}
+        for ref, places in points.items():
+            steps = [math.dist(a, b) for a, b in zip(places, places[1:])]
+            steps = [s for s in steps if s < 200.0]
+            result[f"{ref:08X}"] = {"travelled": round(sum(steps)), "frames": len(steps),
+                                    "moving_frames": sum(s > 0.05 for s in steps),
+                                    "jumps": sum(10.0 < s for s in steps),
+                                    "biggest": round(max(steps, default=0.0), 1)}
+        return result
