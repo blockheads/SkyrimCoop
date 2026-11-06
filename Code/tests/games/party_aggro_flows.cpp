@@ -52,6 +52,36 @@ void DamageSwitches(bool aGuestFirst)
 }
 } // namespace
 
+SCENARIO("After the host dies its NPC fights the guest, whose copy runs no combat of its own", "[party-aggro][combat][death]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t enemy = 0;
+    party.As(party.Host(), [&] { enemy = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1 && PlayerCopy(host); },
+                "both games have the enemy and players");
+    const uint32_t cEnemyCopy = guest.CopiesOf(0x23ABE).front();
+    const uint32_t cGuest = PlayerCopy(host);
+    party.Agree("both players are present");
+    party.As(party.Host(), [&] {
+        host.CombatCandidates[enemy] = {{FakeEngine::kPlayer, 100.f, true}, {cGuest, 250.f, true}};
+        host.Fights(enemy, FakeEngine::kPlayer);
+    });
+    party.Until([&] { return host.PartyThreats.Active; }, "the host's combat policy is active");
+
+    party.As(party.Host(), [&] { host.AttackedBy(cGuest, enemy); });
+    CHECK(host.Actors.at(cGuest).OwnCombatTarget == 0);
+
+    party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
+    party.Until([&] { return host.IsActorDead(FakeEngine::kPlayer); }, "the host's player dies");
+    party.Until([&] { return host.Actors.at(enemy).Ai.CombatTargetId == cGuest; },
+                "the NPC's native target moves from the dead host to the guest's copy");
+    party.Until([&] { return guest.GetActorAiFields(cEnemyCopy).CombatTargetId == FakeEngine::kPlayer; },
+                "the guest's game sees the NPC turn on its player");
+    CHECK(host.Actors.at(cGuest).OwnCombatTarget == 0);
+}
+
 SCENARIO("A guest can draw aggro from the host with greater damage", "[party-aggro][combat]")
 {
     DamageSwitches(false);

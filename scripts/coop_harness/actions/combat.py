@@ -102,6 +102,100 @@ class CombatActions:
         return crossed
 
 
+    def combat_watch(ctx, npc, seconds=5.0, every=0.33):
+        """An NPC of the host's in a fight, over time: its gap to its target, how far the target's predicted place (what its
+        close movement reads) is off the target's real one, the target's path follower and the close movement branch."""
+        actor = ctx.resolve(npc, "host")
+        rows = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            read = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
+            place = ctx.actor_snapshot("", actor).get("placement", {}).get("position") or [0, 0, 0]
+            at = read.get("target_position") or [0, 0, 0]
+            close = next((node for node in read.get("behavior", []) if "CloseMovement" in node), "")
+            rows.append({"t": round(seconds - (end - time.monotonic()), 1), "target": f"{read.get('controller_target', 0):X}",
+                         "gap": round(math.dist(place[:2], at[:2])),
+                         "predicted_off": round(math.dist(at[:2], (read.get("target_predicted") or at)[:2])),
+                         "range": round(read.get("close_range", 0) + read.get("margin", 0)),
+                         "path_state": read.get("target_path_state"), "path_points": read.get("target_path_points"),
+                         "branch": close.rsplit(" > ", 2)[-2:], "state": read.get("combat_state"),
+                         "lost": read.get("target_lost"), "detected": read.get("detected"),
+                         "candidates": [(f"{c['actor']:X}", c["detection"], c["flags"], round(c.get("light", 0)),
+                                         round(c.get("raw_light", 0)), c.get("line_of_sight")) for c in read.get("candidates", [])]})
+            time.sleep(every)
+        return rows
+
+    def host_death_watch(ctx, npc=0x13486, seconds=20.0, guest_offset=-80, dies="host"):
+        """The half-stop's setup: the NPC fights both players, the host dies, the guest stands still; then combat_watch.
+        Returns the guest's place at the death, the longest stall (same gap past close range, in combat) and the rows'
+        gaps. Use after a checkpoint in the inn; retry between rounds (the NPC stays hostile to the copy). dies="guest" is
+        the comparison: the host's player is the one left standing."""
+        npc = ctx.resolve(npc, "host")
+        copy = ctx.client_on_host()
+        combat = lambda: ctx.player_command("", {"cmd": "combat_targets", "actor": npc})
+        ctx.console_on("", f"{npc:X}.resurrect")
+        ctx.console_on("client", "tgm")
+        ctx.console_on("", "tgm")
+        ctx.console_on("", f"player.moveto {npc:X} 80 0 0")
+        ctx.console_on("client", f"player.moveto {npc:X} {guest_offset} 0 0")
+        ctx.console_on("", f"{npc:X}.startcombat 14")
+        ctx.wait_for("the NPC fights the host", lambda: combat().get("controller_target") == 0x14, 15)
+        ctx.console_on("", f"{npc:X}.startcombat {copy:X}")
+        ctx.wait_for("both players are the NPC's targets",
+                     lambda: {0x14, copy} <= {c["actor"] for c in combat().get("candidates", [])}, 15)
+        dying, left = ("", "client") if dies == "host" else ("client", "")
+        ctx.console_on(dying, "tgm")
+        ctx.console_on(dying, "player.kill")
+        ctx.wait_for(f"the {dies} is down", lambda: ctx.death_state(dying).get("down"), 15)
+        guest_at = [round(v) for v in (ctx.actor_snapshot("", copy).get("placement", {}).get("position") or [])]
+        rows = ctx.combat_watch(npc, seconds=seconds, every=0.5)
+        ctx.console_on(left, "tgm")
+        stall, run, last = 0, 0, None
+        for row in rows:
+            held = row["state"] == 1 and row["gap"] > row["range"] and row["gap"] == last
+            run = run + 1 if held else 0
+            stall = max(stall, run)
+            last = row["gap"]
+        return {"guest_at": guest_at, "stall_s": round(stall * 0.5, 1),
+                "search_s": round(sum(r["state"] == 2 for r in rows) * 0.5, 1),
+                "gaps": " ".join(f"{r['gap']}{'' if r['state'] == 1 else 's'}" for r in rows)}
+
+    def console_watch(ctx, reads, seconds=10.0, every=1.0, instance=""):
+        """Console reads over time ({name: line}, e.g. {"state": "13486.getcombatstate"}): the numbers each line prints, also in
+        the vanilla stand-in (no harness readouts there), to compare a fight with the bare game."""
+        rows, start = [], time.monotonic()
+        while time.monotonic() - start < seconds:
+            row = {"t": round(time.monotonic() - start, 1)}
+            for name, line in reads.items():
+                printed = (ctx.console_on(instance, line) or [""])[-1]
+                numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", printed.split(">>")[-1].split(":")[-1])]
+                row[name] = numbers[0] if len(numbers) == 1 else numbers or None
+            rows.append(row)
+            time.sleep(every)
+        return rows
+
+    def counter(ctx, instance, name):
+        """How many times that game's named counter (Diagnostics/Counters.h) was bumped; 0 before its first use."""
+        counters = (ctx.player_command(instance, {"cmd": "counters"}) or {}).get("counters") or {}
+        return (counters.get(name) or {}).get("count", 0)
+
+    def closes_in(ctx, npc, back_seconds=6.0, within=300.0, seconds=15.0):
+        """The guest's player walks back and the host's `npc` must come to within `within` of the guest's copy while
+        fighting that copy: fails with what combat_watch saw (a half-stop drifts at range, or fights someone else)."""
+        guest = ctx.client_on_host()
+        ctx.act("client", {"name": f"walks back from {npc} {back_seconds:g} s", "ready": ["takes_input"], "buttons": ["back"],
+                           "until": [{"for": back_seconds}], "seconds": back_seconds + 2})
+        seen = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            seen += ctx.combat_watch(npc, seconds=0.1)
+            here = ctx.actor_snapshot("", ctx.resolve(npc, "host")).get("placement", {}).get("position")
+            there = ctx.actor_snapshot("", guest).get("placement", {}).get("position")
+            if seen[-1]["target"] == f"{guest:X}" and here and there and math.dist(here[:2], there[:2]) <= within:
+                return seen[-1]
+        raise ctx.failure(f"{npc} never came within {within:g} of the guest's copy {guest:X} while fighting it in "
+                          f"{seconds:g} s: {seen[:3]} ... {seen[-2:]}")
+
     def actor_snapshot(ctx, instance, actor):
         _game = ctx.game(instance)
         return ((_game.read_status() or {}).get("world") or {}).get(str(actor), {})

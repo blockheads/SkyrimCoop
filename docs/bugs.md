@@ -100,7 +100,9 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium
+- [After the host dies](#after-the-host-dies): medium, caused by the next one
+- [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
+- [An NPC copy's swing picks the nearest](#an-npc-copys-swing-picks-the-nearest): small
 - [A guest's summon](#a-guests-summon): medium
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
@@ -808,20 +810,62 @@ The NPCs' target.
 Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away.
-  - The host staying dead while the guest fights is the design (`death.md`: the respawn waits for the fight to end), not
-    part of this bug.
-  - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack. (2) The target is the guest's host-side copy, a created `Character` with no AI,
-    which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
-    collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
-    other-player candidate (the copy) never gets the native pick once the real player is dead.
-  - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
-    an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`. In IDA, read how the combat controller treats a dead target and a
-    non-player target (selector 47191, validity 47196, target setter 33235).
-  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest.
+  only up close, and stop when the guest walks away (`docs/re/systems/combat-targets.md`, "The half-stop").
+  - Fixed on the way: an attack gave the guest's copy a combat tree of its own, all through the playtest's wait
+    (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
+  - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
+    the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
+    target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
+  - 2026-11-06 (`combat-targets.md`, "Measured 2026-11-06"): vanilla pushes the player back a few units a hit and
+    the NPC stands while the gap is inside its approach radius (174); the host's player gets the same. In three clean
+    host deaths Orgnar kept fighting the copy and his hits landed. Not reproduced as reported yet.
+  - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
+    with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
+    off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
+  - Reproduced once (2026-11-06, the guest still, as the playtester saw): after the host's death Orgnar sat 196 from the
+    copy for 20 s on `Advance` without moving or swinging; the host's player at the same gap was closed on at once
+    (`combat-targets.md`, "A/B at 196 units"). Not seen again in 5 more rounds.
+  - **The cause is the copy unseen at the switch** (2026-11-06, `host_death_watch`, 5 rounds each way, the inn,
+    the survivor standing still): the host dies, the target moves to the guest's copy and the fight goes to search every
+    time (2.5-7 s, at 44-67 units), twice walking 440-490 units off before coming back. The guest dies instead: the host's
+    player is fought on, no search in 5 of 5. So this is [A still guest unseen up close](#a-still-guest-unseen-up-close).
+
+- **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
+  without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
+  (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
+
+### A still guest unseen up close
+
+Agent task: Find why an NPC fighting the host reads no line of sight to the guest's copy 74 units away (the cause of the
+half-stop after the host dies). Do step 0 in IDA
+first (the detection's line-of-sight request for a candidate), then compare with the host's player in the same place.
+
+Size: small. Needs: duo, IDA, then GameTests.
+
+- **An NPC loses a still guest standing next to it** (2026-11-06, `host-dies-guest-still-fought` setup by hand, one run):
+  Orgnar fought the host with the guest 80 units off to his side; the host died, his target moved to the guest's copy and
+  the fight went to search (state 2) for 13 s at 74 units. `combat_watch`: the copy's candidate read `line_of_sight`
+  false, detection -6 to 15, until the copy was found again. A still guest makes no noise, so sight is all there is.
+  - Compared (5 rounds each, `host_death_watch`): with the guest's copy left, search every time, twice walking 440-490
+    units off; with the host's player left (`dies="guest"`), never. The copy is what isn't seen: this is the cause of
+    [After the host dies](#after-the-host-dies). While the host lives, the copy's candidate read line of sight false and
+    detection about -6, the host's 42 with line of sight.
+  - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
+    5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
+  - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
+
+### An NPC copy's swing picks the nearest
+
+Agent task: Make an NPC copy's swing on the guest's game hit the actor the host's NPC is fighting, not whoever is nearest
+in front. Do step 0 in IDA first (`Actor_GetTarget` 38608, `Actor::sub_47272`), then a GameTests case.
+
+Size: small. Needs: IDA, GameTests, then duo.
+
+- **A copy's swing hits the nearest actor in front** (2026-11-06, read in IDA, seen once): a hit on the guest is judged on
+  the guest's game by the NPC's copy; with no combat target (copies run no AI) the victim pick (47272) takes the nearest
+  actor in the cone within reach. With the host alive and closer, the copy's swing picked the host's copy, not the guest
+  (`combat-targets.md`, "Measured 2026-11-06"). Start: give the pick the owner's target (ExtraForcedTarget 0x9D is read
+  first) or answer it in a hook.
 
 ### A guest's summon
 
