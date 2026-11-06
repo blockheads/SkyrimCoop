@@ -428,6 +428,10 @@ struct KillMoveCheck
     uint32_t CrosshairActor; // the actor under the player's crosshair (CrosshairPickData)
     uint32_t AttackTarget;   // whom an attack starting now targets (Actor::sub_47272 in reach, as PlayerControls 42350
                              // picks it)
+    float AttackReach;       // Actor::GetAttackReach (38538): the current weapon's reach, unarmed without one
+    float VictimGap;         // TESObjectREFR::sub_47273(attacker, victim): distance less both bodies, what 47272 compares
+    uint32_t RightEntry;     // the middle process's right-hand entry (+0x260), what GetCurrentWeapon (39806) reads
+    uint32_t RightObject;    // AIProcess::equippedObject[1] (+0xF8)
 };
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept;
 // Each condition of an idle and its parents (TESIdleForm::parentIdle), evaluated alone as the engine does

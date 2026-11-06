@@ -97,7 +97,7 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, vanilla holds the fight
+- [After the host dies](#after-the-host-dies): medium, not reproduced as reported
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -804,9 +804,12 @@ Size: medium. Needs: duo, IDA, then GameTests.
   - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
     the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
     target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
-  - Vanilla differs (2026-11-06, `vanilla_start`, `console_watch`, same inn, tgm, `startcombat player`): Orgnar holds
-    combat state 1 at 110-140 units for 40 s, `GetDetected` 35-39 with light ~120. Our plugin with no session reads
-    the same. So the stall needs a session: next, the same reads on the duo with the guest present, host alive.
+  - 2026-11-06 (`combat-targets.md`, "Measured 2026-11-06"): vanilla pushes the player back a few units a hit and
+    the NPC stands while the gap is inside its approach radius (174); the host's player gets the same. In three clean
+    host deaths Orgnar kept fighting the copy and his hits landed. Not reproduced as reported yet.
+  - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
+    with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
+    off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
 
 - **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
   without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`

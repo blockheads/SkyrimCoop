@@ -2,6 +2,8 @@
 #include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
+#include <Misc/InventoryEntry.h>
+#include <Misc/MiddleProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
 #include <Games/ActorPools.h>
@@ -1024,13 +1026,25 @@ KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) no
     if (const CrosshairPickData* pPick = CrosshairPickData::Get())
         if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetActorHandle))
             crosshairActor = pRef->formID;
-    const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, s_getAttackReach.Get()(pAttacker), nullptr);
+    using TGap = float(TESObjectREFR*, TESObjectREFR*, bool, TESObjectREFR*);
+    POINTER_SKYRIMSE(TGap, s_gap, 47273);
+    const float cReach = s_getAttackReach.Get()(pAttacker);
+    const AIProcess* pProcess = pAttacker->currentProcess;
+    const MiddleProcess* pMiddle = pProcess ? pProcess->middleProcess : nullptr;
+    const InventoryEntry* pRight = pMiddle ? pMiddle->rightEquippedObject : nullptr;
+    const uint32_t cRightEntry = pRight && pRight->pObject ? pRight->pObject->formID : 0;
+    const uint32_t cRightObject = pProcess && pProcess->equippedObject[1] ? pProcess->equippedObject[1]->formID : 0;
+    const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, cReach, nullptr);
     return {s_shouldAttackKill.Get()(pAttacker, pVictim),
             s_killable.Get()(pVictim, pAttacker),
             s_engagingInCombat.Get()(pAttacker),
             IsInKillMove(aAttackerFormId),
             crosshairActor,
-            pTarget ? pTarget->formID : 0};
+            pTarget ? pTarget->formID : 0,
+            cReach,
+            s_gap.Get()(pAttacker, pVictim, false, nullptr),
+            cRightEntry,
+            cRightObject};
 }
 
 std::vector<IdleCondition> CheckIdleConditions(uint32_t aIdleFormId, uint32_t aSubjectFormId,

@@ -130,7 +130,11 @@ nlohmann::json KillMoveCheckCommand(Harness&, const nlohmann::json& acRequest)
             {"engaging_in_combat", cCheck.EngagingInCombat},
             {"in_kill_move", cCheck.InKillMove},
             {"crosshair_actor", cCheck.CrosshairActor},
-            {"attack_target", cCheck.AttackTarget}};
+            {"attack_target", cCheck.AttackTarget},
+            {"attack_reach", cCheck.AttackReach},
+            {"victim_gap", cCheck.VictimGap},
+            {"right_entry", cCheck.RightEntry},
+            {"right_object", cCheck.RightObject}};
 }
 
 // {"cmd": "idle_conditions", "idle": id, "subject": id, "target": id}: the idle and its parents with their

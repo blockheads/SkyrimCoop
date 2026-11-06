@@ -107,10 +107,38 @@ is seen as the player is. In one boot he started a fight 41 units from the copy 
 and ended it in about 10 s with the host alive. `Actor::CalculateDetection` (37774) reads the target's light, line of sight
 (37768), movement noise and equipped weight; in this dim inn a still or retreating target is lost, real player or copy.
 
-Measured: the report's picture (drifting, looking, hitting only up close, stopping when the guest walks away) comes with the
-engine losing a hard-to-see target, the real player as much as the copy. **Inferred, not read or measured:** that while the
-host lives its player keeps the group's fight going and its death lets the search end. Whether vanilla does the same in this
-inn with one player is not measured (`vanilla_start`).
+Correction (2026-11-06): the light figures above came from 37775/39509; the console's `GetDetected` reads another
+scale, and its floor in this inn is 60 for everyone (host, Delphine and copy alike in one spot). The copy is not darker.
+
+### Measured 2026-11-06: vanilla, and three clean host deaths
+
+Vanilla (`vanilla_start`, `console_watch`, the inn, god mode, `startcombat player`): Orgnar holds combat state 1 for 40 s.
+Each hit pushes the player back 3-5 units. Orgnar stands while the gap is inside R (174) and steps in when it nears R, so
+the gap runs a sawtooth from 135 to 174. The host's own player on the duo does the same (pushed 145 to 168, Orgnar
+standing). Standing at 150-170 while a still target is inside R is the engine's fight, not a stall.
+
+Three clean runs on the duo (both players by Orgnar, both his targets, then `player.kill` on the host): he stays in combat
+with the copy, detects it (`GetDetected` 18-21) and hits it. With the guest's god mode off, health fell 13 a hit at 134
+units. One run ran vanilla's sawtooth; one held 134 with the guest not moving back further; one held 150 (not explained).
+
+What a copy changes (read and measured):
+
+- **Hits on the guest are judged on the guest's game.** `HitRules`: an NPC copy's swing on the local player is applied
+  there. `HitFrameHandler::Handle` (42828) -> 38603 -> `Actor_GetTarget` (38608) takes a forced target
+  (`ExtraForcedTarget`, 0x9D, only UseWeapon procedures set it), else `Actor::sub_47272`: the actor's combat target
+  (+0x104) if it is in the swing's cone and within `GetAttackReach` (38538) after both bodies (47273); with no combat
+  target, the nearest actor in the cone within reach. A copy has no combat target, so its swing hits whoever is nearest in
+  front. Measured with the host alive: the pick on the guest's game was the host's copy while the host's Orgnar fought
+  the guest's copy. After the host's death it was the guest.
+- **Reach**: 145 (mace reach x 141 x scale 1.03) on both games; once 98.9 on the copy, `fCombatBashReach` (96) x scale,
+  which 38538 uses while the attack state (actorState1 bits 28-31) reads bash. Vanilla does the same during a bash.
+- **Advance's speed** (`CombatBehaviorAdvance__Enter` 0x140882AB0, `CombatApproachTargetSpeedController__Update`
+  0x1408EDF60): inside R + `fCombatApproachTargetSlowdownDistance` (96) the speed is lerped by squared distance from
+  0 to the target's own speed (`Actor::GetLinearVelocity`) when the target is in front. A still target just outside R gives
+  almost no speed: Orgnar sat 175-176 from the copy on `Advance` for 20 s once. A copy's linear velocity is not measured.
+
+Seen but caused by the setup: Orgnar searched (state 2) and walked up to 825 units off for 16 s when re-aimed at a copy
+that had been out of sight. A guest unseen when the host dies would get the same.
 
 **The frozen prediction.** PR #21 saw once `target_predicted` frozen 1,300 units off, the NPC "in range". The prediction has one
 source that can hold a place: the copy's path follower (47309 -> 90724, state 1-8 or 13 with a path). The copy's own tree is

@@ -86,3 +86,30 @@ time	op	id	rva	item
 2026-11-05T23:30:48Z	read	50643	0x8f1c90	{"name": "CombatUtilities__GetCloseRangeMargin"}
 2026-11-05T23:30:50Z	comment	47321	0x86a5f0	{"addr": "0x14086a5f0", "comment": "47321: squared distance between both actors' predicted places (47309 each), height-aware: z only counts when the vertical gap exceeds half the taller one."}
 2026-11-05T23:30:50Z	comment	50643	0x8f1c90	{"addr": "0x1408f1c90", "comment": "50643 close-range margin: (offensive - defensive) from the combat style, staggered target scaled; reset to the defaults when the target's reach (47336) is far from this fighter's (inventory+0x1A0) or 10 s after the controller state's last attack (+0x28)."}
+2026-11-06T06:46:15Z	read	47898	0x882ab0	{"name": "sub_140882AB0"}
+2026-11-06T06:46:34Z	read	50533	0x8ee3f0	{"name": "CombatApproachTargetSpeedController::sub_50533"}
+2026-11-06T06:46:35Z	read	50534	0x8ee510	{"name": "CombatApproachTargetSpeedController::sub_50534"}
+2026-11-06T06:46:38Z	read	50532	0x8edf60	{"name": "CombatApproachTargetSpeedController::sub_50532"}
+2026-11-06T06:46:52Z	read	47322	0x86a730	{"name": "Character::sub_47322"}
+2026-11-06T06:46:52Z	read	50642	0x8f1c10	{"name": "sub_1408F1C10"}
+2026-11-06T06:46:53Z	read	49954	0x8d9b80	{"name": "Character::sub_49954"}
+2026-11-06T06:47:38Z	name	47898	0x882ab0	{"addr": "0x140882ab0", "name": "CombatBehaviorAdvance__Enter"}
+2026-11-06T06:47:38Z	name	50642	0x8f1c10	{"addr": "0x1408F1C10", "name": "CombatUtilities__LerpSpeedByDistance"}
+2026-11-06T06:47:38Z	name	50532	0x8edf60	{"addr": "0x1408edf60", "name": "CombatApproachTargetSpeedController__Update"}
+2026-11-06T06:47:38Z	name	47322	0x86a730	{"addr": "0x14086a730", "name": "Character__GetDistanceSquared"}
+2026-11-06T06:47:42Z	comment		0x882e2c	{"addr": "0x140882e2c", "comment": "Approach speed controller: +20 inner = CombatInventory+0x1A0 (R) + margin, +24 outer = R + max margin, +32 speed type 4"}
+2026-11-06T06:47:42Z	comment		0x8ee1f2	{"addr": "0x1408ee1f2", "comment": "target in front within fCombat angle: base speed = max(speed type 0, target's speed away), so a still target gives 0"}
+2026-11-06T06:47:42Z	comment		0x8ee245	{"addr": "0x1408ee245", "comment": "speed by dist^2: 0..inner^2 lerps 0.5*base..base, inner^2..(inner+X)^2 lerps base..base+target speed; just outside inner a still target gives ~0"}
+2026-11-06T06:47:42Z	comment		0x8ee08a	{"addr": "0x1408ee08a", "comment": "full speed when max(path length, distance)^2 > outer^2 or the target is staggered/recoiling"}
+2026-11-06T06:47:42Z	comment	47898	0x882ab0	{"addr": "0x140882ab0", "comment": "Advance node enter: CombatPath to the target with CombatApproachTargetSpeedController (radii R+margin, R+max margin); retry fCombatAdvancePathRetryTime"}
+2026-11-06T06:47:43Z	comment	41381	0x784240	{"addr": "0x140784240", "comment": "not on the half-stop path: read while following combat targets"}
+2026-11-06T07:02:12Z	read	42828	0x7cccc0	{"name": "HitFrameHandler::Handle"}
+2026-11-06T07:02:19Z	read	38603	0x6cbee0	{"name": "Actor::sub_38603"}
+2026-11-06T07:02:46Z	read	38608	0x6cc490	{"name": "Actor_GetTarget"}
+2026-11-06T07:02:46Z	read	38538	0x6c80b0	{"name": "Actor::GetAttackReach"}
+2026-11-06T07:02:54Z	read	12037	0x172410	{"name": "sub_140172410"}
+2026-11-06T07:02:55Z	read	38627	0x6cd2f0	{"name": "DealDamage"}
+2026-11-06T07:03:20Z	read	47272	0x866260	{"name": "Actor::sub_47272"}
+2026-11-06T07:03:25Z	read	47273	0x866600	{"name": "TESObjectREFR::sub_47273"}
+2026-11-06T07:16:40Z	read	39806	0x720660	{"name": "AIProcess::GetCurrentWeapon"}
+2026-11-06T07:16:40Z	read	37478	0x6874a0	{"name": "Character::sub_37478"}
