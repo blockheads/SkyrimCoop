@@ -1,0 +1,25 @@
+time	op	id	rva	item
+2026-11-06T15:25:34Z	read	38949	0x6dfbc0	{"name": "coop_RealPerformAction"}
+2026-11-06T15:26:02Z	read	43567	0x7d7ac0	{"name": "sub_1407D7AC0"}
+2026-11-06T15:26:08Z	read	32901	0x554220	{"name": "IAnimationGraphManagerHolder::NotifyAnimationGraph"}
+2026-11-06T15:26:10Z	read	63362	0xbc0c90	{"name": "BSAnimationGraphManager::NotifyAllGraphs"}
+2026-11-06T15:26:15Z	read	63591	0xbcf690	{"name": "BShkbAnimationGraph::sub_63591"}
+2026-11-06T15:26:39Z	read	58330	0xacc300	{"name": "hkbBehaviorGraph::sub_58330"}
+2026-11-06T15:26:40Z	read	58329	0xacbc60	{"name": "hkbBehaviorGraph::sub_58329"}
+2026-11-06T15:26:41Z	read	58377	0xacfc70	{"name": "hkbBehaviorGraph::sub_58377"}
+2026-11-06T15:27:06Z	read	65148	0xc3d8c0	{"name": "hkbCharacter::SnapshotGraphState"}
+2026-11-06T15:27:29Z	read	60079	0xb29f40	{"name": "hkbBehaviorGraph::sub_60079"}
+2026-11-06T15:27:35Z	name	60079	0xb29f40	{"addr": "0x140b29f40", "name": "hkbBehaviorGraph::updateActiveNodes"}
+2026-11-06T15:27:35Z	name	58377	0xacfc70	{"addr": "0x140acfc70", "name": "hkbBehaviorGraph::HandleEventOnActiveNodes"}
+2026-11-06T15:27:35Z	name	58330	0xacc300	{"addr": "0x140acc300", "name": "hkbBehaviorGraph::handleEvent"}
+2026-11-06T15:27:35Z	name	63591	0xbcf690	{"addr": "0x140bcf690", "name": "BShkbAnimationGraph::SendEvent"}
+2026-11-06T15:27:35Z	name	43567	0x7d7ac0	{"addr": "0x1407d7ac0", "name": "ActionSendGraphEvent_43567"}
+2026-11-06T15:27:38Z	comment	58377	0xacfc70	{"addr": "0x140acfc70", "comment": "(graph, context, event): runs synchronously inside NotifyAnimationGraph: every active node's handleEvent (vfunc +48), then if graph+302 (active nodes dirty) updateActiveNodes 60079 at once. So a state change and its node list are done when PerformAction 38949 returns; a graph snapshot right after holds the new states, plus the outgoing state's machines while the transition blends. Read in IDA (bug-relations)."}
+2026-11-06T15:27:38Z	comment	43567	0x7d7ac0	{"addr": "0x1407d7ac0", "comment": "Our name (43567). Last step of PerformAction 38949: sets the idle's float variable, then NotifyAnimationGraph (holder vfunc 1) with the action's event name (a2+0x28). Read in IDA."}
+2026-11-06T15:27:38Z	read	38929	0x6de920	{"name": "coop_RealEquip"}
+2026-11-06T15:28:02Z	read	39192	0x6eb1a0	{"name": "ActorProcess::sub_39192"}
+2026-11-06T15:28:03Z	read	38001	0x6b2570	{"name": "Character::sub_38001"}
+2026-11-06T15:40:43Z	read	39430	0x6f9370	{"name": "sub_1406F9370"}
+2026-11-06T15:41:58Z	read	39372	0x6f6030	{"name": "sub_1406F6030"}
+2026-11-06T15:42:13Z	comment	39372	0x6f6030	{"addr": "0x1406f6030", "comment": "(AIProcess*) 39372: reads high process (+0x10), then its +952 object's flags (+12, bits 0x70000000 == 0 or 0x50000000). No null check of the process: Actor::UpdateInDialogue 37541 passes the actor's currentProcess, so a null RCX here is an actor with no process (bugs.md, A conversation's deleted NPC). Read in IDA (bug-relations)."}
+2026-11-06T15:42:13Z	comment	39430	0x6f9370	{"addr": "0x1406f9370", "comment": "Calls ActorProcess 39192 (records an equip into the process's hand slots +240/+248), like InitWornArmor and coop_RealEquip 38929. Equipped hands live in the AI process, separate from the worn marks in inventory extra data: a rebuilt process empties hands while items stay worn (death.md 'The hands', copy-hand-spells.md). Read in part (bug-relations)."}

@@ -27,6 +27,8 @@ Where the evidence comes from:
   there too. The entries dated 2026-11-01 come from the S1 work (`playtests/2026-10-31-fabien.md`;
   `docs/design/physics-sync.md`, "Steered holds" and "Matches a game without co-op").
 
+How the entries relate (shared causes, wrong checks, what to fix first): [bugs-map.md](bugs-map.md).
+
 ## Index
 
 Each line gives a section's size. "waits" means another branch or plan comes first; "no duo" means no Skyrim is needed;
@@ -43,6 +45,7 @@ other section needs the duo.
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
+- [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
@@ -97,9 +100,10 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium, not reproduced as reported
+- [After the host dies](#after-the-host-dies): medium, caused by the next one
 - [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
 - [An NPC copy's swing picks the nearest](#an-npc-copys-swing-picks-the-nearest): small
+- [A guest's summon](#a-guests-summon): medium
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
@@ -261,6 +265,20 @@ Size: small. Needs: IDA, duo (`jitter`), then a fast test.
     furniture"); these creatures' controllers carry `kQuadruped` and `kCanPitch`/`kCanRoll`, which tilt the capsule to the
     ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
   - Test: `jitter` on a creature, then a fast test once the cause is read.
+
+### A copy without its weapon
+
+Some NPCs' and other players' copies show no weapon on a guest's game.
+
+Agent task: Add a readout of the weapon's 3D on a copy, catch it empty-handed, then read what took the weapon. Make the
+equipment snapshot compare the hands' weapons as it does their spells.
+
+Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
+
+- **Seen by the user in play** (2026-11-06), not reproduced: party travel and one fight kept hands and worn items agreeing
+  (bugs-map.md, "A copy's hands"). A move did strip a copy's armour until the 3 s reconcile.
+- The snapshot compares worn items and hand spells, not hand weapons; a copy refuses the engine's equips.
+- Lead: copy `13485`'s engine tried to equip about once a second for over 2 minutes in the 2026-11-04 playtest.
 
 ### End comparisons in towns
 
@@ -848,6 +866,22 @@ Size: small. Needs: IDA, GameTests, then duo.
   actor in the cone within reach. With the host alive and closer, the copy's swing picked the host's copy, not the guest
   (`combat-targets.md`, "Measured 2026-11-06"). Start: give the pick the owner's target (ExtraForcedTarget 0x9D is read
   first) or answer it in a hook.
+
+### A guest's summon
+
+A guest's Conjure Familiar makes no familiar on either game; the host's reaches the guest.
+
+Agent task: Read what happens to the summon on the guest's game, then make a guest's actor reach the host the way a
+drop does, one path with script-placed references (bugs-map.md, "Created forms").
+
+Size: medium. Needs: IDA, duo, then GameTests.
+
+- **A guest's familiar never appears** (2026-11-06, Riverwood, 640B6 aimed at the other player). Host's cast: announced
+  (`FF00090D`), the guest spawned its copy. Guest's two casts (`abSuccess: true`): nothing announced on the host, and 8 s
+  after the first the guest's only familiar was the host's copy.
+- Suspect, read not observed: `CharacterService::RunActorDiscovery` deletes a temporary actor on a guest that is no copy
+  and has no session id (a rule for saved NPCs). `DeleteActor` logs nothing.
+- Test: a scenario where a guest casts it and both games show one familiar.
 
 ### A mod's rename at run time
 

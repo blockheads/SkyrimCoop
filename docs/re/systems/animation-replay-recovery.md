@@ -185,3 +185,14 @@ Measured 2026-11-05, a combined batch of 12 animation flows on a fresh duo (gues
   missing an input its owner's had, a bug of its own (bugs.md: idle variant, walks while its owner turns, interaction
   idle). Loading the owner's snapshot over it was tried and reverted: it hides the missing input, and Sigrid's copy
   left the loaded interaction idle at once.
+
+## What the detector's "lasting" means (2026-11-06)
+
+An owner's action runs its graph event at once: `PerformAction` (38949) -> `NotifyAnimationGraph` (32901) ->
+`BShkbAnimationGraph::SendEvent` (63591) -> `hkbBehaviorGraph::HandleEventOnActiveNodes` (58377), which calls
+`updateActiveNodes` (60079) before returning. Read in IDA. So the action's `GraphState` is the owner mid-transition, with the
+outgoing state's machines still listed, and it stays the detector's target until the next action.
+
+Measured with `graph_watch` (owner and copy read live, Riverwood): most lasting reports are this, not drift. `1348A` and
+`1348B`, reported 44 s and 37 s, never differed for 2 s. Sigrid does: her owner cancels `IdlePickup_Ground` within about
+60 ms and her copy plays it whole. Only 2 of 53 lasting reports began at a graph recovery. [bugs-map.md](../../bugs-map.md).

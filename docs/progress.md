@@ -49,6 +49,10 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
+detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
+copy without its weapon, the user's report, not reproduced.
+
 - **Owners never moved without walking: the check read culled skeletons** (2026-11-05). The host's Riverwood NPCs the
   gait check flagged (`actors-walk-after-arrival`, 0 of 6) were off camera: the engine does not pose a culled actor's
   skeleton (`HighActorCuller` 40335 sets the 3D's `kNotVisible`, `ModifyAnimationUpdateData` 38054 then writes no
