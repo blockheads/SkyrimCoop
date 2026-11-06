@@ -170,6 +170,12 @@ movement. The host's player pushed to 175-196 the same way: Orgnar closed back t
 not known (the spot, or the state left by the search before it). `tdetect` is no way to leave the host out: it turns off
 all AI detection.
 
+**Host-death rounds (duo, 2026-11-06, `host_death_watch`, 5 each way, the survivor still).** Host dies: the target moves
+to the copy and the state goes to search at once every time (2.5-7 s, 44-67 units off), twice walking 440-490 units
+away first. Guest dies: the host's player is fought on, never searched for. While both live, the copy's candidate reads
+line of sight false and detection about -6, the host's 42 with line of sight. Why the line of sight to a copy fails is
+the open step 0 (bugs.md, "A still guest unseen up close").
+
 ## The real player's chase, for comparison
 
 Vanilla (the stand-in, no plugin, same inn, god mode): Delphine followed a teleporting player within a second before her

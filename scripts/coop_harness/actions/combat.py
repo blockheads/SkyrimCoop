@@ -125,6 +125,40 @@ class CombatActions:
             time.sleep(every)
         return rows
 
+    def host_death_watch(ctx, npc=0x13486, seconds=20.0, guest_offset=-80, dies="host"):
+        """The half-stop's setup: the NPC fights both players, the host dies, the guest stands still; then combat_watch.
+        Returns the guest's place at the death, the longest stall (same gap past close range, in combat) and the rows'
+        gaps. Use after a checkpoint in the inn; retry between rounds (the NPC stays hostile to the copy). dies="guest" is
+        the comparison: the host's player is the one left standing."""
+        copy = ctx.client_on_host()
+        combat = lambda: ctx.player_command("", {"cmd": "combat_targets", "actor": npc})
+        ctx.console_on("", f"{npc:X}.resurrect")
+        ctx.console_on("client", "tgm")
+        ctx.console_on("", "tgm")
+        ctx.console_on("", f"player.moveto {npc:X} 80 0 0")
+        ctx.console_on("client", f"player.moveto {npc:X} {guest_offset} 0 0")
+        ctx.console_on("", f"{npc:X}.startcombat 14")
+        ctx.wait_for("the NPC fights the host", lambda: combat().get("controller_target") == 0x14, 15)
+        ctx.console_on("", f"{npc:X}.startcombat {copy:X}")
+        ctx.wait_for("both players are the NPC's targets",
+                     lambda: {0x14, copy} <= {c["actor"] for c in combat().get("candidates", [])}, 15)
+        dying, left = ("", "client") if dies == "host" else ("client", "")
+        ctx.console_on(dying, "tgm")
+        ctx.console_on(dying, "player.kill")
+        ctx.wait_for(f"the {dies} is down", lambda: ctx.death_state(dying).get("down"), 15)
+        guest_at = [round(v) for v in (ctx.actor_snapshot("", copy).get("placement", {}).get("position") or [])]
+        rows = ctx.combat_watch(npc, seconds=seconds, every=0.5)
+        ctx.console_on(left, "tgm")
+        stall, run, last = 0, 0, None
+        for row in rows:
+            held = row["state"] == 1 and row["gap"] > row["range"] and row["gap"] == last
+            run = run + 1 if held else 0
+            stall = max(stall, run)
+            last = row["gap"]
+        return {"guest_at": guest_at, "stall_s": round(stall * 0.5, 1),
+                "search_s": round(sum(r["state"] == 2 for r in rows) * 0.5, 1),
+                "gaps": " ".join(f"{r['gap']}{'' if r['state'] == 1 else 's'}" for r in rows)}
+
     def console_watch(ctx, reads, seconds=10.0, every=1.0, instance=""):
         """Console reads over time ({name: line}, e.g. {"state": "13486.getcombatstate"}): the numbers each line prints, also in
         the vanilla stand-in (no harness readouts there), to compare a fight with the bare game."""
