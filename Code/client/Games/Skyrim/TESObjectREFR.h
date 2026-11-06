@@ -120,7 +120,7 @@ struct TESObjectREFR : TESForm
     virtual void sub_60();
     virtual BSFaceGenNiNode* GetFaceGenNiNode();
     virtual void sub_62();
-    virtual void sub_63();
+    virtual void* GetFaceGenAnimationData() const; // 63: BSFaceGenAnimationData*
     virtual void sub_64();
     virtual void DetachHavok();
     virtual void sub_66();

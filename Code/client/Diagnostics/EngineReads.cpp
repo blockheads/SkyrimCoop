@@ -77,6 +77,15 @@ Actor* GetActor(uint32_t aFormId) noexcept
     return Cast<Actor>(TESForm::GetById(aFormId));
 }
 
+// The game settings ProcessTracking 38009 reads, each one's value in its first 32 bits.
+float HeadTrackRange(const Actor* apActor) noexcept
+{
+    POINTER_SKYRIMSE(Setting, s_range, 370870);        // fAIMaxHeadTrackDistanceFromPC
+    POINTER_SKYRIMSE(Setting, s_largeRange, 370878);   // fAIMaxLargeCreatureHeadTrackDistance
+    const bool cLarge = apActor->race && apActor->race->size == TESRace::kSizeExtraLarge;
+    return std::bit_cast<float>(static_cast<uint32_t>((cLarge ? s_largeRange : s_range).Get()->data));
+}
+
 enum class Visuals
 {
     OnBody,   // playing on the actor's body
@@ -166,6 +175,9 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
     const auto* pMiddle = pActor->currentProcess->middleProcess;
     const auto* pController = pMiddle ? pMiddle->charController : nullptr;
     const PlayerCamera* pCamera = PlayerCamera::Get();
+    const float cRange = HeadTrackRange(pActor);
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const float cDx = pActor->position.x - pPlayer->position.x, cDy = pActor->position.y - pPlayer->position.y, cDz = pActor->position.z - pPlayer->position.z;
     readout.HeadTrackShutBy = HeadTrackRead::ShutBy({.Life = ActorState::LifeStateOf(pActor->actorState.flags1),
                                                      .Dead = pActor->IsDead(),
                                                      .Knock = pActor->actorState.GetKnockState(),
@@ -173,11 +185,15 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
                                                      .ProcessLevel = pActor->currentProcess->processLevel,
                                                      .HasController = pController != nullptr,
                                                      .LodDistance = pController ? pController->lodDistance : 0.f,
-                                                     .ExtraLarge = pActor->race && pActor->race->size == TESRace::kSizeExtraLarge,
+                                                     .Range = cRange,
+                                                     .FarFromPlayer = pActor->GetFaceGenAnimationData() && cDx * cDx + cDy * cDy + cDz * cDz > cRange * cRange,
                                                      .TrackingOn = (pActor->actorState.flags2 & 8) != 0,
-                                                     .Player = pActor == PlayerCharacter::Get(),
+                                                     .RaceTracks = pActor->race && (pActor->race->raceFlags & TESRace::kUseHeadTrackAnims) != 0,
+                                                     .Has3D = pActor->GetNiNode() != nullptr,
+                                                     .Player = pActor == pPlayer,
                                                      .ThirdPerson = pCamera && pCamera->state && pCamera->state->id >= TESCameraState::kThirdPerson});
-    readout.HeadTrackAlternates = (pActor->flags1 & 0x180) == 0x180 && pActor->fVoiceTimer <= 0.f && !pActor->currentProcess->IsTalkingToPlayer();
+    readout.HeadTrackAlternates = (pPlayer->flagsB0A & 4) == 0 && readout.Scene && (pActor->flags1 & 0x180) == 0x180 && pActor->fVoiceTimer <= 0.f &&
+                                  !pActor->currentProcess->IsTalkingToPlayer();
     return readout;
 }
 

@@ -1725,6 +1725,19 @@ class GraphApartTests(unittest.TestCase):
         apart.keep_only([7])
         self.assertEqual([run["actor"] for run in apart.finish(13.0)], [7])
 
+    def test_a_long_run_no_longer_read_stands_at_its_last_reading(self):
+        apart = self.apart()
+        for now in (10.0, 12.0, 13.0):
+            apart.observe(8, {"Walk"}, {"Idle"}, now)
+        apart.observe(8, None, {"Idle"}, 14.0)
+        for now in (20.0, 23.0):
+            apart.observe(9, {"Walk"}, {"Idle"}, now)
+        apart.keep_only([])
+        runs = apart.finish(99.0)
+        self.assertEqual([(run["actor"], run["seconds"], run["lost"]) for run in runs], [(8, 3.0, True), (9, 3.0, True)])
+        from coop_harness.comparisons import graph_apart_line
+        self.assertIn("until no longer read", graph_apart_line(apart, 0.0))
+
     def test_only_a_living_npc_in_3d_is_watched(self):
         from coop_harness.observations import Observations
         ctx = Observations()
@@ -1762,7 +1775,8 @@ class ActiveStatesTests(unittest.TestCase):
         from coop_harness.comparisons import active_states
         self.assertEqual(active_states(self.saved()), {"p/m=s"})
         self.assertEqual(active_states(self.saved(())), set())
-        self.assertEqual(active_states(bytes(8).hex()), set())
+        # The actor's flags and no graph: a copy whose behaviour graph is not ready is no reading.
+        self.assertIsNone(active_states(bytes(8).hex()))
 
     def test_no_reply_or_broken_bytes_is_no_reading(self):
         from coop_harness.comparisons import active_states
@@ -1823,6 +1837,20 @@ class HeadTrackComparisonTests(unittest.TestCase):
         self.assertEqual(self.differs(["session 1"], ["session 2"]), "differs")
         self.assertEqual(self.differs([], ["session 2"]), "differs")
         self.assertIsNone(self.differs(["session 1"], ["session 1"]))
+
+    def test_alternation_is_each_games_own(self):
+        # Slot 2 alone on the game whose player is spoken to, slots 2 and 0 on the other.
+        self.assertIsNone(self.differs(["session 1"], ["session 1", "session 2"]))
+        self.assertEqual(self.differs(["session 3"], ["session 1", "session 2"]), "differs")
+        self.assertEqual(self.differs(["session 1", "session 3"], ["session 1", "session 2"]), "differs")
+
+    def test_one_side_unread_is_named(self):
+        from coop_harness.comparisons import head_track_one_sided
+        actor = lambda role, shut: {"role": role, "mod": {"session_id": 1}, "ai": {"head_track_shut": shut}, "player": False, "identity": {}}
+        lines = head_track_one_sided({"host": {"7": actor("own", None)}, "client": {"8": actor("copy", "out of range")}})
+        self.assertEqual(len(lines), 1)
+        self.assertIn("unread on client (out of range)", lines[0])
+        self.assertEqual(head_track_one_sided({"host": {"7": actor("own", "knocked")}, "client": {"8": actor("copy", "race")}}), [])
 
 
 class ProfileBudgetTests(unittest.TestCase):

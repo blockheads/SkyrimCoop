@@ -210,7 +210,8 @@ struct PlayerCharacter : Actor
     uint32_t assumedIdentity;
     int8_t murder;
     uint8_t perkPoints; // CommonLib perkCount (Game.AddPerkPoints 55451)
-    uint8_t padB0A[0xB18 - 0xB0A];
+    uint8_t flagsB0A; // saved; bit 4: ProcessTracking 38009 does not alternate slots
+    uint8_t padB0B[0xB18 - 0xB0B];
     GameArray<TintMask*> baseTints;
     GameArray<TintMask*>* overlayTints;
     uint8_t padB38[0xBE3 - 0xB38];

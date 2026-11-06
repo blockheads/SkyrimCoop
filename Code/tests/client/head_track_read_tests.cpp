@@ -20,10 +20,11 @@ TEST_CASE("The engine reads an actor's headtrack slots only with its gate open",
     CHECK(ShutBy({}) == nullptr);
     CHECK(Shut({.Dead = true}) == "life state");
     CHECK(Shut({.Life = 1}) == "life state");
-    CHECK(Shut({.Life = 2}) == "life state");
     CHECK(Shut({.Life = 3}) == "life state");
-    // Bleeding out (8): the gate passes, ProcessTracking takes no target.
-    CHECK(Shut({.Life = 8}) == "life state");
+    // Bleeding out (8), reanimated (4), recycled (5): the gate passes, the target's bare position still goes in (38009).
+    CHECK(ShutBy({.Life = 8}) == nullptr);
+    CHECK(ShutBy({.Life = 4}) == nullptr);
+    CHECK(ShutBy({.Life = 5}) == nullptr);
     // Restrained and essential down still track.
     CHECK(ShutBy({.Life = 6}) == nullptr);
     CHECK(ShutBy({.Life = 7}) == nullptr);
@@ -36,8 +37,11 @@ TEST_CASE("The engine reads an actor's headtrack slots only with its gate open",
     CHECK(Shut({.HasController = false}) == "out of range");
     CHECK(Shut({.LodDistance = -1.f}) == "out of range");
     CHECK(Shut({.LodDistance = 2001.f}) == "out of range");
-    CHECK(ShutBy({.LodDistance = 2001.f, .ExtraLarge = true}) == nullptr);
-    CHECK(Shut({.LodDistance = 12001.f, .ExtraLarge = true}) == "out of range");
+    CHECK(ShutBy({.LodDistance = 2001.f, .Range = 12000.f}) == nullptr);
+    CHECK(Shut({.LodDistance = 12001.f, .Range = 12000.f}) == "out of range");
+    CHECK(Shut({.FarFromPlayer = true}) == "out of range");
+    CHECK(Shut({.RaceTracks = false}) == "race");
+    CHECK(Shut({.Has3D = false}) == "no 3D");
     CHECK(Shut({.TrackingOn = false}) == "tracking off");
     // This game's player: the camera, never the range.
     CHECK(Shut({.LodDistance = -1.f, .Player = true}) == "first person");
@@ -54,7 +58,7 @@ TEST_CASE("Only the slot the engine reads counts: the highest set, and slot 0 be
     CHECK(Targets(Slots{cA}, cSelf) == Read{cA});
     // A lower slot is shadowed until the higher one clears.
     CHECK(Targets(Slots{cA, 0, 0, cB}, cSelf) == Read{cB});
-    // Slot 2 alternates with slot 0 in a conversation (38009), and only there.
+    // Slot 2 alternates with slot 0 in a scene's line (38009), and only there.
     CHECK(Targets(Slots{cA, 0, cB}, cSelf) == Read{cB});
     CHECK(Targets(Slots{cA, 0, cB}, cSelf, true) == Read{cB, cA});
     CHECK(Targets(Slots{cA, 0, 0, cB}, cSelf, true) == Read{cB});

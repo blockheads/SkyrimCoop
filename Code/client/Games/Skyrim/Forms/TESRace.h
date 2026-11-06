@@ -8,6 +8,7 @@ struct TESRace : TESForm, TESFullName
     // RACE_DATA::Flag (CommonLibSSE-NG)
     static constexpr uint32_t kFaceGenHead = 1 << 1;
     static constexpr uint32_t kSizeExtraLarge = 3;
+    static constexpr uint32_t kUseHeadTrackAnims = 1u << 15; // RACE_DATA::Flag
 
     uint8_t pad30[0xE8 - 0x30]; // TESDescription ... BGSAttackDataForm, then RACE_DATA at 0xE8
     uint8_t raceDataPad[0x20];

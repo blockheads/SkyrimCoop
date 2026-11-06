@@ -178,4 +178,6 @@ passes a second, and logs a `copies' graphs, owner against copy:` line: the runs
 sides. 2 s: about twice the longest following measured (1.08 s, a copy 150-300 ms late never counts). A graph not read
 ends a run uncounted. Players' copies are left
 out: a player's graph holds its `FirstPerson` graph and first-person machines a copy never runs (measured 2026-11-05).
-The verb `graph_watch` is the same check on demand. It logs and does not fail a flow.
+The verb `graph_watch` is the same watch on demand. It logs and does not fail a flow; it stops before the flow's comparison
+checks, and `scenario --no-graph-watch` leaves it out. A run whose actor stops being read ends at its last reading apart and says
+so (`lost`, "until no longer read"): the pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating.

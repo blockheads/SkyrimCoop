@@ -169,19 +169,14 @@ class ReproActions:
 
     def graph_watch(ctx, seconds=60.0, every=0.25, lasting=2.0, limit=10, ids=()):
         """Owner against copy, both read live, for NPCs on both games: the runs apart for `lasting` s or more (`scenario`
-        runs the same over each flow). `ids`: owner form ids; else the first `limit` pairs."""
-        pairs = list(ctx.copy_pairs().values())
+        runs this watch over each flow). `ids`: owner form ids; else the first `limit` pairs at each look."""
         wanted = {int(i, 16) if isinstance(i, str) else i for i in ids}
-        pairs = [pair for pair in pairs if pair[0] in wanted] if wanted else pairs[:limit]
-        read = lambda game, form: active_states((ctx.game(game).rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
-        apart, start = GraphApart(lasting), time.time()
-        with ThreadPoolExecutor(2) as pool:
-            while time.time() - start < seconds:
-                for owner, copy in pairs:
-                    readings = pool.submit(read, "", owner), pool.submit(read, "client", copy)
-                    apart.observe(owner, readings[0].result(), readings[1].result(), time.time())
-                time.sleep(every)
-        return {"actors": [f"{owner:X}" for owner, _ in pairs], "samples": apart.samples,
+        watch = ctx.graph_watch_start(every, lasting, wanted, limit)
+        watch["stop"].wait(seconds)
+        watch["stop"].set()
+        watch["thread"].join(10)
+        apart, start = watch["apart"], watch["started"]
+        return {"actors": [f"{owner:X}" for owner in sorted(watch["actors"])], "samples": apart.samples,
                 "apart": [{**run, "actor": f"{run['actor']:X}", "at": round(run["at"] - start, 1)} for run in apart.finish(time.time())]}
 
     def hands_compared(ctx):

@@ -246,6 +246,32 @@ def flatten(tree, prefix=""):
     return {prefix[:-1]: tree}
 
 
+def head_track_differs(owner, copy):
+    """ai_state.head_track on two games. "unread" (ai.head_track_shut says why) compares with anything. Only the targets both
+    read count: each game decides alone whether slot 0 alternates beside slot 2 (its own player, its own voice timer)."""
+    if "unread" in (owner, copy):
+        return False
+    owner, copy = owner or [], copy or []
+    shared = min(len(owner), len(copy))
+    return owner[:shared] != copy[:shared] if shared else owner != copy
+
+
+def head_track_one_sided(worlds):
+    """The actors one game reads a head target for and the other does not: not a difference, but no comparison either."""
+    copies = {game: {s["mod"]["session_id"]: s for s in world.values() if s.get("role") == "copy"} for game, world in worlds.items()}
+    lines = []
+    for game, world in worlds.items():
+        other = "client" if game == "host" else "host"
+        for form, owned in world.items():
+            copy = copies.get(other, {}).get((owned.get("mod") or {}).get("session_id")) if owned.get("role") == "own" else None
+            sides = [(owned, game), (copy, other)] if copy else []
+            shut = [(s.get("ai") or {}).get("head_track_shut") for s, _ in sides]
+            if sides and bool(shut[0]) != bool(shut[1]):
+                unread = shut[0] or shut[1]
+                lines.append(f"{describe_actor(owned, form, game)} unread on {sides[0][1] if shut[0] else sides[1][1]} ({unread})")
+    return lines
+
+
 def compare_field(field, owner, copy, owner_snapshot):
     """Returns None when the copy agrees with the owner, else a short reason."""
     if field.startswith(("mod.", "ai.", "graph")) or field in ("role", "identity.template_base", "identity.temporary_base"):
@@ -253,8 +279,8 @@ def compare_field(field, owner, copy, owner_snapshot):
                      # graph changes every frame (compared over time by `coop_test.py graph`)
     if field == "ai_state.combat_target":
         return None  # each game's own form id for the target (a player is 14 on its own game): copy-in-owners-combat
-    if field == "ai_state.head_track" and "unread" in (owner, copy):
-        return None  # the engine reads no slot on that game: dead, knocked, asleep, far away (ai.head_track_shut says which)
+    if field == "ai_state.head_track":
+        return "differs" if head_track_differs(owner, copy) else None
     if field == "ai_state.package" and (owner or 0) >= 0xFF000000:
         return None  # a package the engine made has no id the other game shares: the copy holds do-nothing
     if field == "effects":
@@ -304,8 +330,8 @@ def active_states(hex_state):
         data = bytes.fromhex(hex_state or "")
     except ValueError:
         return None
-    if len(data) < 8:
-        return None
+    if len(data) <= 8:
+        return None  # the actor's flags and no graph yet: no reading
 
     def take(size, offset, limit):
         if offset + size > limit:
@@ -350,7 +376,8 @@ def graph_apart_line(apart, started):
     if not runs:
         return f"{apart.samples} samples, no run of {apart.lasting:g} s"
     return f"{apart.samples} samples, " + "; ".join(
-        f"{run['actor']:X} {run['seconds']} s at {run['at'] - started:.1f} (owner only {run['owner_only']}, copy only {run['copy_only']})"
+        f"{run['actor']:X} {run['seconds']} s{' until no longer read' if run.get('lost') else ''} at {run['at'] - started:.1f} "
+        f"(owner only {run['owner_only']}, copy only {run['copy_only']})"
         for run in runs)
 
 
@@ -362,25 +389,31 @@ class GraphApart:
         self.lasting, self.samples, self.open, self.runs = lasting, 0, {}, []
 
     def observe(self, actor, owner, copy, now):
-        """One reading of each game's active states; None for a graph not read: no evidence, the run ends uncounted."""
+        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart."""
         if owner is None or copy is None:
-            self.open.pop(actor, None)
+            self.lose(actor)
             return
         self.samples += 1
         if owner == copy:
             self.close(actor, now)
+        elif actor in self.open:
+            self.open[actor]["last"] = now
         else:
-            self.open.setdefault(actor, (now, sorted(owner - copy), sorted(copy - owner)))
+            self.open[actor] = {"at": now, "last": now, "owner_only": sorted(owner - copy), "copy_only": sorted(copy - owner)}
 
     def keep_only(self, actors):
-        """Actors no longer read (unloaded, dead: a graph nothing updates) end uncounted."""
+        """Actors no longer read (unloaded, dead: a graph nothing updates) end at their last reading apart."""
         for actor in set(self.open) - set(actors):
-            del self.open[actor]
+            self.lose(actor)
 
-    def close(self, actor, now):
-        if (run := self.open.pop(actor, None)) and now - run[0] >= self.lasting:
-            self.runs.append({"actor": actor, "at": run[0], "seconds": round(now - run[0], 1),
-                              "owner_only": run[1][:6], "copy_only": run[2][:6]})
+    def lose(self, actor):
+        if run := self.open.get(actor):
+            self.close(actor, run["last"], lost=True)
+
+    def close(self, actor, now, lost=False):
+        if (run := self.open.pop(actor, None)) and now - run["at"] >= self.lasting:
+            self.runs.append({"actor": actor, "at": run["at"], "seconds": round(now - run["at"], 1), "owner_only": run["owner_only"][:6],
+                              "copy_only": run["copy_only"][:6], **({"lost": True} if lost else {})})
 
     def finish(self, now):
         for actor in list(self.open):

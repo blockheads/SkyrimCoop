@@ -17,7 +17,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import (GraphApart, SLIDE_DISTANCE, active_states, compare_actors, graph_apart_line, dialogue_differences, drawn_walks, refused_replays,
+from .comparisons import (GraphApart, SLIDE_DISTANCE, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
                           sliding_actors, unwatched_games)
 from .utilities import log
 
@@ -67,24 +67,27 @@ class Observations:
                     pairs[session] = (int(form), copies[session])
         return pairs
 
-    def graph_watch_start(ctx, every=0.25):
-        """Watches every NPC's graph, owner against copy, on connections of its own until graph_watch_stop."""
+    def graph_watch_start(ctx, every=0.25, lasting=2.0, wanted=(), limit=None):
+        """Watches NPCs' graphs, owner against copy, on connections of its own until graph_watch_stop: `wanted` owner form ids,
+        else every pair, the first `limit` of them if given."""
         games = [copy.copy(ctx.game("")), copy.copy(ctx.game("client"))]
         for game in games:
             game.rpc_connections = {}
-        stop, apart, started = threading.Event(), GraphApart(), time.time()
+        stop, apart, started, actors = threading.Event(), GraphApart(lasting), time.time(), set()
 
         def read(game, form):
             return active_states((game.rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
 
         def watch():
-            pairs, refreshed = {}, 0.0
+            pairs, refreshed = [], 0.0
             with ThreadPoolExecutor(1) as other:
                 while not stop.is_set():
                     if time.time() - refreshed > 3.0:
-                        pairs, refreshed = ctx.copy_pairs(games), time.time()
-                        apart.keep_only(owner for owner, _ in pairs.values())
-                    for owner, copy_form in pairs.values():
+                        found = list(ctx.copy_pairs(games).values())
+                        pairs, refreshed = ([pair for pair in found if pair[0] in wanted] if wanted else found[:limit]), time.time()
+                        actors.update(owner for owner, _ in pairs)
+                        apart.keep_only(owner for owner, _ in pairs)
+                    for owner, copy_form in pairs:
                         if stop.is_set():
                             break
                         reading = other.submit(read, games[1], copy_form)
@@ -96,20 +99,28 @@ class Observations:
                 watch()
             except Exception as error:  # a check's own failure says so, it never fails the flow
                 log(f"graph watch stopped: {error}")
-                apart.keep_only(())  # the gap is no evidence: what it finished already stands
+                apart.keep_only(())  # the gap is no evidence: each run ends at its last reading apart
             finally:
                 for game in games:
                     game.close()
 
         thread = threading.Thread(target=guarded, daemon=True, name="graph-watch")
         thread.start()
-        return {"thread": thread, "stop": stop, "apart": apart, "started": started}
+        return {"thread": thread, "stop": stop, "apart": apart, "started": started, "actors": actors}
 
     def graph_watch_stop(ctx, watch):
         """The runs apart since graph_watch_start, as one log line ('' if it read nothing)."""
         watch["stop"].set()
         watch["thread"].join(10)
         return graph_apart_line(watch["apart"], watch["started"])
+
+    def head_track_one_sided_line(ctx):
+        """Who has a head target read on one game only, as one log line: each game's gate is its own (distance, camera)."""
+        try:
+            worlds = {name: (ctx.game(instance).read_status() or {}).get("world") or {} for name, instance in (("host", ""), ("client", "client"))}
+            return "; ".join(head_track_one_sided(worlds))
+        except Exception as error:  # a log line's own failure never fails the flow
+            return f"not read: {error}"
 
     def find_desyncs(ctx):
         """Compares both games once. Returns a list of (key, message)."""

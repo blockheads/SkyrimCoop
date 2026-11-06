@@ -2,6 +2,7 @@
 import math
 import time
 
+from ..comparisons import head_track_differs
 from ..common import (
     ACTIVATE_KEY,
     AMREN,
@@ -122,11 +123,13 @@ def scenario_dialogue_copy_looks_at_speaker(ctx):
         ctx.place_before("client", copy, 110)
         ctx.activate_on("client", copy)
         ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
-        owner = ctx.wait_for(f"[host] NPC {npc:08X} looks at someone",
-                             lambda: (lambda slots: slots if any(slots) else None)(ctx.ai_state("", npc).get("head_track") or []), 10)
-        log(f"host NPC {npc:08X} headtrack slots: {owner}")
+        def looks_at(game, form):  # "unread" or nobody is no look
+            targets = ctx.ai_state(game, form).get("head_track")
+            return targets if targets and isinstance(targets, list) else None
+        owner = ctx.wait_for(f"[host] NPC {npc:08X} looks at someone", lambda: looks_at("", npc), 10)
+        log(f"host NPC {npc:08X} head targets: {owner}")
         ctx.wait_for(f"[client] copy {copy:08X} looks where its owner does ({owner})",
-                     lambda: ctx.ai_state("client", copy).get("head_track") == ctx.ai_state("", npc).get("head_track"), 5)
+                     lambda: (seen := looks_at("client", copy)) and (now := looks_at("", npc)) and not head_track_differs(now, seen), 5)
         ctx.hold()
     finally:
         ctx.close_dialogues()

@@ -38,6 +38,7 @@ other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A copy's interaction idle](#a-copys-interaction-idle): small
+- [Buying a house: a lock order, a menu and a crash](#buying-a-house-a-lock-order-a-menu-and-a-crash): medium
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
@@ -106,6 +107,23 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
+### Buying a house: a lock order, a menu and a crash
+
+`party-buys-house-host` passed 4 of 8 on 2026-11-06, with three failures of its own. None involves the graph watch: the lock
+order failed with the watch off (`--no-graph-watch`: 1 of 3 passed; on: 3 of 3 passed in the same boot).
+
+Agent task: read each path in IDA, then say which are ours. The crash first.
+
+Size: medium. Needs: IDA, the duo (`party-buys-house-host`), then GameTests.
+
+- **The guest crashes changing cell** (1 of 8, 2026-11-06 14:31): access violation in 39213 at `+0x6ED26E`, indexing the table
+  `off_1420B7DC0` by the temporary package `FF000B35`'s `[+0xD8]`; the entry read, `0x3600000035`, is no pointer. Stack: `PlayerCharacter::ProcessQueuedTravel`
+  → `TES::SetCurrentCell` → `Actor::MoveToHigh` → our `HookCheckForNewPackage` → 39114 → 39213, on Dagny `1A67A`, Breezehome
+  to Dragonsreach. Whether that form was freed or never was a package: unread.
+- **Lock order with our code on the stack** (2 of 8, host): `+0x187a10 > +0x165490` against `+0x172a5b > +0x187881`, read
+  against write on two locks. The same addresses are reported as engine-only in other flows of the batch. Unread.
+- **The menu does not open** (1 of 8): `[host] the menu opens on 0001A67D`, 10 s, after a run that passed. Unread.
+
 ### A copy's interaction idle
 
 A copy plays an idle its owner cancelled.
@@ -139,13 +157,15 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
 - **Canned turns and short turns** (a chicken, a cow): `DefaultBehavior=CannedTurnState` on one side only, 2.0-2.3 s, about
   the 2 s threshold.
 - **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
-  `death-spectate-guest`): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the owner's graph
+  `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
+  read): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the owner's graph
   held by the kill: [After the host dies](#after-the-host-dies).
 - **Idle picks on creatures, a [graph pick](#a-guest-arriving-mid-loop) by the shape** (measured, not read): a cow's
   `BHR_Idle_TailWag` 2.2 s and 4.2 s, a mudcrab's `idle_MandibleBehavior` 2.2-3.2 s, a dog's standing idle 4.2 s (Riverwood
-  `graph_watch`, 150 s, 14 actors, 4018 samples: six runs).
+  `graph_watch`, 150 s, 14 actors, 4018 samples: six runs; rerun on the corrected verb, 15 actors, 3710 samples: five runs, none
+  cut short: a hare's idle 3.3 s, chickens 2.2 s, a chair's exit against eating 2.3 s, a dog's locomotion against standing 4.4 s).
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
-  on the owner, `AnimObjectCounterArm` on the copy, 9.2-11.7 s, in both runs.
+  on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 
 ### Headtracking on copies
 
@@ -161,7 +181,7 @@ Size: medium. Needs: IDA, then the duo (`kill-moves-cross`), then GameTests.
 Each case by what was measured with the check fixed, 2026-11-06 (30 flows, run twice; `ai.head_track_slots` shows the
 raw slots, `ai.head_track_shut` what shuts the gate):
 
-- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 2.** The guest as owner
+- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 4** (2 of 2 passed on the corrected check). The guest as owner
   `[]`, in third person for the kill move, its copy on the host `['session 1']`, the host's own player (raw: slot 0).
   It lasted the check's whole window, though the hook pushes the owner's slots each frame and the ambient pick
   (`PickAmbientHeadtrackTarget` 38012) writes slot 0 only every 1.0-1.5 s, so the pick alone does not explain it: unread.
@@ -174,8 +194,8 @@ raw slots, `ai.head_track_shut` what shuts the gate):
     fails first on its [chest lid](#a-chest-lids-pose) both runs; no lasting raw difference on him.
   - Elk (`follower-guest-recruits`): the owner's slots 1 and 5 on the guest, the copy's none. The flow now fails first on
     `vanilla recruitment fills the shared follower alias`, with its watch off too; no lasting raw difference on it.
-  - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. Passed once,
-    failed once on a lock-order report; no lasting raw difference on him.
+  - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. The flow passes
+    or fails by run on other things: [Buying a house](#buying-a-house-a-lock-order-a-menu-and-a-crash). No difference on him.
   - Chicken (`spec:guest-joins-elsewhere`): the copy's slot 0 on a player. Passed once, failed once on a facing.
 - **A temporary form in a slot** (`FF000820`, `late-join-gets-calendar`): no id the other game shares, as with
   `combat_target`. Passes now because that slot was on a first-person player's owner, which nothing reads; an NPC's would

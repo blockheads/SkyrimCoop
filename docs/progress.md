@@ -57,7 +57,9 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
   - **`ai_state.head_track`** compares what the engine reads (`Diagnostics/HeadTrackRead.h`: its gate, the highest slot, slot
     0 beside 2, none for a self-target; IDA, actor-ai-and-copies.md). 18 of 30 flows held a lasting raw slot difference at a
     check and passed both runs, the three kill moves among them; `kill-moves-cross` shows a real case, 1 of 2 (bugs.md,
-    Headtracking on copies). ClientTests and GameTests `[headtrack]`, harness units.
+    Headtracking on copies). A review then found the first mirror of the engine wrong (life states 4, 5 and 8 read, the settings
+    behind its range, the scene behind alternation, three conditions missing) and a scenario passing on `"unread"`; corrected, the 18 and `kill-moves-cross` passed
+    twice more. ClientTests and GameTests `[headtrack]`, harness units.
 
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a

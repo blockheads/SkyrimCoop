@@ -653,7 +653,7 @@ meh321 where they have one, ours otherwise.
   `(float delta, NiAVObject*)`, the body reads only `rcx` and `xmm1`) runs from `Actor::UpdateAnimation` (37361) and
   `Character::ProcessTrackingIfAllowed` (37363), copies included, behind a gate (see "When the slots are read" below).
   It takes the highest set slot
-  (`AIProcess::GetHeadtrackTarget` 39484; in a conversation it alternates the script and default slots), the
+  (`AIProcess::GetHeadtrackTarget` 39484; in a scene's line it alternates the script and default slots), the
   target's look position (vfunc `0x2D8`), and `AIProcess::SetHeadtrackTarget` (39887) writes it to the graph
   (`SetGraphVariableNiPoint3`, the `TargetLocation` the look-at modifiers read) and sets `MiddleHigh +0x326`. A
   copy's slots stayed empty (no AI), so its head never turned: `dialogue-copy-looks-at-speaker` (2026-10-31) showed
@@ -665,18 +665,22 @@ meh321 where they have one, ours otherwise.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
 
   **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an
-  actor that is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), asleep (sit state 7;
+  actor that is dead or dying (`IsDead`, life state 1), in life state 3 (4, 5 and 8, bleeding out, pass), knocked (knock state not 0), asleep (sit state 7;
   3 is sitting, which tracks: `ActorProcess::StandOrWakeFromFurniture` 39865 wakes 7 and stands 3), not high process, or with its controller's
-  `lodDistance` (`+0x29C`) outside 0 to 2000, 12000 for an extra large race. In those states nothing reads the slots to
+  `lodDistance` (`+0x29C`) outside 0 to the game setting `fAIMaxHeadTrackDistanceFromPC` (2000), `fAIMaxLargeCreatureHeadTrackDistance` (12000) for an extra large race. In those states nothing reads the slots to
   turn a head, so a dead actor looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither
   pushes nor reports.
   The bit `actorState.flags2 & 8` (`HeadTrackingOn` 42840 sets it, `HeadTrackingOff` 42841) is checked first inside.
+  Inside, too: an actor with no 3D reads nothing; one with face data (vfunc `0x63`) beyond the range of this game's player
+  reads nothing; and without the race flag `kUseHeadTrackAnims` (`TESRace +0x108 & 0x8000`) no target reaches the graph. Not
+  mirrored by the check: the frame budget (`dword_143242774`, a moment only), and `Actor::sub_37851`'s answer, which clears
+  the target when false (its vfunc is unread). `bDisableHeadTracking` only drops the look position, like the life check.
 
   Every reader of the slots (xrefs of `GetHeadtrackTarget` 39484, read):
 
-  - `ProcessTracking` 38009: the highest set slot. Slots 2 and 0 by turns only with slot 2 highest, `boolBits & 0x180`, the
+  - `ProcessTracking` 38009: the highest set slot. Slots 2 and 0 by turns only in a scene (`Actor::GetCurrentScene` 37247, vfunc `0x4A`), with the player's byte `+0xB12` bit 4 clear (meaning unread), slot 2 highest, `boolBits & 0x180`, the
     voice timer run out and not talking to this game's player (`IsTalkingToPC` 39347, through 37199). A target's look
-    position only if the actor lives (life 0, 6, 7) and the target is not itself. A self-target goes down the no-target
+    position only if the actor lives (life 0, 6, 7) and the target is not itself; at life 4, 5 and 8 the target's bare position still goes in, so those are read. A self-target goes down the no-target
     path with its own position (`Actor::sub_37851`, its vfunc unread): that it turns no head is **inferred** from that and
     the next two readers, not measured.
   - `BSDirectAtModifierInterface::GetTargetPosition` (43657), from the graph, outside the gate: target type 1 is the highest
@@ -696,7 +700,7 @@ meh321 where they have one, ours otherwise.
   is read, the rest is carried over from the NPC gate.
 
   **`ai_state.head_track` is what these read:** `Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
-  what shut it, `"unread"` compares with anything) and the highest slot, slot 0 beside slot 2 when they alternate, none for a self-target. The
+  what shut it, `"unread"` compares with anything, and each flow logs the actors read on one game only) and the highest slot, slot 0 beside slot 2 when they alternate, none for a self-target. Only the targets both games read count: each game decides alone whether it alternates, from its own player and voice timer. The
   six raw slots stay in the snapshot as `ai.head_track_slots`, not compared. A shadowed slot differs unseen until the
   higher one clears; the comparison sees it then.
 

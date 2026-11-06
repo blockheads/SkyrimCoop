@@ -48,7 +48,7 @@ struct AiReadout
     std::array<uint32_t, 6> HeadTrack{};
     // Why the engine reads none of them now (HeadTrackRead::ShutBy), nullptr if it does.
     const char* HeadTrackShutBy = "no process";
-    // ProcessTracking 38009 alternates slots 2 and 0: boolBits 0x180, its voice line over, not talking to this game's player.
+    // ProcessTracking 38009 alternates slots 2 and 0: in a scene, boolBits 0x180, its voice line over, not talking to this game's player.
     bool HeadTrackAlternates = false;
 };
 
