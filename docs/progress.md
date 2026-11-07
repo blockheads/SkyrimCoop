@@ -49,6 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: the created chest checked in Skyrim: `created-chest-reaches-guest-empty` passes on 1.7.104 (3 of 3, and
+played through the MCP: both games hold the garnet and 50 gold before and after the guest opens it), so the
+2026-11-04 fix holds and nothing more was changed. Read in IDA why the guest's open adds nothing: the engine rolls a
+container when it is made, not when it is opened ([guest-world-events.md](re/systems/guest-world-events.md),
+"Created containers").
+
 2026-11-07: copy state from Riverwood, rechecked. Hands: a copy's spell could stay selected with its hand empty
 (after a trip that unloads its 3D before its spells are put back: `EquipSpell` holds only with a process), and the
 reconcile compared only selected spells; it now also reads a loaded copy's hands

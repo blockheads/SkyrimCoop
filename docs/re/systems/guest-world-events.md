@@ -147,6 +147,14 @@ changes marks yet, rolls `TESLeveledList::CalculateCurrentFormList` at the owner
 else `TESObjectREFR::GetCalcLevel` (the encounter zone's). The owner is the changes' +0x8. Two games rolling the
 same chest get different items (the inn's merchant chest `78C0F`: 27 items, most counts differing).
 
+**Created containers (2026-11-07, IDA 1.7.104).** The engine rolls a container when it is made, not when it is
+opened. `TESDataHandler::CreateReferenceAtLocation` (PlaceAtMe, and our `MakeLooseItem` through
+`ModManager::CreateReference`) calls `InitInventoryIfRequired` (16038) right after attaching the new reference. Its
+other callers: `TESObjectREFR::InitItemImpl`, `ResetInventory` (19802), `Actor::SetOutfit` and a load path.
+Opening a chest does not call it. So the host's contents, read at its create row (`HostEngine::ReadContents`), are
+what it rolled. The guest's twin rolls nothing at its own creation (16129 skipped, `HookInitLeveledItems`) and holds
+the host's contents, and opening it adds nothing (`created-chest-reaches-guest-empty`, passing since the 2026-11-04 fix).
+
 ## Script casts: Spell.Cast is delayed
 
 | ID | Engine function | Notes |
