@@ -73,6 +73,14 @@ TEST_CASE("A copy's hand spell dropped by a move comes back with its outfit", "[
     CHECK(gear.Resets == 1);
 }
 
+TEST_CASE("A hand that only selects its owner's spell is repaired; one holding a weapon is not", "[equipment-repair][hand-spell]")
+{
+    CHECK_FALSE(EquipmentRepair::HandHolds(0x12FCC, 0)); // selected, the hand empty
+    CHECK(EquipmentRepair::HandHolds(0x12FCC, 0x12FCC));
+    CHECK(EquipmentRepair::HandHolds(0x12FCC, 0x13989)); // a weapon over a stale selection: no reset each 3 s
+    CHECK(EquipmentRepair::HandHolds(0, 0));
+}
+
 TEST_CASE("Taking everything off clears a copy's old worn set", "[equipment-repair]")
 {
     Equipment gear{{{1, false}, {3, true}}};
