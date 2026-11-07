@@ -85,6 +85,8 @@ other section needs the duo.
 
 - [The AI/quest lock pair](#the-aiquest-lock-pair): small
 - [A follower stops following](#a-follower-stops-following): medium
+- [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
+- [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
 
 **Saves**
 
@@ -733,7 +735,9 @@ Size: small. Needs: duo.
 
 Stands alone: not reproduced on 1.7.104.
 
-Agent task: Stage a follower left behind that catches up, then a fight, and watch for a stale cached follow target.
+Agent task: the engine paths that leave the follow procedure with no target are read (followers.md, 2026-11-07); find
+which one co-op reaches. Untried: a respawned copy at the moment the follow package starts again after a fight while
+the follower still counts as in combat (the restart skipped, no later package change).
 
 Size: medium. Needs: duo, IDA.
 
@@ -762,6 +766,35 @@ Size: medium. Needs: duo, IDA.
   - The entry's question, read in IDA: `BGSProcedureFollowExecState` caches the target at +8 and each update (28640)
     copies it to `followTarget` without 29846 ([followers.md](re/systems/followers.md)). So a stale cached handle
     would look like this entry; nothing has shown one yet.
+  - Not reproduced (2026-11-07, repro MCP, the dog recruited by the guest since a guest's dialogue recruitment stalls, see
+    [A guest's recruitment stalls](#a-guests-recruitment-stalls)): a party reload, the guest's death and respawn with
+    no enemy near, the follower left in another cell then `move_actor`, a real load door, a wolf fight. Each ended on
+    the guest's current copy. What does leave it targetless, read in IDA: the procedure ends on a dying, dead,
+    deleted or other-interior target, its load drops a temporary target, and the package pick never restarts an
+    unchanged package ([followers.md](re/systems/followers.md)). Staged NPCs are restrained (`stage`'s default
+    `frozen`): a restrained follower reads no target until released, which looks like this entry.
+
+### A guest's recruitment stalls
+
+A guest picks "Follow me. I need your help." (topic `B0EE6`, info `B0EE9`) on a placed Lydia: the host logs
+`Dialogue: player 2 picked topic B0EE6 (info B0EE9)` and then nothing, the guest's menu stays open and the host's Lydia
+reads `ai.talking` (2026-11-07, 2 of 2: outdoors by `talk`, in QASmoke by `pick_with_keys`). She was in the follower
+slot later, with her conversation still open on the host. `follower-guest-recruits` fails on the same step. Unread.
+
+Agent task: read why the host's background conversation does not run the picked line (`HostConversation::OnPicked`).
+
+Size: small. Needs: the duo, then GameTests.
+
+### A deleted copy in an AI job
+
+The guest crashed at `SkyrimSE.exe+6F6070` (39372+0x40, a null read at +0x10), from 37541 in an AI job, on its Lydia copy
+just deleted (`DeleteActor FF000E0B` 15 ms before, flags `kDeleted`, no parent cell), 2026-11-07, while `scene_reset`
+took the party from the Whiterun plains to QASmoke with a guest's conversation open on her. 1 of 1. Crash log:
+`crash-2026-11-07-14-58-08.log`, not kept. Unread.
+
+Agent task: read what 39372 and 37541 dereference and why a deleted copy is still in the job's list.
+
+Size: small. Needs: IDA, then GameTests.
 
 ## Saves
 
