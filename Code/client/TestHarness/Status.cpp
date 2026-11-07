@@ -96,7 +96,7 @@ nlohmann::json BuildStatus(const Harness& acHarness)
         if (it.value().value("role", std::string{}) == "copy")
             it.value()["mod"]["replay_phase"] = EngineCalls::GetReplayPhase(static_cast<uint32_t>(std::stoul(it.key())));
         if (const auto visibility = EngineCalls::GetPoseVisibility(static_cast<uint32_t>(std::stoul(it.key()))))
-            it.value()["mod"]["pose_visibility"] = {{"was_in_frustum", visibility->WasInFrustum},
+            it.value()["mod"]["pose_visibility"] = {{"drawn", visibility->Drawn}, {"was_in_frustum", visibility->WasInFrustum},
                                                     {"culling_state", visibility->CullingState}, {"last_seen", visibility->LastSeen}};
     }
     const auto cAction = [](const ActionEvent& acAction) -> nlohmann::json {

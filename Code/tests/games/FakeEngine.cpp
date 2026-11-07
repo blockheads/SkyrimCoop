@@ -1,7 +1,9 @@
+#include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Events/ActorRenamedEvent.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
@@ -10,6 +12,7 @@
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Services/ContainerOpens.h>
+#include <Services/DeathDrops.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
@@ -21,6 +24,7 @@
 #include <Events/ReferenceLoadedEvent.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
+#include <Games/Animation/GraphDrift.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/NpcSnapshot.h>
 #include <Events/HitEvent.h>
@@ -403,6 +407,19 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         {
             aActor.DyingFrames = kDyingFrames;
             aActor.DeadFrames = 0;
+            // KillImpl's death drop (37320): the drawn weapon falls, unless our hook keeps a player's.
+            if (aActor.Weapon == WeaponState::Drawn && !DeathDrops::Kept(aActor.Player, World::Get().GetTransport().IsOnline()))
+                if (const auto cHeld = std::ranges::find_if(aActor.Items.Entries, [&](const auto& acEntry) {
+                        const auto cForm = ItemForms.find(::ItemForm(acEntry.BaseId));
+                        return acEntry.ExtraWorn && cForm != ItemForms.end() && cForm->second.Type == kWeapon;
+                    });
+                    cHeld != aActor.Items.Entries.end())
+                {
+                    Inventory::Entry dropped = *cHeld;
+                    dropped.Count = 1;
+                    dropped.ExtraWorn = false;
+                    DropsInWorld(dropped);
+                }
         }
         auto& action = aActor.LatestAnimation;
         action.Tick = World::Get().GetFrameTick();
@@ -487,11 +504,27 @@ bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noex
     return true;
 }
 
+void FakeEngine::SetActorDisplayName(uint32_t aFormId, const std::string& acName) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.DisplayName = PooledNames.try_emplace(NameKey(acName), acName).first->second;
+}
+
+std::string FakeEngine::GetFormName(uint32_t aFormId) const noexcept
+{
+    if (aFormId == 0x7)
+        return PlayerCharacterName();
+    const auto it = FormNames.find(aFormId);
+    return it != FormNames.end() ? it->second : Name;
+}
+
 std::string FakeEngine::GetActorDisplayName(uint32_t aFormId) const noexcept
 {
     const auto actor = Actors.find(aFormId);
     if (actor != Actors.end() && !actor->second.DisplayName.empty())
         return actor->second.DisplayName;
+    if (aFormId == kPlayer)
+        return PlayerCharacterName();
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
     return it != Npcs.end() ? it->second.Name : std::string{};
 }
@@ -728,13 +761,41 @@ ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
     return it != Actors.end() ? it->second.LatestAnimation : ActionEvent{};
 }
 
+namespace
+{
+// SaveState 63601's layout for one graph ("fake") with one active machine ("Root") in acState.
+std::string FakeGraphBlock(const std::string& acState)
+{
+    std::string graph;
+    const auto cPut = [&graph](const void* apData, size_t aSize) { graph.append(static_cast<const char*>(apData), aSize); };
+    const auto cString = [&](std::string_view acText) {
+        const auto cLength = uint16_t(acText.size());
+        cPut(&cLength, 2);
+        cPut(acText.data(), acText.size());
+    };
+    const uint32_t cOne = 1, cZero = 0;
+    cPut(&cOne, 4);
+    cString("Root");
+    cPut(&cZero, 4);
+    cString(acState);
+    cPut(&cZero, 4);
+    cPut(&cZero, 4);
+    std::string block;
+    const uint16_t cProject = 4;
+    block.append(reinterpret_cast<const char*>(&cProject), 2).append("fake");
+    const auto cSize = uint32_t(graph.size());
+    block.append(reinterpret_cast<const char*>(&cSize), 4).append(graph);
+    return block;
+}
+} // namespace
+
 std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
     const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
-    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + it->second.GraphState;
+    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState);
 }
 
 bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
@@ -751,7 +812,11 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
         std::memcpy(flags, acState.data(), sizeof(flags));
         const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
-        actor.GraphState = acState.substr(sizeof(flags));
+        // One graph, one active machine: its state is the fake's GraphState (GraphDrift::ActiveStates reads it).
+        const auto cStates = GraphDrift::ActiveStates(acState);
+        if (!cStates || cStates->size() != 1)
+            return false;
+        actor.GraphState = cStates->front().substr(cStates->front().find('=') + 1);
     }
     else
         actor.GraphState = acState; // direct fixtures supply the graph alone
@@ -1030,12 +1095,22 @@ uint32_t RaceInLooks(const std::string& acAppearance)
 } // namespace
 
 // A player's copy: a temporary NPC made from their appearance, and an actor of it.
-uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t, float aWeight) noexcept
+// A base built from a snapshot: the name only if its section (0x20) came, as FormState::Load.
+void FakeEngine::LoadBase(uint32_t aBase, const std::string& acAppearance, uint32_t aChangeFlags)
+{
+    auto& base = Npcs[aBase];
+    const size_t cNameEnd = aChangeFlags & 0x20 ? acAppearance.find('\0') : std::string::npos;
+    if (cNameEnd != std::string::npos)
+        base.Name = acAppearance.substr(0, cNameEnd);
+    base.Looks = cNameEnd == std::string::npos ? acAppearance : acAppearance.substr(cNameEnd + 1);
+}
+
+uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
 {
     const uint32_t cBase = NewTemporary();
     Npcs[cBase].Weight = aWeight;
-    Npcs[cBase].Looks = acAppearance;
-    Npcs[cBase].Race = RaceInLooks(acAppearance);
+    LoadBase(cBase, acAppearance, aChangeFlags);
+    Npcs[cBase].Race = RaceInLooks(Npcs[cBase].Looks);
     return SpawnActorFromNpc(cBase);
 }
 
@@ -1045,23 +1120,12 @@ uint32_t FakeEngine::GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexc
     return it == Npcs.end() ? 0 : it->second.FaceBase;
 }
 
-void FakeEngine::DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept
-{
-    const auto it = Actors.find(aFormId);
-    if (it == Actors.end() || acAppearance.empty())
-        return;
-    if (aChangeFlags & 0x20)
-    {
-        const std::string cName = acAppearance.substr(0, acAppearance.find('\0'));
-        it->second.DisplayName = PooledNames.try_emplace(NameKey(cName), cName).first->second;
-    }
-}
-
 uint32_t FakeEngine::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
 {
     if (aFormId == kPlayer)
     {
-        aBuffer = Player.Base;
+        // As native FormState: the name only in its section (0x20), which only naming marks.
+        aBuffer = Player.BaseFlags & 0x20 ? PlayerCharacterName() + '\0' + Player.Base : Player.Base;
         return Player.BaseFlags;
     }
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
@@ -1452,6 +1516,18 @@ void FakeEngine::PlayerUsesRaceMenu(const std::function<void()>& acChanges)
     World::Get().GetRunner().Trigger(MenuEvent{"RaceSex Menu", false});
 }
 
+void FakeEngine::PlayerNames(const std::string& acName)
+{
+    Player.Name = acName;
+    Player.BaseFlags |= 0x20;
+}
+
+void FakeEngine::AliasNames(uint32_t aFormId, const std::string& acName)
+{
+    Actors.at(aFormId).DisplayName = acName;
+    World::Get().GetRunner().Trigger(ActorRenamedEvent{aFormId});
+}
+
 std::string FakeEngine::PlayerId() noexcept
 {
     return std::format("id:{:016x}", std::hash<std::string>{}(Name));
@@ -1638,6 +1714,14 @@ void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
     World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
 }
 
+void FakeEngine::AttackedBy(uint32_t aVictim, uint32_t aAttacker)
+{
+    // HookStartCombat's check (38561); its wiring is checked in Skyrim (scenario host-dies-guest-still-fought).
+    auto& victim = Actors.at(aVictim);
+    if (CopyCombat::MayStart(victim.Copy))
+        victim.OwnCombatTarget = aAttacker;
+}
+
 void FakeEngine::LooksAt(uint32_t aActor, uint32_t aSlot, uint32_t aTarget)
 {
     auto& slot = Actors.at(aActor).Ai.HeadTrackIds.at(aSlot);
@@ -1808,8 +1892,8 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
     if (!AtMainLoop || BlockAppearance || !Actors.contains(aFormId) || !Actors.at(aFormId).Copy)
         return false;
     auto& base = Npcs.at(GetActorBaseFormId(aFormId));
-    base.Looks = acAppearance;
-    const uint32_t cRace = RaceInLooks(acAppearance);
+    LoadBase(GetActorBaseFormId(aFormId), acAppearance, aChangeFlags);
+    const uint32_t cRace = RaceInLooks(base.Looks);
     if (base.Race != cRace)
     {
         auto& actor = Actors.at(aFormId);

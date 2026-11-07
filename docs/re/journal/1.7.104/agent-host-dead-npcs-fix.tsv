@@ -1,0 +1,133 @@
+time	op	id	rva	item
+2026-11-05T21:35:35Z	read	47191	0x862040	{"name": "CombatTargetSelectorStandard::sub_47191"}
+2026-11-05T21:35:36Z	read	47196	0x8629a0	{"name": "coop_isValidTarget"}
+2026-11-05T21:35:36Z	read	33235	0x5614a0	{"name": "CombatController::SetTarget"}
+2026-11-05T21:36:05Z	read	47309	0x869020	{"name": "Actor__GetPredictedPosition"}
+2026-11-05T21:36:06Z	read	90724	0x11ce850	{"name": "IMovementQueryPathFollowing__GetPredictedPosition"}
+2026-11-05T21:36:06Z	read	47891	0x882350	{"name": "CombatBehaviorContextCloseMovement__CheckOutOfRange"}
+2026-11-05T21:36:26Z	read	37818	0x6a61f0	{"name": "Actor::StopMovement"}
+2026-11-05T21:36:27Z	read	41717	0x7977b0	{"name": "MovementControllerNPC::sub_41717"}
+2026-11-05T21:37:16Z	read	41613	0x790400	{"name": "ActorMover::sub_41613"}
+2026-11-05T21:37:16Z	read	41614	0x790790	{"name": "ActorMover::sub_41614"}
+2026-11-05T21:37:17Z	read	90739	0x11cfab0	{"name": "MovementAgentPathFollowerStandard::Func12_90739"}
+2026-11-05T21:37:27Z	read	37817	0x6a6050	{"name": "Actor::StopMoving"}
+2026-11-05T21:37:29Z	read	90756	0x11d0630	{"name": "MovementAgentPathFollowerStandard::sub_90756"}
+2026-11-05T21:37:35Z	read		0x6758c0	{"name": "Character::ShouldOnlyCheckPackage"}
+2026-11-05T21:37:42Z	read	91877	0x1213180	{"name": "MovementControllerAI::Func7_91877"}
+2026-11-05T21:37:42Z	read	91878	0x12133a0	{"name": "MovementControllerAI::Func8_91878"}
+2026-11-05T21:37:43Z	read	91875	0x12130d0	{"name": "MovementControllerAI::Func5_91875"}
+2026-11-05T21:38:03Z	read	37501	0x688740	{"name": "Character::sub_37501"}
+2026-11-05T21:38:03Z	read	49945	0x8d91d0	{"name": "sub_1408D91D0"}
+2026-11-05T21:38:03Z	read	39455	0x6fe110	{"name": "sub_1406FE110"}
+2026-11-05T21:38:04Z	read	39456	0x6fe170	{"name": "sub_1406FE170"}
+2026-11-05T21:38:05Z	read	17928	0x2841d0	{"name": "sub_1402841D0"}
+2026-11-05T21:38:14Z	read	17927	0x284040	{"name": "sub_140284040"}
+2026-11-05T21:38:17Z	name	49945	0x8d91d0	{"addr": "0x1408d91d0", "name": "CombatPath__StopMovingOwner"}
+2026-11-05T21:38:17Z	name	39455	0x6fe110	{"addr": "0x1406fe110", "name": "ActorProcess__SetFadeOutAndStopMoving"}
+2026-11-05T21:38:17Z	name	39456	0x6fe170	{"addr": "0x1406fe170", "name": "ActorProcess__SetFadeOutResetAndStopMoving"}
+2026-11-05T21:38:17Z	name	41613	0x790400	{"addr": "0x140790400", "name": "ActorMover__RequestStopMovingPath"}
+2026-11-05T21:38:17Z	name	41614	0x790790	{"addr": "0x140790790", "name": "ActorMover__ClearPath"}
+2026-11-05T21:38:21Z	comment	41613	0x790400	{"addr": "0x140790400", "comment": "Builds a PathingRequestStopMoving at the actor's place and posts it to the movement controller's planner (unk_143350980 interface, slot 1); skipped if the current request already is a stop. Called only from Actor::StopMoving 37817."}
+2026-11-05T21:38:21Z	comment	41614	0x790790	{"addr": "0x140790790", "comment": "Clears the mover's path through the planner interface (unk_143350980, slot 3). Actor::StopMovement 37818; StopMoving's no-parent-cell branch."}
+2026-11-05T21:38:21Z	comment	49945	0x8d91d0	{"addr": "0x1408d91d0", "comment": "A combat path's owner: not on a copy's path, needs that actor's combat behaviour (copies have no CombatController)."}
+2026-11-05T21:38:21Z	comment	39455	0x6fe110	{"addr": "0x1406fe110", "comment": "Process+0x130 state 5, then StopMoving: not on a copy's path unless ProcessLists' fade (0x14077D350) runs it on a copy."}
+2026-11-05T21:38:21Z	comment	39456	0x6fe170	{"addr": "0x1406fe170", "comment": "Process+0x130 state 6, then StopMoving: SummonCreatureEffect's (34991) fade: not a copy's."}
+2026-11-05T21:38:39Z	read	90703	0x11ccf00	{"name": "MovementAgentPathFollowerStandard::Func7_90703"}
+2026-11-05T21:38:39Z	read	90704	0x11ccfa0	{"name": "MovementAgentPathFollowerStandard::Func4_90704"}
+2026-11-05T21:39:03Z	read	90700	0x11ccbf0	{"name": "MovementAgentPathFollowerStandard::sub_90700"}
+2026-11-05T21:39:11Z	read	41365	0x782c90	{"name": "sub_140782C90"}
+2026-11-05T21:39:13Z	name	17928	0x2841d0	{"addr": "0x1402841d0", "name": "StopMovingActorsWithPlayerAfterDoor"}
+2026-11-05T21:39:13Z	name	17927	0x284040	{"addr": "0x140284040", "name": "TESObjectDOOR__OnPlayerTeleportDone"}
+2026-11-05T21:39:13Z	name	90711	0x11cd150	{"addr": "0x1411cd150", "name": "MovementAgentPathFollowerStandard__PlannerStage"}
+2026-11-05T21:39:15Z	comment	17928	0x2841d0	{"addr": "0x1402841d0", "comment": "After the player's door teleport: for each actor from ProcessLists 0x140782C90, Actor::StopMoving(1.0) and re-evaluate the package soon (process+0x48 = now - 1). Includes any copy on that list: a copy then holds a stop-moving path (docs/re/systems/combat-targets.md)."}
+2026-11-05T21:39:15Z	comment	90711	0x11cd150	{"addr": "0x1411cd150", "comment": "Path follower's planner stage (IMovementPlannerAgent slot 2): the follower's state machine (+0x118 state; 90756, 90761, 90758). State 1-8/13 with a path means GetPredictedPosition answers from the path."}
+2026-11-05T21:39:23Z	name	41365	0x782c90	{"addr": "0x140782c90", "name": "ProcessLists__CollectFollowersOf"}
+2026-11-05T21:39:25Z	comment	41365	0x782c90	{"addr": "0x140782c90", "comment": "Recursively lists an actor's followers: its extra-follower list and high actors whose running package (type 2 or 7, follow/escort) targets it."}
+2026-11-05T21:39:25Z	comment	17928	0x2841d0	{"addr": "0x1402841d0", "comment": "After the player's door teleport: for each follower of the player (0x140782C90), Actor::StopMoving(1.0) and re-evaluate its package soon (process+0x48 = now - 1). A copy has no running follow package of its own, so normally not one."}
+2026-11-05T21:46:55Z	read	37409	0x680b40	{"name": "Actor::sub_37409"}
+2026-11-05T21:46:56Z	read	37881	0x6a8620	{"name": "sub_1406A8620"}
+2026-11-05T21:46:57Z	read	39446	0x6fdda0	{"name": "sub_1406FDDA0"}
+2026-11-05T21:48:28Z	read	47094	0x85ed10	{"name": "sub_14085ED10"}
+2026-11-05T21:48:28Z	read	47899	0x882fb0	{"name": "sub_140882FB0"}
+2026-11-05T21:48:40Z	name	37881	0x6a8620	{"addr": "0x1406a8620", "name": "Actor__OnBumpedByActor"}
+2026-11-05T21:48:40Z	name	39446	0x6fdda0	{"addr": "0x1406fdda0", "name": "AIProcess__MaybeStartBumpPackage"}
+2026-11-05T21:48:40Z	name	37409	0x680b40	{"addr": "0x140680b40", "name": "Actor__StartBumpPackage"}
+2026-11-05T21:48:40Z	name	47094	0x85ed10	{"addr": "0x14085ed10", "name": "CombatPathT_FindTargetLocation__dtor"}
+2026-11-05T21:48:43Z	comment	37881	0x6a8620	{"addr": "0x1406a8620", "comment": "A bump (vfunc of Actor, data ref at 0x1406B95C8). Only when the bumper is g_thePlayer: Actor__StartBumpPackage. So the host's player walking into a copy runs this on the copy (measured, 2026-11-05)."}
+2026-11-05T21:48:43Z	comment	37409	0x680b40	{"addr": "0x140680b40", "comment": "Bumped by the player: StopMoving, then a type-32 run-once package. Runs on a copy too: copies run no AI, so this package and stop path are not theirs to carry (combat-targets.md)."}
+2026-11-05T21:48:43Z	comment	47094	0x85ed10	{"addr": "0x14085ed10", "comment": "CombatPathT dtor: stops the owner's (a1+0x10 handle) movement if the path was still running (CombatPath__StopMovingOwner). Seen on a copy: so the copy has a combat path."}
+2026-11-05T21:49:07Z	read	38561	0x6c93b0	{"name": "Actor::StartCombat"}
+2026-11-05T21:51:50Z	read	41407	0x786250	{"name": "sub_140786250"}
+2026-11-05T21:51:50Z	read		0x676100	{"name": "Character::sub_37287"}
+2026-11-05T22:12:42Z	read	40079	0x72eb90	{"name": "AIProcess__StartAssault"}
+2026-11-05T22:12:45Z	comment	38561	0x6c93b0	{"addr": "0x1406c93b0", "comment": "Actor::StartCombat 38561: makes the actor's combat controller and group (CombatManager 46873/46874), so CombatUpdateJob 46902 runs its tree. Refuses the player itself, not a copy: SkyrimCoop's HookStartCombat refuses copies (AIProcess__StartAssault runs this on an attacked copy, measured 2026-11-05, return 0x14072EE52)."}
+2026-11-05T22:12:45Z	comment	47309	0x869020	{"addr": "0x140869020", "comment": "Actor::GetPredictedPosition 47309 (our name). Position at t seconds: the movement controller's path follower if it answers (90724: state 1-8 or 13 with a path), else velocity * t. CheckOutOfRange 0x140882350 reads it at t 0.5 for the target. docs/re/systems/combat-targets.md."}
+2026-11-05T22:12:45Z	comment	90724	0x11ce850	{"addr": "0x1411ce850", "comment": "IMovementQueryPathFollowing slot 9 (90724): predicted place along the follower's path, only in states 1-8 or 13 with a path. State 12 (KeepLastDirection range 8-12) gives no answer: an NPC walking reads 12 here (measured)."}
+2026-11-05T22:12:45Z	comment	90739	0x11cfab0	{"addr": "0x1411cfab0", "comment": "MovementAgentPathFollowerStandard load (90739): reads +0x118 state and picks the state object: 2,6 PlayIdle; 3,7 TurnToAngle; 4,13 FollowPathToParameter; 8-12 KeepLastDirection."}
+2026-11-05T22:12:45Z	comment	47094	0x85ed10	{"addr": "0x14085ed10", "comment": "CombatPathT<FindTargetLocation> dtor: CombatPath__StopMovingOwner on its owner (handle at +0x10) if still running. Seen on a copy: the copy's own combat tree started that path."}
+2026-11-05T23:16:22Z	read	37774	0x6a33b0	{"name": "Actor::CalculateDetection"}
+2026-11-05T23:16:41Z	read	39509	0x6ff470	{"name": "ActorProcess::GetLightLevel"}
+2026-11-05T23:17:24Z	read	39510	0x6ff490	{"name": "sub_1406FF490"}
+2026-11-05T23:17:28Z	read	39946	0x726250	{"name": "sub_140726250"}
+2026-11-05T23:17:30Z	name	39510	0x6ff490	{"addr": "0x1406ff490", "name": "ActorProcess__SetLightLevel"}
+2026-11-05T23:17:30Z	name	47899	0x882fb0	{"addr": "0x140882fb0", "name": "CombatBehaviorPath__Update"}
+2026-11-05T23:17:30Z	name	41407	0x786250	{"addr": "0x140786250", "name": "ProcessLists__StartCombatForCrimeFaction"}
+2026-11-05T23:17:33Z	read	41381	0x784240	{"name": "sub_140784240"}
+2026-11-05T23:17:45Z	read	37768	0x6a2830	{"name": "Character::sub_37768"}
+2026-11-05T23:18:45Z	read	37775	0x6a4030	{"name": "Actor::GetLightLevel"}
+2026-11-05T23:24:06Z	comment	39510	0x6ff490	{"addr": "0x1406ff490", "comment": "Sets MiddleHighProcess+0x3A8, the light level detection reads (ActorProcess::GetLightLevel 39509). Only caller 0x140726250 (ProcessActorAnimSG's per-actor update): copies get it too (measured 31 vs the host player's 33)."}
+2026-11-05T23:24:06Z	comment	39946	0x726250	{"addr": "0x140726250", "comment": "Per-actor light level: the shader manager's light at the actor's look point, every timer tick or when +0x328 is dirty; writes ActorProcess__SetLightLevel. Called from 0x140784240 (ProcessActorAnimSG), not UpdateAI."}
+2026-11-05T23:24:06Z	comment	37774	0x6a33b0	{"addr": "0x1406a33b0", "comment": "Actor::CalculateDetection 37774: detector a1, target a2: target's light (39509), LOS 37768, its movement, sneaking, equipped weight, then 0x14041CD90. A copy is judged as a real player is (combat-targets.md, measured 2026-11-05)."}
+2026-11-05T23:24:06Z	comment	47899	0x882fb0	{"addr": "0x140882fb0", "comment": "A combat path behaviour's update: stops the owner's movement (CombatPath__StopMovingOwner) when 0x140882730 says so; fails the thread on path state 5."}
+2026-11-05T23:24:06Z	comment	41407	0x786250	{"addr": "0x140786250", "comment": "Starts combat on the player for each actor of a crime faction that detects it: not on the copy path."}
+2026-11-05T23:30:36Z	comment	47195	0x8622e0	{"addr": "0x1408622e0", "comment": "CombatTargetSelectorStandard pick (47195): walks the group's targets (0xA8 each); counts one if detectLevel > 0, stealthPoints <= 0 and not LOST, or the current target and KNOWN; validity 47196. With more than one: scores recent hits, current target, distance, attackers; a dead target (vfunc 0x4C8) only loses points. Nothing tests for PlayerCharacter."}
+2026-11-05T23:30:42Z	read	47321	0x86a5f0	{"name": "CombatUtilities__PredictedDistanceSquared"}
+2026-11-05T23:30:43Z	read	47336	0x86b240	{"name": "CombatUtilities__GetActorReach"}
+2026-11-05T23:30:48Z	read	50643	0x8f1c90	{"name": "CombatUtilities__GetCloseRangeMargin"}
+2026-11-05T23:30:50Z	comment	47321	0x86a5f0	{"addr": "0x14086a5f0", "comment": "47321: squared distance between both actors' predicted places (47309 each), height-aware: z only counts when the vertical gap exceeds half the taller one."}
+2026-11-05T23:30:50Z	comment	50643	0x8f1c90	{"addr": "0x1408f1c90", "comment": "50643 close-range margin: (offensive - defensive) from the combat style, staggered target scaled; reset to the defaults when the target's reach (47336) is far from this fighter's (inventory+0x1A0) or 10 s after the controller state's last attack (+0x28)."}
+2026-11-06T06:46:15Z	read	47898	0x882ab0	{"name": "sub_140882AB0"}
+2026-11-06T06:46:34Z	read	50533	0x8ee3f0	{"name": "CombatApproachTargetSpeedController::sub_50533"}
+2026-11-06T06:46:35Z	read	50534	0x8ee510	{"name": "CombatApproachTargetSpeedController::sub_50534"}
+2026-11-06T06:46:38Z	read	50532	0x8edf60	{"name": "CombatApproachTargetSpeedController::sub_50532"}
+2026-11-06T06:46:52Z	read	47322	0x86a730	{"name": "Character::sub_47322"}
+2026-11-06T06:46:52Z	read	50642	0x8f1c10	{"name": "sub_1408F1C10"}
+2026-11-06T06:46:53Z	read	49954	0x8d9b80	{"name": "Character::sub_49954"}
+2026-11-06T06:47:38Z	name	47898	0x882ab0	{"addr": "0x140882ab0", "name": "CombatBehaviorAdvance__Enter"}
+2026-11-06T06:47:38Z	name	50642	0x8f1c10	{"addr": "0x1408F1C10", "name": "CombatUtilities__LerpSpeedByDistance"}
+2026-11-06T06:47:38Z	name	50532	0x8edf60	{"addr": "0x1408edf60", "name": "CombatApproachTargetSpeedController__Update"}
+2026-11-06T06:47:38Z	name	47322	0x86a730	{"addr": "0x14086a730", "name": "Character__GetDistanceSquared"}
+2026-11-06T06:47:42Z	comment		0x882e2c	{"addr": "0x140882e2c", "comment": "Approach speed controller: +20 inner = CombatInventory+0x1A0 (R) + margin, +24 outer = R + max margin, +32 speed type 4"}
+2026-11-06T06:47:42Z	comment		0x8ee1f2	{"addr": "0x1408ee1f2", "comment": "target in front within fCombat angle: base speed = max(speed type 0, target's speed away), so a still target gives 0"}
+2026-11-06T06:47:42Z	comment		0x8ee245	{"addr": "0x1408ee245", "comment": "speed by dist^2: 0..inner^2 lerps 0.5*base..base, inner^2..(inner+X)^2 lerps base..base+target speed; just outside inner a still target gives ~0"}
+2026-11-06T06:47:42Z	comment		0x8ee08a	{"addr": "0x1408ee08a", "comment": "full speed when max(path length, distance)^2 > outer^2 or the target is staggered/recoiling"}
+2026-11-06T06:47:42Z	comment	47898	0x882ab0	{"addr": "0x140882ab0", "comment": "Advance node enter: CombatPath to the target with CombatApproachTargetSpeedController (radii R+margin, R+max margin); retry fCombatAdvancePathRetryTime"}
+2026-11-06T06:47:43Z	comment	41381	0x784240	{"addr": "0x140784240", "comment": "not on the half-stop path: read while following combat targets"}
+2026-11-06T07:02:12Z	read	42828	0x7cccc0	{"name": "HitFrameHandler::Handle"}
+2026-11-06T07:02:19Z	read	38603	0x6cbee0	{"name": "Actor::sub_38603"}
+2026-11-06T07:02:46Z	read	38608	0x6cc490	{"name": "Actor_GetTarget"}
+2026-11-06T07:02:46Z	read	38538	0x6c80b0	{"name": "Actor::GetAttackReach"}
+2026-11-06T07:02:54Z	read	12037	0x172410	{"name": "sub_140172410"}
+2026-11-06T07:02:55Z	read	38627	0x6cd2f0	{"name": "DealDamage"}
+2026-11-06T07:03:20Z	read	47272	0x866260	{"name": "Actor::sub_47272"}
+2026-11-06T07:03:25Z	read	47273	0x866600	{"name": "TESObjectREFR::sub_47273"}
+2026-11-06T07:16:40Z	read	39806	0x720660	{"name": "AIProcess::GetCurrentWeapon"}
+2026-11-06T07:16:40Z	read	37478	0x6874a0	{"name": "Character::sub_37478"}
+2026-11-06T15:08:51Z	read	49170	0x8b7d60	{"name": "sub_1408B7D60"}
+2026-11-06T15:12:21Z	read	49177	0x8b9200	{"name": "sub_1408B9200"}
+2026-11-06T15:12:29Z	read	49171	0x8b8390	{"name": "sub_1408B8390"}
+2026-11-06T15:12:42Z	read	37957	0x6af0d0	{"name": "Actor::sub_37957"}
+2026-11-06T15:12:42Z	read	47325	0x86a7b0	{"name": "sub_14086A7B0"}
+2026-11-06T15:13:09Z	name	49170	0x8b7d60	{"addr": "0x1408b7d60", "name": "CombatBehaviorContextMelee__TryStartAttack"}
+2026-11-06T15:13:09Z	name	49177	0x8b9200	{"addr": "0x1408b9200", "name": "CombatBehaviorContextMelee__UpdateAttackMotionReach"}
+2026-11-06T15:13:09Z	name	49171	0x8b8390	{"addr": "0x1408b8390", "name": "CombatBehaviorContextMelee__CheckAttackInRange"}
+2026-11-06T15:13:09Z	name	47325	0x86a7b0	{"addr": "0x14086a7b0", "name": "CombatUtilities__GetDistanceSquaredByHeight"}
+2026-11-06T15:13:13Z	comment	49170	0x8b7d60	{"addr": "0x1408b7d60", "comment": "49170 (kaputt AttackActionHook; SCAR hooks its SE caller 48147+0x164). Melee swing start: cooldown fCombatAttackAnimationDrivenDelayTime while pathing; centre distance < reach + motion reach + fCombatAttackCheckTargetRangeDistance; per attack data: chance, cone 47297, CheckAttackInRange; then PerformAction."}
+2026-11-06T15:13:13Z	comment	49171	0x8b8390	{"addr": "0x1408b8390", "comment": "Per attack data: distance to the target's predicted place (Actor::GetPredictedPosition 47309 at the strike time) within reach; cone 47297 from the attacker's end place; clear line 0x1408689E0. A stale prediction for the target fails every swing."}
+2026-11-06T15:13:13Z	comment	49177	0x8b9200	{"addr": "0x1408b9200", "comment": "49177: caches the longest root-motion distance of the attacker's attack clips (scaled) at +0x30."}
+2026-11-06T15:13:13Z	comment	47325	0x86a7b0	{"addr": "0x14086a7b0", "comment": "Squared distance, horizontal only when the two heights overlap."}
+2026-11-06T15:13:13Z	comment	12037	0x172410	{"addr": "0x140172410", "comment": "not on the swing path: listed by the decompile, not read."}
+2026-11-06T16:32:55Z	read	37764	0x6a2520	{"name": "Actor::RequestDetectionLevel"}
+2026-11-06T16:33:13Z	read	39515	0x6ff550	{"name": "coop_RealProcessKnowledge"}
+2026-11-06T16:33:14Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-06T16:33:23Z	comment	37764	0x6a2520	{"addr": "0x1406a2520", "comment": "Detection level last computed (DetectionState+0x10), -1000 if none or stale (42702). Not a pure read: 39515 creates the knowledge entry if missing and 42702 queues a detection update."}

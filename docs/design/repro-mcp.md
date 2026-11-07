@@ -217,7 +217,10 @@ Phases 1-3 are built and accepted on the duo; what is still open is listed at th
   connection (`Server::GetConnections`), a guest's round trip and its last 8 clock syncs (`SynchronizedClock::Syncs`:
   the server tick, the ping used, the correction asked).
 - **Vanilla:** `vanilla_start` boots the stand-in, and `press_to_motion(vanilla=true)` measures with its
-  `player_trace`. Our games measure through the animation trace (`PressTiming`).
+  `player_trace`. Our games measure through the animation trace (`PressTiming`). `ref_steps(refs, vanilla=true)`
+  traces NPCs' places each frame through its `ref_trace` (or the animation trace on ours): steady steps or position
+  writes (`RefSteps`). The stand-in crashes on `coc Riverwood` after `coc QASmoke` (render culling, 36658): start it
+  there with `vanilla_start(cell=...)` instead.
 - **Measured on the duo:** saves about 100 us, 7.9-15.4 KB. 99 of 557 guest movement messages arrived ahead of the
   host's time (3 ms on average, 9 at most). The round trip was 23 ms between two games on one machine, and the
   syncs corrected +10 then +1 ms: the ping is mostly frame waits, so `ping/2` overestimates the trip and the

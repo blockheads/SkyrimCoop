@@ -20,6 +20,7 @@ from .common import (
     FLOAT_TOLERANCE,
     FORM_DELETED,
     FORM_NOT_SYNCED,
+    CHANGES_ITEM_EXTRA,
     FORM_TYPE_NAMES,
     LOW_PELVIS,
     POSE_TOLERANCE,
@@ -160,6 +161,26 @@ def reference_label(ref, game=None):
     return f"created {kind} {ref['base']:X} at {show_value('position', ref['position'])} ({ref['id']:X} on {game})"
 
 
+def held_node_view(ref, twin):
+    """A dead player's drop (the hand's node as its 3D) read at its body, without what each game keeps itself
+    (docs/re/systems/death-drops.md)."""
+    def adopted(r):
+        return (first_body(r) or {}).get("node", "").startswith("Weapon  (")
+    if not adopted(ref) and not adopted(twin):
+        return ref
+    view = {key: value for key, value in ref.items() if key not in ("pose", "position_3d")}
+    view["changes"] = (ref.get("changes") or 0) & ~CHANGES_ITEM_EXTRA
+    if body := first_body(ref):
+        view["position"] = body["position"]
+    return view
+
+
+def resting_place(ref):
+    """Where a created item is: a held node's stale reference position gives way to its body."""
+    body = first_body(ref) or {}
+    return body["position"] if body.get("node", "").startswith("Weapon  (") else ref["position"]
+
+
 def world_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's world differs from the host's: {reference: {field: 'host vs guest'}}. A reference one game
     lacks differs in "present"; created references pair up by base and position (their ids differ per game).
@@ -182,12 +203,12 @@ def world_differences(host, guest, host_again=(), guest_again=()):
                 and FORM_TYPE_NAMES.get(r["type"]) not in ("PROJ", "HAZD")]
     unpaired = alive_created(guest)
     for ref in alive_created(host):
-        twin = next((r for r in unpaired if r["base"] == ref["base"] and near(r["position"], ref["position"], 2.0)), None)
+        twin = next((r for r in unpaired if r["base"] == ref["base"] and near(resting_place(r), resting_place(ref), 2.0)), None)
         if twin is None:
             differences[reference_label(ref, "host")] = {"present": "host only"}
             continue
         unpaired.remove(twin)
-        if fields := reference_differences(ref, twin):
+        if fields := reference_differences(held_node_view(ref, twin), held_node_view(twin, ref)):
             differences[reference_label(ref, "host")] = fields
     for ref in unpaired:
         differences[reference_label(ref, "client")] = {"present": "client only"}
@@ -247,8 +268,6 @@ def compare_field(field, owner, copy, owner_snapshot):
                                       extra and "copy also shows " + ",".join(f"{v:08X}" for v in sorted(extra))]))
     if field == "identity.base" and (owner_snapshot["player"] or owner_snapshot["identity"]["temporary_base"]):
         return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
-    if field == "identity.name" and owner_snapshot["player"]:
-        return None  # a player's copy shows the player's name, its own base is unnamed
     if field == "identity.name" and isinstance(owner, str) and isinstance(copy, str):
         return None if owner.lower() == copy.lower() else "differs"  # native BSFixedString equality
     if field.startswith("ragdoll."):
@@ -363,9 +382,7 @@ def compare_actors(worlds):
                 # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
                 # output (native camera control: head88 ->124, same JumpLand). Never use that
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
-                if field.startswith("pose.") and not owned["player"] and any(
-                        not actor.get("mod", {}).get("pose_visibility", {}).get("was_in_frustum", True)
-                        for actor in (owned, copy)):
+                if field.startswith("pose.") and not owned["player"] and not all(map(drawn, (owned, copy))):
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:
@@ -427,6 +444,24 @@ def dialogue_differences(host, guest, end, grace=DIALOGUE_GRACE):
 # A walk moves the feet against the body about as far as the body goes (ratio ~1, a run ~0.7); sliding with no
 # animation moves them not at all, slow motion too little.
 SLIDE_DISTANCE, SLIDE_RATIO = 100.0, 0.35
+
+
+def drawn(actor):
+    """Whether the actor's 3D was drawn when read, so its bones are its current pose: the 3D's kNotVisible
+    (pose_visibility.drawn); kWasInFrustum (was_in_frustum) goes stale for an actor ProcessTracking skips."""
+    seen = actor.get("mod", {}).get("pose_visibility", {})
+    return seen.get("drawn", seen.get("was_in_frustum", True))
+
+
+def drawn_walks(gait):
+    """{id: units} of the actors in a gait readout that walked in view: drawn travel with the feet moving."""
+    return {int(actor): g["travelled"] for actor, g in gait.items()
+            if g["travelled"] >= SLIDE_DISTANCE and g["feet"] >= SLIDE_RATIO * g["travelled"]}
+
+
+def unwatched_games(walked, games=("host", "client")):
+    """The games whose gait readouts never showed a drawn walk ({game: farthest units}): their check saw nothing."""
+    return [game for game in games if walked.get(game, 0.0) < SLIDE_DISTANCE]
 
 
 def sliding_actors(gait):

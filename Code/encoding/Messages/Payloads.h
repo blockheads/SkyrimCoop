@@ -195,6 +195,31 @@ struct RemoveSpell
     GameId SpellId{};
 };
 
+// A player's name in the party's lists, when its character is renamed or the host loads another (PlayerId: the
+// notification's).
+struct PlayerName
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PlayerName&) const noexcept = default;
+
+    uint32_t PlayerId{};
+    std::string Name{};
+};
+
+// An actor's display name, when the host's game changed it (a quest alias's name set or cleared).
+struct ActorName
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const ActorName&) const noexcept = default;
+
+    uint32_t ActorId{};
+    std::string Name{};
+};
+
 struct Mount
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

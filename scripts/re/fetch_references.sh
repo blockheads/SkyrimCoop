@@ -77,6 +77,12 @@ fetch Exit-9B/MapMarkerFramework "$ROOT/reference/plugins/MapMarkerFramework"
 # Native combat target switching and damage/proximity threat (party-aggro.md).
 fetch RedyellowUnit/SmartTargetingNPC "$ROOT/reference/plugins/SmartTargetingNPC"
 
+# Combat behavior tree (combat-targets.md): melee advance radii, backoff, fallback, circling (CPR), the melee attack
+# start and its range/angle check (SCAR). SE IDs; Fenix's RE.
+for repo in max-su-2019/CombatPathingRevolution max-su-2019/SCAR; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 # Camera and controls (docs/research/party-freezes.md): how mods read "the player is taken over" with no cutscene
 # state, from the player's own state: movement controls enabled, AI-driven, the furniture camera.
 for repo in mwilsnd/SkyrimSE-SmoothCam ersh1/TrueDirectionalMovement; do

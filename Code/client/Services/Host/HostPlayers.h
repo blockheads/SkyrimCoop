@@ -54,6 +54,7 @@ struct HostPlayers
 
     // The player's character level, as the player list shows it.
     void SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept;
+    void SetName(ConnectionId_t aConnection, std::string aName) noexcept;
     void SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, Net::EPacketFlags aFlags = Net::kReliable) const noexcept;
     void SendToAll(const NotifyMessage& acMessage) const noexcept { SendToOthers(acMessage, 0); }
     void SendTo(ConnectionId_t aConnection, const NotifyMessage& acMessage) const noexcept;

@@ -42,11 +42,31 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
 4. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order, one section per agent. The two bugs
-   found 2026-11-02 (`actors-walk-after-arrival`, `knockdown-lies-as-host`) are there now.
+   found 2026-11-02 are done or there: `actors-walk-after-arrival` passes since 2026-11-05 (News), `knockdown-lies-as-host`
+   is still open.
 5. **Red flags' leftovers:** the flags themselves are done (2026-11-02: 1, 2, 4, 5 fixed; 3 measured and left: news
    below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
 ## News
+
+2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
+detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
+copy without its weapon, the user's report, not reproduced.
+
+- **Owners never moved without walking: the check read culled skeletons** (2026-11-05). The host's Riverwood NPCs the
+  gait check flagged (`actors-walk-after-arrival`, 0 of 6) were off camera: the engine does not pose a culled actor's
+  skeleton (`HighActorCuller` 40335 sets the 3D's `kNotVisible`, `ModifyAnimationUpdateData` 38054 then writes no
+  pose), so its feet hold still while it walks, and the `was_in_frustum` the check trusted goes stale (only
+  `ProcessTracking` writes it). `GaitWatch` now counts drawn steps only and the observer's pose comparison reads the new
+  `pose_visibility.drawn`: the scenario passes 3 of 3. Read on the way: how the movement controller switches to the
+  Virtual Path Follower for middle-high actors (`actor-movement.md`, both new sections). New: the `ref_steps` verb (with
+  the vanilla stand-in's `ref_trace`), `gait_after_arrival`, and root, feet, cull, process level and movement state in
+  the animation trace. Tests: ClientTests `[gait]`, `test_world_diff` (a stale `was_in_frustum`).
+
+- **Names (2026-11-05):** names go through the host and each game applies them one way. Spawns carry `DisplayName`, a player's too
+  (the host's copy showed ""); a rename or a host's load of another character sends `PlayerNameRequest`; the host's game
+  sends `NotifyActorName` when a quest alias sets or clears an NPC's name. This replaces the resolved-name decode. Checks
+  compare players' names now. What is covered: `docs/re/systems/names.md`.
 
 - **NPC copies no longer vibrate in furniture** (2026-11-05). On the guest's game, copies going in or out of a chair, bed
   or wall lean shook 0.6 to 1.8 units each frame: `Actor::Move` put them on their goal, then the engine's write-back moved
@@ -85,6 +105,13 @@ copy difference players see marks a step `SEEN` and the flow goes on, cosmetic o
 door, Embershard Mine's lookout, door, first room and loot. New verbs `door`, `clear`; `use`/`talk` check the crosshair
 first. Found: a looted corpse keeps items on the guest (5 of 5), the host's copy sunk in the floor after a door,
 players stacked by a door's tether arrival. Open: the player's paths refused inside Embershard Mine.
+
+2026-11-05: drift detector for copies' graphs (`Games/Animation/GraphDrift`): after each replay a copy takes, its active
+  state names against the action's `GraphState` (SaveState 63601's machine section, hkbCharacter 65148), counted as
+  matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
+  line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
+  lasting (animation-replay-recovery.md, "Drift detector"). Each lasting one is a missing input, listed in bugs.md; no snapshot loading over it.
+  ClientTests and GameTests `[graph-drift]`.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated
@@ -623,6 +650,10 @@ Decisions made without the user are marked **Decided**.
     apply on the changed duo code; its half (a `--players` flag `duo` ignored, `client2`, `dialogue-three-players`)
     was removed at review (`docs/ideas.md`, Testing). Steps 4 (quest topics on guests) and 5 (event-driven lists)
     not done; step 5 is moot (step sync has no polled list).
+- **A copy's own combat (2026-11-05):** an NPC's attack ran `Actor::StartCombat` (38561) on its copied victim, which then
+  ran a whole combat tree. `HookStartCombat` refuses copies (`combat-targets.md`); a dead host's NPCs do turn on the copy
+  and chase it. Measured: the half-stop picture comes with the engine's detection losing a target in the dim inn, the real player too;
+  a vanilla comparison is left (`bugs.md`).
 - **Combat target on copies:** fixed in the reviewed aggro merge (2026-11-02). Native
   `Actor::UpdateCombatSearchState` (37273) clears the target on actors with no native combat. Copies restore their
   cached owner weak handle after that update; their AI/controller stays disabled. The strengthened
@@ -966,7 +997,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | AI package, dialogue, factions | relayed; individual coverage documented | `docs/design/copy-contract.md`, `docs/design/shared-dialogue.md` |
 | Physics: objects and ragdolls | the host simulates, guests show it live (keyframed by its frames, sent when the guess goes wrong) and rest at the host's spots; a dead NPC's copy lies as the host's bone by bone. A guest's push goes to the host as its character's impulse, its casts through its copy's, what it grabs follows its hands on the host and falls from where it let go; the guest shows its own until the host's rest, and gets the host's pose back for what its own physics moved alone. A guest gets frames only of bodies within 4096 units of its copy, rests of all (2026-10-25). A guest's playback is placed at its pose each frame and blends into frames it has early: no flicker, 0.1 units typical off the host's (2026-10-25, `FlightTrace` in the fireball scenarios). Since 2026-10-26 every game streams its own bodies (a guest's player's ragdoll, what it holds), and a living actor's copy is knocked down with it and lies as its ragdoll does. Not yet: a refused second grab, a dead body's pose at a cell load (`docs/design/physics-sync.md`) | `physics-push-reaches-guest`, `ragdoll-lies-as-host`, `knockdown-lies-as-host`, `guest-knockdown-lies-on-host`, `guest-bump-moves-host`, `guest-cast-moves-host`, `guest-throw-lands-on-host` |
 | Crime / party bounty | host-authoritative | shared totals, guest alarms and fines from the party's purse; native coverage and jail/trespass-AI limits: `docs/design/shared-party-bounty.md` |
-| Dropped items | one in the host's world with their extra data; pickups granted by the host (feature 6, 2026-10-26) | `docs/design/dropped-items.md` |
+| Dropped items | one in the host's world with their extra data; pickups granted by the host (feature 6, 2026-10-26); a dead player keeps what it held, out of reach, and holds it again on respawn (2026-11-06, `re/systems/death-drops.md`) | `docs/design/dropped-items.md` |
 | Followers | on dev: shared vanilla slots, member anchors, fallback and picker inventory; native coverage/limits in design | `docs/design/followers.md`, `follower-*` |
 | World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Step 5 slice 1 built 2026-10-21: a guest's world scripts get no activation or trigger events, the host's run them for its copy, and their doors, animations and spells reach the guest from the host (`Papyrus/WorldEvents.cpp`, `HostWorldState`'s `NotifyObjectChanges`, `MagicTarget.cpp`; `docs/re/systems/guest-world-events.md`; scenarios `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `shrine-blesses-client`). Step 6's enabled state built 2026-10-21: the host's references enabled or disabled reach the guests (`NotifyObjectChanges`; `sword-box-asks-client`, harness `ref_enabled`). Locks the same day: the host's lock changes go out as object changes, a guest's are proposals the host's game takes (`HostAuthority::OnLockChange`; `lock-reaches-others`); the old lock relay is deleted. Both read on the host from the engine's change funnel (`Forms/FormChanges`, `HostEngine::TakeObjectChanges`; `docs/design/world-state-sync.md`, "As built"), built 2026-10-21 (scenarios `lock-reaches-others`, `guest-loads-propose-no-locks`, `sword-box-asks-client` pass); the `Enable`/`Disable` hooks are deleted. Containers slice 1 the same day: a container's item changes travel as its count now (`kItems` object changes from the host; a guest's own a `ContainerChangeRequest` the host's game takes), seen through the engine's `TESContainerChangedEvent` (`ContainerEvents`); `chest-take-reaches-others`; the unused `RequestObjectInventoryChanges`/`NotifyObjectInventoryChanges` deleted. World desync check for references (step 7) 2026-10-21: harness `world_state` (with each reference's change record, pose, physics, graph, effects), `coop_test.py world-diff`, scenario `world-changes-reach-guest` (also each change's object events). Reference sync reworked the same day from what it showed: rows for enabled, lock, open state, move, scale and owner (the engine's calls: swing, events, 3D, collision), the funnel also watching `RemoveChange` and repeat moves; every kind but created references matches in every side effect, items' container event included. The save-data fallback is built but off until mods (with it on, it hid the missing container event); flags with no row are logged once, `coop_test.py unsynced` (now: havok moved, activating children, animation). Open: created references, those rows, whether the guest's scripts should get object events at all, references the guest has not loaded (changes dropped). Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
 | A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; rule 2 never ran until 2026-10-20: `GetPlayer`'s name reads back from the engine's string pool as `getplayer`; engine names are now compared case-insensitively everywhere, `Games/EngineNames.h`, `docs/re/systems/engine-names.md`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. The client's world scripts stop reacting to activations and triggers (world-state sync step 5, slice 1, 2026-10-21); other events still run on both games | `docs/research/player-events.md`, `scripts/spikes/` |

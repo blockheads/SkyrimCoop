@@ -446,6 +446,7 @@ static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
 static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
 static_assert(offsetof(Actor, unk84) == 0xF0);
 static_assert(offsetof(Actor, unk17C) == 0x184);
+static_assert(offsetof(Actor, movementDrivenControl) == 0x150); // MovementControllerNPC (CommonLib movementController)
 static_assert(offsetof(Actor, pCombatController) == 0x160);
 static_assert(offsetof(Actor, magicItems) == 0x1C8);
 static_assert(offsetof(Actor, equippedShout) == 0x1E8);

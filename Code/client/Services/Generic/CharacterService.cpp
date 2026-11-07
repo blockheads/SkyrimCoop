@@ -38,6 +38,7 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRespawn.h>
+#include <Games/EngineNames.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
@@ -95,6 +96,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
+    Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
+    Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
 
@@ -516,7 +519,10 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
 bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
 {
     if (acMessage.BaseId == GameId{})
+    {
+        ApplyOwnerName(aFormId, acMessage.DisplayName);
         return true;
+    }
     const uint32_t cBaseId = ToGame(acMessage.BaseId);
     const bool cResolvedAlike = NpcSnapshot::KeepsResolvedBase(
         m_actorBridge.IsActorNpcTemporary(aFormId), m_actorBridge.GetActorNpcTemplateBaseFormId(aFormId), cBaseId);
@@ -526,9 +532,30 @@ bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterS
                       acMessage.BaseId.BaseId, aFormId);
         return false;
     }
-    if (NpcSnapshot::HasResolvedName(acMessage.ChangeFlags) && !acMessage.AppearanceBuffer.empty())
-        m_actorBridge.DeserializeActorNpc(aFormId, acMessage.AppearanceBuffer, acMessage.ChangeFlags);
+    ApplyOwnerName(aFormId, acMessage.DisplayName);
     return true;
+}
+
+void CharacterService::ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept
+{
+    if (!acName.empty() && !SameName(m_actorBridge.GetActorDisplayName(aFormId), acName))
+        m_actorBridge.SetActorDisplayName(aFormId, acName);
+}
+
+void CharacterService::OnNotifyActorName(const NotifyActorName& acMessage) noexcept
+{
+    // Still loading: its spawn applies the name.
+    if (const auto cPending = m_pendingSpawns.find(acMessage.ActorId); cPending != m_pendingSpawns.end())
+        cPending->second.DisplayName = acMessage.Name;
+    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.ActorId))
+        ApplyOwnerName(cFormId, acMessage.Name);
+}
+
+void CharacterService::OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept
+{
+    for (auto&& [cEntity, cForm, cPlayer, cCopy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
+        if (cPlayer.Id == acMessage.PlayerId)
+            return ApplyOwnerName(cForm.Id, acMessage.Name);
 }
 
 void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
@@ -1234,6 +1261,7 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     const auto changeFlags = m_actorBridge.SerializeActorNpc(formIdComponent.Id, message.AppearanceBuffer);
     message.ChangeFlags = changeFlags;
     message.Weight = m_actorBridge.GetActorBaseWeight(formIdComponent.Id);
+    message.DisplayName = m_actorBridge.GetActorDisplayName(formIdComponent.Id);
 
     if (isPlayer)
     {

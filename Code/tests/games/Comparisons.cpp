@@ -18,7 +18,7 @@ static void Compare(const std::string& acWhat, const FakeEngine& acOwner, uint32
     }
     const auto& cOwner = cOwnerIt->second;
     const auto& cCopy = cCopyIt->second;
-    if (!cOwner.Player && !SameName(acOwner.GetActorDisplayName(aOwnerId), acCopies.GetActorDisplayName(aCopyId)))
+    if (!SameName(acOwner.GetActorDisplayName(aOwnerId), acCopies.GetActorDisplayName(aCopyId)))
         aDifferences.push_back(std::format("{} ({:X}) name is '{}', the owner's '{}'", acWhat, aCopyId,
                                            acCopies.GetActorDisplayName(aCopyId), acOwner.GetActorDisplayName(aOwnerId)));
     // Compare the replay marker, not tick/local actor IDs or a moving graph's serialized clip state.

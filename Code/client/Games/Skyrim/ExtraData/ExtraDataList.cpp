@@ -154,7 +154,7 @@ void ExtraDataList::SetCount(uint16_t aCount) noexcept
     s_setCount(this, aCount);
 }
 
-void ExtraDataList::SetCustomName(const char* acpName) noexcept
+void ExtraDataList::SetCustomName(const char* acpName, bool aOverQuest) noexcept
 {
     auto* pText = static_cast<ExtraTextDisplayData*>(GetByType(ExtraDataType::TextDisplayData));
     if (!pText)
@@ -167,6 +167,11 @@ void ExtraDataList::SetCustomName(const char* acpName) noexcept
         pText->iOwnerInstance = -1;
         pText->fTemperFactor = 1.f;
         Add(ExtraDataType::TextDisplayData, pText);
+    }
+    if (aOverQuest)
+    {
+        pText->pDisplayNameText = nullptr;
+        pText->pOwnerQuest = nullptr;
     }
     if (pText->pDisplayNameText || pText->pOwnerQuest)
         return;

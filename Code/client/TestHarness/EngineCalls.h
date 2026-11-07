@@ -31,6 +31,8 @@ struct CombatCandidateRead
     bool ClearPath{};
     bool Invisible{};
     bool Sneaking{};
+    float RawLight{};   // the target's process light (MiddleHighProcess+0x3A8, set by 0x140726250)
+    float Light{};      // Actor::GetLightLevel 37775: what detection's light term starts from
 };
 struct CombatRead
 {
@@ -39,6 +41,26 @@ struct CombatRead
     uint32_t PapyrusTarget{};
     uint8_t State{};
     std::vector<CombatCandidateRead> Candidates;
+    std::vector<std::string> Behavior; // each running thread's tree nodes, root first
+    bool Fleeing{};
+    bool Detected{};
+    bool TargetLost{};
+    bool Inactive{};
+    bool Ignoring{};
+    bool Stopped{};
+    float LowMovementDelta{};
+    uint32_t Unreachable{};
+    uint32_t Areas{};
+    std::array<float, 3> TargetPosition{};
+    std::array<float, 3> TargetPredicted{}; // Character 47309, what the out-of-range check reads
+    float CloseRange{};      // the out-of-range radius is CloseRange + Margin
+    float Margin{};          // 50643
+    float MarginMax{};
+    float Reach{};
+    float TargetReach{};     // 47336
+    float SinceAttacked{};
+    uint32_t TargetPathState{};  // the target's path follower: 90724 answers from a path in 1-8 and 13
+    uint32_t TargetPathPoints{};
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 
@@ -48,7 +70,9 @@ using namespace Diagnostics::EngineReads;
 uint8_t GetReplayPhase(uint32_t aFormId) noexcept;
 struct PoseVisibility
 {
-    bool WasInFrustum;
+    // Its 3D drawn this frame (not kNotVisible): only then does the engine pose its skeleton.
+    bool Drawn;
+    bool WasInFrustum; // stale for an actor ProcessTracking skips
     uint32_t CullingState;
     uint32_t LastSeen;
 };
@@ -503,6 +527,10 @@ struct KillMoveCheck
     uint32_t CrosshairActor; // the actor under the player's crosshair (CrosshairPickData)
     uint32_t AttackTarget;   // whom an attack starting now targets (Actor::sub_47272 in reach, as PlayerControls 42350
                              // picks it)
+    float AttackReach;       // Actor::GetAttackReach (38538): the current weapon's reach, unarmed without one
+    float VictimGap;         // TESObjectREFR::sub_47273(attacker, victim): distance less both bodies, what 47272 compares
+    uint32_t RightEntry;     // the middle process's right-hand entry (+0x260), what GetCurrentWeapon (39806) reads
+    uint32_t RightObject;    // AIProcess::equippedObject[1] (+0xF8)
 };
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept;
 // Each condition of an idle and its parents (TESIdleForm::parentIdle), evaluated alone as the engine does

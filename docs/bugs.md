@@ -27,6 +27,8 @@ Where the evidence comes from:
   there too. The entries dated 2026-11-01 come from the S1 work (`playtests/2026-10-31-fabien.md`;
   `docs/design/physics-sync.md`, "Steered holds" and "Matches a game without co-op").
 
+How the entries relate (shared causes, wrong checks, what to fix first): [bugs-map.md](bugs-map.md).
+
 ## Index
 
 Each line gives a section's size. "waits" means another branch or plan comes first; "no duo" means no Skyrim is needed;
@@ -35,19 +37,21 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [Replay lands in another state](#replay-lands-in-another-state): small
+- [A copy's idle variant](#a-copys-idle-variant): small
+- [A copy walks while its owner turns](#a-copy-walks-while-its-owner-turns): small
+- [A copy's interaction idle](#a-copys-interaction-idle): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
 - [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
-- [Owners move without walking](#owners-move-without-walking): medium
+- [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
-- [A dead player's dropped weapon](#a-dead-players-dropped-weapon): small
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
 - [Remaining validation](#remaining-validation): small
+- [A placed guard's trip home](#a-placed-guards-trip-home): small
 
 **Ragdolls and death poses**
 
@@ -96,8 +100,11 @@ other section needs the duo.
 
 **Combat**
 
-- [After the host dies](#after-the-host-dies): medium
-- [The host's copy has no name](#the-hosts-copy-has-no-name): small, waits
+- [After the host dies](#after-the-host-dies): medium, caused by the next one
+- [A still guest unseen up close](#a-still-guest-unseen-up-close): small, minor
+- [An NPC copy's swing picks the nearest](#an-npc-copys-swing-picks-the-nearest): small
+- [A guest's summon](#a-guests-summon): medium
+- [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
 
 **Found by the playthrough flow**
@@ -108,28 +115,47 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
-### Replay lands in another state
+### A copy's idle variant
 
-A copy accepts a replayed action and nothing checks where its graph ended up.
+After an action that ends in an idle, Camilla's copy stays out of the idle clip her owner plays.
 
-Agent task: Add a detector, not a fix: after each taken replay, compare the copy's active state names with the action's
-`GraphState` and count and log a mismatch. Run it across a combined batch; build loading on a mismatch only if lasting
-mismatches show up.
+Agent task: find what moves `IdleBehavior.hkb/Behavior02` into `MT_Idle.HKX` on the owner (an event the copy is not
+sent, or a variable it reads differently), and give the copy that input.
 
-Size: small. Needs: GameTests (a forced mismatch), then a combined duo batch.
+Size: small. Needs: the duo (`npc-counter-matches`), then GameTests.
 
-- **An accepted replayed action can land in a different graph state** (user, 2026-10-31: animations drift in dialogue
-  after a while). Nothing compares it (animation-replay-recovery.md). Fixed so far: copies played clips before their
-  files were in, each game made its own random picks (2026-11-04), and copies never headtracked (progress.md, "copies
-  look where their owners do"). The proposed fix is to compare active states with the owner's snapshot after each
-  replay and load it on a mismatch.
-  - Measured 2026-11-05 (copy-state-sync, animation-replay-recovery.md "Does a copy's graph drift?"): Lucan on a fresh
-    duo, active states sampled at 10/s on both games through `npc-counter-matches` and `npc-clips-match`: the copy
-    follows every transition within 150-300 ms, no difference lasts over 1.1 s. One NPC: no lasting drift seen, not
-    proof there is none. A graph save costs 62-112 us and about 7.5 KB.
-  - Compare state names only (variables and clip times differ by design). Paired actions carry no snapshot.
-  - Pitfall: `stage` with `ref` on a living NPC left the host's Lucan and Camilla in `JumpFall`/`JumpLand` for the
-    session, which reads as drift. Measure on fresh, unstaged NPCs.
+- **Camilla's copy lacks `Behavior02=MT_Idle.HKX`** (drift detector, animation-replay-recovery.md "Drift detector"):
+  after `MotionDrivenIdle` her owner's `Behavior02` is in `MT_Idle.HKX`, her copy's in its start state; every other
+  machine matches. Seen in both 2026-11-05 batches (2.0 s, 2.4 s, each until the next action).
+- The detector's guest log line `still apart after` lists both sides' states.
+
+### A copy walks while its owner turns
+
+A copy keeps walking while its owner stands and turns on the spot.
+
+Agent task: find which input moves the owner's `QuadrupedBehavior.hkb/StandingBehavior` machine into
+`LoopingTurnLeft` (a turn event, the speed or direction variable) and why the copy's graph does not follow it.
+
+Size: small. Needs: the duo (`actors-walk-after-arrival`), then GameTests.
+
+- **A Riverwood dog's copy** (1E62B, 2026-11-05) after `moveStart`: the owner had `StandingBehavior=LoopingTurnLeft`
+  and `StandingIdleBehavior=NonCombatIdleState` (with `NonCombatIdle.hkb`'s head, tail and idle machines) active;
+  the copy only its forward walk. Lasted past 2 s.
+- The first batch the same day showed the same for a Riverwood wolf's copy (walking while its owner turned).
+
+### A copy's interaction idle
+
+A copy does not enter its owner's interaction idle.
+
+Agent task: find what holds an NPC's graph in `InteractionObjectState` (an AI interaction object a copy does not run)
+and give the copy that input, or play the idle another way.
+
+Size: small. Needs: the duo (Riverwood, `actors-walk-after-arrival`), then GameTests.
+
+- **Sigrid's copy misses `IdlePickup_Ground`** (13483, 2026-11-05): after `turnStop` her owner was in
+  `MT_BehaviorGraph=InteractionObjectState`, `InteractionObjectBehavior=IdlePickup_Ground`; her copy in
+  `MT_Default_State`, for 7.1 s until the next action. Loading the owner's snapshot (tried and reverted) put the
+  copy in it, and it left at once: the copy lacks what keeps the graph there.
 
 ### Headtracking on copies
 
@@ -174,6 +200,8 @@ The 17 failures sort by cause (shape of the reported values; one of each measure
 - **Headtracking left over** (2026-10-31, v1-acceptance: 17 scenarios fail `ai_state.head_track`). A copy's own
   ProcessTracking still picks an ambient look target (its game's player) over its owner's slots, and a player's
   default slot on itself reads as none on its copy.
+  `dead-player-keeps-weapon` (2026-11-06) passes its steps, then fails its end comparison on Sinmir in the Bannered
+  Mare: the host's `['session 1', None x5]` against the guest's copy `[None x6]`.
 - **Kill moves leave a copy looking at a player** (2026-11-04, still on 2026-11-05 after PR #16). The kill moves play;
   the scenarios then fail on `ai_state.head_track`: the guest's wolf copy `['session 2', None x5]` against its owner's
   `[None x6]`, now and then the reverse (owner `['session 1', ...]`). On PR #16's final build: `host-kill-move` and
@@ -244,26 +272,19 @@ Size: small. Needs: IDA, duo (`jitter`), then a fast test.
     ground (`bhkCharacterController::sub_78292`). Not yet read: whether that tilt moves the reported position.
   - Test: `jitter` on a creature, then a fast test once the cause is read.
 
-### Owners move without walking
+### A copy without its weapon
 
-Stands alone: the host's own NPCs, not copies.
+Some NPCs' and other players' copies show no weapon on a guest's game.
 
-Agent task: Find why the host's Riverwood NPCs move with their feet still after arrival.
+Agent task: Add a readout of the weapon's 3D on a copy, catch it empty-handed, then read what took the weapon. Make the
+equipment snapshot compare the hands' weapons as it does their spells.
 
-Size: medium. Needs: duo.
+Size: medium. Needs: IDA, a harness readout, duo, then GameTests.
 
-- **The host's own NPCs move without walking after arriving in Riverwood** (2026-11-04, seen in every
-  `actors-walk-after-arrival` run on dialogue-anim-desync: 0 of 6, the same with and without its changes). Owners, not
-  copies: Dorthe, Frodnar or Sigrid move 117 to 574 units in 2 s with their feet still (0 to 23), and in some runs copies
-  too (Embry, Hod, 135 to 169 units, feet 3 to 40). Failing the same with the old copy placement (2026-11-02: 125 to 573
-  units in 2 s).
-  - Start: whether owners teleport (package start or arrival placement) or slide while their graph stands; the
-    scenario's `check_gait` names each actor and its distance.
-  - 2026-11-05 (copy-state-sync, fresh duo): still 0 of 1 (Dorthe 146 units, feet 0; Gerdur 138, feet 6). Every sliding
-    sample was in the host's view (`was_in_frustum` true), so this is not the stale off-screen skeleton of
-    culled-npc-pose-readings.md: they slide about 75 units/s with their feet still. Next: a vanilla control
-    (`vanilla_start`) to see whether the engine does it without co-op.
-  - Test: `actors-walk-after-arrival`.
+- **Seen by the user in play** (2026-11-06), not reproduced: party travel and one fight kept hands and worn items agreeing
+  (bugs-map.md, "A copy's hands"). A move did strip a copy's armour until the 3 s reconcile.
+- The snapshot compares worn items and hand spells, not hand weapons; a copy refuses the engine's equips.
+- Lead: copy `13485`'s engine tried to equip about once a second for over 2 minutes in the 2026-11-04 playtest.
 
 ### End comparisons in towns
 
@@ -277,23 +298,14 @@ Size: medium. Needs: duo.
 - **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
   `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
-  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again), once
-  Hod's `pose.head` 117 against 88 (the stale off-screen reading of culled-npc-pose-readings.md gives 81-88; not
-  repeated in 4 later runs). `faendal-letter` fails its end comparison the same way.
+  into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
+  `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
+  skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
+  culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
-
-### A dead player's dropped weapon
-
-Stands alone: one created reference.
-
-Agent task: Make the weapon a dead player drops the same reference on both games, so `kill-moves-cross` passes its end
-comparison.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A dead player's dropped weapon differs between games** (2026-11-05). A player killed with a weapon drawn drops it; the
-  other game's created reference differs: flags 0x8 vs 0x100008, owner none vs the player, a different 3D (`IronLongSword01`
-  vs `Weapon`). Cosmetic so far. `kill-moves-cross` fails its end comparison on it every run, after passing its action phase.
+  - Also in the Bannered Mare (2026-11-06, the MCP's `expect agree all` while recording `dead-player-keeps-weapon`):
+    Olava the Feeble (`1A699`) was removed from the host's actors ("Actor discovery: 1A699 removed") seconds after the
+    scene loaded, and her copy stayed on the guest with no owner.
 
 ### Trade markers
 
@@ -342,12 +354,31 @@ Size: small. Needs: duo.
 
 Test work, not a bug in the game.
 
-Agent task: Add a visible-skeleton control to the owner gait check and get the Greybeards scenario its story save.
+Agent task: Get the Greybeards scenario its story save.
 
 Size: small. Needs: duo.
 
-- **Remaining validation.** Owner gait needs a visible-skeleton control; the Greybeards scenario needs its
-  documented story save. Combined-dev acceptance remains separate from these bug investigations.
+- **Remaining validation.** The Greybeards scenario needs its documented story save. Combined-dev acceptance remains
+  separate from these bug investigations. (The owner gait's visible-skeleton control landed 2026-11-05: `GaitWatch`
+  counts drawn steps only, actor-movement.md "A culled actor keeps its pose".)
+
+### A placed guard's trip home
+
+Agent task: Make `leveled-placed-npc-is-hosts` pass its cleanup: find whether the guest's copy should exist at the
+guard's home, then fix the game or the check.
+
+Size: small. Needs: duo, then GameTests.
+
+- **The placed guard's copy is missing on the guest after the guard goes home** (2026-11-05): the scenario's own checks
+  pass; its cleanup (`send_home`, `scenarios/specs.py`) fails at "[client] its D8C56 goes home with the host's". The
+  host's D8C56 is home in cell 39462 (worldspace 60, at 2452, -12693, -5413) with 3D; the guest has no copy (`client {}`).
+  Failed the same way in four runs on 2026-11-05, one of them on dev's code and harness, so it predates the names work.
+  Evidence: `build/coop-test/results/20261105-184243-343750/at-failure.json`.
+  - Open question first: whether that cell is in the guest's loaded area. If not, no copy is right and the check
+    (`copy_follows_host`) should accept it; if it is, the copy was removed or never respawned when the guard moved home.
+  - Start: rerun the scenario and `observe` D8C56 on both games after `move_actor home`; the guest's log for its
+    removal (`Actor removed`) or a spawn for its session id.
+  - Test: the scenario itself; a GameTests flow for a host NPC moved home while the guest stays.
 
 ## Ragdolls and death poses
 
@@ -785,32 +816,92 @@ The NPCs' target.
 Size: medium. Needs: duo, IDA, then GameTests.
 
 - **After the host died, NPCs half-stop fighting the guest** (2026-11-04). They drift around looking at the guest, hit
-  only up close, and stop when the guest walks away.
-  - The host staying dead while the guest fights is the design (`death.md`: the respawn waits for the fight to end), not
-    part of this bug.
-  - Suspects: (1) the NPCs' target is still the dead host (`HostAggro` drops damage history for a dead victim, not
-    the NPC's native target); a dead real player is unreachable for pursuit and attack. (2) The target is the guest's host-side copy, a created `Character` with no AI,
-    which pursuit/attack code written for the `PlayerCharacter` cannot track (melee range works through the copy's
-    collision and hearing; chase needs detection that is redirected only inside scoped crime). (3) The combat group's
-    other-player candidate (the copy) never gets the native pick once the real player is dead.
-  - Start: reproduce with the MCP: the host dies in a fight the guest is also in (`scene`, `fight`), then `observe`
-    an NPC on the host: controller target, `combat_targets`, detection against the copy, package, whether
-    `IsInCombat`. In IDA, read how the combat controller treats a dead target and a
-    non-player target (selector 47191, validity 47196, target setter 33235).
-  - Test: a scenario `host-dies-guest-still-fought` (the NPC must close in on a guest who steps back); a GameTests flow
-    with a fake dead host player that checks the NPC's target is the guest.
+  only up close, and stop when the guest walks away (`docs/re/systems/combat-targets.md`, "The half-stop").
+  - Fixed on the way: an attack gave the guest's copy a combat tree of its own, all through the playtest's wait
+    (`HookStartCombat`; scenario `host-dies-guest-still-fought`, flow "After the host dies...").
+  - Measured, not a copy's: the NPC's target moves to the copy; the copy's light and detection read as the real player's;
+    the stall happens with the real player as target too. In the inn the engine's detection loses a still or retreating
+    target (-5 to -10) and the fight goes to search. Inferred, not measured: with the host dead nothing keeps it going.
+  - 2026-11-06 (`combat-targets.md`, "Measured 2026-11-06"): vanilla pushes the player back a few units a hit and
+    the NPC stands while the gap is inside its approach radius (174); the host's player gets the same. In three clean
+    host deaths Orgnar kept fighting the copy and his hits landed. Not reproduced as reported yet.
+  - Co-op differences found: an NPC copy's swing hits whoever is nearest in front (copies have no combat target), so
+    with another actor closer the guest is not hit; a guest unseen at the host's death is searched for, the NPC walking
+    off. Next: the playtest's own setup (the guest moving, fighting back) with `console_watch` and `kill_move_check`.
+  - Reproduced once (2026-11-06, the guest still, as the playtester saw): after the host's death Orgnar sat 196 from the
+    copy for 20 s on `Advance` without moving or swinging; the host's player at the same gap was closed on at once
+    (`combat-targets.md`, "A/B at 196 units"). Not seen again in 5 more rounds.
+  - **The cause is the copy unseen at the switch** (2026-11-06, `host_death_watch`, 5 rounds each way, the inn,
+    the survivor standing still): the host dies, the target moves to the guest's copy and the fight goes to search every
+    time (2.5-7 s, at 44-67 units), twice walking 440-490 units off before coming back. The guest dies instead: the host's
+    player is fought on, no search in 5 of 5. So this is [A still guest unseen up close](#a-still-guest-unseen-up-close).
 
-### The host's copy has no name
+- **Lock order inversion with the host's player dead** (2026-11-05, `host-dies-guest-still-fought`, 2 of 6 runs, with and
+  without the fix): `ExtraAliasInstanceArray` 12720 (0x140187955) then the player's reference lock in `Actor::IsGhost`
+  (0x1406756F4), against 0x140172A5B then 12719 (0x140187881); our code on the stack, which frame not read.
 
-Stands alone.
+### A still guest unseen up close
 
-Agent task: Already running as `names-synced`.
+Agent task: Find why an NPC fighting the host reads no line of sight to the guest's copy 74 units away (the cause of the
+half-stop after the host dies). Do step 0 in IDA
+first (the detection's line-of-sight request for a candidate), then compare with the host's player in the same place.
 
-Size: small. Needs: duo, then GameTests. Waits for: the `names-synced` worker (running).
+Size: small. Needs: duo, IDA, then GameTests.
 
-- **The host's player copy on a guest has no name** (2026-11-04, seen through the MCP's `look`): both characters
-  are "Prisoner" (`player_record`), the guest's copy on the host shows it, the host's copy on the guest shows "". Seen
-  before and after a host load. Start: where a copy's display name comes from the owner's character record.
+- **An NPC loses a still guest standing next to it** (2026-11-06, `host-dies-guest-still-fought` setup by hand, one run):
+  Orgnar fought the host with the guest 80 units off to his side; the host died, his target moved to the guest's copy and
+  the fight went to search (state 2) for 13 s at 74 units. `combat_watch`: the copy's candidate read `line_of_sight`
+  false, detection -6 to 15, until the copy was found again. A still guest makes no noise, so sight is all there is.
+  - Compared (5 rounds each, `host_death_watch`): with the guest's copy left, search every time, twice walking 440-490
+    units off; with the host's player left (`dies="guest"`), never. The copy is what isn't seen: this is the cause of
+    [After the host dies](#after-the-host-dies). While the host lives, the copy's candidate read line of sight false and
+    detection about -6, the host's 42 with line of sight.
+  - Not the copy's combat refusal: with `CopyCombat::MayStart` switched off (dev's behaviour, a local build), search
+    5 of 5 as well, 5-15 s, once 470 units off. Likely the engine's detection with a second player: a hook there.
+  - Test: `host_death_watch` both ways is the scenario's base; a GameTests flow once the engine fact is known.
+
+### An NPC copy's swing picks the nearest
+
+Agent task: Make an NPC copy's swing on the guest's game hit the actor the host's NPC is fighting, not whoever is nearest
+in front. Do step 0 in IDA first (`Actor_GetTarget` 38608, `Actor::sub_47272`), then a GameTests case.
+
+Size: small. Needs: IDA, GameTests, then duo.
+
+- **A copy's swing hits the nearest actor in front** (2026-11-06, read in IDA, seen once): a hit on the guest is judged on
+  the guest's game by the NPC's copy; with no combat target (copies run no AI) the victim pick (47272) takes the nearest
+  actor in the cone within reach. With the host alive and closer, the copy's swing picked the host's copy, not the guest
+  (`combat-targets.md`, "Measured 2026-11-06"). Start: give the pick the owner's target (ExtraForcedTarget 0x9D is read
+  first) or answer it in a hook.
+
+### A guest's summon
+
+A guest's Conjure Familiar makes no familiar on either game; the host's reaches the guest.
+
+Agent task: Read what happens to the summon on the guest's game, then make a guest's actor reach the host the way a
+drop does, one path with script-placed references (bugs-map.md, "Created forms").
+
+Size: medium. Needs: IDA, duo, then GameTests.
+
+- **A guest's familiar never appears** (2026-11-06, Riverwood, 640B6 aimed at the other player). Host's cast: announced
+  (`FF00090D`), the guest spawned its copy. Guest's two casts (`abSuccess: true`): nothing announced on the host, and 8 s
+  after the first the guest's only familiar was the host's copy.
+- Suspect, read not observed: `CharacterService::RunActorDiscovery` deletes a temporary actor on a guest that is no copy
+  and has no session id (a rule for saved NPCs). `DeleteActor` logs nothing.
+- Test: a scenario where a guest casts it and both games show one familiar.
+
+### A mod's rename at run time
+
+Agent task: Make a script's `SetDisplayName` on an NPC, and `SetName` on a player's base, reach the other games. Do step 0 in IDA first, then add one
+GameTests case for the rename.
+
+Size: small. Needs: IDA, GameTests. Waits for: nothing.
+
+- **A mod's rename doesn't reach an NPC's existing copy** (2026-11-05, read in IDA, not played): a script's `SetDisplayName`
+  (SKSE) writes the reference's ExtraTextDisplayData directly, past the alias hooks, so only the next spawn or refresh
+  carries it (`docs/re/systems/names.md`). Start: a hook on where SKSE's native lands, or relaying that native.
+- **A mod's rename of a player's character isn't sent** (2026-11-05, read, not played): `PlayerService` sends a player's
+  name when the race menu closes or a save loads; a script's `SetName` on the player's base raises neither, so the party's
+  lists and copies keep the old name until one of them. Start: the same native, on the player's base.
 
 ### The baseline after a death
 

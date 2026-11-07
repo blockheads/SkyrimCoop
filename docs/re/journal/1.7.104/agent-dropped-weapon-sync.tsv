@@ -1,0 +1,35 @@
+time	op	id	rva	item
+2026-11-05T22:10:22Z	read	37896	0x6a9e50	{"name": "Actor::KillImpl"}
+2026-11-05T22:10:22Z	read	37520	0x68acb0	{"name": "Actor::DropObject"}
+2026-11-05T22:10:23Z	read	40454	0x746e00	{"name": "PlayerCharacter::DropObject"}
+2026-11-05T22:11:10Z	read	38902	0x6dcd30	{"name": "sub_1406DCD30"}
+2026-11-05T22:11:13Z	read	37320	0x677c90	{"name": "sub_140677C90"}
+2026-11-05T22:11:42Z	read	19706	0x2e87e0	{"name": "sub_1402E87E0"}
+2026-11-05T22:11:42Z	read	37797	0x6a5370	{"name": "Actor::RemoveItem"}
+2026-11-05T22:11:52Z	name	37320	0x677c90	{"addr": "0x140677c90", "name": "Actor::DropHeldItemsOnDeath"}
+2026-11-05T22:11:52Z	name	19706	0x2e87e0	{"addr": "0x1402e87e0", "name": "TESObjectREFR::AdoptHeldNodeAs3D"}
+2026-11-05T22:11:52Z	name	38902	0x6dcd30	{"addr": "0x1406dcd30", "name": "ActorEquipManager::UnequipSpellInSlot"}
+2026-11-05T22:11:52Z	name	37523	0x68b6b0	{"addr": "0x14068b6b0", "name": "Actor::GetDroppableDrawnWeapon"}
+2026-11-05T22:11:57Z	comment	37320	0x677c90	{"addr": "0x140677c90", "comment": "37320. KillImpl's only callee for death drops: shield, ammo/torch hands, then each hand's drawn weapon. Each goes through vfunc 0xCB DropObject (the player's 40454, a character's 37520), the reference takes the held node as its 3D (19706), owner = the player's base when the actor is dead."}
+2026-11-05T22:11:57Z	comment	19706	0x2e87e0	{"addr": "0x1402e87e0", "comment": "19706. The dropped reference adopts the actor's held weapon node as its 3D (root named 'Weapon'), not its model's: collision layer 32, motion dynamic."}
+2026-11-05T22:11:57Z	comment	37523	0x68b6b0	{"addr": "0x14068b6b0", "comment": "37523. KillImpl's gate: current weapon, a WEAP, flag 414&8 clear, weapon drawn (actorState1 weaponState >= 3), not a quest object."}
+2026-11-05T22:11:57Z	comment		0x6aae8c	{"addr": "0x1406aae8c", "comment": "Death drop: gate 37523 passes and (vfunc 0xC5 false, or chance iDeathDropWeaponChance with 3D, process flag, no commander, combat count limit)."}
+2026-11-05T22:11:57Z	read	20276	0x303a80	{"name": "PlayerCharacter::sub_20276"}
+2026-11-05T22:11:58Z	read	40292	0x73acf0	{"name": "Character::CanBeKnockedDown"}
+2026-11-05T22:11:58Z	read	38297	0x6bdf80	{"name": "Actor::Func197_38297"}
+2026-11-05T22:12:28Z	read	20198	0x300740	{"name": "TESObjectREFR::SetOwner"}
+2026-11-05T22:12:28Z	read	19730	0x2eb8f0	{"name": "TESObjectREFR::sub_19730"}
+2026-11-05T22:12:50Z	read	19718	0x2e9590	{"name": "TESObjectREFR::InitHavok"}
+2026-11-05T22:16:49Z	read	19689	0x2e7cc0	{"name": "TESObjectREFR::RemoveItem"}
+2026-11-05T22:50:51Z	read	40533	0x74c560	{"name": "PlayerCharacter::PickUpObject"}
+2026-11-05T22:51:31Z	read	19550	0x2e3b30	{"name": "TESObjectREFR::sub_19550"}
+2026-11-05T22:51:39Z	name	19550	0x2e3b30	{"addr": "0x1402e3b30", "name": "TESObjectREFR::SetDroppedBeforeItsLoad"}
+2026-11-05T22:51:41Z	comment	19550	0x2e3b30	{"addr": "0x1402e3b30", "comment": "19550. Sets or clears form flag 0x100000 on a non-actor reference. Only caller: PlayerCharacter::DropObject 40454, when the reference it made has no 3D yet (it also queues the handle at player+0x608)."}
+2026-11-05T22:51:41Z	comment		0x7471d9	{"addr": "0x1407471d9", "comment": "No 3D yet: queue the drop at player+0x608/+0x610 and flag it (0x100000). A dead player's death drop takes this path: its 3D (the held node, 19706) comes after DropObject returns."}
+2026-11-05T22:51:55Z	read		0x2e3af0	{"name": "<no function>"}
+2026-11-06T00:49:23Z	read	20194	0x300440	{"name": "TESObjectREFR::GetOwner"}
+2026-11-06T00:49:35Z	comment		0x2ea3eb	{"addr": "0x1402ea3eb", "comment": "Flag 0x100000 (set by 19550 from PlayerCharacter::DropObject 40454): place the reference from its model's offset as its 3D loads, once."}
+2026-11-06T00:49:35Z	comment		0x30047e	{"addr": "0x14030047e", "comment": "No ExtraOwnership: a linked door's owner, then the encounter zone's, then the cell's (TESObjectCELL::GetOwner). An unowned dropped item in an inn reads as the inn's: PickUpObject 40533 calls StealAlarm 37422."}
+2026-11-06T06:49:04Z	read	37523	0x68b6b0	{"name": "Actor::GetDroppableDrawnWeapon"}
+2026-11-06T06:59:43Z	comment		0x6aae8c	{"addr": "0x1406aae8c", "comment": "Co-op: hooked (HookDropHeldItemsOnDeath, Services/DeathDrops.h): skipped for a player's character in a session, its hands keep what they held; Revive equips it again."}
+2026-11-06T06:59:47Z	comment		0x6aae8c	{"addr": "0x1406aae8c", "comment": "Death drop: gate 37523 passes and (vfunc 0xC5 false, or chance iDeathDropWeaponChance with 3D, process flag, no commander, combat count limit). Co-op: hooked (HookDropHeldItemsOnDeath, Services/DeathDrops.h), skipped for a player's character in a session; Revive equips what its hands kept."}

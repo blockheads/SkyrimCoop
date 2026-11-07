@@ -3,12 +3,14 @@ and the recorder that turns a session's calls into a scenario. The MCP server (s
 scenarios can too."""
 import contextlib
 import json
+import collections
 import math
 import os
 import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
@@ -103,6 +105,32 @@ def duo_home():
     return (Path(common).parent / "build/coop-test").resolve() if common else TEST_HOME
 
 
+def active_states(hex_state):
+    """The active states of `graph_state`'s reply, as GraphDrift::ActiveStates reads them; None if they do not parse."""
+    data, states, at = bytes.fromhex(hex_state), set(), 8
+    take = lambda size, offset: int.from_bytes(data[offset:offset + size], "little")
+    try:
+        while at < len(data):
+            length = take(2, at)
+            project = data[at + 2:at + 2 + length].decode("latin-1")
+            at += 2 + length
+            size = take(4, at)
+            at += 4
+            cursor, end = at + 4, at + size
+            for _ in range(take(4, at)):
+                length = take(2, cursor)
+                machine = data[cursor + 2:cursor + 2 + length].decode("latin-1")
+                cursor += 2 + length + 4
+                length = take(2, cursor)
+                state = data[cursor + 2:cursor + 2 + length].decode("latin-1")
+                cursor += 2 + length + 8
+                states.add(f"{project}/{machine}={state}")
+            at = end
+    except (IndexError, ValueError):
+        return None
+    return states
+
+
 class ReproActions:
     # --- The duo's lock (coop_harness/duo_lock.py): none on Windows, one machine per duo there ---
 
@@ -164,6 +192,46 @@ class ReproActions:
         return [line.split(None, 1)[0] for line in listing if "SkyrimSE.exe" in line and folder.lower() in line.lower()]
 
     # --- Handles: a repro's names for what it staged, per game ---
+
+    def graph_watch(ctx, seconds=60.0, every=0.25, lasting=2.0, limit=10, ids=()):
+        """Owner against copy, both read live, for NPCs on both games: the runs apart for `lasting` s or more. GraphDrift
+        compares a copy with its owner's states at the action; this answers whether the owner is really still there."""
+        guest = {int(a): s for a, s in ctx.actors_on("client").items()}
+        shared = [form for form, row in guest.items() if form < 0xFF000000 and row.get("has_3d") and not row.get("dead")]
+        shared = [int(i, 16) if isinstance(i, str) else i for i in ids] or shared[:limit]
+        read = lambda game, form: active_states((ctx.game(game).rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
+        since, runs, samples, start = {}, [], collections.Counter(), time.time()
+        with ThreadPoolExecutor(2) as pool:
+            while time.time() - start < seconds:
+                now = time.time()
+                for form in shared:
+                    owner, copy = pool.submit(read, "", form), pool.submit(read, "client", form)
+                    owner, copy = owner.result(), copy.result()
+                    if not owner and not copy:
+                        continue
+                    samples[form] += 1
+                    if owner == copy:
+                        open_run = since.pop(form, None)
+                        if open_run and now - open_run[0] >= lasting:
+                            runs.append((form, open_run, now))
+                    else:
+                        since.setdefault(form, (now, sorted((owner or set()) - (copy or set())), sorted((copy or set()) - (owner or set()))))
+                time.sleep(every)
+        end = time.time()
+        runs += [(form, run, end) for form, run in since.items() if end - run[0] >= lasting]
+        return {"actors": [f"{f:X}" for f in shared], "samples": sum(samples.values()),
+                "apart": [{"actor": f"{form:X}", "at": round(run[0] - start, 1), "seconds": round(until - run[0], 1),
+                           "owner_only": run[1][:6], "copy_only": run[2][:6]} for form, run, until in runs]}
+
+    def hands_compared(ctx):
+        """Each player's hands and worn items against its copy's on the other game: the process's hands and the worn marks
+        are separate (docs/bugs-map.md, A copy's hands)."""
+        def row(game, form):
+            snapshot = ctx.actor_snapshot(game, form) or {}
+            return {"hands": (snapshot.get("state") or {}).get("hands"), "worn": sorted(snapshot.get("equipment") or []),
+                    "drawn": (snapshot.get("state") or {}).get("weapon_drawn")}
+        return {"host": row("", 0x14), "host_copy": row("client", ctx.other_player(ctx.actors_on("client"))),
+                "guest": row("client", 0x14), "guest_copy": row("", ctx.other_player(ctx.actors_on("")))}
 
     def handles(ctx):
         if not hasattr(ctx, "REPRO_HANDLES"):
@@ -918,3 +986,59 @@ class PressTiming:
             rows.append({"frames": None if moved is None else moved + 1,
                          "ms": None if moved is None else round((after[moved][0] - pressed) * 1000)})
         return rows
+
+
+class RefSteps:
+    """How references move frame by frame, on our games or the vanilla stand-in: walking or stepped by position
+    writes (owners-move-without-walking's vanilla control)."""
+
+    def ref_steps(ctx, refs, seconds=12.0, instance="", vanilla=False, arrive=None):
+        """How each reference in `refs` (form IDs) moved over the next `seconds`, frame by frame, on that game: the
+        distance, the frames it moved in, and its jumps (over 10 units in one frame, under 200: no teleport). A walk
+        moves a little every frame; an actor stepped by the virtual path follower jumps every few hundred ms.
+        vanilla=True reads the vanilla stand-in's ref_trace (vanilla_start), else the animation trace. With `arrive`
+        (a cell) the trace starts first, then the party (or the stand-in's player) goes there by coc."""
+        def go():
+            if arrive and vanilla:
+                ctx.console_on(instance, f"coc {arrive}")
+            elif arrive:
+                ctx.both_go(arrive)
+        if vanilla:
+            game = ctx.game(instance)
+            switch, trace = game.control / "ref_trace.on", game.control / "ref_trace.txt"
+            trace.unlink(missing_ok=True)
+            def rows():
+                lines = trace.read_text().splitlines() if trace.exists() else []
+                return [line.split() for line in lines[:-1]]  # the last line may be half written
+            try:
+                switch.write_text(" ".join(f"{ref:X}" for ref in refs))
+                go()
+                ctx.wait_for("[vanilla] the stand-in traces the references", lambda: rows(), 60)
+                first = int(rows()[0][0])
+                ctx.wait_for(f"[vanilla] {seconds}s traced", lambda: int(rows()[-1][0]) - first >= seconds * 1e6, seconds + 10)
+            finally:
+                switch.unlink(missing_ok=True)
+            points = collections.defaultdict(list)
+            for us, ref, x, y, _ in rows():
+                if int(us) - first <= seconds * 1e6:
+                    points[int(ref, 16)].append((float(x), float(y)))
+        else:
+            from ..objects import AnimTrace
+            with AnimTrace(ctx, f"ref-steps-{instance or 'host'}", {instance: {ref: f"{ref:X}" for ref in refs}},
+                           video=False) as recorded:
+                go()
+                started = time.monotonic()
+                ctx.wait_for(f"{seconds}s traced", lambda: time.monotonic() - started >= seconds, seconds + 5)
+            points = collections.defaultdict(list)
+            for e in recorded.entries:
+                if e["kind"] == "pos" and e.get("game", instance) == instance:
+                    points[int(e["who"], 16)].append(tuple(e["pos"][:2]))
+        result = {}
+        for ref, places in points.items():
+            steps = [math.dist(a, b) for a, b in zip(places, places[1:])]
+            steps = [s for s in steps if s < 200.0]
+            result[f"{ref:08X}"] = {"travelled": round(sum(steps)), "frames": len(steps),
+                                    "moving_frames": sum(s > 0.05 for s in steps),
+                                    "jumps": sum(10.0 < s for s in steps),
+                                    "biggest": round(max(steps, default=0.0), 1)}
+        return result

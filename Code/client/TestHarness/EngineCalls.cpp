@@ -4,6 +4,8 @@
 #include <AI/AIProcess.h>
 #include <AI/Movement/Pathing.h>
 #include <Games/Memory.h>
+#include <Misc/InventoryEntry.h>
+#include <Misc/MiddleProcess.h>
 #include <Actor.h>
 #include <Forms/TESNPC.h>
 #include <Games/ActorPools.h>
@@ -1505,13 +1507,25 @@ KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) no
     if (const CrosshairPickData* pPick = CrosshairPickData::Get())
         if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetActorHandle))
             crosshairActor = pRef->formID;
-    const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, s_getAttackReach.Get()(pAttacker), nullptr);
+    using TGap = float(TESObjectREFR*, TESObjectREFR*, bool, TESObjectREFR*);
+    POINTER_SKYRIMSE(TGap, s_gap, 47273);
+    const float cReach = s_getAttackReach.Get()(pAttacker);
+    const AIProcess* pProcess = pAttacker->currentProcess;
+    const MiddleProcess* pMiddle = pProcess ? pProcess->middleProcess : nullptr;
+    const InventoryEntry* pRight = pMiddle ? pMiddle->rightEquippedObject : nullptr;
+    const uint32_t cRightEntry = pRight && pRight->pObject ? pRight->pObject->formID : 0;
+    const uint32_t cRightObject = pProcess && pProcess->equippedObject[1] ? pProcess->equippedObject[1]->formID : 0;
+    const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, cReach, nullptr);
     return {s_shouldAttackKill.Get()(pAttacker, pVictim),
             s_killable.Get()(pVictim, pAttacker),
             s_engagingInCombat.Get()(pAttacker),
             IsInKillMove(aAttackerFormId),
             crosshairActor,
-            pTarget ? pTarget->formID : 0};
+            pTarget ? pTarget->formID : 0,
+            cReach,
+            s_gap.Get()(pAttacker, pVictim, false, nullptr),
+            cRightEntry,
+            cRightObject};
 }
 
 std::vector<IdleCondition> CheckIdleConditions(uint32_t aIdleFormId, uint32_t aSubjectFormId,
@@ -2288,11 +2302,14 @@ uint8_t GetReplayPhase(uint32_t aFormId) noexcept
 
 std::optional<PoseVisibility> GetPoseVisibility(uint32_t aFormId) noexcept
 {
-    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
     if (!pActor)
         return std::nullopt;
-    // CommonLib BOOL_BITS::kWasInFrustum; HighActorCuller's low nibble is also used by Precision.
-    return PoseVisibility{(pActor->flags1 & (1u << 21)) != 0, pActor->cullingState & 0xFu, pActor->iLastSeenTime};
+    // The 3D's kNotVisible is what Actor::ModifyAnimationUpdateData (38054) tests. CommonLib BOOL_BITS::kWasInFrustum
+    // and HighActorCuller's low nibble (40335) are shown too.
+    const NiAVObject* p3D = pActor->GetNiNode();
+    return PoseVisibility{p3D && !(p3D->flags & NiAVObject::kNotVisible), (pActor->flags1 & (1u << 21)) != 0,
+                          pActor->cullingState & 0xFu, pActor->iLastSeenTime};
 }
 
 NpcTemplates ReadNpcTemplates(uint32_t aFormId) noexcept

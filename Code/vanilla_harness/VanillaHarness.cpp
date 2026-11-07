@@ -4,8 +4,9 @@
 //
 // It speaks the subset of the client's control files the harness falls back to without the
 // command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
-// up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), and status.json
-// (heartbeat_ms, pid, console_id, session.world_ready). Nothing else of ours is loaded.
+// up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), console_out.txt (the id, then what
+// the console printed for that line), and status.json (heartbeat_ms, pid, console_id, session.world_ready).
+// player_trace.on and ref_trace.on trace places each frame. Nothing else of ours is loaded.
 //
 // Engine addresses come from the selected runtime's Address Library.
 #include <windows.h>
@@ -15,11 +16,17 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <optional>
+#include <sstream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -31,8 +38,22 @@ constexpr uint32_t cFixedString = 69161;
 constexpr uint32_t cPlayerSingleton = 401069;
 constexpr uint32_t cAddMessage = 13631;
 constexpr uint32_t cMessageQueue = 400445;
-constexpr size_t cParentCell = 0x60;             // TESObjectREFR::parentCell (CommonLibSSE)
-constexpr size_t cAngle = 0x48, cLocation = 0x54; // TESObjectREFR::data.angle, .location (CommonLibSSE)
+constexpr uint32_t cConsoleVPrint = 51110; // ConsoleLog::VPrint
+constexpr uint32_t cCompileAndRun = 441582; // Script::CompileAndRun_Impl
+constexpr uint32_t cFormById = 14617;            // TESForm::LookupByID
+// The head of a TESObjectREFR (CommonLibSSE): what the traces read.
+struct Reference
+{
+    uint8_t pad0[0x1A];
+    uint8_t formType; // 1A: kReference 0x3D, kActor 0x3E
+    uint8_t pad1B[0x48 - 0x1B];
+    float angle[3];    // 48, data.angle
+    float location[3]; // 54, data.location
+    void* parentCell;  // 60
+};
+static_assert(offsetof(Reference, formType) == 0x1A && offsetof(Reference, angle) == 0x48 &&
+              offsetof(Reference, location) == 0x54 && offsetof(Reference, parentCell) == 0x60);
+constexpr uint8_t cReferenceType = 0x3D, cActorType = 0x3E;
 constexpr uint32_t cShow = 1, cHide = 3;         // UI_MESSAGE_TYPE
 
 struct BSFixedString
@@ -52,6 +73,7 @@ bool s_bootDone = false;
 std::string s_consoleId;
 std::chrono::steady_clock::time_point s_nextStatus{};
 bool s_tracing = false; // player_trace.on exists: the player's place each frame into player_trace.txt
+std::vector<uint32_t> s_refs; // ref_trace.on's form IDs (hex): their places each frame into ref_trace.txt
 
 // Frame times as the client's World::Update counts them (kStallMs 100), for `coop_test.py profile` against vanilla:
 // one bucket per ms below 1 s, per 100 ms below 30 s, the last for longer frames (profiling.py, histogram_percentiles).
@@ -64,6 +86,35 @@ uint64_t s_frameHistogram[cFrameBuckets]{};
 
 using TMainUpdate = short(void*);
 TMainUpdate* s_realMainUpdate = nullptr;
+
+// What the console prints for a line, for a while after it (results can print in later frames). Any thread prints.
+using TVPrint = void(void*, const char*, va_list);
+TVPrint* s_realVPrint = nullptr;
+constexpr auto cCaptureTime = std::chrono::seconds(2);
+std::mutex s_printLock;
+std::chrono::steady_clock::time_point s_captureUntil{};
+bool s_printedChanged = false;
+std::string s_printed;
+
+void HookVPrint(void* apThis, const char* apFormat, va_list aArguments)
+{
+    if (apFormat)
+    {
+        std::scoped_lock lock(s_printLock);
+        if (std::chrono::steady_clock::now() < s_captureUntil)
+        {
+            va_list copy;
+            va_copy(copy, aArguments);
+            char line[1024];
+            std::vsnprintf(line, sizeof(line), apFormat, copy);
+            va_end(copy);
+            s_printed += line;
+            s_printed += '\n';
+            s_printedChanged = true;
+        }
+    }
+    s_realVPrint(apThis, apFormat, aArguments);
+}
 
 void ExecuteCommand(const char* apLine)
 {
@@ -97,16 +148,50 @@ void SetMenuShown(const char* apMenu, bool aShown)
 
 bool InWorld()
 {
-    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
-    return pPlayer && *reinterpret_cast<void* const*>(pPlayer + cParentCell);
+    const auto* pPlayer = *At<const Reference**>(cPlayerSingleton);
+    return pPlayer && pPlayer->parentCell;
+}
+
+// "<form id>.<command>" runs on that reference, as the client's harness target (ConsoleOutput.cpp).
+using TCompileAndRun = void(void*, void*, uint32_t, void*);
+TCompileAndRun* s_realCompileAndRun = nullptr;
+void* s_pTarget = nullptr; // for the next compile only, cleared by the next line and after cTargetTime
+constexpr auto cTargetTime = std::chrono::seconds(1);
+std::chrono::steady_clock::time_point s_targetUntil{};
+
+void HookCompileAndRun(void* apScript, void* apCompiler, uint32_t aName, void* apTarget)
+{
+    // The queued line runs in a later frame (Console::RunQueuedCommands 442673).
+    void* pTarget = s_pTarget && std::chrono::steady_clock::now() < s_targetUntil ? s_pTarget : apTarget;
+    s_pTarget = nullptr;
+    s_realCompileAndRun(apScript, apCompiler, aName, pTarget);
 }
 
 void Run(const std::string& acLine)
 {
+    s_pTarget = nullptr; // a line that never compiled leaves no target behind
     if (acLine.rfind("@show ", 0) == 0 || acLine.rfind("@hide ", 0) == 0)
+    {
         SetMenuShown(acLine.c_str() + 6, acLine[1] == 's');
-    else
-        ExecuteCommand(acLine.c_str());
+        return;
+    }
+    const auto cDot = acLine.find('.');
+    if (cDot != std::string::npos && cDot > 0 && cDot <= 8 &&
+        acLine.find_first_not_of("0123456789abcdefABCDEF") == cDot)
+    {
+        const uint32_t cId = std::stoul(acLine.substr(0, cDot), nullptr, 16);
+        s_pTarget = At<void* (*)(uint32_t)>(cFormById)(cId);
+        s_targetUntil = std::chrono::steady_clock::now() + cTargetTime;
+        if (s_pTarget)
+            ExecuteCommand(acLine.c_str() + cDot + 1);
+        else
+        {
+            std::scoped_lock lock(s_printLock);
+            s_printed += "Reference not found (harness target): not run.\n";
+        }
+        return;
+    }
+    ExecuteCommand(acLine.c_str());
 }
 
 void WriteStatus()
@@ -130,21 +215,45 @@ void WriteStatus()
     }
     MoveFileExW(cTemporary.c_str(), (s_control / "status.json").c_str(), MOVEFILE_REPLACE_EXISTING);
     s_tracing = std::filesystem::exists(s_control / "player_trace.on");
+    s_refs.clear();
+    std::ifstream refs(s_control / "ref_trace.on");
+    for (std::string id; refs >> id;)
+        s_refs.push_back(static_cast<uint32_t>(std::stoul(id, nullptr, 16)));
 }
 
 // The player's place and heading this frame, wall-clock stamped (as the client's animation trace): what the
 // strafe scenarios compare a co-op player's movement against (S10).
 void TracePlayer()
 {
-    const auto* pPlayer = *At<const uint8_t**>(cPlayerSingleton);
+    const auto* pPlayer = *At<const Reference**>(cPlayerSingleton);
     if (!s_tracing || !pPlayer)
         return;
-    const auto* pAngle = reinterpret_cast<const float*>(pPlayer + cAngle);
-    const auto* pLocation = reinterpret_cast<const float*>(pPlayer + cLocation);
+    const float* pAngle = pPlayer->angle;
+    const float* pLocation = pPlayer->location;
     const auto cEpochUs =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     std::ofstream file(s_control / "player_trace.txt", std::ios::app);
     file << cEpochUs << ' ' << pLocation[0] << ' ' << pLocation[1] << ' ' << pLocation[2] << ' ' << pAngle[2] << '\n';
+}
+
+// Each ref_trace.on reference's place this frame: how an NPC moves without co-op (owners-move-without-walking).
+void TraceRefs()
+{
+    if (s_refs.empty())
+        return;
+    const auto cEpochUs =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    std::ostringstream lines;
+    for (const uint32_t cId : s_refs)
+    {
+        const auto* pRef = At<const Reference* (*)(uint32_t)>(cFormById)(cId); // a TESForm: checked below
+        if (!pRef || (pRef->formType != cReferenceType && pRef->formType != cActorType) || !pRef->parentCell)
+            continue;
+        const float* pLocation = pRef->location;
+        lines << cEpochUs << ' ' << std::hex << cId << std::dec << ' ' << pLocation[0] << ' ' << pLocation[1] << ' '
+              << pLocation[2] << '\n';
+    }
+    std::ofstream(s_control / "ref_trace.txt", std::ios::app) << lines.str();
 }
 
 void Poll()
@@ -172,12 +281,35 @@ void Poll()
             if (cSeparator != std::string::npos && line.compare(0, cSeparator, s_consoleId) != 0)
             {
                 s_consoleId = line.substr(0, cSeparator);
+                {
+                    std::scoped_lock lock(s_printLock);
+                    s_printed.clear();
+                    s_captureUntil = std::chrono::steady_clock::now() + cCaptureTime;
+                    s_printedChanged = true;
+                }
                 Run(line.substr(cSeparator + 1));
+                s_nextStatus = {};
             }
         }
     }
+    std::optional<std::string> printed;
+    {
+        std::scoped_lock lock(s_printLock);
+        if (std::exchange(s_printedChanged, false))
+            printed = s_printed;
+    }
+    if (printed)
+    {
+        const auto cTemporary = s_control / "console_out.txt.tmp";
+        {
+            std::ofstream out(cTemporary, std::ios::trunc);
+            out << s_consoleId << '\n' << *printed;
+        }
+        MoveFileExW(cTemporary.c_str(), (s_control / "console_out.txt").c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
     WriteStatus();
     TracePlayer();
+    TraceRefs();
 }
 
 void CountFrame()
@@ -233,7 +365,7 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
     const auto game = std::filesystem::path(path).parent_path().parent_path().parent_path().parent_path();
     if (!VersionDb::Get().Load(game, std::string(SkyrimRuntime::Name)))
         return false;
-    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue})
+    for (uint32_t id : {cMainUpdate, cExecuteCommand, cUISingleton, cIsMenuOpen, cFixedString, cPlayerSingleton, cAddMessage, cMessageQueue, cConsoleVPrint, cCompileAndRun, cFormById})
         if (!VersionDb::Get().FindAddressById(id)) return false;
     const char* pInstance = std::getenv("SKYRIMCOOP_INSTANCE");
     s_control = std::filesystem::path(path).parent_path() /
@@ -246,7 +378,13 @@ extern "C" __declspec(dllexport) bool SKSEPlugin_Load(const void*)
     void* pTarget = At<void*>(cMainUpdate);
     if (MH_CreateHook(pTarget, reinterpret_cast<void*>(&HookMainUpdate), reinterpret_cast<void**>(&s_realMainUpdate)) != MH_OK)
         return false;
-    return MH_EnableHook(pTarget) == MH_OK;
+    void* pPrint = At<void*>(cConsoleVPrint);
+    if (MH_CreateHook(pPrint, reinterpret_cast<void*>(&HookVPrint), reinterpret_cast<void**>(&s_realVPrint)) != MH_OK)
+        return false;
+    void* pCompile = At<void*>(cCompileAndRun);
+    if (MH_CreateHook(pCompile, reinterpret_cast<void*>(&HookCompileAndRun), reinterpret_cast<void**>(&s_realCompileAndRun)) != MH_OK)
+        return false;
+    return MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
 }
 
 BOOL WINAPI DllMain(HINSTANCE aInstance, DWORD aReason, LPVOID)

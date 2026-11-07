@@ -1,0 +1,95 @@
+time	op	id	rva	item
+2026-11-05T21:41:48Z	read	37361	0x67d590	{"name": "Actor::UpdateAnimation"}
+2026-11-05T21:42:25Z	read	41466	0x78a2d0	{"name": "ProcessLists::CollectAnimatedHighActors"}
+2026-11-05T21:42:29Z	read	41370	0x7836e0	{"name": "ProcessLists::QueueHighActorAnimation"}
+2026-11-05T21:43:23Z	read	37347	0x679d50	{"name": ""}
+2026-11-05T21:48:28Z	read	37285	0x675d00	{"name": "Actor::TryChangeSkyCellActorsProcessLevel"}
+2026-11-05T21:48:29Z	read	37288	0x676110	{"name": "Actor::DoMoveToHigh"}
+2026-11-05T21:48:43Z	read	19280	0x2d1fe0	{"name": "sub_1402D1FE0"}
+2026-11-05T21:55:29Z	read	92556	0x122a620	{"name": "MovementAgentPathFollowerVirtual::sub_92556"}
+2026-11-05T22:01:57Z	read	92536	0x1229ed0	{"name": "sub_141229ED0"}
+2026-11-05T22:02:05Z	read	41863	0x7a0490	{"name": "sub_1407A0490"}
+2026-11-05T22:02:05Z	read	41849	0x79beb0	{"name": "sub_14079BEB0"}
+2026-11-05T22:02:12Z	name	92536	0x1229ed0	{"addr": "0x141229ED0", "name": "MovementAgentPathFollowerVirtual::GetName"}
+2026-11-05T22:02:12Z	name	41863	0x7a0490	{"addr": "0x1407A0490", "name": "MovementAgentSets::InitVirtualAndStandardSets_41863"}
+2026-11-05T22:02:12Z	name	41849	0x79beb0	{"addr": "0x14079BEB0", "name": "MovementAgentSets::InitVirtualAndStandardSetsB"}
+2026-11-05T22:02:12Z	name	19280	0x2d1fe0	{"addr": "0x1402D1FE0", "name": "TESObjectCELL::MoveRefToHighFunctor_19280"}
+2026-11-05T22:02:16Z	comment	92536	0x1229ed0	{"addr": "0x141229ED0", "comment": "The fixed string \"Virtual Path Follower\": the movement agent factory key of MovementAgentPathFollowerVirtual (92556 moves the actor along its path by speed*dt and sends a movement message: a position write, no animation)."}
+2026-11-05T22:02:16Z	comment	41863	0x7a0490	{"addr": "0x1407A0490", "comment": "Our name. Registers two agent lists: the standard path agents (1411D34E0, 141224A00) and, separately at +0x110, the Virtual Path Follower (141229ED0). Not on the slide path beyond showing the two sets exist."}
+2026-11-05T22:02:16Z	comment	41849	0x79beb0	{"addr": "0x14079BEB0", "comment": "Our name. Like 41863: standard agents and the Virtual Path Follower in a second list (+0x50)."}
+2026-11-05T22:02:16Z	comment	19280	0x2d1fe0	{"addr": "0x1402D1FE0", "comment": "Our name. Per reference of a cell: actors not disabled/deleted get vfunc 0x91 (Actor::DoMoveToHigh 37288) and a queue entry (140195C90); filters on base form globals 1431DF240/250/258 by mode. Read while looking for what raises an NPC to high process; inferred: a cell attach's functor."}
+2026-11-05T22:04:26Z	read	10063	0xf45e0	{"name": "sub_1400F45E0"}
+2026-11-05T22:04:34Z	read		0x796726	{"name": "IMovementMotionDrivenControl::Func4_41703"}
+2026-11-05T22:04:35Z	read		0x798826	{"name": "MovementControllerNPC::sub_41748"}
+2026-11-05T22:04:40Z	read		0x79650c	{"name": "IMovementMotionDrivenControl::Func2_41702"}
+2026-11-05T22:07:26Z	read	41701	0x796460	{"name": "IMovementMotionDrivenControl::Func1_41701"}
+2026-11-05T22:07:26Z	read	41704	0x796760	{"name": "IMovementMotionDrivenControl::Func3_41704"}
+2026-11-05T22:07:27Z	read	41705	0x7967d0	{"name": "IMovementMotionDrivenControl::Func5_41705"}
+2026-11-05T22:07:52Z	read	42874	0x7ce770	{"name": "MotionDrivenHandler::Handle"}
+2026-11-05T22:07:52Z	read	42875	0x7ce7e0	{"name": "AnimationDrivenHandler::Handle"}
+2026-11-05T22:08:02Z	read		0x801700	{"name": "sub_140801650"}
+2026-11-05T22:08:07Z	read	43562	0x7d7720	{"name": "Character::sub_43562"}
+2026-11-05T22:08:20Z	read		0x687ad3	{"name": "Actor::IsMovementAnimationDriven"}
+2026-11-05T22:08:20Z	read		0x37b2a9	{"name": "ConsoleFunc::handler::ToggleMotionDriven"}
+2026-11-05T22:08:26Z	read	41706	0x7968b0	{"name": "IMovementMotionDrivenControl::Func6_41706"}
+2026-11-05T22:08:27Z	read	41707	0x7968e0	{"name": "IMovementMotionDrivenControl::Func7_41707"}
+2026-11-05T22:08:39Z	read		0x6a4fa5	{"name": "Character::sub_37788"}
+2026-11-05T22:08:39Z	read	41693	0x795120	{"name": "MovementControllerNPC::Func6_41693"}
+2026-11-05T22:10:25Z	read	41716	0x7972f0	{"name": "MovementControllerNPC::Func19_41716"}
+2026-11-05T22:10:36Z	read	41847	0x79b960	{"name": "sub_14079B960"}
+2026-11-05T22:10:46Z	name	41847	0x79b960	{"addr": "0x14079B960", "name": "MovementAgentSets::InitLoadedSet_41847"}
+2026-11-05T22:10:46Z	name	10063	0xf45e0	{"addr": "0x1400F45E0", "name": "MovementAgentPathFollowerVirtual::RegisterFactory"}
+2026-11-05T22:10:46Z	name	41702	0x7964d0	{"addr": "0x1407964d0", "name": "IMovementMotionDrivenControl::SwitchToUnloadedSet_41702"}
+2026-11-05T22:10:46Z	name	41701	0x796460	{"addr": "0x140796460", "name": "IMovementMotionDrivenControl::SwitchToLoadedSet_41701"}
+2026-11-05T22:10:46Z	name	41704	0x796760	{"addr": "0x140796760", "name": "IMovementMotionDrivenControl::StartAnimationDriven_41704"}
+2026-11-05T22:10:46Z	name	41703	0x796550	{"addr": "0x140796550", "name": "IMovementMotionDrivenControl::StartMotionDriven_41703"}
+2026-11-05T22:10:46Z	name	41706	0x7968b0	{"addr": "0x1407968b0", "name": "IMovementMotionDrivenControl::IsMotionDriven_41706"}
+2026-11-05T22:10:46Z	name	41707	0x7968e0	{"addr": "0x1407968e0", "name": "IMovementMotionDrivenControl::IsAnimationDriven_41707"}
+2026-11-05T22:10:46Z	name	41716	0x7972f0	{"addr": "0x1407972f0", "name": "MovementControllerNPC::LoadGame_41716"}
+2026-11-05T22:10:54Z	comment	41701	0x796460	{"addr": "0x140796460", "comment": "Our name (Bethesda's functor: SwitchToLoadedSetControllerFunctor 36520). Slot 1 of the controller's IMovementMotionDrivenControl (+0x128): picks the loaded (standard) agent set and sets +0x1C8=1, +0x1C9=1."}
+2026-11-05T22:10:54Z	comment	41702	0x7964d0	{"addr": "0x1407964d0", "comment": "Our name. Slot 2: picks the unloaded agent set (1432423B0, with the Virtual Path Follower) and sets +0x1C8=1, +0x1C9=0. Called only by LoadGame 41716 for a saved state 10/11 (scan of lea rcx,[reg+128h] calls)."}
+2026-11-05T22:10:54Z	comment	41704	0x796760	{"addr": "0x140796760", "comment": "Our name. Slot 3: start animation-driven (the graph's root motion moves the actor) when +0x1C9 (loaded agents). Called by AnimationDrivenHandler 42875 (the graph event) and ToggleMotionDriven."}
+2026-11-05T22:10:54Z	comment	41703	0x796550	{"addr": "0x140796550", "comment": "Our name. Slot 4: start motion-driven. With the loaded set (+0x1C9) picks a standard motion agent (states 3/7/8, 5/4/9); without, the Virtual Path Follower (state 10, or 11) which writes the position along the path with no animation. Called by MotionDrivenHandler 42874 and ToggleMotionDriven."}
+2026-11-05T22:10:54Z	comment	41706	0x7968b0	{"addr": "0x1407968b0", "comment": "Our name. Slot 6, IsMotionDriven: movement state (+0x1C0) in {1,2,3,7,8,10,11,12,13,14}. Actor::IsMovementAnimationDriven 37486 is its negation."}
+2026-11-05T22:10:54Z	comment	41707	0x7968e0	{"addr": "0x1407968e0", "comment": "Our name. Slot 7: movement state in {0,4,5,9} (animation-driven states)."}
+2026-11-05T22:10:54Z	comment	41716	0x7972f0	{"addr": "0x1407972f0", "comment": "Our name. The controller's load from a save/change form: reads its movement state (+0x1C0) and flags +0x1C4..+0x1CA, then re-enters it: states 0-6/12-14 SwitchToLoadedSet first, 10/11 SwitchToUnloadedSet (the Virtual Path Follower), then the state's start function."}
+2026-11-05T22:11:09Z	read	37621	0x694850	{"name": "Actor::MoveToHigh"}
+2026-11-05T22:11:19Z	read		0x6a52b8	{"name": "Actor::CreateMovementController"}
+2026-11-05T22:11:45Z	comment		0x694f4a	{"addr": "0x140694f4a", "comment": "Movement controller to the loaded agent set (SwitchToLoadedSet 41701), then StartMotionDriven 41703: a high actor never keeps the Virtual Path Follower from here. MoveToLow/MoveToMiddleLow/37624 do the reverse (slot 2, SwitchToUnloadedSet)."}
+2026-11-05T22:11:45Z	comment	37793	0x6a51c0	{"addr": "0x1406a51c0", "comment": "Creates the actor's MovementControllerNPC (Actor+0x150) and picks its agent set by process level: high -> SwitchToLoadedSet 41701, otherwise SwitchToUnloadedSet 41702 (Virtual Path Follower); then StartMotionDriven 41703."}
+2026-11-05T22:16:45Z	name	37624	0x696060	{"addr": "0x140696060", "name": "Actor::MoveToMiddleHigh"}
+2026-11-05T22:16:47Z	comment	37624	0x696060	{"addr": "0x140696060", "comment": "CommonLib vfunc 0xF4 MoveToMiddleHigh (slot order MoveToHigh 0xF1 37621, MovetoLow 0xF2, MovetoMiddleLow 0xF3). Switches the movement controller to the unloaded set (SwitchToUnloadedSet 41702, the Virtual Path Follower) and StartMotionDriven 41703: a middle-high actor is moved by position writes and gets no graph update (only high actors are in the animation job, 41466)."}
+2026-11-05T22:18:58Z	read		0x688b27	{"name": "Character::sub_37501"}
+2026-11-05T22:18:59Z	read		0x2d7437	{"name": "TESObjectCELL::sub_19411"}
+2026-11-05T22:19:07Z	read	37503	0x688e40	{"name": "Character::sub_37503"}
+2026-11-05T22:19:16Z	name	37503	0x688e40	{"addr": "0x140688e40", "name": "Character::GetDesiredProcessLevel_37503"}
+2026-11-05T22:19:16Z	name		0x688750	{"addr": "0x140688750", "name": "Character::UpdateProcessLevel_37501"}
+2026-11-05T22:19:19Z	comment	37503	0x688e40	{"addr": "0x140688e40", "comment": "Our name. The process level an actor should have: sleeping player or a player's teammate in some states keep the current one; else with 3D (or loading): in a sky cell with 37284 -> 2; its cell attached (TES::IsCellLoaded(cell, true)) -> 0 high; loaded but not attached -> 1 middle-high; else 2 or 3."}
+2026-11-05T22:19:19Z	comment		0x688750	{"addr": "0x140688750", "comment": "Our name. Moves the actor to GetDesiredProcessLevel 37503's level: 0 vfunc 0xF1 MoveToHigh, 1 0xF4 MoveToMiddleHigh, 2 0xF3, 3 0xF2; fades out/disables or stores changes on unload for low levels."}
+2026-11-05T22:31:53Z	read	40335	0x73c5c0	{"name": "HighActorCuller::Func1_40335"}
+2026-11-05T22:32:14Z	read	37387	0x67f1d0	{"name": "sub_14067F1D0"}
+2026-11-05T22:32:15Z	read		0x684cfe	{"name": "Character::sub_37434"}
+2026-11-05T22:32:16Z	read	39639	0x707c70	{"name": "sub_140707C70"}
+2026-11-05T22:32:46Z	read		0x6b4ea0	{"name": "Character::ShouldRotateToTrack"}
+2026-11-05T22:32:49Z	read	38054	0x6b6300	{"name": "Actor::ModifyAnimationUpdateData"}
+2026-11-05T22:33:19Z	name	40335	0x73c5c0	{"addr": "0x14073c5c0", "name": "HighActorCuller::CullActor_40335"}
+2026-11-05T22:33:25Z	comment	40335	0x73c5c0	{"addr": "0x14073c5c0", "comment": "Our name (Precision/activeragdoll hook it as CullActors, vtable slot 1). Per high actor each frame, writes the low nibble of Actor+0x27C: 2 = has a fade node, 4 = faded in (+0x130 >= 1e-5), 1 = culling tested; a failed frustum/occlusion test (141514CE0) clears 2 and sets the 3D's flag 0x100000. So 7 = drawn, 5 = faded in but culled, 2 = not faded in (not tested). Actor::ModifyAnimationUpdateData 38054 reads the 3D flag: a culled actor's graph is not posed (its bones keep the last pose while it moves)."}
+2026-11-05T22:33:25Z	comment	38054	0x6b6300	{"addr": "0x1406b6300", "comment": "From 1.6.1170 (instruction offsets require review): Fills BSAnimationUpdateData for the actor's graph update: +0x2C visible (3D not culled, or seen within N frames), +0x2A force (already set, boolFlags kForceOneAnimgraphUpdate 0x20000 (cleared here) or kForceAnimGraphUpdate 0x20000000, or a keyword/state). Off-screen actors without force get throttled graph updates. SkyrimCoop sets kForceAnimGraphUpdate on copies (AnimationSystem). 1.7.104: 'visible' is the 3D's flag 0x100000 clear, the flag HighActorCuller::CullActor 40335 sets on a failed culling test (measured 2026-11-05: an NPC in cull state 5 moves with its foot bones still)."}
+2026-11-05T22:33:25Z	comment		0x6b423f	{"addr": "0x1406b423f", "comment": "kWasInFrustum (Actor+0xE8 bit 21) is written only here: set, then cleared unless the cull nibble (+0x27C & 7) is 7. ProcessTracking is gated (Actor::UpdateAnimation 37361), so for an actor it skips the bit is stale; the nibble is the current frame's truth."}
+2026-11-05T22:33:31Z	comment	37387	0x67f1d0	{"addr": "0x14067F1D0", "comment": "Not on the slide path: reads the cull nibble (== 7, drawn) before computing a bone-relative offset. Read while listing readers of Actor+0x27C."}
+2026-11-05T22:33:31Z	comment	39639	0x707c70	{"addr": "0x140707C70", "comment": "Not on the slide path: a package/AI routine that skips actors whose cull nibble is 7 (drawn). Read while listing readers of Actor+0x27C."}
+2026-11-05T22:33:31Z	comment	44210	0x801650	{"addr": "0x140801650", "comment": "Not on the slide path: normalises a direction vector (opened by a wrong address while looking for Character::sub_43562)."}
+2026-11-05T22:52:51Z	read	106433	0x1514ce0	{"name": "sub_141514CE0"}
+2026-11-05T22:53:03Z	read	37624	0x696060	{"name": "Actor::MoveToMiddleHigh"}
+2026-11-05T22:53:04Z	read	38009	0x6b3f20	{"name": "Actor::ProcessTracking"}
+2026-11-05T22:53:08Z	name	106433	0x1514ce0	{"addr": "0x141514ce0", "name": "BSCullingProcess::IsNotOccluded_106433"}
+2026-11-05T22:53:08Z	name	92556	0x122a620	{"addr": "0x14122a620", "name": "MovementAgentPathFollowerVirtual::Advance_92556"}
+2026-11-05T22:53:12Z	comment	106433	0x1514ce0	{"addr": "0x141514ce0", "comment": "Our name (read 2026-11-05). The occlusion test HighActorCuller::CullActor 40335 runs on a faded-in actor: walks BSShaderManager's occluder list (+0x228 ->+0x10), tests each BSOcclusionPlane (76433/76438, portal 76429) or BSOcclusionBox (76410/76408) and returns 0 when one hides the bound. 0 -> the actor's 3D gets kNotVisible."}
+2026-11-05T22:53:12Z	comment	92556	0x122a620	{"addr": "0x14122a620", "comment": "Our name (read 2026-11-05). The Virtual Path Follower's step: distance = speed (ActorState 90926) x dt, walked along the path's points, then a movement message (sIMovementMessageInterface) puts the actor at the reached point: a position write with no animation. Used in movement states 10/11 (StartMotionDriven 41703 on the unloaded set)."}
+2026-11-05T22:53:12Z	comment	41702	0x7964d0	{"addr": "0x1407964d0", "comment": "Our name. Slot 2: picks the unloaded agent set (1432423B0, with the Virtual Path Follower) and sets +0x1C8=1, +0x1C9=0. Callers: Actor::CreateMovementController 37793 (below high), MoveToMiddleHigh 37624, MoveToMiddleLow 37623, MoveToLow 37622, 37624's siblings, and MovementControllerNPC::LoadGame 41716 for a saved state 10/11."}
+2026-11-05T22:53:19Z	comment	41702	0x7964d0	{"addr": "0x1407964d0", "comment": "Our name. Slot 2: picks the unloaded agent set (1432423B0, with the Virtual Path Follower) and sets +0x1C8=1, +0x1C9=0. Callers (read 2026-11-05): Actor::CreateMovementController 37793 (below high), MoveToMiddleHigh 37624, MoveToMiddleLow 37623, MoveToLow 37622, and MovementControllerNPC::LoadGame 41716 for a saved state 10/11."}
+2026-11-05T22:53:19Z	comment	37622	0x6951a0	{"addr": "0x1406951a0", "comment": "CommonLib vfunc 0xF2 MovetoLow (37622). Like MoveToMiddleHigh 37624: the movement controller to the unloaded set (SwitchToUnloadedSet 41702) and StartMotionDriven 41703."}
+2026-11-05T22:53:31Z	read	37623	0x6959f0	{"name": "Actor::MoveToMiddleLow"}
+2026-11-05T22:53:31Z	read	37622	0x6951a0	{"name": "Actor::MoveToLow"}
+2026-11-05T22:53:35Z	comment		0x695f7c	{"addr": "0x140695f7c", "comment": "Movement controller to the unloaded set (SwitchToUnloadedSet 41702), then StartMotionDriven 41703 (read 2026-11-05)."}
+2026-11-05T22:53:52Z	comment	40335	0x73c5c0	{"addr": "0x14073c5c0", "comment": "Our name (Precision/activeragdoll hook it as CullActors, vtable slot 1). Per high actor each frame, writes the low nibble of Actor+0x27C: 2 = has a fade node, 4 = faded in (+0x130 >= 1e-5), 1 = culling tested; when BSCullingProcess::IsNotOccluded 106433 finds an occluder hiding the bound it clears 2 and sets the 3D's kNotVisible (1<<20). So 7 = drawn, 5 = faded in but occluded, 2 = not tested. Actor::ModifyAnimationUpdateData 38054 reads the 3D flag: an occluded actor's graph is not posed (its bones keep the last pose while it moves)."}
