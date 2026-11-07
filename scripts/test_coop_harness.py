@@ -228,6 +228,24 @@ class Harness(unittest.TestCase):
             self.session.prepare_prefix()
             self.session.enable_bundled_start.assert_called_once_with(_game=game)
 
+    def test_fresh_prefix_has_seen_the_anniversary_prompt(self):
+        """The main menu queues the AE freebies box while bFreebiesSeen:General is 0; `coc` then takes the empty,
+        unanswerable box into the world (docs/re/systems/message-boxes.md)."""
+        with tempfile.TemporaryDirectory() as directory:
+            install = Path(directory) / "game"
+            install.mkdir()
+            for name in ("Skyrim_Default.ini", "Low.ini"):
+                (install / name).write_text("[General]\n")
+            game = Game("", install=install, prefix=Path(directory) / "prefix", display=":99")
+            if WINDOWS:
+                game.my_games = Path(directory) / "My Games"
+            game.my_games.mkdir(parents=True)
+            self.session.host = game
+            self.session.games = (game, self.session.guest)
+            self.session.prepare_prefix(bundled_start=False)
+            prefs = (game.my_games / "SkyrimPrefs.ini").read_text()
+            self.assertIn("bFreebiesSeen=1", prefs[prefs.index("[General]"):])
+
     def test_status_rejects_stale_files_and_uses_each_games_control_path(self):
         with tempfile.TemporaryDirectory() as directory:
             self.session.host.control = Path(directory)
