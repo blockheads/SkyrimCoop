@@ -332,7 +332,10 @@ class PlayerVerbs:
             request["toward"] = ctx.resolve(toward, game)
         if at is not None:
             request["at"] = list(at)
-        ticket = ctx.game(instance).rpc(request)["ticket"]
+        started = ctx.game(instance).rpc(request) or {}  # None: the game did not answer
+        if not started.get("ok"):
+            raise ctx.failure(f"[{game}] the terrain scan did not start: {started.get('error') or 'no answer'}")
+        ticket = started["ticket"]
         scan = {}
         def done():
             scan.update(ctx.game(instance).rpc({"cmd": "terrain_result", "ticket": ticket}) or {})
@@ -778,13 +781,13 @@ class PlayerVerbs:
         reachable, unreachable = [], []
         for host_id, flat in ctx.hostiles(radius, instance):
             match = next((a for a in shared if a["host"] == host_id), None)
-            if instance and not match:  # the guest probes its copy; far ones have none yet
-                unreachable.append(({"host": host_id, "name": f"{host_id:X}"}, "no copy in the guest's game yet"))
-                continue
-            match = match or {"host": host_id, "name": f"{host_id:X}"}  # far off: a copy comes once the party is near
             if host_id in given_up:
-                unreachable.append((match, "its fight could not reach it"))
+                unreachable.append((match or {"host": host_id, "name": f"{host_id:X}"}, "its fight could not reach it"))
                 continue
+            if instance and not match:  # no copy yet (far off): clear walks near for it, after the probed ones
+                reachable.append((math.inf, {"host": host_id, "name": f"{host_id:X}"}))
+                continue
+            match = match or {"host": host_id, "name": f"{host_id:X}"}
             probe = ctx.path_probe(instance, match["guest"] if instance else host_id)
             if walkable(probe):
                 reachable.append((probe.get("path_length") or probe.get("way_length") or flat, match))

@@ -7,6 +7,7 @@
 #include <Forms/TESForm.h>
 #include <World.h>
 
+#include <algorithm>
 #include <cmath>
 #include <set>
 
@@ -23,6 +24,15 @@ int Round(float aValue) noexcept
     return static_cast<int>(std::lround(aValue));
 }
 
+constexpr uint32_t cMaxMisses = 3; // frames a column's first rays fail before it is left empty (no world, too many skips)
+
+// A number field, or the default when absent or not a number (Start is noexcept: no throwing get).
+float Number(const nlohmann::json& acRequest, const char* acpKey, float aDefault) noexcept
+{
+    const auto it = acRequest.find(acpKey);
+    return it != acRequest.end() && it->is_number() ? it->get<float>() : aDefault;
+}
+
 // Actors move: the ground is what stays (a copy beside the player is not a ceiling).
 bool IsActor(uint32_t aReference) noexcept
 {
@@ -32,20 +42,24 @@ bool IsActor(uint32_t aReference) noexcept
 
 uint32_t TerrainScan::Start(const nlohmann::json& acRequest) noexcept
 {
-    if (acRequest.contains("at"))
-        m_at = acRequest["at"].get<std::array<float, 3>>();
+    const auto cAt = acRequest.find("at");
+    if (cAt != acRequest.end() && cAt->is_array() && cAt->size() == 3 &&
+        std::all_of(cAt->begin(), cAt->end(), [](const nlohmann::json& acValue) { return acValue.is_number(); }))
+        m_at = {(*cAt)[0].get<float>(), (*cAt)[1].get<float>(), (*cAt)[2].get<float>()};
     else
         World::Get().GetActorBridge().GetActorPosition(0x14, m_at[0], m_at[1], m_at[2]);
-    const float cRadius = std::clamp(acRequest.value("radius", 1000.f), 100.f, 4000.f);
-    m_cell = std::clamp(acRequest.value("cell", 50.f), 10.f, 500.f);
-    m_up = acRequest.value("up", 600.f);
-    m_down = acRequest.value("down", 1500.f);
-    m_toward = acRequest.value("toward", 0u);
+    const float cRadius = std::clamp(Number(acRequest, "radius", 1000.f), 100.f, 4000.f);
+    m_cell = std::clamp(Number(acRequest, "cell", 50.f), 10.f, 500.f);
+    m_up = Number(acRequest, "up", 600.f);
+    m_down = Number(acRequest, "down", 1500.f);
+    const auto cToward = acRequest.find("toward");
+    m_toward = cToward != acRequest.end() && cToward->is_number_unsigned() ? cToward->get<uint32_t>() : 0u;
     m_cols = m_rows = 2 * static_cast<int>(std::ceil(cRadius / m_cell)) + 1;
     m_west = m_at[0] - m_cols * m_cell / 2.f;
     m_north = m_at[1] + m_rows * m_cell / 2.f;
     m_columns.assign(static_cast<size_t>(m_cols) * m_rows, {});
     m_next = 0;
+    m_misses = 0;
     m_frames = 0;
     m_running = true;
     m_result = nullptr;
@@ -106,7 +120,12 @@ void TerrainScan::Poll() noexcept
     for (size_t done = 0; done < cMaxColumnsAFrame && m_next < m_columns.size(); ++done)
     {
         if (!ScanColumn(m_next))
-            return; // this frame's rays are spent
+        {
+            if (done > 0 || ++m_misses < cMaxMisses)
+                return; // this frame's rays are spent
+            m_columns[m_next].clear(); // fails on fresh frames too: not the budget
+        }
+        m_misses = 0;
         ++m_next;
     }
     if (m_next < m_columns.size())

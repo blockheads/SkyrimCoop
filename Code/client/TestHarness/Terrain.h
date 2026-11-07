@@ -39,6 +39,7 @@ private:
     int m_cols = 0, m_rows = 0;
     uint32_t m_toward = 0;
     size_t m_next = 0;
+    uint32_t m_misses = 0; // fresh frames the current column failed on
     uint32_t m_frames = 0;
     std::vector<std::vector<Hit>> m_columns;
     nlohmann::json m_result;

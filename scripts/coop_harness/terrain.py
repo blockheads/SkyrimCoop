@@ -5,6 +5,7 @@ standable ones) and the navmesh drawn into the same grid. Here: which floors the
 stands (a flood from its cell, a step allowed when no steeper than its controller's max slope), and two text views,
 top-down and a side profile toward a target. Pure functions: the scan is plain JSON.
 """
+import collections
 import math
 
 DEFAULT_SLOPE = 50.0      # degrees, when the controller is not a proxy one (scan capsule max_slope 0)
@@ -54,9 +55,9 @@ def walk(scan, parents=None):
         return reached, blocked
     floors = standable(scan, *start, 0) or [scan["player"][2]]  # where it stands, whatever is overhead
     reached[start] = min(floors, key=lambda z: abs(z - scan["player"][2]))
-    queue = [start]
+    queue = collections.deque([start])
     while queue:
-        row, col = queue.pop(0)
+        row, col = queue.popleft()
         here = reached[(row, col)]
         for near in ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)):
             if not (0 <= near[0] < scan["rows"] and 0 <= near[1] < scan["cols"]) or near in reached:

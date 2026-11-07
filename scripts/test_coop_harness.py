@@ -774,6 +774,17 @@ class GoalVerbs(unittest.TestCase):
         self.assertEqual([m["name"] for m in reachable], ["short way", "far way"])
         self.assertEqual([m["name"] for m, _ in cut_off], ["below"])
 
+    def test_a_guest_keeps_a_far_hostile_with_no_copy_yet_to_walk_near_last(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xB6FE4, 3000), (0xB6CE1, 600)]
+        ctx.nearby_shared.return_value = [{"host": 0xB6CE1, "guest": 0xB6CE1, "name": "lookout"}]
+        ctx.path_probe.return_value = {"built": True, "path_length": 650}
+        reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "client", 4000.0)
+        self.assertEqual([m["name"] for m in reachable], ["lookout", "B6FE4"])
+        self.assertNotIn("guest", reachable[1])  # clear walks near, then finds its copy
+        self.assertEqual(cut_off, [])
+
     def test_clear_turns_to_the_next_hostile_when_one_walks_behind_a_cut_mid_fight(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = self.verb_ctx()
