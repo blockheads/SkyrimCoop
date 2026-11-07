@@ -220,7 +220,7 @@ changes to a created container go as its whole contents (a guest rolls no world 
 `HostAuthorityTests` for the three call sites; GameTests flow "A chest the host's script places reaches a guest with what it
 rolled" (the fake learned created containers); scenario `created-chest-reaches-guest-empty` left to the next combined run.
 
-2026-11-07: the follower that stops following is still not reproduced on 1.7.104 (a party reload, a guest's death and
+2026-11-07: the follower that stops following is marked not reproducible on 1.7.104 (a party reload, a guest's death and
 respawn, a follower left behind then moved in, a load door, a wolf fight), and no fix is made. Read in IDA instead
 (`re/systems/followers.md`): the follow procedure ends on a dying, dead, deleted or other-interior target, its load drops
 a temporary target, and the package pick never restarts an unchanged package, so only our target-map restart brings it

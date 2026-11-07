@@ -82,7 +82,7 @@ other section needs the duo.
 **Party travel**
 
 - [The AI/quest lock pair](#the-aiquest-lock-pair): small
-- [A follower stops following](#a-follower-stops-following): medium
+- [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
 - [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
 - [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
 
@@ -709,13 +709,10 @@ Size: small. Needs: duo.
 
 ### A follower stops following
 
-Stands alone: not reproduced on 1.7.104.
-
-Agent task: the engine paths that leave the follow procedure with no target are read (followers.md, 2026-11-07); find
-which one co-op reaches. Untried: a respawned copy at the moment the follow package starts again after a fight while
-the follower still counts as in combat (the restart skipped, no later package change).
-
-Size: medium. Needs: duo, IDA.
+**Not reproducible on 1.7.104** (marked 2026-11-07 after three tries, below): not worked on unless it shows again in
+play. The entry stays for its engine reading ([followers.md](re/systems/followers.md)). If it returns, the untried
+ordering is a respawned copy at the moment the follow package starts again after a fight while the follower still
+counts as in combat (the restart skipped, no later package change).
 
 - **A guest's follower can stop following after being teleported and a fight** (2026-10-29, v1-gate, `save-load-gate`).
   After the harness took the party to the inn and home with `coc` and put Lydia beside it with `move_actor` (she
