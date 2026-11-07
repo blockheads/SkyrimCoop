@@ -549,7 +549,12 @@ uint32_t FakeEngine::GetActorRaceFormId(uint32_t aFormId) const noexcept
 uint32_t FakeEngine::GetActorParentCellFormId(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
-    return it != Actors.end() ? it->second.Cell : 0;
+    if (it == Actors.end())
+        return 0;
+    // A persistent reference outdoors out of the loaded cells has none (Olava, Skulvar: Skyrim 2026-11-06).
+    if (it->second.Persistent && it->second.WorldSpace && !Attached.contains(it->second.Cell))
+        return 0;
+    return it->second.Cell;
 }
 
 uint32_t FakeEngine::GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept
@@ -1110,6 +1115,14 @@ void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
     }
 }
 
+void FakeEngine::MarkForDelete(uint32_t aFormId)
+{
+    Actor& actor = Actors.at(aFormId);
+    actor.Deleted = true;
+    actor.NoProcess = true;
+    actor.Loaded = false;
+}
+
 // A copy: a new temporary actor of that NPC, where this game's player is (as PlaceAtMe from the player).
 uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 {
@@ -1213,6 +1226,11 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (aFormId != kPlayer && it->second.Created && !it->second.Persistent && !Attached.contains(it->second.Cell))
     {
         DeleteActor(aFormId);
+        return;
+    }
+    if (it->second.Collectable && !it->second.Persistent && !Attached.contains(it->second.Cell))
+    {
+        Actors.erase(it);
         return;
     }
     if (aFormId == kPlayer)

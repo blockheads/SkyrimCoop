@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-06: a copy with no owner goes ([copy-lifecycle.md](re/systems/copy-lifecycle.md)). A persistent NPC sent out of the
+loaded cells says where it went (Olava); a guest hides a held reference with 3D in its area (`GuestCopies`), and drops one
+its engine collected (the placed guard; `leveled-placed-npc-is-hosts` passes). A placed speaker marked deleted no longer
+crashes either game (`HookUpdateInDialogue` 37541). Sigurd's registration stays open, not reproduced. On the merged code,
+`held-copy-goes-with-owner`, `placed-speaker-deleted-mid-conversation` and `leveled-placed-npc-is-hosts` pass; the
+combined batch is left to the next combined run. Filed: the MCP's crash check reporting a crash from before a duo restart.
+
 2026-11-06: two checks that reported what did not happen are fixed.
   - **Drift:** the plugin's `Games/Animation/GraphDrift` is gone: it compared a copy with the action's `GraphState`, the owner
     mid-transition. `coop_test.py scenario` now reads each NPC's owner and copy live through each flow

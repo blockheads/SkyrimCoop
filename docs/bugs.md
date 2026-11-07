@@ -53,7 +53,6 @@ other section needs the duo.
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
 - [Remaining validation](#remaining-validation): small
-- [A placed guard's trip home](#a-placed-guards-trip-home): small
 
 **Ragdolls and death poses**
 
@@ -72,7 +71,6 @@ other section needs the duo.
 
 - [Greeting and press timing](#greeting-and-press-timing): medium
 - [The picked line overlaps](#the-picked-line-overlaps): small
-- [A conversation's deleted NPC](#a-conversations-deleted-npc): small
 
 **Party scripts**
 
@@ -114,6 +112,10 @@ other section needs the duo.
 - [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest): small
 - [The host's copy after a door](#the-hosts-copy-after-a-door): small
 - [Players stacked after a door](#players-stacked-after-a-door): small
+
+**Test tools**
+
+- [An old crash reported as new](#an-old-crash-reported-as-new): small, no duo
 
 ## Copy-desync follow-ups
 
@@ -341,15 +343,15 @@ Size: medium. Needs: duo.
 
 - **A town's end comparison finds ambient differences** (2026-11-05). `copy-leaves-furniture-steady` passes its steps in
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
-  `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
+  `10C3BA`) posed differently, the guest's player 19 units above the floor, the host player's copy 18 units
   into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
   `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
   skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
   culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
-  - Also in the Bannered Mare (2026-11-06, the MCP's `expect agree all` while recording `dead-player-keeps-weapon`):
-    Olava the Feeble (`1A699`) was removed from the host's actors ("Actor discovery: 1A699 removed") seconds after the
-    scene loaded, and her copy stayed on the guest with no owner.
+  - Containers in the Bannered Mare differ at the end too (2026-11-06): `changes 0x8000000` on the host's and none on
+    the guest's, 39 references (`held-copy-goes-with-owner` run there).
+  - The rabbit and Olava with no owner are fixed: [copy-lifecycle.md](re/systems/copy-lifecycle.md).
 
 ### Trade markers
 
@@ -368,16 +370,23 @@ Size: small. Needs: duo.
 
 ### Sigurd's registration
 
-Stands alone: a guest's actor marked its own.
+Stands alone: a guest's actor with 3D and no copy flag. Not shown to share the copy-lifecycle cause.
 
-Agent task: Find why a guest marks Sigurd its own after a checkpoint and a shop.
+Agent task: Find why a guest shows Sigurd as its own after a checkpoint and a shop.
 
 Size: small. Needs: duo, then GameTests.
 
-- **A guest's Sigurd is marked its own, unregistered** (2026-10-31). `dialogue-host-barter-earns-speech` failed before
-  reopening in the combined batch: the guest's Sigurd `CDD73` marked own with session 1, no `LocalComponent`, not
-  registered. Seen in the earlier checkpoint-followed-by-shop run too; passed in the fresh run (5 of 5)
+- **A guest's Sigurd is its own, unregistered** (2026-10-31). `dialogue-host-barter-earns-speech` failed before
+  reopening in the combined batch: the guest's Sigurd `CDD73` role own, no `LocalComponent`, not registered. "Session-1"
+  in the report is most likely session id -1, the comparison's "never registered" (inferred from `compare_actors`).
+  Seen in the earlier checkpoint-followed-by-shop run too; passed in the fresh run (5 of 5)
   ([report](reports/2026-10-31-v1-three-risks.md#acceptance-and-retained-failures)).
+  - Not reproduced 2026-11-06: `death-wipe-checkpoint` then the shop, 4 of 4 passed; `save-load-gate` (stopped 80 s in by a
+    wolf's `head_track`: wolf `FF000DD6`, owner `[None x6]`, the guest's copy `['session 3', None x5]`) then the shop passed
+    too. That was before the head-track check was fixed: on PR #28's build the gate gets past it and fails later (the alias
+    timeout once, Aela's equipment twice). Run that pair again once the gate can finish.
+  - Open idea, untested: a reference the engine collected and reloaded comes back as a new form with no copy flag
+    ([copy-lifecycle.md](re/systems/copy-lifecycle.md)), and the guest shows it as its own until the host spawns it.
   - Test: a checkpoint, then `dialogue-host-barter-earns-speech`.
 
 ### Copy one-offs
@@ -405,24 +414,6 @@ Size: small. Needs: duo.
 - **Remaining validation.** The Greybeards scenario needs its documented story save. Combined-dev acceptance remains
   separate from these bug investigations. (The owner gait's visible-skeleton control landed 2026-11-05: `GaitWatch`
   counts drawn steps only, actor-movement.md "A culled actor keeps its pose".)
-
-### A placed guard's trip home
-
-Agent task: Make `leveled-placed-npc-is-hosts` pass its cleanup: find whether the guest's copy should exist at the
-guard's home, then fix the game or the check.
-
-Size: small. Needs: duo, then GameTests.
-
-- **The placed guard's copy is missing on the guest after the guard goes home** (2026-11-05): the scenario's own checks
-  pass; its cleanup (`send_home`, `scenarios/specs.py`) fails at "[client] its D8C56 goes home with the host's". The
-  host's D8C56 is home in cell 39462 (worldspace 60, at 2452, -12693, -5413) with 3D; the guest has no copy (`client {}`).
-  Failed the same way in four runs on 2026-11-05, one of them on dev's code and harness, so it predates the names work.
-  Evidence: `build/coop-test/results/20261105-184243-343750/at-failure.json`.
-  - Open question first: whether that cell is in the guest's loaded area. If not, no copy is right and the check
-    (`copy_follows_host`) should accept it; if it is, the copy was removed or never respawned when the guard moved home.
-  - Start: rerun the scenario and `observe` D8C56 on both games after `move_actor home`; the guest's log for its
-    removal (`Actor removed`) or a spawn for its session id.
-  - Test: the scenario itself; a GameTests flow for a host NPC moved home while the guest stays.
 
 ## Ragdolls and death poses
 
@@ -607,23 +598,6 @@ Size: small. Needs: duo (screenshots).
   - Found 2026-10-30: small and visual.
   - Start: a screenshot of both menus at the pick (`coop_test.py screenshot`) in that scenario.
   - Test: the scenario's pick, both screens.
-
-### A conversation's deleted NPC
-
-Stands alone: one crash, not reproduced.
-
-Agent task: Read what 39372 reads at RCX and guard the path if a copy removed after a trade can reach it.
-
-Size: small. Needs: IDA first.
-
-- **A guest crashed once in a conversation whose NPC was deleted** (2026-10-29, party dialogue). In
-  `follower-trade-to-picker` the guest crashed in `Actor::UpdateInDialogue` (37541 -> 39372, null RCX) on Lydia's
-  copy, already flagged deleted (client prefix `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced since; the play
-  path (`dialogue-npc-removed-mid-conversation`) passes and the scenario baseline now ends conversations first.
-  - Not reproduced (2026-10-29).
-  - Start: what 39372 reads at RCX; whether a copy removed after a trade (container menu closed, conversation still on
-    the engine) is the path.
-  - Test: a scenario that removes the NPC right after a follower trade, if it ever reproduces.
 
 ## Party scripts
 
@@ -1017,3 +991,21 @@ Size: small. Needs: duo.
   free spot search near a marker.
   - Test: the flow's `trader` and `enter` steps; `together` could check a minimum spacing.
 
+## Test tools
+
+### An old crash reported as new
+
+Harness only: the game is right.
+
+Agent task: Make the MCP's crash check report only crashes of the running duo.
+
+Size: small. Needs: no duo.
+
+- **After a duo restart, an MCP verb fails on the last duo's crash** (2026-11-06, copy-lifecycle). A crash caused on
+  purpose at 10:47:55, read by hand, failed `both_go` a minute later on a freshly booted duo, with "client crashed" and
+  that crash's report. Moving the log aside cleared it; measured once.
+  - Read: `KNOWN_CRASHES` is filled when the `Session` is made (`session.py`), and in the MCP that is once per server.
+    Afterwards `check_for_crash` (`runtime.py`) adds to it when it reports a crash, and it runs only while a verb waits
+    (`wait_for`). `duo_stop` and `duo_start` do not touch the list. So a crash no check saw waits for the next verb that waits.
+  - Start: fill the list again when `duo_start` boots new games. A crash in the games a verb is using must still fail it.
+  - Test: a unit test over a directory of crash logs, if the check can be split from the games.

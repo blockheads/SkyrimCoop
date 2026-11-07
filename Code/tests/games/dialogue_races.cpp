@@ -146,3 +146,26 @@ SCENARIO("Delayed dialogue notifications cannot change a newly opened conversati
     CHECK(guestTalk.Options == hostTalk.Greeting);
     CHECK(guestTalk.Highlight == 0u);
 }
+
+// placed-speaker-deleted-mid-conversation (Skyrim 2026-11-06): the fault in 37541 is held back by its hook; the
+// conversation must still end, on the host where it runs and on the guest that asked.
+SCENARIO("A quest deletes a placed NPC a guest talks to: the conversation ends on both games", "[dialogue][dialogue-race]")
+{
+    constexpr uint32_t kPlaced = 0x0001A695;
+    Party party(1, [](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.PlaceNpc(kPlaced, 0x0001A694, kCell, {100.f, 10.f, 0.f});
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    hostTalk.Greeting = guestTalk.Greeting = {kFirst, kSecond};
+    party.Until([&] { return guest.IsActorCopy(kPlaced); }, "the guest's reference is the host's copy");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(kPlaced); });
+    party.Until([&] { return guestTalk.MenuOpen && hostTalk.Speaker == kPlaced; }, "the guest talks to it, the host's game in the background");
+
+    party.As(party.Host(), [&] { host.MarkForDelete(kPlaced); });
+    party.Until([&] { return !hostTalk.Speaker && !guestTalk.Speaker && !guestTalk.MenuOpen; }, "the conversation ends on both games",
+                [&] { return std::format("speakers: host {:X}, guest {:X}; guest's menu {}", hostTalk.Speaker, guestTalk.Speaker, guestTalk.MenuOpen); });
+}
