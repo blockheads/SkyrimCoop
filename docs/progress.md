@@ -49,6 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: the lock checker tells orders the frame keeps apart from a risk ([lock-order.md](re/systems/lock-order.md), "How the
+checker tells them apart"). Each thread carries its stretch of the frame (main loop tasks, our update), each order every stretch
+it was seen in; an inversion between main loop tasks and our update alone is logged as kept apart and fails no flow, anything
+else still fails, and the live overlap check is as it was. `guest-rides-host-horse` failed on one after a respawn (bugs.md).
+ClientTests `[locks]`, a harness unit.
+
 2026-11-07: the created chest checked in Skyrim: `created-chest-reaches-guest-empty` passes on 1.7.104 (3 of 3, and
 played through the MCP: both games hold the garnet and 50 gold before and after the guest opens it), so the
 2026-11-04 fix holds and nothing more was changed. Read in IDA why the guest's open adds nothing: the engine rolls a

@@ -1,0 +1,14 @@
+time	op	id	rva	item
+2026-11-07T22:20:13Z	read	12047	0x172a00	{"name": "sub_140172A00"}
+2026-11-07T22:20:14Z	read	12720	0x187920	{"name": "ExtraAliasInstanceArray::sub_12720"}
+2026-11-07T22:20:14Z	read	19653	0x2e6870	{"name": "TESObjectREFR::sub_19653"}
+2026-11-07T22:20:23Z	name	12047	0x172a00	{"addr": "0x140172a00", "name": "ExtraDataList__RemoveAliasInstance"}
+2026-11-07T22:20:23Z	name	19653	0x2e6870	{"addr": "0x1402e6870", "name": "TESObjectREFR__RemoveAliasInstance"}
+2026-11-07T22:20:23Z	name	12720	0x187920	{"addr": "0x140187920", "name": "ExtraAliasInstanceArray__VisitAliases"}
+2026-11-07T22:20:23Z	local	12047	0x172a00	{"func_addr": "0x140172a00", "old": "v6", "new": "listLock"}
+2026-11-07T22:20:23Z	local	12047	0x172a00	{"func_addr": "0x140172a00", "old": "v8", "new": "aliasArray"}
+2026-11-07T22:20:27Z	comment	12047	0x172a00	{"addr": "0x140172a00", "comment": "AddressLib ID 12047. ExtraDataList::RemoveAliasInstance(list, alias): takes the list's lock (+0x18) for write, then 12719 takes the alias array's (+0x28) for write: list > alias array. Inverse of 12720's visit under CastPermanentMagic (array > list via Actor::IsGhost 37275). The two orders meet in lock-order.md 'Orders the frame keeps apart' (ClearFills in MainLoopTasks vs a respawn in World::Update)."}
+2026-11-07T22:20:27Z	comment	19653	0x2e6870	{"addr": "0x1402e6870", "comment": "AddressLib ID 19653. TESObjectREFR::RemoveAliasInstance(ref, alias): 12047 on the reference's extra-data list (+0x70), then on its inventory entry's list carrying this ref's handle, clearing the quest display name. Called by BGSRefAlias::ClearRefAlias 24012."}
+2026-11-07T22:20:27Z	comment	12720	0x187920	{"addr": "0x140187920", "comment": "AddressLib ID 12720. ExtraAliasInstanceArray: visits each alias instance under the array's read lock (+0x28), calling visitor->vfunc[1]; stops when it returns other than 1."}
+2026-11-07T22:20:31Z	read	37275	0x6756b0	{"name": "Actor::IsGhost"}
+2026-11-07T22:20:36Z	comment		0x6756ef	{"addr": "0x1406756ef", "comment": "The reference's extra-data list lock (+0x88 = list +0x18), read. Under 12720's alias visit (CastPermanentMagic's alias spells) this is array > list, against 12047's list > array (lock-order.md)."}

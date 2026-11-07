@@ -20,3 +20,20 @@ TEST_CASE("Pass-through travel frames do not hide a real engine callback", "[loc
     constexpr std::array<uintptr_t, 3> boundary{0x1100, 0x5000, 0x2358};
     CHECK(IntroducedByUs(boundary, module, passThrough));
 }
+
+TEST_CASE("An inversion between the main loop's tasks and our update is kept apart by the frame", "[locks]")
+{
+    using namespace LockOrderAttribution;
+    // ClearFills in MainLoopTasks against a respawn's cast in World::Update: never at once.
+    CHECK(KeptApartByFrame(kMainLoopTasks, kOurUpdate));
+    CHECK(KeptApartByFrame(kOurUpdate, kMainLoopTasks));
+    // The same stretch on two threads, or anywhere else, can overlap.
+    CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, kMainLoopTasks));
+    CHECK_FALSE(KeptApartByFrame(kOurUpdate, kOurUpdate));
+    CHECK_FALSE(KeptApartByFrame(kElsewhere, kOurUpdate));
+    CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, kElsewhere));
+    // A reverse order also seen elsewhere is a risk however often it was seen in the other stretch.
+    CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, kOurUpdate | kElsewhere));
+    CHECK_FALSE(KeptApartByFrame(kOurUpdate, kMainLoopTasks | kOurUpdate));
+    CHECK_FALSE(KeptApartByFrame(kMainLoopTasks, 0));
+}

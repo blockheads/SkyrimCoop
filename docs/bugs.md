@@ -39,7 +39,6 @@ other section needs the duo.
 
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
-- [The lock check fails a flow on orders that cannot overlap](#the-lock-check-fails-a-flow-on-orders-that-cannot-overlap): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
@@ -137,22 +136,6 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
   old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
 - **The menu does not open** (1 of 21): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
   talking. Not seen again in 16 runs. Unread. These ran from a worktree whose UI did not load, but this menu is the game's own.
-
-### The lock check fails a flow on orders that cannot overlap
-
-`guest-rides-host-horse` failed once in 6 runs, 2026-11-07, on an `[ours]` lock-order report that is no deadlock (lock-order.md, "Orders the
-frame keeps apart"). The report is true about the order; the two sides never run together. The flow fails all the same.
-
-Agent task: let the check tell these from a real risk, without hiding one: it records stacks, so a stack from `MainLoopTasks::Run` against one from
-`World::Update` could be told apart. Keep the live overlap check as it is.
-
-Size: small. Needs: `ClientTests` for the attribution rule (`LockOrderAttribution.h`), then the duo for a respawn before a quest update in one boot.
-
-- **One side:** `GuestEngine::ClearFills`, from `MainLoopTasks::Run` at the start of `HookMainLoop`: `BGSRefAlias::ClearRefAlias` 24012 > 19653 > 12047 takes
-  the player's extra-data lock, then 12719 its alias array's.
-- **The other:** `DeathService::OnRespawnArrival` from `World::Update`, in the VM update job: `PlayerCharacter::Revive` > `Actor::CastPermanentMagic` > 12720 holds the
-  alias array's, and the alias spell's cast reaches `Actor::IsGhost` 37275, the extra-data lock.
-- It needs a respawn earlier in the same boot, so a flow alone does not show it: the order of a batch does.
 
 ### After a guest rejoins
 

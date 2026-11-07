@@ -23,6 +23,19 @@ void AcquiredWithoutWaiting(const void* apLock, const void* apCaller) noexcept;
 // a report ours. aBytes: the function's code size, or more.
 void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept;
 
+// This thread's locks are taken in one stretch of the frame (LockOrderAttribution::Stretch) until it ends: an inversion
+// against a stretch that never runs alongside is reported as kept apart (lock-order.md).
+struct FrameStretch
+{
+    explicit FrameStretch(uint8_t aStretch) noexcept;
+    ~FrameStretch() noexcept;
+    FrameStretch(const FrameStretch&) = delete;
+    FrameStretch& operator=(const FrameStretch&) = delete;
+
+  private:
+    uint8_t m_previous;
+};
+
 // Every thread's held locks with the code that took each one (watchdog thread, read-only peeks).
 void LogHeldLocks() noexcept;
 

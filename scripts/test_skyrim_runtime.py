@@ -63,6 +63,20 @@ class RuntimeTests(unittest.TestCase):
                 self.assertIn("live: " + reviewed, found)
                 self.assertIn(other, found)
 
+    def test_lock_orders_the_frame_keeps_apart_never_fail_and_never_hide_a_risk(self):
+        from coop_harness.observations import Observations
+        sites = "SkyrimSE.exe+0x1 > SkyrimSE.exe+0x2 vs SkyrimSE.exe+0x3 > SkyrimSE.exe+0x4"
+        ctx = Mock()
+        ctx.known_lock_patterns.return_value = set()
+        reports = [f"[ours] kept apart by the frame: lock order inversion [{sites}]: thread 1 holds",
+                   f"[ours] lock order inversion [{sites}]: thread 2 holds",
+                   f"[ours] live lock order inversion [{sites}]: thread 1 holds"]
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports}}
+        found = Observations.lock_order_reports(ctx)
+        self.assertFalse(found["kept apart: " + sites][2])
+        self.assertTrue(found[sites][2])
+        self.assertIn("live: " + sites, found)
+
     def test_switching_runtime_replaces_an_older_same_size_loader(self):
         from coop_harness.runtime import Runtime
         with tempfile.TemporaryDirectory() as folder:

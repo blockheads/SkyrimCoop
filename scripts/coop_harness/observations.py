@@ -11,6 +11,7 @@ from .common import (
     DESYNC_INTERVAL,
     DESYNC_WINDOW,
     FORM_TYPE_NAMES,
+    KEPT_APART,
     KNOWN_LOCK_PATTERNS,
     LOCK_PATTERN,
     ROOT,
@@ -219,12 +220,15 @@ class Observations:
             for report in status.get("lock_order", {}).get("reports", []):
                 match = LOCK_PATTERN.match(report)
                 sites = match.group(3) if match else report
-                # A live overlap is never a reviewed pattern: its own key.
+                # A live overlap is never a reviewed pattern: its own key. Kept apart is its own key too, and not ours to fail.
+                kept_apart = KEPT_APART in report[:len("[ours] ") + len(KEPT_APART)]
                 if match and match.group(2).startswith("live"):
                     sites = "live: " + sites
                 elif sites in known:
                     continue
-                found.setdefault(sites, (name or "host", report, bool(match and match.group(1))))
+                elif kept_apart:
+                    sites = "kept apart: " + sites
+                found.setdefault(sites, (name or "host", report, bool(match and match.group(1)) and not kept_apart))
         return found
 
     def save_file(ctx, instance, name):
