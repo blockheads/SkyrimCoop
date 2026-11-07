@@ -74,9 +74,8 @@ enum class Target : uint8_t
     kGuestCharacter,
 };
 
-// The form a call acts on: the argument its code acts on (acReach.Argument: Debug.SendAnimationEvent's reference, 0 if
-// None or no form), else a method's self, else (a global) this game's player. acArguments: each argument's form id, 0
-// for none.
+// The form a call acts on: the argument its code acts on (acReach.Argument; acArguments' form ids, 0 for none), else
+// a method's self, else (a global) this game's player.
 [[nodiscard]] uint32_t SubjectOf(const Reach& acReach, std::optional<uint32_t> aSelf, const std::vector<uint32_t>& acArguments) noexcept;
 
 // What the router knows of a native's call, before it runs.

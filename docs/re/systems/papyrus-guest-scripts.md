@@ -165,7 +165,7 @@ act on whoever they are given; a stored player given to them in a guest's stack 
 global, so r8 is the `StaticFunctionTag` and `akRef` arrives in r9. A None `akRef` returns; else it calls slot 1
 (`+0x8`) of `akRef`'s `IAnimationGraphManagerHolder` (`TESObjectREFR+0x38`) with the event's `BSFixedString`. Slot 1
 is `NotifyAnimationGraph`: `TESObjectREFR`'s holder vtable (190265) holds it directly (32901: the graph manager from
-slot 2, then `BSAnimationGraphManager::NotifyAllGraphs`), and the Actor (207517), Character (207892) and
+slot 2, then `BSAnimationGraphManager::NotifyAllGraphs` 63362), and the Actor (207517), Character (207892) and
 PlayerCharacter (208046) holder vtables hold a `jmp` to it (38048, `Actor__NotifyAnimationGraph` in the database). So
 `CodeReach` follows r9 as argument 0 beside r8's self, and a virtual call on it is resolved against the player's
 holder vtable: 38048, a body sink (`NativeReach::EngineSinks`). The call's `Reach::Argument` makes that argument its
