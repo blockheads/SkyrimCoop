@@ -130,12 +130,12 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
 - **A held copy shows an action from an earlier visit** (1 of 7): Proventus `1A67D` placed in his chair on the host,
   `IdleChairEnterInstant`, which it never sent (`animation_sent` empty); his copy's last action was `IdleTalkAndUseItem`, 17 minutes
   old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
-- **The menu does not open** (1 of 19): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
-  talking. Not seen again in 14 runs. Unread. These ran from a worktree whose UI did not load, but this menu is the game's own.
+- **The menu does not open** (1 of 21): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
+  talking. Not seen again in 16 runs. Unread. These ran from a worktree whose UI did not load, but this menu is the game's own.
 
 ### A guest's quest fills against a respawn
 
-A lock-order inversion with our code on both stacks: a possible deadlock on a guest. Seen once, `guest-rides-host-horse`, 1 of 12 runs of that flow,
+A lock-order inversion with our code on both stacks: a possible deadlock on a guest. Seen once, `guest-rides-host-horse`, 1 of 6 runs of that flow,
 2026-11-07, on a build that does not change either path. Not reported as overlapping live.
 
 Agent task: read whether the two can run at once (their threads differ in the report), and if so which should give way.
