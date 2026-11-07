@@ -1100,10 +1100,20 @@ bool FakeEngine::IsActorDeleted(uint32_t aFormId) const noexcept
     return it != Actors.end() && it->second.Deleted;
 }
 
+// Every enable is TESObjectREFR::Enable (19800), which the plugin refuses for a hidden copy.
 void FakeEngine::EnableActor(uint32_t aFormId) noexcept
 {
-    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    if (const auto it = Actors.find(aFormId); it != Actors.end() && !it->second.Hidden)
         it->second.Disabled = false;
+}
+
+void FakeEngine::SetActorHidden(uint32_t aFormId, bool aHidden) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        it->second.Hidden = aHidden;
+        it->second.Disabled = aHidden;
+    }
 }
 
 void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
@@ -1228,6 +1238,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
         DeleteActor(aFormId);
         return;
     }
+    // Enabled, UpdateProcessLevel (37501) frees it; disabled, its cell's unload does (TESObjectCELL 19113).
     if (it->second.Collectable && !it->second.Persistent && !Attached.contains(it->second.Cell))
     {
         Actors.erase(it);

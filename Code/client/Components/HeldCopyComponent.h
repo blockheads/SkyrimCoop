@@ -4,5 +4,13 @@
 // with no AI of its own, until the owner spawns it again or the session ends (copy-contract.md).
 struct HeldCopyComponent
 {
-    bool Hidden = false; // disabled by us: it would stand in this game's loaded area with no owner
+    bool Hidden = false; // disabled by us until its owner spawns it (GuestCopies)
+};
+
+// One of this game's references made persistent while the session lasts, so no cell unload frees it as a copy
+// (GuestCopies; TESObjectCELL 19113, copy-lifecycle.md). Its own flag is back at the session's end.
+struct KeptCopyComponent
+{
+    uint32_t FormId = 0;
+    bool WasPersistent = false;
 };

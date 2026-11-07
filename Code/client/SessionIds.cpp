@@ -30,7 +30,8 @@ uint32_t GetFormIdBySessionId(uint32_t aSessionId) noexcept
 {
     auto view = World::Get().view<FormIdComponent>();
     for (entt::entity entity : view)
-        if (GetSessionId(entity) == aSessionId)
+        // A held copy has neither: no session id, and nothing to log each lookup.
+        if (World::Get().any_of<LocalComponent, RemoteComponent>(entity) && GetSessionId(entity) == aSessionId)
             return view.get<FormIdComponent>(entity).Id;
     spdlog::debug("GetFormIdBySessionId: form not found for session id {:X}", aSessionId);
     return 0;

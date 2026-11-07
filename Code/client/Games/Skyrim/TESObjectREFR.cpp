@@ -11,6 +11,7 @@
 #include <Games/References.h>
 #include <Games/Overrides.h>
 #include <Games/ItemChanges.h>
+#include <Games/HiddenCopies.h>
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
@@ -1442,6 +1443,27 @@ static ExtraDataList* HookEnchantObject(ExtraContainerChanges::Data* apChanges, 
     return ImprovesStack(apChanges, apObject, [&] { return RealEnchantObject(apChanges, apObject, apExtra, apEnchantment, aCharge); });
 }
 
+// A held copy with no owner stays hidden until its owner's spawn shows it (docs/re/systems/copy-lifecycle.md):
+// TESObjectREFR::Enable (19800) is every enable's, and TESForm::SetDisabled (14646) the enable parents' raw one (20271).
+// By form id only: SetDisabled also runs on forms still loading.
+using TEnable = void(TESObjectREFR*, bool aResetInventory);
+static TEnable* RealEnable = nullptr;
+void HookEnable(TESObjectREFR* apThis, bool aResetInventory)
+{
+    if (apThis && HiddenCopies::Contains(apThis->formID))
+        return;
+    RealEnable(apThis, aResetInventory);
+}
+
+using TSetDisabled = bool(TESForm*, bool aDisabled);
+static TSetDisabled* RealSetDisabled = nullptr;
+bool HookSetDisabled(TESForm* apThis, bool aDisabled)
+{
+    if (!aDisabled && apThis && HiddenCopies::Contains(apThis->formID))
+        return true;
+    return RealSetDisabled(apThis, aDisabled);
+}
+
 static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1464,4 +1486,6 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(51968, &RealLockpickUnlock, HookLockpickUnlock);
         HOOK_ID(19786, &RealSetAngle, HookSetAngle);
         HOOK_ID(20232, &RealPickLeveledBase, HookPickLeveledBase);
+        HOOK_ID(19800, &RealEnable, HookEnable);
+        HOOK_ID(14646, &RealSetDisabled, HookSetDisabled);
     });

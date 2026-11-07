@@ -54,23 +54,71 @@ engine's own path with no code of ours in it, and it needs a script to delete a 
   move). The map's guess that it stayed "loaded" on the host was wrong: the host's game decides what is loaded, and
   discovery needed no change.
 
+## A held copy: where the engine loads, frees or enables it (read 2026-11-07)
+
+Read in IDA on 1.7.104, no mod covers it (searched `reference/plugins`: none hides a reference from its own game).
+Three kinds of point, and the disabled flag (form flag `0x800`) decides each:
+
+```
+loads its 3D
+  TESObjectREFR::Load3D (19727, vfunc 0x6A; Actor::Load3D 37177 calls it first)
+    first test: deleted (0x20) or disabled (0x800) -> null. Cell attach, Enable and MoveTo all load through it
+
+frees it
+  ProcessLists::UpdateTempChangeList (41294), each frame
+    disabled: RemoveFromLevelList + ReleaseProcess (37563); the form stays
+    else UpdateProcessLevel (37501): not persistent, below high, its cell not loaded -> GarbageCollector::Add
+      (also when a fade-out ends on a non-persistent one)
+  TESObjectREFR::Enable (19800): an actor enabled in a cell not loaded goes through 37501 too
+  a cell's unload: TESDataHandler 13721 -> TESObjectCELL 19113: each reference its functor (1402D00D0) picks gets
+    StoreChangesOnUnload, then GarbageCollector::Add, disabled or not; a persistent one stays (measured, below)
+
+enables it again
+  TESObjectREFR::Enable (19800): returns unless disabled; SetDisabled(0), a new AIProcess, Load3D if loaded,
+    then its enable children (20270). Callers: Papyrus Enable (EnableFunctor 56110), the main thread's queued
+    enables (21919), an actor's reset (37292: in-game flag 8), an ash pile, ClearDestruction, the children loop.
+    MoveTo_Impl (56626) disables and enables a non-actor for the move, never an actor
+  TESForm::SetDisabled (14646) raw: InitItemImpl and InitLoadGame (a reference made from its file or a save) and
+    the enable-parent sync 20271 they run, which sets each child's flag with no Enable
+```
+
+So a held copy is kept by making it persistent (19597, as players' copies are) for the rest of the session, its own
+flag back at the session's end, and hidden by disabling it: no 3D, and no per-frame free either. What can show it
+again is an enable: `HookEnable` (19800) returns for a form id in `HiddenCopies`, and `HookSetDisabled` (14646) keeps its flag set
+(it returns true, the flag's state). Our own `SkyrimBridge::SetActorHidden` adds the id before the disable and removes
+it before the enable. Out of a session nothing is hidden, so neither hook changes anything.
+
+- **Measured (2026-11-07, the duo):** with `Cast<Actor>` and `Actor::GetExtension` in the `SetDisabled` hook, both games
+  exited about a second after entering the world, with no crash log; the same hook passing straight through, and the
+  same body in the `Enable` hook alone, ran fine. Which form broke it was not traced: `SetDisabled` also runs from
+  `InitItemImpl` and `InitLoadGame` on forms being loaded. The hooks read only `formID` (+0x14) and look it up.
+
+- **Read, not run:** that a held copy's enable comes from the host's cell answer (the guest's own disable is a change
+  its cell request sends back, the host's enabled row the answer) or from an enable parent's first load. The fake
+  refuses enables for a hidden copy as the hooks do; the hooks themselves are proven only in Skyrim.
+- **Measured before (2026-11-06):** a placed guard's non-persistent reference that followed to a cell the guest had not
+  loaded was gone (`GetById` null), and the host's next spawn of it found nothing to take.
+- **Measured (2026-11-07):** disabled alone, the guard was gone all the same once the party travelled on (the harness's
+  `actor_place` on the guest: none), so the cell's unload frees disabled references too (19113, read after). And a
+  spawn that showed it and gave its flag back in one frame, its new cell still loading on the guest, lost it to 37501
+  (`gone where its owner is not: dropped`): it stays persistent until the session ends. Persistent, the two passes
+  of `leveled-placed-npc-is-hosts` in one session both find it.
+
 ## What a copy does (`CharacterService::OnRemoveCharacter`)
 
 ```
 temporary reference          deleted
-a game's reference           FollowOwner: where the owner's went, or disabled as it is
-each frame on a guest (GuestCopies)
-  held, with 3D here         hidden (disabled, HeldCopyComponent::Hidden): at removal or
-                             when this game's loaded cells reach it later
-each frame (RunPresence)
-  collected by the engine    its entity goes
-next spawn                   enabled again, a copy
-session end                  a hidden one enabled, the flag cleared
+a game's reference           FollowOwner: kept and hidden on a guest (CopyHeldEvent, GuestCopies), then
+                             where the owner's went; kept and disabled, not hidden, when the owner's was
+                             disabled or deleted
+dropped on an arrival        held, kept and hidden on a guest (DropCopies)
+next spawn                   moved where its owner is, then shown, a copy (still kept)
+session end                  a hidden one shown, a kept one's own persistence back
 ```
 
 Hidden is for guests only: the host's own reference that a guest's mount was is the host's to own again.
-`OnNotifyDismount` places a horse through `FollowOwner` too, but its entity keeps a `RemoteComponent`, so it is not hidden.
+`OnNotifyDismount` places a horse through `FollowOwner` too, its owner still there, so it is not hidden.
 
 Tests: GameTests `[copies]` (the three flows at the end of `copy_flows.cpp`) and "A quest deletes a placed NPC a guest
 talks to" (`dialogue_races.cpp`); ClientTests `SpeakerUpdate::Skipped`; the two scenarios named above and
-`leveled-placed-npc-is-hosts`. The fake cannot fault: the hook itself is proven only by the scenario.
+`leveled-placed-npc-is-hosts`. The fake cannot fault: the dialogue hook itself is proven only by the scenario.

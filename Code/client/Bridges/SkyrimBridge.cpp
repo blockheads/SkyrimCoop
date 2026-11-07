@@ -9,6 +9,7 @@
 #include <Bridges/SkyrimBridge.h>
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
+#include <Games/HiddenCopies.h>
 #include <MainLoopTasks.h>
 #include <FormIds.h>
 #include <Games/NpcSnapshot.h>
@@ -1761,6 +1762,20 @@ void SkyrimBridge::EnableActor(uint32_t aFormId) noexcept
     Breadcrumbs::Record("EnableActor", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
+        pActor->EnableImpl();
+}
+
+void SkyrimBridge::SetActorHidden(uint32_t aFormId, bool aHidden) noexcept
+{
+    Breadcrumbs::Record("SetActorHidden", aFormId, static_cast<uint32_t>(aHidden));
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    // Set before the disable, cleared before the enable: HookEnable and HookSetDisabled read it.
+    HiddenCopies::Set(aFormId, aHidden);
+    if (aHidden && !pActor->IsDisabled())
+        pActor->DisableImpl();
+    else if (!aHidden && pActor->IsDisabled())
         pActor->EnableImpl();
 }
 

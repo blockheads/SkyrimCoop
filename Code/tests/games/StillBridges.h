@@ -692,6 +692,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override
     {
     }
+    void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept override
+    {
+    }
     void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override
     {
     }
