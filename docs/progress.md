@@ -55,6 +55,15 @@ played through the MCP: both games hold the garnet and 50 gold before and after 
 container when it is made, not when it is opened ([guest-world-events.md](re/systems/guest-world-events.md),
 "Created containers").
 
+2026-11-07: copy state from Riverwood, rechecked. Hands: a copy's spell could stay selected with its hand empty
+(after a trip that unloads its 3D before its spells are put back: `EquipSpell` holds only with a process), and the
+reconcile compared only selected spells; it now also reads a loaded copy's hands
+([copy-hand-spells.md](re/systems/copy-hand-spells.md), "Selected, not held"; scenario `copy-holds-spell-after-trip`,
+its hand checks failing then passing on the duo, its end comparison failing on bugs.md's "End comparisons in towns";
+GameTests and ClientTests `[hand-spell]`). Level: two placed Whiterun Guards read 1000 on
+both games (the 2026-11-04 fix, default boot). The late-save cases (the Riverwood guard, Odahviing) are not rechecked:
+booting the duo from `LateAfterDragonslayerBackinSkyrim` froze the host twice (bugs.md, "The late save's boot").
+
 2026-11-06: a copy with no owner goes ([copy-lifecycle.md](re/systems/copy-lifecycle.md)). A persistent NPC sent out of the
 loaded cells says where it went (Olava); a guest hides a held reference with 3D in its area (`GuestCopies`), and drops one
 its engine collected (the placed guard; `leveled-placed-npc-is-hosts` passes). A placed speaker marked deleted no longer

@@ -284,3 +284,30 @@ SCENARIO("A player's copy holds its owner's spell after party travel", "[equipme
                 "the party arrives in the sinkhole");
     party.Until([&] { return cHands() == cHealing; }, "the copy holds the host's spell again", {}, nullptr, std::chrono::seconds(5));
 }
+
+SCENARIO("A player's copy whose 3D comes back holds its owner's spell, not only selects it", "[equipment][hand-spell][travel]")
+{
+    // Seen 2026-11-07 after a trip into Whiterun: the copy's spell selected, its hand empty (copy-hand-spells.md).
+    const GameId cHealing{0, 0x12FCC};
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& owner = host.Actors.at(FakeEngine::kPlayer);
+    owner.Items.CurrentMagicEquipment.LeftHandSpell = cHealing;
+    owner.HeldSpells[0] = cHealing.BaseId;
+    party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
+    const uint32_t cCopy = PlayerCopy(guest);
+    const auto cHeld = [&] { return guest.GetEquippedWeaponFormId(cCopy, 0); };
+    party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy holds the host's spell");
+
+    // The trip unloads the copy's 3D; the reconcile selects the spell again before the new place has loaded it.
+    party.As(party.Guest(), [&] { guest.Unload3D(cCopy); });
+    const auto cSelected = [&] { return guest.GetActorEquipment(cCopy).CurrentMagicEquipment.LeftHandSpell; };
+    party.Until([&] { return cSelected() == cHealing; }, "the copy has the spell selected again, with no 3D", {}, nullptr,
+                std::chrono::seconds(5));
+    CHECK(cHeld() == 0);
+
+    guest.Actors.at(cCopy).Loaded = true;
+    party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy's hand holds the spell once its 3D is back", {}, nullptr,
+                std::chrono::seconds(5));
+}
