@@ -125,6 +125,7 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"GlobalVariable", "SetValue", {Call::kWorld}},
         {"ObjectReference", "MoveTo", {Call::kBody}}, {"Actor", "PlayIdle", {Call::kBody}},
         {"Game", "SetPlayerAIDriven", {Call::kBody}},
+        {"Debug", "SendAnimationEvent", {.Kind = Call::kBody, .Argument = 0}}, // its argument's graph holder (38048)
     };
     for (const Row& cRow : cRows)
         if (SameName(acCall.Class, cRow.Class) && (cRow.Function.empty() || SameName(acCall.Function, cRow.Function)))
@@ -137,7 +138,11 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
 {
     const Reach cReach = FakeReachOf(acCall);
     const auto* cpSelf = std::get_if<LocalForm>(&acCall.Self);
-    const uint32_t cSelf = cpSelf ? cpSelf->FormId : kPlayer; // a global's player is this game's
+    std::vector<uint32_t> arguments;
+    for (const LocalValue& cArgument : acCall.Arguments)
+        arguments.push_back(std::holds_alternative<LocalForm>(cArgument) ? std::get<LocalForm>(cArgument).FormId : 0);
+    // A global's player is this game's; a call on an argument, that argument (PartyNatives::Scope::FactsOf).
+    const uint32_t cSelf = SubjectOf(cReach, cpSelf ? std::optional(cpSelf->FormId) : std::nullopt, arguments);
     const auto cIsGuestCharacter = [this](uint32_t aActor) {
         const auto cIt = Actors.find(aActor);
         return !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
@@ -157,7 +162,7 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
                            .Guest = IsGuest,
                            .PlayerInCall = cIsPlayer(acCall.Self) || std::ranges::any_of(acCall.Arguments, cIsPlayer),
                            .InSystemQuest = m_inSystemQuest,
-                           .SystemObject = cpSelf && (SystemQuestList.Contains(cSelf) || SystemQuestList.IsGlobal(cSelf))};
+                           .SystemObject = cpSelf && (SystemQuestList.Contains(cpSelf->FormId) || SystemQuestList.IsGlobal(cpSelf->FormId))};
     const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
     if (cReach.Kind == Call::kQuestion)
     {
@@ -318,6 +323,8 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
         }
         else if (acCall.Function == "PlayIdle" && cpForm)
             Idles[aSelf].push_back(cpForm->FormId);
+        else if (acCall.Function == "SendAnimationEvent" && acCall.Arguments.size() > 1 && aSelf)
+            GraphEvents[aSelf].push_back(std::get<std::string>(acCall.Arguments[1]));
         else if (acCall.Function == "SetPlayerAIDriven" && !acCall.Arguments.empty())
             AiDriven = std::get<bool>(acCall.Arguments[0]);
         return 0;

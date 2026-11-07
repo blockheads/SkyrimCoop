@@ -456,6 +456,23 @@ SCENARIO("A story's move, idle or AI drive on the player runs on each game's own
     CHECK(RouteOf({.Reach = cBody, .Target = Target::kThisPlayer, .TargetId = kThisPlayer, .Cause = kHostsGame}) == Routing{});
 }
 
+SCENARIO("Whom a call acts on: its argument, its self, or a global's player", "[party][route][cutscenes]")
+{
+    const Reach cOnArgument{.Kind = Call::kBody, .Argument = 0}; // Debug.SendAnimationEvent(akRef, ...)
+    THEN("a call on its argument names that argument, a global's too")
+    {
+        CHECK(SubjectOf(cOnArgument, std::nullopt, {kGuest, 0}) == kGuest);
+        CHECK(SubjectOf(cOnArgument, 0x1234u, {kThisPlayer}) == kThisPlayer);
+    }
+    THEN("None, or no argument there, is no one") CHECK(SubjectOf(cOnArgument, std::nullopt, {0}) == 0);
+    CHECK(SubjectOf(cOnArgument, std::nullopt, {}) == 0);
+    THEN("a method's self, a global's this game's player")
+    {
+        CHECK(SubjectOf({Call::kBody}, kGuest, {kThisPlayer}) == kGuest);
+        CHECK(SubjectOf({Call::kBody}, std::nullopt, {kGuest}) == kThisPlayer);
+    }
+}
+
 // docs/design/party-calls.md, "A box's answer": a story's message box on the guest closes with the host's answer.
 SCENARIO("Another game's latent call here ends with its original's result", "[party][messages]")
 {

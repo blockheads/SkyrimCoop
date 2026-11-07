@@ -75,7 +75,6 @@ other section needs the duo.
 **Party scripts**
 
 - [References a guest's script creates](#references-a-guests-script-creates): medium, no duo
-- [`SendAnimationEvent` on the player](#sendanimationevent-on-the-player): small, no duo
 - [The werewolf's turn back](#the-werewolfs-turn-back): medium, no duo
 - [Leaving a crafting station](#leaving-a-crafting-station): small
 
@@ -622,23 +621,6 @@ Size: medium. Needs: code and GameTests; ask the user the decision.
   - Start: whether a reference a guest's own script makes is its game's own (the world check and world sync leave it),
     or the host's made for it and sent back.
   - Test: a `vampirism_flows.cpp` case where `VampireChange` places a marker on the guest.
-
-### `SendAnimationEvent` on the player
-
-Stands alone: the code reader, no Skyrim.
-
-Agent task: Teach `CodeReach` to resolve a virtual call on an argument, so a story's `Debug.SendAnimationEvent` reaches
-each player.
-
-Size: small. Needs: code and fast tests only.
-
-- **A story's `Debug.SendAnimationEvent` on the player plays on the host's player only** (2026-10-27,
-  party-scripts-2). The Body row reads a native's calls and the functors it queues; this native's graph event is a
-  virtual call (`IAnimationGraphManagerHolder` slot 1) on its argument's graph holder, which the code reader does not
-  follow (it knows the self and this game's player only).
-  - Start: `CodeReach`'s registers know the arguments' registers too (r9 on, for a global), and resolve a virtual
-    call on an argument that is a reference against the player's graph holder vtable.
-  - Test: `code_reach_tests.cpp` with `SendAnimationEvent`'s bytes (0x140A073F0), then a `cutscene_flows.cpp` case.
 
 ### The werewolf's turn back
 

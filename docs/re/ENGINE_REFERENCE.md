@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3513** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
+- **3514** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
 - **230** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -3842,6 +3842,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37775 | `0x6a4030` | `Actor::GetLightLevel` | PL meh | data | `s_lightLevel` | [NativeReach.cpp:111](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L111) |  |
 | 37903 | `0x6abc00` | `Actor::sub_37903` | meh | data | `s_setVehicle` | [NativeReach.cpp:128](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L128) |  |
 | 37925 | `0x6ad970` | `Actor::SwitchRace` | CL SKSE meh | data | `s_switchRace` | [NativeReach.cpp:123](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L123) |  |
+| 38048 | `0x6b61a0` | `Actor__NotifyAnimationGraph` | IDA meh | data | `s_notifyGraph` | [NativeReach.cpp:130](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L130) |  |
 | 38467 | `0x6c51f0` | `ActorValueOwner::ModActorValue` | meh | data | `s_modActorValue` | [NativeReach.cpp:117](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L117) |  |
 | 38716 | `0x6d3d60` | `Actor::AddSpell` | CL meh | data | `s_addSpell` | [NativeReach.cpp:119](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L119) |  |
 | 38894 | `0x6dc310` | `ActorEquipManager::EquipObject` | CL SKSE meh | data | `s_equipObject` | [NativeReach.cpp:103](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L103) |  |
@@ -3892,15 +3893,15 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `s_controlMap` | [NativeReach.cpp:52](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L52) |  |
 | 400864 | `0x31a5698` | `PlayerControls::singleton` | CL SKSE meh | data | `s_playerControls` | [NativeReach.cpp:51](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L51) |  |
 | 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:47](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L47) |  |
-| 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:288](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L288) |  |
+| 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:289](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L289) |  |
 | 401263 | `0x31dfd78` | `MenuControls::singleton` | CL SKSE meh | data | `s_menuControls` | [NativeReach.cpp:53](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L53) |  |
 | 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `s_inputDeviceManager` | [NativeReach.cpp:56](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L56) |  |
 | 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:46](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L46) |  |
-| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:175](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L175) |  |
-| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:287](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L287) |  |
+| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:176](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L176) |  |
+| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:288](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L288) |  |
 | 410222 | `0x3275720` | `?` | - | data | `s_rumbleLeft` | [NativeReach.cpp:58](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L58) | **undocumented** |
 | 410225 | `0x3275738` | `?` | - | data | `s_rumbleRight` | [NativeReach.cpp:59](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L59) | **undocumented** |
-| 412214 | `0x33508d0` | `gBGSMoviePlayer` | meh | data | `s_moviePlayer` | [NativeReach.cpp:182](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L182) |  |
+| 412214 | `0x33508d0` | `gBGSMoviePlayer` | meh | data | `s_moviePlayer` | [NativeReach.cpp:183](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L183) |  |
 | 414660 | `0x33d40a0` | `ImageSpaceManager::singleton` | CL | data | `s_imageSpaceManager` | [NativeReach.cpp:55](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L55) |  |
 | 442726 | `0x962940` | `?` | - | data | `s_messageShow` | [NativeReach.cpp:100](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L100) | **undocumented** |
 

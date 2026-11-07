@@ -161,6 +161,19 @@ host). Natives with a self are not read: they act on what they are given (below,
 act on whoever they are given; a stored player given to them in a guest's stack is that guest's character (above,
 "A player in the frame").
 
+**A virtual call on an argument** (read in IDA 2026-11-07): `Debug.SendAnimationEvent` (55380, 0x140A1F620) is a
+global, so r8 is the `StaticFunctionTag` and `akRef` arrives in r9. A None `akRef` returns; else it calls slot 1
+(`+0x8`) of `akRef`'s `IAnimationGraphManagerHolder` (`TESObjectREFR+0x38`) with the event's `BSFixedString`. Slot 1
+is `NotifyAnimationGraph`: `TESObjectREFR`'s holder vtable (190265) holds it directly (32901: the graph manager from
+slot 2, then `BSAnimationGraphManager::NotifyAllGraphs`), and the Actor (207517), Character (207892) and
+PlayerCharacter (208046) holder vtables hold a `jmp` to it (38048, `Actor__NotifyAnimationGraph` in the database). So
+`CodeReach` follows r9 as argument 0 beside r8's self, and a virtual call on it is resolved against the player's
+holder vtable: 38048, a body sink (`NativeReach::EngineSinks`). The call's `Reach::Argument` makes that argument its
+target (`PartyRules::SubjectOf`): the story's event on a player plays on each game's own player, on any other reference
+on the host only. `ObjectReference.PlayAnimation` (56205) makes the same call on its self, but on an actor it only logs
+"is an Actor, and PlayAnimation should not be used." and returns, so the reach it now reads (body) changes nothing in
+play. Only r9 is followed; later arguments come on the stack.
+
 ## Calls into a quest (system quests, 2026-10-28)
 
 `docs/design/system-quests.md` decides a call into a quest's script function where it is made, not per native.
