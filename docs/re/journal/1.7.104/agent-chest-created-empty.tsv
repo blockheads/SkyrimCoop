@@ -1,0 +1,8 @@
+time	op	id	rva	item
+2026-11-07T20:27:13Z	read	16038	0x22b060	{"name": "TESObjectREFR::InitInventoryIfRequired"}
+2026-11-07T20:27:14Z	read	16129	0x23c380	{"name": "InventoryChanges::InitLeveledItems"}
+2026-11-07T20:27:28Z	read	16130	0x23c660	{"name": "InventoryChanges::InitFromContainerExtra"}
+2026-11-07T20:27:45Z	read		0x2f345b	{"name": "TESObjectREFR::ResetInventory"}
+2026-11-07T20:27:53Z	comment		0x23c3ad	{"addr": "0x14023c3ad", "comment": "InventoryChanges+0x19: set while rolling. Rolls each LVLI entry of the base container whose index no entry's ExtraLeveledItem already carries (sub_140164E20 reads that index); a guest skips this (HookInitLeveledItems)."}
+2026-11-07T20:27:53Z	comment		0x22b289	{"addr": "0x14022b289", "comment": "Leveled base entries only (or an actor): makes InventoryChanges if missing, rolls the leveled entries, then (a2 false) InitFromContainerExtra adds base entries carrying item extra data."}
+2026-11-07T20:27:53Z	comment		0x1bc9ea	{"addr": "0x1401bc9ea", "comment": "CreateReferenceAtLocation (PlaceAtMe, our MakeLooseItem): a new container reference is rolled at creation, not at open."}

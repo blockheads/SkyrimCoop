@@ -82,7 +82,9 @@ other section needs the duo.
 **Party travel**
 
 - [The AI/quest lock pair](#the-aiquest-lock-pair): small
-- [A follower stops following](#a-follower-stops-following): medium
+- [A follower stops following](#a-follower-stops-following): not reproducible on 1.7.104 (2026-11-07), not worked on
+- [A guest's recruitment stalls](#a-guests-recruitment-stalls): small
+- [A deleted copy in an AI job](#a-deleted-copy-in-an-ai-job): small
 
 **Saves**
 
@@ -112,6 +114,7 @@ other section needs the duo.
 - [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest): small
 - [The host's copy after a door](#the-hosts-copy-after-a-door): small
 - [Players stacked after a door](#players-stacked-after-a-door): small
+- [The late save's boot](#the-late-saves-boot): small
 
 **Test tools**
 
@@ -345,7 +348,8 @@ Size: medium. Needs: duo.
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
   `10C3BA`) posed differently, the guest's player 19 units above the floor, the host player's copy 18 units
   into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
-  `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
+  `faendal-letter` fails its end comparison the same way, and `copy-holds-spell-after-trip` in Whiterun (2026-11-07: 59
+  references, containers with change flag `0x8000000` on the host only, loose food posed differently). (Hod's `pose.head` 117 against 88, once, was a culled
   skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
   culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
@@ -705,11 +709,10 @@ Size: small. Needs: duo.
 
 ### A follower stops following
 
-Stands alone: not reproduced on 1.7.104.
-
-Agent task: Stage a follower left behind that catches up, then a fight, and watch for a stale cached follow target.
-
-Size: medium. Needs: duo, IDA.
+**Not reproducible on 1.7.104** (marked 2026-11-07 after three tries, below): not worked on unless it shows again in
+play. The entry stays for its engine reading ([followers.md](re/systems/followers.md)). If it returns, the untried
+ordering is a respawned copy at the moment the follow package starts again after a fight while the follower still
+counts as in combat (the restart skipped, no later package change).
 
 - **A guest's follower can stop following after being teleported and a fight** (2026-10-29, v1-gate, `save-load-gate`).
   After the harness took the party to the inn and home with `coc` and put Lydia beside it with `move_actor` (she
@@ -736,6 +739,35 @@ Size: medium. Needs: duo, IDA.
   - The entry's question, read in IDA: `BGSProcedureFollowExecState` caches the target at +8 and each update (28640)
     copies it to `followTarget` without 29846 ([followers.md](re/systems/followers.md)). So a stale cached handle
     would look like this entry; nothing has shown one yet.
+  - Not reproduced (2026-11-07, repro MCP, the dog recruited by the guest since a guest's dialogue recruitment stalls, see
+    [A guest's recruitment stalls](#a-guests-recruitment-stalls)): a party reload, the guest's death and respawn with
+    no enemy near, the follower left in another cell then `move_actor`, a real load door, a wolf fight. Each ended on
+    the guest's current copy. What does leave it targetless, read in IDA: the procedure ends on a dying, dead,
+    deleted or other-interior target, its load drops a temporary target, and the package pick never restarts an
+    unchanged package ([followers.md](re/systems/followers.md)). Staged NPCs are restrained (`stage`'s default
+    `frozen`): a restrained follower reads no target until released, which looks like this entry.
+
+### A guest's recruitment stalls
+
+A guest picks "Follow me. I need your help." (topic `B0EE6`, info `B0EE9`) on a placed Lydia: the host logs
+`Dialogue: player 2 picked topic B0EE6 (info B0EE9)` and then nothing, the guest's menu stays open and the host's Lydia
+reads `ai.talking` (2026-11-07, 2 of 2: outdoors by `talk`, in QASmoke by `pick_with_keys`). She was in the follower
+slot later, with her conversation still open on the host. `follower-guest-recruits` fails on the same step. Unread.
+
+Agent task: read why the host's background conversation does not run the picked line (`HostConversation::OnPicked`).
+
+Size: small. Needs: the duo, then GameTests.
+
+### A deleted copy in an AI job
+
+The guest crashed at `SkyrimSE.exe+6F6070` (39372+0x40, a null read at +0x10), from 37541 in an AI job, on its Lydia copy
+just deleted (`DeleteActor FF000E0B` 15 ms before, flags `kDeleted`, no parent cell), 2026-11-07, while `scene_reset`
+took the party from the Whiterun plains to QASmoke with a guest's conversation open on her. 1 of 1. Crash log:
+`crash-2026-11-07-14-58-08.log`, not kept. Unread.
+
+Agent task: read what 39372 and 37541 dereference and why a deleted copy is still in the job's list.
+
+Size: small. Needs: IDA, then GameTests.
 
 ## Saves
 
@@ -961,20 +993,18 @@ Size: small. Needs: duo, then GameTests.
 
 Copies of a player.
 
-Agent task: Find why the host's copy on the guest stands sunk and empty-handed after the host goes through a load
-door and back.
+Agent task: Find why the host's copy on the guest stands sunk after the host goes through a load door and back.
 
 Size: small. Needs: duo.
 
-- **The host's copy is 26 units in the floor, its left hand empty** (every run reaching `reward`). After the host
-  goes into the Riverwood Trader and out (two load doors) and walks to Faendal, the guest sees the host's copy sunk
-  26 units, and its left hand empty where the host holds 12FCC (`state.hands`). Start: how a copy is placed and
-  re-equipped when its owner changes cell and comes back.
+- **The host's copy is 26 units in the floor** (every run reaching `reward`). After the host goes into the Riverwood
+  Trader and out (two load doors) and walks to Faendal, the guest sees the host's copy sunk 26 units. Start: how a
+  copy is placed when its owner changes cell and comes back. (Its empty left hand was fixed 2026-11-07:
+  copy-hand-spells.md, "Selected, not held".)
   - The 2026-11-06 run that reached `leave` (out of Embershard Mine) read every body sunk 21 to 25 units: both owners
-    and both copies. So "sunk" may be the body check's floor reading at a door's arrival spot (check it against
-    vanilla first), and the copy's empty hand is the part that's surely wrong: the guest's own left hand holds 77772
-    and its copy on the host holds nothing.
-  - Test: the flow's `reward` and `leave` steps (SEEN: `placement.position`, `state.hands`).
+    and both copies. So "sunk" may be the body check's floor reading at a door's arrival spot: check it against
+    vanilla first.
+  - Test: the flow's `reward` and `leave` steps (SEEN: `placement.position`).
 
 ### Players stacked after a door
 
@@ -990,6 +1020,21 @@ Size: small. Needs: duo.
   out). Start: where party travel places the player it brings (`docs/design/party-travel.md`), and the engine's
   free spot search near a marker.
   - Test: the flow's `trader` and `enter` steps; `together` could check a minimum spacing.
+
+### The late save's boot
+
+The duo.
+
+Agent task: Find why the host stops booting the duo from `LateAfterDragonslayerBackinSkyrim`, then make it boot.
+
+Size: small. Needs: duo.
+
+- **The host freezes after loading the save** (2 of 2, 2026-11-07, `copy-state-riverwood` at `53c4dda2`): the boot
+  times out at "host: hosting"; the host's log stops mid `HostWorldState: sent ... quests` lines, its status file stops
+  with a `MessageBoxMenu` open (empty on screen, Throat of the World), and the harness gets no answer. The same build
+  booted the default QASmoke and played Riverwood and Whiterun. It blocks every late-save scenario and
+  `riverwood-day-one`. Runs: `build/coop-test/runs/20261107-142718-duo`, `20261107-143500-duo` in that worktree.
+  - Test: `coop_test.py duo --save LateAfterDragonslayerBackinSkyrim`.
 
 ## Test tools
 

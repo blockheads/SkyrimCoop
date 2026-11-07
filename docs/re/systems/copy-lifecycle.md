@@ -88,10 +88,11 @@ again is an enable: `HookEnable` (19800) returns for a form id in `HiddenCopies`
 (it returns true, the flag's state). Our own `SkyrimBridge::SetActorHidden` adds the id before the disable and removes
 it before the enable. Out of a session nothing is hidden, so neither hook changes anything.
 
-- **Measured (2026-11-07, the duo):** with `Cast<Actor>` and `Actor::GetExtension` in the `SetDisabled` hook, both games
-  exited about a second after entering the world, with no crash log; the same hook passing straight through, and the
-  same body in the `Enable` hook alone, ran fine. Which form broke it was not traced: `SetDisabled` also runs from
-  `InitItemImpl` and `InitLoadGame` on forms being loaded. The hooks read only `formID` (+0x14) and look it up.
+- **Not established (2026-11-07, the duo):** with `Cast<Actor>` and `Actor::GetExtension` in the `SetDisabled` hook,
+  two boots of a fresh worktree's prefix failed to host; with no hooks, the `Enable` hook alone, or `SetDisabled`
+  passing straight through, later boots hosted. Those first boots may as well have been the fresh prefix's
+  Anniversary box (progress.md, 2026-11-07, PR #34). `SetDisabled` also runs from `InitItemImpl` and `InitLoadGame` on
+  forms being loaded, so the hooks read only `formID` (+0x14) and look it up either way.
 
 - **Read, not run:** that a held copy's enable comes from the host's cell answer (the guest's own disable is a change
   its cell request sends back, the host's enabled row the answer) or from an enable parent's first load. The fake

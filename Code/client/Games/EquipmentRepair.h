@@ -34,6 +34,13 @@ struct Snapshots
     }
 };
 
+// A hand the owner holds a spell in holds something on a loaded copy: EquipSpell (38928) without a process only
+// selects the spell, leaving the hand empty (docs/re/systems/copy-hand-spells.md).
+constexpr bool HandHolds(uint32_t aWantedSpell, uint32_t aHeld) noexcept
+{
+    return !aWantedSpell || aHeld;
+}
+
 // A copy's worn set or hand spells differing from its owner's: cleared and equipped again whole (the reset puts
 // the owner's spells back).
 template <class Set, class Reset, class Equip>

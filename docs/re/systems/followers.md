@@ -23,6 +23,36 @@ The follow procedure's target, read on 1.7.104 (2026-11-04):
 So an unchanged state keeps its first target until the procedure restarts, which is why a new anchor needs the
 rebuild below.
 
+When the follow procedure is left with no target, and why nothing restarts it (1.7.104, 2026-11-07):
+
+```
+package pick (39114 -> CheckForNewPackageDefault 39213 -> ActorPackage_PickAndInitPackage 1406EBE40)
+  picked == running package?  -> return, nothing re-initialised, no procedure restart
+  else InitFromPackage 38959 (package target from 29556: type 0 reads the stored handle, no 29846)
+
+follow start (BGSProcedureFollowExecState_Start 14046EAD0)
+  target via the parameter (27770 -> 29846, our FollowerTargets hook)
+  no reference for it -> procedure done (context +0x10), +8 not written
+
+follow update (28640 copies +8 to followTarget, then by AIProcess +0x137)
+  level 0/1, 28644: done if the target is dying/dead/recycled (IsDead(1)), deleted with no
+                    reference handle, disabled (only with a sub-state set), or in another interior
+                    cell (+63, done and failed: 1404965E0); +8 with no reference: returns, nothing done
+  level 2/3, 28645: done if IsDead(0) (also essential-down), deleted or disabled
+
+follow load (28642): +8 comes back by form id (28641 saved it); a temporary target gone by then
+  leaves +8 empty, and no start runs to resolve it again
+```
+
+So a follower on 5C84B whose procedure ended, or came back from a save without its target, stands with
+`followTarget` empty until something restarts the package: a package change (combat and back) or EvaluatePackage
+with reset. Vanilla never meets it with the player as target; a guest's copy is a temporary actor that dies,
+respawns and is not in the save. Our only restart is `FollowerTargets::Reevaluate`, on a change of the target map,
+with reset only on 5C84B outside combat. Checked on the duo (2026-11-07): a party reload, a guest's death and
+respawn, a follower left in another cell then moved in, a real load door and a wolf fight each ended with the
+follower on the guest's current copy. Console disable and kill of a copy do not reach these paths (disabled needs a
+sub-state; a copy's death is refused).
+
 DialogueFollower (750BA) has humanoid alias 0 and animal alias 1. Recruitment already fills the host's alias
 through the existing dialogue path. PlayerFollowerPackage (5C84B) still stores a reference to player 14;
 the existing script context does not change that package data.

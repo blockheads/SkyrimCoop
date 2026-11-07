@@ -1,0 +1,16 @@
+time	op	id	rva	item
+2026-11-07T20:27:36Z	read	38928	0x6de5c0	{"name": "coop_RealEquipSpell"}
+2026-11-07T20:27:44Z	read	39192	0x6eb1a0	{"name": "ActorProcess::sub_39192"}
+2026-11-07T20:27:44Z	read	38768	0x6d6d40	{"name": "Actor::RevertSelectedSpell"}
+2026-11-07T20:28:40Z	name	39192	0x6eb1a0	{"addr": "0x1406eb1a0", "name": "ActorProcess::AddEquippedObject"}
+2026-11-07T20:28:42Z	comment	39192	0x6eb1a0	{"addr": "0x1406eb1a0", "comment": "Appends (object, slot) to the process's equip list (+0xA0) and sets equippedObjects[0] (+0xF0 left) / [1] (+0xF8 right) by the slot."}
+2026-11-07T20:28:42Z	comment		0x6de699	{"addr": "0x1406de699", "comment": "Only with a process (Actor+0xF8): the hand object (AIProcess::equippedObjects) is set here; without one the spell is only selected below."}
+2026-11-07T20:28:42Z	comment		0x6de844	{"addr": "0x1406de844", "comment": "Selects the spell for the hand (Actor::selectedSpells +0x1C8), process or not: selected and held can differ."}
+2026-11-07T20:28:51Z	read		0x75d1a0	{"name": "sub_14075D0A0"}
+2026-11-07T20:28:58Z	read	40702	0x75d1d0	{"name": "Actor::sub_40702"}
+2026-11-07T20:30:13Z	read	39430	0x6f9370	{"name": "sub_1406F9370"}
+2026-11-07T20:40:37Z	read	38826	0x6d9fa0	{"name": "TESObjectREFR::sub_38826"}
+2026-11-07T20:40:53Z	read		0x671758	{"name": "Actor::Set3D"}
+2026-11-07T20:50:45Z	read	54683	0xa00860	{"name": "papyrus::Actor::GetEquippedSpell"}
+2026-11-07T20:50:51Z	comment		0xa0086d	{"addr": "0x140a0086d", "comment": "Reads Actor::selectedSpells (+0x1C8), not the hand (AIProcess::equippedObjects): a copy can answer a spell its hand does not hold (copy-hand-spells.md)."}
+2026-11-07T20:50:51Z	comment		0x671758	{"addr": "0x140671758", "comment": "3D unload of an actor that had 3D: each hand's selected spell is reverted (cleared, and taken out of the process's hand)."}

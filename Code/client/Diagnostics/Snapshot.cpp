@@ -212,6 +212,9 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
     const auto cVoiceSound = EngineReads::GetVoiceSound(aFormId);
     mod["voice"] = {{"callback", EngineReads::GetVoiceLineState(aFormId)}, {"seconds", EngineReads::GetVoiceTimer(aFormId)},
                     {"sound", static_cast<int64_t>(static_cast<int32_t>(cVoiceSound.Id))}, {"duration_ms", cVoiceSound.DurationMs}};
+    // The hands' selected spells (Actor::selectedSpells), apart from what they hold (state.hands): shown, not compared.
+    const auto cMagic = world.GetFormBridge().GetActorEquipment(aFormId).CurrentMagicEquipment;
+    mod["selected_spells"] = {ToGame(cMagic.LeftHandSpell), ToGame(cMagic.RightHandSpell)};
     mod["process_level"] = EngineReads::GetProcessLevel(aFormId);
     mod["fade_state"] = EngineReads::GetFadeState(aFormId);
     mod["process_me"] = EngineReads::IsProcessMe(aFormId);
