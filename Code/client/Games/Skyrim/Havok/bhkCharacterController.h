@@ -53,7 +53,9 @@ struct bhkCharacterController
     uint8_t pad264[0x290 - 0x264];
     float radius;      // 290: the capsule's, Havok units
     float height;      // 294
-    uint8_t pad298[0x340 - 0x298];
+    uint8_t pad298[0x29C - 0x298];
+    float lodDistance; // 29C (CommonLibSSE-NG): Actor::UpdateAnimation 37361 tracks heads only within range
+    uint8_t pad2A0[0x340 - 0x2A0];
     // A bhkCharProxyController's (this part at its +0x10; vtable ID 240560): its hkpCharacterProxy
     // (bhkCharProxyController::GetLinearVelocityImpl 79145 reads it).
     void* proxy;       // 340
@@ -61,6 +63,7 @@ struct bhkCharacterController
 static_assert(offsetof(bhkCharacterController, outVelocity) == 0x90);
 static_assert(offsetof(bhkCharacterController, state) == 0x200);
 static_assert(offsetof(bhkCharacterController, flags) == 0x218);
+static_assert(offsetof(bhkCharacterController, lodDistance) == 0x29C);
 static_assert(offsetof(bhkCharacterController, actorHeight) == 0x260);
 static_assert(offsetof(bhkCharacterController, radius) == 0x290);
 static_assert(offsetof(bhkCharacterController, proxy) == 0x340);

@@ -14,11 +14,11 @@ How sure each link is:
 ```
  CHECKS THAT REPORT WHAT DID NOT HAPPEN        REAL COPY BUGS BEHIND THEM
  --------------------------------------        --------------------------
- Drift detector: frozen owner snapshot ------> Owner cancels an idle, copy plays it
-   "walks while its owner turns" (not real)      "interaction idle"  (real, reworded)
-   "idle variant"                (likely not)
- ai_state.head_track ------------------------> 4 unexplained look targets
-   dead actors, self slots (not real)
+ Drift detector, fixed: reads live ----------> Owner cancels an idle, copy plays it
+   entries deleted 11-06                         "interaction idle"  (real, reworded)
+                                                 "after a turn or a pick" (new)
+ ai_state.head_track, fixed -----------------> a player's copy's look target
+   dead actors, self slots (not read)
  town end comparison ------------------------> copy lifecycle (below)
 
  HANDS LIVE IN THE PROCESS, WORN MARKS IN THE INVENTORY
@@ -51,10 +51,13 @@ How sure each link is:
 
 ## Clusters
 
-### A. The drift detector compares with a frozen snapshot
+### A. The drift detector compared with a frozen snapshot
 
-Entries: [A copy walks while its owner turns](bugs.md#a-copy-walks-while-its-owner-turns),
-[A copy's idle variant](bugs.md#a-copys-idle-variant), [A copy's interaction idle](bugs.md#a-copys-interaction-idle).
+**Fixed 2026-11-06:** the check reads owner and copy live (animation-replay-recovery.md, "Drift detector"). The entries
+"A copy walks while its owner turns" and "A copy's idle variant" are deleted: the evidence is here. Measured after the fix:
+Camilla's `npc-counter-matches`, 1144 samples over two runs, no run of 2 s; no owner turning against a walking copy in the second run's 30 flows (the reverse, a wolf, is in the
+entry below). Left: [A copy's interaction idle](bugs.md#a-copys-interaction-idle),
+[A copy's graph after a turn or a pick](bugs.md#a-copys-graph-after-a-turn-or-a-pick).
 
 Cause, read: `PerformAction` (38949) sends its event through `NotifyAnimationGraph` (32901, 63362, 63591) to
 `hkbBehaviorGraph::HandleEventOnActiveNodes` (58377), which updates active nodes at once (60079). So the owner's
@@ -112,13 +115,13 @@ and not the cause.
 
 ### C. Headtracking
 
-Entry: [Headtracking on copies](bugs.md#headtracking-on-copies). Already sorted by cause there; this adds:
+Entry: [Headtracking on copies](bugs.md#headtracking-on-copies). Step 1 done 2026-11-06, what stayed is in the entry; this adds:
 
 - Measured 2026-11-06, Faendal fighting the guest: his copy's slot 1 held himself (`session 18`), his owner's nothing.
   Same class as cause 2, a self-target that turns no head, on a living NPC this time.
 - Cause 3 (`FF000820`) belongs to cluster E.
-- Kill-move scenarios (`host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`) wait on step 1 here:
-  it is the only thing failing them. Inferred from the reported values, as the entry says.
+- Kill-move scenarios (`host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`) waited on step 1: all three
+  passed both runs after it. Measured.
 
 ### D. Copy lifecycle
 
@@ -206,7 +209,7 @@ half-stop is the engine's detection.
 
 ## Order
 
-1. Fix the checks first (A, C step 1): they fail scenarios and file bugs that are not there.
+1. Fix the checks first (A, C step 1): done 2026-11-06.
 2. Then anything a check was hiding reads true: Sigrid's cancelled idle, the four head-track cases.
 3. D's fix clears the town comparisons' missing owners: a copy goes when its owner's game drops the actor.
 4. Everything else is independent.

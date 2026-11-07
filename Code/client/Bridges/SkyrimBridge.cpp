@@ -153,8 +153,11 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     Breadcrumbs::Record("SetActorCopy", aFormId, static_cast<uint32_t>(aCopy));
     if (ActorExtension* pExt = GetExtension(aFormId))
     {
+        const bool cReleased = pExt->IsCopy() && !aCopy;
         pExt->SetCopy(aCopy);
         GuestScripts::SetGuest(aFormId, pExt->IsOtherPlayer()); // GuestScripts' list follows the flags
+        if (Actor* pActor = cReleased ? GetActor(aFormId) : nullptr)
+            pActor->EndReleasedCopyPackage();
     }
 }
 

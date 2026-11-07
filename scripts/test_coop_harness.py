@@ -5,6 +5,7 @@ import copy
 import io
 import json
 import os
+import re
 import subprocess
 import time
 import sys
@@ -2142,28 +2143,255 @@ class ClipMismatchTests(unittest.TestCase):
         self.assertEqual(clip_starts(trace, "", "lucan"), [(11.82, "Enter")])
 
 
-class GraphDriftLineTests(unittest.TestCase):
-    """The per-flow drift line (observations.graph_drift_line) reports any counter change, not only new replays."""
+class GraphApartTests(unittest.TestCase):
+    """The live comparison (comparisons.GraphApart): only what stays apart from the owner's state now counts."""
 
     @staticmethod
-    def counts(**values):
-        from coop_harness.observations import Observations
-        return {"host": {name: {"count": values.get(name.replace(" ", "_"), 0), "sum": 0, "max": 0} for name in Observations.GRAPH_DRIFT},
-                "client": {name: {} for name in Observations.GRAPH_DRIFT}}
+    def apart():
+        from coop_harness.comparisons import GraphApart
+        return GraphApart(lasting=2.0)
 
-    def test_a_mismatch_turning_lasting_in_a_quiet_flow_is_reported(self):
+    def test_an_owner_that_moved_on_is_read_where_it_is_now(self):
+        # Skyrim, 2026-11-06: the action's snapshot said 44 s apart; live, the two agree once the transition ends.
+        apart = self.apart()
+        apart.observe(1, {"Idle", "Leaving"}, {"Idle"}, 10.0)
+        apart.observe(1, {"Idle"}, {"Idle"}, 10.3)
+        self.assertEqual(apart.finish(60.0), [])
+        self.assertEqual(apart.samples, 2)
+
+    def test_a_copy_really_apart_counts_once_with_its_sides(self):
+        # Sigrid 13483: the owner dropped the idle, her copy plays it.
+        apart = self.apart()
+        for now in (10.0, 11.0, 12.0, 13.9):
+            apart.observe(2, {"Default"}, {"Default", "IdlePickup_Ground"}, now)
+        apart.observe(2, {"Default"}, {"Default"}, 14.0)
+        self.assertEqual(apart.finish(20.0), [{"actor": 2, "at": 10.0, "seconds": 4.0, "owner_only": [], "copy_only": ["IdlePickup_Ground"]}])
+
+    def test_a_copy_following_a_moment_late_does_not_count(self):
+        apart = self.apart()
+        apart.observe(3, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(3, {"Walk"}, {"Walk"}, 11.9)
+        self.assertEqual(apart.finish(20.0), [])
+
+    def test_a_graph_not_read_is_no_evidence(self):
+        apart = self.apart()
+        apart.observe(4, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(4, None, {"Idle"}, 11.0)
+        apart.observe(4, {"Walk"}, {"Idle"}, 12.0)
+        self.assertEqual(apart.finish(12.5), [])
+        self.assertEqual(apart.samples, 2)
+
+    def test_still_apart_at_the_end_counts(self):
+        apart = self.apart()
+        apart.observe(5, {"Walk"}, {"Idle"}, 10.0)
+        self.assertEqual(apart.finish(13.0)[0]["seconds"], 3.0)
+
+    def test_an_actor_no_longer_read_is_no_evidence(self):
+        # Skyrim: the party leaves Riverwood, and the graphs left behind stand still where each game last had them.
+        apart = self.apart()
+        apart.observe(6, {"Walk"}, {"Idle"}, 10.0)
+        apart.observe(7, {"Walk"}, {"Idle"}, 10.0)
+        apart.keep_only([7])
+        self.assertEqual([run["actor"] for run in apart.finish(13.0)], [7])
+
+    def test_a_long_run_no_longer_read_stands_at_its_last_reading(self):
+        apart = self.apart()
+        for now in (10.0, 13.0, 16.0):
+            apart.observe(8, {"Walk"}, {"Idle"}, now)
+        apart.observe(8, None, {"Idle"}, 17.0)
+        for now in (20.0, 26.0):
+            apart.observe(9, {"Walk"}, {"Idle"}, now)
+        apart.keep_only([])
+        runs = apart.finish(99.0)
+        self.assertEqual([(run["actor"], run["seconds"], run["lost"]) for run in runs], [(8, 6.0, True), (9, 6.0, True)])
+        from coop_harness.comparisons import graph_apart_line
+        self.assertIn("until no longer read", graph_apart_line(apart, 0.0))
+
+    def test_a_graph_that_stopped_cannot_make_a_run(self):
+        # An NPC dies just after the pairs were read: its graph stands still and is read for up to 3 s more.
+        apart = self.apart()
+        for now in (10.0, 12.0, 13.0):
+            apart.observe(1, {"Walk"}, {"Idle"}, now)
+        apart.keep_only([])
+        self.assertEqual(apart.finish(99.0), [])
+
+    def test_a_newly_loaded_npc_never_takes_a_watched_ones_place(self):
+        from coop_harness.comparisons import choose_pairs
+        pair = lambda owner: (owner, owner + 100)
+        self.assertEqual(choose_pairs([pair(5), pair(6)], (), 1, set()), {5})
+        # 1 now sorts first, 5 is still read.
+        self.assertEqual(choose_pairs([pair(1), pair(5)], (), 1, {5}), {5})
+        # 5 has gone: the place is free.
+        self.assertEqual(choose_pairs([pair(1)], (), 1, {5}), {1})
+        self.assertEqual(choose_pairs([pair(1), pair(5)], {5}, None, set()), {5})
+        self.assertEqual(choose_pairs([pair(1), pair(5)], (), None, set()), {1, 5})
+
+    def test_held_copies_are_not_paired_by_their_empty_session(self):
         from coop_harness.observations import Observations
         ctx = Observations()
-        ctx.graph_drift_counts = lambda: self.counts(replays=1, mismatches=1, lasting=1)
-        line = ctx.graph_drift_line(self.counts(replays=1, mismatches=1))
-        self.assertIn("lasting 1", line)
-        self.assertIn("replays 0", line)
+        row = lambda role, sid: {"role": role, "player": False, "mod": {"session_id": sid},
+                                 "placement": {"has_3d": True}, "state": {"dead": False}}
+        class Game:
+            def __init__(self, world):
+                self.world = world
+            def read_status(self):
+                return {"world": self.world}
+        # A guest's held copy and an unlinked own NPC both read -1, as a real pair (1) goes on.
+        host = {"1": row("own", 1), "2": row("own", -1)}
+        guest = {"11": row("copy", 1), "12": row("copy", -1)}
+        self.assertEqual(ctx.copy_pairs([Game(host), Game(guest)]), {1: (1, 11)})
 
-    def test_nothing_changed_prints_nothing(self):
+    def test_only_a_living_npc_in_3d_is_watched(self):
         from coop_harness.observations import Observations
         ctx = Observations()
-        ctx.graph_drift_counts = lambda: self.counts(replays=3)
-        self.assertEqual(ctx.graph_drift_line(self.counts(replays=3)), "")
+        row = lambda role, sid, **more: {"role": role, "player": more.pop("player", False), "mod": {"session_id": sid},
+                                         "placement": {"has_3d": more.pop("has_3d", True)}, "state": {"dead": more.pop("dead", False)}}
+        class Game:
+            def __init__(self, world):
+                self.world = world
+            def read_status(self):
+                return {"world": self.world}
+        host = {"1": row("own", 1), "2": row("own", 2, dead=True), "3": row("own", 3), "4": row("own", 4, player=True), "5": row("own", 5)}
+        guest = {"11": row("copy", 1), "12": row("copy", 2, dead=True), "13": row("copy", 3, has_3d=False), "14": row("copy", 4, player=True)}
+        self.assertEqual(ctx.copy_pairs([Game(host), Game(guest)]), {1: (1, 11)})
+
+    def test_the_flow_line_says_what_it_read(self):
+        from coop_harness.comparisons import graph_apart_line
+        self.assertEqual(graph_apart_line(self.apart(), 0.0), "")
+        apart = self.apart()
+        apart.observe(0x13483, {"A"}, {"A"}, 1.0)
+        self.assertIn("no run of 2 s", graph_apart_line(apart, 0.0))
+
+
+class ActiveStatesTests(unittest.TestCase):
+    """graph_state's reply: an empty graph is a reading, no reply or broken bytes are none."""
+
+    @staticmethod
+    def saved(machines=(("m", "s"),)):
+        text = lambda value: len(value).to_bytes(2, "little") + value.encode()
+        section = len(machines).to_bytes(4, "little")
+        for machine, state in machines:
+            section += text(machine) + bytes(4) + text(state) + bytes(8)
+        return (bytes(8) + text("p") + len(section).to_bytes(4, "little") + section).hex()
+
+    def test_a_graph_reads_as_its_states(self):
+        from coop_harness.comparisons import active_states
+        self.assertEqual(active_states(self.saved()), {"p/m=s"})
+        self.assertEqual(active_states(self.saved(())), set())
+        # The actor's flags and no graph: a copy whose behaviour graph is not ready is no reading.
+        self.assertIsNone(active_states(bytes(8).hex()))
+
+    def test_no_reply_or_broken_bytes_is_no_reading(self):
+        from coop_harness.comparisons import active_states
+        for broken in ("", None, "00", "zz", self.saved()[:-2], self.saved()[:30]):
+            self.assertIsNone(active_states(broken), broken)
+
+    def test_a_failed_read_ends_a_run_uncounted(self):
+        # The reply's `{"ok": false}` has no state: without this a gap reads as an empty graph, apart.
+        from coop_harness.comparisons import GraphApart, active_states
+        apart = GraphApart()
+        apart.observe(1, {"Idle"}, active_states(""), 11.0)
+        apart.observe(1, {"Idle"}, active_states(""), 13.1)
+        self.assertEqual(apart.finish(13.2), [])
+
+    def test_a_watch_that_dies_leaves_no_open_run(self):
+        from coop_harness.observations import Observations
+        states = {"": self.saved((("m", "a"),)), "client": self.saved((("m", "b"),))}
+        role = lambda name: {"role": name, "player": False, "mod": {"session_id": 1}, "placement": {"has_3d": True}, "state": {}}
+
+        class Game:
+            def __init__(self, name):
+                self.name, self.calls = name, 0
+                self.rpc_connections = {}
+            def read_status(self):
+                return {"world": {"1" if not self.name else "2": role("own" if not self.name else "copy")}}
+            def rpc(self, request, timeout=3.0):
+                self.calls += 1
+                if self.calls > 2:
+                    raise OSError("the game went away")
+                return {"state": states[self.name]}
+            def close(self):
+                pass
+        ctx = Observations()
+        games = {"": Game(""), "client": Game("client")}
+        ctx.game = lambda name="": games[name]
+        watch = ctx.graph_watch_start(every=0.01)
+        watch["thread"].join(5)
+        self.assertFalse(watch["thread"].is_alive())
+        self.assertEqual(watch["apart"].open, {})
+        self.assertIn("no run", ctx.graph_watch_stop(watch))
+
+
+class UiAssetsTests(unittest.TestCase):
+    """The folder the games load their panels from: the duo's user must be able to read it."""
+
+    def locate(self, user, unreadable):
+        from coop_harness import runtime
+        session = Mock(spec=[])
+        session.game = Mock(return_value=None)
+        session.instance_user = Mock(return_value=user)
+        with patch.object(runtime.subprocess, "run", return_value=Mock(returncode=int(unreadable))) as checked:
+            return runtime.Runtime.ui_assets(session), checked.call_count
+
+    def test_a_readable_repo_is_used_in_place(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate("coop2", False), (runtime.UI_SOURCE, 1))
+
+    def test_a_worktree_in_a_private_home_uses_the_deployed_copy(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate("coop2", True)[0], runtime.PLUGINS.resolve() / "SkyrimCoop/ui")
+
+    def test_no_separate_user_reads_the_repo(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate(None, True), (runtime.UI_SOURCE, 0))
+
+
+class LockOrderPassThroughTests(unittest.TestCase):
+    def test_every_pass_through_hook_fits_the_list(self):
+        # A hook past the list reads as ours: the engine's own lock orders then fail flows.
+        root = Path(__file__).resolve().parent.parent
+        header = (root / "Code/client/Games/Skyrim/BSCore/LockOrderAttribution.h").read_text()
+        limit = int(re.search(r"kMaxPassThrough = (\d+)", header).group(1))
+        calls = sum(path.read_text(errors="ignore").count("LockOrder::IgnoreFrames(") for path in (root / "Code/client").rglob("*.cpp"))
+        self.assertGreater(calls, 0)
+        self.assertLessEqual(calls, limit)
+
+
+class HeadTrackComparisonTests(unittest.TestCase):
+    """ai_state.head_track: compared only where the engine reads the slots (compare_field)."""
+
+    @staticmethod
+    def differs(owner, copy):
+        from coop_harness.comparisons import compare_field
+        return compare_field("ai_state.head_track", owner, copy, {"player": False, "identity": {}})
+
+    def test_unread_on_either_game_is_no_difference(self):
+        # Skyrim: a killed wolf's copy holds each game's own player in slot 0; the engine reads neither.
+        self.assertIsNone(self.differs("unread", ["session 2"]))
+        self.assertIsNone(self.differs(["session 1"], "unread"))
+        self.assertIsNone(self.differs("unread", "unread"))
+
+    def test_read_on_both_compares_the_target(self):
+        self.assertEqual(self.differs(["session 1"], ["session 2"]), "differs")
+        self.assertEqual(self.differs([], ["session 2"]), "differs")
+        self.assertIsNone(self.differs(["session 1"], ["session 1"]))
+
+    def test_alternation_is_each_games_own(self):
+        # Slot 2 alone on the game whose player is spoken to, slots 2 and 0 on the other.
+        self.assertIsNone(self.differs(["session 1"], ["session 1", "session 2"]))
+        self.assertEqual(self.differs(["session 3"], ["session 1", "session 2"]), "differs")
+        self.assertEqual(self.differs(["session 1", "session 3"], ["session 1", "session 2"]), "differs")
+
+    def test_one_side_unread_is_named(self):
+        from coop_harness.comparisons import head_track_one_sided
+        actor = lambda role, shut: {"role": role, "mod": {"session_id": 1}, "ai": {"head_track_shut": shut}, "player": False, "identity": {}}
+        lines = head_track_one_sided({"host": {"7": actor("own", None)}, "client": {"8": actor("copy", "out of range")}})
+        self.assertEqual(len(lines), 1)
+        self.assertIn("unread on client (out of range)", lines[0])
+        self.assertEqual(head_track_one_sided({"host": {"7": actor("own", "knocked")}, "client": {"8": actor("copy", "race")}}), [])
+        # Session -1: a held copy and an unlinked own actor are no pair.
+        unlinked = lambda role, shut: {**actor(role, shut), "mod": {"session_id": -1}}
+        self.assertEqual(head_track_one_sided({"host": {"7": unlinked("own", None)}, "client": {"8": unlinked("copy", "race")}}), [])
 
 
 class ProfileBudgetTests(unittest.TestCase):

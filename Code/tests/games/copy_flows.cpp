@@ -182,6 +182,25 @@ SCENARIO("A guest's player gets a copy on the host's game", "[copies]")
     }
 }
 
+SCENARIO("A copy holding the do-nothing package can be asked its procedure, as a copy and after", "[copies][copy-package]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Host(), [&] { host.LoadNpc(0xA2C8E, 0x31D2E, {}); });
+    party.Until([&] { return guest.CopiesOf(0xA2C8E).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0xA2C8E).front();
+
+    // Its owner's package is one the engine made: no id both games share, so it holds its own do-nothing.
+    guest.SetCopyAiFields(cCopy, {});
+    // Skyrim: a condition asks a live copy GetCurrentAIProcedure; a released one checks for a new package when it next loads.
+    CHECK(guest.ReadsProcedure(cCopy));
+    guest.SetActorCopy(cCopy, false);
+    CHECK(guest.ReadsProcedure(cCopy));
+    // Released, the NPC is this game's own: a do-nothing package nothing ends would leave it standing frozen.
+    CHECK(guest.Actors.at(cCopy).RunningPackageType != 27);
+}
+
 SCENARIO("A player's looks change on the existing copies", "[copies][copy-looks]")
 {
     Party party(1, PaintedPlayers);

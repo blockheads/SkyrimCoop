@@ -932,6 +932,7 @@ class Commands:
                                    "there (read back as one timeline) and stay as they failed")
         scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see the flow registry)")
         scenario.add_argument("--fail-fast", action="store_true", help="stop at the first scenario that fails")
+        scenario.add_argument("--no-graph-watch", action="store_true", help="skip the per-flow owner-against-copy graph log")
         scenario.add_argument("--dry-run", action="store_true", help="print the selection without contacting Skyrim")
         scenario.add_argument("--no-restart", action="store_true",
                               help="stop the batch when a scenario leaves the baseline broken (default: boot the duo again and go on)")

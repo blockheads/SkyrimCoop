@@ -174,7 +174,7 @@ class Runtime:
                    # `stop` kills the games: no crash report and zip from that at the next boot.
                    SKYRIMCOOP_NO_CRASH_REPORTS="1",
                    # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
-                   SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
+                   SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(ctx.ui_assets(_game=_game)).replace("/", "\\")))
         if _game.name:
             env["SKYRIMCOOP_INSTANCE"] = _game.name
         env["TRACY_PORT"] = str(_game.tracy_port)
@@ -502,6 +502,15 @@ class Runtime:
         """That game runs on the desktop (`--visible` for all, or `play`'s one game), not its off-screen display."""
         _game = ctx.game(_game)
         return ctx.VISIBLE is True or (isinstance(ctx.VISIBLE, (set, frozenset)) and _game.name in ctx.VISIBLE)
+
+    def ui_assets(ctx, *, _game=None):
+        """The UI's folder for this game: the repo's, unless its user cannot read that (a worktree in a private home): then
+        the copy deploy_ui made. Without it the party and join panels never load."""
+        user = ctx.instance_user(_game=ctx.game(_game))
+        if not user or not subprocess.run(["sudo", "-n", "-u", user, "test", "-r", str(UI_SOURCE / "party.rml")],
+                                          capture_output=True).returncode:
+            return UI_SOURCE
+        return PLUGINS.resolve() / "SkyrimCoop/ui"
 
     def allow_instance_user(ctx, *, _game=None):
         """Lets the instance's user draw on its display (xhost)."""

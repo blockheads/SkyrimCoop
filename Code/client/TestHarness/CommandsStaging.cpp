@@ -86,6 +86,13 @@ nlohmann::json MoveActor(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::MoveActorToPlayer(cActor, cSpot) ? Ok() : Error("no such actor");
 }
 
+// {"cmd": "copy_do_nothing", "actor": id}: this copy holds its own do-nothing package, as when its owner's package is one
+// the engine made (EngineCalls::CopyHoldsDoNothing).
+nlohmann::json CopyDoNothing(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::CopyHoldsDoNothing(acRequest.value("actor", 0u)) ? Ok() : Error("no such copy");
+}
+
 // {"cmd": "put_package", "actor": id, "package": id}: the actor runs that package (EngineCalls::PutPackage). This game only.
 nlohmann::json PutPackage(Harness&, const nlohmann::json& acRequest)
 {
@@ -125,7 +132,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
-    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"clear_map_marker", true, &ClearMapMarker},
+    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"clear_map_marker", true, &ClearMapMarker},
 };
 } // namespace
 

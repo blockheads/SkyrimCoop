@@ -2,6 +2,7 @@
 import math
 import time
 
+from ..comparisons import head_track_differs
 from ..common import (
     ACTIVATE_KEY,
     AMREN,
@@ -112,21 +113,53 @@ def scenario_dialogue_peer_starts(ctx):
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
 
+def scenario_released_copy_takes_up_its_ai(ctx):
+    # hand-written: the engine path is read in IDA, and a copy on its own do-nothing package needs a harness control.
+    """The guest leaves while its copy of a game's own NPC holds its do-nothing package. Released, the NPC is the guest's own
+    again and picks a package of its own, rather than standing frozen on one nothing ever ends (actor-ai-and-copies.md)."""
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    ctx.wait_for(f"[client] Lucan {LUCAN:X} is a copy here", lambda: ctx.actor_on("client", LUCAN).get("role") == "copy", 30)
+    package_type = lambda: (ctx.actor_on("client", LUCAN).get("mod") or {}).get("package_type")
+    def holds_do_nothing():  # the owner's next AI state puts its package back: ask until it shows
+        ctx.player_command("client", {"cmd": "copy_do_nothing", "actor": LUCAN})
+        return package_type() == 27
+    ctx.wait_for(f"[client] copy {LUCAN:X} holds the do-nothing package", holds_do_nothing, 10)
+    ctx.disconnect_client()
+    try:
+        ctx.wait_for(f"[client] {LUCAN:X}, released, picks a package of its own", lambda: package_type() not in (27, None), 10)
+    finally:
+        ctx.joins_with_world("joins again, as a player does")  # with the host's save: a running game's rejoin keeps its own world
+        ctx.both_go("the blank cell", "coc QASmoke")  # the end's comparison is of the session, not of this shop (bugs.md, After a guest rejoins)
+
+
+def scenario_copy_answers_its_ai_procedure(ctx):
+    # hand-written: the engine path is read (GetCurrentAIProcedure 21521) and it needs no play: a console line on each copy.
+    """A condition asks a player's copy GetCurrentAIProcedure, as a script or a dialogue line can. The copy holds a do-nothing
+    package of ours: with no procedure type the engine indexes its table at -1 and the game crashes (actor-ai-and-copies.md)."""
+    for game in ("client", ""):
+        copy = ctx.wait_for(f"[{game or 'host'}] the other player's copy is here", lambda: ctx.other_player(ctx.actors_on(game)), 10)
+        printed = ctx.console_on(game, f"{copy:08X}.GetCurrentAIProcedure")
+        if not any("Procedure >>" in line for line in printed):
+            raise ctx.failure(f"[{game or 'host'}] copy {copy:08X} gave no procedure: {printed}")
+
+
 def scenario_dialogue_copy_looks_at_speaker(ctx):
     """The client talks to its copy of the host's NPC: the NPC turns its head to the client's character (a
     headtrack slot, HighProcessData::headTrackTarget), and the client's copy looks at the same one, the client's
-    own player (ai_state.head_track: every slot, by session id). Copies run no AI, which sets those slots."""
+    own player (ai_state.head_track: what the engine reads of the slots, by session id). Copies run no AI, which sets those slots."""
     npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
     try:
         ctx.place_before("", npc, 110)
         ctx.place_before("client", copy, 110)
         ctx.activate_on("client", copy)
         ctx.wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: ctx.talking_to("client", copy), 10)
-        owner = ctx.wait_for(f"[host] NPC {npc:08X} looks at someone",
-                             lambda: (lambda slots: slots if any(slots) else None)(ctx.ai_state("", npc).get("head_track") or []), 10)
-        log(f"host NPC {npc:08X} headtrack slots: {owner}")
+        def looks_at(game, form):  # "unread" or nobody is no look
+            targets = ctx.ai_state(game, form).get("head_track")
+            return targets if targets and isinstance(targets, list) else None
+        owner = ctx.wait_for(f"[host] NPC {npc:08X} looks at someone", lambda: looks_at("", npc), 10)
+        log(f"host NPC {npc:08X} head targets: {owner}")
         ctx.wait_for(f"[client] copy {copy:08X} looks where its owner does ({owner})",
-                     lambda: ctx.ai_state("client", copy).get("head_track") == ctx.ai_state("", npc).get("head_track"), 5)
+                     lambda: (seen := looks_at("client", copy)) and (now := looks_at("", npc)) and not head_track_differs(now, seen), 5)
         ctx.hold()
     finally:
         ctx.close_dialogues()

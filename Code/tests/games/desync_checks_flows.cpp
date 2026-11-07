@@ -76,3 +76,45 @@ TEST_CASE("An off-screen NPC's old skeleton pose is not its current animation", 
     CHECK(host.Actors.at(lydia).Pose->Head == standing.Head);
     CHECK(party.ActorDifferences().empty());
 }
+
+TEST_CASE("Look targets compare only where the engine reads them", "[copies][desync-checks][headtrack]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] { wolf = host.LoadNpc(0xA2C8E, 0x31D2E, {}); });
+    party.Until([&] { return guest.CopiesOf(0xA2C8E).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0xA2C8E).front();
+    const uint32_t cElsewhere = FakeEngine::kPlayer; // the guest's own player: not whom the owner looks at
+    const auto cApart = [&] {
+        return std::ranges::any_of(party.ActorDifferences(), [](const std::string& acDifference) { return acDifference.contains("looks at"); });
+    };
+    party.Agree("the two agree to begin with");
+
+    // A live copy with its own target: a head a player sees turned elsewhere.
+    guest.Actors.at(cCopy).Ai.HeadTrackIds[1] = cElsewhere;
+    CHECK(cApart());
+
+    // A slot on itself turns no head.
+    guest.Actors.at(cCopy).Ai.HeadTrackIds[1] = cCopy;
+    CHECK_FALSE(cApart());
+
+    // A slot under a higher one is not read, on either side, until the higher one clears.
+    guest.Actors.at(cCopy).Ai.HeadTrackIds = {cElsewhere, 0, 0, cCopy, 0, 0};
+    CHECK_FALSE(cApart());
+    guest.Actors.at(cCopy).Ai.HeadTrackIds[3] = 0;
+    CHECK(cApart());
+
+    // Knocked down (Actor::UpdateAnimation 37361 skips ProcessTracking): each game's body alone.
+    guest.Actors.at(cCopy).KnockedDown = true;
+    CHECK_FALSE(cApart());
+    guest.Actors.at(cCopy).KnockedDown = false;
+    CHECK(cApart());
+
+    // Dead, as a killed wolf measured: each game's slots hold its own player, and nothing reads them.
+    party.As(party.Host(), [&] { host.Actors.at(wolf).Dead = true; });
+    guest.Actors.at(cCopy).Dead = true;
+    host.Actors.at(wolf).Ai.HeadTrackIds[0] = FakeEngine::kPlayer;
+    CHECK_FALSE(cApart());
+}

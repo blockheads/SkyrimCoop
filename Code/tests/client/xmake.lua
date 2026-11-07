@@ -5,7 +5,7 @@ target("ClientTests")
     set_group("Tests")
     set_languages("cxx23")
     add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
-    add_files("../../client/Diagnostics/Counters.cpp", "../../client/Games/Animation/GraphDrift.cpp")
+    add_files("../../client/Diagnostics/Counters.cpp")
     add_files("../../client/Services/SaveTransfer.cpp", "../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
               "../../client/Services/Host/PartyThreat.cpp")
     add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",

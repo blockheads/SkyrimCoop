@@ -210,7 +210,8 @@ struct PlayerCharacter : Actor
     uint32_t assumedIdentity;
     int8_t murder;
     uint8_t perkPoints; // CommonLib perkCount (Game.AddPerkPoints 55451)
-    uint8_t padB0A[0xB18 - 0xB0A];
+    uint8_t flagsB0A; // saved, +0xB12 on 1.7.104; bit 4: hands bound (ActivateHandler), and ProcessTracking 38009 does not alternate slots
+    uint8_t padB0B[0xB18 - 0xB0B];
     GameArray<TintMask*> baseTints;
     GameArray<TintMask*>* overlayTints;
     uint8_t padB38[0xBE3 - 0xB38];
@@ -226,6 +227,7 @@ static_assert(offsetof(PlayerCharacter, objectives) == 0x588 + SkyrimRuntime::Pl
 static_assert(offsetof(PlayerCharacter, queuedTarget) == 0x648 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, flagsB0A) == 0xB0A + SkyrimRuntime::PlayerShift);
 static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);
 static_assert(offsetof(PlayerCharacter, grabbedObject) == 0x8D0 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, sleepSeconds) == 0x8EC + SkyrimRuntime::PlayerShift);

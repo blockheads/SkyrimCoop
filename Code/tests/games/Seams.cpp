@@ -235,13 +235,6 @@ void World::Update() noexcept
             {
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
-                // As AnimationSystem::Update: the drift detector after a taken replay.
-                const auto& cAction = step.Action;
-                const bool cPaired = !cAction.TargetEventName.empty();
-                const bool cCompares = GraphDrift::Compares(cPaired, actor.Player, !cAction.GraphState.empty());
-                GraphDrift::Taken(animation.Drift, form.Id, cAction.ActionId, cAction.EventName, cPaired, actor.Player, !cAction.GraphState.empty(),
-                                  cCompares ? GraphDrift::ActiveStates(cAction.GraphState) : std::nullopt,
-                                  cCompares ? GraphDrift::ActiveStates(engine.SaveActorGraphState(form.Id)) : std::nullopt, GetTick());
             }
             if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&
                 animation.TimePoints.front().ActionId == step.Action.ActionId)
@@ -252,15 +245,11 @@ void World::Update() noexcept
         // As AnimationSystem::RunGraphPoint.
         const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
         GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-        if (GraphDrift::SampleDue(animation.Drift, GetTick()))
-            GraphDrift::Sample(animation.Drift, form.Id, GraphDrift::ActiveStates(engine.SaveActorGraphState(form.Id)), GetTick());
         if (cPhase == Step::kIdle && animation.GraphPoint &&
             (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))
         {
             const auto& cPoint = *animation.GraphPoint;
             const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
-            if (cVerdict != GraphRandom::Point::kWait && animation.Drift.Open)
-                GraphDrift::Retarget(animation.Drift, GraphDrift::ActiveStates(cPoint.GraphState));
             if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
             {
                 actor.GraphRandom = cPoint.Variables.GraphRandom;

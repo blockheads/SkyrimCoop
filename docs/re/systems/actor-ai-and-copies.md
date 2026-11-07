@@ -168,6 +168,24 @@ is the cost: a refused action built each frame while a copy sneaks.
 Copies return at the entry of `Character::UpdateAI` (`HookUpdateAI`, Actor.cpp). That is the engine's
 own `kProcessMe` early-out applied to the AI alone; every body job above keeps running. The hook still
 runs UpdateAI's upkeep for copies (the table above), under `UpdateAI`'s own conditions, and
+**A copy's own do-nothing package needs its procedure type (read 2026-11-06).** `TESPackage::CreatePackage` (29496) leaves `+0xD8`
+at -1. `InitiateDoNothingPackage` fills it with `TESPackage::FillProcedureType` (29582; type 27 gives 23), and
+`PutCreatedPackage` (37570) fills a -1 the same way. Our copy path puts its package through `InitFromPackage` instead, past both,
+so it now calls 29582 itself (`CopyPackage::CreateDoNothing`). Many readers index the procedure table `off_1420B7DC0` at that
+value with no check, -1 reading the qword before it: `GetCurrentAIProcedure` (21521, a condition, on a live copy) and
+`CheckForNewPackageDefault` (39213, on a copy released at a session's end, as soon as it loads or if it is loaded).
+`crash-2026-11-06-14-31-22`: Dagny, a held copy from an earlier visit, released by a session's end (`CharacterService.cpp`,
+"the session's copies go"), checked on entering Dragonsreach after the harness's rejoin from a running game; a player's leave goes
+to the main menu and joins with the host's save, so the release path a player reaches is `TakeOwnership`.
+
+**A released copy must not keep that package (measured 2026-11-07).** With a procedure type it no longer crashes, but `39213`
+picks nothing new while a delete-when-done package's step is not done: Lucan released on it stood with his position unchanged for
+the 38 s watched, where released on a real package he walked off. Whether it would ever end by itself was not measured. `SkyrimBridge::SetActorCopy` now calls
+`Actor::EndInterruptPackage` (37474, `true`: not its `EndDialogue`) once the flag is clear, for that package only
+(`CopyPackage::EndsOnRelease`); it clears the slot and checks for a new package. Every release goes through it: taking ownership
+(a mount's, 973 and 1051 in `CharacterService.cpp`), a session's end, unloading the plugin. Scenario `released-copy-takes-up-its-ai`, using the harness's `copy_do_nothing`, because
+no ordinary play was found that puts a game's own NPC's copy on it.
+
 A copy holds the engine's do-nothing package (type 27, `Actor::InitiateDoNothingPackage` 37402): whenever
 the engine asks for a copy's package (`checkForNewPackage` 39114: no package unseen, a process level
 change, a scene or dialogue ending), `HookCheckForNewPackage` gives it that one, and `HookPutCreatedPackage`
@@ -653,7 +671,7 @@ meh321 where they have one, ours otherwise.
   `(float delta, NiAVObject*)`, the body reads only `rcx` and `xmm1`) runs from `Actor::UpdateAnimation` (37361) and
   `Character::ProcessTrackingIfAllowed` (37363), copies included, behind a gate (see "When the slots are read" below).
   It takes the highest set slot
-  (`AIProcess::GetHeadtrackTarget` 39484; in a conversation it alternates the script and default slots), the
+  (`AIProcess::GetHeadtrackTarget` 39484; in a scene's line it alternates the script and default slots), the
   target's look position (vfunc `0x2D8`), and `AIProcess::SetHeadtrackTarget` (39887) writes it to the graph
   (`SetGraphVariableNiPoint3`, the `TargetLocation` the look-at modifiers read) and sets `MiddleHigh +0x326`. A
   copy's slots stayed empty (no AI), so its head never turned: `dialogue-copy-looks-at-speaker` (2026-10-31) showed
@@ -664,11 +682,46 @@ meh321 where they have one, ours otherwise.
   them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
 
-  **When the slots are read (read in IDA, 1.7.104, 2026-11-05).** Both callers skip ProcessTracking for an actor that
-  is dead or dying (`IsDead`, life state 1), in life state 3, knocked (knock state not 0), in sit state 7, not high
-  process, or with its controller's `+0x29C` out of range. In those states nothing reads the slots, so a dead actor
-  looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither pushes nor reports.
+  **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an
+  actor that is dead or dying (`IsDead`, life state 1), in life state 3 (4, 5 and 8, bleeding out, pass here, and `ProcessTracking` then ignores the slots), knocked (knock state not 0), asleep (sit state 7;
+  3 is sitting, which tracks: `ActorProcess::StandOrWakeFromFurniture` 39865 wakes 7 and stands 3), not high process, or with its controller's
+  `lodDistance` (`+0x29C`) outside 0 to the game setting `fAIMaxHeadTrackDistanceFromPC` (2000), `fAIMaxLargeCreatureHeadTrackDistance` (12000) for an extra large race. In those states nothing reads the slots to
+  turn a head, so a dead actor looks at nothing whatever they hold, and our hook, which lives in ProcessTracking, neither
+  pushes nor reports.
   The bit `actorState.flags2 & 8` (`HeadTrackingOn` 42840 sets it, `HeadTrackingOff` 42841) is checked first inside.
+  Inside, too: an actor with no 3D reads nothing; one with face data (vfunc `0x63`) beyond the range of this game's player
+  reads nothing; and without the race flag `kUseHeadTrackAnims` (`TESRace +0x108 & 0x8000`) no target reaches the graph. Not
+  mirrored by the check: the frame budget (`dword_143242774`, a moment only). `bDisableHeadTracking:HeadTracking` ignores the
+  slots, like the life check.
+
+  Every reader of the slots (xrefs of `GetHeadtrackTarget` 39484, read):
+
+  - `ProcessTracking` 38009: the highest set slot. Slots 2 and 0 by turns only in a scene (`Actor::GetCurrentScene` 37247, vfunc `0x4A`), with the player's hands not bound (`+0xB12` bit 4: `ActivateHandler` answers "Your hands are bound."), slot 2 highest, `boolBits & 0x180`, the
+    voice timer run out and not talking to this game's player (`IsTalkingToPC` 39347, through 37199). A target counts
+    only if the actor lives (life 0, 6, 7), `bDisableHeadTracking` is off and the target is not itself. Otherwise, with no target,
+    at life 4, 5 and 8, or a self-target, all alike: `Actor::GetPathLookPosition` (37851) asks the movement controller's
+    `IMovementQueryPathFollowing` for a point on the actor's path and overwrites the position, or answers false and the head
+    target is cleared. The slot's position is never read there.
+  - `BSDirectAtModifierInterface::GetTargetPosition` (43657), from the graph, outside the gate: the modifier's update (63194,
+    not its `modify`) calls it each frame with the modifier's `targetType` (`+0x80`, data in the behaviour file), and only type 1
+    reads the highest slot, its head bone, none for a self-target. Read from `Skyrim - Animations.bsa`, 2026-11-07: of the 23
+    vanilla instances, type 1 is only the 10 `BlockAnticipate_*` in the humanoid `blockbehavior.hkx` (and its first-person
+    copy); bow and magic are type 2, a dragon rider, the dragon priest and the vampire lord type 3. So in vanilla a knocked,
+    sleeping or dead actor's slots are not read here, and `"unread"` holds; a behaviour mod could add a type 1 elsewhere.
+    A temporary log on 43657 caught no call in a player's casting and aiming, so the data is the evidence, not a measurement.
+  - `Character::ShouldRotateToTrack` 38011: from `UpdateAI` (a copy skips it) and `Character::sub_37405`; none for a
+    self-target.
+  - `Character::CanHeadtrackTarget` 37919: widens the view for the current target; from the ambient pick (inside the gate)
+    and `BGSSceneActionDialogue`. `Character::GetSpeechTarget` 37617: whom a talker speaks to.
+  - `BSFaceGenNiNode` 26998: any set slot lets the eye tracking run; yes or no, never which target. 37571: a stub.
+
+  The player: its own update (`PlayerCharacter::Update` 40447) calls ProcessTracking only in camera states from 9, read; not
+  through the gate above. Knocked or asleep in third person, a player reads its slots; only `ProcessTracking`'s own checks apply.
+
+  **`ai_state.head_track` is what these read:** `Diagnostics/HeadTrackRead.h` mirrors the gate (`ai.head_track_shut` says
+  what shut it, `"unread"` compares with anything, and each flow logs the actors read on one game only) and the highest slot, slot 0 beside slot 2 when they alternate, none for a self-target. Only the targets both games read count: each game decides alone whether it alternates, from its own player and voice timer. The
+  six raw slots stay in the snapshot as `ai.head_track_slots`, not compared. A shadowed slot differs unseen until the
+  higher one clears; the comparison sees it then.
 
   ProcessTracking also writes: every 1.0-1.5 s (`Actor::headTrackingUpdateDelay`, `+0xEC`) it may pick an ambient target
   (`Character::PickAmbientHeadtrackTarget` 38012: this game's player, then the high process list) into slot 0, after our
@@ -686,7 +739,7 @@ meh321 where they have one, ours otherwise.
   A player's own shout does the same on the owner (`fus-ro-dah-host-hits-guest`): slot 1 on itself, moved to slot 0 as
   the line ends. ProcessTracking skips a target that is the actor itself (`v19 != a1`), so that slot turns no head. Its
   copy read none throughout with its gate open, and the host's log shows no send for the player then (weak: the log may
-  lag). `PlayerCharacter`'s update (0x140745200) calls ProcessTracking only with camera state 9 or more, which may be
+  lag). `PlayerCharacter::Update` (40447) calls ProcessTracking only with camera state 9 or more, read, which may be
   why the owner's hook never reports it: inferred, not measured.
 - **Talking.** `IsTalking` (37266, read by the condition 21519 and the dialogue menu 35283/35290/35294): `boolBits &
   0x180` and the voice timer, which a copy's played voice line sets. Compared (`ai_state.talking`), nothing written.

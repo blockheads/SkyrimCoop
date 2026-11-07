@@ -15,6 +15,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
   `0x680` (SE layout) and ticked unconditionally "so the server accepts connections in menus";
   reverted 2026-10-10 to upstream's behaviour. If hosting from menus is needed, pump only the
   network there, not `World::Update()`.
+- `HookMainLoop`'s tasks and `World::Update` do not overlap: the job with the update is released after the tasks drain and has ended before the next frame (lock-order.md, "Orders the frame keeps apart").
 - Because the tick lives in `SkyrimVM64.cpp`, which nothing references directly, a static-archive
   link silently dropped it (see [plugin linking](plugin-linking.md)): the plugin loaded but never ran.
 
