@@ -133,7 +133,7 @@ class Runner:
         log(f"Failure evidence: {path}")
         return path
 
-    def run_flow(ctx, name, known_world, *, until_fail=False):
+    def run_flow(ctx, name, known_world, *, until_fail=False, watch_graphs=True):
         """Own one flow's setup, actions, postchecks and restoration; retain every failure by phase."""
         flow = ctx.registry[name]
         started = time.monotonic()
@@ -142,7 +142,7 @@ class Runner:
         known_locks = {}
         original_step = {}
         replay_since = None
-        drift_before = None
+        graph_watch = None
         ctx.CURRENT_STEP.update(description=None, time=time.time())
         ctx.FAILING = False
         ctx.cleanup_errors = []
@@ -150,7 +150,7 @@ class Runner:
         ctx.STATUS_AT_FAILURE = True
 
         def setup():
-            nonlocal known_locks, replay_since, drift_before
+            nonlocal known_locks, replay_since, graph_watch
             if flow.fixture == "saved-story":
                 homes = [ctx.load_home(game.name) for game in ctx.games]
                 if not all(home and home.get("cell_name") is None and home.get("world", {}).get("live") for home in homes):
@@ -158,11 +158,24 @@ class Runner:
             known_locks = ctx.lock_order_reports()
             ctx.check_dialogue_trace()  # from here on: this flow's conversations
             ctx.flow_started = replay_since = time.time()
-            drift_before = ctx.graph_drift_counts()
+            if watch_graphs:
+                graph_watch = ctx.graph_watch_start()
+
+        def stop_graph_watch():
+            nonlocal graph_watch
+            if graph_watch is not None and (apart := ctx.graph_watch_stop(graph_watch)):
+                log(f"copies' graphs, owner against copy: {apart}")
+            graph_watch = None
+
+        def comparison():
+            stop_graph_watch()  # the watch's engine reads end before the checks that judge the flow
+            if one_sided := ctx.head_track_one_sided_line():
+                log(f"head targets read on one game only: {one_sided}")
+            ctx.comparison_checks(known_world, known_locks)
 
         try:
             for phase, action in (("setup", setup), ("action", lambda: flow.run(ctx)),
-                                  ("comparison", lambda: ctx.comparison_checks(known_world, known_locks))):
+                                  ("comparison", comparison)):
                 ctx.phase = phase
                 ctx.observe("phase", name=name, phase=phase)
                 try:
@@ -177,8 +190,7 @@ class Runner:
                     break
             if replay_since is not None and (refused := ctx.replay_refusals_line(replay_since)):
                 log(f"copies refused replayed animations: {refused}")
-            if drift_before is not None and (drift := ctx.graph_drift_line(drift_before)):
-                log(f"copies' graph drift: {drift}")
+            stop_graph_watch()
             failures.extend(("cleanup", error) for error in ctx.cleanup_errors
                             if not any(error is existing for _, existing in failures))
             if flow.fixture == "scene":  # no baseline to return to: the next flow boots again
@@ -279,7 +291,7 @@ class Runner:
             log(f"=== {name}: {ctx.registry[name].doc}")
             ctx.observe("start", name=name, index=index)
             marks, wall_start = ctx.trail_marks(), time.time()
-            result = ctx.run_flow(name, known_world, until_fail=bool(until_fail))
+            result = ctx.run_flow(name, known_world, until_fail=bool(until_fail), watch_graphs=not getattr(args, "no_graph_watch", False))
             runs.append((name, result.seconds, result.text))
             if result.failures:
                 ctx.CURRENT_STEP.update(result.checkpoint)

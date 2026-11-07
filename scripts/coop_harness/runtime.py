@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import signal
 import socket
@@ -47,6 +48,14 @@ from .common import (
     VANILLA_HARNESS,
     WINDOWS,
 )
+
+
+def late_save_sources():
+    """The fetched late saves (scripts/fetch_late_saves.py): this checkout's, then the main checkout's."""
+    common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    folders = [TEST_HOME / "late-saves/extracted"] + ([Path(common).parent / "build/coop-test/late-saves/extracted"] if common else [])
+    return [path for folder in folders if folder.exists() for path in sorted(folder.rglob("*.ess"))]
 from .utilities import (
     atomic_write,
     log,
@@ -165,7 +174,7 @@ class Runtime:
                    # `stop` kills the games: no crash report and zip from that at the next boot.
                    SKYRIMCOOP_NO_CRASH_REPORTS="1",
                    # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
-                   SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
+                   SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(ctx.ui_assets(_game=_game)).replace("/", "\\")))
         if _game.name:
             env["SKYRIMCOOP_INSTANCE"] = _game.name
         env["TRACY_PORT"] = str(_game.tracy_port)
@@ -494,6 +503,15 @@ class Runtime:
         _game = ctx.game(_game)
         return ctx.VISIBLE is True or (isinstance(ctx.VISIBLE, (set, frozenset)) and _game.name in ctx.VISIBLE)
 
+    def ui_assets(ctx, *, _game=None):
+        """The UI's folder for this game: the repo's, unless its user cannot read that (a worktree in a private home): then
+        the copy deploy_ui made. Without it the party and join panels never load."""
+        user = ctx.instance_user(_game=ctx.game(_game))
+        if not user or not subprocess.run(["sudo", "-n", "-u", user, "test", "-r", str(UI_SOURCE / "party.rml")],
+                                          capture_output=True).returncode:
+            return UI_SOURCE
+        return PLUGINS.resolve() / "SkyrimCoop/ui"
+
     def allow_instance_user(ctx, *, _game=None):
         """Lets the instance's user draw on its display (xhost)."""
         _game = ctx.game(_game)
@@ -601,6 +619,20 @@ class Runtime:
             time.sleep(0.05)
         raise ctx.failure(f"Timed out after {timeout:.0f}s: {description}" + (f" ({explain()})" if explain else ""))
 
+    def bring_late_save(ctx, save, *, _game=None):
+        """A fresh prefix has no saves: a Late<Name> save comes from the main checkout's fetched collection
+        (scripts/fetch_late_saves.py), as that script names it."""
+        _game = ctx.game(_game)
+        target = _game.my_games / "Saves" / f"{save}.ess"
+        if target.exists() or not save.startswith("Late"):
+            return
+        source = next((path for path in late_save_sources() if f"Late{re.sub('[^A-Za-z0-9]', '', path.stem)}" == save), None)
+        if source is None:
+            raise ctx.failure(f"no save {save} in {target.parent} nor in the fetched late saves: run scripts/fetch_late_saves.py")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        log(f"Copied the late save {save} into {target.parent}")
+
     def launch(ctx, args, run_dir, *, _game=None):
         _game = ctx.game(_game)
         if ctx.prefix_processes(_game=_game):
@@ -621,6 +653,8 @@ class Runtime:
         main_menu = getattr(args, "main_menu", False)
         command = None if main_menu else f"load {args.save}" if args.save else f"coc {args.cell}"
         ctx.prepare_prefix(_game=_game)
+        if args.save and not main_menu:
+            ctx.bring_late_save(args.save, _game=_game)
         _game.control.mkdir(parents=True, exist_ok=True)
         for stale in ("status.json", "session.txt", "console.txt", "rpc.json", "request.txt", "boot.txt"):
             (_game.control / stale).unlink(missing_ok=True)

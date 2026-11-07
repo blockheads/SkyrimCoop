@@ -45,7 +45,11 @@ struct AiReadout
     uint32_t Combat = 0;        // the condition GetCombatState (21740)
     uint32_t CombatTarget = 0;  // Actor::currentCombatTarget
     // HighProcessData::headTrackTarget, each set slot's (default, action, script, combat, dialogue, procedure).
-    uint32_t HeadTrack[6]{};
+    std::array<uint32_t, 6> HeadTrack{};
+    // Why the engine reads none of them now (HeadTrackRead::ShutBy), nullptr if it does.
+    const char* HeadTrackShutBy = "no process";
+    // ProcessTracking 38009 alternates slots 2 and 0: in a scene, boolBits 0x180, its voice line over, not talking to this game's player.
+    bool HeadTrackAlternates = false;
 };
 
 // The actor's base looks the race menu sets beside its race: female (TESActorBaseData flag 1) and weight

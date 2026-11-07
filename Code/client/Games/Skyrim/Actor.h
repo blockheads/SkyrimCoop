@@ -240,6 +240,8 @@ struct Actor : TESObjectREFR
     bool SetCapsuleCollision(bool aCollides) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void InitiateDoNothingPackage() noexcept;
+    // No longer a copy: its own do-nothing package ends, and it picks one of its own.
+    void EndReleasedCopyPackage() noexcept;
     // The package conditions and Papyrus see (37399): the running one, or for an engine-made one the form package
     // under it (ExtraPackage).
     [[nodiscard]] TESPackage* GetCurrentPackage() const noexcept;

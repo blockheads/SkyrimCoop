@@ -54,8 +54,26 @@ loaded cells says where it went (Olava); a guest hides a held reference with 3D 
 its engine collected (the placed guard; `leveled-placed-npc-is-hosts` passes). A placed speaker marked deleted no longer
 crashes either game (`HookUpdateInDialogue` 37541). Sigurd's registration stays open, not reproduced. On the merged code,
 `held-copy-goes-with-owner`, `placed-speaker-deleted-mid-conversation` and `leveled-placed-npc-is-hosts` pass; the
-combined batch is left to the next combined run. Filed: `save-load-gate` stopping on a wolf's `head_track`, and the
-MCP's crash check reporting a crash from before a duo restart.
+combined batch is left to the next combined run. Filed: the MCP's crash check reporting a crash from before a duo restart.
+
+2026-11-06: two checks that reported what did not happen are fixed.
+  - **Drift:** the plugin's `Games/Animation/GraphDrift` is gone: it compared a copy with the action's `GraphState`, the owner
+    mid-transition. `coop_test.py scenario` now reads each NPC's owner and copy live through each flow
+    (`comparisons.GraphApart`, a `copies' graphs, owner against copy:` line, logged, never failing). "A copy walks while its
+    owner turns" and "A copy's idle variant" deleted; "A copy's graph after a turn or a pick" is what the live check found.
+  - **`ai_state.head_track`** compares what the engine reads (`Diagnostics/HeadTrackRead.h`: its gate, the highest slot, slot
+    0 beside 2, none for a self-target; IDA, actor-ai-and-copies.md). 18 of 30 flows held a lasting raw slot difference at a
+    check and passed both runs, the three kill moves among them; `kill-moves-cross` shows a real case, 1 of 2 (bugs.md,
+    Headtracking on copies). A review then found the first mirror of the engine wrong (life states 4, 5 and 8 read, the settings
+    behind its range, the scene behind alternation, three conditions missing) and a scenario passing on `"unread"`. Reading on found
+    more: life 4, 5, 8 ignore the slots after all (`Actor::GetPathLookPosition` 37851), the player has its own gate, and only
+    `BlockAnticipate_*` read the slots from the graph. Corrected, the 18 and `kill-moves-cross` pass.
+  - **A crash found on the way, ours:** a copy's own do-nothing package had procedure type -1, which the engine indexes a table with
+    unchecked: `GetCurrentAIProcedure` on a player's copy crashed the game every time, a released copy on its next load. Fixed
+    (`CopyPackage::CreateDoNothing`, `copy-answers-its-ai-procedure`, GameTests `[copy-package]`). That left a released copy
+    standing frozen on the package; a release now ends it (`released-copy-takes-up-its-ai`).
+  - **The lock checker's list** held 8 of 10 pass-through hooks, so the engine's own orders failed flows as ours. Now 32, with a
+    critical log and a harness unit (lock-order.md). ClientTests and GameTests `[headtrack]`, harness units.
 
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a
@@ -85,12 +103,41 @@ copy without its weapon, the user's report, not reproduced.
 
 Newest first.
 
+2026-11-06: why the player's paths are refused, read in IDA ([pathing.md](re/systems/pathing.md)): `PathToReference`
+returns false when `SetGoal` refuses the request or the navmesh search fails. A new harness read, `path_probe`, runs
+those steps without moving anyone: both ends' triangles, the search, and whether the navmesh's triangles join them.
+`walk_to` and `fight` print it on `no_path`. Inside Embershard Mine both ends are on one navmesh, but in 7 runs of 10
+its triangles don't join the entrance to the bandit, and the same save joins them in the others. That points at
+a navmesh obstacle: Skyrim.esm's CollisionMarker 105C99 cuts the ramp down (bisected by disabling obstacles; NPCs refused too). A game without a session cuts it the same (3 of 3): not ours. The marker is an invisible wall
+for the player too, so `clear` now fights only who the engine's search reaches, nearest along the way (four bandits
+skipped), and the flow runs to its end; `loot` and `leave` show the filed bugs. The flow's three bugs went to `bugs.md`.
+A `terrain` readout ([terrain.md](re/systems/terrain.md)): the ground around a spot as a walking player meets it,
+a column of rays a cell over frames (the pick budget), the navmesh's pieces, drawn top-down and in profile (MCP
+`terrain`; crossing and `fight` failures carry it). `walk_to` crosses a navmesh cut by input (`cross`: swims, jumps
+a low wall) where a player could.
+A full run with the readout (after PR #29): `talk` follows an NPC walking out of 3D reach, `walk_to`'s time comes from
+the engine's path length (`path_probe` `path_length`), the readout ignores actors, and the lookout trip goes in and out
+by the mine's door (a moveto left the party in a nook). The search failed from a spot down the mine's tunnel in some loads (pathing.md, not reproduced since):
+a refused walk now runs the first stretch of the search's path or the triangles' way by input, then paths again.
+The whole flow runs: every step PASS but lookout and loot, SEEN with filed bugs (hands, corpse items).
+`DuoLock.acquire` now checks its hold is still listed: an MCP session whose hold another command freed ran on as
+holder, and the harness refused its commands ("holds no duo"). A running MCP server picks the fix up at its restart
+(`duo_lock` stays loaded across `mcp_reload`).
+
+2026-11-05: playthrough flows ([playthrough-flows.md](design/playthrough-flows.md)): `coop_test.py flows` plays a real
+stretch of the game as ordered, checked steps from a save, with checkpoints (`--from STEP`) and a summary per run; a
+copy difference players see marks a step `SEEN` and the flow goes on, cosmetic ones are listed only
+(`comparisons.classify_problem`). The first flow, `riverwood-day-one`: A Lovely Letter start to reward, the Trader's
+door, Embershard Mine's lookout, door, first room and loot. New verbs `door`, `clear`; `use`/`talk` check the crosshair
+first. Found: a looted corpse keeps items on the guest (5 of 5), the host's copy sunk in the floor after a door,
+players stacked by a door's tether arrival. Open: the player's paths refused inside Embershard Mine.
+
 2026-11-05: drift detector for copies' graphs (`Games/Animation/GraphDrift`): after each replay a copy takes, its active
   state names against the action's `GraphState` (SaveState 63601's machine section, hkbCharacter 65148), counted as
   matched, transient or lasting (open past 2 s), players' copies and paired actions left out; a `copies' graph drift:`
   line per flow in `coop_test.py scenario`. A 12-flow animation batch: 283 NPC replays, 261 matched, 12 transient, 4
   lasting (animation-replay-recovery.md, "Drift detector"). Each lasting one is a missing input, listed in bugs.md; no snapshot loading over it.
-  ClientTests and GameTests `[graph-drift]`.
+  ClientTests and GameTests `[graph-drift]`. Replaced 2026-11-06 by a live read: those lasting counts were not drift.
 
 2026-11-05: `bugs.md` audited and split into sections an agent can take whole, each with its task, size and what it
 waits for. Closed: the three risks of 2026-10-31 ([report](reports/2026-10-31-v1-three-risks.md); its two unrelated

@@ -51,6 +51,13 @@
 
 struct World;
 
+// TESPackage as CreatePackage (29496) leaves it: procedure type -1 until 29582 fills it.
+struct FakePackage
+{
+    uint32_t packFlags = 0;
+    int32_t Procedure = -1;
+};
+
 struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 {
     PartyThreat::State PartyThreats;
@@ -482,6 +489,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
         uint32_t LocalScene = 0; // a copy's independent native scene, distinct from its owner's answer
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
+        FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
+        int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
+        uint8_t RunningPackageType = 0;   // TESPackage::packType of the package in its running slot
         uint32_t OwnerCombatTarget{};
         uint32_t OwnCombatTarget{};       // what its own combat controller fights (AttackedBy)
         uint32_t ExtraPackageFallback{};
@@ -835,8 +845,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         {
             it->second.Ai = acFields;
             it->second.OwnerCombatTarget = acFields.CombatTargetId;
+            if (!acFields.PackageId)
+            {
+                it->second.ProcedureType = CopyPackage::CreateDoNothing([&] { return &(it->second.DoNothing = {}); },
+                                                                        [](FakePackage* apPackage) { apPackage->Procedure = 23; })
+                                               ->Procedure;
+                it->second.RunningPackageType = 27;
+            }
         }
     }
+    // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
+    // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
+    bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).

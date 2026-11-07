@@ -2,6 +2,7 @@
 import collections
 import math
 import re
+import time
 from .common import (
     DIALOGUE_FIELDS,
     DIALOGUE_GRACE,
@@ -245,6 +246,33 @@ def flatten(tree, prefix=""):
     return {prefix[:-1]: tree}
 
 
+def head_track_differs(owner, copy):
+    """ai_state.head_track on two games. "unread" (ai.head_track_shut says why) compares with anything. Only the targets both
+    read count: each game decides alone whether slot 0 alternates beside slot 2 (its own player, its own voice timer)."""
+    if "unread" in (owner, copy):
+        return False
+    owner, copy = owner or [], copy or []
+    shared = min(len(owner), len(copy))
+    return owner[:shared] != copy[:shared] if shared else owner != copy
+
+
+def head_track_one_sided(worlds):
+    """The actors one game reads a head target for and the other does not: not a difference, but no comparison either."""
+    copies = {game: {s["mod"]["session_id"]: s for s in world.values() if s.get("role") == "copy" and s["mod"]["session_id"] >= 0}
+              for game, world in worlds.items()}
+    lines = []
+    for game, world in worlds.items():
+        other = "client" if game == "host" else "host"
+        for form, owned in world.items():
+            copy = copies.get(other, {}).get((owned.get("mod") or {}).get("session_id")) if owned.get("role") == "own" else None
+            sides = [(owned, game), (copy, other)] if copy else []
+            shut = [(s.get("ai") or {}).get("head_track_shut") for s, _ in sides]
+            if sides and bool(shut[0]) != bool(shut[1]):
+                unread = shut[0] or shut[1]
+                lines.append(f"{describe_actor(owned, form, game)} unread on {sides[0][1] if shut[0] else sides[1][1]} ({unread})")
+    return lines
+
+
 def compare_field(field, owner, copy, owner_snapshot):
     """Returns None when the copy agrees with the owner, else a short reason."""
     if field.startswith(("mod.", "ai.", "graph")) or field in ("role", "identity.template_base", "identity.temporary_base"):
@@ -252,6 +280,8 @@ def compare_field(field, owner, copy, owner_snapshot):
                      # graph changes every frame (compared over time by `coop_test.py graph`)
     if field == "ai_state.combat_target":
         return None  # each game's own form id for the target (a player is 14 on its own game): copy-in-owners-combat
+    if field == "ai_state.head_track":
+        return "differs" if head_track_differs(owner, copy) else None
     if field == "ai_state.package" and (owner or 0) >= 0xFF000000:
         return None  # a package the engine made has no id the other game shares: the copy holds do-nothing
     if field == "effects":
@@ -292,6 +322,128 @@ def compare_field(field, owner, copy, owner_snapshot):
     if isinstance(owner, (int, float)) and isinstance(copy, (int, float)) and not isinstance(owner, bool):
         return None if abs(owner - copy) <= VALUE_TOLERANCE else "differs"
     return None if owner == copy else "differs"
+
+
+def active_states(hex_state):
+    """The active states of `graph_state`'s reply (the first section of SaveState 63601): a set, empty for a graph with no
+    machine out of its start state; None for no reply or bytes that do not parse, which is no reading."""
+    try:
+        data = bytes.fromhex(hex_state or "")
+    except ValueError:
+        return None
+    if len(data) <= 8:
+        return None  # the actor's flags and no graph yet: no reading
+
+    def take(size, offset, limit):
+        if offset + size > limit:
+            raise ValueError("past the end")
+        return int.from_bytes(data[offset:offset + size], "little")
+
+    def text(offset, limit):
+        length = take(2, offset, limit)
+        if offset + 2 + length > limit:
+            raise ValueError("past the end")
+        return data[offset + 2:offset + 2 + length].decode("latin-1"), offset + 2 + length
+
+    states, at = set(), 8
+    try:
+        while at < len(data):
+            project, at = text(at, len(data))
+            size = take(4, at, len(data))
+            at += 4
+            end = at + size
+            if end > len(data):
+                return None
+            cursor = at + 4
+            for _ in range(take(4, at, end)):
+                machine, cursor = text(cursor, end)
+                cursor += 4
+                state, cursor = text(cursor, end)
+                cursor += 8
+                if cursor > end:
+                    return None
+                states.add(f"{project}/{machine}={state}")
+            at = end
+    except ValueError:
+        return None
+    return states
+
+
+def choose_pairs(found, wanted, limit, watched):
+    """The owners to watch of these (owner, copy) pairs: `wanted` if given; else those already watched, then others up to
+    `limit`, so a newly loaded NPC never takes the place of one still read."""
+    owners = [owner for owner, _ in found]
+    if wanted:
+        return {owner for owner in owners if owner in wanted}
+    if limit is None:
+        return set(owners)
+    kept = {owner for owner in owners if owner in watched}
+    for owner in owners:
+        if len(kept) >= limit:
+            break
+        kept.add(owner)
+    return kept
+
+
+def graph_apart_line(apart, started):
+    """The per-flow line of a GraphApart: '' if it read nothing."""
+    if not apart.samples:
+        return ""
+    runs = apart.finish(time.time())
+    if not runs:
+        return f"{apart.samples} samples, no run of {apart.lasting:g} s"
+    return f"{apart.samples} samples, " + "; ".join(
+        f"{run['actor']:X} {run['seconds']} s{' until no longer read' if run.get('lost') else ''} at {run['at'] - started:.1f} "
+        f"(owner only {run['owner_only']}, copy only {run['copy_only']})"
+        for run in runs)
+
+
+# How often the watch looks again at who is loaded and alive: a graph that stops updating is read this long more.
+GRAPH_PAIRS_REFRESH = 3.0
+
+
+class GraphApart:
+    """Owner against copy, both read live: the runs apart for `lasting` s or more. The action's GraphState would not do:
+    it is the owner mid-transition (docs/re/systems/animation-replay-recovery.md, "Drift detector")."""
+
+    def __init__(self, lasting=2.0):
+        self.lasting, self.samples, self.open, self.runs = lasting, 0, {}, []
+
+    def observe(self, actor, owner, copy, now):
+        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart."""
+        if owner is None or copy is None:
+            self.lose(actor)
+            return
+        self.samples += 1
+        if owner == copy:
+            self.close(actor, now)
+        elif actor in self.open:
+            self.open[actor]["last"] = now
+        else:
+            self.open[actor] = {"at": now, "last": now, "owner_only": sorted(owner - copy), "copy_only": sorted(copy - owner)}
+
+    def keep_only(self, actors):
+        """Actors no longer read (unloaded, dead: a graph nothing updates) end at their last reading apart."""
+        for actor in set(self.open) - set(actors):
+            self.lose(actor)
+
+    def lose(self, actor):
+        """Up to GRAPH_PAIRS_REFRESH of its end can be a graph that stopped: only what that cannot explain counts."""
+        if run := self.open.get(actor):
+            if run["last"] - run["at"] >= self.lasting + GRAPH_PAIRS_REFRESH:
+                self.close(actor, run["last"], lost=True)
+            else:
+                del self.open[actor]
+
+    def close(self, actor, now, lost=False):
+        if (run := self.open.pop(actor, None)) and now - run["at"] >= self.lasting:
+            self.runs.append({"actor": actor, "at": run["at"], "seconds": round(now - run["at"], 1), "owner_only": run["owner_only"][:6],
+                              "copy_only": run["copy_only"][:6], **({"lost": True} if lost else {})})
+
+    def finish(self, now):
+        for actor in list(self.open):
+            self.close(actor, now)
+        return self.runs
 
 
 def mod_problems(snapshot, role):
@@ -468,3 +620,30 @@ def sliding_actors(gait):
     """{id: (travelled, feet)} of the actors in a game's gait readout ({"cmd": "gait"}) that moved without walking."""
     return {int(actor): (g["travelled"], g["feet"]) for actor, g in gait.items()
             if g["travelled"] >= SLIDE_DISTANCE and g["feet"] < SLIDE_RATIO * g["travelled"]}
+
+
+# A playthrough's verdict (docs/design/playthrough-flows.md): what a player would see fails a step, the rest is reported.
+SEEN_RANGE = 3000.0  # units: an actor further than this from every player is out of the picture
+VISIBLE_FIELDS = ("state.dead", "state.bleeding_out", "state.sit_sleep", "state.weapon_drawn", "state.hands", "equipment", "visuals",
+                  "identity.name", "identity.race", "identity.base", "identity.female", "identity.weight",
+                  "placement.position", "values.health")  # not identity.level: nothing shows it
+VISIBLE_KINDS = ("missing", "orphan", "unlinked")  # one game shows an actor the other doesn't
+ACTOR_ID = re.compile(r"\[(host|client) ([0-9A-F]{8}), sid -?\d+\]")
+
+
+def classify_problem(key, distance=None):
+    """A desync key from compare_actors ("Faendal [host 0001348C, sid 5] state.dead") as "visible" or "cosmetic":
+    visible when a player would notice it and the actor is within SEEN_RANGE (`distance`, None when unknown)."""
+    if distance is not None and distance > SEEN_RANGE:
+        return "cosmetic"
+    found = ACTOR_ID.search(key)
+    what = key[found.end():].strip() if found else key
+    if what in VISIBLE_KINDS or "body:" in what:  # a body floating, sunk or lying, the owner's or its copy's
+        return "visible"
+    return "visible" if what.startswith(VISIBLE_FIELDS) else "cosmetic"
+
+
+def actor_of(key):
+    """(game, form id) a desync key names (the owner's game, or the copy's for an orphan), or None."""
+    found = ACTOR_ID.search(key)
+    return (found.group(1), int(found.group(2), 16)) if found else None

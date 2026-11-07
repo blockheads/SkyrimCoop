@@ -421,6 +421,11 @@ class StoryActions:
         return (_game.rpc({"cmd": "is_current_package", "actor": actor, "package": package}) or {}).get("result")
 
 
+    def actor_on(ctx, instance, actor):
+        """That game's world row of the actor, {} if it has none."""
+        return ((ctx.game(instance).read_status() or {}).get("world") or {}).get(str(actor)) or {}
+
+
     def ai_state(ctx, instance, actor):
         _game = ctx.game(instance)
         return (((_game.read_status() or {}).get("world") or {}).get(str(actor)) or {}).get("ai_state") or {}

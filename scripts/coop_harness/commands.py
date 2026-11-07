@@ -44,10 +44,56 @@ from .utilities import (
 
 
 # Commands that boot or drive the duo: they hold its lock while they run.
-DUO_COMMANDS = {"launch", "duo", "play", "scenario", "profile", "affected", "soak", "reload", "repro", "quest-walk"}
+DUO_COMMANDS = {"launch", "duo", "play", "scenario", "profile", "affected", "soak", "reload", "repro", "quest-walk", "flows"}
 
 
 class Commands:
+    def command_flows(ctx, args):
+        """Plays playthrough flows (docs/design/playthrough-flows.md): each on a duo booted from its save, or with
+        --from from its checkpoint; a summary per flow under build/coop-test/flows/."""
+        from .flows import flows
+        known = flows()
+        names = args.names or list(known)
+        if unknown := [name for name in names if name not in known]:
+            raise ctx.failure(f"unknown flow(s) {unknown}; known: {', '.join(known)}")
+        if args.start and len(names) != 1:
+            raise ctx.failure("--from takes one flow")
+        if args.dry_run:
+            for name in names:
+                print(f"{name}: " + " > ".join(step.name for step in known[name].STEPS))
+            return
+        failed = []
+        try:
+            ctx.play_flows(known, names, args, failed)
+        finally:  # crashed or done: the games stop and the duo goes to the next in line
+            if not args.keep_running:
+                ctx.stop_duo()
+                if (lock := ctx.duo_lock()) and not ctx.duo_games_running():
+                    lock.release_checkout(f"flows {' '.join(names)}: done, 0 Skyrim processes, freed")
+        if failed:
+            raise SystemExit(1)
+
+    def play_flows(ctx, known, names, args, failed):
+        from .flows.flow import checkpoint_name, run_flow, start_index, verdict, write_report
+        for name in names:
+            flow = known[name]
+            try:
+                index, previous = start_index(flow.STEPS, args.start)
+            except ValueError as error:
+                raise ctx.failure(str(error)) from None
+            save = checkpoint_name(name, previous) if previous else flow.BOOT["save"]
+            log(f"=== {name}: booting from {save}")
+            ctx.stop_duo()
+            ctx.command_duo(argparse.Namespace(cell="QASmoke", save=save, level=None, npc="", seconds=60, boot_timeout=240,
+                                               world_timeout=180, keep_running=True, run_dir=None))
+            started = time.monotonic()
+            results = run_flow(ctx, flow, args.start)
+            folder = write_report(flow, results, args.start, time.monotonic() - started)
+            print((folder / "summary.md").read_text())
+            log(f"=== {name}: {verdict(results, flow.STEPS[index:])} (report {folder / 'summary.md'})")
+            if verdict(results, flow.STEPS[index:]) != "PASS":
+                failed.append(name)
+
     def command_crash(ctx, args, *, _game=None):
         """The newest crash of each game (or --instance), as one report."""
         _game = ctx.game(_game)
@@ -886,6 +932,7 @@ class Commands:
                                    "there (read back as one timeline) and stay as they failed")
         scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see the flow registry)")
         scenario.add_argument("--fail-fast", action="store_true", help="stop at the first scenario that fails")
+        scenario.add_argument("--no-graph-watch", action="store_true", help="skip the per-flow owner-against-copy graph log")
         scenario.add_argument("--dry-run", action="store_true", help="print the selection without contacting Skyrim")
         scenario.add_argument("--no-restart", action="store_true",
                               help="stop the batch when a scenario leaves the baseline broken (default: boot the duo again and go on)")
@@ -944,6 +991,11 @@ class Commands:
         walk.add_argument("--away", type=int, default=2, help="stages the host sets while the client is away (default 2)")
         walk.add_argument("--settle", type=float, default=3, help="seconds the client gets to match each step (default 3)")
         walk.add_argument("--details", type=int, default=30, help="end-of-walk differences listed (default 30)")
+        flows = commands.add_parser("flows", help="playthrough flows: a party plays real stretches of the game, step by step")
+        flows.add_argument("names", nargs="*", help="default: every flow (scripts/coop_harness/flows/)")
+        flows.add_argument("--from", dest="start", metavar="STEP", help="start at STEP, booted from the checkpoint before it")
+        flows.add_argument("--keep-running", action="store_true", help="leave the games running after the last flow")
+        flows.add_argument("--dry-run", action="store_true", help="list each flow's steps")
         report = commands.add_parser("report", help="players' /export zips and bug reports: timeline, copy differences, crashes (coop_report.py)")
         report.add_argument("rest", nargs=argparse.REMAINDER, help="coop_report.py's arguments")
         crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
@@ -1059,6 +1111,8 @@ class Commands:
             ctx.command_change_rate(args)
         elif args.command == "quest-walk":
             ctx.command_quest_walk(args)
+        elif args.command == "flows":
+            ctx.command_flows(args)
         elif args.command == "report":
             sys.path.insert(0, str(ROOT / "scripts"))
             import coop_report

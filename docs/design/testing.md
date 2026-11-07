@@ -239,6 +239,18 @@ harness                             any raw harness command
 An exported scenario is an ordinary flow (`coop_test.py scenario <name>`): the runner resets the baseline first, and
 its body unstages and thaws in a `finally`. It is step 1 of the bug-fix flow; the GameTests flow still follows.
 
+## Playthrough flows (2026-11-05)
+
+Real stretches of play as ordered, checked steps (a quest from start to reward, doors, a dungeon fight, loot), booted
+from a save: [playthrough-flows.md](playthrough-flows.md). A step passes when the game state is right; a difference
+players would see marks it `SEEN` and the flow goes on; cosmetic copy differences are only listed. Combined runs, not
+the push gate:
+
+```bash
+python3 scripts/coop_test.py flows riverwood-day-one              # boots the duo from the flow's save
+python3 scripts/coop_test.py flows riverwood-day-one --from fight # from the checkpoint before a step
+```
+
 ## Profiling
 
 `coop_test.py profile` shows where a running duo's time goes, per game, over one window (default 20 s). It writes

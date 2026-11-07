@@ -325,11 +325,111 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 void PlayerActivates(uint32_t aObjectFormId) noexcept;
 // The engine's path request from the player to a reference (Actor 37893): its id, -1 none built, -2 no reference.
 int64_t PlayerPathRequest(uint32_t aTargetFormId, float aSpeed) noexcept;
+// One end of a path on the navmesh: the point asked, the closest triangle (its NavMesh form id) and the point on it.
+struct PathEnd
+{
+    bool resolved = false;
+    uint32_t navMesh = 0;
+    uint16_t triangle = 0xFFFF;
+    std::array<float, 3> at{};
+    std::array<float, 3> point{};
+    uint16_t triangleFlags = 0;   // 0x1000: under a closed door (BSNavmesh::AddClosedDoor 91167)
+    uint32_t closedDoor = 0;      // that door's reference, when the triangle is in the navmesh's closed doors
+};
+struct PathProbe
+{
+    bool found = false;    // the reference, in a cell
+    bool searched = false;
+    bool built = false;    // the engine's search found a path
+    bool incomplete = false;
+    uint32_t virtualNodes = 0;
+    uint32_t nodes = 0;
+    float pathLength = 0.f; // the search's path through its nodes, then on to the goal, units
+    std::vector<std::array<float, 3>> path; // the search's loaded nodes, in order
+    PathEnd start;
+    PathEnd goal;
+    // Both ends on one navmesh: whether its triangles join them (edges only, no other navmesh), the fewest
+    // triangles between, the closed-door triangles on that way and the navmesh's obstacles.
+    bool sameNavmesh = false;
+    bool linked = false;
+    uint32_t hops = 0;
+    float wayLength = 0.f;        // along the joined way's triangle centres, units
+    std::vector<std::array<float, 3>> way; // the joined way: edge midpoints and triangle centres, from the start
+    uint32_t closedDoorsOnWay = 0;
+    uint32_t ledgesOnWay = 0;     // jump links (up or down) the way crosses
+    uint32_t portalsOnWay = 0;    // same-navmesh portals and switchable portals it crosses
+    uint32_t goalPiece = 0;       // triangles the goal's triangle reaches by every link in its own navmesh
+    uint32_t goalPieceExits = 0;  // links from that piece into other navmeshes
+    // Doors on each piece's triangles (form ids; 0 a door without a reference), and which the search holds closed.
+    std::vector<uint32_t> startDoors;
+    std::vector<uint32_t> goalDoors;
+    std::vector<uint32_t> closedDoors;
+    uint32_t obstacles = 0;
+    // Every reference the obstacle manager has cutting navmeshes, and whether it cuts the start's navmesh.
+    struct Obstacle
+    {
+        uint32_t ref = 0;
+        uint32_t base = 0;
+        std::string name;     // the base form's name
+        uint8_t kind = 0;     // the base form's type
+        bool actor = false;
+        bool onNavmesh = false;
+        float distance = 0.f; // from the actor pathing
+        std::array<float, 3> at{};
+    };
+    std::vector<Obstacle> obstacleRefs;
+    // Unjoined ends: the nearest walkable step from the start's piece onto the goal's (triangle centres no steeper
+    // than a ramp, ~22 degrees), and the way to it along the start's piece (shared edges' midpoints), for crossing by input.
+    bool crossable = false;
+    std::vector<std::array<float, 3>> crossingRoute; // ends at the start side's centre
+    std::array<float, 3> crossingTo{};               // the goal side's centre
+    float crossingGap = 0.f;
+};
+// Why PathToReference would refuse, without moving anyone: both ends resolved and the search run at once.
+// From the player, or from another actor (0x14 the player) to compare an NPC's request.
+PathProbe ProbePath(uint32_t aFromFormId, uint32_t aTargetFormId) noexcept;
+// The player's capsule and the steepest ground it walks, from its character controller (game units, degrees).
+struct PlayerCapsule
+{
+    bool found = false;
+    float radius = 0.f;
+    float height = 0.f;
+    float actorHeight = 0.f;
+    float scale = 0.f;
+    float maxSlope = 0.f; // 0 when the controller is not a proxy one
+};
+PlayerCapsule ReadPlayerCapsule() noexcept;
+// The obstacle manager's references (distance from the player; onNavmesh: cuts that navmesh).
+std::vector<PathProbe::Obstacle> ReadObstacleRefs(uint32_t aMeshId) noexcept;
+// A reference's base form, the base's name ("" none) and where it is, for readouts naming what they hit.
+struct RefLabel
+{
+    bool found = false;
+    uint32_t base = 0;
+    std::string name;
+    std::array<float, 3> at{};
+};
+RefLabel ReadRefLabel(uint32_t aRefFormId) noexcept;
+// The navmesh under a spot drawn into a grid (cells of aCell units from aCorner, rows north to south): per cell the
+// navmesh's height there and its piece (-1 none; numbered the player's first, the target's next, then the rest).
+struct NavmeshCover
+{
+    uint32_t navMesh = 0;
+    std::vector<float> z;
+    std::vector<int32_t> piece;
+    std::vector<uint32_t> pieceSizes;
+    int playerPiece = -1;
+    int targetPiece = -1;
+};
+NavmeshCover RasterNavmesh(const std::array<float, 3>& acAt, float aWest, float aNorth, float aCell, int aCols, int aRows,
+                           uint32_t aTargetFormId) noexcept;
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept;
 // Freezes the actor in this game, as PapyrusExtender's FreezeActor does: out of furniture, no AI (kProcessMe), restrained (no
 // movement), no velocity, and its controller neither pushed nor colliding with characters, so it stands still and
 // players pass through it; it still takes hits. Thawing puts back what freezing changed.
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept;
+// A copy takes its own do-nothing package, as when its owner's is one the engine made (SkyrimBridge::SetCopyAiFields).
+bool CopyHoldsDoNothing(uint32_t aFormId) noexcept;
 // Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
 // not), as MoveTo does (56626).
 bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;

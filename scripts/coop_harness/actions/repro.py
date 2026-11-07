@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
@@ -105,32 +104,6 @@ def duo_home():
     return (Path(common).parent / "build/coop-test").resolve() if common else TEST_HOME
 
 
-def active_states(hex_state):
-    """The active states of `graph_state`'s reply, as GraphDrift::ActiveStates reads them; None if they do not parse."""
-    data, states, at = bytes.fromhex(hex_state), set(), 8
-    take = lambda size, offset: int.from_bytes(data[offset:offset + size], "little")
-    try:
-        while at < len(data):
-            length = take(2, at)
-            project = data[at + 2:at + 2 + length].decode("latin-1")
-            at += 2 + length
-            size = take(4, at)
-            at += 4
-            cursor, end = at + 4, at + size
-            for _ in range(take(4, at)):
-                length = take(2, cursor)
-                machine = data[cursor + 2:cursor + 2 + length].decode("latin-1")
-                cursor += 2 + length + 4
-                length = take(2, cursor)
-                state = data[cursor + 2:cursor + 2 + length].decode("latin-1")
-                cursor += 2 + length + 8
-                states.add(f"{project}/{machine}={state}")
-            at = end
-    except (IndexError, ValueError):
-        return None
-    return states
-
-
 class ReproActions:
     # --- The duo's lock (coop_harness/duo_lock.py): none on Windows, one machine per duo there ---
 
@@ -194,34 +167,16 @@ class ReproActions:
     # --- Handles: a repro's names for what it staged, per game ---
 
     def graph_watch(ctx, seconds=60.0, every=0.25, lasting=2.0, limit=10, ids=()):
-        """Owner against copy, both read live, for NPCs on both games: the runs apart for `lasting` s or more. GraphDrift
-        compares a copy with its owner's states at the action; this answers whether the owner is really still there."""
-        guest = {int(a): s for a, s in ctx.actors_on("client").items()}
-        shared = [form for form, row in guest.items() if form < 0xFF000000 and row.get("has_3d") and not row.get("dead")]
-        shared = [int(i, 16) if isinstance(i, str) else i for i in ids] or shared[:limit]
-        read = lambda game, form: active_states((ctx.game(game).rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
-        since, runs, samples, start = {}, [], collections.Counter(), time.time()
-        with ThreadPoolExecutor(2) as pool:
-            while time.time() - start < seconds:
-                now = time.time()
-                for form in shared:
-                    owner, copy = pool.submit(read, "", form), pool.submit(read, "client", form)
-                    owner, copy = owner.result(), copy.result()
-                    if not owner and not copy:
-                        continue
-                    samples[form] += 1
-                    if owner == copy:
-                        open_run = since.pop(form, None)
-                        if open_run and now - open_run[0] >= lasting:
-                            runs.append((form, open_run, now))
-                    else:
-                        since.setdefault(form, (now, sorted((owner or set()) - (copy or set())), sorted((copy or set()) - (owner or set()))))
-                time.sleep(every)
-        end = time.time()
-        runs += [(form, run, end) for form, run in since.items() if end - run[0] >= lasting]
-        return {"actors": [f"{f:X}" for f in shared], "samples": sum(samples.values()),
-                "apart": [{"actor": f"{form:X}", "at": round(run[0] - start, 1), "seconds": round(until - run[0], 1),
-                           "owner_only": run[1][:6], "copy_only": run[2][:6]} for form, run, until in runs]}
+        """Owner against copy, both read live, for NPCs on both games: the runs apart for `lasting` s or more (`scenario`
+        runs this watch over each flow). `ids`: owner form ids; else the first `limit` pairs at each look."""
+        wanted = {int(i, 16) if isinstance(i, str) else i for i in ids}
+        watch = ctx.graph_watch_start(every, lasting, wanted, limit)
+        watch["stop"].wait(seconds)
+        watch["stop"].set()
+        watch["thread"].join(10)
+        apart, start = watch["apart"], watch["started"]
+        return {"actors": [f"{owner:X}" for owner in sorted(watch["actors"])], "samples": apart.samples,
+                "apart": [{**run, "actor": f"{run['actor']:X}", "at": round(run["at"] - start, 1)} for run in apart.finish(time.time())]}
 
     def hands_compared(ctx):
         """Each player's hands and worn items against its copy's on the other game: the process's hands and the worn marks
@@ -766,7 +721,7 @@ _INSTANCE = {"host": "", "guest": "client", "client": "client", "": ""}
 READ_VERBS = {"witness", "witness_mood", "party_bounty", "bounty_total"}
 
 # Harness commands that only read: left out of an exported scenario.
-_READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "screen", "item_count"}
+_READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "path_probe", "screen", "item_count"}
 
 
 def _lines(say):
@@ -858,7 +813,7 @@ def _line(tool, args):
 
 # Tools that only look or run the duo: never part of a test (a name in `rounds` that is neither these nor a replayed
 # tool is a Session verb).
-LOOKS = {"jitter", "duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion", "profile",
+LOOKS = {"jitter", "duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "terrain", "observe", "why", "press_to_motion", "profile",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
          "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 
