@@ -46,7 +46,29 @@ struct bhkCharacterController
     int32_t state; // 200, context (1E0) currentState: hkpCharacterStateType, 0 on the ground, 2 in the air
     uint8_t pad204[0x218 - 0x204];
     uint32_t flags; // 218
+    uint8_t pad21C[0x258 - 0x21C];
+    float scale;       // 258
+    uint8_t pad25C[0x260 - 0x25C];
+    float actorHeight; // 260
+    uint8_t pad264[0x290 - 0x264];
+    float radius;      // 290: the capsule's, Havok units
+    float height;      // 294
+    uint8_t pad298[0x340 - 0x298];
+    // A bhkCharProxyController's (this part at its +0x10; vtable ID 240560): its hkpCharacterProxy
+    // (bhkCharProxyController::GetLinearVelocityImpl 79145 reads it).
+    void* proxy;       // 340
 };
 static_assert(offsetof(bhkCharacterController, outVelocity) == 0x90);
 static_assert(offsetof(bhkCharacterController, state) == 0x200);
 static_assert(offsetof(bhkCharacterController, flags) == 0x218);
+static_assert(offsetof(bhkCharacterController, actorHeight) == 0x260);
+static_assert(offsetof(bhkCharacterController, radius) == 0x290);
+static_assert(offsetof(bhkCharacterController, proxy) == 0x340);
+
+// The Havok proxy that walks the capsule: the steepest ground it climbs (no step height: the capsule rides edges).
+struct hkpCharacterProxy
+{
+    uint8_t pad00[0xD8];
+    float maxSlopeCosine; // D8
+};
+static_assert(offsetof(hkpCharacterProxy, maxSlopeCosine) == 0xD8);

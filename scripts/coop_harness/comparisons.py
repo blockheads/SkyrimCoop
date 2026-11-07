@@ -468,3 +468,30 @@ def sliding_actors(gait):
     """{id: (travelled, feet)} of the actors in a game's gait readout ({"cmd": "gait"}) that moved without walking."""
     return {int(actor): (g["travelled"], g["feet"]) for actor, g in gait.items()
             if g["travelled"] >= SLIDE_DISTANCE and g["feet"] < SLIDE_RATIO * g["travelled"]}
+
+
+# A playthrough's verdict (docs/design/playthrough-flows.md): what a player would see fails a step, the rest is reported.
+SEEN_RANGE = 3000.0  # units: an actor further than this from every player is out of the picture
+VISIBLE_FIELDS = ("state.dead", "state.bleeding_out", "state.sit_sleep", "state.weapon_drawn", "state.hands", "equipment", "visuals",
+                  "identity.name", "identity.race", "identity.base", "identity.female", "identity.weight",
+                  "placement.position", "values.health")  # not identity.level: nothing shows it
+VISIBLE_KINDS = ("missing", "orphan", "unlinked")  # one game shows an actor the other doesn't
+ACTOR_ID = re.compile(r"\[(host|client) ([0-9A-F]{8}), sid -?\d+\]")
+
+
+def classify_problem(key, distance=None):
+    """A desync key from compare_actors ("Faendal [host 0001348C, sid 5] state.dead") as "visible" or "cosmetic":
+    visible when a player would notice it and the actor is within SEEN_RANGE (`distance`, None when unknown)."""
+    if distance is not None and distance > SEEN_RANGE:
+        return "cosmetic"
+    found = ACTOR_ID.search(key)
+    what = key[found.end():].strip() if found else key
+    if what in VISIBLE_KINDS or "body:" in what:  # a body floating, sunk or lying, the owner's or its copy's
+        return "visible"
+    return "visible" if what.startswith(VISIBLE_FIELDS) else "cosmetic"
+
+
+def actor_of(key):
+    """(game, form id) a desync key names (the owner's game, or the copy's for an orphan), or None."""
+    found = ACTOR_ID.search(key)
+    return (found.group(1), int(found.group(2), 16)) if found else None

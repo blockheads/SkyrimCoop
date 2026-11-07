@@ -65,6 +65,42 @@ nlohmann::json PathRequest(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"request", EngineCalls::PlayerPathRequest(acRequest.value("target", 0u), acRequest.value("speed", 0.5f))}};
 }
 
+// {"cmd": "path_probe", "target": id}: why the player's path there would be refused, nobody moved (both ends on the
+// navmesh, the engine's search run at once; docs/re/systems/pathing.md).
+nlohmann::json PathProbe(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cProbe = EngineCalls::ProbePath(acRequest.value("from", 0x14u), acRequest.value("target", 0u));
+    if (!cProbe.found)
+        return Error("no such reference in a cell");
+    auto hex = [](const std::vector<uint32_t>& acIds)
+    {
+        nlohmann::json ids = nlohmann::json::array();
+        for (const uint32_t cId : acIds)
+            ids.push_back(std::format("{:X}", cId));
+        return ids;
+    };
+    auto end = [](const EngineCalls::PathEnd& acEnd)
+    {
+        return nlohmann::json{{"resolved", acEnd.resolved}, {"navmesh", std::format("{:X}", acEnd.navMesh)}, {"triangle", acEnd.triangle},
+                              {"at", acEnd.at}, {"point", acEnd.point}, {"triangle_flags", acEnd.triangleFlags},
+                              {"closed_door", std::format("{:X}", acEnd.closedDoor)}};
+    };
+    nlohmann::json obstacleRefs = nlohmann::json::array();
+    for (const auto& cObstacle : cProbe.obstacleRefs)
+        obstacleRefs.push_back({{"ref", std::format("{:X}", cObstacle.ref)}, {"base", std::format("{:X}", cObstacle.base)}, {"name", cObstacle.name}, {"kind", cObstacle.kind},
+                                {"actor", cObstacle.actor}, {"on_navmesh", cObstacle.onNavmesh}, {"distance", cObstacle.distance}});
+    nlohmann::json crossing = nullptr;
+    if (cProbe.crossable)
+        crossing = {{"route", cProbe.crossingRoute}, {"to", cProbe.crossingTo}, {"gap", cProbe.crossingGap}};
+    return {{"ok", true},           {"obstacle_refs", obstacleRefs}, {"crossing", crossing}, {"built", cProbe.built},        {"incomplete", cProbe.incomplete}, {"virtual_nodes", cProbe.virtualNodes},
+            {"nodes", cProbe.nodes}, {"path_length", std::lround(cProbe.pathLength)}, {"path", cProbe.path}, {"start", end(cProbe.start)}, {"goal", end(cProbe.goal)},
+            {"same_navmesh", cProbe.sameNavmesh}, {"linked", cProbe.linked}, {"hops", cProbe.hops}, {"way_length", std::lround(cProbe.wayLength)}, {"way", cProbe.way},
+            {"closed_doors_on_way", cProbe.closedDoorsOnWay}, {"ledges_on_way", cProbe.ledgesOnWay},
+            {"portals_on_way", cProbe.portalsOnWay}, {"goal_piece", cProbe.goalPiece}, {"goal_piece_exits", cProbe.goalPieceExits},
+            {"obstacles", cProbe.obstacles}, {"start_doors", hex(cProbe.startDoors)}, {"goal_doors", hex(cProbe.goalDoors)},
+            {"closed_doors", hex(cProbe.closedDoors)}};
+}
+
 // The native combat group's candidate set, separate from the current selected target.
 nlohmann::json ReadCombat(Harness&, const nlohmann::json& acRequest)
 {
@@ -751,6 +787,18 @@ nlohmann::json Surroundings(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"at", at}, {"floor", RayJson(*cFloor)}, {"ceiling", RayJson(*cCeiling)}, {"rings", rings}};
 }
 
+// {"cmd": "terrain", "at", "radius", "cell", "up", "down", "toward"}: starts a scan of the ground around a spot as a
+// walking player meets it (TerrainScan); its ticket. {"cmd": "terrain_result", "ticket"}: the scan once done.
+nlohmann::json Terrain(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"ticket", aHarness.Terrain.Start(acRequest)}};
+}
+
+nlohmann::json TerrainResult(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    return aHarness.Terrain.Result(acRequest.value("ticket", 0u));
+}
+
 // {"cmd": "menu_var", "menu": "ContainerMenu", "path": "_root.Menu_mc.bFadedIn"}: a number, boolean or string in an
 // open menu's movie.
 nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
@@ -1091,6 +1139,7 @@ constexpr Command cCommands[] = {
     {"world_freeze", true, &WorldFreeze},
     {"step", true, &Step},
     {"path_request", true, &PathRequest},
+    {"path_probe", true, &PathProbe},
     {"camera", true, &Camera},
     {"screen", true, &Screen},
     {"papyrus_call", true, &PapyrusCall},
@@ -1137,6 +1186,8 @@ constexpr Command cCommands[] = {
     {"controller", true, &Controller},
     {"ray", true, &Ray},
     {"surroundings", true, &Surroundings},
+    {"terrain", true, &Terrain},
+    {"terrain_result", true, &TerrainResult},
     {"menu_var", false, &MenuVar},
     {"hud_messages", false, &HudMessagesShown},
     {"ref_enabled", true, &RefEnabled},

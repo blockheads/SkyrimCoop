@@ -18,9 +18,9 @@ READ_COMMANDS = frozenset("""act_state actor_pools anim_trace body_trace camera 
     container_items controller counters dialogue dialogue_trace engine_events faction_rank form form_known form_save
     gait global graph_bool graph_state graph_writers hud_messages idle_conditions info_conditions info_responses
     info_said input_state is_current_package item_count item_stacks judged_line log_trail menu_var npc_templates objects
-    papyrus_result perf player_probe_read player_record quest quest_fragments ray recipe records ref_enabled
+    papyrus_result path_probe perf player_probe_read player_record quest quest_fragments ray recipe records ref_enabled
     reference_effects relationship_rank screen script_stacks script_state script_var skill stack_extras status
-    story_trace surroundings trainings ui_element world_clock world_state""".split())
+    story_trace surroundings terrain terrain_result trainings ui_element world_clock world_state""".split())
 # Reads that write when given this field.
 WRITES_WITH = {"script_var": "value", "trainings": "set"}
 FRONTS = set()  # the sanctioned ways in running in this process (coop_test.py's CLI)

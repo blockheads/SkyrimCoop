@@ -667,6 +667,7 @@ class GoalVerbs(unittest.TestCase):
         trace = ctx.verb_trace.return_value.__enter__.return_value
         trace.entries, trace.dir = list(entries), Path("/traces/x")
         ctx.verb_trace.return_value.__exit__.return_value = False
+        ctx.path_probe.return_value = {}  # no engine to probe
         return ctx
 
     def test_a_trace_sums_up_speeds_and_where_the_player_stood(self):
@@ -792,6 +793,79 @@ class GoalVerbs(unittest.TestCase):
         self.assertEqual(PlayerVerbs.fight(ctx, "client", "wolf")["swings"], 1)
         ctx.attack.assert_called_once()
 
+    def test_clear_fights_who_it_can_walk_to_first_and_skips_who_a_cut_hides(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xB6DBB, 1900), (0xB6DC0, 2400), (0xB6DC1, 2500)]
+        ctx.nearby_shared.return_value = [{"host": h, "guest": h + 1, "name": n} for h, n in
+                                          ((0xB6DBB, "below"), (0xB6DC0, "far way"), (0xB6DC1, "short way"))]
+        off = {"resolved": False}
+        probes = {0xB6DBB: {"built": False, "nodes": 2, "start": off, "goal": off, "linked": False, "obstacles": 6},  # behind a cut
+                  0xB6DC0: {"built": True, "way_length": 3200},
+                  0xB6DC1: {"built": True, "way_length": 2600}}
+        ctx.path_probe.side_effect = lambda instance, ref: probes[ref]
+        reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "", 2600.0)
+        self.assertEqual([m["name"] for m in reachable], ["short way", "far way"])
+        self.assertEqual([m["name"] for m, _ in cut_off], ["below"])
+
+    def test_a_guest_keeps_a_far_hostile_with_no_copy_yet_to_walk_near_last(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xB6FE4, 3000), (0xB6CE1, 600)]
+        ctx.nearby_shared.return_value = [{"host": 0xB6CE1, "guest": 0xB6CE1, "name": "lookout"}]
+        ctx.path_probe.return_value = {"built": True, "path_length": 650}
+        reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "client", 4000.0)
+        self.assertEqual([m["name"] for m in reachable], ["lookout", "B6FE4"])
+        self.assertNotIn("guest", reachable[1])  # clear walks near, then finds its copy
+        self.assertEqual(cut_off, [])
+
+    def test_clear_keeps_a_failure_that_is_not_about_getting_there(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xB6FE4, 1000)]
+        ctx.nearby_shared.return_value = [{"host": 0xB6FE4, "guest": 0xB6FE4, "name": "bandit"}]
+        ctx.path_probe.side_effect = [{"built": True}, {"built": False, "nodes": 2, "start": {"resolved": False}, "goal": {"resolved": False}}]
+        ctx.actor_row.return_value = {"state": {}}
+        down = TestFailure("died fighting it")
+        down.outcome = {"why": "player_down"}
+        ctx.fight.side_effect = down
+        ctx.reachable_hostiles.side_effect = lambda *args: PlayerVerbs.reachable_hostiles(ctx, *args)
+        with self.assertRaises(TestFailure) as caught:
+            PlayerVerbs.clear(ctx, "")
+        self.assertIn("died fighting it", str(caught.exception))
+
+    def test_a_guest_does_not_walk_toward_a_spawned_hostile_by_its_host_id(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xFF001234, 3000)]
+        ctx.nearby_shared.return_value = []
+        reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "client", 4000.0)
+        self.assertEqual(reachable, [])
+        self.assertEqual([line for _, line in cut_off], ["no copy in the guest's game yet"])
+
+    def test_clear_turns_to_the_next_hostile_when_one_walks_behind_a_cut_mid_fight(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        alive = {0xB6FDB, 0xB6FE4}
+        ctx.hostiles.side_effect = lambda radius, instance: [(h, 1000) for h in sorted(alive)]
+        ctx.nearby_shared.return_value = [{"host": h, "guest": h, "name": f"{h:X}"} for h in (0xB6FDB, 0xB6FE4)]
+        cut = set()
+        ctx.path_probe.side_effect = lambda instance, ref: {"built": False, "nodes": 2, "start": {"resolved": False}, "goal": {"resolved": False}, "linked": False, "obstacles": 6} if ref in cut else {"built": True, "path_length": ref - 0xB6000}
+        ctx.actor_row.return_value = {"state": {}}
+        def fight(instance, handle):
+            target = ctx.name_handle.call_args[0][1]["host"]
+            if target == 0xB6FDB:  # it patrols past the invisible wall as the player comes
+                cut.add(target)
+                stalled = TestFailure("did not reach it in a straight line")
+                stalled.outcome = {"why": "stalled"}
+                raise stalled
+            alive.discard(target)
+        ctx.fight.side_effect = fight
+        ctx.reachable_hostiles.side_effect = lambda *args: PlayerVerbs.reachable_hostiles(ctx, *args)
+        outcome = PlayerVerbs.clear(ctx, "")
+        self.assertEqual(outcome["killed"], ["B6FE4"])
+        self.assertEqual(outcome["skipped"], ["B6FDB"])
+
     def test_fight_stops_when_the_player_falls(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = self.verb_ctx()
@@ -801,6 +875,24 @@ class GoalVerbs(unittest.TestCase):
             PlayerVerbs.fight(ctx, "", "wolf")
         self.assertEqual(caught.exception.outcome["why"], "player_down")
         ctx.attack.assert_not_called()
+
+
+class McpDuo(unittest.TestCase):
+    def test_crash_history_resets_on_a_new_hold_only(self):
+        from coop_harness import mcp_tools
+        session = MagicMock()
+        session.games = [argparse.Namespace(name=""), argparse.Namespace(name="client")]
+        session.crash_logs.side_effect = lambda name: {f"old-{name or 'host'}.log"}
+        booting = Mock()
+        booting.poll.return_value = None
+        with patch.object(mcp_tools, "session", session), patch.object(mcp_tools, "duo", {"process": booting}):
+            session.duo_lock.return_value = None  # not held: another run's crashes are not this one's
+            mcp_tools.duo_start()
+            self.assertEqual(session.KNOWN_CRASHES, {"": {"old-host.log"}, "client": {"old-client.log"}})
+            session.KNOWN_CRASHES = {"": set(), "client": set()}  # this run's crash, not yet reported
+            session.duo_lock.return_value = argparse.Namespace(role="holder")
+            mcp_tools.duo_start()  # asked again during the boot
+            self.assertEqual(session.KNOWN_CRASHES, {"": set(), "client": set()})
 
 
 class Scenes(unittest.TestCase):
@@ -1074,8 +1166,10 @@ class Repro(unittest.TestCase):
         ctx.is_actor.return_value = True
         ctx.follow_run.return_value = "stalled"
         ctx.path_leg.return_value = "refused"
+        ctx.path_probe.return_value = {}
         outcome = PlayerVerbs.walk_to(ctx, "client", "lydia", 150.0)
         self.assertFalse(outcome["pathed"])
+        self.assertEqual(outcome["probe"], "no path probe")  # the engine's view goes with the straight run
         ctx.steer_to.assert_called_with("client", "lydia", 150.0)
         ctx.player_script_call.assert_called_with("client", "Game", "SetPlayerAIDriven", [False])
 
@@ -1128,8 +1222,9 @@ class Repro(unittest.TestCase):
     def test_walk_to_walks_round_what_stops_a_run(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x1348C
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [600.0, 0.0, 0.0], [990.0, 0.0, 0.0], [990.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = True
@@ -1142,14 +1237,57 @@ class Repro(unittest.TestCase):
     def test_walk_to_paths_to_an_object(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x5000
-        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
+        places = iter([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [950.0, 0.0, 0.0], [950.0, 0.0, 0.0]])
         ctx.my_position.side_effect = lambda instance: next(places)
         ctx.place_of.return_value = [1000.0, 0.0, 0.0]
         ctx.is_actor.return_value = False
         ctx.path_leg.return_value = "arrived"
         self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["legs"], 1)
         ctx.follow_run.assert_not_called()
+
+    def test_talk_follows_an_npc_that_walked_out_of_reach_before_the_press(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x1348C
+        ctx.my_position.return_value = [0.0, 0.0, -60.0]  # a bank below him: 3D reach
+        ctx.place_of.side_effect = lambda *a: (  # in reach at the press, walked on after it, caught up
+            [80.0, 0.0, 0.0] if ctx.walk_to.called else [176.0, 0.0, 0.0] if ctx.activate_ref.called else [120.0, 0.0, 0.0])
+        ctx.talking_to.side_effect = lambda *a: ctx.activate_ref.call_count >= 2
+        ctx.wait_for.side_effect = lambda what, predicate, seconds: predicate() or (_ for _ in ()).throw(TestFailure(what))
+        ctx.dialogue.return_value = {"options": [{"text": "What's your problem with Sven?"}]}
+        PlayerVerbs.talk_to(ctx, "", "faendal")
+        self.assertEqual(ctx.activate_ref.call_count, 2)  # pressed, found him walked off, closer, pressed again
+        ctx.walk_to.assert_called_once_with("", "faendal", 80.0)
+
+    def test_walk_to_a_target_already_in_reach_moves_nobody(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x5000
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [10.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_probe.return_value = {"crossing": {"route": [[0, 0, 0]], "to": [300, 0, 0], "gap": 300.0}}
+        self.assertEqual(PlayerVerbs.walk_to(ctx, "", "door", 100.0)["crossings"], 0)
+        ctx.cross.assert_not_called()
+        ctx.path_leg.assert_not_called()
+
+    def test_walk_to_crosses_a_cut_navmesh_by_input_then_paths_on(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0x5000
+        ctx.my_position.side_effect = lambda instance: (
+            [950.0, 0.0, 0.0] if ctx.path_leg.called else [600.0, 0.0, 0.0] if ctx.cross.called else [0.0, 0.0, 0.0])
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.return_value = "arrived"
+        crossing = {"route": [[0, 0, 0]], "to": [300, 0, 0], "gap": 300.0}
+        ctx.path_probe.side_effect = lambda *args: {} if ctx.cross.called else {"crossing": crossing}
+        walked = PlayerVerbs.walk_to(ctx, "", "door", 100.0, straight=False)
+        self.assertEqual((walked["pathed"], walked["crossings"]), (True, 1))
+        ctx.path_leg.assert_called()  # on by path once across
+        ctx.cross.assert_called_once_with("", crossing)
 
     def test_a_path_the_engine_ends_at_once_is_refused(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
@@ -1199,6 +1337,7 @@ class Repro(unittest.TestCase):
         from coop_harness.actions import play_verbs as verbs
         now = self.clock(verbs)
         ctx = Mock()
+        ctx.path_probe.return_value = {}
         ctx.resolve.return_value = 0x837
         ctx.is_actor.return_value = False
         ctx.my_position.side_effect = lambda instance: [now[0] * 80.0, 0.0, 0.0]
@@ -1208,6 +1347,21 @@ class Repro(unittest.TestCase):
             return "done"
         ctx.path_leg.side_effect = leg
         self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])
+
+    def test_a_walk_round_a_river_gets_the_engine_path_s_time(self):
+        from coop_harness.actions import play_verbs as verbs
+        now = self.clock(verbs)
+        ctx = Mock()
+        ctx.resolve.return_value = 0x1341F
+        ctx.is_actor.return_value = False
+        ctx.path_probe.return_value = {"built": True, "path_length": 6000}  # 1000 straight, 6000 by the bridge
+        ctx.my_position.side_effect = lambda instance: [min(1000.0, max(0.0, now[0] - 60.0) * 80.0), 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        def leg(*args):
+            now[0] += 4.0
+            return "done"
+        ctx.path_leg.side_effect = leg
+        self.assertTrue(verbs.PlayerVerbs.walk_to(ctx, "", "door", 100.0)["pathed"])  # 72 s along: within 6000's time
 
     def test_a_run_gets_its_time_to_set_off_before_standing_still_counts(self):
         from coop_harness.actions.play_verbs import set_off
@@ -1258,6 +1412,309 @@ print("released", flush=True)
 """
 
 
+class Terrain(unittest.TestCase):
+    """coop_harness/terrain.py: walking from the player's cell over a scan's columns, and the views."""
+
+    def scan(self, floors, player=(0, 0), toward=None, low=()):
+        """A scan of one row per string: a digit is a floor that many tens of units up, '#' a block 500 up, ' ' nothing
+        hit; 50-unit cells, the west edge at 0. `low`: cells with 60 units of headroom."""
+        rows, cols = len(floors), len(floors[0])
+        columns = []
+        for r, line in enumerate(floors):
+            for c, mark in enumerate(line):
+                if mark == " ":
+                    columns.append([])
+                elif mark == "#":
+                    columns.append([[500, 1.0, 0, 30, -1]])
+                else:
+                    headroom = 60 if (r, c) in low else -1
+                    columns.append([[int(mark) * 10, 1.0, 0, 30, headroom]])
+        def at(cell, z):
+            return [cell[1] * 50 + 25, (rows - cell[0]) * 50 - 25, z]
+        return {"cell": 50.0, "rows": rows, "cols": cols, "west": 0.0, "north": rows * 50.0, "columns": columns,
+                "capsule": {"max_slope": 45.0, "actor_height": 120.0}, "player": at(player, 0),
+                "toward": {"at": at(toward, 0)} if toward else None, "navmesh": {}, "obstacles": []}
+
+    def test_a_player_walks_a_floor_and_a_ramp_but_not_up_a_wall_or_under_a_low_roof(self):
+        from coop_harness import terrain
+        scan = self.scan(["0000#", "0246#", "0   0", "00000"], low={(3, 4)})
+        reached, blocked = terrain.walk(scan)
+        self.assertIn((1, 3), reached)            # 0 -> 20 -> 40 -> 60: each rise within 50 tan 45 + 10
+        self.assertEqual(blocked[(0, 4)], "wall")
+        self.assertEqual(blocked[(3, 4)], "low")
+        self.assertEqual(blocked[(2, 1)], "nothing")
+        self.assertEqual(terrain.top_view(scan), ["@...#", ".//.#", ".???,", "....^"])  # , cut off by the low roof
+
+    def test_the_walk_starts_on_the_floor_under_the_player_not_a_canopy_over_it(self):
+        from coop_harness import terrain
+        scan = self.scan(["00"], low={(0, 0)})  # the player's floor reads low: something stands over it
+        scan["columns"][0].insert(0, [225, 0.96, 0, 13, -1])  # a tree's flat branches
+        reached, _ = terrain.walk(scan)
+        self.assertEqual(reached, {(0, 0): 0, (0, 1): 0})
+
+    def test_the_way_to_the_navmesh_goes_round_the_wall_of_a_nook(self):
+        from coop_harness import terrain
+        scan = self.scan(["000", "#00", "0#0"], player=(2, 0))  # the player's nook: a wall north, a wall east
+        scan["columns"][2 * 3 + 0] = [[0, 1.0, 0, 30, -1]]
+        scan["columns"][2 * 3 + 1] = [[500, 1.0, 0, 30, -1]]
+        scan["columns"][1 * 3 + 0] = [[500, 1.0, 0, 30, -1]]
+        self.assertIsNone(terrain.route_to_navmesh(scan))  # walled in: no way out
+        scan = self.scan(["000", "000", "0#0"], player=(2, 0))
+        scan["columns"][2 * 3 + 1] = [[500, 1.0, 0, 30, -1]]
+        scan["navmesh"] = {"piece": [0, 0, 0, -1, 0, 0, -1, -1, -1], "z": [0, 0, 0, None, 0, 0, None, None, None]}
+        route = terrain.route_to_navmesh(scan, inside=0)
+        self.assertEqual([terrain.cell_of(scan, at) for at in route], [(2, 0), (1, 0), (1, 1)])  # up, round the wall, onto it
+
+    def test_a_refused_walk_the_search_paths_runs_its_path_s_start_by_input(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs, path_start
+        path = [[0, 0, 0], [60, 0, 0], [120, 0, 0], [240, 0, 0], [900, 0, 0]]
+        self.assertEqual(path_start({"built": True, "path": path}), {"route": [[60, 0, 0], [120, 0, 0]], "to": [240, 0, 0], "gap": 0.0})
+        self.assertIsNone(path_start({"built": False, "path": path}))
+        ctx = Mock()
+        ctx.resolve.return_value = 0xB6FE4
+        ctx.my_position.side_effect = lambda instance: [3300.0, 0.0, 0.0] if ctx.cross.called and ctx.path_leg.call_count > 1 else [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [3339.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.side_effect = lambda *a: "arrived" if ctx.cross.called else "refused"  # refused by the door
+        ctx.path_probe.return_value = {"built": True, "path": path, "path_length": 3400}
+        self.assertTrue(PlayerVerbs.walk_to(ctx, "", "enemy_1", 100.0, straight=False)["pathed"])
+        ctx.cross.assert_called_once()
+
+    def test_with_no_search_path_the_triangles_way_gives_the_first_stretch(self):
+        from coop_harness.actions.play_verbs import path_start
+        way = [[0, 0, 0], [100, 0, 0], [250, 0, 0], [900, 0, 0]]
+        self.assertEqual(path_start({"built": False, "linked": True, "way": way})["to"], [250, 0, 0])
+        self.assertIsNone(path_start({"built": False, "linked": False, "way": way}))
+
+    def test_a_way_onto_the_navmesh_runs_corner_to_corner(self):
+        from coop_harness.actions.play_verbs import turning_points
+        route = [[0, 0, 0], [0, 20, 0], [0, 40, 0], [20, 40, 0], [40, 40, 0], [40, 60, 0]]
+        self.assertEqual(turning_points(route), [[0, 40, 0], [40, 40, 0], [40, 60, 0]])
+
+    def test_a_walk_off_the_navmesh_steps_onto_it_before_pathing(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = Mock()
+        ctx.resolve.return_value = 0xB6CE1
+        ctx.my_position.side_effect = lambda instance: [950.0, 0.0, 0.0] if ctx.path_leg.called else [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [1000.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.return_value = "arrived"
+        nook = {"resolved": True, "at": [0, 0, 0], "point": [59, 0, 0]}
+        ctx.path_probe.side_effect = lambda *a: {"built": True} if ctx.step_onto_navmesh.called else {"built": False, "start": nook}
+        ctx.step_onto_navmesh.return_value = True
+        self.assertTrue(PlayerVerbs.walk_to(ctx, "", "enemy_1", 100.0, straight=False)["pathed"])
+        ctx.step_onto_navmesh.assert_called_once_with("")
+
+    def test_a_drop_is_not_walked_down(self):
+        from coop_harness import terrain
+        scan = self.scan(["99", "90"], player=(0, 0))
+        reached, blocked = terrain.walk(scan)
+        self.assertNotIn((1, 1), reached)
+        self.assertEqual(blocked[(1, 1)], "drop")
+
+    def test_the_summary_says_how_far_short_of_the_target_the_walk_ends(self):
+        from coop_harness import terrain
+        scan = self.scan(["00#00"], toward=(0, 4))
+        self.assertIn("the target is not: the nearest walkable cell is 150 units from it", terrain.summary(scan))
+        scan = self.scan(["00000"], toward=(0, 4))
+        self.assertIn("the target is walkable from here", terrain.summary(scan))
+
+    def test_a_target_on_a_floor_stacked_over_the_walked_one_is_not_walkable(self):
+        from coop_harness import terrain
+        scan = self.scan(["00"], toward=(0, 1))
+        scan["columns"][1].insert(0, [500, 1.0, 0, 30, -1])  # a ledge 500 up over the floor walked
+        scan["toward"]["at"][2] = 500
+        self.assertIn("the target is not", terrain.summary(scan))
+
+    def test_the_side_view_draws_the_floor_from_the_player_to_the_target(self):
+        from coop_harness import terrain
+        rows = terrain.side_view(self.scan(["00#00"], toward=(0, 4)))
+        self.assertEqual(rows[1], "z    500   x  ")  # the block's top, not walkable
+        self.assertEqual(rows[-2], "z      0 @= xT")  # walked, then floor past the block not reached
+
+
+class PlaythroughFlows(unittest.TestCase):
+    """docs/design/playthrough-flows.md: the verdict, resuming and the report, without Skyrim."""
+
+    def test_a_refused_path_says_where_its_ends_landed(self):
+        from coop_harness.actions.play_verbs import probe_line
+        end = lambda navmesh, at, point: {"resolved": True, "navmesh": navmesh, "triangle": 7, "at": at, "point": point}
+        probe = {"built": False, "incomplete": False, "virtual_nodes": 0, "nodes": 0,
+                 "start": end("B6C01", [0, 0, 0], [0, 0, 0]), "goal": {"resolved": False}}
+        self.assertEqual(probe_line(probe), "engine search none (0 nodes), start navmesh B6C01 tri 7 (0 off), goal on no navmesh")
+        probe["goal"] = end("B6C02", [0, 0, 100], [0, 0, 40])
+        self.assertIn("goal navmesh B6C02 tri 7 (60 off)", probe_line(probe))
+        probe.update(same_navmesh=True, linked=True, hops=12, closed_doors_on_way=1, ledges_on_way=2, obstacles=3)
+        self.assertTrue(probe_line(probe).endswith("; triangles join in 12 (1 closed doors, 2 ledges on the way), 3 obstacles; "
+                                                   "doors: start's piece none, goal's none, closed none"))
+        probe.update(linked=False, goal_piece=4, goal_piece_exits=0)
+        self.assertIn("; no triangles join them (the goal's piece: 4 triangles, 0 links out)", probe_line(probe))
+        probe["obstacle_refs"] = [{"ref": "FF000A1", "role": "copy", "actor": True, "on_navmesh": True, "distance": 120.4},
+                                  {"ref": "B6D00", "actor": False, "on_navmesh": True, "distance": 900},
+                                  {"ref": "1A2B", "actor": True, "on_navmesh": False, "distance": 50}]
+        self.assertIn(", 3 obstacles (FF000A1 copy 120 away, B6D00 900 away); doors", probe_line(probe))
+        probe["crossing"] = {"route": [[0, 0, 0], [100, 0, 0], [200, 0, 0], [300, 0, 0]], "to": [420, 0, 30], "gap": 120.0}
+        self.assertTrue(probe_line(probe).endswith("; crossable by input: a 120-unit step after 4 waypoints"))
+        self.assertEqual(probe_line({}), "no path probe")
+
+    def test_a_crossing_keeps_waypoints_apart_and_ends_across_the_cut(self):
+        from coop_harness.actions.play_verbs import crossing_points
+        crossing = {"route": [[0, 0, 0], [10, 0, 0], [100, 0, 0], [110, 0, 0]], "to": [230, 0, 30], "gap": 120.0}
+        self.assertEqual(crossing_points(crossing), [[0, 0, 0], [100, 0, 0], [110, 0, 0], [230, 0, 30]])
+
+    def flow_ctx(self, desyncs=None):
+        ctx = MagicMock()
+        ctx.failure.side_effect = lambda *args: TestFailure(*args)
+        ctx.CURRENT_STEP = {}
+        ctx.wait_for.side_effect = lambda what, predicate, seconds: predicate() or (_ for _ in ()).throw(TestFailure(what))
+        ctx.my_position.return_value = [0.0, 0.0, 0.0]
+        ctx.player_cell.return_value = 0x1234
+        ctx.player_snapshot.return_value = {"placement": {"cell": 0x1234, "worldspace": 0}}
+        ctx.takes_input.return_value = True
+        ctx.actor_row.return_value = {"state": {}}
+        ctx.game.return_value.read_status.return_value = {"network": {"round_trips": {"1": 20}}}
+        ctx.game.return_value.rpc.return_value = {"perf": {"frame_ms": {"p99": 30.0, "max": 80.0}}}
+        ctx.worlds.return_value = ({}, {})
+        ctx.lasting_desyncs.side_effect = lambda known=(): {k: v for k, v in (desyncs or {}).items() if k not in known}
+        ctx.keep_failure.return_value = Path("/results/at-failure.json")
+        return ctx
+
+    def flow(self, *steps):
+        return argparse.Namespace(NAME="test-flow", DOC="A test flow.", BOOT={"save": "LateX"}, STEPS=list(steps))
+
+    def test_what_players_see_is_visible_and_the_rest_cosmetic(self):
+        from coop_harness.comparisons import actor_of, classify_problem
+        who = "Faendal [host 0001348C, sid 5]"
+        self.assertEqual(classify_problem(f"{who} state.dead"), "visible")
+        self.assertEqual(classify_problem(f"{who} equipment"), "visible")
+        self.assertEqual(classify_problem(f"{who} placement.position"), "visible")
+        self.assertEqual(classify_problem(f"{who} missing"), "visible")
+        self.assertEqual(classify_problem("Rabbit [client FF000812, sid 9] orphan"), "visible")
+        self.assertEqual(classify_problem(f"{who} copy body: floats # units above the floor"), "visible")
+        self.assertEqual(classify_problem(f"{who} ai_state.head_track"), "cosmetic")
+        self.assertEqual(classify_problem(f"{who} identity.level"), "cosmetic")
+        self.assertEqual(classify_problem(f"{who} identity.race"), "visible")
+        self.assertEqual(classify_problem(f"{who} state.hands"), "visible")
+        self.assertEqual(classify_problem(f"{who} values.stamina"), "cosmetic")
+        self.assertEqual(classify_problem(f"{who} placement.rotation"), "cosmetic")
+        self.assertEqual(classify_problem(f"{who} state.dead", distance=5000), "cosmetic")
+        self.assertEqual(actor_of("Rabbit [client FF000812, sid 9] orphan"), ("client", 0xFF000812))
+
+    def test_from_a_step_boots_the_checkpoint_before_it(self):
+        from coop_harness.flows.flow import Step, resumable, start_index
+        steps = [Step("a", None, checkpoint=True), Step("b", None), Step("c", None, checkpoint=True), Step("d", None)]
+        self.assertEqual(start_index(steps, None), (0, None))
+        self.assertEqual(start_index(steps, "b"), (1, "a"))
+        self.assertEqual(start_index(steps, "d"), (3, "c"))
+        with self.assertRaises(ValueError):
+            start_index(steps, "c")  # b saved nothing
+        with self.assertRaises(ValueError):
+            start_index(steps, "zz")
+        self.assertEqual([resumable(steps, s.name) for s in steps], [False, True, False, True])
+
+    def test_a_failed_check_stops_the_flow_and_names_the_step(self):
+        from coop_harness.flows.flow import Step, run_flow, summary, verdict
+        ctx = self.flow_ctx()
+        played = []
+        def wrong(ctx):
+            raise ctx.failure("quest not at stage 10")
+        flow = self.flow(Step("arrive", lambda c: played.append("arrive"), checkpoint=True),
+                         Step("talk", lambda c: played.append("talk"), [wrong]),
+                         Step("leave", lambda c: played.append("leave")))
+        results = run_flow(ctx, flow)
+        self.assertEqual(played, ["arrive", "talk"])
+        self.assertEqual([(r.name, r.verdict) for r in results], [("arrive", "PASS"), ("talk", "FAIL")])
+        self.assertIn("quest not at stage 10", results[1].error)
+        ctx.checkpoint.assert_called_once_with("flow-test-flow-arrive")
+        self.assertEqual(verdict(results, flow.STEPS), "FAIL")
+        text = summary(flow, results)
+        self.assertIn("- talk: FAIL", text)
+        self.assertIn("- leave: NOT RUN", text)
+        self.assertIn("flows test-flow --from talk", text)
+        self.assertIn("/results/at-failure.json", text)
+
+    def test_a_game_gone_while_comparing_copies_fails_that_step(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        ctx.lasting_desyncs.side_effect = [{}, TestFailure("guest's world is gone")]  # gone after the start
+        results = run_flow(ctx, self.flow(Step("arrive", lambda c: None), Step("talk", lambda c: None)))
+        self.assertEqual([(r.name, r.verdict) for r in results], [("arrive", "FAIL")])
+        self.assertIn("world is gone", results[0].error)
+        ctx.keep_failure.assert_called_once()
+
+    def test_a_difference_players_see_fails_the_step_and_the_flow_goes_on(self):
+        from coop_harness.flows.flow import Step, run_flow, verdict
+        later = {}
+        ctx = self.flow_ctx(later)
+        def appear(ctx):  # after the flow's start: new
+            later["Rabbit [client FF000812, sid 9] orphan"] = "a rabbit with no owner"
+            later["Faendal [host 0001348C, sid 5] animation.head_track"] = "head track differs"
+        flow = self.flow(Step("arrive", lambda c: None), Step("walk", appear), Step("talk", lambda c: None))
+        results = run_flow(ctx, flow)
+        self.assertEqual([r.verdict for r in results], ["PASS", "SEEN", "PASS"])  # reported once, where it appeared
+        self.assertEqual(results[1].visible, ["a rabbit with no owner"])
+        self.assertEqual(results[1].cosmetic, ["head track differs"])
+        self.assertEqual(verdict(results, flow.STEPS), "FAIL")
+
+    def test_a_failed_sees_check_marks_the_step_seen_and_goes_on(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        def corpse(ctx):
+            raise ctx.failure("enemy_1: holds differently: 37C1B: 0 (host) vs 2 (guest)")
+        results = run_flow(ctx, self.flow(Step("loot", lambda c: None, sees=[corpse]), Step("leave", lambda c: None)))
+        self.assertEqual([r.verdict for r in results], ["SEEN", "PASS"])
+        self.assertIn("37C1B", results[0].visible[0])
+
+    def test_a_refused_checkpoint_fails_its_step_naming_the_menus(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        ctx.checkpoint.side_effect = TestFailure("Timed out after 20s: the checkpoint and its co-save are written")
+        ctx.menus.side_effect = lambda game: {"HUD Menu", "Training Menu"} if game == "" else {"HUD Menu"}
+        results = run_flow(ctx, self.flow(Step("faendal", lambda c: None, checkpoint=True), Step("trader", lambda c: None)))
+        self.assertEqual([(r.name, r.verdict) for r in results], [("faendal", "FAIL")])
+        self.assertIn("Training Menu", results[0].error)
+
+    def test_a_cosmetic_difference_alone_passes(self):
+        from coop_harness.flows.flow import Step, run_flow, verdict
+        later = {}
+        ctx = self.flow_ctx(later)
+        flow = self.flow(Step("walk", lambda c: later.update({"Faendal [host 0001348C, sid 5] animation.head_track": "x"})))
+        self.assertEqual(verdict(run_flow(ctx, flow), flow.STEPS), "PASS")
+
+    def test_health_fails_a_step_that_left_the_party_apart_or_stuck(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        ctx.player_snapshot.side_effect = lambda game: {"placement": {"cell": 1 if game else 2, "worldspace": 0}}
+        results = run_flow(ctx, self.flow(Step("split", lambda c: None)))
+        self.assertIn("different places", results[0].error)  # two interiors
+        ctx = self.flow_ctx()
+        ctx.player_snapshot.side_effect = lambda game: {"placement": {"cell": 1 if game else 2, "worldspace": 0x3C}}
+        self.assertEqual(run_flow(ctx, self.flow(Step("outdoors", lambda c: None)))[0].verdict, "PASS")  # neighbouring cells
+        ctx = self.flow_ctx()
+        ctx.takes_input.side_effect = lambda game: game == ""
+        ctx.menus.return_value = {"HUD Menu", "Dialogue Menu"}
+        results = run_flow(ctx, self.flow(Step("stuck", lambda c: None)))
+        self.assertIn("[client] stuck", results[0].error)
+        ctx = self.flow_ctx()
+        results = run_flow(ctx, self.flow(Step("in", lambda c: None, allow=frozenset({"together"}))))
+        ctx.both_see_each_other.assert_not_called()
+
+    def test_a_hang_fails_the_step(self):
+        from coop_harness.flows.flow import Step, run_flow
+        ctx = self.flow_ctx()
+        ctx.game.return_value.rpc.return_value = {"perf": {"frame_ms": {"p99": 40.0, "max": 4200.0}}}
+        self.assertIn("hang", run_flow(ctx, self.flow(Step("walk", lambda c: None)))[0].error)
+
+    def test_every_flow_lists_resumable_steps(self):
+        from coop_harness.flows import flows
+        from coop_harness.flows.flow import start_index
+        for name, flow in flows().items():
+            self.assertTrue(flow.STEPS and flow.BOOT.get("save"), name)
+            for step in flow.STEPS[1:]:
+                if flow.STEPS[flow.STEPS.index(step) - 1].checkpoint:
+                    start_index(flow.STEPS, step.name)
+
+
 @unittest.skipIf(WINDOWS, "the duo lock is Linux-only (fcntl)")
 class DuoLockTests(unittest.TestCase):
     """The duo's lock (coop_harness/duo_lock.py) with contending processes in a temp home and fake games."""
@@ -1275,6 +1732,17 @@ class DuoLockTests(unittest.TestCase):
         lock = DuoLock(self.home, worktree, name, out=io.StringIO(), **kwargs)
         self.addCleanup(lock.release)
         return lock
+
+    def test_a_hold_freed_elsewhere_is_claimed_again(self):
+        """An MCP session's hold freed by this checkout's `stop` (or a flow's end): its next claim holds again
+        instead of trusting its stale role (the harness then refused its commands: 'holds no duo')."""
+        session = self.lock()
+        self.assertEqual(session.acquire("repro", timeout=1), "holder")
+        with self.lock()._state() as state:
+            state["holder"] = None  # as release_checkout leaves it
+        self.assertFalse(session.still_held())
+        self.assertEqual(session.acquire("repro", timeout=1), "holder")
+        self.assertTrue(session.still_held())
 
     def contender(self, name):
         """Another agent's process wanting the duo, from its own worktree."""
