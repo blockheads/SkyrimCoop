@@ -44,6 +44,13 @@ The case that needed it (bugs.md, 2026-11-07, `guest-rides-host-horse` after a r
 - Our update: `DeathService::OnRespawnArrival` > `PlayerCharacter::Revive` > `Actor::CastPermanentMagic` > 12720 (the alias visit, the array's
   read lock) > the alias spell's cast > `Actor::IsGhost` 37275, a read of the same list lock (actor +0x88).
 
+On the duo (2026-11-07, `death-spectate-guest` then `guest-rides-host-horse`, one boot, both passed), the guest showed the add side of the
+same pair: `GuestEngine::ApplyFills` > `TESQuest::ForceRefIntoAlias` > `BGSRefAlias::InitializeRefAlias` > `TESObjectREFR::AddAliasInstance`
+19652 > `ExtraDataList::AddAliasInstance` 12046 (list, write) > `ExtraAliasInstanceArray::AddSorted` 12718 (array, write), from
+`RunTasksInStretch`, against the respawn's 12720 > 37275: reported `kept apart by the frame`. The respawn's own report, earlier in the
+run, stayed a risk: that reverse order was also taken by the duo's start `coc` on the main thread outside the tasks (the reviewed
+`lock_order_known-1.7.104.txt` entry for it).
+
 ## Reports read
 
 The 2026-11-04 playtest's reports (12 on the host, read in IDA 1.7.104) are all the engine's own orders, none live:

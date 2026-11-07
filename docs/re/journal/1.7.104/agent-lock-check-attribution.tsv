@@ -12,3 +12,9 @@ time	op	id	rva	item
 2026-11-07T22:20:27Z	comment	12720	0x187920	{"addr": "0x140187920", "comment": "AddressLib ID 12720. ExtraAliasInstanceArray: visits each alias instance under the array's read lock (+0x28), calling visitor->vfunc[1]; stops when it returns other than 1."}
 2026-11-07T22:20:31Z	read	37275	0x6756b0	{"name": "Actor::IsGhost"}
 2026-11-07T22:20:36Z	comment		0x6756ef	{"addr": "0x1406756ef", "comment": "The reference's extra-data list lock (+0x88 = list +0x18), read. Under 12720's alias visit (CastPermanentMagic's alias spells) this is array > list, against 12047's list > array (lock-order.md)."}
+2026-11-07T23:53:03Z	read	19652	0x2e6810	{"name": "Character::sub_19652"}
+2026-11-07T23:53:03Z	read		0x18772f	{"name": "ExtraAliasInstanceArray::sub_12718"}
+2026-11-07T23:53:08Z	name	19652	0x2e6810	{"addr": "0x1402e6810", "name": "TESObjectREFR__AddAliasInstance"}
+2026-11-07T23:53:18Z	name	12718	0x187650	{"addr": "0x140187650", "name": "ExtraAliasInstanceArray__AddSorted"}
+2026-11-07T23:53:21Z	comment	12718	0x187650	{"addr": "0x140187650", "comment": "AddressLib ID 12718. ExtraAliasInstanceArray: inserts an alias instance (alias, quest, owner) in sorted order under the array's write lock (+0x28). From ExtraDataList::AddAliasInstance 12046, which holds the list's write lock: list > array, against 12720's visit (lock-order.md)."}
+2026-11-07T23:53:21Z	comment	19652	0x2e6810	{"addr": "0x1402e6810", "comment": "AddressLib ID 19652. TESObjectREFR::AddAliasInstance: marks the reference changed (vfunc +0x50, 0x80000000), then ExtraDataList::AddAliasInstance 12046 on its list. From BGSRefAlias::InitializeRefAlias (ForceRefIntoAlias, the guest's ApplyFills)."}
