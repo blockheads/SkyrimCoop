@@ -1,0 +1,34 @@
+time	op	id	rva	item
+2026-11-07T20:25:52Z	read	38709	0x6d3ad0	{"name": "sub_1406D3AD0"}
+2026-11-07T20:25:52Z	read	27294	0x447660	{"name": "sub_140447660"}
+2026-11-07T20:25:52Z	read	28269	0x45dd80	{"name": "sub_14045DD80"}
+2026-11-07T20:25:56Z	read	28622	0x46ead0	{"name": "sub_14046EAD0"}
+2026-11-07T20:25:57Z	read	28640	0x46fbc0	{"name": "BGSProcedureFollowExecState::sub_28640"}
+2026-11-07T20:25:57Z	read		0x453a00	{"name": "BGSPackageDataRef::sub_27769"}
+2026-11-07T20:26:13Z	read	38959	0x6e0420	{"name": "coop_initFromPackage"}
+2026-11-07T20:26:20Z	read	39110	0x6e75c0	{"name": "sub_1406E75C0"}
+2026-11-07T20:27:22Z	read	29556	0x499c30	{"name": "TESPackage::sub_29556"}
+2026-11-07T20:27:29Z	read	29869	0x4a6610	{"name": "sub_1404A6610"}
+2026-11-07T20:28:55Z	read		0x46eda4	{"name": "sub_14046EAD0"}
+2026-11-07T20:29:20Z	read	37483	0x6879a0	{"name": "Actor::IsDead"}
+2026-11-07T20:31:41Z	name	28622	0x46ead0	{"addr": "0x14046ead0", "name": "BGSProcedureFollowExecState_Start"}
+2026-11-07T20:31:41Z	name	39207	0x6ebe40	{"addr": "0x1406ebe40", "name": "ActorPackage_PickAndInitPackage"}
+2026-11-07T20:31:41Z	name	39149	0x6e9970	{"addr": "0x1406e9970", "name": "ActorPackage_InitPackageWithTarget"}
+2026-11-07T20:31:41Z	name	29869	0x4a6610	{"addr": "0x1404a6610", "name": "PackageTarget_GetSpecificHandle"}
+2026-11-07T20:31:48Z	comment	28622	0x46ead0	{"addr": "0x14046ead0", "comment": "Follow procedure start (28622): resolves the target through the parameter (BGSPackageDataRef 27770 -> PackageTarget::resolve 29846), stores it at state +8 and AIProcess::followTarget. An unresolvable handle marks the procedure done (context +0x10) without writing +8."}
+2026-11-07T20:31:48Z	comment	39207	0x6ebe40	{"addr": "0x1406ebe40", "comment": "Picks the actor's package (37172); returns 0 at once when it is the package already running, so an unchanged package is never re-initialised and its procedure never restarted. Otherwise target from TESPackage 29556 and InitFromPackage 38959."}
+2026-11-07T20:31:48Z	comment	39149	0x6e9970	{"addr": "0x1406e9970", "comment": "InitFromPackage 38959 with the package's own target (29556)."}
+2026-11-07T20:31:48Z	comment	29869	0x4a6610	{"addr": "0x1404a6610", "comment": "PackageTarget type 0 (specific reference): the stored handle, no context and no 29846; used by TESPackage 29556 for the package-level target."}
+2026-11-07T20:31:48Z	comment	28644	0x4703c0	{"addr": "0x1404703c0", "comment": "Follow update, high/middle-high process (28644): marks the procedure done (context +0x10) when the target is dead or dying (IsDead(1): life states 1, 2, 5), disabled (flag 0x800, with sub-states) or deleted (0x20) with no reference handle. Nothing restarts it while the package stays the same (ActorPackage_PickAndInitPackage)."}
+2026-11-07T20:31:48Z	comment	28645	0x471dd0	{"addr": "0x140471dd0", "comment": "Follow update, middle-low/low process (28645): done when the target IsDead(0) (also essential-down, 7), deleted (0x20) or disabled (0x800)."}
+2026-11-07T20:31:48Z	comment	28640	0x46fbc0	{"addr": "0x14046fbc0", "comment": "Follow update (28640): copies state +8 to followTarget, then 28644 for process level 0/1 (AIProcess +0x137), 28645 for 2/3."}
+2026-11-07T20:31:48Z	comment	38709	0x6d3ad0	{"addr": "0x1406d3ad0", "comment": "Not on the follow path: run-once package (types 41/42) target resolve for a mount/ride check."}
+2026-11-07T20:31:48Z	comment	27294	0x447660	{"addr": "0x140447660", "comment": "Not on the follow path: compares a package target (by type) with a reference, through 29846 for type 0."}
+2026-11-07T20:31:48Z	comment	28269	0x45dd80	{"addr": "0x14045dd80", "comment": "Not on the follow path: a procedure start (BGSProcedureAcquire family) resolving its target through 29846."}
+2026-11-07T20:31:48Z	comment	39110	0x6e75c0	{"addr": "0x1406e75c0", "comment": "Not on the follow path read here: large package-state routine calling InitFromPackage 38959."}
+2026-11-07T20:45:19Z	read	28642	0x46ff60	{"name": "BGSProcedureFollowExecState::sub_28642"}
+2026-11-07T20:45:20Z	read	28643	0x470370	{"name": "BGSProcedureFollowExecState::sub_28643"}
+2026-11-07T20:45:29Z	comment	28642	0x46ff60	{"addr": "0x14046ff60", "comment": "Follow state load (28642): the target comes back by form id (saved by 28641). A temporary target (a co-op guest's copy) no longer exists after the load: +8 is left with no reference, nothing resolves it again (no start), and 28644 returns early each update: the follower stands, package unchanged, until a restart."}
+2026-11-07T20:45:29Z	comment	28643	0x470370	{"addr": "0x140470370", "comment": "Follow state post-load (28643): copies +8 to AIProcess::followTarget."}
+2026-11-07T20:45:29Z	comment	29480	0x496600	{"addr": "0x140496600", "comment": "Folded with a CRT stub: in procedures, marks the procedure context done (context +0x10 = 1)."}
+2026-11-07T21:06:38Z	read	29479	0x4965e0	{"name": "sub_1404965E0"}

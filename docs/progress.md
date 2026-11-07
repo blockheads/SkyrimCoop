@@ -220,6 +220,13 @@ changes to a created container go as its whole contents (a guest rolls no world 
 `HostAuthorityTests` for the three call sites; GameTests flow "A chest the host's script places reaches a guest with what it
 rolled" (the fake learned created containers); scenario `created-chest-reaches-guest-empty` left to the next combined run.
 
+2026-11-07: the follower that stops following is still not reproduced on 1.7.104 (a party reload, a guest's death and
+respawn, a follower left behind then moved in, a load door, a wolf fight), and no fix is made. Read in IDA instead
+(`re/systems/followers.md`): the follow procedure ends on a dying, dead, deleted or other-interior target, its load drops
+a temporary target, and the package pick never restarts an unchanged package, so only our target-map restart brings it
+back. New entries in `bugs.md`: a guest's recruitment stalls after the host takes the pick, and a guest crash on a
+deleted copy in an AI job (39372).
+
 2026-11-04: the follower that stops following is not reproduced on 1.7.104 (0 of 2 in the entry's order, with the Load
 menu and door rounds), and no fix is made; findings in `bugs.md`. The 1,388 lead is closed: she stood by the guest she
 follows. `load_latest_from_menu` works on 1.7.104 again: it passes the character list and clears a reload's scratch save.
