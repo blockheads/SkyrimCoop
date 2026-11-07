@@ -92,8 +92,8 @@ nlohmann::json PathProbe(Harness&, const nlohmann::json& acRequest)
     if (cProbe.crossable)
         crossing = {{"route", cProbe.crossingRoute}, {"to", cProbe.crossingTo}, {"gap", cProbe.crossingGap}};
     return {{"ok", true},           {"obstacle_refs", obstacleRefs}, {"crossing", crossing}, {"built", cProbe.built},        {"incomplete", cProbe.incomplete}, {"virtual_nodes", cProbe.virtualNodes},
-            {"nodes", cProbe.nodes}, {"path_length", std::lround(cProbe.pathLength)}, {"start", end(cProbe.start)}, {"goal", end(cProbe.goal)},
-            {"same_navmesh", cProbe.sameNavmesh}, {"linked", cProbe.linked}, {"hops", cProbe.hops}, {"way_length", std::lround(cProbe.wayLength)},
+            {"nodes", cProbe.nodes}, {"path_length", std::lround(cProbe.pathLength)}, {"path", cProbe.path}, {"start", end(cProbe.start)}, {"goal", end(cProbe.goal)},
+            {"same_navmesh", cProbe.sameNavmesh}, {"linked", cProbe.linked}, {"hops", cProbe.hops}, {"way_length", std::lround(cProbe.wayLength)}, {"way", cProbe.way},
             {"closed_doors_on_way", cProbe.closedDoorsOnWay}, {"ledges_on_way", cProbe.ledgesOnWay},
             {"portals_on_way", cProbe.portalsOnWay}, {"goal_piece", cProbe.goalPiece}, {"goal_piece_exits", cProbe.goalPieceExits},
             {"obstacles", cProbe.obstacles}, {"start_doors", hex(cProbe.startDoors)}, {"goal_doors", hex(cProbe.goalDoors)},

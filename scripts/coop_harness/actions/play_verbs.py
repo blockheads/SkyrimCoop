@@ -20,8 +20,9 @@ STALL_UNITS, STALL_SECONDS = 40.0, 1.5  # a run that moves less in this long has
 PATH_LEG_SECONDS = 4.0  # a walked leg round what stopped a run
 CROSSING_SPACING, CROSSING_REACH = 30.0, 60.0  # a crossing's waypoints: kept apart, reached within
 MAX_CROSSINGS = 2  # cuts crossed by input in one walk
+PATH_START = 200.0  # units of a refused walk's path run by input before pathing again
 OFF_NAVMESH = 40.0  # units from the start's navmesh point past which a walk first steps onto it
-NAVMESH_REACH = 20.0  # units, a waypoint of that step
+NAVMESH_REACH = 30.0  # units, a waypoint of that step (a running player overshoots closer ones)
 TALK_REACH = 150.0  # units, 3D, within the activation pick (fActivatePickLength 180 from the eyes)
 TALK_TRIES = 3  # presses at an NPC walking on, as a player follows it
 SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
@@ -101,6 +102,34 @@ def probe_line(probe):
         if crossing := probe.get("crossing"):
             line += f"; crossable by input: a {crossing['gap']:.0f}-unit step after {len(crossing['route'])} waypoints"
     return line
+
+
+def path_start(probe, reach=PATH_START):
+    """A refused walk from a spot the search starts badly from (by a door): the first stretch of the search's path, or
+    of the triangles' way when the search has none, as a crossing to run by input before pathing again."""
+    points = (probe.get("path") or []) if probe.get("built") else (probe.get("way") or []) if probe.get("linked") else []
+    stretch, length = [], 0.0
+    for before, here in zip(points, points[1:]):
+        stretch.append(here)
+        length += math.dist(before, here)
+        if length >= reach:
+            break
+    return {"route": stretch[:-1], "to": stretch[-1], "gap": 0.0} if stretch else None
+
+
+def walkable(probe):
+    """A path_probe says the player can walk there: the search's path, or its navmesh's triangles joining them (the
+    search fails from some spots, by a door: walk_to steps off them; a wall's cut leaves the triangles apart)."""
+    return bool(probe.get("built") or probe.get("linked"))
+
+
+def turning_points(route):
+    """A cell-to-cell way's corners and its end: a run between corners stays in walkable cells."""
+    points = []
+    for before, here, after in zip(route, route[1:], route[2:]):
+        if (here[0] - before[0], here[1] - before[1]) != (after[0] - here[0], after[1] - here[1]):
+            points.append(here)
+    return points + [route[-1]]
 
 
 def off_navmesh(end):
@@ -223,7 +252,8 @@ class PlayerVerbs:
                 navmesh_walk(ctx, instance, target, ref, within, deadline, limit, walk, follows, apart)
                 if not walk["refused"] or apart() <= within or walk["crossings"] >= MAX_CROSSINGS:
                     break
-                crossing = (ctx.path_probe(instance, ref) or {}).get("crossing")
+                probe = ctx.path_probe(instance, ref) or {}
+                crossing = probe.get("crossing") or path_start(probe)
                 if not crossing:
                     break
             ctx.cross(instance, crossing)  # an obstacle cuts the navmesh: across it by input, then on by path
@@ -266,8 +296,8 @@ class PlayerVerbs:
     def path_probe(ctx, instance, ref, start=0x14):
         """The engine's view of the refused path (path_probe: both ends' navmesh triangles, the search run at once)."""
         answer = ctx.game(instance).rpc({"cmd": "path_probe", "from": start, "target": ref}) or {}
-        keys = ("built", "incomplete", "virtual_nodes", "nodes", "path_length", "start", "goal", "same_navmesh", "linked", "hops",
-                "way_length", "closed_doors_on_way", "ledges_on_way", "portals_on_way", "goal_piece", "goal_piece_exits", "obstacles",
+        keys = ("built", "incomplete", "virtual_nodes", "nodes", "path_length", "path", "start", "goal", "same_navmesh", "linked", "hops",
+                "way_length", "way", "closed_doors_on_way", "ledges_on_way", "portals_on_way", "goal_piece", "goal_piece_exits", "obstacles",
                 "start_doors", "goal_doors", "closed_doors", "obstacle_refs", "crossing")
         if not answer.get("ok"):
             return {}
@@ -314,7 +344,7 @@ class PlayerVerbs:
         route = terrain_views.route_to_navmesh(ctx.terrain_scan(instance, radius=300.0, cell=20.0))
         if not route:
             return False
-        points = route[1:] or route  # every cell: the way bends round walls
+        points = turning_points(route)
         log(f"[{instance or 'host'}] off the navmesh: steps onto it by input, {len(points)} waypoints to "
             f"{[round(v) for v in route[-1]]}")
         with always_running(ctx, instance):
@@ -739,7 +769,7 @@ class PlayerVerbs:
                 found.append((int(form), round(distance)))
         return sorted(found, key=lambda pair: pair[1])
 
-    def reachable_hostiles(ctx, instance, radius):
+    def reachable_hostiles(ctx, instance, radius, given_up=()):
         """The hostiles within `radius` split by whether that player can walk to them (the engine's search from it,
         path_probe): (reachable nearest along the way first, [(match, probe line)] behind a cut or off the navmesh)."""
         shared = ctx.nearby_shared()
@@ -750,9 +780,11 @@ class PlayerVerbs:
                 unreachable.append(({"host": host_id, "name": f"{host_id:X}"}, "no copy in the guest's game yet"))
                 continue
             match = match or {"host": host_id, "name": f"{host_id:X}"}  # far off: a copy comes once the party is near
+            if host_id in given_up:
+                unreachable.append((match, "its fight could not reach it"))
+                continue
             probe = ctx.path_probe(instance, match["guest"] if instance else host_id)
-            # the search's path, or triangles joining them on a navmesh no obstacle cuts (the walk ignores cuts)
-            if probe.get("built") or (probe.get("linked") and not probe.get("obstacles")):
+            if walkable(probe):
                 reachable.append((probe.get("path_length") or probe.get("way_length") or flat, match))
             else:
                 unreachable.append((match, probe_line(probe)))
@@ -763,9 +795,9 @@ class PlayerVerbs:
         """The player fights every NPC hostile to the party within `radius` that it can walk to, nearest along the
         way first (`target` unused: goal verbs take one); those the navmesh cuts off (an invisible wall, a cliff) are
         skipped and listed. Each fought is named as a handle (enemy_1, ...) and fought with `fight`."""
-        killed, cut_off = [], []
+        killed, cut_off, given_up = [], [], set()
         while True:
-            enemies, cut_off = ctx.reachable_hostiles(instance, radius)
+            enemies, cut_off = ctx.reachable_hostiles(instance, radius, given_up)
             if not enemies:
                 break
             if len(killed) >= most:
@@ -773,14 +805,25 @@ class PlayerVerbs:
             match = enemies[0]
             log(f"[{instance or 'host'}] fights {match['name']} {match['host']:X} first: {len(enemies)} in reach, "
                 f"{len(cut_off)} cut off")
-            if "guest" not in match:  # its copy appears as the player nears: walk there first
-                ctx.walk_to(instance, match["host"], 1500.0)
-                match = next((a for a in ctx.nearby_shared() if a["host"] == match["host"]), None)
-                if not match:
-                    raise verb_failure(ctx, "refused", f"hostile {enemies[0]['host']:X} has no copy in the guest's game")
-            handle = f"enemy_{len(killed) + 1}"
-            ctx.name_handle(handle, match)
-            ctx.fight(instance, handle)
+            try:
+                if instance and "guest" not in match:  # the guest's copy appears as its player nears: walk there first
+                    ctx.walk_to(instance, match["host"], 1500.0)
+                    match = next((a for a in ctx.nearby_shared() if a["host"] == match["host"]), None)
+                    if not match:
+                        raise verb_failure(ctx, "refused", f"hostile {enemies[0]['host']:X} has no copy in the guest's game")
+                handle = f"enemy_{len(killed) + 1}"
+                ctx.name_handle(handle, match)
+                ctx.fight(instance, handle)
+            except TestFailure as error:  # it moved behind a cut since the probe (a patrol past an invisible wall)?
+                match = match or enemies[0]
+                ref = match.get("guest") if instance else match["host"]
+                probe = (ctx.path_probe(instance, ref) or {}) if ref else {}
+                if walkable(probe) or (ref and (ctx.actor_row(instance, ref).get("state") or {}).get("dead")):
+                    raise
+                log(f"[{instance or 'host'}] gives up on {match['name']} {match['host']:X} for now, the way there is cut: "
+                    f"{probe_line(probe)} ({error})")
+                given_up.add(match["host"])
+                continue
             killed.append(match["name"])
         if not killed and cut_off:
             raise verb_failure(ctx, "no_path", f"[{instance or 'host'}] no hostile within {radius:.0f} units it can walk to: "

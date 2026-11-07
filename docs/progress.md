@@ -71,8 +71,9 @@ a column of rays a cell over frames (the pick budget), the navmesh's pieces, dra
 a low wall) where a player could.
 A full run with the readout (after PR #29): `talk` follows an NPC walking out of 3D reach, `walk_to`'s time comes from
 the engine's path length (`path_probe` `path_length`), the readout ignores actors, and the lookout trip goes in and out
-by the mine's door (a moveto left the party in a nook). arrive to enter run; `fight` still stops: a search toward
-B6FDB built for `clear` came back none for the walk (pathing.md, Path length).
+by the mine's door (a moveto left the party in a nook). The search fails from the spot inside the mine's door (pathing.md):
+a refused walk now runs the first stretch of the search's path or the triangles' way by input, then paths again.
+The whole flow runs: every step PASS but lookout and loot, SEEN with filed bugs (hands, corpse items).
 `DuoLock.acquire` now checks its hold is still listed: an MCP session whose hold another command freed ran on as
 holder, and the harness refused its commands ("holds no duo"). A running MCP server picks the fix up at its restart
 (`duo_lock` stays loaded across `mcp_reload`).

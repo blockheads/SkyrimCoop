@@ -319,6 +319,7 @@ struct PathProbe
     uint32_t virtualNodes = 0;
     uint32_t nodes = 0;
     float pathLength = 0.f; // the search's path through its nodes, then on to the goal, units
+    std::vector<std::array<float, 3>> path; // the search's loaded nodes, in order
     PathEnd start;
     PathEnd goal;
     // Both ends on one navmesh: whether its triangles join them (edges only, no other navmesh), the fewest
@@ -327,6 +328,7 @@ struct PathProbe
     bool linked = false;
     uint32_t hops = 0;
     float wayLength = 0.f;        // along the joined way's triangle centres, units
+    std::vector<std::array<float, 3>> way; // the joined way: edge midpoints and triangle centres, from the start
     uint32_t closedDoorsOnWay = 0;
     uint32_t ledgesOnWay = 0;     // jump links (up or down) the way crosses
     uint32_t portalsOnWay = 0;    // same-navmesh portals and switchable portals it crosses

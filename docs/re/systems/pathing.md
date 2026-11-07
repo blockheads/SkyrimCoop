@@ -117,7 +117,20 @@ cuts a player can pass.
 
 `path_probe`'s `path_length`: the built path through `BSPathingSolution`'s loaded nodes (+0x90, `BSPathingNode` 0x48:
 location first, CommonLib layout; the dtor 90962 steps 0x48), then on to the target. Riverwood to the Trader's door:
-7,541 units against 2,900 straight (round the river), so `walk_to` takes its time limit from it. `clear` counts a
-hostile reachable when the search builds a path, or when the triangles join on a navmesh no obstacle cuts (the walk
-ignores cuts). Open: at the lookout both games' searches fail (none, 0 nodes) where the triangles join and no obstacle
-cuts; and in the mine a search toward B6FDB that `clear` saw built came back none for the walk seconds later.
+7,541 units against 2,900 straight (round the river), so `walk_to` takes its time limit from it.
+
+## The spot inside the door (2026-11-06, measured)
+
+Just inside Embershard's door (2474, 1968, triangle 89 of B6FC4, by the closed door B6CCD's portal) the search fails
+toward every bandit (incomplete, 2 virtual nodes), 10 of 10 probes in one load; 66 units in (2540, 1960) it builds
+(16 nodes, 5,401 units to B6FE4) 3 of 3. Some loads build from the spot itself and `PathToReference` is still refused
+there. The earlier "in 7 runs of 10 the triangles don't join" and "B6FDB behind the cut" were this spot; the four
+bandits behind CollisionMarker 105C99 show "no triangles join" from anywhere. Not read: why the search fails from
+that triangle (the request's radius is not it: the large-actor filter takes radius > fPathingLargeActorRadius 80,
+BSPathBuilder 91724; the player's is ~18).
+
+So `path_probe` returns the search's path (`path`) and the triangles' way (`way`), and a refused walk runs the first
+200 units of one of them by input before pathing again (`path_start`), as a player steps off a door. `clear` counts a
+hostile reachable when the search builds a path or the triangles join; one whose fight can't reach it is given up for
+now and the next fought. At the lookout, both games' searches failed from a nook the old trip (moveto the door)
+left the party in; the trip now goes in and out by the door.

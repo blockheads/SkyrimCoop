@@ -766,13 +766,34 @@ class GoalVerbs(unittest.TestCase):
         ctx.nearby_shared.return_value = [{"host": h, "guest": h + 1, "name": n} for h, n in
                                           ((0xB6DBB, "below"), (0xB6DC0, "far way"), (0xB6DC1, "short way"))]
         off = {"resolved": False}
-        probes = {0xB6DBB: {"built": False, "nodes": 2, "start": off, "goal": off, "linked": True, "obstacles": 6},  # behind a cut
+        probes = {0xB6DBB: {"built": False, "nodes": 2, "start": off, "goal": off, "linked": False, "obstacles": 6},  # behind a cut
                   0xB6DC0: {"built": True, "way_length": 3200},
                   0xB6DC1: {"built": True, "way_length": 2600}}
         ctx.path_probe.side_effect = lambda instance, ref: probes[ref]
         reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "", 2600.0)
         self.assertEqual([m["name"] for m in reachable], ["short way", "far way"])
         self.assertEqual([m["name"] for m, _ in cut_off], ["below"])
+
+    def test_clear_turns_to_the_next_hostile_when_one_walks_behind_a_cut_mid_fight(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        alive = {0xB6FDB, 0xB6FE4}
+        ctx.hostiles.side_effect = lambda radius, instance: [(h, 1000) for h in sorted(alive)]
+        ctx.nearby_shared.return_value = [{"host": h, "guest": h, "name": f"{h:X}"} for h in (0xB6FDB, 0xB6FE4)]
+        cut = set()
+        ctx.path_probe.side_effect = lambda instance, ref: {"built": False, "nodes": 2, "start": {"resolved": False}, "goal": {"resolved": False}, "linked": False, "obstacles": 6} if ref in cut else {"built": True, "path_length": ref - 0xB6000}
+        ctx.actor_row.return_value = {"state": {}}
+        def fight(instance, handle):
+            target = ctx.name_handle.call_args[0][1]["host"]
+            if target == 0xB6FDB:  # it patrols past the invisible wall as the player comes
+                cut.add(target)
+                raise TestFailure("did not reach it in a straight line")
+            alive.discard(target)
+        ctx.fight.side_effect = fight
+        ctx.reachable_hostiles.side_effect = lambda *args: PlayerVerbs.reachable_hostiles(ctx, *args)
+        outcome = PlayerVerbs.clear(ctx, "")
+        self.assertEqual(outcome["killed"], ["B6FE4"])
+        self.assertEqual(outcome["skipped"], ["B6FDB"])
 
     def test_fight_stops_when_the_player_falls(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
@@ -1354,6 +1375,32 @@ class Terrain(unittest.TestCase):
         scan["navmesh"] = {"piece": [0, 0, 0, -1, 0, 0, -1, -1, -1], "z": [0, 0, 0, None, 0, 0, None, None, None]}
         route = terrain.route_to_navmesh(scan, inside=0)
         self.assertEqual([terrain.cell_of(scan, at) for at in route], [(2, 0), (1, 0), (1, 1)])  # up, round the wall, onto it
+
+    def test_a_refused_walk_the_search_paths_runs_its_path_s_start_by_input(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs, path_start
+        path = [[0, 0, 0], [60, 0, 0], [120, 0, 0], [240, 0, 0], [900, 0, 0]]
+        self.assertEqual(path_start({"built": True, "path": path}), {"route": [[60, 0, 0], [120, 0, 0]], "to": [240, 0, 0], "gap": 0.0})
+        self.assertIsNone(path_start({"built": False, "path": path}))
+        ctx = Mock()
+        ctx.resolve.return_value = 0xB6FE4
+        ctx.my_position.side_effect = lambda instance: [3300.0, 0.0, 0.0] if ctx.cross.called and ctx.path_leg.call_count > 1 else [0.0, 0.0, 0.0]
+        ctx.place_of.return_value = [3339.0, 0.0, 0.0]
+        ctx.is_actor.return_value = False
+        ctx.path_leg.side_effect = lambda *a: "arrived" if ctx.cross.called else "refused"  # refused by the door
+        ctx.path_probe.return_value = {"built": True, "path": path, "path_length": 3400}
+        self.assertTrue(PlayerVerbs.walk_to(ctx, "", "enemy_1", 100.0, straight=False)["pathed"])
+        ctx.cross.assert_called_once()
+
+    def test_with_no_search_path_the_triangles_way_gives_the_first_stretch(self):
+        from coop_harness.actions.play_verbs import path_start
+        way = [[0, 0, 0], [100, 0, 0], [250, 0, 0], [900, 0, 0]]
+        self.assertEqual(path_start({"built": False, "linked": True, "way": way})["to"], [250, 0, 0])
+        self.assertIsNone(path_start({"built": False, "linked": False, "way": way}))
+
+    def test_a_way_onto_the_navmesh_runs_corner_to_corner(self):
+        from coop_harness.actions.play_verbs import turning_points
+        route = [[0, 0, 0], [0, 20, 0], [0, 40, 0], [20, 40, 0], [40, 40, 0], [40, 60, 0]]
+        self.assertEqual(turning_points(route), [[0, 40, 0], [40, 40, 0], [40, 60, 0]])
 
     def test_a_walk_off_the_navmesh_steps_onto_it_before_pathing(self):
         from coop_harness.actions.play_verbs import PlayerVerbs

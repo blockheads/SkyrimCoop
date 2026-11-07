@@ -458,6 +458,8 @@ void WalkNavmesh(const BSNavmesh& acNavmesh, uint32_t aMeshId, uint16_t aFrom, u
     for (uint16_t at = aTo; at != aFrom; at = steps[at].from)
     {
         ++aProbe.hops;
+        aProbe.way.push_back(TriangleCentre(acNavmesh, at));
+        aProbe.way.push_back(SharedEdgeMidpoint(acNavmesh, at, steps[at].from));
         const auto cHere = TriangleCentre(acNavmesh, at), cBefore = TriangleCentre(acNavmesh, steps[at].from);
         aProbe.wayLength += std::hypot(cHere[0] - cBefore[0], cHere[1] - cBefore[1], cHere[2] - cBefore[2]);
         const uint8_t cKind = steps[at].kind;
@@ -466,6 +468,7 @@ void WalkNavmesh(const BSNavmesh& acNavmesh, uint32_t aMeshId, uint16_t aFrom, u
         for (uint32_t door = 0; door < acNavmesh.closedDoors.size; ++door)
             aProbe.closedDoorsOnWay += acNavmesh.closedDoors.data[door].triangleIndex == at;
     }
+    std::reverse(aProbe.way.begin(), aProbe.way.end()); // from the start
 }
 
 // The obstacle manager's references (NavMeshObstacleManager::PrintObstacles 30514), each with the navmeshes it cuts.
@@ -582,6 +585,8 @@ PathProbe ProbePath(uint32_t aFromFormId, uint32_t aTargetFormId) noexcept
         for (uint32_t i = 0; i <= probe.nodes; ++i)
         {
             const NiPoint3& cHere = i < probe.nodes ? pSolution->pathingNodes[i].location.location : pTarget->position;
+            if (i < probe.nodes)
+                probe.path.push_back({cHere.x, cHere.y, cHere.z});
             probe.pathLength += std::hypot(cHere.x - before.x, cHere.y - before.y, cHere.z - before.z);
             before = cHere;
         }
