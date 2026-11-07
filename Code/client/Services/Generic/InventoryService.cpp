@@ -307,8 +307,14 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
     const auto cCurrent = worn(cEquipment);
     // A copy's move to another cell drops its hand spells (docs/re/systems/copy-hand-spells.md).
     const auto& cWantedMagic = acMessage.Equipment.CurrentMagicEquipment;
+    // A spell can stay selected while the hand holds nothing: a loaded copy's hands are read too.
+    const bool cLoaded = m_actorBridge.ActorHas3D(cActorFormId);
+    const auto holds = [&](const GameId& acSpell, uint32_t aSlot) {
+        return !cLoaded || EquipmentRepair::HandHolds(ToGame(acSpell), m_actorBridge.GetEquippedWeaponFormId(cActorFormId, aSlot));
+    };
     const bool cSameHands = cWantedMagic.LeftHandSpell == cEquipment.CurrentMagicEquipment.LeftHandSpell &&
-                            cWantedMagic.RightHandSpell == cEquipment.CurrentMagicEquipment.RightHandSpell;
+                            cWantedMagic.RightHandSpell == cEquipment.CurrentMagicEquipment.RightHandSpell &&
+                            holds(cWantedMagic.LeftHandSpell, 0) && holds(cWantedMagic.RightHandSpell, 1);
 
     EquipmentRepair::Apply(cWanted, cCurrent, cSameHands,
         [&] {

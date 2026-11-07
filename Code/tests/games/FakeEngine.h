@@ -497,7 +497,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         ActorValues Values = FullValues();
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         std::map<uint32_t, float> TemporaryValues;
-        Inventory Items;
+        Inventory Items; // its CurrentMagicEquipment: the hands' selected spells (Actor::selectedSpells +0x1C8)
+        // The spells its hands hold (AIProcess::equippedObjects, left and right): an equip without 3D only selects.
+        uint32_t HeldSpells[2]{};
         bool EquipmentNeedsReset = false;
         struct ReplayState : AnimationReplayStep
         {
@@ -945,6 +947,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // IActorBridge, IPlayerBridge: the actor model's.
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
+    // AIProcess::equippedObjects as the fake has them: the hand spells (weapons not modelled).
+    uint32_t GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept override;
+    // EquipSpell (38928) for each hand: the spell selected, and held only with a process (3D here).
+    void EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic);
+    // Actor::Set3D(null) (37178) on an NPC: RevertSelectedSpell (38768) clears each hand, selected and held.
+    void RevertSelectedSpells(uint32_t aFormId);
+    // Its 3D unloads where it stands (Loaded off, hands cleared); Loaded = true loads it again.
+    void Unload3D(uint32_t aFormId);
     // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.
     [[nodiscard]] bool RagdollPosed(uint32_t aFormId) const noexcept;
 

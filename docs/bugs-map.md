@@ -24,7 +24,7 @@ How sure each link is:
  HANDS LIVE IN THE PROCESS, WORN MARKS IN THE INVENTORY
  ------------------------------------------------------
    a move or a rebuilt process can change either, and they are checked apart
-     |-- hand spells on a copy     fixed 11-04
+     |-- hand spells on a copy     fixed 11-04, held 11-07
      |-- Revive's hands            fixed
      `-- a copy without its weapon OPEN: seen by the user, not reproduced
 

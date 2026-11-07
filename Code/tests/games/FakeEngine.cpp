@@ -461,6 +461,36 @@ bool FakeEngine::ActorHas3D(uint32_t aFormId) const noexcept
     return it != Actors.end() && it->second.Loaded && !it->second.Disabled && (aFormId == kPlayer || Attached.contains(it->second.Cell));
 }
 
+uint32_t FakeEngine::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
+{
+    const auto it = Actors.find(aActorFormId);
+    return it != Actors.end() && aSlot < 2 ? it->second.HeldSpells[aSlot] : 0;
+}
+
+void FakeEngine::EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Items.CurrentMagicEquipment = acMagic;
+    if (ActorHas3D(aFormId))
+    {
+        actor.HeldSpells[0] = ::ItemForm(acMagic.LeftHandSpell);
+        actor.HeldSpells[1] = ::ItemForm(acMagic.RightHandSpell);
+    }
+}
+
+void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Items.CurrentMagicEquipment.LeftHandSpell = actor.Items.CurrentMagicEquipment.RightHandSpell = {};
+    actor.HeldSpells[0] = actor.HeldSpells[1] = 0;
+}
+
+void FakeEngine::Unload3D(uint32_t aFormId)
+{
+    Actors.at(aFormId).Loaded = false;
+    RevertSelectedSpells(aFormId);
+}
+
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
 {
     MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
@@ -1196,6 +1226,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     // MoveTo tears down the native mount interaction, including when the moved reference is the horse.
     std::erase_if(Mounts, [&](const auto& acMount) { return acMount.first == aFormId || acMount.second == aFormId; });
     const uint32_t cFrom = it->second.Cell;
+    const bool cHad3D = ActorHas3D(aFormId);
     const auto cExterior = Exteriors.find(aCellId);
     it->second.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
     // Outdoors the cell at the position, as MoveTo picks it.
@@ -1204,9 +1235,9 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;
-    // An NPC moved to another cell loses its hand spells (seen on a player's copy, 2026-11-04).
-    if (aFormId != kPlayer && it->second.Cell != cFrom)
-        it->second.Items.CurrentMagicEquipment.LeftHandSpell = it->second.Items.CurrentMagicEquipment.RightHandSpell = {};
+    // An NPC moved to another cell drops its 3D, and with it its hand spells (seen on a player's copy, 2026-11-04).
+    if (aFormId != kPlayer && it->second.Cell != cFrom && cHad3D)
+        RevertSelectedSpells(aFormId);
     CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
@@ -1353,6 +1384,7 @@ void FakeEngine::SetActorInventory(uint32_t aFormId, const Inventory& acInventor
     for (auto& entry : it->second.Items.Entries)
         if (entry.ExtraPoisonId && !::ItemForm(entry.ExtraPoisonId))
             entry.ExtraPoisonId = {}, entry.ExtraPoisonCount = 0;
+    EquipSpells(aFormId, acInventory.CurrentMagicEquipment); // Actor::SetMagicEquipment
 }
 
 // Each value listed; the others stay. As Actor::SetActorValues: a pool's maximum and current; any other value's base

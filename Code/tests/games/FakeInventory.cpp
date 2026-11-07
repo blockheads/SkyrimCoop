@@ -104,7 +104,7 @@ void FakeEngine::ActorResetEquipment(uint32_t aActorFormId, const MagicEquipment
         actor->second.EquipmentNeedsReset = false;
         for (auto& item : actor->second.Items.Entries)
             item.ExtraWorn = item.ExtraWornLeft = false;
-        actor->second.Items.CurrentMagicEquipment = acMagic;
+        EquipSpells(aActorFormId, acMagic);
     }
 }
 
