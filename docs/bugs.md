@@ -344,7 +344,8 @@ Size: medium. Needs: duo.
   Riverwood, then fails the runner's end comparison on a different thing each run: about 55 fish references (ACTI
   `10C3BA`) posed differently, a guest copy of a rabbit with no owner, the guest's player 19 units above the floor, the host player's copy 18 units
   into it (checked: that copy was stepped in 66 of 67 frames, the other its teleport, and stood at the floor when read again).
-  `faendal-letter` fails its end comparison the same way. (Hod's `pose.head` 117 against 88, once, was a culled
+  `faendal-letter` fails its end comparison the same way, and `copy-holds-spell-after-trip` in Whiterun (2026-11-07: 59
+  references, containers with change flag `0x8000000` on the host only, loose food posed differently). (Hod's `pose.head` 117 against 88, once, was a culled
   skeleton read as visible through the stale `was_in_frustum`: the observer now reads `pose_visibility.drawn`,
   culled-npc-pose-readings.md, 2026-11-05.)
   - Test: that scenario, after its steps.
