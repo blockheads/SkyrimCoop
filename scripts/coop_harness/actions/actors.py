@@ -124,9 +124,14 @@ class ActorsActions:
 
     def copy_follows_host(ctx, npc, what, timeout=10):
         """The client's reference of the host's NPC is where the host's is (its cell, within 64 units) and as enabled,
-        and still a copy: never left behind as the client's own (copy-contract.md, "When the owner's actor goes away")."""
+        and still a copy; or it has gone: collected by its engine, or hidden where the client still has that place.
+        Never left behind as the client's own (copy-contract.md, "When the owner's actor goes away")."""
         def follows():
             host, client = ctx.actor_place("", npc), ctx.actor_place("client", npc)
+            if host and not client:
+                return True
+            if host and client["copy"] and client["disabled"] and not client["has_3d"]:
+                return client
             return (host and client and client["copy"] and client["cell"] == host["cell"]
                     and distance(client["position"], host["position"]) < 64 and client["disabled"] == host["disabled"]
                     and client)

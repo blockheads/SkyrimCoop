@@ -19,6 +19,7 @@
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
 #include <Services/Guest/GuestScene.h>
+#include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
@@ -398,7 +399,8 @@ struct GuestSeam::Guest
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
-          Scene(aWorld, aWorld.GetDispatcher(), Engine)
+          Scene(aWorld, aWorld.GetDispatcher(), Engine),
+          Copies(aWorld, aWorld.ctx().at<IActorBridge&>())
     {
     }
 
@@ -411,6 +413,7 @@ struct GuestSeam::Guest
     GuestHands Hands;
     GuestWait Wait;
     GuestScene Scene;
+    GuestCopies Copies;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -455,4 +458,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->Record.OnUpdate(cUpdate);
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
+    m_pGuest->Copies.Update();
 }

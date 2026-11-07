@@ -3,6 +3,7 @@
 
 #include <Games/PartyItems.h>
 #include <Services/DeathDrops.h>
+#include <Services/SpeakerUpdate.h>
 
 TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot and gold do not", "[PartyItems]")
 {
@@ -80,4 +81,12 @@ TEST_CASE("A player's death drop is kept in a session; an NPC's, or one outside 
     CHECK(DeathDrops::Kept(true, true));
     CHECK_FALSE(DeathDrops::Kept(false, true));
     CHECK_FALSE(DeathDrops::Kept(true, false));
+}
+
+TEST_CASE("A speaker with no process skips its update in a session; one with a process, or solo play, runs it", "[dialogue]")
+{
+    CHECK(SpeakerUpdate::Skipped(false, true));
+    CHECK_FALSE(SpeakerUpdate::Skipped(true, true));
+    CHECK_FALSE(SpeakerUpdate::Skipped(false, false));
+    CHECK_FALSE(SpeakerUpdate::Skipped(true, false));
 }

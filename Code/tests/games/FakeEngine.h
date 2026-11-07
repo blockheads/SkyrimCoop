@@ -470,7 +470,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool OwnerRecorded = false;  // its change record holds the ownership change
         bool Deleted = false;    // marked deleted (DisableActor's aDelete)
         bool Created = false;    // made by Actor::Create (a copy): deleted with its cell unless persistent
-        bool Persistent = false; // kept when its cell unloads (SetActorPersistent)
+        bool Persistent = false; // kept when its cell unloads (SetActorPersistent); no parent cell outdoors out of it
+        bool Collectable = false; // a plugin's non-persistent reference: moved out of the loaded cells, the engine
+                                  // collects it (UpdateProcessLevel 37501; a guard on the guest, 2026-11-06)
+        bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
@@ -1013,6 +1016,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
+    // A quest's Delete with no Disable: a placed reference loses its process (UpdateTempChangeList), and nothing ends
+    // its conversation (Skyrim 2026-11-06, dialogue.md).
+    void MarkForDelete(uint32_t aFormId);
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     // The player's base save data is its record's (Player.Base, BaseFlags), its tints too.
