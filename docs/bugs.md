@@ -39,6 +39,7 @@ other section needs the duo.
 
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [A guest's quest fills against a respawn](#a-guests-quest-fills-against-a-respawn): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
@@ -129,8 +130,23 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
 - **A held copy shows an action from an earlier visit** (1 of 7): Proventus `1A67D` placed in his chair on the host,
   `IdleChairEnterInstant`, which it never sent (`animation_sent` empty); his copy's last action was `IdleTalkAndUseItem`, 17 minutes
   old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
-- **The menu does not open** (1 of 15): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
-  talking. Not seen again in 10 runs. Unread.
+- **The menu does not open** (1 of 19): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
+  talking. Not seen again in 14 runs. Unread. These ran from a worktree whose UI did not load, but this menu is the game's own.
+
+### A guest's quest fills against a respawn
+
+A lock-order inversion with our code on both stacks: a possible deadlock on a guest. Seen once, `guest-rides-host-horse`, 1 of 12 runs of that flow,
+2026-11-07, on a build that does not change either path. Not reported as overlapping live.
+
+Agent task: read whether the two can run at once (their threads differ in the report), and if so which should give way.
+
+Size: small. Needs: IDA, then the duo (a guest's respawn, then a quest update that clears a fill on its player, in one boot).
+
+- **One side:** `GuestEngine::ClearFills` (from `GuestWorldState::OnQuests`, the main loop's tasks) > `TESQuest::ClearRefAlias` > `BGSRefAlias::ClearRefAlias`
+  24012 > 19653 > 12047 takes the player's extra-data lock, then 12719 its alias array's.
+- **The other:** `DeathService::OnRespawnArrival` > `PlayerCharacter::Revive` > `Actor::CastPermanentMagic` > 38753 > 12720 holds the alias array's,
+  and through 38846 > 34464 > 34410 > `HookFindTargets`'s engine call > 38786 > 37275 asks for the extra-data lock. lock-order.md has this order from the 2026-11-04 playtest.
+- The report needs a respawn earlier in the same boot, so a flow alone does not show it: the order of a batch does.
 
 ### After a guest rejoins
 
@@ -208,7 +224,7 @@ Size: medium. Needs: IDA, then the duo (`kill-moves-cross`), then GameTests.
 Each case by what was measured with the check fixed, 2026-11-06 (30 flows, run twice; `ai.head_track_slots` shows the
 raw slots, `ai.head_track_shut` what shuts the gate):
 
-- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 8** (6 of 6 passed on the corrected check). The guest as owner
+- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 12** (10 of 10 passed on the corrected check). The guest as owner
   `[]`, in third person for the kill move, its copy on the host `['session 1']`, the host's own player (raw: slot 0).
   It lasted the check's whole window, though the hook pushes the owner's slots each frame and the ambient pick
   (`PickAmbientHeadtrackTarget` 38012) writes slot 0 only every 1.0-1.5 s, so the pick alone does not explain it: unread.
