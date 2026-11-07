@@ -590,7 +590,10 @@ class Runtime:
             # Tutorial popups (the map's, "Magicka Low") swallow all input until closed. A Skyrim.ini
             # setting (gIni_bShowTutorials_Interface): SkyrimPrefs.ini ignores it.
             "Interface": {"bShowTutorials": "0"}})
-        set_ini(prefs_ini, {"Display": {"bFull Screen": "0", "bBorderless": "0",
+        set_ini(prefs_ini, {# The main menu's Anniversary Edition box (52156) while unseen: `coc` takes it, empty and
+                                # unanswerable, into the world (docs/re/systems/message-boxes.md).
+                                "General": {"bFreebiesSeen": "1"},
+                                "Display": {"bFull Screen": "0", "bBorderless": "0",
                                         "iSize W": "1280", "iSize H": "720",
                                         "iLocation X": "0", "iLocation Y": "0"},
                                 # Silent test games. (Muting via PulseAudio would be remembered per app
