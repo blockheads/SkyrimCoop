@@ -33,6 +33,8 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   `talk` goes on with an open conversation. `walk_to`, `steer_to`, `talk_to` and `pick` are their parts, no longer tools.
 - **watch**: `look(game)`; `observe(names)` shows only what changed since the last look, `apart` and `differs`; `why()` is
   the last verb's outcome with its trace summary (speeds, stalls, last events; the raw timeline in a file).
+  `terrain(game, toward=)` draws the ground around the player as a walking player meets it: top-down (walkable floor,
+  walls, drops, low ceilings, navmesh pieces, obstacles) and a profile toward a target (`docs/re/systems/terrain.md`).
   - A handle follows its copy by session id (`current_copies`): a copy's form id changes when its cell reloads, and the
     guest reused one for a wolf. Copies' `ai.*` read 0 by design: read an NPC's AI on the host.
 - **expect** kinds: `stage`, `same_place`, `at`, `at_rest_of`, `items` (a container, by `container_items`: `item_stacks`

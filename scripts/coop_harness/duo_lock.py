@@ -268,8 +268,10 @@ class DuoLock:
         """Holds the duo, or joins this checkout's hold: "holder" or "joined". Waits its turn in the queue up to
         timeout seconds (None: no limit); then DuoBusy, keeping its place if keep_place (a later call goes on)."""
         if self.role in ("holder", "joined"):
-            self.touch()
-            return self.role
+            if self.still_held():
+                self.touch()
+                return self.role
+            self._drop()  # freed by another process of this checkout (stop, a flow's end): claim again
         if self.token is None:
             self.token, self.id = Token(self.tokens), uuid.uuid4().hex[:12]
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -349,6 +351,12 @@ class DuoLock:
                 state["log"].append(f"{time.strftime('%H:%M')} {matches[0]['name']} ({matches[0]['worktree']}): "
                                     f"{matches[0]['what']}. Dropped from the queue by hand")
             return matches
+
+    def still_held(self):
+        """Whether duo.json still names this process's hold or join."""
+        with self._state(write=False) as state:
+            holder = state["holder"]
+            return bool(holder) and (holder.get("id") == self.id or any(join["id"] == self.id for join in holder.get("joined", [])))
 
     def touch(self):
         with self._state() as state:

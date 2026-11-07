@@ -12,6 +12,7 @@
 #include "InputTrace.h"
 #include "JitterWatch.h"
 #include "PlayerInput.h"
+#include "Terrain.h"
 
 namespace TestHarness
 {
@@ -32,6 +33,7 @@ struct Harness
     InputTrace Inputs;
     class Actions Actions;
     FrameStepper Stepper;
+    TerrainScan Terrain;
     bool CommandsStarted = false;
 };
 } // namespace TestHarness

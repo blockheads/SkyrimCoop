@@ -2,6 +2,8 @@
 #include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
+#include <AI/Movement/Pathing.h>
+#include <Games/Memory.h>
 #include <Misc/InventoryEntry.h>
 #include <Misc/MiddleProcess.h>
 #include <Actor.h>
@@ -284,6 +286,485 @@ int64_t PlayerPathRequest(uint32_t aTargetFormId, float aSpeed) noexcept
     if (!pTarget)
         return -2;
     return static_cast<int32_t>((s_pathRequest.Get())(PlayerCharacter::Get(), pTarget, aSpeed));
+}
+
+namespace
+{
+// Any triangle counts: the closest one, as the path builder's own lookup starts from.
+struct AnyTriangle final : FindTriangleForLocationFilter
+{
+    bool IsValidTri(NiPoint3*, void*, uint16_t, NiPoint3*) override { return true; }
+};
+
+PathEnd ResolvePathEnd(BSPathingLocation& aLocation) noexcept
+{
+    using TResolve = bool(BSPathingLocation*, FindTriangleForLocationFilter*);
+    POINTER_SKYRIMSE(TResolve, s_resolve, 90369); // BSPathingLocation::ResolveToClosestNavmeshAndTriangle
+    PathEnd end;
+    end.at = {aLocation.location.x, aLocation.location.y, aLocation.location.z};
+    AnyTriangle filter;
+    end.resolved = (s_resolve.Get())(&aLocation, &filter) && aLocation.navMeshInfo && aLocation.triangle != 0xFFFF;
+    if (end.resolved)
+    {
+        end.navMesh = aLocation.navMeshInfo->navMeshId;
+        end.triangle = aLocation.triangle;
+        end.point = {aLocation.location.x, aLocation.location.y, aLocation.location.z};
+        if (const BSNavmesh* pNavmesh = aLocation.navMeshInfo->navMesh; pNavmesh && end.triangle < pNavmesh->triangles.size)
+        {
+            end.triangleFlags = pNavmesh->triangles.data[end.triangle].flags;
+            for (uint32_t i = 0; i < pNavmesh->closedDoors.size; ++i)
+            {
+                const BSNavmeshClosedDoor& cDoor = pNavmesh->closedDoors.data[i];
+                if (cDoor.triangleIndex != end.triangle)
+                    continue;
+                const TESObjectREFR* pRef = cDoor.door && cDoor.door->refHandle ? TESObjectREFR::GetByHandle(cDoor.door->refHandle) : nullptr;
+                end.closedDoor = pRef ? pRef->formID : 0xFFFFFFFF;
+            }
+        }
+    }
+    return end;
+}
+
+// Breadth first over one navmesh's triangles: edges, and linked edges whose portal or ledge stays in this navmesh
+// (BSNavmeshTriangle::triangles; a linked edge's value indexes extraEdgeInfo). Kind per step: 0 edge, else 1 + type.
+struct NavmeshStep
+{
+    uint16_t from = 0xFFFF;
+    uint8_t kind = 0;
+};
+
+uint32_t WalkFrom(const BSNavmesh& acNavmesh, uint32_t aMeshId, uint16_t aFrom, std::vector<NavmeshStep>& aSteps, uint32_t& aExits) noexcept
+{
+    const uint32_t cCount = acNavmesh.triangles.size;
+    aSteps.assign(cCount, {});
+    std::vector<uint16_t> queue{aFrom};
+    aSteps[aFrom].from = aFrom;
+    for (size_t i = 0; i < queue.size(); ++i)
+    {
+        const BSNavmeshTriangle& cTriangle = acNavmesh.triangles.data[queue[i]];
+        for (int edge = 0; edge < 3; ++edge)
+        {
+            uint16_t next = cTriangle.triangles[edge];
+            uint8_t kind = 0;
+            if (cTriangle.flags & (BSNavmeshTriangle::kEdge0Link << edge))
+            {
+                if (next >= acNavmesh.extraEdgeInfo.size)
+                    continue;
+                const BSNavmeshEdgeExtraInfo& cLink = acNavmesh.extraEdgeInfo.data[next];
+                if (cLink.otherMeshId != aMeshId)
+                {
+                    ++aExits;
+                    continue;
+                }
+                next = cLink.triangle;
+                kind = static_cast<uint8_t>(1 + cLink.type);
+            }
+            if (next >= cCount || aSteps[next].from != 0xFFFF || (acNavmesh.triangles.data[next].flags & BSNavmeshTriangle::kDeleted))
+                continue;
+            aSteps[next] = {queue[i], kind};
+            queue.push_back(next);
+        }
+    }
+    return static_cast<uint32_t>(queue.size());
+}
+
+std::array<float, 3> TriangleCentre(const BSNavmesh& acNavmesh, uint16_t aTriangle) noexcept
+{
+    std::array<float, 3> centre{};
+    for (const uint16_t cVertex : acNavmesh.triangles.data[aTriangle].vertices)
+    {
+        if (cVertex >= acNavmesh.vertices.size)
+            continue;
+        const NiPoint3& cAt = acNavmesh.vertices.data[cVertex];
+        centre[0] += cAt.x / 3.f, centre[1] += cAt.y / 3.f, centre[2] += cAt.z / 3.f;
+    }
+    return centre;
+}
+
+// The edge two triangles share (its midpoint), or the later one's centre when a link joins them instead.
+std::array<float, 3> SharedEdgeMidpoint(const BSNavmesh& acNavmesh, uint16_t aA, uint16_t aB) noexcept
+{
+    std::array<float, 3> mid{};
+    int shared = 0;
+    for (const uint16_t cVertex : acNavmesh.triangles.data[aA].vertices)
+    {
+        const auto& cOther = acNavmesh.triangles.data[aB].vertices;
+        if (cVertex >= acNavmesh.vertices.size || std::find(std::begin(cOther), std::end(cOther), cVertex) == std::end(cOther))
+            continue;
+        const NiPoint3& cAt = acNavmesh.vertices.data[cVertex];
+        mid[0] += cAt.x / 2.f, mid[1] += cAt.y / 2.f, mid[2] += cAt.z / 2.f;
+        ++shared;
+    }
+    return shared == 2 ? mid : TriangleCentre(acNavmesh, aB);
+}
+
+// The nearest walkable step between two unjoined pieces, and the start piece's way to it.
+void FindCrossing(const BSNavmesh& acNavmesh, uint16_t aFrom, const std::vector<NavmeshStep>& acSteps, const std::vector<NavmeshStep>& acGoalSteps,
+                  PathProbe& aProbe) noexcept
+{
+    const uint32_t cCount = acNavmesh.triangles.size;
+    std::vector<uint16_t> startSide, goalSide;
+    for (uint16_t i = 0; i < cCount; ++i)
+    {
+        if (acSteps[i].from != 0xFFFF)
+            startSide.push_back(i);
+        else if (acGoalSteps[i].from != 0xFFFF)
+            goalSide.push_back(i);
+    }
+    // Goal-side centres sorted by x: each start only looks at those within the best gap so far in x (a sweep).
+    std::vector<std::array<float, 3>> goalCentres;
+    for (const uint16_t cTriangle : goalSide)
+        goalCentres.push_back(TriangleCentre(acNavmesh, cTriangle));
+    std::sort(goalCentres.begin(), goalCentres.end(), [](const auto& acA, const auto& acB) { return acA[0] < acB[0]; });
+    float best = std::numeric_limits<float>::max();
+    uint16_t bestStart = 0xFFFF;
+    for (const uint16_t cTriangle : startSide)
+    {
+        const auto cAt = TriangleCentre(acNavmesh, cTriangle);
+        auto it = std::lower_bound(goalCentres.begin(), goalCentres.end(), cAt[0] - best,
+                                   [](const auto& acCentre, float aX) { return acCentre[0] < aX; });
+        for (; it != goalCentres.end() && (*it)[0] <= cAt[0] + best; ++it)
+        {
+            const float cFlat = std::hypot((*it)[0] - cAt[0], (*it)[1] - cAt[1]);
+            const float cRise = std::abs((*it)[2] - cAt[2]);
+            const float cGap = std::hypot(cFlat, cRise);
+            if (cRise > 0.4f * cFlat + 20.f || cGap >= best) // steeper than a ramp (~22 degrees): a wall or a drop
+                continue;
+            best = cGap, bestStart = cTriangle, aProbe.crossingTo = *it;
+        }
+    }
+    if (bestStart == 0xFFFF)
+        return;
+    aProbe.crossable = true;
+    aProbe.crossingGap = best;
+    std::vector<std::array<float, 3>> route{TriangleCentre(acNavmesh, bestStart)};
+    for (uint16_t at = bestStart; at != aFrom; at = acSteps[at].from)
+        route.push_back(SharedEdgeMidpoint(acNavmesh, acSteps[at].from, at));
+    aProbe.crossingRoute.assign(route.rbegin(), route.rend());
+}
+
+void WalkNavmesh(const BSNavmesh& acNavmesh, uint32_t aMeshId, uint16_t aFrom, uint16_t aTo, PathProbe& aProbe) noexcept
+{
+    const uint32_t cCount = acNavmesh.triangles.size;
+    aProbe.obstacles = acNavmesh.obstacles.size;
+    if (!acNavmesh.triangles.data || aFrom >= cCount || aTo >= cCount)
+        return;
+    std::vector<NavmeshStep> goalSteps, steps;
+    uint32_t exits = 0;
+    aProbe.goalPiece = WalkFrom(acNavmesh, aMeshId, aTo, goalSteps, aProbe.goalPieceExits);
+    WalkFrom(acNavmesh, aMeshId, aFrom, steps, exits);
+    auto doorId = [](const PathingDoor* apDoor)
+    {
+        const TESObjectREFR* pRef = apDoor && apDoor->refHandle ? TESObjectREFR::GetByHandle(apDoor->refHandle) : nullptr;
+        return pRef ? pRef->formID : 0u;
+    };
+    for (uint32_t i = 0; i < acNavmesh.doorPortals.size; ++i)
+    {
+        const BSNavmeshDoorPortal& cPortal = acNavmesh.doorPortals.data[i];
+        if (cPortal.owningTriangleIndex >= cCount)
+            continue;
+        if (steps[cPortal.owningTriangleIndex].from != 0xFFFF)
+            aProbe.startDoors.push_back(doorId(cPortal.door));
+        if (goalSteps[cPortal.owningTriangleIndex].from != 0xFFFF)
+            aProbe.goalDoors.push_back(doorId(cPortal.door));
+    }
+    for (uint32_t i = 0; i < acNavmesh.closedDoors.size; ++i)
+        aProbe.closedDoors.push_back(doorId(acNavmesh.closedDoors.data[i].door));
+    if (steps[aTo].from == 0xFFFF)
+        return FindCrossing(acNavmesh, aFrom, steps, goalSteps, aProbe);
+    aProbe.linked = true;
+    for (uint16_t at = aTo; at != aFrom; at = steps[at].from)
+    {
+        ++aProbe.hops;
+        aProbe.way.push_back(TriangleCentre(acNavmesh, at));
+        aProbe.way.push_back(SharedEdgeMidpoint(acNavmesh, at, steps[at].from));
+        const auto cHere = TriangleCentre(acNavmesh, at), cBefore = TriangleCentre(acNavmesh, steps[at].from);
+        aProbe.wayLength += std::hypot(cHere[0] - cBefore[0], cHere[1] - cBefore[1], cHere[2] - cBefore[2]);
+        const uint8_t cKind = steps[at].kind;
+        aProbe.ledgesOnWay += cKind == 1 + BSNavmeshEdgeExtraInfo::kLedgeUp || cKind == 1 + BSNavmeshEdgeExtraInfo::kLedgeDown;
+        aProbe.portalsOnWay += cKind == 1 + BSNavmeshEdgeExtraInfo::kPortal || cKind == 1 + BSNavmeshEdgeExtraInfo::kEnableDisablePortal;
+        for (uint32_t door = 0; door < acNavmesh.closedDoors.size; ++door)
+            aProbe.closedDoorsOnWay += acNavmesh.closedDoors.data[door].triangleIndex == at;
+    }
+    std::reverse(aProbe.way.begin(), aProbe.way.end()); // from the start
+}
+
+// The obstacle manager's references (NavMeshObstacleManager::PrintObstacles 30514), each with the navmeshes it cuts.
+void ReadObstacles(const Actor& acActor, uint32_t aMeshId, PathProbe& aProbe) noexcept
+{
+    POINTER_SKYRIMSE(NavMeshObstacleManager*, s_obstacles, 400442);
+    const NavMeshObstacleManager* pManager = *s_obstacles.Get();
+    if (!pManager || !pManager->entries)
+        return;
+    for (uint32_t i = 0; i < pManager->capacity; ++i)
+    {
+        const NavmeshObstacleEntry& cEntry = pManager->entries[i];
+        if (!cEntry.next)
+            continue;
+        PathProbe::Obstacle obstacle{.ref = cEntry.refFormId};
+        if (const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(cEntry.refFormId)))
+        {
+            if (const TESForm* pBase = pRef->baseForm)
+            {
+                obstacle.base = pBase->formID;
+                obstacle.kind = static_cast<uint8_t>(pBase->formType);
+                const char* cpName = pBase->GetName();
+                obstacle.name = cpName ? cpName : "";
+            }
+            obstacle.actor = Cast<Actor>(pRef) != nullptr;
+            const float dx = pRef->position.x - acActor.position.x, dy = pRef->position.y - acActor.position.y,
+                        dz = pRef->position.z - acActor.position.z;
+            obstacle.distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+            obstacle.at = {pRef->position.x, pRef->position.y, pRef->position.z};
+        }
+        // Held while read, as the game's PrintObstacles (30514) does; the game reads the map on its thread unlocked.
+        NavmeshObstacle* pObstacle = cEntry.obstacle;
+        if (pObstacle)
+            _InterlockedIncrement(&pObstacle->refCount);
+        for (uint32_t cut = 0; pObstacle && pObstacle->cuts.data && cut < pObstacle->cuts.size; ++cut)
+        {
+            const NavmeshObstacleCut* pCut = pObstacle->cuts.data[cut];
+            for (uint32_t mesh = 0; pCut && pCut->navMeshes.data && mesh < pCut->navMeshes.size; ++mesh)
+                obstacle.onNavmesh |= pCut->navMeshes.data[mesh] && pCut->navMeshes.data[mesh]->navMeshId == aMeshId;
+        }
+        if (pObstacle && _InterlockedDecrement(&pObstacle->refCount) == 0)
+            pObstacle->vtable[1](pObstacle);
+        aProbe.obstacleRefs.push_back(obstacle);
+    }
+}
+
+void DestroyPathingLocation(BSPathingLocation& aLocation) noexcept
+{
+    using TDestroy = void(BSPathingLocation*);
+    POINTER_SKYRIMSE(TDestroy, s_destroy, 90350); // releases the location's pathing cell
+    (s_destroy.Get())(&aLocation);
+}
+} // namespace
+
+PathProbe ProbePath(uint32_t aFromFormId, uint32_t aTargetFormId) noexcept
+{
+    // The steps of PathToReference (Actor 37893) without moving the player: both ends on the navmesh, then the
+    // search the arbiter runs (Pathing::BuildPathNow 90396), answered at once (docs/re/systems/pathing.md).
+    PathProbe probe;
+    auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
+    Actor* pActor = aFromFormId == 0x14 ? PlayerCharacter::Get() : Cast<Actor>(TESForm::GetById(aFromFormId));
+    if (!pTarget || !pActor || !pTarget->parentCell)
+        return probe;
+    probe.found = true;
+    POINTER_SKYRIMSE(void*, s_pathing, 401037);     // Pathing::singleton
+    POINTER_SKYRIMSE(void*, s_pathBuilder, 401950); // the search's singleton (PathingRequestQueue::Submit's)
+
+    using TActorLocation = BSPathingLocation*(void*, BSPathingLocation*, Actor*);
+    POINTER_SKYRIMSE(TActorLocation, s_actorLocation, 30635);
+    using TPointLocation = BSPathingLocation*(void*, BSPathingLocation*, const NiPoint3*, TESObjectCELL*, TESWorldSpace*);
+    POINTER_SKYRIMSE(TPointLocation, s_pointLocation, 30640);
+    BSPathingLocation start{}, goal{};
+    (s_actorLocation.Get())(*s_pathing.Get(), &start, pActor);
+    (s_pointLocation.Get())(*s_pathing.Get(), &goal, &pTarget->position, pTarget->parentCell, pTarget->GetWorldSpace());
+    probe.start = ResolvePathEnd(start);
+    probe.goal = ResolvePathEnd(goal);
+    probe.sameNavmesh = probe.start.resolved && probe.goal.resolved && start.navMeshInfo == goal.navMeshInfo;
+    if (probe.sameNavmesh && start.navMeshInfo->navMesh)
+        WalkNavmesh(*start.navMeshInfo->navMesh, probe.start.navMesh, probe.start.triangle, probe.goal.triangle, probe);
+    ReadObstacles(*pActor, probe.start.navMesh, probe);
+    DestroyPathingLocation(start);
+    DestroyPathingLocation(goal);
+
+    // The request as PathToReference fills it (Actor::FillPathToLocation 37820), and an empty solution.
+    using TRequestCtor = PathingRequest*(PathingRequest*);
+    POINTER_SKYRIMSE(TRequestCtor, s_requestCtor, 30875);
+    using TFill = void(Actor*, PathingRequest**, const NiPoint3*, TESObjectCELL*, TESWorldSpace*, float, void*);
+    POINTER_SKYRIMSE(TFill, s_fill, 37820);
+    using TSolutionCtor = BSPathingSolution*(BSPathingSolution*);
+    POINTER_SKYRIMSE(TSolutionCtor, s_solutionCtor, 90961);
+    using TSolutionDtor = void(BSPathingSolution*);
+    POINTER_SKYRIMSE(TSolutionDtor, s_solutionDtor, 90962);
+    using TBuild = bool(void*, PathingRequest**, BSPathingSolution**);
+    POINTER_SKYRIMSE(TBuild, s_build, 90396);
+
+    auto* pRequest = static_cast<PathingRequest*>(Memory::Allocate(sizeof(PathingRequest)));
+    auto* pSolution = static_cast<BSPathingSolution*>(Memory::Allocate(sizeof(BSPathingSolution)));
+    if (!pRequest || !pSolution)
+    {
+        if (pRequest)
+            Memory::Free(pRequest);
+        if (pSolution)
+            Memory::Free(pSolution);
+        return probe;
+    }
+    (s_requestCtor.Get())(pRequest);
+    (s_solutionCtor.Get())(pSolution);
+    pRequest->refCount = 1;
+    pSolution->refCount = 1;
+    (s_fill.Get())(pActor, &pRequest, &pTarget->position, pTarget->parentCell, pTarget->GetWorldSpace(), -1.f, nullptr);
+    probe.searched = true;
+    probe.built = (s_build.Get())(*s_pathBuilder.Get(), &pRequest, &pSolution);
+    probe.incomplete = pSolution->incompletePath;
+    probe.virtualNodes = pSolution->virtualNodeCount;
+    probe.nodes = pSolution->pathingNodeCount;
+    if (probe.built && pSolution->pathingNodes && probe.nodes)
+    {
+        NiPoint3 before = pActor->position;
+        for (uint32_t i = 0; i <= probe.nodes; ++i)
+        {
+            const NiPoint3& cHere = i < probe.nodes ? pSolution->pathingNodes[i].location.location : pTarget->position;
+            if (i < probe.nodes)
+                probe.path.push_back({cHere.x, cHere.y, cHere.z});
+            probe.pathLength += std::hypot(cHere.x - before.x, cHere.y - before.y, cHere.z - before.z);
+            before = cHere;
+        }
+    }
+    (s_solutionDtor.Get())(pSolution);
+    Memory::Free(pSolution);
+    if (_InterlockedDecrement(reinterpret_cast<volatile long*>(&pRequest->refCount)) == 0) // as RequestPathToReference releases it
+        pRequest->vtable[0](pRequest, 1);
+    return probe;
+}
+
+std::vector<PathProbe::Obstacle> ReadObstacleRefs(uint32_t aMeshId) noexcept
+{
+    PathProbe probe;
+    if (const PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        ReadObstacles(*pPlayer, aMeshId, probe);
+    return probe.obstacleRefs;
+}
+
+RefLabel ReadRefLabel(uint32_t aRefFormId) noexcept
+{
+    RefLabel label;
+    const auto* pRef = aRefFormId ? Cast<TESObjectREFR>(TESForm::GetById(aRefFormId)) : nullptr;
+    if (pRef)
+    {
+        label.found = true;
+        label.at = {pRef->position.x, pRef->position.y, pRef->position.z};
+    }
+    if (const TESForm* pBase = pRef ? pRef->baseForm : nullptr)
+    {
+        label.base = pBase->formID;
+        const char* cpName = pBase->GetName();
+        label.name = cpName ? cpName : "";
+    }
+    return label;
+}
+
+PlayerCapsule ReadPlayerCapsule() noexcept
+{
+    PlayerCapsule capsule;
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    AIProcess* pProcess = pPlayer ? pPlayer->currentProcess : nullptr;
+    const bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pController)
+        return capsule;
+    capsule.found = true;
+    capsule.radius = pController->radius * bhkCharacterController::kHavokToGame;
+    capsule.height = pController->height * bhkCharacterController::kHavokToGame;
+    capsule.actorHeight = pController->actorHeight * bhkCharacterController::kHavokToGame;
+    capsule.scale = pController->scale;
+    POINTER_SKYRIMSE(void, s_proxyControllerVtable, 240560); // bhkCharProxyController's, at its +0x10
+    const auto* pProxy = *reinterpret_cast<void* const*>(pController) == s_proxyControllerVtable.Get()
+                             ? static_cast<const hkpCharacterProxy*>(pController->proxy) : nullptr;
+    if (pProxy && pProxy->maxSlopeCosine > 0.f) // 0 on 1.7.104's player: not where the limit lives (terrain.md)
+        capsule.maxSlope = glm::degrees(std::acos(std::clamp(pProxy->maxSlopeCosine, -1.f, 1.f)));
+    return capsule;
+}
+
+NavmeshCover RasterNavmesh(const std::array<float, 3>& acAt, float aWest, float aNorth, float aCell, int aCols, int aRows,
+                           uint32_t aTargetFormId) noexcept
+{
+    NavmeshCover cover;
+    cover.z.assign(static_cast<size_t>(aCols) * aRows, 0.f);
+    cover.piece.assign(cover.z.size(), -1);
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->parentCell)
+        return cover;
+    POINTER_SKYRIMSE(void*, s_pathing, 401037); // Pathing::singleton
+    using TPointLocation = BSPathingLocation*(void*, BSPathingLocation*, const NiPoint3*, TESObjectCELL*, TESWorldSpace*);
+    POINTER_SKYRIMSE(TPointLocation, s_pointLocation, 30640);
+    auto resolve = [&](const NiPoint3& acPoint, BSPathingLocation& aLocation)
+    {
+        (s_pointLocation.Get())(*s_pathing.Get(), &aLocation, &acPoint, pPlayer->parentCell, pPlayer->GetWorldSpace());
+        return ResolvePathEnd(aLocation);
+    };
+    BSPathingLocation here{}, mine{}, theirs{};
+    const PathEnd cHere = resolve(NiPoint3(glm::vec3(acAt[0], acAt[1], acAt[2])), here);
+    const PathEnd cMine = resolve(pPlayer->position, mine);
+    const auto* pTarget = aTargetFormId ? Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId)) : nullptr;
+    const PathEnd cTheirs = pTarget ? resolve(pTarget->position, theirs) : PathEnd{};
+    const BSNavmesh* pNavmesh = cHere.resolved && here.navMeshInfo ? here.navMeshInfo->navMesh : nullptr;
+    if (pNavmesh && pNavmesh->triangles.data && pNavmesh->vertices.data)
+    {
+        cover.navMesh = cHere.navMesh;
+        const uint32_t cCount = pNavmesh->triangles.size;
+        // Pieces: the player's first, the target's next, the rest in turn (WalkFrom: edges and same-navmesh links).
+        std::vector<int32_t> pieceOf(cCount, -1);
+        auto label = [&](uint16_t aFrom)
+        {
+            if (aFrom >= cCount || pieceOf[aFrom] != -1)
+                return;
+            std::vector<NavmeshStep> steps;
+            uint32_t exits = 0;
+            cover.pieceSizes.push_back(WalkFrom(*pNavmesh, cover.navMesh, aFrom, steps, exits));
+            for (uint32_t i = 0; i < cCount; ++i) // links can be one way (a ledge down): keep earlier pieces' own
+                if (steps[i].from != 0xFFFF && pieceOf[i] == -1)
+                    pieceOf[i] = static_cast<int32_t>(cover.pieceSizes.size() - 1);
+        };
+        if (cMine.resolved && cMine.navMesh == cover.navMesh)
+            label(cMine.triangle);
+        if (cTheirs.resolved && cTheirs.navMesh == cover.navMesh)
+            label(cTheirs.triangle);
+        for (uint32_t i = 0; i < cCount; ++i)
+            if (!(pNavmesh->triangles.data[i].flags & BSNavmeshTriangle::kDeleted))
+                label(static_cast<uint16_t>(i));
+        if (cMine.resolved && cMine.navMesh == cover.navMesh && cMine.triangle < cCount)
+            cover.playerPiece = pieceOf[cMine.triangle];
+        if (cTheirs.resolved && cTheirs.navMesh == cover.navMesh && cTheirs.triangle < cCount)
+            cover.targetPiece = pieceOf[cTheirs.triangle];
+        // Each triangle into the cells whose centres it covers, the one nearest the spot's height on top.
+        std::vector<float> best(cover.z.size(), std::numeric_limits<float>::max());
+        for (uint32_t i = 0; i < cCount; ++i)
+        {
+            const BSNavmeshTriangle& cTriangle = pNavmesh->triangles.data[i];
+            if ((cTriangle.flags & BSNavmeshTriangle::kDeleted) || pieceOf[i] < 0)
+                continue;
+            NiPoint3 v[3];
+            bool valid = true;
+            for (int k = 0; k < 3; ++k)
+            {
+                valid &= cTriangle.vertices[k] < pNavmesh->vertices.size;
+                if (valid)
+                    v[k] = pNavmesh->vertices.data[cTriangle.vertices[k]];
+            }
+            const float cDet = (v[1].y - v[2].y) * (v[0].x - v[2].x) + (v[2].x - v[1].x) * (v[0].y - v[2].y);
+            if (!valid || std::abs(cDet) < 1e-3f)
+                continue;
+            const int c0 = std::max(0, static_cast<int>((std::min({v[0].x, v[1].x, v[2].x}) - aWest) / aCell));
+            const int c1 = std::min(aCols - 1, static_cast<int>((std::max({v[0].x, v[1].x, v[2].x}) - aWest) / aCell));
+            const int r0 = std::max(0, static_cast<int>((aNorth - std::max({v[0].y, v[1].y, v[2].y})) / aCell));
+            const int r1 = std::min(aRows - 1, static_cast<int>((aNorth - std::min({v[0].y, v[1].y, v[2].y})) / aCell));
+            for (int r = r0; r <= r1; ++r)
+                for (int c = c0; c <= c1; ++c)
+                {
+                    const float x = aWest + (c + 0.5f) * aCell, y = aNorth - (r + 0.5f) * aCell;
+                    const float a = ((v[1].y - v[2].y) * (x - v[2].x) + (v[2].x - v[1].x) * (y - v[2].y)) / cDet;
+                    const float b = ((v[2].y - v[0].y) * (x - v[2].x) + (v[0].x - v[2].x) * (y - v[2].y)) / cDet;
+                    if (a < 0.f || b < 0.f || a + b > 1.f)
+                        continue;
+                    const float z = a * v[0].z + b * v[1].z + (1.f - a - b) * v[2].z;
+                    const size_t cAt = static_cast<size_t>(r) * aCols + c;
+                    if (std::abs(z - acAt[2]) < best[cAt])
+                    {
+                        best[cAt] = std::abs(z - acAt[2]);
+                        cover.z[cAt] = z;
+                        cover.piece[cAt] = pieceOf[i];
+                    }
+                }
+        }
+    }
+    DestroyPathingLocation(here);
+    DestroyPathingLocation(mine);
+    if (pTarget)
+        DestroyPathingLocation(theirs);
+    return cover;
 }
 
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept

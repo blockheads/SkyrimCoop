@@ -721,7 +721,7 @@ _INSTANCE = {"host": "", "guest": "client", "client": "client", "": ""}
 READ_VERBS = {"witness", "witness_mood", "party_bounty", "bounty_total"}
 
 # Harness commands that only read: left out of an exported scenario.
-_READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "screen", "item_count"}
+_READS = {"status", "dialogue", "camera", "world_clock", "counters", "papyrus_result", "path_request", "path_probe", "screen", "item_count"}
 
 
 def _lines(say):
@@ -813,7 +813,7 @@ def _line(tool, args):
 
 # Tools that only look or run the duo: never part of a test (a name in `rounds` that is neither these nor a replayed
 # tool is a Session verb).
-LOOKS = {"jitter", "duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "observe", "why", "press_to_motion", "profile",
+LOOKS = {"jitter", "duo_start", "vanilla_start", "duo_wait", "duo_stop", "status", "look", "terrain", "observe", "why", "press_to_motion", "profile",
          "counters", "network", "job_wait", "quest_walk", "screenshot", "record_export", "record_start", "unstage",
          "scene_reset", "verbs", "rounds", "trace_start", "trace_read", "trace_mark", "trace_stop", "log", "mcp_reload", "kill_move_check"}
 
