@@ -125,19 +125,22 @@ location first, CommonLib layout; the dtor 90962 steps 0x48), then on to the tar
 search failed toward every bandit (incomplete, 2 virtual nodes) 10 of 10 probes in one load, after the flow's first
 walk stopped there; 66 units on (2540, 1960) it built (16 nodes, 5,401 units to B6FE4) 3 of 3. On 2026-11-07 it
 built from that spot in every load tried: a cold boot of the `enter` checkpoint, six reloads, and with a weapon drawn.
-Not reproduced, so not explained. Ruled out:
+Not reproduced, so not explained. Read in IDA, and what it rules out:
 
-- the request's radius: the large-actor filter takes radius > fPathingLargeActorRadius 80 (BSPathBuilder 91724); the
-  player's is ~18;
-- a closed door's triangles: `BSNavmesh::AddClosedDoor` (91167) flags the triangles under a closed door 0x1000 and
-  `BSNavmeshSearchFilters::CanEnterTriangle` (91600) refuses them unless the filter allows doors and the door's policy
-  passes it (`BSNavmesh::sub_90390`), but the spot is 600 units from the door and its triangle has no 0x1000 (the
-  probe now reports each end's `triangle_flags` and `closed_door`).
+- `BSPathBuilder::BuildPath` (91724, read): a straight-line check first, then the navmesh triangle search in passes
+  (91738, not read). Only the straight-line check's triangle filter takes the large-actor flag, when the request's
+  radius (+0xC0, half the actor's bound: `Actor::FillPathingRequest` 41642, read) passes fPathingLargeActorRadius
+  (80, read). The player's radius is ~18 (measured: the capsule, terrain.md), so that flag is not it; whether the
+  triangle search filters by width is not read.
+- `BSNavmesh::AddClosedDoor` (91167, read) flags the triangles under a closed door 0x1000;
+  `BSNavmeshSearchFilters::CanEnterTriangle` (91600, read) refuses them unless the filter allows doors and
+  `BSNavmesh::CanPassClosedDoors` (90390, read) gets every door on the triangle past the filter's door policy. The
+  spot is 600 units from the door and its triangle has no 0x1000 (measured: the probe's `triangle_flags`).
 
-Left: the hand-cart wheels B6D19 and B6C20 are movable statics whose cuts could land differently per load (B6D19 was
-475 units from the spot); what the flow does before its first walk (combat with the bandits starting).
+Left (inferred, not checked): the hand-cart wheels B6D19 and B6C20 are movable statics whose cuts could land
+differently per load (B6D19 was 475 units from the spot); what the flow does before its first walk.
 
-So `path_probe` returns the search's path (`path`) and the triangles' way (`way`), and a refused walk runs the first
+The harness compensates, it does not fix the engine: `path_probe` returns the search's path (`path`) and the triangles' way (`way`), and a refused walk runs the first
 200 units of one of them by input before pathing again (`path_start`), as a player steps off a door. `clear` counts a
 hostile reachable when the search builds a path or the triangles join; one whose fight can't reach it is given up for
 now and the next fought. At the lookout, both games' searches failed from a nook the old trip (moveto the door)

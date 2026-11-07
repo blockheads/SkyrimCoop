@@ -170,3 +170,8 @@ time	op	id	rva	item
 2026-11-07T16:43:33Z	comment		0x11ff179	{"addr": "0x1411ff179", "comment": "triangle flags (+0xC) against the filter's forbidden (+0x1AC) and required (+0x1A8) masks"}
 2026-11-07T16:43:37Z	read		0x11b8e00	{"name": "sub_1411B8D60"}
 2026-11-07T16:43:44Z	read	90390	0x11b8e30	{"name": "BSNavmesh::sub_90390"}
+2026-11-07T17:49:37Z	read	91724	0x1206750	{"name": "BSPathBuilder::sub_91724"}
+2026-11-07T17:49:49Z	name	91724	0x1206750	{"addr": "0x141206750", "name": "BSPathBuilder::BuildPath"}
+2026-11-07T17:49:49Z	name	90390	0x11b8e30	{"addr": "0x1411b8e30", "name": "BSNavmesh::CanPassClosedDoors"}
+2026-11-07T17:49:51Z	comment	91724	0x1206750	{"addr": "0x141206750", "comment": "The search for one request: a straight-line check first (CheckLineOfSight over the triangles, the large-actor flag 0x10 added when radius +0xC0 > fPathingLargeActorRadius 80), then the navmesh triangle search in passes (sub_91738), logged to the NullPathBuilderTracker."}
+2026-11-07T17:49:51Z	comment	90390	0x11b8e30	{"addr": "0x1411b8e30", "comment": "For each closed-door entry on the triangle (sub_1411E6ED0), asks the filter's door policy (+0x138, vfunc +0x10) whether it can pass, adding its cost; false at the first door refused."}

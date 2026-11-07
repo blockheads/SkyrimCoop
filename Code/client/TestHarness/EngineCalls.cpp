@@ -409,22 +409,26 @@ void FindCrossing(const BSNavmesh& acNavmesh, uint16_t aFrom, const std::vector<
         else if (acGoalSteps[i].from != 0xFFFF)
             goalSide.push_back(i);
     }
+    // Goal-side centres sorted by x: each start only looks at those within the best gap so far in x (a sweep).
     std::vector<std::array<float, 3>> goalCentres;
     for (const uint16_t cTriangle : goalSide)
         goalCentres.push_back(TriangleCentre(acNavmesh, cTriangle));
+    std::sort(goalCentres.begin(), goalCentres.end(), [](const auto& acA, const auto& acB) { return acA[0] < acB[0]; });
     float best = std::numeric_limits<float>::max();
     uint16_t bestStart = 0xFFFF;
     for (const uint16_t cTriangle : startSide)
     {
         const auto cAt = TriangleCentre(acNavmesh, cTriangle);
-        for (size_t j = 0; j < goalSide.size(); ++j)
+        auto it = std::lower_bound(goalCentres.begin(), goalCentres.end(), cAt[0] - best,
+                                   [](const auto& acCentre, float aX) { return acCentre[0] < aX; });
+        for (; it != goalCentres.end() && (*it)[0] <= cAt[0] + best; ++it)
         {
-            const float cFlat = std::hypot(goalCentres[j][0] - cAt[0], goalCentres[j][1] - cAt[1]);
-            const float cRise = std::abs(goalCentres[j][2] - cAt[2]);
+            const float cFlat = std::hypot((*it)[0] - cAt[0], (*it)[1] - cAt[1]);
+            const float cRise = std::abs((*it)[2] - cAt[2]);
             const float cGap = std::hypot(cFlat, cRise);
             if (cRise > 0.4f * cFlat + 20.f || cGap >= best) // steeper than a ramp (~22 degrees): a wall or a drop
                 continue;
-            best = cGap, bestStart = cTriangle, aProbe.crossingTo = goalCentres[j];
+            best = cGap, bestStart = cTriangle, aProbe.crossingTo = *it;
         }
     }
     if (bestStart == 0xFFFF)
@@ -505,19 +509,24 @@ void ReadObstacles(const Actor& acActor, uint32_t aMeshId, PathProbe& aProbe) no
                 const char* cpName = pBase->GetName();
                 obstacle.name = cpName ? cpName : "";
             }
-            obstacle.actor = Cast<Actor>(TESForm::GetById(cEntry.refFormId)) != nullptr;
+            obstacle.actor = Cast<Actor>(pRef) != nullptr;
             const float dx = pRef->position.x - acActor.position.x, dy = pRef->position.y - acActor.position.y,
                         dz = pRef->position.z - acActor.position.z;
             obstacle.distance = std::sqrt(dx * dx + dy * dy + dz * dz);
             obstacle.at = {pRef->position.x, pRef->position.y, pRef->position.z};
         }
-        const NavmeshObstacle* pObstacle = cEntry.obstacle;
+        // Held while read, as the game's PrintObstacles (30514) does; the game reads the map on its thread unlocked.
+        NavmeshObstacle* pObstacle = cEntry.obstacle;
+        if (pObstacle)
+            _InterlockedIncrement(&pObstacle->refCount);
         for (uint32_t cut = 0; pObstacle && pObstacle->cuts.data && cut < pObstacle->cuts.size; ++cut)
         {
             const NavmeshObstacleCut* pCut = pObstacle->cuts.data[cut];
             for (uint32_t mesh = 0; pCut && pCut->navMeshes.data && mesh < pCut->navMeshes.size; ++mesh)
                 obstacle.onNavmesh |= pCut->navMeshes.data[mesh] && pCut->navMeshes.data[mesh]->navMeshId == aMeshId;
         }
+        if (pObstacle && _InterlockedDecrement(&pObstacle->refCount) == 0)
+            pObstacle->vtable[1](pObstacle);
         aProbe.obstacleRefs.push_back(obstacle);
     }
 }
@@ -685,17 +694,17 @@ NavmeshCover RasterNavmesh(const std::array<float, 3>& acAt, float aWest, float 
         cover.navMesh = cHere.navMesh;
         const uint32_t cCount = pNavmesh->triangles.size;
         // Pieces: the player's first, the target's next, the rest in turn (WalkFrom: edges and same-navmesh links).
-        std::vector<int8_t> pieceOf(cCount, -1);
+        std::vector<int32_t> pieceOf(cCount, -1);
         auto label = [&](uint16_t aFrom)
         {
-            if (aFrom >= cCount || pieceOf[aFrom] != -1 || cover.pieceSizes.size() >= 100)
+            if (aFrom >= cCount || pieceOf[aFrom] != -1)
                 return;
             std::vector<NavmeshStep> steps;
             uint32_t exits = 0;
             cover.pieceSizes.push_back(WalkFrom(*pNavmesh, cover.navMesh, aFrom, steps, exits));
             for (uint32_t i = 0; i < cCount; ++i) // links can be one way (a ledge down): keep earlier pieces' own
                 if (steps[i].from != 0xFFFF && pieceOf[i] == -1)
-                    pieceOf[i] = static_cast<int8_t>(cover.pieceSizes.size() - 1);
+                    pieceOf[i] = static_cast<int32_t>(cover.pieceSizes.size() - 1);
         };
         if (cMine.resolved && cMine.navMesh == cover.navMesh)
             label(cMine.triangle);

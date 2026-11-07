@@ -392,7 +392,7 @@ struct NavmeshCover
 {
     uint32_t navMesh = 0;
     std::vector<float> z;
-    std::vector<int8_t> piece;
+    std::vector<int32_t> piece;
     std::vector<uint32_t> pieceSizes;
     int playerPiece = -1;
     int targetPiece = -1;

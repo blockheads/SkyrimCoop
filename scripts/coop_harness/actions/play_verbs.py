@@ -23,6 +23,7 @@ MAX_CROSSINGS = 2  # cuts crossed by input in one walk
 PATH_START = 200.0  # units of a refused walk's path run by input before pathing again
 OFF_NAVMESH = 40.0  # units from the start's navmesh point past which a walk first steps onto it
 NAVMESH_REACH = 30.0  # units, a waypoint of that step (a running player overshoots closer ones)
+UNREACHED = {"no_path", "stalled", "timeout", "moved_off", "out_of_reach", "blocked"}  # a fight's failures to get there
 TALK_REACH = 150.0  # units, 3D, within the activation pick (fActivatePickLength 180 from the eyes)
 TALK_TRIES = 3  # presses at an NPC walking on, as a player follows it
 SET_OFF_SECONDS = 5.0  # KeepOffsetFromActor takes a package evaluation to set off: 2 s and more on a busy machine
@@ -462,8 +463,8 @@ class PlayerVerbs:
         with always_running(ctx, instance):
             if not ctx.run_straight(instance, ref, within, sprint):
                 closest = math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2])
-                raise ctx.failure(f"[{instance or 'host'}] did not reach {target} in a straight line: stopped "
-                                  f"{closest:.0f} units off (at most {within})")
+                raise verb_failure(ctx, "stalled", f"[{instance or 'host'}] did not reach {target} in a straight line: stopped "
+                                   f"{closest:.0f} units off (at most {within})", closest=round(closest))
         return {"apart": round(math.dist(ctx.my_position(instance)[:2], ctx.place_of(instance, ref)[:2]))}
 
     def press_jump(ctx, instance):
@@ -706,8 +707,6 @@ class PlayerVerbs:
         ctx.draw(instance)
         swings = misses = unreached = 0
         last_miss = "none"  # the last reach's failure
-        log(f"[{instance or 'host'}] path to {target}: {probe_line(ctx.path_probe(instance, ref))}")  # passing runs too
-        log(f"[{instance or 'host'}] {target}'s path back: {probe_line(ctx.path_probe(instance, 0x14, start=ref))}")  # an NPC's request
         while swings < hits and not dead(ref):
             if dead(0x14):
                 raise verb_failure(ctx, "player_down", f"[{instance or 'host'}] died fighting {target} after {swings} swings", swings=swings)
@@ -785,7 +784,10 @@ class PlayerVerbs:
                 unreachable.append((match or {"host": host_id, "name": f"{host_id:X}"}, "its fight could not reach it"))
                 continue
             if instance and not match:  # no copy yet (far off): clear walks near for it, after the probed ones
-                reachable.append((math.inf, {"host": host_id, "name": f"{host_id:X}"}))
+                if host_id >= 0xFF000000:  # spawned in the host's game: its id there means nothing in the guest's
+                    unreachable.append(({"host": host_id, "name": f"{host_id:X}"}, "no copy in the guest's game yet"))
+                else:  # a plugin's reference: the same form in both games
+                    reachable.append((math.inf, {"host": host_id, "name": f"{host_id:X}"}))
                 continue
             match = match or {"host": host_id, "name": f"{host_id:X}"}
             probe = ctx.path_probe(instance, match["guest"] if instance else host_id)
@@ -820,6 +822,8 @@ class PlayerVerbs:
                 ctx.name_handle(handle, match)
                 ctx.fight(instance, handle)
             except TestFailure as error:  # it moved behind a cut since the probe (a patrol past an invisible wall)?
+                if (getattr(error, "outcome", None) or {}).get("why") not in UNREACHED:
+                    raise  # the player fell, input was refused: not the way there
                 match = match or enemies[0]
                 ref = match.get("guest") if instance else match["host"]
                 probe = (ctx.path_probe(instance, ref) or {}) if ref else {}

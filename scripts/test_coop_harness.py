@@ -785,6 +785,30 @@ class GoalVerbs(unittest.TestCase):
         self.assertNotIn("guest", reachable[1])  # clear walks near, then finds its copy
         self.assertEqual(cut_off, [])
 
+    def test_clear_keeps_a_failure_that_is_not_about_getting_there(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xB6FE4, 1000)]
+        ctx.nearby_shared.return_value = [{"host": 0xB6FE4, "guest": 0xB6FE4, "name": "bandit"}]
+        ctx.path_probe.side_effect = [{"built": True}, {"built": False, "nodes": 2, "start": {"resolved": False}, "goal": {"resolved": False}}]
+        ctx.actor_row.return_value = {"state": {}}
+        down = TestFailure("died fighting it")
+        down.outcome = {"why": "player_down"}
+        ctx.fight.side_effect = down
+        ctx.reachable_hostiles.side_effect = lambda *args: PlayerVerbs.reachable_hostiles(ctx, *args)
+        with self.assertRaises(TestFailure) as caught:
+            PlayerVerbs.clear(ctx, "")
+        self.assertIn("died fighting it", str(caught.exception))
+
+    def test_a_guest_does_not_walk_toward_a_spawned_hostile_by_its_host_id(self):
+        from coop_harness.actions.play_verbs import PlayerVerbs
+        ctx = self.verb_ctx()
+        ctx.hostiles.return_value = [(0xFF001234, 3000)]
+        ctx.nearby_shared.return_value = []
+        reachable, cut_off = PlayerVerbs.reachable_hostiles(ctx, "client", 4000.0)
+        self.assertEqual(reachable, [])
+        self.assertEqual([line for _, line in cut_off], ["no copy in the guest's game yet"])
+
     def test_clear_turns_to_the_next_hostile_when_one_walks_behind_a_cut_mid_fight(self):
         from coop_harness.actions.play_verbs import PlayerVerbs
         ctx = self.verb_ctx()
@@ -798,7 +822,9 @@ class GoalVerbs(unittest.TestCase):
             target = ctx.name_handle.call_args[0][1]["host"]
             if target == 0xB6FDB:  # it patrols past the invisible wall as the player comes
                 cut.add(target)
-                raise TestFailure("did not reach it in a straight line")
+                stalled = TestFailure("did not reach it in a straight line")
+                stalled.outcome = {"why": "stalled"}
+                raise stalled
             alive.discard(target)
         ctx.fight.side_effect = fight
         ctx.reachable_hostiles.side_effect = lambda *args: PlayerVerbs.reachable_hostiles(ctx, *args)
@@ -815,6 +841,24 @@ class GoalVerbs(unittest.TestCase):
             PlayerVerbs.fight(ctx, "", "wolf")
         self.assertEqual(caught.exception.outcome["why"], "player_down")
         ctx.attack.assert_not_called()
+
+
+class McpDuo(unittest.TestCase):
+    def test_crash_history_resets_on_a_new_hold_only(self):
+        from coop_harness import mcp_tools
+        session = MagicMock()
+        session.games = [argparse.Namespace(name=""), argparse.Namespace(name="client")]
+        session.crash_logs.side_effect = lambda name: {f"old-{name or 'host'}.log"}
+        booting = Mock()
+        booting.poll.return_value = None
+        with patch.object(mcp_tools, "session", session), patch.object(mcp_tools, "duo", {"process": booting}):
+            session.duo_lock.return_value = None  # not held: another run's crashes are not this one's
+            mcp_tools.duo_start()
+            self.assertEqual(session.KNOWN_CRASHES, {"": {"old-host.log"}, "client": {"old-client.log"}})
+            session.KNOWN_CRASHES = {"": set(), "client": set()}  # this run's crash, not yet reported
+            session.duo_lock.return_value = argparse.Namespace(role="holder")
+            mcp_tools.duo_start()  # asked again during the boot
+            self.assertEqual(session.KNOWN_CRASHES, {"": set(), "client": set()})
 
 
 class Scenes(unittest.TestCase):

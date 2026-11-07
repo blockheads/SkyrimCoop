@@ -54,9 +54,8 @@ def reward(ctx):
 
 
 def lookout(ctx):
-    """The party travels to the mine (a console trip stands in for the road until a road verb exists: into the mine
-    and out by its door, so the game sets the party at the door's marker; a moveto to the door's reference left both in
-    a nook off the navmesh) and the guest fights the bandit lookout; the guest loots him."""
+    """The party travels to the mine (in and out by its door: docs/re/systems/terrain.md) and the guest fights the
+    bandit lookout; the guest loots him."""
     ctx.go_far("", f"coc {MINE_CELL}")
     ctx.door("", f"{MINE_IN:X}")
     ctx.arrives_with_party("client")

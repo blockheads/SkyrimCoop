@@ -191,11 +191,13 @@ static_assert(offsetof(NavmeshObstacleCut, navMeshes) == 0xA0);
 
 struct NavmeshObstacle
 {
-    void* vtable;                             // 00
-    uint32_t refCount;                        // 08
+    using TRelease = void(NavmeshObstacle*);
+    TRelease** vtable;                        // 00: slot 1 frees it once its count drops to 0 (PrintObstacles 30514)
+    volatile long refCount;                   // 08
     uint8_t pad0C[0x18 - 0x0C];
     BSNavmeshArray<NavmeshObstacleCut*> cuts; // 18
 };
+static_assert(offsetof(NavmeshObstacle, refCount) == 0x08);
 static_assert(offsetof(NavmeshObstacle, cuts) == 0x18);
 
 struct NavmeshObstacleEntry
