@@ -1,0 +1,57 @@
+time	op	id	rva	item
+2026-11-07T22:48:22Z	read	52271	0x962a90	{"name": "MessageBoxMenu::QueueMessage"}
+2026-11-07T22:52:08Z	read	52280	0x963050	{"name": "MessageBoxMenu::sub_52280"}
+2026-11-07T22:52:16Z	read	52285	0x963530	{"name": "sub_140963530"}
+2026-11-07T22:52:38Z	name	52285	0x963530	{"addr": "0x140963530", "name": "MessageBoxMenu::ShowNextMessage"}
+2026-11-07T22:52:38Z	name	52280	0x963050	{"addr": "0x140963050", "name": "MessageBoxMenu::ProcessMessage"}
+2026-11-07T22:52:38Z	name	52269	0x9625f0	{"addr": "0x1409625f0", "name": "MessageBoxMenu::CreateMessage"}
+2026-11-07T22:52:38Z	data			{"old": "coop_queue", "new": "MessageBoxMenu::queue"}
+2026-11-07T22:52:38Z	data			{"old": "coop_remove", "new": "MessageBoxMenu::RemoveMessageFromQueue"}
+2026-11-07T22:52:45Z	comment	52285	0x963530	{"addr": "0x140963530", "comment": "ShowNextMessage (no ID seen): drops queued boxes whose warningType is suppressed (byte_1432583D8), then shows the newest MessageBoxData: setMessageText(bodyText +0x10, useHtml +0x4D), setIsVertical(+0x4E), setIsCancellable(+0x4F, cancelButtonIndex +0x3C), setButtons(gamepad, buttonText +0x20...). Sets menu+0x30 'a box is shown'. Queue empty and nothing shown: posts kHide for MessageBoxMenu. An entry with empty bodyText and no buttons draws the empty 60px frame (MessageBox.as PositionElements)."}
+2026-11-07T22:52:45Z	comment	52280	0x963050	{"addr": "0x140963050", "comment": "MessageBoxMenu::ProcessMessage (vtable 215795 slot 4, ID 52280): kShow -> ShowNextMessage unless the queue is empty or Loading Menu is open (then handled, nothing set); kUpdate(3) with a queue -> ShowNextMessage."}
+2026-11-07T22:52:45Z	comment	52269	0x9625f0	{"addr": "0x1409625f0", "comment": "CreateMessage (52269; CommonLibSSE-NG MessageBoxMenu.h): text, OldMessageBoxCallback(a2), menuDepth?, warningType a4 (0..30, 25 always queues), buttons as a null-terminated vararg list -> new MessageBoxData -> QueueMessage. Refused while TES+311/312 (loading) or a suppressed type."}
+2026-11-07T22:52:45Z	comment	52271	0x962a90	{"addr": "0x140962a90", "comment": "QueueMessage (52271): refuses while TES+311/312, queue >= 20 unless type 25, type > 30 or suppressed; '\\r' in bodyText -> ' '; sorted insert into MessageBoxMenu::queue (406362) under its lock (406365); kShow MessageBoxMenu unless Loading Menu is open."}
+2026-11-07T22:53:05Z	comment	52280	0x963050	{"addr": "0x140963050", "comment": "[re]\nAddressLib ID 52280\nMessageBoxMenu::ProcessMessage (vtable 215795 slot 4): kShow -> ShowNextMessage unless the queue is empty or Loading Menu is open (then handled, nothing set); kUpdate(3) with a queue -> ShowNextMessage."}
+2026-11-07T22:53:05Z	comment	52269	0x9625f0	{"addr": "0x1409625f0", "comment": "[re]\nAddressLib ID 52269\nCommonLibSSE: function (CommonLibSSE-NG/include/RE/M/MessageBoxMenu.h:49)\nSkyrimCoop: data as s_messageBox (Code/client/Games/Skyrim/Papyrus/NativeReach.cpp:99)\nCreateMessage: text, OldMessageBoxCallback(a2), warningType a4 (0..30, 25 always queues), buttons as a null-terminated vararg list -> new MessageBoxData -> QueueMessage. Refused while TES+311/312 or a suppressed type."}
+2026-11-07T22:53:05Z	comment	52271	0x962a90	{"addr": "0x140962a90", "comment": "[re]\nAddressLib ID 52271\nmeh321: MessageBoxData::sub_52271\nCommonLibSSE: MessageBoxMenu::QueueMessage (CommonLibSSE-NG/src/RE/M/MessageBoxMenu.cpp:55)\nRefuses while TES+311/312, queue >= 20 unless type 25, type > 30 or suppressed; CR in bodyText -> space; sorted insert into MessageBoxMenu::queue (406362) under its lock (406365); kShow MessageBoxMenu unless Loading Menu is open."}
+2026-11-07T22:53:42Z	read	442726	0x962940	{"name": "coop_messageShow"}
+2026-11-07T22:58:04Z	read		0x5b0380	{"name": "ModManagerMenu::Call"}
+2026-11-07T22:58:14Z	read	53095	0x99b4e0	{"name": "sub_14099B4E0"}
+2026-11-07T22:58:48Z	read		0x9e1c7a	{"name": "SkyrimVM::sub_54018"}
+2026-11-07T22:58:48Z	read	53334	0x9ad230	{"name": "sub_1409AD230"}
+2026-11-07T23:08:42Z	read		0x65ce00	{"name": "BSTEventSink_BSGamerProfileEvent_::Handle_0"}
+2026-11-07T23:08:42Z	read	36653	0x65f6e0	{"name": "sub_14065F6E0"}
+2026-11-07T23:08:49Z	read		0x653530	{"name": "kCtor_Base"}
+2026-11-07T23:08:54Z	name	36653	0x65f6e0	{"addr": "0x14065F6E0", "name": "Main::WarningMessageBox"}
+2026-11-07T23:08:54Z	name	53334	0x9ad230	{"addr": "0x1409AD230", "name": "MessageBoxes::ShowOnceFlagged"}
+2026-11-07T23:08:57Z	comment	36653	0x65f6e0	{"addr": "0x14065F6E0", "comment": "Warning dialog callback registered at startup (kCtor_Base -> sub_140FDC6E0), a MessageBoxA stand-in: with the UI up and uType&0xF not 0/2, queues an in-game box (CreateMessage 52269) whose buttons are given only for MB_YESNOCANCEL/MB_YESNO (3/4); other types get NO buttons. Else Win32 MessageBoxA. Read while hunting the stray empty box (docs/re/systems/message-boxes.md)."}
+2026-11-07T23:08:57Z	comment	53334	0x9ad230	{"addr": "0x1409AD230", "comment": "Not on the empty-box path: one-shot CreateMessage(off_1420AE738, OK) guarded by +0xE1."}
+2026-11-07T23:08:57Z	comment	53095	0x99b4e0	{"addr": "0x14099B4E0", "comment": "[re]\nAddressLib ID 53095\nUsed by plugin: PapyrusExtenderSSE/src/Game/HookedEventHandler.cpp:512\nUsed by plugin: po3-Tweaks/src/Fixes/MapMarkerPlacement.cpp:23\nNot on the empty-box path: a map-marker box (QueueMessage caller)."}
+2026-11-07T23:11:48Z	read	76169	0xfdc6e0	{"name": "sub_140FDC6E0"}
+2026-11-07T23:11:51Z	name	76169	0xfdc6e0	{"addr": "0x140FDC6E0", "name": "MessageHandler::Init"}
+2026-11-07T23:11:51Z	data			{"old": "qword_14332DEE0", "new": "MessageHandler::boxCallback"}
+2026-11-07T23:11:52Z	read	76178	0xfdcc60	{"name": "sub_140FDCC60"}
+2026-11-07T23:11:55Z	name	76178	0xfdcc60	{"addr": "0x140FDCC60", "name": "MessageHandler::ShowBox"}
+2026-11-07T23:11:56Z	comment	76178	0xfdcc60	{"addr": "0x140FDCC60", "comment": "MessageHandler::ShowBox(text, caption, uType): no-op unless boxCallback is set and byte_1420CF708 (Init's first flag) is off; else calls boxCallback (Main::WarningMessageBox at runtime)."}
+2026-11-07T23:21:56Z	read	442672	0x909f90	{"name": "coop_executeCommand"}
+2026-11-07T23:21:59Z	read	36604	0x65c000	{"name": "sub_14065C000"}
+2026-11-07T23:22:21Z	comment	36604	0x65c000	{"addr": "0x14065C000", "comment": "First console command at the main menu (Console::ExecuteCommand 442672, byte_143230522): starts the game world once (TES, process lists, SkyrimVM 53925, save list scan 35743), player init. Queues no message box (checked for the stray empty box)."}
+2026-11-07T23:22:21Z	comment	51957	0x94db30	{"addr": "0x14094DB30", "comment": "Not on the empty-box path: requests three models."}
+2026-11-07T23:22:21Z	comment	35754	0x624780	{"addr": "0x140624780", "comment": "[re]\nAddressLib ID 35754\nNot on the empty-box path: true while BGSSaveLoadManager+0xF8 is 0 (no save list yet)."}
+2026-11-07T23:22:21Z	comment	35743	0x6236e0	{"addr": "0x1406236e0", "comment": "[re]\nAddressLib ID 35743\nNot on the empty-box path: scans the save folder for *.ess into the save list."}
+2026-11-07T23:22:21Z	comment	35745	0x623910	{"addr": "0x140623910", "comment": "[re]\nAddressLib ID 35745\nNot on the empty-box path."}
+2026-11-07T23:22:22Z	name	36604	0x65c000	{"addr": "0x14065C000", "name": "Console::StartWorldOnce"}
+2026-11-07T23:37:06Z	read	52156	0x95d040	{"name": "sub_14095D040"}
+2026-11-07T23:37:22Z	read	52137	0x959f90	{"name": "sub_140959F90"}
+2026-11-07T23:38:57Z	read	35477	0x611be0	{"name": "sub_140611BE0"}
+2026-11-07T23:39:18Z	name	52137	0x959f90	{"addr": "0x140959F90", "name": "MainMenu::ProcessMessage"}
+2026-11-07T23:39:18Z	name	52156	0x95d040	{"addr": "0x14095D040", "name": "MainMenu::QueueFreebiesPrompt"}
+2026-11-07T23:39:18Z	name	35477	0x611be0	{"addr": "0x140611BE0", "name": "BGSCreations::AllFreebiesInstalled"}
+2026-11-07T23:39:18Z	name	416420	0x95e9b0	{"addr": "0x14095E9B0", "name": "MainMenu::OnLogoShown"}
+2026-11-07T23:39:18Z	name	52167	0x95e0f0	{"addr": "0x14095E0F0", "name": "MainMenu::OnEntitlementsChecked"}
+2026-11-07T23:39:18Z	data			{"old": "byte_1420BB288", "new": "gPref_bFreebiesSeen_General"}
+2026-11-07T23:39:23Z	comment	52156	0x95d040	{"addr": "0x14095D040", "comment": "QueueFreebiesPrompt (52156): sets bFreebiesSeen:General (SkyrimPrefs.ini) to 1 and saves the prefs, then queues the AE box: body \"$Thanks for buying Skyrim Anniversary Edition! Download and activate?\" (absent from interface/translate_english.txt on 1.7.104, so it shows empty), one button \"$DOWNLOAD\", warningType 25 (always queued), menuDepth 10, DLCPurchased::PurchasedDLCDialogCallback. The stray empty box of fresh test prefixes (docs/re/systems/message-boxes.md)."}
+2026-11-07T23:39:23Z	comment	52137	0x959f90	{"addr": "0x140959F90", "comment": "MainMenu::ProcessMessage (vtable 215698 slot 4, ID 52137). On the menu's show and on its save-list result: queues the AE freebies box (52156) while bFreebiesSeen:General is 0 and not every free Creation is installed (35477)."}
+2026-11-07T23:39:23Z	comment	35477	0x611be0	{"addr": "0x140611BE0", "comment": "AllFreebiesInstalled? (35477): cached in +0x48 / byte_1420B5270; asks the Creations catalog (sub_1406101C0). Read for the AE freebies box; exact meaning inferred from its callers."}
+2026-11-07T23:39:23Z	comment	416420	0x95e9b0	{"addr": "0x14095E9B0", "comment": "Main menu logo shown once (byte_143258239): loads logo01ae.nif, queues the AE freebies box (52156) unless bFreebiesSeen:General."}
+2026-11-07T23:39:23Z	comment	52167	0x95e0f0	{"addr": "0x14095E0F0", "comment": "Callback (a1 status, a2 flag): status 0 with a2 queues the AE freebies box (52156) unconditionally; inferred as the entitlement check's answer."}
