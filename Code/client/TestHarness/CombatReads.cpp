@@ -1,6 +1,9 @@
 #include "EngineCalls.h"
 #include <Actor.h>
+#include <Combat/CombatBehavior.h>
+#include <AI/AITimer.h>
 #include <Combat/CombatController.h>
+#include <Combat/CombatInventory.h>
 #include <Combat/CombatGroup.h>
 #include <Forms/ActorValueInfo.h>
 #include <Games/Primitives.h>
@@ -9,6 +12,20 @@
 
 namespace TestHarness::EngineCalls
 {
+namespace
+{
+// The frames live in the thread while they fit (frameCapacity's top bit), else on the heap.
+const CombatBehaviorThread::Frame* Frames(const CombatBehaviorThread& acThread) noexcept
+{
+    return (acThread.frameCapacity >> 31) ? acThread.localFrames : acThread.pHeapFrames;
+}
+
+const MovementQueryPathFollowing* PathFollowing(MovementController& aController, const void* apTypeId) noexcept
+{
+    return static_cast<const MovementQueryPathFollowing*>(aController.pVtable->QueryInterface(&aController, apTypeId));
+}
+} // namespace
+
 std::optional<CombatRead> ReadCombat(uint32_t aActorId)
 {
     auto* pActor = Cast<Actor>(TESForm::GetById(aActorId));
@@ -27,6 +44,62 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
     if (!pController)
         return read;
     read.ControllerTarget = form(pController->targetHandle);
+    read.Inactive = pController->inactive;
+    read.Ignoring = pController->ignoringCombat;
+    read.Stopped = pController->stoppedCombat;
+    read.LowMovementDelta = pController->unk4C;
+    read.Areas = pController->areas.length;
+    if (auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(pController->targetHandle)))
+    {
+        using TPredicted = void(Actor*, float, float*);
+        POINTER_SKYRIMSE(TPredicted, s_predicted, 47309);
+        read.TargetPosition = {pTarget->position.x, pTarget->position.y, pTarget->position.z};
+        s_predicted.Get()(pTarget, 0.5f, read.TargetPredicted.data());
+        using TMargin = void(Actor*, Actor*, float*, float*);
+        POINTER_SKYRIMSE(TMargin, s_margin, 50643);
+        s_margin.Get()(pActor, pTarget, &read.Margin, &read.MarginMax);
+        using TReach = float(Actor*, Actor*);
+        POINTER_SKYRIMSE(TReach, s_reach, 47336);
+        read.TargetReach = s_reach.Get()(pTarget, pActor);
+        if (auto* pMover = reinterpret_cast<MovementController*>(pTarget->movementDrivenControl))
+        {
+            POINTER_SKYRIMSE(void, s_pathFollowing, 412229); // IMovementQueryPathFollowing's type id
+            if (const auto* pFollowing = PathFollowing(*pMover, s_pathFollowing.Get()))
+            {
+                read.TargetPathState = pFollowing->state;
+                read.TargetPathPoints = pFollowing->pPath ? pFollowing->pPath->pointCount : 0;
+            }
+        }
+    }
+    if (const auto* pInventory = pController->pInventory)
+    {
+        read.CloseRange = pInventory->closeRange;
+        read.Reach = pInventory->reach;
+    }
+    if (const auto* pState = pController->pState)
+    {
+        read.SinceAttacked = AITimer::GetAITime() - pState->lastAttackedTime;
+        read.Fleeing = pState->isFleeing;
+        read.Detected = pState->isDetected;
+        read.TargetLost = pState->targetLost;
+        read.Unreachable = pState->unreachableLocations.length;
+    }
+    if (const auto* pBehavior = pController->pBehaviorController)
+    {
+        const auto path = [&read](const CombatBehaviorThread* apThread) {
+            if (!apThread)
+                return;
+            std::string nodes;
+            for (uint32_t i = 0; i < apThread->frameCount; ++i)
+                if (const auto* pNode = Frames(*apThread)[i].pNode)
+                    nodes += std::string(nodes.empty() ? "" : " > ") + (pNode->name.data ? pNode->name.data : "?");
+            read.Behavior.push_back(std::move(nodes));
+        };
+        path(pBehavior->pDefaultThread);
+        for (const auto* pThread : pBehavior->activeThreads)
+            if (pThread != pBehavior->pDefaultThread)
+                path(pThread);
+    }
     auto* pGroup = pController->pCombatGroup;
     if (!pGroup)
         return read;
@@ -49,6 +122,12 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
             candidate.ClearPath = GameRaycast::HasClearPath(pActor, pTarget);
             candidate.Invisible = pTarget->GetActorValue(ActorValueInfo::kInvisibility) > 0;
             candidate.Sneaking = pTarget->actorState.IsSneaking();
+            using TLight = float(Actor*);
+            POINTER_SKYRIMSE(TLight, s_light, 37775);
+            using TProcessLight = float(void*);
+            POINTER_SKYRIMSE(TProcessLight, s_processLight, 39509);
+            candidate.Light = s_light.Get()(pTarget);
+            candidate.RawLight = pTarget->currentProcess ? s_processLight.Get()(pTarget->currentProcess) : -1.f;
         }
         read.Candidates.push_back(candidate);
     }

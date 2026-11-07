@@ -489,6 +489,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
         int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
         uint32_t OwnerCombatTarget{};
+        uint32_t OwnCombatTarget{};       // what its own combat controller fights (AttackedBy)
         uint32_t ExtraPackageFallback{};
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
@@ -811,6 +812,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
+    // Actor::StartCombat (38561) as an attack runs it on its victim (AIProcess::StartAssault): the victim takes a combat
+    // controller of its own, whose tree CombatUpdateJob (46902) runs. A copy refuses (HookStartCombat).
+    void AttackedBy(uint32_t aVictim, uint32_t aAttacker);
     // AI: the actor looks at a target for a reason (a headtrack slot, HighProcessData::headTrackTarget), 0 none; the
     // ProcessTracking hook raises AiStateChangeEvent.
     static constexpr uint32_t kDialogueHeadTrack = 4;
