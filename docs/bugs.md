@@ -182,7 +182,7 @@ Size: medium. Needs: IDA, then the duo (`kill-moves-cross`), then GameTests.
 Each case by what was measured with the check fixed, 2026-11-06 (30 flows, run twice; `ai.head_track_slots` shows the
 raw slots, `ai.head_track_shut` what shuts the gate):
 
-- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 6** (4 of 4 passed on the corrected check). The guest as owner
+- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 8** (6 of 6 passed on the corrected check). The guest as owner
   `[]`, in third person for the kill move, its copy on the host `['session 1']`, the host's own player (raw: slot 0).
   It lasted the check's whole window, though the hook pushes the owner's slots each frame and the ambient pick
   (`PickAmbientHeadtrackTarget` 38012) writes slot 0 only every 1.0-1.5 s, so the pick alone does not explain it: unread.
