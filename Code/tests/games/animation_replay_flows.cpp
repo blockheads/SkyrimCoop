@@ -3,16 +3,9 @@
 #include <Services/CharacterService.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Systems/InterpolationSystem.h>
-#include <Diagnostics/Counters.h>
 
 namespace
 {
-uint64_t CountOf(const char* acpName)
-{
-    const auto cAll = Diagnostics::Counters::Read();
-    const auto it = std::ranges::find(cAll, std::string(acpName), &Diagnostics::Counters::Reading::Name);
-    return it == cAll.end() ? 0 : it->Count;
-}
 } // namespace
 
 TEST_CASE("An NPC movement replay does not restore the owner's finished sheathe transition", "[copies][animation][replay-weapon]")

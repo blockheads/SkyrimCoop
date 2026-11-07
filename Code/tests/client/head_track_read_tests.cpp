@@ -69,4 +69,7 @@ TEST_CASE("Only the slot the engine reads counts: the highest set, and slot 0 be
     CHECK(Targets(Slots{0, cSelf}, cSelf).empty());
     CHECK(Targets(Slots{cA, cSelf}, cSelf).empty());
     CHECK(Targets(Slots{cSelf, 0, cB}, cSelf, true) == Read{cB});
+    // Slot 2 on itself: whether a game alternates to slot 0 is its own, so neither reports it.
+    CHECK(Targets(Slots{cA, 0, cSelf}, cSelf).empty());
+    CHECK(Targets(Slots{cA, 0, cSelf}, cSelf, true).empty());
 }

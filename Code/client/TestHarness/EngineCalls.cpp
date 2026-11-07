@@ -339,6 +339,16 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
+bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
+{
+    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || !pActor->GetExtension()->IsCopy())
+        return false;
+    pActor->GetExtension()->OwnerPackageId = 0;
+    pActor->InitiateDoNothingPackage();
+    return true;
+}
+
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
 {
     // What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the

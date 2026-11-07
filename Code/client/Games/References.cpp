@@ -159,6 +159,18 @@ void Actor::PutOwnerPackage(TESPackage* apPackage) noexcept
         s_initFromPackage(&currentProcess->currentPackage, apPackage, nullptr, this);
 }
 
+// Actor::EndInterruptPackage (37474, true: not its EndDialogue call) clears the package and, with the slot empty, checks for a
+// new one (39114): call once the actor is no longer a copy, or HookCheckForNewPackage gives it the do-nothing one back.
+void Actor::EndReleasedCopyPackage() noexcept
+{
+    const TESPackage* pRunning = currentProcess ? currentProcess->currentPackage.package : nullptr;
+    if (!pRunning || !CopyPackage::EndsOnRelease(pRunning->packType, pRunning->packFlags))
+        return;
+    using TEndInterruptPackage = void(Actor*, bool);
+    POINTER_SKYRIMSE(TEndInterruptPackage, s_endInterruptPackage, 37474);
+    s_endInterruptPackage(this, true);
+}
+
 // Actor::InitiateDoNothingPackage (37402): only in high or middle-high process.
 void Actor::InitiateDoNothingPackage() noexcept
 {

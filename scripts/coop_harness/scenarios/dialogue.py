@@ -113,12 +113,31 @@ def scenario_dialogue_peer_starts(ctx):
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
 
+def scenario_released_copy_takes_up_its_ai(ctx):
+    # hand-written: the engine path is read in IDA, and a copy on its own do-nothing package needs a harness control.
+    """The guest leaves while its copy of a game's own NPC holds its do-nothing package. Released, the NPC is the guest's own
+    again and picks a package of its own, rather than standing frozen on one nothing ever ends (actor-ai-and-copies.md)."""
+    ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
+    ctx.wait_for(f"[client] Lucan {LUCAN:X} is a copy here", lambda: ctx.actor_on("client", LUCAN).get("role") == "copy", 30)
+    package_type = lambda: (ctx.actor_on("client", LUCAN).get("mod") or {}).get("package_type")
+    def holds_do_nothing():  # the owner's next AI state puts its package back: ask until it shows
+        ctx.player_command("client", {"cmd": "copy_do_nothing", "actor": LUCAN})
+        return package_type() == 27
+    ctx.wait_for(f"[client] copy {LUCAN:X} holds the do-nothing package", holds_do_nothing, 10)
+    ctx.disconnect_client()
+    try:
+        ctx.wait_for(f"[client] {LUCAN:X}, released, picks a package of its own", lambda: package_type() not in (27, None), 10)
+    finally:
+        ctx.joins_with_world("joins again, as a player does")  # with the host's save: a running game's rejoin keeps its own world
+        ctx.both_go("the blank cell", "coc QASmoke")  # the end's comparison is of the session, not of this shop (bugs.md, After a guest rejoins)
+
+
 def scenario_copy_answers_its_ai_procedure(ctx):
     # hand-written: the engine path is read (GetCurrentAIProcedure 21521) and it needs no play: a console line on each copy.
     """A condition asks a player's copy GetCurrentAIProcedure, as a script or a dialogue line can. The copy holds a do-nothing
     package of ours: with no procedure type the engine indexes its table at -1 and the game crashes (actor-ai-and-copies.md)."""
     for game in ("client", ""):
-        copy = ctx.other_player(ctx.actors_on(game))
+        copy = ctx.wait_for(f"[{game or 'host'}] the other player's copy is here", lambda: ctx.other_player(ctx.actors_on(game)), 10)
         printed = ctx.console_on(game, f"{copy:08X}.GetCurrentAIProcedure")
         if not any("Procedure >>" in line for line in printed):
             raise ctx.failure(f"[{game or 'host'}] copy {copy:08X} gave no procedure: {printed}")

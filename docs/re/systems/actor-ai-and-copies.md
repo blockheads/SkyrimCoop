@@ -175,7 +175,16 @@ so it now calls 29582 itself (`CopyPackage::CreateDoNothing`). Many readers inde
 value with no check, -1 reading the qword before it: `GetCurrentAIProcedure` (21521, a condition, on a live copy) and
 `CheckForNewPackageDefault` (39213, on a copy released at a session's end, as soon as it loads or if it is loaded).
 `crash-2026-11-06-14-31-22`: Dagny, a held copy from an earlier visit, released by a session's end (`CharacterService.cpp`,
-"the session's copies go"), checked on entering Dragonsreach after rejoining.
+"the session's copies go"), checked on entering Dragonsreach after the harness's rejoin from a running game; a player's leave goes
+to the main menu and joins with the host's save, so the release path a player reaches is `TakeOwnership`.
+
+**A released copy must not keep that package (measured 2026-11-07).** With a procedure type it no longer crashes, but `39213`
+picks nothing new while a delete-when-done package's step is not done: Lucan released on it stood with his position unchanged for
+the 38 s watched, where released on a real package he walked off. Whether it would ever end by itself was not measured. `SkyrimBridge::SetActorCopy` now calls
+`Actor::EndInterruptPackage` (37474, `true`: not its `EndDialogue`) once the flag is clear, for that package only
+(`CopyPackage::EndsOnRelease`); it clears the slot and checks for a new package. Every release goes through it: taking ownership
+(a mount's, 973 and 1051 in `CharacterService.cpp`), a session's end, unloading the plugin. Scenario `released-copy-takes-up-its-ai`, using the harness's `copy_do_nothing`, because
+no ordinary play was found that puts a game's own NPC's copy on it.
 
 A copy holds the engine's do-nothing package (type 27, `Actor::InitiateDoNothingPackage` 37402): whenever
 the engine asks for a copy's package (`checkForNewPackage` 39114: no package unseen, a process level

@@ -470,9 +470,13 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
+        const bool cReleased = it->second.Copy && !aCopy;
         it->second.Copy = aCopy;
         if (!aCopy)
             it->second.OwnerCombatTarget = 0;
+        // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
+        if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
+            it->second.RunningPackageType = 0;
     }
 }
 

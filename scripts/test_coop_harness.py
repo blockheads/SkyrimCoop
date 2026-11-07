@@ -1728,16 +1728,50 @@ class GraphApartTests(unittest.TestCase):
 
     def test_a_long_run_no_longer_read_stands_at_its_last_reading(self):
         apart = self.apart()
-        for now in (10.0, 12.0, 13.0):
+        for now in (10.0, 13.0, 16.0):
             apart.observe(8, {"Walk"}, {"Idle"}, now)
-        apart.observe(8, None, {"Idle"}, 14.0)
-        for now in (20.0, 23.0):
+        apart.observe(8, None, {"Idle"}, 17.0)
+        for now in (20.0, 26.0):
             apart.observe(9, {"Walk"}, {"Idle"}, now)
         apart.keep_only([])
         runs = apart.finish(99.0)
-        self.assertEqual([(run["actor"], run["seconds"], run["lost"]) for run in runs], [(8, 3.0, True), (9, 3.0, True)])
+        self.assertEqual([(run["actor"], run["seconds"], run["lost"]) for run in runs], [(8, 6.0, True), (9, 6.0, True)])
         from coop_harness.comparisons import graph_apart_line
         self.assertIn("until no longer read", graph_apart_line(apart, 0.0))
+
+    def test_a_graph_that_stopped_cannot_make_a_run(self):
+        # An NPC dies just after the pairs were read: its graph stands still and is read for up to 3 s more.
+        apart = self.apart()
+        for now in (10.0, 12.0, 13.0):
+            apart.observe(1, {"Walk"}, {"Idle"}, now)
+        apart.keep_only([])
+        self.assertEqual(apart.finish(99.0), [])
+
+    def test_a_newly_loaded_npc_never_takes_a_watched_ones_place(self):
+        from coop_harness.comparisons import choose_pairs
+        pair = lambda owner: (owner, owner + 100)
+        self.assertEqual(choose_pairs([pair(5), pair(6)], (), 1, set()), {5})
+        # 1 now sorts first, 5 is still read.
+        self.assertEqual(choose_pairs([pair(1), pair(5)], (), 1, {5}), {5})
+        # 5 has gone: the place is free.
+        self.assertEqual(choose_pairs([pair(1)], (), 1, {5}), {1})
+        self.assertEqual(choose_pairs([pair(1), pair(5)], {5}, None, set()), {5})
+        self.assertEqual(choose_pairs([pair(1), pair(5)], (), None, set()), {1, 5})
+
+    def test_held_copies_are_not_paired_by_their_empty_session(self):
+        from coop_harness.observations import Observations
+        ctx = Observations()
+        row = lambda role, sid: {"role": role, "player": False, "mod": {"session_id": sid},
+                                 "placement": {"has_3d": True}, "state": {"dead": False}}
+        class Game:
+            def __init__(self, world):
+                self.world = world
+            def read_status(self):
+                return {"world": self.world}
+        # A guest's held copy and an unlinked own NPC both read -1, as a real pair (1) goes on.
+        host = {"1": row("own", 1), "2": row("own", -1)}
+        guest = {"11": row("copy", 1), "12": row("copy", -1)}
+        self.assertEqual(ctx.copy_pairs([Game(host), Game(guest)]), {1: (1, 11)})
 
     def test_only_a_living_npc_in_3d_is_watched(self):
         from coop_harness.observations import Observations
@@ -1820,6 +1854,30 @@ class ActiveStatesTests(unittest.TestCase):
         self.assertIn("no run", ctx.graph_watch_stop(watch))
 
 
+class UiAssetsTests(unittest.TestCase):
+    """The folder the games load their panels from: the duo's user must be able to read it."""
+
+    def locate(self, user, unreadable):
+        from coop_harness import runtime
+        session = Mock(spec=[])
+        session.game = Mock(return_value=None)
+        session.instance_user = Mock(return_value=user)
+        with patch.object(runtime.subprocess, "run", return_value=Mock(returncode=int(unreadable))) as checked:
+            return runtime.Runtime.ui_assets(session), checked.call_count
+
+    def test_a_readable_repo_is_used_in_place(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate("coop2", False), (runtime.UI_SOURCE, 1))
+
+    def test_a_worktree_in_a_private_home_uses_the_deployed_copy(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate("coop2", True)[0], runtime.PLUGINS.resolve() / "SkyrimCoop/ui")
+
+    def test_no_separate_user_reads_the_repo(self):
+        from coop_harness import runtime
+        self.assertEqual(self.locate(None, True), (runtime.UI_SOURCE, 0))
+
+
 class LockOrderPassThroughTests(unittest.TestCase):
     def test_every_pass_through_hook_fits_the_list(self):
         # A hook past the list reads as ours: the engine's own lock orders then fail flows.
@@ -1863,6 +1921,9 @@ class HeadTrackComparisonTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn("unread on client (out of range)", lines[0])
         self.assertEqual(head_track_one_sided({"host": {"7": actor("own", "knocked")}, "client": {"8": actor("copy", "race")}}), [])
+        # Session -1: a held copy and an unlinked own actor are no pair.
+        unlinked = lambda role, shut: {**actor(role, shut), "mod": {"session_id": -1}}
+        self.assertEqual(head_track_one_sided({"host": {"7": unlinked("own", None)}, "client": {"8": unlinked("copy", "race")}}), [])
 
 
 class ProfileBudgetTests(unittest.TestCase):

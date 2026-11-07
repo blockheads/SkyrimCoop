@@ -5,6 +5,8 @@
 // The copy contract for package storage and reads, without the engine (actor-ai-and-copies.md).
 namespace CopyPackage
 {
+inline constexpr uint8_t cDoNothingType = 27;    // TESPackage::kDoNothing
+inline constexpr uint32_t cDeleteWhenDone = 4;   // TESPackage::packFlags, as InitiateDoNothingPackage (37402) sets it
 // The package to put on: a copy holds its owner's once known, whatever the engine picks (a follower alias's combat
 // override); until then, and for this game's own actors, the engine's choice.
 [[nodiscard]] constexpr uint32_t Put(bool aCopy, uint32_t aOwnerPackage, uint32_t aRequested) noexcept
@@ -23,9 +25,15 @@ template <class TCreate, class TFill> [[nodiscard]] auto CreateDoNothing(TCreate
     auto* pPackage = aCreate();
     if (pPackage)
     {
-        pPackage->packFlags |= 4;
+        pPackage->packFlags |= cDeleteWhenDone;
         aFill(pPackage);
     }
     return pPackage;
+}
+// A copy released from being one: must its running package end? Its own do-nothing, delete-when-done package never ends by
+// itself, and the engine picks no new one until it does (39213): the actor would stand frozen.
+[[nodiscard]] constexpr bool EndsOnRelease(uint8_t aPackageType, uint32_t aPackageFlags) noexcept
+{
+    return aPackageType == cDoNothingType && (aPackageFlags & cDeleteWhenDone) != 0;
 }
 } // namespace CopyPackage

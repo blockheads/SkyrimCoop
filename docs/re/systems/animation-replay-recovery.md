@@ -175,9 +175,9 @@ Measured 2026-11-06 with `graph_watch` (owner and copy read live, Riverwood, 3 t
 **The check now** (`comparisons.GraphApart`, `Observations.graph_watch_start`): over each `coop_test.py scenario` flow a
 background thread reads every NPC's owner and copy with the harness's `graph_state`, on connections of its own, about 4
 passes a second, and logs a `copies' graphs, owner against copy:` line: the runs apart for 2 s or more, each with its two
-sides. 2 s: about twice the longest following measured (1.08 s, a copy 150-300 ms late never counts). A graph not read
-ends a run uncounted. Players' copies are left
+sides. 2 s: about twice the longest following measured (1.08 s, a copy 150-300 ms late never counts). Players' copies are left
 out: a player's graph holds its `FirstPerson` graph and first-person machines a copy never runs (measured 2026-11-05).
 The verb `graph_watch` is the same watch on demand. It logs and does not fail a flow; it stops before the flow's comparison
 checks, and `scenario --no-graph-watch` leaves it out. A run whose actor stops being read ends at its last reading apart and says
-so (`lost`, "until no longer read"): the pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating.
+so (`lost`, "until no longer read"). The pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating: it counts
+only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stays watched while it can be read.

@@ -10,11 +10,10 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
-from ..comparisons import GraphApart, active_states, flatten
+from ..comparisons import flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
 

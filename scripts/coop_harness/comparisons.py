@@ -258,7 +258,8 @@ def head_track_differs(owner, copy):
 
 def head_track_one_sided(worlds):
     """The actors one game reads a head target for and the other does not: not a difference, but no comparison either."""
-    copies = {game: {s["mod"]["session_id"]: s for s in world.values() if s.get("role") == "copy"} for game, world in worlds.items()}
+    copies = {game: {s["mod"]["session_id"]: s for s in world.values() if s.get("role") == "copy" and s["mod"]["session_id"] >= 0}
+              for game, world in worlds.items()}
     lines = []
     for game, world in worlds.items():
         other = "client" if game == "host" else "host"
@@ -368,6 +369,22 @@ def active_states(hex_state):
     return states
 
 
+def choose_pairs(found, wanted, limit, watched):
+    """The owners to watch of these (owner, copy) pairs: `wanted` if given; else those already watched, then others up to
+    `limit`, so a newly loaded NPC never takes the place of one still read."""
+    owners = [owner for owner, _ in found]
+    if wanted:
+        return {owner for owner in owners if owner in wanted}
+    if limit is None:
+        return set(owners)
+    kept = {owner for owner in owners if owner in watched}
+    for owner in owners:
+        if len(kept) >= limit:
+            break
+        kept.add(owner)
+    return kept
+
+
 def graph_apart_line(apart, started):
     """The per-flow line of a GraphApart: '' if it read nothing."""
     if not apart.samples:
@@ -379,6 +396,10 @@ def graph_apart_line(apart, started):
         f"{run['actor']:X} {run['seconds']} s{' until no longer read' if run.get('lost') else ''} at {run['at'] - started:.1f} "
         f"(owner only {run['owner_only']}, copy only {run['copy_only']})"
         for run in runs)
+
+
+# How often the watch looks again at who is loaded and alive: a graph that stops updating is read this long more.
+GRAPH_PAIRS_REFRESH = 3.0
 
 
 class GraphApart:
@@ -407,8 +428,12 @@ class GraphApart:
             self.lose(actor)
 
     def lose(self, actor):
+        """Up to GRAPH_PAIRS_REFRESH of its end can be a graph that stopped: only what that cannot explain counts."""
         if run := self.open.get(actor):
-            self.close(actor, run["last"], lost=True)
+            if run["last"] - run["at"] >= self.lasting + GRAPH_PAIRS_REFRESH:
+                self.close(actor, run["last"], lost=True)
+            else:
+                del self.open[actor]
 
     def close(self, actor, now, lost=False):
         if (run := self.open.pop(actor, None)) and now - run["at"] >= self.lasting:

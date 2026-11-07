@@ -39,6 +39,7 @@ other section needs the duo.
 
 - [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
+- [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
@@ -124,6 +125,25 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
   old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
 - **The menu does not open** (1 of 15): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
   talking. Not seen again in 10 runs. Unread.
+
+### After a guest rejoins
+
+The harness's `rejoin_client` joins again from a running game, keeping that game's world; a player leaves to the main menu and joins
+with the host's save (`joins_with_world`). Two differences follow that path, at Lucan's in Riverwood, 2026-11-07. Whether either
+reaches a player: unread.
+
+Agent task: read whether a player can reach this path, then make a scenario for what can.
+
+Size: small. Needs: the duo (Riverwood), then GameTests.
+
+- **References differ** (4 of 4): 13 to 15 references, containers by the change flag `0x8000000` on the host only (CommonLib
+  `kLeveledInventory`, not read here) and loose objects' poses. It does not depend on time away: 1 s did it.
+- **A copy that looks at nobody** (1 of 4): Lucan's owner read `['session 1']`, his copy `[]`, through the check's window. Read, not
+  measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
+  `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
+  change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
+- **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
+  turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 
 ### A copy's interaction idle
 

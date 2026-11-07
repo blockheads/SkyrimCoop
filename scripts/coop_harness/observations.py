@@ -17,7 +17,7 @@ from .common import (
     SYNCED_QUEST_FLAGS,
 )
 from .errors import TestFailure
-from .comparisons import (GraphApart, SLIDE_DISTANCE, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
+from .comparisons import (GRAPH_PAIRS_REFRESH, GraphApart, SLIDE_DISTANCE, choose_pairs, active_states, compare_actors, graph_apart_line, head_track_one_sided, dialogue_differences, drawn_walks, refused_replays,
                           sliding_actors, unwatched_games)
 from .utilities import log
 
@@ -58,11 +58,12 @@ class Observations:
         pairs, copies = {}, {}
         for world in worlds:
             for form, actor in world.items():
-                if actor.get("role") == "copy" and not actor.get("player") and ctx.graph_runs(actor):
-                    copies[(actor.get("mod") or {}).get("session_id")] = int(form)
+                session = (actor.get("mod") or {}).get("session_id", -1)
+                if actor.get("role") == "copy" and session >= 0 and not actor.get("player") and ctx.graph_runs(actor):  # -1: a held copy
+                    copies[session] = int(form)
         for world in worlds:
             for form, actor in world.items():
-                session = (actor.get("mod") or {}).get("session_id")
+                session = (actor.get("mod") or {}).get("session_id", -1)
                 if actor.get("role") == "own" and not actor.get("player") and session in copies and ctx.graph_runs(actor):
                     pairs[session] = (int(form), copies[session])
         return pairs
@@ -79,12 +80,13 @@ class Observations:
             return active_states((game.rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
 
         def watch():
-            pairs, refreshed = [], 0.0
+            pairs, refreshed, pinned = [], 0.0, set()
             with ThreadPoolExecutor(1) as other:
                 while not stop.is_set():
-                    if time.time() - refreshed > 3.0:
+                    if time.time() - refreshed > GRAPH_PAIRS_REFRESH:
                         found = list(ctx.copy_pairs(games).values())
-                        pairs, refreshed = ([pair for pair in found if pair[0] in wanted] if wanted else found[:limit]), time.time()
+                        pinned = choose_pairs(found, wanted, limit, pinned)
+                        pairs, refreshed = [pair for pair in found if pair[0] in pinned], time.time()
                         actors.update(owner for owner, _ in pairs)
                         apart.keep_only(owner for owner, _ in pairs)
                     for owner, copy_form in pairs:

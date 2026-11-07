@@ -63,7 +63,9 @@ struct Gate
 }
 
 // The targets the engine reads, by form id: the highest set slot (AIProcess::GetHeadtrackTarget 39484), and slot 0 beside
-// slot 2 in the scene line ProcessTracking alternates them in. A target that is the actor itself is no target.
+// slot 2 in the scene line ProcessTracking alternates them in. A target that is the actor itself is no target, and with slot 2
+// on itself the turn at slot 0 is not reported: each game decides alone whether it alternates. Not mirrored, both rare: a door
+// target is no target (38009), and a set slot whose reference is gone still stops the walk (39484).
 [[nodiscard]] inline std::vector<uint32_t> Targets(const std::array<uint32_t, 6>& acSlots, uint32_t aSelf, bool aAlternates = false)
 {
     std::vector<uint32_t> targets;
@@ -71,8 +73,9 @@ struct Gate
     {
         if (!acSlots[i])
             continue;
-        if (acSlots[i] != aSelf)
-            targets.push_back(acSlots[i]);
+        if (acSlots[i] == aSelf)
+            break;
+        targets.push_back(acSlots[i]);
         if (i == 2 && aAlternates && acSlots[0] && acSlots[0] != aSelf)
             targets.push_back(acSlots[0]);
         break;

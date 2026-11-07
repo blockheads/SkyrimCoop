@@ -36,6 +36,15 @@ TEST_CASE("A copy's do-nothing package is made as the engine makes its own", "[C
     CHECK(CopyPackage::CreateDoNothing([]() -> Package* { return nullptr; }, [](Package*) { FAIL("filled nothing"); }) == nullptr);
 }
 
+TEST_CASE("A released copy ends only its own do-nothing package", "[CopyPackage]")
+{
+    constexpr uint8_t cDoNothingType = 27, cSandbox = 18;
+    CHECK(CopyPackage::EndsOnRelease(cDoNothingType, 4));
+    // A placed do-nothing form is a package of the game's own; so is everything else.
+    CHECK_FALSE(CopyPackage::EndsOnRelease(cDoNothingType, 0));
+    CHECK_FALSE(CopyPackage::EndsOnRelease(cSandbox, 4));
+}
+
 TEST_CASE("This game's own actors take whatever the engine picks", "[CopyPackage]")
 {
     CHECK(CopyPackage::Put(false, 0, cCombatOverride) == cCombatOverride);

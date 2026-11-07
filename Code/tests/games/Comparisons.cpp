@@ -121,7 +121,7 @@ static uint64_t SharedName(World& aGame, uint32_t aFormId)
 static std::optional<std::vector<uint64_t>> LooksAt(World& aGame, const FakeEngine& acEngine, uint32_t aActor)
 {
     const auto& cActor = acEngine.Actors.at(aActor);
-    if (HeadTrackRead::ShutBy({.Dead = cActor.Dead, .Knock = uint8_t(cActor.KnockedDown ? 3 : 0)}))
+    if (HeadTrackRead::ShutBy({.Dead = cActor.Dead, .Knock = uint8_t(cActor.KnockedDown ? 3 : 0), .Player = aActor == FakeEngine::kPlayer, .ThirdPerson = true}))
         return std::nullopt;
     std::vector<uint64_t> names;
     for (const uint32_t cTarget : HeadTrackRead::Targets(cActor.Ai.HeadTrackIds, aActor))

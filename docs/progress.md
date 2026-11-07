@@ -63,7 +63,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
     `BlockAnticipate_*` read the slots from the graph. Corrected, the 18 and `kill-moves-cross` pass.
   - **A crash found on the way, ours:** a copy's own do-nothing package had procedure type -1, which the engine indexes a table with
     unchecked: `GetCurrentAIProcedure` on a player's copy crashed the game every time, a released copy on its next load. Fixed
-    (`CopyPackage::CreateDoNothing`, `copy-answers-its-ai-procedure`, GameTests `[copy-package]`).
+    (`CopyPackage::CreateDoNothing`, `copy-answers-its-ai-procedure`, GameTests `[copy-package]`). That left a released copy
+    standing frozen on the package; a release now ends it (`released-copy-takes-up-its-ai`).
   - **The lock checker's list** held 8 of 10 pass-through hooks, so the engine's own orders failed flows as ours. Now 32, with a
     critical log and a harness unit (lock-order.md). ClientTests and GameTests `[headtrack]`, harness units.
 

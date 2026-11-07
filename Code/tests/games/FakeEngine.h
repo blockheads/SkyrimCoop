@@ -488,6 +488,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
         FakePackage DoNothing;            // the do-nothing package a copy holds with no owner's to show
         int32_t ProcedureType = 0;        // the running package's: the engine indexes a table with it unchecked
+        uint8_t RunningPackageType = 0;   // TESPackage::packType of the package in its running slot
         uint32_t OwnerCombatTarget{};
         uint32_t OwnCombatTarget{};       // what its own combat controller fights (AttackedBy)
         uint32_t ExtraPackageFallback{};
@@ -842,9 +843,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
             it->second.Ai = acFields;
             it->second.OwnerCombatTarget = acFields.CombatTargetId;
             if (!acFields.PackageId)
+            {
                 it->second.ProcedureType = CopyPackage::CreateDoNothing([&] { return &(it->second.DoNothing = {}); },
                                                                         [](FakePackage* apPackage) { apPackage->Procedure = 23; })
                                                ->Procedure;
+                it->second.RunningPackageType = 27;
+            }
         }
     }
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)

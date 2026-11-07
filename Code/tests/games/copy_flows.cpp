@@ -197,6 +197,8 @@ SCENARIO("A copy holding the do-nothing package can be asked its procedure, as a
     CHECK(guest.ReadsProcedure(cCopy));
     guest.SetActorCopy(cCopy, false);
     CHECK(guest.ReadsProcedure(cCopy));
+    // Released, the NPC is this game's own: a do-nothing package nothing ends would leave it standing frozen.
+    CHECK(guest.Actors.at(cCopy).RunningPackageType != 27);
 }
 
 SCENARIO("A player's looks change on the existing copies", "[copies][copy-looks]")
