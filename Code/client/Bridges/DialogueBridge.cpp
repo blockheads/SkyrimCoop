@@ -502,8 +502,12 @@ void DialogueBridge::End() noexcept
 bool DialogueBridge::ClearOrphaned() noexcept
 {
     MenuTopicManager* pManager = MenuTopicManager::Get();
-    if (!pManager || !pManager->menuOpen || TESObjectREFR::GetByHandle(pManager->speaker))
+    if (!pManager || !pManager->menuOpen)
         return false;
+    // Gone, or marked deleted: the engine frees a placed actor's process and keeps its handle (37563, dialogue.md).
+    if (TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->speaker))
+        if (const Actor* cpActor = Cast<Actor>(pSpeaker); !cpActor || cpActor->currentProcess)
+            return false;
     pManager->Clear();
     return true;
 }
