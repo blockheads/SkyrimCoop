@@ -4,7 +4,10 @@
 threads taking the same two locks in opposite orders, the first time it sees it. A report is history, not a wait.
 `[ours]` means our DLL is below an engine frame on that stack; pass-through hooks are excluded with
 `LockOrder::IgnoreFrames` (main loop, VM update, `HookUpdateAI`, `HookCheckForNewPackage`, `HookApplyMovement`'s
-engine path, `HookSendEvent`, the alias name hooks around 24011 and 24012).
+engine path, `HookSendEvent`, the alias name hooks around 24011 and 24012). Its list once held 8 of the 10 hooks and dropped the
+rest silently, so the engine's own orders read as ours and failed `party-buys-house-host`: the alias walk 39213 > 37172 > 12721 >
+11737 (`[ours]`: its frames were pass-through) against `ClearRefAlias` > 12047 > 12719. Now 32, a critical log past that, and
+a harness unit counting the calls.
 
 The 2026-11-04 playtest's reports (12 on the host, read in IDA 1.7.104) are all the engine's own orders, none live:
 

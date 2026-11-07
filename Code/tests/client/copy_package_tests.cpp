@@ -21,6 +21,20 @@ TEST_CASE("A copy with no owner package yet takes the engine's (its do-nothing o
     CHECK(CopyPackage::Put(true, 0, cDoNothing) == cDoNothing);
 }
 
+TEST_CASE("A copy's do-nothing package is made as the engine makes its own", "[CopyPackage]")
+{
+    struct Package
+    {
+        uint32_t packFlags = 0;
+        int32_t Procedure = -1;
+    } package;
+    const auto* pMade = CopyPackage::CreateDoNothing([&] { return &package; }, [](Package* apPackage) { apPackage->Procedure = 23; });
+    CHECK(pMade->packFlags == 4);
+    CHECK(pMade->Procedure == 23);
+    // No package made: nothing to fill.
+    CHECK(CopyPackage::CreateDoNothing([]() -> Package* { return nullptr; }, [](Package*) { FAIL("filled nothing"); }) == nullptr);
+}
+
 TEST_CASE("This game's own actors take whatever the engine picks", "[CopyPackage]")
 {
     CHECK(CopyPackage::Put(false, 0, cCombatOverride) == cCombatOverride);

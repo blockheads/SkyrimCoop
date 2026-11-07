@@ -16,4 +16,16 @@ namespace CopyPackage
 {
     return aCopy && !aOwnerPackage ? 0 : aNativePackage;
 }
+// A do-nothing package for a copy, made as InitiateDoNothingPackage (37402) makes it: delete-when-done, and its procedure
+// type filled (29582). CreatePackage leaves -1, which the engine uses unchecked as a table index (39213, 21521).
+template <class TCreate, class TFill> [[nodiscard]] auto CreateDoNothing(TCreate&& aCreate, TFill&& aFill) noexcept
+{
+    auto* pPackage = aCreate();
+    if (pPackage)
+    {
+        pPackage->packFlags |= 4;
+        aFill(pPackage);
+    }
+    return pPackage;
+}
 } // namespace CopyPackage

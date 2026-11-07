@@ -77,6 +77,13 @@ Actor* GetActor(uint32_t aFormId) noexcept
     return Cast<Actor>(TESForm::GetById(aFormId));
 }
 
+// bDisableHeadTracking:HeadTracking, as ProcessTracking 38009 reads it: its value's first byte.
+bool HeadTrackingDisabled() noexcept
+{
+    POINTER_SKYRIMSE(Setting, s_disabled, 381267);
+    return static_cast<uint8_t>(s_disabled.Get()->data) != 0;
+}
+
 // The game settings ProcessTracking 38009 reads, each one's value in its first 32 bits.
 float HeadTrackRange(const Actor* apActor) noexcept
 {
@@ -180,6 +187,7 @@ AiReadout GetAiReadout(uint32_t aFormId) noexcept
     const float cDx = pActor->position.x - pPlayer->position.x, cDy = pActor->position.y - pPlayer->position.y, cDz = pActor->position.z - pPlayer->position.z;
     readout.HeadTrackShutBy = HeadTrackRead::ShutBy({.Life = ActorState::LifeStateOf(pActor->actorState.flags1),
                                                      .Dead = pActor->IsDead(),
+                                                     .Disabled = HeadTrackingDisabled(),
                                                      .Knock = pActor->actorState.GetKnockState(),
                                                      .SitSleep = pActor->actorState.GetSitSleepState(),
                                                      .ProcessLevel = pActor->currentProcess->processLevel,

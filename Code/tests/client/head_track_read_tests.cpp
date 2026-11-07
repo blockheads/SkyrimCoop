@@ -21,10 +21,11 @@ TEST_CASE("The engine reads an actor's headtrack slots only with its gate open",
     CHECK(Shut({.Dead = true}) == "life state");
     CHECK(Shut({.Life = 1}) == "life state");
     CHECK(Shut({.Life = 3}) == "life state");
-    // Bleeding out (8), reanimated (4), recycled (5): the gate passes, the target's bare position still goes in (38009).
-    CHECK(ShutBy({.Life = 8}) == nullptr);
-    CHECK(ShutBy({.Life = 4}) == nullptr);
-    CHECK(ShutBy({.Life = 5}) == nullptr);
+    // Bleeding out (8), reanimated (4), recycled (5): the gate passes, and 38009 then looks along the path, not at the slot.
+    CHECK(Shut({.Life = 8}) == "life state");
+    CHECK(Shut({.Life = 4}) == "life state");
+    CHECK(Shut({.Life = 5}) == "life state");
+    CHECK(Shut({.Disabled = true}) == "disabled");
     // Restrained and essential down still track.
     CHECK(ShutBy({.Life = 6}) == nullptr);
     CHECK(ShutBy({.Life = 7}) == nullptr);
@@ -46,7 +47,9 @@ TEST_CASE("The engine reads an actor's headtrack slots only with its gate open",
     // This game's player: the camera, never the range.
     CHECK(Shut({.LodDistance = -1.f, .Player = true}) == "first person");
     CHECK(ShutBy({.LodDistance = -1.f, .Player = true, .ThirdPerson = true}) == nullptr);
-    CHECK(Shut({.Knock = 3, .Player = true, .ThirdPerson = true}) == "knocked");
+    // Its update (40447) asks nothing else: knocked in third person, it still reads its slots.
+    CHECK(ShutBy({.Knock = 3, .Player = true, .ThirdPerson = true}) == nullptr);
+    CHECK(Shut({.Life = 8, .Player = true, .ThirdPerson = true}) == "life state");
 }
 
 TEST_CASE("Only the slot the engine reads counts: the highest set, and slot 0 beside slot 2", "[headtrack]")

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <utility>
@@ -7,6 +8,8 @@
 namespace LockOrderAttribution
 {
 using Range = std::pair<uintptr_t, uintptr_t>;
+// LockOrder::IgnoreFrames' slots; test_coop_harness checks the calls fit.
+inline constexpr size_t kMaxPassThrough = 32;
 
 inline bool IntroducedByUs(std::span<const uintptr_t> aFrames, Range aModule, std::span<const Range> aPassThrough) noexcept
 {

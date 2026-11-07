@@ -38,7 +38,7 @@ other section needs the duo.
 **Copy-desync follow-ups**
 
 - [A copy's interaction idle](#a-copys-interaction-idle): small
-- [Buying a house: a lock order, a menu and a crash](#buying-a-house-a-lock-order-a-menu-and-a-crash): medium
+- [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
 - [Players' idle variants](#players-idle-variants): small
@@ -107,22 +107,21 @@ other section needs the duo.
 
 ## Copy-desync follow-ups
 
-### Buying a house: a lock order, a menu and a crash
+### A seated owner's copy keeps an old action
 
-`party-buys-house-host` passed 4 of 8 on 2026-11-06, with three failures of its own. None involves the graph watch: the lock
-order failed with the watch off (`--no-graph-watch`: 1 of 3 passed; on: 3 of 3 passed in the same boot).
+`party-buys-house-host`, 2026-11-06, seen twice in other shapes; the flow's crash and lock order are fixed (actor-ai-and-copies.md,
+lock-order.md).
 
-Agent task: read each path in IDA, then say which are ours. The crash first.
+Agent task: read how a copy reused from an earlier visit gets its animation state when its owner already sits, then say what the
+menu timeout is.
 
-Size: medium. Needs: IDA, the duo (`party-buys-house-host`), then GameTests.
+Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then GameTests.
 
-- **The guest crashes changing cell** (1 of 8, 2026-11-06 14:31): access violation in 39213 at `+0x6ED26E`, indexing the table
-  `off_1420B7DC0` by the temporary package `FF000B35`'s `[+0xD8]`; the entry read, `0x3600000035`, is no pointer. Stack: `PlayerCharacter::ProcessQueuedTravel`
-  → `TES::SetCurrentCell` → `Actor::MoveToHigh` → our `HookCheckForNewPackage` → 39114 → 39213, on Dagny `1A67A`, Breezehome
-  to Dragonsreach. Whether that form was freed or never was a package: unread.
-- **Lock order with our code on the stack** (2 of 8, host): `+0x187a10 > +0x165490` against `+0x172a5b > +0x187881`, read
-  against write on two locks. The same addresses are reported as engine-only in other flows of the batch. Unread.
-- **The menu does not open** (1 of 8): `[host] the menu opens on 0001A67D`, 10 s, after a run that passed. Unread.
+- **A held copy shows an action from an earlier visit** (1 of 7): Proventus `1A67D` placed in his chair on the host,
+  `IdleChairEnterInstant`, which it never sent (`animation_sent` empty); his copy's last action was `IdleTalkAndUseItem`, 17 minutes
+  old. Both report sitting, the copy with no furniture; live graphs apart 6.3 s. Whether a player sees it: unread.
+- **The menu does not open** (1 of 15): `[host] the menu opens on 0001A67D`, 10 s after `Activate`, with no menu and Proventus not
+  talking. Not seen again in 10 runs. Unread.
 
 ### A copy's interaction idle
 
@@ -181,7 +180,7 @@ Size: medium. Needs: IDA, then the duo (`kill-moves-cross`), then GameTests.
 Each case by what was measured with the check fixed, 2026-11-06 (30 flows, run twice; `ai.head_track_slots` shows the
 raw slots, `ai.head_track_shut` what shuts the gate):
 
-- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 4** (2 of 2 passed on the corrected check). The guest as owner
+- **A player's copy looks at the other player, its owner at nothing: `kill-moves-cross`, 1 of 6** (4 of 4 passed on the corrected check). The guest as owner
   `[]`, in third person for the kill move, its copy on the host `['session 1']`, the host's own player (raw: slot 0).
   It lasted the check's whole window, though the hook pushes the owner's slots each frame and the ambient pick
   (`PickAmbientHeadtrackTarget` 38012) writes slot 0 only every 1.0-1.5 s, so the pick alone does not explain it: unread.
@@ -194,8 +193,7 @@ raw slots, `ai.head_track_shut` what shuts the gate):
     fails first on its [chest lid](#a-chest-lids-pose) both runs; no lasting raw difference on him.
   - Elk (`follower-guest-recruits`): the owner's slots 1 and 5 on the guest, the copy's none. The flow now fails first on
     `vanilla recruitment fills the shared follower alias`, with its watch off too; no lasting raw difference on it.
-  - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. The flow passes
-    or fails by run on other things: [Buying a house](#buying-a-house-a-lock-order-a-menu-and-a-crash). No difference on him.
+  - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. Not seen in 15 runs.
   - Chicken (`spec:guest-joins-elsewhere`): the copy's slot 0 on a player. Passed once, failed once on a facing.
 - **A temporary form in a slot** (`FF000820`, `late-join-gets-calendar`): no id the other game shares, as with
   `combat_target`. Passes now because that slot was on a first-person player's owner, which nothing reads; an NPC's would
@@ -398,6 +396,7 @@ Size: medium. Needs: IDA, duo, then a GameTests revive flow (the fake must keep 
   - Start: what Revive (`PlayerCharacter::Revive`) leaves of the knock state and ragdoll when the respawn moves a dead
     body; the open revive item in [death.md](design/death.md) (a revived player knocked down stays getting up).
   - Test: `death-spectate-guest --until-fail`, then a GameTests revive flow once the fake keeps knock state.
+  Seen again 2026-11-06: `party-travel-dead-guest`, 1 of 7, the guest's own body and its copy 36 units under the floor.
 - **A revived guest's own body kneels in its next conversation** (2026-10-29, cause narrowed 2026-10-30). Once
   thought to follow a follower trade: it follows a death. `follower-anchor-dies` then `follower-anchor-saved`
   reproduces it: right after the revive the guest stands; at the next scenario's first conversation its own body

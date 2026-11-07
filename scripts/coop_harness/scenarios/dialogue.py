@@ -113,6 +113,17 @@ def scenario_dialogue_peer_starts(ctx):
         ctx.close_dialogues()
         ctx.remove_host_npc(npc)
 
+def scenario_copy_answers_its_ai_procedure(ctx):
+    # hand-written: the engine path is read (GetCurrentAIProcedure 21521) and it needs no play: a console line on each copy.
+    """A condition asks a player's copy GetCurrentAIProcedure, as a script or a dialogue line can. The copy holds a do-nothing
+    package of ours: with no procedure type the engine indexes its table at -1 and the game crashes (actor-ai-and-copies.md)."""
+    for game in ("client", ""):
+        copy = ctx.other_player(ctx.actors_on(game))
+        printed = ctx.console_on(game, f"{copy:08X}.GetCurrentAIProcedure")
+        if not any("Procedure >>" in line for line in printed):
+            raise ctx.failure(f"[{game or 'host'}] copy {copy:08X} gave no procedure: {printed}")
+
+
 def scenario_dialogue_copy_looks_at_speaker(ctx):
     """The client talks to its copy of the host's NPC: the NPC turns its head to the client's character (a
     headtrack slot, HighProcessData::headTrackTarget), and the client's copy looks at the same one, the client's

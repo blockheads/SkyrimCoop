@@ -174,7 +174,7 @@ uintptr_t s_engineEnd = 0;
 uintptr_t s_ourBase = 0;
 uintptr_t s_ourEnd = 0;
 // Our pass-through hooks' code (IgnoreFrames), set at startup.
-std::pair<uintptr_t, uintptr_t> s_ignored[8]{};
+std::pair<uintptr_t, uintptr_t> s_ignored[LockOrderAttribution::kMaxPassThrough]{};
 std::atomic<uint32_t> s_ignoredCount{0};
 
 std::atomic<LockOrder::TDescribeLock> s_describe{nullptr};
@@ -654,7 +654,10 @@ void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept
         cStart += 5 + *reinterpret_cast<const int32_t*>(cStart + 1);
     const uint32_t cIndex = s_ignoredCount.load(std::memory_order_relaxed);
     if (cIndex >= std::size(s_ignored))
+    {
+        spdlog::critical("LockOrder: more than {} pass-through hooks: the engine's own orders would read as ours", std::size(s_ignored));
         return;
+    }
     s_ignored[cIndex] = {cStart, cStart + aBytes};
     s_ignoredCount.store(cIndex + 1, std::memory_order_release);
 }

@@ -7,12 +7,13 @@
 // What the engine reads of an actor's headtrack slots: docs/re/systems/actor-ai-and-copies.md, "When the slots are read".
 namespace HeadTrackRead
 {
-// Actor::UpdateAnimation (37361) and Character::ProcessTrackingIfAllowed (37363) ask the first ones before ProcessTracking
-// (38009), which asks the rest. Not mirrored: its per-frame budget and Actor::sub_37851's answer.
+// An NPC comes through Actor::UpdateAnimation (37361) and Character::ProcessTrackingIfAllowed (37363), the player through its
+// own update (40447). ProcessTracking (38009) then asks the rest. Not mirrored: its per-frame budget.
 struct Gate
 {
     uint8_t Life = 0; // ActorState::LifeStateOf
     bool Dead = false;
+    bool Disabled = false; // bDisableHeadTracking:HeadTracking
     uint8_t Knock = 0;
     uint8_t SitSleep = 0;
     int8_t ProcessLevel = 0; // 0 high
@@ -23,29 +24,35 @@ struct Gate
     bool TrackingOn = true;
     bool RaceTracks = true; // TESRace kUseHeadTrackAnims: without it no target reaches the graph
     bool Has3D = true;
-    // This game's player has no range: its own update (40447) tracks only in the camera states from 9, third person.
+    // This game's player: only the camera asks, from state 9, third person.
     bool Player = false;
     bool ThirdPerson = false;
 };
 
-// Why the engine reads no slot now, nullptr if it does. Life 1 and 3 only: at 4, 5 and 8 the target's bare position still goes in.
+// Why no slot's target turns a head now, nullptr if one does. Outside life 0, 6, 7 the slot is ignored for the actor's path
+// (Actor::GetPathLookPosition 37851), as with no target.
 [[nodiscard]] constexpr const char* ShutBy(const Gate& acGate) noexcept
 {
-    if (acGate.Dead || acGate.Life == 1 || acGate.Life == 3)
+    if (acGate.Dead || !(acGate.Life == 0 || acGate.Life == 6 || acGate.Life == 7))
         return "life state";
-    if (acGate.Knock)
-        return "knocked";
-    if (acGate.SitSleep == 7)
-        return "asleep";
-    if (acGate.ProcessLevel != 0)
-        return "not high process";
+    if (acGate.Disabled)
+        return "disabled";
     if (acGate.Player)
     {
         if (!acGate.ThirdPerson)
             return "first person";
     }
-    else if (!acGate.HasController || acGate.LodDistance < 0.f || acGate.LodDistance > acGate.Range || acGate.FarFromPlayer)
-        return "out of range";
+    else
+    {
+        if (acGate.Knock)
+            return "knocked";
+        if (acGate.SitSleep == 7)
+            return "asleep";
+        if (acGate.ProcessLevel != 0)
+            return "not high process";
+        if (!acGate.HasController || acGate.LodDistance < 0.f || acGate.LodDistance > acGate.Range || acGate.FarFromPlayer)
+            return "out of range";
+    }
     if (!acGate.TrackingOn)
         return "tracking off";
     if (!acGate.RaceTracks)

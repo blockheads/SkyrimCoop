@@ -173,11 +173,11 @@ void Actor::InitiateDoNothingPackage() noexcept
             // PutCreatedPackage refuses a mount still in its paired transition; copies hold, never run, this package.
             using TCreatePackage = TESPackage*(uint8_t);
             POINTER_SKYRIMSE(TCreatePackage, s_createPackage, 29496);
-            if (TESPackage* pPackage = s_createPackage(TESPackage::kDoNothing))
-            {
-                pPackage->packFlags |= 4; // native InitiateDoNothingPackage's delete-when-done flag
+            using TFillProcedureType = void(TESPackage*, TESObjectREFR*);
+            POINTER_SKYRIMSE(TFillProcedureType, s_fillProcedureType, 29582);
+            if (TESPackage* pPackage = CopyPackage::CreateDoNothing([&] { return s_createPackage(TESPackage::kDoNothing); },
+                                                                    [&](TESPackage* apPackage) { s_fillProcedureType(apPackage, nullptr); }))
                 PutOwnerPackage(pPackage);
-            }
         }
         else
             s_initiateDoNothingPackage(this);

@@ -58,8 +58,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
     0 beside 2, none for a self-target; IDA, actor-ai-and-copies.md). 18 of 30 flows held a lasting raw slot difference at a
     check and passed both runs, the three kill moves among them; `kill-moves-cross` shows a real case, 1 of 2 (bugs.md,
     Headtracking on copies). A review then found the first mirror of the engine wrong (life states 4, 5 and 8 read, the settings
-    behind its range, the scene behind alternation, three conditions missing) and a scenario passing on `"unread"`; corrected, the 18 and `kill-moves-cross` passed
-    twice more. ClientTests and GameTests `[headtrack]`, harness units.
+    behind its range, the scene behind alternation, three conditions missing) and a scenario passing on `"unread"`. Reading on found
+    more: life 4, 5, 8 ignore the slots after all (`Actor::GetPathLookPosition` 37851), the player has its own gate, and only
+    `BlockAnticipate_*` read the slots from the graph. Corrected, the 18 and `kill-moves-cross` pass.
+  - **A crash found on the way, ours:** a copy's own do-nothing package had procedure type -1, which the engine indexes a table with
+    unchecked: `GetCurrentAIProcedure` on a player's copy crashed the game every time, a released copy on its next load. Fixed
+    (`CopyPackage::CreateDoNothing`, `copy-answers-its-ai-procedure`, GameTests `[copy-package]`).
+  - **The lock checker's list** held 8 of 10 pass-through hooks, so the engine's own orders failed flows as ours. Now 32, with a
+    critical log and a harness unit (lock-order.md). ClientTests and GameTests `[headtrack]`, harness units.
 
 2026-11-06: the bugs mapped ([bugs-map.md](bugs-map.md)): shared causes, wrong checks and an order. Most of the drift
 detector's "lasting" reports are its frozen snapshot, not drift (new verbs `graph_watch`, `hands_compared`). New entry: a

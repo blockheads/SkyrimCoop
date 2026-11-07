@@ -5,6 +5,7 @@ import copy
 import io
 import json
 import os
+import re
 import subprocess
 import time
 import sys
@@ -1817,6 +1818,17 @@ class ActiveStatesTests(unittest.TestCase):
         self.assertFalse(watch["thread"].is_alive())
         self.assertEqual(watch["apart"].open, {})
         self.assertIn("no run", ctx.graph_watch_stop(watch))
+
+
+class LockOrderPassThroughTests(unittest.TestCase):
+    def test_every_pass_through_hook_fits_the_list(self):
+        # A hook past the list reads as ours: the engine's own lock orders then fail flows.
+        root = Path(__file__).resolve().parent.parent
+        header = (root / "Code/client/Games/Skyrim/BSCore/LockOrderAttribution.h").read_text()
+        limit = int(re.search(r"kMaxPassThrough = (\d+)", header).group(1))
+        calls = sum(path.read_text(errors="ignore").count("LockOrder::IgnoreFrames(") for path in (root / "Code/client").rglob("*.cpp"))
+        self.assertGreater(calls, 0)
+        self.assertLessEqual(calls, limit)
 
 
 class HeadTrackComparisonTests(unittest.TestCase):
