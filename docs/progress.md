@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
+queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
+has no translation), and the duo boot then failed to host. `prepare_prefix` sets the pref; a fresh prefix boots,
+hosts and joins with no box ([message-boxes.md](re/systems/message-boxes.md); harness test
+`test_fresh_prefix_has_seen_the_anniversary_prompt`). Left open: why the game's main loop stops about 2 s after that
+box opens outside a session (Loose ends, Tests and harness).
+
 2026-11-07: the created chest checked in Skyrim: `created-chest-reaches-guest-empty` passes on 1.7.104 (3 of 3, and
 played through the MCP: both games hold the garnet and 50 gold before and after the guest opens it), so the
 2026-11-04 fix holds and nothing more was changed. Read in IDA why the guest's open adds nothing: the engine rolls a
@@ -1832,6 +1839,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Open 2026-11-07: the main loop stops under the Anniversary Edition box.** With the box (52156) open outside a
+  session, the plugin's main-loop heartbeat stopped about 2 s later in every such boot (no crash log). The harness now
+  keeps the box from queuing (`bFreebiesSeen`), so nothing hits it; not read in IDA
+  ([message-boxes.md](re/systems/message-boxes.md), "The test games").
 - **Fixed 2026-11-02 (below): a duo booted from a late save never connects.** The guest loaded the save itself, a world
   of its own, which it hosts (`SteamService::HostWorld`); `duo --save` now boots it to the main menu and it joins
   with the host's world, making a character in the creator a late save's first join opens. Was:
