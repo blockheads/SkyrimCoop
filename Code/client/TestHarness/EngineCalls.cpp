@@ -307,6 +307,18 @@ PathEnd ResolvePathEnd(BSPathingLocation& aLocation) noexcept
         end.navMesh = aLocation.navMeshInfo->navMeshId;
         end.triangle = aLocation.triangle;
         end.point = {aLocation.location.x, aLocation.location.y, aLocation.location.z};
+        if (const BSNavmesh* pNavmesh = aLocation.navMeshInfo->navMesh; pNavmesh && end.triangle < pNavmesh->triangles.size)
+        {
+            end.triangleFlags = pNavmesh->triangles.data[end.triangle].flags;
+            for (uint32_t i = 0; i < pNavmesh->closedDoors.size; ++i)
+            {
+                const BSNavmeshClosedDoor& cDoor = pNavmesh->closedDoors.data[i];
+                if (cDoor.triangleIndex != end.triangle)
+                    continue;
+                const TESObjectREFR* pRef = cDoor.door && cDoor.door->refHandle ? TESObjectREFR::GetByHandle(cDoor.door->refHandle) : nullptr;
+                end.closedDoor = pRef ? pRef->formID : 0xFFFFFFFF;
+            }
+        }
     }
     return end;
 }

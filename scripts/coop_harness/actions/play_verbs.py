@@ -84,7 +84,9 @@ def probe_line(probe):
         if not part["resolved"]:
             return f"{name} on no navmesh"
         off = math.dist(part["at"], part["point"])
-        return f"{name} navmesh {part['navmesh']} tri {part['triangle']} ({off:.0f} off)"
+        door = part.get("closed_door") or "0"
+        return (f"{name} navmesh {part['navmesh']} tri {part['triangle']} ({off:.0f} off)"
+                + (f" under closed door {door}" if door != "0" else ""))
     found = "found" if probe["built"] else "none"
     line = f"engine search {found} ({probe['nodes']} nodes), {end('start')}, {end('goal')}"
     if probe.get("same_navmesh"):

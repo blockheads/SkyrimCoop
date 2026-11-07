@@ -82,7 +82,8 @@ nlohmann::json PathProbe(Harness&, const nlohmann::json& acRequest)
     auto end = [](const EngineCalls::PathEnd& acEnd)
     {
         return nlohmann::json{{"resolved", acEnd.resolved}, {"navmesh", std::format("{:X}", acEnd.navMesh)}, {"triangle", acEnd.triangle},
-                              {"at", acEnd.at}, {"point", acEnd.point}};
+                              {"at", acEnd.at}, {"point", acEnd.point}, {"triangle_flags", acEnd.triangleFlags},
+                              {"closed_door", std::format("{:X}", acEnd.closedDoor)}};
     };
     nlohmann::json obstacleRefs = nlohmann::json::array();
     for (const auto& cObstacle : cProbe.obstacleRefs)

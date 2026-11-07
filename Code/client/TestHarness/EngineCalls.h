@@ -309,6 +309,8 @@ struct PathEnd
     uint16_t triangle = 0xFFFF;
     std::array<float, 3> at{};
     std::array<float, 3> point{};
+    uint16_t triangleFlags = 0;   // 0x1000: under a closed door (BSNavmesh::AddClosedDoor 91167)
+    uint32_t closedDoor = 0;      // that door's reference, when the triangle is in the navmesh's closed doors
 };
 struct PathProbe
 {

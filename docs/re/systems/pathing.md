@@ -119,15 +119,23 @@ cuts a player can pass.
 location first, CommonLib layout; the dtor 90962 steps 0x48), then on to the target. Riverwood to the Trader's door:
 7,541 units against 2,900 straight (round the river), so `walk_to` takes its time limit from it.
 
-## The spot inside the door (2026-11-06, measured)
+## The tunnel spot (2026-11-06/07, measured and read)
 
-Just inside Embershard's door (2474, 1968, triangle 89 of B6FC4, by the closed door B6CCD's portal) the search fails
-toward every bandit (incomplete, 2 virtual nodes), 10 of 10 probes in one load; 66 units in (2540, 1960) it builds
-(16 nodes, 5,401 units to B6FE4) 3 of 3. Some loads build from the spot itself and `PathToReference` is still refused
-there. The earlier "in 7 runs of 10 the triangles don't join" and "B6FDB behind the cut" were this spot; the four
-bandits behind CollisionMarker 105C99 show "no triangles join" from anywhere. Not read: why the search fails from
-that triangle (the request's radius is not it: the large-actor filter takes radius > fPathingLargeActorRadius 80,
-BSPathBuilder 91724; the player's is ~18).
+600 units down Embershard's entrance tunnel (2474, 1968, triangle 89 of B6FC4; the door B6CCD is at 2497, 1353) the
+search failed toward every bandit (incomplete, 2 virtual nodes) 10 of 10 probes in one load, after the flow's first
+walk stopped there; 66 units on (2540, 1960) it built (16 nodes, 5,401 units to B6FE4) 3 of 3. On 2026-11-07 it
+built from that spot in every load tried: a cold boot of the `enter` checkpoint, six reloads, and with a weapon drawn.
+Not reproduced, so not explained. Ruled out:
+
+- the request's radius: the large-actor filter takes radius > fPathingLargeActorRadius 80 (BSPathBuilder 91724); the
+  player's is ~18;
+- a closed door's triangles: `BSNavmesh::AddClosedDoor` (91167) flags the triangles under a closed door 0x1000 and
+  `BSNavmeshSearchFilters::CanEnterTriangle` (91600) refuses them unless the filter allows doors and the door's policy
+  passes it (`BSNavmesh::sub_90390`), but the spot is 600 units from the door and its triangle has no 0x1000 (the
+  probe now reports each end's `triangle_flags` and `closed_door`).
+
+Left: the hand-cart wheels B6D19 and B6C20 are movable statics whose cuts could land differently per load (B6D19 was
+475 units from the spot); what the flow does before its first walk (combat with the bandits starting).
 
 So `path_probe` returns the search's path (`path`) and the triangles' way (`way`), and a refused walk runs the first
 200 units of one of them by input before pathing again (`path_start`), as a player steps off a door. `clear` counts a
