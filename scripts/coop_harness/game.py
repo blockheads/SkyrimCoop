@@ -33,11 +33,11 @@ def check_duo_held(request):
     if WINDOWS or FRONTS or os.environ.get(FREE_ENV) or (command in READ_COMMANDS and WRITES_WITH.get(command) not in request):
         return
     from .actions.repro import duo_home
-    from .duo_lock import CAP_MINUTES, holds_duo
-    if not holds_duo(duo_home()):
+    from . import duo_lock  # a module, not names: mcp_reload keeps a running server's, which may predate the cap
+    if not duo_lock.holds_duo(duo_home()):
         raise TestFailure(f"{request.get('cmd')}: this process holds no duo. Drive the games through the skyrim-coop MCP "
                           f"(extend it if it lacks something), coop_test.py, or `scripts/duo.py run -- <command>`; "
-                          f"{FREE_ENV}=1 bypasses on purpose. A hold ends at duo_stop, or after {CAP_MINUTES:.0f} min held while others wait "
+                          f"{FREE_ENV}=1 bypasses on purpose. A hold ends at duo_stop, or after {getattr(duo_lock, 'CAP_MINUTES', 15):.0f} min held while others wait "
                           "(duo_start queues again)")
 
 
