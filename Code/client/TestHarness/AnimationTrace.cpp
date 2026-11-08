@@ -170,8 +170,11 @@ std::vector<std::string> ActiveClips(Actor& aActor, nlohmann::json& aDetail, nlo
 } // namespace
 
 void AnimationTrace::Watch(const std::vector<uint32_t>& acActors, const std::vector<std::string>& acGraphBools,
-                           const std::vector<std::string>& acGraphFloats)
+                           const std::vector<std::string>& acGraphFloats, const std::vector<std::string>& acGraphInts)
 {
+    for (const auto& cName : acGraphInts)
+        if (std::find(m_graphInts.begin(), m_graphInts.end(), cName) == m_graphInts.end())
+            m_graphInts.push_back(cName);
     for (const auto& cName : acGraphFloats)
         if (std::find(m_graphFloats.begin(), m_graphFloats.end(), cName) == m_graphFloats.end())
             m_graphFloats.push_back(cName);
@@ -203,6 +206,7 @@ nlohmann::json AnimationTrace::Stop()
     m_actors.clear();
     m_graphBools.clear();
     m_graphFloats.clear();
+    m_graphInts.clear();
     m_game = nullptr;
     return Take();
 }
@@ -302,6 +306,8 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
                             {"health", std::round(actors.GetActorValue(aFormId, 24) * 10.f) / 10.f}};
     for (const auto& cName : m_graphBools)
         state[cName] = EngineCalls::GetGraphBool(aFormId, cName.c_str());
+    for (const auto& cName : m_graphInts)
+        state[cName] = EngineCalls::GetGraphInt(aFormId, cName.c_str());
     if (state != aWatched.State)
     {
         Record({{"kind", "state"}, {"actor", aFormId}, {"state", state}});

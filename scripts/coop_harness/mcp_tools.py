@@ -612,16 +612,17 @@ def _trace():
 
 @tool
 def trace_start(names: list[str], bools: list[str] | None = None, floats: list[str] | None = None,
-                video: bool = False) -> dict:
+                ints: list[str] | None = None, video: bool = False) -> dict:
     """Starts the animation trace of handles in both games (objects.AnimTrace: graph events, events sent into the graph
-    with their engine callers (input), actions, states such as kill_move and life, positions); trace_read shows it.
+    with their engine callers (input), actions, states such as kill_move and life, positions; `ints`: graph integers
+    recorded with the state as they change); trace_read shows it.
     One at a time: a new one stops the last."""
     if shared.get("trace"):
         trace_stop()
     session.refresh_handles()
     actors = {instance: {session.resolve(name, label): name for name in names} for label, instance in (("host", ""), ("guest", "client"))}
     trace = AnimTrace(session, "mcp-" + "-".join(names)[:40], actors, bools=["bIsSynced", *(bools or [])], video=video,
-                      floats=floats or ())
+                      floats=floats or (), ints=ints or ())
     shared["trace"] = trace.__enter__()
     return {"ok": True, "dir": str(trace.dir)}
 

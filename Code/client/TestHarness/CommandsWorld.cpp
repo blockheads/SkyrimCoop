@@ -195,7 +195,7 @@ nlohmann::json IdleConditions(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"idles", idles}, {"conditions", conditions}};
 }
 
-// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
+// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...], "ints": [...]}: starts recording these actors'
 // animations (AnimationTrace), or adds them; {"cmd": "anim_trace"} alone takes what was recorded so far, and
 // {"cmd": "anim_trace", "stop": true} stops and takes the rest.
 // {"cmd": "body_trace", "refs": [id, ...]}: starts recording these references' physics each frame (BodyTrace), or
@@ -233,7 +233,7 @@ nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
         return {{"ok", true}, {"entries", aHarness.Trace.Stop()}};
     if (acRequest.contains("actors"))
         aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}),
-                             acRequest.value("floats", std::vector<std::string>{}));
+                             acRequest.value("floats", std::vector<std::string>{}), acRequest.value("ints", std::vector<std::string>{}));
     return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 

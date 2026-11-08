@@ -249,6 +249,15 @@ ForceAction (38953, a copy's replays): the same 39004 call, started or not
 - **Measured (duo, 2026-11-08, scenario `wolf_copy_turns_with_owner`):** the host sent about 300 refused actions'
   variables in 3 minutes, and the copies loaded them. The scenario failed on another shape: wolf `9B0DD`'s copy stayed in
   `CannedTurnState` 8.4 s, with no refused action on its owner near it (`docs/bugs.md`).
+- **Measured (duo, 2026-11-08, a traced run with the integers, `trace_start(ints=...)`):** in 9 canned turns, the
+  owner's refused `turnStop` set `iSyncTurnState` 1 within 50 ms before its clip's end, and the copy loaded it about
+  0.2 s later, at the line's delay. In 2 of them the copy's clip ended before that, holding 2. The owner's clip started
+  late: action to first footfall took 0.35 s and 0.31 s on the owner, 0.18 s and 0.20 s on the copy (0.14 to 0.25 s
+  on the owner in the other 7). After the first footfall both clips run in step, and no frame was longer than 50 ms.
+  So the copy's clip end can run up to about 0.18 s ahead of its owner's in the owner's timeline, and a write made
+  just before the owner's end arrives too late. The stuck `CannedTurnState` is likely the same race on `MoveStop`'s
+  `iSyncIdleLocomotion` 0 (in the traced turn, the copy got it 50 ms before its own end). Not read: why the owner's
+  canned clip sometimes starts later after its action.
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the

@@ -198,8 +198,10 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
   on the owner only, and is now sent. Not shown: rerun the scenario and look for this shape.
 - **A wolf's copy kept in `CannedTurnState` with no refused action** (`9B0DD`, 8.4 s, `wolf_copy_turns_with_owner`,
   2026-11-08, with refused actions' writes sent): its owner went on to `StandingIdleState`. The owner refused no action
-  from 28 s before the run to 6 s into it, so this canned turn's end read something else. Not read: trace the copy's
-  canned turn (its exit's `iSyncIdleLocomotion`, its clip's end).
+  from 28 s before the run to 6 s into it. A traced run (no stick in 180 s) showed the race behind it: the owner's
+  canned clip sometimes starts 0.1-0.2 s later after its action than its copy's, so the copy's clip ends before the
+  owner's refused `turnStop`/`moveStop` writes reach it (animation-replay-recovery.md, "A refused action still writes
+  its graph variables"). Not read: why the owner's clip starts late.
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
   on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 
