@@ -149,3 +149,7 @@ time	op	id	rva	item
 2026-11-08T22:30:35Z	comment	59728	0xb0a3e0	{"addr": "0x140b0a3e0", "comment": "59728 slot 13 createInternalState: an hkbEventsFromRangeModifierInternalState (wasActiveInPreviousFrame, hkArray<bool> at +0x10)"}
 2026-11-08T22:30:35Z	comment	59729	0xb0a430	{"addr": "0x140b0a430", "comment": "59729 slot 14 getInternalState: the node's wasActiveInPreviousFrame (+0x60) into the state"}
 2026-11-08T22:30:35Z	comment	59730	0xb0a4e0	{"addr": "0x140b0a4e0", "comment": "59730 slot 16 setInternalState: the state's array back into the node (+0x60): which range each was in last frame, what its next range events depend on"}
+2026-11-08T22:44:14Z	read	59724	0xb0a030	{"name": "hkbEventsFromRangeModifier::Func4_59724"}
+2026-11-08T22:44:14Z	read	59725	0xb0a110	{"name": "hkbEventsFromRangeModifier::Func5_59725"}
+2026-11-08T22:44:41Z	comment	59724	0xb0a030	{"addr": "0x140b0a030", "comment": "59724 slot 4 activate: wasActiveInPreviousFrame sized to the ranges and cleared: a range modifier starts each activation with no memory"}
+2026-11-08T22:44:41Z	comment	59725	0xb0a110	{"addr": "0x140b0a110", "comment": "59725 slot 5 modify: per range, inputValue (+0x50, bound: TurnDelta) inside it -> its event (mode 1 every update, mode 0 on entering), first range only; wasActiveInPreviousFrame (+0x60) set. Deterministic given inputValue as it runs"}

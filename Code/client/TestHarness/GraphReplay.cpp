@@ -87,13 +87,76 @@ thread_local bool s_loading = false; // LoadState's own zero-step update (63602)
 
 // Where the shadow starts: the owner's sync point (graph state, seed, every-N counters) right after one of its updates;
 // the replay goes on from the next op. Two fresh graphs differ already: activation draws each actor's own seed.
+// A modifier's memory (slot 0E), by behaviour and node id: what Skyrim's graph save leaves out.
+struct NodeMemory
+{
+    std::string Key;
+    std::string Class;
+    hkReferencedObject* State = nullptr;
+};
+
 struct StartPoint
 {
     uint32_t Seed = 0;
     std::string State;
     std::vector<GraphRandom::Counter> Counters;
     size_t FirstOp = 0;
+    std::vector<NodeMemory> Memory; // one game only: the objects themselves
 };
+uint32_t s_memoryApplied = 0, s_memoryUnmatched = 0;
+std::map<std::string, uint32_t> s_memoryClasses;
+
+// Each active modifier, in the graph and the sub-behaviours in it. Only modifiers: a state machine's or a transition
+// effect's state points at nodes of its own graph, and the loaded sync point already holds machines and clips.
+template <class T> void EachActiveModifier(const hkbBehaviorGraphNode* apGraph, T&& aWork, int aDepth = 0)
+{
+    if (!apGraph || !apGraph->activeNodes || aDepth > 8)
+        return;
+    const auto& cNodes = *apGraph->activeNodes;
+    for (int32_t i = 0; i < cNodes.size; ++i)
+    {
+        hkbNode* pNode = cNodes.data[i].nodeClone;
+        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
+        if (!pClass || !pClass->name)
+            continue;
+        const std::string_view cClass = pClass->name;
+        if (cClass == "hkbBehaviorReferenceGenerator")
+            EachActiveModifier(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aWork, aDepth + 1);
+        else if (cClass.ends_with("Modifier"))
+            aWork(*pNode, std::format("{}/{}", apGraph->name ? apGraph->name : "", pNode->id), std::string(cClass));
+    }
+}
+
+std::vector<NodeMemory> TakeMemory(const BShkbAnimationGraph& acGraph)
+{
+    std::vector<NodeMemory> memory;
+    EachActiveModifier(reinterpret_cast<const hkbBehaviorGraphNode*>(acGraph.behaviorGraph), [&](hkbNode& aNode, std::string aKey, std::string aClass) {
+        if (hkReferencedObject* pState = aNode.CreateInternalState())
+        {
+            aNode.GetInternalState(*pState);
+            memory.push_back({std::move(aKey), std::move(aClass), pState});
+        }
+    });
+    return memory;
+}
+
+void GiveMemory(BShkbAnimationGraph& aGraph, const std::vector<NodeMemory>& acMemory)
+{
+    std::map<std::string, const NodeMemory*> byKey;
+    for (const auto& cMemory : acMemory)
+        byKey[cMemory.Key] = &cMemory;
+    EachActiveModifier(reinterpret_cast<const hkbBehaviorGraphNode*>(aGraph.behaviorGraph), [&](hkbNode& aNode, std::string aKey, std::string aClass) {
+        const auto it = byKey.find(aKey);
+        if (it == byKey.end() || it->second->Class != aClass)
+        {
+            ++s_memoryUnmatched;
+            return;
+        }
+        aNode.SetInternalState(*it->second->State);
+        ++s_memoryApplied;
+        ++s_memoryClasses[aClass];
+    });
+}
 bool s_wantPoint = false;
 std::optional<StartPoint> s_point;
 bool s_shadowStarted = false;
@@ -281,6 +344,8 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
     {
         point.emplace();
         apGraph->holder->SaveGraphPoint(point->Seed, point->State, point->Counters);
+        if (!s_recordId)
+            point->Memory = TakeMemory(*apGraph);
     }
     std::scoped_lock _{s_lock};
     s_ownerDigests.push_back(std::move(digest));
@@ -323,6 +388,7 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
         apGraph->holder->LoadGraphPoint(start->Seed, start->State);
         apGraph->holder->SetGraphCounters(start->Counters);
         s_loading = false;
+        GiveMemory(*apGraph, start->Memory);
     }
     char result = 0;
     for (const auto& [cIndex, cOp] : due)
@@ -561,6 +627,8 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         s_lastWords.clear();
         s_wantPoint = s_shadowStarted = false;
         s_concurrentEvents = 0;
+        s_memoryApplied = s_memoryUnmatched = 0;
+        s_memoryClasses.clear();
         s_concurrentNames.clear();
         s_clipsLoading.reset();
         s_clipsFor = SIZE_MAX;
@@ -612,6 +680,9 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
             {"unforced_updates", s_unforced},
             {"started", s_shadowStarted},
             {"clip_waits", s_clipWaits},
+            {"memory_applied", s_memoryApplied},
+            {"memory_unmatched", s_memoryUnmatched},
+            {"memory_classes", s_memoryClasses},
             {"clip_give_ups", s_clipGiveUps},
             {"clip_gave_up_on", s_clipGaveUpOn},
             {"known_updates", s_ownerHashes.size()},

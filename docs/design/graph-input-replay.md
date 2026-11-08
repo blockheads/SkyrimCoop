@@ -253,12 +253,29 @@ Skyrim's own save (SaveState 63601 -> hkbCharacter::SnapshotGraphState 65148): s
   their start state or mid-transition), variables, clips. No node memory.
 ```
 
-So the copy starts with its own nodes' memory, from before its sync point, and a node whose next output depends on
-it (range events, damping, timers, edge detectors, every-N counters: already carried by `GraphCounters`) can decide
-differently. That is the turn-speed divergence, and the wolf's `TurnDeltaDamped`.
+So the copy starts with its own nodes' memory, from before its sync point, and a node active then whose next output
+depends on it (expressions, event-driven modifiers, every-N counters: already carried by `GraphCounters`) can decide
+differently. It is not what diverged Faendal's turn (below).
 
 **The plan:** a complete sync point. On the owner, `getInternalState` (58372) after the update the point is taken at;
 on the copy, after loading the point, each active node's `setInternalState` (slot 16) with its owner's state for the
 same node id. One game first: the objects pass in memory, and the wolf's `TurnDeltaDamped` and Faendal's turn should
 stop differing. Over the network the states need serializing: they are small Havok objects (bools, numbers, vectors,
 arrays of them), each with its `hkClass`, so one reflection-driven writer covers every class.
+
+### Node memory given, and what it did not explain (2026-11-08)
+
+The one-game proof now gives the shadow its owner's modifier memory after the sync point (slots 0E/10 on each active
+modifier, by behaviour and node id; `hkbNode` declares them): the wolf's 6 (expression and event-driven modifiers),
+Faendal's 1. Both matched on every update again (3433/3433, 3347/3347). It did not touch the two cases above:
+
+- **The range modifier forgets on activation** (59724 clears wasActiveInPreviousFrame). Faendal's turn modifier
+  activates on each `TurnRight`, minutes after the sync point, from the same empty memory on both games. Its modify
+  (59725) decides from `TurnDelta` as it runs. So the turn divergence is not node memory from before the sync point:
+  either `TurnDelta` had another value when that node ran, mid-update, though the variables match after it, or the
+  event it raised was handled differently.
+- **The wolf's `TurnDeltaDamped`** still differed in 5 updates from update 471; its damping modifier was not active at
+  the sync point.
+
+Next: record, per update, the events each graph raises and the range modifier's input as it runs (59725), so a
+divergence shows the update and node where the two decided differently.

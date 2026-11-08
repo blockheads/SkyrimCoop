@@ -97,6 +97,23 @@ struct hkbNode
 {
     virtual ~hkbNode();
     virtual const hkClass* GetClassType() const;
+    virtual void sub_02();
+    virtual void sub_03();
+    virtual void sub_04();
+    virtual void sub_05();
+    virtual void sub_06();
+    virtual void sub_07();
+    virtual void sub_08();
+    virtual void sub_09();
+    virtual void sub_0A();
+    virtual void sub_0B();
+    virtual void sub_0C(); // cloneNode
+    // Its memory between updates (a range modifier's last ranges, a damping modifier's last values), which Skyrim's
+    // graph save leaves out (hkbEventsFromRangeModifier 59728-59730; coop_hkbBehaviorGraph_getInternalState 58372).
+    virtual struct hkReferencedObject* CreateInternalState();                 // 0D
+    virtual void GetInternalState(struct hkReferencedObject& aState) const;   // 0E
+    virtual void GetInternalStateUser(const void* apGraph, struct hkReferencedObject& aState); // 0F
+    virtual void SetInternalState(const struct hkReferencedObject& acState);  // 10
 
     uint64_t refCount;
     hkbVariableBindingSet* bindings; // 10
