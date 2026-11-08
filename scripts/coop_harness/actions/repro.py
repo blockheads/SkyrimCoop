@@ -229,6 +229,35 @@ class ReproActions:
             time.sleep(every)
         return changes
 
+    def graph_replay(ctx, like, seconds=180.0):
+        """The graph input replay proof (docs/design/graph-input-replay.md): two fresh actors of `like`'s base spawn by the
+        host's player; the second starts from the first's sync point and is fed its graph inputs, and both graphs are
+        compared after every update. Returns the comparison; fails at the first update where they differ."""
+        like = int(like, 16) if isinstance(like, str) else like
+        armed = ctx.game("").rpc({"cmd": "graph_replay", "arm_like": like}, timeout=10) or {}
+        if not armed.get("ok"):
+            raise ctx.failure(f"graph_replay did not arm on {like:X}: {armed.get('error')}")
+        status = lambda: ctx.game("").rpc({"cmd": "graph_replay"}, timeout=10) or {}
+        try:
+            for _ in range(2):
+                ctx.console_on("", f"player.placeatme {armed['base']:X} 1")
+            # The shadow's AI stays on: an actor without AI is not animated, and its own events are dropped anyway.
+            ctx.wait_for("[host] the owner and its shadow update", lambda: (s := status()).get("shadow") and s, 20)
+            last = {}
+            def done():
+                last.update(status())
+                # The shadow replays an update once its owner's is done: a few behind at any moment.
+                caught_up = last.get("owner_seconds", 0) >= seconds and last.get("replayed", 0) + 10 >= last.get("owner_updates", 0)
+                return dict(last) if caught_up or last.get("first_mismatch") else None
+            result = ctx.wait_for(f"[host] {seconds:.0f} s of the owner's updates compared, or a mismatch", done, seconds + 60,
+                                  explain=lambda: f"last status {last}")
+            if result.get("first_mismatch"):
+                raise ctx.failure(f"the shadow's graph left its owner's at update {result['first_mismatch']['update']} "
+                                  f"after {result['equal']} equal: {result['first_mismatch']}")
+            return result
+        finally:
+            ctx.game("").rpc({"cmd": "graph_replay", "stop": True}, timeout=10)
+
     def name_owner(ctx, name, owner):
         """Names an NPC by its owner's form id on the host (hex string or number) and its copy on the guest: `find`
         names only NPCs near the host."""

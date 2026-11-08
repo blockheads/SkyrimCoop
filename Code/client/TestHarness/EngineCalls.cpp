@@ -1646,6 +1646,13 @@ void CollectMachines(const hkbBehaviorGraphNode* apGraph, const std::string& acF
 }
 } // namespace
 
+bool SendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept
+{
+    using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
+    POINTER_SKYRIMSE(TSendEvent, SendEvent, 63591);
+    return apGraph && SendEvent.Get()(apGraph, &acEvent);
+}
+
 std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter) noexcept
 {
     std::vector<GraphMachine> machines;

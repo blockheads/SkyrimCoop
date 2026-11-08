@@ -1,6 +1,7 @@
 # Graph input replay: the proof (design, 2026-11-08)
 
-Status: proposed. Nothing built yet. This is step 0 of a possible new pattern for animation sync, decided with the user.
+Status: the one-game proof passed (2026-11-08, below). Next: the same over the network. This is step 0 of a possible
+new pattern for animation sync, decided with the user.
 
 ## Why
 
@@ -123,3 +124,17 @@ and the bandwidth measured. Only after that, the production design.
    copies are today.
 4. **Paired animations:** `BSSynchronizedClipGenerator` plays against its partner's graph through
    `BGSSynchronizedAnimationManager`; out of the proof's scope, as are ragdoll states.
+
+## Result (duo, Riverwood, 2026-11-08; harness `graph_replay`, `TestHarness/GraphReplay.cpp`)
+
+- **Every replayed update matched.** A wolf's shadow: 6772 of 6772 updates with the same active states, over 107 s of
+  its owner's graph time. Faendal's (a humanoid, `0_master`): 6936 of 6936, over 95 s.
+- **Two variables differed now and then, never a state:** the wolf's `TurnDeltaDamped` (a damping modifier's output) in
+  3 updates, and Faendal's `LookAtOutOfRange` (the look-at modifier's, which reads where its target is) in 7.
+- **The start is the one a copy needs:** the shadow loads its owner's sync point (graph state, seed, every-N counters,
+  `SaveGraphPoint`) right after one of the owner's updates, and is fed the ops from there. Two fresh graphs do not start
+  alike: in the first run Faendal's twins differed at update 0 (`MT_IdleLookingA` against `B`), a pick made as each
+  graph activated with its own actor's seed.
+- **What the proof had to get right:** the owner forced from its first update (its first updates come before
+  `CharacterService` forces it, and a chunked step is not the recorded one); the shadow's AI left on (an actor without
+  AI is not animated, and its own events are dropped anyway: 190 for the wolf, 6483 for Faendal).

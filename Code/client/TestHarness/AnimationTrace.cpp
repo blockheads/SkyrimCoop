@@ -2,6 +2,7 @@
 
 #include <Games/ActorExtension.h>
 #include "EngineCalls.h"
+#include "GraphReplay.h"
 
 #include <Actor.h>
 #include <BSAnimationGraphManager.h>
@@ -92,6 +93,8 @@ TSendGraphEvent* RealSendGraphEvent = nullptr;
 
 bool HookSendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
+    if (GraphReplay::DropEvent(apGraph, apEvent))
+        return false;
     const bool cTaken = RealSendGraphEvent(apGraph, apEvent);
     const int cCount = s_inputGraphCount.load(std::memory_order_acquire);
     for (int i = 0; i < cCount; ++i)
