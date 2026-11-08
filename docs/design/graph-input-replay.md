@@ -234,3 +234,31 @@ replayed them from its owner's sync point while our production code and its engi
 - **Weight:** an idle wolf's ops 206-303 B/s; Faendal doing chores, 1506-1515 B/s. Today's movement messages from the
   host come to 924-2338 B/s per synced NPC (`perf`, `NotifyReferencesMove`, over 22-23 NPCs), and they carry each
   NPC's whole set of graph variables, which the stream would replace.
+
+## Node memory: what a sync point misses (read in IDA, 2026-11-08)
+
+```
+every Havok node (hkbNode vtable, the same slots in every class):
+  12 cloneNode   13 createInternalState   14 getInternalState   15 getInternalStateUser
+  16 setInternalState   17 setInternalStateUser
+  e.g. hkbEventsFromRangeModifier (59728-59730): its state is wasActiveInPreviousFrame (hkArray<bool>, node +0x60),
+  which range it was in last frame: what decides its next range event (TurnRight's fast / slow)
+
+whole graph:
+  coop_hkbBehaviorGraph_getInternalState (58372): each active node's state (13, 14, 15) in an
+    hkbNodeInternalStateInfo with its node id and node info, plus the variables. Never called by code.
+  restoring: coop_hkbBehaviorGraph_ActivateNode (59326) calls a node's 16 and 17 when given a map of
+    node id -> state info; its only entry (coop_hkbBehaviorGraph_ActivateNodes, 12 callers) passes none.
+Skyrim's own save (SaveState 63601 -> hkbCharacter::SnapshotGraphState 65148): state machines (only those away from
+  their start state or mid-transition), variables, clips. No node memory.
+```
+
+So the copy starts with its own nodes' memory, from before its sync point, and a node whose next output depends on
+it (range events, damping, timers, edge detectors, every-N counters: already carried by `GraphCounters`) can decide
+differently. That is the turn-speed divergence, and the wolf's `TurnDeltaDamped`.
+
+**The plan:** a complete sync point. On the owner, `getInternalState` (58372) after the update the point is taken at;
+on the copy, after loading the point, each active node's `setInternalState` (slot 16) with its owner's state for the
+same node id. One game first: the objects pass in memory, and the wolf's `TurnDeltaDamped` and Faendal's turn should
+stop differing. Over the network the states need serializing: they are small Havok objects (bools, numbers, vectors,
+arrays of them), each with its `hkClass`, so one reflection-driven writer covers every class.
