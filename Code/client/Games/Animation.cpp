@@ -336,7 +336,10 @@ void HookStateMachineUpdate(hkbStateMachineNode* apMachine, const hkbContext* ap
                 if (const auto cTo = pCopy->GetExtension()->MachineTimelines.Reconcile(*cKey, cFrom); cTo && HasState(*apMachine, *cTo))
                 {
                     COUNT("copy machines reconciled", 1);
-                    spdlog::debug("MachineStates: copy {:X} {} {} -> {}", pCopy->formID, HavokName(apMachine->name), cFrom, *cTo);
+                    auto& timelines = pCopy->GetExtension()->MachineTimelines;
+                    const auto cWanted = timelines.Wanted(*cKey);
+                    spdlog::debug("MachineStates: reconcile {:X} {} {} -> {} wanted-at {} graph {}", pCopy->formID, HavokName(apMachine->name),
+                                  cFrom, *cTo, cWanted ? cWanted->At : 0, timelines.GraphTime());
                     s_goToState(apMachine, *cTo, apContext, false, true, false);
                 }
             }

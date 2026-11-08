@@ -172,6 +172,12 @@ struct Timelines
         m_any.store(false, std::memory_order_release);
     }
 
+    [[nodiscard]] uint64_t GraphTime()
+    {
+        std::scoped_lock _{m_lock};
+        return m_graphTime;
+    }
+
     // Read every update of every machine, so lock-free.
     [[nodiscard]] bool Any() const noexcept
     {

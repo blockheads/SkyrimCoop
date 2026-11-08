@@ -252,8 +252,13 @@ owner, graph job                                copy
   a key used twice in one graph is not tracked. A new root behaviour graph (rebuilt) starts the cache over: an owner
   counts a generation, a copy forgets what it knew.
 - Measured (duo, Riverwood, 120 s, scenario `wolf_copy_turns_with_owner`): never apart 3 s, the owner's graph changing
-  34 times; 57 reconciles over 12 NPCs, 22 of them `ForwardLocomotionBehavior` flipping about once a second on moving
-  animals (whether each follows an owner change or meets the copy's own speed-driven transition is not yet measured).
+  34 and 41 times in two runs.
+- Measured, each reconcile against both games' logged state changes (second run, 46 reconciles):
+  - 34 follow an owner change, 250 to 281 ms after it. All 10 `ForwardLocomotionBehavior` ones are here: the fox's owner
+    changed it 13 times in 18 s. The copy never made these transitions within the grace on its own; its speed
+    variables lag like the turn variable.
+  - 9 undo a change only the copy made (ear, tail and mandible idles).
+  - 3 were left again by the copy within a second with no owner change (a dog's tail wag, an idle): fights, rare.
 - Not read: the engine code writing `iSyncTurnState` on the owner. Moving such control variables onto the action timeline
   would remove the divergence rather than correct it.
 
