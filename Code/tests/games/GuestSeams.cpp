@@ -400,7 +400,7 @@ struct GuestSeam::Guest
           Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
-          Copies(aWorld, aWorld.ctx().at<IActorBridge&>())
+          Copies(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IActorBridge&>())
     {
     }
 
@@ -458,5 +458,4 @@ void GuestSeam::Update() noexcept
     m_pGuest->Record.OnUpdate(cUpdate);
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
-    m_pGuest->Copies.Update();
 }

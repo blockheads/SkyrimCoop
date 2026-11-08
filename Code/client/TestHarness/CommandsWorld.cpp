@@ -827,7 +827,8 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"enabled", *cEnabled}};
 }
 
-// {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, and whether it is a copy here.
+// {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
+// still loading (kStillLoading: a spawn for it waits).
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -843,6 +844,7 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"has_3d", actors.ActorHas3D(cActor)},
             {"disabled", actors.IsActorDisabled(cActor)},
             {"deleted", actors.IsActorDeleted(cActor)},
+            {"still_loading", actors.IsActorStillLoading(cActor)},
             {"copy", actors.IsActorCopy(cActor)}};
 }
 

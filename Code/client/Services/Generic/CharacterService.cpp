@@ -12,6 +12,7 @@
 #include <Events/ActorRemovedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Events/ConnectedEvent.h>
+#include <Events/CopyHeldEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
@@ -329,10 +330,23 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
         if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && m_actorBridge.IsActorCopy(pFormId->Id))
         {
             m_actorBridge.SetActorCopy(pFormId->Id, false);
-            if (m_world.get<HeldCopyComponent>(cEntity).Hidden)
+            const auto& cHeld = m_world.get<HeldCopyComponent>(cEntity);
+            if (cHeld.Hidden)
+                m_actorBridge.SetActorHidden(pFormId->Id, false);
+            if (cHeld.DisabledByUs)
                 m_actorBridge.EnableActor(pFormId->Id);
         }
         m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
+        if (m_world.orphan(cEntity))
+            m_world.destroy(cEntity);
+    }
+    // Kept persistent while a copy (GuestCopies): its own flag back.
+    const auto cKept = m_world.view<KeptCopyComponent>();
+    for (const auto cEntity : std::vector<entt::entity>(cKept.begin(), cKept.end()))
+    {
+        if (const auto& cCopy = m_world.get<KeptCopyComponent>(cEntity); !cCopy.WasPersistent && m_actorBridge.ActorExists(cCopy.FormId))
+            m_actorBridge.SetActorPersistent(cCopy.FormId, false);
+        m_world.remove<KeptCopyComponent>(cEntity);
         if (m_world.orphan(cEntity))
             m_world.destroy(cEntity);
     }
@@ -449,7 +463,11 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     if (!ApplyNpcSnapshot(actorFormId, acMessage))
         return;
 
-    if (m_actorBridge.IsActorDisabled(actorFormId))
+    // A held copy hidden without its owner (GuestCopies) is shown once it is where its owner is, below.
+    const auto* cpHeld = m_world.try_get<HeldCopyComponent>(*entity);
+    const bool cWasHidden = cpHeld && cpHeld->Hidden;
+    m_world.remove<HeldCopyComponent>(*entity);
+    if (!cWasHidden && m_actorBridge.IsActorDisabled(actorFormId))
     {
         spdlog::warn("Disabled actor is being re-enabled: {:X}", actorFormId);
         m_actorBridge.EnableActor(actorFormId);
@@ -471,6 +489,12 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     }
     m_actorBridge.MoveActorTo(actorFormId, cellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
     m_actorBridge.SetActorRotation(actorFormId, acMessage.Rotation.x, acMessage.Rotation.y);
+    // Enabled where its owner is (kept persistent, GuestCopies: enabled in a cell not loaded, 37501 frees no other).
+    if (cWasHidden)
+    {
+        m_actorBridge.SetActorHidden(actorFormId, false);
+        m_actorBridge.EnableActor(actorFormId);
+    }
 
     m_actorBridge.SetActorValues(actorFormId, acMessage.InitialActorValues);
 
@@ -500,7 +524,6 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     }
 
     m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
-    m_world.remove<HeldCopyComponent>(*entity);
     // Link the engine actor now: DiscoveryService (removed in ec7d02d1) used to do this when the
     // actor entered a loaded cell, via ActorAddedEvent -> OnActorAdded. Without the link,
     // RunRemoteUpdates has no actor to apply interpolated movement to.
@@ -704,7 +727,7 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
         spdlog::info("\tDeleted actor {:X}", cFormId);
     }
     else if (cFormId && m_actorBridge.IsActorCopy(cFormId))
-        FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+        FollowOwner(cEntity, cFormId, acMessage.Whereabouts, true);
 
     DeleteRemoteEntityComponents(cEntity);
     // The engine reuses a deleted copy's form id for the next one: an entity left holding it
@@ -718,10 +741,15 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
     }
 }
 
-void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+void CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts, bool aOwnerGone) const noexcept
 {
     // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").
     m_world.emplace_or_replace<HeldCopyComponent>(aEntity);
+    // Before the move: kept and hidden, the engine neither loads nor frees it where it goes (copy-lifecycle.md).
+    if (aOwnerGone)
+        m_dispatcher.trigger(CopyHeldEvent{aEntity, aFormId,
+                                           acWhereabouts.Where == ActorWhereabouts::State::kDisabled ||
+                                               acWhereabouts.Where == ActorWhereabouts::State::kDeleted});
     switch (acWhereabouts.Where)
     {
     case ActorWhereabouts::State::kPlaced:
@@ -1052,7 +1080,7 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
         // The rider can arrive before the horse's last movement snapshot. Place it before the host takes it.
         if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
-            FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+            FollowOwner(cEntity, cFormId, acMessage.Whereabouts, false);
         if (m_world.GetHostService().IsHosting())
         {
             if (!m_world.all_of<LocalComponent>(cEntity))
@@ -1739,16 +1767,6 @@ void CharacterService::RunPresence() noexcept
     const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
     const auto cNow = std::chrono::steady_clock::now();
 
-    // The engine collected a held reference (a plugin's, not persistent, out of the loaded cells: 37501).
-    const auto cHeld = m_world.view<HeldCopyComponent, FormIdComponent>();
-    for (const auto cEntity : std::vector<entt::entity>(cHeld.begin(), cHeld.end()))
-        if (!m_actorBridge.ActorExists(cHeld.get<FormIdComponent>(cEntity).Id))
-        {
-            m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
-            if (m_world.orphan(cEntity))
-                m_world.destroy(cEntity);
-        }
-
     std::vector<std::pair<entt::entity, uint32_t>> gone;
     std::unordered_set<uint32_t> goneElsewhere;
     auto view = m_world.view<RemoteComponent, FormIdComponent, InterpolationComponent, OwnerPlaceComponent>();
@@ -1814,7 +1832,10 @@ void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldD
         // Gone without discovery noticing: it must not report it removed later.
         m_discoveredActors.erase(cFormId);
         if (m_world.all_of<HeldCopyComponent>(entity))
+        {
+            m_dispatcher.trigger(CopyHeldEvent{entity, cFormId, m_actorBridge.IsActorDisabled(cFormId)});
             continue;
+        }
         if (m_world.all_of<FormIdComponent>(entity))
             m_world.remove<FormIdComponent>(entity);
         if (m_world.orphan(entity))

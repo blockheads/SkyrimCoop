@@ -49,6 +49,23 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: a copy's lifecycle is the host's events alone ([copy-contract.md](design/copy-contract.md), "A copy's
+lifecycle"; engine path [copy-lifecycle.md](re/systems/copy-lifecycle.md)). A guest hides a held copy once, as the host's
+removal reaches it and before it follows (`CopyHeldEvent`, `GuestCopies`): kept persistent for the session, no cell
+unload frees it (19113); disabled, its 3D never loads (`Load3D` 19727); and its enables are refused (`HookEnable` 19800,
+`HookSetDisabled` 14646, by form id in `HiddenCopies`). Gone: `GuestCopies`' per-frame scan and `RunPresence`'s sweep of collected references; the
+placed guard is now kept, so the host's next spawn finds it. Olava's whereabouts and the deleted-speaker hook stay.
+On the duo, `held-copy-goes-with-owner`, `leveled-placed-npc-is-hosts`, `npc-sent-home-copy-follows` (now expecting the
+guest's Vilkas hidden), `npc-disabled-copy-follows`, `remove-host-npc`, `actors-walk-after-arrival` and
+`placed-speaker-deleted-mid-conversation` pass twice in one session. The last marks the host's Vilkas deleted, so the
+Vilkas scenarios run after it in the same session fail at their start (it ran last).
+
+2026-11-07: the lock checker tells orders the frame keeps apart from a risk ([lock-order.md](re/systems/lock-order.md), "How the
+checker tells them apart"). Each thread carries its stretch of the frame (main loop tasks, our update), each order every stretch
+it was seen in; an inversion between main loop tasks and our update alone is logged as kept apart and fails no flow, anything
+else still fails, and the live overlap check is as it was. `guest-rides-host-horse` failed on one after a respawn (bugs.md).
+ClientTests `[locks]`, a harness unit.
+
 2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
 queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
 has no translation), and the duo boot then failed to host. `prepare_prefix` sets the pref; a fresh prefix boots,

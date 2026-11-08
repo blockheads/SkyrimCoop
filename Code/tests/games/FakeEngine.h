@@ -479,7 +479,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Created = false;    // made by Actor::Create (a copy): deleted with its cell unless persistent
         bool Persistent = false; // kept when its cell unloads (SetActorPersistent); no parent cell outdoors out of it
         bool Collectable = false; // a plugin's non-persistent reference: moved out of the loaded cells, the engine
-                                  // collects it (UpdateProcessLevel 37501; a guard on the guest, 2026-11-06)
+                                  // frees it (37501, 19113; a guard on the guest, 2026-11-06 and 2026-11-07)
+        bool Hidden = false;      // a held copy hidden: its enables refused (HookEnable, HookSetDisabled)
+        uint32_t EnableParent = 0; // its enable parent (XESP): takes the parent's state as the parent loads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
@@ -1033,6 +1035,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
+    void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept override;
+    // An enable parent made from its file or a save (InitItemImpl, InitLoadGame): 20271 sets each child's flag raw
+    // (TESForm::SetDisabled 14646, no Enable), which the plugin refuses to clear for a hidden copy.
+    void EnableParentLoads(uint32_t aParent, bool aDisabled);
     // A quest's Delete with no Disable: a placed reference loses its process (UpdateTempChangeList), and nothing ends
     // its conversation (Skyrim 2026-11-06, dialogue.md).
     void MarkForDelete(uint32_t aFormId);

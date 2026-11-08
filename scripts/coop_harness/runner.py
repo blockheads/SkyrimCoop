@@ -10,6 +10,7 @@ import uuid
 from .common import (
     BOOT_FILE,
     CLIENT_USER,
+    KEPT_APART,
     ROOT,
     TEST_HOME,
     TEST_ITEMS,
@@ -109,7 +110,9 @@ class Runner:
                               " | ".join(describe_world_differences(world, 20)))
         new_locks = [v for k, v in ctx.lock_order_reports().items() if k not in known_locks]
         for game, report, ours in new_locks:
-            if not ours:
+            if KEPT_APART in report and not ours:
+                log(f"lock order the frame keeps apart (not a failure; live overlaps still fail) on {game}: {report}")
+            elif not ours:
                 log(f"warning: engine-only lock-order pattern on {game}: {report}")
         # Live: the two orders overlapped in this run (the deadlock's precondition), ours or the engine's.
         if live_locks := [f"{game}: {report}" for game, report, _ in new_locks if "live lock order inversion" in report]:

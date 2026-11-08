@@ -16,7 +16,7 @@ target("ClientTests")
               "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",
               "../../client/Games/Skyrim/Misc/StoryEventRules.cpp",
               "../../client/Physics/BodyPrediction.cpp", "../../client/Physics/BodySends.cpp", "../../client/Physics/BodyPlayback.cpp",
-              "../../client/Physics/BodyRelevance.cpp")
+              "../../client/Physics/BodyRelevance.cpp", "../../client/Games/HiddenCopies.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy")
