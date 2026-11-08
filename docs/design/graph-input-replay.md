@@ -72,14 +72,20 @@ snapshot variables for graphs, graph points and recovery loads.
 One game, no network: does a graph replayed from its owner's recorded ops stay in its owner's states?
 
 ```
-host game, Riverwood
-  owner:  the wolf (9B0DD), forced, recorded at 63591 and 63587
-  shadow: a second actor of the same base, near it, AI off, invisible, forced
-          start: the owner's graph state, variables and seed copied in at an update boundary
-          each frame: the owner's ops up to the last frame, replayed into the shadow's graph
-          its own channels (63590), engine events (63591) and variable writes kept out
-  after every shadow update: digest(owner after update i) == digest(shadow after update i)?
+host game, Riverwood: two actors of the wolf's base, placed together (fresh graphs)
+  owner:  AI on, forced, recorded from its graph's first update:
+            63591 (an event) -> op { variables changed, event }
+            63587 entry, after 63590 applied its channels -> op { variables changed, step }
+  shadow: AI off, forced; its seed set to the owner's at the start
+          in its own 63587 call (its animation job), the owner's ops not yet replayed, in order:
+            write every variable that differs from the owner's at that op (over its own channels)
+            then send the op's event (real 63591), or call the real 63587 with the op's step
+          its engine's own events to its graph (63591 outside a replay) dropped
+  after every replayed update: digest(owner after update i) == digest(shadow after update i)?
 ```
+
+Variant 2, the start a copy would need: the shadow starts from the owner's saved state (63601/63602) mid-life instead of
+a fresh graph, to measure what a saved state misses.
 
 - **Digest:** each active state machine's active state (as the harness's `graph_machines` reads them), plus clip local
   times to 1 ms.
@@ -94,10 +100,26 @@ host game, Riverwood
 Then, if it passes, a second proof over the network: the same ops sent to the guest's copy, compared by update index,
 and the bandwidth measured. Only after that, the production design.
 
-## Open questions for the proof's RE
+## The proof's RE (read 2026-11-08)
 
-- 63587's signature and forced path when called several times in one frame with a chosen step (the shadow's update).
-- Capturing and loading graph state, variables and seed at one update boundary (`SaveAnimationGraphState` /
-  `LoadAnimationGraphState`, `GetGraphRandom`).
-- Which Bethesda modifiers in the canine and character behaviours read the world (behavior_dump over the classes in use).
-- Paired animations (kill moves): a synchronized clip reads its partner's graph; out of the proof's scope.
+1. **Calling 63587 with a chosen step, several times a frame.** `coop_BShkbAnimationGraph_UpdateInterpolated(graph,
+   BSAnimationUpdateData*, scratch)`; 63358 passes its scratch only for its active graph (+0xB0), else null. With force
+   (+0x2A) the countdowns reset and the step is exactly `deltaTime`. Per call it also swaps its two pose buffers, writes
+   the pose (63583), runs foot IK, and calls the data's functor, `coop_Character_ApplyGraphMovementType` (38019): the
+   graph's movement type to the actor's movement controller when it changed, an output. The engine does this itself:
+   `LoadState` (63602) calls 63587 with its own data, step 0 and force set, so the loaded nodes activate.
+2. **The start.** A saved state (63601) holds active states, variables and clips, but not the every-N counters
+   (`GraphCounters`) or the seed (`GraphRandom`), and loading adds a zero-step update its owner never had. So the
+   proof starts both graphs fresh and sets the seed (variant 1); variant 2 measures the saved-state start.
+3. **Nodes that read the world** (classes in canine and character behaviours, `behavior_dump`):
+   - state-relevant, fed by physics: `BSRagdollContactListenerModifier` (an event on ragdoll contact) and
+     `hkbPoseMatchingGenerator` (a get-up clip picked by the ragdoll's pose), only in get-up, reanimation and ragdoll
+     states (`dogbehavior.hkx`, `0_master.hkx`, a kill move's victim in `1hm_behavior.hkx`);
+   - pose only: look-at, direct-at, foot IK, ragdoll controls, `hkbGetUpModifier`, `hkbRotateCharacterModifier`;
+   - everything else reads only variables, events and time: blenders, clips, selectors, expressions, every-N counters,
+     timers, cyclic blends, state tagging.
+
+   So movement, idles, turns and attacks should replay exactly. A ragdoll and its get-up are each game's own body, as
+   copies are today.
+4. **Paired animations:** `BSSynchronizedClipGenerator` plays against its partner's graph through
+   `BGSSynchronizedAnimationManager`; out of the proof's scope, as are ragdoll states.

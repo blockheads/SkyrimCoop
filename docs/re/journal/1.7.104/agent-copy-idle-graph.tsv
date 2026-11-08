@@ -134,3 +134,9 @@ time	op	id	rva	item
 2026-11-08T20:00:57Z	comment		0xbcf7c8	{"addr": "0x140bcf7c8", "comment": "handleEvent at once (root behaviour vtable +0x30): an input event acts between two updates, as it is sent, reading the variables as they stand then"}
 2026-11-08T20:01:02Z	name	63590	0xbcf570	{"addr": "0x140bcf570", "name": "coop_BShkbAnimationGraph_ApplyChannels"}
 2026-11-08T20:01:03Z	comment	63590	0xbcf570	{"addr": "0x140bcf570", "comment": "63590, each graph update (63358, before 63587): every bound channel's value (+0x18) written into the graph variable of its name (Speed, Direction, TurnDelta, iWantBlock, ...: ActorSpeedChannel etc.), computed from this game's actor"}
+2026-11-08T20:30:25Z	read		0x6b2a90	{"name": "Character::sub_38001"}
+2026-11-08T20:30:29Z	read	37999	0x6b2320	{"name": "j_Character::sub_37999"}
+2026-11-08T20:30:44Z	name	38019	0x6b5240	{"addr": "0x1406b5240", "name": "coop_Character_ApplyGraphMovementType"}
+2026-11-08T20:30:45Z	comment	38019	0x6b5240	{"addr": "0x1406b5240", "comment": "BSAnimationUpdateData's functor (38054 sets it), called after each behaviour update in 63587: the graph's movement type to the actor's movement controller when it changed (MovementMessageMovementTypeChange). An output of the graph, not an input"}
+2026-11-08T20:30:46Z	read		0xbd2dc0	{"name": "BShkbAnimationGraph::LoadState"}
+2026-11-08T20:31:04Z	comment		0xbd2df8	{"addr": "0x140bd2df8", "comment": "After loading: one 63587 call with its own BSAnimationUpdateData, deltaTime 0, force (+0x2A) set: the loaded nodes activate in a zero-step update. The engine itself calls 63587 with a chosen step"}
