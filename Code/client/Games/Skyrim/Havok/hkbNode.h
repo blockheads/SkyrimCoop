@@ -238,6 +238,39 @@ static_assert(offsetof(hkbBehaviorGraphNode, activeNodes) == 0x98);
 static_assert(offsetof(hkbBehaviorGraphNode, nodeTemplateToCloneMap) == 0xE0);
 static_assert(offsetof(hkbBehaviorGraphNode, nodeCloneToTemplateMap) == 0xE8);
 
+// One range of an hkbEventsFromRangeModifier: its event when the input is at most upperBound (59725).
+struct hkbEventRangeData
+{
+    float upperBound;  // 00
+    uint8_t pad4[4];
+    int32_t eventId;   // 08
+    uint8_t padC[4];
+    void* payload;     // 10
+    uint8_t eventMode; // 18: 0 on entering, 1 every update
+    uint8_t pad19[7];
+};
+static_assert(sizeof(hkbEventRangeData) == 0x20);
+
+struct hkbEventRangeDataArray
+{
+    void* vtable;
+    uint64_t refCount;
+    hkArrayView<hkbEventRangeData> eventData; // 10
+};
+static_assert(offsetof(hkbEventRangeDataArray, eventData) == 0x10);
+
+// Sends a range's event when inputValue falls in it (59725), every update or on entering; forgets on activation (59724).
+struct hkbEventsFromRangeModifier : hkbNode
+{
+    uint8_t pad48[0x50 - 0x48];
+    float inputValue;                            // 50, bound (Faendal's turns: TurnDelta)
+    float lowerBound;                            // 54
+    hkbEventRangeDataArray* eventRanges;         // 58
+    hkArrayView<bool> wasActiveInPreviousFrame;  // 60
+};
+static_assert(offsetof(hkbEventsFromRangeModifier, inputValue) == 0x50);
+static_assert(offsetof(hkbEventsFromRangeModifier, wasActiveInPreviousFrame) == 0x60);
+
 struct hkbBehaviorReferenceGenerator : hkbNode
 {
     const char* behaviorName;       // 48

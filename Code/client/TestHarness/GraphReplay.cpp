@@ -12,6 +12,7 @@
 #include <Games/Animation/GraphRandom.h>
 #include <Games/Skyrim/ActionClips.h>
 #include <algorithm>
+#include <cstring>
 #include <atomic>
 #include <deque>
 #include <map>
@@ -84,6 +85,41 @@ std::vector<std::string> s_lastOps;
 std::optional<nlohmann::json> s_firstMismatch;
 thread_local bool s_replaying = false;
 thread_local bool s_loading = false; // LoadState's own zero-step update (63602)
+// While a probed graph updates on this thread: each range modifier's input as it runs and the ranges it marked.
+thread_local std::vector<std::string>* s_rangeLines = nullptr;
+
+// hkbEventsFromRangeModifier::modify (59725).
+using TRangeModify = int64_t(hkbEventsFromRangeModifier*, void*);
+TRangeModify* RealRangeModify = nullptr;
+
+int64_t HookRangeModify(hkbEventsFromRangeModifier* apNode, void* apContext)
+{
+    const int64_t cResult = RealRangeModify(apNode, apContext);
+    if (s_rangeLines && apNode)
+    {
+        uint32_t input = 0;
+        std::memcpy(&input, &apNode->inputValue, sizeof(input));
+        std::string active;
+        for (int32_t i = 0; i < apNode->wasActiveInPreviousFrame.size; ++i)
+            active += apNode->wasActiveInPreviousFrame.data[i] ? '1' : '0';
+        uint32_t lower = 0;
+        std::memcpy(&lower, &apNode->lowerBound, sizeof(lower));
+        std::string ranges;
+        if (apNode->eventRanges)
+            for (int32_t i = 0; i < apNode->eventRanges->eventData.size; ++i)
+            {
+                const auto& cRange = apNode->eventRanges->eventData.data[i];
+                uint32_t upper = 0;
+                std::memcpy(&upper, &cRange.upperBound, sizeof(upper));
+                ranges += std::format(" [{:08X} event {} mode {}]", upper, cRange.eventId, cRange.eventMode);
+            }
+        s_rangeLines->push_back(std::format("range {} input {:08X} lower {:08X}{} active {}", apNode->name ? apNode->name : "", input, lower,
+                                            ranges, active));
+    }
+    return cResult;
+}
+
+Hooks::Initializer s_rangeModifyHook([]() { HOOK_ID(59725, &RealRangeModify, HookRangeModify); });
 
 // Where the shadow starts: the owner's sync point (graph state, seed, every-N counters) right after one of its updates;
 // the replay goes on from the next op. Two fresh graphs differ already: activation draws each actor's own seed.
@@ -207,9 +243,9 @@ void ActiveClips(const hkbBehaviorGraphNode* apGraph, std::vector<std::string>& 
     }
 }
 
-Snapshot Digest(const BShkbAnimationGraph& acGraph)
+Snapshot Digest(const BShkbAnimationGraph& acGraph, const std::vector<std::string>& acRanges = {})
 {
-    std::vector<std::string> active;
+    std::vector<std::string> active = acRanges;
     ActiveClips(reinterpret_cast<const hkbBehaviorGraphNode*>(acGraph.behaviorGraph), active);
     for (const auto& cMachine : TestHarness::EngineCalls::GetGraphMachines(acGraph.holder ? acGraph.holder->formID : 0, ""))
         // Inactive clones too: one resumes its state when its parent activates it again.
@@ -336,9 +372,12 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
     // Forced, its step is the recorded deltaTime (63587); the first updates come before CharacterService forces it.
     apData->force = true;
     s_ownerUpdateThread = GetCurrentThreadId();
+    std::vector<std::string> ranges;
+    s_rangeLines = &ranges;
     const char cResult = RealUpdate(apGraph, apData, apScratch);
+    s_rangeLines = nullptr;
     s_ownerUpdateThread = 0;
-    Snapshot digest = Digest(*apGraph);
+    Snapshot digest = Digest(*apGraph, ranges);
     std::optional<StartPoint> point;
     if (s_wantPoint && apGraph->holder)
     {
@@ -433,8 +472,11 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
             BSAnimationUpdateData data = *apData;
             data.deltaTime = cOp.Step;
             data.force = true;
+            std::vector<std::string> ranges;
+            s_rangeLines = &ranges;
             result = RealUpdate(apGraph, &data, apScratch);
-            Compare(cOp.Update, Digest(*apGraph));
+            s_rangeLines = nullptr;
+            Compare(cOp.Update, Digest(*apGraph, ranges));
         }
         std::scoped_lock _{s_lock};
         s_lastOps.push_back(cOp.Event ? "event " + cOp.Name : std::format("update {} step {:.4f}", cOp.Update, cOp.Step));

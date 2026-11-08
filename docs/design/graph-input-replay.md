@@ -1,7 +1,7 @@
 # Graph input replay: the proof (design, 2026-11-08)
 
-Status: the one-game proof passed; over the network, most runs pass (2026-11-08, below). Open: the sync point misses
-modifiers' memory (a humanoid's turn speed). This is step 0 of a possible
+Status: the one-game proof passed; over the network, most runs pass (2026-11-08, below). The one divergence found is
+an engine bug: a range modifier's clone never copies its lowerBound (59723), so each game's holds heap garbage. This is step 0 of a possible
 new pattern for animation sync, decided with the user.
 
 ## Why
@@ -278,4 +278,28 @@ Faendal's 1. Both matched on every update again (3433/3433, 3347/3347). It did n
   the sync point.
 
 Next: record, per update, the events each graph raises and the range modifier's input as it runs (59725), so a
-divergence shows the update and node where the two decided differently.
+divergence shows the update and node where the two decided differently. (Done, below.)
+
+### The turn divergence: an uninitialized clone member (measured and read, 2026-11-08)
+
+The proof's digest now holds each range modifier's run (hooking 59725): its input as it runs, its `lowerBound`, its
+ranges and the ranges it marked. Faendal over the network, the update after `TurnRight` (twice, updates 8617 and 1772):
+
+```
+owner  range TurnRight_EventsFromRangeMod input BF936696 lower FFFFFFFF [C2960000 event 643 mode 0] [00000000 event 644 mode 0] active 01
+copy   range TurnRight_EventsFromRangeMod input BF936696 lower 00000000 [C2960000 event 643 mode 0] [00000000 event 644 mode 0] active 00
+```
+
+Same input (-1.15), same ranges (-75: `turnRightFast`, 0: `turnRightSlow`), different `lowerBound`: NaN on the owner,
+0 (the behaviour file's) on the copy. `lowerBound <= input` (59725, `comiss`) is true for a NaN, so the owner sent
+`turnRightSlow` and the copy nothing.
+
+Why (read): each graph's node is a clone (`cloneNode`, 59727), made by a copy constructor
+(`coop_hkbEventsFromRangeModifier_CopyForClone`, 59723) that copies `enable`, the ranges and a reset memory, but never
+`inputValue` or `lowerBound`. `inputValue` is bound (overwritten each modify); an unbound `lowerBound` keeps whatever
+the allocation held, a different value on each game. The graph's one source of nondeterminism found so far is engine
+memory, not an input.
+
+Fix directions, not built: copy the template's `lowerBound` into each clone on every game (the behaviour file's value,
+as designed; it changes the host's own turns where the garbage was a NaN); and audit the other node classes' clone
+constructors for the same omission (compare each new clone with its template, member by member, from its `hkClass`).
