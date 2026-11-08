@@ -1,7 +1,7 @@
 # Graph input replay: the proof (design, 2026-11-08)
 
-Status: the one-game proof passed; over the network, 4 of 5 runs passed (2026-11-08, below). Open: one divergence
-in a humanoid's turn speed. This is step 0 of a possible
+Status: the one-game proof passed; over the network, most runs pass (2026-11-08, below). Open: the sync point misses
+modifiers' memory (a humanoid's turn speed). This is step 0 of a possible
 new pattern for animation sync, decided with the user.
 
 ## Why
@@ -220,9 +220,17 @@ replayed them from its owner's sync point while our production code and its engi
   its file lasts 0.0133 s (59263). The owner's game loads an action's files before sending its event (39625). The copy
   now requests them (`ActionClips::Request`) and holds the stream until they are in, at most 120 updates as
   `ClipWaitOver` (a load the process cancels never reports in: the wolf's waited 6662 frames without the bound).
-- **Open:** run 3's Faendal went `MT_TurnRightFast` on the owner and `MT_TurnRightSlow` on the copy at update 608.
-  Neither game sent `turnRightFast`: the graph raises it, from `TurnRight_EventsFromRangeModifier`'s range of
-  `TurnDelta`, which the ops carry. Not reproduced in run 4; a mismatch now reports both games' variables after it.
+- **Open: the sync point misses node memory.** Faendal's turn speed diverged three times (updates 608, 3603, 8567 of
+  runs from 60 to 300 s; 0 in 360 s between them): after `TurnRight`, one game's `TurnRightBehavior` went
+  `MT_TurnRightFast` (with its 360 clips), the other's `MT_TurnRightSlow`. Neither game sends these events: the graph
+  raises them, from `TurnRight_EventsFromRangeMod` (`hkbEventsFromRangeModifier`, its input bound to `TurnDelta`). At
+  the last one the run ruled the inputs out: variables identical after the update; events, steps and seeds carried;
+  every state machine equal until then, inactive clones included; the same clips playing, all with their files; no
+  owner event sent from another thread mid-update. Left: a modifier's own memory (a range modifier knows which range it
+  was in last frame), which the copy brings from before its sync point. The wolf's rare `TurnDeltaDamped` difference
+  (a damping modifier's memory) fits. Inferred, not shown. Havok nodes expose that memory generically
+  (`getInternalState` / `setInternalState`; 60010 is one in this executable): the next RE step is a sync point with
+  every active node's internal state.
 - **Weight:** an idle wolf's ops 206-303 B/s; Faendal doing chores, 1506-1515 B/s. Today's movement messages from the
   host come to 924-2338 B/s per synced NPC (`perf`, `NotifyReferencesMove`, over 22-23 NPCs), and they carry each
   NPC's whole set of graph variables, which the stream would replace.

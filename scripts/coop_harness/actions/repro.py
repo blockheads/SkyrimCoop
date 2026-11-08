@@ -276,6 +276,7 @@ class ReproActions:
                 taken = host.rpc({"cmd": "graph_replay", "take": True}, timeout=10) or {}
                 if taken.get("point") or taken.get("ops") or taken.get("hashes"):
                     guest.rpc({"cmd": "graph_replay", "feed": taken}, timeout=10)
+                last.update(concurrent_events=taken.get("concurrent_events"), concurrent_names=taken.get("concurrent_names"))
                 last.update(owner_seconds=taken.get("owner_seconds", 0), wire_bytes=taken.get("wire_bytes", 0),
                             owner_updates=taken.get("owner_updates", 0), copy=guest.rpc({"cmd": "graph_replay"}, timeout=10) or {})
                 copy_status = last["copy"]
@@ -291,7 +292,8 @@ class ReproActions:
                 raise ctx.failure(f"the copy's graph left its owner's at update {mismatch['update']} after "
                                   f"{result['copy'].get('equal')} equal: owner only {sorted(set(owner_states) - set(mismatch['shadow']))}, "
                                   f"copy only {sorted(set(mismatch['shadow']) - set(owner_states))}, variables after it (index, owner, "
-                                  f"copy) {words}, last ops {mismatch.get('last_ops')}")
+                                  f"copy) {words}, last ops {mismatch.get('last_ops')}, events sent mid-update {last.get('concurrent_events')} "
+                                  f"{last.get('concurrent_names')}")
             perf = (host.rpc({"cmd": "perf", "window_ms": int(seconds * 1000)}, timeout=20) or {}).get("perf", {})
             moves = sum(row["bytes"] for row in perf.get("messages", {}).get("top", []) if "ReferencesMove" in row.get("name", ""))
             npcs = max(1, len(ctx.local_player("").get("local_actors", {})) - 1)

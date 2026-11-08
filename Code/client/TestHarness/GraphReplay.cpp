@@ -61,6 +61,10 @@ struct VariableDiff
 };
 std::map<uint32_t, VariableDiff> s_variableDiffs;
 uint32_t s_replayed = 0, s_equal = 0, s_dropped = 0, s_unforced = 0;
+// Owner events sent from another thread while its graph updated: their place among the updates is not certain.
+std::atomic<uint32_t> s_ownerUpdateThread{0};
+uint32_t s_concurrentEvents = 0;
+std::vector<std::string> s_concurrentNames;
 double s_ownerSeconds = 0.0; // the owner's recorded steps, added up
 // What the ops would weigh on the wire, each against the one before: a 3-byte header (kind, step or event length),
 // 6 bytes per changed variable (u16 index, u32 value), the event's name.
@@ -116,12 +120,37 @@ void WriteWords(BShkbAnimationGraph& aGraph, const std::vector<uint32_t>& acWord
     std::copy_n(acWords.begin(), std::min<size_t>(acWords.size(), pSet->size), pSet->data);
 }
 
+// Its playing clips, by node, and whether each has its file (a clip without one lasts 0.0133 s, 59263).
+void ActiveClips(const hkbBehaviorGraphNode* apGraph, std::vector<std::string>& aLines, int aDepth = 0)
+{
+    if (!apGraph || !apGraph->activeNodes || aDepth > 8)
+        return;
+    const auto& cNodes = *apGraph->activeNodes;
+    for (int32_t i = 0; i < cNodes.size; ++i)
+    {
+        const hkbNode* pNode = cNodes.data[i].nodeClone;
+        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
+        if (!pClass || !pClass->name || !pNode->name)
+            continue;
+        const std::string_view cClass = pClass->name;
+        if (cClass == "hkbBehaviorReferenceGenerator")
+            ActiveClips(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aLines, aDepth + 1);
+        else if (cClass == "hkbClipGenerator")
+        {
+            const auto* pClip = static_cast<const hkbClipGenerator*>(pNode);
+            const auto* pBinding = pClip->animationControl ? pClip->animationControl->binding : nullptr;
+            aLines.push_back(std::format("clip {}{}", pNode->name, pBinding && pBinding->animation ? "" : " (no file)"));
+        }
+    }
+}
+
 Snapshot Digest(const BShkbAnimationGraph& acGraph)
 {
     std::vector<std::string> active;
+    ActiveClips(reinterpret_cast<const hkbBehaviorGraphNode*>(acGraph.behaviorGraph), active);
     for (const auto& cMachine : TestHarness::EngineCalls::GetGraphMachines(acGraph.holder ? acGraph.holder->formID : 0, ""))
-        if (cMachine.Active)
-            active.push_back(cMachine.Behaviour + "/" + cMachine.Name + "=" + cMachine.State);
+        // Inactive clones too: one resumes its state when its parent activates it again.
+        active.push_back(cMachine.Behaviour + "/" + cMachine.Name + "=" + cMachine.State + (cMachine.Active ? "" : " (inactive)"));
     std::ranges::sort(active);
     Snapshot snapshot{{}, ReadWords(acGraph)};
     for (const auto& cLine : active)
@@ -243,7 +272,9 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
     }
     // Forced, its step is the recorded deltaTime (63587); the first updates come before CharacterService forces it.
     apData->force = true;
+    s_ownerUpdateThread = GetCurrentThreadId();
     const char cResult = RealUpdate(apGraph, apData, apScratch);
+    s_ownerUpdateThread = 0;
     Snapshot digest = Digest(*apGraph);
     std::optional<StartPoint> point;
     if (s_wantPoint && apGraph->holder)
@@ -397,7 +428,8 @@ std::string FromHex(const std::string& acHex)
 // Host: the ops, states and sync point not handed out yet; variables against the last op handed out.
 nlohmann::json Take()
 {
-    nlohmann::json reply = {{"ok", true}, {"owner_updates", s_ownerUpdates}, {"owner_seconds", s_ownerSeconds}, {"wire_bytes", s_wireBytes}};
+    nlohmann::json reply = {{"ok", true}, {"owner_updates", s_ownerUpdates}, {"owner_seconds", s_ownerSeconds}, {"wire_bytes", s_wireBytes},
+                            {"concurrent_events", s_concurrentEvents}, {"concurrent_names", s_concurrentNames}};
     if (!s_point)
         return reply;
     if (s_taken < s_point->FirstOp)
@@ -478,6 +510,12 @@ bool GraphReplay::DropEvent(BShkbAnimationGraph* apGraph, const BSFixedString* a
     if (apGraph == s_owner)
     {
         Op op{true, apEvent && apEvent->data ? apEvent->data : "", 0.f, s_ownerUpdates, {}, ReadWords(*apGraph)};
+        if (const uint32_t cUpdating = s_ownerUpdateThread.load(); cUpdating && cUpdating != GetCurrentThreadId())
+        {
+            ++s_concurrentEvents;
+            if (s_concurrentNames.size() < 10)
+                s_concurrentNames.push_back(op.Name);
+        }
         if (apGraph->behaviorGraph && apGraph->behaviorGraph->random)
             op.Random = *apGraph->behaviorGraph->random;
         CountWire(op);
@@ -522,6 +560,8 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         s_wireBytes = s_changedWords = s_events = 0;
         s_lastWords.clear();
         s_wantPoint = s_shadowStarted = false;
+        s_concurrentEvents = 0;
+        s_concurrentNames.clear();
         s_clipsLoading.reset();
         s_clipsFor = SIZE_MAX;
         s_clipWaits = s_clipWaitedFor = s_clipGiveUps = 0;
