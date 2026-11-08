@@ -70,8 +70,9 @@ frees it
     else UpdateProcessLevel (37501): not persistent, below high, its cell not loaded -> GarbageCollector::Add
       (also when a fade-out ends on a non-persistent one)
   TESObjectREFR::Enable (19800): an actor enabled in a cell not loaded goes through 37501 too
-  a cell's unload: TESDataHandler 13721 -> TESObjectCELL 19113: each reference its functor (1402D00D0) picks gets
-    StoreChangesOnUnload, then GarbageCollector::Add, disabled or not; a persistent one stays (measured, below)
+  a cell's unload: TESDataHandler::UnloadCell 13721 -> TESObjectCELL 19113: TakeReferencesToFree (19235) takes what
+    PickReferencesToFree (19230) picks, every reference but a persistent one or one whose file is not an ESM (a
+    Skyrim.esm guard is picked); each gets StoreChangesOnUnload, then GarbageCollector::Add, disabled or not
 
 enables it again
   TESObjectREFR::Enable (19800): returns unless disabled; SetDisabled(0), a new AIProcess, Load3D if loaded,
@@ -94,9 +95,12 @@ it before the enable. Out of a session nothing is hidden, so neither hook change
   Anniversary box (progress.md, 2026-11-07, PR #34). `SetDisabled` also runs from `InitItemImpl` and `InitLoadGame` on
   forms being loaded, so the hooks read only `formID` (+0x14) and look it up either way.
 
-- **Read, not run:** that a held copy's enable comes from the host's cell answer (the guest's own disable is a change
-  its cell request sends back, the host's enabled row the answer) or from an enable parent's first load. The fake
-  refuses enables for a hidden copy as the hooks do; the hooks themselves are proven only in Skyrim.
+- **Read:** every caller above (19800, 14646, 20271, 19230, 19235, 19113). **Run:** a console `enable` of the guest's
+  hidden Olava stays refused (`held-copy-goes-with-owner`, 19800). **Inferred, not observed:** which of these would
+  have enabled a held copy in play (the host's enabled row in a cell answer, an enable parent's first load through
+  20271, a guest's own script); no scenario drives 20271, which runs only as a parent is made from its file or a
+  save. Refused there, 20271 still gives the actor child a process; 41294 releases it again (disabled). The fake
+  models both funnels (`EnableActor`, `EnableParentLoads`), GameTests `[copies]`.
 - **Measured before (2026-11-06):** a placed guard's non-persistent reference that followed to a cell the guest had not
   loaded was gone (`GetById` null), and the host's next spawn of it found nothing to take.
 - **Measured (2026-11-07):** disabled alone, the guard was gone all the same once the party travelled on (the harness's

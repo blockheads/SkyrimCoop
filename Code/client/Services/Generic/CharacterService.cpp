@@ -330,8 +330,11 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
         if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && m_actorBridge.IsActorCopy(pFormId->Id))
         {
             m_actorBridge.SetActorCopy(pFormId->Id, false);
-            if (m_world.get<HeldCopyComponent>(cEntity).Hidden)
+            const auto& cHeld = m_world.get<HeldCopyComponent>(cEntity);
+            if (cHeld.Hidden)
                 m_actorBridge.SetActorHidden(pFormId->Id, false);
+            if (cHeld.DisabledByUs)
+                m_actorBridge.EnableActor(pFormId->Id);
         }
         m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
         if (m_world.orphan(cEntity))
@@ -488,7 +491,10 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     m_actorBridge.SetActorRotation(actorFormId, acMessage.Rotation.x, acMessage.Rotation.y);
     // Enabled where its owner is (kept persistent, GuestCopies: enabled in a cell not loaded, 37501 frees no other).
     if (cWasHidden)
+    {
         m_actorBridge.SetActorHidden(actorFormId, false);
+        m_actorBridge.EnableActor(actorFormId);
+    }
 
     m_actorBridge.SetActorValues(actorFormId, acMessage.InitialActorValues);
 

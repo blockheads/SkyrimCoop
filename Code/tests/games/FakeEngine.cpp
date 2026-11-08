@@ -1137,12 +1137,19 @@ void FakeEngine::EnableActor(uint32_t aFormId) noexcept
         it->second.Disabled = false;
 }
 
+void FakeEngine::EnableParentLoads(uint32_t aParent, bool aDisabled)
+{
+    for (auto& [cId, actor] : Actors)
+        if (actor.EnableParent == aParent && !(actor.Hidden && !aDisabled))
+            actor.Disabled = aDisabled;
+}
+
 void FakeEngine::SetActorHidden(uint32_t aFormId, bool aHidden) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
         it->second.Hidden = aHidden;
-        it->second.Disabled = aHidden;
+        it->second.Disabled |= aHidden;
     }
 }
 

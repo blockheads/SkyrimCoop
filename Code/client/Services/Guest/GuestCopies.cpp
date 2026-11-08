@@ -20,9 +20,10 @@ void GuestCopies::OnCopyHeld(const CopyHeldEvent& acEvent) noexcept
     // Persistent for the session: a cell's unload frees its other references, disabled or not (TESObjectCELL 19113).
     if (!m_world.all_of<KeptCopyComponent>(acEvent.Entity))
         m_world.emplace<KeptCopyComponent>(acEvent.Entity, acEvent.FormId, m_actors.SetActorPersistent(acEvent.FormId, true));
-    // Disabled already, or its owner's was: it stays so after the session too.
-    if (acEvent.OwnerDisabled || pHeld->Hidden || m_actors.IsActorDisabled(acEvent.FormId))
+    if (pHeld->Hidden)
         return;
+    // Disabled already, or its owner's was: it stays so after the session too.
+    pHeld->DisabledByUs = !acEvent.OwnerDisabled && !m_actors.IsActorDisabled(acEvent.FormId);
     spdlog::info("Copy {:X}: no owner: hidden", acEvent.FormId);
     m_actors.SetActorHidden(acEvent.FormId, true);
     pHeld->Hidden = true;

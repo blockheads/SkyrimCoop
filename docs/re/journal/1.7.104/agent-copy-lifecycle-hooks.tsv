@@ -32,3 +32,12 @@ time	op	id	rva	item
 2026-11-07T22:48:33Z	comment	13721	0x1bbc80	{"addr": "0x1401bbc80", "comment": "AddressLib 13721. Unloads a cell (not deleted): its references' processes (19130, ProcessLists 41388), its collision, 19056, temp effects, then 19113 frees its references, 19046 runs the actor unload functor 41468 (processes only), grass and worldspace bookkeeping. Reached from TES 13436 on travel (ProcessQueuedTravel 40438)."}
 2026-11-07T22:48:34Z	name	19113	0x2c5890	{"addr": "0x1402c5890", "name": "TESObjectCELL::FreeReferencesOnUnload_19113"}
 2026-11-07T22:48:34Z	name	13721	0x1bbc80	{"addr": "0x1401bbc80", "name": "TESDataHandler::UnloadCell_13721"}
+2026-11-08T00:20:20Z	read	19230	0x2cf840	{"name": "sub_1402CF840"}
+2026-11-08T00:20:26Z	name	19230	0x2cf840	{"addr": "0x1402CF840", "name": "TESObjectCELL::PickReferencesToFree_19230"}
+2026-11-08T00:20:26Z	name	19235	0x2d00d0	{"addr": "0x1402D00D0", "name": "TESObjectCELL::TakeReferencesToFree_19235"}
+2026-11-08T00:20:26Z	name	41292	0x77a9e0	{"addr": "0x14077A9E0", "name": "ProcessLists::UnloadCellActors_41292"}
+2026-11-08T00:20:30Z	comment	19230	0x2cf840	{"addr": "0x1402CF840", "comment": "AddressLib 19230. The cell unload's selector (for 19235 / 19113): walks the cell's reference map and picks each reference unless it is null, persistent (TESForm::IsPersistent 19593, flag 0x400), or from a file that is not an ESM (a plugin's own; sub_14621 the form's file). Picked ones are freed by 19113: a non-persistent master reference (a Skyrim.esm guard) goes, a persistent one stays (copy-lifecycle.md)."}
+2026-11-08T00:20:30Z	comment	19235	0x2d00d0	{"addr": "0x1402D00D0", "comment": "AddressLib 19235. Under the cell's lock (+0x120): collects the references 19230 picks into the caller's array and takes them out of the cell's reference map (+0x90), so 19113 can store and free them."}
+2026-11-08T00:20:30Z	comment	41292	0x77a9e0	{"addr": "0x14077A9E0", "comment": "AddressLib 41292. Runs ProcessLists::ForEachActorInCell_UnloadFunctor (41468) over the cell's references under its lock until it asks for no repeat: processes only, frees no reference. Not the removal point (19113 is)."}
+2026-11-08T00:20:31Z	read	20271	0x3033e0	{"name": "TESObjectREFR::SyncEnableChildren_20271"}
+2026-11-08T00:20:34Z	read	19800	0x2f2840	{"name": "TESObjectREFR::Enable"}

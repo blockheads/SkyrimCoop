@@ -1771,12 +1771,10 @@ void SkyrimBridge::SetActorHidden(uint32_t aFormId, bool aHidden) noexcept
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
-    // Set before the disable, cleared before the enable: HookEnable and HookSetDisabled read it.
+    // HookEnable and HookSetDisabled read it.
     HiddenCopies::Set(aFormId, aHidden);
     if (aHidden && !pActor->IsDisabled())
         pActor->DisableImpl();
-    else if (!aHidden && pActor->IsDisabled())
-        pActor->EnableImpl();
 }
 
 void SkyrimBridge::DisableActor(uint32_t aFormId, bool aDelete) noexcept

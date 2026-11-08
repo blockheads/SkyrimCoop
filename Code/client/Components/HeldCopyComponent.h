@@ -4,7 +4,8 @@
 // with no AI of its own, until the owner spawns it again or the session ends (copy-contract.md).
 struct HeldCopyComponent
 {
-    bool Hidden = false; // disabled by us until its owner spawns it (GuestCopies)
+    bool Hidden = false;       // its enables refused until its owner spawns it (GuestCopies)
+    bool DisabledByUs = false; // enabled again at the session's end
 };
 
 // One of this game's references made persistent while the session lasts, so no cell unload frees it as a copy

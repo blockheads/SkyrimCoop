@@ -496,6 +496,7 @@ namespace
 {
 constexpr uint32_t kOlava = 0x0001A699;
 constexpr uint32_t kOlavaBase = 0x0001A698;
+constexpr uint32_t kOlavaParent = 0x000F0001; // an enable parent, a marker in the fake
 constexpr glm::vec3 kFarOutside{5 * 4096.f + 100.f, 100.f, 0.f}; // in cell (5, 0): nobody's loaded cells
 
 void OutdoorsWithOlava(FakeEngine& aEngine)
@@ -537,6 +538,16 @@ SCENARIO("A quest moves the host's persistent NPC outdoors out of the loaded cel
     AND_WHEN("the guest's game enables her (a script, the host's enabled state for her cell)")
     {
         party.As(party.Guest(), [&] { guest.EnableActor(kOlava); });
+        for (int i = 0; i < 10; ++i)
+            party.Frame();
+        THEN("she stays hidden") CHECK(guest.IsActorDisabled(kOlava));
+    }
+    AND_WHEN("her enable parent loads enabled on the guest (20271's raw flag)")
+    {
+        party.As(party.Guest(), [&] {
+            guest.Actors.at(kOlava).EnableParent = kOlavaParent;
+            guest.EnableParentLoads(kOlavaParent, false);
+        });
         for (int i = 0; i < 10; ++i)
             party.Frame();
         THEN("she stays hidden") CHECK(guest.IsActorDisabled(kOlava));
@@ -615,5 +626,30 @@ SCENARIO("The guest's non-persistent reference follows the host's NPC out of the
         party.Until([&] { return guest.IsActorCopy(kOlava) && guest.ActorHas3D(kOlava) && !HeldHere(party.Guest(), kOlava); },
                     "the guest's own reference is its copy again");
         party.Agree("the games agree with the guard back");
+    }
+}
+
+// A copy held as its owner's actor is disabled stays so: no enable shows it, nor the session's end.
+SCENARIO("The host disables its placed NPC: the guest's copy refuses enables and stays disabled after the session", "[copies]")
+{
+    Party party(1, OutdoorsWithOlava);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return guest.IsActorCopy(kOlava) && guest.ActorHas3D(kOlava); }, "the guest shows the host's Olava");
+
+    party.As(party.Host(), [&] { host.DisableActor(kOlava, false); });
+    party.Until([&] { return HeldHere(party.Guest(), kOlava) && guest.IsActorDisabled(kOlava); }, "the guest's copy is disabled as the host's");
+    party.As(party.Guest(), [&] {
+        guest.EnableActor(kOlava);
+        guest.Actors.at(kOlava).EnableParent = kOlavaParent;
+        guest.EnableParentLoads(kOlavaParent, false);
+    });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    THEN("an enable or her enable parent's load does not show her") CHECK(guest.IsActorDisabled(kOlava));
+    AND_WHEN("the session ends")
+    {
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
+        THEN("she stays disabled, as the host's save has her") CHECK(guest.IsActorDisabled(kOlava));
     }
 }

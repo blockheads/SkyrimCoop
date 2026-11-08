@@ -8,10 +8,8 @@ struct CopyHeldEvent;
 class IActorBridge;
 
 /**
- * @brief A copy with no owner goes (docs/design/copy-contract.md, "A copy's lifecycle"): the host's events alone decide
- * when a copy appears, so a held reference is kept (persistent) and hidden when its owner's actor goes, before it
- * follows it, and this game cannot load, free or enable it again until the owner spawns it or the session ends
- * (CharacterService::ShowHeld).
+ * @brief A copy with no owner goes (docs/design/copy-contract.md, "A copy's lifecycle"): kept and hidden as its owner's
+ * actor goes, until the owner spawns it or the session ends (CharacterService).
  */
 struct GuestCopies
 {

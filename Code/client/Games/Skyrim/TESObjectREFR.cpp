@@ -1443,8 +1443,7 @@ static ExtraDataList* HookEnchantObject(ExtraContainerChanges::Data* apChanges, 
     return ImprovesStack(apChanges, apObject, [&] { return RealEnchantObject(apChanges, apObject, apExtra, apEnchantment, aCharge); });
 }
 
-// A held copy with no owner stays hidden until its owner's spawn shows it (docs/re/systems/copy-lifecycle.md):
-// TESObjectREFR::Enable (19800) is every enable's, and TESForm::SetDisabled (14646) the enable parents' raw one (20271).
+// A hidden copy's enables refused (copy-lifecycle.md): Enable 19800, and SetDisabled 14646 for the raw ones (20271).
 // By form id only: SetDisabled also runs on forms still loading.
 using TEnable = void(TESObjectREFR*, bool aResetInventory);
 static TEnable* RealEnable = nullptr;
