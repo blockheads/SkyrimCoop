@@ -200,7 +200,7 @@ mandible difference above is a pick too: creatures' idle picks may not be covere
 ## Standalone
 
 No link found, each stays one task: creature wobble, Open Animation Replacer's picks, long roll, dropped sword, chest
-lid, `SendAnimationEvent`, the werewolf, crafting station exit, follower stops following, scratch save, quest
+lid, the werewolf, crafting station exit, follower stops following, scratch save, quest
 start/stop events, older crime scenarios, a mod's rename, the baseline after a death, Greybeards validation, an old crash reported as new.
 
 [After the host dies](bugs.md#after-the-host-dies) waits for PR #25, which refuses copies' combat trees and finds the

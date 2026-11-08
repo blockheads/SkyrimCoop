@@ -52,7 +52,7 @@ mirror of its player is seconds behind, and the story's next condition reads it 
 Once per native, `NativeReach::CallOf` reads its C++ function with Zydis (`CodeReach`). It records:
 
 - the engine functions it calls directly (tail jumps included);
-- the virtual calls it makes on its self or on this game's player;
+- the virtual calls it makes on its self, its first argument or this game's player;
 - the player's fields it writes.
 
 Each of these is looked up in one engine table, `NativeReach::EngineSinks`:
@@ -67,7 +67,7 @@ Each of these is looked up in one engine table, `NativeReach::EngineSinks`:
 | Progress, any script's but a body's | `SetPlayerKnows` 14639 (words), `IncrementSkillFromPapyrus` 55616, `PlayerCharacter::AddPerk` 40681 / `RemovePerk` 40682 (vtable 0x7D8 / 0x7E0), `ActorValueOwner::ModActorValue` 38467 with modifier 0 (the permanent one; +0xB8, slot 0x30), the player's perk points (field 0xB09) |
 | Progress, the story's | `PlayerCharacter::AddSkillExperience` 40488 (vtable 0x7B8), `Actor::SwitchRace` 37925 (`Actor.SetRace`: never on a copy; a copy takes its player's race with its looks) |
 | Progress, the story's, kept on a guest's character | `Actor::AddSpell` 38716, `TaskQueueInterface::QueueRemoveSpell` 36962, `Actor::SetFactionRank` 37677, `Actor::RemoveFromFaction` 37688 |
-| Body (ranked after items, before the controls) | `PlayerCharacter::SetAIDriven` 40586, `PlayIdle`'s and `PlayIdleWithTarget`'s call 55105 (to `AIProcess::SetupSpecialIdle`), `SetVehicle`'s 37903, `Actor::SetRestrained` 37488; and an object a native takes the address of: `SkyrimScript::MoveToFunctor`'s vtable 218380 (`MoveTo`, `MoveToNode` queue one, `SkyrimVM::QueuePostRenderCall` 53955, and the move runs after the frame) |
+| Body (ranked after items, before the controls) | `PlayerCharacter::SetAIDriven` 40586, `PlayIdle`'s and `PlayIdleWithTarget`'s call 55105 (to `AIProcess::SetupSpecialIdle`), `SetVehicle`'s 37903, `Actor::SetRestrained` 37488, an actor's graph event 38048 (graph holder slot 1: `Debug.SendAnimationEvent` on its argument); and an object a native takes the address of: `SkyrimScript::MoveToFunctor`'s vtable 218380 (`MoveTo`, `MoveToNode` queue one, `SkyrimVM::QueuePostRenderCall` 53955, and the move runs after the frame) |
 
 A second reading answers whether a global native acts on this game's player: its code, three calls deep, reaches a
 per-player object (`NativeReach::ReachesThisPlayer`; `docs/re/systems/papyrus-guest-scripts.md`). It is read only
@@ -82,7 +82,10 @@ Most progression natives change the player through a virtual call, which leaves 
 - `AdvanceSkill` is `mov rcx,g_thePlayer; mov rax,[rcx]; call [rax+7B8h]`.
 
 The reader follows the registers through each native in one forward pass. It knows that r8 is the native's self (the
-VM's convention: vm, stack id, self, arguments), and it knows the cells of `g_thePlayer`. A branch's target starts
+VM's convention: vm, stack id, self, arguments) and r9 its first argument, and it knows the cells of `g_thePlayer`.
+A call on the argument names it (`Reach::Argument`), and the router targets that argument instead of the self or a
+global's player (`PartyRules::SubjectOf`): `Debug.SendAnimationEvent(akRef, ...)` is
+`lea rcx,[r9+38h]; mov rax,[rcx]; call [rax+8]` (`docs/re/systems/papyrus-guest-scripts.md`). A branch's target starts
 from the state at the branch, met with what falls through to it. A virtual call is resolved against this game's
 player's own vtables in memory, and its second argument (`rdx`) is kept when it is a constant.
 
@@ -107,7 +110,7 @@ Progress, the host, on a player (0x14 or a guest's character), not a body's scri
     on this game's player                                         -> every game
     on a guest's character                                        -> every game; this player too; the original
                                                                      only when kept on the copy (factions, spells)
-Body, on a player (its self, or a global's), not a body's script:
+Body, on a player (its self, its argument, or a global's), not a body's script:
   the story's, on the host                                        -> every game, each on its own player; on a guest's
                                                                      character: not here (its owner moves it), this
                                                                      player too
@@ -133,8 +136,9 @@ A story's call on the player's body runs on every game's own player: MQ206's `Ga
 moves each player into the Elder Scroll's vision by its own `MoveTo`, a story's `PlayIdle` on the player plays on each.
 Read from the code like the rest: `MoveTo` calls no move, it takes the address of `MoveToFunctor`'s vtable to queue
 one, so the reader records the objects a native takes the address of (`lea`) beside the functions it calls
-(`CodeReach`, `Facts::Addressed`, `Sinks::Objects`). Not read yet: `Debug.SendAnimationEvent`, a virtual call on its
-argument's graph holder (`docs/bugs.md`).
+(`CodeReach`, `Facts::Addressed`, `Sinks::Objects`). `Debug.SendAnimationEvent` is a virtual call on its argument's
+graph holder: a story's event on a player plays on each game's own player, on an NPC or object the host's only
+(2026-11-07; GameTests `cutscene_flows.cpp`, spec `story-animation-event-reaches-guest` in Skyrim).
 
 A body's call ends where it runs: another game's `MoveTo` copy waits for its own move, never its original's result
 (`Scope::Ran`).

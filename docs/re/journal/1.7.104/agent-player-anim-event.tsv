@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-07T22:19:05Z	read		0xa073f0	{"name": "sub_140A03C00"}
+2026-11-07T22:19:23Z	read		0xa20740	{"name": "sub_140A1FBF0"}
+2026-11-07T22:19:32Z	read	55380	0xa1f620	{"name": "papyrus::Debug::SendAnimationEvent"}
+2026-11-07T22:20:27Z	read	38048	0x6b61a0	{"name": "j_IAnimationGraphManagerHolder::NotifyAnimationGraph"}
+2026-11-07T22:20:27Z	read	32901	0x554220	{"name": "IAnimationGraphManagerHolder::NotifyAnimationGraph"}
+2026-11-07T22:21:20Z	type	55380	0xa1f620	{"addr": "0x140A1F620", "kind": "function", "signature": "void __fastcall papyrus::Debug::SendAnimationEvent(void *vm, unsigned int stackId, void *staticTag, __int64 akRef, __int64 asEventName)"}
+2026-11-07T22:21:23Z	name	38048	0x6b61a0	{"addr": "0x1406B61A0", "name": "Actor__NotifyAnimationGraph"}
+2026-11-07T22:21:23Z	local	55380	0xa1f620	{"func_addr": "0x140A1F620", "old": "v6", "new": "eventName"}
+2026-11-07T22:21:29Z	comment	55380	0xa1f620	{"addr": "0x140A1F620", "comment": "[re]\nAddressLib ID 55380\nDebug.SendAnimationEvent(akRef, asEventName): static native, so r8 is the StaticFunctionTag and akRef arrives in r9. Null akRef returns; else a virtual call on akRef's graph holder (TESObjectREFR+0x38), IAnimationGraphManagerHolder slot 1 (+0x8, NotifyAnimationGraph). For an Actor/Character/PlayerCharacter the slot is the thunk 38048 (Actor__NotifyAnimationGraph); for a plain reference it is 32901 directly. NativeReach reads this as a Body call on its argument (docs/re/systems/papyrus-guest-scripts.md)."}
+2026-11-07T22:21:29Z	comment		0xa1f652	{"addr": "0x140A1F652", "comment": "akRef->IAnimationGraphManagerHolder::NotifyAnimationGraph(&eventName): vtable slot 1 at +0x38"}
+2026-11-07T22:21:29Z	comment	38048	0x6b61a0	{"addr": "0x1406B61A0", "comment": "[re]\nAddressLib ID 38048\nActor's IAnimationGraphManagerHolder slot 1 (+0x8): a jmp to NotifyAnimationGraph 32901. Shared by the Actor (207517), Character (207892) and PlayerCharacter (208046) graph-holder vtables; TESObjectREFR's (190265) holds 32901 itself."}
+2026-11-07T22:21:29Z	comment	32901	0x554220	{"addr": "0x140554220", "comment": "[re]\nAddressLib ID 32901\nIAnimationGraphManagerHolder::NotifyAnimationGraph(holder, BSFixedString* event): GetAnimationGraphManager (slot 2, +0x10), then BSAnimationGraphManager::NotifyAllGraphs(manager, event); returns whether a graph took it. TESObjectREFR's slot 1; actors reach it through 38048."}
+2026-11-07T22:21:54Z	read	56205	0xa47370	{"name": "papyrus::ObjectReference::PlayAnimation"}
+2026-11-07T22:22:03Z	read	54734	0xa01990	{"name": "papyrus::Actor::PlaySubGraphAnimation"}

@@ -361,6 +361,13 @@ expectations, and `cleanup` runs even after assertion failures. Both runners att
 runner also restores every tracked actor. Specialized native flows remain code when internal assertions or message
 ordering would become more complex as data.
 
+A `script` step's call is queued as the harness's `papyrus_call` queues it, so it gets the cause
+`GuestScripts::CauseOfCall` gives a queued call: a guest's character among its arguments makes it that guest's, this
+game's player makes it this player's (an engine event naming the player); the fake's runner asks `CauseOfCall` too.
+So a quest's call on the host's own player cannot be written as a step (it reads as the player's own moment); a
+GameTests flow covers it. `{"form": "guest-character"}` is the host's copy of the guest's player; `graph bool` reads
+that game's player's behavior graph boolean (`graph_bool`).
+
 Every spec is a Catch2 case named `spec:<name>`, with `[spec]` and its JSON tags. Runtime discovery occurs before
 Catch2 selection, so listing, filtering, timing and sharding work per spec. JSON edits and added specs require no
 rebuild. The old aggregate test and section-based selection are removed. Skyrim uses the same canonical names:

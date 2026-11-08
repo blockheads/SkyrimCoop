@@ -19,8 +19,8 @@ const ZydisDecoder& Decoder() noexcept
     return s_decoder;
 }
 
-// What a register holds, as far as reading follows it: an object (the native's self, or this game's player) at an
-// offset, the vtable found there, or a constant.
+// What a register holds, as far as reading follows it: an object (the native's self, this game's player, or its
+// first argument) at an offset, the vtable found there, or a constant.
 struct Held
 {
     enum Kind : uint8_t
@@ -33,6 +33,7 @@ struct Held
     bool OnPlayer = false;
     uintptr_t Offset = 0;
     uint64_t Value = 0;
+    std::optional<uint8_t> Argument;
     bool operator==(const Held&) const = default;
 };
 
@@ -61,6 +62,7 @@ class Registers
     Registers() noexcept
     {
         m_held[ZYDIS_REGISTER_R8] = {Held::kObject}; // a native's self (the VM's calling convention: vm, stack, self)
+        m_held[ZYDIS_REGISTER_R9] = {.What = Held::kObject, .Argument = 0}; // its first argument (Debug.SendAnimationEvent 55380)
     }
 
     // Before the instruction at aAt: what the paths into it agree on.
@@ -97,7 +99,8 @@ class Registers
             {
                 const Held* cpSecond = Find(ZYDIS_REGISTER_RDX);
                 aFacts.Virtuals.push_back({cpTable->OnPlayer, cpTable->Offset, static_cast<uint32_t>(pDest->mem.disp.value),
-                                           cpSecond && cpSecond->What == Held::kConstant ? std::optional(cpSecond->Value) : std::nullopt});
+                                           cpSecond && cpSecond->What == Held::kConstant ? std::optional(cpSecond->Value) : std::nullopt,
+                                           cpTable->Argument});
             }
         if (acInstruction.mnemonic == ZYDIS_MNEMONIC_MOV && pDest)
             if (const Held* cpObject = cObjectAt(*pDest); cpObject && cpObject->OnPlayer)
@@ -105,7 +108,7 @@ class Registers
         if (acInstruction.mnemonic != ZYDIS_MNEMONIC_LEA)
             for (uint8_t i = 0; i < acInstruction.operand_count_visible; ++i)
                 if ((apOperands[i].actions & ZYDIS_OPERAND_ACTION_MASK_READ) && !aIsCall)
-                    if (const Held* cpObject = cObjectAt(apOperands[i]); cpObject && !cpObject->OnPlayer)
+                    if (const Held* cpObject = cObjectAt(apOperands[i]); cpObject && !cpObject->OnPlayer && !cpObject->Argument)
                         aFacts.SelfReads.push_back(static_cast<uint32_t>(cpObject->Offset + apOperands[i].mem.disp.value));
 
         std::optional<Held> now;
@@ -127,12 +130,14 @@ class Registers
                         now = Held{Held::kObject, true};
                 }
                 else if (const Held* cpObject = cObjectAt(*pSource))
-                    now = Held{Held::kVtable, cpObject->OnPlayer, cpObject->Offset + static_cast<uintptr_t>(pSource->mem.disp.value)};
+                    now = Held{Held::kVtable, cpObject->OnPlayer, cpObject->Offset + static_cast<uintptr_t>(pSource->mem.disp.value), 0,
+                               cpObject->Argument};
             }
             else if (acInstruction.mnemonic == ZYDIS_MNEMONIC_LEA)
             {
                 if (const Held* cpObject = cObjectAt(*pSource))
-                    now = Held{Held::kObject, cpObject->OnPlayer, cpObject->Offset + static_cast<uintptr_t>(pSource->mem.disp.value)};
+                    now = Held{Held::kObject, cpObject->OnPlayer, cpObject->Offset + static_cast<uintptr_t>(pSource->mem.disp.value), 0,
+                               cpObject->Argument};
             }
             else if (acInstruction.mnemonic == ZYDIS_MNEMONIC_XOR && pSource->type == ZYDIS_OPERAND_TYPE_REGISTER &&
                      Whole(pSource->reg.value) == Whole(pDest->reg.value))

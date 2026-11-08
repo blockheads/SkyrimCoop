@@ -258,13 +258,24 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
     facts.Guest = PlayerNatives::IsGuest();
     facts.GuestCause = GuestScripts::IsGuestCharacter(m_cause);
     const bool cStatic = apFunction->GetIsStatic();
-    // A global's player is this game's; a method's, its object if that is a player (a guest's: rule 2's swap).
-    const uint32_t cSelf = cStatic ? PartyRules::kThisPlayerFormId : FormIdOf(acStack.pTop->self);
+    // A global's player is this game's; a method's, its object if that is a player (a guest's: rule 2's swap); a call
+    // on an argument, that argument (Debug.SendAnimationEvent's reference).
+    const uint32_t cObject = cStatic ? 0 : FormIdOf(acStack.pTop->self);
+    std::vector<uint32_t> arguments;
+    if (facts.Reach.Argument)
+    {
+        bool self = true;
+        EachValue(*acStack.pTop, [&](const BSScript::Variable& acValue) {
+            if (!std::exchange(self, false))
+                arguments.push_back(FormIdOf(acValue));
+        });
+    }
+    const uint32_t cSelf = PartyRules::SubjectOf(facts.Reach, cStatic ? std::nullopt : std::optional(cObject), arguments);
     facts.TargetId = cSelf;
     facts.Target = cSelf == PartyRules::kThisPlayerFormId     ? Target::kThisPlayer
                    : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
                                                            : Target::kNone;
-    facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cSelf);
+    facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cObject);
     const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
     auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     const uint64_t cScript = pScript ? pScript->GetHandle() : 0;
@@ -272,7 +283,7 @@ PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSSc
     if (SystemQuests::Any())
     {
         facts.InSystemQuest = SystemQuests::Is(OwnEvents::QuestOf(cScript));
-        facts.SystemObject = !cStatic && (SystemQuests::Is(cSelf) || SystemQuests::IsGlobal(cSelf));
+        facts.SystemObject = !cStatic && (SystemQuests::Is(cObject) || SystemQuests::IsGlobal(cObject));
     }
     EachValue(*acStack.pTop, [&facts](const BSScript::Variable& acValue) {
         facts.PlayerInCall = facts.PlayerInCall || FormIdOf(acValue) == PartyRules::kThisPlayerFormId;

@@ -127,6 +127,7 @@ const Sinks& EngineSinks() noexcept
     POINTER_SKYRIMSE(void, s_setAiDriven, 40586);         // PlayerCharacter::SetAIDriven
     POINTER_SKYRIMSE(void, s_setVehicle, 37903);          // Actor.SetVehicle's call
     POINTER_SKYRIMSE(void, s_setRestrained, 37488);       // Actor::SetRestrained
+    POINTER_SKYRIMSE(void, s_notifyGraph, 38048);         // an actor's graph event: its graph holder's slot 1 (Debug.SendAnimationEvent)
     static const Sinks s_sinks = [] {
         constexpr uint32_t cPerkPoints = offsetof(PlayerCharacter, perkPoints);
         Sinks sinks;
@@ -156,7 +157,7 @@ const Sinks& EngineSinks() noexcept
         for (const auto* pFunction : {&s_addSpell, &s_queueRemoveSpell, &s_setFactionRank, &s_removeFromFaction})
             cAdd(*pFunction, cStoryOnCopy);
         sinks.PlayerFields[cPerkPoints] = {cReward};
-        for (const auto* pFunction : {&s_playIdle, &s_setAiDriven, &s_setVehicle, &s_setRestrained})
+        for (const auto* pFunction : {&s_playIdle, &s_setAiDriven, &s_setVehicle, &s_setRestrained, &s_notifyGraph})
             cAdd(*pFunction, {Call::kBody});
         if (const auto cVtable = reinterpret_cast<uintptr_t>(s_moveToFunctor.GetPtr()))
             sinks.Objects[cVtable] = {{Call::kBody}};
@@ -297,8 +298,8 @@ const Objects& EngineObjects() noexcept
     return s_objects;
 }
 
-// A virtual call's function, as this game's player's vtable at its offset holds it (a native's self is resolved as the
-// player too: progression is routed only when it is one). None: no player, or memory not readable.
+// A virtual call's function, as this game's player's vtable at its offset holds it (a native's self or argument is
+// resolved as the player too: the call is routed only when it is one). None: no player, or memory not readable.
 std::optional<uintptr_t> Resolve(const VirtualCall& acCall) noexcept
 {
     const uintptr_t cPlayer = ThePlayer();

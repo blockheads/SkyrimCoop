@@ -71,9 +71,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 
     uint32_t Controls = kAllControls; // ControlMap::enabledControls
     float ShakeSeconds = 0.f;         // the camera's shake left (Game.ShakeCamera), a frame a 60th of a second
-    // A script's calls on a body (cutscenes.md step 2): the idles each actor played (Actor.PlayIdle), and whether the
-    // player is AI-driven (Game.SetPlayerAIDriven). Its moves are travels (ObjectReference.MoveTo, MoveActorTo).
+    // A script's calls on a body (cutscenes.md step 2): idles played, graph events sent (Debug.SendAnimationEvent), the
+    // player AI-driven; its moves are travels (ObjectReference.MoveTo, MoveActorTo).
     std::map<uint32_t, std::vector<uint32_t>> Idles;
+    std::map<uint32_t, std::vector<std::string>> GraphEvents;
+    std::map<uint32_t, std::map<std::string, bool>> GraphBools; // what a graph event sets (Skyrim: BleedOutStart's IsBleedingOut)
+    [[nodiscard]] bool GraphBool(uint32_t aActor, const std::string& acName) const
+    {
+        const auto it = GraphBools.find(aActor);
+        return it != GraphBools.end() && it->second.contains(acName) && it->second.at(acName);
+    }
     bool AiDriven = false;
     uint32_t ScenePackage{};
     PartyRules::ControlHolds Holds;   // PartyNatives' holds on this game

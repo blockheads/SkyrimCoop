@@ -235,3 +235,57 @@ SCENARIO("A story's idle on the player plays on each game's own player", "[cutsc
     for (const auto& [cActor, cIdles] : host.Idles)
         CHECK(cActor == FakeEngine::kPlayer);
 }
+
+namespace
+{
+// Debug.SendAnimationEvent(akRef, asEventName): a global acting on its argument's graph (55380, 38048).
+LocalCall SendAnimationEvent(uint32_t aWho, const char* acpEvent)
+{
+    return {.Class = "Debug", .Function = "SendAnimationEvent", .Arguments = {LocalForm{aWho}, std::string(acpEvent)}};
+}
+} // namespace
+
+SCENARIO("A story's Debug.SendAnimationEvent on a player plays on each game's own player", "[cutscene][body]")
+{
+    Party party(1, SceneWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return GuestCharacter(host) != 0; }, "the host shows the guest's character");
+    const std::vector<std::string> cEvent{"IdleForceDefaultState"};
+
+    WHEN("on the host's player")
+    {
+        party.WorldScript(party.Host(), SendAnimationEvent(FakeEngine::kPlayer, "IdleForceDefaultState"));
+        party.Until([&] { return !guest.GraphEvents[FakeEngine::kPlayer].empty(); }, "the guest's player gets the event");
+        CHECK(host.GraphEvents[FakeEngine::kPlayer] == cEvent);
+        CHECK(guest.GraphEvents[FakeEngine::kPlayer] == cEvent);
+        THEN("no copy got it: each copy follows its owner")
+        {
+            CHECK(host.GraphEvents.size() == 1);
+            CHECK(guest.GraphEvents.size() == 1);
+        }
+    }
+    WHEN("on the guest's character, on the host")
+    {
+        const uint32_t cCharacter = GuestCharacter(host);
+        party.WorldScript(party.Host(), SendAnimationEvent(cCharacter, "IdleForceDefaultState"));
+        party.Until([&] { return !guest.GraphEvents[FakeEngine::kPlayer].empty(); }, "the guest's player gets the event");
+        THEN("each game's own player, never the copy")
+        {
+            CHECK(host.GraphEvents[FakeEngine::kPlayer] == cEvent);
+            CHECK(guest.GraphEvents[FakeEngine::kPlayer] == cEvent);
+            CHECK(!host.GraphEvents.contains(cCharacter));
+        }
+    }
+    WHEN("on a reference no player is")
+    {
+        party.WorldScript(party.Host(), SendAnimationEvent(kBack, "Open"));
+        for (int i = 0; i < 30; ++i)
+            party.Frame();
+        THEN("the host's only: the world's reference is the host's")
+        {
+            CHECK(host.GraphEvents[kBack] == std::vector<std::string>{"Open"});
+            CHECK(guest.GraphEvents.empty());
+        }
+    }
+}
