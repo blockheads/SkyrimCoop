@@ -57,6 +57,7 @@ std::atomic<uint32_t> s_threadCount{0};
 thread_local ThreadSlot* t_slot = nullptr;
 thread_local bool t_reporting = false;
 thread_local uint8_t t_stretch = LockOrderAttribution::kElsewhere;
+LockOrderAttribution::StretchOverlap s_stretchOverlap;
 
 // Observed "Outer held, then Inner taken" pairs, keyed by the locks and both modes.
 struct Edge
@@ -272,7 +273,7 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
                 edge.ThreadId = aThreadId;
                 edge.OuterCaller = acOuter.Caller;
                 edge.InnerCaller = aInnerCaller;
-                edge.Stretches.store(t_stretch, std::memory_order_relaxed);
+                LockOrderAttribution::NoteStretch(edge.Stretches, t_stretch);
                 edge.Ready.store(true, std::memory_order_release);
                 s_edgeCount.fetch_add(1, std::memory_order_relaxed);
                 return;
@@ -283,8 +284,7 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
             if (edge.Ready.load(std::memory_order_acquire) && edge.ThreadId != aThreadId &&
                 !edge.ManyThreads.load(std::memory_order_relaxed))
                 edge.ManyThreads.store(true, std::memory_order_relaxed);
-            if ((edge.Stretches.load(std::memory_order_relaxed) & t_stretch) == 0)
-                edge.Stretches.fetch_or(t_stretch, std::memory_order_relaxed);
+            LockOrderAttribution::NoteStretch(edge.Stretches, t_stretch);
             return;
         }
     }
@@ -457,10 +457,8 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
                                         reinterpret_cast<const void*>(pReverse->InnerCaller)), 17);
                     CountOverlap(cPattern, cHeld, apLock, aMode, aCaller, cThreadId, *pReverse);
                     // Kept apart is its own report: the same pattern from anywhere else is still reported.
-                    const bool cKeptApart =
-                        LockOrderAttribution::KeptApartByFrame(t_stretch, pReverse->Stretches.load(std::memory_order_relaxed));
-                    const uint8_t cReportedBit = cKeptApart ? 2 : 1;
-                    if (pReverse->Reported.fetch_or(cReportedBit) & cReportedBit)
+                    const bool cKeptApart = s_stretchOverlap.KeptApart(t_stretch, pReverse->Stretches.load(std::memory_order_relaxed));
+                    if (!LockOrderAttribution::FirstReportOfKind(pReverse->Reported, cKeptApart))
                         continue;
                     Report(cKeptApart ? cPattern ^ 0x4B455054ull : cPattern, std::format(
                         "{}lock order inversion [{} > {} vs {} > {}]: thread {} holds {} for {} (taken by {}) and asks "
@@ -654,7 +652,8 @@ void LogHeldLocks() noexcept
 
 Stats GetStats() noexcept
 {
-    return {s_enabled, s_edgeCount.load(), s_reportCount.load(), s_tooDeep.load(), s_tableFull.load(), s_tableResets.load()};
+    return {s_enabled, s_edgeCount.load(), s_reportCount.load(), s_tooDeep.load(), s_tableFull.load(), s_tableResets.load(),
+            s_stretchOverlap.Seen.load()};
 }
 
 void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept
@@ -677,10 +676,13 @@ FrameStretch::FrameStretch(uint8_t aStretch) noexcept
     : m_previous(t_stretch)
 {
     t_stretch = aStretch;
+    if (s_stretchOverlap.Enter(aStretch))
+        spdlog::critical("LockOrder: main loop tasks and our update ran at once: no order is kept apart by the frame from now on");
 }
 
 FrameStretch::~FrameStretch() noexcept
 {
+    s_stretchOverlap.Leave(t_stretch);
     t_stretch = m_previous;
 }
 

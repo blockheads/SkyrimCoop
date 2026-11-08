@@ -110,7 +110,7 @@ class Runner:
                               " | ".join(describe_world_differences(world, 20)))
         new_locks = [v for k, v in ctx.lock_order_reports().items() if k not in known_locks]
         for game, report, ours in new_locks:
-            if KEPT_APART in report:
+            if KEPT_APART in report and not ours:
                 log(f"lock order the frame keeps apart (not a failure; live overlaps still fail) on {game}: {report}")
             elif not ours:
                 log(f"warning: engine-only lock-order pattern on {game}: {report}")

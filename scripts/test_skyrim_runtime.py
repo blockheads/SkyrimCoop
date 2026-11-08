@@ -76,6 +76,9 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse(found["kept apart: " + sites][2])
         self.assertTrue(found[sites][2])
         self.assertIn("live: " + sites, found)
+        # Once the two stretches ran at once in that game, a kept-apart report fails like any of ours.
+        ctx.game.return_value.read_status.return_value = {"lock_order": {"reports": reports[:1], "stretches_overlapped": True}}
+        self.assertTrue(Observations.lock_order_reports(ctx)[sites][2])
 
     def test_switching_runtime_replaces_an_older_same_size_loader(self):
         from coop_harness.runtime import Runtime

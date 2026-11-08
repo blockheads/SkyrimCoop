@@ -217,11 +217,13 @@ class Observations:
         for name in ("", "client"):
             _game = ctx.game(name)
             status = _game.read_status() or {}
+            # Kept apart stands only while the two stretches never ran at once in that game (lock-order.md).
+            overlapped = status.get("lock_order", {}).get("stretches_overlapped", False)
             for report in status.get("lock_order", {}).get("reports", []):
                 match = LOCK_PATTERN.match(report)
                 sites = match.group(3) if match else report
                 # A live overlap is never a reviewed pattern: its own key. Kept apart is its own key too, and not ours to fail.
-                kept_apart = KEPT_APART in report[:len("[ours] ") + len(KEPT_APART)]
+                kept_apart = not overlapped and KEPT_APART in report[:len("[ours] ") + len(KEPT_APART)]
                 if match and match.group(2).startswith("live"):
                     sites = "live: " + sites
                 elif sites in known:

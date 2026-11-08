@@ -47,6 +47,7 @@ struct Stats
     uint32_t TooDeep;   // acquisitions nested deeper than tracked (no order checks for them)
     uint32_t TableFull;   // lock pairs not recorded because the edge table is full
     uint32_t TableResets; // times the edge table filled up and started over
+    bool StretchesOverlapped; // main loop tasks and our update ran at once: nothing is kept apart
 };
 Stats GetStats() noexcept;
 // Each inversion pattern seen: its asks, how many found the lock held by another thread, how many from the reverse
