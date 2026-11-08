@@ -2527,6 +2527,18 @@ class GraphExpectTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "without a reading of both"):
             self.run_expect(self.games(replies=replies), seconds=3.0, within=1.0)
 
+    def test_missing_readings_never_end_a_run_apart(self):
+        """Codex on PR #38: a copy apart all along, with every third reply missing, passed: each gap ended the run."""
+        turn, idle = ActiveStatesTests.saved((("m", "CannedTurnState"),)), ActiveStatesTests.saved((("m", "Idle"),))
+        wrong = ActiveStatesTests.saved((("m", "LoopingTurnRight"),))
+
+        def replies(name, call):
+            if call % 3 == 0:
+                return None
+            return {"state": (turn if call % 2 else idle) if not name else wrong}
+        with self.assertRaisesRegex(AssertionError, "apart for 1 s or more"):
+            self.run_expect(self.games(replies=replies), field="CannedTurnState", value=1, seconds=3.2, within=1.0)
+
     def test_the_owner_must_enter_the_named_state(self):
         """A wolf scenario passes only on the canned turn it is about, not on any three changes."""
         idle, turn = ActiveStatesTests.saved((("m", "Idle"),)), ActiveStatesTests.saved((("m", "CannedTurnState"),))

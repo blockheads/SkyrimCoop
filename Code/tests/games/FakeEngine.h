@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Systems/CopyVariables.h>
 #include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
@@ -536,6 +537,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
+        CopyVariables::GraphTime Graph;       // a copy's graph time, as ActorExtension::Graph
+        std::optional<double> BoundThenAt;    // when an owner writes Bound's OwnerThen (AnimationMs)
         std::optional<double> BoundStartedAt; // its Bound clip's start, on AnimationMs
         bool BoundStuck = false;              // its exit condition failed at the clip's end: no other end comes
         int32_t BoundReadAtStart = -1;        // Bound's Variable as its clip started, and as it ended
@@ -633,6 +636,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::optional<size_t> ExitVariable;
         std::vector<int32_t> ExitValues;
         std::optional<int32_t> OwnerWritesExit;
+        // The owner writes Variable again this long after its clip's end, with no action: {value, ms}.
+        std::optional<std::pair<int32_t, uint64_t>> OwnerThen;
     };
     std::optional<BoundStart> Bound;
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
@@ -1017,6 +1022,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     // Dead with a ragdoll, or its ragdoll's bodies awake (knocked down): as Actor::LiesInRagdoll.
+    double GetCopyGraphTick(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.Graph.Tick.load() : -1.0;
+    }
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     bool IsActorDead(uint32_t aFormId) const noexcept override;

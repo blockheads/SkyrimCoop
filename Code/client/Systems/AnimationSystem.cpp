@@ -86,6 +86,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 aAnimationComponent.LastRanAction = spawnAction;
                 aAnimationComponent.Variables = spawnAction.Variables;
                 aAnimationComponent.VariablesTick = spawnAction.Tick;
+                CopyVariables::Record(aAnimationComponent.Integers, spawnAction.Tick, spawnAction.Variables.Integers, true);
+                apActor->GetExtension()->Graph.Anchor(spawnAction.Tick);
                 apActor->GetExtension()->LatestAnimation.Write(spawnAction);
                 actions.pop_front();
             }
@@ -113,7 +115,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         if (phase == ReplayStep::kTaken)
         {
             aAnimationComponent.LastRanAction = cAction;
-            aAnimationComponent.Graph.ActionTaken(cAction.Tick);
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
                 spdlog::debug("Copy {:X} took replayed action {:X} '{}' {} graph updates late", apActor->formID, cAction.ActionId,
@@ -200,6 +201,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
         step.Action = first;
         step.Variables = aAnimationComponent.Variables;
+        CopyVariables::Record(aAnimationComponent.Integers, first.Tick, step.Variables.Integers, true);
         step.Retries = 0;
         aAnimationComponent.StagedUpdates = 0;
 
@@ -312,6 +314,8 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
                           cAction.ActionId, cAction.EventName);
         return cLoaded;
     });
+    if (cTaken)
+        apActor->GetExtension()->Graph.Anchor(cAction.Tick); // its graph is at the action's moment
     const uint8_t cKnockAfter = KnockReplay::AfterAction(cKnockBefore, cGetUp, cTaken);
     if (cKnockAfter != cKnockBefore)
         apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (uint32_t(cKnockAfter) << 25);
@@ -338,6 +342,7 @@ void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aA
         {
             COUNT("copy graph point loads", 1);
             spdlog::debug("Copy {:X} fell in with its owner's graph at a sync point", apActor->formID);
+            apActor->GetExtension()->Graph.Anchor(cPoint.Tick);
             GraphRandom::Track(aAnimationComponent.Random, cSeed, aTick);
             aAnimationComponent.GraphCounters = GraphRandom::Unpack(cPoint.GraphCounters);
             aAnimationComponent.CounterUpdates = 30;

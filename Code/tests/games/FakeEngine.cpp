@@ -128,12 +128,20 @@ void FakeEngine::Frame()
     LastFrameTick = cFrameTick;
     for (auto& [cId, actor] : Actors)
         if (actor.GraphUpdating)
+        {
             actor.AnimationMs += cFrameMs;
+            actor.Graph.Step(cFrameMs);
+        }
     if (Bound)
         for (auto& [cId, actor] : Actors)
         {
             auto& integers = actor.GraphVariables.Integers;
             integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
+            if (actor.BoundThenAt && actor.AnimationMs >= *actor.BoundThenAt)
+            {
+                integers[Bound->Variable] = uint32_t(Bound->OwnerThen->first);
+                actor.BoundThenAt.reset();
+            }
             if (actor.GraphState != Bound->State)
             {
                 actor.BoundStartedAt.reset();
@@ -142,7 +150,8 @@ void FakeEngine::Frame()
             }
             if (!actor.BoundStartedAt)
             {
-                actor.BoundStartedAt = actor.AnimationMs;
+                // Its event came before this frame's graph update, which played the clip's first step (20123).
+                actor.BoundStartedAt = actor.AnimationMs - (actor.GraphUpdating ? cFrameMs : 0.0);
                 actor.BoundReadAtStart = int32_t(integers[Bound->Variable]);
             }
             if (actor.BoundStuck || actor.AnimationMs < *actor.BoundStartedAt + double(Bound->Ms))
@@ -150,6 +159,8 @@ void FakeEngine::Frame()
             actor.BoundStartedAt.reset();
             if (!actor.Copy && Bound->OwnerWrites)
                 integers[Bound->Variable] = uint32_t(*Bound->OwnerWrites);
+            if (!actor.Copy && Bound->OwnerThen)
+                actor.BoundThenAt = actor.AnimationMs + double(Bound->OwnerThen->second);
             if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
                 integers[*Bound->ExitVariable] = uint32_t(*Bound->OwnerWritesExit);
             actor.BoundReadAtEnd = int32_t(integers[Bound->Variable]);
@@ -687,7 +698,12 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 
 bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 {
-    return ::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()) || ReplayAnimation(aFormId, acAction);
+    if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
+        return true;
+    const bool cTaken = ReplayAnimation(aFormId, acAction);
+    if (cTaken)
+        Actors.at(aFormId).Graph.Anchor(acAction.Tick); // as AnimationSystem::PlayReplayedAction
+    return cTaken;
 }
 
 void FakeEngine::StopPairClip(uint32_t aFormId)

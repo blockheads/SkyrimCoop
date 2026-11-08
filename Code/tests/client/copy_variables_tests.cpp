@@ -8,81 +8,108 @@ namespace
 struct Point
 {
     uint64_t Tick{};
-    AnimationVariables Variables{};
 };
 
-AnimationVariables Integers(std::vector<uint32_t> aValues)
-{
-    AnimationVariables variables;
-    variables.Integers = std::move(aValues);
-    return variables;
-}
-
 using CopyVariables::kNoAction;
+using Ints = std::vector<uint32_t>;
+
+CopyVariables::IntegerTimeline Snapshots(std::initializer_list<std::pair<uint64_t, Ints>> aEntries)
+{
+    CopyVariables::IntegerTimeline timeline;
+    for (const auto& [cTick, cIntegers] : aEntries)
+        CopyVariables::Record(timeline, cTick, cIntegers, false);
+    return timeline;
+}
 } // namespace
 
-TEST_CASE("A copy takes the next snapshot's integers within a send interval of its graph", "[copy-variables]")
+TEST_CASE("A copy's graph reads the integers its owner wrote up to an interval past its time", "[copy-variables]")
 {
-    // The owner wrote iSyncTurnState 1 at 1020; the snapshot carrying it is stamped 1100. The copy's clip ends at 1030.
-    const std::list<Point> cPoints{{1000, Integers({0, 2})}, {1100, Integers({1, 1})}};
-    const auto cShown = Integers({0, 2});
-    const auto* pAhead = CopyVariables::IntegersAhead(cPoints, cShown, 1000, 1030, 100, kNoAction);
-    REQUIRE(pAhead);
-    CHECK(pAhead->Integers == std::vector<uint32_t>{1, 1});
-    // Not more than an interval past the graph's time.
-    CHECK_FALSE(CopyVariables::IntegersAhead(cPoints, cShown, 1000, 999, 100, kNoAction));
-    // Not another layout.
-    CHECK_FALSE(CopyVariables::IntegersAhead(std::list<Point>{{1000, Integers({0, 2})}, {1100, Integers({1})}}, cShown, 1000, 1030, 100, kNoAction));
+    // The owner wrote iSyncTurnState 1 at 2020; the snapshot carrying it is stamped 2100. The copy's clip ends at 2030.
+    const auto cTimeline = Snapshots({{1900, {0, 2}}, {2000, {0, 2}}, {2100, {1, 1}}, {2200, {1, 1}}});
+    REQUIRE(CopyVariables::At(cTimeline, 2030, 100, kNoAction, 2));
+    CHECK(*CopyVariables::At(cTimeline, 2030, 100, kNoAction, 2) == Ints{1, 1});
+    // Not more than an interval past it.
+    CHECK(*CopyVariables::At(cTimeline, 1999, 100, kNoAction, 2) == Ints{0, 2});
+    // Only entries with as many integers.
+    CHECK_FALSE(CopyVariables::At(cTimeline, 2030, 100, kNoAction, 3));
 }
 
-TEST_CASE("A copy takes no integers at or past an action not yet played", "[copy-variables]")
+TEST_CASE("A copy whose clip started late reads the integers of its clip's end, not of its playback", "[copy-variables]")
 {
-    // An action at 1030 carries iWantBlock 1 and is staged: its variables are in, its event not yet sent. The next
-    // snapshot (1100) has 0: taken now, it would be in the graph when the event goes.
-    const std::list<Point> cPoints{{1000, Integers({0})}, {1100, Integers({0})}};
-    const auto cAction = Integers({1});
-    CHECK_FALSE(CopyVariables::IntegersAhead(cPoints, cAction, 1030, 1046, 100, 1030));
-    // Queued, not yet staged: the snapshot after it waits for it too.
-    CHECK_FALSE(CopyVariables::IntegersAhead(cPoints, Integers({2}), 1000, 1020, 100, 1050));
-    // Played: the snapshot after it is the owner's next.
-    CHECK(CopyVariables::IntegersAhead(cPoints, cAction, 1030, 1046, 100, kNoAction));
-    // Nothing older than what an action already loaded.
-    CHECK_FALSE(CopyVariables::IntegersAhead(cPoints, cAction, 1100, 1046, 100, kNoAction));
+    // Codex on PR #38: its action (1000) played when playback was 1300, so its clip ends at graph time 2000 with playback
+    // at 2300. The owner wrote 1 at 2000 and, with no action, 0 at 2150: the copy's clip end reads 1.
+    const auto cTimeline = Snapshots({{2000, {0}}, {2100, {1}}, {2200, {0}}, {2300, {0}}});
+    CHECK(*CopyVariables::At(cTimeline, 2000, 100, kNoAction, 1) == Ints{1});
+    CHECK(CopyVariables::Reference(2000.0, 2300, 400) == 2000);
 }
 
-TEST_CASE("A copy's integers never go back to an older snapshot", "[copy-variables]")
+TEST_CASE("A staged action's integers stay until its event", "[copy-variables]")
 {
-    // Only {1000: 0, 1100: 1} arrived. Before 1100 the copy shows 1 ahead; at 1100 and while it extrapolates past the
-    // last snapshot, it holds the 1100 one, not the first.
-    std::list<Point> points{{1000, Integers({0})}, {1100, Integers({1})}};
+    // An action at 1030 carries iWantBlock 1; the snapshots around it have 0. Staged, its event late until playback is
+    // past 1100: only the action's own integers are read, not a snapshot at or after it.
+    auto timeline = Snapshots({{1000, {0}}, {1100, {0}}, {1200, {0}}});
+    CHECK(*CopyVariables::At(timeline, 1050, 100, 1030, 1) == Ints{0}); // queued: the snapshot before it
+    CopyVariables::Record(timeline, 1030, {1}, true);                    // staged
+    for (const uint64_t cGraph : {1030, 1100, 1150})
+        CHECK(*CopyVariables::At(timeline, cGraph, 100, 1030, 1) == Ints{1});
+    // Played and popped: the owner's next snapshot within an interval.
+    CHECK(*CopyVariables::At(timeline, 1030, 100, kNoAction, 1) == Ints{0});
+    // An action and a snapshot of one tick: the action is after it.
+    CopyVariables::Record(timeline, 1100, {7}, true);
+    CHECK(*CopyVariables::At(timeline, 1100, 0, 1100, 1) == Ints{7});
+}
+
+TEST_CASE("The integer timeline records each entry once, in order, and forgets only what is read no more", "[copy-variables]")
+{
+    auto timeline = Snapshots({{1100, {1}}, {1000, {0}}, {1100, {9}}});
+    REQUIRE(timeline.size() == 2);
+    CHECK(timeline.front().Tick == 1000);
+    CHECK(timeline.back().Integers == Ints{1});
+    CopyVariables::Record(timeline, 1200, {2}, false);
+    CopyVariables::Forget(timeline, 1150);
+    REQUIRE(timeline.size() == 2); // the newest at or before 1150 stays
+    CHECK(timeline.front().Tick == 1100);
+    CopyVariables::Forget(timeline, 5000);
+    CHECK(timeline.size() == 1);
+}
+
+TEST_CASE("A copy's graph time is anchored where its graph takes its owner's moment and runs with its updates", "[copy-variables]")
+{
+    CopyVariables::GraphTime graph;
+    graph.Step(16.0);
+    CHECK(graph.Tick.load() < 0.0); // nothing yet: playback is the reference
+    CHECK(CopyVariables::Reference(graph.Tick.load(), 5000, 400) == 5000);
+    graph.Anchor(1000);
+    for (int update = 0; update < 60; ++update)
+        graph.Step(1000.0 / 60.0);
+    CHECK(graph.Tick.load() == Approx(2000.0));
+    // Within kMaxMs of playback, ahead or behind: its graph's time. Further: its graph stood still, playback.
+    CHECK(CopyVariables::Reference(graph.Tick.load(), 1900, 400) == 2000);
+    CHECK(CopyVariables::Reference(graph.Tick.load(), 2300, 400) == 2000);
+    CHECK(CopyVariables::Reference(graph.Tick.load(), 2600, 400) == 2600);
+}
+
+TEST_CASE("A copy holds the newest snapshot at or before playback, never an older one", "[copy-variables]")
+{
+    std::list<Point> points{{1000}, {1100}};
     CHECK(CopyVariables::Held(points, 1099).Tick == 1000);
-    CHECK(CopyVariables::IntegersAhead(points, Integers({0}), 1000, 1099, 100, kNoAction)->Integers == std::vector<uint32_t>{1});
     for (const uint64_t cPlayback : {1100, 1116, 1150, 1199})
         CHECK(CopyVariables::Held(points, cPlayback).Tick == 1100);
-    // A third arrives: still nothing older.
-    points.push_back({1200, Integers({1})});
+    points.push_back({1200});
     CHECK(CopyVariables::Held(points, 1150).Tick == 1100);
     CHECK(CopyVariables::Held(points, 1200).Tick == 1200);
 }
 
-TEST_CASE("A copy's graph time runs on its frames, within playback and a cap ahead", "[copy-variables]")
+TEST_CASE("A staged action keeps the held variables until its event", "[copy-variables]")
 {
-    CopyVariables::GraphClock graph;
-    graph.ActionTaken(1000);
-    // Playback slowed to 0.9x as its send interval steered from 33 to 100 ms; its clips run at 1x.
-    double playback = 1000.0;
-    uint64_t tick = 0;
-    for (int frame = 0; frame < 60; ++frame)
+    struct Action
     {
-        playback += 0.9 * 1000.0 / 60.0;
-        tick = graph.Advance(uint64_t(playback), 1000.0 / 60.0, 250);
-    }
-    CHECK(tick == Approx(2000).margin(1));
-    CHECK(uint64_t(playback) < tick - 90);
-    // Never behind playback, never more than the cap ahead.
-    CHECK(graph.Advance(5000, 16.0, 250) == 5000);
-    CHECK(graph.Advance(5000, 1000.0, 250) == 5250);
-    // An action taken re-anchors it, playback holding it from below.
-    graph.ActionTaken(4900);
-    CHECK(graph.Advance(5000, 16.0, 250) == 5000);
+        uint64_t Tick{};
+    };
+    const uint64_t cNext = CopyVariables::NextAction(std::list<Action>{{1030}});
+    CHECK(cNext == 1030);
+    CHECK_FALSE(CopyVariables::TakesHeld(1100, 1030, cNext));
+    CHECK(CopyVariables::TakesHeld(1100, 1030, CopyVariables::NextAction(std::list<Action>{})));
+    CHECK(CopyVariables::TakesHeld(1000, 900, 1030));
+    CHECK_FALSE(CopyVariables::TakesHeld(1000, 1000, kNoAction));
 }

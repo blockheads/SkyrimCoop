@@ -5,6 +5,7 @@
 #include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
+#include <Services/CopyClock.h>
 
 #include <Components.h>
 
@@ -1569,33 +1570,39 @@ void CharacterService::RunRemoteUpdates() noexcept
         if (pFormIdComponent)
         {
             // Booleans: the newest snapshot's at or before playback, never older (graphs react to their changes).
-            // Integers: an NPC copy's, up to an interval ahead of its graph's time, so a clip's end reads what its owner
-            // wrote there (CopyVariables.h). Floats (Direction, Speed): while it stands, the nearest snapshot's, what
-            // moved its owner there, so a strafe's animation turns with the copy's movement, within half an interval
-            // (S10, copy-clock.md).
+            // Integers: an NPC copy's at its graph's time and up to an interval ahead, so a clip's end reads what its owner
+            // wrote there. Neither past an action not yet played: it fires on its own (CopyVariables.h). Floats (Direction, Speed): while it
+            // stands, the nearest snapshot's, what moved its owner there, so a strafe's animation turns with the copy's
+            // movement, within half an interval (S10, copy-clock.md).
             const auto& held = CopyVariables::Held(points, tick);
             const AnimationVariables* pVariables = &held.Variables;
             AnimationVariables shown;
             bool changed = false;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                if (held.Tick > pAnimation->VariablesTick)
+                const uint64_t cNextAction = CopyVariables::NextAction(pAnimation->TimePoints);
+                if (CopyVariables::TakesHeld(held.Tick, pAnimation->VariablesTick, cNextAction))
                 {
                     pAnimation->Variables = held.Variables;
                     pAnimation->VariablesTick = held.Tick;
                 }
                 pVariables = &pAnimation->Variables;
                 shown = *pVariables;
-                const uint64_t cGraph = pAnimation->Graph.Advance(tick, m_world.GetCopyClock().FrameMs(), CopyPlayback::kLongestGapMs);
-                uint64_t nextAction = CopyVariables::kNoAction;
-                for (const auto& cAction : pAnimation->TimePoints)
-                    nextAction = std::min(nextAction, cAction.Tick);
                 if (!m_world.all_of<PlayerComponent>(entity))
-                    if (const auto* cpAhead = CopyVariables::IntegersAhead(points, shown, pAnimation->VariablesTick, cGraph, cAhead, nextAction))
+                {
+                    auto& timeline = pAnimation->Integers;
+                    for (const auto& cPoint : points)
+                        CopyVariables::Record(timeline, cPoint.Tick, cPoint.Variables.Integers, false);
+                    const uint64_t cGraph = CopyVariables::Reference(m_actorBridge.GetCopyGraphTick(pFormIdComponent->Id), tick, CopyClock::kMaxMs);
+                    const uint64_t cOldest = std::min(cGraph, tick);
+                    CopyVariables::Forget(timeline, cOldest > CopyClock::kMaxMs ? cOldest - CopyClock::kMaxMs : 0);
+                    const auto* pAt = CopyVariables::At(timeline, cGraph, cAhead, cNextAction, shown.Integers.size());
+                    if (pAt && *pAt != shown.Integers)
                     {
-                        shown.Integers = cpAhead->Integers;
+                        shown.Integers = *pAt;
                         changed = true;
                     }
+                }
             }
             else
                 shown = *pVariables;

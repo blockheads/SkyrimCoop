@@ -138,12 +138,14 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 // (RunOneActorAnimationUpdateJob 41453). A copy's replayed action is applied in step with it.
 bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
 {
+    ActorExtension* pCopy = nullptr;
     // Runs for every animated reference each frame: a form type test, not an RTTI cast (copies are never the player).
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
         if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
         {
+            pCopy = pExtension;
             AnimationSystem::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {
@@ -152,7 +154,10 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
             }
         }
     }
-    return RealUpdateAnimationGraphs(apThis, aDelta);
+    const bool cResult = RealUpdateAnimationGraphs(apThis, aDelta);
+    if (pCopy)
+        pCopy->Graph.Step(aDelta * 1000.0);
+    return cResult;
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk

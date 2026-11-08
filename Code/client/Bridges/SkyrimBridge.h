@@ -47,6 +47,7 @@ public:
         const float aRotation[3], float aDirection, const AnimationVariables& aVariables, CopyMove aMove) noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     bool IsKnockedDown(uint32_t aFormId) const noexcept override;
+    double GetCopyGraphTick(uint32_t aFormId) const noexcept override;
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     bool IsOnGround(uint32_t aFormId) const noexcept override;
     bool CapsuleCollides(uint32_t aFormId) const noexcept override;

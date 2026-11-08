@@ -675,7 +675,7 @@ class ReproActions:
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "graph":
             owner, seconds = ctx.resolve(name, "host"), seconds or 60.0
-            watch = ctx.graph_watch_start(0.25, within, {owner}, None, field)
+            watch = ctx.graph_watch_start(0.25, within, {owner}, None, field, strict=True)
             watch["stop"].wait(seconds)
             watch["stop"].set()
             watch["thread"].join(10)

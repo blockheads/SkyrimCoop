@@ -212,6 +212,8 @@ void World::Update() noexcept
                 animation.LastRanAction = animation.TimePoints.front();
                 animation.Variables = animation.LastRanAction.Variables;
                 animation.VariablesTick = animation.LastRanAction.Tick;
+                CopyVariables::Record(animation.Integers, animation.LastRanAction.Tick, animation.Variables.Integers, true);
+                engine.Actors.at(form.Id).Graph.Anchor(animation.LastRanAction.Tick);
                 engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
                 animation.TimePoints.pop_front();
             }
@@ -239,7 +241,6 @@ void World::Update() noexcept
             if (cPhase == Step::kTaken)
             {
                 animation.LastRanAction = step.Action;
-                animation.Graph.ActionTaken(step.Action.Tick);
                 engine.SetActorLatestAnimation(form.Id, step.Action);
             }
             if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&
@@ -258,6 +259,7 @@ void World::Update() noexcept
             const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
             if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
             {
+                actor.Graph.Anchor(cPoint.Tick);
                 actor.GraphRandom = cPoint.Variables.GraphRandom;
                 GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
                 const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
@@ -346,6 +348,7 @@ void World::Update() noexcept
             animation.VariablesTick = action.Tick;
         }
         step.Variables = animation.Variables;
+        CopyVariables::Record(animation.Integers, action.Tick, step.Variables.Integers, true);
         step.Retries = 0;
         animation.StagedUpdates = 0;
         step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);

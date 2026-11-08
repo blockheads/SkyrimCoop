@@ -429,7 +429,8 @@ struct WolfTurn
                     "the copy has its owner's variables from before the turn");
     }
 
-    void Turn()
+    // aWhileTurning: once the copy took the turn, before its clip ends.
+    void Turn(const std::function<void()>& aWhileTurning = {})
     {
         ActionEvent turn;
         turn.ActionId = 0x13002;
@@ -439,6 +440,8 @@ struct WolfTurn
         party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
         party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
                     "the copy takes the turn");
+        if (aWhileTurning)
+            aWhileTurning();
         party.Until([&] { return guest.Actors.at(copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
     }
 };
@@ -480,7 +483,7 @@ TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[a
 TEST_CASE("A copy's canned turn ends where its owner's does as its playback slows after a fight", "[animation][replay-start]")
 {
     // Out of combat its owner's send interval goes from 33 to 100 ms; the copy's playback steers onto it at 0.9x
-    // (CopyPlayback::kSteer) while its clips run at 1x: the integers are taken ahead of its graph's time, not playback's.
+    // (CopyPlayback::kSteer) while its clips run at the frames' time: integers are read at its graph's time.
     WolfTurn wolf({}, true);
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 1; });
     const auto cInterval = [&] {
@@ -493,8 +496,37 @@ TEST_CASE("A copy's canned turn ends where its owner's does as its playback slow
                      std::chrono::seconds{10});
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 0; });
     wolf.Turn();
-    INFO("its interval at the turn's end: " << cInterval());
     CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtStart == 0);
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
+TEST_CASE("A copy whose turn started late reads its owner's integers of the clip's end, not of its playback", "[animation][replay-start]")
+{
+    // Its clip files load for 20 frames (ActionClips), so its clip ends that much later in its playback. Its owner wrote
+    // iSyncTurnState 1 as its clip ended and, with no action, 0 150 ms later: the copy's clip end reads the 1.
+    WolfTurn wolf({}, true);
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->ClipFiles["cannedTurnRight180"] = "CannedTurn";
+        engine->Bound->OwnerThen = std::pair{0, 150};
+    }
+    wolf.guest.ClipLoadFrames = 20;
+    wolf.Turn();
+    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
+TEST_CASE("A copy's turn paused with its graph reads its owner's integers as it resumes", "[animation][replay-start]")
+{
+    // Its graph stops updating mid-clip (KillImpl's flag, an unloaded actor) while playback runs on: its graph time
+    // stands still, further than CopyClock::kMaxMs from playback, so playback is the reference again.
+    WolfTurn wolf({}, true);
+    wolf.Turn([&] {
+        wolf.guest.Actors.at(wolf.copy).GraphUpdating = false;
+        const uint64_t cFrom = wolf.party.Guest().GetFrameTick();
+        wolf.party.Until([&] { return wolf.party.Guest().GetFrameTick() > cFrom + 800; }, "the copy's graph stands still for 800 ms");
+        wolf.guest.Actors.at(wolf.copy).GraphUpdating = true;
+    });
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 

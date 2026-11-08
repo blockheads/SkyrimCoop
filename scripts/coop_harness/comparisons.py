@@ -406,13 +406,15 @@ class GraphApart:
     """Owner against copy, both read live: the runs apart for `lasting` s or more. The action's GraphState would not do:
     it is the owner mid-transition (docs/re/systems/animation-replay-recovery.md, "Drift detector")."""
 
-    def __init__(self, lasting=2.0):
-        self.lasting, self.samples, self.open, self.runs = lasting, 0, {}, []
+    def __init__(self, lasting=2.0, strict=False):
+        self.lasting, self.samples, self.open, self.runs, self.strict = lasting, 0, {}, [], strict
 
     def observe(self, actor, owner, copy, now):
-        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart."""
+        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart, or
+        with `strict` (an expect) stays open until a reading agrees: a missing reading is no agreement."""
         if owner is None or copy is None:
-            self.lose(actor)
+            if not self.strict:
+                self.lose(actor)
             return
         self.samples += 1
         if owner == copy:

@@ -69,14 +69,14 @@ class Observations:
                     pairs[session] = (int(form), copies[session])
         return pairs
 
-    def graph_watch_start(ctx, every=0.25, lasting=2.0, wanted=(), limit=None, entering=None):
+    def graph_watch_start(ctx, every=0.25, lasting=2.0, wanted=(), limit=None, entering=None, strict=False):
         """Watches NPCs' graphs, owner against copy, on connections of its own until graph_watch_stop: `wanted` owner form ids,
         else every pair, the first `limit` of them if given. Only a reading of both games counts: `seen`, `changes`, `gaps`
         (the longest time between two) and `entered` (times the owner entered an active state containing `entering`)."""
         games = [copy.copy(ctx.game("")), copy.copy(ctx.game("client"))]
         for game in games:
             game.rpc_connections = {}
-        stop, apart, started, actors = threading.Event(), GraphApart(lasting), time.time(), set()
+        stop, apart, started, actors = threading.Event(), GraphApart(lasting, strict), time.time(), set()
         seen, state = {}, {"error": None}  # owner -> [first read, last read, reads]; why it stopped
         changes, last_owner, gaps, entered, failed = {}, {}, {}, {}, {}
 
