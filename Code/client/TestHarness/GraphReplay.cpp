@@ -53,6 +53,20 @@ struct VariableDiff
 std::map<uint32_t, VariableDiff> s_variableDiffs;
 uint32_t s_replayed = 0, s_equal = 0, s_dropped = 0, s_unforced = 0;
 double s_ownerSeconds = 0.0; // the owner's recorded steps, added up
+// What the ops would weigh on the wire, each against the one before: a 3-byte header (kind, step or event length),
+// 6 bytes per changed variable (u16 index, u32 value), the event's name.
+uint64_t s_wireBytes = 0, s_changedWords = 0, s_events = 0;
+std::vector<uint32_t> s_lastWords;
+void CountWire(const Op& acOp)
+{
+    uint32_t changed = 0;
+    for (size_t i = 0; i < acOp.Words.size(); ++i)
+        changed += i >= s_lastWords.size() || s_lastWords[i] != acOp.Words[i];
+    s_lastWords = acOp.Words;
+    s_changedWords += changed;
+    s_events += acOp.Event;
+    s_wireBytes += 3 + 6 * changed + acOp.Name.size();
+}
 std::vector<std::string> s_lastOps;
 std::optional<nlohmann::json> s_firstMismatch;
 thread_local bool s_replaying = false;
@@ -186,6 +200,7 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
             op.Random = *apGraph->behaviorGraph->random;
         s_unforced += !apData->force;
         s_ownerSeconds += apData->deltaTime;
+        CountWire(op);
         s_ops.push_back(std::move(op));
     }
     // Forced, its step is the recorded deltaTime (63587); the first updates come before CharacterService forces it.
@@ -293,7 +308,10 @@ bool GraphReplay::DropEvent(BShkbAnimationGraph* apGraph, const BSFixedString* a
         return true;
     }
     if (apGraph == s_owner)
+    {
         s_ops.push_back({true, apEvent && apEvent->data ? apEvent->data : "", 0.f, s_ownerUpdates, {}, ReadWords(*apGraph)});
+        CountWire(s_ops.back());
+    }
     return false;
 }
 
@@ -308,6 +326,8 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         s_ops.clear();
         s_cursor = s_ownerUpdates = s_replayed = s_equal = s_dropped = s_unforced = 0;
         s_ownerSeconds = 0.0;
+        s_wireBytes = s_changedWords = s_events = 0;
+        s_lastWords.clear();
         s_wantPoint = s_shadowStarted = false;
         s_point.reset();
         s_ownerDigests.clear();
@@ -330,6 +350,10 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
             {"ops", s_ops.size()},
             {"owner_updates", s_ownerUpdates},
             {"owner_seconds", s_ownerSeconds},
+            {"wire_bytes", s_wireBytes},
+            {"changed_words", s_changedWords},
+            {"events", s_events},
+            {"variables", s_lastWords.size()},
             {"replayed", s_replayed},
             {"equal", s_equal},
             {"variable_diffs", [] {

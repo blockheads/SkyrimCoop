@@ -138,3 +138,64 @@ and the bandwidth measured. Only after that, the production design.
 - **What the proof had to get right:** the owner forced from its first update (its first updates come before
   `CharacterService` forces it, and a chunked step is not the recorded one); the shadow's AI left on (an actor without
   AI is not animated, and its own events are dropped anyway: 190 for the wolf, 6483 for Faendal).
+
+## Over the network: the second proof (design, 2026-11-08)
+
+The same replay into a real copy on the guest's game, whose engine and our production code keep running around it.
+
+```
+host game                                 harness (python, the proof's wire)      guest game
+  owner: the Riverwood wolf (9B0DD)
+  63591 / 63587 -> ops, each against the
+    one before: kind, step or event name,
+    changed variables (u16 index, u32
+    value), the graph's random state
+  after each update: its active states
+  a sync point after one update   --- take every 100 ms ---> feed --->    the copy of that wolf
+                                                                            next 63587: load the sync point,
+                                                                            then the ops, in order:
+                                                                              write variables + random state
+                                                                              event (63591) / update (63587, forced)
+                                                                            after each update: compare states
+```
+
+### What else touches a copy's graph, and how the proof keeps it out
+
+- **Events** (replayed actions via ForceAction 38953, engine notifications): dropped by `DropEvent`, as the shadow's.
+- **Graph state loads** (a refused action's recovery, `ReplayGraph::Recover`; sync points, `RunGraphPoint`): a harness
+  hook on `BShkbAnimationGraph::LoadState` (63602) refuses them for the probed copy. A refused load also keeps
+  `RunGraphPoint` from setting its counters.
+- **Seeds** (an action's `GraphRandom`, set before its event): each op carries the graph's random state and writes it,
+  so whatever set it in between is overwritten.
+- **Variables** (snapshot variables, `LoadAnimationVariables`; its own channels): each op writes every variable that
+  differs.
+- **Its graph update**: replaced by the replay (the 63587 hook), as the shadow's.
+
+The copy's position and movement are left as they are (interpolation): the proof is about its graph.
+
+### Measured weight (one-game proof, 40 s each)
+
+| | ops/s | changed variables/op | bytes/s |
+|---|---|---|---|
+| wolf (93 variables) | 57 updates + 3.4 events | 1.3 | 690 |
+| Faendal (301 variables) | 56 updates + 1.3 events | 1.5 | 700 |
+
+About 0.7 KB/s per NPC before compression: 20 NPCs near a guest come to 14 KB/s from the host to that guest. The
+header (kind and step, 3 bytes) is a quarter of it; a frame's updates share a step.
+
+### Pass
+
+The copy's active states equal its owner's after every replayed update for 60 s, on the wolf and on Faendal; the bytes
+per second as sent. The proof replays as soon as ops arrive and compares by update index: timing is the production
+design's.
+
+### After the proof: what production needs (not designed yet)
+
+- **When:** a copy runs ops at its playback time (its owner's tick, about 0.1-0.25 s behind), several updates in one
+  frame when behind, none when ahead.
+- **Loss:** every op matters, so ops go reliable and in order; a broken stream restarts from a sync point.
+- **Where it stops:** ragdolls, get-ups and pairs are each game's own body; the stream pauses there and restarts from a
+  sync point after.
+- **What it replaces:** refused-action writes, action spacing, snapshot variables for graphs, graph points and recovery
+  loads (the PR #38 fixes become unnecessary for copies on the stream).
+- **Players' copies:** a player's graph is driven by its owner's input the same way; to be checked separately.
