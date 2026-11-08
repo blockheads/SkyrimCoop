@@ -58,3 +58,14 @@ time	op	id	rva	item
 2026-11-07T23:26:41Z	read		0xacc5d0	{"name": "hkbBehaviorGraph::sub_58336"}
 2026-11-07T23:52:41Z	read	59409	0xaf94f0	{"name": "hkbStateMachine::sub_59409"}
 2026-11-08T00:07:54Z	read		0x2253a0	{"name": "InitializeBoneNames"}
+2026-11-08T00:49:35Z	read	58522	0xadba30	{"name": "hkbGenerator::sub_58522"}
+2026-11-08T00:49:48Z	name	59467	0xaff450	{"addr": "0x140aff450", "name": "hkbVariableBindingSet::CopyVariablesToMembers"}
+2026-11-08T00:49:48Z	name	58522	0xadba30	{"addr": "0x140adba30", "name": "hkbBindable::CopyVariablesToMembers"}
+2026-11-08T00:49:48Z	name	59330	0xaf1b10	{"addr": "0x140af1b10", "name": "hkbStateMachine::CloneCtor"}
+2026-11-08T00:49:48Z	name	59341	0xaf3220	{"addr": "0x140af3220", "name": "hkbStateMachine::CloneNode"}
+2026-11-08T00:49:48Z	name	60010	0xb1e0b0	{"addr": "0x140b1e0b0", "name": "hkbStateMachine::SetInternalState"}
+2026-11-08T00:49:53Z	comment	59467	0xaff450	{"addr": "0x140aff450", "comment": "59467: writes each input binding's graph variable into its node member (the variable tables of the root and sub-behaviour), e.g. StandingBehavior.startStateId <- iSyncTurnState before activation. Measured: a write watchpoint on a new clone's +0x68 hit at RVA B1F4BF under this call (2026-11-07)."}
+2026-11-08T00:49:53Z	comment	58522	0xadba30	{"addr": "0x140adba30", "name": "", "comment": "58522: caches bindables once (+0x28), then for the node's binding set (+0x10) and each cached bindable runs 59467 (only those with output bindings when the flag a3 is set)."}
+2026-11-08T00:49:53Z	comment	59330	0xaf1b10	{"addr": "0x140af1b10", "comment": "59330 hkbStateMachine clone ctor (node, template, graph): copies +0x48..+0x87 from the template (memcpy +0x68 0x20: startStateId..selfTransitionMode), resets +0xFC override to -1 and isActive +0x88 to 0, clones the states (generators via 58361)."}
+2026-11-08T00:49:53Z	comment	59341	0xaf3220	{"addr": "0x140af3220", "comment": "59341 vfunc +0x60: allocates 0x108 and runs the clone ctor 59330 from this template; called by GetOrCreateNodeClone 58360."}
+2026-11-08T00:49:53Z	comment	60010	0xb1e0b0	{"addr": "0x140b1e0b0", "comment": "60010 vfunc 16 setInternalState: restores transitions, timeInState, current state (59409 writes +0x80), +0xF8/+0xFC and the changed/echo bytes; never +0x68."}

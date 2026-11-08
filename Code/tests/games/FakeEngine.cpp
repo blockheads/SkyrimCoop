@@ -142,7 +142,7 @@ void FakeEngine::Frame()
                 start = *Bound->OwnerEnd;
             // As HookChooseStartState (Animation.cpp).
             if (!actor.Player)
-                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, World::Get().GetTick());
+                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, actor.PlaybackTick);
             actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(start, 0)), 0, Bound->Starts.size() - 1));
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)

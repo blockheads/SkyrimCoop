@@ -100,8 +100,9 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     auto& step = apActor->GetExtension()->Replay;
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
-    for (const auto& cPacked : std::exchange(aAnimationComponent.StartChoices, {}))
-        for (auto& choice : StartChoices::Unpack(cPacked, StartChoices::Now()))
+    apActor->GetExtension()->PlaybackTick.store(aTick, std::memory_order_relaxed);
+    for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.StartChoices, {}))
+        for (auto& choice : StartChoices::Unpack(cPacked, cTick))
             apActor->GetExtension()->StartChoices.Push(std::move(choice));
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);

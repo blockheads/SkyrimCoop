@@ -20,5 +20,5 @@ struct RemoteAnimationComponent
     std::vector<GraphRandom::Counter> GraphCounters;
     uint8_t CounterUpdates = 0;
     // The owner's start points (StartChoices.h) received, for the copy's graph to take.
-    std::vector<std::string> StartChoices;
+    std::vector<std::pair<uint64_t, std::string>> StartChoices; // the point's owner tick, its choices
 };

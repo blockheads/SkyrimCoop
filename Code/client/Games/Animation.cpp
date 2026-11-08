@@ -206,7 +206,8 @@ int32_t HookChooseStartState(hkbStateMachineNode* apMachine, const hkbContext* a
     auto* pExtension = static_cast<Actor*>(pHolder)->GetExtension();
     if (pExtension->IsPlayer())
         return cChosen;
-    const int32_t cState = StartChoices::Choose(pExtension->StartChoices, pExtension->IsCopy(), HavokName(apMachine->name), cChosen, StartChoices::Now());
+    const int32_t cState = StartChoices::Choose(pExtension->StartChoices, pExtension->IsCopy(), HavokName(apMachine->name), cChosen,
+                                                pExtension->PlaybackTick.load(std::memory_order_relaxed));
     return HasState(*apMachine, cState) ? cState : cChosen;
 }
 

@@ -23,25 +23,36 @@ TEST_CASE("Start choices pack and unpack", "[animation][start-choices]")
     CHECK(Unpack("", 0).empty());
 }
 
-TEST_CASE("A copy takes its owner's oldest choice for the machine once", "[animation][start-choices]")
+TEST_CASE("A copy takes its owner's choice nearest its playback time", "[animation][start-choices]")
 {
     Queue queue;
     queue.Push({"DefaultBehavior", 0, 1000});
     queue.Push({"StandingBehavior", 1, 1000});
     queue.Push({"StandingBehavior", 0, 1100});
-    CHECK(queue.Take("StandingBehavior", 1200) == 1);
-    CHECK(queue.Take("StandingBehavior", 1200) == 0);
-    CHECK_FALSE(queue.Take("StandingBehavior", 1200));
-    CHECK(queue.Take("DefaultBehavior", 1200) == 0);
+    CHECK(queue.Take("StandingBehavior", 1090) == 0);
+    CHECK(queue.Take("StandingBehavior", 1090) == 1);
+    CHECK_FALSE(queue.Take("StandingBehavior", 1090));
+    CHECK(queue.Take("DefaultBehavior", 1090) == 0);
 }
 
-TEST_CASE("An owner's choice its copy never reached expires", "[animation][start-choices]")
+TEST_CASE("A choice that arrived after its activation is not the next one's", "[animation][start-choices]")
+{
+    // The copy's activation A at playback 1000 found nothing; A's choice came later, then B's for its own activation.
+    Queue queue;
+    queue.Push({"StandingBehavior", 0, 1000});
+    queue.Push({"StandingBehavior", 1, 1600});
+    CHECK(queue.Take("StandingBehavior", 1600) == 1);
+    CHECK_FALSE(queue.Take("StandingBehavior", 1600)); // A's was passed and dropped
+}
+
+TEST_CASE("A choice the copy's playback has not reached waits", "[animation][start-choices]")
 {
     Queue queue;
-    queue.Push({"StandingBehavior", 1, 1000});
-    CHECK_FALSE(queue.Take("StandingBehavior", 1000 + cKeepMs + 1));
-    queue.Push({"StandingBehavior", 2, 5000});
-    CHECK(queue.Take("StandingBehavior", 5000 + cKeepMs) == 2);
+    queue.Push({"StandingBehavior", 2, 2000});
+    CHECK_FALSE(queue.Take("StandingBehavior", 2000 - cAheadMs - 1));
+    CHECK(queue.Take("StandingBehavior", 2000 - cAheadMs) == 2);
+    queue.Push({"StandingBehavior", 1, 3000});
+    CHECK_FALSE(queue.Take("StandingBehavior", 3000 + cPastMs + 1));
 }
 
 TEST_CASE("An owner's unsent choices are bounded", "[animation][start-choices]")
@@ -58,9 +69,9 @@ TEST_CASE("An owner's unsent choices are bounded", "[animation][start-choices]")
 TEST_CASE("An owner records its start, its copy enters it", "[animation][start-choices]")
 {
     Queue owner, copy;
-    CHECK(Choose(owner, false, "StandingBehavior", 1, 100) == 1);
-    for (auto& choice : Unpack(Pack(owner.Drain()), 200))
+    CHECK(Choose(owner, false, "StandingBehavior", 1, 0) == 1);
+    for (auto& choice : Unpack(Pack(owner.Drain()), 200)) // the point's owner tick
         copy.Push(std::move(choice));
-    CHECK(Choose(copy, true, "StandingBehavior", 0, 300) == 1); // its own variable said 0
-    CHECK(Choose(copy, true, "StandingBehavior", 0, 300) == 0); // none left: the engine's
+    CHECK(Choose(copy, true, "StandingBehavior", 0, 180) == 1); // its own variable said 0
+    CHECK(Choose(copy, true, "StandingBehavior", 0, 180) == 0); // none left: the engine's
 }

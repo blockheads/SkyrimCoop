@@ -528,6 +528,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         uint32_t BoundFrames = 0;              // its Bound clip's frames so far
+        uint64_t PlaybackTick = 0;             // a copy's, as ActorExtension::PlaybackTick
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -605,12 +606,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
-    // A machine whose start state is a graph variable (Skyrim: the wolf's StandingBehavior, its startStateId bound to
-    // iSyncTurnState by hkbVariableBindingSet 59467): State's clip ends on each game's own clock after Frames, no action,
-    // and the machine starts from Integers[Variable] then (ChooseStartStateId 59405). OwnerEnd: what the owner's engine
-    // writes into it as the clip ends (a refused turnStop, measured). Its copy's integers are a movement snapshot's
-    // (CharacterService), sent 10 a second, and its own clip end came first (measured: it read the old value), so here
-    // the write stays the owner's own.
+    // A machine starting from a graph variable at State's clip end, no action (the wolf's StandingBehavior <- iSyncTurnState,
+    // 59467/59405). OwnerEnd: the owner's write in that frame, which its copy read too late (measured; animation-replay-recovery.md).
     struct BoundStart
     {
         std::string State;

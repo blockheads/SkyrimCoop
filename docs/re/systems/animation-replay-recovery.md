@@ -185,16 +185,19 @@ only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stay
 ## A machine's start state is each game's own (2026-11-07)
 
 The live check's lasting shape on creatures, a wolf's copy turning on the spot while its owner idles (`9B0DD`, 4 to 20 s),
-comes from where a state machine starts, not from an event. Read in IDA 1.7.104 and measured on the duo (Riverwood).
+comes from where a state machine starts, not from an event. Read in IDA 1.7.104 (each ID below, named in this branch's
+journal) unless marked measured (duo, Riverwood) or from the behaviour file (`scripts/re/behavior_dump.py` on
+`meshes\actors\canine\behaviors\quadrupedbehavior.hkx`).
 
 ```
-owner and copy get the same events (trace "input": every one through PerformAction 38949 / ForceAction 38953)
-TurnCannedR180's clip ends: its trigger cannedTurnStop (no action)
-  DefaultBehavior CannedTurnState -> StandingState (flags 0, iSyncIdleLocomotion == 0)
+owner and copy get the same events (measured, trace "input": all through PerformAction 38949 / ForceAction 38953)
+TurnCannedR180's clip ends: its trigger cannedTurnStop, no action (behaviour file; measured in the trace)
+  DefaultBehavior CannedTurnState -> StandingState (flags 0, iSyncIdleLocomotion == 0; behaviour file)
   StandingBehavior activates: a new clone of its template (GetOrCreateNodeClone 58360 -> clone ctor 59330,
     which copies startStateId..selfTransitionMode, +0x68..+0x87, and resets +0xFC and isActive +0x88)
-  hkbVariableBindingSet (59467, from 58522) writes the bound variable into the clone's startStateId (+0x68)
-    StandingBehavior.startStateId <- iSyncTurnState   (quadrupedbehavior.hkx; DefaultBehavior <- iSyncIdleLocomotion,
+  hkbBindable::CopyVariablesToMembers (58522) -> hkbVariableBindingSet::CopyVariablesToMembers (59467) writes the bound
+  variable into the clone's startStateId (+0x68): the write itself measured (watchpoint, RVA B1F4BF under 59467)
+    StandingBehavior.startStateId <- iSyncTurnState   (behaviour file; DefaultBehavior <- iSyncIdleLocomotion,
     LocomotionBehavior <- iSyncForwardState, the turn clips' machines <- iTurnMirrored)
   Activate (59334) -> ChooseStartStateId (59405): override +0xFC if >= 0, else by startStateMode +0x86:
     0 startStateId, 1 sync variable, 2 random (59406), 3 chooser
@@ -214,6 +217,8 @@ owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurn
 
 **The fix:** an owner's activation whose start the copy could make otherwise (`StartChoices::Shared`: no override, and a
 bound start, a random draw or a chooser) is recorded in `HookChooseStartState` (59405) and sent as a start point
-(ActionEvent with ActionId 0 and `StartChoices`, "machine:state;"). Its copy's same hook takes the oldest choice for that
-machine received in the last 1.5 s and starts there; with none it keeps the engine's. Random starts were already covered
+(ActionEvent with ActionId 0 and `StartChoices`, "machine:state;", stamped with the point's owner tick). Its copy's same
+hook takes the choice for that machine nearest its playback time (250 ms behind to 300 ms ahead: the point is stamped
+up to a send interval after the choice, and the copy's clip clock trails its playback by frames); passed choices are
+dropped, so one that arrived after its activation is not the next one's. With none it keeps the engine's. Random starts were already covered
 by the seed (GraphRandom) and agree with it. GameTests `[replay-start]`, ClientTests `[start-choices]`.

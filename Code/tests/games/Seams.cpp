@@ -248,11 +248,12 @@ void World::Update() noexcept
             continue;
         }
         // As AnimationSystem::Update: the owner's start points, for the copy's graph to take.
-        for (const auto& cPacked : std::exchange(animation.StartChoices, {}))
-            for (auto& choice : StartChoices::Unpack(cPacked, GetTick()))
+        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
+        actor.PlaybackTick = cTick;
+        for (const auto& [cAt, cPacked] : std::exchange(animation.StartChoices, {}))
+            for (auto& choice : StartChoices::Unpack(cPacked, cAt))
                 engine.StartChoiceQueues[form.Id].Push(std::move(choice));
         // As AnimationSystem::RunGraphPoint.
-        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
         GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
         if (cPhase == Step::kIdle && animation.GraphPoint &&
             (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))

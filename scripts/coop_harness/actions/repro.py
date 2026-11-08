@@ -662,10 +662,17 @@ class ReproActions:
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "graph":
-            watch = ctx.graph_watch_start(0.25, within, {ctx.resolve(name, "host")}, None)
-            watch["stop"].wait(seconds or 60.0)
+            owner, seconds = ctx.resolve(name, "host"), seconds or 60.0
+            watch = ctx.graph_watch_start(0.25, within, {owner}, None)
+            watch["stop"].wait(seconds)
             watch["stop"].set()
             watch["thread"].join(10)
+            if error := watch["state"]["error"]:
+                raise ctx.failure(f"{name}: the graph watch stopped: {error}")
+            first, last, reads = watch["seen"].get(owner, (0.0, 0.0, 0))
+            # Read through the interval (a second's slack), once a second at least: a pair lost early is no pass.
+            if reads < max(1.0, seconds) or last - first < seconds - 1.0:
+                raise ctx.failure(f"{name}: owner and copy read {reads} times over {last - first:.1f} of {seconds:g} s")
             if runs := watch["apart"].finish(time.time()):
                 raise ctx.failure(f"{name}: owner and copy graphs apart for {within:g} s or more: " + " | ".join(
                     f"{run['seconds']:.1f} s, owner {run.get('owner_only')}, copy {run.get('copy_only')}" for run in runs[:3]))

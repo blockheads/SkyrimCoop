@@ -2340,6 +2340,53 @@ class ActiveStatesTests(unittest.TestCase):
         self.assertIn("no run", ctx.graph_watch_stop(watch))
 
 
+class GraphExpectTests(unittest.TestCase):
+    """expect's "graph" check: owner and copy read live; a watch that read too little fails, never passes."""
+
+    def run_expect(self, games):
+        from coop_harness.actions.repro import ReproActions
+        from coop_harness.observations import Observations
+
+        class Ctx(ReproActions, Observations):
+            REPRO_HANDLES = {"wolf": {"host": 1, "guest": 2}}
+            def failure(self, message):
+                return AssertionError(message)
+        ctx = Ctx()
+        ctx.game = lambda name="": games[name]
+        return ctx.expect("wolf", "graph", within=1.0, seconds=0.6)
+
+    def games(self, owner_present=True, fail_after=None):
+        state = ActiveStatesTests.saved((("m", "a"),))
+        role = lambda name: {"role": name, "player": False, "mod": {"session_id": 1}, "placement": {"has_3d": True}, "state": {}}
+
+        class Game:
+            def __init__(self, name):
+                self.name, self.calls, self.rpc_connections = name, 0, {}
+            def read_status(self):
+                if not self.name:
+                    return {"world": {"1": role("own")} if owner_present else {}}
+                return {"world": {"2": role("copy")}}
+            def rpc(self, request, timeout=3.0):
+                self.calls += 1
+                if fail_after is not None and self.calls > fail_after:
+                    raise OSError("the game went away")
+                return {"state": state}
+            def close(self):
+                pass
+        return {"": Game(""), "client": Game("client")}
+
+    def test_agreeing_graphs_read_throughout_pass(self):
+        self.assertGreater(self.run_expect(self.games())["samples"], 0)
+
+    def test_a_pair_never_read_fails(self):
+        with self.assertRaisesRegex(AssertionError, "read 0 times"):
+            self.run_expect(self.games(owner_present=False))
+
+    def test_a_watch_that_dies_fails(self):
+        with self.assertRaisesRegex(AssertionError, "graph watch stopped"):
+            self.run_expect(self.games(fail_after=1))
+
+
 class UiAssetsTests(unittest.TestCase):
     """The folder the games load their panels from: the duo's user must be able to read it."""
 
