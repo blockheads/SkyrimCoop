@@ -537,7 +537,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         uint32_t BoundFrames = 0;              // its Bound clip's frames so far
-        uint64_t PlaybackTick = 0;             // a copy's, as ActorExtension::PlaybackTick
+        uint64_t GraphTick = 0, ReplayLag = 0; // a copy's, as ActorExtension's
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -627,6 +627,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::optional<BoundStart> Bound;
     std::map<uint32_t, StartChoices::Queue> StartChoiceQueues; // ActorExtension::StartChoices
+    // With a value, a copy's received start choice reaches its queue only once its graph is this many ms past the
+    // choice: on the duo 12 of 184 came after the copy's machine had started (2026-11-07).
+    std::optional<uint64_t> StartChoiceArrivalMs;
+    std::vector<std::pair<uint32_t, StartChoices::Choice>> HeldStartChoices;
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.

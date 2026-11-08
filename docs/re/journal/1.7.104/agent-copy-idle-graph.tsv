@@ -69,3 +69,22 @@ time	op	id	rva	item
 2026-11-08T00:49:53Z	comment	59330	0xaf1b10	{"addr": "0x140af1b10", "comment": "59330 hkbStateMachine clone ctor (node, template, graph): copies +0x48..+0x87 from the template (memcpy +0x68 0x20: startStateId..selfTransitionMode), resets +0xFC override to -1 and isActive +0x88 to 0, clones the states (generators via 58361)."}
 2026-11-08T00:49:53Z	comment	59341	0xaf3220	{"addr": "0x140af3220", "comment": "59341 vfunc +0x60: allocates 0x108 and runs the clone ctor 59330 from this template; called by GetOrCreateNodeClone 58360."}
 2026-11-08T00:49:53Z	comment	60010	0xb1e0b0	{"addr": "0x140b1e0b0", "comment": "60010 vfunc 16 setInternalState: restores transitions, timeInState, current state (59409 writes +0x80), +0xF8/+0xFC and the changed/echo bytes; never +0x68."}
+2026-11-08T02:45:47Z	read	59399	0xaf8b20	{"name": "hkbStateMachine::sub_59399"}
+2026-11-08T02:45:58Z	read		0xaf4793	{"name": "hkbStateMachine::sub_59369"}
+2026-11-08T02:46:17Z	read	58365	0xace690	{"name": "hkbBehaviorGraph::sub_58365"}
+2026-11-08T02:46:18Z	read	59387	0xaf7c00	{"name": "hkbStateMachine::sub_59387"}
+2026-11-08T02:46:18Z	read	59386	0xaf7a90	{"name": "sub_140AF7A90"}
+2026-11-08T02:46:37Z	read	65179	0xc40d00	{"name": "BShkbUtils::SaveDataRestoreFunctor::sub_65179"}
+2026-11-08T02:47:25Z	read	59349	0xaf3790	{"name": "hkbStateMachine::sub_59349"}
+2026-11-08T02:47:58Z	name	59369	0xaf4600	{"addr": "0x140af4600", "name": "hkbStateMachine::GoToState"}
+2026-11-08T02:47:58Z	name	59390	0xaf7e60	{"addr": "0x140af7e60", "name": "hkbStateMachine::SetActiveState"}
+2026-11-08T02:47:58Z	name	59387	0xaf7c00	{"addr": "0x140af7c00", "name": "hkbStateMachine::UpdateStartStateReselect"}
+2026-11-08T02:47:58Z	name	59349	0xaf3790	{"addr": "0x140af3790", "name": "hkbStateMachine::RequestStartStateReselect"}
+2026-11-08T02:47:58Z	name	58365	0xace690	{"addr": "0x140ace690", "name": "hkbBehaviorGraph::SetStateOfStateMachine"}
+2026-11-08T02:47:58Z	name	59399	0xaf8b20	{"addr": "0x140af8b20", "name": "hkbStateMachine::WriteSyncVariable"}
+2026-11-08T02:47:59Z	comment	59369	0xaf4600	{"addr": "0x140af4600", "comment": "59369 GoToState(sm, stateId, ctx, force, jumpIfNoTransition, a6): not active or force -> clear transitions (59384), +0x100 stateChanged=1, graph+0x12E activeNodesChanged=1, SetActiveState 59390, WriteSyncVariable 59399; else a transition to stateId if one exists (59377/59381/59382), or the jump when jumpIfNoTransition."}
+2026-11-08T02:47:59Z	comment	59390	0xaf7e60	{"addr": "0x140af7e60", "comment": "59390 SetActiveState(sm, stateId, setPrevious, ctx, sendEvents): exits the current state when active (59411), writes +0x80 currentStateId (59409), zeroes timeInState +0xF0, enters the state (59410). Called by Activate, GoToState, StartTransition."}
+2026-11-08T02:47:59Z	comment	59387	0xaf7c00	{"addr": "0x140af7c00", "comment": "59387, in Update: when +0x101 (RequestStartStateReselect 59349) is set, chooses the start state again (ChooseStartStateId 59405) and if it differs, GoToState(.., 0, selfTransitionMode(+0x87)==2, 0): a transition if any, else a jump only in FORCE mode. Then starts a pending transition."}
+2026-11-08T02:47:59Z	comment	59349	0xaf3790	{"addr": "0x140af3790", "comment": "59349 vfunc: sets +0x101, the start state is chosen again at the next Update (59387)."}
+2026-11-08T02:47:59Z	comment	58365	0xace690	{"addr": "0x140ace690", "comment": "58365 SetStateOfStateMachine(graph, ?, smTemplate, stateId, ctx, force, jump, a6): GoToState on the clone, then updateActiveNodes if graph+0x12E. The graph state restore (SaveDataRestoreFunctor 65179) calls it with 1,1,1."}
+2026-11-08T02:47:59Z	comment	58329	0xacbc60	{"addr": "0x140acbc60", "comment": "58329: calls updateActiveNodes when graph+0x12E (activeNodesChanged) is set, so a GoToState inside a node's update takes effect in the same graph update."}

@@ -129,6 +129,12 @@ void FakeEngine::Frame()
             auto& integers = actor.GraphVariables.Integers;
             if (integers.size() <= Bound->Variable)
                 integers.resize(Bound->Variable + 1);
+            // As HookStateMachineUpdate (Animation.cpp): a choice that came after the copy's start moves it.
+            if (const auto cIt = std::ranges::find(Bound->Starts, actor.GraphState); actor.Copy && cIt != Bound->Starts.end())
+                if (auto& queue = StartChoiceQueues[cId]; queue.HasCorrections())
+                    if (const auto cTo = queue.Correct("Bound", int32_t(cIt - Bound->Starts.begin()), actor.GraphTick);
+                        cTo && size_t(*cTo) < Bound->Starts.size())
+                        actor.GraphState = Bound->Starts[size_t(*cTo)];
             if (actor.GraphState != Bound->State)
             {
                 actor.BoundFrames = 0;
@@ -142,7 +148,7 @@ void FakeEngine::Frame()
                 start = *Bound->OwnerEnd;
             // As HookChooseStartState (Animation.cpp).
             if (!actor.Player)
-                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, actor.PlaybackTick);
+                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, actor.GraphTick);
             actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(start, 0)), 0, Bound->Starts.size() - 1));
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)

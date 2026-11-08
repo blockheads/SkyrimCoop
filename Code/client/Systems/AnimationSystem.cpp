@@ -100,10 +100,21 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     auto& step = apActor->GetExtension()->Replay;
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
-    apActor->GetExtension()->PlaybackTick.store(aTick, std::memory_order_relaxed);
+    // Never past the action staged or next due: the graph has yet to take it.
+    std::optional<uint64_t> pending;
+    if (phase != ReplayStep::kIdle)
+        pending = step.Action.Tick;
+    else if (!actions.empty() && actions.front().Tick <= aTick)
+        pending = actions.front().Tick;
+    const uint64_t cGraphTick = StartChoices::GraphTime(aTick, apActor->GetExtension()->ReplayLag, pending);
+    apActor->GetExtension()->GraphTick.store(cGraphTick, std::memory_order_relaxed);
     for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.StartChoices, {}))
         for (auto& choice : StartChoices::Unpack(cPacked, cTick))
-            apActor->GetExtension()->StartChoices.Push(std::move(choice));
+        {
+            spdlog::debug("StartChoices: received {:X} {} {} at {} graph {}", apActor->formID, choice.Machine, choice.State,
+                          choice.At, cGraphTick);
+            apActor->GetExtension()->StartChoices.Receive(std::move(choice), cGraphTick);
+        }
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
@@ -117,6 +128,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         const auto& cAction = step.Action;
         if (phase == ReplayStep::kTaken)
         {
+            apActor->GetExtension()->ReplayLag = StartChoices::ReplayLag(aTick, cAction.Tick);
             aAnimationComponent.LastRanAction = cAction;
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)

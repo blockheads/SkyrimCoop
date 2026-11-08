@@ -385,9 +385,12 @@ TEST_CASE("Attached NPC copies retain actions until their behavior graph is read
     CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId);
 }
 
-TEST_CASE("A copy's machine starts where its owner's did at a clip's end", "[animation][replay-start]")
+namespace
 {
-    Party party(1, SmokeWorld);
+// The wolf's canned turn ending in a variable-bound start (below), over a line with these conditions.
+void CannedTurnEndsWhereTheOwnersDid(const std::optional<NetConditions>& acNet, std::optional<uint64_t> aArrivalMs = {})
+{
+    Party party(1, SmokeWorld, true, acNet);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     // Skyrim (wolf 9B0DD, Riverwood, 2026-11-07): TurnCannedR180 ends with no action and StandingBehavior starts from
@@ -398,6 +401,7 @@ TEST_CASE("A copy's machine starts where its owner's did at a clip's end", "[ani
         engine->Bound = FakeEngine::BoundStart{"CannedTurn", 60, 0, {"LoopingTurnRight", "StandingIdle"}, std::nullopt};
     }
     host.Bound->OwnerEnd = 1;
+    guest.StartChoiceArrivalMs = aArrivalMs;
     uint32_t wolf = 0;
     party.As(party.Host(), [&] {
         wolf = host.LoadNpc(0x23AB2, 0x31D2E, {});
@@ -415,5 +419,28 @@ TEST_CASE("A copy's machine starts where its owner's did at a clip's end", "[ani
     party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
     party.Until([&] { return guest.GetActorLatestAnimation(cCopy).EventName == turn.EventName; }, "the copy takes the turn");
     party.Until([&] { return guest.Actors.at(cCopy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
+    // The owner's choice can reach the copy after its machine started: it corrects it then.
+    if (acNet || aArrivalMs)
+        party.Until([&] { return guest.Actors.at(cCopy).GraphState == host.Actors.at(wolf).GraphState; },
+                    "the copy's machine is where its owner's is");
     CHECK(guest.Actors.at(cCopy).GraphState == host.Actors.at(wolf).GraphState);
+}
+} // namespace
+
+TEST_CASE("A copy's machine starts where its owner's did at a clip's end", "[animation][replay-start]")
+{
+    CannedTurnEndsWhereTheOwnersDid(std::nullopt);
+}
+
+TEST_CASE("A copy's machine started late by a resent action takes its owner's start", "[animation][replay-start]")
+{
+    // net_check's slow profile: the lost turn resent, the copy's clip ended 1.6 s after its owner's in playback time
+    // and the choice, matched by playback, had expired (2026-11-07). Matched by the copy's graph time it is taken.
+    CannedTurnEndsWhereTheOwnersDid(NetConditions{120, 80, 10, 2});
+}
+
+TEST_CASE("A copy's machine started before its owner's choice came is corrected", "[animation][replay-start]")
+{
+    // The choice reaches the copy after its machine started, as 12 of 184 did on the duo.
+    CannedTurnEndsWhereTheOwnersDid(std::nullopt, 100);
 }

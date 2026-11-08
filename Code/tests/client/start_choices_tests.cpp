@@ -75,3 +75,59 @@ TEST_CASE("An owner records its start, its copy enters it", "[animation][start-c
     CHECK(Choose(copy, true, "StandingBehavior", 0, 180) == 1); // its own variable said 0
     CHECK(Choose(copy, true, "StandingBehavior", 0, 180) == 0); // none left: the engine's
 }
+
+TEST_CASE("A choice that comes after its start corrects the copy's machine", "[animation][start-choices]")
+{
+    Queue queue;
+    // The copy's machine started at playback 1000 before its owner's choice came: it entered its own 0.
+    CHECK(Choose(queue, true, "StandingBehavior", 0, 1000) == 0);
+    CHECK_FALSE(queue.HasCorrections());
+    queue.Receive({"StandingBehavior", 1, 1080}, 1150);
+    REQUIRE(queue.HasCorrections());
+    CHECK_FALSE(queue.Correct("DefaultBehavior", 0, 1160));
+    CHECK(queue.Correct("StandingBehavior", 0, 1160) == 1);
+    CHECK_FALSE(queue.HasCorrections());
+    CHECK_FALSE(queue.Take("StandingBehavior", 1160)); // the choice was its start's, not the next one's
+}
+
+TEST_CASE("A late choice the copy already agreed with changes nothing", "[animation][start-choices]")
+{
+    Queue queue;
+    Choose(queue, true, "StandingBehavior", 1, 1000);
+    queue.Receive({"StandingBehavior", 1, 1080}, 1150);
+    CHECK_FALSE(queue.HasCorrections());
+    CHECK_FALSE(queue.Take("StandingBehavior", 1150));
+}
+
+TEST_CASE("A machine that left the state it entered is not corrected", "[animation][start-choices]")
+{
+    Queue queue;
+    Choose(queue, true, "StandingBehavior", 0, 1000);
+    queue.Receive({"StandingBehavior", 1, 1080}, 1150);
+    CHECK_FALSE(queue.Correct("StandingBehavior", 2, 1160)); // a replayed event moved it on meanwhile
+    CHECK_FALSE(queue.HasCorrections());
+}
+
+TEST_CASE("A late choice matches only a start near its time", "[animation][start-choices]")
+{
+    Queue queue;
+    Choose(queue, true, "StandingBehavior", 0, 1000);
+    queue.Receive({"StandingBehavior", 1, 1000 + cAheadMs + 1}, 1400); // too far after: the next start's
+    CHECK_FALSE(queue.HasCorrections());
+    CHECK(queue.Take("StandingBehavior", 1000 + cAheadMs + 1) == 1);
+    Choose(queue, true, "StandingBehavior", 0, 5000);
+    queue.Receive({"StandingBehavior", 1, 5050}, 5000 + cLateMs + 1); // came too late to trust
+    CHECK_FALSE(queue.HasCorrections());
+}
+
+TEST_CASE("A copy's graph time trails its playback by its last action's lateness", "[animation][start-choices]")
+{
+    // A lost packet resent: the turn at owner tick 1000 taken at playback 2600, so the start after it is 1600 late too.
+    const uint64_t cLag = ReplayLag(2600, 1000);
+    CHECK(cLag == 1600);
+    CHECK(GraphTime(3100, cLag) == 1500);
+    CHECK(ReplayLag(990, 1000) == 0);
+    // An action due but not yet taken: the graph is not past it, whatever its playback.
+    CHECK(GraphTime(2500, 0, 1000) == 1000);
+    CHECK(GraphTime(900, 0, 1000) == 900);
+}

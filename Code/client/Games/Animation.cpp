@@ -44,6 +44,8 @@ using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* a
 static TTryMoveTo* RealTryMoveTo;
 using TChooseStartState = int32_t(hkbStateMachineNode*, const hkbContext*);
 static TChooseStartState* RealChooseStartState;
+using TStateMachineUpdate = void(hkbStateMachineNode*, const hkbContext*, float aTimestep);
+static TStateMachineUpdate* RealStateMachineUpdate;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
@@ -188,6 +190,20 @@ bool HasState(const hkbStateMachineNode& acMachine, int32_t aStateId) noexcept
             return true;
     return false;
 }
+
+// The graph's actor, an NPC's owner or copy (players' copies replay their owner's own graph state).
+Actor* NpcOf(const hkbContext* apContext) noexcept
+{
+    if (!apContext || !apContext->character)
+        return nullptr;
+    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(apContext->character) -
+                                                                     offsetof(BShkbAnimationGraph, character));
+    TESObjectREFR* pHolder = pGraph->holder;
+    if (!pHolder || pHolder->formType != Actor::Type || pHolder == PlayerCharacter::Get())
+        return nullptr;
+    auto* pActor = static_cast<Actor*>(pHolder);
+    return pActor->GetExtension()->IsPlayer() ? nullptr : pActor;
+}
 } // namespace
 
 // hkbStateMachine::ChooseStartStateId (59405), as a machine activates: a start each game would read from its own variable,
@@ -196,19 +212,44 @@ int32_t HookChooseStartState(hkbStateMachineNode* apMachine, const hkbContext* a
 {
     const int32_t cOverride = apMachine->nextStartStateIndexOverride;
     const int32_t cChosen = RealChooseStartState(apMachine, apContext);
-    if (!apContext || !apContext->character || !apMachine->name || !StartChoices::Shared(cOverride, apMachine->startStateMode, StartIsBound(*apMachine)))
+    if (!apMachine->name || !StartChoices::Shared(cOverride, apMachine->startStateMode, StartIsBound(*apMachine)))
         return cChosen;
-    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(apContext->character) -
-                                                                     offsetof(BShkbAnimationGraph, character));
-    TESObjectREFR* pHolder = pGraph->holder;
-    if (!pHolder || pHolder->formType != Actor::Type || pHolder == PlayerCharacter::Get())
+    Actor* pHolder = NpcOf(apContext);
+    if (!pHolder)
         return cChosen;
-    auto* pExtension = static_cast<Actor*>(pHolder)->GetExtension();
-    if (pExtension->IsPlayer())
-        return cChosen;
+    auto* pExtension = pHolder->GetExtension();
+    const uint64_t cGraphTick = pExtension->GraphTick.load(std::memory_order_relaxed);
+    int64_t gap = INT64_MIN;
+    size_t expired = 0;
     const int32_t cState = StartChoices::Choose(pExtension->StartChoices, pExtension->IsCopy(), HavokName(apMachine->name), cChosen,
-                                                pExtension->PlaybackTick.load(std::memory_order_relaxed));
+                                                cGraphTick, &gap, &expired);
+    if (pExtension->IsCopy())
+        spdlog::debug("StartChoices: copy {:X} {} engine {} -> {} gap {} expired {} graph {}", pHolder->formID,
+                      HavokName(apMachine->name), cChosen, cState, gap == INT64_MIN ? std::string("none") : std::to_string(gap),
+                      expired, cGraphTick);
     return HasState(*apMachine, cState) ? cState : cChosen;
+}
+
+// hkbStateMachine::Update (59335): a copy's machine that started before its owner's choice came goes there now, as the
+// engine's own reselect does (59387: GoToState 59369, a transition if one exists, else a jump).
+void HookStateMachineUpdate(hkbStateMachineNode* apMachine, const hkbContext* apContext, float aTimestep)
+{
+    if (apMachine->isActive && apMachine->name)
+        if (Actor* pCopy = NpcOf(apContext); pCopy && pCopy->GetExtension()->IsCopy() && pCopy->GetExtension()->StartChoices.HasCorrections())
+        {
+            using TGoToState = void(hkbStateMachineNode*, int32_t aStateId, const hkbContext*, bool aForce, bool aJumpIfNoTransition,
+                                    bool aSetPrevious);
+            POINTER_SKYRIMSE(TGoToState, s_goToState, 59369);
+            auto* pExtension = pCopy->GetExtension();
+            const int32_t cFrom = apMachine->currentStateId;
+            if (const auto cTo = pExtension->StartChoices.Correct(HavokName(apMachine->name), cFrom, pExtension->GraphTick.load(std::memory_order_relaxed));
+                cTo && HasState(*apMachine, *cTo))
+            {
+                spdlog::debug("StartChoices: copy {:X} {} corrected {} -> {}", pCopy->formID, HavokName(apMachine->name), cFrom, *cTo);
+                s_goToState(apMachine, *cTo, apContext, false, true, false);
+            }
+        }
+    RealStateMachineUpdate(apMachine, apContext, aTimestep);
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
@@ -384,4 +425,5 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
         HOOK_ID(59405, &RealChooseStartState, HookChooseStartState);
+        HOOK_ID(59335, &RealStateMachineUpdate, HookStateMachineUpdate);
     });

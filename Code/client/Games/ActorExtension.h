@@ -53,7 +53,8 @@ struct ActorExtension
     ReplayStep Replay;
     // Its state machines' start states: an owner's to send, a copy's owner's to take (HookChooseStartState).
     StartChoices::Queue StartChoices;
-    std::atomic<uint64_t> PlaybackTick{0}; // a copy's playback time, its owner's ticks (AnimationSystem::Update)
+    std::atomic<uint64_t> GraphTick{0}; // a copy's graph's time in its owner's ticks (StartChoices::GraphTime)
+    uint64_t ReplayLag = 0;             // how late a copy took its last replayed action (main thread)
 
     // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
     // from that load's heap. It is reset (leaking them) before use, never freed or read.

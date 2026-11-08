@@ -238,6 +238,7 @@ void World::Update() noexcept
         {
             if (cPhase == Step::kTaken)
             {
+                actor.ReplayLag = StartChoices::ReplayLag(InterpolationSystem::PlaybackTick(*this, cEntity), step.Action.Tick);
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
             }
@@ -248,11 +249,23 @@ void World::Update() noexcept
             continue;
         }
         // As AnimationSystem::Update: the owner's start points, for the copy's graph to take.
-        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
-        actor.PlaybackTick = cTick;
+        const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
+        std::optional<uint64_t> pending;
+        if (cPhase != Step::kIdle)
+            pending = step.Action.Tick;
+        else if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
+            pending = animation.TimePoints.front().Tick;
+        const uint64_t cTick = StartChoices::GraphTime(cPlayback, actor.ReplayLag, pending);
+        actor.GraphTick = cTick;
         for (const auto& [cAt, cPacked] : std::exchange(animation.StartChoices, {}))
             for (auto& choice : StartChoices::Unpack(cPacked, cAt))
-                engine.StartChoiceQueues[form.Id].Push(std::move(choice));
+                engine.HeldStartChoices.emplace_back(form.Id, std::move(choice));
+        std::erase_if(engine.HeldStartChoices, [&](auto& aHeld) {
+            if (aHeld.first != form.Id || (engine.StartChoiceArrivalMs && cTick < aHeld.second.At + *engine.StartChoiceArrivalMs))
+                return false;
+            engine.StartChoiceQueues[form.Id].Receive(std::move(aHeld.second), cTick);
+            return true;
+        });
         // As AnimationSystem::RunGraphPoint.
         GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
         if (cPhase == Step::kIdle && animation.GraphPoint &&
