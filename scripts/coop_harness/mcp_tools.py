@@ -95,9 +95,11 @@ def forget_old_crashes():
 def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
     Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
-    minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits."""
+    minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits,
+    or for 15 minutes once someone waits: the first in line then stops the games and takes it (call duo_start to queue
+    again). Hold it only while driving the games, never while reading code or IDA."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
-    session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True)
+    session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:  # a new hold: crash logs from before it are other runs'; a repeated call keeps this run's
         forget_old_crashes()
     if duo["process"] and duo["process"].poll() is None:
@@ -119,7 +121,7 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
     one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
-    session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True)
+    session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:
         forget_old_crashes()
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"

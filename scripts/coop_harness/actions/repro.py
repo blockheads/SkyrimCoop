@@ -97,11 +97,8 @@ def game_differences(host, guest):
 
 def duo_home():
     """The main checkout's build/coop-test, where every worktree's duo lock lives (COOP_DUO_HOME overrides)."""
-    if home := os.environ.get("COOP_DUO_HOME"):
-        return Path(home)
-    common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                            capture_output=True, text=True).stdout.strip()
-    return (Path(common).parent / "build/coop-test").resolve() if common else TEST_HOME
+    from ..duo_lock import home_of
+    return home_of(ROOT, TEST_HOME)
 
 
 class ReproActions:
@@ -119,13 +116,14 @@ class ReproActions:
     def duo_games_running(ctx):
         return any(ctx.prefix_processes(_game=game) for game in ctx.games)
 
-    def duo_claim(ctx, owner, what, wait_seconds=0, keep_place=False):
-        """Holds the shared duo (or joins this checkout's hold), waiting up to wait_seconds in the queue."""
+    def duo_claim(ctx, owner, what, wait_seconds=0, keep_place=False, capped=False):
+        """Holds the shared duo (or joins this checkout's hold), waiting up to wait_seconds in the queue. capped: an
+        interactive hold, which the first in line takes after its cap (duo_lock.over_cap)."""
         from ..duo_lock import DuoBusy
         if not (lock := ctx.duo_lock(owner)):
             return "no lock on Windows"
         try:
-            return lock.acquire(what, timeout=wait_seconds, keep_place=keep_place)
+            return lock.acquire(what, timeout=wait_seconds, keep_place=keep_place, capped=capped)
         except DuoBusy as error:
             raise ctx.failure(str(error)) from None
 
@@ -139,6 +137,9 @@ class ReproActions:
             return f"left the queue, was number {number}" if number else "left the queue (the place had already lapsed)"
         if lock and lock.role != "holder":
             raise ctx.failure(f"not ours to stop: this session holds no duo ({lock.role or 'none'})")
+        if lock and not lock.still_held():  # taken at its cap, or freed by this checkout's stop: the games are not ours
+            lock.release()
+            return "already freed (its cap, or this checkout's stop); games left alone"
         ctx.stop_duo()
         if left := ctx.our_skyrims():
             raise ctx.failure(f"{len(left)} of our Skyrim processes still running after stop: {left}")

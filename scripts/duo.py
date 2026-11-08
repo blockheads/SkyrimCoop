@@ -13,7 +13,7 @@ import sys
 import time
 
 from coop_harness import Session
-from coop_harness.duo_lock import DuoBusy, DuoLock, age, polled
+from coop_harness.duo_lock import DuoBusy, DuoLock, age, cap_left, polled
 
 
 def main():
@@ -40,7 +40,9 @@ def main():
             print(json.dumps(state, indent=1))
             return
         holder = state["holder"]
+        left = cap_left(holder, state["queue"])
         print("Now: " + (f"{DuoLock.describe(holder)}{'' if holder['alive'] else ' (STALE: process ended)'}"
+                         + (f" (capped: the first in line takes it in {left:.0f} min)" if left is not None else "")
                          if holder else "free"))
         for index, entry in enumerate(state["queue"], 1):
             print(f"  {index}. {DuoLock.describe(entry)} (waiting {age(entry['since'])}, "

@@ -49,6 +49,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
+(the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
+stops its games and takes it, and the old holder queues again. A hook (`scripts/duo_hook.py`) reminds a session holding
+the duo while others wait to free it when it reads code, uses IDA or builds. Tests: `DuoLockTests`, `DuoHookTests`.
+
 2026-11-07: a guest's theft of an item the host's game made is judged ([crime.md](re/systems/crime.md), "A created
 item's theft names its owner"). Read in IDA: the player's pickup (40533) gives `StealAlarm` a created item's owner
 actor, not the item, and the host's permission recheck (`IsAnOwner` 20210, which reads any NPC as the player's) stopped
