@@ -212,8 +212,6 @@ void World::Update() noexcept
                 animation.LastRanAction = animation.TimePoints.front();
                 animation.Variables = animation.LastRanAction.Variables;
                 animation.VariablesTick = animation.LastRanAction.Tick;
-                CopyVariables::Record(animation.Integers, animation.LastRanAction.Tick, animation.Variables.Integers, true);
-                engine.Actors.at(form.Id).Graph.Anchor(animation.LastRanAction.Tick);
                 engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
                 animation.TimePoints.pop_front();
             }
@@ -238,7 +236,7 @@ void World::Update() noexcept
         const uint8_t cPhase = step.Phase.load();
         if (cPhase == Step::kTaken || cPhase == Step::kRefused)
         {
-            if (cPhase == Step::kTaken)
+            if (cPhase == Step::kTaken && !VariablesOnly(step.Action))
             {
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
@@ -259,7 +257,6 @@ void World::Update() noexcept
             const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
             if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
             {
-                actor.Graph.Anchor(cPoint.Tick);
                 actor.GraphRandom = cPoint.Variables.GraphRandom;
                 GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
                 const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
@@ -296,6 +293,21 @@ void World::Update() noexcept
         const auto& action = animation.TimePoints.front();
         if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
         if (!engine.IsAnimationGraphReady(form.Id)) continue;
+        if (VariablesOnly(action))
+        {
+            if (action.Tick >= animation.VariablesTick)
+            {
+                animation.Variables = action.Variables;
+                animation.VariablesTick = action.Tick;
+            }
+            step.Action = action;
+            step.Variables = animation.Variables;
+            step.Retries = 0;
+            step.ClipsLoaded.reset();
+            animation.StagedUpdates = 0;
+            step.Phase.store(Step::kVariables);
+            continue;
+        }
         if (DeathActions::IsDying(action.State1))
         {
             if (engine.HoldDeathActions) continue;
@@ -348,7 +360,6 @@ void World::Update() noexcept
             animation.VariablesTick = action.Tick;
         }
         step.Variables = animation.Variables;
-        CopyVariables::Record(animation.Integers, action.Tick, step.Variables.Integers, true);
         step.Retries = 0;
         animation.StagedUpdates = 0;
         step.ClipsLoaded = engine.RequestActionClips(form.Id, action.EventName);

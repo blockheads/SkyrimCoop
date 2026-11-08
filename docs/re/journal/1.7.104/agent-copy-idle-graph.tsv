@@ -98,3 +98,13 @@ time	op	id	rva	item
 2026-11-08T04:11:53Z	comment		0xaf75b7	{"addr": "0x140af75b7", "comment": "Active transitions: hkArray at +0xB0 (data), +0xB8 count, 40-byte entries: +0 effect, +0x10 transition info, +0x1C fromStateId (the current state at the start), +0x20 toStateId, +0x24 flag. A count > 0 means a transition is running; with flag 0x10 the current state (+0x80) stays the source until it ends."}
 2026-11-08T07:00:57Z	read		0x789954	{"name": "RunOneActorAnimationUpdateJob"}
 2026-11-08T07:01:02Z	comment		0x789954	{"addr": "0x140789954", "comment": "A graph's step: the frame's seconds (Misc::seconds) x VATS global time multiplier, the same for owner and copy; not a copy's playback (SkyrimCoop copy-idle-graph: CopyVariables::GraphClock)"}
+2026-11-08T09:16:11Z	read		0x6f0f8c	{"name": "AIProcess::StopCurrentIdle"}
+2026-11-08T09:16:31Z	read	11437	0x1544f0	{"name": "FixedStrings::GetSingleton"}
+2026-11-08T09:17:42Z	read		0x6e27e1	{"name": "coop_ApplyAnimationVariables"}
+2026-11-08T09:18:37Z	read	38949	0x6dfbc0	{"name": "coop_RealPerformAction"}
+2026-11-08T09:19:29Z	comment		0x6dfdae	{"addr": "0x1406dfdae", "comment": "Refused (not started) and not a query: 39004 still runs with started 0, so an action the graph refused still writes its graph variables (TurnStop: iSyncTurnState 1). SkyrimCoop copy-idle-graph"}
+2026-11-08T09:19:29Z	comment		0x6e26d7	{"addr": "0x1406e26d7", "comment": "Past the started-only branch: runs for refused actions too. By the action's default object: MoveStart 97 / MoveStop 98 -> iSyncIdleLocomotion (FixedStrings +0x310) 1/0; TurnRight 99 / TurnStop 101 / TurnLeft 100 -> iSyncTurnState (+0x318) 0/1/2; MoveForward 102 / MoveBackward 103 -> +0x558 0/1; MoveRight 105 / MoveLeft 104 -> +0x560 0/1"}
+2026-11-08T09:19:29Z	comment		0x6e2917	{"addr": "0x1406e2917", "comment": "The action's graph variable write (SetGraphVariableInt): the only writer of iSyncTurnState / iSyncIdleLocomotion in the executable; the behaviour files only read them (startStateId bindings)"}
+2026-11-08T09:19:29Z	comment		0x2253ac	{"addr": "0x1402253ac", "comment": "FixedStrings +0x310 iSyncIdleLocomotion, +0x318 iSyncTurnState (the string loaded after each lea rcx)"}
+2026-11-08T09:19:30Z	name	39004	0x6e2250	{"addr": "0x1406e2250", "name": "coop_ApplyActionGraphEffects"}
+2026-11-08T18:01:22Z	comment		0x6dfff9	{"addr": "0x1406dfff9", "comment": "ForceAction's path (copies' replays): 39004's graph writes run whether or not the event started, as in 38949"}

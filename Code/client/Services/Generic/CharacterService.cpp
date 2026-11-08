@@ -5,7 +5,6 @@
 #include <Services/ActorValueService.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
-#include <Services/CopyClock.h>
 
 #include <Components.h>
 
@@ -55,7 +54,6 @@
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
-#include <Systems/CopyVariables.h>
 #include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
@@ -1569,52 +1567,28 @@ void CharacterService::RunRemoteUpdates() noexcept
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
-            // Booleans: the newest snapshot's at or before playback, never older (graphs react to their changes).
-            // Integers: an NPC copy's at its graph's time and up to an interval ahead, so a clip's end reads what its owner
-            // wrote there. Neither past an action not yet played: it fires on its own (CopyVariables.h). Floats (Direction, Speed): while it
-            // stands, the nearest snapshot's, what moved its owner there, so a strafe's animation turns with the copy's
-            // movement, within half an interval (S10, copy-clock.md).
-            const auto& held = CopyVariables::Held(points, tick);
-            const AnimationVariables* pVariables = &held.Variables;
-            AnimationVariables shown;
-            bool changed = false;
+            // Booleans and integers: the current snapshot's, never older (graphs react to their changes). Floats
+            // (Direction, Speed): while it stands, the nearest snapshot's, what moved its owner there, so a strafe's
+            // animation turns with the copy's movement, within half an interval (S10, copy-clock.md).
+            const AnimationVariables* pVariables = &first.Variables;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                const uint64_t cNextAction = CopyVariables::NextAction(pAnimation->TimePoints);
-                if (CopyVariables::TakesHeld(held.Tick, pAnimation->VariablesTick, cNextAction))
+                if (first.Tick > pAnimation->VariablesTick)
                 {
-                    pAnimation->Variables = held.Variables;
-                    pAnimation->VariablesTick = held.Tick;
+                    pAnimation->Variables = first.Variables;
+                    pAnimation->VariablesTick = first.Tick;
                 }
                 pVariables = &pAnimation->Variables;
-                shown = *pVariables;
-                if (!m_world.all_of<PlayerComponent>(entity))
-                {
-                    auto& timeline = pAnimation->Integers;
-                    for (const auto& cPoint : points)
-                        CopyVariables::Record(timeline, cPoint.Tick, cPoint.Variables.Integers, false);
-                    const uint64_t cGraph = CopyVariables::Reference(m_actorBridge.GetCopyGraphTick(pFormIdComponent->Id), tick, CopyClock::kMaxMs);
-                    const uint64_t cOldest = std::min(cGraph, tick);
-                    CopyVariables::Forget(timeline, cOldest > CopyClock::kMaxMs ? cOldest - CopyClock::kMaxMs : 0);
-                    const auto* pAt = CopyVariables::At(timeline, cGraph, cAhead, cNextAction, shown.Integers.size());
-                    if (pAt && *pAt != shown.Integers)
-                    {
-                        shown.Integers = *pAt;
-                        changed = true;
-                    }
-                }
             }
-            else
-                shown = *pVariables;
             const bool cStanding = !first.Lying && !second.Lying && !first.Knocked && !second.Knocked;
             const bool cNearerSecond = cStanding && (tick >= second.Tick || (tick > first.Tick && 2 * (tick - first.Tick) >= second.Tick - first.Tick));
-            if (cNearerSecond && second.Variables.Floats.size() == shown.Floats.size() && second.Variables.Floats != shown.Floats)
+            AnimationVariables shown;
+            if (cNearerSecond && second.Variables.Floats.size() == pVariables->Floats.size() && second.Variables.Floats != pVariables->Floats)
             {
+                shown = *pVariables;
                 shown.Floats = second.Variables.Floats;
-                changed = true;
-            }
-            if (changed)
                 pVariables = &shown;
+            }
             // Its owner lying, or the copy itself: its own ragdoll places it. Up again, it is eased from where its
             // engine stood it onto its owner's place (physics-sync.md, "A copy's ragdoll, steered").
             auto& ease = interpolationComponent.Ease;

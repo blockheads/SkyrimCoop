@@ -84,8 +84,6 @@ public:
     virtual void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
     // Alive and in knock states 1-4.
     [[nodiscard]] virtual bool IsKnockedDown(uint32_t aFormId) const noexcept = 0;
-    // A copy's graph time: the owner tick its graph is at, below 0 for none (CopyVariables::GraphTime).
-    [[nodiscard]] virtual double GetCopyGraphTick(uint32_t aFormId) const noexcept = 0;
     // It lies in its ragdoll, dead or knocked down: the engine keeps it on the ragdoll (Actor::LiesInRagdoll).
     [[nodiscard]] virtual bool IsLyingInRagdoll(uint32_t aFormId) const noexcept = 0;
     // Its character controller on the ground (hkpCharacterStateType 0): not jumping, falling, swimming or flying.

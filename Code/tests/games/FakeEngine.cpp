@@ -130,18 +130,12 @@ void FakeEngine::Frame()
         if (actor.GraphUpdating)
         {
             actor.AnimationMs += cFrameMs;
-            actor.Graph.Step(cFrameMs);
         }
     if (Bound)
         for (auto& [cId, actor] : Actors)
         {
             auto& integers = actor.GraphVariables.Integers;
             integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
-            if (actor.BoundThenAt && actor.AnimationMs >= *actor.BoundThenAt)
-            {
-                integers[Bound->Variable] = uint32_t(Bound->OwnerThen->first);
-                actor.BoundThenAt.reset();
-            }
             if (actor.GraphState != Bound->State)
             {
                 actor.BoundStartedAt.reset();
@@ -157,12 +151,15 @@ void FakeEngine::Frame()
             if (actor.BoundStuck || actor.AnimationMs < *actor.BoundStartedAt + double(Bound->Ms))
                 continue;
             actor.BoundStartedAt.reset();
-            if (!actor.Copy && Bound->OwnerWrites)
-                integers[Bound->Variable] = uint32_t(*Bound->OwnerWrites);
-            if (!actor.Copy && Bound->OwnerThen)
-                actor.BoundThenAt = actor.AnimationMs + double(Bound->OwnerThen->second);
-            if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
-                integers[*Bound->ExitVariable] = uint32_t(*Bound->OwnerWritesExit);
+            // Its AI's actions on this frame, before its graph update (the main thread, then 41453's jobs).
+            if (!actor.Copy)
+                for (const auto& cEvent : Bound->OwnerEnds)
+                {
+                    ActionEvent end;
+                    end.ActionId = 0x13000 + uint32_t(cEvent.size());
+                    end.EventName = cEvent;
+                    PerformAnimation(cId, end);
+                }
             actor.BoundReadAtEnd = int32_t(integers[Bound->Variable]);
             if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, int32_t(integers[*Bound->ExitVariable])))
             {
@@ -698,12 +695,23 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 
 bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 {
+    if (VariablesOnly(acAction))
+        return true;
     if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
         return true;
     const bool cTaken = ReplayAnimation(aFormId, acAction);
-    if (cTaken)
-        Actors.at(aFormId).Graph.Anchor(acAction.Tick); // as AnimationSystem::PlayReplayedAction
+    ApplyActionWrites(aFormId, acAction.EventName);
     return cTaken;
+}
+
+void FakeEngine::ApplyActionWrites(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto it = ActionWrites.find(acEvent);
+    if (it == ActionWrites.end())
+        return;
+    auto& integers = Actors.at(aFormId).GraphVariables.Integers;
+    integers.resize(std::max(integers.size(), it->second.first + 1));
+    integers[it->second.first] = uint32_t(it->second.second);
 }
 
 void FakeEngine::StopPairClip(uint32_t aFormId)
@@ -837,6 +845,16 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
         }
         return ReplayAnimation(aFormId, aAction);
     });
+    if (!aQuery)
+        ApplyActionWrites(aFormId, aAction.EventName);
+    // Refused: its writes only, as Animation.cpp's hook.
+    if (cOutcome.Capture && !cOutcome.Result)
+    {
+        AnimationVariables after = Actors.at(aFormId).GraphVariables;
+        after.GraphRandom = aAction.Variables.GraphRandom;
+        if (SendRefusedVariables(aAction, after))
+            World::Get().GetDispatcher().trigger(aAction);
+    }
     if (cOutcome.Capture && cOutcome.Result)
     {
         if (::ReplayState::StartsAttack(aAction.EventName))

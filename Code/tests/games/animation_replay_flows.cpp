@@ -389,9 +389,10 @@ TEST_CASE("Attached NPC copies retain actions until their behavior graph is read
 namespace
 {
 // The wolf's canned turn (Skyrim: wolf 9B0DD, Riverwood, 2026-11-07). TurnCannedR180 ends with no action; DefaultBehavior
-// leaves CannedTurnState and StandingBehavior starts from iSyncTurnState, which the owner's graph has just written (1,
-// StandingIdle). Its copy read its snapshot's 0 (LoopingTurnRight) and turned on the spot for 4 to 20 s, or stayed in
-// CannedTurnState when iSyncIdleLocomotion, its exit's condition, was still another value.
+// leaves CannedTurnState and StandingBehavior starts from iSyncTurnState. Just before, the owner's AI performed TurnStop,
+// which its graph refused but which set iSyncTurnState 1 (39004: StandingIdle). Its copy never got that refused action,
+// read its snapshot's 0 (LoopingTurnRight) and turned on the spot for 4 to 20 s, or stayed in CannedTurnState when
+// iSyncIdleLocomotion, its exit's condition, was still another value.
 struct WolfTurn
 {
     Party party;
@@ -400,7 +401,7 @@ struct WolfTurn
     uint32_t wolf = 0;
     uint32_t copy = 0;
 
-    // aExitCondition: CannedTurnState's exit needs iSyncIdleLocomotion 0 or 1, which the owner writes as it ends.
+    // aExitCondition: CannedTurnState's exit needs iSyncIdleLocomotion 0 or 1, which the owner's refused MoveStop sets.
     explicit WolfTurn(const std::optional<NetConditions>& acNet = {}, bool aExitCondition = false)
         : party(1, SmokeWorld, true, acNet)
         , host(Party::Engine(party.Host()))
@@ -409,12 +410,13 @@ struct WolfTurn
         for (auto* engine : {&host, &guest})
         {
             engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}, {{"StandingIdle", "cannedTurnRight180"}, "CannedTurn"}};
-            engine->Bound = FakeEngine::BoundStart{"CannedTurn", 1000, 0, {"LoopingTurnRight", "StandingIdle"}, 1};
+            engine->Bound = FakeEngine::BoundStart{"CannedTurn", 1000, 0, {"LoopingTurnRight", "StandingIdle"}, {"turnStop"}};
+            engine->ActionWrites = {{"turnStop", {0, 1}}, {"moveStop", {1, 0}}};
             if (aExitCondition)
             {
+                engine->Bound->OwnerEnds.push_back("moveStop");
                 engine->Bound->ExitVariable = 1;
                 engine->Bound->ExitValues = {0, 1};
-                engine->Bound->OwnerWritesExit = 1;
             }
         }
         party.As(party.Host(), [&] {
@@ -429,15 +431,18 @@ struct WolfTurn
                     "the copy has its owner's variables from before the turn");
     }
 
-    // aWhileTurning: once the copy took the turn, before its clip ends.
-    void Turn(const std::function<void()>& aWhileTurning = {})
+    // aWhileTurning: once the copy took the turn, before its clip ends. aOwnerEnded: as the owner's clip ends.
+    void Turn(const std::function<void()>& aWhileTurning = {}, const std::function<void()>& aOwnerEnded = {})
     {
         ActionEvent turn;
         turn.ActionId = 0x13002;
         turn.EventName = "cannedTurnRight180";
         const uint64_t cBefore = guest.GetActorLatestAnimation(copy).Tick;
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
-        party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
+        party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing", {},
+                    &party.Host());
+        if (aOwnerEnded)
+            aOwnerEnded();
         party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
                     "the copy takes the turn");
         if (aWhileTurning)
@@ -449,8 +454,8 @@ struct WolfTurn
 
 TEST_CASE("A copy's machine started at a clip's end reads its owner's new variable", "[animation][replay-start]")
 {
-    // StandingBehavior starts from the iSyncTurnState the copy has as its own clip ends. Its owner wrote 1 as its clip
-    // ended, and the snapshot carrying it is stamped up to a send interval later (CopyVariables.h).
+    // StandingBehavior starts from the iSyncTurnState the copy has as its own clip ends. Its owner's refused turnStop
+    // set 1 just before its clip ended: sent as variables only, the copy loads it at the same point (ReplayStep.h).
     WolfTurn wolf;
     wolf.Turn();
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
@@ -480,10 +485,31 @@ TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[a
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 
+TEST_CASE("A copy's machine reads its owner's new variable with its owner's next action right behind it", "[animation][replay-start]")
+{
+    // Skyrim (duo, 2026-11-08): a wolf sends its next action just after its turn's end, stamped before the snapshot
+    // carrying iSyncTurnState: the refused turnStop before it carries the write.
+    WolfTurn wolf({}, true);
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        for (const auto* cState : {"StandingIdle", "LoopingTurnRight", "Standing", "CannedTurn"})
+            engine->GraphTransitions[{cState, "sniff"}] = cState;
+    ActionEvent sniff;
+    sniff.ActionId = 0x13010;
+    sniff.EventName = "sniff";
+    wolf.Turn([] {}, [&] {
+        // 50 ms on: after the copy's own clip end (its turn replayed a few frames late), before the next snapshot.
+        const uint64_t cEnd = wolf.party.Host().GetFrameTick();
+        wolf.party.Until([&] { return wolf.party.Host().GetFrameTick() >= cEnd + 50; }, "50 ms after the owner's turn", {}, &wolf.party.Host());
+        wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, sniff)); });
+    });
+    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
 TEST_CASE("A copy's canned turn ends where its owner's does as its playback slows after a fight", "[animation][replay-start]")
 {
     // Out of combat its owner's send interval goes from 33 to 100 ms; the copy's playback steers onto it at 0.9x
-    // (CopyPlayback::kSteer) while its clips run at the frames' time: integers are read at its graph's time.
+    // (CopyPlayback::kSteer) while its clips run at the frames' time.
     WolfTurn wolf({}, true);
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 1; });
     const auto cInterval = [&] {
@@ -500,26 +526,9 @@ TEST_CASE("A copy's canned turn ends where its owner's does as its playback slow
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 
-TEST_CASE("A copy whose turn started late reads its owner's integers of the clip's end, not of its playback", "[animation][replay-start]")
-{
-    // Its clip files load for 20 frames (ActionClips), so its clip ends that much later in its playback. Its owner wrote
-    // iSyncTurnState 1 as its clip ended and, with no action, 0 150 ms later: the copy's clip end reads the 1.
-    WolfTurn wolf({}, true);
-    for (auto* engine : {&wolf.host, &wolf.guest})
-    {
-        engine->ClipFiles["cannedTurnRight180"] = "CannedTurn";
-        engine->Bound->OwnerThen = std::pair{0, 150};
-    }
-    wolf.guest.ClipLoadFrames = 20;
-    wolf.Turn();
-    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
-    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
-}
-
 TEST_CASE("A copy's turn paused with its graph reads its owner's integers as it resumes", "[animation][replay-start]")
 {
-    // Its graph stops updating mid-clip (KillImpl's flag, an unloaded actor) while playback runs on: its graph time
-    // stands still, further than CopyClock::kMaxMs from playback, so playback is the reference again.
+    // Its graph stops updating mid-clip (KillImpl's flag, an unloaded actor) while playback runs on.
     WolfTurn wolf({}, true);
     wolf.Turn([&] {
         wolf.guest.Actors.at(wolf.copy).GraphUpdating = false;

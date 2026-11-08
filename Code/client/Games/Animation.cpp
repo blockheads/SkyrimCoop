@@ -27,6 +27,7 @@
 #include <Utils.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayState.h>
+#include <Games/Animation/ReplayStep.h>
 #include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
@@ -88,13 +89,18 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         action.TargetEventName = apAction->targetEventName.AsAscii();
         action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
 
-        // An action the engine refused changed nothing here: replayed on a copy it could take
-        // (e.g. a late 'MRh_Equipped_Event' after the hands were lowered) and leave the copy
-        // showing something its owner never did.
+        // A refused action's event is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the
+        // hands were lowered). Its graph writes are sent, with no event (39004: a refused TurnStop sets iSyncTurnState).
         if (!res)
         {
-            if (!g_forceAnimation && !cPlayersPartner)
-                spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
+            if (g_forceAnimation || cPlayersPartner)
+                return res;
+            AnimationVariables after;
+            pActor->SaveAnimationVariables(after);
+            if (!SendRefusedVariables(action, after))
+                return res;
+            spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, its variables sent", pActor->formID, action.ActionId, action.EventName);
+            World::Get().GetRunner().Trigger(action);
             return res;
         }
 
@@ -138,14 +144,12 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 // (RunOneActorAnimationUpdateJob 41453). A copy's replayed action is applied in step with it.
 bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
 {
-    ActorExtension* pCopy = nullptr;
     // Runs for every animated reference each frame: a form type test, not an RTTI cast (copies are never the player).
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
         if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
         {
-            pCopy = pExtension;
             AnimationSystem::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {
@@ -154,10 +158,7 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
             }
         }
     }
-    const bool cResult = RealUpdateAnimationGraphs(apThis, aDelta);
-    if (pCopy)
-        pCopy->Graph.Step(aDelta * 1000.0);
-    return cResult;
+    return RealUpdateAnimationGraphs(apThis, aDelta);
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk

@@ -505,10 +505,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    double GetCopyGraphTick(uint32_t) const noexcept override
-    {
-        return -1.0;
-    }
     bool IsLyingInRagdoll(uint32_t) const noexcept override
     {
         return false;

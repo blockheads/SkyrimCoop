@@ -58,3 +58,42 @@ TEST_CASE("An action waits for its clips, not forever", "[animation][replay-step
     step.ClipsLoaded->store(true);
     CHECK(ClipWaitOver(step, 1));
 }
+
+TEST_CASE("A refused action is sent only when it changed its owner's variables", "[animation][replay-step][refused-writes]")
+{
+    // 39004 sets a refused TurnStop's iSyncTurnState (38949): that write is sent, with no event to replay.
+    ActionEvent action;
+    action.Type = 2;
+    action.Variables.Integers = {0, 2};
+    action.Variables.GraphRandom = 7;
+    AnimationVariables after = action.Variables;
+    after.GraphRandom = 9;
+    CHECK_FALSE(SendRefusedVariables(action, after));
+    CHECK_FALSE(VariablesOnly(action));
+
+    after.Integers = {1, 2};
+    CHECK(SendRefusedVariables(action, after));
+    CHECK(VariablesOnly(action));
+    CHECK((action.Type & 0x3) == 2);
+    CHECK(action.Variables.Integers == std::vector<uint32_t>{1, 2});
+    CHECK(action.Variables.GraphRandom == 7); // the seed as the action started
+}
+
+TEST_CASE("A copy loads a refused action's variables in step and sends no event", "[animation][replay-step][refused-writes]")
+{
+    AnimationReplayStep step;
+    step.Action.Type = 2 | kVariablesOnly;
+    step.Variables.Integers = {1};
+    step.Phase.store(AnimationReplayStep::kVariables);
+    uint32_t loads = 0;
+    const auto load = [&](const AnimationVariables& acVariables) {
+        CHECK(acVariables.Integers == std::vector<uint32_t>{1});
+        ++loads;
+    };
+    const auto play = [] { FAIL("A refused action's event is never replayed"); return false; };
+    RunAnimationReplayStep(step, load, play);
+    CHECK(loads == 1);
+    CHECK(step.Phase.load() == AnimationReplayStep::kAction);
+    RunAnimationReplayStep(step, load, play);
+    CHECK(step.Phase.load() == AnimationReplayStep::kTaken);
+}

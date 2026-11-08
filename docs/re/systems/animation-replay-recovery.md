@@ -208,8 +208,7 @@ owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurn
   template's start (1), and at ChooseStartStateId some hold 0 or 2 with no override and mode 0; the watchpoint caught the
   write at RVA `B1F4BF` under `hkbVariableBindingSet::sub_59467` each time.
 - The owner's engine changes `iSyncTurnState` in the frame its clip ends; in the trace that frame also holds a `turnStop`
-  the engine refused (so never sent). Which engine code writes it is not read: the executable names it only in
-  `FixedStrings` (+0x318, `iSyncIdleLocomotion` +0x310), which `AIProcess::StopCurrentIdle` (39257) reads.
+  the engine refused (so never sent). That refused action is the writer (next section).
 - A copy's integer variables are its current movement snapshot's (`CharacterService`, the 10-a-second rate for NPCs not
   in a fight), and its clip ends on its own clock: the measured runs read the old value.
 - Read, not on the path: StartTransition (59383) and the nested-state path (58380) write +0xFC only for transitions flagged
@@ -218,65 +217,48 @@ owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurn
 The same race leaves a copy in `CannedTurnState`: `DefaultBehavior`'s exit needs `iSyncIdleLocomotion` 0 or 1 at
 `cannedTurnStop`, and the copy can still hold another value (behaviour file; seen on the duo, 3.8 s, 2026-11-07).
 
-## A copy reads its owner's integers ahead (2026-11-07)
+## A refused action still writes its graph variables (2026-11-08)
 
-Both shapes above are one race: the owner's graph writes an integer as a clip ends with no action (`iSyncTurnState`,
-`iSyncIdleLocomotion`; measured in the frame the clip ends), and the copy's graph reads it at its own clip's end, also
-with no action: a machine's bound start (59467 → 59405), and a transition's condition (CannedTurnState's exit).
+Both shapes above have one writer: an action the owner's graph refused. Read in IDA 1.7.104 (names and comments in this
+branch's journal):
 
-- **Read (our code):** `CharacterService::RunRemoteUpdates` gave a copy the integers of the newest snapshot at or before
-  its playback (`first`). The snapshot carrying the owner's write is stamped at its next send, up to one interval (100 ms
-  for an NPC outside a fight) after the write. A copy whose clip ended in that gap read the old value.
-- **The fix (`Systems/CopyVariables.h`, from `CharacterService`):** an NPC copy reads its owner's integers at its
-  graph's time, the newest up to one send interval past it. Its pieces:
-  - *The copy's graph time, measured (`CopyVariables::GraphTime`, on `ActorExtension`).* It is anchored where the copy's
-    graph takes its owner's moment: an action's event sent (`PlayReplayedAction`, a refused one's recovery included), a
-    sync point or the spawn's graph state loaded. Each graph update then adds the delta Skyrim passes the graph, after the
-    update (`HookUpdateAnimationGraphs`, 20123). 41453 passes 20123 the frame's seconds times VATS's time multiplier
-    (read). A paused graph's time stands still.
-  - *Why not playback.* A copy's playback steers at 0.85-1.1x (`CopyClock.h`) while its clips run at the frames' time.
-    On a jittery line, or after a fight as its NPC's interval steers from 33 to 100 ms, a one-second clip ends more than
-    an interval from playback. A copy whose action started late (clip files loading) ends its clip that much later in
-    its playback. There playback would read what its owner wrote after the clip's end.
-  - *Its reference.* The graph's time, unless it has none or is more than `CopyClock::kMaxMs` (400 ms, the most a
-    copy's delay steers) from playback. Further than that, its graph stood still or follows no clip of its owner's, and
-    playback is the reference.
-  - *The owner's integers by tick (`IntegerTimeline`, on `RemoteAnimationComponent`).* They are recorded from each
-    snapshot and from each action as it is staged, and kept from `kMaxMs` before the older of graph time and playback.
-  - *Never past an action not yet played.* A replayed action loads its variables one graph update before its event
-    (`ReplayStep.h`), and our main thread writes a copy's variables between the two. Before the next unplayed action,
-    only that action's own integers are read, and the held snapshot does not replace its variables either. Without this,
-    its event went with the next snapshot's integers: the action's `iWantBlock` 1 replaced by the 0 its owner wrote just
-    after (`0_master.hkx` and `1hm_behavior.hkx` test `iWantBlock`; found by Codex on PR #38).
-  - *Never back to an older snapshot.* What the copy holds is the newest snapshot at or before playback, also once
-    playback reaches the last one and extrapolates.
-- **Not changed:** players' copies keep the snapshot at or before playback for their integers. They send 30 a second,
-  and their integers (equipment, `iWantBlock`, attacks) were not part of this bug. Booleans keep the newest snapshot at
-  or before playback, floats the nearest one's.
-- **Cost of the fix:** an owner's integer change reaches its NPC copy up to one interval before the copy's graph gets
-  there, never past an action. A future integer can meet an older float or boolean, a combination its owner never had.
-  No duo run showed one. A copy whose graph time is more than 400 ms from playback reads at playback, as before.
-- **Measured (duo, Riverwood, scenario `wolf_copy_turns_with_owner`):**
-  - first version: never apart 3 s over 180 s, with the owner's graph changing at least 48 times;
-  - second version (2026-11-08, an estimated graph time): never apart 3 s over 180 s, through at least two of the owner's
-    `CannedTurnState` entries, every reading from both games. The runner's end comparison then failed on the fish
-    (`docs/bugs.md`). Another wolf, `9B0DB`, kept turning after a refused turn's recovery (`docs/bugs.md`, "A copy's
-    graph after a turn or a pick"), cause unproven;
-  - this version: see the PR.
-  - The scenario needs the owner to enter `CannedTurnState` at least twice, both games read each time. A missing reply
-    is not counted as an owner change and does not end a run apart, and a gap without readings as long as `within`
-    fails.
-- **GameTests `[replay-start]`:** the fake's canned turn ends after its animation time (the frames while its graph
-  updates, the event's frame included), not a copy's playback. The owner's graph writes the two variables as it ends.
-  Actions carry the owner's variables (`SaveAnimationVariables`, as `Animation.cpp`'s hook does). The copy has what
-  `CharacterService` gives it, and its graph time as production keeps it.
-  - Without the timeline, six flows fail: a stale start, the stuck canned turn, two turns over a slow line, a turn after
-    a fight, a late start whose owner rewrote the integer 150 ms after its clip's end, and the block.
-  - With playback as the reference, the slow line, the turn after a fight, the late start and the block fail.
-  - Without the action bound, the late start and the block fail.
-  - A graph paused for 800 ms mid-turn passes in every mode: it guards the fallback to playback.
-  - The clean-line flows check that the copy had the old value as its clip started.
-  - ClientTests `[copy-variables]`.
+```
+owner's AI: PerformAction (38949, hooked: HookPerformAction)
+  event sent to the graph; refused (CannedTurnState has no turnStop)
+  not a query (flags & 1 == 0) -> 39004 (coop_ApplyActionGraphEffects, started = 0)
+    its variable writes sit outside its started-only branch, so they run for a refused action too:
+      MoveStart 97 / MoveStop 98         -> iSyncIdleLocomotion (FixedStrings +0x310) = 1 / 0
+      TurnRight 99 / TurnStop 101 / TurnLeft 100 -> iSyncTurnState (+0x318) = 0 / 1 / 2
+      MoveForward 102 / MoveBackward 103 -> +0x558 = 0 / 1;  MoveRight 105 / MoveLeft 104 -> +0x560 = 0 / 1
+    (SetGraphVariableInt at 0x1406e2917)
+ForceAction (38953, a copy's replays): the same 39004 call, started or not
+```
+
+- Nothing else in the executable or the canine behaviour files writes these two variables. The graphs only read them
+  (bound `startStateId`, transition conditions), and so does `AIProcess::StopCurrentIdle` (39257).
+- **Read (our code, before the fix):** `HookPerformAction` dropped a refused action ("refused by the engine, not sent"),
+  so its write reached the copy only in a later movement snapshot. The copy's machine started, or its exit was judged,
+  on the old value.
+- **Measured (duo, 2026-11-08):** in the long runs apart, the copy's integers equalled its owner's snapshots, and the
+  owner's log held a refused `turnStop` next to each one.
+- **The fix:** a refused action that changed its owner's variables is sent as variables only (`kVariablesOnly` in
+  `ActionEvent::Type`, `ReplayStep.h`), with the variables as they stand after 38949. The copy stages it on its action
+  queue, at its owner's tick, and loads the variables in step with its graph (the step's variables phase), with no
+  event: replaying the event could let the copy take what its owner refused. A refused action that changed nothing is
+  still not sent.
+- **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
+  or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
+  turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the
+  copy in its canned turn. On a clean line the snapshot still comes in time in the fake. ClientTests
+  `[refused-writes]`.
+
+### Tried and parked: reading the owner's integers ahead
+
+Before the writer was read, three fixes moved snapshot integers instead: integers read up to an interval ahead of
+playback, at an estimated graph clock, then at a measured graph time (`CopyVariables.h`, commits up to `bcc96169` on
+PR #38). Each guessed when to read a value whose write arrived with no timing of its own. On the duo the measured graph
+time lagged the owner by 50 to 110 ms and did not explain the stuck runs. One fact from it still holds: 41453 passes
+20123 the frame's seconds times VATS's time multiplier (read).
 
 ### Tried and parked: reconciling copies' machines to their owner's
 

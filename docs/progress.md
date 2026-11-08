@@ -49,15 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-07: a copy reads its owner's integer graph variables ahead. A machine's start can be a graph variable (the
-wolf's `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read
-when it activates at a clip's end with no action; so is a transition's condition (CannedTurnState's exit on
-`iSyncIdleLocomotion`). The owner's graph writes them as its clip ends, and the snapshot carrying them is stamped up to a
-send interval later, so the copy read the old value: it turned on the spot for 4 to 20 s or stayed in its canned turn.
-NPC copies now read their owner's integers at their graph's measured time, up to an interval ahead, never past an action
-not yet played (`Systems/CopyVariables.h`, `CharacterService`)
-([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A copy reads its owner's integers ahead";
-reconciling machines was tried and parked there). Harness: the animation trace records each event sent into a graph
+2026-11-08: a refused action's graph writes reach its copies. A machine's start can be a graph variable (the wolf's
+`StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read when it
+activates at a clip's end with no action; so is a transition's condition (CannedTurnState's exit on
+`iSyncIdleLocomotion`). Their writer is an action the owner's graph refused: PerformAction (38949) still runs its
+variable writes (39004; a refused `TurnStop` sets `iSyncTurnState` 1), and we sent no refused action, so the copy read
+the old value: it turned on the spot for 4 to 20 s or stayed in its canned turn. A refused action that changed its
+owner's variables is now sent as variables only, loaded in step on the copy with no event (`ReplayStep.h`)
+([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A refused action still writes its graph variables"; reading integers ahead
+and reconciling machines were tried and parked there). Harness: the animation trace records each event sent into a graph
 with its engine callers (`input`); `graph_machines` / `graph_machines_watch` read state machines on both games;
 `name_owner`; `expect` check `graph` (its `value`: the owner changes a run needs); behavior_dump extracts creature
 behaviours.

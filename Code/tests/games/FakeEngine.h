@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Systems/CopyVariables.h>
 #include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
@@ -537,8 +536,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
-        CopyVariables::GraphTime Graph;       // a copy's graph time, as ActorExtension::Graph
-        std::optional<double> BoundThenAt;    // when an owner writes Bound's OwnerThen (AnimationMs)
         std::optional<double> BoundStartedAt; // its Bound clip's start, on AnimationMs
         bool BoundStuck = false;              // its exit condition failed at the clip's end: no other end comes
         int32_t BoundReadAtStart = -1;        // Bound's Variable as its clip started, and as it ended
@@ -622,9 +619,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::optional<GraphLoop> Loop;
     // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms of the actor's animation
-    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action. As it ends
-    // the owner's graph writes Variable (iSyncTurnState, OwnerWrites) and ExitVariable (iSyncIdleLocomotion,
-    // OwnerWritesExit); a copy has what CharacterService gave it. The exit is taken once, only if ExitVariable holds one
+    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action. Just
+    // before, the owner's AI performs OwnerEnds (turnStop), which the graph refuses; their ActionWrites set Variable
+    // (iSyncTurnState) and ExitVariable (iSyncIdleLocomotion). The exit is taken once, only if ExitVariable holds one
     // of ExitValues; StandingBehavior then starts from Variable (bound startStateId, 59467/59405).
     struct BoundStart
     {
@@ -632,14 +629,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint64_t Ms = 1000;
         size_t Variable = 0;
         std::vector<std::string> Starts;
-        std::optional<int32_t> OwnerWrites;
+        std::vector<std::string> OwnerEnds;
         std::optional<size_t> ExitVariable;
         std::vector<int32_t> ExitValues;
-        std::optional<int32_t> OwnerWritesExit;
-        // The owner writes Variable again this long after its clip's end, with no action: {value, ms}.
-        std::optional<std::pair<int32_t, uint64_t>> OwnerThen;
     };
     std::optional<BoundStart> Bound;
+    // 39004's integer writes by event: run by PerformAction (38949, not for a query) and ForceAction (38953)
+    // whether or not the graph takes the event (TurnStop: iSyncTurnState 1). {variable, value}.
+    std::map<std::string, std::pair<size_t, int32_t>> ActionWrites;
+    void ApplyActionWrites(uint32_t aFormId, const std::string& acEvent);
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
@@ -1022,11 +1020,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     // Dead with a ragdoll, or its ragdoll's bodies awake (knocked down): as Actor::LiesInRagdoll.
-    double GetCopyGraphTick(uint32_t aFormId) const noexcept override
-    {
-        const auto it = Actors.find(aFormId);
-        return it != Actors.end() ? it->second.Graph.Tick.load() : -1.0;
-    }
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     bool IsActorDead(uint32_t aFormId) const noexcept override;

@@ -176,8 +176,8 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 
 The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
 of 2 s or more on some creatures and a few NPCs. Each is below. The wolf's copy turning while its owner idled, and its
-copy kept in `CannedTurnState`, are fixed: a copy reads its owner's integer variables ahead (2026-11-07,
-animation-replay-recovery.md, "A copy reads its owner's integers ahead").
+copy kept in `CannedTurnState`, are fixed: a refused action's graph writes reach the copy (2026-11-08,
+animation-replay-recovery.md, "A refused action still writes its graph variables").
 
 Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
 
@@ -195,8 +195,8 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
   2026-11-08): its copy refused the owner's `TurnRight` 15 s after it spawned (`Copy 9B0DB recovered refused action 959FC
   'TurnRight' from its owner's graph`). It loaded the owner's graph state, in `StandingBehavior=LoopingTurnRight`, while
   its owner went on to `StandingIdleState`. The owner's `turnStop` was `refused by the engine, not sent`. So the recovery
-  loads a state the owner leaves with no action. Cause unproven: reading integers ahead could have changed its state
-  before the turn; wolf `9B0DD` passing in the same run is no comparison. Compare with the fix off.
+  loads a state the owner leaves with no action. Possibly the same writer: that refused `turnStop` set `iSyncTurnState`
+  on the owner only, and is now sent. Not shown: rerun the scenario and look for this shape.
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
   on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 

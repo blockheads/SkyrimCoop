@@ -318,12 +318,6 @@ bool SkyrimBridge::IsKnockedDown(uint32_t aFormId) const noexcept
     return pActor && !pActor->IsDead() && pActor->actorState.IsKnockedDown();
 }
 
-double SkyrimBridge::GetCopyGraphTick(uint32_t aFormId) const noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    return pActor ? pActor->GetExtension()->Graph.Tick.load(std::memory_order_relaxed) : -1.0;
-}
-
 bool SkyrimBridge::IsLyingInRagdoll(uint32_t aFormId) const noexcept
 {
     const Actor* pActor = GetActor(aFormId);
