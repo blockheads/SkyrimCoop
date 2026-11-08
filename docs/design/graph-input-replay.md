@@ -303,3 +303,24 @@ memory, not an input.
 Fix directions, not built: copy the template's `lowerBound` into each clone on every game (the behaviour file's value,
 as designed; it changes the host's own turns where the garbage was a NaN); and audit the other node classes' clone
 constructors for the same omission (compare each new clone with its template, member by member, from its `hkClass`).
+
+### The clone audit (IDA, static, 2026-11-08)
+
+Every node class the canine and character behaviours use, against its clone's copy constructor: each class's
+`hkClass` is built by a static initializer (`hkClass` constructor `sub_140AB1660`: name, parent, size, members, count);
+its members (`hkClassMember`, 0x28 bytes: name, type +0x18, flags +0x1C, offset +0x1E; static in `.rdata`) were
+checked against the bytes `cloneNode`'s copy constructor (vtable slot 12) writes from the template, runtime-only members
+(flag 0x400) left out.
+
+- **The one decision-making omission: `hkbEventsFromRangeModifier`'s `lowerBound` and `inputValue`.** `inputValue` is
+  bound in the vanilla files (overwritten each modify); unbound, it would be garbage too.
+- **Flagged, set elsewhere:** `hkbNode.name` (clones read at runtime have names, so the graph's cloning sets it after the
+  constructor), `behaviorName`, `animationName`, modifier generators' and lists' child pointers, `hkbModifier.enable`
+  (each modifier's constructor copies it).
+- **Flagged, pose only:** foot IK (`legs`, alignment), keyframe bones, ragdoll controls' bone lists. Not checked whether
+  real omissions or copies the parse missed; they shape the pose, which reads the world anyway.
+- **Complete:** the other 25 or so, including every class that decides states (state machines, blenders, selectors,
+  clips, transition effects, expressions, event-driven, every-N, timers, edge detectors, look-at, damping).
+
+So the fix is one patch: each new range modifier clone takes its template's `lowerBound` and `inputValue` (59723), on
+every game.
