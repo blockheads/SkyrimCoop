@@ -24,6 +24,40 @@ So a main loop task and our update do not overlap. Measured with a temporary cou
 update was running 0 times in 32,700 frames (16,500 host, 16,200 guest). Not read: what the other job modes do. A save's freeze runs `ProcessRegisteredUpdates` too, and
 `HookVMUpdate` skips our update while `isFrozen`. An inversion between our update and a job in the same stretch of the table has no such protection.
 
+### How the checker tells them apart
+
+Each thread carries the stretch of the frame it is in (`LockOrder::FrameStretch`): main loop tasks while `HookMainLoop` drains
+`MainLoopTasks` (`RunTasksInStretch`), our update while `HookVMUpdate` runs `World::Update` (`UpdateInStretch`), elsewhere otherwise.
+Every observed order (an edge, per pair of locks) keeps the set of stretches it was ever taken in, not only the first stack's.
+An inversion is "kept apart by the frame" (`LockOrderAttribution::KeptApartByFrame`, ClientTests `[locks]`) only when this side's stretch is
+one of the two and the reverse order was seen in the other one alone; elsewhere on either side, or the reverse also seen elsewhere, is a risk.
+
+- The report is still logged, with `kept apart by the frame:` before the kind. The harness logs it and does not fail on it.
+- It is reported apart from the risk: the same call sites met later from elsewhere make their own report, which fails as before.
+- The live overlap check is unchanged: a kept-apart pair that ever overlaps is reported live and fails.
+- The frame's claim is checked every run, not trusted: step 3 is read for job mode 1 only, and its "the update has finished" leans on
+  the sync entries' names (inferred) and the measured count. Each stretch counts its threads inside it (`StretchOverlap`); if main loop
+  tasks start while our update runs, or the other way round, a critical log says so, `lock_order.stretches_overlapped` turns true, and
+  nothing is kept apart for the rest of the run. The harness then fails a kept-apart report as `[ours]`.
+- An edge's history is OR'ed, also while it is being published, so a sighting from elsewhere at that moment is not lost.
+- The helpers are out of line so `HookMainLoop` (0x136 bytes in dev) and `HookVMUpdate` (0x69) stay within their `IgnoreFrames` sizes.
+
+The case that needed it (bugs.md, 2026-11-07, `guest-rides-host-horse` after a respawn in the same boot), read in IDA 1.7.104:
+
+- Main loop tasks: `GuestEngine::ClearFills` > `BGSRefAlias::ClearRefAlias` 24012 > `TESObjectREFR::RemoveAliasInstance` 19653 >
+  `ExtraDataList::RemoveAliasInstance` 12047, which writes the reference's extra-data list lock (list +0x18), then 12719 the alias array's (+0x28).
+- Our update: `DeathService::OnRespawnArrival` > `PlayerCharacter::Revive` > `Actor::CastPermanentMagic` 38753 > 12720 (the alias visit, the
+  array's read lock) > `CastAliasSpellVisitor` 38846 > `PermanentMagicFunctor` 34464 > `MagicCaster::FindTargets` > 38786 > `Actor::IsGhost`
+  37275, a read of the same list lock (actor +0x88). Read in IDA: 12047, 19653, 12719, 12720, 34464, 37275 and the call from 24012;
+  the rest of each chain is the duo's symbolized stacks.
+
+On the duo (2026-11-07, `death-spectate-guest` then `guest-rides-host-horse`, one boot, both passed), the guest showed the add side of the
+same pair: `GuestEngine::ApplyFills` > `TESQuest::ForceRefIntoAlias` 25052 > `BGSRefAlias::InitializeRefAlias` 24011 > `TESObjectREFR::AddAliasInstance`
+19652 (read) > `ExtraDataList::AddAliasInstance` 12046 (list, write) > `ExtraAliasInstanceArray::AddSorted` 12718 (array, write), from
+`RunTasksInStretch`, against the respawn's 12720 > 37275: reported `kept apart by the frame`. The respawn's own report, earlier in the
+run, stayed a risk: that reverse order was also taken by the duo's start `coc` on the main thread outside the tasks (the reviewed
+`lock_order_known-1.7.104.txt` entry for it).
+
 ## Reports read
 
 The 2026-11-04 playtest's reports (12 on the host, read in IDA 1.7.104) are all the engine's own orders, none live:

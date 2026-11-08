@@ -49,6 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: the lock checker tells orders the frame keeps apart from a risk ([lock-order.md](re/systems/lock-order.md), "How the
+checker tells them apart"). Each thread carries its stretch of the frame (main loop tasks, our update), each order every stretch
+it was seen in; an inversion between main loop tasks and our update alone is logged as kept apart and fails no flow, anything
+else still fails, and the live overlap check is as it was. `guest-rides-host-horse` failed on one after a respawn (bugs.md).
+ClientTests `[locks]`, a harness unit.
+
 2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
 queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
 has no translation), and the duo boot then failed to host. `prepare_prefix` sets the pref; a fresh prefix boots,
