@@ -101,24 +101,8 @@ void FakeEngine::ShovePlayer() noexcept
     }
 }
 
-int32_t FakeEngine::DefaultMachineState(const Actor& acActor) const
-{
-    if (!Bound)
-        return MachineStates::cInactive;
-    if (acActor.GraphState == Bound->State)
-        return 0;
-    return acActor.GraphState == "Standing" || std::ranges::contains(Bound->Starts, acActor.GraphState) ? 1 : MachineStates::cInactive;
-}
-
-int32_t FakeEngine::StandingMachineState(const Actor& acActor) const
-{
-    const auto cIt = Bound ? std::ranges::find(Bound->Starts, acActor.GraphState) : std::vector<std::string>::const_iterator{};
-    return Bound && cIt != Bound->Starts.end() ? int32_t(cIt - Bound->Starts.begin()) : MachineStates::cInactive;
-}
-
 void FakeEngine::Frame()
 {
-    ++FramesRun;
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
@@ -144,54 +128,28 @@ void FakeEngine::Frame()
         {
             auto& integers = actor.GraphVariables.Integers;
             integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
-            auto& timelines = MachineTimelines[cId];
-            const auto cStart = [&](int32_t aStart) {
-                actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(aStart, 0)), 0, Bound->Starts.size() - 1));
-            };
-            if (actor.Copy && !actor.Player && !std::exchange(actor.GraphSeen, true))
-                actor.NeedsMachineBaseline = true; // as NoteGraph's first look at a copy's graph
-            // As HookStateMachineUpdate: a copy's active machine apart from its owner's goes there (GoToState 59369).
-            if (actor.Copy && !actor.Player && timelines.Any())
-            {
-                if (const int32_t cDefault = DefaultMachineState(actor); cDefault != MachineStates::cInactive)
-                    if (const auto cTo = timelines.Reconcile(kDefaultMachine, {cDefault, std::nullopt}))
-                    {
-                        actor.BoundFrames = 0;
-                        actor.BoundStuck = false;
-                        if (*cTo == 0)
-                            actor.GraphState = Bound->State;
-                        else
-                            cStart(integers[Bound->Variable]);
-                    }
-                if (const int32_t cStanding = StandingMachineState(actor); cStanding != MachineStates::cInactive)
-                    if (const auto cTo = timelines.Reconcile(kStandingMachine, {cStanding, std::nullopt}); cTo && size_t(*cTo) < Bound->Starts.size())
-                        actor.GraphState = Bound->Starts[size_t(*cTo)];
-            }
+            const uint64_t cClock = actor.Copy ? actor.PlaybackTick : World::Get().GetFrameTick();
             if (actor.GraphState != Bound->State)
             {
-                actor.BoundFrames = 0;
+                actor.BoundStartedAt.reset();
                 actor.BoundStuck = false;
+                continue;
             }
-            else if (!actor.BoundStuck && ++actor.BoundFrames >= Bound->Frames)
+            if (!actor.BoundStartedAt)
+                actor.BoundStartedAt = cClock;
+            if (actor.BoundStuck || cClock < *actor.BoundStartedAt + Bound->Ms)
+                continue;
+            actor.BoundStartedAt.reset();
+            if (!actor.Copy && Bound->OwnerWrites)
+                integers[Bound->Variable] = uint32_t(*Bound->OwnerWrites);
+            if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
+                integers[*Bound->ExitVariable] = uint32_t(*Bound->OwnerWritesExit);
+            if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, int32_t(integers[*Bound->ExitVariable])))
             {
-                actor.BoundFrames = 0;
-                if (!actor.Copy && Bound->OwnerWrites)
-                    integers[Bound->Variable] = *Bound->OwnerWrites;
-                if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
-                    integers[*Bound->ExitVariable] = *Bound->OwnerWritesExit;
-                if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, integers[*Bound->ExitVariable]))
-                    actor.BoundStuck = true;
-                else
-                    cStart(integers[Bound->Variable]);
+                actor.BoundStuck = true;
+                continue;
             }
-            // As HookSetActiveState / HookStateMachineDeactivate: an owner NPC queues each state its machines enter.
-            if (!actor.Copy && !actor.Player)
-                for (const auto [cKey, cState] : {std::pair{kDefaultMachine, DefaultMachineState(actor)}, std::pair{kStandingMachine, StandingMachineState(actor)}})
-                    if (const auto cSent = actor.SentMachines.find(cKey); cSent == actor.SentMachines.end() || cSent->second != cState)
-                    {
-                        actor.SentMachines[cKey] = cState;
-                        MachineOutboxes[cId].Push({cKey, cState, World::Get().GetFrameTick(), MachineGeneration});
-                    }
+            actor.GraphState = Bound->Starts.at(std::min<size_t>(integers[Bound->Variable], Bound->Starts.size() - 1));
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
@@ -578,32 +536,6 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;
     }
-}
-
-bool FakeEngine::TakeActorMachineBaselineNeed(uint32_t aFormId) noexcept
-{
-    const auto it = Actors.find(aFormId);
-    return it != Actors.end() && std::exchange(it->second.NeedsMachineBaseline, false);
-}
-
-void FakeEngine::SendActorMachineBaseline(uint32_t aFormId) noexcept
-{
-    if (const auto it = Actors.find(aFormId); it != Actors.end() && !it->second.Copy)
-        MachineOutboxes[aFormId].RequestBaseline();
-}
-
-void FakeEngine::RebuildGraph(uint32_t aFormId)
-{
-    auto& actor = Actors.at(aFormId);
-    if (actor.Copy)
-    {
-        MachineTimelines[aFormId].Clear();
-        actor.NeedsMachineBaseline = true;
-        return;
-    }
-    ++MachineGeneration;
-    MachineOutboxes[aFormId].Rebuilt();
-    actor.SentMachines.clear(); // a rebuilt graph's machines activate: each enters its state anew (SetActiveState)
 }
 
 bool FakeEngine::IsActorCopy(uint32_t aFormId) const noexcept
@@ -1095,18 +1027,7 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
-    if (!CopyVariableLagFrames)
-        it->second.GraphVariables = acVariables;
-    else
-    {
-        auto& lagged = it->second.LaggedVariables;
-        lagged.emplace_back(FramesRun, acVariables);
-        while (!lagged.empty() && lagged.front().first + CopyVariableLagFrames <= FramesRun)
-        {
-            it->second.GraphVariables = lagged.front().second;
-            lagged.pop_front();
-        }
-    }
+    it->second.GraphVariables = acVariables;
     if (aMove == CopyMove::Leave || RagdollPosed(aFormId))
         return true;
     it->second.Stepped = aMove == CopyMove::Step;

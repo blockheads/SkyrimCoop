@@ -84,8 +84,8 @@ Ruled out, measured: the graph recovery as a cause. Only 2 of 53 lasting reports
 
 Read and measured 2026-11-07, the wolf's turning copy: a state machine's start state bound to a synced variable
 (`StandingBehavior` <- `iSyncTurnState`), read at a clip's end while the copy's variable is a movement snapshot behind.
-Fixed, with the same race in a transition's condition (the wolf staying in its canned turn), by reconciling a copy's
-tracked machines to its owner's states (animation-replay-recovery.md, "A copy's machines reconcile to its owner's").
+Fixed, with the same race in a transition's condition (the wolf staying in its canned turn), by giving copies their
+owner's integers from the next snapshot (animation-replay-recovery.md, "A copy reads its owner's integers ahead").
 Whether Sigrid's dropped pick-up has this cause is not shown.
 
 Camilla's `Behavior02=MT_Idle.HKX` is the same shape in the log and was not sampled live: inferred a wrong check.

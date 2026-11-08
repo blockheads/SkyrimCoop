@@ -1,10 +1,10 @@
-"""The wolf near Riverwood turns and idles; its copy's state machines follow its owner's: never apart for 3 s over 120 s, with at least 3 owner graph changes (docs/re/systems/animation-replay-recovery.md, "A copy's machines reconcile to its owner's").
+"""The wolf near Riverwood turns and idles; its copy's state machines follow its owner's: never apart for 3 s over 120 s, with at least 3 owner graph changes (docs/re/systems/animation-replay-recovery.md, "A copy reads its owner's integers ahead").
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # recorded: 20261107-214417-wolf-copy-turns-with-owner.jsonl, 6 calls (scripts/check_scenarios.py)
 NAME = 'wolf_copy_turns_with_owner'
 TAGS = ['animation', 'copies', 'scene']
-DOC = 'The wolf near Riverwood turns and idles; its copy\'s state machines follow its owner\'s: never apart for 3 s over 120 s, with at least 3 owner graph changes (docs/re/systems/animation-replay-recovery.md, "A copy\'s machines reconcile to its owner\'s").'
+DOC = 'The wolf near Riverwood turns and idles; its copy\'s state machines follow its owner\'s: never apart for 3 s over 120 s, with at least 3 owner graph changes (docs/re/systems/animation-replay-recovery.md, "A copy reads its owner\'s integers ahead").'
 
 
 def run(ctx):

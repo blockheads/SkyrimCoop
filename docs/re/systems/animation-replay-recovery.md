@@ -218,72 +218,52 @@ owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurn
 The same race leaves a copy in `CannedTurnState`: `DefaultBehavior`'s exit needs `iSyncIdleLocomotion` 0 or 1 at
 `cannedTurnStop`, and the copy can still hold another value (behaviour file; seen on the duo, 3.8 s, 2026-11-07).
 
-## A copy's machines reconcile to its owner's (2026-11-07)
+## A copy reads its owner's integers ahead (2026-11-07)
 
-Matching each owner start to a copy activation by time (PR #38's first rounds) was unsound: close activations swapped
-picks, an extra activation on one side fed the wrong one, and a pick that came after its start was lost. Now the copy
-converges on the owner's *state* at the same owner time; a second Codex review shaped this version. Read in IDA 1.7.104
-unless marked measured:
+Both shapes above are one race: the owner's graph writes an integer as a clip ends with no action (`iSyncTurnState`,
+`iSyncIdleLocomotion`; measured in the frame the clip ends), and the copy's graph reads it at its own clip's end, also
+with no action: a machine's bound start (59467 → 59405), and a transition's condition (CannedTurnState's exit).
 
-```
-owner, graph job                                 copy
-  SetActiveState 59390: every state entered        main thread: entries -> Timelines (per machine, by owner
-    (Activate 59334; StartTransition 59383           time), and the graph time: playback less the last
-     at its start, or at its end via 59384 when       action's lateness, spent as playback goes on, never
-     the transition's flag 0x10 defers it;            past an action still pending
-     GoToState 59369)                              graph job, hkbStateMachine::Update 59335, active machine:
-  Deactivate 59337: cInactive                        where = a running transition's destination, else
-  -> {key, state, owner tick, generation}               its current state
-  the next point (ActionId 0, MachineStates)         want  = the owner's state at the graph time, of the
-  a baseline (every machine's current state)            owner's generation then (none while inactive)
-    when a copy asks (MachineBaselineRequest,        apart 250 ms of graph time -> GoToState 59369:
-    relayed to the owner), its graph is rebuilt,       a wrong transition running: force (cleared, a jump)
-    or unsent changes overflow                         else: a transition to it if one exists, else a jump
-                                                   graph rebuilt or entries dropped: forget, ask a baseline
-```
+- **Read (our code):** `CharacterService::RunRemoteUpdates` gave a copy the integers of the newest snapshot at or before
+  its playback (`first`). The snapshot carrying the owner's write is stamped at its next send, up to one interval (100 ms
+  for an NPC outside a fight) after the write. A copy whose clip ended in that gap read the old value.
+- **The fix (`Systems/CopyVariables.h`):** integers come from the next snapshot once it is within one send interval. That
+  is never over what a later replayed action loaded, and only from a snapshot of the same layout. Booleans keep the
+  current snapshot's, and floats the nearest one's.
+- **Cost of the fix:** an owner's integer change reaches its copy up to one interval early. Actions carry their own
+  variables, loaded as they replay.
+- **Measured (duo, Riverwood, scenario `wolf_copy_turns_with_owner`, this fix alone):** never apart 3 s over 180 s,
+  with the owner's graph changing at least 48 times.
+- **GameTests `[replay-start]`:** the fake's canned turn now ends by time on each game's own clock (the owner's frame
+  tick, the copy's playback), the owner's graph writes the two variables as it ends, and the copy has what
+  `CharacterService` gives it. Three flows fail without the fix and pass with it: a stale start, the stuck canned turn,
+  and two turns over a slow line. ClientTests `[copy-variables]`.
 
-- **GoToState (59369):** not active or `force` → it clears transitions (59384), sets the machine's state-changed byte
-  (+0x100) and the graph's active-nodes-changed byte (+0x12E), then calls SetActiveState and the sync variable write
-  (59399). Otherwise it starts a transition to the state if one is eligible (59377, 59381, 59382), or with
-  `jumpIfNoTransition` takes the jump branch. The graph's update (58329) runs `updateActiveNodes` when +0x12E is set, so
-  a call inside a node's update takes effect in that graph update. 59387 makes exactly this call inside Update. The graph
-  state restore calls it with force (SetStateOfStateMachine 58365 from SaveDataRestoreFunctor 65179).
-- **Running transitions:** an hkArray at +0xB0 (count +0xB8) of 40-byte entries, destination at +0x20 (StartTransition
-  appends them). With flag 0x10 the current state stays the source until the end, so a state id alone does not say
-  where a machine is going.
-- **Tracked:** every state machine of an NPC. Tracking only those with a bound, random or chooser start left a fixed-start
-  parent whose event-driven transitions differed uncorrected. Players replay their own graph state.
-- **Machine key:** read from the clone itself: its name and its states' names (FNV-1a). The engine frees a clone when its
-  node leaves the active graph (`updateActiveNodes` 60079, 58363) and can make another at that address, so a
-  clone-to-key cache could give the new machine the old key. Two machines alike in name and states are one to this.
-- **Recovery:** the copy keeps each machine's entries apart (one machine's changes never push out another's), with
-  history `cHistoryMs` behind the graph time, since the graph time can step back when a late action comes. The owner
-  keeps each machine's current state; its baseline goes when a copy asks, when its graph is rebuilt (a new root
-  behaviour graph, a new generation), or when unsent changes overflow. A copy asks when it first sees its graph, when
-  its graph is rebuilt, and when received batches were dropped unread (16 waiting at most, for a copy with no 3D).
-- **Measured (duo, Riverwood, 120 s, scenario `wolf_copy_turns_with_owner`):** never apart 3 s, with the owner's graph
-  changing 34, 41 and 51 times in three runs.
-- **Measured, each reconcile against both games' logged state changes** (second run, 46 reconciles):
-  - 34 follow an owner change, 250 to 281 ms after it. All 10 `ForwardLocomotionBehavior` ones are here: the fox's owner
-    changed it 13 times in 18 s. The copy never made these transitions within the grace on its own; its speed
-    variables lag like the turn variable.
-  - 9 undo a change only the copy made (ear, tail and mandible idles).
-  - 3 were left again by the copy within a second with no owner change: fights, rare.
-- **Measured cost (third run, about 15 NPCs, about 130 s):**
-  - 28.4 KB of machine states, about 215 B/s for the cell. The graph points (GraphRandom) sent 1.7 MB in the same
-    window.
-  - 196 of 3,728 movement batches (5%) went reliable only because of machine states; 672 were reliable in all.
-  - 36 reconciles on the copy side.
-- **Not read:** the engine code writing `iSyncTurnState` on the owner. Moving such control variables onto the action
-  timeline would remove the divergence rather than correct it.
+### Tried and parked: reconciling copies' machines to their owner's
 
-Tests: GameTests `[replay-start]` (the fake writes the owner's variable and loads a copy's 30 frames late, as measured;
-its timelines are published before a taken action, as in production):
-- a stale start, a slow line, a state arriving late, the stuck canned turn;
-- a copy-only change, an owner-only change, a copy-only parent change;
-- an owner graph rebuilt, a copy graph rebuilt with its owner still (needs the baseline);
-- a late action followed by a timely one.
+The first fix sent the owner's start choices and matched them to copy activations by time. The second sent every state
+an NPC's machines entered and moved a copy's machine that differed, after 250 ms, through GoToState 59369 (branch
+`agent/copy-machine-reconcile`). Three Codex design reviews on PR #38 found it unsound to ship:
+- the owner reports a state on entry while the copy was judged by a transition's destination, so a correct delayed
+  transition could be force-cut, running entry and exit effects;
+- name and state names alias distinct canine machines (`Head_Stand_Behavior` in both `noncombatidle.hkx` and
+  `quadrupedbehavior.hkx`);
+- history and baselines had holes;
+- a catch-up clock truncated running actions.
 
-Each fails without the reconcile; the rebuilt copy also fails without the baseline. ClientTests `[machine-states]`,
-HostAuthorityTests (the request goes to the owner alone), TPTests (its round trip). Not modelled by the fake: clone
-reuse, transitions and native key discovery, so ClientTests cover the content key and the transition rule.
+What it established, and still holds:
+- **GoToState (59369):** not active or `force` → it clears transitions (59384, which enters a delayed transition's
+  destination first), sets +0x100 and the graph's +0x12E, then calls SetActiveState and 59399. Otherwise it starts an
+  eligible transition (59377, 59381, 59382), or jumps when told to.
+- **Inside a node's update:** the graph's update (58329) runs `updateActiveNodes` when +0x12E is set; 59387 calls
+  GoToState inside Update.
+- **State changes:** SetActiveState 59390 sees every state a machine enters, from Activate 59334, StartTransition 59383
+  (at its start, or at its end via 59384 under flag 0x10) and GoToState. Deactivate 59337 ends a machine.
+- **Running transitions:** at +0xB0 (count +0xB8, 40-byte entries, toStateId +0x20).
+- **Clone lifetime:** the engine frees a clone when its node leaves the active graph (60079, 58363).
+- **Measured (duo, Riverwood):**
+  - of 46 corrections, 34 followed an owner change 250 to 281 ms after it (all the `ForwardLocomotionBehavior` ones),
+    9 undid a copy-only change, and 3 fought;
+  - machine states cost about 215 B/s for the cell, against 1.7 MB of graph points in the same window.
+- **Why it matters for the fix:** the locomotion corrections show that speed integers lag the same way. The fix covers
+  them too, since they are integers.

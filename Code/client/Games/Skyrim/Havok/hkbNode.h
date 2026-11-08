@@ -247,23 +247,9 @@ struct hkbStateMachineNode : hkbNode
     bool isActive; // 88, Activate (59334) enters a start state only when false
     uint8_t pad89[0x90 - 0x89];
     hkArrayView<StateInfo*> states; // 90
-    uint8_t padA0[0xB0 - 0xA0];
-    // Its running transitions (StartTransition 59383 appends): with flag 0x10 the current state stays the source until
-    // the transition ends.
-    struct ActiveTransition
-    {
-        uint8_t pad0[0x1C];
-        int32_t fromStateId; // 1C
-        int32_t toStateId;   // 20
-        uint8_t pad24[0x28 - 0x24];
-    };
-    hkArrayView<ActiveTransition> activeTransitions; // B0
-    uint8_t padC0[0xFC - 0xC0];
+    uint8_t padA0[0xFC - 0xA0];
     int32_t nextStartStateIndexOverride; // FC, an index; the next Activate starts there (59405), -1 none
 };
-static_assert(sizeof(hkbStateMachineNode::ActiveTransition) == 0x28);
-static_assert(offsetof(hkbStateMachineNode::ActiveTransition, toStateId) == 0x20);
-static_assert(offsetof(hkbStateMachineNode, activeTransitions) == 0xB0);
 static_assert(offsetof(hkbStateMachineNode::StateInfo, stateId) == 0x68);
 static_assert(offsetof(hkbStateMachineNode, startStateId) == 0x68);
 static_assert(offsetof(hkbStateMachineNode, syncVariableIndex) == 0x7C);

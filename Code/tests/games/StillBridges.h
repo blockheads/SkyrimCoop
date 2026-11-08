@@ -468,13 +468,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    bool TakeActorMachineBaselineNeed(uint32_t) noexcept override
-    {
-        return false;
-    }
-    void SendActorMachineBaseline(uint32_t) noexcept override
-    {
-    }
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override
     {
     }

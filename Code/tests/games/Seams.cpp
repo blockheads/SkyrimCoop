@@ -218,6 +218,7 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
+        actor.PlaybackTick = InterpolationSystem::PlaybackTick(*this, cEntity); // its clips' clock (Bound)
         if (actor.PairStops)
         {
             --actor.PairStops;
@@ -234,39 +235,10 @@ void World::Update() noexcept
         auto& step = actor.Replay;
         using Step = AnimationReplayStep;
         const uint8_t cPhase = step.Phase.load();
-        // As AnimationSystem::Update, before a taken step is processed: the graph time and the owner's machine states.
-        const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
-        std::optional<uint64_t> pending;
-        if (cPhase != Step::kIdle)
-            pending = step.Action.Tick;
-        else if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
-            pending = animation.TimePoints.front().Tick;
-        const uint64_t cTick = MachineStates::GraphTime(cPlayback, actor.ReplayLag, actor.ReplayTakenAt, pending);
-        actor.GraphTick = cTick;
-        // As AnimationSystem::Update: the owner's machine states, and the graph time, for the copy's machines.
-        auto& timelines = engine.MachineTimelines[form.Id];
-        timelines.SetGraphTime(cTick);
-        if (std::exchange(animation.MachineStatesLost, false))
-            actor.NeedsMachineBaseline = true;
-        for (const auto& [cAt, cPacked] : std::exchange(animation.MachineStates, {}))
-        {
-            std::vector<MachineStates::Entry> entries;
-            if (MachineStates::Unpack(cPacked, cAt, entries))
-                for (const auto& cEntry : entries)
-                    engine.HeldMachineStates.push_back({form.Id, cEntry});
-        }
-        std::erase_if(engine.HeldMachineStates, [&](const FakeEngine::HeldMachineState& acHeld) {
-            if (acHeld.FormId != form.Id || (engine.MachineArrivalMs && cTick < acHeld.Entry.At + *engine.MachineArrivalMs))
-                return false;
-            timelines.Add({acHeld.Entry});
-            return true;
-        });
         if (cPhase == Step::kTaken || cPhase == Step::kRefused)
         {
             if (cPhase == Step::kTaken)
             {
-                actor.ReplayTakenAt = InterpolationSystem::PlaybackTick(*this, cEntity);
-                actor.ReplayLag = MachineStates::ReplayLag(actor.ReplayTakenAt, step.Action.Tick);
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
             }
@@ -277,6 +249,7 @@ void World::Update() noexcept
             continue;
         }
         // As AnimationSystem::RunGraphPoint.
+        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
         GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
         if (cPhase == Step::kIdle && animation.GraphPoint &&
             (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))

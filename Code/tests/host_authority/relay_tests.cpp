@@ -276,21 +276,6 @@ TEST_CASE("Hits: go to the actor's owner alone", "[HostAuthority][Values]")
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("A copy's request for its owner's machine states goes to the owner alone", "[HostAuthority][Animation]")
-{
-    Session session;
-    const uint32_t cHostNpc = session.Character(kHost);
-
-    MachineBaselineRequest asked;
-    asked.SessionId = cHostNpc;
-    session.Receive(kPeer, asked);
-
-    const auto cToHost = session.SentTo<NotifyMachineBaseline>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->SessionId == cHostNpc);
-    CHECK(session.SentTo<NotifyMachineBaseline>(kOtherPeer).empty());
-}
-
 TEST_CASE("Friendly fire: a player's hit or spell on another player goes to that player's game alone",
           "[HostAuthority][Values][Magic]")
 {

@@ -389,7 +389,8 @@ namespace
 {
 // The wolf's canned turn (Skyrim: wolf 9B0DD, Riverwood, 2026-11-07). TurnCannedR180 ends with no action; DefaultBehavior
 // leaves CannedTurnState and StandingBehavior starts from iSyncTurnState, which the owner's graph has just written (1,
-// StandingIdle) and its copy has a movement snapshot behind (0, LoopingTurnRight): the copy turned for 4 to 20 s.
+// StandingIdle). Its copy read its snapshot's 0 (LoopingTurnRight) and turned on the spot for 4 to 20 s, or stayed in
+// CannedTurnState when iSyncIdleLocomotion, its exit's condition, was still another value.
 struct WolfTurn
 {
     Party party;
@@ -407,7 +408,7 @@ struct WolfTurn
         for (auto* engine : {&host, &guest})
         {
             engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}, {{"StandingIdle", "cannedTurnRight180"}, "CannedTurn"}};
-            engine->Bound = FakeEngine::BoundStart{"CannedTurn", 60, 0, {"LoopingTurnRight", "StandingIdle"}, 1};
+            engine->Bound = FakeEngine::BoundStart{"CannedTurn", 1000, 0, {"LoopingTurnRight", "StandingIdle"}, 1};
             if (aExitCondition)
             {
                 engine->Bound->ExitVariable = 1;
@@ -415,7 +416,6 @@ struct WolfTurn
                 engine->Bound->OwnerWritesExit = 1;
             }
         }
-        guest.CopyVariableLagFrames = 30;
         party.As(party.Host(), [&] {
             wolf = host.LoadNpc(0x23AB2, 0x31D2E, {});
             host.Actors.at(wolf).GraphState = "Standing";
@@ -424,8 +424,8 @@ struct WolfTurn
         party.Until([&] { return guest.CopiesOf(0x23AB2).size() == 1; }, "the wolf's copy appears");
         copy = guest.CopiesOf(0x23AB2).front();
         party.Until([&] { return guest.Actors.at(copy).GraphState == "Standing"; }, "the spawn graph loads");
-        // The owner's variables before the turn, as the copy's last snapshot had them.
-        party.As(party.Guest(), [&] { guest.Actors.at(copy).GraphVariables.Integers = {0, 2}; });
+        party.Until([&] { return guest.Actors.at(copy).GraphVariables.Integers.size() > 1 && guest.Actors.at(copy).GraphVariables.Integers[1] == 2; },
+                    "the copy has its owner's variables from before the turn");
     }
 
     void Turn()
@@ -435,117 +435,39 @@ struct WolfTurn
         turn.EventName = "cannedTurnRight180";
         const uint64_t cBefore = guest.GetActorLatestAnimation(copy).Tick;
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
-        party.Until([&] { return host.Actors.at(wolf).GraphState == "CannedTurn"; }, "the owner turns");
         party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
         party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
                     "the copy takes the turn");
-    }
-
-    [[nodiscard]] bool Agree() const
-    {
-        return guest.Actors.at(copy).GraphState == host.Actors.at(wolf).GraphState;
-    }
-
-    void Converges(const std::string& acStep)
-    {
-        party.Until([&] { return Agree(); }, acStep, [&] { return guest.Actors.at(copy).GraphState + " vs " + host.Actors.at(wolf).GraphState; });
+        party.Until([&] { return guest.Actors.at(copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
     }
 };
 } // namespace
 
-TEST_CASE("A copy's machine started from a stale variable goes where its owner's is", "[animation][replay-start]")
+TEST_CASE("A copy's machine started at a clip's end reads its owner's new variable", "[animation][replay-start]")
 {
+    // StandingBehavior starts from the iSyncTurnState the copy has as its own clip ends. Its owner wrote 1 as its clip
+    // ended, and the snapshot carrying it is stamped up to a send interval later (CopyVariables.h).
     WolfTurn wolf;
     wolf.Turn();
-    wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
-    wolf.Converges("the copy's machines are where its owner's are");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 
-TEST_CASE("A copy's machines converge on its owner's over a slow line", "[animation][replay-start]")
+TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation][replay-start]")
 {
-    // net_check's slow profile: the lost turn resent, the copy's clip ended 1.6 s after its owner's in playback time.
-    WolfTurn wolf(NetConditions{120, 80, 10, 2});
-    wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-}
-
-TEST_CASE("A copy's machine started before its owner's state came is moved there", "[animation][replay-start]")
-{
-    // On the duo 12 of 184 owner states reached the copy after its machine had started (2026-11-07).
-    WolfTurn wolf;
-    wolf.guest.MachineArrivalMs = 100;
-    wolf.Turn();
-    wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
-    wolf.Converges("the copy's machine is moved to its owner's state");
-}
-
-TEST_CASE("A copy kept in its canned turn by a stale exit condition leaves it with its owner", "[animation][replay-start]")
-{
-    // The duo's stuck CannedTurnState (docs/bugs.md): the copy's iSyncIdleLocomotion was still 2 at cannedTurnStop.
+    // CannedTurnState's exit reads iSyncIdleLocomotion at cannedTurnStop, once (the duo's stuck copy, docs/bugs.md).
     WolfTurn wolf({}, true);
     wolf.Turn();
-    wolf.Converges("the copy leaves its canned turn where its owner is");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 
-TEST_CASE("A state change only the copy made is undone", "[animation][replay-start]")
+TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[animation][replay-start]")
 {
-    WolfTurn wolf;
+    // net_check's slow profile: a lost turn resent ends the copy's clip late in its playback; the next turn starts
+    // from StandingIdle.
+    WolfTurn wolf(NetConditions{120, 80, 10, 2}, true);
     wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-    wolf.party.As(wolf.party.Guest(), [&] { wolf.guest.Actors.at(wolf.copy).GraphState = "LoopingTurnRight"; });
-    wolf.Converges("the copy's own transition is undone");
-}
-
-TEST_CASE("A state change only the owner made, with no action, reaches the copy", "[animation][replay-start]")
-{
-    WolfTurn wolf;
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2}; });
     wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphState = "LoopingTurnRight"; });
-    wolf.Converges("the copy follows its owner's own transition");
-}
-
-TEST_CASE("A copy follows its owner's machines after the owner's graph is rebuilt", "[animation][replay-start]")
-{
-    WolfTurn wolf;
-    wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-    wolf.party.As(wolf.party.Host(), [&] {
-        wolf.host.RebuildGraph(wolf.wolf);
-        wolf.host.Actors.at(wolf.wolf).GraphState = "LoopingTurnRight";
-    });
-    wolf.Converges("the copy follows the rebuilt graph's machines");
-}
-
-TEST_CASE("A copy whose graph was rebuilt asks its owner for its machines' states", "[animation][replay-start]")
-{
-    // The owner stays put, so no change of its would ever tell the rebuilt copy where it is (Codex review, PR #38).
-    WolfTurn wolf;
-    wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-    wolf.party.As(wolf.party.Guest(), [&] {
-        wolf.guest.RebuildGraph(wolf.copy);
-        wolf.guest.Actors.at(wolf.copy).GraphState = "LoopingTurnRight"; // the rebuilt graph's own start
-    });
-    wolf.Converges("the rebuilt copy gets its owner's states and goes there");
-}
-
-TEST_CASE("A parent machine only the copy changed is undone", "[animation][replay-start]")
-{
-    WolfTurn wolf;
-    wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are");
-    wolf.party.As(wolf.party.Guest(), [&] { wolf.guest.Actors.at(wolf.copy).GraphState = "CannedTurn"; });
-    wolf.Converges("the copy's own DefaultBehavior change is undone");
-}
-
-TEST_CASE("A late action followed by a timely one still converges", "[animation][replay-start]")
-{
-    // The first turn's resend leaves the copy's graph time behind its playback; the lateness is spent and the second
-    // turn's states are followed at their own time.
-    WolfTurn wolf(NetConditions{120, 80, 10, 2});
-    wolf.Turn();
-    wolf.Converges("the copy's machines are where its owner's are after the late turn");
-    wolf.Turn();
-    wolf.Converges("and after the next one");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }

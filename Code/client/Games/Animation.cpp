@@ -18,7 +18,6 @@
 #include <Havok/BSSynchronizedClipGenerator.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
-#include <Havok/hkbNode.h>
 #include <Havok/bhkCharacterController.h>
 
 #include <World.h>
@@ -42,12 +41,6 @@ using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent
 static TContactPoint* RealContactPoint;
 using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* apArgument, bool aIgnoreDepth);
 static TTryMoveTo* RealTryMoveTo;
-using TStateMachineUpdate = void(hkbStateMachineNode*, const hkbContext*, float aTimestep);
-static TStateMachineUpdate* RealStateMachineUpdate;
-using TSetActiveState = void(hkbStateMachineNode*, int32_t aStateId, bool aSetPrevious, const hkbContext*, bool aSendEvents);
-static TSetActiveState* RealSetActiveState;
-using TStateMachineDeactivate = void(hkbStateMachineNode*, const hkbContext*);
-static TStateMachineDeactivate* RealStateMachineDeactivate;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
@@ -160,141 +153,6 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
-}
-
-namespace
-{
-// hkStringPtr: the low bit is a flag.
-const char* HavokName(const char* apName) noexcept
-{
-    return reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(apName) & ~uintptr_t(1));
-}
-
-bool HasState(const hkbStateMachineNode& acMachine, int32_t aStateId) noexcept
-{
-    for (int32_t i = 0; i < acMachine.states.size; ++i)
-        if (acMachine.states.data[i] && acMachine.states.data[i]->stateId == aStateId)
-            return true;
-    return false;
-}
-
-const BShkbAnimationGraph* GraphOf(const hkbContext* apContext) noexcept
-{
-    if (!apContext || !apContext->character)
-        return nullptr;
-    return reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(apContext->character) -
-                                                        offsetof(BShkbAnimationGraph, character));
-}
-
-// The graph's actor, an NPC's owner or copy (players' copies replay their owner's own graph state).
-Actor* NpcOf(const hkbContext* apContext) noexcept
-{
-    const BShkbAnimationGraph* pGraph = GraphOf(apContext);
-    TESObjectREFR* pHolder = pGraph ? pGraph->holder : nullptr;
-    if (!pHolder || pHolder->formType != Actor::Type || pHolder == PlayerCharacter::Get())
-        return nullptr;
-    auto* pActor = static_cast<Actor*>(pHolder);
-    return pActor->GetExtension()->IsPlayer() ? nullptr : pActor;
-}
-
-// A machine's key, read from the clone (MachineStates::Key): its name and its states' names.
-uint32_t MachineKeyOf(const hkbStateMachineNode& acMachine) noexcept
-{
-    MachineStates::KeyHash hash;
-    hash.Add(HavokName(acMachine.name));
-    hash.Add("|");
-    for (int32_t i = 0; i < acMachine.states.size; ++i)
-    {
-        if (i)
-            hash.Add(",");
-        if (const auto* pState = acMachine.states.data[i]; pState && pState->name)
-            hash.Add(HavokName(pState->name));
-    }
-    return hash.Value;
-}
-
-// Its graph rebuilt (a new root behaviour graph): an owner counts a generation and sends a baseline next, a copy forgets
-// its owner's states and asks for a baseline.
-void NoteGraph(Actor* apActor, const hkbContext* apContext) noexcept
-{
-    const BShkbAnimationGraph* pGraph = GraphOf(apContext);
-    const void* cpRoot = pGraph ? pGraph->behaviorGraph : nullptr;
-    auto* pExtension = apActor->GetExtension();
-    if (!cpRoot || cpRoot == pExtension->MachineRoot)
-        return;
-    const bool cRebuilt = pExtension->MachineRoot != nullptr;
-    pExtension->MachineRoot = cpRoot;
-    if (pExtension->IsCopy())
-    {
-        pExtension->MachineTimelines.Clear();
-        pExtension->NeedsMachineBaseline.store(true, std::memory_order_release);
-    }
-    else if (cRebuilt)
-    {
-        pExtension->MachineGeneration.fetch_add(1, std::memory_order_relaxed);
-        pExtension->MachineOutbox.Rebuilt();
-    }
-}
-
-// An owner NPC's machine entered a state (or cInactive): queued for its copies.
-void RecordOwnerState(hkbStateMachineNode* apMachine, const hkbContext* apContext, int32_t aState) noexcept
-{
-    if (!apMachine->name)
-        return;
-    Actor* pOwner = NpcOf(apContext);
-    if (!pOwner || pOwner->GetExtension()->IsCopy())
-        return;
-    NoteGraph(pOwner, apContext);
-    auto* pExtension = pOwner->GetExtension();
-    pExtension->MachineOutbox.Push({MachineKeyOf(*apMachine), aState, MachineStates::g_now.load(std::memory_order_relaxed),
-                                    pExtension->MachineGeneration.load(std::memory_order_relaxed)});
-}
-} // namespace
-
-// hkbStateMachine::SetActiveState (59390): every state a machine enters, from Activate, StartTransition or GoToState.
-void HookSetActiveState(hkbStateMachineNode* apMachine, int32_t aStateId, bool aSetPrevious, const hkbContext* apContext, bool aSendEvents)
-{
-    RealSetActiveState(apMachine, aStateId, aSetPrevious, apContext, aSendEvents);
-    RecordOwnerState(apMachine, apContext, aStateId);
-}
-
-// hkbStateMachine::Deactivate (59337).
-void HookStateMachineDeactivate(hkbStateMachineNode* apMachine, const hkbContext* apContext)
-{
-    const bool cWasActive = apMachine->isActive;
-    RealStateMachineDeactivate(apMachine, apContext);
-    if (cWasActive)
-        RecordOwnerState(apMachine, apContext, MachineStates::cInactive);
-}
-
-// hkbStateMachine::Update (59335): a copy's machine apart from its owner's at this graph time goes there, as the engine's
-// own reselect does (59387: GoToState 59369). A wrong transition still running is cut (force: its transitions cleared,
-// a jump); otherwise a transition to the state if one exists, else a jump.
-void HookStateMachineUpdate(hkbStateMachineNode* apMachine, const hkbContext* apContext, float aTimestep)
-{
-    if (apMachine->isActive && apMachine->name)
-        if (Actor* pCopy = NpcOf(apContext); pCopy && pCopy->GetExtension()->IsCopy())
-        {
-            NoteGraph(pCopy, apContext);
-            auto& timelines = pCopy->GetExtension()->MachineTimelines;
-            if (timelines.Any())
-            {
-                MachineStates::Machine machine{apMachine->currentStateId, std::nullopt};
-                if (const auto& cRunning = apMachine->activeTransitions; cRunning.size > 0 && cRunning.data)
-                    machine.Heading = cRunning.data[cRunning.size - 1].toStateId;
-                if (const auto cTo = timelines.Reconcile(MachineKeyOf(*apMachine), machine); cTo && HasState(*apMachine, *cTo))
-                {
-                    using TGoToState = void(hkbStateMachineNode*, int32_t aStateId, const hkbContext*, bool aForce,
-                                            bool aJumpIfNoTransition, bool aSetPrevious);
-                    POINTER_SKYRIMSE(TGoToState, s_goToState, 59369);
-                    COUNT("copy machines reconciled", 1);
-                    spdlog::debug("MachineStates: reconcile {:X} {} {} -> {}{} graph {}", pCopy->formID, HavokName(apMachine->name),
-                                  machine.Heading.value_or(machine.Current), *cTo, machine.Heading ? " (cut)" : "", timelines.GraphTime());
-                    s_goToState(apMachine, *cTo, apContext, machine.Heading.has_value(), true, false);
-                }
-            }
-        }
-    RealStateMachineUpdate(apMachine, apContext, aTimestep);
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
@@ -469,7 +327,4 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(63092, &RealContactPoint, HookContactPoint);
         HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
-        HOOK_ID(59335, &RealStateMachineUpdate, HookStateMachineUpdate);
-        HOOK_ID(59390, &RealSetActiveState, HookSetActiveState);
-        HOOK_ID(59337, &RealStateMachineDeactivate, HookStateMachineDeactivate);
     });

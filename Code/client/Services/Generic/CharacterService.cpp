@@ -54,9 +54,7 @@
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
-#include <Games/Animation/MachineStates.h>
-#include <Messages/Delivery.h>
-#include <Diagnostics/Counters.h>
+#include <Systems/CopyVariables.h>
 #include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
@@ -100,7 +98,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
-    Listen<NotifyMachineBaseline, &CharacterService::OnNotifyMachineBaseline>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
@@ -246,7 +243,6 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     PROFILE_ZONE("CharacterService::OnUpdate");
-    MachineStates::g_now.store(m_world.GetFrameTick(), std::memory_order_relaxed); // owners' machine states' time
     QueuePendingLooks();
     RunActorDiscovery();
     RunPresence();
@@ -665,17 +661,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
 
         for (const auto& action : update.ActionEvents)
         {
-            if (!action.ActionId && !action.MachineStates.empty())
-            {
-                // Waiting for a copy with no 3D, say: bounded, and a baseline makes up for what was dropped.
-                if (animationComponent.MachineStates.size() >= RemoteAnimationComponent::cMostWaiting)
-                {
-                    animationComponent.MachineStates.erase(animationComponent.MachineStates.begin());
-                    animationComponent.MachineStatesLost = true;
-                }
-                animationComponent.MachineStates.emplace_back(action.Tick, action.MachineStates);
-            }
-            else if (!action.ActionId && !action.GraphState.empty())
+            if (!action.ActionId && !action.GraphState.empty())
                 animationComponent.GraphPoint = action;
             else
                 animationComponent.TimePoints.push_back(action);
@@ -1007,13 +993,6 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
         KeepMount(acEvent.MountID);
     }
     m_transport.Send(request);
-}
-
-// A copy asked for its owner's machine states (MachineStates.h): ours, so they all go with our next send.
-void CharacterService::OnNotifyMachineBaseline(const NotifyMachineBaseline& acMessage) noexcept
-{
-    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId); cFormId && !m_actorBridge.IsActorCopy(cFormId))
-        m_actorBridge.SendActorMachineBaseline(cFormId);
 }
 
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
@@ -1557,19 +1536,7 @@ void CharacterService::RunLocalUpdates() noexcept
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
 
     if (!message.Updates.empty())
-    {
-        // What machine states cost (MachineStates.h): a batch with an action goes reliably (Delivery.h).
-        const bool cReliable = MustArrive(message.Updates);
-        const bool cOnlyMachines = cReliable && std::ranges::all_of(message.Updates, [](const auto& acUpdate) {
-            return !acUpdate.second.UpdatedMovement.Teleported && std::ranges::all_of(acUpdate.second.ActionEvents, [](const ActionEvent& acAction) {
-                return !acAction.ActionId && !acAction.MachineStates.empty();
-            });
-        });
-        COUNT("movement batches", 1);
-        COUNT("movement batches reliable", cReliable);
-        COUNT("movement batches reliable for machine states alone", cOnlyMachines);
         m_transport.Send(message);
-    }
 }
 
 void CharacterService::RunRemoteUpdates() noexcept
@@ -1601,10 +1568,12 @@ void CharacterService::RunRemoteUpdates() noexcept
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
-            // Booleans and integers: the current snapshot's, never older (graphs react to their changes). Floats
+            // Booleans: the current snapshot's, never older (graphs react to their changes). Integers: the next
+            // snapshot's within an interval, so a clip's end reads what its owner wrote there (CopyVariables.h). Floats
             // (Direction, Speed): while it stands, the nearest snapshot's, what moved its owner there, so a strafe's
             // animation turns with the copy's movement, within half an interval (S10, copy-clock.md).
             const AnimationVariables* pVariables = &first.Variables;
+            uint64_t heldTick = first.Tick;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
                 if (first.Tick > pAnimation->VariablesTick)
@@ -1613,16 +1582,19 @@ void CharacterService::RunRemoteUpdates() noexcept
                     pAnimation->VariablesTick = first.Tick;
                 }
                 pVariables = &pAnimation->Variables;
+                heldTick = pAnimation->VariablesTick;
             }
             const bool cStanding = !first.Lying && !second.Lying && !first.Knocked && !second.Knocked;
             const bool cNearerSecond = cStanding && (tick >= second.Tick || (tick > first.Tick && 2 * (tick - first.Tick) >= second.Tick - first.Tick));
-            AnimationVariables shown;
-            if (cNearerSecond && second.Variables.Floats.size() == pVariables->Floats.size() && second.Variables.Floats != pVariables->Floats)
+            AnimationVariables shown = *pVariables;
+            bool changed = CopyVariables::TakeIntegersAhead(shown, second.Variables, second.Tick, heldTick, tick, cAhead);
+            if (cNearerSecond && second.Variables.Floats.size() == shown.Floats.size() && second.Variables.Floats != shown.Floats)
             {
-                shown = *pVariables;
                 shown.Floats = second.Variables.Floats;
-                pVariables = &shown;
+                changed = true;
             }
+            if (changed)
+                pVariables = &shown;
             // Its owner lying, or the copy itself: its own ragdoll places it. Up again, it is eased from where its
             // engine stood it onto its owner's place (physics-sync.md, "A copy's ragdoll, steered").
             auto& ease = interpolationComponent.Ease;
@@ -1665,12 +1637,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         auto& formIdComponent = animatedView.get<FormIdComponent>(entity);
 
         m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
-        if (m_actorBridge.TakeActorMachineBaselineNeed(formIdComponent.Id))
-        {
-            MachineBaselineRequest request;
-            request.SessionId = animatedView.get<RemoteComponent>(entity).Id;
-            m_transport.Send(request);
-        }
     }
 
     auto facegenView = m_world.view<FormIdComponent, FaceGenComponent>();

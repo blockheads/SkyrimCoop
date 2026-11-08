@@ -735,18 +735,6 @@ bool SkyrimBridge::IsActorCopy(uint32_t aFormId) const noexcept
     return pActor && pActor->GetExtension()->IsCopy();
 }
 
-bool SkyrimBridge::TakeActorMachineBaselineNeed(uint32_t aFormId) noexcept
-{
-    Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->GetExtension()->NeedsMachineBaseline.exchange(false, std::memory_order_acq_rel);
-}
-
-void SkyrimBridge::SendActorMachineBaseline(uint32_t aFormId) noexcept
-{
-    if (Actor* pActor = GetActor(aFormId); pActor && !pActor->GetExtension()->IsCopy())
-        pActor->GetExtension()->MachineOutbox.RequestBaseline();
-}
-
 std::vector<uint32_t> SkyrimBridge::GetLoadedActorFormIds() const noexcept
 {
     std::vector<uint32_t> formIds;

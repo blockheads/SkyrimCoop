@@ -460,17 +460,6 @@ struct BugReport
     std::string By;          // the player who typed it
     uint64_t SessionTick{};  // the host's clock when it got it
 };
-// A copy knows none of its owner's machine states (its graph rebuilt, some dropped): the owner sends them all
-// (docs/re/systems/animation-replay-recovery.md, "A copy's machines reconcile to its owner's").
-struct MachineBaseline
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const MachineBaseline&) const noexcept = default;
-
-    uint32_t SessionId{};
-};
 // A game's player pressed through the NPC's line: the host's game, which says it, moves on.
 struct DialogueSkip
 {

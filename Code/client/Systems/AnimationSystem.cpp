@@ -100,25 +100,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     auto& step = apActor->GetExtension()->Replay;
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
-    // Never past the action staged or next due: the graph has yet to take it.
-    std::optional<uint64_t> pending;
-    if (phase != ReplayStep::kIdle)
-        pending = step.Action.Tick;
-    else if (!actions.empty() && actions.front().Tick <= aTick)
-        pending = actions.front().Tick;
-    // The owner's machine states and the graph time, for the copy's machines (HookStateMachineUpdate).
-    auto* pExtension = apActor->GetExtension();
-    auto& timelines = pExtension->MachineTimelines;
-    timelines.SetGraphTime(MachineStates::GraphTime(aTick, pExtension->ReplayLag, pExtension->ReplayTakenAt, pending));
-    if (std::exchange(aAnimationComponent.MachineStatesLost, false))
-        pExtension->NeedsMachineBaseline.store(true, std::memory_order_release);
-    for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.MachineStates, {}))
-    {
-        std::vector<MachineStates::Entry> entries;
-        if (MachineStates::Unpack(cPacked, cTick, entries))
-            timelines.Add(entries);
-    }
-
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
         aAnimationComponent.CounterUpdates = 0;
@@ -131,8 +112,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         const auto& cAction = step.Action;
         if (phase == ReplayStep::kTaken)
         {
-            apActor->GetExtension()->ReplayLag = MachineStates::ReplayLag(aTick, cAction.Tick);
-            apActor->GetExtension()->ReplayTakenAt = aTick;
             aAnimationComponent.LastRanAction = cAction;
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
@@ -439,17 +418,6 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     if (!animationComponent.Actions.empty())
         animationComponent.Random.ActionAt = cNow;
     animationComponent.Actions.clear();
-
-    // The states its tracked machines entered since the last send: its copies' machines converge on them.
-    if (const auto cEntries = pActor->GetExtension()->MachineOutbox.Drain(); !cEntries.empty() && pActor != PlayerCharacter::Get())
-    {
-        ActionEvent point;
-        point.Tick = cNow;
-        point.ActorId = pActor->formID;
-        point.MachineStates = MachineStates::Pack(cEntries, cNow);
-        COUNT("machine state bytes", point.MachineStates.size());
-        update.ActionEvents.push_back(std::move(point));
-    }
 
     // A pick no action made. Not a player's, a dying actor's or one in a pair: their copies have bodies of their own.
     const bool cPaired = !pActor->GetExtension()->LatestAnimation.Read().TargetEventName.empty();

@@ -42,7 +42,6 @@ struct Recipes;
 struct BugReport;
 struct DialogueHighlight;
 struct DialogueSkip;
-struct MachineBaseline;
 } // namespace Payloads
 
 template <class TPayload, auto cOpcode> struct Relayed;
@@ -119,5 +118,3 @@ using DialogueHighlightRequest = Relayed<Payloads::DialogueHighlight, kDialogueH
 using NotifyDialogueHighlight = Relayed<Payloads::DialogueHighlight, kNotifyDialogueHighlight>;
 using DialogueSkipRequest = Relayed<Payloads::DialogueSkip, kDialogueSkipRequest>;
 using NotifyDialogueSkip = Relayed<Payloads::DialogueSkip, kNotifyDialogueSkip>;
-using MachineBaselineRequest = Relayed<Payloads::MachineBaseline, kMachineBaselineRequest>;
-using NotifyMachineBaseline = Relayed<Payloads::MachineBaseline, kNotifyMachineBaseline>;

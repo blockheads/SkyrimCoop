@@ -2,7 +2,6 @@
 
 #include <Games/Animation/ActionState.h>
 #include <Games/Animation/ReplayStep.h>
-#include <Games/Animation/MachineStates.h>
 
 #include <array>
 #include <atomic>
@@ -51,14 +50,6 @@ struct ActorExtension
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;
-    // Its tracked state machines (MachineStates.h): an owner's states to send; a copy's owner's, to converge on.
-    MachineStates::Outbox MachineOutbox;
-    MachineStates::Timelines MachineTimelines;
-    const void* MachineRoot = nullptr;            // its root behaviour graph last seen (NoteGraph)
-    std::atomic<uint16_t> MachineGeneration{0};   // an owner's graph rebuilt this many times
-    std::atomic<bool> NeedsMachineBaseline{false}; // a copy that knows none of its owner's states (CharacterService asks)
-    uint64_t ReplayLag = 0;                       // how late a copy took its last replayed action (main thread)
-    uint64_t ReplayTakenAt = 0;                   // its playback then
 
     // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
     // from that load's heap. It is reset (leaking them) before use, never freed or read.

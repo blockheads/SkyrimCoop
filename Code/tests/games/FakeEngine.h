@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Games/Animation/GraphRandom.h>
-#include <Games/Animation/MachineStates.h>
 #include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
@@ -536,13 +535,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
-        uint32_t BoundFrames = 0;              // its Bound clip's frames so far
-        uint64_t GraphTick = 0, ReplayLag = 0, ReplayTakenAt = 0; // a copy's, as ActorExtension's
-        bool GraphSeen = false;            // NoteGraph's first look
-        bool NeedsMachineBaseline = false; // ActorExtension's
-        bool BoundStuck = false;               // its exit condition failed at the clip's end: no other end comes
-        std::map<uint32_t, int32_t> SentMachines; // an owner's machine states last queued
-        std::deque<std::pair<uint64_t, AnimationVariables>> LaggedVariables; // a copy's received, by frame, not yet loaded
+        std::optional<uint64_t> BoundStartedAt; // its Bound clip's start, on its own clock
+        bool BoundStuck = false;                // its exit condition failed at the clip's end: no other end comes
+        uint64_t PlaybackTick = 0;              // a copy's playback (Seams)
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -620,14 +615,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
-    // The wolf's two machines (quadrupedbehavior.hkx): DefaultBehavior, State (CannedTurnState) or standing; its
-    // StandingBehavior, entered at State's clip end with no action, starts from graph variable Variable (iSyncTurnState,
-    // 59467/59405). The owner's graph writes Variable as the clip ends (OwnerWrites); its copy has the movement
-    // snapshot's. The exit is taken only if ExitVariable holds one of ExitValues (iSyncIdleLocomotion 0 or 1), once.
+    // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms on each game's own clock
+    // (an owner's frame tick, a copy's playback) with no action. As it ends the owner's graph writes Variable
+    // (iSyncTurnState, OwnerWrites) and ExitVariable (iSyncIdleLocomotion, OwnerWritesExit); a copy has its snapshot's.
+    // The exit is taken once, only if ExitVariable holds one of ExitValues; StandingBehavior then starts from Variable
+    // (bound startStateId, 59467/59405).
     struct BoundStart
     {
         std::string State;
-        uint32_t Frames = 1;
+        uint64_t Ms = 1000;
         size_t Variable = 0;
         std::vector<std::string> Starts;
         std::optional<int32_t> OwnerWrites;
@@ -636,28 +632,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::optional<int32_t> OwnerWritesExit;
     };
     std::optional<BoundStart> Bound;
-    static inline const uint32_t kDefaultMachine = MachineStates::Key("DefaultBehavior", "CannedTurnState,StandingState");
-    static inline const uint32_t kStandingMachine = MachineStates::Key("StandingBehavior", "LoopingTurnRight,StandingIdleState");
-    int32_t DefaultMachineState(const Actor& acActor) const;  // 0 CannedTurn, 1 standing, else inactive
-    int32_t StandingMachineState(const Actor& acActor) const; // its index in Starts, else inactive
-    std::map<uint32_t, MachineStates::Outbox> MachineOutboxes;     // ActorExtension::MachineOutbox
-    std::map<uint32_t, MachineStates::Timelines> MachineTimelines; // ActorExtension::MachineTimelines
-    uint16_t MachineGeneration = 0;                                // an owner's graphs rebuilt this many times
-    // As NoteGraph: an actor's graph rebuilt. An owner counts a generation and its rebuilt machines enter their states
-    // anew; a copy forgets its owner's states and asks for a baseline.
-    void RebuildGraph(uint32_t aFormId);
-    // With a value, a copy's received machine state reaches its timeline only once its graph is this many ms past it.
-    std::optional<uint64_t> MachineArrivalMs;
-    struct HeldMachineState
-    {
-        uint32_t FormId;
-        MachineStates::Entry Entry;
-    };
-    std::vector<HeldMachineState> HeldMachineStates;
-    // A copy's graph variables load this many frames after its movement brings them. Skyrim: a copy's variables are its
-    // movement snapshot's, a snapshot behind the actions it replays (CharacterService, 10 a second outside fights).
-    uint32_t CopyVariableLagFrames = 0;
-    uint64_t FramesRun = 0;
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
@@ -1021,8 +995,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
-    bool TakeActorMachineBaselineNeed(uint32_t aFormId) noexcept override;
-    void SendActorMachineBaseline(uint32_t aFormId) noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
