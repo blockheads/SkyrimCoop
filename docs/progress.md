@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: a guest's theft of an item the host's game made is judged ([crime.md](re/systems/crime.md), "A created
+item's theft names its owner"). Read in IDA: the player's pickup (40533) gives `StealAlarm` a created item's owner
+actor, not the item, and the host's permission recheck (`IsAnOwner` 20210, which reads any NPC as the player's) stopped
+it silently. A theft now carries the item's owner (`CrimeRequest::Owner`); `Judge` skips that recheck for an actor
+target (`CrimeRules`) and alarms with the owner. The bugs-map guess (created forms' session ids) was not the cause:
+the item is not on the wire. Scenario `guest-steals-created-item`, flow "A guest steals an item the host's game made",
+ClientTests `[CrimeRules]`.
+
 2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
 queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
 has no translation), and the duo boot then failed to host. `prepare_prefix` sets the pref; a fresh prefix boots,

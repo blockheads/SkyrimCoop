@@ -145,6 +145,32 @@ Harness `crime knowledge` (39763) reads a witness's state without asking for one
 - Harness: a frozen NPC stops detecting (its age only grows). After a hot reload, states of existing copies went stale
   and `Judge` logged nothing until a save load; suspected, not proved: the copies lost their player flag.
 
+## A created item's theft names its owner (2026-11-07)
+
+Read in IDA. The player's pickup is `PlayerCharacter::PickUpObject` (40533), not `Actor::PickUpObject` (37521). With
+an owner the player is not (`IsAnOwner` 20210), it picks the reference `StealAlarm` gets (0x14074C7CE):
+
+```
+item has a source file, form flag 0x1 or extra 2 (a plugin's) -> the item itself
+else (a created item)  -> ProcessLists__FindHighOwnerOf (0x1407844B0, our name): the first high-process actor
+                          owning the item and dealing in it (Character 37382: any non-key item for a non-vendor)
+                          none -> no StealAlarm, the item is only marked stolen
+StealAlarm(player, that reference, base, count, 0, the item's owner form, true)
+```
+
+`IsAnOwner` (20210) on an actor reference reads only its own `ExtraOwnership`; with none it answers true
+(0x140300EA3). `Actor::PickUpObject` (37521, NPCs) alarms with the item itself, then frees a created one
+(`GarbageCollector::Add`, 0x14068B5B7).
+
+Measured on the duo (`guest-steals-created-item`, before the fix): the guest's alarm named the owner's copy (sent by its
+session id) and the host's `Judge` stopped at its permission recheck, `IsAnOwner(owner NPC, player)` true: "the party
+owns it", no log line before 2026-11-07. The item's session id never mattered: the item is not on the wire.
+
+The fix: a theft carries the owner form `StealAlarm` was given (`CrimeRequest::Owner`); `Judge` skips the recheck for a
+theft naming an actor (`CrimeRules::RechecksOwnership`) and passes that owner to `StealAlarm` (an actor's `GetOwner` is
+not the item's). The owner actor the guest found is the host's NPC, and `FindHighOwnerOf` already checked it owns
+the item.
+
 ## What SkyrimCoop does about it
 
 The party rule (`party-model.md`, Crime): one player's crime flags the whole party, and a hostile NPC attacks whoever is
@@ -168,6 +194,9 @@ near it.
 | ID | Name (ours) | What |
 |---|---|---|
 | 37422 | Actor::StealAlarm | the theft judgment above |
+| 40533 | PlayerCharacter::PickUpObject | the player's pickup: a created item's alarm names its owner actor |
+| 37521 | Actor::PickUpObject | an NPC's pickup: StealAlarm with the item, then a created one is freed |
+| 20210 | TESObjectREFR::IsAnOwner | an actor reference with no ownership reads as anyone's |
 | 41335 | ProcessLists__FindStolenOwnerActor | owner actor in high process |
 | 41349 | ProcessLists__AddPlayerCrime | keeps only the player's crimes |
 | 42502 | Crime__ctor | crime record, criminal +0x0C, faction +0x60, bounty +0x58 |

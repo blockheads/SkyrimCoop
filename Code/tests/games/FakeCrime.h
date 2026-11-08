@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/ICrimeBridge.h>
+#include <Games/Skyrim/CrimeRules.h>
 #include <functional>
 #include <set>
 
@@ -45,9 +46,15 @@ struct FakeCrime final : ICrimeBridge
     {
         Gold = aGold;
     }
+    // Crimes past CrimeBridge::Judge's ownership recheck (CrimeRules), to StealAlarm. Skyrim: IsAnOwner (20210) reads an
+    // actor reference as the player's, so a rechecked actor target stops there.
+    std::vector<CrimeRequest> Stolen;
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
+        const bool cActorTarget = aRequest.TargetActor != 0;
+        if (aRequest.Action == CrimeAction::Theft && !(CrimeRules::RechecksOwnership(aRequest.Action, cActorTarget) && cActorTarget))
+            Stolen.push_back(aRequest);
         return JudgeAction && JudgeAction(aActor, aRequest);
     }
     // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).

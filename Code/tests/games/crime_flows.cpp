@@ -1,7 +1,9 @@
 #include "FakeCrime.h"
 #include "FakeDialogue.h"
+#include "Fixtures.h"
 #include "Party.h"
 #include <Services/TransportService.h>
+#include <SessionIds.h>
 
 namespace
 {
@@ -217,4 +219,44 @@ SCENARIO("A guard's arrest greeting reaches both guests and their jail choice te
         CHECK(player.Position[2] == 70.f);
     }
     party.Agree("the three games agree on the jailed party");
+}
+
+SCENARIO("A guest steals an item the host's game made: the host judges it against its owner", "[crime][loose]")
+{
+    constexpr uint32_t kSmoke = 0x00031D2E;
+    constexpr uint32_t kIronDagger = 0x0001397E;
+    constexpr uint32_t kOwnerBase = 0x00013479;
+    Party party(1, [](FakeEngine& aEngine) {
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
+        aEngine.LoadCell(kSmoke);
+    });
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t owner = 0;
+    party.As(party.Host(), [&] { owner = host.LoadNpc(kOwnerBase, kSmoke); });
+    party.Until([&] { return PlayerCopies(host).size() == 1 && !guest.CopiesOf(kOwnerBase).empty(); },
+                "each game has the other's player, the guest the owner's copy");
+
+    Inventory::Entry dagger;
+    dagger.BaseId = SessionIdOf(kIronDagger);
+    dagger.Count = 1;
+    party.As(party.Host(), [&] { host.GetsItem(FakeEngine::kPlayer, dagger); });
+    uint32_t made = 0;
+    party.As(party.Host(), [&] { made = host.DropsInWorld(dagger); });
+    party.Until([&] { return guest.Loose.size() == 1; }, "the guest's world has its twin");
+    host.Loose.at(made).Owner = kOwnerBase;
+    guest.Loose.begin()->second.Owner = kOwnerBase;
+
+    party.As(party.Guest(), [&] { guest.PicksUp(guest.Loose.begin()->first); });
+    auto& judge = Crime(party.Host());
+    party.Until([&] { return judge.Judged.size() == 1; }, "the host judges the guest's theft");
+    const CrimeRequest& theft = judge.Judged[0].second;
+    uint32_t target = 0;
+    party.As(party.Host(), [&] { target = Utils::GetFormIdBySessionId(theft.TargetActor); });
+    THEN("it names the owner, its NPC here, and reaches StealAlarm")
+    {
+        CHECK(target == owner);
+        CHECK(theft.Owner == SessionIdOf(kOwnerBase));
+        CHECK(judge.Stolen.size() == 1);
+    }
 }
