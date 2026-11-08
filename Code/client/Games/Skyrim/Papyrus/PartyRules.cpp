@@ -36,6 +36,13 @@ void MarkEachPlayer(LocalCall& aCall, uint32_t aCause) noexcept
         cMark(argument);
 }
 
+uint32_t SubjectOf(const Reach& acReach, std::optional<uint32_t> aSelf, const std::vector<uint32_t>& acArguments) noexcept
+{
+    if (acReach.Argument)
+        return *acReach.Argument < acArguments.size() ? acArguments[*acReach.Argument] : 0;
+    return aSelf.value_or(kThisPlayerFormId);
+}
+
 Routing RouteOf(const CallFacts& acFacts) noexcept
 {
     const Call cKind = acFacts.Reach.Kind;

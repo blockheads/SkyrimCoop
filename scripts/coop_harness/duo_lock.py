@@ -22,6 +22,7 @@ except ImportError:  # Windows: no shared duo, no lock (ReproActions.duo_lock)
     fcntl = None
 
 IDLE_MINUTES = float(os.environ.get("COOP_DUO_IDLE_MINUTES", 30))
+CAP_MINUTES = float(os.environ.get("COOP_DUO_CAP_MINUTES", 15))  # an interactive hold, once someone waits this long
 QUEUE_STALE_MINUTES = float(os.environ.get("COOP_DUO_QUEUE_STALE_MINUTES", 5))  # a queue place unpolled this long lapses
 POLL_SECONDS = float(os.environ.get("COOP_DUO_POLL_SECONDS", 30))  # a blocked waiter renews its place this often
 TAKEOVER_ENV = "COOP_DUO_TAKEOVER"  # set for the stop a takeover runs: it may stop a stale holder's games
@@ -33,6 +34,8 @@ RULES = """1. Claiming and freeing are automatic (`scripts/coop_harness/duo_lock
 2. One checkout holds it at a time; that checkout's other commands join the hold. Games left running
    (`duo --keep-running`) keep it held by a keeper until `coop_test.py stop`, the games end, or
    it idles (no command from the holder for 30 minutes: the keeper stops the games).
+   An interactive hold (the MCP's, or a keeper's) is capped while others wait: 15 minutes held with someone
+   in the queue, and the first in line stops its games and takes over. The holder queues again to go on.
 3. A holder whose process is gone is stale: the next in line stops its games and takes over. Nobody asks the user.
 4. `scripts/duo.py status` shows the holder, the queue and their ages. Free the duo when Skyrim is not
    needed (bug-fix flow, CLAUDE.md): `coop_test.py stop`, or the MCP's `duo_stop`.
@@ -141,6 +144,30 @@ def ancestors(pid):
     return chain
 
 
+def over_cap(holder, queue, now=None):
+    """Whether an interactive hold (the MCP's, a keeper's) has been held CAP_MINUTES with someone waiting: the head
+    of the queue may then take it. A batch command's hold (scenario, profile) ends by itself and is never capped."""
+    if not holder or not queue or not (holder.get("capped") or holder.get("keeper")):
+        return False
+    return (now or time.time()) - max(holder["since"], queue[0]["since"]) >= CAP_MINUTES * 60
+
+
+def cap_left(holder, queue, now=None):
+    """Minutes until over_cap, None when the hold is not capped now."""
+    if not holder or not queue or not (holder.get("capped") or holder.get("keeper")):
+        return None
+    return max(0.0, CAP_MINUTES - ((now or time.time()) - max(holder["since"], queue[0]["since"])) / 60)
+
+
+def home_of(root, fallback):
+    """The main checkout's build/coop-test, where every worktree's duo lock lives (COOP_DUO_HOME overrides)."""
+    if home := os.environ.get("COOP_DUO_HOME"):
+        return Path(home)
+    common = subprocess.run(["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    return (Path(common).parent / "build/coop-test").resolve() if common else Path(fallback)
+
+
 def holds_duo(home, pid=None):
     """Whether this process, or one it descends from, holds or joined the duo's live hold (duo.json)."""
     try:
@@ -226,6 +253,7 @@ class DuoLock:
         joined = len(entry.get("joined", []))
         return (f"{entry['name']} (worktree {entry['worktree']}), pid {entry['pid']}, since {stamp(entry['since'])}"
                 f" ({age(entry['since'])}), {entry['what']}" + (" [keeper]" if entry.get("keeper") else "")
+                + (" [capped]" if entry.get("capped") else "")
                 + (f" +{joined} joined" if joined else ""))
 
     @staticmethod
@@ -246,10 +274,10 @@ class DuoLock:
         if holder := state["holder"]:
             holder["joined"] = [join for join in holder.get("joined", []) if alive(join["token"])]
 
-    def _entry(self, what):
+    def _entry(self, what, capped=False):
         return {"id": self.id, "name": self.name, "worktree": self.worktree, "pid": os.getpid(),
                 "since": time.time(), "polled": time.time(), "what": what, "token": str(self.token.path),
-                "stop": self.stop_command}
+                "stop": self.stop_command, **({"capped": True} if capped else {})}
 
     def _log(self, state, holder, summary):
         state["log"].append(f"{stamp(holder['since'])} to {time.strftime('%H:%M')} {holder['name']} "
@@ -264,9 +292,10 @@ class DuoLock:
             return {"holder": holder and {**holder, "alive": self.hold_alive(holder)},
                     "queue": [{**entry, "alive": alive(entry["token"])} for entry in state["queue"]]}
 
-    def acquire(self, what, wait=True, timeout=None, keep_place=False):
+    def acquire(self, what, wait=True, timeout=None, keep_place=False, capped=False):
         """Holds the duo, or joins this checkout's hold: "holder" or "joined". Waits its turn in the queue up to
-        timeout seconds (None: no limit); then DuoBusy, keeping its place if keep_place (a later call goes on)."""
+        timeout seconds (None: no limit); then DuoBusy, keeping its place if keep_place (a later call goes on).
+        capped: an interactive hold (the MCP's), which the first in line takes after CAP_MINUTES (over_cap)."""
         if self.role in ("holder", "joined"):
             if self.still_held():
                 self.touch()
@@ -284,6 +313,10 @@ class DuoLock:
                 if place is not None:
                     queue[place]["polled"] = time.time()
                 held = holder and self.hold_alive(holder)
+                if held and holder["worktree"] != self.worktree and place == 0 and over_cap(holder, queue):
+                    failure = self._end_capped(state, holder, queue)
+                    if not failure:
+                        holder, held = None, False
                 if held and holder["worktree"] == self.worktree:
                     state["queue"] = [entry for entry in queue if entry["id"] != self.id]
                     holder.setdefault("joined", []).append({"id": self.id, "pid": os.getpid(), "what": what,
@@ -304,7 +337,7 @@ class DuoLock:
                         self._log(state, holder, "Process ended; this checkout took it back")
                     if not failure:
                         state["queue"] = [entry for entry in queue if entry["id"] != self.id]
-                        state["holder"] = {**self._entry(what), "joined": [], "last_used": time.time()}
+                        state["holder"] = {**self._entry(what, capped), "joined": [], "last_used": time.time()}
                         self.role = "holder"
                         return self.role
                 if place is None:
@@ -313,8 +346,10 @@ class DuoLock:
                 ahead = self.hold_tokens(holder) if place == 0 and holder else [queue[place - 1]["token"]] \
                     if place else []
                 self.role = "queued"
+                left = cap_left(holder, queue) if place == 0 else None
                 message = (f"duo: held by {self.describe(holder)}" if holder else "duo: free, others first") + \
-                          f"; {self.name} is number {place + 1} in the queue"
+                          f"; {self.name} is number {place + 1} in the queue" + \
+                          (f" (its hold is capped: yours in {left:.0f} min at most)" if left is not None else "")
                 situation = (holder and holder["id"], place)
             if failure:
                 self.leave()
@@ -329,6 +364,21 @@ class DuoLock:
                 self.out.flush()
                 shown = situation
             wait_any(ahead, POLL_SECONDS if remaining is None else min(remaining, POLL_SECONDS))
+
+    def _end_capped(self, state, holder, queue):
+        """The first in line ends a hold over its cap (over_cap): stops its games and frees it. A failure's text or None."""
+        minutes = (time.time() - max(holder["since"], queue[0]["since"])) / 60
+        self.out.write(f"duo: {holder['name']} has held it {minutes:.0f} min with {len(queue)} waiting (cap "
+                       f"{CAP_MINUTES:.0f} min): stopping its games and taking over\n")
+        if not self.stop(holder.get("stop"), holder["worktree"]):
+            return f"the capped holder's games would not stop: {self.describe(holder)}"
+        self._log(state, holder, f"Held {minutes:.0f} min with {len(queue)} waiting (cap {CAP_MINUTES:.0f} min); "
+                                 f"games stopped, taken by {self.name}")
+        state["holder"] = None
+        if holder.get("keeper") and alive(holder["token"]):
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(holder["pid"], signal.SIGTERM)
+        return None
 
     def poll_place(self):
         """Renews this process's queue place: its number in the queue, None if it has none (lapsed or never had)."""

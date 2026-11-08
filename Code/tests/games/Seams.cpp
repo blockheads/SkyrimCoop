@@ -87,7 +87,7 @@ World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
       m_pSteamBridge(std::make_unique<FakeSteam>()),
       m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
-      m_pCrimeBridge(std::make_unique<FakeCrime>()), m_pBugReportBridge(std::make_unique<FakeBugReports>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pCrimeBridge(std::make_unique<FakeCrime>(ctx().at<FakeEngine&>())), m_pBugReportBridge(std::make_unique<FakeBugReports>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);

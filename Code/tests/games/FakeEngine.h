@@ -72,9 +72,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 
     uint32_t Controls = kAllControls; // ControlMap::enabledControls
     float ShakeSeconds = 0.f;         // the camera's shake left (Game.ShakeCamera), a frame a 60th of a second
-    // A script's calls on a body (cutscenes.md step 2): the idles each actor played (Actor.PlayIdle), and whether the
-    // player is AI-driven (Game.SetPlayerAIDriven). Its moves are travels (ObjectReference.MoveTo, MoveActorTo).
+    // A script's calls on a body (cutscenes.md step 2): idles played, graph events sent (Debug.SendAnimationEvent), the
+    // player AI-driven; its moves are travels (ObjectReference.MoveTo, MoveActorTo).
     std::map<uint32_t, std::vector<uint32_t>> Idles;
+    std::map<uint32_t, std::vector<std::string>> GraphEvents;
+    std::map<uint32_t, std::map<std::string, bool>> GraphBools; // what a graph event sets (Skyrim: BleedOutStart's IsBleedingOut)
+    [[nodiscard]] bool GraphBool(uint32_t aActor, const std::string& acName) const
+    {
+        const auto it = GraphBools.find(aActor);
+        return it != GraphBools.end() && it->second.contains(acName) && it->second.at(acName);
+    }
     bool AiDriven = false;
     uint32_t ScenePackage{};
     PartyRules::ControlHolds Holds;   // PartyNatives' holds on this game
@@ -310,6 +317,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory::Entry Item;
         // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
         bool QuestObject = false;
+        // Its owner form (ExtraOwnership, an NPC base): a guest's player picking it up steals it (CrimeBridge).
+        uint32_t Owner = 0;
     };
     std::map<uint32_t, LooseItem> Loose;
     // A guest's loose items the host decides (twins, its own drops not answered yet), as GuestEngine's pickup gate

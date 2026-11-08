@@ -88,6 +88,8 @@ command starts (duo, scenario, reload, repro, launch, play, profile, soak, quest
   holder is this checkout, alive   -> join the hold, run
   free, nobody ahead               -> hold, run
   holder's tokens all free (stale) -> stop its games (its checkout's `stop`), log it, hold, run
+  first in line, the hold interactive (MCP, keeper) and held 15 min since someone started waiting
+                                   -> stop its games, log it, hold, run (the cap: COOP_DUO_CAP_MINUTES)
   else                             -> join the queue's end, watch the token ahead, re-check when it
                                       frees and every 30 s (renews the place); COOP_DUO_WAIT (2 h) then fail
 every look at the state
@@ -95,7 +97,7 @@ every look at the state
 command ends
   its games still run (duo --keep-running) -> hand the hold to a keeper (`duo.py keep`): it frees
       the hold on `coop_test.py stop`, 1 min after the games end, or after 30 idle minutes
-      (COOP_DUO_IDLE_MINUTES; it stops the games first)
+      (COOP_DUO_IDLE_MINUTES; it stops the games first); capped like the MCP's hold (below)
   else -> release with a Log line; the next waiter's block on our token returns
 ```
 
@@ -110,11 +112,23 @@ command ends
   good, which is why a place lapses without polls. `duo_start` and `duo_wait` renew it; a lapsed session that calls
   `duo_start` again rejoins at the end. The holder and keeper keep their own rules (above).
 - `duo_stop` on a session only queued leaves the queue ("left the queue, was number N").
+- **The cap.** An agent holding the duo while it read IDA between measurements kept two others waiting about 50
+  minutes (2026-11-07): the idle timeout never fired, since it called the duo every few minutes. So an interactive hold
+  (the MCP's `duo_start`, marked `capped`, and a keeper's) is taken by the first in line once it has been held 15
+  minutes with someone waiting (`over_cap`: from the later of the hold's start and the head's arrival, so a hold just
+  handed on is not cut short). With nobody waiting there is no limit. A batch command's hold (`scenario`, `profile`,
+  `duo.py run`) ends by itself and is never capped. The capped session's next driving command is refused ("holds no
+  duo"), its `duo_stop` leaves the new holder's games alone, and `duo_start` queues it again. The waiter's message and
+  `duo.py status` say how long until the cap.
+- **The reminder.** `scripts/duo_hook.py` (a PostToolUse hook in `.claude/settings.json`) tells a session whose
+  checkout holds the duo while others wait to free it, when it reads code, uses IDA, edits or builds; at most every 2
+  minutes. It reads `duo.json` without the mutex and never blocks.
 - `scripts/duo.py status` shows the holder, the queue, ages and each place's last poll and id;
   `scripts/duo.py leave <name or id>` drops a stuck place by hand (sessions sharing a name need the id);
   `scripts/duo.py run -- <command>` waits, holds for the command, stops its games and frees the duo.
 - Tests: `DuoLockTests` in `scripts/test_coop_harness.py` (contending processes, FIFO, a killed holder, a stale
-  takeover, the MCP's hold, the keeper, leaving the queue, a stale head skipped, a live waiter kept).
+  takeover, the MCP's hold, the keeper, leaving the queue, a stale head skipped, a live waiter kept, the cap) and
+  `DuoHookTests` (the reminder).
 
 ```bash
 python3 scripts/coop_test.py duo --keep-running
@@ -360,6 +374,13 @@ Each JSON file in `Code/tests/specs` runs on both the fake engine and Skyrim. It
 expectations, and `cleanup` runs even after assertion failures. Both runners attempt every cleanup step; the Python
 runner also restores every tracked actor. Specialized native flows remain code when internal assertions or message
 ordering would become more complex as data.
+
+A `script` step's call is queued as the harness's `papyrus_call` queues it, so it gets the cause
+`GuestScripts::CauseOfCall` gives a queued call: a guest's character among its arguments makes it that guest's, this
+game's player makes it this player's (an engine event naming the player); the fake's runner asks `CauseOfCall` too.
+So a quest's call on the host's own player cannot be written as a step (it reads as the player's own moment); a
+GameTests flow covers it. `{"form": "guest-character"}` is the host's copy of the guest's player; `graph bool` reads
+that game's player's behavior graph boolean (`graph_bool`).
 
 Every spec is a Catch2 case named `spec:<name>`, with `[spec]` and its JSON tags. Runtime discovery occurs before
 Catch2 selection, so listing, filtering, timing and sharding work per spec. JSON edits and added specs require no

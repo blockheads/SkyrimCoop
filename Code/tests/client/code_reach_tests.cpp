@@ -425,6 +425,26 @@ SCENARIO("A player's body moved or driven, read from what a native calls or queu
     THEN("the world comes before the body") CHECK(ClassifyCall({.Callees = {cSetAiDriven, kSetStage}}, cBody).Kind == Call::kWorld);
 }
 
+SCENARIO("Debug.SendAnimationEvent: a graph event on its argument, read as the body's", "[reach][cutscenes]")
+{
+    // 1.7.104: test r9 (akRef); mov rbx, r9; lea rcx, [rbx+38h] (its IAnimationGraphManagerHolder); mov rax, [rcx];
+    // call [rax+8] (slot 1), which the player's vtable resolves to the actor's NotifyAnimationGraph thunk (38048).
+    constexpr uintptr_t cNotifyGraph = 0x1406B61A0;
+    const Facts cFacts = ReadNative(0x140A1F620, "4d85c97440534883ec3048c7442420feffffff498bd9488b542460488d4c2458e8fb19490090488d4b38488b"
+                                                 "01488d542458ff500890488d4c2458e8a01a49004883c4305bc3");
+    THEN("a virtual call on its first argument's graph holder")
+    CHECK(cFacts.Virtuals == std::vector<VirtualCall>{{.Offset = 0x38, .Slot = 0x8, .Argument = 0}});
+    THEN("reading the argument is no getter's self read") CHECK(cFacts.SelfReads.empty());
+
+    const Sinks cBody{.Functions = {{cNotifyGraph, {{Call::kBody}}}}};
+    const auto cResolve = [&](const VirtualCall& acCall) -> std::optional<uintptr_t> {
+        return acCall.Offset == 0x38 && acCall.Slot == 0x8 ? std::optional(cNotifyGraph) : std::nullopt;
+    };
+    THEN("the body's, on argument 0") CHECK(ClassifyCall(cFacts, cBody, cResolve) == Reach{.Kind = Call::kBody, .Argument = 0});
+    THEN("a call on the self names no argument")
+    CHECK(ClassifyCall({.Virtuals = {{.Offset = 0x38, .Slot = 0x8}}}, cBody, cResolve) == Reach{.Kind = Call::kBody});
+}
+
 SCENARIO("Reaching this game's player through calls", "[reach]")
 {
     // A chain of functions 1 -> 2 -> ... -> 6; aReader reads the player.

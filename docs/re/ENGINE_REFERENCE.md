@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3514** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
+- **3515** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
 - **232** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -87,7 +87,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36047 | `0x639a80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `RealBGSSaveFormBuffer_WriteId` | [SaveLoad.cpp:185](../../Code/client/Games/SaveLoad.cpp#L185) |  |
 | 36048 | `0x639b00` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `RealBGSSaveFormBuffer_WriteFormId` | [SaveLoad.cpp:184](../../Code/client/Games/SaveLoad.cpp#L184) |  |
 | 36291 | `0x645d60` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `RealSimulateTime` | [TimeManager.cpp:56](../../Code/client/Games/TimeManager.cpp#L56) |  |
-| 36564 | `0x658870` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
+| 36564 | `0x658870` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:96](../../Code/client/SkyrimVM64.cpp#L96) |  |
 | 36581 | `0x659ea0` | `Main::sub_36581` | meh | hook → `UpdatePlayer` | `RealUpdatePlayer` | [LiveMenuHooks.cpp:185](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L185) |  |
 | 37198 | `0x672b90` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Actor.cpp:1777](../../Code/client/Games/Skyrim/Actor.cpp#L1777) |  |
 | 37200 | `0x672e30` | `Actor::SetDialogueWithPlayer` | meh | hook → `HookSetDialogueWithPlayer` | `RealSetDialogueWithPlayer` | [DialogueBridge.cpp:376](../../Code/client/Bridges/DialogueBridge.cpp#L376) |  |
@@ -154,7 +154,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 39896 | `0x723b60` | `ActorProcess::UpdateKnockState` | IDA meh | hook → `HookUpdateKnockState` | `RealUpdateKnockState` | [KnockState.cpp:33](../../Code/client/Games/Skyrim/AI/KnockState.cpp#L33) |  |
 | 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1756](../../Code/client/Games/Skyrim/Actor.cpp#L1756) | **undocumented** |
 | 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1757](../../Code/client/Games/Skyrim/Actor.cpp#L1757) |  |
-| 40412 | `0x740690` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:84](../../Code/client/SkyrimVM64.cpp#L84) |  |
+| 40412 | `0x740690` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:100](../../Code/client/SkyrimVM64.cpp#L100) |  |
 | 40438 | `0x743090` | `PlayerCharacter::ProcessQueuedTravel` | IDA | hook → `HookProcessQueuedTravel` | `RealProcessQueuedTravel` | [PlayerCharacter.cpp:431](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L431) |  |
 | 40445 | `0x744600` | `Actor::sub_40445` | meh | hook → `HookFastTravel` | `RealFastTravel` | [TimeManager.cpp:55](../../Code/client/Games/TimeManager.cpp#L55) |  |
 | 40454 | `0x746e00` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Actor.cpp:1769](../../Code/client/Games/Skyrim/Actor.cpp#L1769) |  |
@@ -197,7 +197,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 53112 | `0x99e640` | `MapMenu::sub_53112` | meh | hook → `LocalMap` | `RealLocalMap` | [LiveMenuHooks.cpp:190](../../Code/client/Games/Skyrim/Interface/LiveMenuHooks.cpp#L190) |  |
 | 53290 | `0x9a8130` | `FadeThenMainMenuCallback::Func1_53290` | meh | hook → `HookMenuQuit` | `RealMenuQuit` | [QuitToMainMenu.cpp:35](../../Code/client/Games/Skyrim/Interface/QuitToMainMenu.cpp#L35) |  |
 | 53429 | `0x9b2f50` | `SkyrimVM::FindQuestFragment` | IDA | hook → `HookFindFragment` | `RealFindFragment` | [QuestFragments.cpp:82](../../Code/client/TestHarness/QuestFragments.cpp#L82) |  |
-| 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:79](../../Code/client/SkyrimVM64.cpp#L79) |  |
+| 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:95](../../Code/client/SkyrimVM64.cpp#L95) |  |
 | 53954 | `0x9dad40` | `SkyrimVM::QueueDelayFunctor` | IDA meh | hook → `HookFunctorQueued` | `RealFunctorQueued` | [GuestScripts.cpp:146](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L146) |  |
 | 53955 | `0x9dae10` | `SkyrimVM::QueuePostRenderCall` | CL SKSE meh | hook → `HookPostRenderQueued` | `RealPostRenderQueued` | [GuestScripts.cpp:148](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L148) |  |
 | 53987 | `0x9de4c0` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:250](../../Code/client/Games/Skyrim/Forms/TESQuest.cpp#L250) |  |
@@ -220,10 +220,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68115 | `0xcde250` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `RealFormAllocate` | [Memory.cpp:120](../../Code/client/Games/Memory.cpp#L120) |  |
 | 68116 | `0xcde4a0` | `MemoryManager::Reallocate` | CL PL meh | hook → `HookFormReallocate` | `RealFormReallocate` | [Memory.cpp:118](../../Code/client/Games/Memory.cpp#L118) |  |
 | 68117 | `0xcde6a0` | `MemoryManager::Deallocate` | CL SKSE PL meh | hook → `HookFormFree` | `RealFormFree` | [Memory.cpp:117](../../Code/client/Games/Memory.cpp#L117) |  |
-| 68233 | `0xce3250` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:585](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L585) |  |
-| 68234 | `0xce32d0` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:586](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L586) |  |
-| 68239 | `0xce3510` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:587](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L587) |  |
-| 68240 | `0xce3520` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:588](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L588) |  |
+| 68233 | `0xce3250` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:594](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L594) |  |
+| 68234 | `0xce32d0` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:595](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L595) |  |
+| 68239 | `0xce3510` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:596](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L596) |  |
+| 68240 | `0xce3520` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:597](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L597) |  |
 | 68245 | `0xce3970` | `BSTimer::SetGlobalTimeMultiplier` | CL meh | hook → `HookSetGlobalTimeMultiplier` | `RealSetGlobalTimeMultiplier` | [BSTimer.cpp:46](../../Code/client/Games/Skyrim/BSTimer.cpp#L46) |  |
 | 68261 | `0xce40a0` | `BSThread::sub_68261` | meh | hook → `Hook_BSThread_Initialize` | `BSThread_Initialize` | [BSThread.cpp:52](../../Code/client/Games/Skyrim/BSSystem/BSThread.cpp#L52) |  |
 | 68545 | `0xcefaa0` | `ControlMap::ToggleControls` | CL | hook → `HookToggleControls` | `RealToggleControls` | [PartyNatives.cpp:145](../../Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp#L145) |  |
@@ -252,10 +252,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 36564 | `0x658870` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
-| 40412 | `0x740690` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:84](../../Code/client/SkyrimVM64.cpp#L84) |  |
+| 36564 | `0x658870` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:96](../../Code/client/SkyrimVM64.cpp#L96) |  |
+| 40412 | `0x740690` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:100](../../Code/client/SkyrimVM64.cpp#L100) |  |
 | 52933 | `0x991a30` | `SendHUDMessage::ShowHUDMessage` | CL meh | call | `s_showHudMessage` | [Utils.cpp:22](../../Code/client/Utils.cpp#L22) |  |
-| 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:79](../../Code/client/SkyrimVM64.cpp#L79) |  |
+| 53926 | `0x9d7450` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:95](../../Code/client/SkyrimVM64.cpp#L95) |  |
 | 380768 | `0x20b58c0` | `?` | - | data | `bAlwaysActive` | [Plugin.cpp:97](../../Code/client/Plugin.cpp#L97) | **undocumented** |
 
 ## Bridges
@@ -3511,10 +3511,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 68233 | `0xce3250` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:585](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L585) |  |
-| 68234 | `0xce32d0` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:586](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L586) |  |
-| 68239 | `0xce3510` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:587](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L587) |  |
-| 68240 | `0xce3520` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:588](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L588) |  |
+| 68233 | `0xce3250` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:594](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L594) |  |
+| 68234 | `0xce32d0` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:595](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L595) |  |
+| 68239 | `0xce3510` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:596](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L596) |  |
+| 68240 | `0xce3520` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:597](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L597) |  |
 
 ## Games/Skyrim/BSGraphics
 
@@ -3846,6 +3846,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37775 | `0x6a4030` | `Actor::GetLightLevel` | PL meh | data | `s_lightLevel` | [NativeReach.cpp:111](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L111) |  |
 | 37903 | `0x6abc00` | `Actor::sub_37903` | meh | data | `s_setVehicle` | [NativeReach.cpp:128](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L128) |  |
 | 37925 | `0x6ad970` | `Actor::SwitchRace` | CL SKSE meh | data | `s_switchRace` | [NativeReach.cpp:123](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L123) |  |
+| 38048 | `0x6b61a0` | `Actor__NotifyAnimationGraph` | IDA meh | data | `s_notifyGraph` | [NativeReach.cpp:130](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L130) |  |
 | 38467 | `0x6c51f0` | `ActorValueOwner::ModActorValue` | meh | data | `s_modActorValue` | [NativeReach.cpp:117](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L117) |  |
 | 38716 | `0x6d3d60` | `Actor::AddSpell` | CL meh | data | `s_addSpell` | [NativeReach.cpp:119](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L119) |  |
 | 38894 | `0x6dc310` | `ActorEquipManager::EquipObject` | CL SKSE meh | data | `s_equipObject` | [NativeReach.cpp:103](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L103) |  |
@@ -3896,15 +3897,15 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 400863 | `0x31a5690` | `ControlMap::singleton` | CL SKSE meh | data | `s_controlMap` | [NativeReach.cpp:52](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L52) |  |
 | 400864 | `0x31a5698` | `PlayerControls::singleton` | CL SKSE meh | data | `s_playerControls` | [NativeReach.cpp:51](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L51) |  |
 | 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:47](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L47) |  |
-| 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:288](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L288) |  |
+| 401069 | `0x31df300` | `gPlayerCharacter3` | meh | data | `s_playerCharacter` | [NativeReach.cpp:289](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L289) |  |
 | 401263 | `0x31dfd78` | `MenuControls::singleton` | CL SKSE meh | data | `s_menuControls` | [NativeReach.cpp:53](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L53) |  |
 | 402776 | `0x3204b30` | `BSInputDeviceManager::singleton` | CL SKSE meh | data | `s_inputDeviceManager` | [NativeReach.cpp:56](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L56) |  |
 | 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:46](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L46) |  |
-| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:175](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L175) |  |
-| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:287](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L287) |  |
+| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:176](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L176) |  |
+| 403521 | `0x3230778` | `g_thePlayer` | CL SKSE meh | data | `s_thePlayer` | [NativeReach.cpp:288](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L288) |  |
 | 410222 | `0x3275720` | `?` | - | data | `s_rumbleLeft` | [NativeReach.cpp:58](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L58) | **undocumented** |
 | 410225 | `0x3275738` | `?` | - | data | `s_rumbleRight` | [NativeReach.cpp:59](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L59) | **undocumented** |
-| 412214 | `0x33508d0` | `gBGSMoviePlayer` | meh | data | `s_moviePlayer` | [NativeReach.cpp:182](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L182) |  |
+| 412214 | `0x33508d0` | `gBGSMoviePlayer` | meh | data | `s_moviePlayer` | [NativeReach.cpp:183](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L183) |  |
 | 414660 | `0x33d40a0` | `ImageSpaceManager::singleton` | CL | data | `s_imageSpaceManager` | [NativeReach.cpp:55](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L55) |  |
 | 442726 | `0x962940` | `?` | - | data | `s_messageShow` | [NativeReach.cpp:100](../../Code/client/Games/Skyrim/Papyrus/NativeReach.cpp#L100) | **undocumented** |
 

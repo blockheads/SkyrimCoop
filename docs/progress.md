@@ -59,6 +59,19 @@ Harness: the animation trace records each event sent into a graph with its engin
 `graph_machines_watch` read state machines on both games; `name_owner`; `expect` check `graph`; behavior_dump extracts
 creature behaviours.
 
+2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
+(the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
+stops its games and takes it, and the old holder queues again. A hook (`scripts/duo_hook.py`) reminds a session holding
+the duo while others wait to free it when it reads code, uses IDA or builds. Tests: `DuoLockTests`, `DuoHookTests`.
+
+2026-11-07: a guest's theft of an item the host's game made is judged ([crime.md](re/systems/crime.md), "A created
+item's theft names its owner"). Read in IDA: the player's pickup (40533) gives `StealAlarm` a created item's owner
+actor, not the item, and the host's permission recheck (`IsAnOwner` 20210, which reads any NPC as the player's) stopped
+it silently. A theft now carries the item's owner (`CrimeRequest::Owner`); `Judge` skips that recheck and its same-cell
+check for an actor target (`CrimeRules`) and alarms with the owner. The bugs-map guess (created forms' session ids) was not the cause:
+the item is not on the wire. Scenario `guest-steals-created-item`, flow "A guest steals an item the host's game made",
+ClientTests `[CrimeRules]`.
+
 2026-11-07: a copy's lifecycle is the host's events alone ([copy-contract.md](design/copy-contract.md), "A copy's
 lifecycle"; engine path [copy-lifecycle.md](re/systems/copy-lifecycle.md)). A guest hides a held copy once, as the host's
 removal reaches it and before it follows (`CopyHeldEvent`, `GuestCopies`): kept persistent for the session, no cell
@@ -2064,8 +2077,12 @@ What the first playtest build has besides what works today (the table above):
    vtable too), so a story's call on the player's body runs on each game's own player and a guest's moment on its
    own game; a mirrored move leads no party travel (one check in party travel's `HookProcessQueuedTravel`); each
    guest's player plays the host's player's part in an engine scene (`GuestScene`). Tiers 1-2 pass; Skyrim scenarios
-   from late saves: [cutscenes.md](design/cutscenes.md), "Step 2". `Debug.SendAnimationEvent` not read yet
-   (`docs/bugs.md`).
+   from late saves: [cutscenes.md](design/cutscenes.md), "Step 2". `Debug.SendAnimationEvent` read 2026-11-07: the
+   code reader follows a native's first argument (r9) and resolves its graph holder's slot 1 (38048), so a story's
+   event on a player plays on each game's own player, on any other reference on the host only (ClientTests
+   `code_reach_tests.cpp`, GameTests `cutscene_flows.cpp`; [party-calls.md](design/party-calls.md)). Checked in Skyrim:
+   spec `story-animation-event-reaches-guest` (recorded through the MCP; a host script's event on the guest's
+   character bleeds out the guest's own player).
 10. **Mounts:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: host/guest riding, exterior border crossing, dismount and disconnect; a following rider's horse accompanies it and native travel's implicit dismount returns ownership at the horse's latest position. [Party travel](design/party-travel.md).
 11. **The party is the Dragonborn** ([dragonborn.md](design/dragonborn.md); built 2026-10-27 with feature 3,
     merged into dev): a word of power a script teaches or unlocks every player has; every soul

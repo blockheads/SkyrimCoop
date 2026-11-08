@@ -45,6 +45,7 @@ struct Reach
 {
     Call Kind = Call::kNone;
     Progress Progress{};
+    std::optional<uint8_t> Argument; // the call acts on this argument (Debug.SendAnimationEvent's reference), not the self
     bool operator==(const Reach&) const = default;
 };
 
@@ -88,14 +89,15 @@ struct Objects
     const std::unordered_set<uintptr_t>& Player; // the cells holding the player's pointer (g_thePlayer)
 };
 
-// A call through a vtable at Offset in the native's self (r8 at its start) or this game's player: Slot is the
-// vtable's byte offset, Second rdx's value when it is a constant.
+// A call through a vtable at Offset in the native's self (r8 at its start), this game's player, or its first argument
+// (r9, Argument 0): Slot is the vtable's byte offset, Second rdx's value when it is a constant.
 struct VirtualCall
 {
     bool OnPlayer{};
     uintptr_t Offset{};
     uint32_t Slot{};
     std::optional<uint64_t> Second;
+    std::optional<uint8_t> Argument;
     bool operator==(const VirtualCall&) const = default;
 };
 
@@ -137,7 +139,7 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
 
 // The native's own calls (not its callees': Actor.Kill reaches the controls deep in SetLifeState) of the engine's
 // functions acSinks names, a player's field it writes, or a screen object it reads. A virtual call is resolved by
-// aResolve (none: unknown). Progression comes first, then the world, items (an equip's HUD message is no screen's), the
+// aResolve (none: unknown); one on an argument names it (Reach::Argument). Progression comes first, then the world, items (an equip's HUD message is no screen's), the
 // body, the controls, the screen, a show, a question (a getter's field: only for a native making no call).
 template <class TResolve>
 [[nodiscard]] Reach ClassifyCall(const Facts& acFacts, const Sinks& acSinks, TResolve&& aResolve) noexcept
@@ -145,8 +147,8 @@ template <class TResolve>
     Reach progress, world, item, playerMenu, body, controls, screen, show, question;
     if (acFacts.ReadsScreen)
         screen.Kind = Call::kScreen;
-    const auto cNote = [&](const Sink& acSink) {
-        (acSink.Is.Kind == Call::kProgress ? progress
+    const auto cNote = [&](const Sink& acSink, std::optional<uint8_t> aArgument = std::nullopt) {
+        Reach& into = (acSink.Is.Kind == Call::kProgress ? progress
          : acSink.Is.Kind == Call::kWorld  ? world
          : acSink.Is.Kind == Call::kItem   ? item
          : acSink.Is.Kind == Call::kPlayerMenu ? playerMenu
@@ -154,7 +156,9 @@ template <class TResolve>
          : acSink.Is.Kind == Call::kControls ? controls
          : acSink.Is.Kind == Call::kShow   ? show
          : acSink.Is.Kind == Call::kQuestion ? question
-                                           : screen) = acSink.Is;
+                                           : screen);
+        into = acSink.Is;
+        into.Argument = aArgument;
     };
     for (const uintptr_t cCallee : acFacts.Callees)
         if (const auto it = acSinks.Functions.find(cCallee); it != acSinks.Functions.end() && !it->second.Second)
@@ -163,7 +167,7 @@ template <class TResolve>
         if (const std::optional<uintptr_t> cTarget = aResolve(cCall))
             if (const auto it = acSinks.Functions.find(*cTarget);
                 it != acSinks.Functions.end() && (!it->second.Second || it->second.Second == cCall.Second))
-                cNote(it->second);
+                cNote(it->second, cCall.Argument);
     for (const uint32_t cField : acFacts.PlayerWrites)
         if (const auto it = acSinks.PlayerFields.find(cField); it != acSinks.PlayerFields.end())
             cNote(it->second);

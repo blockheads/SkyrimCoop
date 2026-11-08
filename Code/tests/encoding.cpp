@@ -98,6 +98,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     request.Target = GameId(0xFE, 0x100812);
     request.TargetActor = 987;
     request.Item = GameId(2, 0xABC);
+    request.Owner = GameId(0, 0x13479);
     request.Count = 81;
     CrimeItem item;
     item.Item.BaseId = GameId(0, 0x12EB7);
@@ -121,6 +122,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     CHECK(received.Target == request.Target);
     CHECK(received.TargetActor == request.TargetActor);
     CHECK(received.Item == request.Item);
+    CHECK(received.Owner == request.Owner);
     CHECK(received.Count == request.Count);
     CHECK(received.GoToJail);
     CHECK(received.RemoveStolenItems);

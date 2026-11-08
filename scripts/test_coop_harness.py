@@ -969,6 +969,17 @@ class Scenes(unittest.TestCase):
         self.assertEqual(ctx.REPRO_PLACE, {"save": "Late", "at": "coc Riverwood", "pin": True})
         ctx.needs_save.assert_called_with("Late")
 
+    def test_unstage_leaves_an_item_a_player_picked_up(self):
+        from coop_harness.actions.repro import ReproActions
+        staged = [("object", 0xFF000801), ("guest-object", 0xFF000834)]
+        ctx = Mock()
+        ctx.staged.return_value = staged
+        ctx.world_state.side_effect = lambda game, ids: {} if game == "client" else {ids[0]: {}}
+        ReproActions.unstage(ctx)
+        ctx.console_on.assert_any_call("", "FF000801.disable")
+        self.assertNotIn(("client", "FF000834.disable"), [c.args for c in ctx.console_on.call_args_list])
+        self.assertEqual(staged, [])
+
     def test_pinning_keeps_the_scale_to_put_back(self):
         from coop_harness.actions.repro import ReproActions
         ctx = Mock(REPRO_PIN=None)
@@ -2031,6 +2042,55 @@ class DuoLockTests(unittest.TestCase):
         self.assertTrue(self.lock("/wt/k", "k").release_checkout("Stopped"))
         self.assertEqual(self.line(other), "role holder")
 
+    def capped_pair(self, capped=True, held_minutes=20, waited_minutes=20):
+        """An MCP-like hold on /wt/a and /wt/b first in line, with their ages set back; b's stops recorded."""
+        from coop_harness.duo_lock import DuoBusy
+        stops = []
+        holder = self.lock("/wt/a", "a")
+        self.assertEqual(holder.acquire("repro session", capped=capped), "holder")
+        waiter = self.lock("/wt/b", "b", stop=lambda command, worktree: stops.append(worktree) or True)
+        with self.assertRaises(DuoBusy):
+            waiter.acquire("repro session", wait=False, keep_place=True)
+        with holder._state() as state:
+            state["holder"]["since"] -= held_minutes * 60
+            state["queue"][0]["since"] -= waited_minutes * 60
+        return holder, waiter, stops
+
+    def test_an_interactive_hold_goes_to_the_first_in_line_at_its_cap(self):
+        """An agent holding the duo while it reads code: 15 min with someone waiting, and the waiter takes it."""
+        holder, waiter, stops = self.capped_pair()
+        self.assertEqual(waiter.acquire("repro session", wait=False), "holder")
+        self.assertEqual(stops, ["/wt/a"])
+        self.assertFalse(holder.still_held())
+        self.assertIn("(cap 15 min); games stopped, taken by b", (self.home / "DUO.md").read_text())
+
+    def test_the_cap_counts_from_when_someone_started_waiting(self):
+        from coop_harness.duo_lock import DuoBusy
+        holder, waiter, stops = self.capped_pair(held_minutes=40, waited_minutes=5)
+        with self.assertRaises(DuoBusy) as busy:
+            waiter.acquire("repro session", wait=False, keep_place=True)
+        self.assertIn("yours in 10 min at most", str(busy.exception))
+        self.assertEqual(stops, [])
+        self.assertTrue(holder.still_held())
+
+    def test_a_batch_commands_hold_is_never_capped(self):
+        from coop_harness.duo_lock import DuoBusy
+        holder, waiter, stops = self.capped_pair(capped=False)
+        with self.assertRaises(DuoBusy):
+            waiter.acquire("repro session", wait=False, keep_place=True)
+        self.assertEqual(stops, [])
+
+    def test_duo_stop_after_the_cap_leaves_the_new_holders_games_alone(self):
+        from coop_harness.actions.repro import ReproActions
+        holder, waiter, _ = self.capped_pair()
+        waiter.acquire("repro session", wait=False)
+        ctx = MagicMock()
+        ctx.duo_lock.return_value = holder
+        self.assertIn("games left alone", ReproActions.duo_free(ctx, "a", "done"))
+        ctx.stop_duo.assert_not_called()
+        self.assertIsNone(holder.role)
+        self.assertTrue(waiter.still_held())
+
     def test_the_view_keeps_other_sections_and_puts_new_log_lines_first(self):
         (self.home / "DUO.md").write_text("# Duo\n\n## Rules\n\nold\n\n## Setup\n\nkeep me\n\n## Now\n\nfree\n\n"
                                           "## Waiting\n\n\n## Log\n\n- old line\n")
@@ -2041,6 +2101,62 @@ class DuoLockTests(unittest.TestCase):
         self.assertIn("keep me", text)
         self.assertIn("Claiming and freeing are automatic", text)
         self.assertLess(text.index("a (/wt/a): x. done"), text.index("old line"))
+
+
+@unittest.skipIf(WINDOWS, "the duo lock is Linux-only (fcntl)")
+class DuoHookTests(unittest.TestCase):
+    """scripts/duo_hook.py: a session holding the duo while others wait is told to free it when it works offline."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.home = Path(folder.name)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import duo_hook
+        self.hook = duo_hook
+
+    def lock(self, worktree, name):
+        from coop_harness.duo_lock import DuoLock
+        lock = DuoLock(self.home, worktree, name, out=io.StringIO())
+        self.addCleanup(lock.release)
+        return lock
+
+    def held(self, waiting=True):
+        from coop_harness.duo_lock import DuoBusy
+        self.assertEqual(self.lock("/wt/a", "a").acquire("repro session in Riverwood", capped=True), "holder")
+        if waiting:
+            with self.assertRaises(DuoBusy):
+                self.lock("/wt/b", "b").acquire("x", wait=False, keep_place=True)
+
+    def warn(self, tool, root="/wt/a", **arguments):
+        return self.hook.warning(root, self.home, {"tool_name": tool, "tool_input": arguments})
+
+    def test_reading_code_while_holding_with_others_waiting_is_warned(self):
+        self.held()
+        for tool in ("mcp__ida-multi-mcp__decompile", "Read", "Edit"):
+            message = self.warn(tool)
+            self.assertIn("You hold the shared duo", message)
+            self.assertIn("1 waiting", message)
+            self.assertIn("the 15-minute cap", message)
+        self.assertIn("Free it", self.warn("Bash", command="scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL"))
+
+    def test_no_warning_while_driving_the_games_alone_or_for_another_checkout(self):
+        self.held()
+        self.assertIsNone(self.warn("mcp__skyrim-coop__trace_read"))
+        self.assertIsNone(self.warn("Bash", command="python3 scripts/coop_test.py stop"))
+        self.assertIsNone(self.warn("Read", root="/wt/b"))
+
+    def test_no_warning_with_nobody_waiting(self):
+        self.held(waiting=False)
+        self.assertIsNone(self.warn("Read"))
+
+    def test_one_reminder_every_two_minutes_per_session(self):
+        root = self.home / "checkout"
+        (root / "build").mkdir(parents=True)
+        self.assertTrue(self.hook.due(root, "s1", now=1000))
+        self.assertFalse(self.hook.due(root, "s1", now=1100))
+        self.assertTrue(self.hook.due(root, "s2", now=1100))
+        self.assertTrue(self.hook.due(root, "s1", now=1121))
 
 
 class KillMoveActions(unittest.TestCase):

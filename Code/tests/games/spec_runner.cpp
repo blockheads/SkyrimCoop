@@ -3,6 +3,7 @@
 #include "Party.h"
 
 #include <Structs/GridCellCoords.h>
+#include <Papyrus/ScriptTags.h>
 
 #include <nlohmann/json.hpp>
 
@@ -13,6 +14,7 @@
 namespace
 {
 using Json = nlohmann::json;
+using GuestScripts::Cause, GuestScripts::CauseOfCall, GuestScripts::kThisPlayer, GuestScripts::QueuedCall, GuestScripts::Tags;
 
 std::vector<std::filesystem::path> Specs()
 {
@@ -34,6 +36,8 @@ LocalValue ValueOf(const Json& acValue)
         return acValue.get<float>();
     if (acValue.is_string())
         return acValue.get<std::string>();
+    if (acValue.is_object() && acValue.contains("form") && acValue["form"].is_number()) // the harness's papyrus_call form
+        return LocalForm{acValue["form"].get<uint32_t>()};
     return std::monostate{};
 }
 
@@ -64,6 +68,17 @@ uint32_t Id(const Json& acValue)
     if (cText == "inner-door")
         return kInnerDoor;
     return static_cast<uint32_t>(std::stoul(cText, nullptr, 16));
+}
+
+// The host's copy of the guest's character ("guest-character"; 0 on a guest or with none).
+uint32_t GuestCharacter(const FakeEngine& acEngine)
+{
+    if (acEngine.IsGuest)
+        return 0;
+    for (const auto& [cId, cActor] : acEngine.Actors)
+        if (cActor.Copy && cActor.Player)
+            return cId;
+    return 0;
 }
 
 // Runs one spec's steps on a party, each named in a failure ("step 3: ...").
@@ -210,6 +225,13 @@ struct SpecRun
                        (!acStep.contains("copy") || cHere.IsActorCopy(cId) == acStep["copy"].get<bool>());
             };
         }
+        else if (cExpect == "graph bool")
+        {
+            // That game's player's behavior graph boolean (the harness's graph_bool).
+            const std::string cName = acStep["name"].get<std::string>();
+            const bool cValue = acStep["value"].get<bool>();
+            holds = [&cEngine, cName, cValue] { return cEngine.GraphBool(FakeEngine::kPlayer, cName) == cValue; };
+        }
         else if (cExpect == "together")
             holds = [this] { return Together(); };
         else if (cExpect == "down")
@@ -249,10 +271,28 @@ struct SpecRun
             const std::string cCall = acStep["call"].get<std::string>();
             const auto cDot = cCall.find('.');
             LocalCall call{.Class = cCall.substr(0, cDot), .Function = cCall.substr(cDot + 1)};
-            for (const auto& cArgument : acStep.value("args", Json::array()))
-                call.Arguments.push_back(ValueOf(cArgument));
-            const uint32_t cCause = acStep.value("by", "world") == "player" ? 0x14 : 0;
-            Games.As(game, [&] { Party::Engine(game).RunScript(call, cCause); });
+            FakeEngine& engine = Party::Engine(game);
+            const Json cArguments = acStep.value("args", Json::array());
+            if (std::ranges::any_of(cArguments, [](const Json& acArgument) { return acArgument.is_object() && acArgument.value("form", Json()) == "guest-character"; }))
+                Games.Until([&engine] { return GuestCharacter(engine) != 0; }, acWhat + ": the host shows the guest's character");
+            for (const auto& cArgument : cArguments)
+                call.Arguments.push_back(cArgument.is_object() && cArgument.value("form", Json()) == "guest-character"
+                                             ? LocalValue{LocalForm{GuestCharacter(engine)}}
+                                             : ValueOf(cArgument));
+            // The cause the harness's queued call gets (GuestScripts::HookCallQueued): a player among its arguments.
+            const auto cFormIs = [&call](auto&& aIs) {
+                for (const LocalValue& cArgument : call.Arguments)
+                    if (const auto* cpForm = std::get_if<LocalForm>(&cArgument); cpForm && aIs(cpForm->FormId))
+                        return cpForm->FormId;
+                return 0u;
+            };
+            Tags tags;
+            const QueuedCall cQueued{.Native = {acStep.value("by", "world") == "player" ? kThisPlayer : 0u},
+                                     .InSession = engine.InSession, .Event = call.Function};
+            const Cause cCause = CauseOfCall(
+                tags, cQueued, [&] { return cFormIs([&](uint32_t aId) { return aId == GuestCharacter(engine); }); },
+                [&] { return cFormIs([](uint32_t aId) { return aId == FakeEngine::kPlayer; }) != 0; });
+            Games.As(game, [&] { engine.RunScript(call, cCause.Player, cCause.Story); });
         }
         else if (cDo == "leave")
         {
