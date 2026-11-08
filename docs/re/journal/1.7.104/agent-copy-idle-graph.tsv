@@ -124,3 +124,13 @@ time	op	id	rva	item
 2026-11-08T18:40:07Z	read	37988	0x6b13d0	{"name": "PlayerCharacter::sub_37988"}
 2026-11-08T18:40:24Z	name	37988	0x6b13d0	{"addr": "0x1406b13d0", "name": "coop_Actor_AnimInterpAllowed"}
 2026-11-08T18:40:25Z	comment	37988	0x6b13d0	{"addr": "0x1406b13d0", "comment": "BSAnimationUpdateData +0x2B: a far graph may step in chunks (63587) when bAnimInterpEnable, actor +200 & 0x3C000 clear, and its graph's bIsSynced, bSpeedSynced and bDisableInterp are all false"}
+2026-11-08T19:58:45Z	read		0xbcf5a0	{"name": "BShkbAnimationGraph::sub_63590"}
+2026-11-08T19:59:11Z	read		0x6e2900	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-08T19:59:18Z	read	32932	0x5554f0	{"name": "sub_1405554F0"}
+2026-11-08T20:00:53Z	name	32932	0x5554f0	{"addr": "0x1405554F0", "name": "coop_IAnimationGraphManagerHolder_SetVariableAllGraphs"}
+2026-11-08T20:00:57Z	comment		0xbcf5a0	{"addr": "0x140bcf5a0", "comment": "Each graph update (63358, before 63587): every bound channel's value (+0x18, BSAnimationGraphChannel) written into the graph variable of its name (Speed, Direction, TurnDelta, iWantBlock, ... ActorSpeedChannel etc.), computed from this game's actor"}
+2026-11-08T20:00:57Z	comment		0xbc0743	{"addr": "0x140bc0743", "comment": "BSAnimationGraphManager +0x10 boundChannels: each polls its source (PollChannelUpdateImpl, vtable +8) from the actor, once per update"}
+2026-11-08T20:00:57Z	comment	32932	0x5554f0	{"addr": "0x1405554F0", "comment": "Holder's SetGraphVariable: writes at once into every graph of the manager (BShkbAnimationGraph::SetGraphVariable*, under the manager's lock); not queued to the next update"}
+2026-11-08T20:00:57Z	comment		0xbcf7c8	{"addr": "0x140bcf7c8", "comment": "handleEvent at once (root behaviour vtable +0x30): an input event acts between two updates, as it is sent, reading the variables as they stand then"}
+2026-11-08T20:01:02Z	name	63590	0xbcf570	{"addr": "0x140bcf570", "name": "coop_BShkbAnimationGraph_ApplyChannels"}
+2026-11-08T20:01:03Z	comment	63590	0xbcf570	{"addr": "0x140bcf570", "comment": "63590, each graph update (63358, before 63587): every bound channel's value (+0x18) written into the graph variable of its name (Speed, Direction, TurnDelta, iWantBlock, ...: ActorSpeedChannel etc.), computed from this game's actor"}
