@@ -111,7 +111,9 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     if (phase == ReplayStep::kTaken || phase == ReplayStep::kRefused)
     {
         const auto& cAction = step.Action;
-        if (phase == ReplayStep::kTaken && !VariablesOnly(cAction))
+        if (phase == ReplayStep::kTaken && VariablesOnly(cAction))
+            spdlog::debug("Copy {:X} loaded refused action {:X} '{}''s variables", apActor->formID, cAction.ActionId, cAction.EventName);
+        else if (phase == ReplayStep::kTaken)
         {
             aAnimationComponent.LastRanAction = cAction;
             apActor->GetExtension()->LatestAnimation.Write(cAction);

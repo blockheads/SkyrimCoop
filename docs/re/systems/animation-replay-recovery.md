@@ -246,6 +246,9 @@ ForceAction (38953, a copy's replays): the same 39004 call, started or not
   queue, at its owner's tick, and loads the variables in step with its graph (the step's variables phase), with no
   event: replaying the event could let the copy take what its owner refused. A refused action that changed nothing is
   still not sent.
+- **Measured (duo, 2026-11-08, scenario `wolf_copy_turns_with_owner`):** the host sent about 300 refused actions'
+  variables in 3 minutes, and the copies loaded them. The scenario failed on another shape: wolf `9B0DD`'s copy stayed in
+  `CannedTurnState` 8.4 s, with no refused action on its owner near it (`docs/bugs.md`).
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the

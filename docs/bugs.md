@@ -175,9 +175,8 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 ### A copy's graph after a turn or a pick
 
 The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
-of 2 s or more on some creatures and a few NPCs. Each is below. The wolf's copy turning while its owner idled, and its
-copy kept in `CannedTurnState`, are fixed: a refused action's graph writes reach the copy (2026-11-08,
-animation-replay-recovery.md, "A refused action still writes its graph variables").
+of 2 s or more on some creatures and a few NPCs. Each is below. A refused action's graph writes now reach the copy
+(2026-11-08, animation-replay-recovery.md, "A refused action still writes its graph variables"), the writer of the wolf's turn variables.
 
 Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
 
@@ -197,6 +196,10 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
   its owner went on to `StandingIdleState`. The owner's `turnStop` was `refused by the engine, not sent`. So the recovery
   loads a state the owner leaves with no action. Possibly the same writer: that refused `turnStop` set `iSyncTurnState`
   on the owner only, and is now sent. Not shown: rerun the scenario and look for this shape.
+- **A wolf's copy kept in `CannedTurnState` with no refused action** (`9B0DD`, 8.4 s, `wolf_copy_turns_with_owner`,
+  2026-11-08, with refused actions' writes sent): its owner went on to `StandingIdleState`. The owner refused no action
+  from 28 s before the run to 6 s into it, so this canned turn's end read something else. Not read: trace the copy's
+  canned turn (its exit's `iSyncIdleLocomotion`, its clip's end).
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
   on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 
