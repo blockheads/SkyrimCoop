@@ -258,6 +258,51 @@ class ReproActions:
         finally:
             ctx.game("").rpc({"cmd": "graph_replay", "stop": True}, timeout=10)
 
+    def graph_replay_net(ctx, owner, seconds=60.0):
+        """The network graph replay proof (docs/design/graph-input-replay.md): the host records `owner`'s graph inputs, the
+        harness carries them to its copy on the guest, which replays them from the owner's sync point; their states are
+        compared after every update. Also today's movement bytes per NPC (perf), against the ops' weight."""
+        owner = int(owner, 16) if isinstance(owner, str) else owner
+        copy = next((pair[1] for pair in ctx.copy_pairs().values() if pair[0] == owner), None)
+        if copy is None:
+            raise ctx.failure(f"{owner:X} has no copy on the guest")
+        host, guest = ctx.game(""), ctx.game("client")
+        if not (host.rpc({"cmd": "graph_replay", "record": owner}, timeout=10) or {}).get("ok") or \
+                not (guest.rpc({"cmd": "graph_replay", "replay": copy}, timeout=10) or {}).get("ok"):
+            raise ctx.failure("graph_replay did not arm on both games")
+        last = {}
+        try:
+            def relay():
+                taken = host.rpc({"cmd": "graph_replay", "take": True}, timeout=10) or {}
+                if taken.get("point") or taken.get("ops") or taken.get("hashes"):
+                    guest.rpc({"cmd": "graph_replay", "feed": taken}, timeout=10)
+                last.update(owner_seconds=taken.get("owner_seconds", 0), wire_bytes=taken.get("wire_bytes", 0),
+                            owner_updates=taken.get("owner_updates", 0), copy=guest.rpc({"cmd": "graph_replay"}, timeout=10) or {})
+                copy_status = last["copy"]
+                caught_up = last["owner_seconds"] >= seconds and copy_status.get("replayed", 0) + 10 >= copy_status.get("known_updates", 0)
+                return dict(last) if caught_up or copy_status.get("first_mismatch") else None
+            result = ctx.wait_for(f"[both] {seconds:.0f} s of the owner's updates replayed on its copy, or a mismatch", relay,
+                                  seconds + 90, explain=lambda: f"last {last}")
+            mismatch = result["copy"].get("first_mismatch")
+            if mismatch:
+                at = host.rpc({"cmd": "graph_replay", "states_at": mismatch["update"]}, timeout=10) or {}
+                owner_states, owner_words = at.get("states", []), at.get("words", [])
+                words = [(i, f"{o:08X}", f"{c:08X}") for i, (o, c) in enumerate(zip(owner_words, mismatch.get("shadow_words", []))) if o != c]
+                raise ctx.failure(f"the copy's graph left its owner's at update {mismatch['update']} after "
+                                  f"{result['copy'].get('equal')} equal: owner only {sorted(set(owner_states) - set(mismatch['shadow']))}, "
+                                  f"copy only {sorted(set(mismatch['shadow']) - set(owner_states))}, variables after it (index, owner, "
+                                  f"copy) {words}, last ops {mismatch.get('last_ops')}")
+            perf = (host.rpc({"cmd": "perf", "window_ms": int(seconds * 1000)}, timeout=20) or {}).get("perf", {})
+            moves = sum(row["bytes"] for row in perf.get("messages", {}).get("top", []) if "ReferencesMove" in row.get("name", ""))
+            npcs = max(1, len(ctx.local_player("").get("local_actors", {})) - 1)
+            result["movement_bytes_per_npc_s"] = moves / seconds / npcs
+            result["ops_bytes_s"] = result["wire_bytes"] / max(result["owner_seconds"], 1e-3)
+            result["synced_npcs"] = npcs
+            return result
+        finally:
+            host.rpc({"cmd": "graph_replay", "stop": True}, timeout=10)
+            guest.rpc({"cmd": "graph_replay", "stop": True}, timeout=10)
+
     def name_owner(ctx, name, owner):
         """Names an NPC by its owner's form id on the host (hex string or number) and its copy on the guest: `find`
         names only NPCs near the host."""

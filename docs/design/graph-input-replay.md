@@ -1,6 +1,7 @@
 # Graph input replay: the proof (design, 2026-11-08)
 
-Status: the one-game proof passed (2026-11-08, below). Next: the same over the network. This is step 0 of a possible
+Status: the one-game proof passed; over the network, 4 of 5 runs passed (2026-11-08, below). Open: one divergence
+in a humanoid's turn speed. This is step 0 of a possible
 new pattern for animation sync, decided with the user.
 
 ## Why
@@ -199,3 +200,29 @@ design's.
 - **What it replaces:** refused-action writes, action spacing, snapshot variables for graphs, graph points and recovery
   loads (the PR #38 fixes become unnecessary for copies on the stream).
 - **Players' copies:** a player's graph is driven by its owner's input the same way; to be checked separately.
+
+## Network result (duo, Riverwood, 2026-11-08; verb `graph_replay_net`)
+
+The host recorded a synced NPC; the harness carried its ops to the NPC's copy on the guest every 100 ms; the copy
+replayed them from its owner's sync point while our production code and its engine ran on.
+
+| run | NPC | updates equal | over | waits for clip files |
+|---|---|---|---|---|
+| 1 | wolf 9B0DD | 3428 / 3428 | 60 s | (not yet waited) |
+| 1 | Faendal | 590, then apart | | (not yet waited) |
+| 2 | Faendal | 3517 / 3517 | 60 s | 7 |
+| 3 | wolf 9B0DD | 3528 / 3528 | 60 s | 20 (bounded at 120 updates) |
+| 3 | Faendal | 607, then apart | | |
+| 4 | Faendal | 6922 / 6922 | 120 s | 20 |
+
+- **Clip files, the one input the first design missed.** Run 1's Faendal entered `FurnitureState` on
+  `IdleWoodPutDownEnter` and left it in the same update on the copy: its clip file was not loaded, and a clip without
+  its file lasts 0.0133 s (59263). The owner's game loads an action's files before sending its event (39625). The copy
+  now requests them (`ActionClips::Request`) and holds the stream until they are in, at most 120 updates as
+  `ClipWaitOver` (a load the process cancels never reports in: the wolf's waited 6662 frames without the bound).
+- **Open:** run 3's Faendal went `MT_TurnRightFast` on the owner and `MT_TurnRightSlow` on the copy at update 608.
+  Neither game sent `turnRightFast`: the graph raises it, from `TurnRight_EventsFromRangeModifier`'s range of
+  `TurnDelta`, which the ops carry. Not reproduced in run 4; a mismatch now reports both games' variables after it.
+- **Weight:** an idle wolf's ops 206-303 B/s; Faendal doing chores, 1506-1515 B/s. Today's movement messages from the
+  host come to 924-2338 B/s per synced NPC (`perf`, `NotifyReferencesMove`, over 22-23 NPCs), and they carry each
+  NPC's whole set of graph variables, which the stream would replace.

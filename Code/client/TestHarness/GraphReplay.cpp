@@ -10,6 +10,7 @@
 #include <Hooks/Initializer.h>
 #include <Misc/BSFixedString.h>
 #include <Games/Animation/GraphRandom.h>
+#include <Games/Skyrim/ActionClips.h>
 #include <algorithm>
 #include <atomic>
 #include <deque>
@@ -31,7 +32,15 @@ struct Op
 };
 
 std::mutex s_lock;
+std::atomic<bool> s_armed{false};
 std::atomic<uint32_t> s_base{0};
+// Over the network: the host records this actor's graph, the guest replays into this copy (the harness carries the ops).
+uint32_t s_recordId = 0, s_replayId = 0;
+size_t s_taken = 0;                       // host: the ops handed out
+uint32_t s_hashesTaken = 0;               // host: the updates whose states were handed out
+std::vector<uint32_t> s_takeWords;        // host: the variables of the last op handed out
+std::vector<uint32_t> s_feedWords;        // guest: the same, rebuilt
+std::map<uint32_t, uint64_t> s_ownerHashes; // guest: the owner's states after each update, hashed
 BShkbAnimationGraph* s_owner = nullptr;
 BShkbAnimationGraph* s_shadow = nullptr;
 uint32_t s_ownerId = 0, s_shadowId = 0;
@@ -84,6 +93,12 @@ struct StartPoint
 bool s_wantPoint = false;
 std::optional<StartPoint> s_point;
 bool s_shadowStarted = false;
+// The shadow's clip files for an event, as its owner's game loads them before the action (39625, ActionClips): a clip
+// started without its file lasts 0.0133 s (59263), and its state is left in the same update.
+std::shared_ptr<std::atomic<bool>> s_clipsLoading;
+size_t s_clipsFor = SIZE_MAX;
+uint32_t s_clipWaits = 0, s_clipWaitedFor = 0, s_clipGiveUps = 0;
+std::string s_clipGaveUpOn;
 
 enum class Role { kNone, kOwner, kShadow };
 
@@ -131,6 +146,16 @@ void Compare(uint32_t aUpdate, const Snapshot& acShadow)
 {
     std::scoped_lock _{s_lock};
     ++s_replayed;
+    if (s_replayId)
+    {
+        const auto it = s_ownerHashes.find(aUpdate);
+        if (it != s_ownerHashes.end() && it->second == std::hash<std::string>{}(acShadow.States))
+            ++s_equal;
+        else if (!s_firstMismatch)
+            s_firstMismatch = nlohmann::json{{"update", aUpdate}, {"shadow", Lines(acShadow.States)}, {"shadow_words", acShadow.Words},
+                                             {"last_ops", s_lastOps}};
+        return;
+    }
     const Snapshot& cOwner = s_ownerDigests[aUpdate];
     for (size_t i = 0; i < std::min(cOwner.Words.size(), acShadow.Words.size()); ++i)
         if (cOwner.Words[i] != acShadow.Words[i])
@@ -164,6 +189,19 @@ Role RoleOf(BShkbAnimationGraph* apGraph, const TESObjectREFR* apRefr)
         return Role::kOwner;
     if (apGraph == s_shadow)
         return Role::kShadow;
+    if (apRefr && s_recordId && apRefr->formID == s_recordId && !s_owner)
+    {
+        s_owner = apGraph;
+        s_ownerId = s_recordId;
+        s_wantPoint = true;
+        return Role::kOwner;
+    }
+    if (apRefr && s_replayId && apRefr->formID == s_replayId && !s_shadow)
+    {
+        s_shadow = apGraph;
+        s_shadowId = s_replayId;
+        return Role::kShadow;
+    }
     const uint32_t cBase = s_base.load(std::memory_order_relaxed);
     // Only temporary references (placeatme's): the cell's own actors of that base never take a part.
     if (!cBase || !apRefr || apRefr->formType != Actor::Type || (apRefr->formID >> 24) != 0xFF || !apRefr->baseForm ||
@@ -229,7 +267,7 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
 char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, void* apScratch)
 {
     std::optional<StartPoint> start;
-    std::vector<Op> due;
+    std::vector<std::pair<size_t, Op>> due;
     {
         std::scoped_lock _{s_lock};
         if (!s_point)
@@ -245,7 +283,7 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
             const Op& cOp = s_ops[s_cursor];
             if (!cOp.Event && cOp.Update >= s_ownerUpdates)
                 break;
-            due.push_back(cOp);
+            due.emplace_back(s_cursor, cOp);
         }
     }
     if (start && apGraph->holder)
@@ -256,8 +294,35 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
         s_loading = false;
     }
     char result = 0;
-    for (const Op& cOp : due)
+    for (const auto& [cIndex, cOp] : due)
     {
+        if (cOp.Event && apGraph->holder)
+        {
+            if (s_clipsFor != cIndex)
+            {
+                s_clipsFor = cIndex;
+                s_clipWaitedFor = 0;
+                s_clipsLoading = ActionClips::Request(*apGraph->holder, cOp.Name.c_str());
+            }
+            // Not for ever, as ClipWaitOver: a load the process cancels (39258) never says it is in.
+            constexpr uint32_t cMaxClipWaits = 120;
+            if (s_clipsLoading && !s_clipsLoading->load(std::memory_order_acquire) && ++s_clipWaitedFor > cMaxClipWaits)
+            {
+                ++s_clipGiveUps;
+                s_clipGaveUpOn = cOp.Name;
+                s_clipsLoading.reset();
+            }
+            if (s_clipsLoading && !s_clipsLoading->load(std::memory_order_acquire))
+            {
+                std::scoped_lock _{s_lock};
+                s_cursor = cIndex; // this event and what follows wait for its files
+                ++s_clipWaits;
+                break;
+            }
+        }
+        // Its seed too: whatever set it since (a replayed action's GraphRandom) is not its owner's input.
+        if (apGraph->behaviorGraph && apGraph->behaviorGraph->random)
+            *apGraph->behaviorGraph->random = cOp.Random;
         WriteWords(*apGraph, cOp.Words);
         if (cOp.Event)
         {
@@ -284,7 +349,7 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
 
 char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, void* apScratch)
 {
-    if (!s_base.load(std::memory_order_relaxed) || !apData || s_loading)
+    if (!s_armed.load(std::memory_order_relaxed) || !apData || s_loading)
         return RealUpdate(apGraph, apData, apScratch);
     switch (RoleOf(apGraph, apData->refr))
     {
@@ -295,11 +360,114 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
 }
 
 Hooks::Initializer s_updateHook([]() { HOOK_ID(63587, &RealUpdate, HookUpdate); });
+
+// BShkbAnimationGraph::LoadState (63602): a copy's recovery and sync point loads are not its owner's inputs.
+using TLoadState = char(BShkbAnimationGraph*, void*);
+TLoadState* RealLoadState = nullptr;
+
+char HookLoadState(BShkbAnimationGraph* apGraph, void* apStream)
+{
+    if (s_armed.load(std::memory_order_relaxed) && !s_loading)
+    {
+        std::scoped_lock _{s_lock};
+        if (apGraph == s_shadow)
+            return 0;
+    }
+    return RealLoadState(apGraph, apStream);
+}
+
+Hooks::Initializer s_loadStateHook([]() { HOOK_ID(63602, &RealLoadState, HookLoadState); });
+
+std::string ToHex(const std::string& acBytes)
+{
+    std::string hex;
+    for (const unsigned char cByte : acBytes)
+        hex += std::format("{:02X}", cByte);
+    return hex;
+}
+
+std::string FromHex(const std::string& acHex)
+{
+    std::string bytes;
+    for (size_t i = 0; i + 1 < acHex.size(); i += 2)
+        bytes.push_back(static_cast<char>(std::stoi(acHex.substr(i, 2), nullptr, 16)));
+    return bytes;
+}
+
+// Host: the ops, states and sync point not handed out yet; variables against the last op handed out.
+nlohmann::json Take()
+{
+    nlohmann::json reply = {{"ok", true}, {"owner_updates", s_ownerUpdates}, {"owner_seconds", s_ownerSeconds}, {"wire_bytes", s_wireBytes}};
+    if (!s_point)
+        return reply;
+    if (s_taken < s_point->FirstOp)
+    {
+        s_taken = s_point->FirstOp;
+        s_hashesTaken = s_point->FirstOp ? s_ops[s_point->FirstOp - 1].Update + 1 : 0;
+        nlohmann::json counters = nlohmann::json::array();
+        for (const auto& cCounter : s_point->Counters)
+            counters.push_back({cCounter.Name, cCounter.Seen, cCounter.Needed});
+        reply["point"] = {{"seed", s_point->Seed}, {"state", ToHex(s_point->State)}, {"counters", counters}};
+    }
+    nlohmann::json ops = nlohmann::json::array();
+    for (; s_taken < s_ops.size(); ++s_taken)
+    {
+        const Op& cOp = s_ops[s_taken];
+        nlohmann::json words = nlohmann::json::array();
+        for (size_t i = 0; i < cOp.Words.size(); ++i)
+            if (i >= s_takeWords.size() || s_takeWords[i] != cOp.Words[i])
+                words.push_back({i, cOp.Words[i]});
+        s_takeWords = cOp.Words;
+        nlohmann::json op = {{"u", cOp.Update}, {"r", {cOp.Random.seed, cOp.Random.current}}, {"w", words}, {"n", cOp.Words.size()}};
+        if (cOp.Event)
+            op["e"] = cOp.Name;
+        else
+            op["s"] = cOp.Step;
+        ops.push_back(std::move(op));
+    }
+    reply["ops"] = std::move(ops);
+    nlohmann::json hashes = nlohmann::json::array();
+    for (; s_hashesTaken < s_ownerUpdates && s_hashesTaken < s_ownerDigests.size(); ++s_hashesTaken)
+        hashes.push_back({s_hashesTaken, std::format("{:016X}", std::hash<std::string>{}(s_ownerDigests[s_hashesTaken].States))});
+    reply["hashes"] = std::move(hashes);
+    return reply;
+}
+
+// Guest: what the host handed out, in order.
+void Feed(const nlohmann::json& acTaken)
+{
+    if (acTaken.contains("point") && !s_point)
+    {
+        StartPoint point;
+        point.Seed = acTaken["point"].value("seed", 0u);
+        point.State = FromHex(acTaken["point"].value("state", std::string{}));
+        for (const auto& cCounter : acTaken["point"].value("counters", nlohmann::json::array()))
+            point.Counters.push_back({cCounter[0].get<std::string>(), cCounter[1].get<int32_t>(), cCounter[2].get<int32_t>()});
+        point.FirstOp = s_ops.size();
+        s_point = std::move(point);
+    }
+    for (const auto& cOp : acTaken.value("ops", nlohmann::json::array()))
+    {
+        s_feedWords.resize(cOp.value("n", size_t{0}));
+        for (const auto& cWord : cOp["w"])
+            if (cWord[0].get<size_t>() < s_feedWords.size())
+                s_feedWords[cWord[0].get<size_t>()] = cWord[1].get<uint32_t>();
+        Op op{cOp.contains("e"), cOp.value("e", std::string{}), cOp.value("s", 0.f), cOp.value("u", 0u),
+              {cOp["r"][0].get<uint32_t>(), cOp["r"][1].get<uint32_t>()}, s_feedWords};
+        s_ops.push_back(std::move(op));
+    }
+    for (const auto& cHash : acTaken.value("hashes", nlohmann::json::array()))
+    {
+        const uint32_t cUpdate = cHash[0].get<uint32_t>();
+        s_ownerHashes[cUpdate] = std::stoull(cHash[1].get<std::string>(), nullptr, 16);
+        s_ownerUpdates = std::max(s_ownerUpdates, cUpdate + 1);
+    }
+}
 } // namespace
 
 bool GraphReplay::DropEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent) noexcept
 {
-    if (!s_base.load(std::memory_order_relaxed) || s_replaying)
+    if (!s_armed.load(std::memory_order_relaxed) || s_replaying)
         return false;
     std::scoped_lock _{s_lock};
     if (apGraph == s_shadow)
@@ -309,8 +477,11 @@ bool GraphReplay::DropEvent(BShkbAnimationGraph* apGraph, const BSFixedString* a
     }
     if (apGraph == s_owner)
     {
-        s_ops.push_back({true, apEvent && apEvent->data ? apEvent->data : "", 0.f, s_ownerUpdates, {}, ReadWords(*apGraph)});
-        CountWire(s_ops.back());
+        Op op{true, apEvent && apEvent->data ? apEvent->data : "", 0.f, s_ownerUpdates, {}, ReadWords(*apGraph)};
+        if (apGraph->behaviorGraph && apGraph->behaviorGraph->random)
+            op.Random = *apGraph->behaviorGraph->random;
+        CountWire(op);
+        s_ops.push_back(std::move(op));
     }
     return false;
 }
@@ -318,9 +489,31 @@ bool GraphReplay::DropEvent(BShkbAnimationGraph* apGraph, const BSFixedString* a
 nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
 {
     std::scoped_lock _{s_lock};
-    if (acRequest.value("stop", false) || acRequest.contains("arm_like"))
+    if (acRequest.value("take", false))
+        return Take();
+    if (acRequest.contains("feed"))
     {
+        Feed(acRequest["feed"]);
+        return {{"ok", true}, {"replayed", s_replayed}, {"equal", s_equal}, {"known_updates", s_ownerUpdates}};
+    }
+    if (acRequest.contains("states_at"))
+    {
+        const uint32_t cUpdate = acRequest.value("states_at", 0u);
+        const bool cKnown = cUpdate < s_ownerDigests.size();
+        return {{"ok", cKnown}, {"states", cKnown ? Lines(s_ownerDigests[cUpdate].States) : std::vector<std::string>{}},
+                {"words", cKnown ? s_ownerDigests[cUpdate].Words : std::vector<uint32_t>{}}};
+    }
+    const bool cArm = acRequest.contains("arm_like") || acRequest.contains("record") || acRequest.contains("replay");
+    if (acRequest.value("stop", false) || cArm)
+    {
+        s_armed = false;
         s_base = 0;
+        s_recordId = s_replayId = 0;
+        s_taken = 0;
+        s_hashesTaken = 0;
+        s_takeWords.clear();
+        s_feedWords.clear();
+        s_ownerHashes.clear();
         s_owner = s_shadow = nullptr;
         s_ownerId = s_shadowId = 0;
         s_ops.clear();
@@ -329,6 +522,10 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         s_wireBytes = s_changedWords = s_events = 0;
         s_lastWords.clear();
         s_wantPoint = s_shadowStarted = false;
+        s_clipsLoading.reset();
+        s_clipsFor = SIZE_MAX;
+        s_clipWaits = s_clipWaitedFor = s_clipGiveUps = 0;
+        s_clipGaveUpOn.clear();
         s_point.reset();
         s_ownerDigests.clear();
         s_variableDiffs.clear();
@@ -341,7 +538,15 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         if (!pRef || !pRef->baseForm)
             return {{"ok", false}, {"error", "no such reference"}};
         s_base = pRef->baseForm->formID;
+        s_armed = true;
         return {{"ok", true}, {"base", s_base.load()}};
+    }
+    if (acRequest.contains("record") || acRequest.contains("replay"))
+    {
+        s_recordId = acRequest.value("record", 0u);
+        s_replayId = acRequest.value("replay", 0u);
+        s_armed = true;
+        return {{"ok", true}};
     }
     return {{"ok", true},
             {"base", s_base.load()},
@@ -365,5 +570,10 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
              }()},
             {"dropped_events", s_dropped},
             {"unforced_updates", s_unforced},
+            {"started", s_shadowStarted},
+            {"clip_waits", s_clipWaits},
+            {"clip_give_ups", s_clipGiveUps},
+            {"clip_gave_up_on", s_clipGaveUpOn},
+            {"known_updates", s_ownerHashes.size()},
             {"first_mismatch", s_firstMismatch ? *s_firstMismatch : nlohmann::json{}}};
 }
