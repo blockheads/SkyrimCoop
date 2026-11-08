@@ -251,7 +251,9 @@ with no action: a machine's bound start (59467 → 59405), and a transition's co
   A future integer can meet an older float or boolean, a combination its owner never had. No duo run showed one.
 - **Measured (duo, Riverwood, scenario `wolf_copy_turns_with_owner`):**
   - first version: never apart 3 s over 180 s, with the owner's graph changing at least 48 times;
-  - this version: see the PR.
+  - this version (2026-11-08): never apart 3 s over 180 s, through at least two of the owner's `CannedTurnState` entries,
+    every reading from both games. The runner's end comparison then failed on the fish (`docs/bugs.md`). Another wolf,
+    `9B0DB`, kept turning after a refused turn's recovery (`docs/bugs.md`, "A copy's graph after a turn or a pick").
   - The scenario now needs the owner to enter `CannedTurnState` at least twice, and both games read each time. A
     missing reply is not counted as an owner change, and a gap without readings as long as `within` fails.
 - **GameTests `[replay-start]`:** the fake's canned turn ends after its animation time (the frames while its graph

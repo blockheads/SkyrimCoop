@@ -10,7 +10,6 @@ DOC = 'The wolf near Riverwood turns and idles; its copy\'s state machines follo
 def run(ctx):
     try:
         ctx.scene(save=None, at='coc Riverwood', pin=True)
-        ctx.scene(save=None, at='coc Riverwood', pin=True)
         ctx.name_owner(name='wolf', owner='9B0DD')
         ctx.expect('wolf', 'graph', within=3.0, value=2, field='CannedTurnState', seconds=180.0)
     finally:

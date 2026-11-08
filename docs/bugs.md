@@ -191,6 +191,11 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
   `BHR_Idle_TailWag` 2.2 s and 4.2 s, a mudcrab's `idle_MandibleBehavior` 2.2-3.2 s, a dog's standing idle 4.2 s (Riverwood
   `graph_watch`, 150 s, 14 actors, 4018 samples: six runs; rerun on the corrected verb, 15 actors, 3710 samples: five runs, none
   cut short: a hare's idle 3.3 s, chickens 2.2 s, a chair's exit against eating 2.3 s, a dog's locomotion against standing 4.4 s).
+- **A wolf's copy kept turning after a refused turn's recovery** (`9B0DB`, 4.7 s and 4.5 s, `wolf_copy_turns_with_owner`,
+  2026-11-08): its copy refused the owner's `TurnRight` 15 s after it spawned (`Copy 9B0DB recovered refused action 959FC
+  'TurnRight' from its owner's graph`). It loaded the owner's graph state, in `StandingBehavior=LoopingTurnRight`, while
+  its owner went on to `StandingIdleState`. The owner's `turnStop` was `refused by the engine, not sent`. So the recovery
+  loads a state the owner leaves with no action. Not the integers' race: wolf `9B0DD` was never apart in the same run.
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
   on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 
