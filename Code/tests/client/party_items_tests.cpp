@@ -4,6 +4,7 @@
 #include <Games/PartyItems.h>
 #include <Services/DeathDrops.h>
 #include <Services/SpeakerUpdate.h>
+#include <Games/HiddenCopies.h>
 
 TEST_CASE("Keys, quest items and the story's items arrive as the party's; loot and gold do not", "[PartyItems]")
 {
@@ -81,6 +82,21 @@ TEST_CASE("A player's death drop is kept in a session; an NPC's, or one outside 
     CHECK(DeathDrops::Kept(true, true));
     CHECK_FALSE(DeathDrops::Kept(false, true));
     CHECK_FALSE(DeathDrops::Kept(true, false));
+}
+
+TEST_CASE("A hidden copy's id is refused enables until it is shown; nothing else is", "[copies]")
+{
+    CHECK_FALSE(HiddenCopies::Contains(0x1A699));
+    HiddenCopies::Set(0x1A699, true);
+    HiddenCopies::Set(0x1A699, true);
+    HiddenCopies::Set(0xD8C56, true);
+    CHECK(HiddenCopies::Contains(0x1A699));
+    CHECK_FALSE(HiddenCopies::Contains(0x1A69C));
+    HiddenCopies::Set(0x1A699, false);
+    CHECK_FALSE(HiddenCopies::Contains(0x1A699));
+    CHECK(HiddenCopies::Contains(0xD8C56));
+    HiddenCopies::Set(0xD8C56, false);
+    CHECK_FALSE(HiddenCopies::Contains(0xD8C56));
 }
 
 TEST_CASE("A speaker with no process skips its update in a session; one with a process, or solo play, runs it", "[dialogue]")
