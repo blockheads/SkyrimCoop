@@ -1,7 +1,8 @@
 # Graph input replay: the proof (design, 2026-11-08)
 
-Status: the one-game proof passed; over the network, most runs pass (2026-11-08, below). The one divergence found is
-an engine bug: a range modifier's clone never copies its lowerBound (59723), so each game's holds heap garbage. This is step 0 of a possible
+Status: both proofs pass (2026-11-08, below): a graph fed its owner's inputs matches it on every update, one game or
+over the network. The one divergence found was an engine bug (a range modifier's clone never copied its lowerBound,
+59723), fixed on every game. Next: the production design. This is step 0 of a possible
 new pattern for animation sync, decided with the user.
 
 ## Why
@@ -324,3 +325,8 @@ checked against the bytes `cloneNode`'s copy constructor (vtable slot 12) writes
 
 So the fix is one patch: each new range modifier clone takes its template's `lowerBound` and `inputValue` (59723), on
 every game.
+
+**Built** (`Games/Skyrim/Havok/GraphCloneFixes.cpp`, every game): each new range modifier clone takes its template's
+`lowerBound` and `inputValue`. Duo, Faendal over the network, 300 s: 17009 of 17009 updates equal, with every range
+modifier's run (input, `lowerBound`, ranges, marked ranges) in each update's digest. The same 300 s runs diverged
+after 1772, 3603, 8567 and 8617 updates before it.
