@@ -2040,7 +2040,9 @@ What the first playtest build has besides what works today (the table above):
    from late saves: [cutscenes.md](design/cutscenes.md), "Step 2". `Debug.SendAnimationEvent` read 2026-11-07: the
    code reader follows a native's first argument (r9) and resolves its graph holder's slot 1 (38048), so a story's
    event on a player plays on each game's own player, on any other reference on the host only (ClientTests
-   `code_reach_tests.cpp`, GameTests `cutscene_flows.cpp`; [party-calls.md](design/party-calls.md)).
+   `code_reach_tests.cpp`, GameTests `cutscene_flows.cpp`; [party-calls.md](design/party-calls.md)). Checked in Skyrim:
+   spec `story-animation-event-reaches-guest` (recorded through the MCP; a host script's event on the guest's
+   character bleeds out the guest's own player).
 10. **Mounts:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: host/guest riding, exterior border crossing, dismount and disconnect; a following rider's horse accompanies it and native travel's implicit dismount returns ownership at the horse's latest position. [Party travel](design/party-travel.md).
 11. **The party is the Dragonborn** ([dragonborn.md](design/dragonborn.md); built 2026-10-27 with feature 3,
     merged into dev): a word of power a script teaches or unlocks every player has; every soul

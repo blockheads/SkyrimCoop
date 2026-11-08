@@ -138,7 +138,7 @@ Read from the code like the rest: `MoveTo` calls no move, it takes the address o
 one, so the reader records the objects a native takes the address of (`lea`) beside the functions it calls
 (`CodeReach`, `Facts::Addressed`, `Sinks::Objects`). `Debug.SendAnimationEvent` is a virtual call on its argument's
 graph holder: a story's event on a player plays on each game's own player, on an NPC or object the host's only
-(2026-11-07; GameTests `cutscene_flows.cpp`).
+(2026-11-07; GameTests `cutscene_flows.cpp`, spec `story-animation-event-reaches-guest` in Skyrim).
 
 A body's call ends where it runs: another game's `MoveTo` copy waits for its own move, never its original's result
 (`Scope::Ran`).

@@ -324,7 +324,12 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
         else if (acCall.Function == "PlayIdle" && cpForm)
             Idles[aSelf].push_back(cpForm->FormId);
         else if (acCall.Function == "SendAnimationEvent" && acCall.Arguments.size() > 1 && aSelf)
-            GraphEvents[aSelf].push_back(std::get<std::string>(acCall.Arguments[1]));
+        {
+            const std::string& cEvent = std::get<std::string>(acCall.Arguments[1]);
+            GraphEvents[aSelf].push_back(cEvent);
+            if (cEvent == "BleedOutStart" || cEvent == "BleedOutStop") // the bleedout state's variable (measured 2026-11-07)
+                GraphBools[aSelf]["IsBleedingOut"] = cEvent == "BleedOutStart";
+        }
         else if (acCall.Function == "SetPlayerAIDriven" && !acCall.Arguments.empty())
             AiDriven = std::get<bool>(acCall.Arguments[0]);
         return 0;

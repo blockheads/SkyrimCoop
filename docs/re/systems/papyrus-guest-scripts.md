@@ -173,6 +173,11 @@ target (`PartyRules::SubjectOf`): the story's event on a player plays on each ga
 on the host only. `ObjectReference.PlayAnimation` (56205) makes the same call on its self, but on an actor it only logs
 "is an Actor, and PlayAnimation should not be used." and returns, so the reach it now reads (body) changes nothing in
 play. Only r9 is followed; later arguments come on the stack.
+Checked in Skyrim 2026-11-07 (spec `story-animation-event-reaches-guest`): the plugin logs the native as a body call;
+`BleedOutStart` sent by the host to the guest's character goes to the guest's game, its own player's bleedout state sets
+the graph's `IsBleedingOut` (measured; the host's copy follows), and `BleedOutStop` clears it. No vanilla script sends
+one to the player (none of the 14,026 in `Skyrim - Misc.bsa` names `IdleForceDefaultState`; the four that call
+`Debug.SendAnimationEvent` are DLC2's moving hall pieces): the story's case is mods'.
 
 ## Calls into a quest (system quests, 2026-10-28)
 

@@ -1,0 +1,58 @@
+{
+  "name": "story-animation-event-reaches-guest",
+  "doc": "A script on the host sends an animation event to the guest's character (Debug.SendAnimationEvent, a graph event on its argument, 55380): the guest's own player takes it (IsBleedingOut), not the host's, and the stop comes back the same way (docs/design/party-calls.md).",
+  "tags": [
+    "cutscenes",
+    "scripts"
+  ],
+  "steps": [
+    {
+      "expect": "graph bool",
+      "game": "guest",
+      "name": "IsBleedingOut",
+      "value": false,
+      "now": true
+    },
+    {
+      "do": "script",
+      "game": "host",
+      "call": "Debug.SendAnimationEvent",
+      "args": [
+        {
+          "form": "guest-character"
+        },
+        "BleedOutStart"
+      ]
+    },
+    {
+      "expect": "graph bool",
+      "game": "guest",
+      "name": "IsBleedingOut",
+      "value": true
+    },
+    {
+      "expect": "graph bool",
+      "game": "host",
+      "name": "IsBleedingOut",
+      "value": false,
+      "now": true
+    },
+    {
+      "do": "script",
+      "game": "host",
+      "call": "Debug.SendAnimationEvent",
+      "args": [
+        {
+          "form": "guest-character"
+        },
+        "BleedOutStop"
+      ]
+    },
+    {
+      "expect": "graph bool",
+      "game": "guest",
+      "name": "IsBleedingOut",
+      "value": false
+    }
+  ]
+}

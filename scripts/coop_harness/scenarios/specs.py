@@ -27,6 +27,12 @@ def ref(ctx, value):
     """A reference: a hex id, or a role this runner finds in the cell ("inner-door": coop_test.inner_door())."""
     return ctx.inner_door() if value == "inner-door" else int(value, 16)
 
+def argument(ctx, value):
+    """A script call's argument; {"form": "guest-character"} is the host's copy of the guest's player."""
+    if isinstance(value, dict) and value.get("form") == "guest-character":
+        return {"form": ctx.player_copy("")}
+    return value
+
 def actor_state(ctx, value, game, actors):
     _game = ctx.game()
     actor = actors[value] if value in actors else {"host": ref(ctx, value)}
@@ -79,7 +85,7 @@ def run_step(ctx, spec, index, step, cleanup=False, actors=None):
         if kind == "script":
             klass, function = step["call"].split(".", 1)
             call = ctx.player_script_call if step.get("by") == "player" else ctx.script_call
-            call(instance(ctx, step), klass, function, step.get("args", []))
+            call(instance(ctx, step), klass, function, [argument(ctx, a) for a in step.get("args", [])])
         elif kind == "leave":
             if instance(ctx, step) != "client":
                 raise ctx.failure(f"{what}: only the guest leaves")
@@ -151,6 +157,8 @@ def run_step(ctx, spec, index, step, cleanup=False, actors=None):
         holds = lambda: ctx.player_cell("") == ctx.player_cell("client") and bool(ctx.both_see_each_other())
     elif expect == "down":
         holds = lambda: ctx.player_snapshot(game).get("state", {}).get("dead") == step["down"]
+    elif expect == "graph bool":
+        holds = lambda: ctx.graph_bools(game, step["name"])[step["name"]] == step["value"]
     else:
         raise ctx.failure(f"{what}: no such expectation")
     if step.get("now"):
@@ -219,6 +227,7 @@ def dry(ctx, names):
                     call = "player_script_call" if step.get("by") == "player" else calls[step["do"]]
                     print(f"  {label:7s} {index + 1:2d}  {call} {json.dumps({k: v for k, v in step.items() if k != 'do'})}")
                 else:
-                    if step.get("expect") not in ("controls", "shake", "lock", "items", "actors agree", "actor", "together", "down"):
+                    if step.get("expect") not in ("controls", "shake", "lock", "items", "actors agree", "actor", "together", "down",
+                                                 "graph bool"):
                         raise SystemExit(f"{describe(ctx, spec, index, step, part == 'cleanup')}: no such expectation")
                     print(f"  {label:7s} {index + 1:2d}  {'check' if step.get('now') else 'wait_for'} {json.dumps(step)}")

@@ -75,6 +75,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // player AI-driven; its moves are travels (ObjectReference.MoveTo, MoveActorTo).
     std::map<uint32_t, std::vector<uint32_t>> Idles;
     std::map<uint32_t, std::vector<std::string>> GraphEvents;
+    std::map<uint32_t, std::map<std::string, bool>> GraphBools; // what a graph event sets (Skyrim: BleedOutStart's IsBleedingOut)
+    [[nodiscard]] bool GraphBool(uint32_t aActor, const std::string& acName) const
+    {
+        const auto it = GraphBools.find(aActor);
+        return it != GraphBools.end() && it->second.contains(acName) && it->second.at(acName);
+    }
     bool AiDriven = false;
     uint32_t ScenePackage{};
     PartyRules::ControlHolds Holds;   // PartyNatives' holds on this game
