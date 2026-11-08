@@ -309,6 +309,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         Inventory::Entry Item;
         // A quest's alias holds it (a quest object, the host's game's alone): picked up, the engine's quest item.
         bool QuestObject = false;
+        // Its owner form (ExtraOwnership, an NPC base): a guest's player picking it up steals it (CrimeBridge).
+        uint32_t Owner = 0;
     };
     std::map<uint32_t, LooseItem> Loose;
     // A guest's loose items the host decides (twins, its own drops not answered yet), as GuestEngine's pickup gate

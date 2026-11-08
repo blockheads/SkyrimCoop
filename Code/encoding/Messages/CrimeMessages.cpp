@@ -65,6 +65,7 @@ void CrimeRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
     Target.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, TargetActor);
     Item.Serialize(aWriter);
+    Owner.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Count);
     Serialization::WriteBool(aWriter, GoToJail);
     Serialization::WriteBool(aWriter, RemoveStolenItems);
@@ -92,6 +93,7 @@ void CrimeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Target.Deserialize(aReader);
     TargetActor = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     Item.Deserialize(aReader);
+    Owner.Deserialize(aReader);
     Count = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     GoToJail = Serialization::ReadBool(aReader);
     RemoveStolenItems = Serialization::ReadBool(aReader);

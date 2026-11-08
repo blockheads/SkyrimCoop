@@ -35,7 +35,7 @@ How sure each link is:
 
  CREATED FORMS HAVE NO SESSION ID  (ToSession, FormIds.h)
  --------------------------------------------------------
-   guest theft of a created item -- crime request has no target
+   guest theft of a created item -- fixed 11-07: not this cause (owner actor)
    head_track on FF000820 --------- same call, AiStateService
    references a guest's script creates -- goes the way a drop does
    a guest's summon --------------------- same path (measured broken)
@@ -140,12 +140,14 @@ The rest of the town entry (fish `10C3BA`, player heights, the inn's containers)
 
 ### E. Created forms
 
-Entries: [A guest's theft of a created item](bugs.md#a-guests-theft-of-a-created-item), headtracking's cause 3,
+Entries: headtracking's cause 3,
 [References a guest's script creates](bugs.md#references-a-guests-script-creates).
 
-Read in code: `CrimeBridge::Target` and `AiStateService` (the head-track target) use `ToSession`, which has no id for a
-created form; `ToSessionOrCreated` (`FormIds.h`) already exists for this. The third entry is the same gap with a design
-question on top (whose is the reference).
+Read in code: `AiStateService` (the head-track target) uses `ToSession`, which has no id for a created form;
+`ToSessionOrCreated` (`FormIds.h`) already exists for this. The theft entry is gone (fixed 2026-11-07): read in IDA and
+measured, the guest's alarm for a created item names its owner actor, not the item, so it never needed the item's id;
+the host's permission recheck stopped it (crime.md, "A created item's theft names its owner"). Script-placed references
+are the same gap with a design question on top (whose is the reference).
 
 What a guest makes today (read in code and docs; none of it run for this map):
 

@@ -1,0 +1,22 @@
+time	op	id	rva	item
+2026-11-07T22:19:43Z	read	37422	0x681de0	{"name": "Actor::StealAlarm"}
+2026-11-07T22:23:19Z	read	19565	0x2e3de0	{"name": "TESObjectREFR::SetDelete"}
+2026-11-07T22:42:56Z	comment		0x68b355	{"addr": "0x14068b355", "comment": "Theft check: not an owner (IsAnOwner 20210) -> StealAlarm (37422) with the reference still in its cell; the reference is removed only after (below)"}
+2026-11-07T22:42:56Z	comment		0x68b5b7	{"addr": "0x14068b5b7", "comment": "A created, non-persistent reference picked up: out of its cell (19032) and freed (GarbageCollector::Add), after StealAlarm"}
+2026-11-07T22:42:56Z	comment		0x681f4e	{"addr": "0x140681f4e", "comment": "The stolen reference: owner when none passed; its handle is the Crime's victim (+0x08). Otherwise read only as an actor (pickpocket victim, type 62)"}
+2026-11-07T22:42:57Z	comment		0x2e3e46	{"addr": "0x1402e3e46", "comment": "A temporary (created) reference marked deleted: dropped from the save's tracking (BGSSaveLoadGame); the form itself is not freed here"}
+2026-11-07T22:43:04Z	read	37521	0x68b0e0	{"name": "Actor::PickUpObject"}
+2026-11-07T23:55:51Z	read	40533	0x74c560	{"name": "PlayerCharacter::PickUpObject"}
+2026-11-07T23:56:12Z	read	41382	0x7844b0	{"name": "sub_1407844B0"}
+2026-11-07T23:56:28Z	read	37382	0x67eba0	{"name": "Character::sub_37382"}
+2026-11-07T23:56:28Z	read	19682	0x2e7a20	{"name": "TESObjectREFR::sub_19682"}
+2026-11-07T23:56:29Z	read	14621	0x1e5ae0	{"name": "TESForm::sub_14621"}
+2026-11-07T23:59:51Z	name	41382	0x7844b0	{"addr": "0x1407844B0", "name": "ProcessLists__FindHighOwnerOf"}
+2026-11-07T23:59:51Z	data			{"old": "qword_143244C88", "new": "g_stolenItemOwnerActor"}
+2026-11-07T23:59:55Z	comment	41382	0x7844b0	{"addr": "0x1407844B0", "comment": "Our name. The handle of the first high-process actor (ProcessLists+0x30, count +0x40) that owns the item reference (IsAnOwner 20210) and passes Character 37382 (non-vendors: any non-key item; vendors: their buy list). Invalid handle if none. Used by PlayerCharacter::PickUpObject 40533 for a temporary item's theft"}
+2026-11-07T23:59:55Z	comment		0x74c7ce	{"addr": "0x14074c7ce", "comment": "Victim for StealAlarm: the item itself when it has a source file, form flag 0x1 or extra 2 (a plugin reference); a temporary (created) item names the owner actor found above, and with none there is no alarm, the item is only marked stolen (SetOwnerForm)"}
+2026-11-07T23:59:55Z	comment		0x74c803	{"addr": "0x14074c803", "comment": "StealAlarm(player, victim, base, count, 0, the item's owner form, allowWarning): owner passed explicitly, so a created item's crime keeps its real owner though the victim is an actor"}
+2026-11-07T23:59:55Z	comment	37382	0x67eba0	{"addr": "0x14067eba0", "comment": "Would this actor deal in the base: false for a key (type 45); with a vendor faction (+0x168, its +0xC8 buy list) its keyword match, inverted by +0xB1. True for any other non-vendor"}
+2026-11-08T00:00:05Z	read	20210	0x300cf0	{"name": "TESObjectREFR::IsAnOwner"}
+2026-11-08T00:00:10Z	comment		0x300ea3	{"addr": "0x140300ea3", "comment": "No owner found: true unless a4 (strict). An actor reference (type 62) reads only its own ExtraOwnership, no teleport/zone/cell fallback, so an NPC is 'owned by anyone': asking it of a theft's owner actor always says the player owns it"}
+2026-11-08T00:16:27Z	name	37382	0x67eba0	{"addr": "0x14067eba0", "name": "Character__DealsInItem"}

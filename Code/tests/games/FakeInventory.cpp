@@ -3,6 +3,9 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include "FakeDialogue.h"
+#include "FakeCrime.h"
+#include <FormIds.h>
+#include <SessionIds.h>
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
 
@@ -357,6 +360,22 @@ void FakeEngine::PicksUp(uint32_t aObject)
     }
     Inventory::Entry cItem = it->second.Item;
     cItem.IsQuestItem = it->second.QuestObject;
+    // PlayerCharacter::PickUpObject (40533), before the item goes: a created item's StealAlarm names a loaded actor
+    // owning it, none no alarm; a guest's CrimeBridge sends it to the host (HookSteal).
+    if (IsGuest && it->second.Owner)
+        for (const auto& [cId, cActor] : Actors)
+            if (cId != kPlayer && cActor.Base == it->second.Owner && Attached.contains(cActor.Cell))
+            {
+                CrimeRequest theft;
+                theft.Action = CrimeAction::Theft;
+                theft.TargetActor = Utils::GetSessionIdByFormId(cId).value_or(0);
+                theft.Item = cItem.BaseId;
+                theft.Owner = ToSession(it->second.Owner).value_or(GameId{});
+                theft.Count = static_cast<uint32_t>(cItem.Count);
+                theft.AllowWarning = true;
+                World::Get().ctx().at<FakeCrime&>().Actions.push_back(std::move(theft));
+                break;
+            }
     Loose.erase(it);
     HostDecides.erase(aObject);
     m_freedTemporary.insert(aObject);

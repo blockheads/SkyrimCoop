@@ -425,6 +425,9 @@ class ReproActions:
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             game = "client" if kind == "guest-object" else ""
+            # An item a player picked up is gone already.
+            if kind in ("object", "guest-object") and ref not in ctx.world_state(game, [ref]):
+                continue
             ctx.console_on(game, f"{ref:X}.disable")
             ctx.console_on(game, f"{ref:X}.markfordelete")
         ctx.staged().clear()

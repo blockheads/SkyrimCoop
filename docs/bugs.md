@@ -97,7 +97,6 @@ other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
-- [A guest's theft of a created item](#a-guests-theft-of-a-created-item): small
 
 **Combat**
 
@@ -826,20 +825,6 @@ Size: medium. Needs: duo.
     theft now judges 0.5 s later against the same 10 s wait.
   - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
     the code, not run.
-
-### A guest's theft of a created item
-
-A placed item has no session id for the request to carry.
-
-Agent task: Give a created reference a session mapping in the crime request.
-
-Size: small. Needs: GameTests, then duo.
-
-- **A guest's theft of a created item is never judged** (2026-11-04). `CrimeBridge::Target` puts the stolen reference on
-  the wire with `ToSession`, which has no id for a created form (`FF...`), so the host finds no target and `Judge`
-  returns before its log line. Seen with a placed dagger owned by Hulda: picked up by the guest, no `Party crime` line.
-  Plugin references are judged.
-  - Test: a `CrimeFlows` case with a created owned item; the fix needs the created reference's session mapping.
 
 ## Combat
 
