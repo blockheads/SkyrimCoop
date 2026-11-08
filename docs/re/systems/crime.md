@@ -152,8 +152,8 @@ an owner the player is not (`IsAnOwner` 20210), it picks the reference `StealAla
 
 ```
 item has a source file, form flag 0x1 or extra 2 (a plugin's) -> the item itself
-else (a created item)  -> ProcessLists__FindHighOwnerOf (0x1407844B0, our name): the first high-process actor
-                          owning the item and dealing in it (Character 37382: any non-key item for a non-vendor)
+else (a created item)  -> ProcessLists__FindHighOwnerOf (41382, our name): the first high-process actor, any cell,
+                          owning the item and dealing in it (Character__DealsInItem 37382: any non-key item for a non-vendor)
                           none -> no StealAlarm, the item is only marked stolen
 StealAlarm(player, that reference, base, count, 0, the item's owner form, true)
 ```
@@ -166,10 +166,10 @@ Measured on the duo (`guest-steals-created-item`, before the fix): the guest's a
 session id) and the host's `Judge` stopped at its permission recheck, `IsAnOwner(owner NPC, player)` true: "the party
 owns it", no log line before 2026-11-07. The item's session id never mattered: the item is not on the wire.
 
-The fix: a theft carries the owner form `StealAlarm` was given (`CrimeRequest::Owner`); `Judge` skips the recheck for a
-theft naming an actor (`CrimeRules::RechecksOwnership`) and passes that owner to `StealAlarm` (an actor's `GetOwner` is
-not the item's). The owner actor the guest found is the host's NPC, and `FindHighOwnerOf` already checked it owns
-the item.
+The fix: a theft carries the owner form `StealAlarm` was given (`CrimeRequest::Owner`). For a theft naming an actor,
+`Judge` skips the ownership recheck and the same-cell check (41382 reads every loaded cell; `CrimeRules::ChecksFor`),
+asks only that the actor is loaded (has a process), and passes the carried owner to `StealAlarm` (`AlarmOwner`: an
+actor's `GetOwner` is not the item's). `FindHighOwnerOf` already checked that the actor owns the item.
 
 ## What SkyrimCoop does about it
 
@@ -197,6 +197,8 @@ near it.
 | 40533 | PlayerCharacter::PickUpObject | the player's pickup: a created item's alarm names its owner actor |
 | 37521 | Actor::PickUpObject | an NPC's pickup: StealAlarm with the item, then a created one is freed |
 | 20210 | TESObjectREFR::IsAnOwner | an actor reference with no ownership reads as anyone's |
+| 41382 | ProcessLists__FindHighOwnerOf | a created item's owner among the high-process actors |
+| 37382 | Character__DealsInItem | false for a key; a vendor's buy list |
 | 41335 | ProcessLists__FindStolenOwnerActor | owner actor in high process |
 | 41349 | ProcessLists__AddPlayerCrime | keeps only the player's crimes |
 | 42502 | Crime__ctor | crime record, criminal +0x0C, faction +0x60, bounty +0x58 |

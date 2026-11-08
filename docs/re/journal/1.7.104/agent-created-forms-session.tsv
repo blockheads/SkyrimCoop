@@ -19,3 +19,4 @@ time	op	id	rva	item
 2026-11-07T23:59:55Z	comment	37382	0x67eba0	{"addr": "0x14067eba0", "comment": "Would this actor deal in the base: false for a key (type 45); with a vendor faction (+0x168, its +0xC8 buy list) its keyword match, inverted by +0xB1. True for any other non-vendor"}
 2026-11-08T00:00:05Z	read	20210	0x300cf0	{"name": "TESObjectREFR::IsAnOwner"}
 2026-11-08T00:00:10Z	comment		0x300ea3	{"addr": "0x140300ea3", "comment": "No owner found: true unless a4 (strict). An actor reference (type 62) reads only its own ExtraOwnership, no teleport/zone/cell fallback, so an NPC is 'owned by anyone': asking it of a theft's owner actor always says the player owns it"}
+2026-11-08T00:16:27Z	name	37382	0x67eba0	{"addr": "0x14067eba0", "name": "Character__DealsInItem"}

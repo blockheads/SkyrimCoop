@@ -52,8 +52,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-07: a guest's theft of an item the host's game made is judged ([crime.md](re/systems/crime.md), "A created
 item's theft names its owner"). Read in IDA: the player's pickup (40533) gives `StealAlarm` a created item's owner
 actor, not the item, and the host's permission recheck (`IsAnOwner` 20210, which reads any NPC as the player's) stopped
-it silently. A theft now carries the item's owner (`CrimeRequest::Owner`); `Judge` skips that recheck for an actor
-target (`CrimeRules`) and alarms with the owner. The bugs-map guess (created forms' session ids) was not the cause:
+it silently. A theft now carries the item's owner (`CrimeRequest::Owner`); `Judge` skips that recheck and its same-cell
+check for an actor target (`CrimeRules`) and alarms with the owner. The bugs-map guess (created forms' session ids) was not the cause:
 the item is not on the wire. Scenario `guest-steals-created-item`, flow "A guest steals an item the host's game made",
 ClientTests `[CrimeRules]`.
 

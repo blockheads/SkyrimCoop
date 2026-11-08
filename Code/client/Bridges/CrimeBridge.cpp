@@ -17,7 +17,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <PlayerCharacter.h>
 #include <RTTI.h>
-#include <Games/Skyrim/CrimeRules.h>
+#include <Services/Host/CrimeRules.h>
 #include <SessionIds.h>
 #include <VersionDb.h>
 #include <spdlog/spdlog.h>
@@ -643,16 +643,20 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
     auto* target = Cast<TESObjectREFR>(TESForm::GetById(
         aRequest.TargetActor ? Utils::GetFormIdBySessionId(aRequest.TargetActor) : ToGame(aRequest.Target)));
     auto* item = TESForm::GetById(ToGame(aRequest.Item));
-    if (!target || target->GetParentCellEx() != actor->GetParentCellEx())
+    auto* targetActor = Cast<Actor>(target);
+    const auto cChecks = CrimeRules::ChecksFor(aRequest.Action, targetActor != nullptr);
+    // An owner actor named from the high-process list (41382): still loaded here.
+    if (!target || (cChecks.SameCell && target->GetParentCellEx() != actor->GetParentCellEx()) ||
+        (!cChecks.SameCell && !targetActor->currentProcess))
     {
         spdlog::info("Party crime: actor {:X}, action {}: its target is {} here", aActorFormId,
-                     static_cast<uint32_t>(aRequest.Action), target ? "in another cell" : "not");
+                     static_cast<uint32_t>(aRequest.Action), target ? "elsewhere" : "not");
         return false;
     }
-    // Recheck permission in the host's world; the guest's ownership information can be stale (CrimeRules).
+    // Recheck permission in the host's world; the guest's ownership information can be stale.
     using TOwns = bool(TESObjectREFR*, Actor*, bool, bool);
     static VersionDbPtr<TOwns> owns(20210);
-    if (CrimeRules::RechecksOwnership(aRequest.Action, Cast<Actor>(target) != nullptr) && owns(target, player, true, false))
+    if (cChecks.Ownership && owns(target, player, true, false))
     {
         spdlog::info("Party crime: actor {:X}, action {}, target {:X}: the party owns it", aActorFormId,
                      static_cast<uint32_t>(aRequest.Action), target->formID);
@@ -719,10 +723,10 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
         return false;
     spdlog::info("Party crime: actor {:X}, action {}, target {:X}, count {}", aActorFormId,
                  static_cast<uint32_t>(aRequest.Action), target->formID, aRequest.Count);
-    // The owner StealAlarm was given on the guest: a created item's target is its owner actor (40533).
-    auto* owner = aRequest.Owner ? TESForm::GetById(ToGame(aRequest.Owner)) : nullptr;
+    // A created item's target is its owner actor (40533), whose own owner is not the item's.
+    auto* given = aRequest.Owner ? TESForm::GetById(ToGame(aRequest.Owner)) : nullptr;
     if (aRequest.Action == CrimeAction::Theft)
-        RealSteal(player, target, item, aRequest.Count, 0, owner ? owner : target->GetOwner(), aRequest.AllowWarning);
+        RealSteal(player, target, item, aRequest.Count, 0, CrimeRules::AlarmOwner(given, target->GetOwner()), aRequest.AllowWarning);
     else if (aRequest.Action == CrimeAction::Pickpocket && Cast<Actor>(target))
         RealPickpocket(player, target, item, aRequest.Count);
     return false;

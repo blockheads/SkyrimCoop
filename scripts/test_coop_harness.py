@@ -969,6 +969,17 @@ class Scenes(unittest.TestCase):
         self.assertEqual(ctx.REPRO_PLACE, {"save": "Late", "at": "coc Riverwood", "pin": True})
         ctx.needs_save.assert_called_with("Late")
 
+    def test_unstage_leaves_an_item_a_player_picked_up(self):
+        from coop_harness.actions.repro import ReproActions
+        staged = [("object", 0xFF000801), ("guest-object", 0xFF000834)]
+        ctx = Mock()
+        ctx.staged.return_value = staged
+        ctx.world_state.side_effect = lambda game, ids: {} if game == "client" else {ids[0]: {}}
+        ReproActions.unstage(ctx)
+        ctx.console_on.assert_any_call("", "FF000801.disable")
+        self.assertNotIn(("client", "FF000834.disable"), [c.args for c in ctx.console_on.call_args_list])
+        self.assertEqual(staged, [])
+
     def test_pinning_keeps_the_scale_to_put_back(self):
         from coop_harness.actions.repro import ReproActions
         ctx = Mock(REPRO_PIN=None)

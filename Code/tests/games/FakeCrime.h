@@ -1,7 +1,10 @@
 #pragma once
 
+#include "FakeEngine.h"
 #include <Bridges/ICrimeBridge.h>
-#include <Games/Skyrim/CrimeRules.h>
+#include <FormIds.h>
+#include <SessionIds.h>
+#include <Services/Host/CrimeRules.h>
 #include <functional>
 #include <set>
 
@@ -46,15 +49,31 @@ struct FakeCrime final : ICrimeBridge
     {
         Gold = aGold;
     }
-    // Crimes past CrimeBridge::Judge's ownership recheck (CrimeRules), to StealAlarm. Skyrim: IsAnOwner (20210) reads an
-    // actor reference as the player's, so a rechecked actor target stops there.
-    std::vector<CrimeRequest> Stolen;
+    explicit FakeCrime(const FakeEngine& acEngine) noexcept : m_engine(acEngine)
+    {
+    }
+    // Thefts past CrimeBridge::Judge's checks (CrimeRules), with the owner StealAlarm gets. Skyrim: IsAnOwner (20210)
+    // reads an actor reference as the player's, so an ownership check of an actor stops there.
+    struct Alarm
+    {
+        CrimeRequest Request;
+        GameId Owner;
+    };
+    std::vector<Alarm> Stolen;
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
-        const bool cActorTarget = aRequest.TargetActor != 0;
-        if (aRequest.Action == CrimeAction::Theft && !(CrimeRules::RechecksOwnership(aRequest.Action, cActorTarget) && cActorTarget))
-            Stolen.push_back(aRequest);
+        const auto cTarget = aRequest.TargetActor ? m_engine.Actors.find(Utils::GetFormIdBySessionId(aRequest.TargetActor)) : m_engine.Actors.end();
+        const auto cCriminal = m_engine.Actors.find(aActor);
+        const bool cActorTarget = cTarget != m_engine.Actors.end();
+        const auto cChecks = CrimeRules::ChecksFor(aRequest.Action, cActorTarget);
+        const bool cElsewhere = cActorTarget && cCriminal != m_engine.Actors.end() && cTarget->second.Cell != cCriminal->second.Cell;
+        const bool cStops = (cActorTarget && cChecks.Ownership) || (cChecks.SameCell && cElsewhere);
+        if (aRequest.Action == CrimeAction::Theft && !cStops)
+        {
+            const GameId cTargetOwner = cActorTarget ? ToSession(cTarget->second.Owner).value_or(GameId{}) : GameId{};
+            Stolen.push_back({aRequest, CrimeRules::AlarmOwner(aRequest.Owner, cTargetOwner)});
+        }
         return JudgeAction && JudgeAction(aActor, aRequest);
     }
     // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).
@@ -72,4 +91,7 @@ struct FakeCrime final : ICrimeBridge
     {
         Caught = aAttempt;
     }
+
+private:
+    const FakeEngine& m_engine;
 };

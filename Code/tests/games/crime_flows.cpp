@@ -221,19 +221,32 @@ SCENARIO("A guard's arrest greeting reaches both guests and their jail choice te
     party.Agree("the three games agree on the jailed party");
 }
 
-SCENARIO("A guest steals an item the host's game made: the host judges it against its owner", "[crime][loose]")
+namespace
+{
+// A guest picks up its twin of a dagger the host's game made, owned by an NPC the host's game loaded in aOwnerCell:
+// the theft the host judges, and the owner its StealAlarm gets.
+struct CreatedTheft
+{
+    uint32_t Owner = 0;  // the owner NPC, the host's
+    uint32_t Target = 0; // the theft's target, the host's
+    CrimeRequest Request;
+    std::vector<FakeCrime::Alarm> Stolen;
+};
+
+CreatedTheft StealCreated(uint32_t aOwnerCell)
 {
     constexpr uint32_t kSmoke = 0x00031D2E;
     constexpr uint32_t kIronDagger = 0x0001397E;
     constexpr uint32_t kOwnerBase = 0x00013479;
-    Party party(1, [](FakeEngine& aEngine) {
+    Party party(1, [aOwnerCell](FakeEngine& aEngine) {
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
         aEngine.LoadCell(kSmoke);
+        aEngine.LoadCell(aOwnerCell);
     });
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
-    uint32_t owner = 0;
-    party.As(party.Host(), [&] { owner = host.LoadNpc(kOwnerBase, kSmoke); });
+    CreatedTheft theft;
+    party.As(party.Host(), [&] { theft.Owner = host.LoadNpc(kOwnerBase, aOwnerCell); });
     party.Until([&] { return PlayerCopies(host).size() == 1 && !guest.CopiesOf(kOwnerBase).empty(); },
                 "each game has the other's player, the guest the owner's copy");
 
@@ -250,13 +263,30 @@ SCENARIO("A guest steals an item the host's game made: the host judges it agains
     party.As(party.Guest(), [&] { guest.PicksUp(guest.Loose.begin()->first); });
     auto& judge = Crime(party.Host());
     party.Until([&] { return judge.Judged.size() == 1; }, "the host judges the guest's theft");
-    const CrimeRequest& theft = judge.Judged[0].second;
-    uint32_t target = 0;
-    party.As(party.Host(), [&] { target = Utils::GetFormIdBySessionId(theft.TargetActor); });
-    THEN("it names the owner, its NPC here, and reaches StealAlarm")
+    theft.Request = judge.Judged[0].second;
+    party.As(party.Host(), [&] { theft.Target = Utils::GetFormIdBySessionId(theft.Request.TargetActor); });
+    theft.Stolen = judge.Stolen;
+    return theft;
+}
+} // namespace
+
+SCENARIO("A guest steals an item the host's game made: the host judges it against its owner", "[crime][loose]")
+{
+    const auto cTheft = StealCreated(0x00031D2E);
+    THEN("it names the owner, its NPC here, and the alarm gets the item's owner")
     {
-        CHECK(target == owner);
-        CHECK(theft.Owner == SessionIdOf(kOwnerBase));
-        CHECK(judge.Stolen.size() == 1);
+        CHECK(cTheft.Target == cTheft.Owner);
+        REQUIRE(cTheft.Stolen.size() == 1);
+        CHECK(cTheft.Stolen[0].Owner == SessionIdOf(0x00013479));
+    }
+}
+
+SCENARIO("A guest steals a made item whose owner stands a cell over: still judged", "[crime][loose]")
+{
+    const auto cTheft = StealCreated(0x00031D2F);
+    THEN("the owner is named from the loaded actors, any cell (41382), and the alarm runs")
+    {
+        CHECK(cTheft.Target == cTheft.Owner);
+        CHECK(cTheft.Stolen.size() == 1);
     }
 }

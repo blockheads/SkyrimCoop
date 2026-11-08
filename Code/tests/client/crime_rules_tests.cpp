@@ -1,23 +1,37 @@
-// CrimeBridge::Judge's ownership recheck (docs/re/systems/crime.md, "A created item's theft names its owner").
+// CrimeBridge::Judge's checks (docs/re/systems/crime.md, "A created item's theft names its owner").
 #include <catch2/catch.hpp>
 
-#include <Games/Skyrim/CrimeRules.h>
+#include <Services/Host/CrimeRules.h>
 
-using CrimeRules::RechecksOwnership;
+using namespace CrimeRules;
 
-TEST_CASE("A theft of a placed item is rechecked against the item", "[CrimeRules]")
+TEST_CASE("A theft of a placed item is checked against the item, in the guest's cell", "[CrimeRules]")
 {
-    CHECK(RechecksOwnership(CrimeAction::Theft, false));
-    CHECK(RechecksOwnership(CrimeAction::ContainerTheft, false));
-    CHECK(RechecksOwnership(CrimeAction::Lockpick, false));
+    for (const auto cAction : {CrimeAction::Theft, CrimeAction::ContainerTheft, CrimeAction::Lockpick})
+    {
+        const auto cChecks = ChecksFor(cAction, false);
+        CHECK(cChecks.SameCell);
+        CHECK(cChecks.Ownership);
+    }
 }
 
-TEST_CASE("A created item's theft names its owner actor: no recheck, which an NPC always passes", "[CrimeRules]")
+TEST_CASE("A created item's theft names its owner actor: in any loaded cell, no ownership check", "[CrimeRules]")
 {
-    CHECK_FALSE(RechecksOwnership(CrimeAction::Theft, true));
+    const auto cChecks = ChecksFor(CrimeAction::Theft, true);
+    CHECK_FALSE(cChecks.SameCell);
+    CHECK_FALSE(cChecks.Ownership);
 }
 
-TEST_CASE("A pickpocket is left to its own alarm", "[CrimeRules]")
+TEST_CASE("A pickpocket is left to its own alarm, in the guest's cell", "[CrimeRules]")
 {
-    CHECK_FALSE(RechecksOwnership(CrimeAction::Pickpocket, true));
+    const auto cChecks = ChecksFor(CrimeAction::Pickpocket, true);
+    CHECK(cChecks.SameCell);
+    CHECK_FALSE(cChecks.Ownership);
+}
+
+TEST_CASE("The alarm gets the owner the guest's alarm was given, else the target's", "[CrimeRules]")
+{
+    CHECK(AlarmOwner(0x13479u, 0u) == 0x13479u);
+    CHECK(AlarmOwner(0x13479u, 0x5u) == 0x13479u);
+    CHECK(AlarmOwner(0u, 0x5u) == 0x5u);
 }
