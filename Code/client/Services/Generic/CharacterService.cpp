@@ -55,6 +55,8 @@
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
 #include <Games/Animation/MachineStates.h>
+#include <Messages/Delivery.h>
+#include <Diagnostics/Counters.h>
 #include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
@@ -98,6 +100,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
+    Listen<NotifyMachineBaseline, &CharacterService::OnNotifyMachineBaseline>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
@@ -663,7 +666,15 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         for (const auto& action : update.ActionEvents)
         {
             if (!action.ActionId && !action.MachineStates.empty())
+            {
+                // Waiting for a copy with no 3D, say: bounded, and a baseline makes up for what was dropped.
+                if (animationComponent.MachineStates.size() >= RemoteAnimationComponent::cMostWaiting)
+                {
+                    animationComponent.MachineStates.erase(animationComponent.MachineStates.begin());
+                    animationComponent.MachineStatesLost = true;
+                }
                 animationComponent.MachineStates.emplace_back(action.Tick, action.MachineStates);
+            }
             else if (!action.ActionId && !action.GraphState.empty())
                 animationComponent.GraphPoint = action;
             else
@@ -996,6 +1007,13 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
         KeepMount(acEvent.MountID);
     }
     m_transport.Send(request);
+}
+
+// A copy asked for its owner's machine states (MachineStates.h): ours, so they all go with our next send.
+void CharacterService::OnNotifyMachineBaseline(const NotifyMachineBaseline& acMessage) noexcept
+{
+    if (const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId); cFormId && !m_actorBridge.IsActorCopy(cFormId))
+        m_actorBridge.SendActorMachineBaseline(cFormId);
 }
 
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
@@ -1539,7 +1557,19 @@ void CharacterService::RunLocalUpdates() noexcept
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
 
     if (!message.Updates.empty())
+    {
+        // What machine states cost (MachineStates.h): a batch with an action goes reliably (Delivery.h).
+        const bool cReliable = MustArrive(message.Updates);
+        const bool cOnlyMachines = cReliable && std::ranges::all_of(message.Updates, [](const auto& acUpdate) {
+            return !acUpdate.second.UpdatedMovement.Teleported && std::ranges::all_of(acUpdate.second.ActionEvents, [](const ActionEvent& acAction) {
+                return !acAction.ActionId && !acAction.MachineStates.empty();
+            });
+        });
+        COUNT("movement batches", 1);
+        COUNT("movement batches reliable", cReliable);
+        COUNT("movement batches reliable for machine states alone", cOnlyMachines);
         m_transport.Send(message);
+    }
 }
 
 void CharacterService::RunRemoteUpdates() noexcept
@@ -1635,6 +1665,12 @@ void CharacterService::RunRemoteUpdates() noexcept
         auto& formIdComponent = animatedView.get<FormIdComponent>(entity);
 
         m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
+        if (m_actorBridge.TakeActorMachineBaselineNeed(formIdComponent.Id))
+        {
+            MachineBaselineRequest request;
+            request.SessionId = animatedView.get<RemoteComponent>(entity).Id;
+            m_transport.Send(request);
+        }
     }
 
     auto facegenView = m_world.view<FormIdComponent, FaceGenComponent>();

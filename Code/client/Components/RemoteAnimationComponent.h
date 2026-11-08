@@ -21,4 +21,6 @@ struct RemoteAnimationComponent
     uint8_t CounterUpdates = 0;
     // The owner's machine points (MachineStates.h) received, for the copy's machines.
     std::vector<std::pair<uint64_t, std::string>> MachineStates; // the point's owner tick, its packed states
+    bool MachineStatesLost = false; // some dropped unread (cMostWaiting): the copy asks for a baseline
+    static constexpr size_t cMostWaiting = 16;
 };

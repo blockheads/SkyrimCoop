@@ -2031,6 +2031,27 @@ TEST_CASE("A press through a line names its conversation and step", "[encoding.d
     CHECK(static_cast<const NotifyDialogueSkip&>(*decodedTold) == told);
 }
 
+TEST_CASE("A machine baseline request names its actor", "[encoding.animation]")
+{
+    MachineBaselineRequest asked;
+    asked.SessionId = 0x1234;
+    NotifyMachineBaseline told;
+    told.SessionId = 0x5678;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    asked.Serialize(writer);
+    told.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedAsked = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedAsked);
+    REQUIRE(decodedAsked->GetOpcode() == kMachineBaselineRequest);
+    CHECK(static_cast<const MachineBaselineRequest&>(*decodedAsked) == asked);
+    auto decodedTold = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedTold);
+    REQUIRE(decodedTold->GetOpcode() == kNotifyMachineBaseline);
+    CHECK(static_cast<const NotifyMachineBaseline&>(*decodedTold) == told);
+}
+
 TEST_CASE("An actor's AI state carries what it looks at for each reason", "[encoding.ai_state]")
 {
     AiStateRequest sent;

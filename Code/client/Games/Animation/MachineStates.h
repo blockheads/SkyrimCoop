@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <climits>
 #include <cstdint>
 #include <cstring>
 #include <deque>
@@ -10,147 +11,180 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
-// A copy's state machines converge on its owner's: the owner sends each state its tracked machines enter, with its time;
-// the copy, at the same owner time, moves a machine that differs (docs/re/systems/animation-replay-recovery.md,
-// "A copy's machines reconcile to its owner's").
+// A copy's state machines converge on its owner's: the owner sends each state its machines enter, with its time, and a
+// baseline of them all when asked; the copy, at the same owner time, moves a machine that differs
+// (docs/re/systems/animation-replay-recovery.md, "A copy's machines reconcile to its owner's").
 namespace MachineStates
 {
-constexpr uint64_t cGraceMs = 250; // a copy's machine apart this long, in graph time, is moved (its replay had its turn)
-constexpr int32_t cInactive = -1;  // the owner's machine deactivated (Deactivate 59337)
-constexpr size_t cMost = 64;       // entries held per actor, oldest dropped
+constexpr uint64_t cGraceMs = 250;    // a copy's machine apart this long, in graph time, is moved (its replay had its turn)
+constexpr uint64_t cHistoryMs = 2000; // owner states kept behind the graph time: it can step back (a late action)
+constexpr int32_t cInactive = INT32_MIN; // the owner's machine deactivated (Deactivate 59337); no state id is this
+constexpr size_t cMostPending = 64;   // an owner's unsent changes; past it, a baseline goes instead
+constexpr size_t cMostPerMachine = 8; // a copy's entries per machine
+constexpr size_t cMostMachines = 512; // machines per actor, owner's current states or copy's timelines
+constexpr size_t cEntryBytes = 12;    // generation u16, key u32, state i32, ms before the batch u16
+constexpr size_t cMostBatchEntries = cMostMachines + cMostPending;
 
-// A machine on both games: its behaviour file and name (FNV-1a). Clone addresses differ between games, these do not.
-inline uint32_t Key(std::string_view aBehaviour, std::string_view aMachine) noexcept
+// A machine on both games: its name and its states' names (FNV-1a). It reads the clone itself, so a clone freed and
+// another made at its address cannot carry the old one's key; two machines alike in all of these are one to us.
+struct KeyHash
 {
-    uint32_t hash = 2166136261u;
-    for (const std::string_view cPart : {aBehaviour, std::string_view("/"), aMachine})
-        for (const char c : cPart)
-            hash = (hash ^ uint8_t(c)) * 16777619u;
-    return hash;
-}
+    uint32_t Value = 2166136261u;
+    void Add(std::string_view aText) noexcept
+    {
+        for (const char c : aText)
+            Value = (Value ^ uint8_t(c)) * 16777619u;
+    }
+};
 
-// Whether a machine's state is one each game can pick on its own: a variable-bound start, a random draw or a chooser
-// (ChooseStartStateId 59405 reads them; startStateMode 0 is the bound or fixed start).
-inline bool Tracked(uint8_t aStartMode, bool aBoundStart) noexcept
+// aStates: its states' names joined by ','.
+inline uint32_t Key(std::string_view aMachine, std::string_view aStates) noexcept
 {
-    return aStartMode != 0 || aBoundStart;
+    KeyHash hash;
+    hash.Add(aMachine);
+    hash.Add("|");
+    hash.Add(aStates);
+    return hash.Value;
 }
 
 // The owner's time a copy's graph is at: its playback less how late it took its last replayed action (a late action, a
-// lost packet resent, delays the whole graph after it), and never past an action it has yet to take.
+// lost packet resent, delays what follows it), the lateness spent as playback goes on so the graph catches up, and
+// never past an action it has yet to take.
 inline uint64_t ReplayLag(uint64_t aPlayback, uint64_t aActionTick) noexcept
 {
     return aPlayback > aActionTick ? aPlayback - aActionTick : 0;
 }
 
-inline uint64_t GraphTime(uint64_t aPlayback, uint64_t aLag, std::optional<uint64_t> aPendingTick = std::nullopt) noexcept
+inline uint64_t GraphTime(uint64_t aPlayback, uint64_t aLag, uint64_t aTakenAt, std::optional<uint64_t> aPendingTick = std::nullopt) noexcept
 {
-    const uint64_t cTime = aPlayback > aLag ? aPlayback - aLag : 0;
+    const uint64_t cSpent = aPlayback > aTakenAt ? aPlayback - aTakenAt : 0;
+    const uint64_t cLag = aLag > cSpent ? aLag - cSpent : 0;
+    const uint64_t cTime = aPlayback > cLag ? aPlayback - cLag : 0;
     return aPendingTick ? std::min(cTime, *aPendingTick) : cTime;
 }
 
 // The owner's frame tick, for its graph job to stamp entries (set each frame by the main thread).
 inline std::atomic<uint64_t> g_now{0};
 
-// An actor's machine clones by key, walked from its graph's clone maps; 0 marks a clone with no key of its own (a name
-// used twice in one graph). A new root graph (rebuilt) starts it over. Its graph job's alone.
-struct KeyCache
-{
-    const void* Root = nullptr;
-    std::unordered_map<const void*, uint32_t> Keys;
-};
-
 struct Entry
 {
     uint32_t Key = 0;
-    int32_t State = 0; // or cInactive
-    uint64_t At = 0;   // the owner's tick when its machine entered the state
+    int32_t State = 0;       // or cInactive
+    uint64_t At = 0;         // the owner's tick when its machine entered the state
+    uint16_t Generation = 0; // the owner's graph's (a rebuilt graph counts up)
 };
 
-// The wire: generation, then per entry key, state and ms before the point's tick (clamped).
-inline std::string Pack(uint16_t aGeneration, const std::vector<Entry>& acEntries, uint64_t aPointTick)
+inline std::string Pack(const std::vector<Entry>& acEntries, uint64_t aBatchTick)
 {
-    std::string packed(2 + acEntries.size() * 8, '\0');
-    std::memcpy(packed.data(), &aGeneration, 2);
+    std::string packed(acEntries.size() * cEntryBytes, '\0');
     for (size_t i = 0; i < acEntries.size(); ++i)
     {
         const auto& cEntry = acEntries[i];
-        const auto cState = int16_t(cEntry.State);
-        const auto cBefore = uint16_t(std::min<uint64_t>(aPointTick > cEntry.At ? aPointTick - cEntry.At : 0, 0xFFFF));
-        char* pOut = packed.data() + 2 + i * 8;
-        std::memcpy(pOut, &cEntry.Key, 4);
-        std::memcpy(pOut + 4, &cState, 2);
-        std::memcpy(pOut + 6, &cBefore, 2);
+        const auto cBefore = uint16_t(std::min<uint64_t>(aBatchTick > cEntry.At ? aBatchTick - cEntry.At : 0, 0xFFFF));
+        char* pOut = packed.data() + i * cEntryBytes;
+        std::memcpy(pOut, &cEntry.Generation, 2);
+        std::memcpy(pOut + 2, &cEntry.Key, 4);
+        std::memcpy(pOut + 6, &cEntry.State, 4);
+        std::memcpy(pOut + 10, &cBefore, 2);
     }
     return packed;
 }
 
-inline bool Unpack(std::string_view aPacked, uint64_t aPointTick, uint16_t& aGeneration, std::vector<Entry>& aEntries)
+// Refuses a batch that is not whole entries or holds more than an owner can send.
+inline bool Unpack(std::string_view aPacked, uint64_t aBatchTick, std::vector<Entry>& aEntries)
 {
-    if (aPacked.size() < 2 || (aPacked.size() - 2) % 8)
+    if (aPacked.size() % cEntryBytes || aPacked.size() / cEntryBytes > cMostBatchEntries)
         return false;
-    std::memcpy(&aGeneration, aPacked.data(), 2);
-    for (size_t offset = 2; offset < aPacked.size(); offset += 8)
+    for (size_t offset = 0; offset < aPacked.size(); offset += cEntryBytes)
     {
         Entry entry;
-        int16_t state = 0;
         uint16_t before = 0;
-        std::memcpy(&entry.Key, aPacked.data() + offset, 4);
-        std::memcpy(&state, aPacked.data() + offset + 4, 2);
-        std::memcpy(&before, aPacked.data() + offset + 6, 2);
-        entry.State = state;
-        entry.At = aPointTick > before ? aPointTick - before : 0;
+        std::memcpy(&entry.Generation, aPacked.data() + offset, 2);
+        std::memcpy(&entry.Key, aPacked.data() + offset + 2, 4);
+        std::memcpy(&entry.State, aPacked.data() + offset + 6, 4);
+        std::memcpy(&before, aPacked.data() + offset + 10, 2);
+        entry.At = aBatchTick > before ? aBatchTick - before : 0;
         aEntries.push_back(entry);
     }
     return true;
 }
 
-// An owner's entries to send: the graph job pushes, the main thread drains.
+// An owner's machines: the graph job pushes each change, the main thread drains. It keeps every machine's current state,
+// the baseline sent when a copy asks, when its graph is rebuilt, or when unsent changes overflowed.
 struct Outbox
 {
     void Push(Entry aEntry)
     {
         std::scoped_lock _{m_lock};
-        m_entries.push_back(aEntry);
-        if (m_entries.size() > cMost)
-            m_entries.pop_front();
+        if (m_current.size() < cMostMachines || m_current.contains(aEntry.Key))
+            m_current[aEntry.Key] = aEntry;
+        m_pending.push_back(aEntry);
+        if (m_pending.size() > cMostPending)
+        {
+            m_pending.clear();
+            m_baseline = true;
+        }
+    }
+
+    // Its graph rebuilt: the old machines are gone, the next drain is the new graph's states alone.
+    void Rebuilt()
+    {
+        std::scoped_lock _{m_lock};
+        m_current.clear();
+        m_pending.clear();
+        m_baseline = true;
+    }
+
+    void RequestBaseline()
+    {
+        std::scoped_lock _{m_lock};
+        m_baseline = true;
     }
 
     std::vector<Entry> Drain()
     {
         std::scoped_lock _{m_lock};
-        std::vector<Entry> entries(m_entries.begin(), m_entries.end());
-        m_entries.clear();
+        std::vector<Entry> entries;
+        if (std::exchange(m_baseline, false))
+            for (const auto& [cKey, cEntry] : m_current)
+                entries.push_back(cEntry);
+        else
+            entries.assign(m_pending.begin(), m_pending.end());
+        m_pending.clear();
         return entries;
     }
 
 private:
     std::mutex m_lock;
-    std::deque<Entry> m_entries;
+    std::map<uint32_t, Entry> m_current;
+    std::deque<Entry> m_pending;
+    bool m_baseline = false;
 };
 
-// A copy's view of its owner's machines. The main thread adds entries and sets the graph time together; the graph job
-// asks, per machine, where it should be.
+// What a copy's machine is doing, read in its update.
+struct Machine
+{
+    int32_t Current = 0;
+    std::optional<int32_t> Heading; // a running transition's destination (activeTransitions)
+};
+
+// A copy's view of its owner's machines. The main thread adds entries and sets the graph time; the graph job asks, per
+// machine, where it should be.
 struct Timelines
 {
-    // The owner's entries from one point; another generation's (its graph rebuilt) replace everything.
-    void Add(uint16_t aGeneration, const std::vector<Entry>& acEntries)
+    void Add(const std::vector<Entry>& acEntries)
     {
         std::scoped_lock _{m_lock};
-        if (aGeneration != m_generation)
-        {
-            m_entries.clear();
-            m_machines.clear();
-            m_generation = aGeneration;
-        }
         for (const auto& cEntry : acEntries)
         {
-            m_entries.push_back(cEntry);
-            if (m_entries.size() > cMost)
-                m_entries.pop_front();
+            if (!m_entries.contains(cEntry.Key) && m_entries.size() >= cMostMachines)
+                continue;
+            auto& entries = m_entries[cEntry.Key];
+            entries.insert(std::ranges::upper_bound(entries, cEntry.At, {}, &Entry::At), cEntry);
+            if (entries.size() > cMostPerMachine)
+                entries.pop_front();
         }
         Prune();
         m_any.store(!m_entries.empty(), std::memory_order_release);
@@ -163,19 +197,20 @@ struct Timelines
         Prune();
     }
 
-    // The copy's graph rebuilt: nothing it knew holds.
-    void Clear()
-    {
-        std::scoped_lock _{m_lock};
-        m_entries.clear();
-        m_machines.clear();
-        m_any.store(false, std::memory_order_release);
-    }
-
     [[nodiscard]] uint64_t GraphTime()
     {
         std::scoped_lock _{m_lock};
         return m_graphTime;
+    }
+
+    // The copy's graph rebuilt: nothing it knew holds (it asks its owner for a baseline).
+    void Clear()
+    {
+        std::scoped_lock _{m_lock};
+        m_entries.clear();
+        m_apart.clear();
+        m_generation.reset();
+        m_any.store(false, std::memory_order_release);
     }
 
     // Read every update of every machine, so lock-free.
@@ -191,61 +226,68 @@ struct Timelines
         return WantedLocked(aKey);
     }
 
-    // Called in the copy's machine update: the state to go to, once it has been apart for cGraceMs of graph time.
-    std::optional<int32_t> Reconcile(uint32_t aKey, int32_t aCurrent)
+    // Called in the copy's machine update: the state to go to, once it has been apart for cGraceMs of graph time. A
+    // machine heading to the wanted state is not apart; one heading elsewhere is, whatever its current state says.
+    std::optional<int32_t> Reconcile(uint32_t aKey, const Machine& acMachine)
     {
         std::scoped_lock _{m_lock};
         const auto cWanted = WantedLocked(aKey);
-        auto& machine = m_machines[aKey];
-        if (!cWanted || cWanted->State == aCurrent)
+        const int32_t cWhere = acMachine.Heading.value_or(acMachine.Current);
+        if (!cWanted || cWanted->State == cWhere)
         {
-            machine.ApartSince.reset();
+            m_apart.erase(aKey);
             return std::nullopt;
         }
-        const uint64_t cSince = std::max(cWanted->At, machine.ApartSince.value_or(m_graphTime));
-        if (!machine.ApartSince)
-            machine.ApartSince = m_graphTime;
-        if (m_graphTime < cSince + cGraceMs)
+        const auto cApart = m_apart.find(aKey);
+        if (cApart == m_apart.end())
+        {
+            if (m_apart.size() < cMostMachines)
+                m_apart[aKey] = m_graphTime;
             return std::nullopt;
-        machine.ApartSince = m_graphTime; // another try only after another grace
+        }
+        if (m_graphTime < std::max(cWanted->At, cApart->second) + cGraceMs)
+            return std::nullopt;
+        cApart->second = m_graphTime; // another try only after another grace
         return cWanted->State;
     }
 
 private:
-    struct Machine
-    {
-        std::optional<uint64_t> ApartSince;
-    };
-
+    // The latest entry at or before the graph time, of the owner's generation then.
     std::optional<Entry> WantedLocked(uint32_t aKey) const
     {
+        const auto cIt = m_entries.find(aKey);
+        if (cIt == m_entries.end())
+            return std::nullopt;
         const Entry* pBest = nullptr;
-        for (const auto& cEntry : m_entries)
-            if (cEntry.Key == aKey && cEntry.At <= m_graphTime && (!pBest || cEntry.At >= pBest->At))
+        for (const auto& cEntry : cIt->second)
+            if (cEntry.At <= m_graphTime)
                 pBest = &cEntry;
-        if (!pBest || pBest->State == cInactive)
+        if (!pBest || pBest->State == cInactive || (m_generation && pBest->Generation != *m_generation))
             return std::nullopt;
         return *pBest;
     }
 
-    // Per machine, entries before its latest one at the graph time are history.
+    // The owner's generation at the graph time is its latest entry's then. History more than cHistoryMs behind the graph
+    // time goes, keeping each machine's latest entry at or before it.
     void Prune()
     {
-        std::map<uint32_t, uint64_t> latest;
-        for (const auto& cEntry : m_entries)
-            if (cEntry.At <= m_graphTime)
-                latest[cEntry.Key] = std::max(latest[cEntry.Key], cEntry.At);
-        std::erase_if(m_entries, [&](const Entry& acEntry) {
-            const auto cIt = latest.find(acEntry.Key);
-            return cIt != latest.end() && acEntry.At < cIt->second;
-        });
+        const Entry* pLatest = nullptr;
+        for (const auto& [cKey, cEntries] : m_entries)
+            for (const auto& cEntry : cEntries)
+                if (cEntry.At <= m_graphTime && (!pLatest || cEntry.At > pLatest->At))
+                    pLatest = &cEntry;
+        if (pLatest)
+            m_generation = pLatest->Generation;
+        for (auto& [cKey, entries] : m_entries)
+            while (entries.size() > 1 && entries[1].At + cHistoryMs < m_graphTime)
+                entries.pop_front();
     }
 
     std::mutex m_lock;
-    std::deque<Entry> m_entries;
-    std::map<uint32_t, Machine> m_machines;
+    std::map<uint32_t, std::deque<Entry>> m_entries;
+    std::map<uint32_t, uint64_t> m_apart;
+    std::optional<uint16_t> m_generation;
     uint64_t m_graphTime = 0;
-    uint16_t m_generation = 0;
     std::atomic<bool> m_any{false};
 };
 } // namespace MachineStates

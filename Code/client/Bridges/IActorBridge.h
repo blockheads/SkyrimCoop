@@ -55,6 +55,10 @@ public:
     virtual bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept = 0;
     /// True for copies (another game owns them), false for actors this game simulates.
     virtual bool IsActorCopy(uint32_t aFormId) const noexcept = 0;
+    // A copy that knows none of its owner's machine states, taken (MachineStates.h): CharacterService asks its owner.
+    virtual bool TakeActorMachineBaselineNeed(uint32_t aFormId) noexcept = 0;
+    // An owner's machines send all their states next (a copy asked).
+    virtual void SendActorMachineBaseline(uint32_t aFormId) noexcept = 0;
     // A player's character, here or a copy.
     virtual void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept = 0;
 

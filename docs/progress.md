@@ -52,10 +52,11 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-07: a copy's state machines converge on their owner's. A machine's start can be a graph variable (the wolf's
 `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read when it
 activates at a clip's end with no action; the copy read its own, a movement snapshot behind, and turned on the spot for
-4 to 20 s, or stayed in `CannedTurnState` (an exit condition on `iSyncIdleLocomotion`). Owners now send every state their
-tracked machines (bound, random or chooser starts) enter or leave (`MachineStates.h`, hooks on SetActiveState 59390 and
-Deactivate 59337); a copy's machine apart from its owner's at the same owner time for 250 ms goes there through the
-engine's GoToState (59369, from Update 59335). Duo: never apart 3 s over 120 s, 34 owner changes
+4 to 20 s, or stayed in `CannedTurnState` (an exit condition on `iSyncIdleLocomotion`). Owners now send every state an NPC's
+machines enter or leave (`MachineStates.h`, hooks on SetActiveState 59390 and Deactivate 59337), and all their current
+states when a copy asks (`MachineBaselineRequest`, after a graph rebuild or dropped batches); a copy's machine apart from
+its owner's at the same owner time for 250 ms goes there through the engine's GoToState (59369, from Update 59335).
+Duo: never apart 3 s over 120 s in three runs; about 215 B/s of machine states for Riverwood
 ([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A copy's machines reconcile to its owner's").
 Harness: the animation trace records each event sent into a graph with its engine callers (`input`); `graph_machines` /
 `graph_machines_watch` read state machines on both games; `name_owner`; `expect` check `graph` (its `value`: the owner

@@ -107,14 +107,16 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     else if (!actions.empty() && actions.front().Tick <= aTick)
         pending = actions.front().Tick;
     // The owner's machine states and the graph time, for the copy's machines (HookStateMachineUpdate).
-    auto& timelines = apActor->GetExtension()->MachineTimelines;
-    timelines.SetGraphTime(MachineStates::GraphTime(aTick, apActor->GetExtension()->ReplayLag, pending));
+    auto* pExtension = apActor->GetExtension();
+    auto& timelines = pExtension->MachineTimelines;
+    timelines.SetGraphTime(MachineStates::GraphTime(aTick, pExtension->ReplayLag, pExtension->ReplayTakenAt, pending));
+    if (std::exchange(aAnimationComponent.MachineStatesLost, false))
+        pExtension->NeedsMachineBaseline.store(true, std::memory_order_release);
     for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.MachineStates, {}))
     {
-        uint16_t generation = 0;
         std::vector<MachineStates::Entry> entries;
-        if (MachineStates::Unpack(cPacked, cTick, generation, entries))
-            timelines.Add(generation, entries);
+        if (MachineStates::Unpack(cPacked, cTick, entries))
+            timelines.Add(entries);
     }
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
@@ -130,6 +132,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         if (phase == ReplayStep::kTaken)
         {
             apActor->GetExtension()->ReplayLag = MachineStates::ReplayLag(aTick, cAction.Tick);
+            apActor->GetExtension()->ReplayTakenAt = aTick;
             aAnimationComponent.LastRanAction = cAction;
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
@@ -443,7 +446,8 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
         ActionEvent point;
         point.Tick = cNow;
         point.ActorId = pActor->formID;
-        point.MachineStates = MachineStates::Pack(pActor->GetExtension()->MachineGeneration.load(std::memory_order_relaxed), cEntries, cNow);
+        point.MachineStates = MachineStates::Pack(cEntries, cNow);
+        COUNT("machine state bytes", point.MachineStates.size());
         update.ActionEvents.push_back(std::move(point));
     }
 

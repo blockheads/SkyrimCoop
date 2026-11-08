@@ -176,9 +176,9 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 
 The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
 of 2 s or more on some creatures and a few NPCs. Each is below. The wolf's copy turning while its owner idled, and its
-copy kept in `CannedTurnState`, are fixed: a copy's tracked machines (a bound, random or chooser start) now converge on
+copy kept in `CannedTurnState`, are fixed: an NPC copy's state machines now converge on
 its owner's states (2026-11-07, animation-replay-recovery.md, "A copy's machines reconcile to its owner's"). The idle
-picks below are tracked machines too: rerun them before reading further.
+picks below are reconciled too now: rerun them before reading further.
 
 Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
 

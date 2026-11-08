@@ -415,7 +415,7 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
         ActionEvent point;
         point.Tick = cNow;
         point.ActorId = formIdComponent.Id;
-        point.MachineStates = MachineStates::Pack(engine.MachineGeneration, cEntries, cNow);
+        point.MachineStates = MachineStates::Pack(cEntries, cNow);
         update.ActionEvents.push_back(std::move(point));
     }
 }

@@ -406,7 +406,7 @@ struct WolfTurn
     {
         for (auto* engine : {&host, &guest})
         {
-            engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}};
+            engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}, {{"StandingIdle", "cannedTurnRight180"}, "CannedTurn"}};
             engine->Bound = FakeEngine::BoundStart{"CannedTurn", 60, 0, {"LoopingTurnRight", "StandingIdle"}, 1};
             if (aExitCondition)
             {
@@ -433,9 +433,12 @@ struct WolfTurn
         ActionEvent turn;
         turn.ActionId = 0x13002;
         turn.EventName = "cannedTurnRight180";
+        const uint64_t cBefore = guest.GetActorLatestAnimation(copy).Tick;
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
+        party.Until([&] { return host.Actors.at(wolf).GraphState == "CannedTurn"; }, "the owner turns");
         party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
-        party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName; }, "the copy takes the turn");
+        party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
+                    "the copy takes the turn");
     }
 
     [[nodiscard]] bool Agree() const
@@ -508,9 +511,41 @@ TEST_CASE("A copy follows its owner's machines after the owner's graph is rebuil
     wolf.Turn();
     wolf.Converges("the copy's machines are where its owner's are");
     wolf.party.As(wolf.party.Host(), [&] {
-        ++wolf.host.MachineGeneration; // a rebuilt graph's machines report afresh
-        wolf.host.Actors.at(wolf.wolf).SentMachines.clear();
+        wolf.host.RebuildGraph(wolf.wolf);
         wolf.host.Actors.at(wolf.wolf).GraphState = "LoopingTurnRight";
     });
     wolf.Converges("the copy follows the rebuilt graph's machines");
+}
+
+TEST_CASE("A copy whose graph was rebuilt asks its owner for its machines' states", "[animation][replay-start]")
+{
+    // The owner stays put, so no change of its would ever tell the rebuilt copy where it is (Codex review, PR #38).
+    WolfTurn wolf;
+    wolf.Turn();
+    wolf.Converges("the copy's machines are where its owner's are");
+    wolf.party.As(wolf.party.Guest(), [&] {
+        wolf.guest.RebuildGraph(wolf.copy);
+        wolf.guest.Actors.at(wolf.copy).GraphState = "LoopingTurnRight"; // the rebuilt graph's own start
+    });
+    wolf.Converges("the rebuilt copy gets its owner's states and goes there");
+}
+
+TEST_CASE("A parent machine only the copy changed is undone", "[animation][replay-start]")
+{
+    WolfTurn wolf;
+    wolf.Turn();
+    wolf.Converges("the copy's machines are where its owner's are");
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.guest.Actors.at(wolf.copy).GraphState = "CannedTurn"; });
+    wolf.Converges("the copy's own DefaultBehavior change is undone");
+}
+
+TEST_CASE("A late action followed by a timely one still converges", "[animation][replay-start]")
+{
+    // The first turn's resend leaves the copy's graph time behind its playback; the lateness is spent and the second
+    // turn's states are followed at their own time.
+    WolfTurn wolf(NetConditions{120, 80, 10, 2});
+    wolf.Turn();
+    wolf.Converges("the copy's machines are where its owner's are after the late turn");
+    wolf.Turn();
+    wolf.Converges("and after the next one");
 }

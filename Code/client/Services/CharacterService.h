@@ -83,6 +83,7 @@ struct CharacterService
     // The player's owned horse accompanies a tether move.
     void CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
+    void OnNotifyMachineBaseline(const NotifyMachineBaseline& acMessage) noexcept;
     // The one way a name reaches an actor here: its spawn, or the host's notification (docs/re/systems/names.md).
     void ApplyOwnerName(uint32_t aFormId, const std::string& acName) const noexcept;
     void OnNotifyActorName(const NotifyActorName& acMessage) noexcept;

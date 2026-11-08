@@ -537,7 +537,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         uint32_t BoundFrames = 0;              // its Bound clip's frames so far
-        uint64_t GraphTick = 0, ReplayLag = 0; // a copy's, as ActorExtension's
+        uint64_t GraphTick = 0, ReplayLag = 0, ReplayTakenAt = 0; // a copy's, as ActorExtension's
+        bool GraphSeen = false;            // NoteGraph's first look
+        bool NeedsMachineBaseline = false; // ActorExtension's
         bool BoundStuck = false;               // its exit condition failed at the clip's end: no other end comes
         std::map<uint32_t, int32_t> SentMachines; // an owner's machine states last queued
         std::deque<std::pair<uint64_t, AnimationVariables>> LaggedVariables; // a copy's received, by frame, not yet loaded
@@ -634,19 +636,21 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::optional<int32_t> OwnerWritesExit;
     };
     std::optional<BoundStart> Bound;
-    static inline const uint32_t kDefaultMachine = MachineStates::Key("QuadrupedBehavior.hkb", "DefaultBehavior");
-    static inline const uint32_t kStandingMachine = MachineStates::Key("QuadrupedBehavior.hkb", "StandingBehavior");
+    static inline const uint32_t kDefaultMachine = MachineStates::Key("DefaultBehavior", "CannedTurnState,StandingState");
+    static inline const uint32_t kStandingMachine = MachineStates::Key("StandingBehavior", "LoopingTurnRight,StandingIdleState");
     int32_t DefaultMachineState(const Actor& acActor) const;  // 0 CannedTurn, 1 standing, else inactive
     int32_t StandingMachineState(const Actor& acActor) const; // its index in Starts, else inactive
     std::map<uint32_t, MachineStates::Outbox> MachineOutboxes;     // ActorExtension::MachineOutbox
     std::map<uint32_t, MachineStates::Timelines> MachineTimelines; // ActorExtension::MachineTimelines
-    uint16_t MachineGeneration = 0;                                // its graphs rebuilt this many times
+    uint16_t MachineGeneration = 0;                                // an owner's graphs rebuilt this many times
+    // As NoteGraph: an actor's graph rebuilt. An owner counts a generation and its rebuilt machines enter their states
+    // anew; a copy forgets its owner's states and asks for a baseline.
+    void RebuildGraph(uint32_t aFormId);
     // With a value, a copy's received machine state reaches its timeline only once its graph is this many ms past it.
     std::optional<uint64_t> MachineArrivalMs;
     struct HeldMachineState
     {
         uint32_t FormId;
-        uint16_t Generation;
         MachineStates::Entry Entry;
     };
     std::vector<HeldMachineState> HeldMachineStates;
@@ -1017,6 +1021,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
+    bool TakeActorMachineBaselineNeed(uint32_t aFormId) noexcept override;
+    void SendActorMachineBaseline(uint32_t aFormId) noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;

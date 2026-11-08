@@ -146,6 +146,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnInventoryChanges);
     Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
     Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::SessionId);
+    // A copy that knows none of its owner's machine states asks its owner for them all (MachineStates.h).
+    Relay<MachineBaselineRequest, NotifyMachineBaseline>(ToOwner, &MachineBaselineRequest::SessionId);
     Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
 
     // Actor values: a hit lands in its owner's game, which then reports the resulting values.

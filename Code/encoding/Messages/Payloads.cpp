@@ -626,3 +626,13 @@ void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aRead
     Index = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
+
+void Payloads::MachineBaseline::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, SessionId);
+}
+
+void Payloads::MachineBaseline::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
