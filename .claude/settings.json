@@ -11,7 +11,7 @@
       {"matcher": "mcp__ida-multi-mcp__.*|mcp__skyrim-coop__duo_start|mcp__skyrim-coop__vanilla_start|Bash|Edit|Write|MultiEdit",
        "hooks": [{"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/re/ida_hook.py\" post", "timeout": 10}]},
       {"matcher": "mcp__ida-multi-mcp__.*|Read|Grep|Glob|Bash|Edit|Write|MultiEdit",
-       "hooks": [{"type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/duo_hook.py\"", "timeout": 10}]}
+       "hooks": [{"type": "command", "command": "[ ! -f \"$CLAUDE_PROJECT_DIR/scripts/duo_hook.py\" ] || python3 \"$CLAUDE_PROJECT_DIR/scripts/duo_hook.py\"", "timeout": 10}]}
     ]
   }
 }
