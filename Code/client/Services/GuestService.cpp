@@ -39,7 +39,7 @@ struct GuestService::Guest
         , Hands(aWorld, Engine)
         , Wait(aWorld, aDispatcher, Engine)
         , Scene(aWorld, aDispatcher, Engine)
-        , Copies(aWorld, aWorld.ctx().at<IActorBridge&>())
+        , Copies(aWorld, aDispatcher, aWorld.ctx().at<IActorBridge&>())
     {
     }
 
@@ -121,5 +121,4 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     // The host's rests a world state row placed: simulated again, asleep (BodyService plays the rest).
     m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
-    m_pGuest->Copies.Update();
 }

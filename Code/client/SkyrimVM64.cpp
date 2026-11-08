@@ -1,4 +1,5 @@
 #include <BSCore/LockOrder.h>
+#include <BSCore/LockOrderAttribution.h>
 #include <HookSwitch.h>
 #include "Plugin.h"
 #include "CrashHandler.h"
@@ -28,6 +29,21 @@ static TVMDestructor* VMDestructor = nullptr;
 // The VM's update ran since the last main loop tick (it does not at the main menu).
 static std::atomic<bool> s_vmUpdated{false};
 
+// Each in its stretch of the frame for the lock checker (lock-order.md); out of line, so the pass-through hooks
+// keep the sizes IgnoreFrames gives them.
+__declspec(noinline) static void UpdateInStretch()
+{
+    const LockOrder::FrameStretch cStretch(LockOrderAttribution::kOurUpdate);
+    g_plugin->Update();
+}
+
+// Before Main::Update releases the job that runs our update.
+__declspec(noinline) static void RunTasksInStretch()
+{
+    const LockOrder::FrameStretch cStretch(LockOrderAttribution::kMainLoopTasks);
+    MainLoopTasks::Run();
+}
+
 int HookVMUpdate(SkyrimVM* apThis, float a2)
 {
     // FreezeAndWait (54015) drains this function during a save. Services must not run
@@ -41,7 +57,7 @@ int HookVMUpdate(SkyrimVM* apThis, float a2)
 
     s_vmUpdated = true;
     if (!apThis->isFrozen)
-        g_plugin->Update();
+        UpdateInStretch();
 
     return VMUpdate(apThis, a2);
 }
@@ -56,7 +72,7 @@ short HookMainLoop(Main* apThis)
     // harness sees the plugin alive at the main menu too.
     TestHarness::Poll();
 #endif
-    MainLoopTasks::Run();
+    RunTasksInStretch();
     // At the main menu the VM's update, where ours runs, does not tick: the session (a join from there) runs here.
     const UI* pUI = UI::Get();
     if (!s_vmUpdated.exchange(false) && g_plugin && pUI && pUI->GetMenuOpen("Main Menu"))

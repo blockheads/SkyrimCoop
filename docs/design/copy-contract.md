@@ -272,11 +272,8 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
   its copy flag and the guest ran that NPC's AI wherever it was left. The copy follows where the host's actor was
   at removal; an unloaded host NPC walking on (its schedule) is not followed until it is spawned again.
   Scenario `host-npc-leaves-copy-follows`; `release_host_npc` no longer touches the client.
-- **A copy with no owner goes (decided 2026-11-06, the user).** Following can leave a guest's reference in that guest's
-  loaded area, or with nowhere to go: it is hidden (disabled, `HeldCopyComponent::Hidden`), enabled by the next spawn or
-  the session's end. The host's game decides what is loaded. A reference the guest's engine collects as it follows
-  simply goes, its entity with it. A persistent reference out of the loaded cells has no parent cell and its removal
-  says its worldspace. [copy-lifecycle.md](../re/systems/copy-lifecycle.md).
+- **A copy with no owner goes (decided 2026-11-06, the user).** A persistent reference out of the loaded cells has no
+  parent cell and its removal says its worldspace. What becomes of the held reference is the lifecycle rule below.
 - **Gone before its assignment came back (found 2026-10-23 by tier 2, `copy_flows.cpp`; gone with the answer the same
   day: the host's game owns an actor from its announcement).** The host's rules send a
   new NPC's spawn to the guests with its assignment, and the host's own game handles the answer on its next
@@ -284,6 +281,36 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
   frame was dropped by `OnAssignCharacter` ("actor not found") with no removal sent, and the guest's copy stayed
   with no owner. Now `OnAssignCharacter` sends `RequestRemoveCharacter` for the session id it was given
   (whereabouts unknown: nothing to follow, the actor is gone).
+
+## A copy's lifecycle: the host's events alone (decided 2026-11-06, built 2026-11-07)
+
+**The rule:** a copy appears, moves and goes only on its owner's events (spawn, movement, removal). The copy's game
+never decides it: where the engine would load, bring back or remove a held copy, it is stopped at that point, once,
+not cleaned up after.
+
+```
+the host's game drops its NPC (removal, with where it went)
+  guest: FollowOwner -> CopyHeldEvent -> GuestCopies keeps, hides  persistent; HiddenCopies, then Disable
+         then moves it where the host's went                       a disabled actor moves, no enable (56626)
+  the guest's engine, from then on
+    loads its 3D (cell attach, Enable, MoveTo)                      Load3D 19727 refuses a disabled reference
+    frees it (out of the loaded cells, a cell's unload)            kept persistent for the session (19597)
+    enables it (scripts, the host's enabled row, enable parents)   HookEnable 19800, HookSetDisabled 14646
+the host's next spawn of it            shown (its id out of HiddenCopies, then enabled), a copy again
+the session's end                      shown, its own persistence back, this game's own again
+```
+
+- Two state changes at the host's event, and the engine's own guards do the rest: a persistent reference is never
+  freed (the players' copies' lever), a disabled one gets no 3D. Only the enables needed hooks, and both are the
+  flag's own funnels. Engine path:
+  [copy-lifecycle.md](../re/systems/copy-lifecycle.md).
+- Guests only (`Services/Guest/GuestCopies`): on the host a held reference is a horse a guest rode, the host's own to
+  take back. An owner's disabled or deleted actor leaves its copy disabled, not hidden, so the session's end leaves it so.
+- Replaced (2026-11-07): a per-frame scan hiding held copies whose 3D the guest's game had loaded, and a per-frame
+  sweep dropping entities whose reference the guest's engine had collected (which also left the host's next spawn
+  with no reference to take).
+- Tests: GameTests `[copies]` (the last three flows of `copy_flows.cpp`, the fake's `Hidden` refusing enables);
+  scenarios `held-copy-goes-with-owner`, `leveled-placed-npc-is-hosts`, `host-npc-leaves-copy-follows`.
 
 ## When syncing a new system
 

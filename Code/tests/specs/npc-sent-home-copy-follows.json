@@ -1,6 +1,6 @@
 {
   "name": "npc-sent-home-copy-follows",
-  "doc": "The host's placed NPC goes home (out of the loaded cells): the guest's reference follows it there, held as a copy; the twin of host-npc-leaves-copy-follows.",
+  "doc": "The host's placed NPC goes home (out of the loaded cells): the guest's reference follows it there, held as a copy and hidden until the host spawns it again (copy-contract.md, A copy's lifecycle); the twin of host-npc-leaves-copy-follows.",
   "steps": [
     {
       "do": "stage_npc",
@@ -19,7 +19,7 @@
       "game": "guest",
       "actor": "vilkas",
       "copy": true,
-      "disabled": false
+      "disabled": true
     },
     {
       "expect": "actors agree"
