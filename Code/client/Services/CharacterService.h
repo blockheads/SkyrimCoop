@@ -71,6 +71,8 @@ struct CharacterService
     void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept;
     void OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
+    // An actor this game no longer owns gets vanilla animation interpolation back.
+    void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     // An owned actor's factions changed: they reach its copies if they differ from the last sent.
     void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;

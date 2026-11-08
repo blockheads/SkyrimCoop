@@ -291,8 +291,10 @@ void World::Update() noexcept
         }
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
-        if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
+        const uint64_t cGraphUs = uint64_t(actor.AnimationMs * 1000.0);
+        if (!ActionDue(animation.Anchor, action.Tick, cGraphUs, InterpolationSystem::PlaybackTick(*this, cEntity), !action.TargetEventName.empty())) continue;
         if (!engine.IsAnimationGraphReady(form.Id)) continue;
+        animation.Anchor = {action.Tick, cGraphUs, true};
         if (VariablesOnly(action))
         {
             if (action.Tick >= animation.VariablesTick)

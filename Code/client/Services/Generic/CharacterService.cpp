@@ -113,6 +113,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
+    Listen<&CharacterService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
 
 }
 
@@ -666,6 +667,12 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
                 animationComponent.TimePoints.push_back(action);
         }
     }
+}
+
+void CharacterService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
+{
+    if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity); pForm && m_actorBridge.ActorExists(pForm->Id))
+        m_actorBridge.SetGraphUpdatedEveryFrame(pForm->Id, false);
 }
 
 void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noexcept
@@ -1512,6 +1519,9 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
+        // Its graph steps every frame, as its copies' do: far from the camera it would step in chunks (63587),
+        // and its clips would end up to 0.25 s after its copies'.
+        m_actorBridge.SetGraphUpdatedEveryFrame(cFormId, true);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {

@@ -300,6 +300,7 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     }
 
     nlohmann::json state = {{"graph_updates", (pActor->flags2 & Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE) != 0},
+                            {"every_frame", (pActor->flags2 & Actor::kForceAnimGraphUpdate) != 0},
                             {"life", ActorState::LifeStateOf(pActor->actorState.flags1)},
                             {"weapon", pActor->actorState.GetWeaponState()},
                             {"kill_move", EngineCalls::IsInKillMove(aFormId)},

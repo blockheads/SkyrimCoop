@@ -97,3 +97,28 @@ TEST_CASE("A copy loads a refused action's variables in step and sends no event"
     RunAnimationReplayStep(step, load, play);
     CHECK(step.Phase.load() == AnimationReplayStep::kTaken);
 }
+
+TEST_CASE("A copy's next action comes as far in its graph's time as on its owner's", "[animation][replay-step][action-spacing]")
+{
+    // Turn at owner tick 10000, its turnStop 960 ms later; the copy played the turn at graph time 5 s.
+    const ActionAnchor cTurn{10000, 5'000'000, true};
+    // Its playback steered to 0.9x: 900 ms on, playback reads 10900, but its graph ran 960 ms.
+    CHECK(ActionDue(cTurn, 10960, 5'960'000, 10900));
+    CHECK_FALSE(ActionDue(cTurn, 10960, 5'950'000, 10900));
+    // Never more than 250 ms before playback.
+    CHECK_FALSE(ActionDue(cTurn, 10960, 5'960'000, 10700));
+    // A graph standing still: due 250 ms after playback.
+    CHECK_FALSE(ActionDue(cTurn, 10960, 5'000'000, 11200));
+    CHECK(ActionDue(cTurn, 10960, 5'000'000, 11210));
+}
+
+TEST_CASE("A copy's first action comes at playback", "[animation][replay-step][action-spacing]")
+{
+    CHECK_FALSE(ActionDue({}, 10000, 0, 9999));
+    CHECK(ActionDue({}, 10000, 0, 10000));
+    // A paired action: at playback.
+    CHECK_FALSE(ActionDue({10000, 1'000'000, true}, 10500, 2'000'000, 10400, true));
+    CHECK(ActionDue({10000, 1'000'000, true}, 10500, 2'000'000, 10500, true));
+    // Ticks out of order (an older action after a newer one): no negative gap.
+    CHECK(ActionDue({10000, 1'000'000, true}, 9990, 1'000'000, 9800));
+}

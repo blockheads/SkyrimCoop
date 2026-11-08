@@ -150,6 +150,7 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         Actor* pActor = static_cast<Actor*>(apThis);
         if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
         {
+            pExtension->GraphUs.fetch_add(uint64_t(std::max(aDelta, 0.f) * 1e6f), std::memory_order_relaxed);
             AnimationSystem::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {

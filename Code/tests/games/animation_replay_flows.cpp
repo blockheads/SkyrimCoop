@@ -439,8 +439,7 @@ struct WolfTurn
         turn.EventName = "cannedTurnRight180";
         const uint64_t cBefore = guest.GetActorLatestAnimation(copy).Tick;
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
-        party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing", {},
-                    &party.Host());
+        party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
         if (aOwnerEnded)
             aOwnerEnded();
         party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
@@ -464,6 +463,24 @@ TEST_CASE("A copy's machine started at a clip's end reads its owner's new variab
     CHECK(cCopy.GraphState == "StandingIdle");
 }
 
+TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][replay-start]")
+{
+    // Skyrim (duo trace, 2026-11-08): the host's wolf, far from the host's camera, stepped its graph 0.08-0.25 s at a
+    // time (animation interpolation, 63587) while its copy stepped every frame. A turn sent just after a chunk ended up
+    // to a chunk after its copy's, so the copy read iSyncTurnState before its owner's refused turnStop set it.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->FarOwnerChunkMs = 250.0; // fAnimInterpMaxTime
+        engine->Bound->Ms = 1267;        // TurnCannedR180
+    }
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    wolf.party.Until([&] { return cOwner.GraphEveryFrame || cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
+    wolf.Turn();
+    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
 TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation][replay-start]")
 {
     // CannedTurnState's exit reads iSyncIdleLocomotion at cannedTurnStop, once (the duo's stuck copy, docs/bugs.md).
@@ -475,8 +492,9 @@ TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation]
 
 TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[animation][replay-start]")
 {
-    // net_check's slow profile: a lost turn resent ends the copy's clip late in its playback; the next turn starts
-    // from StandingIdle.
+    // net_check's slow profile: the copy's playback steers with the jitter while its clips run at the frames' time. Its
+    // owner's refused turnStop, 40 ms before the clip's end, comes as far after the turn on the copy's graph time
+    // (ActionDue), not its playback's.
     WolfTurn wolf(NetConditions{120, 80, 10, 2}, true);
     wolf.Turn();
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
@@ -499,7 +517,7 @@ TEST_CASE("A copy's machine reads its owner's new variable with its owner's next
     wolf.Turn([] {}, [&] {
         // 50 ms on: after the copy's own clip end (its turn replayed a few frames late), before the next snapshot.
         const uint64_t cEnd = wolf.party.Host().GetFrameTick();
-        wolf.party.Until([&] { return wolf.party.Host().GetFrameTick() >= cEnd + 50; }, "50 ms after the owner's turn", {}, &wolf.party.Host());
+        wolf.party.Until([&] { return wolf.party.Host().GetFrameTick() >= cEnd + 50; }, "50 ms after the owner's turn");
         wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, sniff)); });
     });
     CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
@@ -509,7 +527,7 @@ TEST_CASE("A copy's machine reads its owner's new variable with its owner's next
 TEST_CASE("A copy's canned turn ends where its owner's does as its playback slows after a fight", "[animation][replay-start]")
 {
     // Out of combat its owner's send interval goes from 33 to 100 ms; the copy's playback steers onto it at 0.9x
-    // (CopyPlayback::kSteer) while its clips run at the frames' time.
+    // (CopyPlayback::kSteer) while its clips run at the frames' time: on playback, the turnStop came after the clip's end.
     WolfTurn wolf({}, true);
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 1; });
     const auto cInterval = [&] {

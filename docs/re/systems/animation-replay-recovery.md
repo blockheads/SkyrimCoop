@@ -284,8 +284,26 @@ animation interpolation for distant actors, read in IDA:
   jumped (0.17 s in 33 ms) while the copy's ran with the clock. The wolf's distance from the host's camera was not
   recorded.
 - Any clip-end trigger on a far owner can come up to an interval after its copy's, so this is not only the wolf's turn.
-- Fix directions, not chosen: force the owners whose copies a guest can see (the cost is the host's animation LOD for
-  them, to be profiled); or make the copy step as its owner did.
+- **The fix:** every actor a game owns steps every frame, as its copies do (`SetGraphUpdatedEveryFrame`, set by
+  `CharacterService` each send round, cleared when it stops being owned). Under the party tether every guest is where
+  the host is, so the host's synced NPCs are the ones whose copies are watched. The cost is the host's animation LOD
+  for them.
+
+### Actions spaced on the copy's graph time (2026-11-08)
+
+A copy staged each action when its playback reached the action's tick. Its playback steers at 0.85-1.1x (`CopyClock.h`)
+while its clips run at the frames' time, so over a one-second turn at 0.9x the turnStop its owner had 40 ms before the
+clip's end came after the copy's. Now the first action comes at playback, and each next one as far after the last in
+the copy's graph time (the deltas its graph updates got, 20123, `ActorExtension::GraphUs`) as on its owner, never more
+than 250 ms before playback, and 250 ms after it at the latest (a graph standing still). With owners stepping every
+frame, both graphs' times run alike (`ActionDue`, `ReplayStep.h`). A paired action stays on playback: it is settled
+against a partner of the copy's game, which acts on that game's time (spaced early, crossed kill moves settled wrong in
+GameTests).
+
+- GameTests `[replay-start]`: with `Turn()` stepping both games (it stepped only the host while the owner turned, which
+  hid the copy's timing), the slow line and the turn after a fight fail on playback spacing; the far owner's turn
+  (`FarOwnerChunkMs` 250, the fake's 63587) fails without the owner's force. The fake's owner AI performs its refused
+  turnStop 40 ms before its clip's end (measured 30-45 ms). ClientTests `[action-spacing]`.
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the

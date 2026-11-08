@@ -153,7 +153,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     }
 
     const auto it = std::begin(actions);
-    if (it != std::end(actions) && it->Tick <= aTick)
+    const uint64_t cGraphUs = apActor->GetExtension()->GraphUs.load(std::memory_order_relaxed);
+    if (it != std::end(actions) && ActionDue(aAnimationComponent.Anchor, it->Tick, cGraphUs, aTick, !it->TargetEventName.empty()))
     {
         // Check if animation graph is ready before attempting to play animations
         if (!EngineVirtual(apActor->animationGraphHolder).IsReady())
@@ -164,6 +165,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
         ActionEvent first = *it;
         TargetFromNetwork(first);
+        aAnimationComponent.Anchor = {first.Tick, cGraphUs, true};
         // A refused action's graph writes: loaded in step with the graph, no event (ReplayStep.h).
         if (VariablesOnly(first))
         {

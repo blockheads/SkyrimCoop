@@ -536,8 +536,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
+        double AnimationStepMs = 0.0;         // what this frame's graph update added to AnimationMs
+        double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
+        bool GraphEveryFrame = false;         // SetGraphUpdatedEveryFrame
         std::optional<double> BoundStartedAt; // its Bound clip's start, on AnimationMs
         bool BoundStuck = false;              // its exit condition failed at the clip's end: no other end comes
+        bool BoundEndsSent = false;           // an owner's OwnerEnds performed for this clip
         int32_t BoundReadAtStart = -1;        // Bound's Variable as its clip started, and as it ended
         int32_t BoundReadAtEnd = -1;
         AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
@@ -619,8 +623,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::optional<GraphLoop> Loop;
     // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms of the actor's animation
-    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action. Just
-    // before, the owner's AI performs OwnerEnds (turnStop), which the graph refuses; their ActionWrites set Variable
+    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action.
+    // OwnerEndsLeadMs before, the owner's AI performs OwnerEnds (turnStop), which the graph refuses; their ActionWrites set Variable
     // (iSyncTurnState) and ExitVariable (iSyncIdleLocomotion). The exit is taken once, only if ExitVariable holds one
     // of ExitValues; StandingBehavior then starts from Variable (bound startStateId, 59467/59405).
     struct BoundStart
@@ -630,10 +634,15 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t Variable = 0;
         std::vector<std::string> Starts;
         std::vector<std::string> OwnerEnds;
+        double OwnerEndsLeadMs = 40.0; // its AI's turnStop came 30-45 ms before the clip's end (duo trace, 2026-11-08)
         std::optional<size_t> ExitVariable;
         std::vector<int32_t> ExitValues;
     };
     std::optional<BoundStart> Bound;
+    // Animation interpolation (63587): an owner's graph far from this game's camera, not forced, steps this much at
+    // once when its countdown runs out (fAnimInterpMaxTime 250 ms beyond fAnimInterpFarDist), and not between. 0: every
+    // frame. A copy's is forced (AnimationSystem), so it steps every frame.
+    double FarOwnerChunkMs = 0.0;
     // 39004's integer writes by event: run by PerformAction (38949, not for a query) and ForceAction (38953)
     // whether or not the graph takes the event (TurnStop: iSyncTurnState 1). {variable, value}.
     std::map<std::string, std::pair<size_t, int32_t>> ActionWrites;
@@ -1000,6 +1009,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 
     bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
+    void SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;

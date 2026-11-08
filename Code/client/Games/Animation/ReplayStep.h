@@ -38,6 +38,32 @@ constexpr uint32_t kVariablesOnly = 0x8;
     return true;
 }
 
+// A copy's last played action: its owner's tick and the copy's graph time then (the deltas its graph updates got, 20123).
+struct ActionAnchor
+{
+    uint64_t OwnerTick = 0;
+    uint64_t GraphUs = 0;
+    bool Set = false;
+};
+
+// Whether a copy's next action is due. After the last one, as far in its graph's time as on its owner's: its clips run
+// at the frames' time while its playback steers (0.85-1.1x), and a clip's end must meet the actions its owner had
+// around it (animation-replay-recovery.md, "Actions spaced on the copy's graph time"). Never more than kAheadMs before
+// playback; due kBehindMs after it, when its graph stood still or nothing anchors it. A paired action comes at playback:
+// it is settled against a partner of this game's, which acts on this game's time (ReplayState::SettlePairedReplay).
+[[nodiscard]] constexpr bool ActionDue(const ActionAnchor& acAnchor, uint64_t aActionTick, uint64_t aGraphUs, uint64_t aPlaybackTick,
+                                       bool aPaired = false) noexcept
+{
+    constexpr uint64_t kAheadMs = 250;
+    constexpr uint64_t kBehindMs = 250;
+    if (aActionTick + kBehindMs <= aPlaybackTick)
+        return true;
+    if (aPaired || !acAnchor.Set || aActionTick > aPlaybackTick + kAheadMs)
+        return aActionTick <= aPlaybackTick;
+    const uint64_t cGapUs = aActionTick > acAnchor.OwnerTick ? (aActionTick - acAnchor.OwnerTick) * 1000 : 0;
+    return aGraphUs >= acAnchor.GraphUs && aGraphUs - acAnchor.GraphUs >= cGapUs;
+}
+
 // Whether a step in kClips may go on: its clips are in, or they are not coming. A clip started without its file
 // lasts 0.01333 s (hkbClipGenerator 59263) and the graph skips it.
 [[nodiscard]] inline bool ClipWaitOver(const AnimationReplayStep& acStep, uint32_t aUpdatesWaited) noexcept

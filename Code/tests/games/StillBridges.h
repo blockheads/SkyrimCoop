@@ -460,6 +460,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override
     {
     }
+    void SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept override
+    {
+    }
     bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override
     {
         return false;

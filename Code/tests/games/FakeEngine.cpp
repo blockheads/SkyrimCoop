@@ -127,10 +127,19 @@ void FakeEngine::Frame()
     const double cFrameMs = FrameMs > 0.0 ? FrameMs : LastFrameTick ? double(cFrameTick - LastFrameTick) : 0.0;
     LastFrameTick = cFrameTick;
     for (auto& [cId, actor] : Actors)
-        if (actor.GraphUpdating)
+    {
+        actor.AnimationStepMs = 0.0;
+        if (!actor.GraphUpdating)
+            continue;
+        if (FarOwnerChunkMs <= 0.0 || actor.Copy || actor.GraphEveryFrame)
+            actor.AnimationStepMs = cFrameMs;
+        else if ((actor.InterpCountdownMs -= cFrameMs) <= 0.0)
         {
-            actor.AnimationMs += cFrameMs;
+            actor.AnimationStepMs = FarOwnerChunkMs;
+            actor.InterpCountdownMs += FarOwnerChunkMs;
         }
+        actor.AnimationMs += actor.AnimationStepMs;
+    }
     if (Bound)
         for (auto& [cId, actor] : Actors)
         {
@@ -140,19 +149,24 @@ void FakeEngine::Frame()
             {
                 actor.BoundStartedAt.reset();
                 actor.BoundStuck = false;
+                actor.BoundEndsSent = false;
                 continue;
             }
             if (!actor.BoundStartedAt)
             {
                 // Its event came before this frame's graph update, which played the clip's first step (20123).
-                actor.BoundStartedAt = actor.AnimationMs - (actor.GraphUpdating ? cFrameMs : 0.0);
+                actor.BoundStartedAt = actor.AnimationMs - actor.AnimationStepMs;
                 actor.BoundReadAtStart = int32_t(integers[Bound->Variable]);
             }
-            if (actor.BoundStuck || actor.AnimationMs < *actor.BoundStartedAt + double(Bound->Ms))
-                continue;
-            actor.BoundStartedAt.reset();
-            // Its AI's actions on this frame, before its graph update (the main thread, then 41453's jobs).
-            if (!actor.Copy)
+            const double cEnd = *actor.BoundStartedAt + double(Bound->Ms);
+            // Its AI's actions, OwnerEndsLeadMs of the frames' time before the graph's end: a chunked graph's end lands
+            // on its next chunk.
+            const bool cChunked = FarOwnerChunkMs > 0.0 && !actor.GraphEveryFrame;
+            const double cUntilEnd = cChunked ? (actor.AnimationMs + FarOwnerChunkMs >= cEnd ? actor.InterpCountdownMs : 1e9)
+                                              : cEnd - actor.AnimationMs;
+            if (!actor.Copy && !actor.BoundEndsSent && (cUntilEnd <= Bound->OwnerEndsLeadMs || actor.AnimationMs >= cEnd))
+            {
+                actor.BoundEndsSent = true;
                 for (const auto& cEvent : Bound->OwnerEnds)
                 {
                     ActionEvent end;
@@ -160,6 +174,11 @@ void FakeEngine::Frame()
                     end.EventName = cEvent;
                     PerformAnimation(cId, end);
                 }
+            }
+            if (actor.BoundStuck || actor.AnimationMs < cEnd)
+                continue;
+            actor.BoundStartedAt.reset();
+            actor.BoundEndsSent = false;
             actor.BoundReadAtEnd = int32_t(integers[Bound->Variable]);
             if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, int32_t(integers[*Bound->ExitVariable])))
             {
@@ -539,6 +558,12 @@ void FakeEngine::Unload3D(uint32_t aFormId)
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
 {
     MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
+}
+
+void FakeEngine::SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.GraphEveryFrame = aEveryFrame;
 }
 
 void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
