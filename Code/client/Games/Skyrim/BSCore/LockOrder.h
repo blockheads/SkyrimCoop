@@ -23,6 +23,19 @@ void AcquiredWithoutWaiting(const void* apLock, const void* apCaller) noexcept;
 // a report ours. aBytes: the function's code size, or more.
 void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept;
 
+// This thread's locks are taken in one stretch of the frame (LockOrderAttribution::Stretch) until it ends: an inversion
+// against a stretch that never runs alongside is reported as kept apart (lock-order.md).
+struct FrameStretch
+{
+    explicit FrameStretch(uint8_t aStretch) noexcept;
+    ~FrameStretch() noexcept;
+    FrameStretch(const FrameStretch&) = delete;
+    FrameStretch& operator=(const FrameStretch&) = delete;
+
+  private:
+    uint8_t m_previous;
+};
+
 // Every thread's held locks with the code that took each one (watchdog thread, read-only peeks).
 void LogHeldLocks() noexcept;
 
@@ -34,6 +47,7 @@ struct Stats
     uint32_t TooDeep;   // acquisitions nested deeper than tracked (no order checks for them)
     uint32_t TableFull;   // lock pairs not recorded because the edge table is full
     uint32_t TableResets; // times the edge table filled up and started over
+    bool StretchesOverlapped; // main loop tasks and our update ran at once: nothing is kept apart
 };
 Stats GetStats() noexcept;
 // Each inversion pattern seen: its asks, how many found the lock held by another thread, how many from the reverse
