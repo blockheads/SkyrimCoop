@@ -409,13 +409,13 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
             update.ActionEvents.push_back(std::move(point));
     }
     animationComponent.Actions.clear();
-    // As AnimationSystem::Serialize: the start states its graph chose.
-    if (const auto cChoices = engine.StartChoiceQueues[formIdComponent.Id].Drain(); !cChoices.empty())
+    // As AnimationSystem::Serialize: the states its machines entered.
+    if (const auto cEntries = engine.MachineOutboxes[formIdComponent.Id].Drain(); !cEntries.empty())
     {
         ActionEvent point;
         point.Tick = cNow;
         point.ActorId = formIdComponent.Id;
-        point.StartChoices = StartChoices::Pack(cChoices);
+        point.MachineStates = MachineStates::Pack(engine.MachineGeneration, cEntries, cNow);
         update.ActionEvents.push_back(std::move(point));
     }
 }

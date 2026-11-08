@@ -49,15 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-07: a copy's state machines start where their owner's did. A machine's start state can be a graph variable
-(the wolf's `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467),
-read by ChooseStartStateId (59405) when the machine activates, often at a clip's end with no action. The copy read its
-own, a movement snapshot behind, and turned on the spot for 4 to 20 s while its owner idled. The owner now sends each
-such start (`StartChoices.h`, a start point) and its copy's machine starts there
-([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A machine's start state is each game's own").
+2026-11-07: a copy's state machines converge on their owner's. A machine's start can be a graph variable (the wolf's
+`StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read when it
+activates at a clip's end with no action; the copy read its own, a movement snapshot behind, and turned on the spot for
+4 to 20 s, or stayed in `CannedTurnState` (an exit condition on `iSyncIdleLocomotion`). Owners now send every state their
+tracked machines (bound, random or chooser starts) enter or leave (`MachineStates.h`, hooks on SetActiveState 59390 and
+Deactivate 59337); a copy's machine apart from its owner's at the same owner time for 250 ms goes there through the
+engine's GoToState (59369, from Update 59335). Duo: never apart 3 s over 120 s, 34 owner changes
+([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A copy's machines reconcile to its owner's").
 Harness: the animation trace records each event sent into a graph with its engine callers (`input`); `graph_machines` /
-`graph_machines_watch` read state machines on both games; `name_owner`; `expect` check `graph`; behavior_dump extracts
-creature behaviours.
+`graph_machines_watch` read state machines on both games; `name_owner`; `expect` check `graph` (its `value`: the owner
+changes a run needs); behavior_dump extracts creature behaviours.
 
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter

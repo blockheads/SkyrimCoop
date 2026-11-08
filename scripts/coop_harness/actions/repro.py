@@ -2,6 +2,7 @@
 and the recorder that turns a session's calls into a scenario. The MCP server (scripts/coop_mcp.py) calls these;
 scenarios can too."""
 import contextlib
+import inspect
 import json
 import collections
 import math
@@ -96,9 +97,13 @@ def game_differences(host, guest):
 
 
 def duo_home():
-    """The main checkout's build/coop-test, where every worktree's duo lock lives (COOP_DUO_HOME overrides)."""
-    from ..duo_lock import home_of
-    return home_of(ROOT, TEST_HOME)
+    """The main checkout's build/coop-test, where every worktree's duo lock lives (COOP_DUO_HOME overrides). Kept here, not
+    duo_lock.home_of: mcp_reload keeps a running server's duo_lock module, which may predate it."""
+    if home := os.environ.get("COOP_DUO_HOME"):
+        return Path(home)
+    common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True).stdout.strip()
+    return (Path(common).parent / "build/coop-test").resolve() if common else TEST_HOME
 
 
 class ReproActions:
@@ -123,7 +128,9 @@ class ReproActions:
         if not (lock := ctx.duo_lock(owner)):
             return "no lock on Windows"
         try:
-            return lock.acquire(what, timeout=wait_seconds, keep_place=keep_place, capped=capped)
+            # mcp_reload keeps a running server's duo_lock module: one loaded before the cap takes no `capped`.
+            extra = {"capped": capped} if "capped" in inspect.signature(lock.acquire).parameters else {}
+            return lock.acquire(what, timeout=wait_seconds, keep_place=keep_place, **extra)
         except DuoBusy as error:
             raise ctx.failure(str(error)) from None
 
@@ -655,7 +662,7 @@ class ReproActions:
         holds the same in both games), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
         `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
-        `within` seconds or more)."""
+        `within` seconds or more, and the owner's graph changed at least `value` times: a quiet run proves nothing)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -677,10 +684,13 @@ class ReproActions:
             # Read through the interval (a second's slack), once a second at least: a pair lost early is no pass.
             if reads < max(1.0, seconds) or last - first < seconds - 1.0:
                 raise ctx.failure(f"{name}: owner and copy read {reads} times over {last - first:.1f} of {seconds:g} s")
+            changed = watch.get("changes", {}).get(owner, 0)
+            if value and changed < int(value):
+                raise ctx.failure(f"{name}: the owner's graph changed {changed} times, fewer than {int(value)}: nothing to follow")
             if runs := watch["apart"].finish(time.time()):
                 raise ctx.failure(f"{name}: owner and copy graphs apart for {within:g} s or more: " + " | ".join(
                     f"{run['seconds']:.1f} s, owner {run.get('owner_only')}, copy {run.get('copy_only')}" for run in runs[:3]))
-            return {"samples": watch["apart"].samples}
+            return {"samples": watch["apart"].samples, "owner_changes": changed}
         if check == "dialogue":
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))

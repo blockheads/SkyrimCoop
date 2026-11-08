@@ -88,3 +88,10 @@ time	op	id	rva	item
 2026-11-08T02:47:59Z	comment	59349	0xaf3790	{"addr": "0x140af3790", "comment": "59349 vfunc: sets +0x101, the start state is chosen again at the next Update (59387)."}
 2026-11-08T02:47:59Z	comment	58365	0xace690	{"addr": "0x140ace690", "comment": "58365 SetStateOfStateMachine(graph, ?, smTemplate, stateId, ctx, force, jump, a6): GoToState on the clone, then updateActiveNodes if graph+0x12E. The graph state restore (SaveDataRestoreFunctor 65179) calls it with 1,1,1."}
 2026-11-08T02:47:59Z	comment	58329	0xacbc60	{"addr": "0x140acbc60", "comment": "58329: calls updateActiveNodes when graph+0x12E (activeNodesChanged) is set, so a GoToState inside a node's update takes effect in the same graph update."}
+2026-11-08T03:23:22Z	read	59383	0xaf71c0	{"name": "hkbStateMachine::StartTransition"}
+2026-11-08T03:23:57Z	read	59237	0xae7110	{"name": "hkbBehaviorReferenceGenerator::sub_59237"}
+2026-11-08T03:23:57Z	read	59238	0xae71c0	{"name": "hkbBehaviorReferenceGenerator::sub_59238"}
+2026-11-08T03:24:48Z	comment		0xaf76e9	{"addr": "0x140af76e9", "comment": "A transition with a blend generator enters its destination now (SetActiveState 59390), unless its flag 0x10 defers that to the transition's end (59384). Without one: clears transitions and enters at once (0x140af73ea). Each state change reaches 59390 once."}
+2026-11-08T03:24:48Z	comment	59237	0xae7110	{"addr": "0x140ae7110", "comment": "59237 getActiveChildren: the reference generator's one child is its behaviour graph (+0x50); a nested behaviour is a node of its own, with its own clone maps (CollectMachines walks them)."}
+2026-11-08T03:26:21Z	name	59337	0xaf2950	{"addr": "0x140af2950", "name": "hkbStateMachine::Deactivate"}
+2026-11-08T03:26:22Z	comment	59337	0xaf2950	{"addr": "0x140af2950", "comment": "59337 vfunc deactivate(sm, ctx): when active (+0x88), ends its transitions (59384), exits the current state (59411), clears isActive."}

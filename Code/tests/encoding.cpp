@@ -527,7 +527,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         sendAction.Type = 4;
         sendAction.GraphState = std::string("graph\0state", 11);
         sendAction.GraphCounters = "Every:1:3;";
-        sendAction.StartChoices = "StandingBehavior:1;";
+        sendAction.MachineStates = std::string("\x01\x00\x2a\x00\x00\x00\x01\x00\x10\x00", 10); // packed, NULs included
 
         {
             Buffer buff(1000);
@@ -547,7 +547,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
 
             sendAction.EventName = "Plot twist !";
             sendAction.GraphState.clear();
-            sendAction.StartChoices = "DefaultBehavior:2;";
+            sendAction.MachineStates = std::string("\x01\x00\x2b\x00\x00\x00\xff\xff\x00\x00", 10);
 
             sendAction.GenerateDifferential(recvAction, writer);
 

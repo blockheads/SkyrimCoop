@@ -54,6 +54,7 @@
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
+#include <Games/Animation/MachineStates.h>
 #include <Systems/CacheSystem.h>
 #include <Systems/FaceGenSystem.h>
 
@@ -242,6 +243,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     PROFILE_ZONE("CharacterService::OnUpdate");
+    MachineStates::g_now.store(m_world.GetFrameTick(), std::memory_order_relaxed); // owners' machine states' time
     QueuePendingLooks();
     RunActorDiscovery();
     RunPresence();
@@ -660,8 +662,8 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
 
         for (const auto& action : update.ActionEvents)
         {
-            if (!action.ActionId && !action.StartChoices.empty())
-                animationComponent.StartChoices.emplace_back(action.Tick, action.StartChoices);
+            if (!action.ActionId && !action.MachineStates.empty())
+                animationComponent.MachineStates.emplace_back(action.Tick, action.MachineStates);
             else if (!action.ActionId && !action.GraphState.empty())
                 animationComponent.GraphPoint = action;
             else

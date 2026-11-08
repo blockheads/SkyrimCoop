@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Games/Animation/GraphRandom.h>
-#include <Games/Animation/StartChoices.h>
+#include <Games/Animation/MachineStates.h>
 #include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
@@ -538,6 +538,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         uint32_t BoundFrames = 0;              // its Bound clip's frames so far
         uint64_t GraphTick = 0, ReplayLag = 0; // a copy's, as ActorExtension's
+        bool BoundStuck = false;               // its exit condition failed at the clip's end: no other end comes
+        std::map<uint32_t, int32_t> SentMachines; // an owner's machine states last queued
+        std::deque<std::pair<uint64_t, AnimationVariables>> LaggedVariables; // a copy's received, by frame, not yet loaded
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -615,22 +618,42 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
-    // A machine starting from a graph variable at State's clip end, no action (the wolf's StandingBehavior <- iSyncTurnState,
-    // 59467/59405). OwnerEnd: the owner's write in that frame, which its copy read too late (measured; animation-replay-recovery.md).
+    // The wolf's two machines (quadrupedbehavior.hkx): DefaultBehavior, State (CannedTurnState) or standing; its
+    // StandingBehavior, entered at State's clip end with no action, starts from graph variable Variable (iSyncTurnState,
+    // 59467/59405). The owner's graph writes Variable as the clip ends (OwnerWrites); its copy has the movement
+    // snapshot's. The exit is taken only if ExitVariable holds one of ExitValues (iSyncIdleLocomotion 0 or 1), once.
     struct BoundStart
     {
         std::string State;
         uint32_t Frames = 1;
         size_t Variable = 0;
         std::vector<std::string> Starts;
-        std::optional<int32_t> OwnerEnd;
+        std::optional<int32_t> OwnerWrites;
+        std::optional<size_t> ExitVariable;
+        std::vector<int32_t> ExitValues;
+        std::optional<int32_t> OwnerWritesExit;
     };
     std::optional<BoundStart> Bound;
-    std::map<uint32_t, StartChoices::Queue> StartChoiceQueues; // ActorExtension::StartChoices
-    // With a value, a copy's received start choice reaches its queue only once its graph is this many ms past the
-    // choice: on the duo 12 of 184 came after the copy's machine had started (2026-11-07).
-    std::optional<uint64_t> StartChoiceArrivalMs;
-    std::vector<std::pair<uint32_t, StartChoices::Choice>> HeldStartChoices;
+    static inline const uint32_t kDefaultMachine = MachineStates::Key("QuadrupedBehavior.hkb", "DefaultBehavior");
+    static inline const uint32_t kStandingMachine = MachineStates::Key("QuadrupedBehavior.hkb", "StandingBehavior");
+    int32_t DefaultMachineState(const Actor& acActor) const;  // 0 CannedTurn, 1 standing, else inactive
+    int32_t StandingMachineState(const Actor& acActor) const; // its index in Starts, else inactive
+    std::map<uint32_t, MachineStates::Outbox> MachineOutboxes;     // ActorExtension::MachineOutbox
+    std::map<uint32_t, MachineStates::Timelines> MachineTimelines; // ActorExtension::MachineTimelines
+    uint16_t MachineGeneration = 0;                                // its graphs rebuilt this many times
+    // With a value, a copy's received machine state reaches its timeline only once its graph is this many ms past it.
+    std::optional<uint64_t> MachineArrivalMs;
+    struct HeldMachineState
+    {
+        uint32_t FormId;
+        uint16_t Generation;
+        MachineStates::Entry Entry;
+    };
+    std::vector<HeldMachineState> HeldMachineStates;
+    // A copy's graph variables load this many frames after its movement brings them. Skyrim: a copy's variables are its
+    // movement snapshot's, a snapshot behind the actions it replays (CharacterService, 10 a second outside fights).
+    uint32_t CopyVariableLagFrames = 0;
+    uint64_t FramesRun = 0;
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.

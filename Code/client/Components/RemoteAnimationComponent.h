@@ -19,6 +19,6 @@ struct RemoteAnimationComponent
     // A loaded point's counters and the updates left to find them: a loaded graph's nodes activate as it updates.
     std::vector<GraphRandom::Counter> GraphCounters;
     uint8_t CounterUpdates = 0;
-    // The owner's start points (StartChoices.h) received, for the copy's graph to take.
-    std::vector<std::pair<uint64_t, std::string>> StartChoices; // the point's owner tick, its choices
+    // The owner's machine points (MachineStates.h) received, for the copy's machines.
+    std::vector<std::pair<uint64_t, std::string>> MachineStates; // the point's owner tick, its packed states
 };

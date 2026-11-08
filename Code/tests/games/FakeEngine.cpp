@@ -101,8 +101,24 @@ void FakeEngine::ShovePlayer() noexcept
     }
 }
 
+int32_t FakeEngine::DefaultMachineState(const Actor& acActor) const
+{
+    if (!Bound)
+        return MachineStates::cInactive;
+    if (acActor.GraphState == Bound->State)
+        return 0;
+    return acActor.GraphState == "Standing" || std::ranges::contains(Bound->Starts, acActor.GraphState) ? 1 : MachineStates::cInactive;
+}
+
+int32_t FakeEngine::StandingMachineState(const Actor& acActor) const
+{
+    const auto cIt = Bound ? std::ranges::find(Bound->Starts, acActor.GraphState) : std::vector<std::string>::const_iterator{};
+    return Bound && cIt != Bound->Starts.end() ? int32_t(cIt - Bound->Starts.begin()) : MachineStates::cInactive;
+}
+
 void FakeEngine::Frame()
 {
+    ++FramesRun;
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
@@ -127,29 +143,57 @@ void FakeEngine::Frame()
         for (auto& [cId, actor] : Actors)
         {
             auto& integers = actor.GraphVariables.Integers;
-            if (integers.size() <= Bound->Variable)
-                integers.resize(Bound->Variable + 1);
-            // As HookStateMachineUpdate (Animation.cpp): a choice that came after the copy's start moves it.
-            if (const auto cIt = std::ranges::find(Bound->Starts, actor.GraphState); actor.Copy && cIt != Bound->Starts.end())
-                if (auto& queue = StartChoiceQueues[cId]; queue.HasCorrections())
-                    if (const auto cTo = queue.Correct("Bound", int32_t(cIt - Bound->Starts.begin()), actor.GraphTick);
-                        cTo && size_t(*cTo) < Bound->Starts.size())
+            integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
+            auto& timelines = MachineTimelines[cId];
+            const auto cStart = [&](int32_t aStart) {
+                // As HookChooseStartState: a copy starts where its owner's machine is at this graph time, if known.
+                if (actor.Copy && !actor.Player)
+                    if (const auto cWanted = timelines.Wanted(kStandingMachine))
+                        aStart = cWanted->State;
+                actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(aStart, 0)), 0, Bound->Starts.size() - 1));
+            };
+            // As HookStateMachineUpdate: a copy's active machine apart from its owner's goes there (GoToState 59369).
+            if (actor.Copy && !actor.Player && timelines.Any())
+            {
+                if (const int32_t cDefault = DefaultMachineState(actor); cDefault != MachineStates::cInactive)
+                    if (const auto cTo = timelines.Reconcile(kDefaultMachine, cDefault))
+                    {
+                        actor.BoundFrames = 0;
+                        actor.BoundStuck = false;
+                        if (*cTo == 0)
+                            actor.GraphState = Bound->State;
+                        else
+                            cStart(integers[Bound->Variable]);
+                    }
+                if (const int32_t cStanding = StandingMachineState(actor); cStanding != MachineStates::cInactive)
+                    if (const auto cTo = timelines.Reconcile(kStandingMachine, cStanding); cTo && size_t(*cTo) < Bound->Starts.size())
                         actor.GraphState = Bound->Starts[size_t(*cTo)];
+            }
             if (actor.GraphState != Bound->State)
             {
                 actor.BoundFrames = 0;
-                continue;
+                actor.BoundStuck = false;
             }
-            if (++actor.BoundFrames < Bound->Frames)
-                continue;
-            actor.BoundFrames = 0;
-            int32_t start = integers[Bound->Variable];
-            if (!actor.Copy && Bound->OwnerEnd)
-                start = *Bound->OwnerEnd;
-            // As HookChooseStartState (Animation.cpp).
-            if (!actor.Player)
-                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, actor.GraphTick);
-            actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(start, 0)), 0, Bound->Starts.size() - 1));
+            else if (!actor.BoundStuck && ++actor.BoundFrames >= Bound->Frames)
+            {
+                actor.BoundFrames = 0;
+                if (!actor.Copy && Bound->OwnerWrites)
+                    integers[Bound->Variable] = *Bound->OwnerWrites;
+                if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
+                    integers[*Bound->ExitVariable] = *Bound->OwnerWritesExit;
+                if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, integers[*Bound->ExitVariable]))
+                    actor.BoundStuck = true;
+                else
+                    cStart(integers[Bound->Variable]);
+            }
+            // As HookSetActiveState / HookStateMachineDeactivate: an owner NPC queues each state its machines enter.
+            if (!actor.Copy && !actor.Player)
+                for (const auto [cKey, cState] : {std::pair{kDefaultMachine, DefaultMachineState(actor)}, std::pair{kStandingMachine, StandingMachineState(actor)}})
+                    if (const auto cSent = actor.SentMachines.find(cKey); cSent == actor.SentMachines.end() || cSent->second != cState)
+                    {
+                        actor.SentMachines[cKey] = cState;
+                        MachineOutboxes[cId].Push({cKey, cState, World::Get().GetFrameTick()});
+                    }
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
@@ -1027,7 +1071,18 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
-    it->second.GraphVariables = acVariables;
+    if (!CopyVariableLagFrames)
+        it->second.GraphVariables = acVariables;
+    else
+    {
+        auto& lagged = it->second.LaggedVariables;
+        lagged.emplace_back(FramesRun, acVariables);
+        while (!lagged.empty() && lagged.front().first + CopyVariableLagFrames <= FramesRun)
+        {
+            it->second.GraphVariables = lagged.front().second;
+            lagged.pop_front();
+        }
+    }
     if (aMove == CopyMove::Leave || RagdollPosed(aFormId))
         return true;
     it->second.Stepped = aMove == CopyMove::Step;

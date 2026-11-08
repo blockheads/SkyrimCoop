@@ -77,6 +77,7 @@ class Observations:
             game.rpc_connections = {}
         stop, apart, started, actors = threading.Event(), GraphApart(lasting), time.time(), set()
         seen, state = {}, {"error": None}  # owner -> [first read, last read, reads]; why it stopped
+        changes, last_owner = {}, {}  # owner -> times its graph's active states changed; its last reading
 
         def read(game, form):
             return active_states((game.rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
@@ -96,7 +97,11 @@ class Observations:
                             break
                         reading = other.submit(read, games[1], copy_form)
                         now = time.time()
-                        apart.observe(owner, read(games[0], owner), reading.result(), now)
+                        owner_states = read(games[0], owner)
+                        if owner in last_owner and owner_states != last_owner[owner]:
+                            changes[owner] = changes.get(owner, 0) + 1
+                        last_owner[owner] = owner_states
+                        apart.observe(owner, owner_states, reading.result(), now)
                         first, _, reads = seen.get(owner, (now, now, 0))
                         seen[owner] = (first, now, reads + 1)
                     stop.wait(every)
@@ -114,7 +119,8 @@ class Observations:
 
         thread = threading.Thread(target=guarded, daemon=True, name="graph-watch")
         thread.start()
-        return {"thread": thread, "stop": stop, "apart": apart, "started": started, "actors": actors, "seen": seen, "state": state}
+        return {"thread": thread, "stop": stop, "apart": apart, "started": started, "actors": actors, "seen": seen, "state": state,
+                "changes": changes}
 
     def graph_watch_stop(ctx, watch):
         """The runs apart since graph_watch_start, as one log line ('' if it read nothing)."""

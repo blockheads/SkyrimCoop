@@ -2459,7 +2459,7 @@ class ActiveStatesTests(unittest.TestCase):
 class GraphExpectTests(unittest.TestCase):
     """expect's "graph" check: owner and copy read live; a watch that read too little fails, never passes."""
 
-    def run_expect(self, games):
+    def run_expect(self, games, value=None):
         from coop_harness.actions.repro import ReproActions
         from coop_harness.observations import Observations
 
@@ -2469,7 +2469,7 @@ class GraphExpectTests(unittest.TestCase):
                 return AssertionError(message)
         ctx = Ctx()
         ctx.game = lambda name="": games[name]
-        return ctx.expect("wolf", "graph", within=1.0, seconds=0.6)
+        return ctx.expect("wolf", "graph", within=1.0, seconds=0.6, value=value)
 
     def games(self, owner_present=True, fail_after=None):
         state = ActiveStatesTests.saved((("m", "a"),))
@@ -2501,6 +2501,11 @@ class GraphExpectTests(unittest.TestCase):
     def test_a_watch_that_dies_fails(self):
         with self.assertRaisesRegex(AssertionError, "graph watch stopped"):
             self.run_expect(self.games(fail_after=1))
+
+    def test_a_quiet_owner_fails_when_changes_are_asked_for(self):
+        """120 uneventful seconds prove nothing about following: `value` asks for that many owner graph changes."""
+        with self.assertRaisesRegex(AssertionError, "changed 0 times, fewer than 3"):
+            self.run_expect(self.games(), value=3)
 
 
 class UiAssetsTests(unittest.TestCase):

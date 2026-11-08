@@ -2,7 +2,7 @@
 
 #include <Games/Animation/ActionState.h>
 #include <Games/Animation/ReplayStep.h>
-#include <Games/Animation/StartChoices.h>
+#include <Games/Animation/MachineStates.h>
 
 #include <array>
 #include <atomic>
@@ -51,10 +51,12 @@ struct ActorExtension
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;
-    // Its state machines' start states: an owner's to send, a copy's owner's to take (HookChooseStartState).
-    StartChoices::Queue StartChoices;
-    std::atomic<uint64_t> GraphTick{0}; // a copy's graph's time in its owner's ticks (StartChoices::GraphTime)
-    uint64_t ReplayLag = 0;             // how late a copy took its last replayed action (main thread)
+    // Its tracked state machines (MachineStates.h): an owner's states to send; a copy's owner's, to converge on.
+    MachineStates::Outbox MachineOutbox;
+    MachineStates::Timelines MachineTimelines;
+    MachineStates::KeyCache MachineKeys;          // graph job only
+    std::atomic<uint16_t> MachineGeneration{0};   // its graph rebuilt this many times
+    uint64_t ReplayLag = 0;                       // how late a copy took its last replayed action (main thread)
 
     // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
     // from that load's heap. It is reset (leaking them) before use, never freed or read.

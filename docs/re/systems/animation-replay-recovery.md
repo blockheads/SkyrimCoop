@@ -215,10 +215,48 @@ owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurn
 - Read, not on the path: StartTransition (59383) and the nested-state path (58380) write +0xFC only for transitions flagged
   0x2000; no canine transition targets `StandingBehavior`'s states. setInternalState (60010) does not touch +0x68.
 
-**The fix:** an owner's activation whose start the copy could make otherwise (`StartChoices::Shared`: no override, and a
-bound start, a random draw or a chooser) is recorded in `HookChooseStartState` (59405) and sent as a start point
-(ActionEvent with ActionId 0 and `StartChoices`, "machine:state;", stamped with the point's owner tick). Its copy's same
-hook takes the choice for that machine nearest its playback time (250 ms behind to 300 ms ahead: the point is stamped
-up to a send interval after the choice, and the copy's clip clock trails its playback by frames); passed choices are
-dropped, so one that arrived after its activation is not the next one's. With none it keeps the engine's. Random starts were already covered
-by the seed (GraphRandom) and agree with it. GameTests `[replay-start]`, ClientTests `[start-choices]`.
+The same race leaves a copy in `CannedTurnState`: `DefaultBehavior`'s exit needs `iSyncIdleLocomotion` 0 or 1 at
+`cannedTurnStop`, and the copy can still hold another value (behaviour file; seen on the duo, 3.8 s, 2026-11-07).
+
+## A copy's machines reconcile to its owner's (2026-11-07)
+
+Matching each owner start to a copy activation by time (the first fix, PR #38's first rounds) was unsound: close
+activations swapped picks, an extra activation on one side fed the wrong one, and a pick that came after its start was
+lost (Codex design review on PR #38). Now the copy converges on the owner's *state* at the same owner time. Read in IDA
+1.7.104 unless marked measured:
+
+```
+owner, graph job                                copy
+  SetActiveState 59390: every state entered       main thread: entries -> Timelines, with the graph time
+    (Activate 59334; StartTransition 59383          (playback less the last action's lateness, never past an
+     at its start, or at its end via 59384 when      action still pending)
+     the transition's flag 0x10 defers it;        graph job, hkbStateMachine::Update 59335 of an active machine:
+     GoToState 59369)                               want = owner's state at the graph time (none while the
+  Deactivate 59337: cInactive                          owner's machine is inactive)
+  -> {key, state, owner frame tick}                 apart for 250 ms of graph time -> GoToState 59369
+  sent with the next point (ActionId 0,               (transition if one exists, else a jump: the engine's own
+   MachineStates, generation + per entry               reselect path, 59387, in FORCE self-transition mode)
+   key, state, ms before the point)              ChooseStartStateId 59405: a tracked machine starts at `want`
+                                                    when the owner's is already in a state at this graph time
+```
+
+- GoToState (59369): clears transitions, sets the machine's state-changed byte (+0x100) and the graph's
+  active-nodes-changed byte (+0x12E), then SetActiveState and the sync variable write (59399). The graph's update (58329)
+  runs `updateActiveNodes` when +0x12E is set, so calling it inside a node's update takes effect in that graph update;
+  59387 does exactly this inside Update. The graph state restore calls it with force too (SetStateOfStateMachine 58365
+  from SaveDataRestoreFunctor 65179).
+- Tracked: a machine with a variable-bound start, or start mode 1 to 3 (random, chooser): the ones whose state each game
+  can pick on its own. NPCs only; players replay their own graph state.
+- A machine's key is its behaviour graph's name and its own (FNV-1a), walked from the graph's clone maps and those of
+  the behaviours it references (`hkbBehaviorReferenceGenerator` 59237: the referenced graph is a node with its own maps);
+  a key used twice in one graph is not tracked. A new root behaviour graph (rebuilt) starts the cache over: an owner
+  counts a generation, a copy forgets what it knew.
+- Measured (duo, Riverwood, 120 s, scenario `wolf_copy_turns_with_owner`): never apart 3 s, the owner's graph changing
+  34 times; 57 reconciles over 12 NPCs, 22 of them `ForwardLocomotionBehavior` flipping about once a second on moving
+  animals (whether each follows an owner change or meets the copy's own speed-driven transition is not yet measured).
+- Not read: the engine code writing `iSyncTurnState` on the owner. Moving such control variables onto the action timeline
+  would remove the divergence rather than correct it.
+
+Tests: GameTests `[replay-start]` (the fake writes the owner's variable and loads a copy's 30 frames late, as measured):
+a stale start, a slow line, a state arriving late, the stuck canned turn, a copy-only and an owner-only change, a rebuilt
+graph; each fails without the reconcile. ClientTests `[machine-states]`.

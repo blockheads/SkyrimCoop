@@ -106,15 +106,16 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         pending = step.Action.Tick;
     else if (!actions.empty() && actions.front().Tick <= aTick)
         pending = actions.front().Tick;
-    const uint64_t cGraphTick = StartChoices::GraphTime(aTick, apActor->GetExtension()->ReplayLag, pending);
-    apActor->GetExtension()->GraphTick.store(cGraphTick, std::memory_order_relaxed);
-    for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.StartChoices, {}))
-        for (auto& choice : StartChoices::Unpack(cPacked, cTick))
-        {
-            spdlog::debug("StartChoices: received {:X} {} {} at {} graph {}", apActor->formID, choice.Machine, choice.State,
-                          choice.At, cGraphTick);
-            apActor->GetExtension()->StartChoices.Receive(std::move(choice), cGraphTick);
-        }
+    // The owner's machine states and the graph time, for the copy's machines (HookStateMachineUpdate).
+    auto& timelines = apActor->GetExtension()->MachineTimelines;
+    timelines.SetGraphTime(MachineStates::GraphTime(aTick, apActor->GetExtension()->ReplayLag, pending));
+    for (const auto& [cTick, cPacked] : std::exchange(aAnimationComponent.MachineStates, {}))
+    {
+        uint16_t generation = 0;
+        std::vector<MachineStates::Entry> entries;
+        if (MachineStates::Unpack(cPacked, cTick, generation, entries))
+            timelines.Add(generation, entries);
+    }
 
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
@@ -128,7 +129,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         const auto& cAction = step.Action;
         if (phase == ReplayStep::kTaken)
         {
-            apActor->GetExtension()->ReplayLag = StartChoices::ReplayLag(aTick, cAction.Tick);
+            apActor->GetExtension()->ReplayLag = MachineStates::ReplayLag(aTick, cAction.Tick);
             aAnimationComponent.LastRanAction = cAction;
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
@@ -436,13 +437,13 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
         animationComponent.Random.ActionAt = cNow;
     animationComponent.Actions.clear();
 
-    // The start states its graph chose since the last update: its copies' machines start there too.
-    if (const auto cChoices = pActor->GetExtension()->StartChoices.Drain(); !cChoices.empty() && pActor != PlayerCharacter::Get())
+    // The states its tracked machines entered since the last send: its copies' machines converge on them.
+    if (const auto cEntries = pActor->GetExtension()->MachineOutbox.Drain(); !cEntries.empty() && pActor != PlayerCharacter::Get())
     {
         ActionEvent point;
         point.Tick = cNow;
         point.ActorId = pActor->formID;
-        point.StartChoices = StartChoices::Pack(cChoices);
+        point.MachineStates = MachineStates::Pack(pActor->GetExtension()->MachineGeneration.load(std::memory_order_relaxed), cEntries, cNow);
         update.ActionEvents.push_back(std::move(point));
     }
 

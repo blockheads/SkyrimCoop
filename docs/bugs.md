@@ -175,19 +175,15 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 ### A copy's graph after a turn or a pick
 
 The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
-of 2 s or more on some creatures and a few NPCs. Each is below. The wolf's copy turning while its owner idled is fixed
-(start choices, 2026-11-07): animation-replay-recovery.md, "A machine's start state is each game's own".
+of 2 s or more on some creatures and a few NPCs. Each is below. The wolf's copy turning while its owner idled, and its
+copy kept in `CannedTurnState`, are fixed: a copy's tracked machines (a bound, random or chooser start) now converge on
+its owner's states (2026-11-07, animation-replay-recovery.md, "A copy's machines reconcile to its owner's"). The idle
+picks below are tracked machines too: rerun them before reading further.
 
 Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
 
 Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player`), then GameTests.
 
-- **Canned turns and short turns** (a chicken, a cow): `DefaultBehavior=CannedTurnState` on one side only, 2.0-2.3 s, about
-  the 2 s threshold. A wolf's copy stayed in it 4 to 23 s (`9B0DD`, 2026-11-07, `wolf-copy-turns-with-owner` before the
-  start-choice fix): read, its exits on `cannedTurnStop` need `iSyncIdleLocomotion` 0 or 1 (quadrupedbehavior.hkx), the
-  same variable-behind-a-snapshot race as the start states (animation-replay-recovery.md, "A machine's start state is
-  each game's own"), here in a transition's condition, which start choices do not carry. Not seen in the one run after
-  the fix (4 canned turns).
 - **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
   `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
   read): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the owner's graph

@@ -238,7 +238,7 @@ void World::Update() noexcept
         {
             if (cPhase == Step::kTaken)
             {
-                actor.ReplayLag = StartChoices::ReplayLag(InterpolationSystem::PlaybackTick(*this, cEntity), step.Action.Tick);
+                actor.ReplayLag = MachineStates::ReplayLag(InterpolationSystem::PlaybackTick(*this, cEntity), step.Action.Tick);
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
             }
@@ -255,15 +255,23 @@ void World::Update() noexcept
             pending = step.Action.Tick;
         else if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             pending = animation.TimePoints.front().Tick;
-        const uint64_t cTick = StartChoices::GraphTime(cPlayback, actor.ReplayLag, pending);
+        const uint64_t cTick = MachineStates::GraphTime(cPlayback, actor.ReplayLag, pending);
         actor.GraphTick = cTick;
-        for (const auto& [cAt, cPacked] : std::exchange(animation.StartChoices, {}))
-            for (auto& choice : StartChoices::Unpack(cPacked, cAt))
-                engine.HeldStartChoices.emplace_back(form.Id, std::move(choice));
-        std::erase_if(engine.HeldStartChoices, [&](auto& aHeld) {
-            if (aHeld.first != form.Id || (engine.StartChoiceArrivalMs && cTick < aHeld.second.At + *engine.StartChoiceArrivalMs))
+        // As AnimationSystem::Update: the owner's machine states, and the graph time, for the copy's machines.
+        auto& timelines = engine.MachineTimelines[form.Id];
+        timelines.SetGraphTime(cTick);
+        for (const auto& [cAt, cPacked] : std::exchange(animation.MachineStates, {}))
+        {
+            uint16_t generation = 0;
+            std::vector<MachineStates::Entry> entries;
+            if (MachineStates::Unpack(cPacked, cAt, generation, entries))
+                for (const auto& cEntry : entries)
+                    engine.HeldMachineStates.push_back({form.Id, generation, cEntry});
+        }
+        std::erase_if(engine.HeldMachineStates, [&](const FakeEngine::HeldMachineState& acHeld) {
+            if (acHeld.FormId != form.Id || (engine.MachineArrivalMs && cTick < acHeld.Entry.At + *engine.MachineArrivalMs))
                 return false;
-            engine.StartChoiceQueues[form.Id].Receive(std::move(aHeld.second), cTick);
+            timelines.Add(acHeld.Generation, {acHeld.Entry});
             return true;
         });
         // As AnimationSystem::RunGraphPoint.
