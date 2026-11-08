@@ -2,22 +2,29 @@
 
 #include <Bridges/IActorBridge.h>
 #include <Components.h>
+#include <Events/CopyHeldEvent.h>
 #include <World.h>
 
-GuestCopies::GuestCopies(World& aWorld, IActorBridge& aActors) noexcept
+GuestCopies::GuestCopies(World& aWorld, entt::dispatcher& aDispatcher, IActorBridge& aActors) noexcept
     : m_world(aWorld)
     , m_actors(aActors)
 {
+    Listen<CopyHeldEvent, &GuestCopies::OnCopyHeld>(m_connections, aDispatcher, this);
 }
 
-void GuestCopies::Update() noexcept
+void GuestCopies::OnCopyHeld(const CopyHeldEvent& acEvent) noexcept
 {
-    // With a RemoteComponent it has its owner again (a dismounted horse before the host takes it).
-    for (auto&& [cEntity, held, cForm] : m_world.view<HeldCopyComponent, FormIdComponent>(entt::exclude<RemoteComponent>).each())
-        if (m_actors.ActorHas3D(cForm.Id))
-        {
-            spdlog::info("Copy {:X}: no owner and in this game's area: hidden", cForm.Id);
-            m_actors.DisableActor(cForm.Id, false);
-            held.Hidden = true;
-        }
+    auto* pHeld = m_world.try_get<HeldCopyComponent>(acEvent.Entity);
+    if (!pHeld)
+        return;
+    // Persistent for the session: a cell's unload frees its other references, disabled or not (TESObjectCELL 19113).
+    if (!m_world.all_of<KeptCopyComponent>(acEvent.Entity))
+        m_world.emplace<KeptCopyComponent>(acEvent.Entity, acEvent.FormId, m_actors.SetActorPersistent(acEvent.FormId, true));
+    if (pHeld->Hidden)
+        return;
+    // Disabled already, or its owner's was: it stays so after the session too.
+    pHeld->DisabledByUs = !acEvent.OwnerDisabled && !m_actors.IsActorDisabled(acEvent.FormId);
+    spdlog::info("Copy {:X}: no owner: hidden", acEvent.FormId);
+    m_actors.SetActorHidden(acEvent.FormId, true);
+    pHeld->Hidden = true;
 }

@@ -103,6 +103,7 @@ public:
     bool IsActorStillLoading(uint32_t aFormId) const noexcept override;
     bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
+    void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override;
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;

@@ -496,6 +496,7 @@ namespace
 {
 constexpr uint32_t kOlava = 0x0001A699;
 constexpr uint32_t kOlavaBase = 0x0001A698;
+constexpr uint32_t kOlavaParent = 0x000F0001; // an enable parent, a marker in the fake
 constexpr glm::vec3 kFarOutside{5 * 4096.f + 100.f, 100.f, 0.f}; // in cell (5, 0): nobody's loaded cells
 
 void OutdoorsWithOlava(FakeEngine& aEngine)
@@ -505,8 +506,9 @@ void OutdoorsWithOlava(FakeEngine& aEngine)
 }
 } // namespace
 
-// held-copy-goes-with-owner (Skyrim 2026-11-06): a persistent reference there has no parent cell.
-SCENARIO("A quest moves the host's persistent NPC outdoors out of the loaded cells: the guest's follows", "[copies]")
+// held-copy-goes-with-owner (Skyrim 2026-11-06): a persistent reference there has no parent cell. The host's events alone
+// decide when a copy appears: hidden as its owner goes, nothing in the guest's game shows it again (copy-lifecycle.md).
+SCENARIO("A quest moves the host's persistent NPC outdoors out of the loaded cells: the guest's follows, hidden", "[copies]")
 {
     Party party(1, OutdoorsWithOlava);
     FakeEngine& host = Party::Engine(party.Host());
@@ -516,20 +518,46 @@ SCENARIO("A quest moves the host's persistent NPC outdoors out of the loaded cel
     party.Until([&] { return guest.IsActorCopy(kOlava); }, "the guest's Olava is the host's copy");
 
     party.As(party.Host(), [&] { host.MoveActorTo(kOlava, host.CellAt(kTamriel, kFarOutside), kFarOutside.x, kFarOutside.y, 0.f); });
-    party.Until([&] { return !guest.ActorHas3D(kOlava); }, "the guest's Olava leaves with the host's",
+    party.Until([&] { return HeldHere(party.Guest(), kOlava); }, "the guest holds its Olava with no owner",
                 [&] { return std::format("the guest's Olava in cell {:X}", guest.Actors.at(kOlava).Cell); });
-    THEN("she is where the host's is, still a copy")
+    THEN("she is where the host's is, hidden, still a copy")
     {
         CHECK(guest.Actors.at(kOlava).Position[0] == kFarOutside.x);
         CHECK(guest.IsActorCopy(kOlava));
-        CHECK_FALSE(guest.IsActorDisabled(kOlava));
+        CHECK(guest.IsActorDisabled(kOlava));
         party.Agree("the games agree on Olava away");
     }
     AND_WHEN("the guest's loaded cells reach her, the host's not")
     {
         party.As(party.Guest(), [&] { guest.Attached.insert(guest.CellAt(kTamriel, kFarOutside)); });
-        party.Until([&] { return guest.IsActorDisabled(kOlava); }, "a copy with no owner stays gone");
+        for (int i = 0; i < 10; ++i)
+            party.Frame();
+        THEN("her 3D does not load") CHECK_FALSE(guest.ActorHas3D(kOlava));
         party.Agree("the games agree with Olava hidden");
+    }
+    AND_WHEN("the guest's game enables her (a script, the host's enabled state for her cell)")
+    {
+        party.As(party.Guest(), [&] { guest.EnableActor(kOlava); });
+        for (int i = 0; i < 10; ++i)
+            party.Frame();
+        THEN("she stays hidden") CHECK(guest.IsActorDisabled(kOlava));
+    }
+    AND_WHEN("her enable parent loads enabled on the guest (20271's raw flag)")
+    {
+        party.As(party.Guest(), [&] {
+            guest.Actors.at(kOlava).EnableParent = kOlavaParent;
+            guest.EnableParentLoads(kOlavaParent, false);
+        });
+        for (int i = 0; i < 10; ++i)
+            party.Frame();
+        THEN("she stays hidden") CHECK(guest.IsActorDisabled(kOlava));
+    }
+    AND_WHEN("the host's game has her near its player again")
+    {
+        party.As(party.Host(), [&] { host.MoveActorTo(kOlava, host.CellAt(kTamriel, kHostStands), 200.f, 100.f, 0.f); });
+        party.Until([&] { return OwnsHere(party.Host(), kOlava) && guest.ActorHas3D(kOlava) && !HeldHere(party.Guest(), kOlava); },
+                    "her spawn shows her as the host's copy");
+        party.Agree("the games agree with Olava back");
     }
 }
 
@@ -563,9 +591,10 @@ SCENARIO("The host's game drops a placed NPC where the guest still has it: a cop
     }
 }
 
-// A placed guard's trip home (leveled-placed-npc-is-hosts, Skyrim 2026-11-06): the guest's non-persistent reference is
-// collected once it follows; the entity must not hold its form id.
-SCENARIO("The guest's reference is collected as it follows the host's NPC: the copy is gone", "[copies]")
+// A placed guard's trip home (leveled-placed-npc-is-hosts, Skyrim 2026-11-06 and 2026-11-07): the engine frees a
+// non-persistent reference out of the loaded cells, enabled (37501) or disabled (its cell's unload, 19113). Kept
+// persistent while held, it is there for the host's next spawn.
+SCENARIO("The guest's non-persistent reference follows the host's NPC out of the loaded cells: kept, hidden", "[copies]")
 {
     Party party(1, OutdoorsWithOlava);
     FakeEngine& host = Party::Engine(party.Host());
@@ -574,7 +603,53 @@ SCENARIO("The guest's reference is collected as it follows the host's NPC: the c
     party.Until([&] { return guest.IsActorCopy(kOlava); }, "the guest's guard is the host's copy");
 
     party.As(party.Host(), [&] { host.MoveActorTo(kOlava, host.CellAt(kTamriel, kFarOutside), kFarOutside.x, kFarOutside.y, 0.f); });
-    party.Until([&] { return !guest.Actors.contains(kOlava); }, "the guest's engine collects its reference");
-    party.Until([&] { return !HeldHere(party.Guest(), kOlava); }, "the guest holds nothing for a form that is gone");
-    party.Agree("the games agree with the guard gone");
+    party.Until([&] { return HeldHere(party.Guest(), kOlava); }, "the guest holds its guard with no owner");
+    THEN("its reference is kept where the host's went, hidden")
+    {
+        REQUIRE(guest.Actors.contains(kOlava));
+        CHECK(guest.Actors.at(kOlava).Position[0] == kFarOutside.x);
+        CHECK(guest.IsActorDisabled(kOlava));
+        party.Agree("the games agree with the guard away");
+    }
+    AND_WHEN("the session ends")
+    {
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
+        THEN("the guest's reference is its own, shown, not persistent")
+        {
+            CHECK_FALSE(guest.IsActorDisabled(kOlava));
+            CHECK_FALSE(guest.Actors.at(kOlava).Persistent);
+        }
+    }
+    AND_WHEN("the host's guard comes back")
+    {
+        party.As(party.Host(), [&] { host.MoveActorTo(kOlava, host.CellAt(kTamriel, kHostStands), 200.f, 100.f, 0.f); });
+        party.Until([&] { return guest.IsActorCopy(kOlava) && guest.ActorHas3D(kOlava) && !HeldHere(party.Guest(), kOlava); },
+                    "the guest's own reference is its copy again");
+        party.Agree("the games agree with the guard back");
+    }
+}
+
+// A copy held as its owner's actor is disabled stays so: no enable shows it, nor the session's end.
+SCENARIO("The host disables its placed NPC: the guest's copy refuses enables and stays disabled after the session", "[copies]")
+{
+    Party party(1, OutdoorsWithOlava);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return guest.IsActorCopy(kOlava) && guest.ActorHas3D(kOlava); }, "the guest shows the host's Olava");
+
+    party.As(party.Host(), [&] { host.DisableActor(kOlava, false); });
+    party.Until([&] { return HeldHere(party.Guest(), kOlava) && guest.IsActorDisabled(kOlava); }, "the guest's copy is disabled as the host's");
+    party.As(party.Guest(), [&] {
+        guest.EnableActor(kOlava);
+        guest.Actors.at(kOlava).EnableParent = kOlavaParent;
+        guest.EnableParentLoads(kOlavaParent, false);
+    });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    THEN("an enable or her enable parent's load does not show her") CHECK(guest.IsActorDisabled(kOlava));
+    AND_WHEN("the session ends")
+    {
+        party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(DisconnectedEvent{}); });
+        THEN("she stays disabled, as the host's save has her") CHECK(guest.IsActorDisabled(kOlava));
+    }
 }

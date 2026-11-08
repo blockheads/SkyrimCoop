@@ -200,6 +200,8 @@ public:
     virtual void EnableActor(uint32_t aFormId) noexcept = 0;
     // At once, no fade; aDelete also marks it deleted.
     virtual void DisableActor(uint32_t aFormId, bool aDelete) noexcept = 0;
+    // A held copy with no owner: hidden, it is disabled and every enable refused; not hidden, enables pass (none made).
+    virtual void SetActorHidden(uint32_t aFormId, bool aHidden) noexcept = 0;
 
     // --- Dialogue / sound ---
     virtual void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept = 0;
