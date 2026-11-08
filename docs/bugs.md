@@ -201,7 +201,8 @@ Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player
   from 28 s before the run to 6 s into it. A traced run (no stick in 180 s) showed the race behind it: the owner's
   canned clip sometimes starts 0.1-0.2 s later after its action than its copy's, so the copy's clip ends before the
   owner's refused `turnStop`/`moveStop` writes reach it (animation-replay-recovery.md, "A refused action still writes
-  its graph variables"). Not read: why the owner's clip starts late.
+  its graph variables"). Why: a far owner's graph steps in chunks of 0.08-0.25 s (animation interpolation, 63587),
+  its copy every frame (same doc, "Why an owner's clip starts late").
 - **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
   on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
 

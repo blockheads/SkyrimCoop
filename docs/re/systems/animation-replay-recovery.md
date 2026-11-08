@@ -256,8 +256,36 @@ ForceAction (38953, a copy's replays): the same 39004 call, started or not
   on the owner in the other 7). After the first footfall both clips run in step, and no frame was longer than 50 ms.
   So the copy's clip end can run up to about 0.18 s ahead of its owner's in the owner's timeline, and a write made
   just before the owner's end arrives too late. The stuck `CannedTurnState` is likely the same race on `MoveStop`'s
-  `iSyncIdleLocomotion` 0 (in the traced turn, the copy got it 50 ms before its own end). Not read: why the owner's
-  canned clip sometimes starts later after its action.
+  `iSyncIdleLocomotion` 0 (in the traced turn, the copy got it 50 ms before its own end).
+
+### Why an owner's clip starts late: distant graphs step in chunks (read 2026-11-08)
+
+The canned turn's data has no wait in it: `DefaultBlendToAnimationDriven` (an `hkbBlendingTransitionEffect`, duration
+bound to `blendDefault`, no sync flag) into plain clips played from 0 at speed 1 (behaviour file). The delay is Skyrim's
+animation interpolation for distant actors, read in IDA:
+
+```
+41453 -> 20123: BSAnimationUpdateData.deltaTime = frame seconds x VATS multiplier, for every actor
+  Actor::ModifyAnimationUpdateData (38054): +0x2A force (kForceAnimGraphUpdate; we set it on copies),
+    +0x2C visible, +0x2B interpolation allowed (37988: bAnimInterpEnable, and the graph's bIsSynced,
+    bSpeedSynced and bDisableInterp all false)
+  coop_BSAnimationGraphManager_Update (63358) -> coop_BShkbAnimationGraph_UpdateInterpolated (63587):
+    two countdowns (+0x1E8/+0x1EC) each less dt per frame
+    near (camera distance x (80/fov)^2 within fAnimInterpNearDist 400), forced, or not allowed:
+      the behaviour graph steps dt every frame
+    far: when the countdown runs out, the graph steps a whole interval at once
+      (fAnimInterpMinTime 0.08 s .. fAnimInterpMaxTime 0.25 s across 400..fAnimInterpFarDist 800, cut by 63864),
+      and not again until that interval has passed; the drawn pose is interpolated between the two buffered poses
+```
+
+- So a far owner's graph runs ahead of the clock in chunks. An event arriving mid-chunk starts its clip at 0, and the
+  clip does not move until the next chunk: up to one interval late. Its copy is forced and steps every frame, so its
+  clip starts at once and ends earlier in the owner's timeline. The trace agrees: the owner's clip time stood still or
+  jumped (0.17 s in 33 ms) while the copy's ran with the clock. The wolf's distance from the host's camera was not
+  recorded.
+- Any clip-end trigger on a far owner can come up to an interval after its copy's, so this is not only the wolf's turn.
+- Fix directions, not chosen: force the owners whose copies a guest can see (the cost is the host's animation LOD for
+  them, to be profiled); or make the copy step as its owner did.
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the

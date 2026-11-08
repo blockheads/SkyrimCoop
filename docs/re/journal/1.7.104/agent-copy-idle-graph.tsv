@@ -108,3 +108,19 @@ time	op	id	rva	item
 2026-11-08T09:19:29Z	comment		0x2253ac	{"addr": "0x1402253ac", "comment": "FixedStrings +0x310 iSyncIdleLocomotion, +0x318 iSyncTurnState (the string loaded after each lea rcx)"}
 2026-11-08T09:19:30Z	name	39004	0x6e2250	{"addr": "0x1406e2250", "name": "coop_ApplyActionGraphEffects"}
 2026-11-08T18:01:22Z	comment		0x6dfff9	{"addr": "0x1406dfff9", "comment": "ForceAction's path (copies' replays): 39004's graph writes run whether or not the event started, as in 38949"}
+2026-11-08T18:36:12Z	read		0x2fdeee	{"name": "TESObjectREFR::sub_20123"}
+2026-11-08T18:38:35Z	read		0xbcf240	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-08T18:38:43Z	read		0xbcf060	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-08T18:39:34Z	name	63587	0xbcedb0	{"addr": "0x140bcedb0", "name": "coop_BShkbAnimationGraph_UpdateInterpolated"}
+2026-11-08T18:39:34Z	name	63358	0xbc0680	{"addr": "0x140bc0680", "name": "coop_BSAnimationGraphManager_Update"}
+2026-11-08T18:39:34Z	name	63564	0xbcae00	{"addr": "0x140bcae00", "name": "coop_BShkbAnimationGraph_HasRagdoll"}
+2026-11-08T18:39:38Z	comment		0xbcee39	{"addr": "0x140bcee39", "comment": "dt = BSAnimationUpdateData.deltaTime; +0x1E8/+0x1EC: countdowns to the graph's next step, each less dt per frame"}
+2026-11-08T18:39:38Z	comment		0xbcf073	{"addr": "0x140bcf073", "comment": "Far (camera distance, x (80/fov)^2, past fAnimInterpNearDist 400): interval fAnimInterpMinTime 0.08 .. fAnimInterpMaxTime 0.25 up to fAnimInterpFarDist 800, cut by 63864. If interval + countdown > (1 + fAnimInterpSlop) * dt: countdown = that, and the graph steps the whole interval now"}
+2026-11-08T18:39:38Z	comment		0xbcf099	{"addr": "0x140bcf099", "comment": "step = interval: a far graph runs in chunks ahead of the clock; an event mid-chunk starts its clip at 0 until the next chunk (an owner's late canned turn, SkyrimCoop animation-replay-recovery.md)"}
+2026-11-08T18:39:38Z	comment		0xbcf0b6	{"addr": "0x140bcf0b6", "comment": "Near, forced (BSAnimationUpdateData +0x2A: kForceAnimGraphUpdate, set on copies) or interval too short: step = min(-countdown, dt), the frame's dt; countdowns reset"}
+2026-11-08T18:39:38Z	comment		0xbcf289	{"addr": "0x140bcf289", "comment": "hkbBehaviorGraph update (vtable +0x28) with the step (xmm2); skipped on frames between a far graph's chunks (+0x245 cleared)"}
+2026-11-08T18:39:38Z	comment		0xbcef46	{"addr": "0x140bcef46", "comment": "+0x2C visible (Actor::ModifyAnimationUpdateData 38054)"}
+2026-11-08T18:40:03Z	read		0x6237a0	{"name": "BGSSaveLoadManager::sub_35743"}
+2026-11-08T18:40:07Z	read	37988	0x6b13d0	{"name": "PlayerCharacter::sub_37988"}
+2026-11-08T18:40:24Z	name	37988	0x6b13d0	{"addr": "0x1406b13d0", "name": "coop_Actor_AnimInterpAllowed"}
+2026-11-08T18:40:25Z	comment	37988	0x6b13d0	{"addr": "0x1406b13d0", "comment": "BSAnimationUpdateData +0x2B: a far graph may step in chunks (63587) when bAnimInterpEnable, actor +200 & 0x3C000 clear, and its graph's bIsSynced, bSpeedSynced and bDisableInterp are all false"}
