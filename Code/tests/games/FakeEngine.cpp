@@ -123,6 +123,28 @@ void FakeEngine::Frame()
             actor.LoopDraws.push_back(actor.LoopsToSend);
             actor.GraphState = actor.GraphState == Loop->State ? Loop->Other : Loop->State;
         }
+    if (Bound)
+        for (auto& [cId, actor] : Actors)
+        {
+            auto& integers = actor.GraphVariables.Integers;
+            if (integers.size() <= Bound->Variable)
+                integers.resize(Bound->Variable + 1);
+            if (actor.GraphState != Bound->State)
+            {
+                actor.BoundFrames = 0;
+                continue;
+            }
+            if (++actor.BoundFrames < Bound->Frames)
+                continue;
+            actor.BoundFrames = 0;
+            int32_t start = integers[Bound->Variable];
+            if (!actor.Copy && Bound->OwnerEnd)
+                start = *Bound->OwnerEnd;
+            // As HookChooseStartState (Animation.cpp).
+            if (!actor.Player)
+                start = StartChoices::Choose(StartChoiceQueues[cId], actor.Copy, "Bound", start, World::Get().GetTick());
+            actor.GraphState = Bound->Starts.at(std::clamp<size_t>(size_t(std::max(start, 0)), 0, Bound->Starts.size() - 1));
+        }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
         if (it->Frames-- > 0)

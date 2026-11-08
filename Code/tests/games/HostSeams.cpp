@@ -409,6 +409,15 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
             update.ActionEvents.push_back(std::move(point));
     }
     animationComponent.Actions.clear();
+    // As AnimationSystem::Serialize: the start states its graph chose.
+    if (const auto cChoices = engine.StartChoiceQueues[formIdComponent.Id].Drain(); !cChoices.empty())
+    {
+        ActionEvent point;
+        point.Tick = cNow;
+        point.ActorId = formIdComponent.Id;
+        point.StartChoices = StartChoices::Pack(cChoices);
+        update.ActionEvents.push_back(std::move(point));
+    }
 }
 
 void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept

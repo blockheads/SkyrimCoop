@@ -573,6 +573,23 @@ std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept;
 bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicroseconds) noexcept;
 // The variables each of the actor's graphs writes itself (GraphVariableWriters), with the node writing it and
 // the project-wide name of the node's index, to check how sub-behaviours index variables.
+// A behaviour's state machine as this character's clone holds it, active or not.
+struct GraphMachine
+{
+    std::string Behaviour;
+    std::string Name;
+    bool Active = false;
+    std::string State;         // the current state's name
+    std::string StartOverride; // the state the next activation enters (59405), empty for none
+    uintptr_t Clone = 0;
+    bool TemplateActive = false;
+    std::string TemplateState;
+    std::string TemplateStart; // the start state every new clone copies (59330)
+};
+// Every state machine clone in the actor's graphs (each behaviour's template-to-clone map, 58359), those whose name
+// holds `acFilter`: what an inactive machine will resume or start in.
+std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter) noexcept;
+
 struct GraphWriter
 {
     std::string Project;

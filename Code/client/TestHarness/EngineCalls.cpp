@@ -50,6 +50,7 @@
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
 #include <Havok/hkbBehaviorGraph.h>
+#include <Havok/hkbNode.h>
 #include <Havok/hkbVariableValueSet.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/GraphVariableWriters.h>
@@ -1598,6 +1599,68 @@ bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicr
     const bool cLoaded = pActor ? pActor->LoadAnimationGraphState(cState) : pRef->LoadGraphs(cState);
     aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
     return cLoaded;
+}
+
+namespace
+{
+void CollectMachines(const hkbBehaviorGraphNode* apGraph, const std::string& acFilter, std::vector<GraphMachine>& aMachines, int aDepth)
+{
+    const hkPointerMapView* pMap = apGraph ? apGraph->nodeTemplateToCloneMap : nullptr;
+    if (!pMap || !pMap->elements || aDepth > 8)
+        return;
+    for (int32_t i = 0; i <= pMap->hashMod; ++i)
+    {
+        const auto& cPair = pMap->elements[i];
+        const auto* pNode = cPair.key == ~uintptr_t(0) ? nullptr : reinterpret_cast<const hkbNode*>(cPair.value);
+        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
+        if (!pClass || !pClass->name)
+            continue;
+        const std::string_view cClass = pClass->name;
+        if (cClass == "hkbBehaviorReferenceGenerator")
+            CollectMachines(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, acFilter, aMachines, aDepth + 1);
+        if (cClass != "hkbStateMachine" || !pNode->name || std::string_view(pNode->name).find(acFilter) == std::string_view::npos)
+            continue;
+        const auto* pMachine = static_cast<const hkbStateMachineNode*>(pNode);
+        GraphMachine& machine = aMachines.emplace_back();
+        // hkStringPtr: the low bit is a flag.
+        const auto cName = [](const char* apName) { return reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(apName) & ~uintptr_t(1)); };
+        machine.Behaviour = apGraph->name ? cName(apGraph->name) : "";
+        machine.Name = cName(pNode->name);
+        machine.Active = pMachine->isActive;
+        const auto* pTemplate = reinterpret_cast<const hkbStateMachineNode*>(cPair.key);
+        machine.Clone = cPair.value;
+        machine.TemplateActive = pTemplate->isActive;
+        for (int32_t s = 0; s < pMachine->states.size; ++s)
+        {
+            const auto* pState = pMachine->states.data[s];
+            if (pState && pState->stateId == pMachine->currentStateId && pState->name)
+                machine.State = pState->name;
+            if (pState && pState->stateId == pTemplate->currentStateId && pState->name)
+                machine.TemplateState = pState->name;
+            if (pState && pState->stateId == pTemplate->startStateId && pState->name)
+                machine.TemplateStart = pState->name;
+            if (pState && s == pMachine->nextStartStateIndexOverride && pState->name)
+                machine.StartOverride = pState->name;
+        }
+    }
+}
+} // namespace
+
+std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter) noexcept
+{
+    std::vector<GraphMachine> machines;
+    Actor* pActor = GetActor(aFormId);
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!pActor || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return machines;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        if (pManager->animationGraphIndex < pManager->animationGraphs.size)
+            if (const BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(pManager->animationGraphIndex))
+                CollectMachines(reinterpret_cast<const hkbBehaviorGraphNode*>(pGraph->behaviorGraph), acFilter, machines, 0);
+    }
+    pManager->Release();
+    return machines;
 }
 
 std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept

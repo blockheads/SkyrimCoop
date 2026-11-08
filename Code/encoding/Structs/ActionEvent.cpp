@@ -16,15 +16,16 @@ enum DifferentialFlags
     kVariables = 1 << 7,
     kTargetActor = 1 << 8,
     kGraphState = 1 << 9,
-    kGraphCounters = 1 << 10
+    kGraphCounters = 1 << 10,
+    kStartChoices = 1 << 11
 };
-constexpr uint32_t cFlagBits = 11;
+constexpr uint32_t cFlagBits = 12;
 
 bool ActionEvent::operator==(const ActionEvent& acRhs) const noexcept
 {
     return Tick == acRhs.Tick &&
            // ActorId == acRhs.ActorId && // ActorId is a local field as it is filled up latter by the game client
-           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && TargetActor == acRhs.TargetActor && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables && GraphState == acRhs.GraphState && GraphCounters == acRhs.GraphCounters;
+           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && TargetActor == acRhs.TargetActor && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables && GraphState == acRhs.GraphState && GraphCounters == acRhs.GraphCounters && StartChoices == acRhs.StartChoices;
 }
 
 bool ActionEvent::operator!=(const ActionEvent& acRhs) const noexcept
@@ -68,6 +69,9 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffe
 
     if (GraphCounters != aPrevious.GraphCounters)
         flags |= kGraphCounters;
+
+    if (StartChoices != aPrevious.StartChoices)
+        flags |= kStartChoices;
 
     aWriter.WriteBits(flags, cFlagBits);
 
@@ -125,6 +129,8 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffe
         Serialization::WriteString(aWriter, GraphState);
     if (flags & kGraphCounters)
         Serialization::WriteString(aWriter, GraphCounters);
+    if (flags & kStartChoices)
+        Serialization::WriteString(aWriter, StartChoices);
 }
 
 void ActionEvent::ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept
@@ -190,4 +196,6 @@ void ActionEvent::ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept
         GraphState = Serialization::ReadString(aReader);
     if (flags & kGraphCounters)
         GraphCounters = Serialization::ReadString(aReader);
+    if (flags & kStartChoices)
+        StartChoices = Serialization::ReadString(aReader);
 }

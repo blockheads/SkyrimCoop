@@ -18,6 +18,34 @@ template <class T> struct hkArrayView
 };
 static_assert(sizeof(hkArrayView<int>) == 0x10);
 
+// hkPointerMap's storage (hkPointerMap_GetWithDefault 57195): open addressing over hashMod + 1 slots, empty key ~0.
+struct hkPointerMapView
+{
+    struct Pair
+    {
+        uintptr_t key;
+        uintptr_t value;
+    };
+    Pair* elements;  // 0
+    int32_t count;   // 8
+    int32_t hashMod; // C
+
+    // As 57195 looks up.
+    [[nodiscard]] uintptr_t Get(uintptr_t aKey) const noexcept
+    {
+        if (hashMod <= 0 || !elements)
+            return 0;
+        for (uint32_t i = hashMod & (uint32_t(aKey >> 4) * 0x9E3779B1u);; i = hashMod & (i + 1))
+        {
+            if (elements[i].key == ~uintptr_t(0))
+                return 0;
+            if (elements[i].key == aKey)
+                return elements[i].value;
+        }
+    }
+};
+static_assert(sizeof(hkPointerMapView) == 0x10);
+
 struct hkbVariableBindingSet
 {
     struct Binding
@@ -182,11 +210,16 @@ struct hkbBehaviorGraphNode : hkbNode
     hkbBehaviorGraphData* data;      // 88
     uint8_t pad90[0x98 - 0x90];
     hkArrayView<hkbNodeInfo>* activeNodes; // 98
+    uint8_t padA0[0xE0 - 0xA0];
+    hkPointerMapView* nodeTemplateToCloneMap; // E0, a node's clone for this character (GetNodeClone 58359)
+    hkPointerMapView* nodeCloneToTemplateMap; // E8
 };
 static_assert(offsetof(hkbBehaviorGraphNode, random) == 0x78);
 static_assert(offsetof(hkbBehaviorGraphNode, rootGenerator) == 0x80);
 static_assert(offsetof(hkbBehaviorGraphNode, data) == 0x88);
 static_assert(offsetof(hkbBehaviorGraphNode, activeNodes) == 0x98);
+static_assert(offsetof(hkbBehaviorGraphNode, nodeTemplateToCloneMap) == 0xE0);
+static_assert(offsetof(hkbBehaviorGraphNode, nodeCloneToTemplateMap) == 0xE8);
 
 struct hkbBehaviorReferenceGenerator : hkbNode
 {
@@ -197,10 +230,34 @@ static_assert(offsetof(hkbBehaviorReferenceGenerator, behavior) == 0x50);
 
 struct hkbStateMachineNode : hkbNode
 {
-    uint8_t pad48[0x7C - 0x48];
+    struct StateInfo
+    {
+        uint8_t pad0[0x60];
+        const char* name; // 60
+        int32_t stateId;  // 68
+    };
+    uint8_t pad48[0x68 - 0x48];
+    int32_t startStateId;      // 68
+    uint8_t pad6C[0x7C - 0x6C];
     int32_t syncVariableIndex; // 7C, written with the current state's id
+    int32_t currentStateId;    // 80
+    uint8_t pad84[0x86 - 0x84];
+    uint8_t startStateMode; // 86: 0 startStateId, 1 sync, 2 random, 3 chooser
+    uint8_t pad87;
+    bool isActive; // 88, Activate (59334) enters a start state only when false
+    uint8_t pad89[0x90 - 0x89];
+    hkArrayView<StateInfo*> states; // 90
+    uint8_t padA0[0xFC - 0xA0];
+    int32_t nextStartStateIndexOverride; // FC, an index; the next Activate starts there (59405), -1 none
 };
+static_assert(offsetof(hkbStateMachineNode::StateInfo, stateId) == 0x68);
+static_assert(offsetof(hkbStateMachineNode, startStateId) == 0x68);
 static_assert(offsetof(hkbStateMachineNode, syncVariableIndex) == 0x7C);
+static_assert(offsetof(hkbStateMachineNode, currentStateId) == 0x80);
+static_assert(offsetof(hkbStateMachineNode, startStateMode) == 0x86);
+static_assert(offsetof(hkbStateMachineNode, isActive) == 0x88);
+static_assert(offsetof(hkbStateMachineNode, states) == 0x90);
+static_assert(offsetof(hkbStateMachineNode, nextStartStateIndexOverride) == 0xFC);
 
 struct hkbExpressionData
 {

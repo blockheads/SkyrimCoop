@@ -181,3 +181,39 @@ The verb `graph_watch` is the same watch on demand. It logs and does not fail a 
 checks, and `scenario --no-graph-watch` leaves it out. A run whose actor stops being read ends at its last reading apart and says
 so (`lost`, "until no longer read"). The pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating: it counts
 only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stays watched while it can be read.
+
+## A machine's start state is each game's own (2026-11-07)
+
+The live check's lasting shape on creatures, a wolf's copy turning on the spot while its owner idles (`9B0DD`, 4 to 20 s),
+comes from where a state machine starts, not from an event. Read in IDA 1.7.104 and measured on the duo (Riverwood).
+
+```
+owner and copy get the same events (trace "input": every one through PerformAction 38949 / ForceAction 38953)
+TurnCannedR180's clip ends: its trigger cannedTurnStop (no action)
+  DefaultBehavior CannedTurnState -> StandingState (flags 0, iSyncIdleLocomotion == 0)
+  StandingBehavior activates: a new clone of its template (GetOrCreateNodeClone 58360 -> clone ctor 59330,
+    which copies startStateId..selfTransitionMode, +0x68..+0x87, and resets +0xFC and isActive +0x88)
+  hkbVariableBindingSet (59467, from 58522) writes the bound variable into the clone's startStateId (+0x68)
+    StandingBehavior.startStateId <- iSyncTurnState   (quadrupedbehavior.hkx; DefaultBehavior <- iSyncIdleLocomotion,
+    LocomotionBehavior <- iSyncForwardState, the turn clips' machines <- iTurnMirrored)
+  Activate (59334) -> ChooseStartStateId (59405): override +0xFC if >= 0, else by startStateMode +0x86:
+    0 startStateId, 1 sync variable, 2 random (59406), 3 chooser
+owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurnRight, until the next action
+```
+
+- Measured (harness `graph_machines`, trace `start` and a write watchpoint, since removed): every new clone holds the
+  template's start (1), and at ChooseStartStateId some hold 0 or 2 with no override and mode 0; the watchpoint caught the
+  write at RVA `B1F4BF` under `hkbVariableBindingSet::sub_59467` each time.
+- The owner's engine changes `iSyncTurnState` in the frame its clip ends; in the trace that frame also holds a `turnStop`
+  the engine refused (so never sent). Which engine code writes it is not read: the executable names it only in
+  `FixedStrings` (+0x318, `iSyncIdleLocomotion` +0x310), which `AIProcess::StopCurrentIdle` (39257) reads.
+- A copy's integer variables are its current movement snapshot's (`CharacterService`, the 10-a-second rate for NPCs not
+  in a fight), and its clip ends on its own clock: the measured runs read the old value.
+- Read, not on the path: StartTransition (59383) and the nested-state path (58380) write +0xFC only for transitions flagged
+  0x2000; no canine transition targets `StandingBehavior`'s states. setInternalState (60010) does not touch +0x68.
+
+**The fix:** an owner's activation whose start the copy could make otherwise (`StartChoices::Shared`: no override, and a
+bound start, a random draw or a chooser) is recorded in `HookChooseStartState` (59405) and sent as a start point
+(ActionEvent with ActionId 0 and `StartChoices`, "machine:state;"). Its copy's same hook takes the oldest choice for that
+machine received in the last 1.5 s and starts there; with none it keeps the engine's. Random starts were already covered
+by the seed (GraphRandom) and agree with it. GameTests `[replay-start]`, ClientTests `[start-choices]`.

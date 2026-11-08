@@ -18,6 +18,7 @@
 #include <Havok/BSSynchronizedClipGenerator.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
+#include <Havok/hkbNode.h>
 #include <Havok/bhkCharacterController.h>
 
 #include <World.h>
@@ -41,6 +42,8 @@ using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent
 static TContactPoint* RealContactPoint;
 using TTryMoveTo = bool(bhkCharacterController*, const void* apPosition, void* apArgument, bool aIgnoreDepth);
 static TTryMoveTo* RealTryMoveTo;
+using TChooseStartState = int32_t(hkbStateMachineNode*, const hkbContext*);
+static TChooseStartState* RealChooseStartState;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
@@ -153,6 +156,58 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
+}
+
+namespace
+{
+// hkStringPtr: the low bit is a flag.
+const char* HavokName(const char* apName) noexcept
+{
+    return reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(apName) & ~uintptr_t(1));
+}
+
+// Its startStateId bound to a graph variable (hkbVariableBindingSet 59467 writes it before activation).
+bool StartIsBound(const hkbStateMachineNode& acMachine) noexcept
+{
+    if (!acMachine.bindings)
+        return false;
+    for (int32_t i = 0; i < acMachine.bindings->bindings.size; ++i)
+    {
+        const auto& cBinding = acMachine.bindings->bindings.data[i];
+        if (cBinding.bindingType == hkbVariableBindingSet::Binding::kTypeVariable && cBinding.memberPath &&
+            std::string_view(HavokName(cBinding.memberPath)) == "startStateId")
+            return true;
+    }
+    return false;
+}
+
+bool HasState(const hkbStateMachineNode& acMachine, int32_t aStateId) noexcept
+{
+    for (int32_t i = 0; i < acMachine.states.size; ++i)
+        if (acMachine.states.data[i] && acMachine.states.data[i]->stateId == aStateId)
+            return true;
+    return false;
+}
+} // namespace
+
+// hkbStateMachine::ChooseStartStateId (59405), as a machine activates: a start each game would read from its own variable,
+// draw or chooser is the owner's on its copy (StartChoices.h; docs/re/systems/animation-replay-recovery.md).
+int32_t HookChooseStartState(hkbStateMachineNode* apMachine, const hkbContext* apContext)
+{
+    const int32_t cOverride = apMachine->nextStartStateIndexOverride;
+    const int32_t cChosen = RealChooseStartState(apMachine, apContext);
+    if (!apContext || !apContext->character || !apMachine->name || !StartChoices::Shared(cOverride, apMachine->startStateMode, StartIsBound(*apMachine)))
+        return cChosen;
+    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(apContext->character) -
+                                                                     offsetof(BShkbAnimationGraph, character));
+    TESObjectREFR* pHolder = pGraph->holder;
+    if (!pHolder || pHolder->formType != Actor::Type || pHolder == PlayerCharacter::Get())
+        return cChosen;
+    auto* pExtension = static_cast<Actor*>(pHolder)->GetExtension();
+    if (pExtension->IsPlayer())
+        return cChosen;
+    const int32_t cState = StartChoices::Choose(pExtension->StartChoices, pExtension->IsCopy(), HavokName(apMachine->name), cChosen, StartChoices::Now());
+    return HasState(*apMachine, cState) ? cState : cChosen;
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
@@ -327,4 +382,5 @@ static Hooks::Initializer s_animationHook(
         HOOK_ID(63092, &RealContactPoint, HookContactPoint);
         HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);
+        HOOK_ID(59405, &RealChooseStartState, HookChooseStartState);
     });

@@ -18,6 +18,10 @@
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
 
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
+
 #include <atomic>
 #include <mutex>
 #include <RTTI.h>
@@ -61,6 +65,49 @@ struct GraphEventSink final : BSTEventSink<BSAnimationGraphEvent>
     }
 };
 GraphEventSink s_sink;
+
+// The graphs whose input events are recorded: those listened to.
+std::atomic<int> s_inputGraphCount{0};
+const BShkbAnimationGraph* s_inputGraphs[16]{};
+
+// The engine's frames that sent an event, as RVAs (scripts/re/id.py reads them).
+nlohmann::json CallerRvas()
+{
+    void* frames[10];
+    const USHORT cCount = RtlCaptureStackBackTrace(1, 10, frames, nullptr);
+    const auto cBase = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    nlohmann::json rvas = nlohmann::json::array();
+    for (USHORT i = 0; i < cCount; ++i)
+    {
+        const auto cAddress = reinterpret_cast<uintptr_t>(frames[i]);
+        if (cAddress > cBase && cAddress - cBase < 0x4000000)
+            rvas.push_back(std::format("{:X}", cAddress - cBase));
+    }
+    return rvas;
+}
+
+// BShkbAnimationGraph::SendEvent (63591): every input event of a graph, whoever sends it (an action, the engine directly).
+using TSendGraphEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
+TSendGraphEvent* RealSendGraphEvent = nullptr;
+
+bool HookSendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
+{
+    const bool cTaken = RealSendGraphEvent(apGraph, apEvent);
+    const int cCount = s_inputGraphCount.load(std::memory_order_acquire);
+    for (int i = 0; i < cCount; ++i)
+        if (s_inputGraphs[i] == apGraph)
+        {
+            Record({{"kind", "input"},
+                    {"actor", apGraph->holder ? apGraph->holder->formID : 0},
+                    {"event", apEvent && apEvent->data ? apEvent->data : ""},
+                    {"taken", cTaken},
+                    {"from", CallerRvas()}});
+            break;
+        }
+    return cTaken;
+}
+
+Hooks::Initializer s_sendGraphEventHook([]() { HOOK_ID(63591, &RealSendGraphEvent, HookSendGraphEvent); });
 
 Actor* GetActor(uint32_t aFormId) noexcept
 {
@@ -145,6 +192,7 @@ nlohmann::json AnimationTrace::Take()
 
 nlohmann::json AnimationTrace::Stop()
 {
+    s_inputGraphCount.store(0, std::memory_order_release);
     for (BShkbAnimationGraph* pGraph : m_graphs)
     {
         pGraph->animationGraphEvents.UnRegisterSink(&s_sink);
@@ -197,6 +245,11 @@ void AnimationTrace::ListenToGraphs(uint32_t aFormId)
             InterlockedIncrement(&pGraph->refCount);
             pGraph->animationGraphEvents.RegisterSink(&s_sink);
             m_graphs.push_back(pGraph);
+            if (const int cCount = s_inputGraphCount.load(); cCount < static_cast<int>(std::size(s_inputGraphs)))
+            {
+                s_inputGraphs[cCount] = pGraph;
+                s_inputGraphCount.store(cCount + 1, std::memory_order_release);
+            }
             Record({{"kind", "listen"}, {"actor", aFormId}, {"project", pGraph->projectName ? pGraph->projectName : ""}});
         }
     }

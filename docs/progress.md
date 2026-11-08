@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-07: a copy's state machines start where their owner's did. A machine's start state can be a graph variable
+(the wolf's `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467),
+read by ChooseStartStateId (59405) when the machine activates, often at a clip's end with no action. The copy read its
+own, a movement snapshot behind, and turned on the spot for 4 to 20 s while its owner idled. The owner now sends each
+such start (`StartChoices.h`, a start point) and its copy's machine starts there
+([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A machine's start state is each game's own").
+Harness: the animation trace records each event sent into a graph with its engine callers (`input`); `graph_machines` /
+`graph_machines_watch` read state machines on both games; `name_owner`; `expect` check `graph`; behavior_dump extracts
+creature behaviours.
+
 2026-11-07: the stray empty box in fresh worktrees' test games is the main menu's Anniversary Edition box (52156),
 queued while SkyrimPrefs.ini has no `bFreebiesSeen=1`: the harness's `coc` took it into QASmoke, empty (its body key
 has no translation), and the duo boot then failed to host. `prepare_prefix` sets the pref; a fresh prefix boots,

@@ -100,6 +100,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     auto& step = apActor->GetExtension()->Replay;
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
 
+    for (const auto& cPacked : std::exchange(aAnimationComponent.StartChoices, {}))
+        for (auto& choice : StartChoices::Unpack(cPacked, StartChoices::Now()))
+            apActor->GetExtension()->StartChoices.Push(std::move(choice));
+
     GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
     if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
         aAnimationComponent.CounterUpdates = 0;
@@ -418,6 +422,16 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     if (!animationComponent.Actions.empty())
         animationComponent.Random.ActionAt = cNow;
     animationComponent.Actions.clear();
+
+    // The start states its graph chose since the last update: its copies' machines start there too.
+    if (const auto cChoices = pActor->GetExtension()->StartChoices.Drain(); !cChoices.empty() && pActor != PlayerCharacter::Get())
+    {
+        ActionEvent point;
+        point.Tick = cNow;
+        point.ActorId = pActor->formID;
+        point.StartChoices = StartChoices::Pack(cChoices);
+        update.ActionEvents.push_back(std::move(point));
+    }
 
     // A pick no action made. Not a player's, a dying actor's or one in a pair: their copies have bodies of their own.
     const bool cPaired = !pActor->GetExtension()->LatestAnimation.Read().TargetEventName.empty();

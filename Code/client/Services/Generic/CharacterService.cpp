@@ -637,7 +637,9 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
 
         for (const auto& action : update.ActionEvents)
         {
-            if (!action.ActionId && !action.GraphState.empty())
+            if (!action.ActionId && !action.StartChoices.empty())
+                animationComponent.StartChoices.push_back(action.StartChoices);
+            else if (!action.ActionId && !action.GraphState.empty())
                 animationComponent.GraphPoint = action;
             else
                 animationComponent.TimePoints.push_back(action);

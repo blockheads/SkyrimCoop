@@ -198,6 +198,38 @@ class ReproActions:
         ctx.handles()[name] = {game: ids[game] for game in ("host", "guest") if ids.get(game)}
         return ctx.handles()[name]
 
+    def graph_machines(ctx, who, name=""):
+        """A handle's state machines on both games, active or not (harness graph_machines): the state each holds and
+        the state its next activation enters (`start_override`), for machines whose name holds `name`."""
+        def read(game, label):
+            reply = ctx.game(game).rpc({"cmd": "graph_machines", "actor": ctx.resolve(who, label), "name": name}) or {}
+            return {f"{m['behaviour']}/{m['name']}": {k: m[k] for k in ("active", "state", "start_override", "clone", "template_active", "template_state", "template_start") if k in m}
+                    for m in reply.get("machines", [])}
+        return {"host": read("", "host"), "guest": read("client", "guest")}
+
+    def graph_machines_watch(ctx, who, name="", seconds=30.0, every=0.05):
+        """graph_machines on both games for `seconds`: each change of a machine (appearing, gone, active, state, start
+        override), stamped in seconds from the start and in wall-clock time (@, as the animation trace's)."""
+        start, last, changes = time.time(), {}, []
+        while time.time() - start < seconds:
+            for game, machines in ctx.graph_machines(who, name).items():
+                for key in set(machines) | {k for (g, k) in last if g == game}:
+                    now = machines.get(key)
+                    if last.get((game, key)) != now:
+                        changes.append(f"{time.time() - start:6.2f} @{time.time():.2f} {game:5} {key.split('/')[-1]}: {now or 'gone'}")
+                        last[(game, key)] = now
+            time.sleep(every)
+        return changes
+
+    def name_owner(ctx, name, owner):
+        """Names an NPC by its owner's form id on the host (hex string or number) and its copy on the guest: `find`
+        names only NPCs near the host."""
+        owner = int(owner, 16) if isinstance(owner, str) else owner
+        copy_form = next((pair[1] for pair in ctx.copy_pairs().values() if pair[0] == owner), None)
+        if copy_form is None:
+            raise ctx.failure(f"{owner:X} has no owner on the host with a copy on the guest, both in 3D")
+        return ctx.name_handle(name, {"host": owner, "guest": copy_form})
+
     def resolve(ctx, value, game):
         """A form id in that game for a handle name, "player", or a number (or hex string) as given."""
         game = "guest" if game in ("client", "guest") else "host"
@@ -618,7 +650,8 @@ class ReproActions:
         rested, as wait_rest saw it), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
         holds the same in both games), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
-        `name`, or anywhere with name "all")."""
+        `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
+        `within` seconds or more)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -628,6 +661,15 @@ class ReproActions:
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
+        if check == "graph":
+            watch = ctx.graph_watch_start(0.25, within, {ctx.resolve(name, "host")}, None)
+            watch["stop"].wait(seconds or 60.0)
+            watch["stop"].set()
+            watch["thread"].join(10)
+            if runs := watch["apart"].finish(time.time()):
+                raise ctx.failure(f"{name}: owner and copy graphs apart for {within:g} s or more: " + " | ".join(
+                    f"{run['seconds']:.1f} s, owner {run.get('owner_only')}, copy {run.get('copy_only')}" for run in runs[:3]))
+            return {"samples": watch["apart"].samples}
         if check == "dialogue":
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))

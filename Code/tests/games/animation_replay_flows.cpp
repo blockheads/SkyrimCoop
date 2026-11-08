@@ -384,3 +384,36 @@ TEST_CASE("Attached NPC copies retain actions until their behavior graph is read
     party.Agree("the queued gesture eventually reaches the ready graph even without graph jobs");
     CHECK(guest.GetActorLatestAnimation(cCopy).IdleId == gesture.IdleId);
 }
+
+TEST_CASE("A copy's machine starts where its owner's did at a clip's end", "[animation][replay-start]")
+{
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    // Skyrim (wolf 9B0DD, Riverwood, 2026-11-07): TurnCannedR180 ends with no action and StandingBehavior starts from
+    // iSyncTurnState: the owner's 1 (StandingIdle), the copy's still 0 (LoopingTurnRight). The copy turned for 4 to 20 s.
+    for (auto* engine : {&host, &guest})
+    {
+        engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}};
+        engine->Bound = FakeEngine::BoundStart{"CannedTurn", 60, 0, {"LoopingTurnRight", "StandingIdle"}, std::nullopt};
+    }
+    host.Bound->OwnerEnd = 1;
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] {
+        wolf = host.LoadNpc(0x23AB2, 0x31D2E, {});
+        host.Actors.at(wolf).GraphState = "Standing";
+        host.Actors.at(wolf).GraphVariables.Integers = {0};
+    });
+    party.Until([&] { return guest.CopiesOf(0x23AB2).size() == 1; }, "the wolf's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x23AB2).front();
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Standing"; }, "the spawn graph loads");
+
+    ActionEvent turn;
+    turn.ActionId = 0x13002;
+    turn.EventName = "cannedTurnRight180";
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
+    party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
+    party.Until([&] { return guest.GetActorLatestAnimation(cCopy).EventName == turn.EventName; }, "the copy takes the turn");
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
+    CHECK(guest.Actors.at(cCopy).GraphState == host.Actors.at(wolf).GraphState);
+}

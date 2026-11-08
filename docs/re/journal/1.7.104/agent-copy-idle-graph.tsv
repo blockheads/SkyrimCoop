@@ -1,0 +1,60 @@
+time	op	id	rva	item
+2026-11-07T22:20:17Z	read	39256	0x6f0a20	{"name": "AIProcess::SetupSpecialIdle"}
+2026-11-07T22:20:24Z	read	39257	0x6f0e30	{"name": "AIProcess::StopCurrentIdle"}
+2026-11-07T22:20:25Z	read	39625	0x703360	{"name": "sub_140703360"}
+2026-11-07T22:20:36Z	read	41557	0x78db80	{"name": "TESActionData::Func5_41557"}
+2026-11-07T22:20:41Z	read	39704	0x71bdf0	{"name": "sub_14071BDF0"}
+2026-11-07T22:20:50Z	read		0x71be1d	{"name": "sub_14071BDF0"}
+2026-11-07T22:21:04Z	read	39762	0x71dec0	{"name": "sub_14071DEC0"}
+2026-11-07T22:21:09Z	name	39625	0x703360	{"addr": "0x140703360", "name": "AIProcess::QueryActionAndLoadClips"}
+2026-11-07T22:21:09Z	name	39704	0x71bdf0	{"addr": "0x14071BDF0", "name": "RunActionAnimationLoadedCallback::ctor"}
+2026-11-07T22:21:09Z	name	39762	0x71dec0	{"addr": "0x14071DEC0", "name": "RunActionAnimationLoadedCallback::Run"}
+2026-11-07T22:21:12Z	comment	39625	0x703360	{"addr": "0x140703360", "comment": "39625: an AI action/idle as a query (data+0x58=1) through PerformAction; on success cancels any pending clip load, loads the event's clips and performs it later from RunActionAnimationLoadedCallback::Run (no loader: performs at once)."}
+2026-11-07T22:21:12Z	comment	39762	0x71dec0	{"addr": "0x14071DEC0", "comment": "Clips in: rebuilds the TESActionData (input 2, action default object at +72, idle at +56) and performs it through PerformAction 38949. Refused: sets the setup flag (+80) back."}
+2026-11-07T22:21:12Z	comment	39257	0x6f0e30	{"addr": "0x1406f0e30", "comment": "39257 StopCurrentIdle(process, actor, force): force tries ActionIdleStopInstant (109), else ActionIdleStop (79), or the furniture/sit stops (97/99/100); all through PerformAction 38949, so an owner's idle stop is a sent action."}
+2026-11-07T22:24:49Z	read	63591	0xbcf690	{"name": "BShkbAnimationGraph::SendEvent"}
+2026-11-07T22:24:58Z	comment	63591	0xbcf690	{"addr": "0x140bcf690", "comment": "63591 SendEvent(graph, BSFixedString* event): the graph's event id from its name table, then the root behaviour's handleEvent (+48); returns whether a node took it. Every input event of a graph passes here (NotifyAllGraphs 63362, 63372)."}
+2026-11-07T22:57:47Z	read	59334	0xaf2340	{"name": "hkbStateMachine::sub_59334"}
+2026-11-07T22:57:50Z	read	59335	0xaf2690	{"name": "hkbStateMachine::sub_59335"}
+2026-11-07T22:58:05Z	read	59405	0xaf8d30	{"name": "hkbStateMachine::sub_59405"}
+2026-11-07T22:58:56Z	read	59329	0xaf1980	{"name": "sub_140AF1980"}
+2026-11-07T22:59:00Z	read		0xad022d	{"name": "hkbBehaviorGraph::sub_58380"}
+2026-11-07T22:59:08Z	read		0xaf7339	{"name": "hkbStateMachine::sub_59383"}
+2026-11-07T22:59:13Z	read	59412	0xaf95c0	{"name": "sub_140AF95C0"}
+2026-11-07T22:59:25Z	name	59334	0xaf2340	{"addr": "0x140af2340", "name": "hkbStateMachine::Activate"}
+2026-11-07T22:59:25Z	name	59335	0xaf2690	{"addr": "0x140af2690", "name": "hkbStateMachine::Update"}
+2026-11-07T22:59:25Z	name	59405	0xaf8d30	{"addr": "0x140af8d30", "name": "hkbStateMachine::ChooseStartStateId"}
+2026-11-07T22:59:25Z	name		0xaf7190	{"addr": "0x140af7190", "name": "hkbStateMachine::StartTransition"}
+2026-11-07T22:59:25Z	name		0xad01a0	{"addr": "0x140AD01A0", "name": "hkbBehaviorGraph::StartNestedStateTransition"}
+2026-11-07T22:59:25Z	name	59329	0xaf1980	{"addr": "0x140AF1980", "name": "hkbStateMachine::ctor"}
+2026-11-07T22:59:25Z	name	59412	0xaf95c0	{"addr": "0x140AF95C0", "name": "hkbStateMachine::ctorFinish"}
+2026-11-07T22:59:31Z	comment	59334	0xaf2340	{"addr": "0x140af2340", "comment": "59334 vfunc 4: on activation (+0x88 isActive false) picks the start state (ChooseStartStateId 59405), enters it (59390, 59399), sets isActive."}
+2026-11-07T22:59:31Z	comment	59405	0xaf8d30	{"addr": "0x140af8d30", "comment": "59405: a pending nextStartStateIndexOverride (+0xFC, an index; -1 none) wins and is cleared; else startStateMode (+0x86): 0 startStateId (+0x68), 1 sync variable (+0x7C), 2 random (59406), 3 chooser (+0x60)."}
+2026-11-07T22:59:31Z	comment		0xaf7190	{"addr": "0x140af7190", "comment": "59383: starts a transition; one flagged 0x2000 (toNestedStateId valid) writes the destination state's nested machine's +0xFC override, consumed only when that machine next activates (59405)."}
+2026-11-07T22:59:31Z	comment	59329	0xaf1980	{"addr": "0x140AF1980", "comment": "59329 hkbStateMachine ctor: +0xFC nextStartStateIndexOverride = -1."}
+2026-11-07T22:59:31Z	comment	59412	0xaf95c0	{"addr": "0x140AF95C0", "comment": "59412 packfile finish ctor: +0xFC = -1 when finishing."}
+2026-11-07T22:59:31Z	comment		0x71be1d	{"addr": "0x14071be1d", "comment": "RunActionAnimationLoadedCallback vtable: [0] dtor 0x14071D220, [1] Run 0x14071DEC0."}
+2026-11-07T22:59:53Z	comment		0xaf7190	{"addr": "0x140af7190", "comment": ""}
+2026-11-07T22:59:53Z	comment	59383	0xaf71c0	{"addr": "0x140af71c0", "comment": "59383: starts a transition; one flagged 0x2000 (toNestedStateId valid) writes the destination state's nested machine's +0xFC override, consumed only when that machine next activates (59405)."}
+2026-11-07T22:59:53Z	comment	58380	0xad01b0	{"addr": "0x140ad01b0", "comment": "58380: a wildcard transition into a nested state: writes +0xFC on each machine up the parent chain to the target, then starts the transition in the outer machine (59373)."}
+2026-11-07T23:00:05Z	name		0xaf7190	{"addr": "0x140af7190", "name": ""}
+2026-11-07T23:00:05Z	name		0xad01a0	{"addr": "0x140AD01A0", "name": ""}
+2026-11-07T23:00:09Z	name	59383	0xaf71c0	{"addr": "0x140af71c0", "name": "hkbStateMachine::StartTransition"}
+2026-11-07T23:00:09Z	name	58380	0xad01b0	{"addr": "0x140ad01b0", "name": "hkbBehaviorGraph::StartNestedStateTransition"}
+2026-11-07T23:00:53Z	read	63602	0xbd1690	{"name": "BShkbAnimationGraph::LoadState"}
+2026-11-07T23:02:23Z	read	58359	0xace3b0	{"name": "hkbBehaviorGraph::GetNodeClone"}
+2026-11-07T23:02:23Z	read		0xb01070	{"name": "hkbExpressionCondition::sub_59511"}
+2026-11-07T23:02:29Z	read	57195	0xaa6960	{"name": "hkPointerMap_GetWithDefault"}
+2026-11-07T23:05:19Z	read	58360	0xace3f0	{"name": "hkbBehaviorGraph::sub_58360"}
+2026-11-07T23:05:28Z	name	58360	0xace3f0	{"addr": "0x140ace3f0", "name": "hkbBehaviorGraph::GetOrCreateNodeClone"}
+2026-11-07T23:05:30Z	comment	58360	0xace3f0	{"addr": "0x140ace3f0", "comment": "58360: the template's clone for this character (map +0xE0, reverse +0xE8), cloned (vfunc +96) and inserted if missing: writes through it reach a machine that is not active yet."}
+2026-11-07T23:14:27Z	read	59341	0xaf3220	{"name": "hkbStateMachine::sub_59341"}
+2026-11-07T23:14:31Z	read		0xaf1c14	{"name": "hkbStateMachine::sub_59330"}
+2026-11-07T23:14:50Z	read		0xaf3780	{"name": "hkbStateMachine::sub_59348"}
+2026-11-07T23:14:50Z	read		0xaf9351	{"name": "hkbStateMachine::sub_59407"}
+2026-11-07T23:17:56Z	read	59390	0xaf7e60	{"name": "hkbStateMachine::sub_59390"}
+2026-11-07T23:21:04Z	read	59337	0xaf2950	{"name": "hkbStateMachine::sub_59337"}
+2026-11-07T23:24:03Z	read	63450	0xbc49c0	{"name": "sub_140BC49C0"}
+2026-11-07T23:26:41Z	read		0xacc5d0	{"name": "hkbBehaviorGraph::sub_58336"}
+2026-11-07T23:52:41Z	read	59409	0xaf94f0	{"name": "hkbStateMachine::sub_59409"}
+2026-11-08T00:07:54Z	read		0x2253a0	{"name": "InitializeBoneNames"}

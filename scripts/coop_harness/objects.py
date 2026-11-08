@@ -229,6 +229,8 @@ class AnimTrace:
                 continue
             if kind == "graph":
                 text = f"{entry['event']}" + (f" ({entry['payload']})" if entry.get("payload") else "")
+            elif kind == "input":
+                text = f"INPUT {entry['event']}" + ("" if entry.get("taken") else " (not taken)") + f" from {','.join(entry.get('from', [])[:4])}"
             elif kind == "action":
                 text = f"ACTION {entry['event']} {entry['action']:X}" + (f" idle {entry['idle']:X}" if entry.get("idle") else "") \
                        + (f" -> {self.who(entry['game'], entry['target'])}" if entry.get("target") else "")
@@ -756,13 +758,15 @@ def trace_lines(entries, who=(), kinds=(), grep="", origin="", before=0.4, limit
             text = entry["event"] + (f" ({entry['payload']})" if entry.get("payload") else "")
         elif kind == "action":
             text = f"{entry['event']} {entry.get('action', 0):X}" + (f" -> {entry['target']:X}" if entry.get("target") else "")
+        elif kind == "input":  # an event sent into the graph, and the engine frames that sent it
+            text = entry["event"] + ("" if entry.get("taken") else " (not taken)") + f" from {','.join(entry.get('from', [])[:4])}"
         elif kind == "log":
             text = entry["text"]
         elif kind == "clips":
             text = " ".join(entry.get("clips") or [])
         else:
             text = " ".join(f"{k}={v}" for k, v in entry.items() if k not in ("t", "f", "kind", "game", "who", "time", "actor"))
-        if kind not in ("graph", "action", "log") and not everything:  # samples: shown when they change, kept short
+        if kind not in ("graph", "action", "log", "input") and not everything:  # samples: shown when they change, kept short
             key = (entry["game"], entry.get("who"), kind, "text")
             if last.get(key) == text:
                 continue

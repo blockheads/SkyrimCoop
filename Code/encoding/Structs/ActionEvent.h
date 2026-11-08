@@ -25,6 +25,8 @@ struct ActionEvent
     std::string GraphState{};
     // A sync point (ActionId 0, GraphRandom.h): the graph's every-N counters, which GraphState leaves out.
     std::string GraphCounters{};
+    // A start point (ActionId 0, StartChoices.h): the owner's state machines' start states, "machine:state;".
+    std::string StartChoices{};
 
     ActionEvent() = default;
     ActionEvent(const ActionEvent& acRhs) = default;

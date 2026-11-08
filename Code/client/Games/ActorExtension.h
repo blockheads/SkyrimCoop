@@ -2,6 +2,7 @@
 
 #include <Games/Animation/ActionState.h>
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/StartChoices.h>
 
 #include <array>
 #include <atomic>
@@ -50,6 +51,8 @@ struct ActorExtension
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;
+    // Its state machines' start states: an owner's to send, a copy's owner's to take (HookChooseStartState).
+    StartChoices::Queue StartChoices;
 
     // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
     // from that load's heap. It is reset (leaking them) before use, never freed or read.
