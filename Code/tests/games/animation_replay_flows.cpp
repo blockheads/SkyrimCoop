@@ -3,6 +3,7 @@
 #include <Services/CharacterService.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Systems/InterpolationSystem.h>
+#include <Components/InterpolationComponent.h>
 
 namespace
 {
@@ -449,7 +450,10 @@ TEST_CASE("A copy's machine started at a clip's end reads its owner's new variab
     // ended, and the snapshot carrying it is stamped up to a send interval later (CopyVariables.h).
     WolfTurn wolf;
     wolf.Turn();
-    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    CHECK(cCopy.BoundReadAtStart == 0); // the owner's old value as the copy's clip started
+    CHECK(cCopy.BoundReadAtEnd == 1);
+    CHECK(cCopy.GraphState == "StandingIdle");
 }
 
 TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation][replay-start]")
@@ -457,6 +461,7 @@ TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation]
     // CannedTurnState's exit reads iSyncIdleLocomotion at cannedTurnStop, once (the duo's stuck copy, docs/bugs.md).
     WolfTurn wolf({}, true);
     wolf.Turn();
+    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtStart == 0);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
 }
 
@@ -470,4 +475,49 @@ TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[a
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2}; });
     wolf.Turn();
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
+TEST_CASE("A copy's canned turn ends where its owner's does as its playback slows after a fight", "[animation][replay-start]")
+{
+    // Out of combat its owner's send interval goes from 33 to 100 ms; the copy's playback steers onto it at 0.9x
+    // (CopyPlayback::kSteer) while its clips run at 1x: the integers are taken ahead of its graph's time, not playback's.
+    WolfTurn wolf({}, true);
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 1; });
+    const auto cInterval = [&] {
+        for (auto&& [cEntity, cForm, cInterpolation] : wolf.party.Guest().view<FormIdComponent, InterpolationComponent>().each())
+            if (cForm.Id == wolf.copy)
+                return cInterpolation.Playback.Interval();
+        return 0.0;
+    };
+    wolf.party.Until([&] { return cInterval() < 40.0; }, "the copy's playback steers onto its fighting owner's 30 a second", {}, nullptr,
+                     std::chrono::seconds{10});
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 0; });
+    wolf.Turn();
+    INFO("its interval at the turn's end: " << cInterval());
+    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtStart == 0);
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+}
+
+TEST_CASE("A copy's replayed action is sent with its own integers, not the next snapshot's", "[animation][replay-start]")
+{
+    // An action loads its variables one graph update before its event (ReplayStep.h). The owner let go of block
+    // (iWantBlock 0) just after it: that snapshot, within an interval, must not reach the graph in between.
+    WolfTurn wolf;
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2, 1}; });
+    wolf.party.Until([&] { const auto& cInts = wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers; return cInts.size() == 3 && cInts[2] == 1; },
+                     "the copy has iWantBlock 1");
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        engine->GraphTransitions[{"Standing", "blockStart"}] = "Blocking";
+    ActionEvent block;
+    block.ActionId = 0x13005;
+    block.EventName = "blockStart";
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2, 1};
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, block));
+        wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2, 0};
+    });
+    wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphState == "Blocking"; }, "the copy takes the block");
+    REQUIRE(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers.size() == 3);
+    CHECK(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers[2] == 1);
+    wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers[2] == 0; }, "then the copy has the owner's release");
 }

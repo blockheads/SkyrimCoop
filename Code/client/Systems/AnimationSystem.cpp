@@ -113,6 +113,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         if (phase == ReplayStep::kTaken)
         {
             aAnimationComponent.LastRanAction = cAction;
+            aAnimationComponent.Graph.ActionTaken(cAction.Tick);
             apActor->GetExtension()->LatestAnimation.Write(cAction);
             if (step.Retries)
                 spdlog::debug("Copy {:X} took replayed action {:X} '{}' {} graph updates late", apActor->formID, cAction.ActionId,

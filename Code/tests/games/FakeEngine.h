@@ -535,9 +535,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
-        std::optional<uint64_t> BoundStartedAt; // its Bound clip's start, on its own clock
-        bool BoundStuck = false;                // its exit condition failed at the clip's end: no other end comes
-        uint64_t PlaybackTick = 0;              // a copy's playback (Seams)
+        double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
+        std::optional<double> BoundStartedAt; // its Bound clip's start, on AnimationMs
+        bool BoundStuck = false;              // its exit condition failed at the clip's end: no other end comes
+        int32_t BoundReadAtStart = -1;        // Bound's Variable as its clip started, and as it ended
+        int32_t BoundReadAtEnd = -1;
+        AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -615,11 +618,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
-    // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms on each game's own clock
-    // (an owner's frame tick, a copy's playback) with no action. As it ends the owner's graph writes Variable
-    // (iSyncTurnState, OwnerWrites) and ExitVariable (iSyncIdleLocomotion, OwnerWritesExit); a copy has its snapshot's.
-    // The exit is taken once, only if ExitVariable holds one of ExitValues; StandingBehavior then starts from Variable
-    // (bound startStateId, 59467/59405).
+    // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms of the actor's animation
+    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action. As it ends
+    // the owner's graph writes Variable (iSyncTurnState, OwnerWrites) and ExitVariable (iSyncIdleLocomotion,
+    // OwnerWritesExit); a copy has what CharacterService gave it. The exit is taken once, only if ExitVariable holds one
+    // of ExitValues; StandingBehavior then starts from Variable (bound startStateId, 59467/59405).
     struct BoundStart
     {
         std::string State;
@@ -1084,6 +1087,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's frame length (GetRealFrameSeconds), steady while our update lands unevenly in it (S10);
     // 0: the wall time since our last update.
     double FrameMs = 0.0;
+    uint64_t LastFrameTick = 0; // Frame's previous frame tick: the graphs' step without FrameMs
     std::deque<std::function<void()>> MainTasks;
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;

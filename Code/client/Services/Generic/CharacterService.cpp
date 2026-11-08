@@ -1568,26 +1568,39 @@ void CharacterService::RunRemoteUpdates() noexcept
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
-            // Booleans: the current snapshot's, never older (graphs react to their changes). Integers: the next
-            // snapshot's within an interval, so a clip's end reads what its owner wrote there (CopyVariables.h). Floats
-            // (Direction, Speed): while it stands, the nearest snapshot's, what moved its owner there, so a strafe's
-            // animation turns with the copy's movement, within half an interval (S10, copy-clock.md).
-            const AnimationVariables* pVariables = &first.Variables;
-            uint64_t heldTick = first.Tick;
+            // Booleans: the newest snapshot's at or before playback, never older (graphs react to their changes).
+            // Integers: an NPC copy's, up to an interval ahead of its graph's time, so a clip's end reads what its owner
+            // wrote there (CopyVariables.h). Floats (Direction, Speed): while it stands, the nearest snapshot's, what
+            // moved its owner there, so a strafe's animation turns with the copy's movement, within half an interval
+            // (S10, copy-clock.md).
+            const auto& held = CopyVariables::Held(points, tick);
+            const AnimationVariables* pVariables = &held.Variables;
+            AnimationVariables shown;
+            bool changed = false;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                if (first.Tick > pAnimation->VariablesTick)
+                if (held.Tick > pAnimation->VariablesTick)
                 {
-                    pAnimation->Variables = first.Variables;
-                    pAnimation->VariablesTick = first.Tick;
+                    pAnimation->Variables = held.Variables;
+                    pAnimation->VariablesTick = held.Tick;
                 }
                 pVariables = &pAnimation->Variables;
-                heldTick = pAnimation->VariablesTick;
+                shown = *pVariables;
+                const uint64_t cGraph = pAnimation->Graph.Advance(tick, m_world.GetCopyClock().FrameMs(), CopyPlayback::kLongestGapMs);
+                uint64_t nextAction = CopyVariables::kNoAction;
+                for (const auto& cAction : pAnimation->TimePoints)
+                    nextAction = std::min(nextAction, cAction.Tick);
+                if (!m_world.all_of<PlayerComponent>(entity))
+                    if (const auto* cpAhead = CopyVariables::IntegersAhead(points, shown, pAnimation->VariablesTick, cGraph, cAhead, nextAction))
+                    {
+                        shown.Integers = cpAhead->Integers;
+                        changed = true;
+                    }
             }
+            else
+                shown = *pVariables;
             const bool cStanding = !first.Lying && !second.Lying && !first.Knocked && !second.Knocked;
             const bool cNearerSecond = cStanding && (tick >= second.Tick || (tick > first.Tick && 2 * (tick - first.Tick) >= second.Tick - first.Tick));
-            AnimationVariables shown = *pVariables;
-            bool changed = CopyVariables::TakeIntegersAhead(shown, second.Variables, second.Tick, heldTick, tick, cAhead);
             if (cNearerSecond && second.Variables.Floats.size() == shown.Floats.size() && second.Variables.Floats != shown.Floats)
             {
                 shown.Floats = second.Variables.Floats;

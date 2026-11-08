@@ -218,7 +218,6 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
-        actor.PlaybackTick = InterpolationSystem::PlaybackTick(*this, cEntity); // its clips' clock (Bound)
         if (actor.PairStops)
         {
             --actor.PairStops;
@@ -240,6 +239,7 @@ void World::Update() noexcept
             if (cPhase == Step::kTaken)
             {
                 animation.LastRanAction = step.Action;
+                animation.Graph.ActionTaken(step.Action.Tick);
                 engine.SetActorLatestAnimation(form.Id, step.Action);
             }
             if (!animation.TimePoints.empty() && animation.TimePoints.front().Tick == step.Action.Tick &&

@@ -2459,7 +2459,7 @@ class ActiveStatesTests(unittest.TestCase):
 class GraphExpectTests(unittest.TestCase):
     """expect's "graph" check: owner and copy read live; a watch that read too little fails, never passes."""
 
-    def run_expect(self, games, value=None):
+    def run_expect(self, games, value=None, field=None, seconds=0.6, within=1.0):
         from coop_harness.actions.repro import ReproActions
         from coop_harness.observations import Observations
 
@@ -2469,9 +2469,10 @@ class GraphExpectTests(unittest.TestCase):
                 return AssertionError(message)
         ctx = Ctx()
         ctx.game = lambda name="": games[name]
-        return ctx.expect("wolf", "graph", within=1.0, seconds=0.6, value=value)
+        return ctx.expect("wolf", "graph", within=within, seconds=seconds, value=value, field=field)
 
-    def games(self, owner_present=True, fail_after=None):
+    def games(self, owner_present=True, fail_after=None, replies=None):
+        """replies(game name, call number): the rpc's reply, as Game.rpc gives it (None for a lost connection)."""
         state = ActiveStatesTests.saved((("m", "a"),))
         role = lambda name: {"role": name, "player": False, "mod": {"session_id": 1}, "placement": {"has_3d": True}, "state": {}}
 
@@ -2486,7 +2487,7 @@ class GraphExpectTests(unittest.TestCase):
                 self.calls += 1
                 if fail_after is not None and self.calls > fail_after:
                     raise OSError("the game went away")
-                return {"state": state}
+                return replies(self.name, self.calls) if replies else {"state": state}
             def close(self):
                 pass
         return {"": Game(""), "client": Game("client")}
@@ -2506,6 +2507,34 @@ class GraphExpectTests(unittest.TestCase):
         """120 uneventful seconds prove nothing about following: `value` asks for that many owner graph changes."""
         with self.assertRaisesRegex(AssertionError, "changed 0 times, fewer than 3"):
             self.run_expect(self.games(), value=3)
+
+    def test_replies_that_are_no_reading_never_pass(self):
+        """Game.rpc gives None on a lost connection; an error reply or broken bytes are no reading either."""
+        for reply in (None, {"ok": False, "error": "no graph"}, {"state": "zz"}, {"state": bytes(8).hex()}):
+            with self.subTest(reply=reply), self.assertRaisesRegex(AssertionError, "both read 0 times"):
+                self.run_expect(self.games(replies=lambda name, call, reply=reply: reply))
+
+    def test_missing_readings_are_no_owner_changes(self):
+        """Codex on PR #38: one unchanged graph between missing replies counted 7 changes and passed value=3."""
+        state = ActiveStatesTests.saved((("m", "a"),))
+        replies = lambda name, call: {"state": state} if call % 2 else None
+        with self.assertRaisesRegex(AssertionError, "changed 0 times|read .* times"):
+            self.run_expect(self.games(replies=replies), value=3, seconds=1.5, within=2.0)
+
+    def test_a_gap_in_readings_as_long_as_a_run_fails(self):
+        state = ActiveStatesTests.saved((("m", "a"),))
+        replies = lambda name, call: None if 3 <= call <= 8 else {"state": state}
+        with self.assertRaisesRegex(AssertionError, "without a reading of both"):
+            self.run_expect(self.games(replies=replies), seconds=3.0, within=1.0)
+
+    def test_the_owner_must_enter_the_named_state(self):
+        """A wolf scenario passes only on the canned turn it is about, not on any three changes."""
+        idle, turn = ActiveStatesTests.saved((("m", "Idle"),)), ActiveStatesTests.saved((("m", "CannedTurnState"),))
+        with self.assertRaisesRegex(AssertionError, "entered CannedTurnState 0 times"):
+            self.run_expect(self.games(replies=lambda name, call: {"state": idle}), field="CannedTurnState")
+        result = self.run_expect(self.games(replies=lambda name, call: {"state": turn if call % 3 == 0 else idle}),
+                                 field="CannedTurnState", value=1, seconds=1.5, within=2.0)
+        self.assertGreaterEqual(result["entered"], 1)
 
 
 class UiAssetsTests(unittest.TestCase):

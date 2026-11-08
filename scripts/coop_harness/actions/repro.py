@@ -662,7 +662,8 @@ class ReproActions:
         holds the same in both games), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
         `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
-        `within` seconds or more, and the owner's graph changed at least `value` times: a quiet run proves nothing)."""
+        `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
+        at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -674,23 +675,29 @@ class ReproActions:
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "graph":
             owner, seconds = ctx.resolve(name, "host"), seconds or 60.0
-            watch = ctx.graph_watch_start(0.25, within, {owner}, None)
+            watch = ctx.graph_watch_start(0.25, within, {owner}, None, field)
             watch["stop"].wait(seconds)
             watch["stop"].set()
             watch["thread"].join(10)
             if error := watch["state"]["error"]:
                 raise ctx.failure(f"{name}: the graph watch stopped: {error}")
             first, last, reads = watch["seen"].get(owner, (0.0, 0.0, 0))
+            failed = watch["failed"].get(owner, 0)
             # Read through the interval (a second's slack), once a second at least: a pair lost early is no pass.
             if reads < max(1.0, seconds) or last - first < seconds - 1.0:
-                raise ctx.failure(f"{name}: owner and copy read {reads} times over {last - first:.1f} of {seconds:g} s")
-            changed = watch.get("changes", {}).get(owner, 0)
-            if value and changed < int(value):
+                raise ctx.failure(f"{name}: owner and copy both read {reads} times over {last - first:.1f} of {seconds:g} s "
+                                  f"({failed} failed)")
+            if (gap := watch["gaps"].get(owner, 0.0)) >= within:
+                raise ctx.failure(f"{name}: {gap:.1f} s without a reading of both graphs ({failed} failed): a run apart could hide there")
+            changed, entered = watch["changes"].get(owner, 0), watch["entered"].get(owner, 0)
+            if field and entered < int(value or 1):
+                raise ctx.failure(f"{name}: the owner entered {field} {entered} times, fewer than {int(value or 1)}: nothing to follow")
+            if not field and value and changed < int(value):
                 raise ctx.failure(f"{name}: the owner's graph changed {changed} times, fewer than {int(value)}: nothing to follow")
             if runs := watch["apart"].finish(time.time()):
                 raise ctx.failure(f"{name}: owner and copy graphs apart for {within:g} s or more: " + " | ".join(
                     f"{run['seconds']:.1f} s, owner {run.get('owner_only')}, copy {run.get('copy_only')}" for run in runs[:3]))
-            return {"samples": watch["apart"].samples, "owner_changes": changed}
+            return {"samples": watch["apart"].samples, "owner_changes": changed, **({"entered": entered} if field else {}), "failed": failed}
         if check == "dialogue":
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))

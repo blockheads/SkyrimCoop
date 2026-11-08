@@ -123,12 +123,17 @@ void FakeEngine::Frame()
             actor.LoopDraws.push_back(actor.LoopsToSend);
             actor.GraphState = actor.GraphState == Loop->State ? Loop->Other : Loop->State;
         }
+    const uint64_t cFrameTick = World::Get().GetFrameTick();
+    const double cFrameMs = FrameMs > 0.0 ? FrameMs : LastFrameTick ? double(cFrameTick - LastFrameTick) : 0.0;
+    LastFrameTick = cFrameTick;
+    for (auto& [cId, actor] : Actors)
+        if (actor.GraphUpdating)
+            actor.AnimationMs += cFrameMs;
     if (Bound)
         for (auto& [cId, actor] : Actors)
         {
             auto& integers = actor.GraphVariables.Integers;
             integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
-            const uint64_t cClock = actor.Copy ? actor.PlaybackTick : World::Get().GetFrameTick();
             if (actor.GraphState != Bound->State)
             {
                 actor.BoundStartedAt.reset();
@@ -136,14 +141,18 @@ void FakeEngine::Frame()
                 continue;
             }
             if (!actor.BoundStartedAt)
-                actor.BoundStartedAt = cClock;
-            if (actor.BoundStuck || cClock < *actor.BoundStartedAt + Bound->Ms)
+            {
+                actor.BoundStartedAt = actor.AnimationMs;
+                actor.BoundReadAtStart = int32_t(integers[Bound->Variable]);
+            }
+            if (actor.BoundStuck || actor.AnimationMs < *actor.BoundStartedAt + double(Bound->Ms))
                 continue;
             actor.BoundStartedAt.reset();
             if (!actor.Copy && Bound->OwnerWrites)
                 integers[Bound->Variable] = uint32_t(*Bound->OwnerWrites);
             if (!actor.Copy && Bound->OwnerWritesExit && Bound->ExitVariable)
                 integers[*Bound->ExitVariable] = uint32_t(*Bound->OwnerWritesExit);
+            actor.BoundReadAtEnd = int32_t(integers[Bound->Variable]);
             if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, int32_t(integers[*Bound->ExitVariable])))
             {
                 actor.BoundStuck = true;
@@ -722,6 +731,8 @@ void FakeEngine::EndKillMove(uint32_t aFormId)
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 {
     auto& actor = Actors.at(aFormId);
+    if (actor.Copy)
+        actor.ReplayedOn = actor.GraphVariables;
     if (const auto cPartner = Actors.find(acAction.TargetId); !acAction.TargetEventName.empty() && cPartner != Actors.end())
     {
         if (!(actor.InKillMove && cPartner->second.InKillMove) && !::ReplayState::PairMarkClear(!PairMarkBlocked, actor.Copy))
@@ -797,6 +808,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.Type = 2 | (flags ? 4 : 0);
     aAction.Tick = World::Get().GetFrameTick();
     aAction.ActorId = aFormId;
+    aAction.Variables = Actors.at(aFormId).GraphVariables; // SaveAnimationVariables, as Animation.cpp's hook
     aAction.Variables.GraphRandom = Actors.at(aFormId).GraphRandom;
     if (ClipFiles.contains(aAction.EventName))
         Actors.at(aFormId).LoadedClips.insert(aAction.EventName);

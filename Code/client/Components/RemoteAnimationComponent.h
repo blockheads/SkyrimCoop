@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Games/Animation/GraphRandom.h>
+#include <Systems/CopyVariables.h>
 #include <optional>
 
 struct RemoteAnimationComponent
@@ -11,6 +12,8 @@ struct RemoteAnimationComponent
     // The owner's newest graph variables by owner tick (snapshots and replayed actions).
     AnimationVariables Variables;
     uint64_t VariablesTick = 0;
+    // The owner time its graph is at, for the integers it reads ahead (CopyVariables.h).
+    CopyVariables::GraphClock Graph;
     // Our updates since the head action was staged for the copy's graph update (ActorExtension::Replay).
     uint8_t StagedUpdates = 0;
     // The owner's newest sync point (GraphRandom.h), kept out of the actions' queue: it never holds one up.

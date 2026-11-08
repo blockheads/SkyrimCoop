@@ -227,17 +227,42 @@ with no action: a machine's bound start (59467 → 59405), and a transition's co
 - **Read (our code):** `CharacterService::RunRemoteUpdates` gave a copy the integers of the newest snapshot at or before
   its playback (`first`). The snapshot carrying the owner's write is stamped at its next send, up to one interval (100 ms
   for an NPC outside a fight) after the write. A copy whose clip ended in that gap read the old value.
-- **The fix (`Systems/CopyVariables.h`):** integers come from the next snapshot once it is within one send interval. That
-  is never over what a later replayed action loaded, and only from a snapshot of the same layout. Booleans keep the
-  current snapshot's, and floats the nearest one's.
-- **Cost of the fix:** an owner's integer change reaches its copy up to one interval early. Actions carry their own
-  variables, loaded as they replay.
-- **Measured (duo, Riverwood, scenario `wolf_copy_turns_with_owner`, this fix alone):** never apart 3 s over 180 s,
-  with the owner's graph changing at least 48 times.
-- **GameTests `[replay-start]`:** the fake's canned turn now ends by time on each game's own clock (the owner's frame
-  tick, the copy's playback), the owner's graph writes the two variables as it ends, and the copy has what
-  `CharacterService` gives it. Three flows fail without the fix and pass with it: a stale start, the stuck canned turn,
-  and two turns over a slow line. ClientTests `[copy-variables]`.
+- **The fix (`Systems/CopyVariables.h`, from `CharacterService`):** an NPC copy's integers come from the newest
+  snapshot within one send interval past its graph's time. Three bounds:
+  - *Never past an action not yet played.* A replayed action loads its variables one graph update before its event
+    (`ReplayStep.h`), and our main thread writes a copy's variables between the two. A snapshot taken over it would be
+    in the graph when the event goes: the action's `iWantBlock` 1 replaced by the 0 its owner wrote just after
+    (`0_master.hkx` and `1hm_behavior.hkx` test `iWantBlock`; found by Codex on PR #38). Queued or staged, an action
+    holds the integers back until it is played.
+  - *Never back.* What the copy holds is the newest snapshot at or before playback, also once playback reaches the last
+    one and extrapolates. Before, a copy kept the older of two snapshots until a third arrived, so an integer shown
+    early went back to its old value for up to an interval.
+  - *Its graph's time, not its playback.* A copy's clips run at the frame's time (41453 passes the frame's seconds times VATS's
+    time multiplier to 20123, read).
+    Its playback steers at 0.85-1.1x (`CopyClock.h`); out of a fight its NPC's interval goes from 33 to 100 ms and
+    playback steers onto it at 0.9x. Over a one-second clip, the clip's end then reads integers stamped more than an
+    interval past playback. The graph's time is the last action taken plus the frames since, at least playback and at
+    most 250 ms ahead (`CopyVariables::GraphClock`). When playback slows because the line got later, the owner's later
+    snapshots have not arrived either. Nothing can help there.
+- **Not changed:** players' copies keep the snapshot at or before playback. They send 30 a second, and their integers
+  (equipment, `iWantBlock`, attacks) were not part of this bug. Booleans keep the newest snapshot at or before playback,
+  floats the nearest one's.
+- **Cost of the fix:** an owner's integer change reaches its NPC copy up to one interval early, never past an action.
+  A future integer can meet an older float or boolean, a combination its owner never had. No duo run showed one.
+- **Measured (duo, Riverwood, scenario `wolf_copy_turns_with_owner`):**
+  - first version: never apart 3 s over 180 s, with the owner's graph changing at least 48 times;
+  - this version: see the PR.
+  - The scenario now needs the owner to enter `CannedTurnState` at least twice, and both games read each time. A
+    missing reply is not counted as an owner change, and a gap without readings as long as `within` fails.
+- **GameTests `[replay-start]`:** the fake's canned turn ends after its animation time (the frames while its graph
+  updates), not a copy's playback. The owner's graph writes the two variables as it ends. Actions carry the owner's
+  variables (`SaveAnimationVariables`, as `Animation.cpp`'s hook does). The copy has what `CharacterService` gives it.
+  - Without the integers ahead, four flows fail: a stale start, the stuck canned turn, two turns over a slow line, and a
+    turn after a fight.
+  - Without the action bound, the block's event fires on the next snapshot's `iWantBlock`.
+  - Without the graph clock, the slow line and the turn after a fight fail.
+  - Each flow also checks that the copy had the old value as its clip started.
+  - ClientTests `[copy-variables]`.
 
 ### Tried and parked: reconciling copies' machines to their owner's
 
@@ -265,5 +290,5 @@ What it established, and still holds:
   - of 46 corrections, 34 followed an owner change 250 to 281 ms after it (all the `ForwardLocomotionBehavior` ones),
     9 undid a copy-only change, and 3 fought;
   - machine states cost about 215 B/s for the cell, against 1.7 MB of graph points in the same window.
-- **Why it matters for the fix:** the locomotion corrections show that speed integers lag the same way. The fix covers
-  them too, since they are integers.
+- **Not shown:** the locomotion corrections may come from the same race on speed integers. A delayed float,
+  transition or graph phase would also explain them, and none of these was traced. Treat it as a hypothesis.

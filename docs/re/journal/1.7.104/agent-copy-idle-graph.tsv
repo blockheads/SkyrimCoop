@@ -96,3 +96,5 @@ time	op	id	rva	item
 2026-11-08T03:26:21Z	name	59337	0xaf2950	{"addr": "0x140af2950", "name": "hkbStateMachine::Deactivate"}
 2026-11-08T03:26:22Z	comment	59337	0xaf2950	{"addr": "0x140af2950", "comment": "59337 vfunc deactivate(sm, ctx): when active (+0x88), ends its transitions (59384), exits the current state (59411), clears isActive."}
 2026-11-08T04:11:53Z	comment		0xaf75b7	{"addr": "0x140af75b7", "comment": "Active transitions: hkArray at +0xB0 (data), +0xB8 count, 40-byte entries: +0 effect, +0x10 transition info, +0x1C fromStateId (the current state at the start), +0x20 toStateId, +0x24 flag. A count > 0 means a transition is running; with flag 0x10 the current state (+0x80) stays the source until it ends."}
+2026-11-08T07:00:57Z	read		0x789954	{"name": "RunOneActorAnimationUpdateJob"}
+2026-11-08T07:01:02Z	comment		0x789954	{"addr": "0x140789954", "comment": "A graph's step: the frame's seconds (Misc::seconds) x VATS global time multiplier, the same for owner and copy; not a copy's playback (SkyrimCoop copy-idle-graph: CopyVariables::GraphClock)"}

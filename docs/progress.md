@@ -54,7 +54,8 @@ wolf's `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new
 when it activates at a clip's end with no action; so is a transition's condition (CannedTurnState's exit on
 `iSyncIdleLocomotion`). The owner's graph writes them as its clip ends, and the snapshot carrying them is stamped up to a
 send interval later, so the copy read the old value: it turned on the spot for 4 to 20 s or stayed in its canned turn.
-Copies now take integers from the next snapshot within an interval (`Systems/CopyVariables.h`, `CharacterService`)
+NPC copies now take integers from the newest snapshot within an interval past their graph's time, never past an action not
+yet played and never back to an older snapshot (`Systems/CopyVariables.h`, `CharacterService`)
 ([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A copy reads its owner's integers ahead";
 reconciling machines was tried and parked there). Harness: the animation trace records each event sent into a graph
 with its engine callers (`input`); `graph_machines` / `graph_machines_watch` read state machines on both games;
