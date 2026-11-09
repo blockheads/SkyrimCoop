@@ -171,6 +171,31 @@ The fix: a theft carries the owner form `StealAlarm` was given (`CrimeRequest::O
 asks only that the actor is loaded (has a process), and passes the carried owner to `StealAlarm` (`AlarmOwner`: an
 actor's `GetOwner` is not the item's). `FindHighOwnerOf` already checked that the actor owns the item.
 
+## Pickpocket (2026-11-08)
+
+Read in IDA. A sneaking player's Activate on an NPC opens `ContainerMenu` in mode 2 (`TESNPC::Activate` 24715,
+0x1403C0C7B: the race allows it, the NPC is not attack-on-sight and was not caught on before). Each take or place in that
+menu is `ContainerMenu__TransferItem` (51141):
+
+```
+mode 2: AttemptPickpocket(player, victim, entry, count, taking) (40654), false: nothing moves
+    chance = ComputePickpocketSuccess (26379), clamped to fPickPocketMinChance..fPickPocketMaxChance
+    roll < chance: stat, skill advance, true
+    else, not jailed (+0x728 prison faction): Actor__PickpocketAlarm(player, victim, 0, 0) (37423); HUD line; false
+taken: victim->RemoveItem (Actor::RemoveItem 37797 -> TESObjectREFR::RemoveItem 19689), reason kSteal, to the player
+```
+
+`Actor__PickpocketAlarm(criminal, victim, item, count)` makes a crime of type 1 on the victim, forces detection both ways,
+starts its alarm, asks the witnesses, and the victim reports it (`ReportCrimeAddBounty`), angry with the player. The
+player's caught try passes no item and count 0: nothing was taken. (`TESNPC::Activate` passes an item only for an NPC
+pickpocketing, 0x1403C0BA9.)
+
+What SkyrimCoop does: the take is a container transfer like any guest's menu take (`ContainerTransfers`, Steal), so the
+host moves it and both games apply it once. The caught alarm goes to the host naming only its victim (`HookPickpocket`),
+and the host raises it on its NPC with no item (`CrimeBridge::Judge`). Before 2026-11-08 the guest's hook, the request's
+check and `Judge` each wanted an item and a count, so a caught pickpocket never left the guest
+(`guest-pickpockets-lucan`; `guest-pickpocket-party-alarm` drove 37423 with gold and 5, a shape the game never makes).
+
 ## What SkyrimCoop does about it
 
 The party rule (`party-model.md`, Crime): one player's crime flags the whole party, and a hostile NPC attacks whoever is
@@ -194,6 +219,9 @@ near it.
 | ID | Name (ours) | What |
 |---|---|---|
 | 37422 | Actor::StealAlarm | the theft judgment above |
+| 37423 | Actor__PickpocketAlarm | a caught pickpocket's alarm; the player's names no item |
+| 40654, 26379 | PlayerCharacter::AttemptPickpocket, AIFormulas::ComputePickpocketSuccess | the pickpocket roll |
+| 51141 | ContainerMenu__TransferItem | a container menu's take or place; pickpocket first in mode 2 |
 | 40533 | PlayerCharacter::PickUpObject | the player's pickup: a created item's alarm names its owner actor |
 | 37521 | Actor::PickUpObject | an NPC's pickup: StealAlarm with the item, then a created one is freed |
 | 20210 | TESObjectREFR::IsAnOwner | an actor reference with no ownership reads as anyone's |

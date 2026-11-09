@@ -52,11 +52,12 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
     }
     else if (action == "pickpocket")
     {
-        if (!Cast<Actor>(target) || !item)
-            return Error("missing victim or item");
+        if (!Cast<Actor>(target))
+            return Error("missing victim");
+        // As AttemptPickpocket (40654) raises a caught try: no item, count 0.
         using TPick = void(PlayerCharacter*, TESObjectREFR*, TESForm*, int32_t);
         static VersionDbPtr<TPick> pick(37423);
-        pick(player, target, item, count);
+        pick(player, target, nullptr, 0);
     }
     else if (action == "assault" || action == "murder")
     {

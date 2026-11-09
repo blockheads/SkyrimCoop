@@ -336,6 +336,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // recorded, the item raised as an inventory change); a guest's asks the host first for one the host decides
     // (ItemPickUpEvent).
     void PicksUp(uint32_t aObject);
+    // The player sneaks and takes one aItem from aVictim's pockets (ContainerMenu 51141 in pickpocket mode). Caught
+    // (AttemptPickpocket 40654): PickpocketAlarm (37423) with no item and count 0, nothing moves. Taken: the victim's
+    // RemoveItem (kSteal) to the player, a guest's proposed to the host instead (ContainerTransfers).
+    void Pickpockets(uint32_t aVictim, uint32_t aItem, bool aCaught);
     // The host's game makes a loose item where the placement says (HostGame::CreateItem): none while that cell is not
     // loaded here, an empty id for a missing form. And takes one out of its world (HostGame::TakeItem).
     std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell);

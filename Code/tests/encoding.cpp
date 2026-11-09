@@ -90,6 +90,34 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     CHECK(static_cast<const NotifyActivate&>(*received) == notice);
 }
 
+TEST_CASE("A caught pickpocket names only its victim", "[encoding.crime]")
+{
+    // AttemptPickpocket (40654) raises PickpocketAlarm (37423) with no item and count 0.
+    CrimeRequest request;
+    request.Sequence = 7;
+    request.Action = CrimeAction::Pickpocket;
+    request.TargetActor = 42;
+    CHECK(request.IsValid());
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& received = static_cast<const CrimeRequest&>(*decoded);
+    CHECK(received.IsValid());
+    CHECK(received.Action == CrimeAction::Pickpocket);
+    CHECK(received.TargetActor == 42);
+    CHECK(!received.Item);
+    CHECK(received.Count == 0);
+    CrimeRequest nobody = request;
+    nobody.TargetActor = 0;
+    CHECK(!nobody.IsValid());
+    CrimeRequest theft = request;
+    theft.Action = CrimeAction::Theft;
+    CHECK(!theft.IsValid()); // a theft still names what it took
+}
+
 TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encoding.crime]")
 {
     CrimeRequest request;

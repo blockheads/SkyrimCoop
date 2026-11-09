@@ -120,7 +120,6 @@ other section needs the duo.
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
 - [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
 - [Black faces after a new area](#black-faces-after-a-new-area): small
-- [A guest's pickpocket](#a-guests-pickpocket): medium
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
@@ -1088,24 +1087,6 @@ Size: small. Needs: duo; a rule from the user (below).
   - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
   - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
   - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
-
-### A guest's pickpocket
-
-Crime: the guest's theft from a copy.
-
-Agent task: Make a guest's pickpocket of an NPC copy reach the host, caught or not, and stop it duplicating items.
-
-Size: medium. Needs: duo, then GameTests.
-
-- **No guest pickpocket reached the host** (2026-11-08). The brother sneaked to pickpocket: "nothing happens, they just
-  can't talk to them", and once "they still get the item, just multiple copies". The host logs every guest crime it
-  gets ("Party crime: ..."), and the whole session has only four thefts (21:28, Riverwood Trader, action 0): no
-  pickpocket, caught or not (`shared-party-bounty.md`: a caught one sends a proposal, 37423).
-  - Inferred: the duplicate is a take from the copy that the host never applies, so the copy keeps it, as in
-    [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest).
-  - Related: [The older crime scenarios](#the-older-crime-scenarios) (`guest-pickpocket-party-alarm` passes or fails
-    either way).
-  - Test: a scenario: the guest pickpockets Lucan, once caught and once not.
 
 ### Black faces after a new area
 
