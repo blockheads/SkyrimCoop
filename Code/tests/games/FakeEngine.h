@@ -134,7 +134,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
-    std::optional<SaveFiles> PreviousSave() noexcept override;
+    // As PreviousGameplaySave: the newest save on disk of CharacterId, not a SkyrimCoop scratch save.
+    std::optional<std::string> PreviousSave() noexcept override;
+    void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
+    // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
+    // SkyrimCoopWipe), the engine's own saves are named with it.
+    uint32_t CharacterId = 0;
     std::map<std::string, SaveFiles> SavedFiles;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
@@ -642,6 +647,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
     // left unloaded, a teleport the engine reports once (ConsumeTeleported).
     void PlayerTravels(uint32_t aCell, const glm::vec3& acPosition);
+    // A move the hook at 40438's entry does not see: PayFine's release (QueueJailRelease 40661) is written into
+    // queuedTarget inside ProcessQueuedTravel (40438), so only the arrival reports it (docs/re/systems/player-travel.md).
+    void PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition);
     // The native mount interaction, replayed for copies by CharacterService.
     std::map<uint32_t, uint32_t> Mounts;
     void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
@@ -1204,6 +1212,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
   private:
     uint32_t m_nextStack = 1; // the stacks this game's boxes wait in
     uint32_t m_openedBox = 0; // the box the running script opened (Message.Show)
+    bool m_unannouncedMove = false; // PlayerTravelsUnannounced
     bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;

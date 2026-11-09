@@ -116,9 +116,8 @@ other section needs the duo.
 **From the 2026-11-08 playtest** (in the triage's recommended order)
 
 - [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
-- [The second wipe loads another character's save](#the-second-wipe-loads-another-characters-save): small
+- [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
-- [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
 - [A guest's pickpocket](#a-guests-pickpocket): medium
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
@@ -1050,43 +1049,25 @@ Size: medium. Needs: IDA, duo; a decision from the user (below).
   a bug ("the host talking to anyone locks out the client"). Keep it, with a clear answer, or allow conversations in
   parallel (large: the host's engine has one dialogue speaker).
 
-### The second wipe loads another character's save
+### A guest's crash loading a wipe's save
 
-A party wipe right after a wipe loads an old character.
+Seen once.
 
-Agent task: Make a wipe always reload the host's own character, also after a wipe.
+Agent task: Name the stale form the guest's load reached in its 21:19 dump.
 
-Size: small. Needs: GameTests, IDA; duo to prove it.
+Size: small. Needs: IDA, the dump; duo to prove it.
 
-- **The wipe after a wipe takes the newest save of character id 0** (2026-11-08, measured from the logs and the
-  saves). 21:17 and 21:31 (each the first wipe after a normal load) reloaded `ABC467A6` (scrombonius, the host's
-  character); 21:19 and 21:32 (each after loading `SkyrimCoopWipe.ess`) sent `Save4_00000000` (Chris Cringle,
-  2026-10-31, Riften), so the session went on as Chris. The Load menu then listed only that character's saves (the
-  user: "it showed me a previous character's save"). 15 of the host's saves carry id 0.
-  - Read in code: `PreviousGameplaySave` takes the newest save whose `characterId` is the engine's `currentCharacterId`.
-    Inferred: loading a save named `SkyrimCoopWipe` (no id in the name) leaves that id 0. Read in IDA: 35760, 35789,
-    where the current id is set on a load.
-  - The guest crashed loading the 21:19 save (c0000005, during the load, a dump in its export); check it goes with the
-    fix. Related: [The scratch save in the Load list](#the-scratch-save-in-the-load-list), the same scratch save.
-  - Test: GameTests, two wipes in a row (the fake learns how a load sets the character id); the user asked for more
-    tests around dying and reloading.
-
-### Paying a fine moves only the host
-
-Party travel.
-
-Agent task: Make a teleport the host's engine makes inside its cell bring the party, as one to another cell does.
-
-Size: small. Needs: duo; a rule from the user (below).
-
-- **The guest stays behind when the host pays a fine** (2026-11-08, 21:39, measured). The host paid the Riften guard
-  (`4584D`, topic `267DB`); its game moved it to the release marker and logged "Arrived in cell 42245 (RiftenWorld),
-  leading the party"; the guest logged "Party travel to cell 42245: already there" and stayed. The tether follows by
-  cell, and a move inside the cell is "already there" (`player-travel.md`), so `PayFine`'s move
-  (`shared-party-bounty.md`) never reaches the party there.
-  - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
-  - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
-  - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
+- **The guest crashed in a wipe's load** (2026-11-08 21:19, the guest's export `SkyrimCoop-player-2026-11-08-2119-e04.zip`
+  in `hdTkv.zip`, with its dump). c0000005 1.3 s into loading `SkyrimCoopJoin.ess`, a lock order report just before.
+  The same save (3118302 bytes packed) loaded fine at 21:32, so the save is not the cause. The second wipe's
+  wrong character (the save it carried) is fixed: the load now gives the host its character back
+  (`docs/re/systems/save-game.md`, "The character a save belongs to"; GameTests "Two party wipes in a row both reload
+  the host's own character").
+  - Read in the dump and IDA: `Thread::LoadGame_HookTarget` → `BGSSaveLoadGame::InitAndFinishLoadedForms` →
+    `sub_140638B20` → `sub_140638CB0` → `sub_140638FE0` calls vfunc `+0x160` on a form whose memory has
+    `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
+  - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
+    `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
 
 ### A guest's pickpocket
 
