@@ -57,7 +57,7 @@ disabled path), until the host's spawn makes them copies and queues their 3D (`Q
 guest rides is its own. Tests: GameTests `[guest-own-npc]`, and an actor checksum that fails any guest showing an actor
 of its own; ClientTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
 (`actor_place` also reports the package and process level). On the duo its steps pass; its end comparison in Whiterun
-fails on the town differences in bugs.md ("End comparisons in towns"), now with Whiterun's doors locked on the guest.
+fails on the town differences in bugs.md ("End comparisons in towns", "Doors the host's NPCs unlock").
 
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
