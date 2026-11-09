@@ -771,7 +771,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         return it != Actors.end() && it->second.BodiesLayer != 0 && it->second.GraphsStepPhysics;
     }
     // This game's crosshair on an actor it faces (CrosshairPickData::Pick): a seated or sleeping one only by its bodies
-    // in the world (its capsule's hit is skipped), any other by its capsule (re/systems/dialogue.md, the crosshair).
+    // in the world (its capsule, collision off, is out of the pick's cast: 78553), any other by its capsule.
     [[nodiscard]] bool CrosshairTakes(uint32_t aFormId) const noexcept
     {
         const auto it = Actors.find(aFormId);

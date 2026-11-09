@@ -123,8 +123,8 @@ int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
 
-// The actor's character controller: its flags (CHARACTER_FLAGS), its bodies' filter info, its state, its shape (size), and where its
-// capsule is and how fast it goes (game units), beside the actor's position; or none without one.
+// The actor's character controller: its flags (CHARACTER_FLAGS), its bodies' filter info, its state, its shape (size),
+// and where its capsule is and how fast it goes (game units), beside the actor's position; or none without one.
 struct ControllerRead
 {
     uint32_t Flags{};

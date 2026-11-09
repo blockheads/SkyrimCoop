@@ -20,15 +20,15 @@ bool RemoveRagdollFromWorld(TESObjectREFR& aActor) noexcept
     return true;
 }
 
-bool GraphsStepPhysics(const TESObjectREFR& acActor) noexcept
+std::optional<bool> GraphsStepPhysics(const TESObjectREFR& acActor) noexcept
 {
     BSAnimationGraphManager* pManager = nullptr;
     if (!EngineVirtual(acActor.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
-        return false;
-    bool step = false;
+        return std::nullopt;
+    std::optional<bool> step;
     {
         BSScopedLock<BSRecursiveLock> _{pManager->lock};
-        for (uint32_t i = 0; i < pManager->animationGraphs.size && !step; ++i)
+        for (uint32_t i = 0; i < pManager->animationGraphs.size && !step.value_or(false); ++i)
             if (const BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(i))
                 step = pGraph->hkWorldM != nullptr;
     }
@@ -41,7 +41,8 @@ bool SetGraphsStepPhysics(TESObjectREFR& aActor, bool aStep) noexcept
     using TGetWorld = void*(TESObjectCELL*);
     POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995); // TESObjectCELL::GetbhkWorld
     void* pWorld = aStep && aActor.parentCell ? s_getWorld(aActor.parentCell) : nullptr;
-    if (GraphsStepPhysics(aActor) == aStep || (aStep && !pWorld))
+    const auto cStep = GraphsStepPhysics(aActor);
+    if (!cStep || *cStep == aStep || (aStep && !pWorld))
         return false;
     BSAnimationGraphManager* pManager = nullptr;
     if (!EngineVirtual(aActor.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)

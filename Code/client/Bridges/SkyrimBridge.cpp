@@ -346,14 +346,15 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
 
 uint8_t SkyrimBridge::BodiesLayer(uint32_t aFormId) const noexcept
 {
-    Actor* pActor = GetActor(aFormId);
+    const Actor* pActor = GetActor(aFormId);
     return pActor ? pActor->BodiesLayer() : 0;
 }
 
 bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
 {
+    // Without graphs, as the engine leaves them: stepping.
     const Actor* pActor = GetActor(aFormId);
-    return !pActor || ::GraphsStepPhysics(*pActor);
+    return !pActor || ::GraphsStepPhysics(*pActor).value_or(true);
 }
 
 void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept

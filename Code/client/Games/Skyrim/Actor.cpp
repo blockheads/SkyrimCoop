@@ -10,6 +10,7 @@
 #include <Misc/MiddleProcess.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
 #include <Systems/CopyStep.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
@@ -175,21 +176,24 @@ bool Actor::SetCapsuleCollision(bool aCollides) noexcept
 
 namespace
 {
-// Its own 3D's first rigid body (the bodies move together: 40063 and 39912 set them all at once), else null.
-const hkpRigidBody* FirstBodyOf(NiAVObject& aRoot) noexcept
+// Its first ragdoll body: the ragdoll's bodies are its 3D's (40063 and 39912 set them all at once), else null.
+const hkpRigidBody* FirstBodyOf(const Actor& acActor) noexcept
 {
-    for (const bhkWorldObject* pBody : RigidBodiesOf(aRoot))
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(acActor))
         if (pBody && pBody->referencedObject)
             return pBody->referencedObject;
     return nullptr;
 }
+
+uint8_t LayerOf(const hkpRigidBody* apBody) noexcept
+{
+    return apBody && apBody->world ? static_cast<uint8_t>(apBody->CollisionFilterInfo() & 0x7F) : 0;
+}
 } // namespace
 
-uint8_t Actor::BodiesLayer() noexcept
+uint8_t Actor::BodiesLayer() const noexcept
 {
-    NiNode* pRoot = GetNiNode();
-    const hkpRigidBody* pBody = pRoot ? FirstBodyOf(*pRoot) : nullptr;
-    return pBody && pBody->world ? static_cast<uint8_t>(pBody->CollisionFilterInfo() & 0x7F) : 0;
+    return LayerOf(FirstBodyOf(*this));
 }
 
 bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
@@ -197,8 +201,10 @@ bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
     NiNode* pRoot = GetNiNode();
     auto* pProcess = currentProcess;
     auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
-    if (!pRoot || !pController || !parentCell || !FirstBodyOf(*pRoot) || BodiesLayer() == aLayer)
+    const hkpRigidBody* pBody = FirstBodyOf(*this);
+    if (!pRoot || !pController || !parentCell || !pBody || LayerOf(pBody) == aLayer)
         return false;
+    const bool cInWorld = pBody->world != nullptr;
 
     POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
     using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
@@ -217,12 +223,14 @@ bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
         s_removeFromWorld.Get()(pQueue, pRoot);
         return true;
     }
-    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group, in its cell's world.
+    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group, in its cell's world (39912
+    // changes only the layer of bodies in the world already).
     uint32_t filter = 0;
     pController->GetCollisionFilterInfo(filter);
     s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
     s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, filter >> 16);
-    s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
+    if (!cInWorld)
+        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
     return true;
 }
 

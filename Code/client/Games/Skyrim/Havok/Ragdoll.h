@@ -3,6 +3,7 @@
 #include <Havok/bhkCollision.h>
 #include <Structs/BodyFrame.h>
 
+#include <optional>
 #include <vector>
 
 struct TESObjectREFR;
@@ -30,7 +31,8 @@ struct hkbRagdollDriver
 bool RemoveRagdollFromWorld(TESObjectREFR& aActor) noexcept;
 // A graph of its steps with the physics world (BShkbAnimationGraph +0x238): its ragdoll driver then drives the ragdoll's
 // bodies (63562). The engine detaches every graph in furniture (40063) and attaches them again as the actor gets up (39912).
-[[nodiscard]] bool GraphsStepPhysics(const TESObjectREFR& acActor) noexcept;
+// None without a graph.
+[[nodiscard]] std::optional<bool> GraphsStepPhysics(const TESObjectREFR& acActor) noexcept;
 // Every graph attached to its cell's physics world, each ragdoll reset first (39912), or detached (40063), through
 // IAnimationGraphManagerHolder::SetWorld (38087). False: as wanted already.
 bool SetGraphsStepPhysics(TESObjectREFR& aActor, bool aStep) noexcept;
