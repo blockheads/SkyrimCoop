@@ -137,6 +137,44 @@ def scenario_sneaking_players_stay_hidden(ctx):
         ctx.sneak("client", False)
 
 
+
+def scenario_other_player_looking_leaves_eye_hidden(ctx):
+    """One player sneaks, the other stands and turns to face it: in the sneaker's game the other player's copy is left
+    out of the stealth eye (boolFlags kDoNotShowOnStealthMeter, which 41408 skips; docs/re/systems/stealth.md), whatever
+    its detection holds, and the eye stays hidden."""
+    def copy_in(instance):
+        return ctx.other_player((ctx.game(instance).read_status() or {}).get("actors") or {})
+    for sneaker, looker in (("", "client"), ("client", "")):
+        name = sneaker or "host"
+        copy, sneaker_copy = copy_in(sneaker), copy_in(looker)
+        if not copy or not sneaker_copy:
+            raise ctx.failure(f"[{name}] no copy of the other player to watch")
+        try:
+            ctx.sneak(sneaker, True)
+            ctx.sneak(looker, False)
+            ctx.face(looker, sneaker_copy)
+            known = {}
+            def watched():
+                # In the sneaker's game: the copy in high process (a 41408 candidate), near, turned to face the sneaker.
+                known.update(ctx.player_command(sneaker, {"cmd": "crime", "action": "knowledge", "actor": copy, "target": 0x14}))
+                at, me = ctx.actors_on(sneaker).get(str(copy)) or {}, ctx.my_position(sneaker)
+                if not known.get("high") or not at.get("actual") or not at.get("rotation") or not me:
+                    return False
+                dx, dy = me[0] - at["actual"][0], me[1] - at["actual"][1]
+                return math.hypot(dx, dy) < 400 and abs(math.remainder(at["rotation"][2] - math.atan2(dx, dy), math.tau)) < 0.5
+            ctx.wait_for(f"[{name}] the other player's copy, near and in high process, faces the sneaking player", watched, 10,
+                         explain=lambda: f"its knowledge: {known}, its status: {ctx.actors_on(sneaker).get(str(copy))}")
+            if not known.get("not_on_meter"):
+                raise ctx.failure(f"[{name}] the other player's copy counts on the stealth eye: {known}")
+            meter = ctx.player_command(sneaker, {"cmd": "crime", "action": "stealth_meter"})
+            counted = [s for s in meter.get("sources", []) if s.get("other_player") and not s.get("not_on_meter")]
+            if meter["level"] >= 0 or counted:
+                raise ctx.failure(f"[{name}] the sneaking player's eye shows {meter['level']} with the other player "
+                                  f"looking: {meter.get('sources')}")
+        finally:
+            ctx.sneak(sneaker, False)
+
+
 # The locomotion graph's floats: the synced ones (Master_Behavior's) and what the graph damps from them.
 LOCOMOTION = ("Direction", "DirectionDamped", "Speed", "SpeedSampled", "SpeedDamped", "TurnDelta")
 

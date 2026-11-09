@@ -102,6 +102,19 @@ static nlohmann::json SharedName(uint32_t aFormId)
 }
 
 // What the engine reads of its headtrack slots ("unread": nothing now), as every game names it.
+// A base's tint layers, null when it has no array (EngineReads::GetBaseTintLayers).
+static nlohmann::json BaseLayersOf(uint32_t aFormId)
+{
+    const auto cLayers = EngineReads::GetBaseTintLayers(aFormId);
+    if (!cLayers)
+        return nullptr;
+    nlohmann::json layers = nlohmann::json::array();
+    for (const auto& cLayer : *cLayers)
+        layers.push_back({{"index", cLayer.Index}, {"color", std::format("{:06X}", cLayer.Color)}, {"preset", cLayer.Preset},
+                          {"interpolation", cLayer.Interpolation}});
+    return layers;
+}
+
 static nlohmann::json HeadTrackReadBy(const EngineReads::AiReadout& acAi, uint32_t aFormId)
 {
     if (acAi.HeadTrackShutBy)
@@ -199,13 +212,19 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
             mod["interpolation_points"] = pInterpolation->TimePoints.size();
         // A copy's head, painted from its owner's tints (FaceGenSystem): compared by the scenarios.
         if (const auto* pFace = world.try_get<FaceGenComponent>(entity))
-            mod["face"] = {{"painted", pFace->Generated}, {"tints", TintsOf(pFace->FaceTints)}};
+            {
+            const auto cHead = EngineReads::GetFaceHead(aFormId);
+            mod["face"] = {{"painted", actors.IsActorFacePainted(aFormId)}, {"tints", TintsOf(pFace->FaceTints)},
+                           {"paints", pFace->Paints},
+                           {"head", {{"geometry", cHead.Geometry}, {"material", cHead.Material}, {"tint", cHead.Tint}}},
+                           {"base_layers", BaseLayersOf(aFormId)}};
+        }
         break;
     }
 
     // This game's player's head: the tints it shows (a vampire's overlay ones, else its own), as its copies get them.
     if (aFormId == world.GetPlayerBridge().GetPlayerFormId())
-        mod["face"] = {{"tints", TintsOf(world.GetPlayerBridge().GetPlayerFaceTints())}};
+        mod["face"] = {{"tints", TintsOf(world.GetPlayerBridge().GetPlayerFaceTints())}, {"base_layers", BaseLayersOf(aFormId)}};
 
     // The voice line, shown and not compared: a copy's starts a little after its owner's, and the
     // callback state can rest at 3 once a line is over (the audio system's late callback).
