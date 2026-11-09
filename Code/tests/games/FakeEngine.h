@@ -254,6 +254,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::vector<ObjectChange> Recorded; // the host's: its world's changes since HostGame::TakeObjectChanges
     bool IsGuest = false;              // a guest's engine raises its player's changes as events (GuestWorldState)
     bool DecidesWorld = true;          // GuestEngine::SetDecidesWorld
+    uint32_t HoldSession = 0;          // GuestNpcs::Session's, set with DecidesWorld: 0 while not a guest
+    // A guest's own NPC: no AI (HookUpdateAI) and no 3D (HookLoad3D) until the host spawns its copy (GuestNpcs::Held).
+    [[nodiscard]] bool HeldOnGuest(uint32_t aFormId) const noexcept;
+    // The loader threads busy: no load job finishes (QueuedReference::Finish 13022) while set.
+    bool LoadsHeld = false;
+    // Actor::ApplyHeld3D: held with 3D, reloaded (refused); not held after a refused load, queued (a job still out
+    // only takes the priority, QueueReference 13057).
+    void ApplyHeld3D(uint32_t aFormId);
 
     void LoadCell(uint32_t aCell);
     void UnloadCell(uint32_t aCell);
@@ -497,6 +505,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool NoProcess = false;   // its process freed, its handle still valid (marked deleted, MarkForDelete)
         bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
+        uint32_t ClaimedIn = 0; // the guest session SetActorCopy(false) made it this game's in (GuestNpcs::Held)
+        bool Refused3D = false; // held on a guest: its Load3D refused (HookLoad3D), loaded once it is not
+        bool LoadQueued = false; // its load job out (TESQueuedHandles' handle), until QueuedReference::Finish
+        bool ModelReady = false; // its job's model loaded, attached at Finish
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
@@ -1017,6 +1029,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition);
     // A reference still loading finishes: kStillLoading clears, then its 3D loads (TESObjectLoadedEvent).
     void FinishLoading(uint32_t aFormId);
+    // Each game's engine runs its NPCs' AI on its own clock (Skyrim 2026-11-09, actor-ai-and-copies.md, "A guest's own
+    // NPCs run"): its package walks it to acPosition in aCell (UpdateAI; unloaded, the virtual path follower), its 3D
+    // loading as it enters a loaded cell. False: its AI is cut (a copy, or held on a guest).
+    bool NpcWalks(uint32_t aFormId, uint32_t aCell, const glm::vec3& acPosition);
+    // Load3D (19727) for an actor in a cell loaded here: a cell attaching, an NPC walking in, a load finishing. Held:
+    // refused, as a disabled reference's.
+    void Load3D(uint32_t aFormId);
     // A hit of aDamage on an actor, as the engine's: at 0 health it dies, or goes down if essential; a copy is in
     // deferred kill and does neither (actor-ai-and-copies.md, "A copy is in deferred kill").
     void Hit(uint32_t aFormId, float aDamage);

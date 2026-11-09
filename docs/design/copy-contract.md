@@ -312,6 +312,48 @@ the session's end                      shown, its own persistence back, this gam
 - Tests: GameTests `[copies]` (the last three flows of `copy_flows.cpp`, the fake's `Hidden` refusing enables);
   scenarios `held-copy-goes-with-owner`, `leveled-placed-npc-is-hosts`, `host-npc-leaves-copy-follows`.
 
+## A guest's own NPCs: held until the host spawns them (decided and built 2026-11-09)
+
+**The rule:** on a guest, every actor its engine runs is held (no AI, no 3D) unless it is this game's player, a copy,
+or one this game claimed in this session (a horse it rides). The host's spawn makes it a copy, which shows it.
+
+- **Found.** Aela, Ria and Farkas stood in the Whiterun market on the guest, running their own AI, while the host had
+  them in Jorrvaskr. Each game's engine runs a non-copy NPC's whole schedule at every process level on its own clock,
+  so the two walk apart. Nothing hid the guest's: the host never spawned them, the guest's discovery deletes only
+  temporary NPCs, and holding a copy starts only on a removal from the host. Engine path:
+  [actor-ai-and-copies.md](../re/systems/actor-ai-and-copies.md), "A guest's own NPCs run".
+- **Decided: the host ignores them; the guest holds them** (the other choice: the guest announces an NPC new to the
+  host, which takes it over). Taking over would make the host own an actor at a guest's state: where that guest's
+  clock walked it, with its packages, scripts and quest stages. A mod's NPC on its own timers would be adopted from
+  whichever game ran it first. Holding needs no knowledge of what the NPC is, so it covers any mod's NPC, and it
+  matches the rest of direct authority (a guest's story manager starts no quest). Upstream TiltedOnline's
+  first-come ownership was removed in this fork for the same reason; skymp's world cleaner disables and deletes
+  any actor the server didn't make.
+
+```
+GuestEngine::SetDecidesWorld(false)    GuestNpcs::SetHolding: a new session id; NPCs already shown (the host's
+                                         save loads before the guest connects) reloaded (Reload3D), so refused
+the guest's engine, for an NPC that is not a copy or claimed
+  UpdateAI 37347 (every process level)  HookUpdateAI returns: it stands still
+  Load3D 19727 (cell attach, Enable,    HookLoad3D returns null, as for a disabled reference: the cell's queued
+    MoveTo, process change)               count still drops
+  its job ends (QueuedReference::       NpcHeldEvent wakes a spawn waiting on its load; queued again if no
+    Finish 13022, main thread)            longer held. A model loaded before holding started and attached now:
+                                          reloaded, so refused
+the host's spawn: SetActorCopy(true)   its refused 3D queued as Enable does (QueueReference 13057); while its
+                                         old job is out that only changes the priority, and Finish queues it
+a guest takes ownership (a ridden      SetActorCopy(false) stamps the session id: its own
+  horse)
+the session's end                      nothing to undo; a refused NPC loads with its cell next time
+```
+
+- The rule is `GuestNpcs::Held` (ClientTests `[GuestNpcs]`). An actor's flags live in its `ActorExtension`
+  (`ClaimedIn`, `Refused3D`), read from the loader threads.
+- A guest's temporary NPCs are held too. Discovery deletes only actors with 3D, so these stay until their cell
+  unloads.
+- Tests: GameTests `[guest-own-npc]`; the actor checksum (`Party::ActorDifferences`) fails any guest showing an actor
+  that is neither a copy nor its own. Scenario `guest_shows_only_hosts_npcs`, with the MCP's `expect guest_npcs`.
+
 ## When syncing a new system
 
 1. Decide which row it falls under, before writing sync code.

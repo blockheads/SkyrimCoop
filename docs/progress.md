@@ -49,6 +49,20 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
+NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
+Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (`UpdateAI` at every process level).
+Decided: the host ignores them, and the guest gives them no AI (`HookUpdateAI`) and no 3D (`HookLoad3D` on 19727, the
+disabled path), until the host's spawn makes them copies and queues their 3D (`QueueReference` 13057). A horse the
+guest rides is its own. Tests: GameTests `[guest-own-npc]`, and an actor checksum that fails any guest showing an actor
+of its own; ClientTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
+(`actor_place` also reports the package and process level). On the duo its steps pass; its end comparison in Whiterun
+fails on the town differences in bugs.md ("End comparisons in towns", "Doors the host's NPCs unlock").
+From the PR's review: NPCs already shown when holding starts (the host's save loads before the guest connects; a
+rejoin) are reloaded so their 3D is refused (32 hidden at a Whiterun rejoin, each a copy again within 10 s), and a
+refused load job ends in `QueuedReference::Finish` (13022, hooked), where the NPC's 3D is queued again if a spawn came
+while the job was out, and where a model loaded before holding started is reloaded as it attaches. GameTests flows for both; the scenario now leaves and rejoins.
+
 2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
 actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
 AI, so theirs never were. A copy's bodies and graphs now mirror its owner's, as its capsule does: each movement snapshot

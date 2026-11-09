@@ -259,6 +259,8 @@ struct TESObjectREFR : TESForm
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;
+    // Drops its 3D and queues it again, as Disable and Enable do, leaving no form-flags record.
+    void Reload3D() noexcept;
     OpenState GetOpenState() noexcept;
 
     Inventory GetInventory() const noexcept;

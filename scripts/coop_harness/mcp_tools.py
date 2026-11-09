@@ -267,7 +267,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
     takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
     and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
+    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 

@@ -23,6 +23,8 @@
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/NpcHeldEvent.h>
+#include <Games/GuestNpcs.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayGraph.h>
@@ -139,6 +141,26 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
+    // Load jobs end (QueuedReference::Finish): a model attaches; then Actor::FinishLoad3D (HookFinishLoad3D).
+    if (!LoadsHeld)
+        for (auto& [cId, actor] : Actors)
+        {
+            if (!std::exchange(actor.LoadQueued, false))
+                continue;
+            if (std::exchange(actor.ModelReady, false))
+            {
+                actor.Loaded = true;
+                World::Get().GetRunner().Trigger(ReferenceLoadedEvent{cId});
+            }
+            if (!actor.Refused3D && !(ActorHas3D(cId) && HeldOnGuest(cId)))
+                continue;
+            if (actor.Refused3D)
+                World::Get().GetRunner().Trigger(NpcHeldEvent{cId});
+            World::Get().GetRunner().Queue([this, cId] {
+                if (Actors.contains(cId))
+                    ApplyHeld3D(cId);
+            });
+        }
     BuildHeads();
     for (auto& [cId, actor] : Actors)
     {
@@ -393,10 +415,48 @@ void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, cons
 
 void FakeEngine::FinishLoading(uint32_t aFormId)
 {
+    Actors.at(aFormId).Initializing = false;
+    Load3D(aFormId);
+}
+
+bool FakeEngine::NpcWalks(uint32_t aFormId, uint32_t aCell, const glm::vec3& acPosition)
+{
     auto& actor = Actors.at(aFormId);
-    actor.Initializing = false;
-    actor.Loaded = true;
-    World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+    if (actor.Copy || HeldOnGuest(aFormId))
+        return false;
+    const bool cWasIn = Attached.contains(actor.Cell);
+    actor.Cell = aCell;
+    std::copy_n(&acPosition.x, 3, actor.Position);
+    if (!cWasIn && Attached.contains(aCell))
+        Load3D(aFormId);
+    return true;
+}
+
+void FakeEngine::Load3D(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Refused3D = HeldOnGuest(aFormId);
+    // A job ends in Frame (QueuedReference::Finish); a load with no job held back attaches at once, as the services
+    // see it. Held back, its model waits for Finish (BackgroundLoad3D's result, +0x2C8).
+    actor.LoadQueued = actor.Refused3D || LoadsHeld;
+    actor.ModelReady = !actor.Refused3D && LoadsHeld;
+    actor.Loaded = !actor.Refused3D && !LoadsHeld;
+    if (actor.Loaded)
+        World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+}
+
+void FakeEngine::ApplyHeld3D(uint32_t aFormId)
+{
+    const auto& cActor = Actors.at(aFormId);
+    // Held with 3D: Reload3D, so refused. Not held after a refused load: queued, unless its job is still out.
+    if (HeldOnGuest(aFormId) ? ActorHas3D(aFormId) : cActor.Refused3D && !cActor.LoadQueued)
+        Load3D(aFormId);
+}
+
+bool FakeEngine::HeldOnGuest(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && GuestNpcs::Held(HoldSession, aFormId == kPlayer, it->second.Copy, it->second.ClaimedIn);
 }
 
 void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
@@ -557,7 +617,11 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         const bool cReleased = it->second.Copy && !aCopy;
         it->second.Copy = aCopy;
         if (!aCopy)
+        {
             it->second.OwnerCombatTarget = 0;
+            it->second.ClaimedIn = HoldSession;
+        }
+        ApplyHeld3D(aFormId); // SkyrimBridge::SetActorCopy
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;

@@ -110,8 +110,13 @@ ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acRefere
 
 void FakeEngine::LoadCell(uint32_t aCell)
 {
-    Attached.insert(aCell);
+    const bool cAttaching = Attached.insert(aCell).second;
     InMemory.insert(aCell);
+    // Cell attach queues each reference's 3D (QueueReference 13057).
+    if (cAttaching)
+        for (auto& [cId, cActor] : Actors)
+            if (cId != kPlayer && cActor.Cell == aCell && !cActor.Initializing)
+                Load3D(cId);
 }
 
 // An actor Actor::Create made goes with it, unless persistent (copy-contract.md, "Players' copies"); a placeatme

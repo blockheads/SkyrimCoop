@@ -10,6 +10,7 @@
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
 #include <Games/HiddenCopies.h>
+#include <Games/GuestNpcs.h>
 #include <MainLoopTasks.h>
 #include <FormIds.h>
 #include <Games/NpcSnapshot.h>
@@ -156,9 +157,15 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     {
         const bool cReleased = pExt->IsCopy() && !aCopy;
         pExt->SetCopy(aCopy);
+        if (!aCopy)
+            pExt->ClaimedIn.store(GuestNpcs::Session()); // this game's own from now: not held (GuestNpcs)
         GuestScripts::SetGuest(aFormId, pExt->IsOtherPlayer()); // GuestScripts' list follows the flags
-        if (Actor* pActor = cReleased ? GetActor(aFormId) : nullptr)
-            pActor->EndReleasedCopyPackage();
+        if (Actor* pActor = GetActor(aFormId))
+        {
+            if (cReleased)
+                pActor->EndReleasedCopyPackage();
+            pActor->ApplyHeld3D(); // a copy or claimed: its refused 3D loads
+        }
     }
 }
 

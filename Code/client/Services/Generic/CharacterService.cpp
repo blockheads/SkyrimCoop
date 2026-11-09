@@ -23,6 +23,7 @@
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/NpcHeldEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 
@@ -94,6 +95,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
     Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
     Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
+    Listen<NpcHeldEvent, &CharacterService::OnNpcHeld>(m_connections, m_dispatcher, this);
     Listen<NotifyRemoveCharacter, &CharacterService::OnRemoveCharacter>(m_connections, m_dispatcher, this);
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
@@ -366,7 +368,18 @@ CharacterService::~CharacterService() noexcept
 
 void CharacterService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
 {
-    const auto it = std::ranges::find_if(m_pendingSpawns, [&](const auto& acPending) { return ToGame(acPending.second.FormId) == acEvent.FormId; });
+    SpawnPending(acEvent.FormId);
+}
+
+// Done loading without 3D: its spawn makes it a copy, which loads it (Actor::ApplyHeld3D).
+void CharacterService::OnNpcHeld(const NpcHeldEvent& acEvent) noexcept
+{
+    SpawnPending(acEvent.FormId);
+}
+
+void CharacterService::SpawnPending(uint32_t aFormId) noexcept
+{
+    const auto it = std::ranges::find_if(m_pendingSpawns, [&](const auto& acPending) { return ToGame(acPending.second.FormId) == aFormId; });
     if (it == m_pendingSpawns.end())
         return;
     const NotifyCharacterSpawn cSpawn = std::move(it->second);
