@@ -378,3 +378,42 @@ SCENARIO("/tpa from another cell brings the party there", "[travel]")
                 [&] { return Why(party, 2); });
     party.Agree("the games agree on the players after /tpa");
 }
+
+SCENARIO("/tpa with no room beside the summoner: everyone passes through on its spot, in every game", "[travel]")
+{
+    Party party(2, SmokeWorld);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
+    FakeEngine& summoner = Party::Engine(party.Guest(0));
+    // Everyone walks off the join's arrival spot, the summoner too.
+    const glm::vec3 cAt{500.f, 500.f, 0.f};
+    party.As(party.Guest(0), [&] { std::copy_n(&cAt.x, 3, summoner.Actors.at(FakeEngine::kPlayer).Position); });
+    for (World* pGame : {&party.Host(), &party.Guest(1)})
+        party.As(*pGame, [&] {
+            auto& player = Party::Engine(*pGame).Actors.at(FakeEngine::kPlayer);
+            player.Position[0] = 3000.f;
+            player.Position[1] = -2000.f;
+        });
+    const auto cGames = {&party.Host(), &party.Guest(0), &party.Guest(1)};
+    party.Until([&] { return std::ranges::all_of(cGames, [](World* pGame) { return Party::Engine(*pGame).PassingThrough.empty(); }); },
+                "the join's arrival stack is walked off in every game");
+
+    summoner.PlacementClear = false;
+    party.As(party.Guest(0), [&] { party.Guest(0).GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    // Each game: its player and both players' copies pass through each other on the spot.
+    const auto cAllPassing = [](const FakeEngine& acEngine) {
+        size_t players = 0;
+        for (const auto& [cId, cActor] : acEngine.Actors)
+            if (cActor.Player && std::ranges::find(acEngine.PassingThrough, cId) != acEngine.PassingThrough.end())
+                ++players;
+        return players == 3;
+    };
+    party.Until([&] { return std::ranges::all_of(cGames, [&](World* pGame) { return cAllPassing(Party::Engine(*pGame)); }); },
+                "every game lets the three players pass through each other on the summoner's spot", [&] {
+                    std::string why;
+                    for (World* pGame : cGames)
+                        why += std::format("{} passes {}; ", Party::Engine(*pGame).Name, Party::Engine(*pGame).PassingThrough.size());
+                    return why + Why(party, 3);
+                });
+    const auto& cHost = Party::Engine(party.Host()).Actors.at(FakeEngine::kPlayer);
+    CHECK(glm::distance(glm::vec2(cHost.Position[0], cHost.Position[1]), glm::vec2(cAt)) < 1.f);
+}

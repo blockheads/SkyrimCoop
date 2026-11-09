@@ -71,7 +71,11 @@ The chat's `/tpa` (or `/teleportall`) brings every other player to whoever typed
 2. The host's rule (`HostCharacters::OnPartySummon`) sends `NotifyPartySummon` to every other game and makes the
    spot the tether's last place, so a follower arriving there is not sent on to an older trip.
 3. Each game makes a forced tether move there (`FollowTo(..., true)`), so the arrival is following, not leading.
-   The arrival stacks the party even inside the same cell. Down players go too, as the tether takes them.
+   The arrival stacks the party even inside the same cell. The summoner's game stacks on the spot when it sends,
+   since it never travels: pass-through (`PlayerCollision`, 78553) needs both actors on that game's stack. Without a
+   checked spot (no room) everyone lands on the summoner and walks off.
+4. Down players go too, as the tether takes them. A summon replaces a down player's queued respawn move, as a party
+   trip does (only the latest queued move is carried out), so `DeathService` retargets the respawn to it.
 
 Measured in the duo (`party-summon-in-cell`): the host moved 740 units inside QASmoke, the guest typed `/tpa`, and
 the host arrived 120 units from the guest (`Beside`'s radius).

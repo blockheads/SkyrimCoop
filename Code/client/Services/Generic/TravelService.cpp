@@ -165,6 +165,8 @@ void TravelService::OnSummonCommand(const PartySummonCommandEvent&) noexcept
     request.Destination.Position = spot;
     request.Destination.Heading = m_playerBridge.GetPlayerHeading();
     m_transport.Send(request);
+    // The others' copies land on the spot here too: they pass through us and each other until they walk off.
+    StackOn(spot);
     m_dispatcher.trigger(SessionNoticeEvent{"Bringing the party to you."});
 }
 
