@@ -410,13 +410,15 @@ struct WolfTurn
         for (auto* engine : {&host, &guest})
         {
             engine->GraphTransitions = {{{"Standing", "cannedTurnRight180"}, "CannedTurn"}, {{"StandingIdle", "cannedTurnRight180"}, "CannedTurn"}};
-            engine->Bound = FakeEngine::BoundStart{"CannedTurn", 1000, 0, {"LoopingTurnRight", "StandingIdle"}, {"turnStop"}};
+            // CannedTurnState's clip; StandingBehavior starts from iSyncTurnState (integer 0).
+            engine->Graph = FakeGraphRules{.Clips = {{.State = "CannedTurn", .Ms = 1000, .Starts = {"LoopingTurnRight", "StandingIdle"}, .StartFrom = 0}}};
+            engine->OwnerClipEnds = FakeEngine::ClipEndActions{"CannedTurn", {"turnStop"}};
             engine->ActionWrites = {{"turnStop", {0, 1}}, {"moveStop", {1, 0}}};
             if (aExitCondition)
             {
-                engine->Bound->OwnerEnds.push_back("moveStop");
-                engine->Bound->ExitVariable = 1;
-                engine->Bound->ExitValues = {0, 1};
+                engine->OwnerClipEnds->Events.push_back("moveStop");
+                engine->Graph->Clips[0].ExitVariable = 1; // iSyncIdleLocomotion
+                engine->Graph->Clips[0].ExitValues = {0, 1};
             }
         }
         party.As(party.Host(), [&] {
@@ -448,6 +450,12 @@ struct WolfTurn
             aWhileTurning();
         party.Until([&] { return guest.Actors.at(copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
     }
+
+    // The live check (FakeGraph.h): empty while the copy's graph has been in its owner's state at every point.
+    [[nodiscard]] std::string Difference() const
+    {
+        return FirstGraphDifference(host.Actors.at(wolf).Graph.History, guest.Actors.at(copy).Graph.History);
+    }
 };
 } // namespace
 
@@ -458,9 +466,10 @@ TEST_CASE("A copy's machine started at a clip's end reads its owner's new variab
     WolfTurn wolf;
     wolf.Turn();
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
-    CHECK(cCopy.BoundReadAtStart == 0); // the owner's old value as the copy's clip started
-    CHECK(cCopy.BoundReadAtEnd == 1);
+    CHECK(cCopy.Graph.ReadAtStart == 0); // the owner's old value as the copy's clip started
+    CHECK(cCopy.Graph.ReadAtEnd == 1);
     CHECK(cCopy.GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][replay-start]")
@@ -472,13 +481,14 @@ TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][r
     for (auto* engine : {&wolf.host, &wolf.guest})
     {
         engine->FarOwnerChunkMs = 250.0; // fAnimInterpMaxTime
-        engine->Bound->Ms = 1267;        // TurnCannedR180
+        engine->Graph->Clips[0].Ms = 1267; // TurnCannedR180
     }
     const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
     wolf.party.Until([&] { return cOwner.GraphEveryFrame || cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
     wolf.Turn();
-    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
+    CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtEnd == 1);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation][replay-start]")
@@ -486,8 +496,9 @@ TEST_CASE("A copy's canned turn exits on its owner's new variable", "[animation]
     // CannedTurnState's exit reads iSyncIdleLocomotion at cannedTurnStop, once (the duo's stuck copy, docs/bugs.md).
     WolfTurn wolf({}, true);
     wolf.Turn();
-    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtStart == 0);
+    CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtStart == 0);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[animation][replay-start]")
@@ -498,9 +509,11 @@ TEST_CASE("A copy's canned turns end where its owner's do over a slow line", "[a
     WolfTurn wolf(NetConditions{120, 80, 10, 2}, true);
     wolf.Turn();
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2}; });
     wolf.Turn();
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's machine reads its owner's new variable with its owner's next action right behind it", "[animation][replay-start]")
@@ -520,8 +533,9 @@ TEST_CASE("A copy's machine reads its owner's new variable with its owner's next
         wolf.party.Until([&] { return wolf.party.Host().GetFrameTick() >= cEnd + 50; }, "50 ms after the owner's turn");
         wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, sniff)); });
     });
-    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtEnd == 1);
+    CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtEnd == 1);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's canned turn ends where its owner's does as its playback slows after a fight", "[animation][replay-start]")
@@ -540,8 +554,9 @@ TEST_CASE("A copy's canned turn ends where its owner's does as its playback slow
                      std::chrono::seconds{10});
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).Ai.CombatState = 0; });
     wolf.Turn();
-    CHECK(wolf.guest.Actors.at(wolf.copy).BoundReadAtStart == 0);
+    CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtStart == 0);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's turn paused with its graph reads its owner's integers as it resumes", "[animation][replay-start]")
@@ -555,6 +570,7 @@ TEST_CASE("A copy's turn paused with its graph reads its owner's integers as it 
         wolf.guest.Actors.at(wolf.copy).GraphUpdating = true;
     });
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A copy's replayed action is sent with its own integers, not the next snapshot's", "[animation][replay-start]")
@@ -579,4 +595,51 @@ TEST_CASE("A copy's replayed action is sent with its own integers, not the next 
     REQUIRE(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers.size() == 3);
     CHECK(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers[2] == 1);
     wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers[2] == 0; }, "then the copy has the owner's release");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A copy's quick turn picks its owner's speed", "[animation][replay-start]")
+{
+    // A range modifier (hkbEventsFromRangeModifier, TurnRight_EventsFromRangeMod in 0_master) picks a turn's speed from
+    // TurnDelta, a channel each game's graph fills from its own actor before each update (63590, read in IDA). A copy's
+    // heading is interpolated between snapshots, so a quick turn of its owner's is a slower one on it. Not yet seen on
+    // the duo: the turn speed differences seen there were the range modifier's clone bug (graph-input-replay.md).
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->Graph->TurnDeltaChannel = 0;
+        engine->Graph->Ranges = {{.State = "TurnRight", .Input = 0, .Bound = 2.f, .Above = "TurnRightFast", .Below = "TurnRightSlow"}};
+        engine->GraphTransitions[{"Standing", "turnRight"}] = "TurnRight";
+    }
+    ActionEvent turn;
+    turn.ActionId = 0x13020;
+    turn.EventName = "turnRight";
+    auto& owner = wolf.host.Actors.at(wolf.wolf);
+    const float cHeading = owner.Rotation[2];
+    const uint64_t cFrom = wolf.party.Host().GetFrameTick();
+    // Its AI turns it at 3 rad/s for 60 ms, and sends turnRight 30 ms in.
+    const auto cTurning = [&] {
+        owner.Rotation[2] = cHeading + 3.f * float(std::min<uint64_t>(wolf.party.Host().GetFrameTick() - cFrom, 60)) / 1000.f;
+    };
+    wolf.party.Until([&] { cTurning(); return wolf.party.Host().GetFrameTick() >= cFrom + 30; }, "30 ms into the owner's turn");
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, turn)); });
+    wolf.party.Until([&] { cTurning(); return owner.GraphState == "TurnRightFast"; }, "the owner turns fast");
+    wolf.party.Until([&] { cTurning(); const auto& cState = wolf.guest.Actors.at(wolf.copy).GraphState; return cState != "Standing" && cState != "TurnRight"; },
+                     "the copy's turn picks a speed");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "TurnRightFast");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("The live graph check compares a copy with its owner at the same owner time", "[animation][replay-start]")
+{
+    using E = FakeGraphMemory::Entry;
+    const std::vector<E> cOwner{{1, "A", "update"}, {2, "A", "update"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "C", "update"}};
+    // From a sync point at 2, the same inputs: the update and the event at 2 matched in their order.
+    CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "C", "update"}}) == "");
+    // Behind its owner: what it has run so far agrees.
+    CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}}) == "");
+    // Its event a step late.
+    CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {3, "A", "update"}, {3, "B", "event go"}}).starts_with("at owner time 3.0 ms the copy is in A"));
+    // A different pick.
+    CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "D", "update"}}).contains("its owner in C"));
 }

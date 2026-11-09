@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FakeGraph.h"
 #include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
@@ -539,11 +540,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         double AnimationStepMs = 0.0;         // what this frame's graph update added to AnimationMs
         double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
         bool GraphEveryFrame = false;         // SetGraphUpdatedEveryFrame
-        std::optional<double> BoundStartedAt; // its Bound clip's start, on AnimationMs
-        bool BoundStuck = false;              // its exit condition failed at the clip's end: no other end comes
-        bool BoundEndsSent = false;           // an owner's OwnerEnds performed for this clip
-        int32_t BoundReadAtStart = -1;        // Bound's Variable as its clip started, and as it ended
-        int32_t BoundReadAtEnd = -1;
+        FakeGraphMemory Graph;                // its graph's clip, channels and history (FakeGraph.h)
         AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
@@ -622,23 +619,20 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
-    // The wolf's canned turn (quadrupedbehavior.hkx): State's clip (TurnCannedR180) ends after Ms of the actor's animation
-    // time (AnimationMs: the frames' time, as 41453 passes it to 20123, not a copy's playback) with no action.
-    // OwnerEndsLeadMs before, the owner's AI performs OwnerEnds (turnStop), which the graph refuses; their ActionWrites set Variable
-    // (iSyncTurnState) and ExitVariable (iSyncIdleLocomotion). The exit is taken once, only if ExitVariable holds one
-    // of ExitValues; StandingBehavior then starts from Variable (bound startStateId, 59467/59405).
-    struct BoundStart
+    // The graph's rules (FakeGraph.h), on every actor's graph: clips that end with no event, range modifiers, channels.
+    std::optional<FakeGraphRules> Graph;
+    // An owner's AI performs Events LeadMs of the frames' time before State's clip ends (the wolf's turnStop came 30-45 ms
+    // before TurnCannedR180's end, duo trace 2026-11-08); the graph refuses them, their ActionWrites still land.
+    struct ClipEndActions
     {
         std::string State;
-        uint64_t Ms = 1000;
-        size_t Variable = 0;
-        std::vector<std::string> Starts;
-        std::vector<std::string> OwnerEnds;
-        double OwnerEndsLeadMs = 40.0; // its AI's turnStop came 30-45 ms before the clip's end (duo trace, 2026-11-08)
-        std::optional<size_t> ExitVariable;
-        std::vector<int32_t> ExitValues;
+        std::vector<std::string> Events;
+        double LeadMs = 40.0;
     };
-    std::optional<BoundStart> Bound;
+    std::optional<ClipEndActions> OwnerClipEnds;
+    // A graph update or event the graph took, in its history.
+    static void GraphEntry(Actor& aActor, std::string aInput);
+    void UpdateGraph(uint32_t aFormId, Actor& aActor);
     // Animation interpolation (63587): an owner's graph far from this game's camera, not forced, steps this much at
     // once when its countdown runs out (fAnimInterpMaxTime 250 ms beyond fAnimInterpFarDist), and not between. 0: every
     // frame. A copy's is forced (AnimationSystem), so it steps every frame.

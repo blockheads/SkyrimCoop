@@ -172,28 +172,39 @@ IGraphTarget: the one engine surface the replayer drives
 Skyrim: over BShkbAnimationGraph (Games/Animation). The fake: over FakeGraph.
 ```
 
-**FakeGraph** replaces the fake's special cases (`Bound`, `Loop`, `GraphPicks`, `ActionWrites`) with one small
-deterministic graph. Each special case becomes a rule on it, and each game feeds it its own inputs, as Skyrim does:
+**The fake's graph** (`Code/tests/games/FakeGraph.h`, built): `FakeEngine::Graph` holds the rules every game's graphs
+share. Each actor's graph is its `GraphState`, `GraphVariables`, `GraphRandom` and `Graph` memory, updated once a
+frame its graph steps (`FakeEngine::UpdateGraph`, 63358's order):
 
 ```
-FakeGraph { Words, State, StateMs, Seed, Rules }
-  Update(step):  channels already written (Words[Speed] = this actor's speed: a copy's interpolated one)
-                 StateMs += step; a clip end -> next state (bound start: Words[i]; random: Seed)
-  SendEvent(e):  a transition if its condition holds on Words now
-each game's inputs: its actor's channels, its AI's and engine's events, its own step (LOD chunks far away)
+UpdateGraph(actor), when its graph steps this frame (AnimationStepMs: a frame, or a far owner's chunk)
+  Timeline += step                       its owner's graph time (a copy's starts at the sync point it loaded)
+  channels: Floats[TurnDelta] = this actor's heading change / step (63590; a copy's heading is interpolated)
+  ranges:   in State, Floats[Input] >= Bound -> Above, else Below (hkbEventsFromRangeModifier)
+  clips:    a clip's end -> Starts[Integers[StartFrom]], unless its exit's variable holds none of ExitValues (stuck)
+  History += (Timeline, state, "update")
+events (GraphTransitions, PerformAnimation / ReplayAnimation): History += (Timeline, state, "event X")
+owner AI (OwnerClipEnds): its clip-end actions LeadMs before the end; refused, their ActionWrites (39004) land
 ```
 
-- **Without the stream,** a copy's FakeGraph gets its own channels and events. That reproduces today's desyncs in the
-  wolf flows, for the true reason.
-- **With the stream,** the copy's inputs come only from the replayer, and its state equals its owner's after every
-  update. The flows check that each update: the live check in the fake.
+- **The live check** (`FirstGraphDifference`): at every point of a copy's history, its state is its owner's at the same
+  owner graph time. The fake's saved graph state carries its owner's graph time, which the stream's sync point will
+  carry (Skyrim's SaveState has none).
+- **Without the stream** (today), every wolf flow fails it for the true reason: the owner took `cannedTurnRight180` at
+  132 ms of its graph time, and its copy was still `Standing` there, its events on its own playback clock. The old
+  expectations still pass.
+- **A desync the interim fixes can't reach:** a quick turn (60 ms at 3 rad/s). The owner's `TurnDelta` picks
+  `TurnRightFast`, while its copy's, from its interpolated heading, picks `TurnRightSlow`. A hypothesis: no channel
+  desync has been seen on the duo yet.
+- **With the stream** (step 3), the copy's inputs come only from the replayer, and the check passes on every flow.
+- Still separate rules, moved onto the graph when a flow needs them: `Loop`, `GraphPicks`, `SkippedClips`.
 
 ## Phases
 
 1. **Host NPCs' copies,** with the stream and sync points, old paths kept as the fallback for an actor with no stream yet.
    Order:
-   1. `GraphStream` and its encoding, with ClientTests and TPTests.
-   2. FakeGraph, with the wolf flows rewritten on it, failing without the stream.
+   1. The encoding (`Structs/GraphOps.h`, TPTests): done. `GraphStream` itself goes with step 3.
+   2. The fake's graph, with the wolf flows on it, failing the live check without the stream: done.
    3. The stream in GameTests.
    4. The Skyrim hooks.
    5. The live check on the duo.

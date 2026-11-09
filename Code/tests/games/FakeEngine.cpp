@@ -101,6 +101,59 @@ void FakeEngine::ShovePlayer() noexcept
     }
 }
 
+void FakeEngine::GraphEntry(Actor& aActor, std::string aInput)
+{
+    aActor.Graph.History.push_back({aActor.Graph.Timeline, aActor.GraphState, std::move(aInput)});
+}
+
+// One graph update (63358): its channels from this game's actor (63590), then the step (63587).
+void FakeEngine::UpdateGraph(uint32_t, Actor& aActor)
+{
+    auto& graph = aActor.Graph;
+    const double cStep = aActor.AnimationStepMs;
+    graph.Timeline += cStep;
+    auto& floats = aActor.GraphVariables.Floats;
+    if (const auto cTurnDelta = Graph->TurnDeltaChannel)
+    {
+        floats.resize(std::max(floats.size(), *cTurnDelta + 1));
+        const float cHeading = aActor.Rotation[2];
+        floats[*cTurnDelta] = graph.HeadingKnown ? std::remainder(cHeading - graph.LastHeading, 6.28318531f) / float(cStep / 1000.0) : 0.f;
+        graph.LastHeading = cHeading;
+        graph.HeadingKnown = true;
+    }
+    for (const auto& cRange : Graph->Ranges)
+        if (aActor.GraphState == cRange.State && cRange.Input < floats.size())
+            if (const auto& cNext = floats[cRange.Input] >= cRange.Bound ? cRange.Above : cRange.Below; !cNext.empty())
+                aActor.GraphState = cNext;
+    const auto* pClip = Graph->ClipOf(aActor.GraphState);
+    if (!pClip)
+    {
+        graph.ClipStartedAt.reset();
+        graph.Stuck = graph.EndsSent = false;
+        GraphEntry(aActor, std::format("update {:.1f}", cStep));
+        return;
+    }
+    auto& integers = aActor.GraphVariables.Integers;
+    integers.resize(std::max(integers.size(), std::max(pClip->StartFrom.value_or(0), pClip->ExitVariable.value_or(0)) + 1));
+    if (!graph.ClipStartedAt)
+    {
+        // Its event came before this update, which played the clip's first step (20123).
+        graph.ClipStartedAt = aActor.AnimationMs - cStep;
+        graph.ReadAtStart = pClip->StartFrom ? int32_t(integers[*pClip->StartFrom]) : -1;
+    }
+    if (!graph.Stuck && aActor.AnimationMs >= *graph.ClipStartedAt + pClip->Ms)
+    {
+        graph.ClipStartedAt.reset();
+        graph.EndsSent = false;
+        graph.ReadAtEnd = pClip->StartFrom ? int32_t(integers[*pClip->StartFrom]) : -1;
+        if (pClip->ExitVariable && !std::ranges::contains(pClip->ExitValues, int32_t(integers[*pClip->ExitVariable])))
+            graph.Stuck = true;
+        else
+            aActor.GraphState = pClip->Starts.at(pClip->StartFrom ? std::min<size_t>(integers[*pClip->StartFrom], pClip->Starts.size() - 1) : 0);
+    }
+    GraphEntry(aActor, std::format("update {:.1f}", cStep));
+}
+
 void FakeEngine::Frame()
 {
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
@@ -140,53 +193,34 @@ void FakeEngine::Frame()
         }
         actor.AnimationMs += actor.AnimationStepMs;
     }
-    if (Bound)
+    // An owner's AI acts on its clip's time, in frames its graph does not update too (a chunked one's end lands on its
+    // next chunk).
+    if (Graph && OwnerClipEnds)
         for (auto& [cId, actor] : Actors)
         {
-            auto& integers = actor.GraphVariables.Integers;
-            integers.resize(std::max(integers.size(), std::max(Bound->Variable, Bound->ExitVariable.value_or(0)) + 1));
-            if (actor.GraphState != Bound->State)
-            {
-                actor.BoundStartedAt.reset();
-                actor.BoundStuck = false;
-                actor.BoundEndsSent = false;
+            auto& graph = actor.Graph;
+            const auto* pClip = Graph->ClipOf(actor.GraphState);
+            if (actor.Copy || graph.EndsSent || !graph.ClipStartedAt || !pClip || actor.GraphState != OwnerClipEnds->State)
                 continue;
-            }
-            if (!actor.BoundStartedAt)
-            {
-                // Its event came before this frame's graph update, which played the clip's first step (20123).
-                actor.BoundStartedAt = actor.AnimationMs - actor.AnimationStepMs;
-                actor.BoundReadAtStart = int32_t(integers[Bound->Variable]);
-            }
-            const double cEnd = *actor.BoundStartedAt + double(Bound->Ms);
-            // Its AI's actions, OwnerEndsLeadMs of the frames' time before the graph's end: a chunked graph's end lands
-            // on its next chunk.
+            const double cEnd = *graph.ClipStartedAt + pClip->Ms;
             const bool cChunked = FarOwnerChunkMs > 0.0 && !actor.GraphEveryFrame;
             const double cUntilEnd = cChunked ? (actor.AnimationMs + FarOwnerChunkMs >= cEnd ? actor.InterpCountdownMs : 1e9)
                                               : cEnd - actor.AnimationMs;
-            if (!actor.Copy && !actor.BoundEndsSent && (cUntilEnd <= Bound->OwnerEndsLeadMs || actor.AnimationMs >= cEnd))
-            {
-                actor.BoundEndsSent = true;
-                for (const auto& cEvent : Bound->OwnerEnds)
-                {
-                    ActionEvent end;
-                    end.ActionId = 0x13000 + uint32_t(cEvent.size());
-                    end.EventName = cEvent;
-                    PerformAnimation(cId, end);
-                }
-            }
-            if (actor.BoundStuck || actor.AnimationMs < cEnd)
+            if (cUntilEnd > OwnerClipEnds->LeadMs)
                 continue;
-            actor.BoundStartedAt.reset();
-            actor.BoundEndsSent = false;
-            actor.BoundReadAtEnd = int32_t(integers[Bound->Variable]);
-            if (Bound->ExitVariable && !std::ranges::contains(Bound->ExitValues, int32_t(integers[*Bound->ExitVariable])))
+            graph.EndsSent = true;
+            for (const auto& cEvent : OwnerClipEnds->Events)
             {
-                actor.BoundStuck = true;
-                continue;
+                ActionEvent end;
+                end.ActionId = 0x13000 + uint32_t(cEvent.size());
+                end.EventName = cEvent;
+                PerformAnimation(cId, end);
             }
-            actor.GraphState = Bound->Starts.at(std::min<size_t>(integers[Bound->Variable], Bound->Starts.size() - 1));
         }
+    if (Graph)
+        for (auto& [cId, actor] : Actors)
+            if (actor.AnimationStepMs > 0.0)
+                UpdateGraph(cId, actor);
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
         if (it->Frames-- > 0)
@@ -831,6 +865,8 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             if (ClipFiles.contains(acAction.EventName) && !actor.LoadedClips.contains(acAction.EventName))
                 if (const auto cNext = SkippedClips.find(actor.GraphState); cNext != SkippedClips.end())
                     actor.GraphState = cNext->second;
+            if (Graph)
+                GraphEntry(actor, "event " + acAction.EventName);
         }
     }
     return true;
@@ -901,7 +937,7 @@ ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
 namespace
 {
 // SaveState 63601's layout for one graph ("fake") with one active machine ("Root") in acState.
-std::string FakeGraphBlock(const std::string& acState)
+std::string FakeGraphBlock(const std::string& acState, double aTimeline)
 {
     std::string graph;
     const auto cPut = [&graph](const void* apData, size_t aSize) { graph.append(static_cast<const char*>(apData), aSize); };
@@ -917,6 +953,8 @@ std::string FakeGraphBlock(const std::string& acState)
     cString(acState);
     cPut(&cZero, 4);
     cPut(&cZero, 4);
+    // The fake's own: its owner's graph time, which the stream's sync point carries (Skyrim's SaveState has no clock).
+    cPut(&aTimeline, 8);
     std::string block;
     const uint16_t cProject = 4;
     block.append(reinterpret_cast<const char*>(&cProject), 2).append("fake");
@@ -925,8 +963,8 @@ std::string FakeGraphBlock(const std::string& acState)
     return block;
 }
 
-// FakeGraphBlock's state, after the save's 8 bytes of ActorState: none unless it is one graph with one machine.
-std::optional<std::string> FakeGraphState(const std::string& acSaved)
+// FakeGraphBlock's state and graph time, after the save's 8 bytes of ActorState: none unless it is one graph with one machine.
+std::optional<std::pair<std::string, double>> FakeGraphState(const std::string& acSaved)
 {
     size_t at = 8;
     bool bad = false;
@@ -953,9 +991,10 @@ std::optional<std::string> FakeGraphState(const std::string& acSaved)
     auto state = cString();
     cTake(uint32_t{});
     cTake(uint32_t{});
+    const double cTimeline = cTake(double{});
     if (bad || cMachines != 1 || at != acSaved.size())
         return std::nullopt;
-    return state;
+    return std::pair{state, cTimeline};
 }
 } // namespace
 
@@ -965,7 +1004,7 @@ std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
     const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
-    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState);
+    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState, it->second.Graph.Timeline);
 }
 
 bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
@@ -986,10 +1025,13 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
         const auto cState = FakeGraphState(acState);
         if (!cState)
             return false;
-        actor.GraphState = *cState;
+        actor.GraphState = cState->first;
+        actor.Graph.Timeline = cState->second;
     }
     else
         actor.GraphState = acState; // direct fixtures supply the graph alone
+    if (Graph)
+        GraphEntry(actor, "load");
     return true;
 }
 

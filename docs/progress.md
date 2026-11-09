@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: copies move toward the graph input stream ([graph-input-stream.md](design/graph-input-stream.md)): a copy's
+graph fed its owner's inputs matched it on every update over the network (Faendal 17009/17009). The ops' encoding
+(`Structs/GraphOps.h`: only variables set from outside the graph, one bit for an empty update) weighs 559 B/s for a
+humanoid doing chores, about 10 for an idle wolf. The fake engine has a behaviour graph (`FakeGraph.h`) and a live
+check, which every wolf flow fails until the stream is built (step 3). An engine bug fixed on every game: range
+modifier clones kept uninitialized bounds (`GraphCloneFixes.cpp`).
+
 2026-11-08: a refused action's graph writes reach its copies. A machine's start can be a graph variable (the wolf's
 `StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read when it
 activates at a clip's end with no action; so is a transition's condition (CannedTurnState's exit on
