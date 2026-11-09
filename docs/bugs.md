@@ -163,12 +163,13 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
   `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
   change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
-- **A copy that stays off its owner** (1 of 1, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
+- **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
   Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
-  it through two reads 5 s apart; neither moved. Also there: Adrianne's copy looking at nobody, the bullet above. This
-  run was the first rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"): each NPC was
-  hidden at the rejoin and got its 3D again only after the host's spawn. Not read: whether that late 3D leaves a copy
-  where its spawn put it until its owner moves again.
+  it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
+  `RagdollInstant`: a body lying in its ragdoll. Also there: a copy looking at nobody, the bullet above. Only after a
+  rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
+  its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
+  ragdolled copy's body settles when its 3D loads after its spawn placed it.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 

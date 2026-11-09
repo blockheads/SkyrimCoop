@@ -369,7 +369,7 @@ void CharacterService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) no
     SpawnPending(acEvent.FormId);
 }
 
-// Done loading without 3D: its spawn makes it a copy, which loads it (SkyrimBridge::SetActorCopy).
+// Done loading without 3D: its spawn makes it a copy, which loads it (Actor::ApplyHeld3D).
 void CharacterService::OnNpcHeld(const NpcHeldEvent& acEvent) noexcept
 {
     SpawnPending(acEvent.FormId);

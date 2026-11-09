@@ -139,7 +139,7 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
-    // Refused load jobs end (QueuedReference::Finish, HookFinishLoad3D).
+    // Load jobs end (QueuedReference::Finish): a model attaches; then Actor::FinishLoad3D (HookFinishLoad3D).
     if (!LoadsHeld)
         for (auto& [cId, actor] : Actors)
         {
@@ -149,21 +149,15 @@ void FakeEngine::Frame()
             {
                 actor.Loaded = true;
                 World::Get().GetRunner().Trigger(ReferenceLoadedEvent{cId});
-                // Actor::FinishLoad3D: attached while held, reloaded (Reload3D), so refused.
-                if (HeldOnGuest(cId))
-                    World::Get().GetRunner().Queue([this, cId] {
-                        if (Actors.contains(cId) && ActorHas3D(cId) && HeldOnGuest(cId))
-                            Load3D(cId);
-                    });
             }
+            if (!actor.Refused3D && !(ActorHas3D(cId) && HeldOnGuest(cId)))
+                continue;
             if (actor.Refused3D)
-            {
                 World::Get().GetRunner().Trigger(NpcHeldEvent{cId});
-                World::Get().GetRunner().Queue([this, cId] {
-                    if (Actors.contains(cId))
-                        LoadRefused3D(cId);
-                });
-            }
+            World::Get().GetRunner().Queue([this, cId] {
+                if (Actors.contains(cId))
+                    ApplyHeld3D(cId);
+            });
         }
     for (auto& [cId, actor] : Actors)
     {
@@ -445,10 +439,11 @@ void FakeEngine::Load3D(uint32_t aFormId)
         World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
 }
 
-void FakeEngine::LoadRefused3D(uint32_t aFormId)
+void FakeEngine::ApplyHeld3D(uint32_t aFormId)
 {
-    auto& actor = Actors.at(aFormId);
-    if (!HeldOnGuest(aFormId) && actor.Refused3D && !actor.LoadQueued)
+    const auto& cActor = Actors.at(aFormId);
+    // Held with 3D: Reload3D, so refused. Not held after a refused load: queued, unless its job is still out.
+    if (HeldOnGuest(aFormId) ? ActorHas3D(aFormId) : cActor.Refused3D && !cActor.LoadQueued)
         Load3D(aFormId);
 }
 
@@ -572,7 +567,7 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
             it->second.OwnerCombatTarget = 0;
             it->second.ClaimedIn = HoldSession;
         }
-        LoadRefused3D(aFormId); // SkyrimBridge::SetActorCopy
+        ApplyHeld3D(aFormId); // SkyrimBridge::SetActorCopy
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;

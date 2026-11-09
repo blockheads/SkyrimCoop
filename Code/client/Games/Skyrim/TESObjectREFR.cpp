@@ -1484,12 +1484,9 @@ NiAVObject* HookLoad3D(TESObjectREFR* apThis, bool aBackground)
 struct QueuedReference
 {
     uint8_t pad0[0x2C0];
-    uint32_t refHandle; // 2C0
-    uint32_t pad2C4;
-    void* model;        // 2C8: BackgroundLoad3D's (13019) result
+    uint32_t refHandle; // 2C0; its model (BackgroundLoad3D 13019) at 2C8
 };
 static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
-static_assert(offsetof(QueuedReference, model) == 0x2C8);
 
 // QueuedReference::Finish (13022, vtable slot 12 of every queued kind): a load job ends on the main thread, its handle
 // leaving the queue last. A held NPC's job ending, refused or begun before holding started (GuestNpcs,

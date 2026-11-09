@@ -160,11 +160,12 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         if (!aCopy)
             pExt->ClaimedIn.store(GuestNpcs::Session()); // this game's own from now: not held (GuestNpcs)
         GuestScripts::SetGuest(aFormId, pExt->IsOtherPlayer()); // GuestScripts' list follows the flags
-        Actor* pActor = GetActor(aFormId);
-        if (pActor && cReleased)
-            pActor->EndReleasedCopyPackage();
-        if (pActor)
-            pActor->LoadRefused3D();
+        if (Actor* pActor = GetActor(aFormId))
+        {
+            if (cReleased)
+                pActor->EndReleasedCopyPackage();
+            pActor->ApplyHeld3D(); // a copy or claimed: its refused 3D loads
+        }
     }
 }
 

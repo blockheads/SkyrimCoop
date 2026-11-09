@@ -82,11 +82,9 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     FakeEngine::Current().DecidesWorld = aOn;
     FakeEngine& engine = FakeEngine::Current();
     engine.HoldSession = aOn ? 0 : ++s_sessions; // GuestNpcs::SetHolding
-    // HideHeldNpcs: its own NPCs with 3D reloaded (Reload3D), which is refused.
     if (!aOn)
         for (const uint32_t cId : engine.GetLoadedActorFormIds())
-            if (engine.HeldOnGuest(cId))
-                engine.Load3D(cId);
+            engine.ApplyHeld3D(cId); // HideHeldNpcs
 }
 
 // As StoryEvents::ToSend: the fake's members name forms by their ids.

@@ -136,7 +136,7 @@ SCENARIO("A guest joins with its own NPC already shown: it is hidden", "[copies]
     party.Agree("the games agree: nobody shows Ria");
 }
 
-// QueueReference (13057) of a reference whose job is still out only changes its priority (codex, PR 45).
+// QueueReference (13057) of a reference whose job is still out only changes its priority (the PR 45 review).
 SCENARIO("The host's spawn lands while the guest's refused load is still out", "[copies][guest-own-npc]")
 {
     Party party(1, RiaInTheSinkhole);
@@ -158,7 +158,7 @@ SCENARIO("The host's spawn lands while the guest's refused load is still out", "
 }
 
 // A background Load3D (19727) that passed before holding started attaches its model at Finish (13022), after it
-// (codex, PR 45, second round).
+// (the PR 45 review, second round).
 SCENARIO("A guest's own NPC whose load began before it joined is hidden once it attaches", "[copies][guest-own-npc]")
 {
     Party party(1, RiaInTheSinkhole, false);

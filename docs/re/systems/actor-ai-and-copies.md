@@ -264,7 +264,7 @@ the `TESObjectLoadedEvent` that never comes, so a host spawn waiting on the load
 NPC stopped being held while the job was out (found by the PR 45 review). The byte `IsQueued` (13060) reads, ref
 +0x9A, is not cleared there, so it is not the test for a job still out.
 
-Once it is a copy, `Actor::LoadRefused3D` does what `Enable` (19800) does to queue a load:
+Once it is a copy or claimed, `Actor::ApplyHeld3D` does what `Enable` (19800) does to queue a load:
 
 ```
 TES::IsCellLoaded 13308 (TES, parentCell, false)  cell state 3-7 (+0x44)

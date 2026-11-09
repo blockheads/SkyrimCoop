@@ -929,32 +929,31 @@ bool Actor::RefuseHeld3D() noexcept
 
 void Actor::FinishLoad3D() noexcept
 {
-    const uint32_t cFormId = formID;
-    if (!GetExtension()->Refused3D.load())
-    {
-        // A load that passed Load3D before holding started attaches now (HideHeldNpcs saw no 3D): reloaded, refused.
-        if (GetNiNode() && IsHeldOnGuest())
-            World::Get().GetRunner().Queue([cFormId] {
-                if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
-                    if (pActor->GetNiNode() && !pActor->IsDisabled() && pActor->IsHeldOnGuest())
-                        pActor->Reload3D();
-            });
+    const bool cRefused = GetExtension()->Refused3D.load();
+    if (!cRefused && !(GetNiNode() && IsHeldOnGuest()))
         return;
-    }
-    // A QueueReference while this job was out only changed its priority: queued again now its handle is gone (13067).
-    World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
+    const uint32_t cFormId = formID;
+    if (cRefused)
+        World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
     World::Get().GetRunner().Queue([cFormId] {
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
-            pActor->LoadRefused3D();
+            pActor->ApplyHeld3D();
     });
 }
 
-void Actor::LoadRefused3D() noexcept
+void Actor::ApplyHeld3D() noexcept
 {
-    if (IsHeldOnGuest() || !GetExtension()->Refused3D.load())
+    // Held with 3D (shown before holding started, or a load begun then): reloaded, so refused.
+    if (IsHeldOnGuest())
+    {
+        if (GetNiNode() && !IsDisabled())
+            Reload3D();
+        return;
+    }
+    if (!GetExtension()->Refused3D.load())
         return;
     // As Enable (19800): its cell loaded (TES::IsCellLoaded 13308), no 3D, then QueueReference (13057) at the cell's
-    // priority (TES::GetCellLoadPriority 13321); a reference already queued only takes the priority.
+    // priority (TES::GetCellLoadPriority 13321). A job still out only takes the priority: its Finish calls this again.
     using TIsCellLoaded = bool(TES*, TESObjectCELL*, bool aAttachedOnly);
     using TGetCellLoadPriority = uint32_t(TES*, TESObjectCELL*, bool aFromCamera);
     using TQueueReference = void(void* apQueuedHandles, TESObjectREFR*, uint32_t aPriority, bool aNow);

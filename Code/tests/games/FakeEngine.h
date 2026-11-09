@@ -253,8 +253,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] bool HeldOnGuest(uint32_t aFormId) const noexcept;
     // The loader threads busy: no load job finishes (QueuedReference::Finish 13022) while set.
     bool LoadsHeld = false;
-    // Actor::LoadRefused3D: queued once not held; a job still out only takes the priority (QueueReference 13057).
-    void LoadRefused3D(uint32_t aFormId);
+    // Actor::ApplyHeld3D: held with 3D, reloaded (refused); not held after a refused load, queued (a job still out
+    // only takes the priority, QueueReference 13057).
+    void ApplyHeld3D(uint32_t aFormId);
 
     void LoadCell(uint32_t aCell);
     void UnloadCell(uint32_t aCell);
@@ -965,8 +966,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // NPCs run"): its package walks it to acPosition in aCell (UpdateAI; unloaded, the virtual path follower), its 3D
     // loading as it enters a loaded cell. False: its AI is cut (a copy, or held on a guest).
     bool NpcWalks(uint32_t aFormId, uint32_t aCell, const glm::vec3& acPosition);
-    // Load3D (19727) for an actor in a cell loaded here: a cell attaching, an NPC walking in, a load finishing. Held,
-    // refused as a disabled reference's (NpcHeldEvent).
+    // Load3D (19727) for an actor in a cell loaded here: a cell attaching, an NPC walking in, a load finishing. Held:
+    // refused, as a disabled reference's.
     void Load3D(uint32_t aFormId);
     // A hit of aDamage on an actor, as the engine's: at 0 health it dies, or goes down if essential; a copy is in
     // deferred kill and does neither (actor-ai-and-copies.md, "A copy is in deferred kill").

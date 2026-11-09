@@ -310,8 +310,7 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
 }
 
-// Its NPCs loaded before the session (the host's save loads before the guest connects, join-flow.md) lose their 3D:
-// reloaded, it is refused (HookLoad3D).
+// Its NPCs shown before the session (the host's save loads before the guest connects, join-flow.md) lose their 3D.
 static void HideHeldNpcs() noexcept
 {
     ProcessLists* pLists = ProcessLists::Get();
@@ -320,14 +319,12 @@ static void HideHeldNpcs() noexcept
     std::vector<uint32_t> shown;
     for (auto* pHandles : {&pLists->highActorHandleArray, &pLists->middleHighActorHandleArray})
         for (uint32_t i = 0; i < pHandles->length; ++i)
-            if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle((*pHandles)[i])))
-                if (pActor->GetNiNode() && !pActor->IsDisabled() && pActor->IsHeldOnGuest())
-                    shown.push_back(pActor->formID);
+            if (const auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle((*pHandles)[i])))
+                shown.push_back(pActor->formID);
+    // Not while walking the lists: a reload takes the actor out of them.
     for (const uint32_t cFormId : shown)
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
-            pActor->Reload3D();
-    if (!shown.empty())
-        spdlog::info("GuestEngine: {} NPCs of this game's own hidden until the host spawns them", shown.size());
+            pActor->ApplyHeld3D();
 }
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept

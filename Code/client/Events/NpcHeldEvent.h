@@ -3,7 +3,7 @@
 #include <cstdint>
 
 /**
- * @brief A guest's own NPC was refused its 3D (GuestNpcs): done loading without it, as a disabled reference.
+ * @brief A guest's own NPC's load job ended with its 3D refused (GuestNpcs): done loading without it.
  */
 struct NpcHeldEvent
 {
