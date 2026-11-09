@@ -53,7 +53,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 generate passes are in the stream, sync points carry nodes' plain members and the active-node flag, and a copy in a
 pair on its game leaves its stream for it: a guest's kill move on a host NPC works again (all six kill-move scenarios
 pass). The hover was `force` turning foot IK on for unseen actors (graph-input-stream.md, Owner); copies replay
-without it too. Open: a knock-down's pause, the fake still chunking recorded owners.
+without it too. A copy knocked down is held off its stream until it stands (it never got up: its owner's get-up
+action was bookkeeping). Open: the fake still chunking recorded owners; the get-up's snaps and jitter (bugs.md).
 
 2026-11-09: copies on the graph input stream match their owners at every update on the duo: the wolf scenario's 180 s
 and Whiterun's market for 120 s, every streamed copy ([graph-input-stream.md](design/graph-input-stream.md), A graph's

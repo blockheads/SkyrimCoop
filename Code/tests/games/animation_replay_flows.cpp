@@ -852,6 +852,32 @@ TEST_CASE("A copy starting while its owner's walk blend is frozen keeps the froz
     CHECK(wolf.Difference() == "");
 }
 
+TEST_CASE("A streamed copy knocked down with its owner gets up with it", "[animation][replay-start][knock]")
+{
+    // Skyrim (duo, knockdown-lies-as-host, 2026-11-09): "got up: owner 1.54 s, copy never". A copy stands up only by
+    // its owner's ActionGetUp replayed on it (AnimationSystem, KnockReplay), and a copy on the stream takes actions as
+    // bookkeeping. Knocked down, a copy is on its own body: off the stream until it stands, then a new sync point.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "Standing";
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
+    wolf.guest.Actors.at(wolf.copy).KnockedDown = true; // with its owner's ragdoll (physics_flows)
+    wolf.party.Until([&] { return streams.Held(wolf.copy) && !streams.OnStream(wolf.copy); }, "the copy is off its owner's stream while it lies");
+    const size_t cPoints = SyncPoints(cCopy);
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.Actors.at(wolf.wolf).KnockedDown = false;
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
+    });
+    wolf.party.Until([&] { return !cCopy.KnockedDown; }, "the copy gets up with its owner");
+    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
+                     "and is back on its owner's stream from a new sync point");
+}
+
 TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pair ends", "[animation][replay-start][kill-move]")
 {
     // Skyrim (duo, client-kill-move, 2026-11-09): the guest's blow killed the wolf plainly. The pair's start plays the

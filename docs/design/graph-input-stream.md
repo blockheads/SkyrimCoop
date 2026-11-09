@@ -108,7 +108,10 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   off its stream (`GraphStreams::HoldWhile`): it takes that event, runs today's paths, and asks for a new sync point
   once out of the instance. Before, the copy refused the event and a guest's kill move on a host NPC never started
   (`client-kill-move`).
-- **Ragdoll and get-up:** a death ends the stream (`AnimationSystem`); a knock-down's pause is not built.
+- **Knock-downs: built (2026-11-09).** A copy stands up only by its owner's `ActionGetUp` replayed on it
+  (`AnimationSystem`, `KnockReplay`), and a copy on the stream takes actions as bookkeeping: it never got up
+  (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
+  for a sync point once it stands. A death ends the stream (`AnimationSystem`).
 
 ## What goes away for copies on the stream
 

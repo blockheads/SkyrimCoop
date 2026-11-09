@@ -409,19 +409,19 @@ void GraphStreams::Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoin
         pCopied->Replayer.Load(acPoint);
 }
 
-bool GraphStreams::HoldWhile(uint32_t aFormId, bool aPaired)
+bool GraphStreams::HoldWhile(uint32_t aFormId, bool aOwnBody)
 {
     const auto pCopied = FindCopied(aFormId);
     if (!pCopied)
         return false;
     std::scoped_lock _{pCopied->Lock};
-    if (aPaired && !pCopied->Held)
+    if (aOwnBody && !pCopied->Held)
     {
         pCopied->Held = true;
         pCopied->Replayer.Restart();
         pCopied->Graph = nullptr;
     }
-    else if (!aPaired && pCopied->Held)
+    else if (!aOwnBody && pCopied->Held)
     {
         pCopied->Held = false;
         pCopied->Asked = false;

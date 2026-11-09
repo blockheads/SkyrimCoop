@@ -172,10 +172,10 @@ struct GraphStreams
     void Feed(uint32_t aFormId, const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames);
     void Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoint);
     [[nodiscard]] bool OnStream(uint32_t aFormId) const;
-    // A copy in a pair on this game (a kill move: BGSSynchronizedAnimationManager's instance) plays its half on its
-    // own body against its partner's graph: held off its stream while aPaired, then it asks for a new sync point.
-    // Returns whether it is held.
-    bool HoldWhile(uint32_t aFormId, bool aPaired);
+    // A copy on its own body: in a pair on this game (a kill move: BGSSynchronizedAnimationManager's instance), or
+    // knocked down (its ragdoll, then its owner's get-up action). Held off its stream while aOwnBody, then it asks for
+    // a new sync point. Returns whether it is held.
+    bool HoldWhile(uint32_t aFormId, bool aOwnBody);
     [[nodiscard]] bool Held(uint32_t aFormId) const;
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);

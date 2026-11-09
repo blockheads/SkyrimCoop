@@ -454,9 +454,10 @@ void FakeEngine::Frame()
     if (Graph)
         for (auto& [cId, actor] : Actors)
         {
-            // Out of its pair: back onto its owner's stream (Games/Skyrim's 63587 hook).
-            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
-                streams.HoldWhile(cId, actor.InKillMove || actor.InPairClip);
+            // On its own body (knocked down, in a pair): off its owner's stream, and back after (Games/Skyrim's
+            // 63587 hook).
+            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && (actor.KnockedDown || streams.Held(cId)))
+                streams.HoldWhile(cId, actor.KnockedDown || actor.InKillMove || actor.InPairClip);
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
@@ -1124,6 +1125,8 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
     if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
         return true;
     const bool cTaken = ReplayAnimation(aFormId, acAction);
+    if (acAction.ActionId == kActionGetUp && cTaken)
+        Actors.at(aFormId).KnockedDown = false;
     ApplyActionWrites(aFormId, acAction.EventName);
     return cTaken;
 }

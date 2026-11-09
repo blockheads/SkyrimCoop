@@ -266,9 +266,11 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         return RealUpdate(apGraph, apData, apScratch);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
-    // Out of its pair: back onto its owner's stream, from a new sync point.
-    if (streams.Held(cFormId))
-        streams.HoldWhile(cFormId, apGraph->holder->InPair());
+    // On its own body (knocked down: its ragdoll, then its owner's ActionGetUp replayed, AnimationSystem; in a pair):
+    // off its owner's stream, and back from a new sync point once it stands.
+    const bool cKnocked = apGraph->holder->actorState.GetKnockState() != 0;
+    if (cKnocked || streams.Held(cFormId))
+        streams.HoldWhile(cFormId, cKnocked || apGraph->holder->InPair());
     if (streams.OnStream(cFormId))
     {
         if (streams.NeedsTimeDelta(cFormId))
@@ -332,7 +334,8 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     const uint32_t cFormId = apGraph->holder->formID;
     // A copy on the stream takes its owner's events alone, but in a pair on this game (a kill move's half, 32803):
     // that one plays on its own body, off the stream.
-    if (streams.OnStream(cFormId) && !streams.HoldWhile(cFormId, apGraph->holder->InPair()))
+    if (streams.OnStream(cFormId) &&
+        !streams.HoldWhile(cFormId, apGraph->holder->InPair() || apGraph->holder->actorState.GetKnockState() != 0))
         return false;
     if (streams.Recording(cFormId))
     {

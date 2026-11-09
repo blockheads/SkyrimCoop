@@ -629,6 +629,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
     void EndKillMove(uint32_t aFormId);
+    // ActionGetUp (the default object): replayed on a knocked-down copy it stands it up (AnimationSystem's
+    // PerformAction, KnockReplay); nothing else ends a living copy's knock.
+    static constexpr uint32_t kActionGetUp = 0x13FF0;
     void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
