@@ -5,6 +5,7 @@
 
 #include <Events/SessionNoticeEvent.h>
 #include <Messages/NotifyRespawn.h>
+#include <Messages/NotifyPartyTravel.h>
 #include <Components.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Services/DeathService.h>
@@ -421,6 +422,36 @@ SCENARIO("Respawn uses the standing party's current location after travel", "[de
     CHECK(guest.GetPlayerParentCellId() == inn);
     CHECK(glm::distance(At(guest), At(host)) <= 200.f);
     CHECK(At(guest) != kSmokeMarker);
+}
+
+SCENARIO("A /tpa landing while a down player's respawn move is queued stands it up where the summon took it", "[death][travel]")
+{
+    constexpr uint32_t inn = 0x13419;
+    Party party(1, [](FakeEngine& e) { Plugins(e); e.LoadCell(inn); });
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return death.IsDown(); }, "the guest is down");
+    // The summon arrives with the respawn, before its move: the engine carries out only the latest move.
+    struct SummonOnRespawn
+    {
+        void On(const NotifyPlayerRespawn&)
+        {
+            NotifyPartySummon summon;
+            summon.Destination.CellId = GameId(0, inn);
+            summon.Destination.Position = glm::vec3(800.f, 900.f, 0.f);
+            summon.Username = "Dovahkiin";
+            pGame->GetDispatcher().trigger(summon);
+        }
+        World* pGame;
+    } summonOnRespawn{&party.Guest()};
+    entt::scoped_connection connection =
+        party.Guest().GetDispatcher().sink<NotifyPlayerRespawn>().connect<&SummonOnRespawn::On>(summonOnRespawn);
+    Frames(party, 660);
+    party.Until([&] { return !death.IsDown(); }, "the guest gets up in the inn, where the summon took it",
+                [&] { return std::format("guest in {:X}", guest.GetPlayerParentCellId()); });
+    CHECK(guest.GetPlayerParentCellId() == inn);
 }
 
 SCENARIO("Rebuilding a player's copy retains its owner's latest magicka", "[death][values]")

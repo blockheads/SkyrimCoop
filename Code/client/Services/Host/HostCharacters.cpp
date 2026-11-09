@@ -46,6 +46,7 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnMovement);
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
     aAuthority.On(*this, &HostCharacters::OnTravelQueued);
+    aAuthority.On(*this, &HostCharacters::OnPartySummon);
 }
 
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -584,4 +585,17 @@ void HostCharacters::OnTravelQueued(const PartyTravelRequest& acRequest, Connect
     m_partyTravel = acRequest.Destination;
     m_announced[aSender] = acRequest.Destination;
     m_players.SendToOthers(*m_partyTravel, aSender, Net::kReliableNoNagle);
+}
+
+void HostCharacters::OnPartySummon(const PartySummonRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (!PlayerCharacterOf(aSender))
+        return;
+    m_partyTravel = acRequest.Destination;
+    NotifyPartySummon summon;
+    summon.Destination = acRequest.Destination;
+    summon.Username = m_players.PlayerNameOf(aSender);
+    m_players.SendToOthers(summon, aSender, Net::kReliableNoNagle);
+    spdlog::info("HostCharacters: {:x} brought the party to cell {:x}:{:x}", aSender, summon.Destination.CellId.ModId,
+                 summon.Destination.CellId.BaseId);
 }

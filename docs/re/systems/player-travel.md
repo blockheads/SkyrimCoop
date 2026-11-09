@@ -60,6 +60,40 @@ Scenarios: `party-uses-door` (the host leads out, the client leads back in),
 inside the cell brings the other). The map's own UI (open the map, pick a marker,
 confirm) is not driven: the console's `FastTravel` queues the same move with the marker.
 
+## A move inside the cell (1.7.104, read in IDA 2026-11-09)
+
+What `/tpa` relies on: moving another player with `MoveTo` works from anywhere, its own cell included.
+
+- `TESObjectREFR::MoveTo_Impl` (56626, `0x140a5d370`) checks only whether the reference is the player. For the player
+  there is no same-cell test: it always builds a `PLAYER_TARGET_LOC` and queues it (40442); actors go through 37313
+  instead, other references through `SetPosition`.
+- `PlayerCharacter::QueueTravel` (40442) copies it into `queuedTarget`, at `+0x650` on 1.7.104 (`+0x648` on 1.6.1170,
+  `PlayerCharacter.h` asserts it with `PlayerShift`).
+- `PlayerCharacter::ProcessQueuedTravel` (40438) loads a new location only for another worldspace or more than 4096
+  units outdoors, or another interior cell. A target nearer than that still moves the player and still ends in
+  `PositionPlayerEvent`, so the arrival is reported (`ConsumeTeleported`) as for any travel.
+
+So the tether's "already there" (`TravelService::FollowBetweenFrames`, since 2026-11-08 only a player on the spot) is
+our rule, not the engine's: a forced follow (`aForce`, used by respawn and `/tpa`) moves a player wherever it is.
+
+### /tpa (2026-11-09)
+
+The chat's `/tpa` (or `/teleportall`) brings every other player onto the spot of whoever typed it, as a door's
+arrival puts the party on one spot (the user, 2026-11-09: no spot beside):
+
+1. The summoner's game sends its player's position (`PartySummonRequest`) and stacks the party on it
+   (`ArrivalStack`): it never travels, and pass-through (`PlayerCollision`, 78553) needs both actors on that game's
+   stack.
+2. The host's rule (`HostCharacters::OnPartySummon`) sends `NotifyPartySummon` to every other game and makes the
+   spot the tether's last place, so a follower arriving there is not sent on to an older trip.
+3. Each game makes a forced tether move there (`FollowTo(..., true)`), so the arrival is following, not leading, and
+   stacks even inside the same cell. Everyone passes through everyone on the spot until each walks off it.
+4. Down players go too, as the tether takes them. A summon replaces a down player's queued respawn move, as a party
+   trip does (only the latest queued move is carried out), so `DeathService` retargets the respawn to it.
+
+Scenario `party-summon-in-cell`: the host moves 740 units inside QASmoke (console `SetPos`, not a teleport for the
+party), the guest types `/tpa`, and the host arrives on the guest's spot.
+
 ## Copies left behind by travel
 
 Found with `party-fast-travels` (2026-10-13): the host arrived in Riverwood while the client was still at

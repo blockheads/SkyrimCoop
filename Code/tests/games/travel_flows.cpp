@@ -8,6 +8,7 @@
 #include <Components.h>
 #include <Events/FastTravelEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
+#include <Events/PartySummonCommandEvent.h>
 
 #include <format>
 
@@ -325,6 +326,66 @@ SCENARIO("Party travel closes a following guest's dialogue and takes both guests
     party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSinkhole, {}); });
     party.Until([&] { return Together(party, 3, kSinkhole) && !dialogue.MenuOpen; }, "the dialogue ends as its player follows", [&] { return Why(party, 3) + (dialogue.MenuOpen ? "menu still open" : "menu closed"); });
     party.Agree("the three games agree after leaving the dialogue");
+}
+
+SCENARIO("/tpa from another cell brings the party there", "[travel]")
+{
+    Party party(1, SmokeWorld);
+    party.Until([&] { return Together(party, 2, kSmoke); }, "the party starts together");
+    // The guest is in the sinkhole alone (the tether missed it: a move before joining leads nobody).
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { guest.MoveActorTo(FakeEngine::kPlayer, kSinkhole, 50.f, 60.f, 0.f); guest.Teleported = false; });
+
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    party.Until([&] { return Together(party, 2, kSinkhole); }, "the host comes to the sinkhole",
+                [&] { return Why(party, 2); });
+    party.Agree("the games agree on the players after /tpa");
+}
+
+SCENARIO("/tpa brings every other player onto the summoner's spot, even within its cell; all pass through there", "[travel]")
+{
+    Party party(2, SmokeWorld);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
+    FakeEngine& summoner = Party::Engine(party.Guest(0));
+    // Everyone walks off the join's arrival spot, the summoner too: the tether sees the others in the cell already.
+    const glm::vec3 cAt{500.f, 500.f, 0.f};
+    party.As(party.Guest(0), [&] { std::copy_n(&cAt.x, 3, summoner.Actors.at(FakeEngine::kPlayer).Position); });
+    for (World* pGame : {&party.Host(), &party.Guest(1)})
+        party.As(*pGame, [&] {
+            auto& player = Party::Engine(*pGame).Actors.at(FakeEngine::kPlayer);
+            player.Position[0] = 3000.f;
+            player.Position[1] = -2000.f;
+        });
+    const auto cGames = {&party.Host(), &party.Guest(0), &party.Guest(1)};
+    party.Until([&] { return std::ranges::all_of(cGames, [](World* pGame) { return Party::Engine(*pGame).PassingThrough.empty(); }); },
+                "the join's arrival stack is walked off in every game");
+
+    party.As(party.Guest(0), [&] { party.Guest(0).GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    const auto cOnSpot = [&](World& aGame) {
+        const auto& cPlayer = Party::Engine(aGame).Actors.at(FakeEngine::kPlayer);
+        return glm::distance(glm::vec2(cPlayer.Position[0], cPlayer.Position[1]), glm::vec2(cAt)) < 1.f;
+    };
+    party.Until([&] { return cOnSpot(party.Host()) && cOnSpot(party.Guest(1)); },
+                "the host and the other guest land on the summoner's spot", [&] { return Why(party, 3); });
+    // Each game: its player and both players' copies pass through each other on the spot.
+    const auto cAllPassing = [](const FakeEngine& acEngine) {
+        size_t players = 0;
+        for (const auto& [cId, cActor] : acEngine.Actors)
+            if (cActor.Player && std::ranges::find(acEngine.PassingThrough, cId) != acEngine.PassingThrough.end())
+                ++players;
+        return players == 3;
+    };
+    party.Until([&] { return std::ranges::all_of(cGames, [&](World* pGame) { return cAllPassing(Party::Engine(*pGame)); }); },
+                "every game lets the three players pass through each other on the summoner's spot", [&] {
+                    std::string why;
+                    for (World* pGame : cGames)
+                        why += std::format("{} passes {}; ", Party::Engine(*pGame).Name, Party::Engine(*pGame).PassingThrough.size());
+                    return why + Why(party, 3);
+                });
+    CHECK(Party::Engine(party.Host()).GetPlayerParentCellId() == kSmoke);
+    CHECK(cOnSpot(party.Guest(0)));
+    CheckTogether(party, 3);
+    party.Agree("the games agree on the players after /tpa");
 }
 
 namespace
