@@ -82,9 +82,22 @@ struct TESNPC : TESActorBase
         uint8_t red, green, blue;
     } color;
 
+    // A tint layer over its race's tint asset of that index (CommonLibSSE-NG TESNPC::Layer).
+    struct TintLayer
+    {
+        Color tintColor;            // 00, with a byte of padding (TINC)
+        uint8_t pad03;
+        uint16_t tintIndex;          // 04 (TINI)
+        uint16_t preset;             // 06 (TIAS)
+        uint16_t interpolationValue; // 08, alpha * 100 (TINV)
+        uint16_t pad0A;
+        uint32_t pad0C;
+    };
+    static_assert(sizeof(TintLayer) == 0x10);
+
     GameArray<BGSRelationship*>* relationships;
     FaceMorphs* faceMorphs;
-    uintptr_t unk160;
+    GameArray<TintLayer*>* tintLayers; // 260, read by TESNPC::GetTintMasks (1403C8870)
 
     BGSHeadPart* GetHeadPart(uint32_t aType);
     // The part its head is built with: a base overlay's when it has overlays (a vampire keeps its old face,
@@ -98,5 +111,6 @@ struct TESNPC : TESActorBase
 static_assert(offsetof(TESNPC, npcClass) == 0x1C0);
 static_assert(offsetof(TESNPC, npcTemplate) == 0x1F0); // CommonLibSSE-NG faceNPC
 static_assert(offsetof(TESNPC, weight) == 0x1FC);
+static_assert(offsetof(TESNPC, tintLayers) == 0x260);
 static_assert(offsetof(TESNPC, color) == 0x246);
 static_assert(offsetof(TESNPC, relationships) == 0x250);

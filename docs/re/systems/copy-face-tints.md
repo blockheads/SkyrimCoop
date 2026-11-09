@@ -35,8 +35,13 @@ With the setting on (the default) an NPC is expected to have its FaceTint file, 
 stays unrendered: the vanilla dark face. A copy lands there on every head build.
 
 The engine's own way for a copy would be step 3: the owner's tints as the copy base's tint layers, with that one
-check passed for copies' bases. Open: whether the NPC change record coop already sends carries tint layers, the
-conversion from the player's tint masks (texture paths) to layers (race tint indices), and a hook on a check inside
+check passed for copies' bases.
+
+Measured on the duo (2026-11-09, `guest-changes-looks-in-session` with the snapshot's `base_layers`): the guest's own
+player base has no tint layers (`tintLayers` null) after the race menu, while its `PlayerCharacter` holds 34 tint
+masks; the host's copy's base has none either. The player's tints live only on `PlayerCharacter`, so the NPC record
+coop sends cannot carry them. Step 3 would need coop to build the layers: one per race tint asset (`GetTintMasks`
+gives an asset with no layer its default colour and alpha), matched by texture path, and a patch of the check inside
 26838, which can run on a queued head's thread.
 
 ## Which head part is the face
