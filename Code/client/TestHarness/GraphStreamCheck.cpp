@@ -239,6 +239,12 @@ void GraphStreamCheck::Install() noexcept
 nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexcept
 {
     auto& streams = World::Get().GetGraphStreams();
+    // A copy's stream started over, as a copy arriving mid-loop starts: it asks its owner for a new sync point.
+    if (acRequest.contains("restart"))
+    {
+        streams.Forget(acRequest["restart"].get<uint32_t>());
+        return {{"ok", true}};
+    }
     std::scoped_lock _{s_lock};
     if (acRequest.contains("states_at"))
     {

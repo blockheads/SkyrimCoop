@@ -255,8 +255,8 @@ def scenario_npc_counter_matches(ctx):
 
 
 def scenario_npc_counter_copy_falls_back_in(ctx):
-    """Lucan's copy pushed out of step, his crossed arms loaded into it alone while his are down (as a copy arrives
-    mid-loop, which a tethered guest cannot stage): it falls back in with him at his next pick."""
+    """Lucan's copy starting mid-loop, its graph stream started over while his arms are crossed (as a copy arriving
+    mid-loop starts, which a tethered guest cannot stage): from its new sync point it keeps step with him."""
     # His shop hours: by evening his schedule takes him from the counter.
     ctx.console_on("", "set gamehour to 12")
     ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
@@ -267,7 +267,7 @@ def scenario_npc_counter_copy_falls_back_in(ctx):
 
 
 def watch_counter(ctx, push=False):
-    """Two crossings of Lucan's arms from his first, compared from there. With `push`, his copy is put out of step first."""
+    """Two crossings of Lucan's arms from his first, compared from there. With `push`, his copy starts again mid-loop first."""
     ctx.wait_for(f"[host] Lucan {LUCAN:X} is here", lambda: ctx.host_npc_state(LUCAN).get("session_id", -1) >= 0, 30)
     session = ctx.host_npc_state(LUCAN)["session_id"]
     ctx.wait_for("[client] Lucan's copy is here", lambda: ctx.copy_of("client", session), 30)
@@ -292,15 +292,14 @@ def watch_counter(ctx, push=False):
                     now = [e for e in trace.entries if e["kind"] == "clips" and e["game"] == ""]
                     return now and now[-1]["clips"] == [clip]
                 return plays
-            def apart():
-                trace.take()
-                last = {g: [e for e in trace.entries if e["kind"] == "clips" and e["game"] == g][-1]["clips"] for g in ("", "client")}
-                return last[""] == [COUNTER_DOWN] and COUNTER_CROSSED in last["client"]
+            copy = ctx.copy_of("client", session)
+            def on_stream():
+                actors = (ctx.game("client").rpc({"cmd": "graph_stream"}, timeout=10) or {}).get("actors", [])
+                return any(a["form"] == copy and a["on_stream"] for a in actors)
             ctx.wait_for("[host] Lucan's arms are crossed", host_plays(COUNTER_CROSSED), 120)
-            crossed_state = ctx.game("").rpc({"cmd": "graph_state", "actor": LUCAN}, timeout=10)["state"]
-            ctx.wait_for("[host] Lucan's arms are down", host_plays(COUNTER_DOWN), 120)
-            ctx.game("client").rpc({"cmd": "load_graph_state", "actor": ctx.copy_of("client", session), "state": crossed_state}, timeout=10)
-            ctx.wait_for("[client] his copy's arms are crossed while his are down", apart, 5)
+            # A copy arriving mid-loop starts from a sync point (graph-input-stream.md, Sync points).
+            ctx.game("client").rpc({"cmd": "graph_stream", "restart": copy}, timeout=10)
+            ctx.wait_for("[client] his copy starts again on his graph stream", on_stream, 10)
             pushed = time.time()
         first = len([s for s in clip_starts(trace, "", lucan) if s[1] == COUNTER_ARMS and s[0] < pushed])
         ctx.wait_for("[host] Lucan crosses his arms", lambda: arms("", first + 1), 90)

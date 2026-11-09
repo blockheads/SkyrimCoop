@@ -76,7 +76,7 @@ copy's graph update (63587 hook, its animation job):
 A copy needs one to start, and after any gap or exception.
 
 ```
-copy: GraphSyncRequest(session id)  ->  owner, after its next update:
+copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after its graph's generate pass):
   GraphSyncPointNotify { update index, the whole graph (Havok's getInternalState 58372, below), its words, seed,
                          the event whose clip files its process holds }
 ```
@@ -241,7 +241,7 @@ Havok saves and restores a whole behaviour graph itself; the game never calls it
 docs/re/systems/animation-replay-recovery.md, A graph's whole state):
 
 ```
-owner, the update a copy asked at: hkbBehaviorGraph::getInternalState (58372)
+owner, as the update after a copy asked begins: hkbBehaviorGraph::getInternalState (58372)
   per active node but transition effects: createInternalState (0D), getInternalState (0E), getInternalStateUser (0F)
   into an hkbNodeInternalStateInfo { sync info, node id, activated, state }
   -> GraphState::Node { id, check (class and name), sync, activated, state bytes (NodeMemory), runtime bytes }
@@ -298,6 +298,7 @@ What it found on the duo (2026-11-09), in order:
 | an idle machine back in its initial state, no input event | the restore's activations raised enter events | the copy's queue emptied after its restore |
 | `AnimObjectCounterRightToArm (no file)`, `RailLeanEnter00 (no file)` | sets 4 and 47 not mirrored; a copy's own per-event loads replaced its action set | the owner's loads in the stream, every set |
 | `TurnToWalkEnd` a few updates late, its clip's time a step behind | the clip restored before its movement set was in | a point's sets loaded before it restores |
+| a copy's clips a little ahead from its first update, its `TurnDeltaDamped` apart | the point was taken right after an update; the owner's generate pass then moved blenders' sync and modifiers' outputs | the point is taken as the next update begins; the events just before it are in it |
 | `Wall_IdleBackEnter (no file)`, `Chair_FrontEnterVar1 (no file)` | sets loaded by the queued loader (43622) and by a save's reload (`FinishLoadGame`, 43624, which names a graph manager, not an actor) | every loader recorded, by graph manager |
 | none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s | | |
 
