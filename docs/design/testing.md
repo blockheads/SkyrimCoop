@@ -123,12 +123,16 @@ command ends
 - **The reminder.** `scripts/duo_hook.py` (a PostToolUse hook in `.claude/settings.json`) tells a session whose
   checkout holds the duo while others wait to free it, when it reads code, uses IDA, edits or builds; at most every 2
   minutes. It reads `duo.json` without the mutex and never blocks.
+- **The nudge.** The reminder needs a tool call, so a session gone idle while holding is never told. The agent-pool
+  watcher runs `scripts/duo_nudge.py` every 90 s: an interactive hold that sent the games nothing for 4 minutes
+  (`last_used`) while someone waits gets its worker messaged (`agent send`) to free it, at most every 10 minutes per
+  hold (`COOP_DUO_NUDGE_IDLE_MINUTES`, `COOP_DUO_NUDGE_EVERY_MINUTES`). It takes nothing; the cap still does.
 - `scripts/duo.py status` shows the holder, the queue, ages and each place's last poll and id;
   `scripts/duo.py leave <name or id>` drops a stuck place by hand (sessions sharing a name need the id);
   `scripts/duo.py run -- <command>` waits, holds for the command, stops its games and frees the duo.
 - Tests: `DuoLockTests` in `scripts/test_coop_harness.py` (contending processes, FIFO, a killed holder, a stale
   takeover, the MCP's hold, the keeper, leaving the queue, a stale head skipped, a live waiter kept, the cap) and
-  `DuoHookTests` (the reminder).
+  `DuoHookTests` (the reminder), `DuoNudgeTests` (the nudge).
 
 ```bash
 python3 scripts/coop_test.py duo --keep-running
