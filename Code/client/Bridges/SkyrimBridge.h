@@ -141,7 +141,8 @@ public:
     void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
-    void ActorUpdateFaceGen(uint32_t aFormId) noexcept override;
+    bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
+    bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;

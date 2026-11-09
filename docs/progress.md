@@ -65,6 +65,13 @@ from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next 
 load of another character's save; duo scenario `death-wipe-twice-keeps-character` (fails at wipe 1 without the fix:
 the host's id left 0). The guest's crash in that playtest's load is a stale form, not the save (bugs.md).
 
+2026-11-08: a guest's caught pickpocket reaches the host (playtest: "nothing happens"). The game raises it with no item
+and count 0 (`AttemptPickpocket` 40654 -> 37423; `crime.md`, Pickpocket), and the guest's hook, the request's check
+and the host's judgment each wanted an item, so it was dropped on the guest. It now names only its victim and the host
+raises the alarm on its NPC. A take was already a container transfer, applied once in both games on the duo; the
+playtest's "multiple copies" did not show. Scenario `guest-pickpockets-lucan` (the MCP's new `pickpocket` verb and
+`expect` `bounty`), GameTests `[pickpocket]`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,
@@ -1093,7 +1100,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |
 | Beast form (a guest's werewolf change) | works: the guest's game runs it (owner-applied effect), its copies respawn for each race from the owner's state; upstream's host-player bug does not occur (2026-10-20) | `client-beast-form-stays-client` |
-| A player's looks changing in a session (race menu, vampirism, any race switch) | works: its copies respawn from its new base data, tints (the shown ones: a vampire's overlay) and weight (2026-10-24) | `guest-changes-looks-in-session`, GameTests "A player's looks change" |
+| A player's looks changing in a session (race menu, vampirism, any race switch) | works: its copies respawn from its new base data, tints (the shown ones: a vampire's overlay) and weight (2026-10-24); a copy's head built again (a new area) is painted again (2026-11-08, `docs/re/systems/copy-face-tints.md`) | `guest-changes-looks-in-session`, GameTests "A player's looks change", "A player's copy keeps its painted face" |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |

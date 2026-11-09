@@ -62,6 +62,15 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Sync
 
+- **The engine renders a copy's face tints itself (deferred 2026-11-09, its own PR).** Today coop renders the
+  owner's tints and paints them on each new head from a hook on `TESNPC::UpdateHeadState` (24724), as RaceMenu
+  does. The engine's way: `PrepareHeadPartForShaders` (26838) renders an NPC's runtime face from its base's tint
+  layers, but skips it while `bUseFaceGenPreprocessedHeads` is on (the dark face). Build the copy base's
+  `tintLayers` from the owner's tint masks (one layer per race tint asset, matched by texture path), patch that check
+  for temporary bases with layers (it can run on a queued head's thread), then drop coop's paint, the hook and the
+  texture-name check; teach the fake; the duo's `guest-changes-looks-in-session`. Gains: right from the first frame,
+  no paint over the engine's result. Measured: the player's tints are only on `PlayerCharacter`, the NPC record has
+  none. Notes: `docs/re/systems/copy-face-tints.md`.
 - **Per-player system quests: the rest (mod support).** Built 2026-10-28 for quests a player's own script calls
   into (`docs/design/system-quests.md`; vanilla's `PlayerVampireQuest` first). Left: a survival mod's quest that
   only runs on its own timers (Frostfall's exposure, needs mods) is never entered, so it stays the host's; test with

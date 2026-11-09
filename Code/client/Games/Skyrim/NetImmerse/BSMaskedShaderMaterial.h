@@ -7,7 +7,7 @@ struct BSMaskedShaderMaterial
 {
     uint8_t pad0[0xA0];
 
-    NiPointer<NiTexture> renderedTexture;
+    NiPointer<NiTexture> renderedTexture; // BSLightingShaderMaterialFacegen::tintTexture (CommonLibSSE-NG)
 };
 
 static_assert(offsetof(BSMaskedShaderMaterial, renderedTexture) == 0xA0);

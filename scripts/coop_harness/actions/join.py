@@ -334,7 +334,7 @@ class JoinActions:
         _game = ctx.game('')
         face = ((((_game.read_status() or {}).get("world") or {}).get(str(copy)) or {}).get("mod") or {}).get("face") or {}
         if not face.get("painted"):
-            return "its head is not painted"
+            return f"its head is not painted (head {face.get('head')}, painted {face.get('paints')} times)"
         painted = sorted(map(ctx.tint_key, face.get("tints") or []))
         if painted == shows:
             return ""

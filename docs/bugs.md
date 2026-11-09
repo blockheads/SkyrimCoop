@@ -119,8 +119,6 @@ other section needs the duo.
 - [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
-- [Black faces after a new area](#black-faces-after-a-new-area): small
-- [A guest's pickpocket](#a-guests-pickpocket): medium
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
@@ -1091,38 +1089,6 @@ Size: small. Needs: IDA, the dump; duo to prove it.
     `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
   - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
     `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
-
-### A guest's pickpocket
-
-Crime: the guest's theft from a copy.
-
-Agent task: Make a guest's pickpocket of an NPC copy reach the host, caught or not, and stop it duplicating items.
-
-Size: medium. Needs: duo, then GameTests.
-
-- **No guest pickpocket reached the host** (2026-11-08). The brother sneaked to pickpocket: "nothing happens, they just
-  can't talk to them", and once "they still get the item, just multiple copies". The host logs every guest crime it
-  gets ("Party crime: ..."), and the whole session has only four thefts (21:28, Riverwood Trader, action 0): no
-  pickpocket, caught or not (`shared-party-bounty.md`: a caught one sends a proposal, 37423).
-  - Inferred: the duplicate is a take from the copy that the host never applies, so the copy keeps it, as in
-    [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest).
-  - Related: [The older crime scenarios](#the-older-crime-scenarios) (`guest-pickpocket-party-alarm` passes or fails
-    either way).
-  - Test: a scenario: the guest pickpockets Lucan, once caught and once not.
-
-### Black faces after a new area
-
-Copies of players.
-
-Agent task: Make a player's copy keep its painted face after its 3D is built again.
-
-Size: small. Needs: GameTests, duo to see it.
-
-- **Faces turn black when loading into a new area** (2026-11-08, the user; not in the logs). Read in code:
-  `FaceGenSystem` paints a copy's head once (`FaceGenComponent::Generated`) and never again, and a new area builds
-  the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
-  players' copies; whose faces the user saw is to be asked.
-  - Test: GameTests, a copy's 3D rebuilt paints its face again.
 
 ### The sneak eye with the other player looking
 
