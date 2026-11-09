@@ -330,3 +330,11 @@ every game.
 `lowerBound` and `inputValue`. Duo, Faendal over the network, 300 s: 17009 of 17009 updates equal, with every range
 modifier's run (input, `lowerBound`, ranges, marked ranges) in each update's digest. The same 300 s runs diverged
 after 1772, 3603, 8567 and 8617 updates before it.
+
+## Only what the graph didn't write itself (duo, 2026-11-08; `graph_replay_net` with `external`)
+
+An op carried only the variables changed since the owner's last op ended. The copy's variables were restored after
+each of its ops, so only the stream wrote them. Faendal matched 8765/8765 (150 s), 6910/6910 (120 s), 5190/5190 and
+5179/5179 (90 s); the wolf 3506/3506, 3482/3482, 2609/2609 and 2567/2567. Two Faendal runs went apart on a clip file
+and one wolf run 15 updates after its sync point (graph-input-stream.md, Open questions). Weights: graph-input-stream.md,
+Weight.

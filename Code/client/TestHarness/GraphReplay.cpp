@@ -12,11 +12,14 @@
 #include <Games/Animation/GraphRandom.h>
 #include <Games/Skyrim/ActionClips.h>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <atomic>
 #include <deque>
 #include <map>
 #include <mutex>
+#include <snappy.h>
+#include <utility>
 #include <optional>
 
 namespace
@@ -30,6 +33,7 @@ struct Op
     uint32_t Update = 0; // the owner's update this is, or the next one for an event
     hkPseudoRandomGenerator Random{};
     std::vector<uint32_t> Words;
+    std::vector<std::pair<uint32_t, uint32_t>> Ext; // the variables changed since the owner's last op ended
 };
 
 std::mutex s_lock;
@@ -71,15 +75,199 @@ double s_ownerSeconds = 0.0; // the owner's recorded steps, added up
 // 6 bytes per changed variable (u16 index, u32 value), the event's name.
 uint64_t s_wireBytes = 0, s_changedWords = 0, s_events = 0;
 std::vector<uint32_t> s_lastWords;
-void CountWire(const Op& acOp)
+// External mode: an op carries only the variables changed since the owner's last op ended (Ext); what its own update
+// wrote, the copy's graph writes too. Weighed as a compact encoding, and Snappy over 0.1 s batches.
+bool s_external = false;
+std::vector<uint32_t> s_afterWords; // the owner's variables after its last op: what the copy holds before the next
+// The shadow's variables after its last replayed op: restored before the next, so only the stream writes them (its own
+// channels, 63590, and our snapshot loads are kept out).
+std::vector<uint32_t> s_shadowAfter;
+std::string s_batch;
+double s_batchStart = 0.0;
+uint64_t s_compactFull = 0, s_compactExternal = 0, s_snappyExternal = 0, s_externalWords = 0, s_stepBytes = 0, s_seedOps = 0;
+// Updates that change nothing (a bit in a frame's bitmap); the external words' bytes XORed against a prediction (a float
+// from its last two values, 2a - b; else its last) instead of the copy's value.
+uint64_t s_emptyUpdates = 0, s_wordBytesExternal = 0, s_wordBytesPredicted = 0;
+std::vector<uint32_t> s_prevWords1, s_prevWords2; // the owner's variables before its last two ops
+std::map<uint32_t, std::pair<uint32_t, uint32_t>> s_extTally; // per variable: ops carrying it, their bytes
+std::vector<std::string> s_variableNames;                     // the owner's, by index
+// The proposed stream encoding (graph-input-stream.md, Weight): steps in a per-frame table shared by every NPC (not
+// counted here), an update that changes nothing one bit, otherwise a header byte (event, seed, count), TimeDelta left
+// out when it is the step's bits (the copy writes it).
+uint64_t s_streamBits = 0, s_streamSnappy = 0, s_timeDeltaSteps = 0, s_timeDeltaOther = 0;
+std::string s_streamBatch;
+double s_streamBatchStart = 0.0;
+int32_t s_timeDeltaIndex = -2; // -2 not looked up, -1 none
+hkPseudoRandomGenerator s_lastRandom{};
+
+void PutVarint(std::string& aOut, uint32_t aValue)
+{
+    for (; aValue >= 0x80; aValue >>= 7)
+        aOut.push_back(static_cast<char>(aValue | 0x80));
+    aOut.push_back(static_cast<char>(aValue));
+}
+
+// Per variable: one byte (index step in the high nibble, 15 = a varint follows; which bytes of value XOR base are
+// non-zero in the low), then those bytes.
+void PutEntries(std::string& aOut, const std::vector<std::pair<uint32_t, uint32_t>>& acEntries, const std::vector<uint32_t>& acBase)
+{
+    PutVarint(aOut, static_cast<uint32_t>(acEntries.size()));
+    uint32_t last = 0;
+    for (const auto& [cIndex, cValue] : acEntries)
+    {
+        const uint32_t cStep = cIndex - last;
+        last = cIndex;
+        const uint32_t cXor = cValue ^ (cIndex < acBase.size() ? acBase[cIndex] : 0);
+        uint8_t mask = 0;
+        for (int b = 0; b < 4; ++b)
+            mask |= ((cXor >> (8 * b)) & 0xFF) ? (1 << b) : 0;
+        aOut.push_back(static_cast<char>((std::min<uint32_t>(cStep, 15) << 4) | mask));
+        if (cStep >= 15)
+            PutVarint(aOut, cStep);
+        for (int b = 0; b < 4; ++b)
+            if (mask & (1 << b))
+                aOut.push_back(static_cast<char>(cXor >> (8 * b)));
+    }
+}
+
+std::vector<std::pair<uint32_t, uint32_t>> Changed(const std::vector<uint32_t>& acWords, const std::vector<uint32_t>& acBase)
+{
+    std::vector<std::pair<uint32_t, uint32_t>> entries;
+    for (size_t i = 0; i < acWords.size(); ++i)
+        if (i >= acBase.size() || acBase[i] != acWords[i])
+            entries.emplace_back(static_cast<uint32_t>(i), acWords[i]);
+    return entries;
+}
+
+// A compact op: kind byte (event, seed changed), a 2-byte event id or the 4-byte step, the 8-byte seed if changed.
+void PutOp(std::string& aOut, const Op& acOp, bool aSeed, const std::vector<std::pair<uint32_t, uint32_t>>& acEntries,
+           const std::vector<uint32_t>& acBase)
+{
+    aOut.push_back(static_cast<char>((acOp.Event ? 1 : 0) | (aSeed ? 2 : 0)));
+    if (acOp.Event)
+    {
+        const auto cId = static_cast<uint16_t>(std::hash<std::string>{}(acOp.Name));
+        aOut.append(reinterpret_cast<const char*>(&cId), 2);
+    }
+    else
+        aOut.append(reinterpret_cast<const char*>(&acOp.Step), 4);
+    if (aSeed)
+        aOut.append(reinterpret_cast<const char*>(&acOp.Random), 8);
+    PutEntries(aOut, acEntries, acBase);
+}
+
+uint32_t Predict(uint32_t aLast, uint32_t aBefore)
+{
+    float last, before;
+    std::memcpy(&last, &aLast, 4);
+    std::memcpy(&before, &aBefore, 4);
+    if (!std::isnormal(last) || !std::isnormal(before))
+        return aLast;
+    const float cGuess = 2.f * last - before;
+    uint32_t guess;
+    std::memcpy(&guess, &cGuess, 4);
+    return guess;
+}
+
+void CountWire(Op& aOp)
 {
     uint32_t changed = 0;
-    for (size_t i = 0; i < acOp.Words.size(); ++i)
-        changed += i >= s_lastWords.size() || s_lastWords[i] != acOp.Words[i];
-    s_lastWords = acOp.Words;
+    for (size_t i = 0; i < aOp.Words.size(); ++i)
+        changed += i >= s_lastWords.size() || s_lastWords[i] != aOp.Words[i];
     s_changedWords += changed;
-    s_events += acOp.Event;
-    s_wireBytes += 3 + 6 * changed + acOp.Name.size();
+    s_events += aOp.Event;
+    s_wireBytes += 3 + 6 * changed + aOp.Name.size();
+
+    const bool cSeed = std::memcmp(&aOp.Random, &s_lastRandom, sizeof(s_lastRandom)) != 0;
+    s_lastRandom = aOp.Random;
+    s_seedOps += cSeed;
+    s_stepBytes += aOp.Event ? 0 : 4;
+    std::string full;
+    PutOp(full, aOp, cSeed, Changed(aOp.Words, s_lastWords), s_lastWords);
+    s_compactFull += full.size();
+    s_lastWords = aOp.Words;
+
+    aOp.Ext = Changed(aOp.Words, s_afterWords);
+    s_externalWords += aOp.Ext.size();
+    const size_t cBefore = s_batch.size();
+    PutOp(s_batch, aOp, cSeed, aOp.Ext, s_afterWords);
+    s_compactExternal += s_batch.size() - cBefore;
+    if (s_ownerSeconds - s_batchStart >= 0.1)
+    {
+        std::string packed;
+        snappy::Compress(s_batch.data(), s_batch.size(), &packed);
+        s_snappyExternal += packed.size();
+        s_batch.clear();
+        s_batchStart = s_ownerSeconds;
+    }
+    s_emptyUpdates += !aOp.Event && aOp.Ext.empty() && !cSeed;
+    for (const auto& [cIndex, cValue] : aOp.Ext)
+    {
+        const uint32_t cXor = cValue ^ (cIndex < s_afterWords.size() ? s_afterWords[cIndex] : 0);
+        auto& tally = s_extTally[cIndex];
+        ++tally.first;
+        tally.second += 1 + !!(cXor & 0xFF) + !!(cXor & 0xFF00) + !!(cXor & 0xFF0000) + !!(cXor & 0xFF000000);
+    }
+    std::string words;
+    PutEntries(words, aOp.Ext, s_afterWords);
+    s_wordBytesExternal += words.size();
+    std::vector<uint32_t> predicted = s_afterWords;
+    for (const auto& [cIndex, cValue] : aOp.Ext)
+        if (cIndex < s_prevWords1.size() && cIndex < s_prevWords2.size() && cIndex < predicted.size())
+            predicted[cIndex] = Predict(s_prevWords1[cIndex], s_prevWords2[cIndex]);
+    words.clear();
+    PutEntries(words, aOp.Ext, predicted);
+    s_wordBytesPredicted += words.size();
+    if (s_timeDeltaIndex == -2 && !s_variableNames.empty())
+    {
+        const auto cIt = std::find(s_variableNames.begin(), s_variableNames.end(), "TimeDelta");
+        s_timeDeltaIndex = cIt == s_variableNames.end() ? -1 : static_cast<int32_t>(cIt - s_variableNames.begin());
+    }
+    std::vector<std::pair<uint32_t, uint32_t>> streamed;
+    for (const auto& cEntry : aOp.Ext)
+    {
+        uint32_t stepBits;
+        std::memcpy(&stepBits, &aOp.Step, 4);
+        if (!aOp.Event && static_cast<int32_t>(cEntry.first) == s_timeDeltaIndex)
+        {
+            if (cEntry.second == stepBits)
+            {
+                ++s_timeDeltaSteps;
+                continue;
+            }
+            ++s_timeDeltaOther;
+        }
+        streamed.push_back(cEntry);
+    }
+    if (!aOp.Event && streamed.empty() && !cSeed)
+        s_streamBits += 1;
+    else
+    {
+        std::string op;
+        op.push_back(static_cast<char>((aOp.Event ? 1 : 0) | (cSeed ? 2 : 0) | (std::min<size_t>(streamed.size(), 63) << 2)));
+        if (streamed.size() >= 63)
+            PutVarint(op, static_cast<uint32_t>(streamed.size()));
+        if (aOp.Event)
+            op.append(2, '\0');
+        if (cSeed)
+            op.append(reinterpret_cast<const char*>(&aOp.Random), 8);
+        std::string entries;
+        PutEntries(entries, streamed, s_afterWords);
+        op.append(entries.begin() + 1, entries.end()); // the header holds the count
+        s_streamBits += 8 * op.size();
+        s_streamBatch += op;
+    }
+    if (s_ownerSeconds - s_streamBatchStart >= 0.1)
+    {
+        std::string packed;
+        snappy::Compress(s_streamBatch.data(), s_streamBatch.size(), &packed);
+        s_streamSnappy += s_streamBatch.empty() ? 0 : packed.size();
+        s_streamBatch.clear();
+        s_streamBatchStart = s_ownerSeconds;
+    }
+    s_prevWords2 = std::move(s_prevWords1);
+    s_prevWords1 = aOp.Words;
+    s_afterWords = aOp.Words; // an event's own writes go with the next op; an update's are replaced after it runs
 }
 std::vector<std::string> s_lastOps;
 std::optional<nlohmann::json> s_firstMismatch;
@@ -217,6 +405,16 @@ void WriteWords(BShkbAnimationGraph& aGraph, const std::vector<uint32_t>& acWord
     if (!pSet || !pSet->data)
         return;
     std::copy_n(acWords.begin(), std::min<size_t>(acWords.size(), pSet->size), pSet->data);
+}
+
+void WriteChanged(BShkbAnimationGraph& aGraph, const std::vector<std::pair<uint32_t, uint32_t>>& acChanged)
+{
+    auto* pSet = aGraph.behaviorGraph ? aGraph.behaviorGraph->animationVariables : nullptr;
+    if (!pSet || !pSet->data)
+        return;
+    for (const auto& [cIndex, cValue] : acChanged)
+        if (cIndex < pSet->size)
+            pSet->data[cIndex] = cValue;
 }
 
 // Its playing clips, by node, and whether each has its file (a clip without one lasts 0.0133 s, 59263).
@@ -361,6 +559,13 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
     {
         std::scoped_lock _{s_lock};
         update = s_ownerUpdates;
+        if (s_variableNames.empty() && apGraph->behaviorGraph)
+        {
+            const auto* pBehaviour = reinterpret_cast<const hkbBehaviorGraphNode*>(apGraph->behaviorGraph);
+            if (pBehaviour->data && pBehaviour->data->stringData)
+                for (int32_t i = 0; i < pBehaviour->data->stringData->variableNames.size; ++i)
+                    s_variableNames.emplace_back(pBehaviour->data->stringData->variableNames.data[i] ? pBehaviour->data->stringData->variableNames.data[i] : "?");
+        }
         Op op{false, {}, apData->deltaTime, update, {}, ReadWords(*apGraph)};
         if (apGraph->behaviorGraph && apGraph->behaviorGraph->random)
             op.Random = *apGraph->behaviorGraph->random;
@@ -386,7 +591,9 @@ char RecordOwnerUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDa
         if (!s_recordId)
             point->Memory = TakeMemory(*apGraph);
     }
+    std::vector<uint32_t> after = ReadWords(*apGraph);
     std::scoped_lock _{s_lock};
+    s_afterWords = std::move(after);
     s_ownerDigests.push_back(std::move(digest));
     s_ownerUpdates = update + 1;
     if (point && s_wantPoint)
@@ -428,6 +635,7 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
         apGraph->holder->SetGraphCounters(start->Counters);
         s_loading = false;
         GiveMemory(*apGraph, start->Memory);
+        s_shadowAfter = ReadWords(*apGraph);
     }
     char result = 0;
     for (const auto& [cIndex, cOp] : due)
@@ -459,7 +667,13 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
         // Its seed too: whatever set it since (a replayed action's GraphRandom) is not its owner's input.
         if (apGraph->behaviorGraph && apGraph->behaviorGraph->random)
             *apGraph->behaviorGraph->random = cOp.Random;
-        WriteWords(*apGraph, cOp.Words);
+        if (s_external)
+        {
+            WriteWords(*apGraph, s_shadowAfter);
+            WriteChanged(*apGraph, cOp.Ext);
+        }
+        else
+            WriteWords(*apGraph, cOp.Words);
         if (cOp.Event)
         {
             BSFixedString name(cOp.Name.c_str());
@@ -478,6 +692,8 @@ char ReplayIntoShadow(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apDat
             s_rangeLines = nullptr;
             Compare(cOp.Update, Digest(*apGraph, ranges));
         }
+        if (s_external)
+            s_shadowAfter = ReadWords(*apGraph);
         std::scoped_lock _{s_lock};
         s_lastOps.push_back(cOp.Event ? "event " + cOp.Name : std::format("update {} step {:.4f}", cOp.Update, cOp.Step));
         if (s_lastOps.size() > 8)
@@ -559,6 +775,8 @@ nlohmann::json Take()
                 words.push_back({i, cOp.Words[i]});
         s_takeWords = cOp.Words;
         nlohmann::json op = {{"u", cOp.Update}, {"r", {cOp.Random.seed, cOp.Random.current}}, {"w", words}, {"n", cOp.Words.size()}};
+        if (s_external)
+            op["x"] = cOp.Ext;
         if (cOp.Event)
             op["e"] = cOp.Name;
         else
@@ -594,6 +812,8 @@ void Feed(const nlohmann::json& acTaken)
                 s_feedWords[cWord[0].get<size_t>()] = cWord[1].get<uint32_t>();
         Op op{cOp.contains("e"), cOp.value("e", std::string{}), cOp.value("s", 0.f), cOp.value("u", 0u),
               {cOp["r"][0].get<uint32_t>(), cOp["r"][1].get<uint32_t>()}, s_feedWords};
+        if (cOp.contains("x"))
+            op.Ext = cOp["x"].get<std::vector<std::pair<uint32_t, uint32_t>>>();
         s_ops.push_back(std::move(op));
     }
     for (const auto& cHash : acTaken.value("hashes", nlohmann::json::array()))
@@ -667,6 +887,22 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
         s_ownerSeconds = 0.0;
         s_wireBytes = s_changedWords = s_events = 0;
         s_lastWords.clear();
+        s_external = acRequest.value("external", false);
+        s_afterWords.clear();
+        s_shadowAfter.clear();
+        s_batch.clear();
+        s_batchStart = 0.0;
+        s_compactFull = s_compactExternal = s_snappyExternal = s_externalWords = s_stepBytes = s_seedOps = 0;
+        s_emptyUpdates = s_wordBytesExternal = s_wordBytesPredicted = 0;
+        s_prevWords1.clear();
+        s_prevWords2.clear();
+        s_extTally.clear();
+        s_variableNames.clear();
+        s_streamBits = s_streamSnappy = s_timeDeltaSteps = s_timeDeltaOther = 0;
+        s_streamBatch.clear();
+        s_streamBatchStart = 0.0;
+        s_timeDeltaIndex = -2;
+        s_lastRandom = {};
         s_wantPoint = s_shadowStarted = false;
         s_concurrentEvents = 0;
         s_memoryApplied = s_memoryUnmatched = 0;
@@ -709,6 +945,34 @@ nlohmann::json GraphReplay::Command(const nlohmann::json& acRequest) noexcept
             {"changed_words", s_changedWords},
             {"events", s_events},
             {"variables", s_lastWords.size()},
+            {"external", s_external},
+            {"compact_full_bytes", s_compactFull},
+            {"compact_external_bytes", s_compactExternal},
+            {"snappy_external_bytes", s_snappyExternal},
+            {"external_words", s_externalWords},
+            {"step_bytes", s_stepBytes},
+            {"seed_ops", s_seedOps},
+            {"empty_updates", s_emptyUpdates},
+            {"stream_bytes", s_streamBits / 8},
+            {"stream_snappy_bytes", s_streamSnappy},
+            {"time_delta_is_step", s_timeDeltaSteps},
+            {"time_delta_other", s_timeDeltaOther},
+            {"ext_top", [] {
+                 std::vector<std::pair<uint32_t, uint32_t>> rows; // bytes, index
+                 for (const auto& [cIndex, cTally] : s_extTally)
+                     rows.emplace_back(cTally.second, cIndex);
+                 std::sort(rows.rbegin(), rows.rend());
+                 nlohmann::json top = nlohmann::json::array();
+                 for (size_t i = 0; i < std::min<size_t>(rows.size(), 16); ++i)
+                 {
+                     const uint32_t cIndex = rows[i].second;
+                     top.push_back({cIndex < s_variableNames.size() ? s_variableNames[cIndex] : std::to_string(cIndex),
+                                    s_extTally[cIndex].first, rows[i].first});
+                 }
+                 return top;
+             }()},
+            {"word_bytes_external", s_wordBytesExternal},
+            {"word_bytes_predicted", s_wordBytesPredicted},
             {"replayed", s_replayed},
             {"equal", s_equal},
             {"variable_diffs", [] {

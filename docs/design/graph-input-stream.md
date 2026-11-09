@@ -109,10 +109,32 @@ copy's graph goes.
 
 ## Weight
 
-Measured (proofs, before compression): 0.2-0.3 KB/s for an idle wolf, about 1.5 KB/s for Faendal doing chores. Today's
-movement messages: 0.3-2.3 KB/s per synced NPC, which carry each NPC's whole set of graph variables; those go.
-Lossless savings to apply: event ids instead of names; one step for a frame's updates; a byte count of changed variables
-per op; zstd or LZ4 per batch. Estimate: 0.3-0.8 KB/s for a busy humanoid.
+Measured on the duo (2026-11-08, `graph_replay_net` with `external`, Riverwood). Every encoding is lossless, and the copy
+matched its owner on every update while it ran:
+
+| encoding | Faendal, chores | wolf, moving now and then | wolf, idle |
+|---|---|---|---|
+| the proofs' (names, 6 bytes a variable, every variable changed) | 1495 B/s | 507 B/s | 186 B/s |
+| only what changed since the owner's last op ended | 1041 | 491 | 352 (more per-update overhead) |
+| the stream's encoding (below) | **559** | **171** | about 10 |
+| Snappy on that | 565 | 173 | |
+
+Plus each batch's step table: one 4-byte step per frame for every NPC in it, 230 B/s split among them (about 11 B/s each
+for 21 NPCs). Today's movement messages from the host weigh 750-1870 B/s per synced NPC and carry each NPC's graph
+variables; those go.
+
+**The stream's encoding** (`Structs/GraphOps.h`; `GraphOpsRun`, TPTests `[encoding.graph_ops]`):
+- **Only variables set from outside the graph:** an op carries the variables that changed since its owner's last op ended.
+  Whatever the graph's own update writes, the copy's graph writes too. Correct only if the copy's variables are its
+  stream's alone: its own channels (63590) and our snapshot loads are kept out. The proof restores the copy's
+  variables after each op to do that.
+- **`TimeDelta` is the step:** it held the update's step, bit for bit, in 3502 of 3502 updates (Faendal). It isn't sent;
+  the copy writes it.
+- **An update in the next frame with nothing changed is one bit;** otherwise a few bits of kind, frame and seed.
+- **A variable is its index step and the non-zero bytes of its XOR** with its last sent value (a 4-bit mask).
+- **What's left is float channels,** `Direction`, `TurnDelta` and `Speed` (300-400 B/s for a walking humanoid), and the
+  foot IK gain. They're noise to every compressor: Snappy gains nothing, and predicting a float from its last two
+  values saves 3%. They have to be exact, and a copy can't compute them itself: its motion is interpolated.
 
 ## Testing (the bug-fix flow's tiers)
 
@@ -125,9 +147,56 @@ per op; zstd or LZ4 per batch. Estimate: 0.3-0.8 KB/s for a busy humanoid.
   every scenario, failing on the first difference (the proofs' readout, generalized). The wolf scenario and a humanoid
   chores scenario.
 
+## Phase 1's seam: one recorder and replayer, two engines
+
+The stream's logic is pure and shared. Skyrim's hooks and the fake engine both call it, so GameTests run the code that
+ships.
+
+```
+Games/Animation/GraphStream.h (pure, ClientTests)
+  Recorder (owner, per actor):
+    OnEvent(eventId, words, seed)      <- 63591 hook   | FakeGraph::SendEvent
+    OnUpdate(step, words, seed)        <- 63587 hook   | FakeGraph::Update
+    OnUpdated(words)                   <- after 63587  | after FakeGraph::Update
+    Take() -> ops since the last take: the variables changed since the last op ended, TimeDelta left out
+  Replayer (copy, per actor):
+    Feed(first update, owner tick, ops) / Gap() / Point(sync point)
+    Run(playbackTick, IGraphTarget&): due ops in order, capped per frame
+
+IGraphTarget: the one engine surface the replayer drives
+  Words() / WriteWords(words)   the graph's variable array (hkbVariableValueSet)
+  Seed() / SetSeed(seed)        hkbBehaviorGraph+0x78
+  SendEvent(eventId)            63591, the copy's own events kept out
+  Update(step)                  63587, forced
+  LoadPoint(point) / SavePoint  SaveState/LoadState + counters
+Skyrim: over BShkbAnimationGraph (Games/Animation). The fake: over FakeGraph.
+```
+
+**FakeGraph** replaces the fake's special cases (`Bound`, `Loop`, `GraphPicks`, `ActionWrites`) with one small
+deterministic graph. Each special case becomes a rule on it, and each game feeds it its own inputs, as Skyrim does:
+
+```
+FakeGraph { Words, State, StateMs, Seed, Rules }
+  Update(step):  channels already written (Words[Speed] = this actor's speed: a copy's interpolated one)
+                 StateMs += step; a clip end -> next state (bound start: Words[i]; random: Seed)
+  SendEvent(e):  a transition if its condition holds on Words now
+each game's inputs: its actor's channels, its AI's and engine's events, its own step (LOD chunks far away)
+```
+
+- **Without the stream,** a copy's FakeGraph gets its own channels and events. That reproduces today's desyncs in the
+  wolf flows, for the true reason.
+- **With the stream,** the copy's inputs come only from the replayer, and its state equals its owner's after every
+  update. The flows check that each update: the live check in the fake.
+
 ## Phases
 
 1. **Host NPCs' copies,** with the stream and sync points, old paths kept as the fallback for an actor with no stream yet.
+   Order:
+   1. `GraphStream` and its encoding, with ClientTests and TPTests.
+   2. FakeGraph, with the wolf flows rewritten on it, failing without the stream.
+   3. The stream in GameTests.
+   4. The Skyrim hooks.
+   5. The live check on the duo.
 2. **Node memory serialization** in sync points.
 3. **Remove the old paths** for copies on the stream; movement drops graph variables.
 4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded).
@@ -138,4 +207,9 @@ per op; zstd or LZ4 per batch. Estimate: 0.3-0.8 KB/s for a busy humanoid.
   outside the exceptions: everything else is dropped.
 - Graph rebuilds (3D reload, race change): a new graph on either side means a sync point.
 - Open Animation Replacer's random conditions use their own generator (graph-input-replay.md), outside the stream.
+- **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs, Faendal's copy entered `FurnitureState` with
+  `AOWoodPutDown` lacking its file and left it at once. The clip wait didn't hold for it. Read why before the stream
+  relies on `ActionClips::Request`.
+- **A wolf went apart 15 updates after its sync point** (1 run of 4), all variables equal: `CannedTurnState` against
+  `LoopingTurnLeft`. That fits node memory missing from the network sync point (phase 2). Not shown.
 - Players: whether a player's graph has inputs the stream misses (camera-driven variables, first-person).

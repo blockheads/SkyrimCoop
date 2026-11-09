@@ -29,7 +29,9 @@
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Structs/SystemQuestState.h>
+#include <Structs/GraphOps.h>
 
+#include <bit>
 #include <numbers>
 #include <limits>
 #include <array>
@@ -2064,4 +2066,78 @@ TEST_CASE("A guest sends movement unreliably and movement with actions or a tele
     CHECK(DeliveryOf(BodyFramesRequest{}) == Delivery::kReliable);
     CHECK(DeliveryOf(BodyReleaseRequest{}) == Delivery::kReliable);
     CHECK(DeliveryOf(PartyTravelRequest{}) == Delivery::kReliableNow);
+}
+
+namespace
+{
+GraphOps GraphOpsBatch(uint64_t aFirstTick, uint32_t aActor, uint32_t aFirstUpdate, std::vector<GraphOp> aOps, size_t aFrames)
+{
+    GraphOps ops;
+    for (size_t i = 0; i < aFrames; ++i)
+        ops.Frames.push_back({aFirstTick + i, 0.0166f + 0.0001f * static_cast<float>(i)});
+    ops.Runs.push_back({aActor, aFirstUpdate, std::move(aOps)});
+    return ops;
+}
+} // namespace
+
+TEST_CASE("Graph ops round trip exactly across batches", "[encoding.graph_ops]")
+{
+    std::map<uint32_t, GraphOpsHistory> sent, received;
+    const float cOdd = std::bit_cast<float>(0x7FC00001u); // a NaN's payload survives: values go as bits
+    const GraphOps cFirst = GraphOpsBatch(1000, 7, 0,
+                                          {{.Frame = 0, .Seed = GraphSeed{11, 12}, .Changed = {{0, 0x42A343EB}, {40, std::bit_cast<uint32_t>(cOdd)}}},
+                                           {.Event = true, .EventId = 513, .Changed = {{48, 1}}},
+                                           {.Frame = 1},
+                                           {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
+                                           {.Frame = 5}}, // a skipped frame
+                                          6);
+    // The second batch's values go against the first's.
+    const GraphOps cSecond = GraphOpsBatch(1006, 7, 4, {{.Frame = 0, .Changed = {{0, 0x42A343EC}, {700, 9}}}, {.Frame = 1}}, 2);
+    for (const GraphOps* pOps : {&cFirst, &cSecond})
+    {
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        pOps->Serialize(writer, sent);
+        Wire::Buffer::Reader reader(&buffer);
+        GraphOps read;
+        REQUIRE(read.Deserialize(reader, received));
+        CHECK(read == *pOps);
+    }
+}
+
+TEST_CASE("An update that changes nothing costs a bit", "[encoding.graph_ops]")
+{
+    std::vector<GraphOp> idle{{.Frame = 0}};
+    for (uint32_t i = 1; i < 60; ++i)
+        idle.push_back({.Frame = i});
+    std::map<uint32_t, GraphOpsHistory> histories;
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    GraphOps::WriteRun(writer, {7, 0, idle}, histories[7]);
+    CHECK(writer.Size() <= 4 + 2 + 1 + 1 + 8); // id, first update, count, the first op, then 59 bits
+}
+
+TEST_CASE("Graph ops reject truncated and impossible input", "[encoding.graph_ops]")
+{
+    std::map<uint32_t, GraphOpsHistory> sent;
+    const GraphOps cOps = GraphOpsBatch(50, 3, 0, {{.Frame = 0, .Changed = {{2, 5}, {9, 0xFFFFFFFF}}}, {.Event = true, .EventId = 4}, {.Frame = 1}}, 2);
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    cOps.Serialize(writer, sent);
+    const size_t cBytes = writer.Size();
+    for (size_t size = 0; size + 1 < cBytes; ++size)
+    {
+        std::map<uint32_t, GraphOpsHistory> received;
+        Wire::Buffer::Reader reader(std::span<const uint8_t>(buffer.GetData(), size));
+        GraphOps read;
+        CHECK_FALSE(read.Deserialize(reader, received));
+    }
+    // An update in a frame the batch does not have.
+    std::map<uint32_t, GraphOpsHistory> histories, received;
+    Wire::Buffer bad;
+    Wire::Buffer::Writer badWriter(&bad);
+    GraphOpsBatch(50, 3, 0, {{.Frame = 3}}, 2).Serialize(badWriter, histories);
+    Wire::Buffer::Reader badReader(&bad);
+    GraphOps read;
+    CHECK_FALSE(read.Deserialize(badReader, received));
 }

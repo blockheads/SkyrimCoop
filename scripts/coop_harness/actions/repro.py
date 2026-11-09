@@ -229,12 +229,13 @@ class ReproActions:
             time.sleep(every)
         return changes
 
-    def graph_replay(ctx, like, seconds=180.0):
+    def graph_replay(ctx, like, seconds=180.0, external=False):
         """The graph input replay proof (docs/design/graph-input-replay.md): two fresh actors of `like`'s base spawn by the
         host's player; the second starts from the first's sync point and is fed its graph inputs, and both graphs are
-        compared after every update. Returns the comparison; fails at the first update where they differ."""
+        compared after every update. Returns the comparison; fails at the first update where they differ. `external`:
+        each op carries only the variables changed since the owner's last op ended (the stream's weight)."""
         like = int(like, 16) if isinstance(like, str) else like
-        armed = ctx.game("").rpc({"cmd": "graph_replay", "arm_like": like}, timeout=10) or {}
+        armed = ctx.game("").rpc({"cmd": "graph_replay", "arm_like": like, "external": external}, timeout=10) or {}
         if not armed.get("ok"):
             raise ctx.failure(f"graph_replay did not arm on {like:X}: {armed.get('error')}")
         status = lambda: ctx.game("").rpc({"cmd": "graph_replay"}, timeout=10) or {}
@@ -251,6 +252,7 @@ class ReproActions:
                 return dict(last) if caught_up or last.get("first_mismatch") else None
             result = ctx.wait_for(f"[host] {seconds:.0f} s of the owner's updates compared, or a mismatch", done, seconds + 60,
                                   explain=lambda: f"last status {last}")
+            ctx.add_weights(result)
             if result.get("first_mismatch"):
                 raise ctx.failure(f"the shadow's graph left its owner's at update {result['first_mismatch']['update']} "
                                   f"after {result['equal']} equal: {result['first_mismatch']}")
@@ -258,7 +260,15 @@ class ReproActions:
         finally:
             ctx.game("").rpc({"cmd": "graph_replay", "stop": True}, timeout=10)
 
-    def graph_replay_net(ctx, owner, seconds=60.0):
+    def add_weights(ctx, result):
+        """The ops' bytes a second of the owner's graph time, each way of encoding them."""
+        per_s = lambda key: round(result.get(key, 0) / max(result.get("owner_seconds", 0), 1e-3))
+        result["bytes_s"] = {key: per_s(key) for key in ("wire_bytes", "compact_full_bytes", "compact_external_bytes",
+                                                         "snappy_external_bytes", "step_bytes",
+                                                         "word_bytes_external", "word_bytes_predicted", "stream_bytes",
+                                                         "stream_snappy_bytes")}
+
+    def graph_replay_net(ctx, owner, seconds=60.0, external=False):
         """The network graph replay proof (docs/design/graph-input-replay.md): the host records `owner`'s graph inputs, the
         harness carries them to its copy on the guest, which replays them from the owner's sync point; their states are
         compared after every update. Also today's movement bytes per NPC (perf), against the ops' weight."""
@@ -267,8 +277,8 @@ class ReproActions:
         if copy is None:
             raise ctx.failure(f"{owner:X} has no copy on the guest")
         host, guest = ctx.game(""), ctx.game("client")
-        if not (host.rpc({"cmd": "graph_replay", "record": owner}, timeout=10) or {}).get("ok") or \
-                not (guest.rpc({"cmd": "graph_replay", "replay": copy}, timeout=10) or {}).get("ok"):
+        if not (host.rpc({"cmd": "graph_replay", "record": owner, "external": external}, timeout=10) or {}).get("ok") or \
+                not (guest.rpc({"cmd": "graph_replay", "replay": copy, "external": external}, timeout=10) or {}).get("ok"):
             raise ctx.failure("graph_replay did not arm on both games")
         last = {}
         try:
@@ -285,6 +295,13 @@ class ReproActions:
             result = ctx.wait_for(f"[both] {seconds:.0f} s of the owner's updates replayed on its copy, or a mismatch", relay,
                                   seconds + 90, explain=lambda: f"last {last}")
             mismatch = result["copy"].get("first_mismatch")
+            result.update({key: value for key, value in (host.rpc({"cmd": "graph_replay"}, timeout=10) or {}).items()
+                           if key.endswith("_bytes") or key.startswith("word_bytes") or key.startswith("time_delta")
+                           or key in ("external_words", "seed_ops", "empty_updates", "ext_top")})
+            ctx.add_weights(result)
+            if mismatch and external:
+                print(f"weights before the mismatch: {result['bytes_s']}, TimeDelta is the step {result.get('time_delta_is_step')}, "
+                    f"else {result.get('time_delta_other')}", flush=True)
             if mismatch:
                 at = host.rpc({"cmd": "graph_replay", "states_at": mismatch["update"]}, timeout=10) or {}
                 owner_states, owner_words = at.get("states", []), at.get("words", [])
