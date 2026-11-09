@@ -19,6 +19,26 @@ Playtest 2026-11-08: players' copies had black faces after loading into a new ar
 `ApplyMasksToRenderTarget` 27040) and sets it as that material's `tintTexture`. The material belongs to the head
 it was painted on; a head built again has a new material without it.
 
+## How the engine renders a face tint at runtime
+
+A copy's head is always built at runtime (`TESRace::BuildRuntimeHead` 25366): there is no FaceGeom file for its
+temporary base. Each head part then goes through `BSFaceGenManager::PrepareHeadPartForShaders` (26838). For the face
+part with a Facegen material it makes a new render texture, renders tint masks into it (`ApplyMasksToRenderTarget`
+27040), and sets it as the material's `tintTexture` (`+0xA0`). The masks it renders:
+
+1. the player's base (`7`): `PlayerCharacter`'s tint masks (`+0xB20`);
+2. a base with `TESNPC+0x244` set: the player's overlay tint masks (`+0xB60`, the vampire skin);
+3. any other NPC, only with `bUseFaceGenPreprocessedHeads` off: `TESNPC::GetTintMasks` (`1403C8870`), the base's
+   tint layers (`tintLayers`, `+0x260`) over its race's tint assets.
+
+With the setting on (the default) an NPC is expected to have its FaceTint file, so step 3 is skipped and the texture
+stays unrendered: the vanilla dark face. A copy lands there on every head build.
+
+The engine's own way for a copy would be step 3: the owner's tints as the copy base's tint layers, with that one
+check passed for copies' bases. Open: whether the NPC change record coop already sends carries tint layers, the
+conversion from the player's tint masks (texture paths) to layers (race tint indices), and a hook on a check inside
+26838, which can run on a queued head's thread.
+
 ## Which head part is the face
 
 `BuildHead` builds from the base's own head parts, unless `TESNPC::HasOverlays` (24790) holds: for an NPC,
