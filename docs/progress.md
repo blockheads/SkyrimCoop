@@ -56,6 +56,13 @@ from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next 
 load of another character's save; duo scenario `death-wipe-twice-keeps-character` (fails at wipe 1 without the fix:
 the host's id left 0). The guest's crash in that playtest's load is a stale form, not the save (bugs.md).
 
+2026-11-08: a guest's caught pickpocket reaches the host (playtest: "nothing happens"). The game raises it with no item
+and count 0 (`AttemptPickpocket` 40654 -> 37423; `crime.md`, Pickpocket), and the guest's hook, the request's check
+and the host's judgment each wanted an item, so it was dropped on the guest. It now names only its victim and the host
+raises the alarm on its NPC. A take was already a container transfer, applied once in both games on the duo; the
+playtest's "multiple copies" did not show. Scenario `guest-pickpockets-lucan` (the MCP's new `pickpocket` verb and
+`expect` `bounty`), GameTests `[pickpocket]`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,
