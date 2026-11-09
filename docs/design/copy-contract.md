@@ -331,12 +331,16 @@ or one this game claimed in this session (a horse it rides). The host's spawn ma
   any actor the server didn't make.
 
 ```
-GuestEngine::SetDecidesWorld(false)    GuestNpcs::SetHolding: a new session id
+GuestEngine::SetDecidesWorld(false)    GuestNpcs::SetHolding: a new session id; NPCs already shown (the host's
+                                         save loads before the guest connects) reloaded (Reload3D), so refused
 the guest's engine, for an NPC that is not a copy or claimed
   UpdateAI 37347 (every process level)  HookUpdateAI returns: it stands still
   Load3D 19727 (cell attach, Enable,    HookLoad3D returns null, as for a disabled reference: the cell's queued
-    MoveTo, process change)               count still drops; NpcHeldEvent wakes a spawn waiting on its load
-the host's spawn: SetActorCopy(true)   its refused 3D queued as Enable does (QueueReference 13057)
+    MoveTo, process change)               count still drops
+  its job ends (QueuedReference::       NpcHeldEvent wakes a spawn waiting on its load; queued again if no
+    Finish 13022, main thread)            longer held
+the host's spawn: SetActorCopy(true)   its refused 3D queued as Enable does (QueueReference 13057); while its
+                                         old job is out that only changes the priority, and Finish queues it
 a guest takes ownership (a ridden      SetActorCopy(false) stamps the session id: its own
   horse)
 the session's end                      nothing to undo; a refused NPC loads with its cell next time

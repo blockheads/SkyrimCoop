@@ -310,6 +310,26 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
 }
 
+// Its NPCs loaded before the session (the host's save loads before the guest connects, join-flow.md) lose their 3D:
+// reloaded, it is refused (HookLoad3D).
+static void HideHeldNpcs() noexcept
+{
+    ProcessLists* pLists = ProcessLists::Get();
+    if (!pLists)
+        return;
+    std::vector<uint32_t> shown;
+    for (auto* pHandles : {&pLists->highActorHandleArray, &pLists->middleHighActorHandleArray})
+        for (uint32_t i = 0; i < pHandles->length; ++i)
+            if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle((*pHandles)[i])))
+                if (pActor->GetNiNode() && !pActor->IsDisabled() && pActor->IsHeldOnGuest())
+                    shown.push_back(pActor->formID);
+    for (const uint32_t cFormId : shown)
+        if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+            pActor->Reload3D();
+    if (!shown.empty())
+        spdlog::info("GuestEngine: {} NPCs of this game's own hidden until the host spawns them", shown.size());
+}
+
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     BGSStoryManager::SetPicksQuests(aOn);
@@ -319,6 +339,8 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     TESObjectREFR::SetMovesContainerItems(aOn);
     StoryEvents::SetSends(!aOn);
     GuestNpcs::SetHolding(!aOn);
+    if (!aOn)
+        HideHeldNpcs();
 }
 
 std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept

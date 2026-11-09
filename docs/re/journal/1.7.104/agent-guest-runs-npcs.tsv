@@ -55,3 +55,12 @@ time	op	id	rva	item
 2026-11-09T14:59:00Z	read	13060	0x196600	{"name": "sub_140196600"}
 2026-11-09T14:59:48Z	read	37177	0x6713e0	{"name": "Actor::Load3D"}
 2026-11-09T15:02:10Z	read	13308	0x1a2200	{"name": "TES::IsCellLoaded"}
+2026-11-09T15:55:45Z	read	13067	0x196cc0	{"name": "sub_140196CC0"}
+2026-11-09T15:55:49Z	read	13262	0x19dfa0	{"name": "sub_14019DFA0"}
+2026-11-09T15:56:44Z	name	13060	0x196600	{"addr": "0x140196600", "name": "TESQueuedHandles::IsQueued"}
+2026-11-09T15:56:44Z	name	13067	0x196cc0	{"addr": "0x140196cc0", "name": "TESQueuedHandles::RemoveHandle"}
+2026-11-09T15:56:44Z	name	13262	0x19dfa0	{"addr": "0x14019dfa0", "name": "TESQueuedHandles::HandleMap_Erase"}
+2026-11-09T15:56:49Z	comment	13060	0x196600	{"addr": "0x140196600", "comment": "AddressLib 13060, our name. (queuedHandles, ref): ref +0x9A == 1, the byte QueueReference 13057 sets; Enable 19800 skips queueing while it is set. Finish 13022's handle removal (13067) does not clear it, so it is not the outstanding-job test: the handle map is (QueueReference's duplicate check)."}
+2026-11-09T15:56:49Z	comment	13067	0x196cc0	{"addr": "0x140196cc0", "comment": "AddressLib 13067, our name. (queuedHandles, &handle): under the queue's write lock (a1+152), erases the handle from the queued map (13262), the map QueueReference 13057 checks for duplicates. Called last in QueuedReference::Finish 13022: until then a new QueueReference of that ref only changes its priority."}
+2026-11-09T15:56:49Z	comment	13262	0x19dfa0	{"addr": "0x14019dfa0", "comment": "AddressLib 13262, our name. Erase from the queued-handle hash map (CRC32 of the handle; entries 24 bytes: handle, QueuedReference*, next); releases the entry's QueuedReference ref count. Returns whether it was there."}
+2026-11-09T15:56:49Z	comment	13022	0x193b90	{"addr": "0x140193b90", "comment": "AddressLib 13022, our name. Vtable slot 12 of QueuedReference, QueuedTree, QueuedActor, QueuedCharacter and QueuedPlayer (one function). Main thread: with a model at +0x2C8 attaches it (19731, vfunc 0x6C Set3D); with none skips that. Either way gives back its cell's queuedRefCount (19152) and critical count (19156), so TESCellFullyLoadedEvent (19146) is still sent when a reference's 3D is refused (guest-runs-npcs, 2026-11-09). Its handle (+0x2C0) leaves the queued map last (13067): a QueueReference before that only changes priority. Hooked: HookFinishLoad3D, a held NPC's refused job ending (NpcHeldEvent, its 3D queued again once not held)."}

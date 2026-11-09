@@ -255,8 +255,14 @@ Re-queuing it later is `QueueReference` again (as `Enable` does); it returns at 
 
 The fix (copy-contract.md, "A guest's own NPCs") cuts both funnels for an actor `GuestNpcs::Held` names:
 `HookUpdateAI` returns before `RealUpdateAI` (no copy upkeep either: a held NPC is not put in deferred kill), and
-`HookLoad3D` on 19727 returns null, the disabled path above. Its `NpcHeldEvent` stands in for the
-`TESObjectLoadedEvent` that never comes, so a host spawn waiting on the reference's load goes on.
+`HookLoad3D` on 19727 returns null, the disabled path above.
+
+The refused job ends in `QueuedReference::Finish` (13022, vtable slot 12 of every queued kind, main thread), and its
+handle leaves the queued map last (`TESQueuedHandles::RemoveHandle` 13067). Until then a `QueueReference` of the
+reference only changes its priority. So `HookFinishLoad3D` is where the job really ends: it raises `NpcHeldEvent` (for
+the `TESObjectLoadedEvent` that never comes, so a host spawn waiting on the load goes on) and queues the 3D again if the
+NPC stopped being held while the job was out (found by the PR 45 review). The byte `IsQueued` (13060) reads, ref
++0x9A, is not cleared there, so it is not the test for a job still out.
 
 Once it is a copy, `Actor::LoadRefused3D` does what `Enable` (19800) does to queue a load:
 
@@ -266,11 +272,16 @@ no 3D (Enable: vfunc 0x70), not deleted (0x20)
 TESQueuedHandles::QueueReference 13057 (*400332, ref,
     TES::GetCellLoadPriority 13321 (TES, parentCell, false), false)
   priority 1 within a cell of the grid's center, else 3; 5 with no cell
-  already queued (ref +0x9A == 1, 13060): only the priority changes
+  a job still out (its handle in the queued map): only the priority changes
 ```
 
 `Refused3D` is set before the second look at the held rule on the loader thread, and read after the copy flag on the
-main thread, so one of the two always sees the other: either the load goes on, or `SetActorCopy` queues it.
+main thread, so one of the two always sees the other: either the load goes on, or `SetActorCopy` queues it. It clears
+only when a `Load3D` passes.
+
+NPCs that already have 3D when holding starts (the host's save loads before the guest connects, join-flow.md; a
+reconnect) are reloaded: `Reload3D` disables and enables the reference (the base change's way, no form-flags record),
+and Enable's queued load is refused.
 
 ### What the AI used to repair
 

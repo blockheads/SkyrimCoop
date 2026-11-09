@@ -915,19 +915,34 @@ bool Actor::IsHeldOnGuest() noexcept
 
 bool Actor::RefuseHeld3D() noexcept
 {
-    if (!IsHeldOnGuest())
-        return false;
-    // Marked before the second look: SetActorCopy loads it once it reads the mark, or this sees the copy.
-    GetExtension()->Refused3D.store(true);
-    if (!IsHeldOnGuest())
-        return false;
-    World::Get().GetRunner().Trigger(NpcHeldEvent{formID});
-    return true;
+    ActorExtension* pExtension = GetExtension();
+    if (IsHeldOnGuest())
+    {
+        // Marked before the second look: SetActorCopy queues it once it reads the mark, or this sees the copy.
+        pExtension->Refused3D.store(true);
+        if (IsHeldOnGuest())
+            return true;
+    }
+    pExtension->Refused3D.store(false);
+    return false;
+}
+
+void Actor::FinishRefused3D() noexcept
+{
+    if (!GetExtension()->Refused3D.load())
+        return;
+    // A QueueReference while this job was out only changed its priority: queued again now its handle is gone (13067).
+    const uint32_t cFormId = formID;
+    World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
+    World::Get().GetRunner().Queue([cFormId] {
+        if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+            pActor->LoadRefused3D();
+    });
 }
 
 void Actor::LoadRefused3D() noexcept
 {
-    if (IsHeldOnGuest() || !GetExtension()->Refused3D.exchange(false))
+    if (IsHeldOnGuest() || !GetExtension()->Refused3D.load())
         return;
     // As Enable (19800): its cell loaded (TES::IsCellLoaded 13308), no 3D, then QueueReference (13057) at the cell's
     // priority (TES::GetCellLoadPriority 13321); a reference already queued only takes the priority.

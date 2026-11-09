@@ -119,3 +119,40 @@ SCENARIO("A guest's own player and the horse it rides keep their AI", "[copies][
     CHECK(guest.ActorHas3D(cHorse));
     CHECK(guest.ActorHas3D(FakeEngine::kPlayer));
 }
+
+// The host's save loads before a guest connects (join-flow.md): its NPCs have 3D as holding starts.
+SCENARIO("A guest joins with its own NPC already shown: it is hidden", "[copies][guest-own-npc]")
+{
+    Party party(1, RiaInTheSinkhole, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { guest.NpcWalks(kRia, kSmoke, kBesideParty); });
+    REQUIRE(guest.ActorHas3D(kRia));
+
+    party.Join(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the guest joins");
+    Settle(party);
+    CHECK_FALSE(guest.ActorHas3D(kRia));
+    party.Agree("the games agree: nobody shows Ria");
+}
+
+// QueueReference (13057) of a reference whose job is still out only changes its priority (codex, PR 45).
+SCENARIO("The host's spawn lands while the guest's refused load is still out", "[copies][guest-own-npc]")
+{
+    Party party(1, RiaInTheSinkhole);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] {
+        guest.LoadsHeld = true;
+        guest.Actors.at(kRia).Cell = kSmoke;
+        guest.Load3D(kRia);
+    });
+    party.As(party.Host(), [&] { host.NpcWalks(kRia, kSmoke, kBesideParty); });
+    party.Until([&] { return guest.IsActorCopy(kRia); }, "the guest's Ria is the host's copy");
+    CHECK(guest.Actors.at(kRia).LoadQueued);
+    CHECK_FALSE(guest.ActorHas3D(kRia));
+
+    guest.LoadsHeld = false;
+    party.Until([&] { return guest.ActorHas3D(kRia); }, "the guest's Ria is loaded once her refused job ends");
+    party.Agree("the games agree on Ria");
+}

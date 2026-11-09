@@ -139,6 +139,17 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
+    // Refused load jobs end (QueuedReference::Finish, HookFinishLoad3D).
+    if (!LoadsHeld)
+        for (auto& [cId, actor] : Actors)
+            if (std::exchange(actor.LoadQueued, false) && actor.Refused3D)
+            {
+                World::Get().GetRunner().Trigger(NpcHeldEvent{cId});
+                World::Get().GetRunner().Queue([this, cId] {
+                    if (Actors.contains(cId))
+                        LoadRefused3D(cId);
+                });
+            }
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -411,10 +422,17 @@ void FakeEngine::Load3D(uint32_t aFormId)
     auto& actor = Actors.at(aFormId);
     actor.Refused3D = HeldOnGuest(aFormId);
     actor.Loaded = !actor.Refused3D;
-    if (actor.Refused3D)
-        World::Get().GetRunner().Trigger(NpcHeldEvent{aFormId});
-    else
+    // A refused job ends in Frame (QueuedReference::Finish: NpcHeldEvent); a load at once, as the services see it.
+    actor.LoadQueued = actor.Refused3D;
+    if (!actor.Refused3D)
         World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+}
+
+void FakeEngine::LoadRefused3D(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    if (!HeldOnGuest(aFormId) && actor.Refused3D && !actor.LoadQueued)
+        Load3D(aFormId);
 }
 
 bool FakeEngine::HeldOnGuest(uint32_t aFormId) const noexcept
@@ -537,12 +555,7 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
             it->second.OwnerCombatTarget = 0;
             it->second.ClaimedIn = HoldSession;
         }
-        // SkyrimBridge::SetActorCopy: its refused 3D queued once it is not held (Actor::LoadRefused3D).
-        if (it->second.Refused3D && !HeldOnGuest(aFormId))
-            World::Get().GetRunner().Queue([this, aFormId] {
-                if (Actors.contains(aFormId) && Actors.at(aFormId).Refused3D && !HeldOnGuest(aFormId))
-                    Load3D(aFormId);
-            });
+        LoadRefused3D(aFormId); // SkyrimBridge::SetActorCopy
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;
