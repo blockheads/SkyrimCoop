@@ -11,6 +11,7 @@
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostConversation.h>
 #include <Services/Host/HostNetwork.h>
+#include <Services/SaveNames.h>
 #include <Services/TransportService.h>
 #include <World.h>
 
@@ -27,6 +28,7 @@ void HostService::LoadSave(const std::string& acName) noexcept
     if (!IsHosting() || m_loadingSave || m_checkpoint)
         return;
     m_checkpoint = m_world.ctx().at<IJoinBridge&>().ReadSave(acName);
+    m_checkpointCharacter = SaveNames::CharacterId(acName);
     if (!m_checkpoint)
     {
         m_dispatcher.trigger(SessionNoticeEvent{kChosenMissing});
@@ -44,7 +46,14 @@ void HostService::UpdateReload() noexcept
     {
         m_readCheckpoint = true;
         if (!m_checkpoint)
-            m_checkpoint = m_world.ctx().at<IJoinBridge&>().PreviousSave();
+        {
+            auto& bridge = m_world.ctx().at<IJoinBridge&>();
+            if (const auto cName = bridge.PreviousSave())
+            {
+                m_checkpoint = bridge.ReadSave(*cName);
+                m_checkpointCharacter = SaveNames::CharacterId(*cName);
+            }
+        }
         if (!m_checkpoint)
         {
             m_pAuthority->FailReload(kNoSave);
@@ -65,6 +74,8 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
     if (!IsHosting() || !m_reloadRequested)
         return;
+    // The scratch save's name carries no character: the checkpoint's own again, for the next wipe and its saves.
+    m_world.ctx().at<IJoinBridge&>().SetCharacter(m_checkpointCharacter);
     m_pConversation.reset();
     m_pAuthority.reset();
     m_pAggro.reset();
