@@ -288,6 +288,17 @@ animation interpolation for distant actors, read in IDA:
   `CharacterService` each send round, cleared when it stops being owned). Under the party tether every guest is where
   the host is, so the host's synced NPCs are the ones whose copies are watched. The cost is the host's animation LOD
   for them.
+- **Measured cost (2026-11-08, duo, host standing at `WhiterunOrigin`, 29-31 synced NPCs):** five 45 s windows on one
+  duo with `profile --stacks`. Each switch was a cog swap; the unforced build cleared the flag.
+  - Job-thread time under `HookUpdateAnimationGraphs`: 59 and 22 ms/s unforced, against 158, 146 and 178 ms/s forced.
+    That's about 120 ms/s more, 0.12 of a core, about 4 ms/s per NPC.
+  - The six job threads stayed 80-85% idle either way.
+  - Frame time p50 17.9 and 17.1 ms unforced, against 17.6, 18.6 and 18.5 forced. p95 was 32.5-34.3 throughout.
+  - One forced window had 9 engine-side stalls (our update about 1 ms in each). They didn't come back in the next forced
+    window.
+  - So the cost is in the noise of a busy town's frame time on this machine (28 threads). A weaker CPU, or many more
+    synced NPCs, would show it first.
+  - The narrower option, if needed: force only owners whose copies are near some guest's camera.
 
 ### Actions spaced on the copy's graph time (2026-11-08)
 

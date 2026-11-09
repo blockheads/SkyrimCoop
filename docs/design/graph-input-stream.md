@@ -39,7 +39,8 @@ CharacterService's send round (10/s; 30/s in a fight) -> GraphOpsRequest { sessi
   ones only (u16 index, u32 word), never quantized. Compression is lossless only (below).
 - **Owner time:** each update op's tick is the first update's tick plus the steps before it, so the copy can place every
   op on its playback clock.
-- **Already true:** owners update every frame (`SetGraphUpdatedEveryFrame`), so their steps are the frame's.
+- **Already true:** owners update every frame (`SetGraphUpdatedEveryFrame`), so their steps are the frame's. Cost: about
+  4 ms/s of job-thread time per NPC, with no measurable frame-time change in Whiterun (animation-replay-recovery.md).
 
 ## Transport
 
