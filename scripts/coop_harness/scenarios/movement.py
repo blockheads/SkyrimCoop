@@ -137,6 +137,36 @@ def scenario_sneaking_players_stay_hidden(ctx):
         ctx.sneak("client", False)
 
 
+
+def scenario_other_player_looking_leaves_eye_hidden(ctx):
+    """One player sneaks, the other stands and turns to face it: in the sneaker's game the other player's copy answers
+    its detection of the player unseen (ActorKnowledge 42704 installs a pass, docs/re/systems/stealth.md), and the eye
+    (41408) stays hidden. A skipped pass left the copy's request queued, its older level shown at any age."""
+    def copy_in(instance):
+        return ctx.other_player((ctx.game(instance).read_status() or {}).get("actors") or {})
+    for sneaker, looker in (("", "client"), ("client", "")):
+        name = sneaker or "host"
+        copy, sneaker_copy = copy_in(sneaker), copy_in(looker)
+        if not copy or not sneaker_copy:
+            raise ctx.failure(f"[{name}] no copy of the other player to watch")
+        try:
+            ctx.sneak(sneaker, True)
+            ctx.sneak(looker, False)
+            ctx.face(looker, sneaker_copy)
+            known = {}
+            def answered():
+                known.update(ctx.player_command(sneaker, {"cmd": "crime", "action": "knowledge", "actor": copy, "target": 0x14}))
+                return known.get("level") == -1000 and known.get("age", 99) < 2
+            frame = ctx.game_frame(sneaker)
+            ctx.wait_for(f"[{name}] 120 frames sneaking, watched", lambda: ctx.game_frame(sneaker) > frame + 120, 10)
+            ctx.wait_for(f"[{name}] the other player's copy answers its detection of the player unseen, freshly",
+                         answered, 5, explain=lambda: f"its knowledge: {known}")
+            if (eye := ctx.player_command(sneaker, {"cmd": "crime", "action": "stealth_meter"})["level"]) >= 0:
+                raise ctx.failure(f"[{name}] the sneaking player's eye shows detected ({eye}) with the other player looking")
+        finally:
+            ctx.sneak(sneaker, False)
+
+
 # The locomotion graph's floats: the synced ones (Master_Behavior's) and what the graph damps from them.
 LOCOMOTION = ("Direction", "DirectionDamped", "Speed", "SpeedSampled", "SpeedDamped", "TurnDelta")
 

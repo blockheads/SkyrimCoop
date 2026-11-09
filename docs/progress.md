@@ -49,6 +49,12 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md)). Read in IDA:
+`HookUpdateDetectionState` (42704) skipped the copy's pass, which left its request queued for good, and 42702 answers a
+queued knowledge's state at any age, so a level installed before stayed. Measured on the duo the copy held none
+(standing and sneaking, both games). The hook now installs an unseen pass (`DetectionRules`). Tests:
+`detection_rules_tests.cpp`, GameTests `[stealth]`, scenario `other-player-looking-leaves-eye-hidden`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

@@ -66,7 +66,10 @@ struct DetectionState
 {
     uint8_t pad0[0x10];
     int32_t Level;
-    uint8_t pad14[0x38 - 0x14];
+    bool LineOfSight; // CommonLib hasLOS
+    bool Seen;        // counted by the HUD's highest detection (41408)
+    uint8_t Unk16;
+    uint8_t pad17[0x38 - 0x17];
     float UpdatedAt; // elapsed time (404125) of the last detection pass
 };
 struct ActorKnowledge
@@ -101,6 +104,9 @@ static_assert(offsetof(DataHandler, Factions) == 0x118);
 static_assert(offsetof(ContainerMenu, StealValue) == 0xB0);
 static_assert(offsetof(LockpickMenu, Reported) == 0x10D);
 static_assert(offsetof(DetectionState, Level) == 0x10);
+static_assert(offsetof(DetectionState, LineOfSight) == 0x14);
+static_assert(offsetof(DetectionState, Seen) == 0x15);
+static_assert(offsetof(DetectionState, Unk16) == 0x16);
 static_assert(offsetof(DetectionState, UpdatedAt) == 0x38);
 static_assert(offsetof(ActorKnowledge, Target) == 0x14);
 static_assert(offsetof(ActorKnowledge, State) == 0x20);

@@ -1,0 +1,21 @@
+time	op	id	rva	item
+2026-11-09T05:11:14Z	read	41408	0x786350	{"name": "ProcessLists::RequestHighestDetectionLevelAgainstActor"}
+2026-11-09T05:11:15Z	read	42704	0x7c3fc0	{"name": "ActorKnowledge::sub_42704"}
+2026-11-09T05:11:26Z	read	42742	0x7c5220	{"name": "DoDetectionJob"}
+2026-11-09T05:12:19Z	read	37758	0x6a2300	{"name": "Character::sub_37758"}
+2026-11-09T05:12:27Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-09T05:13:08Z	name	42704	0x7c3fc0	{"addr": "0x1407c3fc0", "name": "ActorKnowledge__SetDetectionState"}
+2026-11-09T05:13:08Z	name	37758	0x6a2300	{"addr": "0x1406a2300", "name": "Actor__GetFreshDetectionStateOf"}
+2026-11-09T05:13:08Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__QueueStateChanged"}
+2026-11-09T05:13:16Z	comment	42704	0x7c3fc0	{"addr": "0x1407c3fc0", "comment": "Replaces the knowledge's DetectionState (+0x20) and clears RequestedAt (+0x44 = -FLT_MAX). Skipping it leaves the request queued forever: 42712 never re-queues and 42702 returns the old state at any age (coop HookUpdateDetectionState, stealth.md)"}
+2026-11-09T05:13:16Z	comment		0x7569b7	{"addr": "0x1407569b7", "comment": "HUD stealth eye: in combat 100 - combat search; else highest detection of the player (41408), >0 shown as 100. Sneak XP while someone sees (state +0x15) and the player moves"}
+2026-11-09T05:13:16Z	comment		0x7c58e3	{"addr": "0x1407c58e3", "comment": "the computed level (-1000 when skipped), LOS seen (+0x15), into the pooled state; 42704 installs it on the knowledge"}
+2026-11-09T05:13:16Z	comment	42760	0x7c6600	{"addr": "0x1407c6600", "comment": "DetectionState: +0x10 level, +0x14 ?, +0x15 seen (counted by 41408), +0x16, +0x18 time seen, +0x28 time detected, +0x38 UpdatedAt"}
+2026-11-09T05:13:16Z	comment		0x7c3ed3	{"addr": "0x1407c3ed3", "comment": "an update is queued (+0x44 set): the state is returned as-is, whatever its age"}
+2026-11-09T05:13:28Z	name	40593	0x756950	{"addr": "0x140756950", "name": "PlayerCharacter__UpdateStealthMeter"}
+2026-11-09T05:13:29Z	comment	40593	0x756950	{"addr": "0x140756950", "comment": "HUD stealth eye (40593): in combat 100 - combat search; else highest detection of the player (41408), >0 shown as 100. Sneak XP while someone sees (state +0x15) and the player moves"}
+2026-11-09T05:13:29Z	comment		0x7569b7	{"addr": "0x1407569b7", "comment": "the eye's level: any high actor's fresh state of the player, the other player's copy included"}
+2026-11-09T05:13:38Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__AddToGlobalList"}
+2026-11-09T05:33:54Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__QueueForListeners"}
+2026-11-09T05:33:56Z	comment	42760	0x7c6600	{"addr": "0x1407c6600", "comment": "DetectionState: +0x10 level, +0x14 hasLOS, +0x15 seen (counted by 41408; gates +0x18 time/+0x1C place seen), +0x16, +0x28/+0x2C time/place detected (level > 0), +0x38 UpdatedAt (every pass)"}
+2026-11-09T05:33:56Z	comment	42715	0x7c4750	{"addr": "0x1407c4750", "comment": "adds the knowledge (once) to a global list when it has listeners (+0x38 count): called by 42704 after a new state"}

@@ -121,7 +121,6 @@ other section needs the duo.
 - [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
 - [Black faces after a new area](#black-faces-after-a-new-area): small
 - [A guest's pickpocket](#a-guests-pickpocket): medium
-- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Test tools**
@@ -1120,22 +1119,6 @@ Size: small. Needs: GameTests, duo to see it.
   the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
   players' copies; whose faces the user saw is to be asked.
   - Test: GameTests, a copy's 3D rebuilt paints its face again.
-
-### The sneak eye with the other player looking
-
-S6 of 2026-10-31 again.
-
-Agent task: Make the other player's copy never raise the local player's stealth eye.
-
-Size: small. Needs: duo, IDA.
-
-- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you").
-  S6 (`playtests/2026-10-31-fabien.md`) did not reproduce on 2026-11-01 with both sneaking face to face:
-  `HookUpdateDetectionState` (42704) skips a player copy's detection of the local player. New here: the other player
-  looking at you (maybe standing). Read in code: the hook skips the update but keeps the knowledge entry, so a level
-  set before could stay (inferred). Nothing in the logs.
-  - Start: what the eye reads (41408, `stealth_meter`) with the other player looking, standing and sneaking.
-  - Test: a scenario: the local player sneaks, nobody else near, the other player turns to face it.
 
 ### A guest crash at the main menu
 

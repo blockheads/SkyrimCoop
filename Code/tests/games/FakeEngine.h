@@ -24,6 +24,7 @@
 #include <Games/HitVisualsRules.h>
 #include <MainLoopTasks.h>
 #include <Games/Skyrim/HitRules.h>
+#include <Games/Skyrim/DetectionRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <ItemIds.h>
@@ -870,6 +871,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
     // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
     bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
+    // Detection of the player (docs/re/systems/stealth.md): each witness's knowledge, answered by a later pass.
+    // Skyrim: a request is queued (42712, once); the pass installs a state and clears it (42704, HookUpdateDetectionState
+    // follows DetectionRules); while one is queued, 42702 returns the state at any age.
+    struct WitnessKnowledge
+    {
+        std::optional<DetectionRules::Pass> State;
+        uint32_t UpdatedAt = 0; // DetectionFrame of its pass
+        bool Queued = false;
+    };
+    std::map<uint32_t, WitnessKnowledge> KnowledgeOfPlayer; // by witness
+    std::map<uint32_t, int32_t> Sees;                      // what a witness's pass computes of the player (CalculateDetection)
+    uint32_t DetectionFrame = 0;
+    // The witness judged the player in a pass already installed (a copy before its flags, as after a cog swap).
+    void JudgedPlayer(uint32_t aWitness, int32_t aLevel);
+    // The HUD's eye: the highest fresh detection of the player among loaded actors (40593 through 41408).
+    int32_t StealthEye();
+    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
+    void DetectionPass(); // DoDetectionJob 42742: each queued request answered
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
