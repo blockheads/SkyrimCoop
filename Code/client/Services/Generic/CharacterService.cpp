@@ -18,6 +18,7 @@
 #include <Events/DismountEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
+#include <Events/ActorHeadUpdateEvent.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
@@ -106,6 +107,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerLevel, &CharacterService::OnPlayerLevel>(m_connections, m_dispatcher, this);
     Listen<PlayerLooksChangeEvent, &CharacterService::OnPlayerLooksChange>(m_connections, m_dispatcher, this);
+    Listen<ActorHeadUpdateEvent, &CharacterService::OnActorHeadUpdate>(m_connections, m_dispatcher, this);
     Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
 
     Listen<DialogueEvent, &CharacterService::OnDialogueEvent>(m_connections, m_dispatcher, this);
@@ -419,6 +421,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
             actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags, acMessage.Weight);
             m_actorBridge.SetupActorFaceGen(actorFormId);
             FaceGenSystem::Setup(m_world, *entity, acMessage.FaceTints);
+            PaintFace(*entity, actorFormId);
         }
     }
     else
@@ -505,6 +508,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         // (docs/design/copy-contract.md, "Players' copies").
         m_actorBridge.SetActorPersistent(actorFormId);
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
+        m_actorBridge.SetActorNotOnStealthMeter(actorFormId, true); // never a witness on this player's eye (stealth.md)
         m_actorBridge.SetActorPlayerFaction(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
         SetCopyLevel(actorFormId, acMessage.PlayerId);
@@ -870,6 +874,7 @@ void CharacterService::ApplyPendingLooks() noexcept
             {
                 m_world.remove<FaceGenComponent>(cEntity);
                 FaceGenSystem::Setup(m_world, cEntity, cLooks.FaceTints);
+                PaintFace(cEntity, cFormId);
                 if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
                     SetCopyLevel(cFormId, cpPlayer->Id);
             }
@@ -904,6 +909,22 @@ void CharacterService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) const n
     for (auto&& [cEntity, form, player, copy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
         if (player.Id == acMessage.PlayerId)
             m_actorBridge.SetActorBaseLevel(form.Id, acMessage.NewLevel);
+}
+
+void CharacterService::PaintFace(entt::entity aEntity, uint32_t aFormId) noexcept
+{
+    auto* pFace = m_world.try_get<FaceGenComponent>(aEntity);
+    if (!pFace || (pFace->Painted && m_actorBridge.IsActorFacePainted(aFormId)))
+        return;
+    pFace->Painted = m_actorBridge.PaintActorFace(aFormId, pFace->FaceTints);
+    pFace->Paints += pFace->Painted;
+}
+
+void CharacterService::OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept
+{
+    for (auto&& [cEntity, form, face] : m_world.view<FormIdComponent, FaceGenComponent>().each())
+        if (form.Id == acEvent.FormId)
+            PaintFace(cEntity, form.Id);
 }
 
 void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
@@ -1643,14 +1664,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
     }
 
-    auto facegenView = m_world.view<FormIdComponent, FaceGenComponent>();
-
-    for (auto entity : facegenView)
-    {
-        auto& formIdComponent = facegenView.get<FormIdComponent>(entity);
-
-        m_actorBridge.ActorUpdateFaceGen(formIdComponent.Id);
-    }
 
     auto waitingView = m_world.view<FormIdComponent, WaitingFor3D>();
 

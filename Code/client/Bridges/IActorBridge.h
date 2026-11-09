@@ -219,6 +219,8 @@ public:
 
     // --- Player actor properties ---
     virtual void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept = 0;
+    // Left out of this game's player's stealth eye (another player's copy), as MQ201 leaves its allies.
+    virtual void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept = 0;
     virtual void SetActorPlayerFaction(uint32_t aFormId) noexcept = 0;
     virtual void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept = 0;
     virtual uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept = 0;
@@ -286,8 +288,11 @@ public:
     virtual void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept = 0;
     /// Run animation update for a remote actor.
     virtual void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept = 0;
-    /// Run facegen update for a remote actor.
-    virtual void ActorUpdateFaceGen(uint32_t aFormId) noexcept = 0;
+    /// Whether the actor's head shows face tints this game painted; a head built again (a new area, TESNPC::BuildHead
+    /// 24731) shows its base's FaceTint file instead.
+    virtual bool IsActorFacePainted(uint32_t aFormId) const noexcept = 0;
+    /// Paints the tints on the actor's head (FaceGenSystem); true if it now shows them.
+    virtual bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept = 0;
 
     // --- Effect visuals: what a magic effect shows on its target (burning, frost, a glow) ---
     // Whether that magic effect shows on its target while it runs (a hit shader or hit art, FX Persist).

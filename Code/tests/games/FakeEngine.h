@@ -24,6 +24,7 @@
 #include <Games/HitVisualsRules.h>
 #include <MainLoopTasks.h>
 #include <Games/Skyrim/HitRules.h>
+#include <Games/Skyrim/DetectionRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <ItemIds.h>
@@ -207,8 +208,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ApplySystemQuests(std::string_view aState);
     // A registration of a system quest's instance fires (its event, as the VM sends it: this game's own).
     void FiresQuestTimer(uint32_t aQuest, const std::string& acFunction);
-    // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued; copies are drawn,
-    // then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
+    // One frame: the shake wears off, knocked-down ragdolls come to rest, heads are built, the VM runs what is queued;
+    // copies are drawn, then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
     void Frame();
 
     // A world reference (every game has the same load order: a form id is the same everywhere).
@@ -341,6 +342,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // recorded, the item raised as an inventory change); a guest's asks the host first for one the host decides
     // (ItemPickUpEvent).
     void PicksUp(uint32_t aObject);
+    // The player sneaks and takes one aItem from aVictim's pockets (ContainerMenu 51141 in pickpocket mode). Caught
+    // (AttemptPickpocket 40654): PickpocketAlarm (37423) with no item and count 0, nothing moves. Taken: the victim's
+    // RemoveItem (kSteal) to the player, a guest's proposed to the host instead (ContainerTransfers).
+    void Pickpockets(uint32_t aVictim, uint32_t aItem, bool aCaught);
     // The host's game makes a loose item where the placement says (HostGame::CreateItem): none while that cell is not
     // loaded here, an empty id for a missing form. And takes one out of its world (HostGame::TakeItem).
     std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell);
@@ -500,8 +505,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
+        bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        bool HeadBuilt = false;         // its head is built: the frame its 3D is there (TESNPC::UpdateHeadState 24724)
+        std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
         WeaponState Weapon = WeaponState::Sheathed;
@@ -904,6 +912,31 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
     // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
     bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
+    // Detection of the player (stealth.md): a request queued once (42712), a pass installs and clears it (42704,
+    // DetectionRules); while queued, 42702 answers the state at any age.
+    struct WitnessKnowledge
+    {
+        std::optional<DetectionRules::Pass> State;
+        uint32_t UpdatedAt = 0; // DetectionFrame of its pass
+        bool Queued = false;
+    };
+    std::map<uint32_t, WitnessKnowledge> KnowledgeOfPlayer; // by witness
+    std::map<uint32_t, int32_t> Sees;                      // what a witness's pass computes of the player (CalculateDetection)
+    uint32_t DetectionFrame = 0;
+    // The witness judged the player in a pass already installed (a copy before its flags, as after a cog swap).
+    void JudgedPlayer(uint32_t aWitness, int32_t aLevel);
+    // Actor__ForceDetected (37765): the player talked to the witness, a conversation with it ended, or an alarm: level
+    // 100 through 42705, which keeps a queued request (no pass, no hook of ours).
+    void ForcesDetected(uint32_t aWitness);
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.NotOnStealthMeter = aNotShown;
+    }
+    // The HUD's eye: the highest fresh detection of the player among loaded actors (40593 through 41408).
+    int32_t StealthEye();
+    [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
+    void DetectionPass(); // DoDetectionJob 42742: each queued request answered
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
@@ -1001,8 +1034,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic);
     // Actor::Set3D(null) (37178) on an NPC: RevertSelectedSpell (38768) clears each hand, selected and held.
     void RevertSelectedSpells(uint32_t aFormId);
-    // Its 3D unloads where it stands (Loaded off, hands cleared); Loaded = true loads it again.
+    // Its 3D unloads where it stands (Loaded off, hands cleared, head gone); Loaded = true loads it again.
     void Unload3D(uint32_t aFormId);
+    // Its head goes with its 3D: the next is built again from its base (TESNPC::BuildHead 24731), unpainted.
+    void DropHead(uint32_t aFormId);
+    // Each actor whose 3D is there and has no head gets one, raised as the hook on 24724 does.
+    void BuildHeads();
+    bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
+    bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.
     [[nodiscard]] bool RagdollPosed(uint32_t aFormId) const noexcept;
 

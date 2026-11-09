@@ -112,6 +112,7 @@ public:
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
     void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept override;
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override;
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override;
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
@@ -143,7 +144,8 @@ public:
     void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override;
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
-    void ActorUpdateFaceGen(uint32_t aFormId) noexcept override;
+    bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
+    bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;

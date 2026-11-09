@@ -50,6 +50,8 @@
 #include <Games/Skyrim/Misc/InventoryEntry.h>
 #include <Games/Skyrim/ExtraData/ExtraCount.h>
 #include <Games/Misc/ActorKnowledge.h>
+#include <Games/Skyrim/Crime.h>
+#include <Games/Skyrim/DetectionRules.h>
 
 #include <ExtraData/ExtraDataList.h>
 #include <ExtraData/ExtraCharge.h>
@@ -1366,29 +1368,24 @@ void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int
     RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
-using TUpdateDetectionState = void(ActorKnowledge*, void*);
+// ActorKnowledge::SetDetectionState (42704), the detection job's pass: another player's copy sees our player unseen.
+using TUpdateDetectionState = void(ActorKnowledge*, CrimeEngine::DetectionState*);
 static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
 
-void HookUpdateDetectionState(ActorKnowledge* apThis, void* apState)
+void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionState* apState)
 {
-    auto pOwner = TESObjectREFR::GetByHandle(apThis->hOwner);
-    auto pTarget = TESObjectREFR::GetByHandle(apThis->hTarget);
-
-    if (pOwner && pTarget)
+    auto* pWitness = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hOwner));
+    auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hTarget));
+    if (apState && pWitness && pTarget)
     {
-        auto pOwnerActor = Cast<Actor>(pOwner);
-        auto pTargetActor = Cast<Actor>(pTarget);
-        if (pOwnerActor && pTargetActor)
-        {
-            if (pOwnerActor->GetExtension()->IsOtherPlayer() && pTargetActor->GetExtension()->IsLocalPlayer())
-            {
-                spdlog::debug("Cancelling detection from remote player to local player, owner: {:X}, target: {:X}", pOwner->formID, pTarget->formID);
-                return;
-            }
-        }
+        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsOtherPlayer(), pTarget->GetExtension()->IsLocalPlayer(),
+                                                     {apState->Level, apState->LineOfSight, apState->Seen, apState->Unk16});
+        apState->Level = cPass.Level;
+        apState->LineOfSight = cPass.LineOfSight;
+        apState->Seen = cPass.Seen;
+        apState->Unk16 = cPass.Unk16;
     }
-
-    return RealUpdateDetectionState(apThis, apState);
+    RealUpdateDetectionState(apThis, apState);
 }
 
 struct DialogueItem;
