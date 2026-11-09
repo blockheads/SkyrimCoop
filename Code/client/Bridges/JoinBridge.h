@@ -23,7 +23,8 @@ public:
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
 
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
-    std::optional<SaveFiles> PreviousSave() noexcept override;
+    std::optional<std::string> PreviousSave() noexcept override;
+    void SetCharacter(uint32_t aCharacterId) noexcept override;
 
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;

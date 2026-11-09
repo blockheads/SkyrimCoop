@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: a party wipe right after a wipe reloads the host's own character. The engine takes a save's character id
+from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next wipe took the newest id-0 save
+(another character's); the host now gives the engine the checkpoint's character back after the load
+(`SetCurrentCharacter` 35751; save-game.md, "The character a save belongs to"). GameTests: two wipes in a row, a host
+load of another character's save; duo scenario `death-wipe-twice-keeps-character` (fails at wipe 1 without the fix:
+the host's id left 0). The guest's crash in that playtest's load is a stale form, not the save (bugs.md).
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

@@ -319,6 +319,42 @@ SCENARIO("A party wipe loads the previous host save and saved guest character", 
     party.Agree("the restored players have their own copies");
 }
 
+SCENARIO("Two party wipes in a row both reload the host's own character", "[death][join]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    const auto cSave = [&](const std::string& acName) {
+        party.As(party.Host(), [&] { (void)host.SaveNow(acName); });
+        party.Until([&] { return host.MadeSave.has_value(); }, "the host writes the save");
+        party.As(party.Host(), [&] { REQUIRE(host.SaveNow(acName).has_value()); });
+    };
+    // The 2026-11-08 Saves folder: another character's older save filed under id 0, then the host's own.
+    host.Player.Name = "Chris Cringle";
+    cSave("Save4_00000000_1_4368726973_RiftenWorld_000010_20261031195031_1_1");
+    host.Player.Name = "scrombonius";
+    cSave("Save9_ABC467A6_0_7363726F6D_RiverwoodWorld_000020_20261108211500_1_1");
+    host.CharacterId = 0xABC467A6; // as loading its save left it
+
+    for (size_t wipe = 1; wipe <= 2; ++wipe)
+    {
+        party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
+        party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+        party.Until([&] { return host.Loaded.size() == wipe && guest.Loaded.size() == wipe; }, "both games load the checkpoint");
+        party.Until([&] { return party.Host().GetTransport().IsOnline() && party.Guest().GetTransport().IsOnline() &&
+                                 !party.Guest().ctx().at<JoinService>().IsJoining(); },
+                    "the party rejoins in the restored world", {}, nullptr,
+                    std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
+        INFO("wipe " << wipe);
+        CHECK(host.Loaded.back() == "SkyrimCoopWipe");
+        CHECK(host.Player.Name == "scrombonius");
+        CHECK(host.CharacterId == 0xABC467A6);
+        CHECK(guest.Player.Name == "Lydia");
+        party.Agree("both players are present again");
+    }
+}
+
 SCENARIO("A party wipe without a checkpoint reports failure and never revives in place", "[death]")
 {
     Party party(1, Plugins);
