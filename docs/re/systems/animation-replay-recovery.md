@@ -376,6 +376,47 @@ What it established, and still holds:
 - Every linked class is in `hkBuiltinTypeRegistry::StaticLinkedClasses` (239939, 594 entries, null-terminated, read by
   `coop_hkBuiltinTypeRegistry_Init`): the stream finds a state's class there by name.
 - Members of the 28 `...InternalState` classes (types: Havok 2010 `hkClassMember::Type`): plain values (bool, int8-32,
-  real, vector4, quaternion, QsTransform), enums, and arrays of plain values or structs; pointers only in
-  `hkbStateMachineInternalState`'s and `hkbBehaviorGraphInternalState`'s, and `hkbBlendingTransitionEffect`'s pose.
+  real, vector4, quaternion, QsTransform), enums, and arrays of plain values or structs. Pointers only in a running
+  transition (`hkbStateMachineActiveTransitionInfo`: `transitionEffect`, `transitionEffectInternalStateInfo`) and in
+  `hkbBehaviorGraphInternalState`; `hkbBlendingTransitionEffect`'s pose is an array of QsTransforms.
+- Skyrim's BS nodes have no internal state class. Their runtime members are flagged `SERIALIZE_IGNORED` (0x400) in their
+  reflection: `BSTimerModifier::secondsElapsed`, `BSEventEveryNEventsModifier::numberOfEventsSeen`, the tweener's
+  `startTransform` and `time`, the look-at's `timeStep`.
+
+### A graph's whole state (read 2026-11-09)
+
+Havok saves and restores a whole behaviour graph itself; nothing in the game calls either.
+
+```
+getInternalState (58372): graph +0x98 active nodes (0x90 each: sync info 0x00-0x50, template +0x50, clone +0x58)
+  skip a node whose template answers vfunc 19 (59489: transition effects)
+  clone: createInternalState 13, getInternalState 14, getInternalStateUser 15 (graph, state)
+  -> hkbNodeInternalStateInfo (0x78): sync +0x10, name +0x60, state +0x68, node id +0x70, activated +0x72
+  then a copy of the variable set (+0x20)
+setInternalState (58373) (graph, context, state):
+  map node id -> info; variables copied from state +0x20 (58542; onto itself, nothing changes)
+  fresh active-node arrays (+0x98/+0xA0/+0xA8; the old ones are not freed: deactivate 58331 first); +0x12C = 1
+  updateActiveNodes (60079, its third argument the map) -> the walk 59318 -> per node 59326:
+    not active before: CopyVariablesToMembers, Activate (4), then with a map entry for its id:
+      setInternalState (16), setInternalStateUser (17: context, state, map); the entry's sync and byte to its node info
+    its active children (getChildren 9, FLAG_ACTIVE_ONLY) read after that, so restored states pick them
+```
+
+- **Running transitions** (`hkbStateMachine`): getInternalStateUser (59342) stores each effect's own state and node info
+  in `activeTransitions[i].transitionEffectInternalStateInfo`; setInternalStateUser (59343) clones the effect named by
+  `transitionInfoReferenceForTE` (a state's transitions +0x50 or the machine's wildcards +0xA0, 0x48 each, effect at
+  +0x20), gives it a new id (58370) and puts that state in the map under it. The machine's state owns those infos (59350
+  releases them).
+- **Node ids:** setNodeIds (58369) numbers every node under the root generator in walk order (59317, nested behaviours
+  included), the same on every game for the same files; only transition-effect clones take new ids (58370).
+- **Nested behaviours** are nodes of the root graph's walk: `hkbBehaviorReferenceGenerator`'s child is its graph
+  (59237), a graph's child its root generator (58332), and a nested graph's own activate and deactivate do nothing while
+  the context names a behaviour (58328, 58331). The root graph's state holds them all.
+- **Variables:** deactivate (58331) releases the variable set unless the graph keeps it when inactive (+0x48).
+- **Skyrim's restore cannot follow it:** `SaveDataRestoreFunctor` (65149, walker 65232) ends every running transition
+  of a machine it has data for and restarts it, only a blending effect's times restored (65164); a machine without data
+  goes to its start state. Its other parts set the BS nodes' runtime members (65160: a node's own vfunc 26).
+- **Clip files:** `AIProcess::QueryActionAndLoadClips` (39625) loads an action's clips with `coop_LoadEventClips`
+  (43621: event, actor, set 3, ...); `IMovementSelectIdle` and one more caller load other sets.
+- Used by the graph input stream's sync point (`Havok/GraphInternalState.cpp`, docs/design/graph-input-stream.md).
 

@@ -517,11 +517,9 @@ struct GraphSyncPoint
     uint32_t Id{};
     uint32_t Update{};  // its updates so far: the ops from this update index on follow it
     uint64_t Tick{};    // the owner's frame tick then
-    std::string State;  // SaveState (63601)
+    std::string State;  // its whole graph (Skyrim: Havok's internal state, Games/Animation/GraphState.h)
     std::vector<uint32_t> Words; // its variables, exact
     GraphSeed Seed{};
-    std::string Counters; // its every-N counters (GraphRandom::Pack): node memory SaveState leaves out
-    std::string Memory;   // its active modifiers' internal states (NodeMemory): the rest of it
-    int32_t ClipEvent = -1; // its last event: its process holds that action's clip files, which clips after it play
+    int32_t ClipEvent = -1; // the event whose clip files its process holds (its last action's): clips after it play them
 };
 } // namespace Payloads

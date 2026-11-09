@@ -56,7 +56,7 @@ CharacterService's send round (10/s; 30/s in a fight) -> GraphOpsRequest { sessi
 ```
 main thread (CharacterService): GraphOpsNotify -> the copy's queue (RemoteAnimationComponent)
 copy's graph update (63587 hook, its animation job):
-  if no start yet: wait for a sync point (GraphSyncPointNotify), load it (LoadState + seed + counters + node memory)
+  if no start yet: wait for a sync point (GraphSyncPointNotify), load it (Havok's setInternalState 58373 + seed)
   due = queued ops whose owner tick <= playback tick (events: with the update after them)
   for each due op:
     write every variable that differs from the op's, and the seed
@@ -77,13 +77,12 @@ A copy needs one to start, and after any gap or exception.
 
 ```
 copy: GraphSyncRequest(session id)  ->  owner, after its next update:
-  GraphSyncPointNotify { update index, graph state (SaveState 63601), seed, every-N counters,
-                         node memory of active modifiers (getInternalState, slot 0E) }
+  GraphSyncPointNotify { update index, the whole graph (Havok's getInternalState 58372, below), its words, seed,
+                         the event whose clip files its process holds }
 ```
 
-- **Node memory over the wire:** each internal state is a small Havok object described by its `hkClassMember` list
-  (static in `.rdata`, read by the clone audit); one reflection-driven writer and reader serializes any class.
-  Phase 2: the network proof passed without it (a modifier active at the sync point is rare to decide differently).
+- **The whole graph over the wire:** each active node's internal state is a small Havok object described by its
+  `hkClassMember` list; one reflection-driven writer and reader serializes any class (A graph's whole state, below).
 - **Spawn:** the copy's spawn message carries the owner's graph state today; it becomes a sync point request at spawn.
 
 ## Exceptions: the copy's own body
@@ -236,37 +235,47 @@ The live check (`graph_stream_check`, 120 s, every streamed copy in Riverwood), 
   stops recording a dead actor.
 - Not done yet: the live check in the wolf and a humanoid scenario (combined runs), then PR #38 out of draft.
 
-## Node memory in sync points (phase 2, 2026-11-09)
+## A graph's whole state in sync points (2026-11-09)
+
+Havok saves and restores a whole behaviour graph itself; the game never calls it (read in IDA,
+docs/re/systems/animation-replay-recovery.md, A graph's whole state):
 
 ```
-owner, the update a copy asked at: each active node whose internal state holds no pointer
-  state class = "<node class>InternalState" in hkBuiltinTypeRegistry::StaticLinkedClasses (239939, 594 hkClass*;
-                a state object's own getClassType, vtable 1, returns 0)
-  CreateInternalState (0D), GetInternalState (0E) -> NodeMemory::Write over the class's members -> Release (vtable 0)
-  point.Memory = [key "<behaviour>/<node id>", state class, bytes]...
-copy, after LoadGraphPoint (whose activation reset its nodes): the same key and class
-  CreateInternalState, GetInternalState (its arrays sized by its own node) -> NodeMemory::Read -> SetInternalState (10)
+owner, the update a copy asked at: hkbBehaviorGraph::getInternalState (58372)
+  per active node but transition effects: createInternalState (0D), getInternalState (0E), getInternalStateUser (0F)
+  into an hkbNodeInternalStateInfo { sync info, node id, activated, state }
+  -> GraphState::Node { id, check (class and name), sync, activated, state bytes (NodeMemory), runtime bytes }
+copy: its graph deactivated (58331), its variable set kept, the owner's words in it
+  hkbBehaviorGraph::setInternalState (58373): a map node id -> info, then updateActiveNodes with it (60079)
+    per node as it activates (59326): Activate, setInternalState (10), setInternalStateUser (11), then its children,
+    read from its restored state: a machine's restored state, a blender's restored active children
+  then each BS node's runtime members onto its new clone
 ```
 
-- **One reader for every class** (`Games/Animation/NodeMemory.h`, ClientTests `[node-memory]`): Havok 2010's
-  `hkClassMember` list (type +0x18, subtype +0x19, offset +0x1E): plain values, enums, inline arrays, structs and
-  `hkArray`s of them. An array is applied only if the copy's has the same count; nothing is allocated in Havok's heap.
-- **What it carries** (read: every `...InternalState` class's members): clips' times and echoes, and every
-  modifier's memory (range modifiers' last ranges, damping, timers, look-at). Left out: state machines' (their active
-  transitions point at nodes; the graph state holds their states), the behaviour graph's own, and generators with
-  children: a blender's or selector's state says which children are active, and given another graph's it crashed the
-  copy's generate (a blender's child never activated: 60039, duo 2026-11-09).
-- **Its weight:** 4-12 nodes a point, a few hundred bytes, once per copy start.
+- **One reader for every class** (`Games/Animation/NodeMemory.h`, ClientTests `[node-memory]`): plain values, enums,
+  inline arrays, structs and `hkArray`s of them; a new state's arrays are sized in Havok's heap (57048). A running
+  transition's effect (`hkbStateMachineActiveTransitionInfo`) is remade by its machine (59343); its effect's own state
+  travels inside the machine's and is restored onto the new clone.
+- **Node ids** are numbered from the same behaviour files alike (setNodeIds 58369); each node also carries a check of
+  its class and name, and a copy skips a node whose template differs.
+- **BS nodes** have no internal state: their runtime members (`SERIALIZE_IGNORED`, 0x400: a timer's elapsed time, an
+  every-N modifier's counts, a tweener's start) are carried by reflection. Skyrim's own restore (65149's functor) cannot
+  follow Havok's: it ends every running transition and restarts it approximately (65164).
+- **The codec** (`Games/Animation/GraphState.h`, ClientTests `[graph-state]`): sync info as its used points and times.
+- **Clip files:** the point names the event whose clips its owner's process loaded last into its action set
+  (`coop_LoadEventClips` 43621, set 3), not its graph's last event (`IdleStop` loads nothing).
+- **The fake** (GameTests): a blender choosing its child as it activates, which Skyrim's save leaves out, and one action
+  clip set per process; its sync point is its whole graph through the same codec.
 
 ## Scenario runs with the live check (2026-11-09)
 
 | run | first difference | cause | now |
 |---|---|---|---|
 | wolf scenario | a mudcrab's copy, 3 updates in: no state at all | its graph replaced after its stream started (its 3D) | a new graph on either side restarts the stream from a new sync point (GameTests flows, ClientTests) |
-| wolf scenario | the guest crashed in a blender's generate (60039) | another graph's blender state (which children are active) applied | generators with children take their times only, if their structure is already the owner's (ClientTests) |
-| both | humanoid copies in a turn their owners had left, from their start | the save leaves out machines at their start state (65148); the guest's AI ran the NPC before it became a copy, so its graph was not fresh | the copy's behaviour graph is deactivated and activated (its owner's variables written first), then the point loads, as into a fresh graph |
-| town | 1A684 at 386, then 441 updates: a counter clip "(no file)" | its owner's process held its last action's clip set, loaded before the copy's start | the point loads the clips of its owner's last event: not enough, it must be the last action's (open) |
-| wolf scenario | Faendal at his first update: one of a turn blender's two clips missing | after the fresh activation the blender chose its own active children; the structure check then refused its owner's state | open: Havok's own behaviour graph internal state restore (`getInternalState` 58372, the restore map of 59326) sets every node's state and activates nodes by it |
+| wolf scenario | the guest crashed in a blender's generate (60039) | another graph's blender state (which children are active) applied | superseded: Havok's restore activates each generator's children from its own restored state |
+| both | humanoid copies in a turn their owners had left, from their start | the save leaves out machines at their start state (65148); the guest's AI ran the NPC before it became a copy, so its graph was not fresh | the copy's behaviour graph is deactivated, then restored whole (A graph's whole state) |
+| town | 1A684 at 386, then 441 updates: a counter clip "(no file)" | its owner's process held its last action's clip set, loaded before the copy's start; the point named its graph's last event | the point names the event its owner's process loaded clips for (43621, set 3) (GameTests flow) |
+| wolf scenario | Faendal at his first update: one of a turn blender's two clips missing | after the fresh activation the blender chose its own active children | the whole graph through Havok's own restore (58372 / 58373), above (GameTests flow) |
 
 ## Phases
 
@@ -278,7 +287,7 @@ copy, after LoadGraphPoint (whose activation reset its nodes): the same key and 
    4. The Skyrim hooks (`Games/Skyrim/Havok/GraphStreamHooks.cpp`): done.
    5. The live check on the duo (`GraphStreamCheck`, verb `graph_stream_check`): built; it finds the copies apart
       soon after their sync point (Skyrim on the stream, below), which is phase 2.
-2. **Node memory serialization** in sync points.
+2. **The whole graph** in sync points (Havok's internal state).
 3. **Remove the old paths** for copies on the stream; movement drops graph variables.
 4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded).
 

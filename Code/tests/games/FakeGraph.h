@@ -32,8 +32,18 @@ struct FakeGraphRules
         std::string Above;
         std::string Below;
     };
+    // A blender whose active child is chosen as it activates, from Integers[ChooseFrom], and kept while it stays
+    // active whatever the variable does (Faendal's turn blend and MT_TurnLeft360_Slow). Skyrim's graph save leaves the
+    // choice out; Havok's internal state holds it (hkbBlenderGeneratorInternalState, 58373).
+    struct Blend
+    {
+        std::string State;
+        size_t ChooseFrom = 0;
+        std::vector<std::string> Children;
+    };
     std::vector<Clip> Clips;
     std::vector<Range> Ranges;
+    std::vector<Blend> Blends;
     // Channels (63590): before each update the engine writes Floats[TurnDelta] from this game's actor, its heading's
     // change since its last update over the step (a copy's: its interpolated heading).
     std::optional<size_t> TurnDeltaChannel;
@@ -43,6 +53,13 @@ struct FakeGraphRules
         for (const auto& cClip : Clips)
             if (cClip.State == acState)
                 return &cClip;
+        return nullptr;
+    }
+    [[nodiscard]] const Blend* BlendOf(const std::string& acState) const noexcept
+    {
+        for (const auto& cBlend : Blends)
+            if (cBlend.State == acState)
+                return &cBlend;
         return nullptr;
     }
 };
@@ -58,6 +75,8 @@ struct FakeGraphMemory
     float LastHeading = 0.f; // at its last update, for the TurnDelta channel
     bool HeadingKnown = false;
     std::vector<uint32_t> EventWords; // its variables as it took its last event (FakeEngine::GraphWords)
+    std::string BlendState;           // the blend state its child was chosen in, and the child
+    std::string Child;
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.
     double Timeline = 0.0;
     // After each update and each event the graph took: (Timeline, state). The live check compares a copy's with its

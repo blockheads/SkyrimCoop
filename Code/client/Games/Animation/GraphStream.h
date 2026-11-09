@@ -53,10 +53,6 @@ struct GraphRecorder
     {
         return m_updates;
     }
-    [[nodiscard]] int32_t LastEvent() const noexcept
-    {
-        return m_lastEvent;
-    }
     // The ops since the last take; aFirstUpdate: the index of the first update among them.
     [[nodiscard]] std::vector<GraphRecordedOp> Take(uint32_t& aFirstUpdate);
 
@@ -68,7 +64,6 @@ struct GraphRecorder
     std::vector<GraphRecordedOp> m_ops;
     uint32_t m_updates = 0;
     uint32_t m_takenUpdates = 0;
-    int32_t m_lastEvent = -1;
 };
 
 // One batch from several actors' ops: each update's frame in a table they share.
@@ -140,7 +135,8 @@ struct GraphStreams
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
     // After the update: true when a copy asked for a sync point, which the caller saves and hands to AddPoint.
     [[nodiscard]] bool OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
-    void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint); // its Id and Update filled in
+    // Its Id and Update filled in; its ClipEvent is the caller's: the event whose clip files its process holds.
+    void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint);
     void WantPoint(uint32_t aFormId);
     [[nodiscard]] std::optional<GraphOps> TakeOps();
     [[nodiscard]] std::vector<Payloads::GraphSyncPoint> TakePoints();

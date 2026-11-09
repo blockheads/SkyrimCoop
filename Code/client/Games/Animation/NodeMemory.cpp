@@ -45,8 +45,10 @@ bool HasPointers(const Class& acClass) noexcept
 {
     for (const auto& cMember : acClass.Members)
     {
-        if (cMember.Type == kPointer || (cMember.Type == kArray && cMember.Subtype == kPointer))
+        if ((cMember.Type == kPointer && cMember.Kind == Pointer::kUnknown) || (cMember.Type == kArray && cMember.Subtype == kPointer))
             return true;
+        if (cMember.Type == kPointer)
+            continue;
         const bool cStruct = cMember.Type == kStruct || (cMember.Type == kArray && cMember.Subtype == kStruct);
         if (cStruct && (!cMember.Struct || HasPointers(*cMember.Struct)))
             return true;
@@ -69,58 +71,45 @@ uint32_t ValueSize(uint8_t aType, uint8_t aSubtype) noexcept
 
 // One element of an array or one inline value: plain, or a struct's members.
 void WriteValue(Wire::Buffer::Writer& aWriter, const uint8_t* acpValue, uint8_t aType, uint8_t aSubtype,
-                const Class* apStruct)
+                const Class* apStruct, Hooks* apHooks)
 {
     if (aType == kStruct && apStruct)
-        Write(aWriter, acpValue, *apStruct);
+        Write(aWriter, acpValue, *apStruct, apHooks);
     else if (const uint32_t cSize = ValueSize(aType, aSubtype))
         aWriter.WriteBytes({acpValue, cSize});
 }
 
-bool IsTime(uint8_t aType) noexcept
-{
-    switch (aType)
-    {
-    case kReal:
-    case kHalf:
-    case kVector4:
-    case kQuaternion:
-    case kMatrix3:
-    case kRotation:
-    case kQsTransform:
-    case kMatrix4:
-    case kTransform: return true;
-    default: return false;
-    }
-}
-
-bool ReadValue(Wire::Buffer::Reader& aReader, uint8_t* apValue, uint8_t aType, uint8_t aSubtype, const Class* apStruct, Mode aMode)
+bool ReadValue(Wire::Buffer::Reader& aReader, uint8_t* apValue, uint8_t aType, uint8_t aSubtype, const Class* apStruct,
+               Hooks* apHooks)
 {
     if (aType == kStruct && apStruct)
-        return Read(aReader, apValue, *apStruct, aMode);
+        return Read(aReader, apValue, *apStruct, apHooks);
     const uint32_t cSize = ValueSize(aType, aSubtype);
-    if (!cSize)
-        return true;
-    if (aMode == Mode::kAll || (aMode == Mode::kTimes && IsTime(aType)))
-        return aReader.ReadBytes({apValue, cSize});
-    uint8_t value[64];
-    if (cSize > sizeof(value) || !aReader.ReadBytes({value, cSize}))
-        return false;
-    // Structure: equal already, or the bytes do not fit this graph.
-    return IsTime(aType) || aMode == Mode::kTimes || std::memcmp(value, apValue, cSize) == 0;
+    return !cSize || aReader.ReadBytes({apValue, cSize});
 }
 
 uint32_t ElementSize(const Member& acMember) noexcept
 {
     return acMember.Subtype == kStruct ? (acMember.Struct ? acMember.Struct->Size : 0) : ValueSize(acMember.Subtype, 0);
 }
+
+uint32_t Stride(const Member& acMember) noexcept
+{
+    return acMember.Type == kStruct ? (acMember.Struct ? acMember.Struct->Size : 0) : ValueSize(acMember.Type, acMember.Subtype);
+}
 } // namespace
 
-void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class& acClass)
+void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class& acClass, Hooks* apHooks)
 {
     for (const auto& cMember : acClass.Members)
     {
         const uint8_t* pValue = acpObject + cMember.Offset;
+        if (cMember.Type == kPointer)
+        {
+            if (cMember.Kind == Pointer::kNested && apHooks)
+                apHooks->WriteNested(aWriter, acpObject, cMember);
+            continue;
+        }
         if (cMember.Type == kArray)
         {
             const auto* pArray = reinterpret_cast<const ArrayView*>(pValue);
@@ -128,42 +117,50 @@ void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class&
             const uint32_t cCount = cElement && pArray->Data && pArray->Size > 0 ? uint32_t(pArray->Size) : 0;
             Wire::Serialization::WriteVarInt(aWriter, cCount);
             for (uint32_t i = 0; i < cCount; ++i)
-                WriteValue(aWriter, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct);
+                WriteValue(aWriter, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct, apHooks);
             continue;
         }
         const uint32_t cCount = cMember.CArraySize ? cMember.CArraySize : 1;
-        const uint32_t cStride = cMember.Type == kStruct ? (cMember.Struct ? cMember.Struct->Size : 0)
-                                                         : ValueSize(cMember.Type, cMember.Subtype);
         for (uint32_t i = 0; i < cCount; ++i)
-            WriteValue(aWriter, pValue + i * cStride, cMember.Type, cMember.Subtype, cMember.Struct);
+            WriteValue(aWriter, pValue + i * Stride(cMember), cMember.Type, cMember.Subtype, cMember.Struct, apHooks);
     }
 }
 
-bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Mode aMode)
+bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Hooks* apHooks)
 {
     for (const auto& cMember : acClass.Members)
     {
         uint8_t* pValue = apObject + cMember.Offset;
+        if (cMember.Type == kPointer)
+        {
+            if (cMember.Kind == Pointer::kNested && !(apHooks && apHooks->ReadNested(aReader, apObject, cMember)))
+                return false;
+            if (cMember.Kind == Pointer::kSkip)
+                std::memset(pValue, 0, sizeof(void*));
+            continue;
+        }
         if (cMember.Type == kArray)
         {
             auto* pArray = reinterpret_cast<ArrayView*>(pValue);
             const uint32_t cElement = ElementSize(cMember);
             uint64_t count = 0;
-            if (!Wire::Serialization::TryReadVarInt(aReader, count))
+            if (!Wire::Serialization::TryReadVarInt(aReader, count) || count > (1u << 20) || (count && !cElement))
                 return false;
-            const uint32_t cHave = cElement && pArray->Data && pArray->Size > 0 ? uint32_t(pArray->Size) : 0;
+            const uint32_t cHave = pArray->Data && pArray->Size > 0 ? uint32_t(pArray->Size) : 0;
             if (count != cHave)
-                return false;
-            for (uint32_t i = 0; i < cHave; ++i)
-                if (!ReadValue(aReader, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct, aMode))
+            {
+                if (!apHooks || !apHooks->Reserve(*pArray, uint32_t(count), cElement))
+                    return false;
+                pArray->Size = int32_t(count);
+            }
+            for (uint32_t i = 0; i < count; ++i)
+                if (!ReadValue(aReader, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct, apHooks))
                     return false;
             continue;
         }
         const uint32_t cCount = cMember.CArraySize ? cMember.CArraySize : 1;
-        const uint32_t cStride = cMember.Type == kStruct ? (cMember.Struct ? cMember.Struct->Size : 0)
-                                                         : ValueSize(cMember.Type, cMember.Subtype);
         for (uint32_t i = 0; i < cCount; ++i)
-            if (!ReadValue(aReader, pValue + i * cStride, cMember.Type, cMember.Subtype, cMember.Struct, aMode))
+            if (!ReadValue(aReader, pValue + i * Stride(cMember), cMember.Type, cMember.Subtype, cMember.Struct, apHooks))
                 return false;
     }
     return true;

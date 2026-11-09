@@ -549,7 +549,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         } Replay;
         ActionEvent LatestAnimation;
         std::string GraphState;
-        std::set<std::string> LoadedClips; // the events whose clip files this actor's process holds
+        std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
@@ -654,6 +654,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void WriteGraphChannels(Actor& aActor, double aStepMs);
     void StepGraph(Actor& aActor, double aStepMs);
     bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
+    void EnterClip(Actor& aActor) const;
     void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
     bool m_replaying = false; // inside ReplayStream: a copy's graph takes its owner's inputs
     // Its 3D reloaded: a new graph in aState, its clip and variables reset (Skyrim: a new BShkbAnimationGraph).
@@ -700,6 +701,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void FinishDeath(uint32_t aFormId);
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;
+    // A sync point's: the whole graph, its generators' choices too (Havok's internal state, not Skyrim's save).
+    [[nodiscard]] std::string SaveGraphInternalState(uint32_t aFormId) const;
+    bool LoadGraphInternalState(uint32_t aFormId, const std::string& acState);
     bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 

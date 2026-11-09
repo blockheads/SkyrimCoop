@@ -264,9 +264,8 @@ TEST_CASE("A sync point loads its owner's last action's clip files before the st
     recorder.Event(1, 42, owner.Vars, owner.Seed); // its owner's last action: its process holds that set
     owner.SendEvent(42);
     OwnerUpdate(recorder, owner, 1, 0.016f);
-    CHECK(recorder.LastEvent() == 42);
     auto point = Point(owner, recorder.Updates());
-    point.ClipEvent = recorder.LastEvent();
+    point.ClipEvent = 42;
     OwnerUpdate(recorder, owner, 2, 0.016f);
     const GraphOps cOps = Batch(recorder);
     GraphReplayer replayer;
@@ -295,4 +294,19 @@ TEST_CASE("A copy's stream starts again when its graph is replaced", "[graph-str
     (void)streams.Replay(0x99, copy, &second); // another graph
     CHECK_FALSE(streams.OnStream(0x99));
     CHECK(streams.ShouldAsk(0x99));
+}
+
+TEST_CASE("An owner's sync point keeps the clip event its game gave it, whatever the graph's last event", "[graph-stream]")
+{
+    GraphStreams streams;
+    streams.Record(0x42, 7);
+    const GraphSeed cSeed{1, 1};
+    const std::vector<uint32_t> cWords{0, 0};
+    streams.OnEvent(0x42, 1, 9, cWords, cSeed); // IdleStop, refused: no files of its own
+    streams.OnUpdate(0x42, 1, 0.016f, cWords, cSeed);
+    streams.AddPoint(0x42, {.ClipEvent = 3});
+    const auto cPoints = streams.TakePoints();
+    REQUIRE(cPoints.size() == 1);
+    CHECK(cPoints[0].ClipEvent == 3);
+    CHECK(cPoints[0].Id == 7);
 }

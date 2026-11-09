@@ -715,3 +715,76 @@ TEST_CASE("An owner whose graph is replaced gives its copy a new sync point", "[
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
     CHECK(wolf.Difference() == "");
 }
+
+TEST_CASE("A copy starting mid-blend plays its owner's child, not the one its variables pick now", "[animation][replay-start]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-09): Faendal's copy parted from its owner at its first update. Its turn blend,
+    // activated afresh as the sync point loaded, chose its own child from the owner's variables of that moment; the
+    // owner's had chosen MT_TurnLeft360_Slow as it activated, before they changed (docs/re/systems/animation-replay-recovery.md).
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->Graph->Blends = {{.State = "TurnBlend", .ChooseFrom = 2, .Children = {"TurnLeft", "TurnRight"}}};
+        engine->GraphTransitions[{"Standing", "turnStart"}] = "TurnBlend";
+    }
+    ActionEvent turn;
+    turn.ActionId = 0x13003;
+    turn.EventName = "turnStart";
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, turn)); });
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    wolf.party.Until([&] { return cOwner.Graph.Child == "TurnLeft"; }, "the owner's blend chooses its child as it activates");
+    wolf.party.As(wolf.party.Host(), [&] {
+        auto& integers = wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers;
+        integers.resize(3);
+        integers[2] = 1; // its AI's new turn speed: the blend keeps its child
+    });
+    wolf.guest.ReloadGraph(wolf.copy, "Standing");
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy) && !cCopy.Graph.Child.empty(); },
+                     "the copy's new graph starts from a sync point taken mid-blend");
+    CHECK(cOwner.Graph.Child == "TurnLeft");
+    CHECK(cCopy.Graph.Child == "TurnLeft");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A copy starting after its owner's idle loads that idle's clip files, not its last event's", "[animation][replay-start]")
+{
+    // Skyrim (duo, Whiterun, 2026-11-09): copy 1A684 started on its owner's stream as its owner leaned on a counter. At
+    // AnimObjectCounterRightToArm its clip had no file: its sync point named the owner's last graph event, which loads
+    // nothing, while the owner's process held its idle's clip set (AIProcess 39625: one action set).
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{.Clips = {{.State = "CounterLoop", .Ms = 500, .Starts = {"CounterArm"}},
+                                                 {.State = "CounterArm", .Ms = 800, .Starts = {"CounterLoop"}}}};
+        engine->GraphTransitions = {{{"Standing", "IdleCounter"}, "CounterLoop"}, {{"CounterLoop", "IdleLook"}, "CounterLoop"}};
+        engine->ClipFiles = {{"IdleCounter", "CounterArm"}};
+        engine->SkippedClips = {{"CounterArm", "CounterLoop"}};
+    }
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A684, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+        ActionEvent idle;
+        idle.ActionId = 0x13004;
+        idle.EventName = "IdleCounter";
+        REQUIRE(host.PerformAnimation(npc, idle));
+        ActionEvent look;
+        look.ActionId = 0x13005;
+        look.EventName = "IdleLook";
+        REQUIRE(host.PerformAnimation(npc, look));
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A684).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x1A684).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy) && SyncPoints(guest.Actors.at(cCopy)) >= 1; },
+                "the copy starts on its owner's stream");
+    const auto& cOwner = host.Actors.at(npc);
+    party.Until([&] { return cOwner.GraphState == "CounterArm"; }, "the owner's loop reaches the arm clip");
+    party.Until([&] { return cOwner.GraphState == "CounterLoop"; }, "and loops back");
+    const uint64_t cFrom = party.Guest().GetFrameTick();
+    party.Until([&] { return party.Guest().GetFrameTick() > cFrom + 500; }, "the copy plays it too");
+    CHECK(guest.Actors.at(cCopy).LoadedClips.contains("IdleCounter"));
+    CHECK(FirstGraphDifference(cOwner.Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
+}

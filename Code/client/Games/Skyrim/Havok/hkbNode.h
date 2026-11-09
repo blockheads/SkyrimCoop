@@ -24,6 +24,11 @@ static_assert(offsetof(hkClass, numDeclaredMembers) == 0x30);
 
 struct hkClassMember
 {
+    enum : uint16_t
+    {
+        kSerializeIgnored = 0x400, // a runtime member (BSTimerModifier::secondsElapsed): a node's memory with no internal state
+    };
+
     const char* name;      // 00
     const hkClass* klass;  // 08: a struct's, a pointer's or an array's element class
     const void* enumClass; // 10
@@ -152,6 +157,9 @@ struct hkbNode
     virtual void GetInternalState(struct hkReferencedObject& aState) const;   // 0E
     virtual void GetInternalStateUser(const void* apGraph, struct hkReferencedObject& aState); // 0F
     virtual void SetInternalState(const struct hkReferencedObject& acState);  // 10
+    virtual void sub_11(); // setInternalStateUser
+    virtual void sub_12();
+    virtual bool IsTransitionEffect() const; // 13: getInternalState (58372) leaves them to their machine's (59489)
 
     uint64_t refCount;
     hkbVariableBindingSet* bindings; // 10
@@ -223,13 +231,15 @@ static_assert(offsetof(hkbClipGenerator, animationControl) == 0x88);
 static_assert(offsetof(hkbClipGenerator, localTime) == 0xF0);
 static_assert(offsetof(hkbClipGenerator, atEnd) == 0x104);
 
-// One active node of a behaviour graph (CommonLib hkbNodeInfo).
+// One active node of a behaviour graph (CommonLib hkbNodeInfo): its sync info first (0x50, hkbGeneratorSyncInfo).
 struct hkbNodeInfo
 {
-    uint8_t pad0[0x58];
-    hkbNode* nodeClone; // 58
+    uint8_t syncInfo[0x50];
+    hkbNode* nodeTemplate; // 50
+    hkbNode* nodeClone;    // 58
     uint8_t pad60[0x90 - 0x60];
 };
+static_assert(offsetof(hkbNodeInfo, nodeTemplate) == 0x50);
 static_assert(offsetof(hkbNodeInfo, nodeClone) == 0x58);
 static_assert(sizeof(hkbNodeInfo) == 0x90);
 
@@ -394,3 +404,97 @@ struct hkbNodeIterator
     uint8_t storage[0x60];
 };
 static_assert(sizeof(hkbNodeIterator) == 0x60);
+
+// One node's state in a graph's (getInternalState 58372, setInternalState 58373); its destructor (58398) releases
+// internalState.
+struct hkbNodeInternalStateInfo
+{
+    void* vtable;
+    uint16_t memSizeAndFlags; // 08
+    int16_t referenceCount;   // 0A
+    uint8_t pad0C[4];
+    uint8_t syncInfo[0x50];             // 10: hkbGeneratorSyncInfo
+    const char* name;                   // 60: hkStringPtr
+    hkReferencedObject* internalState;  // 68
+    int16_t nodeId;                     // 70
+    bool hasActivateBeenCalled;         // 72
+    uint8_t pad73[0x78 - 0x73];
+};
+static_assert(offsetof(hkbNodeInternalStateInfo, syncInfo) == 0x10);
+static_assert(offsetof(hkbNodeInternalStateInfo, internalState) == 0x68);
+static_assert(offsetof(hkbNodeInternalStateInfo, nodeId) == 0x70);
+static_assert(offsetof(hkbNodeInternalStateInfo, hasActivateBeenCalled) == 0x72);
+static_assert(sizeof(hkbNodeInternalStateInfo) == 0x78);
+
+// A whole graph's state (58372 fills it; 58373 restores from it).
+struct hkbBehaviorGraphInternalState
+{
+    void* vtable;
+    uint16_t memSizeAndFlags;
+    int16_t referenceCount;
+    uint8_t pad0C[4];
+    hkArrayView<hkbNodeInternalStateInfo*> nodeInternalStateInfos; // 10
+    void* variableValueSet;                                          // 20: hkbVariableValueSet
+};
+static_assert(offsetof(hkbBehaviorGraphInternalState, nodeInternalStateInfos) == 0x10);
+static_assert(offsetof(hkbBehaviorGraphInternalState, variableValueSet) == 0x20);
+
+// A machine's transitions as setInternalStateUser (59343) finds a running one's effect: a state's (+0x50) or the
+// machine's wildcards (+0xA0), each 0x48 with its effect at +0x20.
+struct hkbStateMachineTransitionInfo
+{
+    uint8_t pad0[0x20];
+    hkbNode* transition; // 20: its hkbTransitionEffect template
+    uint8_t pad28[0x48 - 0x28];
+};
+static_assert(offsetof(hkbStateMachineTransitionInfo, transition) == 0x20);
+static_assert(sizeof(hkbStateMachineTransitionInfo) == 0x48);
+
+struct hkbStateMachineTransitionInfoArray
+{
+    void* vtable;
+    uint64_t refCount;
+    hkArrayView<hkbStateMachineTransitionInfo> transitions; // 10
+};
+static_assert(offsetof(hkbStateMachineTransitionInfoArray, transitions) == 0x10);
+
+struct hkbStateMachineStateInfo
+{
+    uint8_t pad0[0x50];
+    hkbStateMachineTransitionInfoArray* transitions; // 50
+    hkbNode* generator;                               // 58
+};
+static_assert(offsetof(hkbStateMachineStateInfo, transitions) == 0x50);
+
+struct hkbStateMachineTransitions : hkbNode
+{
+    uint8_t pad48[0x90 - 0x48];
+    hkArrayView<hkbStateMachineStateInfo*> states;          // 90
+    hkbStateMachineTransitionInfoArray* wildcardTransitions; // A0
+};
+static_assert(offsetof(hkbStateMachineTransitions, states) == 0x90);
+static_assert(offsetof(hkbStateMachineTransitions, wildcardTransitions) == 0xA0);
+
+struct hkbStateMachineTransitionInfoReference
+{
+    int16_t fromStateIndex;  // -1: a wildcard transition
+    int16_t transitionIndex;
+    int16_t stateMachineId;  // -1: this machine's
+};
+static_assert(sizeof(hkbStateMachineTransitionInfoReference) == 6);
+
+// A running transition in a machine's internal state (reflected; 60009 copies them raw).
+struct hkbStateMachineActiveTransitionInfo
+{
+    hkbNode* transitionEffect;                                         // 00: the graph's clone; remade by 59343
+    hkbNodeInternalStateInfo* transitionEffectInternalStateInfo;        // 08: its effect's state (59342), owned (59350)
+    hkbStateMachineTransitionInfoReference transitionInfoReference;      // 10
+    hkbStateMachineTransitionInfoReference transitionInfoReferenceForTE; // 16: where 59343 finds its effect
+    int32_t fromStateId;                                                // 1C
+    int32_t toStateId;                                                  // 20
+    bool isReturnToPreviousState;                                       // 24
+    uint8_t pad25[3];
+};
+static_assert(offsetof(hkbStateMachineActiveTransitionInfo, transitionInfoReferenceForTE) == 0x16);
+static_assert(offsetof(hkbStateMachineActiveTransitionInfo, toStateId) == 0x20);
+static_assert(sizeof(hkbStateMachineActiveTransitionInfo) == 0x28);

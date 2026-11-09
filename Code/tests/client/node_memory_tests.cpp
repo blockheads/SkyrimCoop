@@ -3,6 +3,8 @@
 #include <catch2/catch.hpp>
 
 #include <cstddef>
+#include <cstring>
+#include <memory>
 
 using namespace NodeMemory;
 
@@ -112,43 +114,104 @@ TEST_CASE("An array of structs crosses member by member", "[node-memory]")
     CHECK_FALSE(Apply(bytes, to, cExpressions));
 }
 
-TEST_CASE("A state holding a pointer anywhere is not carried", "[node-memory]")
+TEST_CASE("A state holding a pointer it cannot carry is not carried", "[node-memory]")
 {
     CHECK_FALSE(HasPointers(cRange));
     CHECK_FALSE(HasPointers(cExpressions));
-    const Class cTransition{16, {{0, kInt32}, {8, kPointer}}}; // as a state machine's active transition
+    const Class cTransition{16, {{0, kInt32}, {8, kPointer}}};
     const Class cMachine{104, {{0x10, kArray, kStruct, 0, &cTransition}, {0x50, kReal}}};
     CHECK(HasPointers(cMachine));
     CHECK(HasPointers(cDamping)); // its pointer member, here
+    // A running transition's: its effect remade by the restore, its effect's state carried.
+    const Class cKnown{16, {{0, kPointer, 0, 0, nullptr, Pointer::kSkip}, {8, kPointer, kStruct, 0, nullptr, Pointer::kNested}}};
+    CHECK_FALSE(HasPointers(Class{104, {{0x10, kArray, kStruct, 0, &cKnown}}}));
 }
 
-TEST_CASE("A generator with children takes its owner's times only where its children are already the owner's", "[node-memory]")
+namespace
 {
-    // As hkbBlenderGeneratorInternalState: the children's activity (an array), their count, and a time.
-    struct BlenderState
+// hkArrayUtil::_reserve's part, on the heap; nested objects as one int each.
+struct TestHooks final : Hooks
+{
+    std::vector<std::unique_ptr<uint8_t[]>> Blocks;
+    std::vector<std::unique_ptr<int32_t>> Nested;
+    bool Reserve(ArrayView& aArray, uint32_t aCount, uint32_t aElementSize) override
     {
-        uint8_t Header[16];
-        ArrayView Active; // 10: hkArray<hkBool>
-        float EndIntervalWeight; // 20
-        int32_t NumActiveChildren; // 24
-    };
-    const Class cBlender{40, {{0x10, kArray, kBool}, {0x20, kReal}, {0x24, kInt32}}};
-    bool ownerActive[2] = {true, false};
-    BlenderState owner{{}, {reinterpret_cast<uint8_t*>(ownerActive), 2, 2}, 0.75f, 1};
-    const auto cBytes = Bytes(owner, cBlender);
-    const auto cApply = [&](BlenderState& aCopy) {
-        Wire::Buffer::Reader check{std::span<const uint8_t>(cBytes)};
-        Wire::Buffer::Reader times{std::span<const uint8_t>(cBytes)};
-        return Read(check, reinterpret_cast<uint8_t*>(&aCopy), cBlender, Mode::kCheckStructure) &&
-               Read(times, reinterpret_cast<uint8_t*>(&aCopy), cBlender, Mode::kTimes);
-    };
-    bool sameActive[2] = {true, false};
-    BlenderState same{{}, {reinterpret_cast<uint8_t*>(sameActive), 2, 2}, 0.1f, 1};
-    REQUIRE(cApply(same));
-    CHECK(same.EndIntervalWeight == 0.75f);
-    bool otherActive[2] = {false, true};
-    BlenderState other{{}, {reinterpret_cast<uint8_t*>(otherActive), 2, 2}, 0.1f, 1};
-    CHECK_FALSE(cApply(other));
-    CHECK(other.EndIntervalWeight == 0.1f); // nothing written
-    CHECK((!otherActive[0] && otherActive[1]));
+        Blocks.push_back(std::make_unique<uint8_t[]>(size_t(aCount) * aElementSize));
+        aArray.Data = Blocks.back().get();
+        aArray.CapacityAndFlags = int32_t(aCount);
+        return true;
+    }
+    void WriteNested(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Member& acMember) override
+    {
+        const auto* pValue = *reinterpret_cast<const int32_t* const*>(acpObject + acMember.Offset);
+        aWriter.WriteBits(pValue ? 1 : 0, 1);
+        if (pValue)
+            aWriter.WriteBits(uint32_t(*pValue), 32);
+    }
+    bool ReadNested(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Member& acMember) override
+    {
+        uint64_t present = 0, value = 0;
+        if (!aReader.ReadBits(present, 1) || (present && !aReader.ReadBits(value, 32)))
+            return false;
+        int32_t* pValue = nullptr;
+        if (present)
+            pValue = Nested.emplace_back(std::make_unique<int32_t>(int32_t(value))).get();
+        std::memcpy(apObject + acMember.Offset, &pValue, sizeof(pValue));
+        return true;
+    }
+};
+
+// As hkbStateMachineActiveTransitionInfo: its effect (into its graph), its effect's state info (its own), a state id.
+struct Transition
+{
+    void* Effect;
+    int32_t* EffectState;
+    int32_t ToStateId;
+    uint8_t Pad[4];
+};
+struct MachineState
+{
+    uint8_t Header[16];
+    ArrayView Transitions; // 10
+    ArrayView Flags;       // 20: hkArray<uint8>
+    int32_t CurrentStateId; // 30
+};
+const Class cTransition{24, {{0, kPointer, 0, 0, nullptr, Pointer::kSkip},
+                             {8, kPointer, kStruct, 0, nullptr, Pointer::kNested},
+                             {16, kInt32}}};
+const Class cMachine{56, {{0x10, kArray, kStruct, 0, &cTransition}, {0x20, kArray, kUint8}, {0x30, kInt32}}};
+} // namespace
+
+TEST_CASE("A new state's empty arrays are sized for its owner's; its transitions' effect states cross through the hooks",
+          "[node-memory]")
+{
+    int32_t effectState = 7;
+    int ownerEffect = 0;
+    Transition transitions[2] = {{&ownerEffect, &effectState, 3, {}}, {&ownerEffect, nullptr, 5, {}}};
+    uint8_t flags[3] = {1, 0, 2};
+    MachineState owner{{}, {reinterpret_cast<uint8_t*>(transitions), 2, 2}, {flags, 3, 3}, 5};
+    TestHooks hooks;
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    Write(writer, reinterpret_cast<const uint8_t*>(&owner), cMachine, &hooks);
+    const std::vector<uint8_t> cBytes(buffer.GetData(), buffer.GetData() + writer.Size());
+
+    MachineState copy{{}, {nullptr, 0, int32_t(0x80000000)}, {nullptr, 0, int32_t(0x80000000)}, 0};
+    Wire::Buffer::Reader reader{std::span<const uint8_t>(cBytes)};
+    REQUIRE(Read(reader, reinterpret_cast<uint8_t*>(&copy), cMachine, &hooks));
+    REQUIRE(copy.Transitions.Size == 2);
+    const auto* pCopied = reinterpret_cast<const Transition*>(copy.Transitions.Data);
+    CHECK(pCopied[0].Effect == nullptr); // the restore makes its own
+    REQUIRE(pCopied[0].EffectState);
+    CHECK(*pCopied[0].EffectState == 7);
+    CHECK(pCopied[1].EffectState == nullptr);
+    CHECK(pCopied[1].ToStateId == 5);
+    REQUIRE(copy.Flags.Size == 3);
+    CHECK(copy.Flags.Data[2] == 2);
+    CHECK(copy.CurrentStateId == 5);
+
+    // Without the hooks, another count does not fit.
+    MachineState unsized{{}, {nullptr, 0, int32_t(0x80000000)}, {nullptr, 0, int32_t(0x80000000)}, 0};
+    Wire::Buffer::Reader again{std::span<const uint8_t>(cBytes)};
+    CHECK_FALSE(Read(again, reinterpret_cast<uint8_t*>(&unsized), cMachine));
 }

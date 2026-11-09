@@ -4,6 +4,8 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+
+#include <Games/Animation/GraphState.h>
 #include <Games/Animation/GraphStream.h>
 #include <bit>
 #include <set>
@@ -110,7 +112,9 @@ void FakeEngine::ShovePlayer() noexcept
 void FakeEngine::GraphEntry(Actor& aActor, std::string aInput) const
 {
     const bool cOwn = aActor.Copy && !m_replaying && (aInput.starts_with("update") || aInput.starts_with("event"));
-    aActor.Graph.History.push_back({aActor.Graph.Timeline, aActor.GraphState, cOwn ? "own " + aInput : std::move(aInput)});
+    const auto& cGraph = aActor.Graph;
+    const auto cState = cGraph.BlendState == aActor.GraphState && !cGraph.Child.empty() ? aActor.GraphState + "/" + cGraph.Child : aActor.GraphState;
+    aActor.Graph.History.push_back({aActor.Graph.Timeline, cState, cOwn ? "own " + aInput : std::move(aInput)});
 }
 
 std::vector<uint32_t> FakeEngine::GraphWords(const Actor& acActor)
@@ -155,6 +159,18 @@ uint16_t FakeEngine::GraphEventId(const std::string& acEvent) const
     return it == cEvents.end() ? UINT16_MAX : uint16_t(it - cEvents.begin());
 }
 
+// A clip whose files its process does not hold lasts no time (59263): its graph runs on to the next.
+void FakeEngine::EnterClip(Actor& aActor) const
+{
+    for (const auto& [cEvent, cState] : ClipFiles)
+        if (cState == aActor.GraphState && !aActor.LoadedClips.contains(cEvent))
+            if (const auto cNext = SkippedClips.find(aActor.GraphState); cNext != SkippedClips.end())
+            {
+                aActor.GraphState = cNext->second;
+                return;
+            }
+}
+
 bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
 {
     const auto it = GraphTransitions.find({aActor.GraphState, acEvent});
@@ -164,9 +180,7 @@ bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
     aActor.GraphState = it->second;
     if (const auto cPicks = GraphPicks.find(aActor.GraphState); cPicks != GraphPicks.end())
         aActor.GraphState = cPicks->second[(DrawGraphRandom(aActor) >> 13) % cPicks->second.size()];
-    if (ClipFiles.contains(acEvent) && !aActor.LoadedClips.contains(acEvent))
-        if (const auto cNext = SkippedClips.find(aActor.GraphState); cNext != SkippedClips.end())
-            aActor.GraphState = cNext->second;
+    EnterClip(aActor);
     if (Graph)
         GraphEntry(aActor, "event " + acEvent);
     return true;
@@ -197,6 +211,21 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         if (aActor.GraphState == cRange.State && cRange.Input < floats.size())
             if (const auto& cNext = floats[cRange.Input] >= cRange.Bound ? cRange.Above : cRange.Below; !cNext.empty())
                 aActor.GraphState = cNext;
+    if (const auto* pBlend = Graph->BlendOf(aActor.GraphState))
+    {
+        if (graph.BlendState != aActor.GraphState && !pBlend->Children.empty())
+        {
+            auto& integers = aActor.GraphVariables.Integers;
+            const size_t cPick = pBlend->ChooseFrom < integers.size() ? integers[pBlend->ChooseFrom] : 0;
+            graph.BlendState = aActor.GraphState;
+            graph.Child = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)];
+        }
+    }
+    else
+    {
+        graph.BlendState.clear();
+        graph.Child.clear();
+    }
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
     {
@@ -221,7 +250,10 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         if (pClip->ExitVariable && !std::ranges::contains(pClip->ExitValues, int32_t(integers[*pClip->ExitVariable])))
             graph.Stuck = true;
         else
+        {
             aActor.GraphState = pClip->Starts.at(pClip->StartFrom ? std::min<size_t>(integers[*pClip->StartFrom], pClip->Starts.size() - 1) : 0);
+            EnterClip(aActor);
+        }
     }
     GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
 }
@@ -238,8 +270,12 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
         streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
     StepGraph(aActor, cStep);
     if (cRecorded && streams.OnUpdated(aFormId, GraphWords(aActor)))
-        streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveActorGraphState(aFormId), .Words = GraphWords(aActor),
-                                   .Seed = {aActor.GraphRandom, 0}});
+    {
+        // Its whole graph (Havok's internal state, 58372), and the event whose clip files its process holds.
+        const uint16_t cClips = aActor.LoadedClips.empty() ? UINT16_MAX : GraphEventId(*aActor.LoadedClips.begin());
+        streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
+                                   .Seed = {aActor.GraphRandom, 0}, .ClipEvent = cClips == UINT16_MAX ? -1 : int32_t(cClips)});
+    }
 }
 
 namespace
@@ -257,7 +293,7 @@ struct FakeGraphTarget final : IGraphTarget
     void SetSeed(const GraphSeed& acSeed) override { Actor.GraphRandom = acSeed.Seed; }
     bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
     {
-        if (!Engine.LoadActorGraphState(FormId, acPoint.State))
+        if (!Engine.LoadGraphInternalState(FormId, acPoint.State))
             return false;
         Actor.GraphRandom = acPoint.Seed.Seed;
         if (!Actor.Graph.History.empty())
@@ -380,7 +416,7 @@ void FakeEngine::Frame()
             continue;
         }
         if (const auto cActor = Actors.find(it->FormId); cActor != Actors.end())
-            cActor->second.LoadedClips.insert(it->Event);
+            cActor->second.LoadedClips = {it->Event};
         it->Done->store(true);
         it = ClipLoads.erase(it);
     }
@@ -1092,7 +1128,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.Variables = Actors.at(aFormId).GraphVariables; // SaveAnimationVariables, as Animation.cpp's hook
     aAction.Variables.GraphRandom = Actors.at(aFormId).GraphRandom;
     if (ClipFiles.contains(aAction.EventName))
-        Actors.at(aFormId).LoadedClips.insert(aAction.EventName);
+        Actors.at(aFormId).LoadedClips = {aAction.EventName};
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
         // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
         if (flags & 1)
@@ -1207,6 +1243,36 @@ std::optional<FakeSavedGraph> FakeGraphState(const std::string& acSaved)
 }
 } // namespace
 
+// As Havok's (58372 / 58373): its machine's block as node 0, its blend's chosen child as node 1.
+std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.GraphState.empty())
+        return {};
+    GraphState::Node machine{.Id = 0, .State = SaveActorGraphState(aFormId)};
+    GraphState::Node blend{.Id = 1, .State = it->second.Graph.BlendState + '\n' + it->second.Graph.Child};
+    return GraphState::Encode({machine, blend});
+}
+
+bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acState)
+{
+    std::vector<GraphState::Node> nodes;
+    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 2 || !nodes[0].State || !nodes[1].State)
+        return false;
+    if (!LoadActorGraphState(aFormId, *nodes[0].State))
+        return false;
+    auto& graph = Actors.at(aFormId).Graph;
+    const auto cBreak = nodes[1].State->find('\n');
+    graph.BlendState = nodes[1].State->substr(0, cBreak);
+    graph.Child = cBreak == std::string::npos ? std::string{} : nodes[1].State->substr(cBreak + 1);
+    if (Graph && !graph.History.empty() && graph.History.back().Input == "load")
+    {
+        graph.History.pop_back(); // its entry with its blend's child
+        GraphEntry(Actors.at(aFormId), "load");
+    }
+    return true;
+}
+
 std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
@@ -1236,6 +1302,8 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
             return false;
         actor.GraphState = cState->State;
         actor.Graph.Timeline = cState->Timeline;
+        actor.Graph.BlendState.clear(); // its generators choose again as they activate
+        actor.Graph.Child.clear();
         if (Graph)
         {
             actor.Graph.ClipStartedAt = cState->Elapsed >= 0.0 ? std::optional(cState->Timeline - cState->Elapsed) : std::nullopt;

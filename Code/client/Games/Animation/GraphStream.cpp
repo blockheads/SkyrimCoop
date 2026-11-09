@@ -24,7 +24,6 @@ void GraphRecorder::Record(GraphRecordedOp aOp, std::span<const uint32_t> aWords
 
 void GraphRecorder::Event(uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords, const GraphSeed& acSeed)
 {
-    m_lastEvent = aEventId;
     Record({{.Event = true, .EventId = aEventId}, aTick, 0.f}, aWords, acSeed);
 }
 
@@ -281,7 +280,6 @@ void GraphStreams::AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint)
         std::scoped_lock _{pOwned->Lock};
         aPoint.Id = pOwned->ActorId;
         aPoint.Update = pOwned->Recorder.Updates();
-        aPoint.ClipEvent = pOwned->Recorder.LastEvent();
     }
     std::scoped_lock _{m_lock};
     m_points.push_back(std::move(aPoint));

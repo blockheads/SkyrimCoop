@@ -180,3 +180,71 @@ time	op	id	rva	item
 2026-11-09T08:29:30Z	comment	58315	0xacae30	{"addr": "0x140ACAE30", "comment": "hkbContext ctor (ID 58315): (ctx, character, world, +0x40, +0x48), the rest zeroed. 63587 and 63591 build theirs with it (graph+0xC0 character, hkWorldM GetWorld)."}
 2026-11-09T08:29:30Z	comment		0xbcee2c	{"addr": "0x140bcee2c", "comment": "63587 updates the behaviour graph only while its active byte (+0x12C) is set: a deactivated graph takes no update, LoadState's zero-step one included."}
 2026-11-09T08:29:30Z	comment		0xbd2db8	{"addr": "0x140bd2db8", "comment": "LoadState: after hkbCharacter 65149 restores the saved machines (SaveDataRestoreFunctor), sets behaviour +0x12E and runs a zero-step forced 63587. The save leaves out machines at their start state (65148), so a graph not fresh keeps its own state in those: the graph input stream deactivates and activates a copy's graph before loading (GraphStreamHooks)."}
+2026-11-09T14:55:56Z	read	58372	0xaceb70	{"name": "sub_140ACEB70"}
+2026-11-09T14:56:28Z	read	58373	0xacedd0	{"name": "hkbBehaviorGraph::sub_58373"}
+2026-11-09T14:56:48Z	read	60079	0xb29f40	{"name": "hkbBehaviorGraph::updateActiveNodes"}
+2026-11-09T14:57:08Z	type	60079	0xb29f40	{"addr": "0x140b29f40", "kind": "function", "signature": "void __fastcall hkbBehaviorGraph_updateActiveNodes(__int64 graph, __int64 *context, __int64 restoreMap)"}
+2026-11-09T14:57:08Z	read		0xb2a3e0	{"name": "hkbBehaviorGraph::updateActiveNodes"}
+2026-11-09T14:57:17Z	read	59326	0xaf0850	{"name": "sub_140AF0850"}
+2026-11-09T15:00:56Z	read	59538	0xb02ec0	{"name": "hkbBlenderGenerator::sub_59538"}
+2026-11-09T15:00:57Z	read	58331	0xacc340	{"name": "hkbBehaviorGraph::sub_58331"}
+2026-11-09T15:00:57Z	read	58328	0xacbb50	{"name": "hkbBehaviorGraph::sub_58328"}
+2026-11-09T15:01:08Z	read	58542	0xadc1a0	{"name": "sub_140ADC1A0"}
+2026-11-09T15:01:26Z	name	58372	0xaceb70	{"addr": "0x140aceb70", "name": "coop_hkbBehaviorGraph_getInternalState"}
+2026-11-09T15:01:26Z	name	58373	0xacedd0	{"addr": "0x140acedd0", "name": "coop_hkbBehaviorGraph_setInternalState"}
+2026-11-09T15:01:26Z	name	59326	0xaf0850	{"addr": "0x140af0850", "name": "coop_hkbBehaviorGraph_ActivateNode"}
+2026-11-09T15:01:26Z	name	59318	0xaef790	{"addr": "0x140aef790", "name": "coop_hkbBehaviorGraph_ActivateNodes"}
+2026-11-09T15:01:26Z	name	59342	0xaf3280	{"addr": "0x140af3280", "name": "coop_hkbStateMachine_getInternalStateUser"}
+2026-11-09T15:01:26Z	name	59343	0xaf3440	{"addr": "0x140af3440", "name": "coop_hkbStateMachine_setInternalStateUser"}
+2026-11-09T15:01:26Z	name	60009	0xb1dd30	{"addr": "0x140b1dd30", "name": "coop_hkbStateMachine_getInternalState"}
+2026-11-09T15:01:26Z	name	59489	0xb00210	{"addr": "0x140b00210", "name": "coop_hkbTransitionEffect_isTransitionEffect"}
+2026-11-09T15:01:26Z	name	58542	0xadc1a0	{"addr": "0x140adc1a0", "name": "coop_hkbVariableValueSet_copyFrom"}
+2026-11-09T15:01:26Z	name	58331	0xacc340	{"addr": "0x140acc340", "name": "coop_hkbBehaviorGraph_deactivate"}
+2026-11-09T15:01:26Z	name	58328	0xacbb50	{"addr": "0x140acbb50", "name": "coop_hkbBehaviorGraph_activate"}
+2026-11-09T15:01:26Z	name	59538	0xb02ec0	{"addr": "0x140b02ec0", "name": "coop_hkbBlenderGenerator_createInternalState"}
+2026-11-09T15:01:43Z	comment	58373	0xacedd0	{"addr": "0x140acedd0", "comment": "58373 hkbBehaviorGraph::setInternalState(context, const hkbBehaviorGraphInternalState&): Havok's whole-graph restore. Map node id (info +0x70) -> hkbNodeInternalStateInfo; variables copied from state +0x20 (58542) if the data has any; fresh active-node arrays (+0x98/+0xA0/+0xA8, not freed: deactivate 58331 first); +0x12C active; updateActiveNodes(context, map) activates the tree, each node given its stored state (59326). Never called by the game; the graph input stream's sync point uses it."}
+2026-11-09T15:01:43Z	comment	58372	0xaceb70	{"addr": "0x140aceb70", "comment": "58372 hkbBehaviorGraph::getInternalState: per active node (+0x98, 0x90 each) not a transition effect (slot 19): createInternalState 13, getInternalState 14, getInternalStateUser 15 (graph, state) into an hkbNodeInternalStateInfo (0x78: syncInfo +0x10 0x50 bytes from the node info, name +0x60, state +0x68, nodeId +0x70, byte +0x72 from node info +0x88); then a copy of the variable value set at state +0x20."}
+2026-11-09T15:01:43Z	comment	59326	0xaf0850	{"addr": "0x140af0850", "comment": "59326 activate one node and its active children, recursively (Havok's activateNodeRecursive). A node not active before: CopyVariablesToMembers, Activate (slot 4), then with a restore map (last arg) and an entry for its id: setInternalState (16) and setInternalStateUser (17, context, state, map); the entry's sync info and byte go to its node info. Its active children (getChildren slot 9, FLAG_ACTIVE_ONLY) are read after that, so a restored state machine or blender activates the children its restored state names."}
+2026-11-09T15:01:43Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59319 updateActiveNodes' walk from the root generator: 59326 with no 'already active' override, then marks nodes whose parents need sync."}
+2026-11-09T15:01:43Z	comment	59342	0xaf3280	{"addr": "0x140af3280", "comment": "59342 hkbStateMachine::getInternalStateUser (slot 15): each running transition's effect (if active in the graph): its internal state and node info into a new hkbNodeInternalStateInfo, stored at state.activeTransitions[i].transitionEffectInternalStateInfo (+8)."}
+2026-11-09T15:01:43Z	comment	59343	0xaf3440	{"addr": "0x140af3440", "comment": "59343 hkbStateMachine::setInternalStateUser (slot 17, context, state, restoreMap): for each restored transition, clones the effect named by transitionInfoReferenceForTE (+0x16), gives it a new node id (58370), puts its stored info in the restore map under that id, sets its from/to generators (slots 29/30). The walk then activates and restores the effect."}
+2026-11-09T15:01:43Z	comment	60009	0xb1dd30	{"addr": "0x140b1dd30", "comment": "60009 hkbStateMachine::getInternalState (slot 14): activeTransitions (+0xB0), transitionFlags (+0xC0), wildcardTransitionFlags (+0xD0), delayedTransitions (+0xE0), timeInState +0xF0, lastLocalTime +0xF4, currentStateId +0x80, previousStateId +0xF8, nextStartStateIndexOverride +0xFC, changed +0x100, echo +0x101."}
+2026-11-09T15:01:43Z	comment	59489	0xb00210	{"addr": "0x140b00210", "comment": "59489 hkbTransitionEffect vfunc 19: true. getInternalState (58372) skips nodes answering true: a transition effect's state travels in its state machine's (59342)."}
+2026-11-09T15:01:43Z	comment	58542	0xadc1a0	{"addr": "0x140adc1a0", "comment": "58542 hkbVariableValueSet copyFrom: words (+0x10), quads (+0x20) copied; variants (+0x30) resized but set null, not copied. Copying a set onto itself changes nothing."}
+2026-11-09T15:01:43Z	comment	58331	0xacc340	{"addr": "0x140acc340", "comment": "58331 hkbBehaviorGraph::deactivate (slot 7): each active node deactivated (slot 7) and its clone released; 58385 frees the active-node arrays; variable set +0xD8 released unless +0x48 (variable mode: keep when inactive); +0x12C cleared."}
+2026-11-09T15:01:43Z	comment	58328	0xacbb50	{"addr": "0x140acbb50", "comment": "58328 hkbBehaviorGraph::activate (slot 4): variables from the data (58346), fresh active-node arrays, +0x12C, updateActiveNodes with no restore map. setInternalState (58373) is the same with a map."}
+2026-11-09T15:01:54Z	read	58370	0xacead0	{"name": "hkbBehaviorGraph::sub_58370"}
+2026-11-09T15:02:17Z	read	58332	0xacc490	{"name": "hkbBehaviorGraph::sub_58332"}
+2026-11-09T15:02:55Z	read	58340	0xaccb40	{"name": "hkbBehaviorGraph::sub_58340"}
+2026-11-09T15:02:59Z	read	58369	0xace8e0	{"name": "sub_140ACE8E0"}
+2026-11-09T15:03:13Z	name	58369	0xace8e0	{"addr": "0x140ace8e0", "name": "coop_hkbBehaviorGraph_setNodeIds"}
+2026-11-09T15:03:13Z	name	58370	0xacead0	{"addr": "0x140acead0", "name": "coop_hkbBehaviorGraph_getUniqueNodeId"}
+2026-11-09T15:03:13Z	name	58340	0xaccb40	{"addr": "0x140accb40", "name": "coop_hkbBehaviorGraph_cloneForCharacter"}
+2026-11-09T15:03:17Z	comment	58369	0xace8e0	{"addr": "0x140ace8e0", "comment": "58369 hkbBehaviorGraph::setNodeIds: walks every node from the root generator (sub_140AEF720, flags 0: nested behaviours included) and numbers them 0..n-1 in walk order (node +0x40); state machines into GlobalTransitionData (+0xB0) +0x50 (id -> template); +0x128/+0x12A = n. The same behaviour files give the same ids on every game: setInternalState's map (58373) is keyed by them."}
+2026-11-09T15:03:17Z	comment	58370	0xacead0	{"addr": "0x140acead0", "comment": "58370 a new node id: from the free pool (+0x50, size +0x58) or the counter +0x12A. Only transition-effect clones take one (StartTransition, setInternalStateUser 59343): their ids are each game's own."}
+2026-11-09T15:03:17Z	comment	58340	0xaccb40	{"addr": "0x140accb40", "comment": "58340 the character's graph from the template: shares the template's nodes, ids and next id (+0x128/+0x12A); fresh clone maps (+0xE0/+0xE8)."}
+2026-11-09T15:03:17Z	read	59317	0xaef720	{"name": "sub_140AEF720"}
+2026-11-09T15:03:28Z	name	59317	0xaef720	{"addr": "0x140aef720", "name": "coop_hkbBehaviorGraph_CollectNodes"}
+2026-11-09T15:03:30Z	comment	59317	0xaef720	{"addr": "0x140aef720", "comment": "Every node under a root generator (rootGenerator, behaviourGraph, getChildren flags, hkArray<NodeInfo 0x90>* out, context or null): 59319's walk with no context, so nothing is cloned or activated; NodeInfo +0x50 the template. setNodeIds (58369) numbers its output; the graph input stream finds a copy's templates by id with it."}
+2026-11-09T15:03:30Z	read	8268	0xcfb70	{"name": "coop_init_hkbEventsFromRangeModifierInternalStateClass"}
+2026-11-09T15:05:30Z	read	59350	0xaf37a0	{"name": "sub_140AF37A0"}
+2026-11-09T15:05:31Z	read	60008	0xb1dcb0	{"name": "hkbStateMachine::sub_60008"}
+2026-11-09T15:05:31Z	read	59970	0xb1c490	{"name": "hkbBlendingTransitionEffect::sub_59970"}
+2026-11-09T15:05:38Z	name	59350	0xaf37a0	{"addr": "0x140af37a0", "name": "coop_hkbStateMachine_ActiveTransitionInfo_dtor"}
+2026-11-09T15:05:38Z	name	60008	0xb1dcb0	{"addr": "0x140b1dcb0", "name": "coop_hkbStateMachine_createInternalState"}
+2026-11-09T15:05:38Z	name	59970	0xb1c490	{"addr": "0x140b1c490", "name": "coop_hkbBlendingTransitionEffect_createInternalState"}
+2026-11-09T15:05:40Z	comment	59350	0xaf37a0	{"addr": "0x140af37a0", "comment": "59350 ActiveTransitionInfo dtor: releases transitionEffectInternalStateInfo (+8). A state machine's internal state owns its transitions' effect infos: the graph input stream nulls the ones it made itself before releasing the state."}
+2026-11-09T15:05:40Z	comment	60008	0xb1dcb0	{"addr": "0x140b1dcb0", "comment": "60008 createInternalState: a new hkbStateMachineInternalState (0x68, Havok heap, memSizeAndFlags 0xFFFF, refcount 1, empty arrays). Reads nothing of the node."}
+2026-11-09T15:05:40Z	read	60152	0xb2ed10	{"name": "coop_hkBuiltinTypeRegistry_Init"}
+2026-11-09T15:05:45Z	read	57048	0xaa36f0	{"name": "sub_140AA36F0"}
+2026-11-09T15:05:49Z	name	57048	0xaa36f0	{"addr": "0x140aa36f0", "name": "coop_hkArrayUtil_reserve"}
+2026-11-09T15:05:51Z	comment	57048	0xaa36f0	{"addr": "0x140aa36f0", "comment": "57048 hkArrayUtil::_reserve(allocator, hkArray*, count, elementSize): capacity to count (a DONT_DEALLOCATE array, capacityAndFlags < 0, is copied to a new block; else reallocated); the size is the caller's. The graph input stream sizes a new internal state's arrays with it and hkContainerAllocators::singleton."}
+2026-11-09T15:06:03Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59318 updateActiveNodes' walk from the root generator (rootGenerator, graph, getChildren flags, new NodeInfo array, template->index map, children indices, old NodeInfo array, old template->index map, context, flag, restoreMap): 59326 per node, then marks nodes whose parents need sync."}
+2026-11-09T15:06:03Z	comment	60079	0xb29f40	{"addr": "0x140b29f40", "comment": "60079 hkbBehaviorGraph::updateActiveNodes(graph, context, restoreMap): a third argument the decompiler hid (r8 kept in r15): the restore map, passed to the walk (59318). Old active nodes no longer active are deactivated (slot 7) and their clones released (58363). activate (58328) passes null; setInternalState (58373) its map."}
+2026-11-09T15:09:42Z	read	65164	0xc40020	{"name": "sub_140C40020"}
+2026-11-09T15:11:25Z	comment	65164	0xc40020	{"addr": "0x140c40020", "comment": "65164 SaveDataRestoreFunctor's state machine restore (slot 6, walker flag byte 5): ends every running transition (59384) first, then goes to the saved state (65179) and restarts each saved transition (StartTransition / 59373 / StartNestedStateTransition), only a blending effect's times restored. A machine missing from the save goes to its start state. So it cannot follow Havok's setInternalState (58373): it would replace the exact restored transitions."}
+2026-11-09T15:11:25Z	comment	65237	0xc436b0	{"addr": "0x140c436b0", "comment": "Skyrim's graph walker under 65232 (flags block, character, functor): per node class a functor slot (clip 40, gamebryo sequence 24, synchronized clip 16, state machine 48, pose matching, blender children by weight). LoadState's SaveDataRestoreFunctor (65149) restores through it."}
+2026-11-09T15:11:25Z	comment	65160	0xc3f510	{"addr": "0x140c3f510", "comment": "65160 SaveDataRestoreFunctor slot 3: a node with save data under its name calls its own restore (vfunc 26): the BS modifiers' runtime members (timer, tweener, look-at, limb IK, pass-by trigger). Havok reflection flags those members SERIALIZE_IGNORED (0x400): the graph input stream carries them by reflection instead."}
+2026-11-09T15:23:28Z	read	58398	0xad1e90	{"name": "hkbNodeInternalStateInfo::dtor"}
+2026-11-09T15:27:35Z	read	43621	0x7da170	{"name": "coop_LoadEventClips"}
+2026-11-09T15:31:39Z	read		0xaf0b20	{"name": "coop_hkbBehaviorGraph_ActivateNode"}

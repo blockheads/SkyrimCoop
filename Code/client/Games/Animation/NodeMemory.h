@@ -6,9 +6,10 @@
 #include <string>
 #include <vector>
 
-// A behaviour node's memory between updates (its internal state object: a range modifier's last ranges, a damping
-// modifier's last values), as bytes for a sync point (docs/design/graph-input-stream.md, Sync points). Read through
-// Havok 2010's class reflection (hkClass / hkClassMember, coop_hkClass_ctor 57620), so one reader serializes any class.
+// A behaviour node's memory between updates (its internal state object: a state machine's state and transitions, a
+// blender's active children, a clip's time), as bytes for a sync point (docs/design/graph-input-stream.md, Sync
+// points). Read through Havok 2010's class reflection (hkClass / hkClassMember, coop_hkClass_ctor 57620), so one reader
+// serializes any class.
 namespace NodeMemory
 {
 // hkClassMember::Type (Havok 2010), the ones internal states use.
@@ -40,6 +41,14 @@ enum Type : uint8_t
     kHalf = 32,
 };
 
+// What a pointer member carries: unknown ones make the class not carried (HasPointers).
+enum class Pointer : uint8_t
+{
+    kUnknown,
+    kSkip,   // into the owner's graph, remade by the restore (a running transition's effect): nothing; read as null
+    kNested, // an object the state owns (the effect's own state info): Hooks::WriteNested / ReadNested
+};
+
 struct Class;
 struct Member
 {
@@ -48,6 +57,7 @@ struct Member
     uint8_t Subtype = 0;           // an array's element, an enum's or flags' storage
     uint16_t CArraySize = 0;       // an inline array's count (0: one)
     const Class* Struct = nullptr; // a struct's, or an array of structs' element class
+    Pointer Kind = Pointer::kUnknown;
 };
 struct Class
 {
@@ -57,8 +67,7 @@ struct Class
 
 // A plain value's bytes, 0 when not plain (a pointer, an array, a struct).
 [[nodiscard]] uint32_t PlainSize(uint8_t aType) noexcept;
-// Whether the class holds a pointer anywhere (a state machine's active transitions): its memory points into its own
-// graph, so it is not carried.
+// Whether the class holds a pointer it cannot carry anywhere: its memory points into its own graph.
 [[nodiscard]] bool HasPointers(const Class& acClass) noexcept;
 
 // hkArray's layout (64-bit): data, size, capacity and flags.
@@ -69,18 +78,20 @@ struct ArrayView
     int32_t CapacityAndFlags;
 };
 
-// Its plain members and arrays of them (or of structs); pointers are left out.
-void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class& acClass);
-// How Read applies bytes: all of them (a modifier's memory, a clip's); or, for a generator with children, its times
-// (reals) only, its structure (integers, bools, arrays: which children are active, in what order) checked equal
-// first and nothing written unless it is (another graph's crashed a blender's generate, 60039).
-enum class Mode
+// The engine's side: a new state's arrays and the objects a state owns.
+struct Hooks
 {
-    kAll,
-    kCheckStructure, // compares, writes nothing
-    kTimes,          // writes the reals only
+    virtual ~Hooks() = default;
+    // Storage for aCount elements (hkArrayUtil::_reserve 57048); the reader sets the size.
+    [[nodiscard]] virtual bool Reserve(ArrayView& aArray, uint32_t aCount, uint32_t aElementSize) = 0;
+    // A kNested member of the object (a struct or array element) at apObject.
+    virtual void WriteNested(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Member& acMember) = 0;
+    [[nodiscard]] virtual bool ReadNested(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Member& acMember) = 0;
 };
-// Onto an object of the same class: false (it may be partly written, but not in kTimes after kCheckStructure) if the
-// bytes do not fit, an array's count included (a copy's arrays come sized by its own node, from the same file).
-[[nodiscard]] bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Mode aMode = Mode::kAll);
+
+// Its plain members, arrays of them (or of structs) and its kNested pointers; other pointers are left out.
+void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class& acClass, Hooks* apHooks = nullptr);
+// Onto an object of the same class: false (it may be partly written) if the bytes do not fit. An array of another
+// count than the object's is sized by the hooks (a new state's are empty); without them it does not fit.
+[[nodiscard]] bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Hooks* apHooks = nullptr);
 } // namespace NodeMemory
