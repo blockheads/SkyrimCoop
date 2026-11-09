@@ -483,7 +483,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
-| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed`. Since 2026-11-08 every teleport, inside the cell too (PayFine's release; `docs/design/party-travel.md`, "Every teleport"), `party-teleports-in-cell` |
 
 ### Experience: wiring up
 

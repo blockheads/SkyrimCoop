@@ -262,6 +262,7 @@ void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
     m_places.erase(aPlayer);
     m_aheadOfHost.erase(aPlayer);
     m_broughtToParty.erase(aPlayer);
+    m_announced.erase(aPlayer);
     std::vector<uint32_t> owned, ridden;
     for (const auto& [cSessionId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
@@ -276,8 +277,12 @@ void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
-    // The party tether: whoever travels by itself takes everyone along, the host too
-    // (docs/design/host-authority-migration.md, "Party tether").
+    const auto cAnnounced = m_announced.find(aSender);
+    const bool cWasAnnounced = cAnnounced != m_announced.end() && At(cAnnounced->second, acRequest);
+    if (cAnnounced != m_announced.end())
+        m_announced.erase(cAnnounced);
+    // The party tether: whoever travels by itself takes everyone along, the host too, inside its cell as well
+    // (docs/design/party-travel.md, "Every teleport"). A trip announced before its load was sent then.
     if (acRequest.How == EnterCellRequest::Travel::kOwn)
     {
         NotifyPartyTravel travel;
@@ -285,20 +290,15 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         travel.WorldSpaceId = acRequest.WorldSpaceId;
         travel.Position = acRequest.Position;
         travel.Heading = acRequest.Heading;
-        m_players.SendToOthers(travel, aSender, Net::kReliable);
+        if (!cWasAnnounced)
+            m_players.SendToOthers(travel, aSender, Net::kReliable);
         m_partyTravel = travel;
     }
     // A follower that arrived where the party is not (two players led at once, and it followed the one that led
     // first): sent on to where the party went last. Not seen or reproduced yet; a guard for that race.
     else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel)
     {
-        const bool cThere = acRequest.WorldSpaceId
-                                ? acRequest.WorldSpaceId == m_partyTravel->WorldSpaceId &&
-                                      GridCellCoords::IsCellInGridCell(
-                                          GridCellCoords::CalculateGridCellCoords(acRequest.Position),
-                                          GridCellCoords::CalculateGridCellCoords(m_partyTravel->Position), false)
-                                : !m_partyTravel->WorldSpaceId && acRequest.CellId == m_partyTravel->CellId;
-        if (!cThere)
+        if (!At(*m_partyTravel, acRequest))
         {
             spdlog::info("HostCharacters: {:x} followed to {:x}:{:x}, the party is at {:x}:{:x}: sent on", aSender,
                          acRequest.CellId.ModId, acRequest.CellId.BaseId, m_partyTravel->CellId.ModId,
@@ -350,6 +350,15 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         m_aheadOfHost.erase(cPlayer);
         SendHostActors(cPlayer);
     }
+}
+
+bool HostCharacters::At(const NotifyPartyTravel& acPlace, const EnterCellRequest& acArrival) noexcept
+{
+    if (!acArrival.WorldSpaceId)
+        return !acPlace.WorldSpaceId && acArrival.CellId == acPlace.CellId;
+    return acArrival.WorldSpaceId == acPlace.WorldSpaceId &&
+           GridCellCoords::IsCellInGridCell(GridCellCoords::CalculateGridCellCoords(acArrival.Position),
+                                            GridCellCoords::CalculateGridCellCoords(acPlace.Position), false);
 }
 
 uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept
@@ -573,5 +582,6 @@ void HostCharacters::OnTravelQueued(const PartyTravelRequest& acRequest, Connect
     if (!PlayerCharacterOf(aSender))
         return;
     m_partyTravel = acRequest.Destination;
+    m_announced[aSender] = acRequest.Destination;
     m_players.SendToOthers(*m_partyTravel, aSender, Net::kReliableNoNagle);
 }

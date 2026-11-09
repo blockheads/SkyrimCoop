@@ -25,6 +25,18 @@ one engine call, which sends `PositionPlayerEvent`. That event is what our arriv
 | `LatentPlayerMover` | 55427 | Papyrus `Debug.CenterOnCellAndWait` / `PlayerMoveToAndWait` (55368, 55369) |
 | `TESObjectCELL` / `WinMain` path | 36642, 36549 | Startup and new game: the default cell, not mid-session |
 
+### Not through 40442: jail travel (1.7.104, read in IDA 2026-11-08)
+
+`PlayerCharacter::PayFine` (40659) with `goToJail` and `GoToPrison` (40655) only set a pending flag
+(`PlayerCharacter` +0xBEC bit 0x40). `ProcessQueuedTravel` (40438) checks it at its top: with a sentence (+0x730)
+`QueueJailSentenceTravel` (40656) aims through the faction's jail marker (`TESFaction` +0x60) into the jail,
+without one `QueueJailRelease` (40661) aims at the marker's own spot (Riften: outdoors, in the same worldspace).
+Both write `queuedTarget` (+0x650) inline, and 40438 carries it out in the same call. Our hook at 40438's entry
+therefore sees no queued target: only the arrival (`PositionPlayerEvent`) reports these moves.
+
+Console `SetPos` (`SetPositionOnAxis` 22053) writes the position in place: no queued target, no
+`PositionPlayerEvent`, so it is not a teleport for the party (the harness's `place` neither).
+
 Not through it: walking or riding across exterior cell borders (no teleport; the grid moves) and
 loading a save.
 
@@ -34,7 +46,8 @@ So the arrival needs no hook per kind of travel. What differs between kinds is w
 - Fast travel measures a calendar step on the traveler's game (1.2 h for ~16,000 units, the river to Riverwood).
   A guest sends that skipped native step to HostClock; the host advances once and shares its calendar (2026-10-27).
 - A `MoveTo` within the cell sends the event too; the arrival keeps the copies when the cell is the same
-  (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and nobody follows (already there).
+  (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and since 2026-11-08 the party follows it like any
+  teleport (`docs/design/party-travel.md`, "Every teleport").
 
 The party tether (`TravelService`) moves the others with `MoveTo` on their player (56626, so through 40442 like
 any travel): their arrival is the same event, sent as following, not leading
@@ -43,7 +56,8 @@ their owners, so no travel drops or respawns them (`docs/design/copy-contract.md
 
 Scenarios: `party-uses-door` (the host leads out, the client leads back in),
 `party-fast-travels` (each leads once, the other following within the same worldspace), `party-changes-cells`
-(`coc`), `teleport-keeps-copies` (a move within the cell). The map's own UI (open the map, pick a marker,
+(`coc`), `teleport-keeps-copies` (a move within the cell), `party-teleports-in-cell` (each player's `MoveTo`
+inside the cell brings the other). The map's own UI (open the map, pick a marker,
 confirm) is not driven: the console's `FastTravel` queues the same move with the marker.
 
 ## Copies left behind by travel
