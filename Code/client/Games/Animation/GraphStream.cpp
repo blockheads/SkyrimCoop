@@ -9,10 +9,15 @@ void GraphRecorder::Record(GraphRecordedOp aOp, std::span<const uint32_t> aWords
     const uint32_t cStepBits = std::bit_cast<uint32_t>(aOp.Step);
     for (size_t i = 0; i < aWords.size() && i <= UINT16_MAX; ++i)
     {
+        // An update's TimeDelta: the copy writes the step there, so another value goes (a far graph's chunk).
+        if (!aOp.Op.Event && TimeDelta && i == *TimeDelta)
+        {
+            if (aWords[i] != cStepBits)
+                aOp.Op.Changed.emplace_back(static_cast<uint16_t>(i), aWords[i]);
+            continue;
+        }
         if (i < m_after.size() && m_after[i] == aWords[i])
             continue;
-        if (!aOp.Op.Event && TimeDelta && i == *TimeDelta && aWords[i] == cStepBits)
-            continue; // the copy writes the step there
         aOp.Op.Changed.emplace_back(static_cast<uint16_t>(i), aWords[i]);
     }
     if (!m_seed || *m_seed != acSeed)
@@ -30,6 +35,11 @@ void GraphRecorder::Event(uint64_t aTick, uint16_t aEventId, std::span<const uin
 void GraphRecorder::Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId)
 {
     m_ops.push_back({{.Event = true, .EventId = aEventId, .ClipSet = aSet}, aTick, 0.f});
+}
+
+void GraphRecorder::Generate(uint64_t aTick)
+{
+    m_ops.push_back({{.Generate = true}, aTick, 0.f});
 }
 
 void GraphRecorder::Update(uint64_t aTick, float aStep, std::span<const uint32_t> aWords, const GraphSeed& acSeed)
@@ -56,7 +66,7 @@ GraphOps BatchGraphOps(const std::vector<GraphRecordedRun>& acRuns)
     std::map<std::pair<uint64_t, uint32_t>, uint32_t> frames;
     for (const auto& cRun : acRuns)
         for (const auto& cOp : cRun.Ops)
-            if (!cOp.Op.Event)
+            if (!cOp.Op.Event && !cOp.Op.Generate)
                 frames.emplace(std::pair{cOp.Tick, std::bit_cast<uint32_t>(cOp.Step)}, 0);
     GraphOps ops;
     for (auto& [cKey, index] : frames)
@@ -70,7 +80,7 @@ GraphOps BatchGraphOps(const std::vector<GraphRecordedRun>& acRuns)
         for (const auto& cOp : cRun.Ops)
         {
             GraphOp op = cOp.Op;
-            if (!op.Event)
+            if (!op.Event && !op.Generate)
                 op.Frame = frames.at({cOp.Tick, std::bit_cast<uint32_t>(cOp.Step)});
             run.Ops.push_back(std::move(op));
         }
@@ -94,12 +104,15 @@ void GraphReplayer::Feed(const GraphOpsRun& acRun, const std::vector<GraphOpFram
         // An event is due with the update after it (its owner had it in that update's frame): until that update
         // comes, maybe in the next run, it waits.
         Queued queued{cOp, UINT64_MAX, 0.f, next};
-        if (!cOp.Event && cOp.Frame < acFrames.size())
+        if (cOp.Generate)
+            queued.Tick = m_lastUpdateTick; // its owner ran it right after that update, in the same frame
+        else if (!cOp.Event && cOp.Frame < acFrames.size())
         {
-            queued.Tick = acFrames[cOp.Frame].Tick;
+            queued.Tick = m_lastUpdateTick = acFrames[cOp.Frame].Tick;
             queued.Step = acFrames[cOp.Frame].Step;
-            for (auto it = m_queue.rbegin(); it != m_queue.rend() && it->Op.Event && it->Tick == UINT64_MAX; ++it)
-                it->Tick = queued.Tick;
+            for (auto it = m_queue.rbegin(); it != m_queue.rend() && (it->Op.Event || it->Op.Generate); ++it)
+                if (it->Op.Event && it->Tick == UINT64_MAX)
+                    it->Tick = queued.Tick;
             ++next;
         }
         m_queue.push_back(std::move(queued));
@@ -163,14 +176,16 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         m_words = aTarget.Words();
         // Its point is its owner's graph as update cPoint.Update began: what came before, the events and loads just
         // before that update too, is in it.
-        while (!m_queue.empty() && (m_queue.front().Next < cPoint.Update || (m_queue.front().Op.Event && m_queue.front().Next == cPoint.Update)))
+        while (!m_queue.empty() && (m_queue.front().Next < cPoint.Update ||
+                                    ((m_queue.front().Op.Event || m_queue.front().Op.Generate) && m_queue.front().Next == cPoint.Update)))
             m_queue.pop_front();
         m_started = true;
     }
     if (!m_started)
         return 0;
     size_t updates = 0;
-    while (!m_queue.empty() && updates < cMaxUpdatesPerRun && m_queue.front().Tick <= aPlaybackTick)
+    // The cap never parts an update from its generate pass: its pose would be an older one's for a frame.
+    while (!m_queue.empty() && (updates < cMaxUpdatesPerRun || m_queue.front().Op.Generate) && m_queue.front().Tick <= aPlaybackTick)
     {
         const GraphOp& cFront = m_queue.front().Op;
         if (cFront.Event && cFront.ClipSet && !std::exchange(m_clipsAsked, true))
@@ -185,16 +200,23 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         m_queue.pop_front();
         if (cOp.Op.ClipSet)
             continue;
+        if (cOp.Op.Generate)
+        {
+            aTarget.Generate();
+            m_words = aTarget.Words();
+            continue;
+        }
         // Its variables are the stream's alone: its own writes since (channels, 63590) are put back.
         std::vector<uint32_t> words = m_words;
+        // TimeDelta holds the step unless its owner's held another value, which then came with the op.
+        if (!cOp.Op.Event && TimeDelta && *TimeDelta < words.size())
+            words[*TimeDelta] = std::bit_cast<uint32_t>(cOp.Step);
         for (const auto& [cIndex, cValue] : cOp.Op.Changed)
         {
             if (cIndex >= words.size())
                 words.resize(cIndex + 1);
             words[cIndex] = cValue;
         }
-        if (!cOp.Op.Event && TimeDelta && *TimeDelta < words.size())
-            words[*TimeDelta] = std::bit_cast<uint32_t>(cOp.Step);
         aTarget.WriteWords(words);
         if (cOp.Op.Seed)
             aTarget.SetSeed(*cOp.Op.Seed);
@@ -258,6 +280,15 @@ void GraphStreams::OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint1
     {
         std::scoped_lock _{pOwned->Lock};
         pOwned->Recorder.Clips(aTick, aSet, aEventId);
+    }
+}
+
+void GraphStreams::OnGenerate(uint32_t aFormId, uint64_t aTick)
+{
+    if (const auto pOwned = FindOwned(aFormId))
+    {
+        std::scoped_lock _{pOwned->Lock};
+        pOwned->Recorder.Generate(aTick);
     }
 }
 

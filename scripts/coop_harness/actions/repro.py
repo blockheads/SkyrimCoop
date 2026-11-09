@@ -287,6 +287,17 @@ class ReproActions:
             keys = sorted({first, str(update - 1), str(update)} - {None}, key=int)
             return {"first apart": first, **{key: {"owner": ours.get(key), "copy": theirs.get(key)} for key in keys}}
 
+        def steps(owner_form, form, update, around):
+            # Each side's real steps (58329), dt, force, LOD and countdowns from a few updates before `around`.
+            ask = {"form": owner_form, "update": update, "steps_from": max(0, around - 4)}
+            ask = {**ask, "handled_from": max(0, around - 4)}
+            ours = host.rpc({"cmd": "graph_stream", "states_at": ask}, timeout=10) or {}
+            theirs = guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=10) or {}
+            keys = sorted(set(ours.get("steps") or {}) & set(theirs.get("steps") or {}), key=int)
+            return {key: {"owner": ours["steps"][key], "copy": theirs["steps"][key],
+                          "handled": [(ours.get("handled") or {}).get(key), (theirs.get("handled") or {}).get(key)]}
+                    for key in keys if int(key) <= around + 1}
+
         def handled(game, form, update):
             return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("handled")
 
@@ -308,12 +319,14 @@ class ReproActions:
                 elif expected != value:
                     owner_states = states(host, owners[actor]["form"], update) or []
                     copy_states = states(guest, form, update) or []
+                    apart = words_apart(owners[actor]['form'], form, update)
+                    first = int((apart.get("first apart") or {}).get("update", update))
                     raise ctx.failure(f"copy {form:X} (actor {actor}) left its owner's graph at update {update} after "
                                       f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
                                       f"copy only {sorted(set(copy_states) - set(owner_states))}; events before (update: "
                                       f"name taken/refused) owner {events(host, owners[actor]['form'], update)}, copy "
                                       f"{events(guest, form, update)}; variables apart (owner, copy) "
-                                      f"{words_apart(owners[actor]['form'], form, update)}; events handled (event <- sender) owner "
+                                      f"{apart}; steps {steps(owners[actor]['form'], form, update, first)}; events handled (event <- sender) owner "
                                       f"{handled(host, owners[actor]['form'], update)}, copy {handled(guest, form, update)}; clip times "
                                       f"{times(owners[actor]['form'], form, update)}")
                 else:
@@ -323,8 +336,12 @@ class ReproActions:
 
         ctx.wait_for(f"[both] {seconds:.0f} s of streamed copies' graphs against their owners'", step, seconds + 30,
                      explain=lambda: f"copies {copies}, compared {dict(compared)}")
+        # Each copy's updates compared and its owner's in the window: a far owner steps in chunks (63587), not 30 a second.
         return {"compared": {f"{copies.get(actor, {}).get('form', 0):X}": count for actor, count in compared.items()},
+                "coverage": {f"{copies.get(actor, {}).get('form', 0):X}": (count, len(owners[actor]["hashes"]))
+                             for actor, count in compared.items() if actor in owners},
                 "by_owner": {owners[actor]["form"]: count for actor, count in compared.items() if actor in owners},
+                "owner_updates": {value["form"]: len(value["hashes"]) for value in owners.values()},
                 "copies": {f"{value['form']:X}": value for value in copies.values()},
                 "unmatched": len(pending), "owners": len(owners)}
 
@@ -765,8 +782,8 @@ class ReproActions:
         `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
         at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing), "stream"
         (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
-        update; with `name`, its copy compared on at least `value` updates, by default 30 a second; without, at least
-        `value` copies, default 1, compared through most of it), "guest_npcs" (the guest shows no NPC of its own, all
+        update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
+        second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
         through `seconds`)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
@@ -791,14 +808,22 @@ class ReproActions:
         if check == "stream":
             seconds = seconds or 60.0
             result = ctx.graph_stream_check(seconds)
+
+            def needed(owner_updates):
+                # Most of its owner's updates (the copy runs a little behind), and an owner that stepped: 4 a second at
+                # least, a far graph's longest chunks (fAnimInterpMaxTime 0.25 s).
+                return max(int(4 * seconds), int(0.9 * owner_updates))
+
             if name:
                 owner = ctx.resolve(name, "host")
-                needed = value if value is not None else int(30 * seconds)
-                if result["by_owner"].get(owner, 0) < needed:
-                    raise ctx.failure(f"{name}: its copy's graph compared on {result['by_owner'].get(owner, 0)} updates of "
-                                      f"{needed} needed (on its owner's stream: {result['copies']})")
-            elif (through := sum(count >= 15 * seconds for count in result["compared"].values())) < (value or 1):
-                raise ctx.failure(f"{through} copies compared through the window, {value or 1} needed: {result['compared']}")
+                compared, owner_updates = result["by_owner"].get(owner, 0), result["owner_updates"].get(owner, 0)
+                if compared < (value if value is not None else needed(owner_updates)):
+                    raise ctx.failure(f"{name}: its copy's graph compared on {compared} of its owner's {owner_updates} updates, "
+                                      f"{value if value is not None else needed(owner_updates)} needed (on its owner's "
+                                      f"stream: {result['copies']})")
+            elif (through := sum(count >= needed(updates) for count, updates in result["coverage"].values())) < (value or 1):
+                raise ctx.failure(f"{through} copies compared through the window, {value or 1} needed (compared, owner's "
+                                  f"updates): {result['coverage']}")
             return {"copies": len(result["compared"]), "least": min(result["compared"].values(), default=0)}
         if check == "graph":
             owner, seconds = ctx.resolve(name, "host"), seconds or 60.0

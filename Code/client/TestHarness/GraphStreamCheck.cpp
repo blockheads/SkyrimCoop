@@ -32,15 +32,47 @@ struct Hashes
     std::map<uint32_t, std::string> Times;                // its clips' local times after each update (reported, not compared)
     std::vector<std::string> Handled;                     // every event its graph handled since its last update, by sender
     std::map<uint32_t, std::vector<std::string>> HandledBefore;
+    std::optional<float> Step;                            // its behaviour graph's step in this update (58329)
+    std::string InUpdate;                                 // the variables its behaviour update itself wrote
+    std::map<uint32_t, std::string> Steps;                // each update's step, LOD and countdowns (reported, not compared)
 };
 std::mutex s_lock;
 std::unordered_map<uint32_t, Hashes> s_actors;
 std::unordered_map<const void*, uint32_t> s_graphs; // a streamed actor's behaviour graph, to its form id
+std::unordered_map<uint32_t, std::vector<std::string>> s_names; // its variables' names
 
 // hkbBehaviorGraph::HandleEventOnActiveNodes (58377): (graph, context, event { id, payload +8, sender +0x10 }): every
 // event a graph handles, its own raised ones too (handleEvents 58344), with the node that raised it.
 using THandleEvent = void(void*, void*, const uint8_t*);
 THandleEvent* RealHandleEvent = nullptr;
+// hkbBehaviorGraph's update (vfunc 5, 58329): (graph, context, step), the step 63587 chose.
+using TBehaviourUpdate = void(void*, void*, float);
+TBehaviourUpdate* RealBehaviourUpdate = nullptr;
+
+void HookBehaviourUpdate(void* apGraph, void* apContext, float aStep)
+{
+    std::optional<uint32_t> formId;
+    {
+        std::scoped_lock _{s_lock};
+        if (const auto it = s_graphs.find(apGraph); it != s_graphs.end())
+            formId = it->second;
+    }
+    if (!formId)
+        return RealBehaviourUpdate(apGraph, apContext, aStep);
+    const auto* pSet = static_cast<hkbBehaviorGraph*>(apGraph)->animationVariables;
+    const auto cRead = [pSet] { return pSet && pSet->data ? std::vector<uint32_t>(pSet->data, pSet->data + pSet->size) : std::vector<uint32_t>{}; };
+    const auto cBefore = cRead();
+    RealBehaviourUpdate(apGraph, apContext, aStep);
+    const auto cAfter = cRead();
+    std::scoped_lock _{s_lock};
+    auto& hashes = s_actors[*formId];
+    hashes.Step = aStep;
+    const auto cNames = s_names.find(*formId);
+    for (size_t i = 0; i < std::min(cBefore.size(), cAfter.size()); ++i)
+        if (cBefore[i] != cAfter[i])
+            hashes.InUpdate += std::format(" {}:{:08X}>{:08X}", cNames != s_names.end() && i < cNames->second.size() ? cNames->second[i] : std::to_string(i),
+                                           cBefore[i], cAfter[i]);
+}
 
 std::vector<uint32_t> GraphWords(const BShkbAnimationGraph& acGraph)
 {
@@ -60,7 +92,6 @@ std::vector<std::string> VariableNames(const BShkbAnimationGraph& acGraph)
         names.emplace_back(cNames.data[i] ? cNames.data[i] : "");
     return names;
 }
-std::unordered_map<uint32_t, std::vector<std::string>> s_names;
 
 void HookHandleEvent(void* apGraph, void* apContext, const uint8_t* acpEvent)
 {
@@ -171,6 +202,13 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     hashes.Times[*cUpdate] = ClipTimes(reinterpret_cast<const hkbBehaviorGraphNode*>(apGraph->behaviorGraph));
     while (hashes.Times.size() > 2000)
         hashes.Times.erase(hashes.Times.begin());
+    const auto cStep = std::exchange(hashes.Step, std::nullopt);
+    hashes.Steps[*cUpdate] = std::format("step {} dt {:.4f} force {:d} lod {} countdown {:.4f}/{:.4f}; in update{}",
+                                         cStep ? std::format("{:.4f}({:08X})", *cStep, std::bit_cast<uint32_t>(*cStep)) : "none",
+                                         apData ? apData->deltaTime : 0.f, apData && apData->force, apGraph->lod,
+                                         apGraph->interpCountdown[0], apGraph->interpCountdown[1], std::exchange(hashes.InUpdate, {}));
+    while (hashes.Steps.size() > 2000)
+        hashes.Steps.erase(hashes.Steps.begin());
     while (hashes.Words.size() > 2000)
         hashes.Words.erase(hashes.Words.begin());
     if (!s_names.contains(cFormId))
@@ -230,6 +268,10 @@ void GraphStreamCheck::Install() noexcept
     if (!Hooks::FunctionHookManager::GetInstance().AddChained(
             Hooks::FunctionHook(reinterpret_cast<void**>(&RealSendEvent), reinterpret_cast<void*>(HookSendEvent), "GraphStreamCheckEvents")))
         spdlog::warn("GraphStreamCheck: could not chain under the graph event hook");
+    Hooks::Resolve<58329>(&RealBehaviourUpdate);
+    if (!Hooks::FunctionHookManager::GetInstance().AddChained(
+            Hooks::FunctionHook(reinterpret_cast<void**>(&RealBehaviourUpdate), reinterpret_cast<void*>(HookBehaviourUpdate), "GraphStreamCheckSteps")))
+        spdlog::warn("GraphStreamCheck: could not chain under the behaviour update hook");
     Hooks::Resolve<58377>(&RealHandleEvent);
     if (!Hooks::FunctionHookManager::GetInstance().AddChained(
             Hooks::FunctionHook(reinterpret_cast<void**>(&RealHandleEvent), reinterpret_cast<void*>(HookHandleEvent), "GraphStreamCheckHandled")))
@@ -261,12 +303,15 @@ nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexce
         for (auto e = it->second.EventsBefore.lower_bound(cUpdate >= 20 ? cUpdate - 20 : 0); e != it->second.EventsBefore.end() && e->first <= cUpdate; ++e)
             events[std::to_string(e->first)] = e->second;
         nlohmann::json handled = nlohmann::json::object();
-        for (auto e = it->second.HandledBefore.lower_bound(cUpdate >= 5 ? cUpdate - 5 : 0); e != it->second.HandledBefore.end() && e->first <= cUpdate; ++e)
+        for (auto e = it->second.HandledBefore.lower_bound(cAt.value("handled_from", cUpdate >= 5 ? cUpdate - 5 : 0u)); e != it->second.HandledBefore.end() && e->first <= cUpdate; ++e)
             handled[std::to_string(e->first)] = e->second;
         nlohmann::json times = nlohmann::json::object();
         const uint32_t cFrom = cAt.value("times_from", cUpdate >= 3 ? cUpdate - 3 : 0u);
         for (auto e = it->second.Times.lower_bound(cFrom); e != it->second.Times.end() && e->first <= cUpdate; ++e)
             times[std::to_string(e->first)] = e->second;
+        nlohmann::json steps = nlohmann::json::object();
+        for (auto e = it->second.Steps.lower_bound(cAt.value("steps_from", cFrom)); e != it->second.Steps.end() && e->first <= cUpdate; ++e)
+            steps[std::to_string(e->first)] = e->second;
         nlohmann::json words = nlohmann::json::object();
         if (const auto cWords = it->second.Words.find(cUpdate); cWords != it->second.Words.end())
             words = {{"before", cWords->second.first}, {"after", cWords->second.second}};
@@ -276,7 +321,7 @@ nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexce
             for (auto e = it->second.Words.lower_bound(cAt["words_from"].get<uint32_t>()); e != it->second.Words.end() && e->first <= cUpdate; ++e)
                 wordsFrom[std::to_string(e->first)] = {e->second.first, e->second.second};
         const auto cNames = s_names.find(cAt.value("form", 0u));
-        return {{"ok", true}, {"states", Lines(cStates->second)}, {"events", events}, {"words", words}, {"words_from", wordsFrom}, {"handled", handled}, {"times", times},
+        return {{"ok", true}, {"states", Lines(cStates->second)}, {"events", events}, {"words", words}, {"words_from", wordsFrom}, {"handled", handled}, {"times", times}, {"steps", steps},
                 {"names", cNames != s_names.end() ? nlohmann::json(cNames->second) : nlohmann::json::array()}};
     }
     const bool cTake = acRequest.value("take", false);

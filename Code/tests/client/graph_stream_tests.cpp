@@ -48,9 +48,14 @@ struct ToyGraph final : IGraphTarget
     }
     void Update(float aStep) override
     {
-        State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Seed.Current;
+        State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Vars[3] + Seed.Current;
         Vars[2] = uint32_t(State); // a variable the graph writes itself
         Calls.push_back("update");
+    }
+    void Generate() override
+    {
+        State = State * 13 + 5; // its modifiers move
+        Calls.push_back("generate");
     }
 };
 
@@ -111,6 +116,82 @@ TEST_CASE("TimeDelta is left out when it is the step", "[graph-stream]")
     CHECK(cOps[0].Op.Changed ==
           std::vector<std::pair<uint16_t, uint32_t>>{{0, 0}, {1, 0}, {2, 0}}); // the first: all but TimeDelta
     CHECK(cOps[1].Op.Changed.back() == std::pair<uint16_t, uint32_t>{3, std::bit_cast<uint32_t>(0.5f)});
+}
+
+TEST_CASE("A far owner's chunked steps keep its own TimeDelta on its copy", "[graph-stream]")
+{
+    // 63587 writes the frame's time; a far graph steps a whole interval, or nothing, at once (58329).
+    GraphRecorder recorder;
+    recorder.TimeDelta = 3;
+    ToyGraph owner, copy;
+    const uint32_t cFrame = std::bit_cast<uint32_t>(0.016f);
+    owner.Vars[3] = cFrame;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    GraphReplayer replayer;
+    replayer.TimeDelta = 3;
+    replayer.Load(Point(owner, recorder.Updates()));
+    std::vector<uint64_t> states;
+    const float cSteps[] = {0.25f, 0.f, 0.f, 0.25f};
+    for (uint64_t tick = 2; tick <= 5; ++tick)
+    {
+        owner.Vars[3] = cFrame;
+        OwnerUpdate(recorder, owner, tick, cSteps[tick - 2]);
+        states.push_back(owner.State);
+    }
+    const GraphOps cOps = Batch(recorder);
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    CHECK(replayer.Run(5, copy) == 4);
+    CHECK(copy.State == states.back());
+    CHECK(copy.Vars[3] == cFrame);
+}
+
+TEST_CASE("A copy runs its owner's generate passes in their place, with their updates", "[graph-stream]")
+{
+    // A graph generates after each frame it updated in (63589 -> 63568): a far owner's only after its chunks.
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    recorder.Generate(1);
+    owner.Generate();
+    GraphReplayer replayer;
+    replayer.Load(Point(owner, recorder.Updates())); // as update 1 begins: the generate before it is in it
+    const GraphOps cBefore = Batch(recorder);
+    for (uint64_t tick = 2; tick <= 4; ++tick)
+    {
+        OwnerUpdate(recorder, owner, tick, tick == 3 ? 0.25f : 0.f);
+        if (tick == 3)
+        {
+            recorder.Generate(tick);
+            owner.Generate();
+        }
+    }
+    const GraphOps cAfter = Batch(recorder);
+    replayer.Feed(cBefore.Runs[0], cBefore.Frames);
+    replayer.Feed(cAfter.Runs[0], cAfter.Frames);
+    CHECK(replayer.Run(3, copy) == 2); // the generate after update 3 is due with it, not with update 4
+    CHECK(copy.Calls == std::vector<std::string>{"load", "update", "update", "generate"});
+    CHECK(replayer.Run(4, copy) == 1);
+    CHECK(copy.State == owner.State);
+}
+
+TEST_CASE("A copy catching up never ends a frame between an update and its generate pass", "[graph-stream]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    GraphReplayer replayer;
+    replayer.Load(Point(owner, 0));
+    for (uint64_t tick = 1; tick <= GraphReplayer::cMaxUpdatesPerRun + 1; ++tick)
+    {
+        OwnerUpdate(recorder, owner, tick, 0.016f);
+        recorder.Generate(tick);
+        owner.Generate();
+    }
+    const GraphOps cOps = Batch(recorder);
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    CHECK(replayer.Run(100, copy) == GraphReplayer::cMaxUpdatesPerRun);
+    CHECK(copy.Calls.back() == "generate");
+    CHECK(replayer.Run(100, copy) == 1);
+    CHECK(copy.State == owner.State);
 }
 
 TEST_CASE("Actors' updates in one frame share its step", "[graph-stream]")

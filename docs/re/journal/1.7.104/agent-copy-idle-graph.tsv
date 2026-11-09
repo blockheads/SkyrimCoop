@@ -304,3 +304,39 @@ time	op	id	rva	item
 2026-11-09T17:24:38Z	comment	43624	0x7da500	{"addr": "0x1407da500", "comment": "43624 an event's clips for a graph manager (event, BSAnimationGraphManager, kind, flags, callback, lock, ...), no actor: AIProcess::FinishLoadGame reloads a process's sets with it as a save loads. The graph input stream keys an owner's held sets by its graph manager for it."}
 2026-11-09T17:24:38Z	comment	43623	0x7da400	{"addr": "0x1407da400", "comment": "43623 coop_LoadEventClips' variant taking the manager first; no code caller (a table entry)."}
 2026-11-09T17:24:38Z	comment	43619	0x7d9dc0	{"addr": "0x1407d9dc0", "comment": "43619 the player's clip loads (PlayerCharacter 39778): not an NPC's."}
+2026-11-09T18:42:48Z	read	58330	0xacc300	{"name": "hkbBehaviorGraph::handleEvent"}
+2026-11-09T18:42:54Z	read		0xbcf6e0	{"name": "BShkbAnimationGraph::SendEvent"}
+2026-11-09T19:04:26Z	comment		0xbcf289	{"addr": "0x140bcf289", "comment": "The behaviour graph's update (vfunc 5, 58329: graph, context, step in xmm2), run only when +0x245/+0x246 are set. Its step (xmm9): the frame's dt when forced (update data +0x2A) or near; a far graph's whole interval at once when its countdown runs out (+0x1E8/+0x1EC), else part of a frame or 0. The graph input stream records an owner's real steps here (58329), so owners keep the engine's own stepping."}
+2026-11-09T19:04:26Z	comment		0xbcf1c8	{"addr": "0x140bcf1c8", "comment": "Forced (update data +0x2A, kForceAnimGraphUpdate): LOD +0x240 at its maximum; otherwise 63575 by camera distance and visibility. With interpolation skipped, a forced actor's graph also steps every frame. Measured 2026-11-09: owners forced every frame (an earlier step of the graph stream) hovered after a drop (a restrained wolf 72 units up; unforced it lands)."}
+2026-11-09T19:12:41Z	read		0xbcf25e	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:19:47Z	read	63587	0xbcedb0	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:20:39Z	read		0xbcf08b	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:28:00Z	read	63583	0xbccea0	{"name": "BShkbAnimationGraph::sub_63583"}
+2026-11-09T19:28:12Z	read	38019	0x6b5240	{"name": "Character::sub_38019"}
+2026-11-09T19:28:20Z	read	63566	0xbcb0f0	{"name": "BShkbAnimationGraph::sub_63566"}
+2026-11-09T19:28:25Z	read		0xbcc9a0	{"name": "BShkbAnimationGraph::sub_63581"}
+2026-11-09T19:30:58Z	read	60016	0xb1ecb0	{"name": "sub_140B1ECB0"}
+2026-11-09T19:31:21Z	name	60016	0xb1ecb0	{"addr": "0x140b1ecb0", "name": "coop_hkbVariableBindingSet_CopyBinding"}
+2026-11-09T19:31:24Z	comment	60016	0xb1ecb0	{"addr": "0x140b1ecb0", "comment": "ID 60016, from hkbVariableBindingSet::CopyVariablesToMembers (59467): one binding (a2: +0x1C variable index, +0x21 bit: a character property, else a variable; +0x24 bit 1 output) between its node member and its value. The set is the context's variables (+0) or character properties (+8), the index mapped through the symbol id maps (+0x10/+0x18 or +0x20/+0x28). Kinds 6-8 (vector4, quaternion): the 32-bit value is an index into the set's quad pool (+0x20, 16 bytes each); a wrong value there reads far outside it (a copy's crash in a restore, 2026-11-09)."}
+2026-11-09T19:31:24Z	comment		0xb1f0c6	{"addr": "0x140b1f0c6", "comment": "Vector/quaternion binding into the member: quads[value of the variable] (value = an index into the quad pool, not the vector)."}
+2026-11-09T19:33:59Z	read	63573	0xbcbf70	{"name": "BShkbAnimationGraph::sub_63573"}
+2026-11-09T19:34:23Z	read	63582	0xbccd60	{"name": "BShkbAnimationGraph::sub_63582"}
+2026-11-09T19:34:27Z	read	63589	0xbcf480	{"name": "BShkbAnimationGraph::sub_63589"}
+2026-11-09T19:34:27Z	read	63568	0xbcb290	{"name": "BShkbAnimationGraph::sub_63568"}
+2026-11-09T19:35:13Z	read	63358	0xbc0680	{"name": "BSAnimationGraphManager::Update"}
+2026-11-09T19:35:48Z	name	63589	0xbcf480	{"addr": "0x140bcf480", "name": "coop_BShkbAnimationGraph_GenerateOrInterpolate"}
+2026-11-09T19:35:48Z	name	63568	0xbcb290	{"addr": "0x140bcb290", "name": "coop_BShkbAnimationGraph_Generate"}
+2026-11-09T19:35:53Z	comment	63589	0xbcf480	{"addr": "0x140bcf480", "comment": "63589, per graph after the manager's updates (63358, inline or in a queued job sub_140BC0A40): when its behaviour graph updated this frame (+0x246, set by 63587) it runs the generate pass (63568); otherwise only the buffered poses' interpolation (63581) and the pose out. So a graph generates once after each frame it updated in, never between: a far graph only after its chunks. Modifiers do their work in generate (modify), so their state (a damping modifier's TurnDeltaDamped) moves once per generate."}
+2026-11-09T19:35:53Z	comment	63568	0xbcb290	{"addr": "0x140bcb290", "comment": "63568 the generate pass: pose buffer +0x220 cleared to the LOD (+0x240) bones, then hkbBehaviorGraph::generate (58343; or the same through the behaviour job queue when a2 and the queue are set), post-processors (63573), the pose out (63581). Only 63589 calls it. The graph input stream records an owner's generate passes here and replays them in place on its copies."}
+2026-11-09T19:35:53Z	comment		0xbcf4f0	{"addr": "0x140bcf4f0", "comment": "+0x246: the behaviour graph updated this frame (63587 sets 0x245/0x246 at its start, clears 0x246 when a far graph's countdown has not run out). Read only here and in 63587."}
+2026-11-09T19:35:54Z	comment		0xbc0999	{"addr": "0x140bc0999", "comment": "Each graph's generate or interpolation (63589) after every graph's update (63587) and event dispatch (63588), here or in a queued job."}
+2026-11-09T19:50:31Z	read	59522	0xb01990	{"name": "hkbBlenderGenerator::sub_59522"}
+2026-11-09T19:50:32Z	read	59524	0xb01b90	{"name": "hkbBlenderGenerator::sub_59524"}
+2026-11-09T19:50:32Z	read	59540	0xb030b0	{"name": "hkbBlenderGenerator::sub_59540"}
+2026-11-09T19:50:59Z	comment	59540	0xb030b0	{"addr": "0x140b030b0", "comment": "59540 hkbBlenderGenerator::setInternalState: childrenInternalStates (+0x70), sortedChildren (+0x80), endIntervalWeight +0x90, numActiveChildren +0x94, begin/endIntervalIndex +0x98/+0x9A, initSync +0x9C, doSubtractiveBlend +0x9D. The active children (59524: numActiveChildren with flag 1) come back with it."}
+2026-11-09T19:50:59Z	comment	59522	0xb01990	{"addr": "0x140b01990", "comment": "59522 hkbBlenderGenerator::update: only its sync time (+0x44 of its NodeInfo) advances by the step; the children it blends are chosen in generate (sorted, numActiveChildren)."}
+2026-11-09T19:56:48Z	comment		0xacbd28	{"addr": "0x140acbd28", "comment": "+0x12E (Havok's stateOrTransitionChanged): set by GoToState, StartTransition, a blender's update/activate when its active children change (59521/59522), binding copies, selectors; cleared by updateActiveNodes (60079). The update re-walks the active nodes only while it is set. Not node state: Havok's restore (58373) leaves it cleared, so a copy's restore takes its owner's from the sync point (Skyrim's LoadState sets it, 0x140bd2db8)."}
+2026-11-09T19:56:48Z	comment		0xb2a2d4	{"addr": "0x140b2a2d4", "comment": "updateActiveNodes clears stateOrTransitionChanged (+0x12E)."}
+2026-11-09T20:10:30Z	read	63569	0xbcb640	{"name": "BShkbAnimationGraph::sub_63569"}
+2026-11-09T20:10:30Z	read	63575	0xbcc2c0	{"name": "BShkbAnimationGraph::sub_63575"}
+2026-11-09T20:18:30Z	comment		0xbcef2f	{"addr": "0x140bcef2f", "comment": "Interpolation not allowed (update data +0x2B, from 37988): straight to the every-frame step, like forced, but the LOD stays 63575's (camera distance, visibility). The graph input stream clears +0x2B for owners it records: they step every frame as their copies replay them. Measured 2026-11-09: with this a restrained wolf lands and host-kill-move passes; with `force` (+0x2A, full LOD off camera, or the actor's kForceAnimGraphUpdate) it hovered 72 units up. Which of force's effects holds it up is not read yet."}

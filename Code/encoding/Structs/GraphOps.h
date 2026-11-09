@@ -18,6 +18,7 @@ struct GraphSeed
 struct GraphOp
 {
     bool Event = false;
+    bool Generate = false; // the graph's generate pass (63568: modifiers' modify, blenders' sync), neither event nor update
     uint32_t Frame = 0;                                 // an update's frame: its index in GraphOps::Frames
     uint16_t EventId = 0;                               // an event's index in the graph's event table
     uint8_t ClipSet = 0; // with Event: not sent, a clip load: its owner's process loaded the event's clip files into
@@ -49,9 +50,9 @@ struct GraphOps
     std::vector<GraphOpsRun> Runs;
     bool operator==(const GraphOps&) const noexcept = default;
 
-    // An update in the frame after its run's last one that changes nothing is one bit; otherwise a few bits of kind,
-    // then each variable's index step and the non-zero bytes of its XOR with its last value in the run (each batch
-    // decodes alone: the host relays it to every guest).
+    // An update in the frame after its run's last one that changes nothing, its generate pass right after it, is one
+    // bit; otherwise a few bits of kind, then each variable's index step and the non-zero bytes of its XOR with its last
+    // value in the run (each batch decodes alone: the host relays it to every guest).
     void Serialize(Wire::Buffer::Writer& aWriter) const;
     [[nodiscard]] bool Deserialize(Wire::Buffer::Reader& aReader);
 

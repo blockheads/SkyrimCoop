@@ -122,7 +122,7 @@ void hkbBehaviorGraph::ReHandleEvent(hkEventContext& aContext, hkEventType& aTyp
 
         sub_1409F3EF0(this, aContext, type);
     }
-    if (byte12E || g_forceAnimation)
+    if (stateOrTransitionChanged || g_forceAnimation)
     {
         using Tsub_140A4DFA0 = void(hkbBehaviorGraph*, hkEventContext&);
         POINTER_SKYRIMSE(Tsub_140A4DFA0, sub_140A4DFA0, 60079);

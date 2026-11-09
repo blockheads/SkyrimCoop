@@ -476,7 +476,8 @@ TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][r
 {
     // Skyrim (duo trace, 2026-11-08): the host's wolf, far from the host's camera, stepped its graph 0.08-0.25 s at a
     // time (animation interpolation, 63587) while its copy stepped every frame. A turn sent just after a chunk ended up
-    // to a chunk after its copy's, so the copy read iSyncTurnState before its owner's refused turnStop set it.
+    // to a chunk after its copy's, so the copy read iSyncTurnState before its owner's refused turnStop set it. The owner
+    // keeps its own stepping (forcing it made creatures hover); the stream carries its chunks (58329).
     WolfTurn wolf;
     for (auto* engine : {&wolf.host, &wolf.guest})
     {
@@ -484,10 +485,39 @@ TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][r
         engine->Graph->Clips[0].Ms = 1267; // TurnCannedR180
     }
     const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
-    wolf.party.Until([&] { return cOwner.GraphEveryFrame || cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
+    wolf.party.Until([&] { return cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
     wolf.Turn();
     CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtEnd == 1);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A far owner's damped turn picks its walk where its copy's does", "[animation][replay-start]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-09): the host's wolf, off its camera, stepped in chunks; its copy's update wrote a
+    // different TurnDeltaDamped (a damping modifier's member, moved in each generate pass, 63568) and its walk picked
+    // WalkForwardR where its owner's did not. A graph generates after each frame it updated in (63589): the owner only
+    // after its chunks, the copy every frame. The copy runs its owner's generate passes instead (the stream's).
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->FarOwnerChunkMs = 250.0;
+        engine->Graph->TurnDeltaChannel = 0;
+        engine->Graph->Damping = FakeGraphRules::Damp{.Input = 0, .Output = 1, .Gain = 2.f};
+        engine->Graph->Ranges = {{.State = "Walk", .Input = 1, .Bound = 0.9f, .Above = "WalkRight"}};
+        engine->GraphTransitions[{"Standing", "moveStart"}] = "Walk";
+    }
+    auto& owner = wolf.host.Actors.at(wolf.wolf);
+    const uint64_t cFrom = wolf.party.Host().GetFrameTick();
+    const float cHeading = owner.Rotation[2];
+    // Its AI turns it at 1 rad/s as it walks.
+    const auto cTurning = [&] { owner.Rotation[2] = cHeading + float(wolf.party.Host().GetFrameTick() - cFrom) / 1000.f; };
+    ActionEvent walk;
+    walk.ActionId = 0x13030;
+    walk.EventName = "moveStart";
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, walk)); });
+    wolf.party.Until([&] { cTurning(); return owner.GraphState == "WalkRight"; }, "the owner's damped turn passes its bound");
+    wolf.party.Until([&] { cTurning(); return wolf.guest.Actors.at(wolf.copy).GraphState == "WalkRight"; }, "the copy's too");
     CHECK(wolf.Difference() == "");
 }
 
@@ -744,6 +774,41 @@ TEST_CASE("A copy starting mid-blend plays its owner's child, not the one its va
                      "the copy's new graph starts from a sync point taken mid-blend");
     CHECK(cOwner.Graph.Child == "TurnLeft");
     CHECK(cCopy.Graph.Child == "TurnLeft");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A copy starting between its owner's generate pass and its next update takes the blend's new child with it", "[animation][replay-start]")
+{
+    // Skyrim (duo, Whiterun, 2026-11-09): copy 37081 parted from its owner at its first update: the owner's walk blend
+    // dropped MT_WalkForwardRightSlow there, the copy's kept it. The owner's generate pass before the sync point had
+    // picked the blend's new children (59540) and set stateOrTransitionChanged, which makes the next update walk the
+    // active nodes (58329, 60079); Havok's restore clears it. The point carries it.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->FarOwnerChunkMs = 250.0;
+        engine->Graph->Blends = {{.State = "Walk", .ChooseFrom = 2, .Children = {"Forward", "Right"}, .Generated = true}};
+        engine->GraphTransitions[{"Standing", "moveStart"}] = "Walk";
+    }
+    ActionEvent walk;
+    walk.ActionId = 0x13030;
+    walk.EventName = "moveStart";
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, walk)); });
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    wolf.party.Until([&] { return cCopy.Graph.Child == "Forward"; }, "the copy walks forward with its owner");
+    wolf.party.Until([&] { return cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
+    wolf.party.As(wolf.party.Host(), [&] {
+        auto& integers = wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers;
+        integers.resize(3);
+        integers[2] = 1; // its AI turns it: the blend's next generate pass picks Right
+    });
+    wolf.party.Until([&] { return cOwner.Graph.ActiveNodesChanged; }, "the owner's generate pass picks the new child");
+    REQUIRE(cOwner.Graph.Child == "Forward");
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.party.Guest().GetGraphStreams().Forget(wolf.copy); }); // asks for a new point
+    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy) && cCopy.Graph.Child == "Right"; },
+                     "the copy starts again from a point taken before that child's update");
+    CHECK(cOwner.Graph.Child == "Right");
     CHECK(wolf.Difference() == "");
 }
 

@@ -35,15 +35,29 @@ struct FakeGraphRules
     // A blender whose active child is chosen as it activates, from Integers[ChooseFrom], and kept while it stays
     // active whatever the variable does (Faendal's turn blend and MT_TurnLeft360_Slow). Skyrim's graph save leaves the
     // choice out; Havok's internal state holds it (hkbBlenderGeneratorInternalState, 58373).
+    // Generated: its children follow Integers[ChooseFrom] while it stays active, picked in each generate pass (59540:
+    // sortedChildren, numActiveChildren) and taken by the next update's active-node walk, which runs only while the
+    // graph's stateOrTransitionChanged is set (the pick sets it; not node state).
     struct Blend
     {
         std::string State;
         size_t ChooseFrom = 0;
         std::vector<std::string> Children;
+        bool Generated = false;
+    };
+    // hkbDampingModifier (TurnDeltaDamped from TurnDelta): its member moves toward Floats[Input] by Gain x its last
+    // update's step in each generate pass (63568: modify), which writes it to Floats[Output]; each update writes the
+    // member out again (its output binding). So it moves once per generate pass, not per update.
+    struct Damp
+    {
+        size_t Input = 0;
+        size_t Output = 1;
+        float Gain = 10.f;
     };
     std::vector<Clip> Clips;
     std::vector<Range> Ranges;
     std::vector<Blend> Blends;
+    std::optional<Damp> Damping;
     // Channels (63590): before each update the engine writes Floats[TurnDelta] from this game's actor, its heading's
     // change since its last update over the step (a copy's: its interpolated heading).
     std::optional<size_t> TurnDeltaChannel;
@@ -77,6 +91,13 @@ struct FakeGraphMemory
     std::vector<uint32_t> EventWords; // its variables as it took its last event (FakeEngine::GraphWords)
     std::string BlendState;           // the blend state its child was chosen in, and the child
     std::string Child;
+    // +0x246: it updated this frame (63587 sets it as it steps, clears it as a far graph's countdown runs), so the
+    // generate pass runs (63589). A forced graph never clears it.
+    bool Updated = false;
+    double LastStepMs = 0.0; // its last update's step, which its modifiers keep for modify
+    float Damped = 0.f;      // the damping modifier's member (Damp)
+    std::string PendingChild;        // a Generated blend's child its generate pass picked (its node state)
+    bool ActiveNodesChanged = false; // stateOrTransitionChanged: the next update walks the active nodes
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.
     double Timeline = 0.0;
     // After each update and each event the graph took: (Timeline, state). The live check compares a copy's with its

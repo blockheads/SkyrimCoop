@@ -2145,7 +2145,12 @@ TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
                                   {.Event = true, .EventId = 77, .ClipSet = 4}, // a clip load: an instant interaction's set
                                   {.Event = true, .EventId = 78, .ClipSet = 47}, // a movement idle's
                                   {.Frame = 1},
+                                  {.Generate = true}, // its generate pass, with the update
                                   {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
+                                  {.Generate = true},
+                                  {.Frame = 3},
+                                  {.Event = true, .EventId = 6},
+                                  {.Generate = true}, // after something else: an op of its own
                                   {.Frame = 5}}, // a skipped frame
                                  6);
     ops.Runs.push_back({9, 40, {{.Frame = 0, .Changed = {{0, 0x42A343EC}, {700, 9}}}, {.Frame = 1}}});
@@ -2160,13 +2165,21 @@ TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
 
 TEST_CASE("An update that changes nothing costs a bit", "[encoding.graph_ops]")
 {
-    std::vector<GraphOp> idle{{.Frame = 0}};
+    // With its generate pass after it, as every frame a graph updates in has.
+    std::vector<GraphOp> idle{{.Frame = 0}, {.Generate = true}};
     for (uint32_t i = 1; i < 60; ++i)
+    {
         idle.push_back({.Frame = i});
+        idle.push_back({.Generate = true});
+    }
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
     GraphOps::WriteRun(writer, {7, 0, idle});
     CHECK(writer.Size() <= 3 + 3 + 8); // id, first update and count; the first op; then 59 bits
+    Wire::Buffer::Reader reader(&buffer);
+    GraphOpsRun read;
+    REQUIRE(GraphOps::ReadRun(reader, read, 60));
+    CHECK(read.Ops == idle);
 }
 
 TEST_CASE("Graph ops reject truncated and impossible input", "[encoding.graph_ops]")
@@ -2205,6 +2218,7 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
     point.Seed = {5, 6};
     point.ClipSets = {{3, 513}, {4, 7}, {47, 65535}};
+    point.ActiveNodesChanged = true;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     ops.Serialize(writer);

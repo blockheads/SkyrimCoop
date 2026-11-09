@@ -520,6 +520,9 @@ struct GraphSyncPoint
     std::string State;  // its whole graph (Skyrim: Havok's internal state, Games/Animation/GraphState.h)
     std::vector<uint32_t> Words; // its variables, exact
     GraphSeed Seed{};
+    // Its next update walks its active nodes again (stateOrTransitionChanged: its last generate pass changed a
+    // blender's children). Not node state: Havok's restore clears it.
+    bool ActiveNodesChanged{};
     // Each clip set its process holds: (the set, ActionClips::Set; the event loaded into it). Its clips play them.
     std::vector<std::pair<uint8_t, uint16_t>> ClipSets;
 };

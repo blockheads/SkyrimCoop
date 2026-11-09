@@ -74,18 +74,27 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
     Wire::Serialization::WriteVarInt(aWriter, acRun.FirstUpdate);
     Wire::Serialization::WriteVarInt(aWriter, acRun.Ops.size());
     uint32_t lastFrame = cNoFrame;
-    for (const auto& cOp : acRun.Ops)
+    for (size_t i = 0; i < acRun.Ops.size(); ++i)
     {
-        const bool cNext = !cOp.Event && lastFrame != cNoFrame && cOp.Frame == lastFrame + 1;
-        const bool cEmpty = cNext && !cOp.Seed && cOp.Changed.empty();
+        const auto& cOp = acRun.Ops[i];
+        const bool cUpdate = !cOp.Event && !cOp.Generate;
+        // An update's generate pass right after it goes with it.
+        const bool cGenerated = cUpdate && i + 1 < acRun.Ops.size() && acRun.Ops[i + 1].Generate;
+        const bool cNext = cUpdate && lastFrame != cNoFrame && cOp.Frame == lastFrame + 1;
+        const bool cEmpty = cNext && cGenerated && !cOp.Seed && cOp.Changed.empty();
         aWriter.WriteBits(cEmpty, 1);
-        if (!cOp.Event)
+        if (cUpdate)
             lastFrame = cOp.Frame;
+        if (cGenerated)
+            ++i;
         if (cEmpty)
             continue;
-        aWriter.WriteBits(cOp.Event, 1);
-        if (cOp.Event)
+        aWriter.WriteBits(!cUpdate, 1);
+        if (!cUpdate)
         {
+            aWriter.WriteBits(cOp.Generate, 1);
+            if (cOp.Generate)
+                continue; // a generate pass after something else: nothing more
             aWriter.WriteBits(cOp.EventId, 16);
             aWriter.WriteBits(cOp.ClipSet != 0, 1);
             if (cOp.ClipSet)
@@ -96,6 +105,7 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
             aWriter.WriteBits(cNext, 1);
             if (!cNext)
                 Wire::Serialization::WriteVarInt(aWriter, cOp.Frame);
+            aWriter.WriteBits(cGenerated, 1);
         }
         aWriter.WriteBits(cOp.Seed.has_value(), 1);
         if (cOp.Seed)
@@ -134,25 +144,37 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
     if (!ReadVarInt(aReader, first) || first > UINT32_MAX || !ReadVarInt(aReader, count) || count > cMaxOps)
         return false;
     aRun.FirstUpdate = static_cast<uint32_t>(first);
-    aRun.Ops.assign(count, {});
+    aRun.Ops.clear();
+    aRun.Ops.reserve(count);
     uint32_t lastFrame = cNoFrame;
-    for (auto& op : aRun.Ops)
+    while (aRun.Ops.size() < count)
     {
         uint64_t bit = 0;
         if (!aReader.ReadBits(bit, 1))
             return false;
-        if (bit) // an update in the next frame that changes nothing
+        if (bit) // an update in the next frame that changes nothing, and its generate pass
         {
-            if (lastFrame == cNoFrame || lastFrame + 1 >= aFrames)
+            if (lastFrame == cNoFrame || lastFrame + 1 >= aFrames || aRun.Ops.size() + 2 > count)
                 return false;
-            op.Frame = lastFrame = lastFrame + 1;
+            lastFrame = lastFrame + 1;
+            aRun.Ops.push_back({.Frame = lastFrame});
+            aRun.Ops.push_back({.Generate = true});
             continue;
         }
+        GraphOp& op = aRun.Ops.emplace_back();
+        bool generated = false;
         if (!aReader.ReadBits(bit, 1))
             return false;
-        op.Event = bit;
-        if (op.Event)
+        if (bit)
         {
+            if (!aReader.ReadBits(bit, 1))
+                return false;
+            if (bit)
+            {
+                op.Generate = true;
+                continue;
+            }
+            op.Event = true;
             uint64_t id = 0, load = 0, set = 0;
             if (!aReader.ReadBits(id, 16) || !aReader.ReadBits(load, 1) || (load && (!aReader.ReadBits(set, 8) || !set)))
                 return false;
@@ -161,7 +183,7 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
         }
         else
         {
-            uint64_t next = 0, frame = 0;
+            uint64_t next = 0, frame = 0, generate = 0;
             if (!aReader.ReadBits(next, 1))
                 return false;
             if (next)
@@ -172,9 +194,10 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
             }
             else if (!ReadVarInt(aReader, frame))
                 return false;
-            if (frame >= aFrames)
+            if (frame >= aFrames || !aReader.ReadBits(generate, 1) || (generate && aRun.Ops.size() + 1 > count))
                 return false;
             op.Frame = lastFrame = static_cast<uint32_t>(frame);
+            generated = generate != 0;
         }
         if (!aReader.ReadBits(bit, 1))
             return false;
@@ -210,6 +233,8 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
             last[index] ^= xorValue;
             op.Changed.emplace_back(static_cast<uint16_t>(index), last[index]);
         }
+        if (generated)
+            aRun.Ops.push_back({.Generate = true}); // op is not used past here: the push may move it
     }
     return true;
 }

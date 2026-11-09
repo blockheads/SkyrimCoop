@@ -174,6 +174,12 @@ std::vector<std::pair<uint8_t, uint16_t>> HeldClipSets(const BShkbAnimationGraph
 
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
+using TBehaviourUpdate = void(hkbBehaviorGraph*, hkEventContext*, float);
+TBehaviourUpdate* RealBehaviourUpdate = nullptr;
+using TGenerate = uint64_t(BShkbAnimationGraph*, char);
+TGenerate* RealGenerate = nullptr;
+// An owner's 63587 under way, for its behaviour graph's update under it.
+thread_local BShkbAnimationGraph* s_owner = nullptr;
 using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
 TSendEvent* RealSendEvent = nullptr;
 
@@ -210,6 +216,8 @@ struct SkyrimGraphTarget final : IGraphTarget
         hkEventContext context(&Graph.character, Graph.hkWorldM ? Graph.hkWorldM->GetWorld() : nullptr);
         if (!GraphInternalState::Give(Graph, context, acPoint.State, acPoint.Words))
             return false;
+        // Its owner's walk to come: the restore's own walk cleared it (60079).
+        Graph.behaviorGraph->stateOrTransitionChanged = acPoint.ActiveNodesChanged;
         SetSeed(acPoint.Seed);
         return true;
     }
@@ -235,6 +243,8 @@ struct SkyrimGraphTarget final : IGraphTarget
         data.force = true;
         Result = RealUpdate(&Graph, &data, Scratch);
     }
+    // Inline, not through the behaviour job queue (63568's second argument): the same pass.
+    void Generate() override { RealGenerate(&Graph, 0); }
 };
 
 // coop_BShkbAnimationGraph_UpdateInterpolated (63587): one graph's update, its channels already applied (63590).
@@ -252,31 +262,49 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         InStream _;
         SkyrimGraphTarget target(*apGraph, *apData, apScratch);
         streams.Replay(cFormId, target, apGraph);
+        // Its generate passes are its owner's, run in the replay: 63589 only interpolates its pose (63581).
+        apGraph->behaviourUpdated = false;
         return target.Result;
     }
     if (!streams.Recording(cFormId))
         return RealUpdate(apGraph, apData, apScratch);
     if (streams.NeedsTimeDelta(cFormId))
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
-    // Forced: its step is the frame's, never a far graph's chunk (its first updates come before CharacterService's).
-    apData->force = true;
-    SendClipLoads(streams, cFormId, *apGraph);
+    // No interpolation: it steps every frame, as its copies replay it, at the engine's own LOD (not `force`, whose
+    // full LOD off camera made creatures hover). Its behaviour graph's update records each real step.
+    apData->interpAllowed = false;
+    s_owner = apGraph;
+    const char cResult = RealUpdate(apGraph, apData, apScratch);
+    s_owner = nullptr;
+    return cResult;
+}
+
+// hkbBehaviorGraph's update (vfunc 5, 58329) under an owner's 63587: its real step, when it steps.
+void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContext, float aStep)
+{
+    BShkbAnimationGraph* pGraph = s_owner;
+    if (s_inStream || !pGraph || pGraph->behaviorGraph != apBehaviour)
+        return RealBehaviourUpdate(apBehaviour, apContext, aStep); // a sub-behaviour's, or no owner's
+    s_owner = nullptr;
+    auto& streams = World::Get().GetGraphStreams();
+    const uint32_t cFormId = pGraph->holder->formID;
+    SendClipLoads(streams, cFormId, *pGraph);
     // A sync point as this update begins: its graph after its generate pass, as this update will take it.
-    if (streams.PointWanted(cFormId, apGraph))
+    if (streams.PointWanted(cFormId, pGraph))
     {
         Payloads::GraphSyncPoint point;
         point.Tick = streams.Tick();
-        point.State = GraphInternalState::Take(*apGraph);
-        point.Words = Words(*apGraph);
-        point.Seed = Seed(*apGraph);
-        point.ClipSets = HeldClipSets(*apGraph);
+        point.State = GraphInternalState::Take(*pGraph);
+        point.Words = Words(*pGraph);
+        point.Seed = Seed(*pGraph);
+        point.ActiveNodesChanged = pGraph->behaviorGraph->stateOrTransitionChanged != 0;
+        point.ClipSets = HeldClipSets(*pGraph);
         if (!point.State.empty())
             streams.AddPoint(cFormId, std::move(point));
     }
-    streams.OnUpdate(cFormId, streams.Tick(), apData->deltaTime, Words(*apGraph), Seed(*apGraph), apGraph);
-    const char cResult = RealUpdate(apGraph, apData, apScratch);
-    streams.OnUpdated(cFormId, Words(*apGraph));
-    return cResult;
+    streams.OnUpdate(cFormId, streams.Tick(), aStep, Words(*pGraph), Seed(*pGraph), pGraph);
+    RealBehaviourUpdate(apBehaviour, apContext, aStep);
+    streams.OnUpdated(cFormId, Words(*pGraph));
 }
 
 // BShkbAnimationGraph::SendEvent (63591): every input event of a graph, before it handles it.
@@ -341,8 +369,22 @@ void* HookLoadManagerClips(BSFixedString* apEvent, void* apManager, uint32_t aSe
     return RealLoadManagerClips(apEvent, apManager, aSet, aFlags, apCallback, apLock, apMore, aKeep);
 }
 
+// coop_BShkbAnimationGraph_Generate (63568), from 63589 when the graph updated this frame: an owner's, for its copies.
+uint64_t HookGenerate(BShkbAnimationGraph* apGraph, char aQueued)
+{
+    if (!s_inStream && apGraph && apGraph->holder)
+    {
+        auto& streams = World::Get().GetGraphStreams();
+        if (streams.Recording(apGraph->holder->formID))
+            streams.OnGenerate(apGraph->holder->formID, streams.Tick());
+    }
+    return RealGenerate(apGraph, aQueued);
+}
+
 Hooks::Initializer s_graphStreamHooks([]() {
     HOOK_ID(63587, &RealUpdate, HookUpdate);
+    HOOK_ID(58329, &RealBehaviourUpdate, HookBehaviourUpdate);
+    HOOK_ID(63568, &RealGenerate, HookGenerate);
     HOOK_ID(63591, &RealSendEvent, HookSendEvent);
     HOOK_ID(43621, &RealLoadEventClips, HookLoadEventClips);
     HOOK_ID(43622, &RealLoadEventClipsQueued, HookLoadEventClipsQueued);

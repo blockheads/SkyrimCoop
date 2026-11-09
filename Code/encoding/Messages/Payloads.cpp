@@ -659,6 +659,7 @@ void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexc
         aWriter.WriteBits(cWord, 32);
     aWriter.WriteBits(Seed.Seed, 32);
     aWriter.WriteBits(Seed.Current, 32);
+    aWriter.WriteBits(ActiveNodesChanged, 1);
     Serialization::WriteVarInt(aWriter, ClipSets.size());
     for (const auto& [cSet, cEvent] : ClipSets)
     {
@@ -689,6 +690,8 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     uint64_t seed = 0, current = 0;
     if (aReader.ReadBits(seed, 32) && aReader.ReadBits(current, 32))
         Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
+    uint64_t changed = 0;
+    ActiveNodesChanged = aReader.ReadBits(changed, 1) && changed;
     uint64_t sets = 0;
     ClipSets.clear();
     if (!Serialization::TryReadVarInt(aReader, sets) || sets > 8)

@@ -208,25 +208,37 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
 {
     auto& graph = aActor.Graph;
     graph.Timeline += aStepMs;
+    graph.Updated = true;
+    graph.LastStepMs = aStepMs;
     auto& floats = aActor.GraphVariables.Floats;
+    if (const auto& cDamp = Graph->Damping)
+    {
+        floats.resize(std::max(floats.size(), std::max(cDamp->Input, cDamp->Output) + 1));
+        floats[cDamp->Output] = graph.Damped; // its output binding, as the update copies members out
+    }
     for (const auto& cRange : Graph->Ranges)
         if (aActor.GraphState == cRange.State && cRange.Input < floats.size())
             if (const auto& cNext = floats[cRange.Input] >= cRange.Bound ? cRange.Above : cRange.Below; !cNext.empty())
                 aActor.GraphState = cNext;
     if (const auto* pBlend = Graph->BlendOf(aActor.GraphState))
     {
+        // The active-node walk (60079), only while the flag is set: a generate pass's new child.
+        if (graph.BlendState == aActor.GraphState && pBlend->Generated && std::exchange(graph.ActiveNodesChanged, false) &&
+            !graph.PendingChild.empty())
+            graph.Child = graph.PendingChild;
         if (graph.BlendState != aActor.GraphState && !pBlend->Children.empty())
         {
             auto& integers = aActor.GraphVariables.Integers;
             const size_t cPick = pBlend->ChooseFrom < integers.size() ? integers[pBlend->ChooseFrom] : 0;
             graph.BlendState = aActor.GraphState;
-            graph.Child = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)];
+            graph.Child = graph.PendingChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)];
         }
     }
     else
     {
         graph.BlendState.clear();
         graph.Child.clear();
+        graph.PendingChild.clear();
     }
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
@@ -260,6 +272,28 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
     GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
 }
 
+void FakeEngine::GenerateGraph(Actor& aActor) const
+{
+    auto& graph = aActor.Graph;
+    if (const auto* pBlend = Graph->BlendOf(aActor.GraphState); pBlend && pBlend->Generated && graph.BlendState == aActor.GraphState)
+    {
+        const auto& cIntegers = aActor.GraphVariables.Integers;
+        const size_t cPick = pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
+        if (const auto& cChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)]; cChild != graph.Child)
+        {
+            graph.PendingChild = cChild;
+            graph.ActiveNodesChanged = true;
+        }
+    }
+    const auto& cDamp = Graph->Damping;
+    if (!cDamp)
+        return;
+    auto& floats = aActor.GraphVariables.Floats;
+    floats.resize(std::max(floats.size(), std::max(cDamp->Input, cDamp->Output) + 1));
+    graph.Damped += (floats[cDamp->Input] - graph.Damped) * std::min(1.f, cDamp->Gain * float(graph.LastStepMs / 1000.0));
+    floats[cDamp->Output] = graph.Damped;
+}
+
 // One graph update (63358): channels, then the step; an owner's recorded for its copies (Games/Animation's hooks).
 void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
 {
@@ -276,7 +310,8 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
             if (const uint16_t cClips = GraphEventId(*aActor.LoadedClips.begin()); cClips != UINT16_MAX)
                 sets.emplace_back(3, cClips);
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
-                                   .Seed = {aActor.GraphRandom, 0}, .ClipSets = std::move(sets)});
+                                   .Seed = {aActor.GraphRandom, 0}, .ActiveNodesChanged = aActor.Graph.ActiveNodesChanged,
+                                   .ClipSets = std::move(sets)});
     }
     if (cRecorded)
         streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
@@ -302,6 +337,7 @@ struct FakeGraphTarget final : IGraphTarget
     {
         if (!Engine.LoadGraphInternalState(FormId, acPoint.State))
             return false;
+        Actor.Graph.ActiveNodesChanged = acPoint.ActiveNodesChanged; // the restore's own walk cleared it
         Actor.GraphRandom = acPoint.Seed.Seed;
         if (!Actor.Graph.History.empty())
             Actor.Graph.History.back().Input = "sync point";
@@ -313,6 +349,7 @@ struct FakeGraphTarget final : IGraphTarget
             Engine.TakeGraphEvent(Actor, cEvents[aEventId]);
     }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
+    void Generate() override { Engine.GenerateGraph(Actor); }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
     {
         const auto cEvents = Engine.GraphEventTable();
@@ -327,6 +364,7 @@ void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
     m_replaying = true;
     World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor));
     m_replaying = false;
+    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (Games/Skyrim's 63587 hook)
 }
 
 void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState)
@@ -370,13 +408,15 @@ void FakeEngine::Frame()
         actor.AnimationStepMs = 0.0;
         if (!actor.GraphUpdating)
             continue;
-        if (FarOwnerChunkMs <= 0.0 || actor.Copy || actor.GraphEveryFrame)
+        if (FarOwnerChunkMs <= 0.0 || actor.Copy)
             actor.AnimationStepMs = cFrameMs;
         else if ((actor.InterpCountdownMs -= cFrameMs) <= 0.0)
         {
             actor.AnimationStepMs = FarOwnerChunkMs;
             actor.InterpCountdownMs += FarOwnerChunkMs;
         }
+        else
+            actor.Graph.Updated = false; // 63587 ran, its behaviour graph did not
         actor.AnimationMs += actor.AnimationStepMs;
     }
     // An owner's AI acts on its clip's time, in frames its graph does not update too (a chunked one's end lands on its
@@ -389,7 +429,7 @@ void FakeEngine::Frame()
             if (actor.Copy || graph.EndsSent || !graph.ClipStartedAt || !pClip || actor.GraphState != OwnerClipEnds->State)
                 continue;
             const double cEnd = *graph.ClipStartedAt + pClip->Ms;
-            const bool cChunked = FarOwnerChunkMs > 0.0 && !actor.GraphEveryFrame;
+            const bool cChunked = FarOwnerChunkMs > 0.0;
             const double cUntilEnd = cChunked ? (graph.Timeline + FarOwnerChunkMs >= cEnd ? actor.InterpCountdownMs : 1e9)
                                               : cEnd - graph.Timeline;
             if (cUntilEnd > OwnerClipEnds->LeadMs)
@@ -414,6 +454,16 @@ void FakeEngine::Frame()
             }
             else if (actor.AnimationStepMs > 0.0)
                 UpdateGraph(cId, actor);
+        }
+    // Each graph's generate pass after every graph's update (63358 -> 63589 -> 63568), when it updated this frame.
+    if (Graph)
+        for (auto& [cId, actor] : Actors)
+        {
+            if (!actor.GraphUpdating || !actor.Graph.Updated)
+                continue;
+            if (auto& streams = World::Get().GetGraphStreams(); !actor.Copy && streams.Recording(cId))
+                streams.OnGenerate(cId, streams.Tick());
+            GenerateGraph(actor);
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
@@ -891,12 +941,6 @@ void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
     MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
 }
 
-void FakeEngine::SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept
-{
-    if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.GraphEveryFrame = aEveryFrame;
-}
-
 void FakeEngine::PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition)
 {
     m_unannouncedMove = true;
@@ -1324,21 +1368,29 @@ std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
     GraphState::Node machine{.Id = 0, .State = SaveActorGraphState(aFormId)};
-    GraphState::Node blend{.Id = 1, .State = it->second.Graph.BlendState + '\n' + it->second.Graph.Child};
-    return GraphState::Encode({machine, blend});
+    const auto& cGraph = it->second.Graph;
+    GraphState::Node blend{.Id = 1, .State = cGraph.BlendState + '\n' + cGraph.Child + '\n' + cGraph.PendingChild};
+    GraphState::Node damp{.Id = 2, .State = std::to_string(std::bit_cast<uint32_t>(it->second.Graph.Damped))};
+    return GraphState::Encode({machine, blend, damp});
 }
 
 bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acState)
 {
     std::vector<GraphState::Node> nodes;
-    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 2 || !nodes[0].State || !nodes[1].State)
+    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 3 || !nodes[0].State || !nodes[1].State ||
+        !nodes[2].State)
         return false;
     if (!LoadActorGraphState(aFormId, *nodes[0].State))
         return false;
     auto& graph = Actors.at(aFormId).Graph;
-    const auto cBreak = nodes[1].State->find('\n');
-    graph.BlendState = nodes[1].State->substr(0, cBreak);
-    graph.Child = cBreak == std::string::npos ? std::string{} : nodes[1].State->substr(cBreak + 1);
+    const auto& cBlend = *nodes[1].State;
+    const auto cBreak = cBlend.find('\n');
+    const auto cSecond = cBreak == std::string::npos ? std::string::npos : cBlend.find('\n', cBreak + 1);
+    graph.BlendState = cBlend.substr(0, cBreak);
+    graph.Child = cBreak == std::string::npos ? std::string{} : cBlend.substr(cBreak + 1, cSecond == std::string::npos ? std::string::npos : cSecond - cBreak - 1);
+    graph.PendingChild = cSecond == std::string::npos ? std::string{} : cBlend.substr(cSecond + 1);
+    graph.ActiveNodesChanged = false; // not node state: Havok's restore walk clears it
+    graph.Damped = std::bit_cast<float>(uint32_t(std::stoul(*nodes[2].State)));
     if (Graph && !graph.History.empty() && graph.History.back().Input == "load")
     {
         graph.History.pop_back(); // its entry with its blend's child

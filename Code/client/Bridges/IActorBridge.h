@@ -50,8 +50,6 @@ public:
     // Another player's character, shown here.
     virtual bool IsOtherPlayer(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept = 0;
-    // Its graph steps every frame, even far from the camera, as its copies' do (kForceAnimGraphUpdate, 63587).
-    virtual void SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept = 0;
     // Kept by the engine when its cell unloads: another player's copy, which travels with the party.
     // Sets persistence and returns its previous value.
     virtual bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept = 0;

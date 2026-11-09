@@ -568,7 +568,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
         double AnimationStepMs = 0.0;         // what this frame's graph update added to AnimationMs
         double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
-        bool GraphEveryFrame = false;         // SetGraphUpdatedEveryFrame
         FakeGraphMemory Graph;                // its graph's clip, channels and history (FakeGraph.h)
         uint32_t GraphGeneration = 0;         // which graph: a 3D reload makes a new one (ReloadGraph)
         AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
@@ -668,6 +667,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void UpdateGraph(uint32_t aFormId, Actor& aActor);
     void WriteGraphChannels(Actor& aActor, double aStepMs);
     void StepGraph(Actor& aActor, double aStepMs);
+    // Its generate pass (63568): after each frame its graph updated in (63589), and an owner's replayed on its copies.
+    void GenerateGraph(Actor& aActor) const;
     bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
     void EnterClip(Actor& aActor) const;
     void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
@@ -1122,7 +1123,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
 
     bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
-    void SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;

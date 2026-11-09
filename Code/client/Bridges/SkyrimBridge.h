@@ -31,7 +31,6 @@ public:
     bool IsTemporaryActor(uint32_t aFormId) const noexcept override;
     bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
-    void SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept override;
     bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;

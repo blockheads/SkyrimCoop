@@ -169,12 +169,6 @@ void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     }
 }
 
-void SkyrimBridge::SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) noexcept
-{
-    if (Actor* pActor = GetActor(aFormId))
-        pActor->flags2 = aEveryFrame ? pActor->flags2 | Actor::kForceAnimGraphUpdate : pActor->flags2 & ~Actor::kForceAnimGraphUpdate;
-}
-
 void SkyrimBridge::SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept
 {
     Breadcrumbs::Record("SetActorPlayer", aFormId, static_cast<uint32_t>(aPlayer));

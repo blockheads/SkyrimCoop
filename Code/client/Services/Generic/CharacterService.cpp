@@ -698,8 +698,6 @@ void CharacterService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aE
     if (!pForm)
         return;
     m_world.GetGraphStreams().Forget(pForm->Id);
-    if (m_actorBridge.ActorExists(pForm->Id))
-        m_actorBridge.SetGraphUpdatedEveryFrame(pForm->Id, false);
 }
 
 void CharacterService::OnRemoteRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
@@ -1627,9 +1625,6 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
-        // Its graph steps every frame, as its copies' do: far from the camera it would step in chunks (63587),
-        // and its clips would end up to 0.25 s after its copies'.
-        m_actorBridge.SetGraphUpdatedEveryFrame(cFormId, true);
         // Its graph's inputs, for its copies (graph-input-stream.md); players' later (phase 4). A death ends it: the
         // body is the dying actor's own.
         if (cFormId != cPlayer && !m_actorBridge.IsActorDead(cFormId))

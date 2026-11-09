@@ -29,6 +29,7 @@ struct IGraphTarget
     // needs none or has them. A clip started without its file lasts 0.0133 s (59263).
     [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) = 0;
     virtual void Update(float aStep) = 0;                                 // 63587, forced
+    virtual void Generate() = 0; // the generate pass (63568), where its owner ran one: never on its own
 };
 
 // An op with its frame, before batching.
@@ -49,6 +50,8 @@ struct GraphRecorder
     void Update(uint64_t aTick, float aStep, std::span<const uint32_t> aWords, const GraphSeed& acSeed);
     // Its process loaded an event's clip files into a set (coop_LoadEventClips 43621).
     void Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId);
+    // Its generate pass (63568), once after each frame its graph updated in: modifiers move there.
+    void Generate(uint64_t aTick);
     // After its update: what the graph wrote itself, which the copy's graph writes too.
     void Updated(std::span<const uint32_t> aWords);
     [[nodiscard]] uint32_t Updates() const noexcept
@@ -109,12 +112,13 @@ struct GraphReplayer
         GraphOp Op;
         uint64_t Tick = 0;
         float Step = 0.f;
-        uint32_t Next = 0; // an update's index, or the index of the update after an event
+        uint32_t Next = 0; // an update's index, or the index of the update after an event or a generate pass
     };
     std::deque<Queued> m_queue;
     std::optional<Payloads::GraphSyncPoint> m_point; // to load at the next run
     std::vector<uint32_t> m_words;                   // its graph's after its last op: restored before the next
     uint32_t m_nextFed = 0;
+    uint64_t m_lastUpdateTick = 0; // the last update fed: a generate pass after it is due with it
     bool m_fed = false;
     bool m_started = false;
     std::atomic<uint32_t> m_current{UINT32_MAX};
@@ -133,6 +137,7 @@ struct GraphStreams
     void OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,
                  const GraphSeed& acSeed);
     void OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint16_t aEventId);
+    void OnGenerate(uint32_t aFormId, uint64_t aTick);
     // apGraph: which graph it is; another one (a 3D reload) starts its recording over, so its copies ask for a point.
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
