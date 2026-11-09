@@ -200,6 +200,9 @@ void FakeEngine::Frame()
         if (++player.DeadFrames >= kDeathReloadFrames && !DeathReloadHeld)
             Reloaded = true;
     }
+    ++DetectionFrame;
+    StealthEye();
+    DetectionPass();
     RunQueued();
 }
 
@@ -1903,6 +1906,58 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
         for (const uint32_t cId : it->second.Visuals)
             effects.push_back({.EffectFormId = cId});
     return effects;
+}
+
+void FakeEngine::JudgedPlayer(uint32_t aWitness, int32_t aLevel)
+{
+    KnowledgeOfPlayer[aWitness] = {DetectionRules::Pass{.Level = aLevel, .LineOfSight = true, .Seen = true}, DetectionFrame, false};
+}
+
+void FakeEngine::ForcesDetected(uint32_t aWitness)
+{
+    auto& known = KnowledgeOfPlayer[aWitness];
+    const auto cBefore = known.State.value_or(DetectionRules::Pass{});
+    known.State = DetectionRules::Pass{.Level = 100, .LineOfSight = cBefore.LineOfSight, .Seen = cBefore.Seen, .Unk16 = 2};
+    known.UpdatedAt = DetectionFrame;
+}
+
+const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
+{
+    // Priority 3: refreshed after 1 s, answered unseen after 2 s (table 0x1420B8AB8), at 60 frames a second.
+    auto& known = KnowledgeOfPlayer[aWitness];
+    if (!known.State || known.Queued)
+    {
+        known.Queued = true;
+        return known.State ? &*known.State : nullptr;
+    }
+    const uint32_t cAge = DetectionFrame - known.UpdatedAt;
+    if (cAge > 60)
+        known.Queued = true;
+    return cAge > 120 ? nullptr : &*known.State;
+}
+
+int32_t FakeEngine::StealthEye()
+{
+    int32_t highest = DetectionRules::kUnseen;
+    for (const auto& [cId, cActor] : Actors)
+        if (cId != kPlayer && cActor.Loaded && !cActor.Dead && !cActor.NotOnStealthMeter)
+            if (const auto* cpState = FreshState(cId))
+                highest = std::max(highest, cpState->Level);
+    return highest;
+}
+
+void FakeEngine::DetectionPass()
+{
+    for (auto& [cWitness, known] : KnowledgeOfPlayer)
+    {
+        if (!known.Queued)
+            continue;
+        const auto cSees = Sees.find(cWitness);
+        DetectionRules::Pass computed{};
+        if (cSees != Sees.end())
+            computed = {.Level = cSees->second, .LineOfSight = true, .Seen = true};
+        known = {DetectionRules::Installed(PartyOf(cWitness) == HitRules::Party::OtherPlayer, true, computed), DetectionFrame, false};
+    }
 }
 
 HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept

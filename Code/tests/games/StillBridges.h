@@ -708,6 +708,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override
     {
     }
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override
+    {
+    }
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override
     {
     }

@@ -109,6 +109,7 @@ public:
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
     void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept override;
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override;
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override;
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;

@@ -2,6 +2,7 @@
 
 #include <Actor.h>
 #include <AI/AIProcess.h>
+#include <Games/ActorExtension.h>
 #include <Crime.h>
 #include <FormIds.h>
 #include <Forms/TESFaction.h>
@@ -167,7 +168,26 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         static VersionDbPtr<THighest> highest(41408);
         uint32_t seeing = 0;
         const int16_t cLevel = highest(ProcessLists::Get(), player, seeing);
-        return {{"ok", true}, {"level", cLevel}, {"seeing", seeing}};
+        // Each high actor's last state of the player, without asking (39763): who holds the eye's level.
+        using TFind = CrimeEngine::ActorKnowledge*(HighProcessData*, Actor*);
+        static VersionDbPtr<TFind> find(39763);
+        static VersionDbPtr<float> now(404125);
+        nlohmann::json sources = nlohmann::json::array();
+        const auto& handles = ProcessLists::Get()->highActorHandleArray;
+        for (uint32_t i = 0; i < handles.length; ++i)
+        {
+            auto* witness = Cast<Actor>(TESObjectREFR::GetByHandle(handles[i]));
+            auto* high = witness && witness->currentProcess ? witness->currentProcess->highProcess : nullptr;
+            const auto* known = high ? find(high, player) : nullptr;
+            if (!known || !known->State)
+                continue;
+            sources.push_back({{"actor", witness->formID}, {"level", known->State->Level}, {"seen", known->State->Seen},
+                               {"age", *now.Get() - known->State->UpdatedAt},
+                               {"queued", known->RequestedAt != -std::numeric_limits<float>::max()},
+                               {"other_player", witness->GetExtension()->IsOtherPlayer()},
+                               {"not_on_meter", (witness->flags2 & Actor::kDoNotShowOnStealthMeter) != 0}});
+        }
+        return {{"ok", true}, {"level", cLevel}, {"seeing", seeing}, {"sources", sources}};
     }
     else if (action == "detection")
     {
@@ -189,9 +209,10 @@ nlohmann::json Crime(Harness&, const nlohmann::json& aRequest)
         static VersionDbPtr<float> now(404125);
         auto* high = actor->currentProcess ? actor->currentProcess->highProcess : nullptr;
         const auto* known = high ? find(high, other) : nullptr;
+        const bool cNotOnMeter = (actor->flags2 & Actor::kDoNotShowOnStealthMeter) != 0; // 41408 skips it
         if (!known)
-            return {{"ok", true}, {"known", false}, {"high", high != nullptr}};
-        nlohmann::json result{{"ok", true}, {"known", true}, {"high", true},
+            return {{"ok", true}, {"known", false}, {"high", high != nullptr}, {"not_on_meter", cNotOnMeter}};
+        nlohmann::json result{{"ok", true}, {"known", true}, {"high", true}, {"not_on_meter", cNotOnMeter},
                               {"queued", known->RequestedAt != -std::numeric_limits<float>::max()}};
         if (known->State)
         {

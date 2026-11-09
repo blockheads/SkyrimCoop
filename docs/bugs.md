@@ -96,6 +96,7 @@ other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
+- [The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate): medium, a scenario first
 
 **Combat**
 
@@ -118,7 +119,7 @@ other section needs the duo.
 - [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
-- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
+- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Test tools**
@@ -816,6 +817,27 @@ Size: medium. Needs: duo.
   - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
     the code, not run.
 
+### The guest's eye is its own estimate
+
+On the guest, the stealth eye shows what its NPC copies judge themselves, not what the host's NPCs see.
+
+Agent task: Show with a scenario that the guest's eye and the host's NPCs disagree in a way a player feels; only then
+make the guest's eye show the host's detection.
+
+Size: medium. Needs: duo, then a decision.
+
+- **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
+  `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
+  and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
+  the host's eye read Lydia's real 30 and the guest's its copy's 20 (`playtests/2026-10-31-fabien.md`, S6): an estimate,
+  not stuck.
+  - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
+    old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
+  - Shape if it matters: the host asks its NPCs about each guest's copy and sends the highest level (a message, at a rate:
+    detection has no event); the guest's eye shows it, and NPC copies become unseen witnesses (`DetectionRules`).
+  - Test: a scenario where the guest's eye says hidden while a host NPC spots the guest (combat, a crime reported), or
+    the reverse. With none, this entry goes.
+
 ## Combat
 
 ### After the host dies
@@ -1070,19 +1092,27 @@ Size: small. Needs: IDA, the dump; duo to prove it.
 
 ### The sneak eye with the other player looking
 
-S6 of 2026-10-31 again.
+S6 of 2026-10-31 again. Hardened (PR #40), not reproduced.
 
-Agent task: Make the other player's copy never raise the local player's stealth eye.
+Agent task: Catch the eye open with the other player looking, name its source with the readout, and fix that source.
 
-Size: small. Needs: duo, IDA.
+Size: small. Needs: duo, the user's report.
 
-- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you").
-  S6 (`playtests/2026-10-31-fabien.md`) did not reproduce on 2026-11-01 with both sneaking face to face:
-  `HookUpdateDetectionState` (42704) skips a player copy's detection of the local player. New here: the other player
-  looking at you (maybe standing). Read in code: the hook skips the update but keeps the knowledge entry, so a level
-  set before could stay (inferred). Nothing in the logs.
-  - Start: what the eye reads (41408, `stealth_meter`) with the other player looking, standing and sneaking.
-  - Test: a scenario: the local player sneaks, nobody else near, the other player turns to face it.
+- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you";
+  "just standing next to another player if we're sneaking and they are looking at us"). Not reproduced on the duo
+  (2026-11-08/09, dev's hook): standing or sneaking face to face, both games, the eye stayed closed on screen; the
+  copy's knowledge held no state; talking to or pickpocketing a player's copy is refused. The playtest's 21:26 `/bug`
+  reports caught no sneaking moment (Riverwood Trader, Lucan and Camilla by).
+  - Hardened (`docs/re/systems/stealth.md`): a player's copy now carries `kDoNotShowOnStealthMeter` (41408 skips it),
+    and `HookUpdateDetectionState` installs an unseen pass instead of skipping (a skip left the request queued; 42702
+    then answered an older level at any age, and 37765's forced 100 through 42705 the same).
+  - Suspects left: a real NPC near (the Sleeping Giant: Orgnar read -5 and "seen" on a sneaking host), NPC copies on the
+    guest ([The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate)), combat (40593 shows 100 minus
+    the search level).
+  - Start: the user's conditions (whose eye, where, who was near), or a `/bug` taken while the eye shows detected; the
+    harness's `crime stealth_meter` lists each actor holding a level of the player (`sources`).
+  - Test: scenario `other-player-looking-leaves-eye-hidden` is the base; it must fail before a fix on what the readout
+    names.
 
 ### A guest crash at the main menu
 

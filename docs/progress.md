@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: hardening, the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md));
+the playtest's report stays open in bugs.md (not reproduced). Read in IDA:
+`HookUpdateDetectionState` (42704) skipped the copy's pass, which left its request queued for good, and 42702 answers a
+queued knowledge's state at any age, so a level installed before stayed. Measured on the duo the copy held none
+(standing and sneaking, both games). The hook now installs an unseen pass (`DetectionRules`), and a player's copy is
+flagged `kDoNotShowOnStealthMeter` (41408 skips it, as MQ201 does for its allies), which also covers 37765's forced
+detection (42705, no pass). The playtest's moment was not reproduced. Tests: `detection_rules_tests.cpp`, GameTests
+`[stealth]`, scenario `other-player-looking-leaves-eye-hidden`; harness `crime stealth_meter` names each source.
+
 2026-11-08: a party wipe right after a wipe reloads the host's own character. The engine takes a save's character id
 from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next wipe took the newest id-0 save
 (another character's); the host now gives the engine the checkpoint's character back after the load

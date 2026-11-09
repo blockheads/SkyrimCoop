@@ -407,6 +407,13 @@ public:
     static constexpr uint32_t kForceAnimGraphUpdate = 1u << 29;
     // flags2: the head is under water (CommonLib BOOL_FLAGS::kUnderwater; set by Actor::Update, 37348).
     static constexpr uint32_t kUnderwater = 1u << 31;
+    // flags2: never counted on the player's stealth eye (CommonLib BOOL_FLAGS::kDoNotShowOnStealthMeter; read by
+    // 41408, written by Actor::SetNotShowOnStealthMeter 37722, Papyrus 54969).
+    static constexpr uint32_t kDoNotShowOnStealthMeter = 1u << 26;
+    void SetNotShowOnStealthMeter(bool aNotShow) noexcept
+    {
+        flags2 = aNotShow ? flags2 | kDoNotShowOnStealthMeter : flags2 & ~kDoNotShowOnStealthMeter;
+    }
     void* unk200[4];
     struct BGSDialogueBranch* dialogueBranch;
     ActorValueModifiers healthModifiers;
