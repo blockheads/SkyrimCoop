@@ -152,8 +152,9 @@ void Release(hkReferencedObject* apObject)
     (*reinterpret_cast<TDelete***>(apObject))[0](apObject, 1);
 }
 
-// Each active node, in the graph and the sub-behaviours in it (a clip's time, a modifier's last values), whose
-// internal state holds no pointer: a state machine's points at nodes of its own graph (loaded with the graph state).
+// Each active modifier and clip, in the graph and the sub-behaviours in it (a modifier's last values, a clip's time),
+// whose internal state holds no pointer. Not a generator with children: a blender's or selector's state says which
+// of them are active, and another graph's crashed the copy's generate (60039 under the blender's, duo 2026-11-09).
 template <class T> void EachActiveNode(const hkbBehaviorGraphNode* apGraph, T&& aWork, int aDepth = 0)
 {
     if (!apGraph || !apGraph->activeNodes || aDepth > 8)
@@ -168,6 +169,8 @@ template <class T> void EachActiveNode(const hkbBehaviorGraphNode* apGraph, T&& 
         const std::string_view cClass = pClass->name;
         if (cClass == "hkbBehaviorReferenceGenerator")
             EachActiveNode(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aWork, aDepth + 1);
+        else if (!cClass.ends_with("Modifier") && cClass != "hkbClipGenerator")
+            continue;
         else if (const hkClass* pState = StateClass(cClass))
             if (const auto* pReflected = Reflected(pState); pReflected && !NodeMemory::HasPointers(*pReflected))
                 aWork(*pNode, std::format("{}/{}", apGraph->name ? Text(apGraph->name) : "", pNode->id), cClass);

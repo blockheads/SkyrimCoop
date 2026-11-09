@@ -275,6 +275,7 @@ class ReproActions:
         ctx.wait_for(f"[both] {seconds:.0f} s of streamed copies' graphs against their owners'", step, seconds + 30,
                      explain=lambda: f"copies {copies}, compared {dict(compared)}")
         return {"compared": {f"{copies.get(actor, {}).get('form', 0):X}": count for actor, count in compared.items()},
+                "by_owner": {owners[actor]["form"]: count for actor, count in compared.items() if actor in owners},
                 "copies": {f"{value['form']:X}": value for value in copies.values()},
                 "unmatched": len(pending), "owners": len(owners)}
 
@@ -713,7 +714,10 @@ class ReproActions:
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
         `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
         `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
-        at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing)."""
+        at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing), "stream"
+        (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
+        update; with `name`, its copy compared on at least `value` updates, by default 30 a second; without, at least
+        `value` copies, default 1, compared through most of it)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -725,6 +729,18 @@ class ReproActions:
             return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
+        if check == "stream":
+            seconds = seconds or 60.0
+            result = ctx.graph_stream_check(seconds)
+            if name:
+                owner = ctx.resolve(name, "host")
+                needed = value if value is not None else int(30 * seconds)
+                if result["by_owner"].get(owner, 0) < needed:
+                    raise ctx.failure(f"{name}: its copy's graph compared on {result['by_owner'].get(owner, 0)} updates of "
+                                      f"{needed} needed (on its owner's stream: {result['copies']})")
+            elif (through := sum(count >= 15 * seconds for count in result["compared"].values())) < (value or 1):
+                raise ctx.failure(f"{through} copies compared through the window, {value or 1} needed: {result['compared']}")
+            return {"copies": len(result["compared"]), "least": min(result["compared"].values(), default=0)}
         if check == "graph":
             owner, seconds = ctx.resolve(name, "host"), seconds or 60.0
             watch = ctx.graph_watch_start(0.25, within, {owner}, None, field, strict=True)

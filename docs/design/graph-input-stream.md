@@ -251,10 +251,11 @@ copy, after LoadGraphPoint (whose activation reset its nodes): the same key and 
 - **One reader for every class** (`Games/Animation/NodeMemory.h`, ClientTests `[node-memory]`): Havok 2010's
   `hkClassMember` list (type +0x18, subtype +0x19, offset +0x1E): plain values, enums, inline arrays, structs and
   `hkArray`s of them. An array is applied only if the copy's has the same count; nothing is allocated in Havok's heap.
-- **What it carries** (read: every `...InternalState` class's members): clips' times and echoes, blenders' and
-  selectors' children, sequences, and every modifier's memory (range modifiers' last ranges, damping, timers, look-at).
-  Left out: state machines' (their active transitions point at nodes; the graph state holds their states) and the
-  behaviour graph's own.
+- **What it carries** (read: every `...InternalState` class's members): clips' times and echoes, and every
+  modifier's memory (range modifiers' last ranges, damping, timers, look-at). Left out: state machines' (their active
+  transitions point at nodes; the graph state holds their states), the behaviour graph's own, and generators with
+  children: a blender's or selector's state says which children are active, and given another graph's it crashed the
+  copy's generate (a blender's child never activated: 60039, duo 2026-11-09).
 - **Its weight:** 4-12 nodes a point, a few hundred bytes, once per copy start.
 
 ## Phases
