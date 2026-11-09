@@ -49,7 +49,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-08: the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md)). Read in IDA:
+2026-11-08: hardening, the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md));
+the playtest's report stays open in bugs.md (not reproduced). Read in IDA:
 `HookUpdateDetectionState` (42704) skipped the copy's pass, which left its request queued for good, and 42702 answers a
 queued knowledge's state at any age, so a level installed before stayed. Measured on the duo the copy held none
 (standing and sneaking, both games). The hook now installs an unseen pass (`DetectionRules`), and a player's copy is

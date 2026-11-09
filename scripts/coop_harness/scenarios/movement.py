@@ -153,9 +153,17 @@ def scenario_other_player_looking_leaves_eye_hidden(ctx):
             ctx.sneak(sneaker, True)
             ctx.sneak(looker, False)
             ctx.face(looker, sneaker_copy)
-            frame = ctx.game_frame(sneaker)
-            ctx.wait_for(f"[{name}] 120 frames sneaking, watched", lambda: ctx.game_frame(sneaker) > frame + 120, 10)
-            known = ctx.player_command(sneaker, {"cmd": "crime", "action": "knowledge", "actor": copy, "target": 0x14})
+            known = {}
+            def watched():
+                # In the sneaker's game: the copy in high process (a 41408 candidate), near, turned to face the sneaker.
+                known.update(ctx.player_command(sneaker, {"cmd": "crime", "action": "knowledge", "actor": copy, "target": 0x14}))
+                at, me = ctx.actors_on(sneaker).get(str(copy)) or {}, ctx.my_position(sneaker)
+                if not known.get("high") or not at.get("actual") or not at.get("rotation") or not me:
+                    return False
+                dx, dy = me[0] - at["actual"][0], me[1] - at["actual"][1]
+                return math.hypot(dx, dy) < 400 and abs(math.remainder(at["rotation"][2] - math.atan2(dx, dy), math.tau)) < 0.5
+            ctx.wait_for(f"[{name}] the other player's copy, near and in high process, faces the sneaking player", watched, 10,
+                         explain=lambda: f"its knowledge: {known}, its status: {ctx.actors_on(sneaker).get(str(copy))}")
             if not known.get("not_on_meter"):
                 raise ctx.failure(f"[{name}] the other player's copy counts on the stealth eye: {known}")
             meter = ctx.player_command(sneaker, {"cmd": "crime", "action": "stealth_meter"})

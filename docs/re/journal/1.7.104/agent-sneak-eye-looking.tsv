@@ -32,3 +32,10 @@ time	op	id	rva	item
 2026-11-09T06:12:37Z	name	37722	0x6a0380	{"addr": "0x1406A0380", "name": "Actor__SetNotShowOnStealthMeter"}
 2026-11-09T06:12:38Z	comment	37722	0x6a0380	{"addr": "0x1406A0380", "comment": "boolFlags (+0x204) bit 26 kDoNotShowOnStealthMeter: 41408 skips this actor when judging the player (the HUD eye, crime 'seen' checks). MQ201 sets it on allies; coop sets it on other players' copies"}
 2026-11-09T06:12:38Z	comment		0x786407	{"addr": "0x140786407", "comment": "skipped for the player: boolFlags kDoNotShowOnStealthMeter (bit 26), boolBits kPlayerTeammate (bit 26), or commanded by the player (kIsCommandedActor and its commander is the player)"}
+2026-11-09T07:05:56Z	read	40593	0x756950	{"name": "PlayerCharacter__UpdateStealthMeter"}
+2026-11-09T07:05:56Z	read	37765	0x6a2580	{"name": "Actor__ForceDetected"}
+2026-11-09T07:05:56Z	read	42760	0x7c6600	{"name": "DetectionState::Set"}
+2026-11-09T07:05:57Z	read	42761	0x7c66b0	{"name": "DetectionState::Clear"}
+2026-11-09T07:05:58Z	read	42712	0x7c4580	{"name": "ActorKnowledge__RequestDetectionUpdate"}
+2026-11-09T07:06:04Z	read	35294	0x5f0ad0	{"name": "MenuTopicManager::EndDialogue"}
+2026-11-09T07:06:05Z	read	24715	0x3c05c0	{"name": "TESNPC::Activate"}

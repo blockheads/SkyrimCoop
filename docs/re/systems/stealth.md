@@ -45,15 +45,17 @@ DoDetectionJob (42742), each queued knowledge in turn
 A second writer skips the pass: `Actor__ForceDetected` (37765) sets a witness's state of a target to 100 through
 `ActorKnowledge__SetDetectionStateKeepQueued` (42705), which leaves +0x44 as it is. Its callers: `TESNPC::Activate` and
 `MenuTopicManager::EndDialogue` (the actor talked to detects the player), pickpocket and steal alarms. On a knowledge
-already queued, that 100 answers at any age.
+already queued, that 100 answers at any age. Read in IDA; on the duo, talking to or pickpocketing a player's copy is
+refused, so no co-op path to it was measured.
 
 ## Our hook
 
 `HookUpdateDetectionState` sits on 42704. It used to return without calling the engine when another player's copy
 judged this game's player. That left the knowledge's request queued forever: 42712 never queued another, and 42702
 answered whatever state the knowledge held, at any age. Measured on the duo (2026-11-08), standing and sneaking, both
-games: the copy's knowledge of the player read `queued`, no state, so it added nothing. But a level installed before the
-hook skipped (a copy judging before its flags, as after a cog swap resets the extensions) would stay on the eye for good.
+games: the copy's knowledge of the player read `queued`, no state, so it added nothing. Read in IDA, not measured: a
+level installed before the hook skipped would stay on the eye for good. How one would get there (a copy judging before
+its flags, as after a cog swap resets the extensions) is inferred; no positive state was seen to survive.
 
 Now the hook rewrites the pass to unseen (`DetectionRules::Installed`: level -1000, no LOS, not seen, the fields a pass
 with detection off writes) and lets 42704 install it. The request clears, the state is fresh, and 42702's freshness

@@ -880,9 +880,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Asking the running package's procedure: GetCurrentAIProcedure (21521) and a former copy's CheckForNewPackage (39213)
     // read a table at this index with no check, and -1 reads what lies before it: Skyrim crashes.
     bool ReadsProcedure(uint32_t aActor) const { return Actors.at(aActor).ProcedureType >= 0; }
-    // Detection of the player (docs/re/systems/stealth.md): each witness's knowledge, answered by a later pass.
-    // Skyrim: a request is queued (42712, once); the pass installs a state and clears it (42704, HookUpdateDetectionState
-    // follows DetectionRules); while one is queued, 42702 returns the state at any age.
+    // Detection of the player (stealth.md): a request queued once (42712), a pass installs and clears it (42704,
+    // DetectionRules); while queued, 42702 answers the state at any age.
     struct WitnessKnowledge
     {
         std::optional<DetectionRules::Pass> State;

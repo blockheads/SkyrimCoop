@@ -121,6 +121,7 @@ other section needs the duo.
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
 - [Black faces after a new area](#black-faces-after-a-new-area): small
 - [A guest's pickpocket](#a-guests-pickpocket): medium
+- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Test tools**
@@ -1122,6 +1123,30 @@ Size: small. Needs: GameTests, duo to see it.
   the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
   players' copies; whose faces the user saw is to be asked.
   - Test: GameTests, a copy's 3D rebuilt paints its face again.
+
+### The sneak eye with the other player looking
+
+S6 of 2026-10-31 again. Hardened (PR #40), not reproduced.
+
+Agent task: Catch the eye open with the other player looking, name its source with the readout, and fix that source.
+
+Size: small. Needs: duo, the user's report.
+
+- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you";
+  "just standing next to another player if we're sneaking and they are looking at us"). Not reproduced on the duo
+  (2026-11-08/09, dev's hook): standing or sneaking face to face, both games, the eye stayed closed on screen; the
+  copy's knowledge held no state; talking to or pickpocketing a player's copy is refused. The playtest's 21:26 `/bug`
+  reports caught no sneaking moment (Riverwood Trader, Lucan and Camilla by).
+  - Hardened (`docs/re/systems/stealth.md`): a player's copy now carries `kDoNotShowOnStealthMeter` (41408 skips it),
+    and `HookUpdateDetectionState` installs an unseen pass instead of skipping (a skip left the request queued; 42702
+    then answered an older level at any age, and 37765's forced 100 through 42705 the same).
+  - Suspects left: a real NPC near (the Sleeping Giant: Orgnar read -5 and "seen" on a sneaking host), NPC copies on the
+    guest ([The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate)), combat (40593 shows 100 minus
+    the search level).
+  - Start: the user's conditions (whose eye, where, who was near), or a `/bug` taken while the eye shows detected; the
+    harness's `crime stealth_meter` lists each actor holding a level of the player (`sources`).
+  - Test: scenario `other-player-looking-leaves-eye-hidden` is the base; it must fail before a fix on what the readout
+    names.
 
 ### A guest crash at the main menu
 
