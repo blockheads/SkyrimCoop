@@ -173,23 +173,31 @@ bool Actor::SetCapsuleCollision(bool aCollides) noexcept
     return true;
 }
 
-bool Actor::SetFurnitureBodies(bool aInFurniture) noexcept
+namespace
 {
-    constexpr uint32_t cBipedLayer = 8, cBipedNoControllerLayer = 33;
-    constexpr uint32_t cAllowRagdollCollision = 0x40000; // RACE_DATA::Flag: left on layer 33 in the world (39912)
+// Its own 3D's first rigid body (the bodies move together: 40063 and 39912 set them all at once), else null.
+const hkpRigidBody* FirstBodyOf(NiAVObject& aRoot) noexcept
+{
+    for (const bhkWorldObject* pBody : RigidBodiesOf(aRoot))
+        if (pBody && pBody->referencedObject)
+            return pBody->referencedObject;
+    return nullptr;
+}
+} // namespace
+
+uint8_t Actor::BodiesLayer() noexcept
+{
+    NiNode* pRoot = GetNiNode();
+    const hkpRigidBody* pBody = pRoot ? FirstBodyOf(*pRoot) : nullptr;
+    return pBody && pBody->world ? static_cast<uint8_t>(pBody->CollisionFilterInfo() & 0x7F) : 0;
+}
+
+bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
+{
     NiNode* pRoot = GetNiNode();
     auto* pProcess = currentProcess;
     auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
-    if (!pRoot || !pController || !parentCell)
-        return false;
-    const auto cBodies = RigidBodiesOf(*pRoot);
-    const auto cFirst = std::ranges::find_if(cBodies, [](const bhkWorldObject* apBody) { return apBody && apBody->referencedObject; });
-    if (cFirst == cBodies.end())
-        return false;
-    const hkpRigidBody& cBody = *(*cFirst)->referencedObject;
-    const bool cIn = cBody.world && (cBody.CollisionFilterInfo() & 0x7F) == cBipedNoControllerLayer;
-    const bool cKept = race && race->raceFlags & cAllowRagdollCollision;
-    if (cIn == aInFurniture || (cKept && !aInFurniture))
+    if (!pRoot || !pController || !parentCell || !FirstBodyOf(*pRoot) || BodiesLayer() == aLayer)
         return false;
 
     POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
@@ -204,24 +212,17 @@ bool Actor::SetFurnitureBodies(bool aInFurniture) noexcept
     void* pQueue = *s_queue.Get();
     if (!pQueue)
         return false;
+    if (!aLayer)
+    {
+        s_removeFromWorld.Get()(pQueue, pRoot);
+        return true;
+    }
+    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group, in its cell's world.
     uint32_t filter = 0;
     pController->GetCollisionFilterInfo(filter);
-    const uint32_t cGroup = filter >> 16;
-    if (aInFurniture)
-    {
-        // EnterFurnitureCollision (40063): keyframed, layer 33 with its capsule's group, in its cell's world.
-        s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
-        s_setLayerAndGroup.Get()(pQueue, pRoot, cBipedNoControllerLayer, cGroup);
-        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
-    }
-    else
-    {
-        // SetSitSleepState leaving (39912): back on the biped layer, out of the world unless bAddBipedWhenKeyframed.
-        POINTER_SKYRIMSE(Setting, s_addBipedWhenKeyframed, 358838);
-        if (!(s_addBipedWhenKeyframed.Get()->data & 0xFF))
-            s_removeFromWorld.Get()(pQueue, pRoot);
-        s_setLayerAndGroup.Get()(pQueue, pRoot, cBipedLayer, cGroup);
-    }
+    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, filter >> 16);
+    s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
     return true;
 }
 

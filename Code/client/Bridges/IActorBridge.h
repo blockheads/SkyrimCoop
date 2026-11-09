@@ -92,9 +92,14 @@ public:
     [[nodiscard]] virtual bool CapsuleCollides(uint32_t aFormId) const noexcept = 0;
     // A copy's capsule made to collide or not, as its owner's (CapsuleCollides).
     virtual void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept = 0;
-    // A copy's bodies follow its own sit state as the engine's AI sets an actor's (39912, 40063): seated, the crosshair
-    // takes it only by them (CrosshairPickData::Pick). A copy runs no AI, so its engine never does it.
-    virtual void SetCopyFurnitureBodies(uint32_t aFormId) noexcept = 0;
+    // The layer its own bodies are on in the physics world, 0 when out of it: the AI puts them there as it sits (40063),
+    // and the crosshair takes a seated actor only by them (CrosshairPickData::Pick).
+    [[nodiscard]] virtual uint8_t BodiesLayer(uint32_t aFormId) const noexcept = 0;
+    // Its graphs step with the physics world, so their ragdoll driver drives its bodies (63562); detached in furniture.
+    [[nodiscard]] virtual bool GraphsStepPhysics(uint32_t aFormId) const noexcept = 0;
+    // A copy's bodies and graphs put as its owner's are, in the engine's order (40063 detaches the graphs first, 39912
+    // takes the bodies out first). A copy runs no AI, so its engine never does it.
+    virtual void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
 
     // --- Actor values ---

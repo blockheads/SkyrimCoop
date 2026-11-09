@@ -51,7 +51,9 @@ public:
     bool IsOnGround(uint32_t aFormId) const noexcept override;
     bool CapsuleCollides(uint32_t aFormId) const noexcept override;
     void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept override;
-    void SetCopyFurnitureBodies(uint32_t aFormId) noexcept override;
+    uint8_t BodiesLayer(uint32_t aFormId) const noexcept override;
+    bool GraphsStepPhysics(uint32_t aFormId) const noexcept override;
+    void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;

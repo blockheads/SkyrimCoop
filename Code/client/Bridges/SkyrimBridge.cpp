@@ -344,11 +344,29 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
         pActor->SetCapsuleCollision(aCollides);
 }
 
-void SkyrimBridge::SetCopyFurnitureBodies(uint32_t aFormId) noexcept
+uint8_t SkyrimBridge::BodiesLayer(uint32_t aFormId) const noexcept
 {
-    // Not while it lies in its ragdoll: those bodies are its ragdoll's (39912 skips them too).
-    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy() && !pActor->LiesInRagdoll())
-        pActor->SetFurnitureBodies(pActor->InFurniture());
+    Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->BodiesLayer() : 0;
+}
+
+bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return !pActor || ::GraphsStepPhysics(*pActor);
+}
+
+void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
+{
+    // Not while it lies in its ragdoll: those bodies are its ragdoll's (BodyService).
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy() || pActor->LiesInRagdoll())
+        return;
+    if (!aGraphsStep)
+        SetGraphsStepPhysics(*pActor, false);
+    pActor->SetBodiesLayer(aBodiesLayer);
+    if (aGraphsStep)
+        SetGraphsStepPhysics(*pActor, true);
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept

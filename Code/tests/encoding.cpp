@@ -1241,6 +1241,8 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Knocked = true;
         move.OnGround = true;
         move.CapsuleCollides = false;
+        move.BodiesLayer = 33;
+        move.GraphsStepPhysics = false;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

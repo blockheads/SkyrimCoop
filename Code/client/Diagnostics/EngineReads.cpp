@@ -274,7 +274,7 @@ std::optional<ControllerRead> GetController(uint32_t aFormId) noexcept
     bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
     if (!pController)
         return std::nullopt;
-    ControllerRead read{.Flags = pController->flags, .State = pController->state};
+    ControllerRead read{.Flags = pController->flags, .State = pController->state, .Size = pController->size};
     pController->GetCollisionFilterInfo(read.Filter);
     alignas(16) float position[4]{};
     alignas(16) float velocity[4]{};

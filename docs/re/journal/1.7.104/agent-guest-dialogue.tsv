@@ -18,3 +18,24 @@ time	op	id	rva	item
 2026-11-09T05:36:30Z	comment		0x5ef9b8	{"addr": "0x1405ef9b8", "comment": "No list after the greeting (a hello-only NPC), or a goodbye greeting: cleared, returns false, no menu asked"}
 2026-11-09T05:36:30Z	comment		0x724e5b	{"addr": "0x140724e5b", "comment": "Leaving furniture: the 3D's bodies back to layer 8 (33 for a race with flag 0x40000) and, unless bAddBipedWhenKeyframed, out of the world"}
 2026-11-09T05:36:33Z	name	35282	0x5ef4c0	{"addr": "0x1405ef4c0", "name": "MenuTopicManager::StartDialogue"}
+2026-11-09T06:40:02Z	read		0x108f2d0	{"name": "hkLimitedHingeConstraintCinfo::Func1_78954"}
+2026-11-09T06:40:05Z	read	78553	0x107c870	{"name": "bhkCollisionFilter::sub_78553"}
+2026-11-09T06:40:15Z	comment		0x107c915	{"addr": "0x14107c915", "comment": "Different groups: a layer 30 capsule with 0x8000 (collision off, 40063) collides only with the layers in the mask at +0x3D0. The crosshair pick (layer 44) does not reach a seated actor's capsule (measured 2026-11-08: Lucan leaning, size 0, not picked by his capsule)"}
+2026-11-09T06:40:15Z	comment		0x40a7e7	{"addr": "0x14040a7e7", "comment": "Layer 30 hit also skipped when the controller's size (+0x2A0) is 1 and the actor sits or sleeps. A leaning NPC measured size 0: its capsule is out of the cast already (filter 0x8000, 78553). A seated actor is picked through its layer 33 bodies (40063)"}
+2026-11-09T06:55:31Z	read	38087	0x6b7e60	{"name": "IAnimationGraphManagerHolder_SetWorld_AEOnly"}
+2026-11-09T06:55:43Z	read	32954	0x556020	{"name": "sub_140556020"}
+2026-11-09T06:55:50Z	name	32954	0x556020	{"addr": "0x140556020", "name": "AnimationGraphVisitor_SetWorld"}
+2026-11-09T06:55:50Z	name	75858	0xfcd130	{"addr": "0x140fcd130", "name": "NiPick_PickObject"}
+2026-11-09T06:55:50Z	name	38087	0x6b7e60	{"addr": "0x1406b7e60", "name": "IAnimationGraphManagerHolder::SetWorld"}
+2026-11-09T06:55:54Z	comment	32954	0x556020	{"addr": "0x140556020", "comment": "32954 visitor (world, done flag; graph): graph vfunc 0x20 BShkbAnimationGraph::SetWorld(world), flag set"}
+2026-11-09T06:55:54Z	comment	38087	0x6b7e60	{"addr": "0x1406b7e60", "comment": "38087 (holder, {bhkWorld*, bool}): every graph's physicsWorld (+0x238) set under the manager's lock. Null detaches the graphs' ragdoll drivers from the physics step (no driveToPose; Precision Offsets.h)"}
+2026-11-09T06:55:54Z	comment	75858	0xfcd130	{"addr": "0x140fcd130", "comment": "75858 (pick, origin, dir, ?, 3D, clear): NiPick against a 3D's triangles (BSTriShape 75859); Pick's NiPick path"}
+2026-11-09T06:55:54Z	comment	36023	0x6389f0	{"addr": "0x1406389f0", "comment": "36023 here: a save-load form buffer reader, not BSAnimationGraphManager::AddRagdollToWorld (Precision's SE id): not on the path"}
+2026-11-09T06:55:54Z	comment		0x72b632	{"addr": "0x14072b632", "comment": "Graphs' physics world set to null: their ragdoll drivers stop driving, so the keyframed bodies set next stay keyframed"}
+2026-11-09T06:56:02Z	read	32955	0x556050	{"name": "sub_140556050"}
+2026-11-09T06:56:02Z	read	39798	0x71fec0	{"name": "sub_14071FEC0"}
+2026-11-09T06:56:58Z	name	63562	0xbca840	{"addr": "0x140bca840", "name": "BShkbAnimationGraph::UpdateRagdollPrePhysics"}
+2026-11-09T06:56:58Z	name	32955	0x556050	{"addr": "0x140556050", "name": "AnimationGraphVisitor_ResetRagdoll"}
+2026-11-09T06:57:01Z	comment	63562	0xbca840	{"addr": "0x140bca840", "comment": "63562 (graph, ..): only with physicsWorld (+0x238) and ragdoll weight > 0: adds every ragdoll body to that world (hkpWorld_AddEntity), then driveToPose 58291 or driveWithoutAnimation 58292 (powered: bodies dynamic). A seated actor's graph has no world (40063), so its keyframed bodies stay as set"}
+2026-11-09T06:57:01Z	comment	32955	0x556050	{"addr": "0x140556050", "comment": "32955 visitor: graph vfunc 0x28 BSIRagdollDriver::ResetRagdoll, flag set (39912 leaving furniture, before the graphs' world is set back)"}
+2026-11-09T06:57:01Z	comment		0x724fbd	{"addr": "0x140724fbd", "comment": "Leaving furniture: every graph's ResetRagdoll, then its physics world back to the cell's (undoes 40063's null)"}

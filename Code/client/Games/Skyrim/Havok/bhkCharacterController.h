@@ -55,7 +55,8 @@ struct bhkCharacterController
     float height;      // 294
     uint8_t pad298[0x29C - 0x298];
     float lodDistance; // 29C (CommonLibSSE-NG): Actor::UpdateAnimation 37361 tracks heads only within range
-    uint8_t pad2A0[0x340 - 0x2A0];
+    uint32_t size;     // 2A0 (CommonLibSSE-NG): which shape it uses (CrosshairPickData::Pick skips a seated actor's at 1)
+    uint8_t pad2A4[0x340 - 0x2A4];
     // A bhkCharProxyController's (this part at its +0x10; vtable ID 240560): its hkpCharacterProxy
     // (bhkCharProxyController::GetLinearVelocityImpl 79145 reads it).
     void* proxy;       // 340
@@ -66,6 +67,7 @@ static_assert(offsetof(bhkCharacterController, flags) == 0x218);
 static_assert(offsetof(bhkCharacterController, lodDistance) == 0x29C);
 static_assert(offsetof(bhkCharacterController, actorHeight) == 0x260);
 static_assert(offsetof(bhkCharacterController, radius) == 0x290);
+static_assert(offsetof(bhkCharacterController, size) == 0x2A0);
 static_assert(offsetof(bhkCharacterController, proxy) == 0x340);
 
 // The Havok proxy that walks the capsule: the steepest ground it climbs (no step height: the capsule rides edges).

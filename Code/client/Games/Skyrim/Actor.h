@@ -238,11 +238,12 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool CapsuleCollides() const noexcept;
     // Turns its capsule's collision off or on; false without a capsule.
     bool SetCapsuleCollision(bool aCollides) noexcept;
-    // Its own 3D's bodies as AIProcess::SetSitSleepState (39912) sets them: in furniture keyframed on layer 33 in the
-    // world (40063), out of it layer 8 out of it; queued as the engine queues them. False: nothing to change.
-    bool SetFurnitureBodies(bool aInFurniture) noexcept;
-    // Sit/sleep state set (ActorState1::sitSleepState not 0).
-    [[nodiscard]] bool InFurniture() const noexcept { return actorState.GetSitSleepState() != 0; }
+    // The collision layer its own 3D's bodies are on in the physics world, 0 when out of it: its AI puts them there,
+    // keyframed on layer 33, as it sits or sleeps (40063).
+    [[nodiscard]] uint8_t BodiesLayer() noexcept;
+    // Its own 3D's bodies put on that layer in the world (keyframed, its capsule's group), or out of it for 0, queued
+    // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
+    bool SetBodiesLayer(uint8_t aLayer) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.

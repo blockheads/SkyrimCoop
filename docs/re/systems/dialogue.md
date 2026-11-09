@@ -387,15 +387,28 @@ Found by the 2026-11-08 playtest: the guest's crosshair never took Lucan's copy 
 | ID | Name (ours) | What |
 |---|---|---|
 | 40620 | `PlayerCharacter::PickCrosshairReference` | Calls `CrosshairPickData::Pick` with the camera's ray |
-| (no ID, 0x140409fd0) | `CrosshairPickData::Pick` | A sphere cast along the ray (pick layer 44, colliding with layers 1-6, 8-10, 13-15, 17-19, 28, 30, 32, 33), then per hit: clutter-like bodies by a ray against their shape, the rest by `NiPick` on the ref's 3D and a line-of-sight ray. **A layer 30 (character controller) hit is skipped** when the controller's `size` (+0x2A0) is 1 and the actor sits or sleeps (sit state 3 or 7) |
+| (no ID, 0x140409fd0) | `CrosshairPickData::Pick` | A sphere cast along the ray (pick layer 44, colliding with layers 1-6, 8-10, 13-15, 17-19, 28, 30, 32, 33), then per hit: clutter-like bodies by a ray against their shape, the rest by `NiPick` on the ref's 3D and a line-of-sight ray. A layer 30 (character controller) hit is also skipped when the controller's `size` (+0x2A0) is 1 and the actor sits or sleeps (a leaning Lucan measured `size` 0) |
+| 78553 | `bhkCollisionFilter::CompareFilterInfo` | Across groups, a layer 30 capsule with 0x8000 (collision off) collides only with the layers in the mask at +0x3D0: the pick (layer 44) passes a seated actor's capsule by |
 | (no ID, 0x14040b1e0) | `CrosshairPickData::CanPickRef` | No display name: no; sitting in furniture with `kDisablesActivation`: no |
-| 39912 | `AIProcess::SetSitSleepState` | Entering (1/5, or 0 to 3/7): 40063. Leaving: capsule filter 0x8000 cleared, the 3D's bodies back to layer 8 (33 for a race with `kAllowRagdollCollision` 0x40000) and out of the world unless `bAddBipedWhenKeyframed:HAVOK` (358838) |
-| 40063 | `AIProcess::EnterFurnitureCollision` | Capsule filter 0x8000 (collision off), the actor's own 3D keyframed (36925), its bodies on layer 33 (biped, no controller) with the capsule's group (36929), added to its cell's world (36922) |
+| 39912 | `AIProcess::SetSitSleepState` | Entering (1/5, or 0 to 3/7): 40063. Leaving: capsule filter 0x8000 cleared, the 3D's bodies back to layer 8 (33 for a race with `kAllowRagdollCollision` 0x40000) and out of the world unless `bAddBipedWhenKeyframed:HAVOK` (358838); then every graph's `ResetRagdoll` (vfunc 5) under the manager's lock (+0xA0), and the graphs attached to the cell's world again (38087) |
+| 40063 | `AIProcess::EnterFurnitureCollision` | Every graph detached from the physics world (38087 with null), capsule filter 0x8000 (collision off), the actor's own 3D keyframed (36925), its bodies on layer 33 (biped, no controller) with the capsule's group (36929), added to its cell's world (36922) |
+| 38087 | `IAnimationGraphManagerHolder::SetWorld` | `(holder, {world, flag})`: each graph's `SetWorld` (vfunc 4, `physicsWorld` +0x238) under the manager's lock |
+| 63562 | `BShkbAnimationGraph::UpdateRagdollPrePhysics` | Nothing without a `physicsWorld`. With one and ragdoll weight above 0: adds every ragdoll body to that world, then `driveToPose` (58291) or `driveWithoutAnimation` (58292), which power the bodies (dynamic) |
 | 36922, 36924, 36925, 36929 | `TaskQueueInterface::QueueAddToWorld`, `QueueRemoveFromWorld`, `QueueSetMotionType`, `QueueSetCollisionLayerAndGroup` | Tasks 18, 19, 34, 38 (`BSTaskPool` runs them on the main thread) |
 
-A seated actor is picked only through its layer 33 bodies. Measured on the duo (Lucan leaning, `ragdoll` readout): the
+A seated actor is picked only through its layer 33 bodies: 40063 turns its capsule's collision off (0x8000), which keeps
+the capsule out of the pick's cast (78553), and puts the bodies in instead. Measured on the duo (Lucan leaning, `ragdoll` readout): the
 host's Lucan had 18 keyframed bodies in the world; his copy on the guest had none, and no copy has any (they run no AI,
 so never 39912). Copies mirrored only the capsule's 0x8000 (`actor-movement.md`, "A copy in furniture"). Now a copy's
-bodies follow its own sit state as 39912 sets an actor's (`Actor::SetFurnitureBodies`, through
-`IActorBridge::SetCopyFurnitureBodies` each movement frame). GameTests "A guest's crosshair takes an NPC copy seated in its
-furniture" (the fake's `BodiesInWorld`, `CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.
+bodies and graphs mirror its owner's the same way: each movement snapshot carries `BodiesLayer` (the layer the owner's own
+bodies are on in the world, 0 when out of it: `Actor::BodiesLayer`) and `GraphsStepPhysics` (a graph of the owner's has a
+physics world: `GraphsStepPhysics` in `Havok/Ragdoll.h`), and the copy's are set to match in the engine's order (detach
+the graphs before the bodies go in, as 40063; reset and attach them after the bodies leave, as 39912). No furniture rule
+of ours: it follows whatever changed the owner's (furniture, `bAddBipedWhenKeyframed`, a mod), as the capsule does.
+
+The graphs matter: with the bodies alone mirrored, the copy's graph still had the cell's world, its ragdoll driver drove
+the bodies (63562), and they came out dynamic (motion 2/3), 15 to 20 units off the owner's (duo, 2026-11-09). With the
+graphs detached too: 18 bodies keyframed (motion 4) within 1.6 units of the host's; Lucan moved off his counter, both
+games' bodies left the world and both crosshairs still took him, now by his capsule. The harness `controller` readout shows the
+controller's `size`; with the fix both games' crosshairs took the leaning Lucan, both controllers at `size` 0. GameTests "A guest's crosshair takes an NPC copy seated in its furniture" (the fake's `BodiesLayer`, `GraphsStepPhysics`, `BodiesDriven`,
+`CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.

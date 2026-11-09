@@ -609,6 +609,7 @@ SCENARIO("A copy looks where its owner does: an NPC in conversation looks at its
 
 SCENARIO("A guest's crosshair takes an NPC copy seated in its furniture, as the host's takes the NPC", "[dialogue][copies][crosshair]")
 {
+    constexpr uint8_t cSeatedLayer = 33; // biped, no controller: where 40063 puts a seated actor's bodies
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
@@ -616,25 +617,30 @@ SCENARIO("A guest's crosshair takes an NPC copy seated in its furniture, as the 
     party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
     party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the NPC");
     const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    auto& copy = guest.Actors.at(cCopy);
     REQUIRE(guest.CrosshairTakes(cCopy));
 
     // The host's AI seats it (Lucan leaning on his counter, 2026-11-08): capsule off, its bodies in the world (40063).
     auto& owner = host.Actors.at(npc);
     owner.InFurniture = true;
     owner.Collides = false;
-    owner.BodiesInWorld = true;
-    // Its copy gets the sit state from its owner's replayed actions, and its capsule follows its owner's.
-    guest.Actors.at(cCopy).InFurniture = true;
-    party.Until([&] { return !guest.Actors.at(cCopy).Collides; }, "the copy's capsule follows its owner's");
+    owner.BodiesLayer = cSeatedLayer;
+    owner.GraphsStepPhysics = false;
+    copy.InFurniture = true; // its sit state, from its owner's replayed actions
     REQUIRE(host.CrosshairTakes(npc));
-    party.Until([&] { return guest.CrosshairTakes(cCopy); }, "the guest's crosshair takes the seated copy");
+    REQUIRE(!host.BodiesDriven(npc));
+    party.Until([&] { return !copy.Collides && copy.BodiesLayer == cSeatedLayer; }, "the copy's capsule and bodies follow its owner's");
+    CHECK(guest.CrosshairTakes(cCopy));
+    CHECK_FALSE(guest.BodiesDriven(cCopy)); // keyframed in the pose, as its owner's (2026-11-09: driven, they went dynamic)
 
-    // Up again: its bodies leave the world with its sit state, and its capsule takes the crosshair.
-    owner.InFurniture = owner.BodiesInWorld = false;
+    // Up again: its bodies leave the world with its owner's, and its capsule takes the crosshair.
+    owner.InFurniture = false;
     owner.Collides = true;
-    guest.Actors.at(cCopy).InFurniture = false;
-    party.Until([&] { return !guest.Actors.at(cCopy).BodiesInWorld && guest.Actors.at(cCopy).Collides; },
-                "the standing copy's bodies are out of the world, its capsule on");
+    owner.BodiesLayer = 0;
+    owner.GraphsStepPhysics = true;
+    copy.InFurniture = false;
+    party.Until([&] { return copy.BodiesLayer == 0 && copy.GraphsStepPhysics && copy.Collides; },
+                "the standing copy's bodies are out of the world, its graphs and capsule as before");
     CHECK(guest.CrosshairTakes(cCopy));
 }
 

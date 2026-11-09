@@ -639,6 +639,8 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Knocked = movement.Knocked;
         point.OnGround = movement.OnGround;
         point.CapsuleCollides = movement.CapsuleCollides;
+        point.BodiesLayer = movement.BodiesLayer;
+        point.GraphsStepPhysics = movement.GraphsStepPhysics;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -1530,6 +1532,8 @@ void CharacterService::RunLocalUpdates() noexcept
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
             it->second.UpdatedMovement.OnGround = m_actorBridge.IsOnGround(formIdComponent.Id);
             it->second.UpdatedMovement.CapsuleCollides = m_actorBridge.CapsuleCollides(formIdComponent.Id);
+            it->second.UpdatedMovement.BodiesLayer = m_actorBridge.BodiesLayer(formIdComponent.Id);
+            it->second.UpdatedMovement.GraphsStepPhysics = m_actorBridge.GraphsStepPhysics(formIdComponent.Id);
         }
     }
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
@@ -1620,8 +1624,12 @@ void CharacterService::RunRemoteUpdates() noexcept
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
             m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, cOwnerCollides);
-            // Seated, its bodies take the crosshair, as its owner's do (re/systems/dialogue.md, the crosshair).
-            m_actorBridge.SetCopyFurnitureBodies(pFormIdComponent->Id);
+            // Its bodies and graphs as its owner's: seated, its bodies take the crosshair (re/systems/dialogue.md).
+            if (!cOwnerLies)
+            {
+                const auto& cOwner = tick >= second.Tick ? second : first;
+                m_actorBridge.SetCopyPhysics(pFormIdComponent->Id, cOwner.BodiesLayer, cOwner.GraphsStepPhysics);
+            }
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }
