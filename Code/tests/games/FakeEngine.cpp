@@ -1,5 +1,6 @@
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
+#include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
@@ -138,6 +139,7 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
+    BuildHeads();
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -490,6 +492,47 @@ void FakeEngine::Unload3D(uint32_t aFormId)
 {
     Actors.at(aFormId).Loaded = false;
     RevertSelectedSpells(aFormId);
+    DropHead(aFormId);
+}
+
+void FakeEngine::DropHead(uint32_t aFormId)
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        it->second.HeadBuilt = false;
+        it->second.HeadTints.reset();
+    }
+}
+
+void FakeEngine::BuildHeads()
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!ActorHas3D(cId))
+        {
+            actor.HeadBuilt = false;
+            actor.HeadTints.reset();
+        }
+        else if (!actor.HeadBuilt)
+        {
+            actor.HeadBuilt = true;
+            World::Get().GetRunner().Trigger(ActorHeadUpdateEvent{cId});
+        }
+    }
+}
+
+bool FakeEngine::IsActorFacePainted(uint32_t aFormId) const noexcept
+{
+    return ActorHas3D(aFormId) && Actors.at(aFormId).HeadBuilt && Actors.at(aFormId).HeadTints.has_value();
+}
+
+// Only a head that is built takes paint (FaceGenSystem finds no face before).
+bool FakeEngine::PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept
+{
+    if (!ActorHas3D(aFormId) || !Actors.at(aFormId).HeadBuilt)
+        return false;
+    Actors.at(aFormId).HeadTints = acTints;
+    return true;
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
@@ -1167,6 +1210,7 @@ void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
     {
         it->second.Disabled = true;
         it->second.Deleted |= aDelete;
+        it->second.HeadTints.reset();
     }
 }
 
@@ -1275,7 +1319,10 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[2] = aZ;
     // An NPC moved to another cell drops its 3D, and with it its hand spells (seen on a player's copy, 2026-11-04).
     if (aFormId != kPlayer && it->second.Cell != cFrom && cHad3D)
+    {
         RevertSelectedSpells(aFormId);
+        DropHead(aFormId);
+    }
     CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
