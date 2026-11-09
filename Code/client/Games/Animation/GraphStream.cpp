@@ -117,13 +117,12 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
     {
         const auto cPoint = std::move(*m_point);
         m_point.reset();
-        if (!aTarget.LoadState(cPoint.State))
+        if (!aTarget.LoadPoint(cPoint))
         {
             m_started = false;
             return 0;
         }
         aTarget.WriteWords(cPoint.Words);
-        aTarget.SetSeed(cPoint.Seed);
         m_words = aTarget.Words();
         while (!m_queue.empty() && m_queue.front().Next < cPoint.Update)
             m_queue.pop_front();
@@ -153,6 +152,7 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
             aTarget.SendEvent(cOp.Op.EventId);
         else
         {
+            m_current.store(cOp.Next, std::memory_order_relaxed);
             aTarget.Update(cOp.Step);
             ++updates;
         }
@@ -286,6 +286,7 @@ std::vector<Payloads::GraphSyncPoint> GraphStreams::TakePoints()
 void GraphStreams::Feed(uint32_t aFormId, const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames)
 {
     const auto pCopied = FindCopied(aFormId, true);
+    pCopied->ActorId.store(acRun.ActorId, std::memory_order_relaxed);
     std::scoped_lock _{pCopied->Lock};
     const bool cWasStarted = pCopied->Replayer.Started();
     pCopied->Replayer.Feed(acRun, acFrames);
@@ -346,4 +347,81 @@ size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget)
     if (cLoading && pCopied->Replayer.NeedsPoint())
         pCopied->Asked = false; // its point did not load: ask again
     return cUpdates;
+}
+
+bool GraphStreams::NeedsTimeDelta(uint32_t aFormId) const
+{
+    std::shared_ptr<Owned> pOwned;
+    std::shared_ptr<Copied> pCopied;
+    {
+        std::scoped_lock _{m_lock};
+        if (const auto it = m_owned.find(aFormId); it != m_owned.end())
+            pOwned = it->second;
+        if (const auto it = m_copied.find(aFormId); it != m_copied.end())
+            pCopied = it->second;
+    }
+    if (pOwned)
+    {
+        std::scoped_lock _{pOwned->Lock};
+        if (!pOwned->TimeDeltaKnown)
+            return true;
+    }
+    if (pCopied)
+    {
+        std::scoped_lock _{pCopied->Lock};
+        if (!pCopied->TimeDeltaKnown)
+            return true;
+    }
+    return false;
+}
+
+void GraphStreams::SetTimeDelta(uint32_t aFormId, std::optional<uint16_t> aIndex)
+{
+    if (const auto pOwned = FindOwned(aFormId))
+    {
+        std::scoped_lock _{pOwned->Lock};
+        pOwned->Recorder.TimeDelta = aIndex;
+        pOwned->TimeDeltaKnown = true;
+    }
+    if (const auto pCopied = FindCopied(aFormId))
+    {
+        std::scoped_lock _{pCopied->Lock};
+        pCopied->Replayer.TimeDelta = aIndex;
+        pCopied->TimeDeltaKnown = true;
+    }
+}
+
+std::optional<uint32_t> GraphStreams::UpdateIndex(uint32_t aFormId) const
+{
+    std::shared_ptr<Owned> pOwned;
+    std::shared_ptr<Copied> pCopied;
+    {
+        std::scoped_lock _{m_lock};
+        if (const auto it = m_owned.find(aFormId); it != m_owned.end())
+            pOwned = it->second;
+        if (const auto it = m_copied.find(aFormId); it != m_copied.end())
+            pCopied = it->second;
+    }
+    if (pOwned)
+    {
+        std::scoped_lock _{pOwned->Lock};
+        const uint32_t cUpdates = pOwned->Recorder.Updates();
+        return cUpdates ? std::optional(cUpdates - 1) : std::nullopt;
+    }
+    if (pCopied) // its lock is held while it replays: the index is atomic
+    {
+        const uint32_t cCurrent = pCopied->Replayer.CurrentUpdate();
+        return cCurrent != UINT32_MAX ? std::optional(cCurrent) : std::nullopt;
+    }
+    return std::nullopt;
+}
+
+uint32_t GraphStreams::ActorIdOf(uint32_t aFormId) const
+{
+    std::scoped_lock _{m_lock};
+    if (const auto it = m_owned.find(aFormId); it != m_owned.end())
+        return it->second->ActorId; // set by Record, on the main thread before its graph is recorded
+    if (const auto it = m_copied.find(aFormId); it != m_copied.end())
+        return it->second->ActorId.load(std::memory_order_relaxed);
+    return 0;
 }

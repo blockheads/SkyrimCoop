@@ -232,10 +232,10 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
     if (cRecorded)
-        streams.OnUpdate(aFormId, World::Get().GetFrameTick(), cStep, GraphWords(aActor), cSeed);
+        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed);
     StepGraph(aActor, cStep);
     if (cRecorded && streams.OnUpdated(aFormId, GraphWords(aActor)))
-        streams.AddPoint(aFormId, {.Tick = World::Get().GetFrameTick(), .State = SaveActorGraphState(aFormId), .Words = GraphWords(aActor),
+        streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveActorGraphState(aFormId), .Words = GraphWords(aActor),
                                    .Seed = {aActor.GraphRandom, 0}});
 }
 
@@ -252,10 +252,11 @@ struct FakeGraphTarget final : IGraphTarget
     std::vector<uint32_t> Words() override { return FakeEngine::GraphWords(Actor); }
     void WriteWords(std::span<const uint32_t> aWords) override { FakeEngine::SetGraphWords(Actor, aWords); }
     void SetSeed(const GraphSeed& acSeed) override { Actor.GraphRandom = acSeed.Seed; }
-    bool LoadState(const std::string& acState) override
+    bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
     {
-        if (!Engine.LoadActorGraphState(FormId, acState))
+        if (!Engine.LoadActorGraphState(FormId, acPoint.State))
             return false;
+        Actor.GraphRandom = acPoint.Seed.Seed;
         if (!Actor.Graph.History.empty())
             Actor.Graph.History.back().Input = "sync point";
         return true;
@@ -976,7 +977,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
     {
         // 63591's hook: an owner's event recorded before its graph handles it (Games/Animation).
         if (auto& streams = World::Get().GetGraphStreams(); Graph && !actor.Copy && streams.Recording(aFormId))
-            streams.OnEvent(aFormId, World::Get().GetFrameTick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
+            streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
         if (!TakeGraphEvent(actor, acAction.EventName))
         {
             ++RefusedAnimations[aFormId];

@@ -2,7 +2,6 @@
 
 #include <Games/ActorExtension.h>
 #include "EngineCalls.h"
-#include "GraphReplay.h"
 
 #include <Actor.h>
 #include <BSAnimationGraphManager.h>
@@ -87,14 +86,13 @@ nlohmann::json CallerRvas()
     return rvas;
 }
 
-// BShkbAnimationGraph::SendEvent (63591): every input event of a graph, whoever sends it (an action, the engine directly).
+// BShkbAnimationGraph::SendEvent (63591): every input event a graph handles, whoever sends it (an action, the engine
+// directly). Chained under the graph input stream's hook, which drops a copy's own on the stream.
 using TSendGraphEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
 TSendGraphEvent* RealSendGraphEvent = nullptr;
 
 bool HookSendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
-    if (GraphReplay::DropEvent(apGraph, apEvent))
-        return false;
     const bool cTaken = RealSendGraphEvent(apGraph, apEvent);
     const int cCount = s_inputGraphCount.load(std::memory_order_acquire);
     for (int i = 0; i < cCount; ++i)
@@ -110,7 +108,7 @@ bool HookSendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEve
     return cTaken;
 }
 
-Hooks::Initializer s_sendGraphEventHook([]() { HOOK_ID(63591, &RealSendGraphEvent, HookSendGraphEvent); });
+bool s_inputHookInstalled = false;
 
 Actor* GetActor(uint32_t aFormId) noexcept
 {
@@ -216,6 +214,14 @@ nlohmann::json AnimationTrace::Stop()
 
 void AnimationTrace::Poll()
 {
+    // Chained under the stream's 63591 hook, once the hooks are in.
+    if (!std::exchange(s_inputHookInstalled, true))
+    {
+        Hooks::Resolve<63591>(&RealSendGraphEvent);
+        if (!Hooks::FunctionHookManager::GetInstance().AddChained(Hooks::FunctionHook(
+                reinterpret_cast<void**>(&RealSendGraphEvent), reinterpret_cast<void*>(HookSendGraphEvent), "HookSendGraphEvent")))
+            spdlog::warn("AnimationTrace: could not chain under the graph event hook");
+    }
     ++s_frame;
     Update();
 }

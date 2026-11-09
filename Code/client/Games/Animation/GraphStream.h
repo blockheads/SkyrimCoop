@@ -2,6 +2,7 @@
 
 #include <Messages/Payloads.h>
 #include <Structs/GraphOps.h>
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -22,7 +23,7 @@ struct IGraphTarget
     [[nodiscard]] virtual std::vector<uint32_t> Words() = 0;
     virtual void WriteWords(std::span<const uint32_t> aWords) = 0;
     virtual void SetSeed(const GraphSeed& acSeed) = 0;
-    [[nodiscard]] virtual bool LoadState(const std::string& acState) = 0; // SaveState's (63602)
+    [[nodiscard]] virtual bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) = 0; // its state (63602), seed, counters
     virtual void SendEvent(uint16_t aEventId) = 0;                        // 63591, as the copy's replay
     virtual void Update(float aStep) = 0;                                 // 63587, forced
 };
@@ -91,6 +92,8 @@ struct GraphReplayer
     }
     // The ops due by aPlaybackTick, in order (on the graph's thread): the updates it ran.
     size_t Run(uint64_t aPlaybackTick, IGraphTarget& aTarget);
+    // The owner's update index it runs now or ran last (a readout: the harness's live check).
+    [[nodiscard]] uint32_t CurrentUpdate() const noexcept { return m_current.load(std::memory_order_relaxed); }
 
   private:
     struct Queued
@@ -106,6 +109,7 @@ struct GraphReplayer
     uint32_t m_nextFed = 0;
     bool m_fed = false;
     bool m_started = false;
+    std::atomic<uint32_t> m_current{UINT32_MAX};
 };
 
 // Every actor's stream on one game: the owner's recorders (written on the graphs' threads), the copies' replayers.
@@ -126,6 +130,18 @@ struct GraphStreams
     [[nodiscard]] std::optional<GraphOps> TakeOps();
     [[nodiscard]] std::vector<Payloads::GraphSyncPoint> TakePoints();
 
+    // Readouts (the harness's live check): the update an owner's graph or a copy's replay is on, and the actor's id.
+    [[nodiscard]] std::optional<uint32_t> UpdateIndex(uint32_t aFormId) const;
+    [[nodiscard]] uint32_t ActorIdOf(uint32_t aFormId) const;
+
+    // TimeDelta's index in its graph (the same behaviour files on every game), once its graph is first seen.
+    [[nodiscard]] bool NeedsTimeDelta(uint32_t aFormId) const;
+    void SetTimeDelta(uint32_t aFormId, std::optional<uint16_t> aIndex);
+
+    // The frame's tick, set by the main thread, for the graphs' threads.
+    void SetTick(uint64_t aTick) noexcept { m_tick.store(aTick, std::memory_order_relaxed); }
+    [[nodiscard]] uint64_t Tick() const noexcept { return m_tick.load(std::memory_order_relaxed); }
+
     // Copy.
     void Feed(uint32_t aFormId, const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames);
     void Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoint);
@@ -142,12 +158,15 @@ struct GraphStreams
         uint32_t ActorId = 0;
         GraphRecorder Recorder;
         bool WantsPoint = false;
+        bool TimeDeltaKnown = false;
     };
     struct Copied
     {
         std::mutex Lock;
         GraphReplayer Replayer;
+        std::atomic<uint32_t> ActorId{0};
         uint64_t Playback = 0;
+        bool TimeDeltaKnown = false;
         bool Asked = false;
     };
     [[nodiscard]] std::shared_ptr<Owned> FindOwned(uint32_t aFormId) const;
@@ -157,4 +176,5 @@ struct GraphStreams
     std::unordered_map<uint32_t, std::shared_ptr<Owned>> m_owned;
     std::unordered_map<uint32_t, std::shared_ptr<Copied>> m_copied;
     std::vector<Payloads::GraphSyncPoint> m_points;
+    std::atomic<uint64_t> m_tick{0};
 };

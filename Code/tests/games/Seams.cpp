@@ -197,6 +197,7 @@ void World::Update() noexcept
     const double cEngineFrameMs = mainEngine.FrameMs > 0.0 ? mainEngine.FrameMs : cDelta * 1000.0;
     m_frameClock.Advance(GetTick(), cEngineFrameMs);
     m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
+    m_graphStreams.SetTick(m_frameClock.Now());
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
@@ -225,20 +226,23 @@ void World::Update() noexcept
         streams.SetPlayback(form.Id, cPlayback);
         if (streams.OnStream(form.Id))
         {
+            bool dying = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
+                if ((dying = DeathActions::IsDying(cAction.State1)))
+                    break;
                 animation.TimePoints.pop_front();
-                if (DeathActions::IsDying(cAction.State1))
-                    engine.ReplayDeathAction(form.Id, cAction);
-                else if (!VariablesOnly(cAction))
+                if (!VariablesOnly(cAction))
                 {
                     animation.LastRanAction = cAction;
                     engine.SetActorLatestAnimation(form.Id, cAction);
                 }
             }
             animation.GraphPoint.reset();
-            continue;
+            if (!dying)
+                continue;
+            streams.Forget(form.Id); // its death is its own body's: the stream ends, the death replays below
         }
         if (actor.PairStops)
         {

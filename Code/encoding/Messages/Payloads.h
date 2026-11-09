@@ -520,5 +520,6 @@ struct GraphSyncPoint
     std::string State;  // SaveState (63601)
     std::vector<uint32_t> Words; // its variables, exact
     GraphSeed Seed{};
+    std::string Counters; // its every-N counters (GraphRandom::Pack): node memory SaveState leaves out
 };
 } // namespace Payloads

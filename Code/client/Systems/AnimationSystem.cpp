@@ -96,6 +96,31 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         aWorld.remove<SpawnGraphStateComponent>(aEntity);
     }
 
+    // On its owner's graph input stream (graph-input-stream.md): its graph's inputs are the stream's, so its actions
+    // are bookkeeping only; a death ends the stream (its own body's) and replays as before.
+    auto& streams = aWorld.GetGraphStreams();
+    streams.SetPlayback(apActor->formID, aTick);
+    if (streams.OnStream(apActor->formID))
+    {
+        while (!actions.empty() && actions.front().Tick <= aTick)
+        {
+            ActionEvent action = actions.front();
+            if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying && !apActor->IsDead())
+            {
+                streams.Forget(apActor->formID);
+                return;
+            }
+            actions.pop_front();
+            if (VariablesOnly(action))
+                continue;
+            TargetFromNetwork(action);
+            aAnimationComponent.LastRanAction = action;
+            apActor->GetExtension()->LatestAnimation.Write(action);
+        }
+        aAnimationComponent.GraphPoint.reset();
+        return;
+    }
+
     // The staged step's outcome (RunReplayStep, in the copy's animation job).
     using ReplayStep = ActorExtension::ReplayStep;
     auto& step = apActor->GetExtension()->Replay;

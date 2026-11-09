@@ -27,9 +27,10 @@ struct ToyGraph final : IGraphTarget
     {
         Seed = acSeed;
     }
-    bool LoadState(const std::string& acState) override
+    bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
     {
-        State = std::stoull(acState);
+        State = std::stoull(acPoint.State);
+        Seed = acPoint.Seed;
         Calls.push_back("load");
         return true;
     }

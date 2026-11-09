@@ -698,6 +698,8 @@ void CharacterService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcep
             if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
             {
                 const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+                if (m_actorBridge.IsActorDead(cFormId))
+                    break;
                 streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
                 if (streams.ShouldAsk(cFormId))
                 {
@@ -1589,9 +1591,12 @@ void CharacterService::RunLocalUpdates() noexcept
         // Its graph steps every frame, as its copies' do: far from the camera it would step in chunks (63587),
         // and its clips would end up to 0.25 s after its copies'.
         m_actorBridge.SetGraphUpdatedEveryFrame(cFormId, true);
-        // Its graph's inputs, for its copies (graph-input-stream.md); players' later (phase 4).
-        if (cFormId != cPlayer)
+        // Its graph's inputs, for its copies (graph-input-stream.md); players' later (phase 4). A death ends it: the
+        // body is the dying actor's own.
+        if (cFormId != cPlayer && !m_actorBridge.IsActorDead(cFormId))
             m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
+        else
+            m_world.GetGraphStreams().Forget(cFormId);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {

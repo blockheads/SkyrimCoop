@@ -1,5 +1,5 @@
 #include "HudMessages.h"
-#include "GraphReplay.h"
+#include "GraphStreamCheck.h"
 #include <map>
 #include <mutex>
 #include "Commands.h"
@@ -281,10 +281,10 @@ nlohmann::json GraphMachines(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"machines", machines}};
 }
 
-// {"cmd": "graph_replay", ...}: the graph input replay proof (GraphReplay.h).
-nlohmann::json GraphReplayCommand(Harness&, const nlohmann::json& acRequest)
+// {"cmd": "graph_stream", ...}: the graph input stream's live check (GraphStreamCheck.h).
+nlohmann::json GraphStreamCommand(Harness&, const nlohmann::json& acRequest)
 {
-    return GraphReplay::Command(acRequest);
+    return GraphStreamCheck::Command(acRequest);
 }
 
 // {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor or object now.
@@ -1230,7 +1230,7 @@ constexpr Command cCommands[] = {
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},
     {"graph_machines", true, &GraphMachines},
-    {"graph_replay", true, &GraphReplayCommand},
+    {"graph_stream", true, &GraphStreamCommand},
     {"graph_writers", true, &GraphWriters},
 };
 } // namespace
