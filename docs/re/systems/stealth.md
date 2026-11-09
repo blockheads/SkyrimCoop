@@ -53,7 +53,8 @@ rule runs as for any NPC. Tests: `detection_rules_tests.cpp`, GameTests `[stealt
 ## Not covered here
 
 - An NPC copy on the guest judges the guest's player itself (its own pass, measured: Lydia's copy, level -21, fresh).
-  That is the guest's estimate, not the host's number (`crime.md`).
+  That is the guest's estimate, not the host's number (`crime.md`; `docs/bugs.md`, "The guest's eye is its own
+  estimate").
 
 | ID | Name | Use |
 |---|---|---|

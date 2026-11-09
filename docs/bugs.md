@@ -96,6 +96,7 @@ other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
+- [The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate): medium, a scenario first
 
 **Combat**
 
@@ -817,6 +818,27 @@ Size: medium. Needs: duo.
     theft now judges 0.5 s later against the same 10 s wait.
   - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
     the code, not run.
+
+### The guest's eye is its own estimate
+
+On the guest, the stealth eye shows what its NPC copies judge themselves, not what the host's NPCs see.
+
+Agent task: Show with a scenario that the guest's eye and the host's NPCs disagree in a way a player feels; only then
+make the guest's eye show the host's detection.
+
+Size: medium. Needs: duo, then a decision.
+
+- **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
+  `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
+  and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
+  the host's eye read Lydia's real 30 and the guest's its copy's 20 (`playtests/2026-10-31-fabien.md`, S6): an estimate,
+  not stuck.
+  - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
+    old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
+  - Shape if it matters: the host asks its NPCs about each guest's copy and sends the highest level (a message, at a rate:
+    detection has no event); the guest's eye shows it, and NPC copies become unseen witnesses (`DetectionRules`).
+  - Test: a scenario where the guest's eye says hidden while a host NPC spots the guest (combat, a crime reported), or
+    the reverse. With none, this entry goes.
 
 ## Combat
 
