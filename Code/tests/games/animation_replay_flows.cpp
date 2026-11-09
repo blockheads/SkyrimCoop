@@ -642,6 +642,8 @@ TEST_CASE("The live graph check compares a copy with its owner at the same owner
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}}) == "");
     // Its event a step late.
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {3, "A", "update"}, {3, "B", "event go"}}).starts_with("at owner time 3.0 ms the copy is in A"));
+    // Never on its owner's stream: nothing to compare is no pass.
+    CHECK(FirstGraphDifference(cOwner, {{0, "A", "load"}, {1, "A", "own update"}}).starts_with("nothing compared"));
     // A different pick.
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "D", "update"}}).contains("its owner in C"));
 }
@@ -678,4 +680,38 @@ TEST_CASE("A copy on its owner's stream keeps it when its spawn's graph state co
     party.Until([&] { return party.Guest().GetFrameTick() > cFrom + 200; }, "200 ms on");
     CHECK(guest.Actors.at(cCopy).GraphState == "Standing");
     CHECK(FirstGraphDifference(host.Actors.at(npc).Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
+}
+
+namespace
+{
+size_t SyncPoints(const FakeEngine::Actor& acActor)
+{
+    return size_t(std::ranges::count(acActor.Graph.History, std::string("sync point"), &FakeGraphMemory::Entry::Input));
+}
+} // namespace
+
+TEST_CASE("A copy whose graph is replaced starts again from a new sync point", "[animation][replay-start]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-09): a mudcrab's copy matched its owner for 3 updates, then had no state at all:
+    // its graph was replaced (its 3D) after its stream started, and the stream ran on into a graph it never loaded.
+    WolfTurn wolf({}, true);
+    wolf.guest.ReloadGraph(wolf.copy, "Sitting");
+    wolf.party.Until([&] { return SyncPoints(wolf.guest.Actors.at(wolf.copy)) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy's new graph starts from a new sync point");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "Standing");
+    wolf.Turn();
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("An owner whose graph is replaced gives its copy a new sync point", "[animation][replay-start]")
+{
+    WolfTurn wolf({}, true);
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.ReloadGraph(wolf.wolf, "StandingIdle"); });
+    wolf.party.Until([&] { return SyncPoints(wolf.guest.Actors.at(wolf.copy)) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy starts again from its owner's new graph");
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    wolf.Turn();
+    CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
 }

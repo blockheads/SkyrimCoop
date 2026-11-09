@@ -256,3 +256,43 @@ TEST_CASE("An event waits for its clip files, holding what follows", "[graph-str
         CHECK(replayer.Run(10, copy) == 0);
     CHECK(replayer.Run(10, copy) == 1);
 }
+
+TEST_CASE("A sync point loads its owner's last action's clip files before the stream runs on", "[graph-stream]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    recorder.Event(1, 42, owner.Vars, owner.Seed); // its owner's last action: its process holds that set
+    owner.SendEvent(42);
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    CHECK(recorder.LastEvent() == 42);
+    auto point = Point(owner, recorder.Updates());
+    point.ClipEvent = recorder.LastEvent();
+    OwnerUpdate(recorder, owner, 2, 0.016f);
+    const GraphOps cOps = Batch(recorder);
+    GraphReplayer replayer;
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    replayer.Load(point);
+    copy.Clips = std::make_shared<std::atomic<bool>>(false);
+    CHECK(replayer.Run(10, copy) == 0); // loaded, holding for the files
+    copy.Clips->store(true);
+    CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.State == owner.State);
+}
+
+TEST_CASE("A copy's stream starts again when its graph is replaced", "[graph-stream]")
+{
+    GraphStreams streams;
+    ToyGraph copy;
+    streams.Feed(0x99, {1, 0, {{.Frame = 0}}}, {{1, 0.016f}});
+    (void)streams.ShouldAsk(0x99);
+    Payloads::GraphSyncPoint point;
+    point.State = "0";
+    point.Update = 1;
+    streams.Load(0x99, point);
+    int first = 0, second = 0;
+    (void)streams.Replay(0x99, copy, &first);
+    CHECK(streams.OnStream(0x99));
+    (void)streams.Replay(0x99, copy, &second); // another graph
+    CHECK_FALSE(streams.OnStream(0x99));
+    CHECK(streams.ShouldAsk(0x99));
+}

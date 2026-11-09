@@ -24,6 +24,7 @@ void GraphRecorder::Record(GraphRecordedOp aOp, std::span<const uint32_t> aWords
 
 void GraphRecorder::Event(uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords, const GraphSeed& acSeed)
 {
+    m_lastEvent = aEventId;
     Record({{.Event = true, .EventId = aEventId}, aTick, 0.f}, aWords, acSeed);
 }
 
@@ -111,6 +112,15 @@ void GraphReplayer::Load(const Payloads::GraphSyncPoint& acPoint)
     m_point = acPoint;
 }
 
+void GraphReplayer::Restart() noexcept
+{
+    m_started = false;
+    m_point.reset();
+    m_clips.reset();
+    m_clipsAsked = false;
+    m_clipWaits = 0;
+}
+
 size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
 {
     if (m_point)
@@ -127,30 +137,35 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         while (!m_queue.empty() && m_queue.front().Next < cPoint.Update)
             m_queue.pop_front();
         m_started = true;
+        // Its owner's process held its last action's clip files, which clips reached after it play.
+        if (cPoint.ClipEvent >= 0)
+            m_clips = aTarget.RequestClips(uint16_t(cPoint.ClipEvent));
     }
     if (!m_started)
         return 0;
     size_t updates = 0;
     bool waited = false;
+    // Clip files loading hold the stream, a bounded number of runs (a load the process cancels never ends).
+    const auto cHeld = [&] {
+        if (!m_clips || m_clips->load(std::memory_order_acquire))
+            return false;
+        if (!std::exchange(waited, true))
+            ++m_clipWaits;
+        return m_clipWaits <= cMaxClipWaits;
+    };
     while (!m_queue.empty() && updates < cMaxUpdatesPerRun && m_queue.front().Tick <= aPlaybackTick)
     {
-        // An event waits for its clip files, holding what follows, a bounded number of runs.
-        if (m_queue.front().Op.Event)
+        if (!m_clipsAsked && m_queue.front().Op.Event)
         {
-            if (!std::exchange(m_clipsAsked, true))
-                m_clips = aTarget.RequestClips(m_queue.front().Op.EventId);
-            if (m_clips && !m_clips->load(std::memory_order_acquire))
-            {
-                if (!waited)
-                    ++m_clipWaits;
-                waited = true;
-                if (m_clipWaits <= cMaxClipWaits)
-                    break;
-            }
-            m_clips.reset();
-            m_clipsAsked = false;
-            m_clipWaits = 0;
+            m_clipsAsked = true; // an event waits for its own files
+            m_clips = aTarget.RequestClips(m_queue.front().Op.EventId);
         }
+        if (cHeld())
+            break;
+        m_clips.reset();
+        m_clipWaits = 0;
+        if (m_queue.front().Op.Event)
+            m_clipsAsked = false;
         const Queued cOp = std::move(m_queue.front());
         m_queue.pop_front();
         // Its variables are the stream's alone: its own writes since (channels, 63590) are put back.
@@ -231,11 +246,18 @@ void GraphStreams::OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, 
 }
 
 void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
-                            const GraphSeed& acSeed)
+                            const GraphSeed& acSeed, const void* apGraph)
 {
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Graph && apGraph && pOwned->Graph != apGraph)
+        {
+            pOwned->Recorder = GraphRecorder{}; // a new graph: its copies see the gap and ask for a point
+            pOwned->TimeDeltaKnown = false;
+        }
+        if (apGraph)
+            pOwned->Graph = apGraph;
         pOwned->Recorder.Update(aTick, aStep, aWords, acSeed);
     }
 }
@@ -259,6 +281,7 @@ void GraphStreams::AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint)
         std::scoped_lock _{pOwned->Lock};
         aPoint.Id = pOwned->ActorId;
         aPoint.Update = pOwned->Recorder.Updates();
+        aPoint.ClipEvent = pOwned->Recorder.LastEvent();
     }
     std::scoped_lock _{m_lock};
     m_points.push_back(std::move(aPoint));
@@ -354,16 +377,26 @@ void GraphStreams::SetPlayback(uint32_t aFormId, uint64_t aTick)
     }
 }
 
-size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget)
+size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph)
 {
     const auto pCopied = FindCopied(aFormId);
     if (!pCopied)
         return 0;
     std::scoped_lock _{pCopied->Lock};
+    if (pCopied->Graph && apGraph && pCopied->Graph != apGraph)
+    {
+        // Its graph was replaced since its point loaded: ask for a new one.
+        pCopied->Replayer.Restart();
+        pCopied->Graph = nullptr;
+        pCopied->Asked = false;
+        return 0;
+    }
     const bool cLoading = pCopied->Replayer.Started();
     const size_t cUpdates = pCopied->Replayer.Run(pCopied->Playback, aTarget);
     if (cLoading && pCopied->Replayer.NeedsPoint())
         pCopied->Asked = false; // its point did not load: ask again
+    else if (pCopied->Replayer.Started() && !pCopied->Graph)
+        pCopied->Graph = apGraph;
     return cUpdates;
 }
 

@@ -66,13 +66,15 @@ struct FakeGraphMemory
     {
         double Ms = 0.0;
         std::string State;
-        std::string Input; // "update 16.7", "event X", "load" or "sync point" (the stream's start)
+        // "update 16.7", "event X" ("own ..." a copy's off its stream), "load", "reload" (a new graph), "sync point"
+        std::string Input;
     };
     std::vector<Entry> History;
 };
 
 // The live check: at every point of a copy's history from its first sync point (its stream's start; all of it without
-// one), its state is its owner's at the same owner graph time (the last owner entry at or before it). Empty when they
+// one), but its own updates and events off the stream, its state is its owner's at the same owner graph time (the last
+// owner entry at or before it). Empty when they
 // agree; otherwise the first difference and the inputs before it.
 std::string FirstGraphDifference(const std::vector<FakeGraphMemory::Entry>& acOwner,
                                  const std::vector<FakeGraphMemory::Entry>& acCopy);

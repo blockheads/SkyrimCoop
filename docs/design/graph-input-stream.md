@@ -258,6 +258,16 @@ copy, after LoadGraphPoint (whose activation reset its nodes): the same key and 
   copy's generate (a blender's child never activated: 60039, duo 2026-11-09).
 - **Its weight:** 4-12 nodes a point, a few hundred bytes, once per copy start.
 
+## Scenario runs with the live check (2026-11-09)
+
+| run | first difference | cause | now |
+|---|---|---|---|
+| wolf scenario | a mudcrab's copy, 3 updates in: no state at all | its graph replaced after its stream started (its 3D) | a new graph on either side restarts the stream from a new sync point (GameTests flows, ClientTests) |
+| wolf scenario | the guest crashed in a blender's generate (60039) | another graph's blender state (which children are active) applied | generators with children take their times only, if their structure is already the owner's (ClientTests) |
+| both | humanoid copies in a turn their owners had left, from their start | the save leaves out machines at their start state (65148); the guest's AI ran the NPC before it became a copy, so its graph was not fresh | the copy's behaviour graph is deactivated and activated (its owner's variables written first), then the point loads, as into a fresh graph |
+| town | 1A684 at 386, then 441 updates: a counter clip "(no file)" | its owner's process held its last action's clip set, loaded before the copy's start | the point loads the clips of its owner's last event: not enough, it must be the last action's (open) |
+| wolf scenario | Faendal at his first update: one of a turn blender's two clips missing | after the fresh activation the blender chose its own active children; the structure check then refused its owner's state | open: Havok's own behaviour graph internal state restore (`getInternalState` 58372, the restore map of 59326) sets every node's state and activates nodes by it |
+
 ## Phases
 
 1. **Host NPCs' copies,** with the stream and sync points, old paths kept as the fallback for an actor with no stream yet.

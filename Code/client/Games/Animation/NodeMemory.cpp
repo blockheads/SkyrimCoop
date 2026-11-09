@@ -77,13 +77,37 @@ void WriteValue(Wire::Buffer::Writer& aWriter, const uint8_t* acpValue, uint8_t 
         aWriter.WriteBytes({acpValue, cSize});
 }
 
-bool ReadValue(Wire::Buffer::Reader& aReader, uint8_t* apValue, uint8_t aType, uint8_t aSubtype, const Class* apStruct)
+bool IsTime(uint8_t aType) noexcept
+{
+    switch (aType)
+    {
+    case kReal:
+    case kHalf:
+    case kVector4:
+    case kQuaternion:
+    case kMatrix3:
+    case kRotation:
+    case kQsTransform:
+    case kMatrix4:
+    case kTransform: return true;
+    default: return false;
+    }
+}
+
+bool ReadValue(Wire::Buffer::Reader& aReader, uint8_t* apValue, uint8_t aType, uint8_t aSubtype, const Class* apStruct, Mode aMode)
 {
     if (aType == kStruct && apStruct)
-        return Read(aReader, apValue, *apStruct);
-    if (const uint32_t cSize = ValueSize(aType, aSubtype))
+        return Read(aReader, apValue, *apStruct, aMode);
+    const uint32_t cSize = ValueSize(aType, aSubtype);
+    if (!cSize)
+        return true;
+    if (aMode == Mode::kAll || (aMode == Mode::kTimes && IsTime(aType)))
         return aReader.ReadBytes({apValue, cSize});
-    return true;
+    uint8_t value[64];
+    if (cSize > sizeof(value) || !aReader.ReadBytes({value, cSize}))
+        return false;
+    // Structure: equal already, or the bytes do not fit this graph.
+    return IsTime(aType) || aMode == Mode::kTimes || std::memcmp(value, apValue, cSize) == 0;
 }
 
 uint32_t ElementSize(const Member& acMember) noexcept
@@ -115,7 +139,7 @@ void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class&
     }
 }
 
-bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass)
+bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Mode aMode)
 {
     for (const auto& cMember : acClass.Members)
     {
@@ -131,7 +155,7 @@ bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass
             if (count != cHave)
                 return false;
             for (uint32_t i = 0; i < cHave; ++i)
-                if (!ReadValue(aReader, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct))
+                if (!ReadValue(aReader, pArray->Data + i * cElement, cMember.Subtype, 0, cMember.Struct, aMode))
                     return false;
             continue;
         }
@@ -139,7 +163,7 @@ bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass
         const uint32_t cStride = cMember.Type == kStruct ? (cMember.Struct ? cMember.Struct->Size : 0)
                                                          : ValueSize(cMember.Type, cMember.Subtype);
         for (uint32_t i = 0; i < cCount; ++i)
-            if (!ReadValue(aReader, pValue + i * cStride, cMember.Type, cMember.Subtype, cMember.Struct))
+            if (!ReadValue(aReader, pValue + i * cStride, cMember.Type, cMember.Subtype, cMember.Struct, aMode))
                 return false;
     }
     return true;

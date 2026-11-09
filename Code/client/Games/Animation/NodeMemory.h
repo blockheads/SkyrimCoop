@@ -71,7 +71,16 @@ struct ArrayView
 
 // Its plain members and arrays of them (or of structs); pointers are left out.
 void Write(Wire::Buffer::Writer& aWriter, const uint8_t* acpObject, const Class& acClass);
-// Onto an object of the same class: false (it may be partly written) if the bytes do not fit, an array's count
-// included (a copy's arrays come sized by its own node, from the same behaviour file).
-[[nodiscard]] bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass);
+// How Read applies bytes: all of them (a modifier's memory, a clip's); or, for a generator with children, its times
+// (reals) only, its structure (integers, bools, arrays: which children are active, in what order) checked equal
+// first and nothing written unless it is (another graph's crashed a blender's generate, 60039).
+enum class Mode
+{
+    kAll,
+    kCheckStructure, // compares, writes nothing
+    kTimes,          // writes the reals only
+};
+// Onto an object of the same class: false (it may be partly written, but not in kTimes after kCheckStructure) if the
+// bytes do not fit, an array's count included (a copy's arrays come sized by its own node, from the same file).
+[[nodiscard]] bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass, Mode aMode = Mode::kAll);
 } // namespace NodeMemory

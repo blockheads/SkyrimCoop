@@ -174,3 +174,9 @@ time	op	id	rva	item
 2026-11-09T07:42:49Z	data			{"old": "off_141A866C0", "new": "hkBuiltinTypeRegistry_StaticLinkedTypeInfos"}
 2026-11-09T07:42:51Z	comment	239939	0x1a877f0	{"addr": "0x141A877F0", "comment": "hkBuiltinTypeRegistry::StaticLinkedClasses (ID 239939): 594 const hkClass*, null-terminated, names filled by each class's static init. The graph input stream finds a node's internal state class here by name (<node class>InternalState): an internal state object's getClassType (vtable 1) returns 0."}
 2026-11-09T07:42:51Z	comment	60152	0xb2ed10	{"addr": "0x140B2ED10", "comment": "hkBuiltinTypeRegistry setup: registers StaticLinkedTypeInfos and StaticLinkedClasses (sub_140BFE4F0)."}
+2026-11-09T08:27:09Z	read		0xbd0800	{"name": ""}
+2026-11-09T08:27:47Z	read	65149	0xc3f3d0	{"name": "hkbCharacter::sub_65149"}
+2026-11-09T08:29:27Z	name	58315	0xacae30	{"addr": "0x140ACAE30", "name": "coop_hkbContext_ctor"}
+2026-11-09T08:29:30Z	comment	58315	0xacae30	{"addr": "0x140ACAE30", "comment": "hkbContext ctor (ID 58315): (ctx, character, world, +0x40, +0x48), the rest zeroed. 63587 and 63591 build theirs with it (graph+0xC0 character, hkWorldM GetWorld)."}
+2026-11-09T08:29:30Z	comment		0xbcee2c	{"addr": "0x140bcee2c", "comment": "63587 updates the behaviour graph only while its active byte (+0x12C) is set: a deactivated graph takes no update, LoadState's zero-step one included."}
+2026-11-09T08:29:30Z	comment		0xbd2db8	{"addr": "0x140bd2db8", "comment": "LoadState: after hkbCharacter 65149 restores the saved machines (SaveDataRestoreFunctor), sets behaviour +0x12E and runs a zero-step forced 63587. The save leaves out machines at their start state (65148), so a graph not fresh keeps its own state in those: the graph input stream deactivates and activates a copy's graph before loading (GraphStreamHooks)."}

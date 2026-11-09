@@ -522,5 +522,6 @@ struct GraphSyncPoint
     GraphSeed Seed{};
     std::string Counters; // its every-N counters (GraphRandom::Pack): node memory SaveState leaves out
     std::string Memory;   // its active modifiers' internal states (NodeMemory): the rest of it
+    int32_t ClipEvent = -1; // its last event: its process holds that action's clip files, which clips after it play
 };
 } // namespace Payloads

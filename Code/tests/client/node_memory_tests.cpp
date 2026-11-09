@@ -121,3 +121,34 @@ TEST_CASE("A state holding a pointer anywhere is not carried", "[node-memory]")
     CHECK(HasPointers(cMachine));
     CHECK(HasPointers(cDamping)); // its pointer member, here
 }
+
+TEST_CASE("A generator with children takes its owner's times only where its children are already the owner's", "[node-memory]")
+{
+    // As hkbBlenderGeneratorInternalState: the children's activity (an array), their count, and a time.
+    struct BlenderState
+    {
+        uint8_t Header[16];
+        ArrayView Active; // 10: hkArray<hkBool>
+        float EndIntervalWeight; // 20
+        int32_t NumActiveChildren; // 24
+    };
+    const Class cBlender{40, {{0x10, kArray, kBool}, {0x20, kReal}, {0x24, kInt32}}};
+    bool ownerActive[2] = {true, false};
+    BlenderState owner{{}, {reinterpret_cast<uint8_t*>(ownerActive), 2, 2}, 0.75f, 1};
+    const auto cBytes = Bytes(owner, cBlender);
+    const auto cApply = [&](BlenderState& aCopy) {
+        Wire::Buffer::Reader check{std::span<const uint8_t>(cBytes)};
+        Wire::Buffer::Reader times{std::span<const uint8_t>(cBytes)};
+        return Read(check, reinterpret_cast<uint8_t*>(&aCopy), cBlender, Mode::kCheckStructure) &&
+               Read(times, reinterpret_cast<uint8_t*>(&aCopy), cBlender, Mode::kTimes);
+    };
+    bool sameActive[2] = {true, false};
+    BlenderState same{{}, {reinterpret_cast<uint8_t*>(sameActive), 2, 2}, 0.1f, 1};
+    REQUIRE(cApply(same));
+    CHECK(same.EndIntervalWeight == 0.75f);
+    bool otherActive[2] = {false, true};
+    BlenderState other{{}, {reinterpret_cast<uint8_t*>(otherActive), 2, 2}, 0.1f, 1};
+    CHECK_FALSE(cApply(other));
+    CHECK(other.EndIntervalWeight == 0.1f); // nothing written
+    CHECK((!otherActive[0] && otherActive[1]));
+}

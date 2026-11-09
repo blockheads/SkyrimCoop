@@ -9,6 +9,8 @@
 #include <Havok/hkbBehaviorGraph.h>
 #include <Havok/hkbNode.h>
 #include <Havok/hkbVariableValueSet.h>
+#include <Havok/hkEventContext.h>
+#include <Havok/bhkWorldM.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Misc/BSFixedString.h>
@@ -152,9 +154,8 @@ void Release(hkReferencedObject* apObject)
     (*reinterpret_cast<TDelete***>(apObject))[0](apObject, 1);
 }
 
-// Each active modifier and clip, in the graph and the sub-behaviours in it (a modifier's last values, a clip's time),
-// whose internal state holds no pointer. Not a generator with children: a blender's or selector's state says which
-// of them are active, and another graph's crashed the copy's generate (60039 under the blender's, duo 2026-11-09).
+// Each active node, in the graph and the sub-behaviours in it (a modifier's last values, a clip's or blender's time),
+// whose internal state holds no pointer (a state machine's points at nodes; the graph state holds its states).
 template <class T> void EachActiveNode(const hkbBehaviorGraphNode* apGraph, T&& aWork, int aDepth = 0)
 {
     if (!apGraph || !apGraph->activeNodes || aDepth > 8)
@@ -169,8 +170,6 @@ template <class T> void EachActiveNode(const hkbBehaviorGraphNode* apGraph, T&& 
         const std::string_view cClass = pClass->name;
         if (cClass == "hkbBehaviorReferenceGenerator")
             EachActiveNode(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aWork, aDepth + 1);
-        else if (!cClass.ends_with("Modifier") && cClass != "hkbClipGenerator")
-            continue;
         else if (const hkClass* pState = StateClass(cClass))
             if (const auto* pReflected = Reflected(pState); pReflected && !NodeMemory::HasPointers(*pReflected))
                 aWork(*pNode, std::format("{}/{}", apGraph->name ? Text(apGraph->name) : "", pNode->id), cClass);
@@ -217,6 +216,20 @@ std::string TakeMemory(const BShkbAnimationGraph& acGraph)
     return std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size());
 }
 
+// A modifier's or clip's memory whole; another generator's (a blender's, a selector's) times only, if its structure
+// (which children are active, in what order) is already the owner's: another graph's crashed a blender's generate
+// (60039, duo 2026-11-09).
+bool GiveState(const std::string& acBytes, uint8_t* apState, const NodeMemory::Class& acClass, std::string_view aNodeClass)
+{
+    const auto cRead = [&](NodeMemory::Mode aMode) {
+        Wire::Buffer::Reader reader{std::span(reinterpret_cast<const uint8_t*>(acBytes.data()), acBytes.size())};
+        return NodeMemory::Read(reader, apState, acClass, aMode);
+    };
+    if (aNodeClass.ends_with("Modifier") || aNodeClass == "hkbClipGenerator")
+        return cRead(NodeMemory::Mode::kAll);
+    return cRead(NodeMemory::Mode::kCheckStructure) && cRead(NodeMemory::Mode::kTimes);
+}
+
 // Onto the copy's active modifiers of the same key and class, after its graph state loaded (whose activation reset
 // them).
 void GiveMemory(BShkbAnimationGraph& aGraph, const std::string& acMemory)
@@ -250,13 +263,12 @@ void GiveMemory(BShkbAnimationGraph& aGraph, const std::string& acMemory)
             return;
         aNode.GetInternalState(*pState); // its arrays sized by its own node
         const auto* pReflected = Reflected(pClass);
-        Wire::Buffer::Reader bytes{std::span(reinterpret_cast<const uint8_t*>(it->second.second.data()), it->second.second.size())};
         if (!pReflected || !pClass->name || it->second.first != pClass->name)
         {
             ++unmatched;
             ++otherClass;
         }
-        else if (!NodeMemory::Read(bytes, reinterpret_cast<uint8_t*>(pState), *pReflected))
+        else if (!GiveState(it->second.second, reinterpret_cast<uint8_t*>(pState), *pReflected, aClass))
         {
             ++unmatched;
             ++notFitting;
@@ -303,7 +315,17 @@ struct SkyrimGraphTarget final : IGraphTarget
     }
     bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
     {
-        if (!Graph.holder || !Graph.holder->LoadGraphPoint(acPoint.Seed.Seed, acPoint.State))
+        if (!Graph.holder || !Graph.behaviorGraph)
+            return false;
+        // A fresh graph first, as a savegame loads into: the save leaves out machines at their start state (65148), so
+        // a copy's graph with a life of its own (its game's AI ran it before it became a copy) would keep its own in
+        // those. Its owner's variables first: a machine's start can be bound to one (iSyncTurnState).
+        WriteWords(acPoint.Words);
+        hkEventContext context(&Graph.character, Graph.hkWorldM ? Graph.hkWorldM->GetWorld() : nullptr);
+        auto* pBehaviour = reinterpret_cast<hkbNode*>(Graph.behaviorGraph);
+        pBehaviour->Deactivate(context);
+        pBehaviour->Activate(context);
+        if (!Graph.holder->LoadGraphPoint(acPoint.Seed.Seed, acPoint.State))
             return false;
         SetSeed(acPoint.Seed);
         Graph.holder->SetGraphCounters(GraphRandom::Unpack(acPoint.Counters));
@@ -343,7 +365,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         // Its owner's ops due by now instead of its own update; none due, its graph holds its pose.
         InStream _;
         SkyrimGraphTarget target(*apGraph, *apData, apScratch);
-        streams.Replay(cFormId, target);
+        streams.Replay(cFormId, target, apGraph);
         return target.Result;
     }
     if (!streams.Recording(cFormId))
@@ -352,7 +374,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
     // Forced: its step is the frame's, never a far graph's chunk (its first updates come before CharacterService's).
     apData->force = true;
-    streams.OnUpdate(cFormId, streams.Tick(), apData->deltaTime, Words(*apGraph), Seed(*apGraph));
+    streams.OnUpdate(cFormId, streams.Tick(), apData->deltaTime, Words(*apGraph), Seed(*apGraph), apGraph);
     const char cResult = RealUpdate(apGraph, apData, apScratch);
     if (streams.OnUpdated(cFormId, Words(*apGraph)))
     {

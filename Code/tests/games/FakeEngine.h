@@ -558,6 +558,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
         bool GraphEveryFrame = false;         // SetGraphUpdatedEveryFrame
         FakeGraphMemory Graph;                // its graph's clip, channels and history (FakeGraph.h)
+        uint32_t GraphGeneration = 0;         // which graph: a 3D reload makes a new one (ReloadGraph)
         AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
@@ -648,12 +649,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     };
     std::optional<ClipEndActions> OwnerClipEnds;
     // A graph update or event the graph took, in its history.
-    static void GraphEntry(Actor& aActor, std::string aInput);
+    void GraphEntry(Actor& aActor, std::string aInput) const;
     void UpdateGraph(uint32_t aFormId, Actor& aActor);
     void WriteGraphChannels(Actor& aActor, double aStepMs);
     void StepGraph(Actor& aActor, double aStepMs);
     bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
     void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
+    bool m_replaying = false; // inside ReplayStream: a copy's graph takes its owner's inputs
+    // Its 3D reloaded: a new graph in aState, its clip and variables reset (Skyrim: a new BShkbAnimationGraph).
+    void ReloadGraph(uint32_t aFormId, const std::string& aState);
+    [[nodiscard]] static const void* GraphIdentity(const Actor& acActor) noexcept
+    {
+        return reinterpret_cast<const void*>(uintptr_t(acActor.GraphGeneration) + 1);
+    }
     // Its graph's variables as the stream's words: kGraphWords integers, then kGraphWords floats' bits.
     static constexpr size_t kGraphWords = 8;
     [[nodiscard]] static std::vector<uint32_t> GraphWords(const Actor& acActor);

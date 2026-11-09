@@ -661,6 +661,7 @@ void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexc
     aWriter.WriteBits(Seed.Current, 32);
     Serialization::WriteString(aWriter, Counters);
     Serialization::WriteString(aWriter, Memory);
+    Serialization::WriteVarInt(aWriter, uint32_t(ClipEvent + 1));
 }
 void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
@@ -687,5 +688,7 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
         Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
     Counters = Serialization::ReadString(aReader);
     Memory = Serialization::ReadString(aReader);
+    uint64_t clipEvent = 0;
+    ClipEvent = Serialization::TryReadVarInt(aReader, clipEvent) && clipEvent && clipEvent <= 0x10000 ? int32_t(clipEvent) - 1 : -1;
 }
 } // namespace Payloads

@@ -137,10 +137,10 @@ struct hkbNode
     virtual const hkClass* GetClassType() const;
     virtual void sub_02();
     virtual void sub_03();
-    virtual void sub_04();
+    virtual void Activate(const struct hkEventContext& acContext);   // 04 (CommonLibSSE-NG)
     virtual void sub_05();
     virtual void sub_06();
-    virtual void sub_07();
+    virtual void Deactivate(const struct hkEventContext& acContext); // 07
     virtual void sub_08();
     virtual void sub_09();
     virtual void sub_0A();

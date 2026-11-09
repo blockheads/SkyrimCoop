@@ -53,6 +53,10 @@ struct GraphRecorder
     {
         return m_updates;
     }
+    [[nodiscard]] int32_t LastEvent() const noexcept
+    {
+        return m_lastEvent;
+    }
     // The ops since the last take; aFirstUpdate: the index of the first update among them.
     [[nodiscard]] std::vector<GraphRecordedOp> Take(uint32_t& aFirstUpdate);
 
@@ -64,6 +68,7 @@ struct GraphRecorder
     std::vector<GraphRecordedOp> m_ops;
     uint32_t m_updates = 0;
     uint32_t m_takenUpdates = 0;
+    int32_t m_lastEvent = -1;
 };
 
 // One batch from several actors' ops: each update's frame in a table they share.
@@ -85,6 +90,8 @@ struct GraphReplayer
     // Its owner's run; a run that does not follow the last one is a gap: it waits for a new sync point.
     void Feed(const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames);
     void Load(const Payloads::GraphSyncPoint& acPoint);
+    // Its graph was replaced (a 3D reload): what follows waits for a new sync point.
+    void Restart() noexcept;
     // Started on a sync point: its graph's inputs are the stream's alone.
     [[nodiscard]] bool Started() const noexcept
     {
@@ -128,8 +135,9 @@ struct GraphStreams
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
     void OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,
                  const GraphSeed& acSeed);
+    // apGraph: which graph it is; another one (a 3D reload) starts its recording over, so its copies ask for a point.
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
-                  const GraphSeed& acSeed);
+                  const GraphSeed& acSeed, const void* apGraph = nullptr);
     // After the update: true when a copy asked for a sync point, which the caller saves and hands to AddPoint.
     [[nodiscard]] bool OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
     void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint); // its Id and Update filled in
@@ -156,7 +164,8 @@ struct GraphStreams
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
-    size_t Replay(uint32_t aFormId, IGraphTarget& aTarget);
+    // apGraph: which graph it replays into; another than the one its point loaded into waits for a new point.
+    size_t Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph = nullptr);
 
   private:
     struct Owned
@@ -164,6 +173,7 @@ struct GraphStreams
         std::mutex Lock;
         uint32_t ActorId = 0;
         GraphRecorder Recorder;
+        const void* Graph = nullptr;
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
     };
@@ -171,6 +181,7 @@ struct GraphStreams
     {
         std::mutex Lock;
         GraphReplayer Replayer;
+        const void* Graph = nullptr; // the graph its sync point loaded into
         std::atomic<uint32_t> ActorId{0};
         uint64_t Playback = 0;
         bool TimeDeltaKnown = false;

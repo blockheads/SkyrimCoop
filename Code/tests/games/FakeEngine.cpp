@@ -107,9 +107,10 @@ void FakeEngine::ShovePlayer() noexcept
     }
 }
 
-void FakeEngine::GraphEntry(Actor& aActor, std::string aInput)
+void FakeEngine::GraphEntry(Actor& aActor, std::string aInput) const
 {
-    aActor.Graph.History.push_back({aActor.Graph.Timeline, aActor.GraphState, std::move(aInput)});
+    const bool cOwn = aActor.Copy && !m_replaying && (aInput.starts_with("update") || aInput.starts_with("event"));
+    aActor.Graph.History.push_back({aActor.Graph.Timeline, aActor.GraphState, cOwn ? "own " + aInput : std::move(aInput)});
 }
 
 std::vector<uint32_t> FakeEngine::GraphWords(const Actor& acActor)
@@ -234,7 +235,7 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
     if (cRecorded)
-        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed);
+        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
     StepGraph(aActor, cStep);
     if (cRecorded && streams.OnUpdated(aFormId, GraphWords(aActor)))
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveActorGraphState(aFormId), .Words = GraphWords(aActor),
@@ -280,7 +281,20 @@ struct FakeGraphTarget final : IGraphTarget
 void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
 {
     FakeGraphTarget target(*this, aFormId, aActor);
-    World::Get().GetGraphStreams().Replay(aFormId, target);
+    m_replaying = true;
+    World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor));
+    m_replaying = false;
+}
+
+void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState)
+{
+    auto& actor = Actors.at(aFormId);
+    ++actor.GraphGeneration;
+    actor.GraphState = aState;
+    actor.GraphVariables = {};
+    actor.Graph.ClipStartedAt.reset();
+    actor.Graph.Stuck = false;
+    GraphEntry(actor, "reload");
 }
 
 void FakeEngine::Frame()
