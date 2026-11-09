@@ -113,6 +113,17 @@ other section needs the duo.
 - [Players stacked after a door](#players-stacked-after-a-door): small
 - [The late save's boot](#the-late-saves-boot): small
 
+**From the 2026-11-08 playtest** (in the triage's recommended order)
+
+- [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
+- [The second wipe loads another character's save](#the-second-wipe-loads-another-characters-save): small
+- [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
+- [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
+- [Black faces after a new area](#black-faces-after-a-new-area): small
+- [A guest's pickpocket](#a-guests-pickpocket): medium
+- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
+- [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
+
 **Test tools**
 
 - [An old crash reported as new](#an-old-crash-reported-as-new): small, no duo
@@ -985,6 +996,160 @@ Size: small. Needs: duo.
   booted the default QASmoke and played Riverwood and Whiterun. It blocks every late-save scenario and
   `riverwood-day-one`. Runs: `build/coop-test/runs/20261107-142718-duo`, `20261107-143500-duo` in that worktree.
   - Test: `coop_test.py duo --save LateAfterDragonslayerBackinSkyrim`.
+
+## From the 2026-11-08 playtest
+
+The user hosting, the user's brother as guest (Windows), 21:09 to 21:44 local, Riverwood then Riften; a Steam relay at
+about 400 ms and 0.8% loss. Evidence: the guest's `/export` (`hdTkv.zip`, the user's Downloads) and the host's
+`SkyrimCoop-Chris_Cringle-2026-11-08-2144-d61.zip` (the host's prefix, `My Games/Skyrim Special Edition/SkyrimCoop/`),
+with both games' 21:26 `/bug` reports. Times are the logs' local times.
+
+### A guest's crosshair skips a leaning NPC
+
+The guest can't talk to some NPCs at all: no name, no Talk prompt.
+
+Agent task: Make the guest's crosshair take an NPC copy leaning on a counter, as the host's takes the NPC.
+
+Size: medium. Needs: IDA, GameTests, duo.
+
+- **A guest's crosshair never takes a copy in its counter lean** (2026-11-08, the user and the brother: Orgnar, Lucan;
+  measured on the duo). With Lucan leaning (`sit_sleep` 3, `IdleCounterStart`), the guest's camera ray hits his copy
+  `13487` at 112 units and `CrosshairPickData`'s target stays 0; standing, the copy is taken; the host's crosshair
+  takes Lucan either way. So the guest presses E on nothing, sometimes (while the NPC leans).
+  - Read in IDA: `PickCrosshairReference` (40620) calls `CrosshairPickData::Pick`, whose `CanPickRef` refuses an actor
+    sitting in furniture with `kDisablesActivation`. That check passes on the copy: it has no furniture while leaning
+    (`ai.furniture` 0; the host's Lucan has `230333`, his counter, also in the 21:26 snapshots).
+  - Ruled out, measured: `Actor::CanTalkToPlayer` (37469, `ExtraCanTalkToPlayer`, `AllowPCDialogue`): set on the copy,
+    the crosshair still skipped it.
+  - Start: the rest of `Pick` (its two hit paths before `CanPickRef`) for an actor sitting with no furniture.
+  - Test: `guest-crosshair-skips-leaning-npc` (fails at the guest's crosshair, 28 s from a boot).
+
+### A guest's talk that never opens
+
+The guest asks, the host's game starts it, nothing opens, nobody is told.
+
+Agent task: Find why the host's background start of a guest's conversation stops opening, and answer every ask.
+
+Size: medium. Needs: IDA, duo; a decision from the user (below).
+
+- **The host starts a guest's conversation in the background and it never opens** (2026-11-08, 21:37 to 21:38).
+  Conversation 2 (the guest's, `44A8E`) ran with the host joined; its line paid a gold and showed `Message.Show` on
+  the guest; no end was logged on the host. Then the guest's asks for `19DD8` (21:37:36, 21:37:42) and `4584C`
+  (21:38:32): each time the host logged "a guest started a conversation ... run in the background" and no step 1
+  followed. The guest got no refusal and no chat line (`GuestDialogue` keeps `m_asked`, no timeout). The host's own
+  talk worked meanwhile (a guard's greet at 21:39:09), so "the host can talk, the guest can't".
+  - Start: what the engine keeps after a conversation that ended with the host's menu up and a message box, so that
+    `bridge.Start` returns true and no conversation opens; and an answer for an ask that never opens.
+  - Test: the playtest's order as a scenario: the guest talks, the host joins, a line with a message box, then the
+    guest asks another NPC.
+- **A guest's E on the host's player starts a conversation with it** (2026-11-08, host log 21:10:55 five times,
+  21:23:30). The host's copy has a session id, so `GuestDialogue` asks the host to talk to `14`, and the host's game
+  tries to start a conversation with its own player.
+  - Test: a `HostAuthorityTests` case: an ask for a player's session is refused.
+- **Decision for the user:** one conversation for the party runs through the host's player (`shared-dialogue.md`,
+  "One conversation at a time"), so while the host talks to anyone a guest's ask is refused. The brother read that as
+  a bug ("the host talking to anyone locks out the client"). Keep it, with a clear answer, or allow conversations in
+  parallel (large: the host's engine has one dialogue speaker).
+
+### The second wipe loads another character's save
+
+A party wipe right after a wipe loads an old character.
+
+Agent task: Make a wipe always reload the host's own character, also after a wipe.
+
+Size: small. Needs: GameTests, IDA; duo to prove it.
+
+- **The wipe after a wipe takes the newest save of character id 0** (2026-11-08, measured from the logs and the
+  saves). 21:17 and 21:31 (each the first wipe after a normal load) reloaded `ABC467A6` (scrombonius, the host's
+  character); 21:19 and 21:32 (each after loading `SkyrimCoopWipe.ess`) sent `Save4_00000000` (Chris Cringle,
+  2026-10-31, Riften), so the session went on as Chris. The Load menu then listed only that character's saves (the
+  user: "it showed me a previous character's save"). 15 of the host's saves carry id 0.
+  - Read in code: `PreviousGameplaySave` takes the newest save whose `characterId` is the engine's `currentCharacterId`.
+    Inferred: loading a save named `SkyrimCoopWipe` (no id in the name) leaves that id 0. Read in IDA: 35760, 35789,
+    where the current id is set on a load.
+  - The guest crashed loading the 21:19 save (c0000005, during the load, a dump in its export); check it goes with the
+    fix. Related: [The scratch save in the Load list](#the-scratch-save-in-the-load-list), the same scratch save.
+  - Test: GameTests, two wipes in a row (the fake learns how a load sets the character id); the user asked for more
+    tests around dying and reloading.
+
+### Paying a fine moves only the host
+
+Party travel.
+
+Agent task: Make a teleport the host's engine makes inside its cell bring the party, as one to another cell does.
+
+Size: small. Needs: duo; a rule from the user (below).
+
+- **The guest stays behind when the host pays a fine** (2026-11-08, 21:39, measured). The host paid the Riften guard
+  (`4584D`, topic `267DB`); its game moved it to the release marker and logged "Arrived in cell 42245 (RiftenWorld),
+  leading the party"; the guest logged "Party travel to cell 42245: already there" and stayed. The tether follows by
+  cell, and a move inside the cell is "already there" (`player-travel.md`), so `PayFine`'s move
+  (`shared-party-bounty.md`) never reaches the party there.
+  - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
+  - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
+  - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
+
+### A guest's pickpocket
+
+Crime: the guest's theft from a copy.
+
+Agent task: Make a guest's pickpocket of an NPC copy reach the host, caught or not, and stop it duplicating items.
+
+Size: medium. Needs: duo, then GameTests.
+
+- **No guest pickpocket reached the host** (2026-11-08). The brother sneaked to pickpocket: "nothing happens, they just
+  can't talk to them", and once "they still get the item, just multiple copies". The host logs every guest crime it
+  gets ("Party crime: ..."), and the whole session has only four thefts (21:28, Riverwood Trader, action 0): no
+  pickpocket, caught or not (`shared-party-bounty.md`: a caught one sends a proposal, 37423).
+  - Inferred: the duplicate is a take from the copy that the host never applies, so the copy keeps it, as in
+    [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest).
+  - Related: [The older crime scenarios](#the-older-crime-scenarios) (`guest-pickpocket-party-alarm` passes or fails
+    either way).
+  - Test: a scenario: the guest pickpockets Lucan, once caught and once not.
+
+### Black faces after a new area
+
+Copies of players.
+
+Agent task: Make a player's copy keep its painted face after its 3D is built again.
+
+Size: small. Needs: GameTests, duo to see it.
+
+- **Faces turn black when loading into a new area** (2026-11-08, the user; not in the logs). Read in code:
+  `FaceGenSystem` paints a copy's head once (`FaceGenComponent::Generated`) and never again, and a new area builds
+  the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
+  players' copies; whose faces the user saw is to be asked.
+  - Test: GameTests, a copy's 3D rebuilt paints its face again.
+
+### The sneak eye with the other player looking
+
+S6 of 2026-10-31 again.
+
+Agent task: Make the other player's copy never raise the local player's stealth eye.
+
+Size: small. Needs: duo, IDA.
+
+- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you").
+  S6 (`playtests/2026-10-31-fabien.md`) did not reproduce on 2026-11-01 with both sneaking face to face:
+  `HookUpdateDetectionState` (42704) skips a player copy's detection of the local player. New here: the other player
+  looking at you (maybe standing). Read in code: the hook skips the update but keeps the knowledge entry, so a level
+  set before could stay (inferred). Nothing in the logs.
+  - Start: what the eye reads (41408, `stealth_meter`) with the other player looking, standing and sneaking.
+  - Test: a scenario: the local player sneaks, nobody else near, the other player turns to face it.
+
+### A guest crash at the main menu
+
+Seen once.
+
+Agent task: Name the crash in the guest's 20:47 dump.
+
+Size: small. Needs: no duo (the dump).
+
+- **The guest's game crashed at the main menu** (2026-11-08, 20:47:58, no session). c0000005 at `SkyrimSE.exe+0x1012512`
+  (from `+0x6e4d16`, `+0x60f283`), our `MenuTopicManager` menu hook having run 5 s before. The dump is in the guest's
+  export (`SkyrimCoop-player-2026-11-08-2054-b0e`). That bundle's `plugins.txt` lists the brother's Vortex profile
+  (1,642 lines), while the session ran three plugins: which list that run had is unknown.
+  - Start: the dump's stack in IDA.
 
 ## Test tools
 

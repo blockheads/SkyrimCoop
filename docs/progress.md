@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
+(Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
+him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,
+`CrosshairPickData::Pick`, `CanPickRef`): its furniture check passes on the copy, which has no furniture while leaning
+(the host's Lucan has his counter). The cause in `Pick` is still to be read. Scenario
+`guest-crosshair-skips-leaning-npc` (fails); the MCP's new `expect` `crosshair`.
+
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
 stops its games and takes it, and the old holder queues again. A hook (`scripts/duo_hook.py`) reminds a session holding
