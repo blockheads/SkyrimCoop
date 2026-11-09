@@ -185,6 +185,15 @@ std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
 // AI at all (kProcessMe).
 int32_t GetProcessLevel(uint32_t aFormId) noexcept;
 
+// Its head's face: geometry and Facegen material found, the tint texture's name ("" none; FaceGenSystem paints one).
+struct FaceHeadRead
+{
+    bool Geometry = false;
+    bool Material = false;
+    std::string Tint;
+};
+FaceHeadRead GetFaceHead(uint32_t aFormId) noexcept;
+
 // An actor's ragdoll bodies in the ragdoll's order (Havok/Ragdoll.h), each with its node empty; none for no such actor.
 std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexcept;
 

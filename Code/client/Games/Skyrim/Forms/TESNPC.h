@@ -87,6 +87,9 @@ struct TESNPC : TESActorBase
     uintptr_t unk160;
 
     BGSHeadPart* GetHeadPart(uint32_t aType);
+    // The part its head is built with: a base overlay's when it has overlays (a vampire keeps its old face,
+    // TESNPC::HasOverlays 24790), else its own (CommonLibSSE-NG GetCurrentHeadPartByType).
+    BGSHeadPart* GetCurrentHeadPart(uint32_t aType);
     void Serialize(std::string* apSaveBuffer) const noexcept;
     void Deserialize(const std::string& acBuffer, uint32_t aChangeFlags) noexcept;
     void Initialize() noexcept;

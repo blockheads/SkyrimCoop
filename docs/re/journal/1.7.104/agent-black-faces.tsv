@@ -13,3 +13,5 @@ time	op	id	rva	item
 2026-11-09T05:13:52Z	comment	24731	0x3c3b70	{"addr": "0x1403c3b70", "comment": "24731 (skee64 PreprocessedHeads): builds a new head node; FaceGeom nif + FaceTint if bUseFaceGenPreprocessedHeads and found, else at runtime from race head parts. A new face material each time: coop's painted tint (FaceGenSystem) is lost"}
 2026-11-09T05:13:52Z	comment		0x6f692b	{"addr": "0x1406f692b", "comment": "Every 3D rebuild (cell change, Reset3D) builds the head again via TESNPC::BuildHead (24731)"}
 2026-11-09T05:13:57Z	read	70717	0xef3b40	{"name": "CreateSourceTexture"}
+2026-11-09T06:05:43Z	comment	24790	0x3c8c00	{"addr": "0x1403c8c00", "comment": "An NPC: overlayRace (+0x1E8) set and not its race (+0x158); the player's base (7): the player's overlay race differs. Its head is then built from GetBaseOverlays (24791), a map base -> head parts: the face part to look up (coop FaceGenSystem via TESNPC::GetCurrentHeadPart)"}
+2026-11-09T06:05:43Z	comment	24791	0x3c8d00	{"addr": "0x1403c8d00", "comment": "The base's overlay head parts (global map keyed by base, count at +0x10); null when none"}

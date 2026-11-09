@@ -30,7 +30,7 @@ __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_
 
     if (pFaceNode && pActorBase)
     {
-        BGSHeadPart* pFacePart = pActorBase->GetHeadPart(aPartType);
+        BGSHeadPart* pFacePart = pActorBase->GetCurrentHeadPart(aPartType);
 
         if (pFacePart)
         {
@@ -88,6 +88,18 @@ bool FaceGenSystem::IsPainted(Actor* apActor) noexcept
     const BSMaskedShaderMaterial* cpMaterial = GetFaceMaterial(apActor);
     const NiTexture* cpTexture = cpMaterial ? cpMaterial->renderedTexture.object : nullptr;
     return cpTexture && cpTexture->name && cpTexture->name == kPaintedName;
+}
+
+FaceGenSystem::HeadRead FaceGenSystem::Read(Actor* apActor) noexcept
+{
+    HeadRead read;
+    read.Geometry = GetHeadTriBasedGeom(apActor, 1) != nullptr;
+    const BSMaskedShaderMaterial* cpMaterial = GetFaceMaterial(apActor);
+    read.Material = cpMaterial != nullptr;
+    const NiTexture* cpTexture = cpMaterial ? cpMaterial->renderedTexture.object : nullptr;
+    if (cpTexture)
+        read.Tint = cpTexture->name ? cpTexture->name : "(unnamed)";
+    return read;
 }
 
 bool FaceGenSystem::Paint(Actor* apActor, const Tints& acTints) noexcept

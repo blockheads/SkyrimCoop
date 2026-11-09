@@ -1636,7 +1636,10 @@ void CharacterService::RunRemoteUpdates() noexcept
     // New tints, and each head built again (a new area, TESNPC::BuildHead 24731), are painted.
     for (auto&& [cEntity, form, face] : m_world.view<FormIdComponent, FaceGenComponent>().each())
         if (!face.Painted || !m_actorBridge.IsActorFacePainted(form.Id))
+        {
             face.Painted = m_actorBridge.PaintActorFace(form.Id, face.FaceTints);
+            face.Paints += face.Painted;
+        }
 
     auto waitingView = m_world.view<FormIdComponent, WaitingFor3D>();
 

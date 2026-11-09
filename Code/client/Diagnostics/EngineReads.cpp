@@ -1,5 +1,6 @@
 #include "EngineReads.h"
 #include "HeadTrackRead.h"
+#include <Systems/FaceGenSystem.h>
 #include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
@@ -445,6 +446,15 @@ int32_t GetProcessLevel(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
     return pActor && pActor->currentProcess ? pActor->currentProcess->processLevel : -1;
+}
+
+FaceHeadRead GetFaceHead(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return {};
+    const auto cRead = FaceGenSystem::Read(pActor);
+    return {cRead.Geometry, cRead.Material, cRead.Tint};
 }
 
 std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexcept
