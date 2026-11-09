@@ -497,6 +497,13 @@ void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
     MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
 }
 
+void FakeEngine::PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition)
+{
+    m_unannouncedMove = true;
+    MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
+    m_unannouncedMove = false;
+}
+
 void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
@@ -1286,7 +1293,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (aFormId == kPlayer)
     {
         // Party travel announces it (PlayerCharacter.cpp's 40438), but another game's party call's move.
-        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove)
+        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove && !m_unannouncedMove)
             World::Get().GetRunner().Trigger(PlayerTravelQueuedEvent{
                 it->second.WorldSpace, it->second.WorldSpace ? 0u : it->second.Cell, {aX, aY, aZ}, Heading});
         World::Get().ctx().at<FakeDialogue&>().End();

@@ -646,6 +646,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
     // left unloaded, a teleport the engine reports once (ConsumeTeleported).
     void PlayerTravels(uint32_t aCell, const glm::vec3& acPosition);
+    // A move the hook at 40438's entry does not see: PayFine's release (QueueJailRelease 40661) is written into
+    // queuedTarget inside ProcessQueuedTravel (40438), so only the arrival reports it (docs/re/systems/player-travel.md).
+    void PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition);
     // The native mount interaction, replayed for copies by CharacterService.
     std::map<uint32_t, uint32_t> Mounts;
     void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
@@ -1204,6 +1207,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
   private:
     uint32_t m_nextStack = 1; // the stacks this game's boxes wait in
     uint32_t m_openedBox = 0; // the box the running script opened (Message.Show)
+    bool m_unannouncedMove = false; // PlayerTravelsUnannounced
     bool m_mirroredMove = false; // the player's move is another game's party call's: party travel leads no one with it
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;

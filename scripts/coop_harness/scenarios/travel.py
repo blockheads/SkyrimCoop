@@ -1,7 +1,7 @@
 """Scenarios travel for the co-op harness."""
 import math
 import time
-from ..comparisons import is_close
+from ..comparisons import distance, is_close
 from ..common import (
     CHICKEN,
     HOME_CELL,
@@ -244,6 +244,25 @@ def scenario_guest_quest_teleport(ctx):
         ctx.players_together("the guest's quest teleport carries the party")
     finally:
         ctx.both_go(HOME_CELL)
+
+def scenario_party_teleports_in_cell(ctx):
+    """Any player's teleport inside its cell brings the party (PayFine's release, playtest 2026-11-08): the host's
+    MoveTo takes the guest standing away, then the guest's MoveTo takes the host."""
+    npc, _, copy = ctx.spawn_host_npc(LYDIA, restrained=True)
+    here = ctx.player_cell("")
+    for leader, follower, target in (("", "client", npc), ("client", "", copy)):
+        ctx.place_before(follower, copy if follower else npc, 600)
+        ctx.place_before(leader, copy if leader else npc, 600, bearing=180)
+        start = ctx.local_player(follower)["position"]
+        ctx.player_command(leader, {"cmd": "papyrus_call", "class": "ObjectReference", "function": "MoveTo",
+                                    "self": 0x14, "args": [{"form": target}, 0.0, 0.0, 0.0, True],
+                                    "player_action": True})
+        ctx.wait_for(f"[{follower or 'host'}] follows the {leader or 'host'}'s teleport inside the cell",
+                     lambda: ctx.player_cell(follower) == here and distance(ctx.local_player(follower)["position"][:2],
+                                                                           ctx.local_player(leader)["position"][:2]) < 150
+                     and distance(ctx.local_player(follower)["position"][:2], start[:2]) > 300, 30)
+        ctx.wait_for("both arrivals finish", lambda: all(ctx.takes_input(g) for g in ("", "client")), 15)
+        ctx.players_together(f"the {leader or 'host'}'s teleport inside the cell")
 
 def scenario_party_travel_with_menu(ctx):
     """A following player can be in the inventory menu when the leader travels."""

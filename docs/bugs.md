@@ -118,7 +118,6 @@ other section needs the duo.
 - [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
-- [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
 - [Black faces after a new area](#black-faces-after-a-new-area): small
 - [A guest's pickpocket](#a-guests-pickpocket): medium
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
@@ -1070,23 +1069,6 @@ Size: small. Needs: IDA, the dump; duo to prove it.
     `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
   - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
     `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
-
-### Paying a fine moves only the host
-
-Party travel.
-
-Agent task: Make a teleport the host's engine makes inside its cell bring the party, as one to another cell does.
-
-Size: small. Needs: duo; a rule from the user (below).
-
-- **The guest stays behind when the host pays a fine** (2026-11-08, 21:39, measured). The host paid the Riften guard
-  (`4584D`, topic `267DB`); its game moved it to the release marker and logged "Arrived in cell 42245 (RiftenWorld),
-  leading the party"; the guest logged "Party travel to cell 42245: already there" and stayed. The tether follows by
-  cell, and a move inside the cell is "already there" (`player-travel.md`), so `PayFine`'s move
-  (`shared-party-bounty.md`) never reaches the party there.
-  - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
-  - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
-  - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
 
 ### A guest's pickpocket
 
