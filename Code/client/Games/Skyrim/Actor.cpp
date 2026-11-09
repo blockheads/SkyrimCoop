@@ -10,6 +10,7 @@
 #include <Misc/MiddleProcess.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
 #include <Systems/CopyStep.h>
 #include <Misc/GameVM.h>
 #include <DefaultObjectManager.h>
@@ -51,6 +52,8 @@
 #include <Games/Skyrim/Misc/InventoryEntry.h>
 #include <Games/Skyrim/ExtraData/ExtraCount.h>
 #include <Games/Misc/ActorKnowledge.h>
+#include <Games/Skyrim/Crime.h>
+#include <Games/Skyrim/DetectionRules.h>
 
 #include <ExtraData/ExtraDataList.h>
 #include <ExtraData/ExtraCharge.h>
@@ -172,6 +175,66 @@ bool Actor::SetCapsuleCollision(bool aCollides) noexcept
         POINTER_SKYRIMSE(TSetFilter, s_setFilter, 37006);
         s_setFilter(pBody->userData, cWanted);
     }
+    return true;
+}
+
+namespace
+{
+// Its first ragdoll body: the ragdoll's bodies are its 3D's (40063 and 39912 set them all at once), else null.
+const hkpRigidBody* FirstBodyOf(const Actor& acActor) noexcept
+{
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(acActor))
+        if (pBody && pBody->referencedObject)
+            return pBody->referencedObject;
+    return nullptr;
+}
+
+uint8_t LayerOf(const hkpRigidBody* apBody) noexcept
+{
+    return apBody && apBody->world ? static_cast<uint8_t>(apBody->CollisionFilterInfo() & 0x7F) : 0;
+}
+} // namespace
+
+uint8_t Actor::BodiesLayer() const noexcept
+{
+    return LayerOf(FirstBodyOf(*this));
+}
+
+bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
+{
+    NiNode* pRoot = GetNiNode();
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    const hkpRigidBody* pBody = FirstBodyOf(*this);
+    if (!pRoot || !pController || !parentCell || !pBody || LayerOf(pBody) == aLayer)
+        return false;
+    const bool cInWorld = pBody->world != nullptr;
+
+    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
+    using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
+    using TRemoveFromWorld = void(void*, NiAVObject*);
+    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
+    using TSetLayerAndGroup = void(void*, NiAVObject*, uint32_t, uint32_t);
+    POINTER_SKYRIMSE(TAddToWorld, s_addToWorld, 36922);
+    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924);
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
+    POINTER_SKYRIMSE(TSetLayerAndGroup, s_setLayerAndGroup, 36929);
+    void* pQueue = *s_queue.Get();
+    if (!pQueue)
+        return false;
+    if (!aLayer)
+    {
+        s_removeFromWorld.Get()(pQueue, pRoot);
+        return true;
+    }
+    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group, in its cell's world (39912
+    // changes only the layer of bodies in the world already).
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, filter >> 16);
+    if (!cInWorld)
+        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
     return true;
 }
 
@@ -1370,29 +1433,24 @@ void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int
     RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
-using TUpdateDetectionState = void(ActorKnowledge*, void*);
+// ActorKnowledge::SetDetectionState (42704), the detection job's pass: another player's copy sees our player unseen.
+using TUpdateDetectionState = void(ActorKnowledge*, CrimeEngine::DetectionState*);
 static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
 
-void HookUpdateDetectionState(ActorKnowledge* apThis, void* apState)
+void HookUpdateDetectionState(ActorKnowledge* apThis, CrimeEngine::DetectionState* apState)
 {
-    auto pOwner = TESObjectREFR::GetByHandle(apThis->hOwner);
-    auto pTarget = TESObjectREFR::GetByHandle(apThis->hTarget);
-
-    if (pOwner && pTarget)
+    auto* pWitness = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hOwner));
+    auto* pTarget = Cast<Actor>(TESObjectREFR::GetByHandle(apThis->hTarget));
+    if (apState && pWitness && pTarget)
     {
-        auto pOwnerActor = Cast<Actor>(pOwner);
-        auto pTargetActor = Cast<Actor>(pTarget);
-        if (pOwnerActor && pTargetActor)
-        {
-            if (pOwnerActor->GetExtension()->IsOtherPlayer() && pTargetActor->GetExtension()->IsLocalPlayer())
-            {
-                spdlog::debug("Cancelling detection from remote player to local player, owner: {:X}, target: {:X}", pOwner->formID, pTarget->formID);
-                return;
-            }
-        }
+        const auto cPass = DetectionRules::Installed(pWitness->GetExtension()->IsOtherPlayer(), pTarget->GetExtension()->IsLocalPlayer(),
+                                                     {apState->Level, apState->LineOfSight, apState->Seen, apState->Unk16});
+        apState->Level = cPass.Level;
+        apState->LineOfSight = cPass.LineOfSight;
+        apState->Seen = cPass.Seen;
+        apState->Unk16 = cPass.Unk16;
     }
-
-    return RealUpdateDetectionState(apThis, apState);
+    RealUpdateDetectionState(apThis, apState);
 }
 
 struct DialogueItem;

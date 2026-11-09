@@ -13,6 +13,8 @@ struct UpdateEvent;
 struct FastTravelEvent;
 struct PlayerTravelQueuedEvent;
 struct NotifyPartyTravel;
+struct NotifyPartySummon;
+struct PartySummonCommandEvent;
 struct TransportService;
 class IActorBridge;
 class IFormBridge;
@@ -41,14 +43,20 @@ struct TravelService
                                   const glm::vec3& acPosition) const noexcept;
 
   private:
+    // Our player stands on that spot (within a step of it, ArrivalStack::kOnSpot).
+    [[nodiscard]] bool OnSpot(const glm::vec3& acSpot) const noexcept;
     void FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept;
     // The party arrived on one spot: the players and actors on it pass through each other until each walks off it.
     void StackOn(const glm::vec3& acSpot) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnTravelQueued(const PlayerTravelQueuedEvent& acEvent) noexcept;
     void OnFastTravel(const FastTravelEvent& acEvent) noexcept;
-    // Another player travelled by itself: ours goes where it arrived, unless already there.
+    // Another player travelled by itself: ours goes where it arrived, unless already on that spot.
     void OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept;
+    // /tpa: everyone else comes onto our player's spot.
+    void OnSummonCommand(const PartySummonCommandEvent&) noexcept;
+    // Another player summoned the party: ours goes there even from the same cell, as the tether takes a down player too.
+    void OnPartySummon(const NotifyPartySummon& acMessage) noexcept;
     // Who is still on the stack (ArrivalStack), and so who passes through whom.
     void UpdateStack() noexcept;
     // Our player and the copies of the others whose owners are around it: where each stands, by form id.
@@ -69,6 +77,7 @@ struct TravelService
     bool m_leading = false;
     bool m_teleportedOffline = false;
     uint32_t m_arrivalCellId = 0; // where the player last arrived (the party stacks in new cells)
+    bool m_stackNextArrival = false; // a summon's arrival stacks even in the same cell
     // Where the party tether sent the player and it has not arrived yet, oldest first. Arriving at one of
     // them is following, not leading.
     struct TetherTarget

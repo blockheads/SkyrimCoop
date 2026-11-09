@@ -92,6 +92,21 @@ SCENARIO("A host load restores the chosen save and every guest at its saved plac
     }
 }
 
+SCENARIO("A host load makes the chosen save's character the engine's, as loading it alone would", "[load]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    const std::string cChosen = "Save12_0BADF00D_0_4C79646961_WhiterunWorld_000030_20261108213000_1_1";
+    Save(party, cChosen);
+    host.CharacterId = 0xABC467A6;
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads(cChosen)); });
+    party.Until([&] { return host.Loaded.size() == 1 && party.Host().GetTransport().IsOnline(); },
+                "the host loads the chosen save under the scratch name");
+    CHECK(host.Loaded.back() == "SkyrimCoopWipe");
+    CHECK(host.CharacterId == 0x0BADF00D);
+    party.As(party.Host(), [&] { CHECK(host.PreviousSave() == cChosen); });
+}
+
 SCENARIO("A guest's own loads are refused with a chat reason, including internal-looking names", "[load]")
 {
     Party party(1, Plugins);

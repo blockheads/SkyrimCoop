@@ -265,7 +265,8 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
     `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
-    takes it, as for its name and Activate prompt), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
+    takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
+    and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
     `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
@@ -401,6 +402,13 @@ def use(game: str, target: str) -> dict:
 def take(game: str, target: str) -> dict:
     """That game's player opens a container and takes everything; returns how many items left it."""
     return {"ok": True, **session.take(_game(game), target)}
+
+
+@tool
+def pickpocket(game: str, target: str, item: str, caught: bool = False) -> dict:
+    """That game's player sneaks up to an NPC and takes `item` (its name in the list) from its pockets, the chance
+    pinned: caught (the alarm closes the menu) or not."""
+    return {"ok": True, **session.pickpocket(_game(game), target, item, caught)}
 
 
 @tool

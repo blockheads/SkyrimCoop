@@ -1,5 +1,6 @@
 #include "EngineReads.h"
 #include "HeadTrackRead.h"
+#include <Systems/FaceGenSystem.h>
 #include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
@@ -30,6 +31,7 @@
 #include <Games/Overrides.h>
 #include <Games/References.h>
 #include <Games/TES.h>
+#include <SaveLoadManager.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
@@ -273,7 +275,7 @@ std::optional<ControllerRead> GetController(uint32_t aFormId) noexcept
     bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
     if (!pController)
         return std::nullopt;
-    ControllerRead read{.Flags = pController->flags, .State = pController->state};
+    ControllerRead read{.Flags = pController->flags, .State = pController->state, .Size = pController->size};
     pController->GetCollisionFilterInfo(read.Filter);
     alignas(16) float position[4]{};
     alignas(16) float velocity[4]{};
@@ -447,6 +449,30 @@ int32_t GetProcessLevel(uint32_t aFormId) noexcept
     return pActor && pActor->currentProcess ? pActor->currentProcess->processLevel : -1;
 }
 
+FaceHeadRead GetFaceHead(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return {};
+    const auto cRead = FaceGenSystem::Read(pActor);
+    return {cRead.Geometry, cRead.Material, cRead.Tint};
+}
+
+std::optional<std::vector<BaseTintLayer>> GetBaseTintLayers(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    const auto* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (!pNpc || !pNpc->tintLayers)
+        return std::nullopt;
+    std::vector<BaseTintLayer> layers;
+    for (uint32_t i = 0; i < pNpc->tintLayers->length; ++i)
+        if (const TESNPC::TintLayer* pLayer = pNpc->tintLayers->data[i])
+            layers.push_back({pLayer->tintIndex,
+                              uint32_t(pLayer->tintColor.red) << 16 | uint32_t(pLayer->tintColor.green) << 8 | pLayer->tintColor.blue,
+                              pLayer->preset, pLayer->interpolationValue});
+    return layers;
+}
+
 std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexcept
 {
     const auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
@@ -480,6 +506,12 @@ float GetRawDaysPassed() noexcept
 {
     const TimeData* pTime = TimeData::Get();
     return pTime ? pTime->rawDaysPassed : 0.f;
+}
+
+uint32_t GetCurrentCharacterId() noexcept
+{
+    const BGSSaveLoadManager* cpManager = BGSSaveLoadManager::Get();
+    return cpManager ? cpManager->currentCharacterId : 0;
 }
 
 uint32_t GetRunningPackage(uint32_t aFormId) noexcept

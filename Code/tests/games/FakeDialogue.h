@@ -44,6 +44,9 @@ struct FakeDialogue final : IDialogueBridge
     std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
+    // An NPC with something to say. One with nothing (Hilde, most guards) says its hello and starts nothing:
+    // StartDialogue (35282) clears and refuses, and SetDialogueWithPlayer (37200) still returns true (dialogue.md).
+    std::function<bool(uint32_t aActorFormId)> HasTopics = [](uint32_t) { return true; };
 
     uint32_t Speaker = 0;
     bool MenuOpen = false;
@@ -149,6 +152,8 @@ struct FakeDialogue final : IDialogueBridge
             return true; // native Start does not reopen a conversation already held in the manager
         if (RequiresGreeting && !aGreeting)
             return true; // native start accepted, but no eligible local greeting opens a menu
+        if (!HasTopics(aActorFormId))
+            return true; // its hello, no conversation; 37200 returns true all the same
         m_suspended = false;
         AllowProgress = true;
         m_pickedShown = false;

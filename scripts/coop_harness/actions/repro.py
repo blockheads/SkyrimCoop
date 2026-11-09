@@ -636,6 +636,15 @@ class ReproActions:
             if held["host"] != held["guest"]:
                 raise ctx.failure(f"{name}: holds differently: " + ctx.item_differences(held["host"], held["guest"], "host", "guest"))
             return {"items": len(held["host"])}
+        if check == "bounty":  # `name` a crime faction (hex id): the host's bounty there at least value[0], the guest's the same
+            def rows():
+                return {g: sum(ctx.party_bounty()[g].get(f"{int(name, 16):X}", [0, 0])) for g in ("host", "guest")}
+            try:
+                ctx.wait_for(f"{name}: the party's bounty", lambda: rows()["host"] >= value[0] and rows()["host"] == rows()["guest"],
+                             seconds or 5)
+            except TestFailure:
+                raise ctx.failure(f"{name}: the bounty is {rows()}, not at least {value[0]} in both games") from None
+            return {"bounty": rows()}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "crosshair":
@@ -800,6 +809,8 @@ def _line(tool, args):
             return f"ctx.use({game}, {args['target']!r})"
         case "take":
             return f"ctx.take({game}, {args['target']!r})"
+        case "pickpocket":
+            return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
             return f"ctx.fight({game}, {args['target']!r})"
         case "world_freeze":

@@ -37,4 +37,8 @@ struct Movement
     bool OnGround{};
     // Its capsule collides: the engine turns that off in furniture and elsewhere, and its copy's matches it.
     bool CapsuleCollides{true};
+    // The layer its own bodies are on in the physics world, 0 when out of it (seated: 33, 40063); its copy's match.
+    uint8_t BodiesLayer{};
+    // Its graphs step with the physics world (their ragdoll driver drives its bodies): detached in furniture (40063).
+    bool GraphsStepPhysics{true};
 };

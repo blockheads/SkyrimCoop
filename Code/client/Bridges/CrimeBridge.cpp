@@ -249,9 +249,13 @@ void HookSteal(Actor* aActor, TESObjectREFR* aRef, TESForm* aItem, int32_t aCoun
 
 void HookPickpocket(PlayerCharacter* aPlayer, TESObjectREFR* aVictim, TESForm* aItem, int32_t aCount)
 {
+    // AttemptPickpocket (40654) raises the player's caught alarm with no item and count 0: the host's raises it.
     if (s_role == ICrimeBridge::Role::Guest && aPlayer == PlayerCharacter::Get())
     {
-        QueueItemCrime(CrimeAction::Pickpocket, aVictim, aItem, aCount);
+        CrimeRequest request;
+        request.Action = CrimeAction::Pickpocket;
+        Target(request, aVictim);
+        Queue(std::move(request));
         return;
     }
     RealPickpocket(aPlayer, aVictim, aItem, aCount);
@@ -706,6 +710,13 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
                       aRequest.AllowWarning);
         return false;
     }
+    if (aRequest.Action == CrimeAction::Pickpocket)
+    {
+        spdlog::info("Party crime: actor {:X}, caught pickpocketing {:X}", aActorFormId, target->formID);
+        if (targetActor)
+            RealPickpocket(player, targetActor, nullptr, 0);
+        return false;
+    }
     if (!aRequest.Count)
         return false;
     if (aRequest.Action == CrimeAction::Lockpick)
@@ -727,8 +738,6 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
     auto* given = aRequest.Owner ? TESForm::GetById(ToGame(aRequest.Owner)) : nullptr;
     if (aRequest.Action == CrimeAction::Theft)
         RealSteal(player, target, item, aRequest.Count, 0, CrimeRules::AlarmOwner(given, target->GetOwner()), aRequest.AllowWarning);
-    else if (aRequest.Action == CrimeAction::Pickpocket && Cast<Actor>(target))
-        RealPickpocket(player, target, item, aRequest.Count);
     return false;
 }
 

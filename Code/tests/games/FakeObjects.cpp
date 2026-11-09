@@ -125,9 +125,13 @@ void FakeEngine::UnloadCell(uint32_t aCell)
 {
     Attached.erase(aCell);
     std::vector<uint32_t> left;
-    for (const auto& [cId, cActor] : Actors)
-        if (cActor.Created && cActor.Cell == aCell && !cActor.Persistent)
+    for (auto& [cId, actor] : Actors)
+    {
+        if (actor.Cell == aCell)
+            actor.HeadTints.reset(); // its 3D goes with the cell
+        if (actor.Created && actor.Cell == aCell && !actor.Persistent)
             left.push_back(cId);
+    }
     for (const uint32_t cId : left)
         DeleteActor(cId);
 }

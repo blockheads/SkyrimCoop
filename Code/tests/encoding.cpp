@@ -90,6 +90,34 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     CHECK(static_cast<const NotifyActivate&>(*received) == notice);
 }
 
+TEST_CASE("A caught pickpocket names only its victim", "[encoding.crime]")
+{
+    // AttemptPickpocket (40654) raises PickpocketAlarm (37423) with no item and count 0.
+    CrimeRequest request;
+    request.Sequence = 7;
+    request.Action = CrimeAction::Pickpocket;
+    request.TargetActor = 42;
+    CHECK(request.IsValid());
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& received = static_cast<const CrimeRequest&>(*decoded);
+    CHECK(received.IsValid());
+    CHECK(received.Action == CrimeAction::Pickpocket);
+    CHECK(received.TargetActor == 42);
+    CHECK(!received.Item);
+    CHECK(received.Count == 0);
+    CrimeRequest nobody = request;
+    nobody.TargetActor = 0;
+    CHECK(!nobody.IsValid());
+    CrimeRequest theft = request;
+    theft.Action = CrimeAction::Theft;
+    CHECK(!theft.IsValid()); // a theft still names what it took
+}
+
 TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encoding.crime]")
 {
     CrimeRequest request;
@@ -797,6 +825,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         greetingReader.ReadBits(trash, 8);
         recvOpened.DeserializeRaw(greetingReader);
         CHECK(recvOpened.Greeting == sendOpened.Greeting);
+
+        DialogueStartFailedRequest sendFailed, recvFailed;
+        sendFailed.NpcId = 0x22;
+        sendFailed.NothingToSay = true;
+        Buffer failedBuffer(100);
+        Buffer::Writer failedWriter(&failedBuffer);
+        sendFailed.Serialize(failedWriter);
+        Buffer::Reader failedReader(&failedBuffer);
+        failedReader.ReadBits(trash, 8);
+        recvFailed.DeserializeRaw(failedReader);
+        CHECK((recvFailed.NpcId == 0x22 && recvFailed.NothingToSay));
     }
 
     SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")
@@ -1230,6 +1269,8 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Knocked = true;
         move.OnGround = true;
         move.CapsuleCollides = false;
+        move.BodiesLayer = 33;
+        move.GraphsStepPhysics = false;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);
@@ -1819,6 +1860,21 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     travel.Destination.Position = {30.f, -40.f, 50.f};
     travel.Destination.Heading = 2.1f;
     roundTrip(travel);
+    PartySummonRequest summon;
+    summon.Destination = travel.Destination;
+    roundTrip(summon);
+
+    NotifyPartySummon notify;
+    notify.Destination = travel.Destination;
+    notify.Username = "Lydia";
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    notify.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
+    CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
 TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
