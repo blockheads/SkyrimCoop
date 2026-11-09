@@ -109,6 +109,8 @@ def _competing_picks(ctx, double_click):
             ctx.activate_on('', npc)
             ctx.wait_for('the host joins the beggar conversation', lambda: ctx.talking_to('', npc), 10)
             ctx.wait_for('both beggar lists take input', lambda: ready(ctx), 30)
+            # Past Brenuin's greeting: its end re-arms each menu's 750 ms gate, and a click then says nothing.
+            ctx.wait_npc_quiet()
             ctx.client_shows_hosts_list('before competing input')
             options = ctx.dialogue('client')['options']
             index = next(i for i, option in enumerate(options) if option['topic'] == GIVE_COIN_TOPIC)

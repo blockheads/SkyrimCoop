@@ -49,6 +49,27 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-09: both players at once (`dialogue-stress`). The MCP's `together` runs lanes (any tool or verb) from one
+moment; a lane's first key or mouse input is queued in its game (`TestHarness/Scheduled`, any command's `at`) and
+lands in one frame on both games (0-14 ms apart measured). `line_delay(ms)` puts netem on the guest's namespace link,
+so races two machines meet show on one. First bug from it: two players moving the dialogue highlight at once ended
+each menu on the other's move (host 2, guest 0; `dialogue-highlights-cross`, GameTests "Highlights moved on two games
+at once..."). The host now relays each move to every menu, the mover's too, with the mover's count (`Seq`): every
+menu ends on the order moves reached the host. A pick that seemed stuck mid-greeting was the harness: `stage`'s
+default freeze clears the speaker's `kProcessMe`, its line never ends and `SaySelected` (35283) waits for it;
+`talk` refuses a frozen speaker now ([dialogue.md](re/systems/dialogue.md), "Two players at once"). The host joining
+while the NPC answered a guest's pick saw the last step's list and moved its highlight alone
+(`dialogue-host-joins-mid-line`, GameTests "A player joining while the NPC answers..."): the pick now carries its
+text and a joining menu shows it. New scenarios that pass: `dialogue-picks-cross-frame` (both press E in one frame
+over 40 ms: one line said; a press can say an option another player highlighted milliseconds before, by design),
+`dialogue-hover-while-guest-picks`, `dialogue-two-starts-at-once` (one conversation, the other ask forgotten). `dialogue-guest-walks-every-option`: the guest says each
+of Andurs's first answers (Tab and talk again between), the host joining each conversation and never picking; one
+line per pick, the menus agree. Following a path into a goodbye and talking again at once finds the NPC with nothing
+to say (37200 returns true when StartDialogue opened nothing; answered since dev's `cb60efb2`), so the walk stops
+short of goodbyes. A joining menu keeping its own highlight (code review) did not show in Skyrim: the host joining
+after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
+entry is gone, the scenario and GameTests flow guard it.
+
 2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
 NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
 Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (`UpdateAI` at every process level).

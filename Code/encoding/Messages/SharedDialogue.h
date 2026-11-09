@@ -165,6 +165,7 @@ struct NotifyDialoguePicked final : NotifyMessage
     GameId Topic{};
     GameId Info{};
     uint32_t PlayerId{}; // who pressed it and says it
+    std::string Text{};  // as the picker's menu showed it: a menu joining mid-line shows it
 };
 
 // The conversation ended: every game closes its menu, the host's ends its conversation.

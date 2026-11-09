@@ -17,6 +17,7 @@ from .play import PlayActions
 from .play_verbs import PlayerVerbs
 from .repro import PressTiming, RefSteps, ReproActions
 from .crime import CrimeActions
+from .together import TogetherActions
 
 
 class Actions(
@@ -38,6 +39,7 @@ class Actions(
     ReproActions,
     PressTiming,
     RefSteps,
+    TogetherActions,
     PlayerVerbs,
     CrimeActions,
 ):

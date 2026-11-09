@@ -645,6 +645,9 @@ class PlayerVerbs:
     def talk(ctx, instance, target, say=()):
         """The player starts a conversation with `target` (or goes on with the open one) and picks each line of `say`
         (text or index), waiting for each response; returns what was said and what is offered next."""
+        if target in getattr(ctx, "FROZEN_HANDLES", ()):
+            # The freeze stops the engine updating the actor (kProcessMe): its lines never end, a pick waits forever.
+            raise ctx.failure(f"{target} is staged frozen: stage a speaker with frozen: false")
         if ctx.talking_to(instance, ctx.resolve(target, instance)):
             options = [option.get("text") for option in ctx.dialogue(instance).get("options") or []]
         else:

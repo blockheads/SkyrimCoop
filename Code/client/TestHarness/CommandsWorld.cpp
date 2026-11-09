@@ -941,6 +941,13 @@ nlohmann::json Dialogue(Harness&, const nlohmann::json&)
             {"skip_head", cState.SkipHead},
             {"current_info", cState.CurrentInfo},
             {"last_info", cState.LastInfo},
+            {"root_info", cState.RootInfo},
+            {"flags", [&] {
+                 nlohmann::json flags = nlohmann::json::object();
+                 for (const auto& [cpName, cSet] : cState.Flags)
+                     flags[cpName] = cSet;
+                 return flags;
+             }()},
             {"options", options},
             {"swf", {{"allow_progress", cState.AllowProgress}, {"state", cState.SwfState}, {"selected", cState.Selected},
                      {"cursor", cState.CursorTopic}, {"cursor_index", cState.CursorIndex}}}};

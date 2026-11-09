@@ -97,6 +97,7 @@ struct FakeDialogue final : IDialogueBridge
     // The speaker's line ends: the engine builds and shows its list (52857, after each line, a copy's too).
     void LineEnds()
     {
+        AllowProgress = true; // the next line's voice ready (52858) re-arms the SWF
         Build(std::exchange(m_next, std::nullopt).value_or(m_source));
     }
     // This game's player presses through the line (the SWF's SkipText, 51508): the Skip filter hears of it, then this
@@ -170,8 +171,10 @@ struct FakeDialogue final : IDialogueBridge
     {
         MenuOpen = Speaker != 0;
         m_pickedShown = false;
-        AllowProgress = !std::exchange(m_suspended, false);
-        ListShown = MenuOpen && !Options.empty(); // the menu opens on the list (SHOW_GREETING, then the list)
+        // No voice ready while a line is said (Skyrim 2026-11-09, dialogue-host-joins-mid-line): no pick until it ends.
+        AllowProgress = !std::exchange(m_suspended, false) && !m_next;
+        // The menu opens on the list the engine holds (52857), the last step's while a line is said.
+        ListShown = MenuOpen && !Options.empty();
         return MenuOpen;
     }
     void CloseMenu() noexcept override
@@ -226,14 +229,15 @@ struct FakeDialogue final : IDialogueBridge
         }
         return true;
     }
-    void ShowPicked(const std::string& acText) noexcept override
+    bool ShowPicked(const std::string& acText) noexcept override
     {
         const auto cState = !MenuOpen ? 0 : ListShown ? 1 : m_pickedShown ? 2 : 3;
         if (DialogueMenuPolicy::DisplayPicked(cState) == DialogueMenuPolicy::PickedDisplay::Ignore)
-            return;
+            return false;
         m_pickedShown = true;
         ListShown = false;
         PickedText = acText;
+        return true;
     }
     // The listed option with this line, else that line built (as DialogueBridge::PickOption).
     // The menu's highlight: the player moves it (W/S, the mouse), the service sets it.

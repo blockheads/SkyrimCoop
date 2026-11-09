@@ -608,7 +608,7 @@ TEST_CASE("Dialogue: a player says only its own options; another's is refused, a
     }
 }
 
-TEST_CASE("Dialogue: the highlight goes to the others in the conversation, for the current step", "[HostAuthority][Dialogue]")
+TEST_CASE("Dialogue: the highlight goes to everyone in the conversation, the mover too, for the current step", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -621,17 +621,35 @@ TEST_CASE("Dialogue: the highlight goes to the others in the conversation, for t
     moved.Conversation = talking.Id;
     moved.Step = 1;
     moved.Index = 3;
+    moved.Seq = 7;
     session.Receive(kPeer, moved);
     const auto cAtHost = session.SentTo<NotifyDialogueHighlight>(kHost);
     REQUIRE(cAtHost.size() == 1);
-    CHECK((cAtHost[0]->Index == 3 && cAtHost[0]->PlayerId == session.PlayerId(kPeer)));
-    CHECK(session.SentTo<NotifyDialogueHighlight>(kPeer).empty());
+    CHECK((cAtHost[0]->Index == 3 && cAtHost[0]->PlayerId == session.PlayerId(kPeer) && cAtHost[0]->Seq == 7));
+    // The mover's own echo: the order moves reach the host is every menu's.
+    const auto cBack = session.SentTo<NotifyDialogueHighlight>(kPeer);
+    REQUIRE(cBack.size() == 1);
+    CHECK(cBack[0]->Seq == 7);
     CHECK(session.SentTo<NotifyDialogueHighlight>(kOtherPeer).empty()); // not in it
 
     moved.Step = 2; // an old or future step
     session.Receive(kPeer, moved);
     session.Receive(kOtherPeer, moved);
     CHECK(session.SentTo<NotifyDialogueHighlight>(kHost).size() == 1);
+}
+
+TEST_CASE("Dialogue: a pick carries the text the picker's menu showed, for a menu joining mid-line", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    talking.List(kHost, 1);
+    session.Outbox.clear();
+    talking.Pick(kPeer, 1, 0xA, {}, "I'm not sure. Tell me about him.");
+    // The host's game is not in it yet: it gets the pick all the same, with the text to show if it joins.
+    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kHost);
+    REQUIRE(cPicked.size() == 1);
+    CHECK(cPicked[0]->Text == "I'm not sure. Tell me about him.");
 }
 
 TEST_CASE("Dialogue: a press through the line goes to the host's game, from anyone in it, for the current step", "[HostAuthority][Dialogue]")
