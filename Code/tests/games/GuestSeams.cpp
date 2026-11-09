@@ -78,7 +78,9 @@ void BodyReads::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
+    static uint32_t s_sessions = 0;
     FakeEngine::Current().DecidesWorld = aOn;
+    FakeEngine::Current().HoldSession = aOn ? 0 : ++s_sessions; // GuestNpcs::SetHolding
 }
 
 // As StoryEvents::ToSend: the fake's members name forms by their ids.

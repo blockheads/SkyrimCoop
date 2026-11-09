@@ -348,6 +348,11 @@ Size: medium. Needs: duo.
   - Containers in the Bannered Mare differ at the end too (2026-11-06): `changes 0x8000000` on the host's and none on
     the guest's, 39 references (`held-copy-goes-with-owner` run there).
   - The rabbit and Olava with no owner are fixed: [copy-lifecycle.md](re/systems/copy-lifecycle.md).
+  - Whiterun's doors stay locked on the guest (2026-11-09, `guest_shows_only_hosts_npcs` after its steps): three doors
+    of base `252C7` in exterior cell `1A278` (`1A6F5`, `252CD`, `24E25`) unlocked on the host and locked on the guest,
+    both with change flag `0x10000000`, at noon. First seen once a guest stopped running its own NPCs (copy-contract.md,
+    "A guest's own NPCs"). Not read yet: whether these are packages' door locks (the lock-doors package flags), and
+    whether the host sends a lock change its own NPC made (a guest proposes only its player's, `GuestWorldState::OnLockChange`).
 
 ### Trade markers
 

@@ -12,6 +12,7 @@
 #include <Games/Overrides.h>
 #include <Games/ItemChanges.h>
 #include <Games/HiddenCopies.h>
+#include <Games/GuestNpcs.h>
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
@@ -1463,6 +1464,17 @@ bool HookSetDisabled(TESForm* apThis, bool aDisabled)
     return RealSetDisabled(apThis, aDisabled);
 }
 
+// TESObjectREFR::Load3D (19727; Actor::Load3D 37177 calls it first): a guest's own NPC gets none until the host
+// spawns its copy, as a disabled reference (GuestNpcs, actor-ai-and-copies.md). Runs on the loader threads too.
+using TLoad3D = NiAVObject*(TESObjectREFR*, bool aBackground);
+static TLoad3D* RealLoad3D = nullptr;
+NiAVObject* HookLoad3D(TESObjectREFR* apThis, bool aBackground)
+{
+    if (GuestNpcs::Session() && apThis->formType == Actor::Type && static_cast<Actor*>(apThis)->RefuseHeld3D())
+        return nullptr;
+    return RealLoad3D(apThis, aBackground);
+}
+
 static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1487,4 +1499,5 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(20232, &RealPickLeveledBase, HookPickLeveledBase);
         HOOK_ID(19800, &RealEnable, HookEnable);
         HOOK_ID(14646, &RealSetDisabled, HookSetDisabled);
+        HOOK_ID(19727, &RealLoad3D, HookLoad3D);
     });

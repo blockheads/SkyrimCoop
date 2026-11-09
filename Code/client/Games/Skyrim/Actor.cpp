@@ -35,6 +35,8 @@
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
+#include <Games/GuestNpcs.h>
+#include <Events/NpcHeldEvent.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
 #include <Services/SpeakerUpdate.h>
@@ -902,6 +904,46 @@ void Actor::EndDeferredKill() noexcept
     (s_endDeferredKill.Get())(this, true);
 }
 
+bool Actor::IsHeldOnGuest() noexcept
+{
+    const uint32_t cSession = GuestNpcs::Session();
+    if (!cSession)
+        return false;
+    const ActorExtension* pExtension = GetExtension();
+    return GuestNpcs::Held(cSession, this == PlayerCharacter::Get(), pExtension->IsCopy(), pExtension->ClaimedIn.load());
+}
+
+bool Actor::RefuseHeld3D() noexcept
+{
+    if (!IsHeldOnGuest())
+        return false;
+    // Marked before the second look: SetActorCopy loads it once it reads the mark, or this sees the copy.
+    GetExtension()->Refused3D.store(true);
+    if (!IsHeldOnGuest())
+        return false;
+    World::Get().GetRunner().Trigger(NpcHeldEvent{formID});
+    return true;
+}
+
+void Actor::LoadRefused3D() noexcept
+{
+    if (IsHeldOnGuest() || !GetExtension()->Refused3D.exchange(false))
+        return;
+    // As Enable (19800): its cell loaded (TES::IsCellLoaded 13308), no 3D, then QueueReference (13057) at the cell's
+    // priority (TES::GetCellLoadPriority 13321); a reference already queued only takes the priority.
+    using TIsCellLoaded = bool(TES*, TESObjectCELL*, bool aAttachedOnly);
+    using TGetCellLoadPriority = uint32_t(TES*, TESObjectCELL*, bool aFromCamera);
+    using TQueueReference = void(void* apQueuedHandles, TESObjectREFR*, uint32_t aPriority, bool aNow);
+    POINTER_SKYRIMSE(TIsCellLoaded, s_isCellLoaded, 13308);
+    POINTER_SKYRIMSE(TGetCellLoadPriority, s_getCellLoadPriority, 13321);
+    POINTER_SKYRIMSE(TQueueReference, s_queueReference, 13057);
+    POINTER_SKYRIMSE(void*, s_queuedHandles, 400332);
+    TES* pTes = TES::Get();
+    if (!pTes || !parentCell || IsDeleted() || GetNiNode() || !s_isCellLoaded(pTes, parentCell, false))
+        return;
+    s_queueReference(*s_queuedHandles.Get(), this, s_getCellLoadPriority(pTes, parentCell, false), false);
+}
+
 bool Actor::IsInKillMove() const noexcept
 {
     // Actor::IsInKillMove (38615): either half of a kill move.
@@ -1507,6 +1549,9 @@ void HookUpdateAI(Actor* apThis, float aDelta)
 {
     if (apThis->GetExtension()->IsCopy())
         return UpdateCopyAI(apThis);
+    // A guest's own NPC stands still until the host spawns its copy (GuestNpcs).
+    if (apThis->IsHeldOnGuest())
+        return;
     RealUpdateAI(apThis, aDelta);
 }
 

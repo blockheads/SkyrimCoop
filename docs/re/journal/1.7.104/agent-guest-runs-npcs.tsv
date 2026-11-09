@@ -1,0 +1,57 @@
+time	op	id	rva	item
+2026-11-09T08:16:43Z	read	41302	0x77be80	{"name": "ProcessLists::UpdateLowActorsAI"}
+2026-11-09T08:16:54Z	read	37352	0x67bf60	{"name": "Character::UpdateCellAttachment"}
+2026-11-09T08:17:30Z	read	19727	0x2e9ee0	{"name": "TESObjectREFR::Load3D"}
+2026-11-09T08:18:29Z	read	41405	0x785fe0	{"name": "sub_140785FE0"}
+2026-11-09T08:18:45Z	read		0x744f40	{"name": "Actor::sub_40445"}
+2026-11-09T08:18:53Z	name	41405	0x785fe0	{"addr": "0x140785FE0", "name": "ProcessLists::CatchUpHighActorsAI"}
+2026-11-09T08:18:53Z	local	41405	0x785fe0	{"func_addr": "0x140785FE0", "old": "v4", "new": "pActor"}
+2026-11-09T08:18:53Z	local	41405	0x785fe0	{"func_addr": "0x140785FE0", "old": "v8", "new": "hoursMissed"}
+2026-11-09T08:18:53Z	local	41405	0x785fe0	{"func_addr": "0x140785FE0", "old": "v6", "new": "lastUpdateHour"}
+2026-11-09T08:18:56Z	comment	41405	0x785fe0	{"addr": "0x140785FE0", "comment": "AddressLib 41405, our name. Over highActorHandles (+0x30, size +0x40): every actor but the player, not still loading (0x200000), deleted or disabled, with a process, not following/escorting the player, gets Character::UpdateAI 37347 with the game hours since its process's last update (+0x48; under 0.05 h counts as 0). Called by fast travel's 40445 after the trip. Goes through HookUpdateAI, so copies skip it (guest-runs-npcs)."}
+2026-11-09T08:18:56Z	comment		0x77c0d0	{"addr": "0x14077c0d0", "comment": "Low actors' AI: every persistent NPC out of the loaded area runs its packages here (Virtual Path Follower moves it). On a guest a non-copy NPC goes through HookUpdateAI to the real UpdateAI, so its schedule walks on the guest's own clock: Aela/Ria to Whiterun's gate (2026-11-09)."}
+2026-11-09T08:23:48Z	read	36921	0x6683b0	{"name": "sub_1406683B0"}
+2026-11-09T08:23:48Z	read	36979	0x669410	{"name": "sub_140669410"}
+2026-11-09T08:24:41Z	read		0x2c3830	{"name": "TESObjectCELL::sub_19076"}
+2026-11-09T08:24:49Z	read	19146	0x2c9620	{"name": "TESObjectCELL::SendFullyLoadedEvent"}
+2026-11-09T08:25:16Z	read	13018	0x193680	{"name": "QueuedReference::sub_13018"}
+2026-11-09T08:25:16Z	read	11401	0x153290	{"name": "sub_140153290"}
+2026-11-09T08:25:23Z	name	36921	0x6683b0	{"addr": "0x1406683B0", "name": "TaskQueueInterface::QueueInitHavok"}
+2026-11-09T08:25:23Z	name	36933	0x6686c0	{"addr": "0x1406686C0", "name": "TaskQueueInterface::QueueDetachHavok"}
+2026-11-09T08:25:23Z	name	36979	0x669410	{"addr": "0x140669410", "name": "TaskQueueInterface::QueueUpdateParentCell"}
+2026-11-09T08:25:29Z	comment	36921	0x6683b0	{"addr": "0x1406683B0", "comment": "AddressLib 36921, our name: queues task 54 (ref) on TaskQueueInterface; the queued form of vfunc 0x66 InitHavok in UpdateCellAttachment 37352 (its direct branch calls 0x66)."}
+2026-11-09T08:25:29Z	comment	36933	0x6686c0	{"addr": "0x1406686C0", "comment": "Our name: queues the detach (vfunc 0x65 DetachHavok) task, the queued form of UpdateCellAttachment 37352's direct branch."}
+2026-11-09T08:25:29Z	comment	36979	0x669410	{"addr": "0x140669410", "comment": "AddressLib 36979, our name (inferred from the caller): queues task 84 (ref, 0, worldspace); UpdateCellAttachment 37352 asks it when the actor no longer stands in its exterior cell's bounds (TESObjectCELL 19094). Handler not read."}
+2026-11-09T08:25:29Z	comment	11401	0x153290	{"addr": "0x140153290", "comment": "AddressLib 11401: QueuedReference vtable slot 1 (inherited): waits on its BSResource entries' states. Not on the guest-held-NPC path: read and set aside (guest-runs-npcs)."}
+2026-11-09T08:25:29Z	comment	37352	0x67bf60	{"addr": "0x14067bf60", "comment": "AddressLib 37352, our name Character::UpdateCellAttachment. In an exterior: its cell attached and it has 3D (vfunc 0x70) -> InitHavok (vfunc 0x66, or QueueInitHavok task 54); cell not attached and its 3D's havok on -> DetachHavok (vfunc 0x65, or queued). Out of its cell's bounds (19094) -> QueueUpdateParentCell (task 84). Interior: nothing. It does NOT load or unload 3D (vtable checked 2026-11-09; the older note said so). Called last by Character::UpdateAI 37347 below high process and by Actor::UpdateNonRenderSafe 37360; SkyrimCoop runs it for copies from HookUpdateAI."}
+2026-11-09T08:25:44Z	read	13015	0x193380	{"name": "QueuedReference::sub_13015"}
+2026-11-09T08:27:09Z	read	13022	0x193b90	{"name": "QueuedReference::sub_13022"}
+2026-11-09T08:27:20Z	read	13057	0x195c90	{"name": "sub_140195C90"}
+2026-11-09T08:27:33Z	read	13019	0x193770	{"name": "QueuedReference::sub_13019"}
+2026-11-09T08:27:43Z	read		0x67d556	{"name": "Actor::UpdateNonRenderSafe"}
+2026-11-09T08:27:48Z	read		0x67d800	{"name": "Actor::UpdateAnimation"}
+2026-11-09T08:28:13Z	name	13057	0x195c90	{"addr": "0x140195C90", "name": "TESQueuedHandles::QueueReference"}
+2026-11-09T08:28:13Z	name	13019	0x193770	{"addr": "0x140193770", "name": "QueuedReference::BackgroundLoad3D"}
+2026-11-09T08:28:13Z	name	13022	0x193b90	{"addr": "0x140193b90", "name": "QueuedReference::Finish"}
+2026-11-09T08:28:13Z	name	19151	0x2c9740	{"addr": "0x1402c9740", "name": "TESObjectCELL::IncQueuedRefCount"}
+2026-11-09T08:28:13Z	name	19152	0x2c9760	{"addr": "0x1402c9760", "name": "TESObjectCELL::DecQueuedRefCount"}
+2026-11-09T08:28:13Z	name	19155	0x2c97e0	{"addr": "0x1402c97e0", "name": "TESObjectCELL::IncCriticalQueuedRefCount"}
+2026-11-09T08:28:13Z	name	19156	0x2c9800	{"addr": "0x1402c9800", "name": "TESObjectCELL::DecCriticalQueuedRefCount"}
+2026-11-09T08:28:13Z	data			{"old": "qword_14219E5E8", "new": "g_TESModelDB_QueuedHandles"}
+2026-11-09T08:28:20Z	comment	13057	0x195c90	{"addr": "0x140195C90", "comment": "AddressLib 13057, our name. (queuedHandles 400332, ref, priority, now): makes a QueuedReference (QueuedPlayer / QueuedTree / QueuedActor by type) for the ref's 3D and counts it in its cell's LoadedCellData queuedRefCount +0x170 (and criticalQueuedRefCount +0x16C). Callers: cell attach (MoveRefToHighFunctor 19280, 19411), Enable 19800, process-level changes (37286/37287, TryChangeSkyCellActorsProcessLevel), UpdatePackageAndProcess / UpdateHighProcessAI (inside UpdateAI), Actor::UpdateAnimation (only an actor with 3D, its outfit), Resurrect, Reset."}
+2026-11-09T08:28:20Z	comment	13019	0x193770	{"addr": "0x140193770", "comment": "AddressLib 13019, our name. The queued job: ref ready (vfunc 0x6D) and its cell loaded (TES 13353) and no 3D yet -> vfunc 0x6A Load3D(true), result kept at +0x2C8 (712). A null result (deleted, disabled, or a guest's held NPC refused by HookLoad3D) leaves it null."}
+2026-11-09T08:28:20Z	comment	13022	0x193b90	{"addr": "0x140193b90", "comment": "AddressLib 13022, our name. Main thread: with a model at +0x2C8 attaches it (19731, vfunc 0x6C Set3D); with none skips that. Either way gives back its cell's queuedRefCount (19152) and critical count (19156), so TESCellFullyLoadedEvent (19146) is still sent when a reference's 3D is refused (guest-runs-npcs, 2026-11-09)."}
+2026-11-09T08:28:20Z	comment	19151	0x2c9740	{"addr": "0x1402c9740", "comment": "AddressLib 19151, our name: lock inc LoadedCellData::queuedRefCount (+0x170). Only writers of +0x170/+0x16C: 19151/19152/19155/19156 (byte scan of .text, 2026-11-09)."}
+2026-11-09T08:28:20Z	comment	19152	0x2c9760	{"addr": "0x1402c9760", "comment": "AddressLib 19152, our name: lock dec LoadedCellData::queuedRefCount (+0x170), then SendFullyLoadedEvent 19146 when nothing is queued."}
+2026-11-09T08:28:23Z	read	19152	0x2c9760	{"name": "TESObjectCELL::DecQueuedRefCount"}
+2026-11-09T08:28:28Z	comment	19152	0x2c9760	{"addr": "0x1402c9760", "comment": "AddressLib 19152, our name: lock dec LoadedCellData::queuedRefCount (+0x170), clamped at 0. SendFullyLoadedEvent 19146 (reached through a vtable) sends TESCellFullyLoadedEvent once both counts are 0."}
+2026-11-09T14:58:12Z	read		0x2f2ae0	{"name": "TESObjectREFR::Enable"}
+2026-11-09T14:58:15Z	read		0x676010	{"name": "Character::sub_37286"}
+2026-11-09T14:58:22Z	read	13321	0x1a3b50	{"name": "TES::sub_13321"}
+2026-11-09T14:58:25Z	name	13321	0x1a3b50	{"addr": "0x1401a3b50", "name": "TES::GetCellLoadPriority"}
+2026-11-09T14:58:30Z	comment	13321	0x1a3b50	{"addr": "0x1401a3b50", "comment": "AddressLib 13321, our name. (TES, cell, aFromCamera): QueueReference's priority for a ref in that cell: 5 no cell, 1 within ~1 cell of the grid's center (or the camera's cell when aFromCamera), else 3; caches the last cell. Enable 19800 and 37286 pass ref->parentCell, 0."}
+2026-11-09T14:58:30Z	comment	13057	0x195c90	{"addr": "0x140195c90", "comment": "AddressLib 13057, our name. (queuedHandles 400332, ref, priority, now): makes a QueuedReference (QueuedPlayer / QueuedTree / QueuedActor by type) for the ref's 3D and counts it in its cell's LoadedCellData queuedRefCount +0x170 (and criticalQueuedRefCount +0x16C). Returns early while a save loads, for a base of form type 15, when vfunc 0x8F (1144) returns non-null, or when the ref's handle is already queued (only its priority changes). Priority from TES::GetCellLoadPriority 13321. Callers: cell attach (MoveRefToHighFunctor 19280, 19411), Enable 19800, process-level changes (37286/37287, TryChangeSkyCellActorsProcessLevel), UpdatePackageAndProcess / UpdateHighProcessAI (inside UpdateAI), Actor::UpdateAnimation (only an actor with 3D, its outfit), Resurrect, Reset. Used by the plugin to show a held NPC once the host spawns it (QueueLoad3D)."}
+2026-11-09T14:58:53Z	read	19800	0x2f2840	{"name": "TESObjectREFR::Enable"}
+2026-11-09T14:59:00Z	read	13060	0x196600	{"name": "sub_140196600"}
+2026-11-09T14:59:48Z	read	37177	0x6713e0	{"name": "Actor::Load3D"}
+2026-11-09T15:02:10Z	read	13308	0x1a2200	{"name": "TES::IsCellLoaded"}

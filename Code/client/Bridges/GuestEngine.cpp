@@ -1,4 +1,5 @@
 #include <Bridges/GuestEngine.h>
+#include <Games/GuestNpcs.h>
 #include <Games/QuestStarts.h>
 
 #include <Bridges/IBodyBridge.h>
@@ -317,6 +318,7 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     TESObjectREFR::SetPicksLeveledBases(aOn);
     TESObjectREFR::SetMovesContainerItems(aOn);
     StoryEvents::SetSends(!aOn);
+    GuestNpcs::SetHolding(!aOn);
 }
 
 std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept

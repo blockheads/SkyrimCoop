@@ -828,7 +828,7 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
-// still loading (kStillLoading: a spawn for it waits).
+// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process).
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -837,6 +837,7 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
         return Error("no such actor");
     float position[3]{};
     actors.GetActorPosition(cActor, position[0], position[1], position[2]);
+    const auto cLevel = EngineCalls::GetProcessLevel(cActor);
     return {{"ok", true},
             {"cell", actors.GetActorParentCellFormId(cActor)},
             {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
@@ -845,7 +846,9 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"disabled", actors.IsActorDisabled(cActor)},
             {"deleted", actors.IsActorDeleted(cActor)},
             {"still_loading", actors.IsActorStillLoading(cActor)},
-            {"copy", actors.IsActorCopy(cActor)}};
+            {"copy", actors.IsActorCopy(cActor)},
+            {"package", actors.GetActorAiFields(cActor).PackageId},
+            {"process_level", cLevel ? int(*cLevel) : -1}};
 }
 
 // {"cmd": "is_current_package", "actor": id, "package": id}: the condition GetIsCurrentPackage on the actor here.

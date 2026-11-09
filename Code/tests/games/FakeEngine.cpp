@@ -22,6 +22,8 @@
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/NpcHeldEvent.h>
+#include <Games/GuestNpcs.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayGraph.h>
@@ -387,10 +389,38 @@ void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, cons
 
 void FakeEngine::FinishLoading(uint32_t aFormId)
 {
+    Actors.at(aFormId).Initializing = false;
+    Load3D(aFormId);
+}
+
+bool FakeEngine::NpcWalks(uint32_t aFormId, uint32_t aCell, const glm::vec3& acPosition)
+{
     auto& actor = Actors.at(aFormId);
-    actor.Initializing = false;
-    actor.Loaded = true;
-    World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+    if (actor.Copy || HeldOnGuest(aFormId))
+        return false;
+    const bool cWasIn = Attached.contains(actor.Cell);
+    actor.Cell = aCell;
+    std::copy_n(&acPosition.x, 3, actor.Position);
+    if (!cWasIn && Attached.contains(aCell))
+        Load3D(aFormId);
+    return true;
+}
+
+void FakeEngine::Load3D(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Refused3D = HeldOnGuest(aFormId);
+    actor.Loaded = !actor.Refused3D;
+    if (actor.Refused3D)
+        World::Get().GetRunner().Trigger(NpcHeldEvent{aFormId});
+    else
+        World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+}
+
+bool FakeEngine::HeldOnGuest(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && GuestNpcs::Held(HoldSession, aFormId == kPlayer, it->second.Copy, it->second.ClaimedIn);
 }
 
 void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
@@ -503,7 +533,16 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         const bool cReleased = it->second.Copy && !aCopy;
         it->second.Copy = aCopy;
         if (!aCopy)
+        {
             it->second.OwnerCombatTarget = 0;
+            it->second.ClaimedIn = HoldSession;
+        }
+        // SkyrimBridge::SetActorCopy: its refused 3D queued once it is not held (Actor::LoadRefused3D).
+        if (it->second.Refused3D && !HeldOnGuest(aFormId))
+            World::Get().GetRunner().Queue([this, aFormId] {
+                if (Actors.contains(aFormId) && Actors.at(aFormId).Refused3D && !HeldOnGuest(aFormId))
+                    Load3D(aFormId);
+            });
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;

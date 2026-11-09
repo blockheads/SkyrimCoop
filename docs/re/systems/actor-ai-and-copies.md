@@ -55,8 +55,9 @@ running.
    to sheathe) and then the package procedures (heading, travel, `MoveRefToNewSpace`).
 5. Dead or down: essential recovery (`SetLifeState(0)`), respawn queueing.
 6. Last, for an actor below high process: `Character::UpdateCellAttachment` (37352, our name). In an
-   exterior it loads or unloads the actor's 3D to match whether its cell is attached, or queues a
-   move to the exterior cell of the same worldspace it stands in; in an interior it does nothing.
+   exterior it inits or detaches the actor's Havok to match whether its cell is attached (not its 3D:
+   "A guest's own NPCs run" below), or queues a move to the exterior cell of the same worldspace it
+   stands in; in an interior it does nothing.
    That is world upkeep, not a decision, and its only other caller is `Actor::UpdateNonRenderSafe`
    (37360), which runs for high actors only.
 
@@ -210,6 +211,66 @@ integration, since the sync positions copies.
 
 `ProcessLists::UpdateHighActor` runs on the job threads, several actors at once, so the hook must not
 touch shared state without a lock (a debugging map once hung the game there).
+
+### A guest's own NPCs run (read 2026-11-09)
+
+The cut is for copies only, so on a guest every NPC that is not a copy runs its full AI, at every process level:
+
+```
+Character::UpdateAI 37347 callers (xrefs, 1.7.104)
+  ProcessLists::UpdateHighActor 41369          high (loaded, cell attached)
+  UpdateMiddleHighActorsAI 41305               loaded, not attached   time-sliced,
+  UpdateMiddleLowActorsAI 41304                                       kProcessMe-gated
+  UpdateLowActorsAI 41302                      persistent, out of the loaded area
+  ProcessLists::CatchUpHighActorsAI 41405      high actors, hours missed; fast travel's 40445
+  TESObjectREFR::Enable 19800, UpdatePackageAndProcessTimed, UpdateDeathReload
+below high: packages run (Virtual Path Follower moves it, actor-movement.md)
+  then UpdateCellAttachment 37352: Havok and its cell follow where it stands
+```
+
+So a persistent NPC the host has not loaded walks its schedule on the guest's own clock and shows up there with its
+own AI (Aela the Huntress 1A697 and Ria 1A6D8 walking through Whiterun's gate on the guest only, 2026-11-09, during
+`copies_follow_owners_graphs_in_town` at timescale 20). Nothing marks it: the host never spawned it, so it is no copy
+and has no `LocalComponent`; the guest's actor discovery lists only its player and deletes only temporary NPCs.
+
+`UpdateCellAttachment` (37352) does not load 3D, whatever the older note said: its vfuncs are `InitHavok` 0x66 and
+`DetachHavok` 0x65 (Character's vtable), queued as tasks 54 and the detach, and out of its cell's bounds it queues
+task 84 (`QueueUpdateParentCell`, our name). The 3D comes from the model queue:
+
+```
+TESQueuedHandles::QueueReference 13057 (ours)  cell attach 19280/19411, Enable, process-level changes,
+  a QueuedReference; its cell's queuedRefCount +0x170 (+ critical +0x16C) up   (19151, 19155)
+QueuedReference::BackgroundLoad3D 13019 (ours)   ready, cell loaded, no 3D -> vfunc 0x6A Load3D(true)
+  Actor::Load3D 37177 -> TESObjectREFR::Load3D 19727: first test, deleted or disabled -> null
+QueuedReference::Finish 13022 (ours)             a model: Set3D; null: no attach
+  either way its cell's counts down (19152, 19156) -> TESCellFullyLoadedEvent (19146) once both are 0
+```
+
+The only writers of the two counts are 19151/19152/19155/19156 (byte scan of `.text`). So a null from 19727 for an
+enabled actor is the disabled path: the cell still counts it loaded, nothing re-queues it (outside `UpdateAI`, only
+`Actor::UpdateAnimation` queues, and only for an actor with 3D), and `Actor::Load3D`'s tail runs as for a disabled one.
+Re-queuing it later is `QueueReference` again (as `Enable` does); it returns at once for a reference already queued.
+
+### Held on a guest (built 2026-11-09)
+
+The fix (copy-contract.md, "A guest's own NPCs") cuts both funnels for an actor `GuestNpcs::Held` names:
+`HookUpdateAI` returns before `RealUpdateAI` (no copy upkeep either: a held NPC is not put in deferred kill), and
+`HookLoad3D` on 19727 returns null, the disabled path above. Its `NpcHeldEvent` stands in for the
+`TESObjectLoadedEvent` that never comes, so a host spawn waiting on the reference's load goes on.
+
+Once it is a copy, `Actor::LoadRefused3D` does what `Enable` (19800) does to queue a load:
+
+```
+TES::IsCellLoaded 13308 (TES, parentCell, false)  cell state 3-7 (+0x44)
+no 3D (Enable: vfunc 0x70), not deleted (0x20)
+TESQueuedHandles::QueueReference 13057 (*400332, ref,
+    TES::GetCellLoadPriority 13321 (TES, parentCell, false), false)
+  priority 1 within a cell of the grid's center, else 3; 5 with no cell
+  already queued (ref +0x9A == 1, 13060): only the priority changes
+```
+
+`Refused3D` is set before the second look at the held rule on the loader thread, and read after the copy flag on the
+main thread, so one of the two always sees the other: either the load goes on, or `SetActorCopy` queues it.
 
 ### What the AI used to repair
 

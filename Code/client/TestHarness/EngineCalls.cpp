@@ -1464,6 +1464,14 @@ std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noex
     return result == 1.0;
 }
 
+std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || !pActor->currentProcess)
+        return std::nullopt;
+    return pActor->currentProcess->processLevel;
+}
+
 std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept
 {
     // GameFunc::native::GetFactionRank (subject, the faction parameter, unused, the result).
