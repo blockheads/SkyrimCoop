@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_scenarios  # noqa: E402
 from coop_harness import game as game_module, mcp_tools  # noqa: E402
 from coop_harness.actions import repro  # noqa: E402
+from coop_harness.actions.together import TogetherActions  # noqa: E402
 from coop_harness.duo_lock import Token, holds_duo  # noqa: E402
 from coop_harness.errors import TestFailure  # noqa: E402
 from coop_harness.objects import trace_lines  # noqa: E402
@@ -340,11 +341,65 @@ class Export(unittest.TestCase):
 
     def test_every_tool_replays_or_is_known_to_only_look(self):
         samples = {"game": "host", "target": "t", "name": "n", "check": "agree", "spec": {}, "frames": 1, "line": "x",
-                   "request": {"cmd": "act"}, "key": "w", "item": "1", "step": {}, "save": "s", "command": "c", "call": "use"}
+                   "request": {"cmd": "act"}, "key": "w", "item": "1", "step": {}, "save": "s", "command": "c", "call": "use",
+                   "lanes": [{"call": "use", "args": {"game": "host", "target": "t"}}]}
         for name in mcp_tools.TOOLS:
             with self.subTest(tool=name):
                 self.assertTrue(name in repro.LOOKS or repro._line(name, {**samples, "args": {}}) is not None,
                                 f"{name}: give it a scenario line (repro._line) or list it in repro.LOOKS")
+
+
+class Together(unittest.TestCase):
+    """Both players at once: lanes from one moment, the first input scheduled in its game, the export."""
+
+    class Ctx(TogetherActions):
+        def failure(self, text):
+            return TestFailure(text)
+
+    def test_lanes_start_together_and_a_failure_waits_for_every_lane(self):
+        started, ctx = [], self.Ctx()
+
+        def lane(fails):
+            def run():
+                started.append(time.monotonic())
+                if fails:
+                    raise TestFailure("refused")
+                time.sleep(0.05)
+                return "done"
+            return run
+        with self.assertRaisesRegex(TestFailure, "lane 0: refused"):
+            ctx.together([lane(True), lane(False)], sync="start", lead=0.05)
+        self.assertEqual(len(started), 2)
+        self.assertLess(abs(started[0] - started[1]), 0.02)
+        outcomes = ctx.together([lane(False), lane(False)], sync="start", lead=0.01)
+        self.assertEqual([o["result"] for o in outcomes], ["done", "done"])
+
+    def test_only_a_lanes_first_input_waits_for_the_moment(self):
+        game, sent = game_module.Game("client"), []
+
+        def fake_rpc(request, timeout):
+            sent.append(request)
+            match request["cmd"]:
+                case "clock":
+                    return {"ok": True, "now_ms": 1000.0 + time.monotonic() * 1000.0, "frame": 7}
+                case "scheduled":
+                    return {"ok": True, "done": True, "frame": 9, "late_ms": 0.4, "result": {"ok": True}}
+            return {"ok": True, "queued": 3} if "at" in request else {"ok": True}
+        with patch.object(game, "_rpc", side_effect=fake_rpc):
+            game_module.SCHEDULE.at = time.monotonic() + 0.1
+            self.assertEqual(game.rpc({"cmd": "key", "scan": 18, "down": True}), {"ok": True})
+            game.rpc({"cmd": "key", "scan": 18, "down": False})
+        keys = [r for r in sent if r["cmd"] == "key"]
+        self.assertIn("at", keys[0])
+        self.assertNotIn("at", keys[1])
+        self.assertEqual(game_module.SCHEDULE.landed["frame"], 9)
+
+    def test_together_exports_its_lanes(self):
+        line = repro._line("together", {"lanes": [{"call": "verb", "args": {"name": "dialogue_press", "args": {"instance": "guest"}}},
+                                                   {"call": "dialogue_highlight", "args": {"instance": "host", "index": 2}}],
+                                        "sync": "frame"})
+        self.assertEqual(line, "ctx.together([\n    lambda: ctx.dialogue_press(instance='client'),\n"
+                               "    lambda: ctx.dialogue_highlight(instance='', index=2),\n], sync='frame')")
 
 
 class Profile(unittest.TestCase):

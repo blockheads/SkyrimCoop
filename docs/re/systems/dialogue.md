@@ -214,6 +214,36 @@ middle are drawn with the old highlight (`UpdateList` draws them before it moves
 `moveSelectionDown` sets it first). On the keyboard W and S move the highlight. The arrow keys' scan codes (0xC8,
 0xD0) do nothing when the harness sends them (not looked into).
 
+## Two players at once (1.7.104, 2026-11-09)
+
+Read in IDA (named and commented there): the menu's fill, its default highlight, a pick during a line, the per-frame
+advance.
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 51515 | 0x92b0d0 | `DialogueMenu::PopulateTopicList` | Under the critical section. Each option (hidden ones counted, not listed) as (text, never said, topicIndex). `sameTexts`: the menu's last list was not empty and every text of it is in the new one. The highlight it passes: -1 when `sameTexts` (the SWF keeps its own), else 35295. Then `DoShowDialogueList(sameTexts, choices)`: choices hide the exit button |
+| 35295 | 0x5f0ec0 | `MenuTopicManager::IndexOfLastSaidTopic` | The newest `topicHistory` topic still listed, else 0: a new list highlights the topic said last, not always the top |
+| 51506 | 0x92a5a0 | `DialogueMenu::ProcessMessage` | kUpdate strings: show/hide text, the list (51515), voice ready, another menu over it; kShow (51516); kHide |
+| 35283 | 0x5efb90 | `SaySelected` | Begins the picked info, sets `rootTopicInfo` to it (choices). With the speaker still talking it stops the line (`ActorStopCurrentDialogue`, vfunc 0x278) and does not advance; else it advances (35285) at once |
+| 35289 | 0x5f0730 | `MenuTopicManager::Update` | Each frame: `advanceRequested` (+0xB6) and `canSkip` (+0xBA) run the advance (35285), else the speaker's `UpdateInDialogue` (37541) |
+| 35290 | 0x5f0820 | `MenuTopicManager::SkipLine` | From `SkipText`: stops a talking speaker, or builds and shows the next list |
+
+- **The SWF's pick gate starts at the line's start:** voice ready (52858) comes once the line has its voice, so a
+  menu takes a pick 750 ms into an NPC's line; the pick then waits in 35283 for the line to end. A guest's menu
+  refilled with the party's list gets voice ready itself, so it can pick while the host's NPC still greets.
+- **A press within 750 ms of a line's end is dropped** (read: 35285 shows the list and sends voice ready, 52858; the
+  SWF's `OnVoiceReady` restarts its 750 ms `bAllowProgress` timer; single player too). Seen as a guest's E 560 ms after
+  Andurs's greeting ended saying nothing (`dialogue-hover-while-guest-picks`, 1 of 3 before it waited for the line).
+- **A speaker the harness froze never finishes a line** (measured): `FreezeActor` clears `kProcessMe`, the engine
+  stops updating the actor, and a pick during its greeting stays unsaid (`current_info` the greeting, no advance
+  requested, minutes); unfrozen, the same pick is said and the next list comes. That the voice timer is what stops
+  is inferred, not read. `talk` refuses a staged frozen speaker.
+- **The host joining mid-line** (`DialogueBridge::ShowMenu`: 52853, 52857 on the engine's current list, no voice
+  ready; measured in `dialogue-host-joins-mid-line`): its menu slides in the last step's list while the NPC answers,
+  W and S move its highlight alone (SWF state 1), E does nothing (`bAllowProgress` 0) until the next list. The pick
+  now carries the picker's text (`NotifyDialoguePicked::Text`) and a menu joining before the next list shows it.
+- Harness readout: `dialogue` gives `flags` (+0xB0..+0xBB by name) and `root_info`.
+
 ## Building options (2026-10-18)
 
 For per-player options (`shared-dialogue.md`, "A peer's option on the host"). Found through Dynamic Dialogue

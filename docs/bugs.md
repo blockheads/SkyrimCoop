@@ -600,6 +600,22 @@ Size: medium. Needs: duo.
     vanilla drops a press in that frame too (`repro --vanilla`).
   - Test: `dialogue-pick-reaches-host` without its wait for the client's greeting, `--until-fail 20`.
 
+### A joining menu's own highlight
+
+Stands alone: small.
+
+Agent task: Send a player joining a conversation the party's current highlight instead of taking its menu's own.
+
+Size: small. Needs: GameTests, then the duo.
+
+- **A player joining mid-list keeps its engine's highlight, and a non-zero one moves everyone's** (2026-11-09, code
+  review in `dialogue-stress`). `HostDialogue` keeps no highlight, so a joiner's menu starts at its own fill's default
+  (51515: the newest said topic still listed, 35295, else the top) and `SyncHighlight` sends it when it is not the top.
+  It looks right today only because a re-shown list makes the others send a non-zero highlight again (GameTests "A
+  player joining a conversation sees the party's highlight" passes on that).
+  - Start: the host keeps each step's last highlight and sends it to a joiner after its list.
+  - Test: that GameTests flow with the joiner's engine defaulting to option 1 (teach the fake 35295 first).
+
 ### The picked line overlaps
 
 Stands alone: small and visual.

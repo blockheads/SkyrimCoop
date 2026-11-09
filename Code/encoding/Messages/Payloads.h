@@ -484,5 +484,6 @@ struct DialogueHighlight
     uint32_t Step{};
     uint32_t Index{};
     uint32_t PlayerId{}; // the host's: who moved it
+    uint32_t Seq{};      // the mover's count of its moves: its own echo counts only for its latest
 };
 } // namespace Payloads

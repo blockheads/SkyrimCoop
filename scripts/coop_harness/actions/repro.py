@@ -340,6 +340,7 @@ class ReproActions:
                 ctx.staged().append(("npc", host))
             if npc.get("frozen", True):
                 ctx.freeze("", host)
+                ctx.__dict__.setdefault("FROZEN_HANDLES", set()).add(npc["name"])
             ctx.name_handle(npc["name"], {"host": host, "guest": copy})
         for item in spec.get("items", []):
             game = "client" if item.get("who") in ("guest", "client") else ""
@@ -430,15 +431,20 @@ class ReproActions:
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
+        if getattr(ctx, "LINE_DELAY", 0):
+            ctx.line_delay(0)
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             game = "client" if kind == "guest-object" else ""
             # An item a player picked up is gone already.
             if kind in ("object", "guest-object") and ref not in ctx.world_state(game, [ref]):
                 continue
-            ctx.console_on(game, f"{ref:X}.disable")
-            ctx.console_on(game, f"{ref:X}.markfordelete")
+            # A staged NPC gone already (a reload, another session's games): nothing to remove.
+            with contextlib.suppress(TestFailure):
+                ctx.console_on(game, f"{ref:X}.disable")
+                ctx.console_on(game, f"{ref:X}.markfordelete")
         ctx.staged().clear()
+        getattr(ctx, "FROZEN_HANDLES", set()).clear()
         ctx.handles().clear()
         ctx.REPRO_SCENE = []
 
@@ -869,6 +875,11 @@ def _line(tool, args):
             if "instance" in verb_args:
                 verb_args["instance"] = _INSTANCE.get(verb_args["instance"], verb_args["instance"])
             return f"ctx.{args['name']}(" + ", ".join(f"{key}={value!r}" for key, value in verb_args.items()) + ")"
+        case "together":
+            body = [line for lane in args["lanes"] if (line := _called(lane["call"], lane.get("args") or {}))]
+            if not body:
+                return None
+            return "ctx.together([\n" + "".join(f"    lambda: {line},\n" for line in body) + f"], sync={args.get('sync', 'frame')!r})"
         case "rounds":
             body = [line for name, given in ((args.get("reset"), args.get("reset_args")), (args["call"], args.get("args")))
                     if name and (line := _called(name, given or {}))]

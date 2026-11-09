@@ -68,8 +68,28 @@ Kill moves (2026-11-04): `equip` (hex item, "0" bare hands), `kill_move_check`, 
 at once, moving). They appear once the server restarts; the scenario `kill-moves-cross` runs the same code.
 
 Not built: a fast retry on a save (reload a checkpoint, the guest rejoining; loads froze guests in the 2026-10-31
-playtest), `equip`, `cast`, `together`. Open: these runs called the tool functions from a scratch process, not through
+playtest), `equip`, `cast` (`together`: built 2026-11-09, below). Open: these runs called the tool functions from a scratch process, not through
 a connected MCP client, so the client's call limit is untested; `talk` took about 90 s in the Faendal run.
+
+## Both players at once (2026-11-09): together, line_delay
+
+```
+together(lanes=[{call, args}, ...], sync="frame")
+  both games' clocks read first (harness "clock": its steady clock, offset from the round trip)
+  moment = now + 0.4 s; each lane in its own thread
+  a lane's first key/mouse/input command goes as {..., "at": moment on that game's clock}
+     TestHarness/Scheduled: runs it in the first frame at or past it; "scheduled" {id} hands back frame, late_ms
+  inputs more than a frame (20 ms) apart fail the call: they did not land together
+  exported as ctx.together([lambda: ..., ...], sync=...)
+line_delay(ms, jitter_ms): netem on the guest's namespace link (coop2-host, coop2-ns), both ways;
+  unstage and every duo boot take it off
+```
+
+- Lanes for dialogue: `dialogue_move` (one W/S, no wait), `dialogue_highlight` (W/S to an index), `dialogue_hover`
+  (the mouse over a row), `dialogue_press` (E); `expect_same_highlight`.
+- On one machine the other game's move usually arrives in the same frame, so a race that two players over the
+  internet meet hides (the highlight crossing showed 1 in 3 without a delay, every time at 40 ms).
+- `sync="start"` only starts the lanes together, for verbs that walk or talk.
 
 ## Robustness (2026-11-04): grow it, don't leave it
 

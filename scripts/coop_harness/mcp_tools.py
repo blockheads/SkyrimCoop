@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -25,7 +26,7 @@ TOOLS = {}
 # Set by register(): the server's session and the state that outlives a reload (the duo's boot, jobs, trace, log offsets).
 session = None
 duo = jobs = shared = None
-_depth = [0]
+_depth = threading.local()  # per thread: together's lanes are calls inside a call
 
 
 def register(server, state):
@@ -60,8 +61,9 @@ def tool(function):
     @functools.wraps(function)
     def run(*args, **kwargs):
         arguments = inspect.signature(function).bind(*args, **kwargs).arguments
-        top = _depth[0] == 0
-        _depth[0] += 1
+        depth = getattr(_depth, "value", 0)
+        top = depth == 0
+        _depth.value = depth + 1
         with contextlib.redirect_stdout(sys.stderr):
             try:
                 result = function(*args, **kwargs)
@@ -77,7 +79,7 @@ def tool(function):
             except Exception as error:  # a bug in a verb: say where, keep the server up
                 return _brief(error)
             finally:
-                _depth[0] -= 1
+                _depth.value = depth
     TOOLS[function.__name__] = run
     return run
 
@@ -219,7 +221,8 @@ def step(frames: int = 1) -> dict:
 
 @tool
 def stage(spec: dict) -> dict:
-    """Sets up a scene in one call: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen}],
+    """Sets up a scene in one call: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen
+    (default true; false for anyone talked to: a frozen NPC never finishes a line)}],
     objects: [{name, base | ref}], items: [{who, item, count, equip}]}. Names are handles for later calls;
     host_player and guest_player always exist. Returns every handle's form id per game."""
     return {"ok": True, "handles": session.stage(spec)}
@@ -597,6 +600,25 @@ def rounds(call: str, args: dict | None = None, count: int = 10, until: str = ""
                 hit = index
                 break
     return {"ok": True, "lines": lines, "hit": hit, "ran": ran, "file": str(path)}
+
+
+@tool
+def together(lanes: list[dict], sync: str = "frame") -> dict:
+    """Both players at once: each lane {call, args} (a tool or verb: dialogue_press, dialogue_move, dialogue_highlight, dialogue_hover,
+    talk, go_to...) runs in its own thread from one shared moment. sync "frame": each lane's first key or mouse input
+    lands in its game's first frame at that moment (by the game's clock), so presses in two games share a frame;
+    "start": the lanes only start together. Returns each lane's result and the frame its input landed in."""
+    def lane(call, args):
+        def run():
+            _depth.value = 1  # a lane is part of this call: not recorded on its own
+            return _call(call, args)
+        return run
+    outcomes = session.together([lane(l["call"], l.get("args") or {}) for l in lanes], sync)
+    for spec, outcome in zip(lanes, outcomes):
+        outcome["call"] = spec["call"]
+    apart = session.landed_apart(outcomes)
+    failed = [o for o in outcomes if isinstance(o.get("result"), dict) and o["result"].get("ok") is False]
+    return {"ok": not failed, "ms_apart": apart, "lanes": outcomes}
 
 
 @tool

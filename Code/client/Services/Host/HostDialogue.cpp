@@ -187,6 +187,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
     picked.Topic = acRequest.Topic;
     picked.Info = cInfo;
     picked.PlayerId = m_players.PlayerIdOf(aSender);
+    picked.Text = acRequest.Text;
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
@@ -234,9 +235,9 @@ void HostDialogue::OnHighlight(const DialogueHighlightRequest& acRequest, Connec
     NotifyDialogueHighlight moved;
     static_cast<Payloads::DialogueHighlight&>(moved) = acRequest;
     moved.PlayerId = m_players.PlayerIdOf(aSender);
+    // To every menu, the mover's too: the order moves reach the host is the one every menu ends on.
     for (const ConnectionId_t cPlayer : pConversation->Players)
-        if (cPlayer != aSender)
-            m_network.Send(cPlayer, moved);
+        m_network.Send(cPlayer, moved);
 }
 
 void HostDialogue::OnSkip(const DialogueSkipRequest& acRequest, ConnectionId_t aSender) noexcept

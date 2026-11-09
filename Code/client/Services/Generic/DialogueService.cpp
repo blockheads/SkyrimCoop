@@ -102,6 +102,8 @@ void DialogueService::OnList(const NotifyDialogueList& acMessage) noexcept
         return;
     m_listStep = acMessage.Step;
     m_listChoices = acMessage.Choices;
+    if (m_listStep == m_step)
+        m_pickedText.clear();
     m_list.clear();
     m_listPlayers.clear();
     const auto& cSession = m_world.GetSessionService();
@@ -131,8 +133,12 @@ void DialogueService::ShowPartyList() noexcept
 
 void DialogueService::OnHighlight(const NotifyDialogueHighlight& acMessage) noexcept
 {
-    if (acMessage.Conversation == m_conversation)
-        m_pendingHighlight = std::pair{acMessage.Step, acMessage.Index};
+    if (acMessage.Conversation != m_conversation)
+        return;
+    // This menu's own move back from the host: an older one would pull the highlight back.
+    if (acMessage.PlayerId == m_transport.GetLocalPlayerId() && acMessage.Seq != m_highlightSeq)
+        return;
+    m_pendingHighlight = std::pair{acMessage.Step, acMessage.Index};
 }
 
 void DialogueService::OnSkipAsked() noexcept
@@ -155,29 +161,31 @@ void DialogueService::SyncHighlight() noexcept
 {
     if (m_shownStep != m_step)
         return;
-    if (m_pendingHighlight)
+    // This menu's own move first: the host echoes every move to every menu, so a crossing one settles in its order.
+    if (const auto cHighlight = m_bridge.GetHighlight(); cHighlight && cHighlight != m_highlight)
     {
-        const auto [cStep, cIndex] = *m_pendingHighlight;
-        if (cStep != m_step)
+        const bool cFirst = !m_highlight;
+        m_highlight = cHighlight;
+        // A new list's first highlight (the menu's fill, 51515) moved nobody's: told only when it is not the top.
+        if (!cFirst || *cHighlight != 0)
         {
-            if (cStep < m_step)
-                m_pendingHighlight.reset();
+            m_pendingHighlight.reset();
+            SendHighlight(*cHighlight);
             return;
         }
-        m_pendingHighlight.reset();
-        m_bridge.SetHighlight(cIndex);
-        m_highlight = cIndex;
+    }
+    if (!m_pendingHighlight)
+        return;
+    const auto [cStep, cIndex] = *m_pendingHighlight;
+    if (cStep != m_step)
+    {
+        if (cStep < m_step)
+            m_pendingHighlight.reset();
         return;
     }
-    const auto cHighlight = m_bridge.GetHighlight();
-    if (!cHighlight || cHighlight == m_highlight)
-        return;
-    const bool cFirst = !m_highlight;
-    m_highlight = cHighlight;
-    // A list just shown starts at its first option on every menu: nothing to tell.
-    if (cFirst && *cHighlight == 0)
-        return;
-    SendHighlight(*cHighlight);
+    m_pendingHighlight.reset();
+    m_bridge.SetHighlight(cIndex);
+    m_highlight = cIndex;
 }
 
 void DialogueService::SendHighlight(uint32_t aIndex) noexcept
@@ -186,6 +194,7 @@ void DialogueService::SendHighlight(uint32_t aIndex) noexcept
     moved.Conversation = m_conversation;
     moved.Step = m_step;
     moved.Index = aIndex;
+    moved.Seq = ++m_highlightSeq;
     m_transport.Send(moved);
 }
 
@@ -269,6 +278,12 @@ void DialogueService::OnUpdate(const UpdateEvent&) noexcept
     if (cOpen && m_joined)
     {
         ShowPartyList();
+        // Joined while the NPC answers: the pick, as every other menu shows it, once this one shows a list.
+        if (!PartyList() && !m_pickedText.empty() && m_pickedShownStep != m_step && m_bridge.ShowPicked(m_pickedText))
+        {
+            spdlog::info("Dialogue: joined while the NPC answers step {}: the menu shows the pick", m_step);
+            m_pickedShownStep = m_step;
+        }
         SyncHighlight();
     }
 }
@@ -288,6 +303,8 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_shownStep = 0;
     m_highlight.reset();
     m_pendingHighlight.reset();
+    m_pickedText.clear();
+    m_pickedShownStep = 0;
 }
 
 void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
@@ -302,6 +319,8 @@ void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_shownStep = 0;
     m_highlight.reset();
     m_pendingHighlight.reset();
+    m_pickedText.clear();
+    m_pickedShownStep = 0;
     if (m_pRole)
         m_pRole->OnOpen(acMessage);
 }
@@ -351,17 +370,17 @@ void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
     if (acMessage.Conversation != m_conversation)
         return;
     m_step = acMessage.Step;
+    const uint32_t cTopic = ToGame(acMessage.Topic), cInfo = ToGame(acMessage.Info);
+    const auto cPicked = std::ranges::find_if(m_list, [&](const IDialogueBridge::Option& acListed) {
+        return acListed.Topic == cTopic && acListed.Info == cInfo;
+    });
+    // The picker's own line of a shared option (a topic's random lines) is not listed: the topic's then.
+    const auto cTopicLine = std::ranges::find(m_list, cTopic, &IDialogueBridge::Option::Topic);
+    // Not in this menu's list (it joined mid-line): as the picker's menu showed it.
+    m_pickedText = cPicked != m_list.end() ? cPicked->Text : cTopicLine != m_list.end() ? cTopicLine->Text : acMessage.Text;
     // Every menu in it shows the pick, as the picker's does after its click, until the next list.
-    if (m_menuOpen && m_joined)
-    {
-        const uint32_t cTopic = ToGame(acMessage.Topic), cInfo = ToGame(acMessage.Info);
-        const auto cPicked = std::ranges::find_if(m_list, [&](const IDialogueBridge::Option& acListed) {
-            return acListed.Topic == cTopic && acListed.Info == cInfo;
-        });
-        // The picker's own line of a shared option (a topic's random lines) is not listed: the topic's then.
-        const auto cTopicLine = std::ranges::find(m_list, cTopic, &IDialogueBridge::Option::Topic);
-        m_bridge.ShowPicked(cPicked != m_list.end() ? cPicked->Text : cTopicLine != m_list.end() ? cTopicLine->Text : std::string());
-    }
+    if (m_menuOpen && m_joined && m_bridge.ShowPicked(m_pickedText))
+        m_pickedShownStep = m_step;
     const bool cOwnLine = acMessage.PlayerId == m_transport.GetLocalPlayerId();
     if (m_pRole)
         m_pRole->OnPicked(acMessage, ToGame(acMessage.Topic), ToGame(acMessage.Info), cOwnLine);
@@ -376,6 +395,8 @@ void DialogueService::OnClosed(const NotifyDialogueClosed& acMessage) noexcept
     m_bartering = false;
     m_resuming = false;
     m_opening = false;
+    m_pickedText.clear();
+    m_pickedShownStep = 0;
     if (m_pRole)
         m_pRole->OnClosed();
     if (m_bridge.IsMenuOpen())

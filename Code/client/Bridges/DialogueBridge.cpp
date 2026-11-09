@@ -63,6 +63,8 @@ std::map<uint32_t, std::vector<IDialogueBridge::Option>> s_judged;
 
 GFxMovie* DialogueMovie() noexcept;
 std::optional<double> ReadNumber(const GFxMovie& acMovie, const char* acpPath) noexcept;
+// The SWF's eMenuState (DialogueMenuPolicy::kTopicListShown...), none without the menu.
+std::optional<double> MenuState(const GFxMovie* apMovie) noexcept;
 
 uint32_t IdOf(const TESForm* apForm) noexcept
 {
@@ -523,8 +525,7 @@ bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoice
     if (!pManager)
         return false;
     const bool cReplaced = ReplaceOptions(*pManager, acOptions);
-    const auto* pMovie = DialogueMovie();
-    const bool cListShown = pMovie && ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") == 1.0;
+    const bool cListShown = MenuState(DialogueMovie()) == DialogueMenuPolicy::kTopicListShown;
     if (const int8_t cHeld = s_heldShow.exchange(-1); cHeld >= 0 && !aResuming)
     {
         spdlog::info("Dialogue: the party's list, in the show the engine was held from");
@@ -574,7 +575,7 @@ namespace
 GFxMovie* DialogueMovie() noexcept
 {
     UI* pUI = UI::Get();
-    IMenu* pMenu = pUI && pUI->GetMenuOpen("Dialogue Menu") ? pUI->FindMenuByName("Dialogue Menu") : nullptr;
+    IMenu* pMenu = pUI && pUI->GetMenuOpen(kDialogueMenu) ? pUI->FindMenuByName(kDialogueMenu) : nullptr;
     return pMenu ? pMenu->uiMovie : nullptr;
 }
 
@@ -584,6 +585,11 @@ std::optional<double> ReadNumber(const GFxMovie& acMovie, const char* acpPath) n
     if (!acMovie.GetVariable(&value, acpPath) || (value.type & GFxValue::kTypeMask) != GFxValue::kNumber)
         return std::nullopt;
     return value.value.number;
+}
+
+std::optional<double> MenuState(const GFxMovie* apMovie) noexcept
+{
+    return apMovie ? ReadNumber(*apMovie, "_root.DialogueMenu_mc.eMenuState") : std::nullopt;
 }
 
 GFxValue Number(double aValue) noexcept
@@ -598,26 +604,30 @@ GFxValue Number(double aValue) noexcept
 std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
 {
     const GFxMovie* pMovie = DialogueMovie();
-    // Only while the list shows (eMenuState 1, TOPIC_LIST_SHOWN): the SWF keeps its last highlight while a line plays.
-    if (!pMovie || ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState") != 1.0)
+    // Only while the list shows: the SWF keeps its last highlight while a line plays.
+    if (MenuState(pMovie) != DialogueMenuPolicy::kTopicListShown)
         return std::nullopt;
     const auto cIndex = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.selectedEntry.topicIndex");
     return cIndex && *cIndex >= 0 ? std::optional(static_cast<uint32_t>(*cIndex)) : std::nullopt;
 }
 
-void DialogueBridge::ShowPicked(const std::string& acText) noexcept
+bool DialogueBridge::ShowPicked(const std::string& acText) noexcept
 {
     GFxMovie* pMovie = DialogueMovie();
     if (!pMovie)
-        return;
-    const auto cDisplay = DialogueMenuPolicy::DisplayPicked(ReadNumber(*pMovie, "_root.DialogueMenu_mc.eMenuState").value_or(0));
+        return false;
+    const double cState = MenuState(pMovie).value_or(0);
+    const auto cDisplay = DialogueMenuPolicy::DisplayPicked(cState);
     if (cDisplay == DialogueMenuPolicy::PickedDisplay::Ignore)
-        return;
+    {
+        spdlog::debug("Dialogue: the pick not shown yet: the menu's state is {}", cState);
+        return false;
+    }
     GFxValue argument{};
     argument.type = GFxValue::kString;
     if (cDisplay == DialogueMenuPolicy::PickedDisplay::Animate)
     {
-        pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(2), 0);
+        pMovie->SetVariable("_root.DialogueMenu_mc.eMenuState", Number(DialogueMenuPolicy::kTopicClicked), 0);
         argument.value.string = "topicClicked";
         pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.gotoAndPlay", nullptr, &argument, 1);
     }
@@ -628,6 +638,7 @@ void DialogueBridge::ShowPicked(const std::string& acText) noexcept
     pMovie->SetVariable("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc._visible", visible, 0);
     argument.value.string = acText.c_str();
     pMovie->Invoke("_root.DialogueMenu_mc.TopicListHolder.TextCopy_mc.textField.SetText", nullptr, &argument, 1);
+    return true;
 }
 
 void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept
