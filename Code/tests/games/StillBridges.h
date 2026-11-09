@@ -134,6 +134,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    std::optional<glm::vec3> SpotBesidePlayer() const noexcept override
+    {
+        return {};
+    }
     void SetPlayerHeading(float aHeading) noexcept override
     {
     }

@@ -8,6 +8,7 @@
 #include <Components.h>
 #include <Events/FastTravelEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
+#include <Events/PartySummonCommandEvent.h>
 
 #include <format>
 
@@ -325,4 +326,55 @@ SCENARIO("Party travel closes a following guest's dialogue and takes both guests
     party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSinkhole, {}); });
     party.Until([&] { return Together(party, 3, kSinkhole) && !dialogue.MenuOpen; }, "the dialogue ends as its player follows", [&] { return Why(party, 3) + (dialogue.MenuOpen ? "menu still open" : "menu closed"); });
     party.Agree("the three games agree after leaving the dialogue");
+}
+
+SCENARIO("/tpa brings every other player beside the summoner, even within its cell", "[travel]")
+{
+    Party party(2, SmokeWorld);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
+    FakeEngine& summoner = Party::Engine(party.Guest(0));
+    const glm::vec3 cAt{0.f, 0.f, 0.f};
+    std::copy_n(&cAt.x, 3, summoner.Actors.at(FakeEngine::kPlayer).Position);
+    // The others walked off inside QASmoke: the tether sees them already there.
+    for (World* pGame : {&party.Host(), &party.Guest(1)})
+    {
+        auto& player = Party::Engine(*pGame).Actors.at(FakeEngine::kPlayer);
+        player.Position[0] = 3000.f;
+        player.Position[1] = -2000.f;
+    }
+    const auto cDistance = [&](World& aGame) {
+        const auto& cPlayer = Party::Engine(aGame).Actors.at(FakeEngine::kPlayer);
+        return glm::distance(glm::vec2(cPlayer.Position[0], cPlayer.Position[1]), glm::vec2(cAt));
+    };
+    const auto cWhere = [&] {
+        return std::format("host {:.0f} away, other guest {:.0f} away; {}", cDistance(party.Host()),
+                           cDistance(party.Guest(1)), Why(party, 3));
+    };
+
+    party.As(party.Guest(0), [&] { party.Guest(0).GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    party.Until([&] { return cDistance(party.Host()) < 200.f && cDistance(party.Guest(1)) < 200.f; },
+                "the host and the other guest come to the summoner", cWhere);
+    THEN("they stand beside it, on a checked spot, not on it")
+    {
+        CHECK(cDistance(party.Host()) > 100.f);
+        CHECK(cDistance(party.Guest(1)) > 100.f);
+        CHECK(Party::Engine(party.Host()).GetPlayerParentCellId() == kSmoke);
+    }
+    CHECK(summoner.Actors.at(FakeEngine::kPlayer).Position[0] == 0.f);
+    CheckTogether(party, 3);
+    party.Agree("the games agree on the players after /tpa");
+}
+
+SCENARIO("/tpa from another cell brings the party there", "[travel]")
+{
+    Party party(1, SmokeWorld);
+    party.Until([&] { return Together(party, 2, kSmoke); }, "the party starts together");
+    // The guest is in the sinkhole alone (the tether missed it: a move before joining leads nobody).
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] { guest.MoveActorTo(FakeEngine::kPlayer, kSinkhole, 50.f, 60.f, 0.f); guest.Teleported = false; });
+
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    party.Until([&] { return Together(party, 2, kSinkhole); }, "the host comes to the sinkhole",
+                [&] { return Why(party, 2); });
+    party.Agree("the games agree on the players after /tpa");
 }

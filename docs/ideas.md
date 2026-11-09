@@ -40,10 +40,6 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **Peer teleport requests.** Teleport is host-only today. Later a peer can ask for one as a
   Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
   Notes: `docs/design/host-authority-migration.md` (Decisions, 2).
-- **`/tpa`: everyone to the host** (the user, 2026-11-08 playtest). A chat command that brings every player beside
-  the host (checked placement, `CheckedPlacement::Beside`), for when the tether misses one (bugs.md, "Paying a fine
-  moves only the host"). Open: who may use it, its name. `progress.md` dropped a teleport command as unneeded under the
-  tether; the playtest shows the tether has gaps.
 - **Tether countdown.** Today anyone's travel takes the party along at once (Decisions, 4). A short
   countdown that anyone can cancel, as Borderlands does, before the party follows.
 - **Death: spectate, then respawn together** (user, 2026-10-23). A player who goes down stays down and watches

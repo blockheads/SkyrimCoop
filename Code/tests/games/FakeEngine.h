@@ -1100,6 +1100,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ShovePlayer() noexcept;
     uint32_t PlayerShoves = 0;
     float GetPlayerHeading() const noexcept override { return Heading; }
+    std::optional<glm::vec3> SpotBesidePlayer() const noexcept override;
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }

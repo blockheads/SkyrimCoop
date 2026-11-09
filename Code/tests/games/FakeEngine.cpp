@@ -1969,18 +1969,23 @@ bool FakeEngine::PlayerLoads(const std::string& acName)
     return cFiles && WriteAndLoad(acName, *cFiles);
 }
 
-bool FakeEngine::PlaceBesideHost() noexcept
+std::optional<glm::vec3> FakeEngine::SpotBesidePlayer() const noexcept
 {
-    ++PlacementChecks;
-    auto& player = Actors.at(kPlayer);
-    const glm::vec3 cAnchor(player.Position[0], player.Position[1], player.Position[2]);
-    const auto cSpot = CheckedPlacement::Beside(cAnchor, [&](const glm::vec3& acFrom, const glm::vec3& acTo) {
+    const auto& cPlayer = Actors.at(kPlayer);
+    const glm::vec3 cAnchor(cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]);
+    return CheckedPlacement::Beside(cAnchor, [&](const glm::vec3& acFrom, const glm::vec3& acTo) {
         if (acTo.z < acFrom.z - 200.f)
             return std::optional{CheckedPlacement::Hit{true, {acFrom.x, acFrom.y, cAnchor.z}, {0.f, 0.f, 1.f}}};
         return std::optional{CheckedPlacement::Hit{!PlacementClear, acTo}};
     });
+}
+
+bool FakeEngine::PlaceBesideHost() noexcept
+{
+    ++PlacementChecks;
+    const auto cSpot = SpotBesidePlayer();
     if (!cSpot) return false;
-    std::copy_n(&cSpot->x, 3, player.Position);
+    std::copy_n(&cSpot->x, 3, Actors.at(kPlayer).Position);
     return true;
 }
 

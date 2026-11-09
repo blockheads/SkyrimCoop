@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <glm/vec3.hpp>
 
 struct Actor;
 struct TESObjectCELL;
@@ -21,4 +22,6 @@ struct RayHit
 std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0,
                             TESObjectCELL* apCell = nullptr) noexcept;
 bool HasClearPath(Actor* apFrom, Actor* apTo) noexcept;
+// A checked spot beside the player (CheckedPlacement::Beside); none while its cell is not fully loaded.
+std::optional<glm::vec3> SpotBesidePlayer() noexcept;
 } // namespace GameRaycast

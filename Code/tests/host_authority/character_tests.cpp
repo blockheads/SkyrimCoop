@@ -3,6 +3,7 @@
 
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
+#include <Messages/TravelMessages.h>
 
 TEST_CASE("Characters: a player's own goes under the id from its join, everyone else gets a spawn, and it everyone else's", "[HostAuthority][Characters]")
 {
@@ -394,6 +395,34 @@ TEST_CASE("Party tether: a player's own travel takes everyone else along, the ho
         CHECK(cTravels[0]->CellId == GameId(0, 0x200));
         CHECK(!cTravels[0]->WorldSpaceId);
     }
+}
+
+TEST_CASE("/tpa: everyone else goes to the summoner's spot, even from its cell", "[HostAuthority][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+    // The tether last went to Riverwood.
+    session.Receive(kOtherPeer, Arrival(0x9732, 0x3C, {1.f, 2.f, 3.f}, EnterCellRequest::Travel::kOwn));
+    session.Outbox.clear();
+
+    PartySummonRequest summon;
+    summon.Destination.CellId = GameId(0, 0x32AE7);
+    summon.Destination.Position = glm::vec3(120.f, 5.f, 3.f);
+    summon.Destination.Heading = 0.5f;
+    session.Receive(kPeer, summon);
+    CHECK(session.SentTo<NotifyPartySummon>(kPeer).empty());
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cSummons = session.SentTo<NotifyPartySummon>(cTo);
+        REQUIRE(cSummons.size() == 1);
+        CHECK(cSummons[0]->Destination == summon.Destination);
+        CHECK(cSummons[0]->Username == "Lydia");
+    }
+
+    // A follower arriving there is where the party is: not sent on elsewhere.
+    session.Outbox.clear();
+    session.Receive(kHost, Arrival(0x32AE7, 0, {120.f, 5.f, 3.f}, EnterCellRequest::Travel::kTether));
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
 }
 
 TEST_CASE("Party tether: a player joining away from the host is sent to it", "[HostAuthority][Characters]")

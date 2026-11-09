@@ -1087,7 +1087,7 @@ Size: small. Needs: duo; a rule from the user (below).
   (`shared-party-bounty.md`) never reaches the party there.
   - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
   - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
-  - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
+  - Meanwhile `/tpa` brings the party to whoever types it (`player-travel.md`, "/tpa").
 
 ### A guest's pickpocket
 

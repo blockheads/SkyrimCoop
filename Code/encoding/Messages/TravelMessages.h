@@ -49,3 +49,26 @@ struct PartyTravelRequest final : RequestMessage
         return Destination == acOther.Destination;
     }
 };
+
+// /tpa: everyone else comes to the sender, at a spot it checked beside its player.
+struct PartySummonRequest final : RequestMessage
+{
+    static constexpr RequestOpcode Opcode = kPartySummonRequest;
+    PartySummonRequest() : RequestMessage(Opcode)
+    {
+    }
+    NotifyPartyTravel Destination;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override
+    {
+        Destination.SerializeRaw(aWriter);
+    }
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override
+    {
+        RequestMessage::DeserializeRaw(aReader);
+        Destination.DeserializeRaw(aReader);
+    }
+    bool operator==(const PartySummonRequest& acOther) const noexcept
+    {
+        return Destination == acOther.Destination;
+    }
+};

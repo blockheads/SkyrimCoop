@@ -1,4 +1,5 @@
 #include <Camera/PlayerCamera.h>
+#include <Havok/Raycast.h>
 #include <Papyrus/PartyNatives.h>
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
@@ -1489,6 +1490,11 @@ bool SkyrimBridge::IsPlayerLoaded() const noexcept
 bool SkyrimBridge::ConsumeTeleported() noexcept
 {
     return PlayerCharacter::ConsumeTeleported();
+}
+
+std::optional<glm::vec3> SkyrimBridge::SpotBesidePlayer() const noexcept
+{
+    return GameRaycast::SpotBesidePlayer();
 }
 
 float SkyrimBridge::GetPlayerHeading() const noexcept

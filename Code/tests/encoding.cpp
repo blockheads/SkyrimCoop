@@ -1819,6 +1819,21 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     travel.Destination.Position = {30.f, -40.f, 50.f};
     travel.Destination.Heading = 2.1f;
     roundTrip(travel);
+    PartySummonRequest summon;
+    summon.Destination = travel.Destination;
+    roundTrip(summon);
+
+    NotifyPartySummon notify;
+    notify.Destination = travel.Destination;
+    notify.Username = "Lydia";
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    notify.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
+    CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
 TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
