@@ -31,7 +31,8 @@ This is an interactive session: the user will attach to this window and work wit
 - Build nothing until the user approves the plan. Discuss and revise as asked.
 - When building, follow the repo rules (CLAUDE.md): the bug-fix flow for bugs, one target per build at -j8, short
   comments, docs/progress.md updated. The duo locks itself (coop_test.py / MCP duo_start wait their turn); never ask
-  the user about it, and stop your games as soon as you have what you need.
+  the user about it, and stop your games as soon as you have what you need: hold the duo only while you drive
+  the games (duo_stop while you read, think or build), and free it at once if told it is wanted.
 - A bug's scenario is played through the skyrim-coop MCP and record_export'ed. If the MCP lacks something or is
   awkward, extend it (a verb or tool, then mcp_reload) and use it; never script around it.
 - Leave the changes uncommitted for the user to review and iterate on. Never commit to or push dev.

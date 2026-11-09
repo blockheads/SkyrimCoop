@@ -38,7 +38,9 @@ RULES = """1. Claiming and freeing are automatic (`scripts/coop_harness/duo_lock
    in the queue, and the first in line stops its games and takes over. The holder queues again to go on.
 3. A holder whose process is gone is stale: the next in line stops its games and takes over. Nobody asks the user.
 4. `scripts/duo.py status` shows the holder, the queue and their ages. Free the duo when Skyrim is not
-   needed (bug-fix flow, CLAUDE.md): `coop_test.py stop`, or the MCP's `duo_stop`.
+   needed (bug-fix flow, CLAUDE.md): `coop_test.py stop`, or the MCP's `duo_stop`. Hold it only while you drive
+   the games: reading, thinking, writing a test or building hold nothing, so stop first and queue again later.
+   An idle holder is told to free it while others wait (`scripts/duo_nudge.py`): act on it at once.
 5. A queue place is kept by waiting: one not polled for 5 minutes lapses and the next in line goes on. The MCP's
    `duo_stop` leaves the queue; `scripts/duo.py leave <name or id>` drops a stuck place by hand."""
 

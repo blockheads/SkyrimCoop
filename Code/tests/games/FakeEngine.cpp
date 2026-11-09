@@ -57,6 +57,7 @@
 #include <Events/MenuEvent.h>
 #include <Events/PlayerFormChangeEvent.h>
 #include <Services/SaveService.h>
+#include <Services/SaveNames.h>
 #include <Wire/Buffer.h>
 #include <World.h>
 #include <FormIds.h>
@@ -728,6 +729,13 @@ void FakeEngine::SetGraphUpdatedEveryFrame(uint32_t aFormId, bool aEveryFrame) n
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
         it->second.GraphEveryFrame = aEveryFrame;
+}
+
+void FakeEngine::PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition)
+{
+    m_unannouncedMove = true;
+    MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
+    m_unannouncedMove = false;
 }
 
 void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
@@ -1565,7 +1573,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (aFormId == kPlayer)
     {
         // Party travel announces it (PlayerCharacter.cpp's 40438), but another game's party call's move.
-        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove)
+        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove && !m_unannouncedMove)
             World::Get().GetRunner().Trigger(PlayerTravelQueuedEvent{
                 it->second.WorldSpace, it->second.WorldSpace ? 0u : it->second.Cell, {aX, aY, aZ}, Heading});
         World::Get().ctx().at<FakeDialogue&>().End();
@@ -2022,6 +2030,7 @@ void FakeEngine::RunMainLoop() noexcept
     saves.RevertCoSave();
     saves.ReadCoSave(cFiles.CoSave, CharacterRecords::kVersion);
     AtMainMenu = false;
+    CharacterId = SaveNames::CharacterId(cName);
     Loaded.push_back(cName);
     World::Get().GetRunner().Trigger(GameLoadedEvent{});
 }
@@ -2227,11 +2236,11 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }
 
-std::optional<IJoinBridge::SaveFiles> FakeEngine::PreviousSave() noexcept
+std::optional<std::string> FakeEngine::PreviousSave() noexcept
 {
     for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
-        if (!i->starts_with("SkyrimCoop"))
-            if (const auto f = SavedFiles.find(*i); f != SavedFiles.end()) return f->second;
+        if (!i->starts_with("SkyrimCoop") && SaveNames::CharacterId(*i) == CharacterId && SavedFiles.contains(*i))
+            return *i;
     return std::nullopt;
 }
 

@@ -264,8 +264,9 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     """The correct behaviour, checked now and recorded; a failing expect is the bug, and the exported scenario keeps it.
     "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
     `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
-    `name` holds the same in both games), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often))."""
+    `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
+    takes it, as for its name and Activate prompt), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
+    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)).
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 

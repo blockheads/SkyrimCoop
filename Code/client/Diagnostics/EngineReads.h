@@ -192,6 +192,9 @@ std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexce
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
 float GetRawDaysPassed() noexcept;
 
+// The engine's current character (BGSSaveLoadManager::currentCharacterId): the id its saves are named and filed under.
+uint32_t GetCurrentCharacterId() noexcept;
+
 // The form id of the package in the actor's running slot, as plugins read it inline (0: none).
 uint32_t GetRunningPackage(uint32_t aFormId) noexcept;
 

@@ -659,7 +659,8 @@ class ReproActions:
         """The correct behaviour, checked now: "same_place" (the two games within `within` units), "at" (that game's
         place within `within` of `value`), "at_rest_of" (that game's place within `within` of where the `of` game's body
         rested, as wait_rest saw it), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
-        holds the same in both games), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
+        holds the same in both games), "crosshair" (that game's player, or each, faces `name` in first person and the engine's
+        crosshair takes it within `seconds`), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
         `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
         `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
@@ -671,6 +672,8 @@ class ReproActions:
             return {"items": len(held["host"])}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
+        if check == "crosshair":
+            return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
         if check == "graph":
@@ -747,6 +750,31 @@ class ReproActions:
             return {"at": place}
         raise ctx.failure(f"unknown check {check!r}")
 
+
+    def expect_crosshair(ctx, name, game, seconds=2.0):
+        """In `game` (or each), the player faces `name` in first person and the crosshair takes it (CrosshairPickData,
+        written by PickCrosshairReference 40620): what a player needs for its name and Activate prompt."""
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        ctx.refresh_handles()
+        taken = {}
+        for label, instance in games:
+            ref = ctx.resolve(name, label)
+            camera = lambda: ctx.player_command(instance, {"cmd": "camera"})
+            if camera().get("state") in (8, 9):  # third person: the view key, as a player
+                ctx.hold_key(instance, "f", 0.1)
+                ctx.wait_for(f"[{label}] first person", lambda: camera().get("state") == 0, 5)
+            ctx.act(instance, {"name": f"aims at {name}", "ready": ["takes_input"], "turn": {"face": ref, "rate": 180},
+                               "until": ["aimed"], "seconds": 3})
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"[{label}] the crosshair on {name}", lambda: camera().get("crosshair") == ref, seconds)
+            seen = camera()
+            if seen.get("crosshair") != ref:
+                looking = seen.get("looking") or {}
+                hit = f"{looking.get('ref') or 0:X} at {looking.get('distance', 0):.0f} units" if looking.get("hit") else "nothing"
+                raise ctx.failure(f"[{label}] the crosshair is on {seen.get('crosshair') or 0:X}, not {name} ({ref:X}); "
+                                  f"the camera's ray hits {hit}")
+            taken[label] = f"{ref:X}"
+        return {"crosshair": taken}
 
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,

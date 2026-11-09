@@ -2159,6 +2159,51 @@ class DuoHookTests(unittest.TestCase):
         self.assertTrue(self.hook.due(root, "s1", now=1121))
 
 
+@unittest.skipIf(WINDOWS, "the duo lock is Linux-only (fcntl)")
+class DuoNudgeTests(unittest.TestCase):
+    """scripts/duo_nudge.py: an idle interactive hold with someone waiting gets its worker told to free it."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.home = Path(folder.name)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import duo_nudge
+        self.nudge = duo_nudge.nudge
+
+    def lock(self, worktree, name):
+        from coop_harness.duo_lock import DuoLock
+        lock = DuoLock(self.home, worktree, name, out=io.StringIO())
+        self.addCleanup(lock.release)
+        return lock
+
+    def held(self, capped=True, waiting=True):
+        from coop_harness.duo_lock import DuoBusy
+        self.assertEqual(self.lock("/wt/a", "a").acquire("repro", capped=capped), "holder")
+        if waiting:
+            with self.assertRaises(DuoBusy):
+                self.lock("/wt/b", "b").acquire("x", wait=False, keep_place=True)
+        return time.time()
+
+    def test_an_idle_hold_with_a_waiter_is_nudged_once_every_ten_minutes(self):
+        start = self.held()
+        self.assertIsNone(self.nudge(self.home, now=start + 60))
+        worker, message = self.nudge(self.home, now=start + 5 * 60)
+        self.assertEqual(worker, "a")
+        self.assertIn("1 waiting (b)", message)
+        self.assertIn("duo_stop", message)
+        self.assertIsNone(self.nudge(self.home, now=start + 9 * 60))
+        self.assertIsNotNone(self.nudge(self.home, now=start + 16 * 60))
+
+    def test_no_nudge_with_nobody_waiting(self):
+        start = self.held(waiting=False)
+        self.assertIsNone(self.nudge(self.home, now=start + 5 * 60))
+
+    def test_a_batch_hold_is_never_nudged(self):
+        start = self.held(capped=False)
+        self.assertIsNone(self.nudge(self.home, now=start + 30 * 60))
+
+
 class KillMoveActions(unittest.TestCase):
     def test_a_failed_swing_lets_go_of_every_button_pressed(self):
         ctx = MagicMock()

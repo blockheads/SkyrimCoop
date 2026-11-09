@@ -30,6 +30,7 @@
 #include <Games/Overrides.h>
 #include <Games/References.h>
 #include <Games/TES.h>
+#include <SaveLoadManager.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
@@ -490,6 +491,12 @@ float GetRawDaysPassed() noexcept
 {
     const TimeData* pTime = TimeData::Get();
     return pTime ? pTime->rawDaysPassed : 0.f;
+}
+
+uint32_t GetCurrentCharacterId() noexcept
+{
+    const BGSSaveLoadManager* cpManager = BGSSaveLoadManager::Get();
+    return cpManager ? cpManager->currentCharacterId : 0;
 }
 
 uint32_t GetRunningPackage(uint32_t aFormId) noexcept

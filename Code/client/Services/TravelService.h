@@ -41,13 +41,15 @@ struct TravelService
                                   const glm::vec3& acPosition) const noexcept;
 
   private:
+    // Our player stands on that spot (within a step of it, ArrivalStack::kOnSpot).
+    [[nodiscard]] bool OnSpot(const glm::vec3& acSpot) const noexcept;
     void FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept;
     // The party arrived on one spot: the players and actors on it pass through each other until each walks off it.
     void StackOn(const glm::vec3& acSpot) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnTravelQueued(const PlayerTravelQueuedEvent& acEvent) noexcept;
     void OnFastTravel(const FastTravelEvent& acEvent) noexcept;
-    // Another player travelled by itself: ours goes where it arrived, unless already there.
+    // Another player travelled by itself: ours goes where it arrived, unless already on that spot.
     void OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept;
     // Who is still on the stack (ArrivalStack), and so who passes through whom.
     void UpdateStack() noexcept;

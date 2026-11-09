@@ -49,6 +49,20 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: a party wipe right after a wipe reloads the host's own character. The engine takes a save's character id
+from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next wipe took the newest id-0 save
+(another character's); the host now gives the engine the checkpoint's character back after the load
+(`SetCurrentCharacter` 35751; save-game.md, "The character a save belongs to"). GameTests: two wipes in a row, a host
+load of another character's save; duo scenario `death-wipe-twice-keeps-character` (fails at wipe 1 without the fix:
+the host's id left 0). The guest's crash in that playtest's load is a stale form, not the save (bugs.md).
+
+2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
+(Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
+him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,
+`CrosshairPickData::Pick`, `CanPickRef`): its furniture check passes on the copy, which has no furniture while leaning
+(the host's Lucan has his counter). The cause in `Pick` is still to be read. Scenario
+`guest-crosshair-skips-leaning-npc` (fails); the MCP's new `expect` `crosshair`.
+
 2026-11-08: copies move toward the graph input stream ([graph-input-stream.md](design/graph-input-stream.md)): a copy's
 graph fed its owner's inputs matched it on every update over the network (Faendal 17009/17009). The ops' encoding
 (`Structs/GraphOps.h`: only variables set from outside the graph, one bit for an empty update) weighs 559 B/s for a
@@ -74,7 +88,8 @@ behaviours.
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
 stops its games and takes it, and the old holder queues again. A hook (`scripts/duo_hook.py`) reminds a session holding
-the duo while others wait to free it when it reads code, uses IDA or builds. Tests: `DuoLockTests`, `DuoHookTests`.
+the duo while others wait to free it when it reads code, uses IDA or builds; the watcher messages an idle holder's
+worker (`scripts/duo_nudge.py`, 2026-11-08). Tests: `DuoLockTests`, `DuoHookTests`, `DuoNudgeTests`.
 
 2026-11-07: a guest's theft of an item the host's game made is judged ([crime.md](re/systems/crime.md), "A created
 item's theft names its owner"). Read in IDA: the player's pickup (40533) gives `StealAlarm` a created item's owner
@@ -497,7 +512,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
-| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed`. Since 2026-11-08 every teleport, inside the cell too (PayFine's release; `docs/design/party-travel.md`, "Every teleport"), `party-teleports-in-cell` |
 
 ### Experience: wiring up
 

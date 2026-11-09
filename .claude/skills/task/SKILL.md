@@ -36,7 +36,8 @@ How to work (repo rules, CLAUDE.md):
 - Builds: one target per build at -j8 (scripts/xmake-msvc.sh / scripts/xmake-linux.sh).
 - The duo (two test Skyrims) is shared and locks itself: coop_test.py and the MCP's duo_start wait their turn and free
   it on exit (docs/design/testing.md, The duo lock). Use it only when the task needs Skyrim; stop your games as soon as
-  you have what you need. Never ask the user about it.
+  you have what you need, and while you read, think, write tests or build, hold nothing: duo_stop, then duo_start
+  again later. If you are told the duo is wanted, free it at once. Never ask the user about it.
 - Keep code comments short; reasoning goes in docs/. Update docs/progress.md with the change.
 - If you are blocked on a decision only the user can make, say so plainly and stop.
 - When the work is done, ship it:

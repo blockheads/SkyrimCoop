@@ -38,7 +38,9 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
   - A handle follows its copy by session id (`current_copies`): a copy's form id changes when its cell reloads, and the
     guest reused one for a wolf. Copies' `ai.*` read 0 by design: read an NPC's AI on the host.
 - **expect** kinds: `stage`, `same_place`, `at`, `at_rest_of`, `items` (a container, by `container_items`: `item_stacks`
-  sees only stacks with extra data), `actor` (`field`, `value`, `seconds`), `dialogue`, `agree`.
+  sees only stacks with extra data), `actor` (`field`, `value`, `seconds`), `crosshair` (the player faces a handle in
+  first person and the engine's crosshair takes it, as for its name and Activate prompt; the failure names what the
+  camera's ray hit), `dialogue`, `agree`.
 - **export**: the scenario always; a spec when every call was a `spec_step`; else a draft in `build/coop-test/mcp/` and
   `leftovers`, the calls a flow on the fake says by hand. Walking and talking mean nothing on the fake, so no full export.
 

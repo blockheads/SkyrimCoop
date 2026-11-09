@@ -1,0 +1,32 @@
+time	op	id	rva	item
+2026-11-09T05:11:11Z	read	35760	0x624b40	{"name": "BGSSaveLoadManager::PopulateSaveList"}
+2026-11-09T05:11:42Z	read	35720	0x621be0	{"name": "sub_140621BE0"}
+2026-11-09T05:12:24Z	read		0x628140	{"name": "LoadGame_HookTarget_Enter"}
+2026-11-09T05:12:29Z	read	109298	0x159aea0	{"name": "sub_14159AEA0"}
+2026-11-09T05:12:30Z	read	35922	0x632c20	{"name": "sub_140632C20"}
+2026-11-09T05:12:30Z	read	35926	0x632cb0	{"name": "sub_140632CB0"}
+2026-11-09T05:13:05Z	read	109348	0x159bbc0	{"name": "sub_14159BBC0"}
+2026-11-09T05:14:36Z	name	109348	0x159bbc0	{"addr": "0x14159BBC0", "name": "BSSaveDataSystemUtility__Entry__ParseFileName"}
+2026-11-09T05:14:36Z	name	109294	0x159acc0	{"addr": "0x14159ACC0", "name": "BSSaveDataSystemUtility__Entry__ctor"}
+2026-11-09T05:14:36Z	name	109298	0x159aea0	{"addr": "0x14159AEA0", "name": "BSSaveDataSystemUtility__Entry__GetCharacterId"}
+2026-11-09T05:14:36Z	name	35922	0x632c20	{"addr": "0x140632C20", "name": "CharacterIdPair__NotEqual"}
+2026-11-09T05:14:36Z	name	35926	0x632cb0	{"addr": "0x140632CB0", "name": "CharacterIdPair__Assign"}
+2026-11-09T05:14:36Z	name	35752	0x6245d0	{"addr": "0x1406245d0", "name": "BGSSaveLoadManager__SetDisplayCharacter"}
+2026-11-09T05:14:36Z	name	35720	0x621be0	{"addr": "0x140621be0", "name": "BGSSaveLoadManager__ctor"}
+2026-11-09T05:14:41Z	comment	109348	0x159bbc0	{"addr": "0x14159BBC0", "comment": "Parses a save's file name Save<N>_<charId hex>_<modded>_<name hex>_<location>_<playtime>_<yyyymmddhhmmss>_<x>_1 (9 '_' fields, last 1). Sets +0x17C type number, +0x180 character id, +0x189 modded, +0x188 valid. Any other name (e.g. SkyrimCoopWipe) leaves +0x180 at the ctor's 0."}
+2026-11-09T05:14:41Z	comment	109294	0x159acc0	{"addr": "0x14159ACC0", "comment": "Entry ctor: +0x17C = 1, +0x180 (character id) = 0, valid flag +0x188 = 0."}
+2026-11-09T05:14:41Z	comment		0x624580	{"addr": "0x140624580", "comment": "SetCurrentCharacter(manager, const {id, modded}*): writes currentCharacterID +0xD0, then SetDisplayCharacter (+0xD8 and BSWin32SaveDataSystemUtility+0x64). The load (442580) inlines exactly this with the id parsed from the file name."}
+2026-11-09T05:14:41Z	comment	35752	0x6245d0	{"addr": "0x1406245d0", "comment": "SetDisplayCharacter(manager, const {id, modded}*): displayCharacterID +0xD8, copied to BSWin32SaveDataSystemUtility+0x64. Console SetDisplayPlayerID calls it."}
+2026-11-09T05:14:41Z	comment		0x627f95	{"addr": "0x140627f95", "comment": "Parses the loaded file's name; its character id becomes currentCharacterID below (0x14062819f) after a successful load. A name without the engine's pattern gives id 0."}
+2026-11-09T05:14:41Z	comment		0x62819f	{"addr": "0x14062819f", "comment": "currentCharacterID/displayCharacterID = {id parsed from the file NAME, modded}: inlined SetCurrentCharacter (35751)."}
+2026-11-09T05:14:41Z	comment		0x623a4e	{"addr": "0x140623a4e", "comment": "PopulateSaveList's file entries take characterID from the file name too (ParseFileName 109348)."}
+2026-11-09T05:14:58Z	name	35751	0x624570	{"addr": "0x140624570", "name": "BGSSaveLoadManager__SetCurrentCharacter"}
+2026-11-09T05:14:59Z	comment	35751	0x624570	{"addr": "0x140624570", "comment": "SetCurrentCharacter(manager, const {id, modded}*) (35751): writes currentCharacterID +0xD0, then SetDisplayCharacter 35752 (+0xD8 and BSWin32SaveDataSystemUtility+0x64). The load (442580) inlines exactly this with the id parsed from the file name. SkyrimCoop calls it after the party's scratch load."}
+2026-11-09T05:15:14Z	comment		0x623a4e	{"addr": "0x140623a4e", "comment": "A save file removed: the character id of the catalogue's entry is the one parsed from the file name (ParseFileName 109348)."}
+2026-11-09T05:16:24Z	name	109290	0x159aba0	{"addr": "0x14159ABA0", "name": "SaveName__IsAutosave"}
+2026-11-09T05:16:24Z	name	109289	0x159ab60	{"addr": "0x14159AB60", "name": "SaveName__IsSave"}
+2026-11-09T05:16:24Z	name	109291	0x159abe0	{"addr": "0x14159ABE0", "name": "SaveName__IsQuicksave"}
+2026-11-09T05:16:25Z	read		0x622940	{"name": "BGSSaveLoadManager::Save_Impl"}
+2026-11-09T05:16:33Z	comment		0x62295f	{"addr": "0x14062295f", "comment": "Every save is filed under currentCharacterID (GetSaveEntry 35789) and named Save<N>_<that id>_...: after a scratch-name load (id 0) the character's new saves carry id 0."}
+2026-11-09T05:16:33Z	comment	109290	0x159aba0	{"addr": "0x14159ABA0", "comment": "ParseFileName's first field: _strnicmp 'Autosave'."}
+2026-11-09T05:18:28Z	comment		0x639011	{"addr": "0x140639011", "comment": "Guest crash 2026-11-08 21:19 (c0000005): rdx's object here had BSLightingShaderMaterial's vtable (a stale form pointer reused), reached from InitAndFinishLoadedForms during a SkyrimCoopJoin load; the same save loaded fine at 21:32."}
