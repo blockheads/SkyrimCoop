@@ -1822,6 +1822,13 @@ void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noe
         pActor->SetIgnoreFriendlyHit(aIgnore);
 }
 
+void SkyrimBridge::SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept
+{
+    Breadcrumbs::Record("SetActorNotOnStealthMeter", aFormId, static_cast<uint32_t>(aNotShown));
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->SetNotShowOnStealthMeter(aNotShown);
+}
+
 void SkyrimBridge::SetActorPlayerFaction(uint32_t aFormId) noexcept
 {
     Breadcrumbs::Record("SetActorPlayerFaction", aFormId);

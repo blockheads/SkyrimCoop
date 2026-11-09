@@ -211,6 +211,8 @@ public:
 
     // --- Player actor properties ---
     virtual void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept = 0;
+    // Left out of this game's player's stealth eye (another player's copy), as MQ201 leaves its allies.
+    virtual void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept = 0;
     virtual void SetActorPlayerFaction(uint32_t aFormId) noexcept = 0;
     virtual void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept = 0;
     virtual uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept = 0;

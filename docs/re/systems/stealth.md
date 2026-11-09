@@ -12,12 +12,17 @@ PlayerCharacter__UpdateStealthMeter (40593), each frame
               sneak XP while someone "sees" (state +0x15) and the player moves
 
 41408: for each actor in high process (not dead, not disabled, a process)
+  judging the player, skip it if any:
+    boolFlags (+0x204) kDoNotShowOnStealthMeter (bit 26)   MQ201 sets it on Malborn and co.
+    boolBits (+0xE8) kPlayerTeammate (bit 26)              followers
+    boolFlags kIsCommandedActor and its commander is the player   summons
   state = Actor__GetFreshDetectionStateOf(actor, player, priority 3) (37758)
         = ActorKnowledge__GetFreshDetectionState (42702) on its knowledge of the player
   highest = max(highest, state.level); "seeing" += state +0x15
 ```
 
-So any high-process actor's knowledge of the player counts, another player's copy included.
+So any other high-process actor's knowledge of the player counts, another player's copy included, unless flagged.
+`Actor__SetNotShowOnStealthMeter` (37722, Papyrus `Actor.SetNotShowOnStealthMeter` 54969) flips that one bit.
 
 ## How a knowledge gets a state
 
@@ -37,6 +42,11 @@ DoDetectionJob (42742), each queued knowledge in turn
   ActorKnowledge__SetDetectionState (42704): installs it, clears +0x44 (-FLT_MAX)
 ```
 
+A second writer skips the pass: `Actor__ForceDetected` (37765) sets a witness's state of a target to 100 through
+`ActorKnowledge__SetDetectionStateKeepQueued` (42705), which leaves +0x44 as it is. Its callers: `TESNPC::Activate` and
+`MenuTopicManager::EndDialogue` (the actor talked to detects the player), pickpocket and steal alarms. On a knowledge
+already queued, that 100 answers at any age.
+
 ## Our hook
 
 `HookUpdateDetectionState` sits on 42704. It used to return without calling the engine when another player's copy
@@ -47,8 +57,17 @@ hook skipped (a copy judging before its flags, as after a cog swap resets the ex
 
 Now the hook rewrites the pass to unseen (`DetectionRules::Installed`: level -1000, no LOS, not seen, the fields a pass
 with detection off writes) and lets 42704 install it. The request clears, the state is fresh, and 42702's freshness
-rule runs as for any NPC. Tests: `detection_rules_tests.cpp`, GameTests `[stealth]`, scenario
-`other-player-looking-leaves-eye-hidden`.
+rule runs as for any NPC.
+
+That still left 42705 and any older level. So a player's copy is also flagged `kDoNotShowOnStealthMeter` when it spawns
+(`CharacterService`, `SetActorNotOnStealthMeter`): 41408 skips it before reading its knowledge, whatever that holds,
+as MQ201 does for its allies. Tests: `detection_rules_tests.cpp`, GameTests `[stealth]` (a planted level, a forced
+detection), scenario `other-player-looking-leaves-eye-hidden`. The harness's `crime stealth_meter` lists each high
+actor's state of the player (`sources`) with its flag, `crime knowledge` the flag (`not_on_meter`).
+
+Measured on the duo (2026-11-09, dev's hook): talking to or pickpocketing the other player's copy is refused, and the
+eye stayed closed on screen with the copy facing the sneaking player from 120 units. The playtest's "detected" was not
+reproduced; its `/bug` reports caught no sneaking moment.
 
 ## Not covered here
 
@@ -63,5 +82,8 @@ rule runs as for any NPC. Tests: `detection_rules_tests.cpp`, GameTests `[stealt
 | 37758 | Actor__GetFreshDetectionStateOf | an actor's fresh state of a target |
 | 42702 | ActorKnowledge__GetFreshDetectionState | freshness rule |
 | 42704 | ActorKnowledge__SetDetectionState | installs a pass; `HookUpdateDetectionState` |
+| 42705 | ActorKnowledge__SetDetectionStateKeepQueued | 37765's install |
+| 37765 | Actor__ForceDetected | level 100 without a pass |
+| 37722, 54969 | Actor__SetNotShowOnStealthMeter, Papyrus | the eye's skip flag |
 | 42742 | DoDetectionJob | answers queued knowledges |
 | 42760, 42761 | DetectionState::Set, Clear | a pass's fields |

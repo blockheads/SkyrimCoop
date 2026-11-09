@@ -505,6 +505,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         // (docs/design/copy-contract.md, "Players' copies").
         m_actorBridge.SetActorPersistent(actorFormId);
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
+        m_actorBridge.SetActorNotOnStealthMeter(actorFormId, true); // never a witness on this player's eye (stealth.md)
         m_actorBridge.SetActorPlayerFaction(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
         SetCopyLevel(actorFormId, acMessage.PlayerId);

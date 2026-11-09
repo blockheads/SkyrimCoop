@@ -493,6 +493,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
+        bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
@@ -885,6 +886,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t DetectionFrame = 0;
     // The witness judged the player in a pass already installed (a copy before its flags, as after a cog swap).
     void JudgedPlayer(uint32_t aWitness, int32_t aLevel);
+    // Actor__ForceDetected (37765): the player talked to the witness, a conversation with it ended, or an alarm: level
+    // 100 through 42705, which keeps a queued request (no pass, no hook of ours).
+    void ForcesDetected(uint32_t aWitness);
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.NotOnStealthMeter = aNotShown;
+    }
     // The HUD's eye: the highest fresh detection of the player among loaded actors (40593 through 41408).
     int32_t StealthEye();
     [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);

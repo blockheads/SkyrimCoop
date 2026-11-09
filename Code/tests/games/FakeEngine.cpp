@@ -1857,6 +1857,14 @@ void FakeEngine::JudgedPlayer(uint32_t aWitness, int32_t aLevel)
     KnowledgeOfPlayer[aWitness] = {DetectionRules::Pass{.Level = aLevel, .LineOfSight = true, .Seen = true}, DetectionFrame, false};
 }
 
+void FakeEngine::ForcesDetected(uint32_t aWitness)
+{
+    auto& known = KnowledgeOfPlayer[aWitness];
+    const auto cBefore = known.State.value_or(DetectionRules::Pass{});
+    known.State = DetectionRules::Pass{.Level = 100, .LineOfSight = cBefore.LineOfSight, .Seen = cBefore.Seen, .Unk16 = 2};
+    known.UpdatedAt = DetectionFrame;
+}
+
 const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
 {
     // Priority 3: refreshed after 1 s, answered unseen after 2 s (table 0x1420B8AB8), at 60 frames a second.
@@ -1876,7 +1884,7 @@ int32_t FakeEngine::StealthEye()
 {
     int32_t highest = DetectionRules::kUnseen;
     for (const auto& [cId, cActor] : Actors)
-        if (cId != kPlayer && cActor.Loaded && !cActor.Dead)
+        if (cId != kPlayer && cActor.Loaded && !cActor.Dead && !cActor.NotOnStealthMeter)
             if (const auto* cpState = FreshState(cId))
                 highest = std::max(highest, cpState->Level);
     return highest;
