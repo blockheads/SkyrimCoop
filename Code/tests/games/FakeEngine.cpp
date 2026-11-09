@@ -142,7 +142,21 @@ void FakeEngine::Frame()
     // Refused load jobs end (QueuedReference::Finish, HookFinishLoad3D).
     if (!LoadsHeld)
         for (auto& [cId, actor] : Actors)
-            if (std::exchange(actor.LoadQueued, false) && actor.Refused3D)
+        {
+            if (!std::exchange(actor.LoadQueued, false))
+                continue;
+            if (std::exchange(actor.ModelReady, false))
+            {
+                actor.Loaded = true;
+                World::Get().GetRunner().Trigger(ReferenceLoadedEvent{cId});
+                // Actor::FinishLoad3D: attached while held, reloaded (Reload3D), so refused.
+                if (HeldOnGuest(cId))
+                    World::Get().GetRunner().Queue([this, cId] {
+                        if (Actors.contains(cId) && ActorHas3D(cId) && HeldOnGuest(cId))
+                            Load3D(cId);
+                    });
+            }
+            if (actor.Refused3D)
             {
                 World::Get().GetRunner().Trigger(NpcHeldEvent{cId});
                 World::Get().GetRunner().Queue([this, cId] {
@@ -150,6 +164,7 @@ void FakeEngine::Frame()
                         LoadRefused3D(cId);
                 });
             }
+        }
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -421,10 +436,12 @@ void FakeEngine::Load3D(uint32_t aFormId)
 {
     auto& actor = Actors.at(aFormId);
     actor.Refused3D = HeldOnGuest(aFormId);
-    actor.Loaded = !actor.Refused3D;
-    // A refused job ends in Frame (QueuedReference::Finish: NpcHeldEvent); a load at once, as the services see it.
-    actor.LoadQueued = actor.Refused3D;
-    if (!actor.Refused3D)
+    // A job ends in Frame (QueuedReference::Finish); a load with no job held back attaches at once, as the services
+    // see it. Held back, its model waits for Finish (BackgroundLoad3D's result, +0x2C8).
+    actor.LoadQueued = actor.Refused3D || LoadsHeld;
+    actor.ModelReady = !actor.Refused3D && LoadsHeld;
+    actor.Loaded = !actor.Refused3D && !LoadsHeld;
+    if (actor.Loaded)
         World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
 }
 

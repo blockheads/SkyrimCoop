@@ -61,7 +61,7 @@ fails on the town differences in bugs.md ("End comparisons in towns", "Doors the
 From the PR's review: NPCs already shown when holding starts (the host's save loads before the guest connects; a
 rejoin) are reloaded so their 3D is refused (32 hidden at a Whiterun rejoin, each a copy again within 10 s), and a
 refused load job ends in `QueuedReference::Finish` (13022, hooked), where the NPC's 3D is queued again if a spawn came
-while the job was out. GameTests flows for both; the scenario now leaves and rejoins.
+while the job was out, and where a model loaded before holding started is reloaded as it attaches. GameTests flows for both; the scenario now leaves and rejoins.
 
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes

@@ -1492,7 +1492,8 @@ static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
 static_assert(offsetof(QueuedReference, model) == 0x2C8);
 
 // QueuedReference::Finish (13022, vtable slot 12 of every queued kind): a load job ends on the main thread, its handle
-// leaving the queue last. A held NPC's refused job ending (GuestNpcs, actor-ai-and-copies.md).
+// leaving the queue last. A held NPC's job ending, refused or begun before holding started (GuestNpcs,
+// actor-ai-and-copies.md).
 using TFinishLoad3D = uint64_t(QueuedReference*);
 static TFinishLoad3D* RealFinishLoad3D = nullptr;
 uint64_t HookFinishLoad3D(QueuedReference* apThis)
@@ -1501,7 +1502,7 @@ uint64_t HookFinishLoad3D(QueuedReference* apThis)
     const uint64_t cResult = RealFinishLoad3D(apThis);
     if (GuestNpcs::Session())
         if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cHandle)))
-            pActor->FinishRefused3D();
+            pActor->FinishLoad3D();
     return cResult;
 }
 

@@ -927,12 +927,21 @@ bool Actor::RefuseHeld3D() noexcept
     return false;
 }
 
-void Actor::FinishRefused3D() noexcept
+void Actor::FinishLoad3D() noexcept
 {
-    if (!GetExtension()->Refused3D.load())
-        return;
-    // A QueueReference while this job was out only changed its priority: queued again now its handle is gone (13067).
     const uint32_t cFormId = formID;
+    if (!GetExtension()->Refused3D.load())
+    {
+        // A load that passed Load3D before holding started attaches now (HideHeldNpcs saw no 3D): reloaded, refused.
+        if (GetNiNode() && IsHeldOnGuest())
+            World::Get().GetRunner().Queue([cFormId] {
+                if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+                    if (pActor->GetNiNode() && !pActor->IsDisabled() && pActor->IsHeldOnGuest())
+                        pActor->Reload3D();
+            });
+        return;
+    }
+    // A QueueReference while this job was out only changed its priority: queued again now its handle is gone (13067).
     World::Get().GetRunner().Trigger(NpcHeldEvent{cFormId});
     World::Get().GetRunner().Queue([cFormId] {
         if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))

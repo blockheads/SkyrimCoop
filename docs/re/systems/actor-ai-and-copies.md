@@ -283,6 +283,10 @@ NPCs that already have 3D when holding starts (the host's save loads before the 
 reconnect) are reloaded: `Reload3D` disables and enables the reference (the base change's way, no form-flags record),
 and Enable's queued load is refused.
 
+A background `Load3D` that passed before holding started keeps its model in the job (+0x2C8) until `Finish` attaches it
+(19731), so the scan at the start sees no 3D. `HookFinishLoad3D` catches that too: a held NPC its job just gave 3D is
+reloaded the same way (found by the PR 45 review's second round).
+
 ### What the AI used to repair
 
 Cutting the AI showed one of our own bugs it had been hiding. `OnCharacterSpawn` put every copy in

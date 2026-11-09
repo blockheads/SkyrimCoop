@@ -156,3 +156,24 @@ SCENARIO("The host's spawn lands while the guest's refused load is still out", "
     party.Until([&] { return guest.ActorHas3D(kRia); }, "the guest's Ria is loaded once her refused job ends");
     party.Agree("the games agree on Ria");
 }
+
+// A background Load3D (19727) that passed before holding started attaches its model at Finish (13022), after it
+// (codex, PR 45, second round).
+SCENARIO("A guest's own NPC whose load began before it joined is hidden once it attaches", "[copies][guest-own-npc]")
+{
+    Party party(1, RiaInTheSinkhole, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.As(party.Guest(), [&] {
+        guest.LoadsHeld = true;
+        guest.NpcWalks(kRia, kSmoke, kBesideParty);
+    });
+    REQUIRE(guest.Actors.at(kRia).ModelReady);
+
+    party.Join(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the guest joins");
+    guest.LoadsHeld = false;
+    Settle(party);
+    CHECK_FALSE(guest.ActorHas3D(kRia));
+    party.Agree("the games agree: nobody shows Ria");
+}

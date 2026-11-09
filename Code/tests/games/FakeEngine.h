@@ -251,7 +251,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t HoldSession = 0;          // GuestNpcs::Session's, set with DecidesWorld: 0 while not a guest
     // A guest's own NPC: no AI (HookUpdateAI) and no 3D (HookLoad3D) until the host spawns its copy (GuestNpcs::Held).
     [[nodiscard]] bool HeldOnGuest(uint32_t aFormId) const noexcept;
-    // The loader threads busy: no refused load job finishes (QueuedReference::Finish 13022) while set.
+    // The loader threads busy: no load job finishes (QueuedReference::Finish 13022) while set.
     bool LoadsHeld = false;
     // Actor::LoadRefused3D: queued once not held; a job still out only takes the priority (QueueReference 13057).
     void LoadRefused3D(uint32_t aFormId);
@@ -497,6 +497,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t ClaimedIn = 0; // the guest session SetActorCopy(false) made it this game's in (GuestNpcs::Held)
         bool Refused3D = false; // held on a guest: its Load3D refused (HookLoad3D), loaded once it is not
         bool LoadQueued = false; // its load job out (TESQueuedHandles' handle), until QueuedReference::Finish
+        bool ModelReady = false; // its job's model loaded, attached at Finish
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
