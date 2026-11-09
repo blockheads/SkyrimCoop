@@ -394,6 +394,28 @@ class Together(unittest.TestCase):
         self.assertNotIn("at", keys[1])
         self.assertEqual(game_module.SCHEDULE.landed["frame"], 9)
 
+    def test_line_delay_needs_the_duo(self):
+        class Ctx(TogetherActions):
+            def __init__(self):
+                self.calls = []
+
+            def failure(self, text):
+                return TestFailure(text)
+
+            def sudo(self, *command):
+                self.calls.append(command)
+                return unittest.mock.Mock(returncode=0, stderr="")
+        ctx = Ctx()
+        with patch.object(game_module, "FRONTS", set()), patch.dict(os.environ, {game_module.FREE_ENV: ""}), \
+                patch("coop_harness.duo_lock.holds_duo", return_value=False):
+            with self.assertRaisesRegex(TestFailure, "holds no duo"):
+                ctx.line_delay(40)
+        self.assertEqual(ctx.calls, [], "no netem change without the duo")
+        with patch.object(game_module, "FRONTS", set()), patch.dict(os.environ, {game_module.FREE_ENV: ""}), \
+                patch("coop_harness.duo_lock.holds_duo", return_value=True):
+            ctx.line_delay(40)
+        self.assertTrue(any("netem" in command for command in ctx.calls))
+
     def test_together_exports_its_lanes(self):
         line = repro._line("together", {"lanes": [{"call": "verb", "args": {"name": "dialogue_press", "args": {"instance": "guest"}}},
                                                    {"call": "dialogue_highlight", "args": {"instance": "host", "index": 2}}],

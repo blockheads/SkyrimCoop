@@ -67,7 +67,9 @@ class TogetherActions:
     def line_delay(ctx, ms=0, jitter_ms=0):
         """The line between the two games delays each packet `ms` (each way, plus up to `jitter_ms`), as between two
         machines: netem on the guest's namespace link (runtime.py, ensure_client_netns). 0 takes it off; unstage and
-        every duo boot do too. One machine's loopback-fast line hides races two players over the internet meet."""
+        every duo boot do too. One machine's loopback-fast line hides races two players over the internet meet. The link
+        is the duo's: refused without a current hold, so a stale session never changes another's."""
+        game_module.check_duo_held({"cmd": "line_delay"})
         for device, prefix in (("coop2-host", []), ("coop2-ns", ["ip", "netns", "exec", CLIENT_NETNS])):
             ctx.sudo(*prefix, "tc", "qdisc", "del", "dev", device, "root")
             if ms or jitter_ms:

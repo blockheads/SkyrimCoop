@@ -432,7 +432,10 @@ class ReproActions:
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
         if getattr(ctx, "LINE_DELAY", 0):
-            ctx.line_delay(0)
+            # Held: off now; a hold that ended leaves the link to its next holder, whose boot clears it.
+            with contextlib.suppress(TestFailure):
+                ctx.line_delay(0)
+            ctx.LINE_DELAY = 0
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             game = "client" if kind == "guest-object" else ""

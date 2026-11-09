@@ -23,3 +23,20 @@ time	op	id	rva	item
 2026-11-09T16:48:16Z	read	35289	0x5f0730	{"name": "MenuTopicManager::sub_35289"}
 2026-11-09T16:49:47Z	read		0x68d073	{"name": "Actor::UpdateInDialogue"}
 2026-11-09T17:08:38Z	read	37200	0x672e30	{"name": "Actor::SetDialogueWithPlayer"}
+2026-11-09T19:14:17Z	read	35283	0x5efb90	{"name": "MenuTopicManager::sub_35283"}
+2026-11-09T19:14:17Z	read	35284	0x5efdf0	{"name": "MenuTopicManager::sub_35284"}
+2026-11-09T19:14:18Z	read	35285	0x5efe90	{"name": "MenuTopicManager::sub_35285"}
+2026-11-09T19:14:32Z	name	35283	0x5efb90	{"addr": "0x1405efb90", "name": "MenuTopicManager::SaySelected"}
+2026-11-09T19:14:32Z	name	35284	0x5efdf0	{"addr": "0x1405efdf0", "name": "MenuTopicManager::EndResponse"}
+2026-11-09T19:14:32Z	name	35285	0x5efe90	{"addr": "0x1405efe90", "name": "MenuTopicManager::Advance"}
+2026-11-09T19:14:32Z	name	35289	0x5f0730	{"addr": "0x1405f0730", "name": "MenuTopicManager::Update"}
+2026-11-09T19:14:32Z	name	35287	0x5f04b0	{"addr": "0x1405f04b0", "name": "MenuTopicManager::BuildList"}
+2026-11-09T19:14:32Z	local	35283	0x5efb90	{"func_addr": "0x1405efb90", "old": "v7", "new": "picked"}
+2026-11-09T19:14:32Z	local	35283	0x5efb90	{"func_addr": "0x1405efb90", "old": "v9", "new": "speakerActor"}
+2026-11-09T19:14:32Z	local	35283	0x5efb90	{"func_addr": "0x1405efb90", "old": "a3", "new": "noAdvance"}
+2026-11-09T19:14:41Z	comment	35283	0x5efb90	{"addr": "0x1405efb90", "comment": "35283 SaySelected(manager, ?, noAdvance): the picked node's option (selectedResponseNode +0x18). Stops a talking speaker unless the conversation greets (+0xB0); rootTopicInfo (+0x30) = the option's info when it has choices; begins it (25616), forceGoodbye = info flags & 1; refreshes (35296); appends the topic to topicHistory (+0xC0). With responses and not noAdvance: speaker not talking (Actor::IsTalking 37266, or no sound playing) -> Advance 35285 at once; still talking -> lineSkipped (+0xB9) = 0 and ActorStopCurrentDialogue (vfunc 0x278): the advance comes later from Update 35289. Read 2026-11-09 (dialogue-stress)."}
+2026-11-09T19:14:41Z	comment		0x5efd5a	{"addr": "0x1405efd5a", "comment": "speaker still talking: stop its line, no advance now (35289 advances once advanceRequested and canSkip)"}
+2026-11-09T19:14:41Z	comment	35284	0x5efdf0	{"addr": "0x1405efdf0", "comment": "35284: the current response done: the option's next response (currentResponse +0x40 -> next) when there is one for this topic, else ends the line's info (25616 stage 1) and clears currentTopicInfo (+0x70), canSkip (+0xBA) = 0. Read 2026-11-09."}
+2026-11-09T19:14:41Z	comment	35285	0x5efe90	{"addr": "0x1405efe90", "comment": "35285 Advance, under the critical section: copies the picked option into lastSelectedDialogue (+0x38) when a new pick is pending; says its next response through the speaker (vfunc 0x260, UpdateInDialogue 37541) and sets currentTopicInfo, or with none left builds the list (35287), shows it (52857, choices slide in) and sends voice ready (52858): the SWF then takes no pick for 750 ms. forceGoodbye or an end info -> shutMenu. Clears advanceInProgress (+0xB8), advanceRequested (+0xB5/+0xB6) and sets canSkip (+0xBA). Read 2026-11-09."}
+2026-11-09T19:14:41Z	comment	35289	0x5f0730	{"addr": "0x1405f0730", "comment": "35289 MenuTopicManager::Update, each frame (from 0x140783390): advanceRequested (+0xB6) and canSkip (+0xBA) -> Advance 35285; else logs ' %s is not being allowed to advance the menu waiting for the script run results' while canSkip is clear. Then the speaker's UpdateInDialogue (vfunc 0x260, 37541) unless +0xB1 and an actor. Read 2026-11-09."}
+2026-11-09T19:14:41Z	comment	52858	0x98e5a0	{"addr": "0x14098e5a0", "comment": "52858 voice ready: queues the Dialogue Menu's NotifyVoiceReady (InterfaceStrings+0x220); the SWF's OnVoiceReady restarts its 750 ms bAllowProgress timer (DialogueMenu.as). From Advance 35285 at a line's end, SkipLine 35290, UpdateInDialogue 37541 once a line has its voice, and the menu's reshow sink 51512."}

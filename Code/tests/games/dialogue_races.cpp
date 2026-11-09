@@ -313,6 +313,16 @@ SCENARIO("A player joining while the NPC answers sees the pick, not the last lis
         party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
         CHECK(hostTalk.Said.size() == cSaid + 1);
 
+        // Its menu closed and opened again while the NPC still answers: the pick again, not the last list.
+        party.As(party.Host(), [&] { hostTalk.PlayerLeaves(); });
+        party.Until([&] { return !hostTalk.MenuOpen && !party.Host().ctx().at<DialogueService>().Joined(); }, "the host leaves mid-line");
+        REQUIRE(hostTalk.Speaker);
+        party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+        party.Until([&] { return hostTalk.MenuOpen && party.Host().ctx().at<DialogueService>().Joined(); }, "the host joins again mid-line");
+        Settle(party, std::chrono::milliseconds(100));
+        CHECK_FALSE(hostTalk.ListShown);
+        CHECK(hostTalk.PickedText == kThird.Text);
+
         party.As(party.Host(), [&] { hostTalk.LineEnds(); });
         party.Until([&] { return hostTalk.ListShown && guestTalk.ListShown && hostTalk.Options == cNext && guestTalk.Options == cNext; },
                     "both menus show the next list");

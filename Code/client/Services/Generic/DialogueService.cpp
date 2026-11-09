@@ -272,6 +272,9 @@ void DialogueService::OnUpdate(const UpdateEvent&) noexcept
     }
     m_joined = cIn || (m_joined && (cOpen || m_bartering || m_opening));
 
+    // A menu that closes shows the pick again when it reopens in the same step (a new SWF on the engine's list).
+    if (m_menuOpen && !cOpen)
+        m_pickedShownStep = 0;
     m_menuOpen = cOpen;
     m_closing = m_closing && cOpen;
     m_pRole->OnUpdate(cOpen, cSpeaker);
