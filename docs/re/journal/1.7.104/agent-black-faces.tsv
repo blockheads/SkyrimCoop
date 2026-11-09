@@ -15,3 +15,7 @@ time	op	id	rva	item
 2026-11-09T05:13:57Z	read	70717	0xef3b40	{"name": "CreateSourceTexture"}
 2026-11-09T06:05:43Z	comment	24790	0x3c8c00	{"addr": "0x1403c8c00", "comment": "An NPC: overlayRace (+0x1E8) set and not its race (+0x158); the player's base (7): the player's overlay race differs. Its head is then built from GetBaseOverlays (24791), a map base -> head parts: the face part to look up (coop FaceGenSystem via TESNPC::GetCurrentHeadPart)"}
 2026-11-09T06:05:43Z	comment	24791	0x3c8d00	{"addr": "0x1403c8d00", "comment": "The base's overlay head parts (global map keyed by base, count at +0x10); null when none"}
+2026-11-09T06:54:49Z	name	24724	0x3c2940	{"addr": "0x1403c2940", "name": "TESNPC::UpdateHeadState"}
+2026-11-09T06:54:49Z	name	24732	0x3c3cb0	{"addr": "0x1403c3cb0", "name": "TESNPC::AttachHead"}
+2026-11-09T06:54:51Z	comment	24724	0x3c2940	{"addr": "0x1403c2940", "comment": "(npc, actor, root or null: Get3D) skee64 UpdateHeadState: the head's worn/dismember state. Tail of every head attach (AttachHead 24732, 24740) and worn changes (24725). Coop hooks it (HeadEvents.cpp): ActorHeadUpdateEvent repaints a copy's face tints"}
+2026-11-09T06:54:51Z	comment	24732	0x3c3cb0	{"addr": "0x1403c3cb0", "comment": "(npc, actor, NiPointer<BSFaceGenNiNode>*) attaches the built head to the head bone, caches it per npc, then UpdateHeadState (24724). Callers: Update3DModel_Impl, QueuedHead, QueuedCharacter, ModifyFaceGen"}

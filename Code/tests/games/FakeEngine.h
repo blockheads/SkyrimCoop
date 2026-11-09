@@ -207,8 +207,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ApplySystemQuests(std::string_view aState);
     // A registration of a system quest's instance fires (its event, as the VM sends it: this game's own).
     void FiresQuestTimer(uint32_t aQuest, const std::string& acFunction);
-    // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued; copies are drawn,
-    // then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
+    // One frame: the shake wears off, knocked-down ragdolls come to rest, heads are built, the VM runs what is queued;
+    // copies are drawn, then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
     void Frame();
 
     // A world reference (every game has the same load order: a form id is the same everywhere).
@@ -499,6 +499,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        bool HeadBuilt = false;         // its head is built: the frame its 3D is there (TESNPC::UpdateHeadState 24724)
         std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
@@ -980,6 +981,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Unload3D(uint32_t aFormId);
     // Its head goes with its 3D: the next is built again from its base (TESNPC::BuildHead 24731), unpainted.
     void DropHead(uint32_t aFormId);
+    // Each actor whose 3D is there and has no head gets one, raised as the hook on 24724 does.
+    void BuildHeads();
     bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
     bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.

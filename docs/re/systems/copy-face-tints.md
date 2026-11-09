@@ -32,14 +32,23 @@ this way. The face node names its geometry after the part it was built with, so 
 
 ## What coop does
 
+Every head attach ends in `TESNPC::UpdateHeadState` (24724): `TESNPC::AttachHead` (24732: `Update3DModel_Impl`,
+`QueuedHead`, `QueuedCharacter`, `ModifyFaceGen`) and 24740 call it after attaching the face node; worn changes
+reach it through 24725. RaceMenu hooks the same calls to put its face overlays back (skee64
+`UpdateHeadState_Enable_Hooked`). Coop hooks the function (`Games/Skyrim/HeadEvents.cpp`) and queues an
+`ActorHeadUpdateEvent` (a queued head can finish off the main thread). `CharacterService::OnActorHeadUpdate` paints a
+copy with a `FaceGenComponent` whose head is not painted; new tints are painted when they arrive (spawn, looks
+change). A copy spawned before its 3D has no head to paint yet: its first head's update paints it.
+
 The painted texture is named `SkyrimCoop face tints` (`NiTexture::name`, `+0x20`). `FaceGenSystem::IsPainted` reads
-the current head's face material: painted when its tint texture carries that name. `CharacterService` paints a copy
-with a `FaceGenComponent` when its tints are new (`FaceGenComponent::Painted`, cleared by a looks change) or its
-head is not painted (built again). The harness snapshot's `face.painted` reads the head, not the flag.
+the current head's face material: painted when its tint texture carries that name, so a worn change leaves a painted
+head alone. The harness snapshot's `face` reads the head (`painted`, and `head`: geometry, material, tint name) and
+the paint count.
 
 Before this, `FaceGenComponent::Generated` was set once and never cleared by a 3D rebuild, so the copy kept the
 first head's paint only.
 
 Tests: GameTests "A player's copy keeps its painted face when its 3D is built again" (`[copy-looks]`): the fake's
-actor drops its head tints with its 3D (`FakeEngine::DropHead`: `Unload3D`, a move to another cell, a disable, its
-cell unloading).
+actor builds its head the first frame its 3D is there and raises the event (`FakeEngine::BuildHeads`); its head and
+tints go with its 3D (`DropHead`: `Unload3D`, a move to another cell, a disable, its cell unloading). Without the
+event's listener the flow fails.
