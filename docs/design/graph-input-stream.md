@@ -40,9 +40,13 @@ CharacterService's send round (10/s; 30/s in a fight) -> GraphOpsRequest { sessi
 - **Owner time:** each update op's tick is the first update's tick plus the steps before it, so the copy can place every
   op on its playback clock.
 - **Owners step every frame, without `force`:** the 63587 hook clears the update data's interpolation flag (`+0x2B`)
-  for a recorded owner, so its graph steps each frame at the engine's own LOD. `force` (`+0x2A`, or the actor's
-  `kForceAnimGraphUpdate`) also gives full LOD off camera, and creatures hovered with it (a restrained wolf 72 units
-  up; which of its effects holds it up is not read yet). The step recorded is the behaviour graph's real one (58329).
+  for a recorded owner, so its graph steps each frame at the engine's own LOD and foot IK. A copy's replayed updates
+  run the same way. The step recorded is the behaviour graph's real one (58329).
+- **Why not `force`** (`+0x2A`, or the actor's `kForceAnimGraphUpdate`): forced, 63587 skips 63575, so the LOD is full
+  and the foot IK flag (`+0x249`) stays on for an actor the engine would not solve it for (off camera). Measured on
+  `host-kill-move`'s restrained wolf, dropped 72 units: forced by the hook alone it hangs 45-72 units up and drifts;
+  forced with `+0x249` cleared after each update it lands; unforced with interpolation off it lands. Only 63581 reads
+  the flag (58423 solves, 58427 resets). Not read: how the solved pose holds the actor up.
 - **Generate passes are ops:** a graph's modifiers and blenders move in its generate pass (63568), run once after each
   frame it updated in (63589). The owner's are recorded in order with its events and updates; a copy runs them in
   place and never its own (the hook clears `+0x246` after its replay). On the wire a pass right after its update is
@@ -67,7 +71,7 @@ copy's graph update (63587 hook, its animation job):
   for each due op:
     write every variable that differs from the op's, and the seed
     event: its clip files first (ActionClips::Request; hold the queue, at most 120 updates), then SendEvent (63591)
-    update: the real 63587 with the op's step, forced
+    update: the real 63587 with the op's step, interpolation off (not forced: engine LOD and foot IK)
   behind: several updates in this frame; nothing due: no update (the graph holds its pose)
   kept out: the copy's own SendEvent calls, LoadState calls but its own, its channels (overwritten by the op's words)
 ```

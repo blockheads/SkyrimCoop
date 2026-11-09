@@ -249,7 +249,10 @@ struct SkyrimGraphTarget final : IGraphTarget
     {
         BSAnimationUpdateData data = Data;
         data.deltaTime = aStep;
-        data.force = true;
+        // Every op's step at once, at the engine's own LOD and foot IK: `force` also turns foot IK on for an actor
+        // the engine would not solve it for, which held a dropped creature in the air.
+        data.force = false;
+        data.interpAllowed = false;
         Result = RealUpdate(&Graph, &data, Scratch);
     }
     // Inline, not through the behaviour job queue (63568's second argument): the same pass.

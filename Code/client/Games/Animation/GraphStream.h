@@ -28,7 +28,7 @@ struct IGraphTarget
     // The event's clip files loading into a process's set, as its owner's process did (ActionClips): null when it
     // needs none or has them. A clip started without its file lasts 0.0133 s (59263).
     [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) = 0;
-    virtual void Update(float aStep) = 0;                                 // 63587, forced
+    virtual void Update(float aStep) = 0;                                 // 63587, every op at once (interpolation off)
     virtual void Generate() = 0; // the generate pass (63568), where its owner ran one: never on its own
 };
 

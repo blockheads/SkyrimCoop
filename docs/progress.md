@@ -52,7 +52,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-09: the graph input stream's owners step every frame without `force` (creatures no longer hover), a graph's
 generate passes are in the stream, sync points carry nodes' plain members and the active-node flag, and a copy in a
 pair on its game leaves its stream for it: a guest's kill move on a host NPC works again (all six kill-move scenarios
-pass). Open: why `force` makes a creature hover, a knock-down's pause, the fake still chunking recorded owners.
+pass). The hover was `force` turning foot IK on for unseen actors (graph-input-stream.md, Owner); copies replay
+without it too. Open: a knock-down's pause, the fake still chunking recorded owners.
 
 2026-11-09: copies on the graph input stream match their owners at every update on the duo: the wolf scenario's 180 s
 and Whiterun's market for 120 s, every streamed copy ([graph-input-stream.md](design/graph-input-stream.md), A graph's
