@@ -2127,6 +2127,7 @@ TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
     GraphOps ops = GraphOpsBatch(1000, 7, 0,
                                  {{.Frame = 0, .Seed = GraphSeed{11, 12}, .Changed = {{0, 0x42A343EB}, {40, std::bit_cast<uint32_t>(cOdd)}}},
                                   {.Event = true, .EventId = 513, .Changed = {{48, 1}}},
+                                  {.Event = true, .EventId = 77, .ClipSet = 4}, // a clip load: an instant interaction's set
                                   {.Frame = 1},
                                   {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
                                   {.Frame = 5}}, // a skipped frame
@@ -2187,7 +2188,7 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     point.State = std::string("\0\1state", 7);
     point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
     point.Seed = {5, 6};
-    point.ClipEvent = 513;
+    point.ClipSets = {{3, 513}, {4, 7}};
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     ops.Serialize(writer);

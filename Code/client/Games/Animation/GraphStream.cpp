@@ -27,6 +27,11 @@ void GraphRecorder::Event(uint64_t aTick, uint16_t aEventId, std::span<const uin
     Record({{.Event = true, .EventId = aEventId}, aTick, 0.f}, aWords, acSeed);
 }
 
+void GraphRecorder::Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId)
+{
+    m_ops.push_back({{.Event = true, .EventId = aEventId, .ClipSet = aSet}, aTick, 0.f});
+}
+
 void GraphRecorder::Update(uint64_t aTick, float aStep, std::span<const uint32_t> aWords, const GraphSeed& acSeed)
 {
     Record({{}, aTick, aStep}, aWords, acSeed);
@@ -115,7 +120,7 @@ void GraphReplayer::Restart() noexcept
 {
     m_started = false;
     m_point.reset();
-    m_clips.reset();
+    m_loads.clear();
     m_clipsAsked = false;
     m_clipWaits = 0;
 }
@@ -136,9 +141,11 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         while (!m_queue.empty() && m_queue.front().Next < cPoint.Update)
             m_queue.pop_front();
         m_started = true;
-        // Its owner's process held its last action's clip files, which clips reached after it play.
-        if (cPoint.ClipEvent >= 0)
-            m_clips = aTarget.RequestClips(uint16_t(cPoint.ClipEvent));
+        // The clip sets its owner's process held, whose files its clips reached after it play.
+        m_loads.clear();
+        for (const auto& [cSet, cEvent] : cPoint.ClipSets)
+            if (auto loading = aTarget.RequestClips(cSet, cEvent))
+                m_loads.push_back(std::move(loading));
     }
     if (!m_started)
         return 0;
@@ -146,7 +153,8 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
     bool waited = false;
     // Clip files loading hold the stream, a bounded number of runs (a load the process cancels never ends).
     const auto cHeld = [&] {
-        if (!m_clips || m_clips->load(std::memory_order_acquire))
+        std::erase_if(m_loads, [](const auto& acLoading) { return acLoading->load(std::memory_order_acquire); });
+        if (m_loads.empty())
             return false;
         if (!std::exchange(waited, true))
             ++m_clipWaits;
@@ -154,19 +162,19 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
     };
     while (!m_queue.empty() && updates < cMaxUpdatesPerRun && m_queue.front().Tick <= aPlaybackTick)
     {
-        if (!m_clipsAsked && m_queue.front().Op.Event)
-        {
-            m_clipsAsked = true; // an event waits for its own files
-            m_clips = aTarget.RequestClips(m_queue.front().Op.EventId);
-        }
+        const GraphOp& cFront = m_queue.front().Op;
+        if (cFront.Event && cFront.ClipSet && !std::exchange(m_clipsAsked, true))
+            if (auto loading = aTarget.RequestClips(cFront.ClipSet, cFront.EventId)) // its owner's load, in its place
+                m_loads.push_back(std::move(loading));
         if (cHeld())
             break;
-        m_clips.reset();
+        m_loads.clear();
         m_clipWaits = 0;
-        if (m_queue.front().Op.Event)
-            m_clipsAsked = false;
+        m_clipsAsked = false;
         const Queued cOp = std::move(m_queue.front());
         m_queue.pop_front();
+        if (cOp.Op.ClipSet)
+            continue;
         // Its variables are the stream's alone: its own writes since (channels, 63590) are put back.
         std::vector<uint32_t> words = m_words;
         for (const auto& [cIndex, cValue] : cOp.Op.Changed)
@@ -232,6 +240,15 @@ void GraphStreams::Forget(uint32_t aFormId)
 bool GraphStreams::Recording(uint32_t aFormId) const
 {
     return FindOwned(aFormId) != nullptr;
+}
+
+void GraphStreams::OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint16_t aEventId)
+{
+    if (const auto pOwned = FindOwned(aFormId))
+    {
+        std::scoped_lock _{pOwned->Lock};
+        pOwned->Recorder.Clips(aTick, aSet, aEventId);
+    }
 }
 
 void GraphStreams::OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,

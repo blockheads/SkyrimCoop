@@ -272,9 +272,12 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     if (cRecorded && streams.OnUpdated(aFormId, GraphWords(aActor)))
     {
         // Its whole graph (Havok's internal state, 58372), and the event whose clip files its process holds.
-        const uint16_t cClips = aActor.LoadedClips.empty() ? UINT16_MAX : GraphEventId(*aActor.LoadedClips.begin());
+        std::vector<std::pair<uint8_t, uint16_t>> sets;
+        if (!aActor.LoadedClips.empty())
+            if (const uint16_t cClips = GraphEventId(*aActor.LoadedClips.begin()); cClips != UINT16_MAX)
+                sets.emplace_back(3, cClips);
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
-                                   .Seed = {aActor.GraphRandom, 0}, .ClipEvent = cClips == UINT16_MAX ? -1 : int32_t(cClips)});
+                                   .Seed = {aActor.GraphRandom, 0}, .ClipSets = std::move(sets)});
     }
 }
 
@@ -306,7 +309,7 @@ struct FakeGraphTarget final : IGraphTarget
             Engine.TakeGraphEvent(Actor, cEvents[aEventId]);
     }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
-    std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t aEventId) override
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
     {
         const auto cEvents = Engine.GraphEventTable();
         return aEventId < cEvents.size() ? Engine.RequestActionClips(FormId, cEvents[aEventId]) : nullptr;
@@ -1111,7 +1114,7 @@ uint32_t FakeEngine::DrawGraphRandom(Actor& aActor) noexcept
 
 std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)
 {
-    if (!ClipFiles.contains(acEvent))
+    if (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent))
         return nullptr;
     auto done = std::make_shared<std::atomic<bool>>(false);
     ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done});
@@ -1128,7 +1131,12 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     aAction.Variables = Actors.at(aFormId).GraphVariables; // SaveAnimationVariables, as Animation.cpp's hook
     aAction.Variables.GraphRandom = Actors.at(aFormId).GraphRandom;
     if (ClipFiles.contains(aAction.EventName))
+    {
+        // Its process loads the action's clip set first (39625), in its stream's place.
         Actors.at(aFormId).LoadedClips = {aAction.EventName};
+        if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
+            streams.OnClips(aFormId, streams.Tick(), 3, GraphEventId(aAction.EventName));
+    }
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
         // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
         if (flags & 1)

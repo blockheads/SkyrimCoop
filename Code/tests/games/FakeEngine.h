@@ -626,6 +626,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
     std::map<std::string, std::string> ClipFiles;    // an event to its clip's state: it needs a file loaded first
+    // Events with clip files a process loads into another set (IMovementSelectIdle's): loaded into the action set
+    // anyway (ActionClips::Request), they replace what it held (KeepSet 40055).
+    std::set<std::string> OtherSetClips;
     // A state to the states its machine starts in at random (hkbStateMachine 59406): gestures, idle variants.
     std::map<std::string, std::vector<std::string>> GraphPicks;
     // A state whose clip loops, and after a random number of loops sends to the other (Lucan's counter): no action.

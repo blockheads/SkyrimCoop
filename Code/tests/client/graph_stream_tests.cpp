@@ -39,8 +39,13 @@ struct ToyGraph final : IGraphTarget
         State = State * 31 + aEventId + Vars[0];
         Calls.push_back("event " + std::to_string(aEventId));
     }
-    std::shared_ptr<std::atomic<bool>> Clips; // an event's files loading
-    std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t) override { return Clips; }
+    std::shared_ptr<std::atomic<bool>> Clips; // a load's files loading
+    std::vector<std::pair<uint8_t, uint16_t>> Asked;
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
+    {
+        Asked.emplace_back(aSet, aEventId);
+        return Clips;
+    }
     void Update(float aStep) override
     {
         State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Seed.Current;
@@ -226,13 +231,14 @@ TEST_CASE("An owner's sync point is taken after the update a copy asked at", "[g
     CHECK(cOps->Runs[0].Ops.size() == 2);
 }
 
-TEST_CASE("An event waits for its clip files, holding what follows", "[graph-stream]")
+TEST_CASE("Its owner's clip load holds what follows until its files are in; an event alone loads nothing", "[graph-stream]")
 {
     GraphRecorder recorder;
     ToyGraph owner, copy;
     OwnerUpdate(recorder, owner, 1, 0.016f);
     GraphReplayer replayer;
     replayer.Load(Point(owner, recorder.Updates()));
+    recorder.Clips(2, 4, 7); // its process loaded event 7's clips into its instant interaction set, then sent it
     recorder.Event(2, 7, owner.Vars, owner.Seed);
     owner.SendEvent(7);
     OwnerUpdate(recorder, owner, 2, 0.016f);
@@ -240,32 +246,43 @@ TEST_CASE("An event waits for its clip files, holding what follows", "[graph-str
     replayer.Feed(cOps.Runs[0], cOps.Frames);
     copy.Clips = std::make_shared<std::atomic<bool>>(false);
     CHECK(replayer.Run(10, copy) == 0); // its files are not in: the event and the update after it wait
+    CHECK(copy.Asked == std::vector<std::pair<uint8_t, uint16_t>>{{4, 7}});
     CHECK(copy.Calls == std::vector<std::string>{"load"});
     copy.Clips->store(true);
     CHECK(replayer.Run(10, copy) == 1);
     CHECK(copy.State == owner.State);
+    CHECK(copy.Asked.size() == 1);
 
-    // A load that never ends (a cancelled one): it goes on after cMaxClipWaits runs.
+    // An event with no load before it asks for nothing (its owner's process loaded nothing for it).
     recorder.Event(3, 8, owner.Vars, owner.Seed);
     owner.SendEvent(8);
     OwnerUpdate(recorder, owner, 3, 0.016f);
     const GraphOps cMore = Batch(recorder);
     replayer.Feed(cMore.Runs[0], cMore.Frames);
+    CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.Asked.size() == 1);
+
+    // A load that never ends (a cancelled one): it goes on after cMaxClipWaits runs.
+    recorder.Clips(4, 3, 9);
+    OwnerUpdate(recorder, owner, 4, 0.016f);
+    const GraphOps cLast = Batch(recorder);
+    replayer.Feed(cLast.Runs[0], cLast.Frames);
     copy.Clips = std::make_shared<std::atomic<bool>>(false);
     for (uint32_t i = 0; i < GraphReplayer::cMaxClipWaits; ++i)
         CHECK(replayer.Run(10, copy) == 0);
     CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.State == owner.State);
 }
 
-TEST_CASE("A sync point loads its owner's last action's clip files before the stream runs on", "[graph-stream]")
+TEST_CASE("A sync point loads every clip set its owner's process held before the stream runs on", "[graph-stream]")
 {
     GraphRecorder recorder;
     ToyGraph owner, copy;
-    recorder.Event(1, 42, owner.Vars, owner.Seed); // its owner's last action: its process holds that set
+    recorder.Event(1, 42, owner.Vars, owner.Seed);
     owner.SendEvent(42);
     OwnerUpdate(recorder, owner, 1, 0.016f);
     auto point = Point(owner, recorder.Updates());
-    point.ClipEvent = 42;
+    point.ClipSets = {{3, 42}, {4, 9}}; // its action's and its instant interaction's
     OwnerUpdate(recorder, owner, 2, 0.016f);
     const GraphOps cOps = Batch(recorder);
     GraphReplayer replayer;
@@ -273,6 +290,7 @@ TEST_CASE("A sync point loads its owner's last action's clip files before the st
     replayer.Load(point);
     copy.Clips = std::make_shared<std::atomic<bool>>(false);
     CHECK(replayer.Run(10, copy) == 0); // loaded, holding for the files
+    CHECK(copy.Asked == std::vector<std::pair<uint8_t, uint16_t>>{{3, 42}, {4, 9}});
     copy.Clips->store(true);
     CHECK(replayer.Run(10, copy) == 1);
     CHECK(copy.State == owner.State);
@@ -296,7 +314,7 @@ TEST_CASE("A copy's stream starts again when its graph is replaced", "[graph-str
     CHECK(streams.ShouldAsk(0x99));
 }
 
-TEST_CASE("An owner's sync point keeps the clip event its game gave it, whatever the graph's last event", "[graph-stream]")
+TEST_CASE("An owner's sync point keeps the clip sets its game gave it, whatever the graph's last event", "[graph-stream]")
 {
     GraphStreams streams;
     streams.Record(0x42, 7);
@@ -304,9 +322,28 @@ TEST_CASE("An owner's sync point keeps the clip event its game gave it, whatever
     const std::vector<uint32_t> cWords{0, 0};
     streams.OnEvent(0x42, 1, 9, cWords, cSeed); // IdleStop, refused: no files of its own
     streams.OnUpdate(0x42, 1, 0.016f, cWords, cSeed);
-    streams.AddPoint(0x42, {.ClipEvent = 3});
+    streams.AddPoint(0x42, {.ClipSets = {{3, 3}}});
     const auto cPoints = streams.TakePoints();
     REQUIRE(cPoints.size() == 1);
-    CHECK(cPoints[0].ClipEvent == 3);
+    CHECK(cPoints[0].ClipSets == std::vector<std::pair<uint8_t, uint16_t>>{{3, 3}});
     CHECK(cPoints[0].Id == 7);
+}
+
+TEST_CASE("An owner's clip loads go into its stream in their place", "[graph-stream]")
+{
+    GraphStreams streams;
+    streams.Record(0x42, 7);
+    const GraphSeed cSeed{1, 1};
+    const std::vector<uint32_t> cWords{0, 0};
+    streams.OnUpdate(0x42, 1, 0.016f, cWords, cSeed);
+    streams.OnClips(0x42, 2, 4, 11);
+    streams.OnEvent(0x42, 2, 11, cWords, cSeed);
+    streams.OnClips(0x99, 2, 3, 1); // not an owner's: nothing
+    const auto cOps = streams.TakeOps();
+    REQUIRE(cOps);
+    REQUIRE(cOps->Runs.size() == 1);
+    const auto& cRun = cOps->Runs[0].Ops;
+    REQUIRE(cRun.size() == 3);
+    CHECK((cRun[1].Event && cRun[1].ClipSet == 4 && cRun[1].EventId == 11 && cRun[1].Changed.empty()));
+    CHECK((cRun[2].Event && cRun[2].ClipSet == 0 && cRun[2].EventId == 11));
 }

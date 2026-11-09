@@ -85,7 +85,12 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
             continue;
         aWriter.WriteBits(cOp.Event, 1);
         if (cOp.Event)
+        {
             aWriter.WriteBits(cOp.EventId, 16);
+            aWriter.WriteBits(cOp.ClipSet != 0, 1);
+            if (cOp.ClipSet)
+                aWriter.WriteBits(cOp.ClipSet, 3);
+        }
         else
         {
             aWriter.WriteBits(cNext, 1);
@@ -148,10 +153,11 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
         op.Event = bit;
         if (op.Event)
         {
-            uint64_t id = 0;
-            if (!aReader.ReadBits(id, 16))
+            uint64_t id = 0, load = 0, set = 0;
+            if (!aReader.ReadBits(id, 16) || !aReader.ReadBits(load, 1) || (load && (!aReader.ReadBits(set, 3) || !set)))
                 return false;
             op.EventId = static_cast<uint16_t>(id);
+            op.ClipSet = static_cast<uint8_t>(set);
         }
         else
         {

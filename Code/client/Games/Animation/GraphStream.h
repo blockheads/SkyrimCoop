@@ -25,9 +25,9 @@ struct IGraphTarget
     virtual void SetSeed(const GraphSeed& acSeed) = 0;
     [[nodiscard]] virtual bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) = 0; // its state (63602), seed, counters
     virtual void SendEvent(uint16_t aEventId) = 0;                        // 63591, as the copy's replay
-    // The event's clip files loading (39625's half, ActionClips): null when it needs none or has them. A clip started
-    // without its file lasts 0.0133 s (59263): its owner's game loaded them before it sent the event.
-    [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t aEventId) = 0;
+    // The event's clip files loading into a process's set, as its owner's process did (ActionClips): null when it
+    // needs none or has them. A clip started without its file lasts 0.0133 s (59263).
+    [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) = 0;
     virtual void Update(float aStep) = 0;                                 // 63587, forced
 };
 
@@ -47,6 +47,8 @@ struct GraphRecorder
     // Before the graph handles an event / runs an update (its channels already applied, 63590).
     void Event(uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords, const GraphSeed& acSeed);
     void Update(uint64_t aTick, float aStep, std::span<const uint32_t> aWords, const GraphSeed& acSeed);
+    // Its process loaded an event's clip files into a set (coop_LoadEventClips 43621).
+    void Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId);
     // After its update: what the graph wrote itself, which the copy's graph writes too.
     void Updated(std::span<const uint32_t> aWords);
     [[nodiscard]] uint32_t Updates() const noexcept
@@ -79,7 +81,7 @@ struct GraphRecordedRun
 struct GraphReplayer
 {
     static constexpr size_t cMaxUpdatesPerRun = 4; // behind: catch up a few updates a frame
-    static constexpr uint32_t cMaxClipWaits = 120;  // runs an event waits for its clip files (a cancelled load never ends)
+    static constexpr uint32_t cMaxClipWaits = 120;  // runs a clip load holds the stream (a cancelled load never ends)
     std::optional<uint16_t> TimeDelta;
 
     // Its owner's run; a run that does not follow the last one is a gap: it waits for a new sync point.
@@ -116,7 +118,7 @@ struct GraphReplayer
     bool m_fed = false;
     bool m_started = false;
     std::atomic<uint32_t> m_current{UINT32_MAX};
-    std::shared_ptr<std::atomic<bool>> m_clips; // the front event's files loading
+    std::vector<std::shared_ptr<std::atomic<bool>>> m_loads; // clip files loading: its point's sets, or the front load op
     bool m_clipsAsked = false;
     uint32_t m_clipWaits = 0;
 };
@@ -130,12 +132,13 @@ struct GraphStreams
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
     void OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,
                  const GraphSeed& acSeed);
+    void OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint16_t aEventId);
     // apGraph: which graph it is; another one (a 3D reload) starts its recording over, so its copies ask for a point.
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
     // After the update: true when a copy asked for a sync point, which the caller saves and hands to AddPoint.
     [[nodiscard]] bool OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
-    // Its Id and Update filled in; its ClipEvent is the caller's: the event whose clip files its process holds.
+    // Its Id and Update filled in; its ClipSets are the caller's: what its process holds.
     void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint);
     void WantPoint(uint32_t aFormId);
     [[nodiscard]] std::optional<GraphOps> TakeOps();

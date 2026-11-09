@@ -520,6 +520,7 @@ struct GraphSyncPoint
     std::string State;  // its whole graph (Skyrim: Havok's internal state, Games/Animation/GraphState.h)
     std::vector<uint32_t> Words; // its variables, exact
     GraphSeed Seed{};
-    int32_t ClipEvent = -1; // the event whose clip files its process holds (its last action's): clips after it play them
+    // Each clip set its process holds: (the set, ActionClips::Set; the event loaded into it). Its clips play them.
+    std::vector<std::pair<uint8_t, uint16_t>> ClipSets;
 };
 } // namespace Payloads

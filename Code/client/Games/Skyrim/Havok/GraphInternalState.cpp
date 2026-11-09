@@ -1,11 +1,15 @@
 #include <Havok/GraphInternalState.h>
 
+#include <Actor.h>
 #include <Games/Animation/GraphState.h>
 #include <Games/Animation/NodeMemory.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/hkbBehaviorGraph.h>
+#include <Havok/hkbCharacter.h>
 #include <Havok/hkbNode.h>
 #include <Havok/hkEventContext.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
 #include <Wire/Serialization.h>
 #include <cstring>
 #include <memory>
@@ -196,6 +200,24 @@ const hkbNode* EffectTemplate(const hkbStateMachineTransitions& acMachine, const
     return pTransitions->transitions.data[acReference.transitionIndex].transition;
 }
 
+
+// Skyrim's updateActiveNodes (60079) walks with 59319, which drops its restore map; while a restore runs, that walk
+// goes to Havok's own 59318 instead, whose 59326 gives each node its state as it activates.
+thread_local bool s_restoring = false;
+using TWalk = void*(hkbNode*, void*, uint32_t, void*, void*, void*, void*, void*, void*, uint8_t, void*);
+TWalk* RealCollectLeafFirst = nullptr;
+void* HookCollectLeafFirst(hkbNode* apRoot, void* apGraph, uint32_t aFlags, void* apList, void* apMap, void* apChildren, void* apOldList,
+                           void* apOldMap, void* apContext, uint8_t aSync, void* apRestore)
+{
+    if (s_restoring && apRestore)
+    {
+        POINTER_SKYRIMSE(TWalk, s_activateNodes, 59318);
+        return s_activateNodes.Get()(apRoot, apGraph, aFlags, apList, apMap, apChildren, apOldList, apOldMap, apContext, aSync, apRestore);
+    }
+    return RealCollectLeafFirst(apRoot, apGraph, aFlags, apList, apMap, apChildren, apOldList, apOldMap, apContext, aSync, apRestore);
+}
+Hooks::Initializer s_restoreWalk([]() { HOOK_ID(59319, &RealCollectLeafFirst, HookCollectLeafFirst); });
+
 struct StateHooks;
 GraphState::Node NodeOf(const hkbNodeInternalStateInfo& acInfo, const hkbNode& acNode, StateHooks& aHooks);
 
@@ -357,7 +379,9 @@ std::string Take(const BShkbAnimationGraph& acGraph)
     FreeArray(state.nodeInternalStateInfos.data, state.nodeInternalStateInfos.capacity, sizeof(void*));
     if (state.variableValueSet)
         RemoveReference(state.variableValueSet);
-    spdlog::debug("Graph stream: a sync point of {} active nodes ({} states, {} runtime members)", nodes.size(), states, runtimes);
+    const auto* pQueue = acGraph.character.eventQueue;
+    spdlog::debug("Graph stream: a sync point of {} active nodes ({} states, {} runtime members), {} events waiting", nodes.size(), states,
+                  runtimes, pQueue ? pQueue->count : -1);
     return GraphState::Encode(nodes);
 }
 
@@ -445,7 +469,35 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
     hkbBehaviorGraphInternalState state{};
     state.nodeInternalStateInfos = {list.data(), int32_t(list.size()), int32_t(list.size()) | int32_t(0x80000000)};
     state.variableValueSet = pWords; // copied onto itself
+    s_restoring = true;
     s_setInternalState.Get()(pBehaviour, &aContext, &state);
+    s_restoring = false;
+    // The events its deactivation and its nodes' activations raised (start states entered before their states were
+    // set, 59365): its owner's queue was empty after its update.
+    int32_t dropped = 0;
+    if (auto* pQueue = aGraph.character.eventQueue)
+    {
+        dropped = pQueue->count;
+        pQueue->head = pQueue->tail = pQueue->count = 0;
+    }
+
+    // Readout: its owner's nodes not active after the restore, its machines not in their restored state.
+    std::unordered_map<uint16_t, hkbNode*> clones;
+    if (pGraph->activeNodes)
+        for (int32_t i = 0; i < pGraph->activeNodes->size; ++i)
+            if (hkbNode* pClone = pGraph->activeNodes->data[i].nodeClone)
+                clones.emplace(pClone->id, pClone);
+    uint32_t inactive = 0, otherState = 0;
+    for (const auto* pInfo : list)
+    {
+        const auto it = clones.find(uint16_t(pInfo->nodeId));
+        if (it == clones.end())
+            ++inactive;
+        else if (pInfo->internalState && ClassName(*it->second) == "hkbStateMachine" &&
+                 static_cast<const hkbStateMachineNode*>(it->second)->currentStateId !=
+                     *reinterpret_cast<const int32_t*>(reinterpret_cast<const uint8_t*>(pInfo->internalState) + 0x58)) // its state's currentStateId
+            ++otherState;
+    }
     for (auto** ppSlot : hooks.Slots)
         *ppSlot = nullptr;
     for (auto* pState : hooks.States)
@@ -453,12 +505,7 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
 
     // The BS nodes' runtime members, onto their new clones.
     uint32_t runtimes = 0;
-    if (pGraph->activeNodes)
     {
-        std::unordered_map<uint16_t, hkbNode*> clones;
-        for (int32_t i = 0; i < pGraph->activeNodes->size; ++i)
-            if (hkbNode* pClone = pGraph->activeNodes->data[i].nodeClone)
-                clones.emplace(pClone->id, pClone);
         for (const auto* pNode : runtime)
         {
             const auto it = clones.find(pNode->Id);
@@ -467,9 +514,10 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
             runtimes += pRuntime && NodeMemory::Read(reader, reinterpret_cast<uint8_t*>(it->second), *pRuntime);
         }
     }
-    spdlog::debug("Graph stream: {} of {} nodes restored with a state, {} runtime of {} (no node {}, other node {}, not fitting {}; "
-                  "transition effects {}, lost {})",
-                  states, nodes.size(), runtimes, runtime.size(), unmatched, otherNode, notFitting, hooks.Effects, hooks.LostEffects);
+    spdlog::debug("Graph stream: {:X} restored {} of {} nodes with a state, {} runtime of {} (no node {}, other node {}, not fitting {}; "
+                  "transition effects {}, lost {}); then {} active, {} of its owner's not, {} machines in another state; {} events dropped",
+                  aGraph.holder ? aGraph.holder->formID : 0, states, nodes.size(), runtimes, runtime.size(), unmatched, otherNode, notFitting,
+                  hooks.Effects, hooks.LostEffects, clones.size(), inactive, otherState, dropped);
     return true;
 }
 } // namespace GraphInternalState

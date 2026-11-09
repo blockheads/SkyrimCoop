@@ -788,3 +788,46 @@ TEST_CASE("A copy starting after its owner's idle loads that idle's clip files, 
     CHECK(guest.Actors.at(cCopy).LoadedClips.contains("IdleCounter"));
     CHECK(FirstGraphDifference(cOwner.Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
 }
+
+TEST_CASE("A copy keeps its owner's idle's clip files through a turn its owner's process loaded nothing for", "[animation][replay-start]")
+{
+    // Skyrim (duo, Whiterun, 2026-11-09): copies asked for every event's clip files; a turn's (NPC_TurnToWalkLeft90,
+    // loaded by its owner's movement, not its action set) took the place of the counter idle's set its owner still
+    // held, and AnimObjectCounterRightToArm then played with no file.
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{.Clips = {{.State = "CounterLoop", .Ms = 500, .Starts = {"CounterArm"}},
+                                                 {.State = "CounterArm", .Ms = 800, .Starts = {"CounterLoop"}}}};
+        engine->GraphTransitions = {{{"Standing", "IdleCounter"}, "CounterLoop"}, {{"CounterLoop", "TurnToWalk"}, "CounterLoop"}};
+        engine->ClipFiles = {{"IdleCounter", "CounterArm"}};
+        engine->OtherSetClips = {"TurnToWalk"};
+        engine->SkippedClips = {{"CounterArm", "CounterLoop"}};
+    }
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A684, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A684).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x1A684).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy starts on its owner's stream");
+    ActionEvent idle;
+    idle.ActionId = 0x13004;
+    idle.EventName = "IdleCounter";
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(npc, idle)); });
+    party.Until([&] { return guest.Actors.at(cCopy).LoadedClips.contains("IdleCounter"); }, "the copy loads the idle's files as its owner did");
+    ActionEvent turn;
+    turn.ActionId = 0x13006;
+    turn.EventName = "TurnToWalk";
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(npc, turn)); });
+    const auto& cOwner = host.Actors.at(npc);
+    party.Until([&] { return cOwner.GraphState == "CounterArm"; }, "the owner's loop reaches the arm clip");
+    party.Until([&] { return cOwner.GraphState == "CounterLoop"; }, "and loops back");
+    const uint64_t cFrom = party.Guest().GetFrameTick();
+    party.Until([&] { return party.Guest().GetFrameTick() > cFrom + 500; }, "the copy plays it too");
+    CHECK(guest.Actors.at(cCopy).LoadedClips.contains("IdleCounter"));
+    CHECK(FirstGraphDifference(cOwner.Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
+}

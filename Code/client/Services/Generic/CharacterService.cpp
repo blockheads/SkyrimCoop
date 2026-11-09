@@ -731,7 +731,7 @@ void CharacterService::OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) c
     for (const auto cEntity : view)
         if (view.get<RemoteComponent>(cEntity).Id == acMessage.Id)
         {
-            spdlog::info("Copy {:X} starts on its owner's graph stream at update {}", view.get<FormIdComponent>(cEntity).Id, acMessage.Update);
+            spdlog::info("Copy {:X} starts on its owner's graph stream at update {} ({} clip sets held)", view.get<FormIdComponent>(cEntity).Id, acMessage.Update, acMessage.ClipSets.size());
             m_world.GetGraphStreams().Load(view.get<FormIdComponent>(cEntity).Id, acMessage);
         }
 }

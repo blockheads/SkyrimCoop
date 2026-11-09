@@ -244,6 +244,31 @@ class ReproActions:
         def events(game, form, update):
             return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("events")
 
+        def words_apart(owner_form, form, update):
+            # The variables owner and copy held differently as the update began and as it ended, by name.
+            owner = host.rpc({"cmd": "graph_stream", "states_at": {"form": owner_form, "update": update}}, timeout=10) or {}
+            copy = guest.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}
+            names = owner.get("names") or []
+            apart = {}
+            for when in ("before", "after"):
+                ours, theirs = (owner.get("words") or {}).get(when) or [], (copy.get("words") or {}).get(when) or []
+                apart[when] = {(names[i] if i < len(names) else str(i)): (f"{ours[i]:08X}", f"{theirs[i]:08X}")
+                               for i in range(min(len(ours), len(theirs))) if ours[i] != theirs[i]}
+            return apart
+
+        def times(owner_form, form, update):
+            # The first update whose clip times differ (the start of a drift), and the last few.
+            ask = {"form": owner_form, "update": update, "times_from": max(0, update - 400)}
+            ours = (host.rpc({"cmd": "graph_stream", "states_at": ask}, timeout=10) or {}).get("times") or {}
+            theirs = (guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=10) or {}).get("times") or {}
+            apart = [key for key in sorted(theirs, key=int) if key in ours and ours[key] != theirs[key]]
+            first = apart[0] if apart else None
+            keys = sorted({first, str(update - 1), str(update)} - {None}, key=int)
+            return {"first apart": first, **{key: {"owner": ours.get(key), "copy": theirs.get(key)} for key in keys}}
+
+        def handled(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("handled")
+
         def step():
             for actor in (host.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
                 if actor["role"] == "owner":
@@ -266,7 +291,10 @@ class ReproActions:
                                       f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
                                       f"copy only {sorted(set(copy_states) - set(owner_states))}; events before (update: "
                                       f"name taken/refused) owner {events(host, owners[actor]['form'], update)}, copy "
-                                      f"{events(guest, form, update)}")
+                                      f"{events(guest, form, update)}; variables apart (owner, copy) "
+                                      f"{words_apart(owners[actor]['form'], form, update)}; events handled (event <- sender) owner "
+                                      f"{handled(host, owners[actor]['form'], update)}, copy {handled(guest, form, update)}; clip times "
+                                      f"{times(owners[actor]['form'], form, update)}")
                 else:
                     compared[actor] += 1
             pending[:] = waiting

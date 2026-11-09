@@ -248,3 +248,46 @@ time	op	id	rva	item
 2026-11-09T15:23:28Z	read	58398	0xad1e90	{"name": "hkbNodeInternalStateInfo::dtor"}
 2026-11-09T15:27:35Z	read	43621	0x7da170	{"name": "coop_LoadEventClips"}
 2026-11-09T15:31:39Z	read		0xaf0b20	{"name": "coop_hkbBehaviorGraph_ActivateNode"}
+2026-11-09T15:43:39Z	read	59402	0xaf8c70	{"name": "hkbStateMachine::sub_59402"}
+2026-11-09T15:46:00Z	read	58384	0xad11d0	{"name": "hkbBehaviorGraph::sub_58384"}
+2026-11-09T15:48:55Z	read	58386	0xad1660	{"name": "hkbBehaviorGraph::sub_58386"}
+2026-11-09T15:49:15Z	read	59348	0xaf3740	{"name": "hkbStateMachine::sub_59348"}
+2026-11-09T15:52:38Z	read		0xaca8b0	{"name": "hkbRagdollDriver::sub_58311"}
+2026-11-09T15:52:47Z	read	58315	0xacae30	{"name": "coop_hkbContext_ctor"}
+2026-11-09T15:57:53Z	read	59319	0xaef940	{"name": "hkbGenerator::sub_59319"}
+2026-11-09T15:59:21Z	name	59319	0xaef940	{"addr": "0x140aef940", "name": "coop_hkbBehaviorGraph_CollectActiveNodesLeafFirst"}
+2026-11-09T15:59:21Z	name	59327	0xaf10b0	{"addr": "0x140af10b0", "name": "coop_hkbBehaviorGraph_ActivateNodeLeafFirst"}
+2026-11-09T15:59:26Z	comment	59319	0xaef940	{"addr": "0x140aef940", "comment": "59319 the walk updateActiveNodes (60079) really calls: the same 9 leading arguments as 59318 (root, graph, flags, new list, new map, children, old list, old map, context), but it never reads the 10th and 11th (flag, restore map) and recurses with 59327. So Skyrim's setInternalState (58373) restores the variables only and activates every node fresh. The graph input stream hands this walk to 59318 with the map while its restore runs (GraphInternalState.cpp)."}
+2026-11-09T15:59:26Z	comment	59327	0xaf10b0	{"addr": "0x140af10b0", "comment": "59327 59326's optimized twin (collectActiveNodesLeafFirst): reuses a previously active node's clone, deactivates and reactivates it only when forced, activates a new one (CopyVariablesToMembers, Activate), then its active children, and fills the same node info fields; no restore map, so no setInternalState."}
+2026-11-09T15:59:26Z	comment	59326	0xaf0850	{"addr": "0x140af0850", "comment": "59326 activate one node and its active children, recursively (Havok's activateNodeRecursive). A node not active before: CopyVariablesToMembers, Activate (slot 4), then with a restore map (last arg) and an entry for its id: setInternalState (16) and setInternalStateUser (17, context, state, map); the entry's sync info and byte go to its node info. Its active children (getChildren slot 9, FLAG_ACTIVE_ONLY) are read after that, so a restored state machine or blender activates the children its restored state names. Reached only through 59318 (CollectNodes 59317 with no context): Skyrim's updateActiveNodes walks with 59319/59327 instead."}
+2026-11-09T15:59:33Z	comment	60079	0xb29f40	{"addr": "0x140b29f40", "comment": "60079 hkbBehaviorGraph::updateActiveNodes(graph, context, restoreMap): a third argument the decompiler hid (r8 kept in r15), passed as the walk's 11th; but its walk, 59319, ignores it. Old active nodes no longer active are deactivated (slot 7) and their clones released (58363). activate (58328) passes null; setInternalState (58373) its map."}
+2026-11-09T15:59:33Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59318 Havok's activate walk with a restore map (root, graph, flags, new list, new map, children, old list, old map, context, flag, restoreMap): 59326 per node, then marks nodes whose parents need sync. The game calls it only from CollectNodes (59317, no context); updateActiveNodes uses 59319."}
+2026-11-09T16:04:10Z	read	59410	0xaf9520	{"name": "hkbStateMachine::sub_59410"}
+2026-11-09T16:04:23Z	read	59365	0xaf3f80	{"name": "hkbStateMachine::StateInfo::sub_59365"}
+2026-11-09T16:04:35Z	read	58323	0xacb130	{"name": "sub_140ACB130"}
+2026-11-09T16:04:54Z	name	58323	0xacb130	{"addr": "0x140acb130", "name": "coop_hkbEventQueue_reserve"}
+2026-11-09T16:04:57Z	comment	58323	0xacb130	{"addr": "0x140acb130", "comment": "58323 hkbEventQueue (hkQueue<hkbEvent>) reserve: data +0 (24-byte events: id, payload, sender), capacity +8, head +0xC, tail +0x10, count +0x14; Havok's thread heap. The queue's +0x18 (symbol id map) and +0x20 (ids already internal) are swapped per behaviour by the walks."}
+2026-11-09T16:04:57Z	comment	59365	0xaf3f80	{"addr": "0x140af3f80", "comment": "59365 StateInfo enter: each enterNotifyEvent onto context.eventQueue (+0x18), or the character's (hkbCharacter +0x80) when the context has none, mapped by the queue's symbol map; then the state's listeners (slot 3). A restore's activations (start states entered before their states are set) queue events the owner never had: the graph input stream empties the queue after its restore."}
+2026-11-09T16:11:50Z	read	40055	0x72a2c0	{"name": "coop_KeepSet"}
+2026-11-09T16:21:28Z	read	58344	0xacd4b0	{"name": "hkbBehaviorGraph::sub_58344"}
+2026-11-09T16:21:46Z	read		0xbcf930	{"name": "BShkbAnimationGraph::sub_63592"}
+2026-11-09T16:21:53Z	read	63804	0xbdc730	{"name": "sub_140BDC730"}
+2026-11-09T16:22:16Z	comment	63804	0xbdc730	{"addr": "0x140bdc730", "comment": "63804 hkbEventQueue enqueue (24-byte event at tail). Called by LoadState (63602): Skyrim's graph save keeps queued events."}
+2026-11-09T16:22:16Z	comment		0xbcf930	{"addr": "0x140bcf930", "comment": "63592 BShkbAnimationGraph: takes the named event out of the character's queue (graph +0x140, hkbCharacter +0x80) and says whether it was there; requeues the others. Not an input path."}
+2026-11-09T16:22:16Z	comment	58344	0xacd4b0	{"addr": "0x140acd4b0", "comment": "58344 hkbBehaviorGraph handleEvents(graph, context, queue): the events queued now (count at entry), each through HandleEventOnActiveNodes (58377) with the queue's symbol mapping."}
+2026-11-09T16:22:16Z	read		0xbccd30	{"name": "BShkbAnimationGraph::sub_63581"}
+2026-11-09T16:42:54Z	read	39291	0x6f2770	{"name": "sub_1406F2770"}
+2026-11-09T16:43:43Z	read	39688	0x71a730	{"name": "sub_14071A730"}
+2026-11-09T16:43:43Z	read	39731	0x71cb30	{"name": "sub_14071CB30"}
+2026-11-09T16:43:56Z	read	39258	0x6f1190	{"name": "coop_CancelLoad"}
+2026-11-09T16:44:00Z	read	39689	0x71a780	{"name": "sub_14071A780"}
+2026-11-09T16:44:01Z	read		0x678bc0	{"name": "Character::sub_37324"}
+2026-11-09T16:44:12Z	name	39291	0x6f2770	{"addr": "0x1406f2770", "name": "coop_AIProcess_LoadInstantInteractionClips"}
+2026-11-09T16:44:12Z	name	39688	0x71a730	{"addr": "0x14071a730", "name": "coop_InstantInteractionCallback_ctor"}
+2026-11-09T16:44:12Z	name	39731	0x71cb30	{"addr": "0x14071cb30", "name": "coop_AssignMiddleCallback"}
+2026-11-09T16:44:12Z	name	39689	0x71a780	{"addr": "0x14071a780", "name": "coop_InstantInteractionCallback_Loaded"}
+2026-11-09T16:44:17Z	comment	39291	0x6f2770	{"addr": "0x1406f2770", "comment": "39291 an instant interaction's clips (Character 37325, from 37324: an NPC entering furniture or an idle marker at once, the ...EnterInstant idles): unless one is pending (middle +0x230), assigns an InstantInteractionCallback there (39731) and loads the event's clips into set 4 (coop_LoadEventClips 43621: event, actor, 4, 5, callback, lock, 1), its load at sets (middle +0x1B8) +0x80. Set 3 is the action's (39625: high +0x430, sets +0x60)."}
+2026-11-09T16:44:17Z	comment	39689	0x71a780	{"addr": "0x14071a780", "comment": "39689 InstantInteractionCallback::Loaded(kind, set): if the interaction still applies (0x1406F2910) keeps the set under its kind (40055), else releases it."}
+2026-11-09T16:44:17Z	comment	39731	0x71cb30	{"addr": "0x14071cb30", "comment": "39731 a refcounted callback pointer assign (the middle process's instant interaction slot +0x230); 39732 is the high process's (+0x430)."}
+2026-11-09T16:44:17Z	comment	39688	0x71a730	{"addr": "0x14071a730", "comment": "39688 InstantInteractionCallback ctor (32 bytes: vtable, count +8, actor +0x10, event +0x18)."}
+2026-11-09T16:44:17Z	comment	39258	0x6f1190	{"addr": "0x1406f1190", "comment": "39258 cancels the pending action-set load (sets +0x60) and its callback (high +0x430) only: set 4's is separate."}

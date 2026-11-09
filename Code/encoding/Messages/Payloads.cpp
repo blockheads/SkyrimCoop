@@ -659,7 +659,12 @@ void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexc
         aWriter.WriteBits(cWord, 32);
     aWriter.WriteBits(Seed.Seed, 32);
     aWriter.WriteBits(Seed.Current, 32);
-    Serialization::WriteVarInt(aWriter, uint32_t(ClipEvent + 1));
+    Serialization::WriteVarInt(aWriter, ClipSets.size());
+    for (const auto& [cSet, cEvent] : ClipSets)
+    {
+        aWriter.WriteBits(cSet, 3);
+        aWriter.WriteBits(cEvent, 16);
+    }
 }
 void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
@@ -684,7 +689,19 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     uint64_t seed = 0, current = 0;
     if (aReader.ReadBits(seed, 32) && aReader.ReadBits(current, 32))
         Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
-    uint64_t clipEvent = 0;
-    ClipEvent = Serialization::TryReadVarInt(aReader, clipEvent) && clipEvent && clipEvent <= 0x10000 ? int32_t(clipEvent) - 1 : -1;
+    uint64_t sets = 0;
+    ClipSets.clear();
+    if (!Serialization::TryReadVarInt(aReader, sets) || sets > 8)
+        return;
+    for (uint64_t i = 0; i < sets; ++i)
+    {
+        uint64_t set = 0, event = 0;
+        if (!aReader.ReadBits(set, 3) || !aReader.ReadBits(event, 16))
+        {
+            ClipSets.clear();
+            return;
+        }
+        ClipSets.emplace_back(uint8_t(set), uint16_t(event));
+    }
 }
 } // namespace Payloads

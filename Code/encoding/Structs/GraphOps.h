@@ -20,6 +20,8 @@ struct GraphOp
     bool Event = false;
     uint32_t Frame = 0;                                 // an update's frame: its index in GraphOps::Frames
     uint16_t EventId = 0;                               // an event's index in the graph's event table
+    uint8_t ClipSet = 0; // with Event: not sent, a clip load: its owner's process loaded the event's clip files into
+                         // that set (ActionClips::Set), which the copy's loads before its next ops
     std::optional<GraphSeed> Seed;                      // the graph's generator, when it changed since the last op
     std::vector<std::pair<uint16_t, uint32_t>> Changed; // variables set since the last op ended, by index, ascending
     bool operator==(const GraphOp&) const noexcept = default;
