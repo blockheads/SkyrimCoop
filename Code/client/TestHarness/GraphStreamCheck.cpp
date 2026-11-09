@@ -264,8 +264,13 @@ nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexce
         nlohmann::json words = nlohmann::json::object();
         if (const auto cWords = it->second.Words.find(cUpdate); cWords != it->second.Words.end())
             words = {{"before", cWords->second.first}, {"after", cWords->second.second}};
+        // Every update's variables from words_from on (to find where a copy's first parted).
+        nlohmann::json wordsFrom = nlohmann::json::object();
+        if (cAt.contains("words_from"))
+            for (auto e = it->second.Words.lower_bound(cAt["words_from"].get<uint32_t>()); e != it->second.Words.end() && e->first <= cUpdate; ++e)
+                wordsFrom[std::to_string(e->first)] = {e->second.first, e->second.second};
         const auto cNames = s_names.find(cAt.value("form", 0u));
-        return {{"ok", true}, {"states", Lines(cStates->second)}, {"events", events}, {"words", words}, {"handled", handled}, {"times", times},
+        return {{"ok", true}, {"states", Lines(cStates->second)}, {"events", events}, {"words", words}, {"words_from", wordsFrom}, {"handled", handled}, {"times", times},
                 {"names", cNames != s_names.end() ? nlohmann::json(cNames->second) : nlohmann::json::array()}};
     }
     const bool cTake = acRequest.value("take", false);

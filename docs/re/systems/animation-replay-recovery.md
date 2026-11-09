@@ -418,5 +418,22 @@ setInternalState (58373) (graph, context, state):
   goes to its start state. Its other parts set the BS nodes' runtime members (65160: a node's own vfunc 26).
 - **Clip files:** `AIProcess::QueryActionAndLoadClips` (39625) loads an action's clips with `coop_LoadEventClips`
   (43621: event, actor, set 3, ...); `IMovementSelectIdle` and one more caller load other sets.
+- **Skyrim's build drops the map (measured on the duo, then read):** `updateActiveNodes` (60079) walks with 59319
+  (`collectActiveNodesLeafFirst`), which never reads its 10th and 11th arguments and recurses with 59327, 59326's
+  optimized twin with no restore map. So 58373 alone restores the variables and activates every node fresh: on the duo
+  no machine's `SetInternalState` ran, and a copy's machines came out in their start states. Havok's walk, 59318 with
+  59326, is still in the game (CollectNodes 59317 uses it): the graph input stream hands 59319's walk to it, with the
+  map, while its restore runs. Then every copy's nodes and machines came out as their owner's.
+- **Raised events:** activating a node enters a machine's start state before its state is set, and entering a state
+  raises its enter events (59365) into `context.eventQueue` (+0x18), or the character's (`hkbCharacter` +0x80) when the
+  context has none; deactivating raises exit events. The owner's queue was empty after its update at every point
+  measured (28 of 28); a copy's held 6 to 13 events after its restore, which its next update would handle. The stream
+  empties it.
+- **Clip sets:** a process holds its clip files in sets by kind (`AIProcess` middle +0x1B8, 0x20 apiece, kept by
+  40055): 3 an action's (39625, callback high +0x430), 4 an instant interaction's (39291 from `Character` 37325: an
+  NPC entering furniture or an idle marker at once, callback middle +0x230 by 39731, its load at sets +0x80). A movement
+  idle's (`IMovementSelectIdle` 41694, kind 47) is held by the selector itself, not the process. The three are the
+  only callers of `coop_LoadEventClips` (43621). A clip binds its file as it activates: one activated before its file is
+  in plays as a clip with none (0.0133 s, 59263).
 - Used by the graph input stream's sync point (`Havok/GraphInternalState.cpp`, docs/design/graph-input-stream.md).
 

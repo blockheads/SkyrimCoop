@@ -11,6 +11,7 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <Wire/Serialization.h>
+#include <bit>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -218,6 +219,16 @@ void* HookCollectLeafFirst(hkbNode* apRoot, void* apGraph, uint32_t aFlags, void
 }
 Hooks::Initializer s_restoreWalk([]() { HOOK_ID(59319, &RealCollectLeafFirst, HookCollectLeafFirst); });
 
+// Its active clips' local times (hkbClipGenerator +0xF0), for the logs.
+std::string ClipTimes(const hkbBehaviorGraphNode& acGraph)
+{
+    std::string times;
+    for (int32_t i = 0; acGraph.activeNodes && i < acGraph.activeNodes->size; ++i)
+        if (const hkbNode* pNode = acGraph.activeNodes->data[i].nodeClone; pNode && ClassName(*pNode) == "hkbClipGenerator")
+            times += std::format("{}={:08X} ", pNode->name ? Text(pNode->name) : "", std::bit_cast<uint32_t>(static_cast<const hkbClipGenerator*>(pNode)->localTime));
+    return times;
+}
+
 struct StateHooks;
 GraphState::Node NodeOf(const hkbNodeInternalStateInfo& acInfo, const hkbNode& acNode, StateHooks& aHooks);
 
@@ -380,8 +391,8 @@ std::string Take(const BShkbAnimationGraph& acGraph)
     if (state.variableValueSet)
         RemoveReference(state.variableValueSet);
     const auto* pQueue = acGraph.character.eventQueue;
-    spdlog::debug("Graph stream: a sync point of {} active nodes ({} states, {} runtime members), {} events waiting", nodes.size(), states,
-                  runtimes, pQueue ? pQueue->count : -1);
+    spdlog::debug("Graph stream: {:X}'s sync point of {} active nodes ({} states, {} runtime members), {} events waiting; clips {}",
+                  acGraph.holder ? acGraph.holder->formID : 0, nodes.size(), states, runtimes, pQueue ? pQueue->count : -1, ClipTimes(*pGraph));
     return GraphState::Encode(nodes);
 }
 
@@ -515,9 +526,9 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
         }
     }
     spdlog::debug("Graph stream: {:X} restored {} of {} nodes with a state, {} runtime of {} (no node {}, other node {}, not fitting {}; "
-                  "transition effects {}, lost {}); then {} active, {} of its owner's not, {} machines in another state; {} events dropped",
+                  "transition effects {}, lost {}); then {} active, {} of its owner's not, {} machines in another state; {} events dropped; clips {}",
                   aGraph.holder ? aGraph.holder->formID : 0, states, nodes.size(), runtimes, runtime.size(), unmatched, otherNode, notFitting,
-                  hooks.Effects, hooks.LostEffects, clones.size(), inactive, otherState, dropped);
+                  hooks.Effects, hooks.LostEffects, clones.size(), inactive, otherState, dropped, ClipTimes(*pGraph));
     return true;
 }
 } // namespace GraphInternalState

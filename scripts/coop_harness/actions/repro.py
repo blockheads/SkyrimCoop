@@ -254,6 +254,27 @@ class ReproActions:
                 ours, theirs = (owner.get("words") or {}).get(when) or [], (copy.get("words") or {}).get(when) or []
                 apart[when] = {(names[i] if i < len(names) else str(i)): (f"{ours[i]:08X}", f"{theirs[i]:08X}")
                                for i in range(min(len(ours), len(theirs))) if ours[i] != theirs[i]}
+            # The first update whose variables differed (an input the stream missed, or a node that reads the copy).
+            ask = {"update": update, "words_from": max(0, update - 300)}
+            ours = (host.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": owner_form}}, timeout=20) or {}).get("words_from") or {}
+            theirs = (guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=20) or {}).get("words_from") or {}
+            for key in sorted(theirs, key=int):
+                if key not in ours:
+                    continue
+                for when, side in (("before", 0), ("after", 1)):
+                    o, c = ours[key][side], theirs[key][side]
+                    diff = {(names[i] if i < len(names) else str(i)): (f"{o[i]:08X}", f"{c[i]:08X}") for i in range(min(len(o), len(c))) if o[i] != c[i]}
+                    if diff:
+                        apart["first apart"] = {"update": key, "when": when, "variables": diff}
+                        # Those variables around it, before and after each update, owner then copy.
+                        indices = [i for i in range(min(len(o), len(c))) if o[i] != c[i]]
+                        around = {}
+                        for k in [str(int(key) + d) for d in range(-4, 2)]:
+                            if k in ours and k in theirs:
+                                around[k] = {(names[i] if i < len(names) else str(i)): [f"{ours[k][0][i]:08X}>{ours[k][1][i]:08X}",
+                                                                                       f"{theirs[k][0][i]:08X}>{theirs[k][1][i]:08X}"] for i in indices}
+                        apart["around"] = around
+                        return apart
             return apart
 
         def times(owner_form, form, update):

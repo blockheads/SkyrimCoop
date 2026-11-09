@@ -353,6 +353,12 @@ Size: medium. Needs: duo.
   - Containers in the Bannered Mare differ at the end too (2026-11-06): `changes 0x8000000` on the host's and none on
     the guest's, 39 references (`held-copy-goes-with-owner` run there).
   - The rabbit and Olava with no owner are fixed: [copy-lifecycle.md](re/systems/copy-lifecycle.md).
+  - A creature's copy 57-58 units off its owner in height, x and y within a unit, at the end of
+    `wolf_copy_turns_with_owner` (2026-11-09: wolf `9B0DB` 58 below, deer `8480B` 57 above, one each in two runs). Their
+    graphs matched their owners' at every update through those runs (the live check), so not the graph. Unread: what
+    holds the copy's capsule at that height.
+  - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
+    only), loose food and a door, 45-52 references.
 
 ### Trade markers
 

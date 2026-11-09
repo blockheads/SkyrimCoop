@@ -245,10 +245,13 @@ owner, the update a copy asked at: hkbBehaviorGraph::getInternalState (58372)
   per active node but transition effects: createInternalState (0D), getInternalState (0E), getInternalStateUser (0F)
   into an hkbNodeInternalStateInfo { sync info, node id, activated, state }
   -> GraphState::Node { id, check (class and name), sync, activated, state bytes (NodeMemory), runtime bytes }
-copy: its graph deactivated (58331), its variable set kept, the owner's words in it
+copy: the clip sets its owner's process held, loaded first (a clip binds its file as it activates)
+  its graph deactivated (58331), its variable set kept, the owner's words in it
   hkbBehaviorGraph::setInternalState (58373): a map node id -> info, then updateActiveNodes with it (60079)
+    its walk (59319, which drops the map in Skyrim's build) handed to Havok's own 59318 while the restore runs
     per node as it activates (59326): Activate, setInternalState (10), setInternalStateUser (11), then its children,
     read from its restored state: a machine's restored state, a blender's restored active children
+  its event queue emptied (the activations' enter and exit events; its owner's was empty)
   then each BS node's runtime members onto its new clone
 ```
 
@@ -262,8 +265,13 @@ copy: its graph deactivated (58331), its variable set kept, the owner's words in
   every-N modifier's counts, a tweener's start) are carried by reflection. Skyrim's own restore (65149's functor) cannot
   follow Havok's: it ends every running transition and restarts it approximately (65164).
 - **The codec** (`Games/Animation/GraphState.h`, ClientTests `[graph-state]`): sync info as its used points and times.
-- **Clip files:** the point names the event whose clips its owner's process loaded last into its action set
-  (`coop_LoadEventClips` 43621, set 3), not its graph's last event (`IdleStop` loads nothing).
+- **Clip files:** the owner's clip loads are ops in its stream (`GraphOp::ClipSet`: set 3 an action's, 4 an instant
+  interaction's, 47 a movement idle's, from `coop_LoadEventClips` 43621, its queued twin 43622 and a save's reload
+  43624), replayed in their place and holding what follows until the files are in; the point names each set held, and
+  the copy loads them before it restores (a clip binds its file as it activates). The owner's are keyed by its graph
+  manager: a save's reload names no actor. A copy asks for no event's clips itself: asking for every event's loaded
+  sets its owner never loaded, in place of the one it held. A movement idle's set has no process slot: `ActionClips`
+  holds a copy's.
 - **The fake** (GameTests): a blender choosing its child as it activates, which Skyrim's save leaves out, and one action
   clip set per process; its sync point is its whole graph through the same codec.
 
@@ -276,6 +284,22 @@ copy: its graph deactivated (58331), its variable set kept, the owner's words in
 | both | humanoid copies in a turn their owners had left, from their start | the save leaves out machines at their start state (65148); the guest's AI ran the NPC before it became a copy, so its graph was not fresh | the copy's behaviour graph is deactivated, then restored whole (A graph's whole state) |
 | town | 1A684 at 386, then 441 updates: a counter clip "(no file)" | its owner's process held its last action's clip set, loaded before the copy's start; the point named its graph's last event | the point names the event its owner's process loaded clips for (43621, set 3) (GameTests flow) |
 | wolf scenario | Faendal at his first update: one of a turn blender's two clips missing | after the fresh activation the blender chose its own active children | the whole graph through Havok's own restore (58372 / 58373), above (GameTests flow) |
+
+## The live check's report
+
+When a copy parts from its owner, `graph_stream_check` says why: the states each holds alone, the events each took, the
+variables they held differently as the update began and ended (by name), the events each graph handled with the node
+that raised them (`HandleEventOnActiveNodes` 58377), and every clip's local time from the first update they differ.
+What it found on the duo (2026-11-09), in order:
+
+| first difference | cause | now |
+|---|---|---|
+| machines in their start states right after a restore | Skyrim's `updateActiveNodes` walk drops the restore map | 59319's walk handed to 59318 during the restore |
+| an idle machine back in its initial state, no input event | the restore's activations raised enter events | the copy's queue emptied after its restore |
+| `AnimObjectCounterRightToArm (no file)`, `RailLeanEnter00 (no file)` | sets 4 and 47 not mirrored; a copy's own per-event loads replaced its action set | the owner's loads in the stream, every set |
+| `TurnToWalkEnd` a few updates late, its clip's time a step behind | the clip restored before its movement set was in | a point's sets loaded before it restores |
+| `Wall_IdleBackEnter (no file)`, `Chair_FrontEnterVar1 (no file)` | sets loaded by the queued loader (43622) and by a save's reload (`FinishLoadGame`, 43624, which names a graph manager, not an actor) | every loader recorded, by graph manager |
+| none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s | | |
 
 ## Phases
 

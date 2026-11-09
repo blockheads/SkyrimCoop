@@ -662,7 +662,7 @@ void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexc
     Serialization::WriteVarInt(aWriter, ClipSets.size());
     for (const auto& [cSet, cEvent] : ClipSets)
     {
-        aWriter.WriteBits(cSet, 3);
+        aWriter.WriteBits(cSet, 8);
         aWriter.WriteBits(cEvent, 16);
     }
 }
@@ -696,7 +696,7 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     for (uint64_t i = 0; i < sets; ++i)
     {
         uint64_t set = 0, event = 0;
-        if (!aReader.ReadBits(set, 3) || !aReader.ReadBits(event, 16))
+        if (!aReader.ReadBits(set, 8) || !aReader.ReadBits(event, 16))
         {
             ClipSets.clear();
             return;

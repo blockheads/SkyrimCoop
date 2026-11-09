@@ -100,15 +100,34 @@ std::optional<uint16_t> TimeDeltaIndex(const BShkbAnimationGraph& acGraph)
     return pEntry && pEntry->value >= 0 && pEntry->value <= UINT16_MAX ? std::optional(uint16_t(pEntry->value)) : std::nullopt;
 }
 
-// Each actor's process's clip sets (coop_LoadEventClips 43621: the action's and an instant interaction's), the event
-// loaded into each: a sync point names them. An owner's loads since its last update or event, for its stream.
+// Each actor's clip sets (an action's, an instant interaction's, a movement idle's), by its graph manager: a save's
+// reload names no actor (43624). The event loaded into each, which a sync point names; its loads since its last op,
+// for its stream.
 struct ClipLoads
 {
     std::map<uint8_t, std::string> Held;
     std::vector<std::pair<uint8_t, std::string>> Unsent;
 };
 std::mutex s_clipLock;
-std::unordered_map<uint32_t, ClipLoads> s_clipLoads;
+std::unordered_map<const void*, ClipLoads> s_clipLoads;
+
+bool Mirrored(uint32_t aSet) noexcept
+{
+    return aSet == ActionClips::kAction || aSet == ActionClips::kInstant || aSet == ActionClips::kMovement;
+}
+
+void RecordClipLoad(const void* apManager, uint32_t aSet, const char* acpEvent)
+{
+    if (!apManager || !acpEvent || !Mirrored(aSet))
+        return;
+    std::scoped_lock _{s_clipLock};
+    if (s_clipLoads.size() > 4096)
+        s_clipLoads.clear();
+    auto& loads = s_clipLoads[apManager];
+    loads.Held[uint8_t(aSet)] = acpEvent;
+    if (loads.Unsent.size() < 16)
+        loads.Unsent.emplace_back(uint8_t(aSet), acpEvent);
+}
 
 // Its loads since the last op into its stream, before the op that follows them (on its owner's game, the action is
 // performed once its files are in).
@@ -117,7 +136,7 @@ void SendClipLoads(GraphStreams& aStreams, uint32_t aFormId, const BShkbAnimatio
     std::vector<std::pair<uint8_t, std::string>> unsent;
     {
         std::scoped_lock _{s_clipLock};
-        const auto it = s_clipLoads.find(aFormId);
+        const auto it = s_clipLoads.find(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr);
         if (it == s_clipLoads.end() || it->second.Unsent.empty())
             return;
         unsent = std::exchange(it->second.Unsent, {});
@@ -131,13 +150,16 @@ void SendClipLoads(GraphStreams& aStreams, uint32_t aFormId, const BShkbAnimatio
     }
 }
 
-std::vector<std::pair<uint8_t, uint16_t>> HeldClipSets(uint32_t aFormId, const BShkbAnimationGraph& acGraph)
+std::vector<std::pair<uint8_t, uint16_t>> HeldClipSets(const BShkbAnimationGraph& acGraph)
 {
     std::map<uint8_t, std::string> held;
     {
         std::scoped_lock _{s_clipLock};
-        if (const auto it = s_clipLoads.find(aFormId); it != s_clipLoads.end())
+        if (const auto it = s_clipLoads.find(acGraph.holder ? acGraph.holder->GraphManagerKey() : nullptr); it != s_clipLoads.end())
+        {
             held = it->second.Held;
+            it->second.Unsent.clear(); // its point names them
+        }
     }
     std::vector<std::pair<uint8_t, uint16_t>> sets;
     for (const auto& [cSet, cEvent] : held)
@@ -198,7 +220,7 @@ struct SkyrimGraphTarget final : IGraphTarget
     }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
-        if (aSet != ActionClips::kAction && aSet != ActionClips::kInstant)
+        if (aSet != ActionClips::kAction && aSet != ActionClips::kInstant && aSet != ActionClips::kMovement)
             return nullptr;
         const auto* pName = EventName(Graph, aEventId);
         auto loading = pName && Graph.holder ? ActionClips::Request(*Graph.holder, pName->data, ActionClips::Set(aSet)) : nullptr;
@@ -239,19 +261,21 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     // Forced: its step is the frame's, never a far graph's chunk (its first updates come before CharacterService's).
     apData->force = true;
     SendClipLoads(streams, cFormId, *apGraph);
-    streams.OnUpdate(cFormId, streams.Tick(), apData->deltaTime, Words(*apGraph), Seed(*apGraph), apGraph);
-    const char cResult = RealUpdate(apGraph, apData, apScratch);
-    if (streams.OnUpdated(cFormId, Words(*apGraph)))
+    // A sync point as this update begins: its graph after its generate pass, as this update will take it.
+    if (streams.PointWanted(cFormId, apGraph))
     {
         Payloads::GraphSyncPoint point;
         point.Tick = streams.Tick();
         point.State = GraphInternalState::Take(*apGraph);
         point.Words = Words(*apGraph);
         point.Seed = Seed(*apGraph);
-        point.ClipSets = HeldClipSets(cFormId, *apGraph);
+        point.ClipSets = HeldClipSets(*apGraph);
         if (!point.State.empty())
             streams.AddPoint(cFormId, std::move(point));
     }
+    streams.OnUpdate(cFormId, streams.Tick(), apData->deltaTime, Words(*apGraph), Seed(*apGraph), apGraph);
+    const char cResult = RealUpdate(apGraph, apData, apScratch);
+    streams.OnUpdated(cFormId, Words(*apGraph));
     return cResult;
 }
 
@@ -275,29 +299,53 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 
 using TLoadEventClips = void*(BSFixedString*, Actor*, uint32_t, uint32_t, void*, void*, bool);
 TLoadEventClips* RealLoadEventClips = nullptr;
+using TLoadEventClipsQueued = void*(BSFixedString*, Actor*, uint32_t, uint32_t, void*, void*, void*, bool);
+TLoadEventClipsQueued* RealLoadEventClipsQueued = nullptr;
+using TLoadManagerClips = void*(BSFixedString*, void*, uint32_t, uint32_t, void*, void*, void*, bool);
+TLoadManagerClips* RealLoadManagerClips = nullptr;
 
-// coop_LoadEventClips (43621): an actor's process loads an event's clip files into one of its sets (3 the action's,
-// 4 an instant interaction's: 39625, 39291).
+void LogOwnerLoad(Actor* apActor, const BSFixedString* apEvent, uint32_t aSet)
+{
+    if (apActor && apEvent && apEvent->data && World::Get().GetGraphStreams().Recording(apActor->formID))
+        spdlog::debug("Graph stream: owner {:X} loads {}'s clip files into set {}", apActor->formID, apEvent->data, aSet);
+}
+
+// coop_LoadEventClips (43621) and its queued twin (43622): an actor's game loads an event's clip files into one of its
+// sets (3 the action's, 4 an instant interaction's, 47 a movement idle's: 39625, 39291, 41694).
 void* HookLoadEventClips(BSFixedString* apEvent, Actor* apActor, uint32_t aSet, uint32_t aFlags, void* apCallback, void* apLock, bool aKeep)
 {
-    // Every actor's held sets: an owner's can come before its game records it (an instant interaction as it spawns).
-    if ((aSet == ActionClips::kAction || aSet == ActionClips::kInstant) && apActor && apEvent && apEvent->data)
-    {
-        const bool cRecording = World::Get().GetGraphStreams().Recording(apActor->formID);
-        std::scoped_lock _{s_clipLock};
-        if (s_clipLoads.size() > 4096)
-            s_clipLoads.clear();
-        auto& loads = s_clipLoads[apActor->formID];
-        loads.Held[uint8_t(aSet)] = apEvent->data;
-        if (cRecording && loads.Unsent.size() < 16)
-            loads.Unsent.emplace_back(uint8_t(aSet), apEvent->data);
-    }
+    LogOwnerLoad(apActor, apEvent, aSet);
+    if (apActor && apEvent)
+        RecordClipLoad(apActor->GraphManagerKey(), aSet, apEvent->data);
     return RealLoadEventClips(apEvent, apActor, aSet, aFlags, apCallback, apLock, aKeep);
+}
+
+void* HookLoadEventClipsQueued(BSFixedString* apEvent, Actor* apActor, uint32_t aSet, uint32_t aFlags, void* apCallback, void* apLock,
+                               void* apMore, bool aKeep)
+{
+    LogOwnerLoad(apActor, apEvent, aSet);
+    if (apActor && apEvent)
+        RecordClipLoad(apActor->GraphManagerKey(), aSet, apEvent->data);
+    return RealLoadEventClipsQueued(apEvent, apActor, aSet, aFlags, apCallback, apLock, apMore, aKeep);
+}
+
+// coop_LoadEventClipsForManager (43624): a process's sets reloaded as a save loads (AIProcess::FinishLoadGame).
+void* HookLoadManagerClips(BSFixedString* apEvent, void* apManager, uint32_t aSet, uint32_t aFlags, void* apCallback, void* apLock, void* apMore,
+                           bool aKeep)
+{
+    if (apEvent)
+    {
+        spdlog::debug("Graph stream: a save's reload loads {}'s clip files into set {}", apEvent->data ? apEvent->data : "", aSet);
+        RecordClipLoad(apManager, aSet, apEvent->data);
+    }
+    return RealLoadManagerClips(apEvent, apManager, aSet, aFlags, apCallback, apLock, apMore, aKeep);
 }
 
 Hooks::Initializer s_graphStreamHooks([]() {
     HOOK_ID(63587, &RealUpdate, HookUpdate);
     HOOK_ID(63591, &RealSendEvent, HookSendEvent);
     HOOK_ID(43621, &RealLoadEventClips, HookLoadEventClips);
+    HOOK_ID(43622, &RealLoadEventClipsQueued, HookLoadEventClipsQueued);
+    HOOK_ID(43624, &RealLoadManagerClips, HookLoadManagerClips);
 });
 } // namespace

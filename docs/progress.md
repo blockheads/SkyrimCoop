@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-09: copies on the graph input stream match their owners at every update on the duo: the wolf scenario's 180 s
+and Whiterun's market for 120 s, every streamed copy ([graph-input-stream.md](design/graph-input-stream.md), A graph's
+whole state). A sync point is now the owner's whole behaviour graph through Havok's own save and restore
+(`getInternalState` 58372 / `setInternalState` 58373): each node's state, a running transition's effect inside its
+machine's, BS nodes' runtime members by reflection. Read in IDA and measured: Skyrim's `updateActiveNodes` walks with
+59319, which drops the restore map, so the restore hands that walk to Havok's own 59318 while it runs; its activations'
+events are dropped (the owner's queue is empty). The owner's clip loads (action, instant interaction, movement idle,
+a save's reload) are ops in the stream, and a point's sets load before it restores. The live check now says why a copy
+parts: variables, handled events with their sender, clip times. GameTests: a copy starting mid-blend, after an idle,
+through a turn its owner loaded nothing for. Both scenarios still fail their end comparisons, on ambient differences
+filed under bugs.md's End comparisons in towns (Whiterun's containers; a creature's copy 57 units off in height).
+
 2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
 actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
 AI, so theirs never were. A copy's bodies and graphs now mirror its owner's, as its capsule does: each movement snapshot

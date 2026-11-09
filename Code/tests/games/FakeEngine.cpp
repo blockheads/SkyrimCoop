@@ -266,12 +266,9 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     auto& streams = World::Get().GetGraphStreams();
     const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
-    if (cRecorded)
-        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
-    StepGraph(aActor, cStep);
-    if (cRecorded && streams.OnUpdated(aFormId, GraphWords(aActor)))
+    if (cRecorded && streams.PointWanted(aFormId, GraphIdentity(aActor)))
     {
-        // Its whole graph (Havok's internal state, 58372), and the event whose clip files its process holds.
+        // As the update begins: its whole graph (Havok's internal state, 58372) and the clip sets its process holds.
         std::vector<std::pair<uint8_t, uint16_t>> sets;
         if (!aActor.LoadedClips.empty())
             if (const uint16_t cClips = GraphEventId(*aActor.LoadedClips.begin()); cClips != UINT16_MAX)
@@ -279,6 +276,11 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
                                    .Seed = {aActor.GraphRandom, 0}, .ClipSets = std::move(sets)});
     }
+    if (cRecorded)
+        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
+    StepGraph(aActor, cStep);
+    if (cRecorded)
+        streams.OnUpdated(aFormId, GraphWords(aActor));
 }
 
 namespace

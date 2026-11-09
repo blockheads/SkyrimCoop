@@ -221,6 +221,8 @@ struct TESObjectREFR : TESForm
     bool LoadGraphPoint(uint32_t aSeed, const std::string& acState) const noexcept;
     // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
     bool SaveGraphs(std::string& aGraphs) const noexcept;
+    // Its BSAnimationGraphManager, as a key only (not held): the clip loads that name no actor (43624) name it.
+    [[nodiscard]] const void* GraphManagerKey() const noexcept;
     bool LoadGraphs(const std::string& acGraphs) const noexcept;
     // An actor's, with its state flags.
     bool SaveAnimationGraphState(std::string& aState) const noexcept;

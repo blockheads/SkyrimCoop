@@ -136,8 +136,10 @@ struct GraphStreams
     // apGraph: which graph it is; another one (a 3D reload) starts its recording over, so its copies ask for a point.
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
-    // After the update: true when a copy asked for a sync point, which the caller saves and hands to AddPoint.
-    [[nodiscard]] bool OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
+    void OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
+    // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
+    // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.
+    [[nodiscard]] bool PointWanted(uint32_t aFormId, const void* apGraph = nullptr);
     // Its Id and Update filled in; its ClipSets are the caller's: what its process holds.
     void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint);
     void WantPoint(uint32_t aFormId);

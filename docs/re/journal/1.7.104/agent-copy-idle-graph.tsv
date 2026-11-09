@@ -291,3 +291,16 @@ time	op	id	rva	item
 2026-11-09T16:44:17Z	comment	39731	0x71cb30	{"addr": "0x14071cb30", "comment": "39731 a refcounted callback pointer assign (the middle process's instant interaction slot +0x230); 39732 is the high process's (+0x430)."}
 2026-11-09T16:44:17Z	comment	39688	0x71a730	{"addr": "0x14071a730", "comment": "39688 InstantInteractionCallback ctor (32 bytes: vtable, count +8, actor +0x10, event +0x18)."}
 2026-11-09T16:44:17Z	comment	39258	0x6f1190	{"addr": "0x1406f1190", "comment": "39258 cancels the pending action-set load (sets +0x60) and its callback (high +0x430) only: set 4's is separate."}
+2026-11-09T17:00:33Z	comment		0x7959fb	{"addr": "0x1407959fb", "comment": "IMovementSelectIdle 41694: a movement idle's clips (turn-to-walk and the like) through coop_LoadEventClips (43621) with kind 47, the selector itself as callback (+0x18) and lock (+0x70), its load at +0x78: not a process set (KeepSet has no slot 47). A copy runs no movement AI: the graph input stream holds such a set for it (ActionClips)."}
+2026-11-09T17:23:37Z	read	43619	0x7d9dc0	{"name": "sub_1407D9DC0"}
+2026-11-09T17:23:37Z	read	43623	0x7da400	{"name": "sub_1407DA400"}
+2026-11-09T17:23:49Z	read	43624	0x7da500	{"name": "sub_1407DA500"}
+2026-11-09T17:23:49Z	read	43622	0x7da2b0	{"name": "sub_1407DA2B0"}
+2026-11-09T17:24:35Z	name	43622	0x7da2b0	{"addr": "0x1407da2b0", "name": "coop_LoadEventClipsQueued"}
+2026-11-09T17:24:35Z	name	43624	0x7da500	{"addr": "0x1407da500", "name": "coop_LoadEventClipsForManager"}
+2026-11-09T17:24:35Z	name	43623	0x7da400	{"addr": "0x1407da400", "name": "coop_LoadEventClipsByHolder"}
+2026-11-09T17:24:35Z	name	43619	0x7d9dc0	{"addr": "0x1407d9dc0", "name": "coop_LoadPlayerEventClips"}
+2026-11-09T17:24:38Z	comment	43622	0x7da2b0	{"addr": "0x1407da2b0", "comment": "43622 as coop_LoadEventClips (43621: event, actor, kind, flags, callback, lock, ...) through the prioritized queue (63969, priority -2); called from 0x140725400."}
+2026-11-09T17:24:38Z	comment	43624	0x7da500	{"addr": "0x1407da500", "comment": "43624 an event's clips for a graph manager (event, BSAnimationGraphManager, kind, flags, callback, lock, ...), no actor: AIProcess::FinishLoadGame reloads a process's sets with it as a save loads. The graph input stream keys an owner's held sets by its graph manager for it."}
+2026-11-09T17:24:38Z	comment	43623	0x7da400	{"addr": "0x1407da400", "comment": "43623 coop_LoadEventClips' variant taking the manager first; no code caller (a table entry)."}
+2026-11-09T17:24:38Z	comment	43619	0x7d9dc0	{"addr": "0x1407d9dc0", "comment": "43619 the player's clip loads (PlayerCharacter 39778): not an NPC's."}

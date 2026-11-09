@@ -210,21 +210,24 @@ TEST_CASE("A copy's game asks for a sync point once, and again after a gap", "[g
     CHECK(streams.ShouldAsk(0x99));
 }
 
-TEST_CASE("An owner's sync point is taken after the update a copy asked at", "[graph-stream]")
+TEST_CASE("An owner's sync point is taken as the update after a copy asked begins", "[graph-stream]")
 {
     GraphStreams streams;
     streams.Record(0x50, 7);
     ToyGraph graph;
+    CHECK_FALSE(streams.PointWanted(0x50));
     streams.OnUpdate(0x50, 1, 0.016f, graph.Vars, graph.Seed);
-    CHECK_FALSE(streams.OnUpdated(0x50, graph.Vars));
+    streams.OnUpdated(0x50, graph.Vars);
     streams.WantPoint(0x50);
-    streams.OnUpdate(0x50, 2, 0.016f, graph.Vars, graph.Seed);
-    REQUIRE(streams.OnUpdated(0x50, graph.Vars));
+    REQUIRE(streams.PointWanted(0x50)); // as update 1 (its second) begins
+    CHECK_FALSE(streams.PointWanted(0x50));
     streams.AddPoint(0x50, Point(graph, 0));
+    streams.OnUpdate(0x50, 2, 0.016f, graph.Vars, graph.Seed);
+    streams.OnUpdated(0x50, graph.Vars);
     const auto cPoints = streams.TakePoints();
     REQUIRE(cPoints.size() == 1);
     CHECK(cPoints[0].Id == 7);
-    CHECK(cPoints[0].Update == 2);
+    CHECK(cPoints[0].Update == 1); // the update its copy replays first
     const auto cOps = streams.TakeOps();
     REQUIRE(cOps);
     CHECK(cOps->Runs[0].ActorId == 7);
@@ -237,17 +240,18 @@ TEST_CASE("Its owner's clip load holds what follows until its files are in; an e
     ToyGraph owner, copy;
     OwnerUpdate(recorder, owner, 1, 0.016f);
     GraphReplayer replayer;
-    replayer.Load(Point(owner, recorder.Updates()));
+    replayer.Load(Point(owner, recorder.Updates())); // as its second update begins
+    OwnerUpdate(recorder, owner, 2, 0.016f);
     recorder.Clips(2, 4, 7); // its process loaded event 7's clips into its instant interaction set, then sent it
     recorder.Event(2, 7, owner.Vars, owner.Seed);
     owner.SendEvent(7);
-    OwnerUpdate(recorder, owner, 2, 0.016f);
+    OwnerUpdate(recorder, owner, 3, 0.016f);
     const GraphOps cOps = Batch(recorder);
     replayer.Feed(cOps.Runs[0], cOps.Frames);
     copy.Clips = std::make_shared<std::atomic<bool>>(false);
-    CHECK(replayer.Run(10, copy) == 0); // its files are not in: the event and the update after it wait
+    CHECK(replayer.Run(10, copy) == 1); // its point's update; then its files are not in: the event and what follows wait
     CHECK(copy.Asked == std::vector<std::pair<uint8_t, uint16_t>>{{4, 7}});
-    CHECK(copy.Calls == std::vector<std::string>{"load"});
+    CHECK(copy.Calls == std::vector<std::string>{"load", "update"});
     copy.Clips->store(true);
     CHECK(replayer.Run(10, copy) == 1);
     CHECK(copy.State == owner.State);
@@ -274,7 +278,7 @@ TEST_CASE("Its owner's clip load holds what follows until its files are in; an e
     CHECK(copy.State == owner.State);
 }
 
-TEST_CASE("A sync point loads every clip set its owner's process held before the stream runs on", "[graph-stream]")
+TEST_CASE("A sync point loads every clip set its owner's process held before it loads", "[graph-stream]")
 {
     GraphRecorder recorder;
     ToyGraph owner, copy;
@@ -289,10 +293,14 @@ TEST_CASE("A sync point loads every clip set its owner's process held before the
     replayer.Feed(cOps.Runs[0], cOps.Frames);
     replayer.Load(point);
     copy.Clips = std::make_shared<std::atomic<bool>>(false);
-    CHECK(replayer.Run(10, copy) == 0); // loaded, holding for the files
+    CHECK(replayer.Run(10, copy) == 0); // holding for the files, its point not loaded yet: a clip binds its file as it activates
     CHECK(copy.Asked == std::vector<std::pair<uint8_t, uint16_t>>{{3, 42}, {4, 9}});
+    CHECK(copy.Calls.empty());
+    CHECK(replayer.Run(10, copy) == 0);
+    CHECK(copy.Asked.size() == 2); // asked once
     copy.Clips->store(true);
     CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.Calls.front() == "load");
     CHECK(copy.State == owner.State);
 }
 
@@ -346,4 +354,22 @@ TEST_CASE("An owner's clip loads go into its stream in their place", "[graph-str
     REQUIRE(cRun.size() == 3);
     CHECK((cRun[1].Event && cRun[1].ClipSet == 4 && cRun[1].EventId == 11 && cRun[1].Changed.empty()));
     CHECK((cRun[2].Event && cRun[2].ClipSet == 0 && cRun[2].EventId == 11));
+}
+
+TEST_CASE("A sync point taken as an update begins holds the events just before it: they are not replayed", "[graph-stream]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    recorder.Event(2, 7, owner.Vars, owner.Seed); // handled by its owner's graph as it came
+    owner.SendEvent(7);
+    const auto cPoint = Point(owner, recorder.Updates()); // then its next update begins: the point has the event in it
+    OwnerUpdate(recorder, owner, 2, 0.016f);
+    const GraphOps cOps = Batch(recorder);
+    GraphReplayer replayer;
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    replayer.Load(cPoint);
+    CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.Calls == std::vector<std::string>{"load", "update"});
+    CHECK(copy.State == owner.State);
 }

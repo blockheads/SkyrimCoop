@@ -179,6 +179,16 @@ bool TESObjectREFR::SaveGraphs(std::string& aGraphs) const noexcept
     return WithGraphs(*this, [&aGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Save(apManager, aGraphs); });
 }
 
+const void* TESObjectREFR::GraphManagerKey() const noexcept
+{
+    const void* pKey = nullptr;
+    WithGraphs(*this, [&pKey](BSAnimationGraphManager* apManager) {
+        pKey = apManager;
+        return true;
+    });
+    return pKey;
+}
+
 bool TESObjectREFR::LoadGraphs(const std::string& acGraphs) const noexcept
 {
     return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });

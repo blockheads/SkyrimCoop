@@ -114,6 +114,9 @@ void GraphReplayer::Feed(const GraphOpsRun& acRun, const std::vector<GraphOpFram
 void GraphReplayer::Load(const Payloads::GraphSyncPoint& acPoint)
 {
     m_point = acPoint;
+    m_loads.clear();
+    m_clipsAsked = false;
+    m_clipWaits = 0;
 }
 
 void GraphReplayer::Restart() noexcept
@@ -127,8 +130,28 @@ void GraphReplayer::Restart() noexcept
 
 size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
 {
+    // Clip files loading hold the stream, a bounded number of runs (a load the process cancels never ends).
+    bool waited = false;
+    const auto cHeld = [&] {
+        std::erase_if(m_loads, [](const auto& acLoading) { return acLoading->load(std::memory_order_acquire); });
+        if (m_loads.empty())
+            return false;
+        if (!std::exchange(waited, true))
+            ++m_clipWaits;
+        return m_clipWaits <= cMaxClipWaits;
+    };
     if (m_point)
     {
+        // The clip sets its owner's process held first: a clip binds its file as it activates (the point's).
+        if (!std::exchange(m_clipsAsked, true))
+            for (const auto& [cSet, cEvent] : m_point->ClipSets)
+                if (auto loading = aTarget.RequestClips(cSet, cEvent))
+                    m_loads.push_back(std::move(loading));
+        if (cHeld())
+            return 0;
+        m_loads.clear();
+        m_clipWaits = 0;
+        m_clipsAsked = false;
         const auto cPoint = std::move(*m_point);
         m_point.reset();
         if (!aTarget.LoadPoint(cPoint))
@@ -138,28 +161,15 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         }
         aTarget.WriteWords(cPoint.Words);
         m_words = aTarget.Words();
-        while (!m_queue.empty() && m_queue.front().Next < cPoint.Update)
+        // Its point is its owner's graph as update cPoint.Update began: what came before, the events and loads just
+        // before that update too, is in it.
+        while (!m_queue.empty() && (m_queue.front().Next < cPoint.Update || (m_queue.front().Op.Event && m_queue.front().Next == cPoint.Update)))
             m_queue.pop_front();
         m_started = true;
-        // The clip sets its owner's process held, whose files its clips reached after it play.
-        m_loads.clear();
-        for (const auto& [cSet, cEvent] : cPoint.ClipSets)
-            if (auto loading = aTarget.RequestClips(cSet, cEvent))
-                m_loads.push_back(std::move(loading));
     }
     if (!m_started)
         return 0;
     size_t updates = 0;
-    bool waited = false;
-    // Clip files loading hold the stream, a bounded number of runs (a load the process cancels never ends).
-    const auto cHeld = [&] {
-        std::erase_if(m_loads, [](const auto& acLoading) { return acLoading->load(std::memory_order_acquire); });
-        if (m_loads.empty())
-            return false;
-        if (!std::exchange(waited, true))
-            ++m_clipWaits;
-        return m_clipWaits <= cMaxClipWaits;
-    };
     while (!m_queue.empty() && updates < cMaxUpdatesPerRun && m_queue.front().Tick <= aPlaybackTick)
     {
         const GraphOp& cFront = m_queue.front().Op;
@@ -278,13 +288,23 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
     }
 }
 
-bool GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
+void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
+{
+    if (const auto pOwned = FindOwned(aFormId))
+    {
+        std::scoped_lock _{pOwned->Lock};
+        pOwned->Recorder.Updated(aWords);
+    }
+}
+
+bool GraphStreams::PointWanted(uint32_t aFormId, const void* apGraph)
 {
     const auto pOwned = FindOwned(aFormId);
     if (!pOwned)
         return false;
     std::scoped_lock _{pOwned->Lock};
-    pOwned->Recorder.Updated(aWords);
+    if (apGraph && pOwned->Graph && pOwned->Graph != apGraph)
+        return false; // a new graph: its recording starts over at this update, and its copies ask again
     return std::exchange(pOwned->WantsPoint, false);
 }
 
