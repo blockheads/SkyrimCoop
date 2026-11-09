@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FakeGraph.h"
+#include <span>
 #include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
@@ -633,6 +634,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A graph update or event the graph took, in its history.
     static void GraphEntry(Actor& aActor, std::string aInput);
     void UpdateGraph(uint32_t aFormId, Actor& aActor);
+    void WriteGraphChannels(Actor& aActor, double aStepMs);
+    void StepGraph(Actor& aActor, double aStepMs);
+    bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
+    void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
+    // Its graph's variables as the stream's words: kGraphWords integers, then kGraphWords floats' bits.
+    static constexpr size_t kGraphWords = 8;
+    [[nodiscard]] static std::vector<uint32_t> GraphWords(const Actor& acActor);
+    static void SetGraphWords(Actor& aActor, std::span<const uint32_t> aWords);
+    [[nodiscard]] std::vector<std::string> GraphEventTable() const;
+    [[nodiscard]] uint16_t GraphEventId(const std::string& acEvent) const;
     // Animation interpolation (63587): an owner's graph far from this game's camera, not forced, steps this much at
     // once when its countdown runs out (fAnimInterpMaxTime 250 ms beyond fAnimInterpFarDist), and not between. 0: every
     // frame. A copy's is forced (AnimationSystem), so it steps every frame.

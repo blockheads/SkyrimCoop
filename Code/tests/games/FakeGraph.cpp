@@ -7,10 +7,13 @@ std::string FirstGraphDifference(const std::vector<FakeGraphMemory::Entry>& acOw
                                  const std::vector<FakeGraphMemory::Entry>& acCopy)
 {
     size_t sameTimeCopy = 0; // the copy's entries so far at its current time: matched one to one with its owner's
-    for (size_t i = 0; i < acCopy.size(); ++i)
+    // From its first sync point on (its stream's start), if it has one: before, it ran on its own.
+    const auto cStart = std::ranges::find(acCopy, std::string("sync point"), &FakeGraphMemory::Entry::Input);
+    const size_t cFirst = cStart == acCopy.end() ? 0 : size_t(cStart - acCopy.begin());
+    for (size_t i = cFirst; i < acCopy.size(); ++i)
     {
         const auto& cCopy = acCopy[i];
-        sameTimeCopy = i && acCopy[i - 1].Ms == cCopy.Ms ? sameTimeCopy + 1 : 0;
+        sameTimeCopy = i > cFirst && acCopy[i - 1].Ms == cCopy.Ms ? sameTimeCopy + 1 : 0;
         // The first owner entry past the copy's time (a copy's time goes back when it loads an older point).
         const size_t owner = size_t(
             std::upper_bound(acOwner.begin(), acOwner.end(), cCopy.Ms,

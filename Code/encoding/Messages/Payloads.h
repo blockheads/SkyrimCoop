@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Structs/GraphOps.h>
 #include <Structs/Perks.h>
 
 // What a request and its notification carry when a relay passes the request on unchanged (the
@@ -484,5 +485,40 @@ struct DialogueHighlight
     uint32_t Step{};
     uint32_t Index{};
     uint32_t PlayerId{}; // the host's: who moved it
+};
+// An owner game's graph inputs for its actors since its last batch (docs/design/graph-input-stream.md).
+struct GraphOpsBatch
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphOpsBatch&) const noexcept = default;
+
+    GraphOps Ops{}; // emptied if it does not decode
+};
+// A copy's game asks the owner for a sync point: its copy has none yet, or its stream had a gap.
+struct GraphSync
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphSync&) const noexcept = default;
+
+    uint32_t Id{};
+};
+// An owner's graph right after one of its updates: where its copies' replay starts.
+struct GraphSyncPoint
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphSyncPoint&) const noexcept = default;
+
+    uint32_t Id{};
+    uint32_t Update{};  // its updates so far: the ops from this update index on follow it
+    uint64_t Tick{};    // the owner's frame tick then
+    std::string State;  // SaveState (63601)
+    std::vector<uint32_t> Words; // its variables, exact
+    GraphSeed Seed{};
 };
 } // namespace Payloads

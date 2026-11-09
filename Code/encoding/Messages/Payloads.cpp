@@ -626,3 +626,62 @@ void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aRead
     Index = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
+
+namespace Payloads
+{
+void GraphOpsBatch::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Ops.Serialize(aWriter);
+}
+void GraphOpsBatch::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    if (!Ops.Deserialize(aReader))
+        Ops = {};
+}
+
+void GraphSync::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+}
+void GraphSync::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    Serialization::WriteVarInt(aWriter, Update);
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteString(aWriter, State);
+    Serialization::WriteVarInt(aWriter, Words.size());
+    for (const uint32_t cWord : Words)
+        aWriter.WriteBits(cWord, 32);
+    aWriter.WriteBits(Seed.Seed, 32);
+    aWriter.WriteBits(Seed.Current, 32);
+}
+void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Update = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Tick = Serialization::ReadVarInt(aReader);
+    State = Serialization::ReadString(aReader);
+    uint64_t count = 0;
+    if (!Serialization::TryReadVarInt(aReader, count) || count > 65536)
+        count = 0;
+    Words.assign(count, 0);
+    for (auto& word : Words)
+    {
+        uint64_t value = 0;
+        if (!aReader.ReadBits(value, 32))
+        {
+            Words.clear();
+            break;
+        }
+        word = static_cast<uint32_t>(value);
+    }
+    uint64_t seed = 0, current = 0;
+    if (aReader.ReadBits(seed, 32) && aReader.ReadBits(current, 32))
+        Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
+}
+} // namespace Payloads

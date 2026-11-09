@@ -218,6 +218,28 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
+        // On its owner's graph input stream (graph-input-stream.md), as AnimationSystem: its graph's inputs are the
+        // stream's, so its actions are bookkeeping only, but a death (its own body's).
+        auto& streams = GetGraphStreams();
+        const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
+        streams.SetPlayback(form.Id, cPlayback);
+        if (streams.OnStream(form.Id))
+        {
+            while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
+            {
+                const ActionEvent cAction = animation.TimePoints.front();
+                animation.TimePoints.pop_front();
+                if (DeathActions::IsDying(cAction.State1))
+                    engine.ReplayDeathAction(form.Id, cAction);
+                else if (!VariablesOnly(cAction))
+                {
+                    animation.LastRanAction = cAction;
+                    engine.SetActorLatestAnimation(form.Id, cAction);
+                }
+            }
+            animation.GraphPoint.reset();
+            continue;
+        }
         if (actor.PairStops)
         {
             --actor.PairStops;
@@ -369,7 +391,8 @@ void World::Update() noexcept
     }
     // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
-        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity))
+        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity) &&
+            !GetGraphStreams().OnStream(form.Id))
         {
             auto& step = engine.Actors.at(form.Id).Replay;
             RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {

@@ -431,6 +431,7 @@ struct WolfTurn
         party.Until([&] { return guest.Actors.at(copy).GraphState == "Standing"; }, "the spawn graph loads");
         party.Until([&] { return guest.Actors.at(copy).GraphVariables.Integers.size() > 1 && guest.Actors.at(copy).GraphVariables.Integers[1] == 2; },
                     "the copy has its owner's variables from before the turn");
+        party.Until([&] { return party.Guest().GetGraphStreams().OnStream(copy); }, "the copy's graph is on its owner's stream");
     }
 
     // aWhileTurning: once the copy took the turn, before its clip ends. aOwnerEnded: as the owner's clip ends.
@@ -439,13 +440,12 @@ struct WolfTurn
         ActionEvent turn;
         turn.ActionId = 0x13002;
         turn.EventName = "cannedTurnRight180";
-        const uint64_t cBefore = guest.GetActorLatestAnimation(copy).Tick;
         party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(wolf, turn)); });
         party.Until([&] { return host.Actors.at(wolf).GraphState == "StandingIdle"; }, "the owner's canned turn ends standing");
         if (aOwnerEnded)
             aOwnerEnded();
-        party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == turn.EventName && guest.GetActorLatestAnimation(copy).Tick != cBefore; },
-                    "the copy takes the turn");
+        // Its graph's event, from its owner's stream (the action's own message can come first).
+        party.Until([&] { return guest.Actors.at(copy).GraphState == "CannedTurn"; }, "the copy's graph takes the turn");
         if (aWhileTurning)
             aWhileTurning();
         party.Until([&] { return guest.Actors.at(copy).GraphState != "CannedTurn"; }, "the copy's canned turn ends");
@@ -573,13 +573,13 @@ TEST_CASE("A copy's turn paused with its graph reads its owner's integers as it 
     CHECK(wolf.Difference() == "");
 }
 
-TEST_CASE("A copy's replayed action is sent with its own integers, not the next snapshot's", "[animation][replay-start]")
+TEST_CASE("A copy's graph takes its owner's event with its owner's integers, not the next snapshot's", "[animation][replay-start]")
 {
-    // An action loads its variables one graph update before its event (ReplayStep.h). The owner let go of block
-    // (iWantBlock 0) just after it: that snapshot, within an interval, must not reach the graph in between.
+    // The owner let go of block (iWantBlock 0) just after it: the copy's graph must take the event with 1, as its
+    // owner's did (on the stream: the event's op carries its variables, the release goes with the next update's).
     WolfTurn wolf;
     wolf.party.As(wolf.party.Host(), [&] { wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2, 1}; });
-    wolf.party.Until([&] { const auto& cInts = wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers; return cInts.size() == 3 && cInts[2] == 1; },
+    wolf.party.Until([&] { const auto& cInts = wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers; return cInts.size() >= 3 && cInts[2] == 1; },
                      "the copy has iWantBlock 1");
     for (auto* engine : {&wolf.host, &wolf.guest})
         engine->GraphTransitions[{"Standing", "blockStart"}] = "Blocking";
@@ -592,8 +592,8 @@ TEST_CASE("A copy's replayed action is sent with its own integers, not the next 
         wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers = {0, 2, 0};
     });
     wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphState == "Blocking"; }, "the copy takes the block");
-    REQUIRE(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers.size() == 3);
-    CHECK(wolf.guest.Actors.at(wolf.copy).ReplayedOn.Integers[2] == 1);
+    REQUIRE(wolf.guest.Actors.at(wolf.copy).Graph.EventWords.size() > 2);
+    CHECK(wolf.guest.Actors.at(wolf.copy).Graph.EventWords[2] == 1);
     wolf.party.Until([&] { return wolf.guest.Actors.at(wolf.copy).GraphVariables.Integers[2] == 0; }, "then the copy has the owner's release");
     CHECK(wolf.Difference() == "");
 }
@@ -636,6 +636,8 @@ TEST_CASE("The live graph check compares a copy with its owner at the same owner
     const std::vector<E> cOwner{{1, "A", "update"}, {2, "A", "update"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "C", "update"}};
     // From a sync point at 2, the same inputs: the update and the event at 2 matched in their order.
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "C", "update"}}) == "");
+    // Before its first sync point it ran on its own (the old paths): from there on, compared.
+    CHECK(FirstGraphDifference(cOwner, {{0, "A", "load"}, {3, "A", "update"}, {2, "A", "sync point"}, {2, "B", "event go"}, {3, "B", "update"}}) == "");
     // Behind its owner: what it has run so far agrees.
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}}) == "");
     // Its event a step late.

@@ -138,6 +138,9 @@ private:
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Each actor's factions from its owner (one message carries many actors).
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
+    // owns that actor.
+    void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;

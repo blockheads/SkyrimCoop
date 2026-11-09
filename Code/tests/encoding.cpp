@@ -2080,29 +2080,24 @@ GraphOps GraphOpsBatch(uint64_t aFirstTick, uint32_t aActor, uint32_t aFirstUpda
 }
 } // namespace
 
-TEST_CASE("Graph ops round trip exactly across batches", "[encoding.graph_ops]")
+TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
 {
-    std::map<uint32_t, GraphOpsHistory> sent, received;
     const float cOdd = std::bit_cast<float>(0x7FC00001u); // a NaN's payload survives: values go as bits
-    const GraphOps cFirst = GraphOpsBatch(1000, 7, 0,
-                                          {{.Frame = 0, .Seed = GraphSeed{11, 12}, .Changed = {{0, 0x42A343EB}, {40, std::bit_cast<uint32_t>(cOdd)}}},
-                                           {.Event = true, .EventId = 513, .Changed = {{48, 1}}},
-                                           {.Frame = 1},
-                                           {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
-                                           {.Frame = 5}}, // a skipped frame
-                                          6);
-    // The second batch's values go against the first's.
-    const GraphOps cSecond = GraphOpsBatch(1006, 7, 4, {{.Frame = 0, .Changed = {{0, 0x42A343EC}, {700, 9}}}, {.Frame = 1}}, 2);
-    for (const GraphOps* pOps : {&cFirst, &cSecond})
-    {
-        Wire::Buffer buffer;
-        Wire::Buffer::Writer writer(&buffer);
-        pOps->Serialize(writer, sent);
-        Wire::Buffer::Reader reader(&buffer);
-        GraphOps read;
-        REQUIRE(read.Deserialize(reader, received));
-        CHECK(read == *pOps);
-    }
+    GraphOps ops = GraphOpsBatch(1000, 7, 0,
+                                 {{.Frame = 0, .Seed = GraphSeed{11, 12}, .Changed = {{0, 0x42A343EB}, {40, std::bit_cast<uint32_t>(cOdd)}}},
+                                  {.Event = true, .EventId = 513, .Changed = {{48, 1}}},
+                                  {.Frame = 1},
+                                  {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
+                                  {.Frame = 5}}, // a skipped frame
+                                 6);
+    ops.Runs.push_back({9, 40, {{.Frame = 0, .Changed = {{0, 0x42A343EC}, {700, 9}}}, {.Frame = 1}}});
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    ops.Serialize(writer);
+    Wire::Buffer::Reader reader(&buffer);
+    GraphOps read;
+    REQUIRE(read.Deserialize(reader));
+    CHECK(read == ops);
 }
 
 TEST_CASE("An update that changes nothing costs a bit", "[encoding.graph_ops]")
@@ -2110,34 +2105,63 @@ TEST_CASE("An update that changes nothing costs a bit", "[encoding.graph_ops]")
     std::vector<GraphOp> idle{{.Frame = 0}};
     for (uint32_t i = 1; i < 60; ++i)
         idle.push_back({.Frame = i});
-    std::map<uint32_t, GraphOpsHistory> histories;
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
-    GraphOps::WriteRun(writer, {7, 0, idle}, histories[7]);
-    CHECK(writer.Size() <= 4 + 2 + 1 + 1 + 8); // id, first update, count, the first op, then 59 bits
+    GraphOps::WriteRun(writer, {7, 0, idle});
+    CHECK(writer.Size() <= 3 + 3 + 8); // id, first update and count; the first op; then 59 bits
 }
 
 TEST_CASE("Graph ops reject truncated and impossible input", "[encoding.graph_ops]")
 {
-    std::map<uint32_t, GraphOpsHistory> sent;
     const GraphOps cOps = GraphOpsBatch(50, 3, 0, {{.Frame = 0, .Changed = {{2, 5}, {9, 0xFFFFFFFF}}}, {.Event = true, .EventId = 4}, {.Frame = 1}}, 2);
     Wire::Buffer buffer;
     Wire::Buffer::Writer writer(&buffer);
-    cOps.Serialize(writer, sent);
+    cOps.Serialize(writer);
     const size_t cBytes = writer.Size();
     for (size_t size = 0; size + 1 < cBytes; ++size)
     {
-        std::map<uint32_t, GraphOpsHistory> received;
         Wire::Buffer::Reader reader(std::span<const uint8_t>(buffer.GetData(), size));
         GraphOps read;
-        CHECK_FALSE(read.Deserialize(reader, received));
+        CHECK_FALSE(read.Deserialize(reader));
     }
     // An update in a frame the batch does not have.
-    std::map<uint32_t, GraphOpsHistory> histories, received;
     Wire::Buffer bad;
     Wire::Buffer::Writer badWriter(&bad);
-    GraphOpsBatch(50, 3, 0, {{.Frame = 3}}, 2).Serialize(badWriter, histories);
+    GraphOpsBatch(50, 3, 0, {{.Frame = 3}}, 2).Serialize(badWriter);
     Wire::Buffer::Reader badReader(&bad);
     GraphOps read;
-    CHECK_FALSE(read.Deserialize(badReader, received));
+    CHECK_FALSE(read.Deserialize(badReader));
+}
+
+TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
+{
+    GraphOpsRequest ops;
+    ops.Ops = GraphOpsBatch(70, 4, 12, {{.Frame = 0, .Changed = {{3, 0x3F800000}}}, {.Event = true, .EventId = 9}, {.Frame = 1}}, 2);
+    NotifyGraphSync sync;
+    sync.Id = 4;
+    GraphSyncPointRequest point;
+    point.Id = 4;
+    point.Update = 12;
+    point.Tick = 123456;
+    point.State = std::string("\0\1state", 7);
+    point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
+    point.Seed = {5, 6};
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    ops.Serialize(writer);
+    point.Serialize(writer);
+    sync.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedOps = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedOps);
+    REQUIRE(decodedOps->GetOpcode() == kGraphOpsRequest);
+    CHECK(static_cast<const GraphOpsRequest&>(*decodedOps) == ops);
+    auto decodedPoint = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedPoint);
+    REQUIRE(decodedPoint->GetOpcode() == kGraphSyncPointRequest);
+    CHECK(static_cast<const GraphSyncPointRequest&>(*decodedPoint) == point);
+    auto decodedSync = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedSync);
+    REQUIRE(decodedSync->GetOpcode() == kNotifyGraphSync);
+    CHECK(static_cast<const NotifyGraphSync&>(*decodedSync) == sync);
 }

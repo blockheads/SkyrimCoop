@@ -57,6 +57,7 @@ struct FakeGraphMemory
     int32_t ReadAtEnd = -1;
     float LastHeading = 0.f; // at its last update, for the TurnDelta channel
     bool HeadingKnown = false;
+    std::vector<uint32_t> EventWords; // its variables as it took its last event (FakeEngine::GraphWords)
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.
     double Timeline = 0.0;
     // After each update and each event the graph took: (Timeline, state). The live check compares a copy's with its
@@ -65,12 +66,13 @@ struct FakeGraphMemory
     {
         double Ms = 0.0;
         std::string State;
-        std::string Input; // "update 16.7" or "event X"
+        std::string Input; // "update 16.7", "event X", "load" or "sync point" (the stream's start)
     };
     std::vector<Entry> History;
 };
 
-// The live check: at every point of a copy's history, its state is its owner's at the same owner graph time (the last
-// owner entry at or before it). Empty when they agree; otherwise the first difference and the inputs before it.
+// The live check: at every point of a copy's history from its first sync point (its stream's start; all of it without
+// one), its state is its owner's at the same owner graph time (the last owner entry at or before it). Empty when they
+// agree; otherwise the first difference and the inputs before it.
 std::string FirstGraphDifference(const std::vector<FakeGraphMemory::Entry>& acOwner,
                                  const std::vector<FakeGraphMemory::Entry>& acCopy);

@@ -74,7 +74,10 @@
     X(BugReportRequest)            \
     X(DialogueHighlightRequest)    \
     X(DialogueSkipRequest) \
-    X(PlayerNameRequest)
+    X(PlayerNameRequest)           \
+    X(GraphOpsRequest)             \
+    X(GraphSyncRequest)            \
+    X(GraphSyncPointRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -153,7 +156,10 @@
     X(NotifyPartyItems)            \
     X(NotifyDialogueSkip) \
     X(NotifyPlayerName)            \
-    X(NotifyActorName)
+    X(NotifyActorName)             \
+    X(NotifyGraphOps)              \
+    X(NotifyGraphSync)             \
+    X(NotifyGraphSyncPoint)
 
 #define COOP_OPCODE(aName) k##aName,
 

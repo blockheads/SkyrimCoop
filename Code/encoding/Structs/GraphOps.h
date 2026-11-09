@@ -41,56 +41,20 @@ struct GraphOpFrame
     bool operator==(const GraphOpFrame&) const noexcept = default;
 };
 
-// What each side remembers of an actor's stream between batches, so a value goes as its XOR with the last one sent.
-// Reliable, in-order delivery keeps both alike; a gap resets both (a sync point).
-struct GraphOpsHistory
-{
-    std::vector<uint32_t> Values;
-};
-
 struct GraphOps
 {
     std::vector<GraphOpFrame> Frames;
     std::vector<GraphOpsRun> Runs;
     bool operator==(const GraphOps&) const noexcept = default;
 
-    // An update that changes nothing in the frame after the last one is one bit; otherwise a few bits of kind, then
-    // each variable's index step and the non-zero bytes of its XOR with its last value.
-    template <class THistories> void Serialize(Wire::Buffer::Writer& aWriter, THistories& aHistories) const;
-    template <class THistories> [[nodiscard]] bool Deserialize(Wire::Buffer::Reader& aReader, THistories& aHistories);
+    // An update in the frame after its run's last one that changes nothing is one bit; otherwise a few bits of kind,
+    // then each variable's index step and the non-zero bytes of its XOR with its last value in the run (each batch
+    // decodes alone: the host relays it to every guest).
+    void Serialize(Wire::Buffer::Writer& aWriter) const;
+    [[nodiscard]] bool Deserialize(Wire::Buffer::Reader& aReader);
 
-    static void WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun, GraphOpsHistory& aHistory);
-    [[nodiscard]] static bool ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, GraphOpsHistory& aHistory,
-                                      size_t aFrames);
+    static void WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun);
+    [[nodiscard]] static bool ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t aFrames);
     static void WriteFrames(Wire::Buffer::Writer& aWriter, const std::vector<GraphOpFrame>& acFrames);
     [[nodiscard]] static bool ReadFrames(Wire::Buffer::Reader& aReader, std::vector<GraphOpFrame>& aFrames);
 };
-
-// THistories: a map from ActorId to GraphOpsHistory (operator[]).
-template <class THistories> void GraphOps::Serialize(Wire::Buffer::Writer& aWriter, THistories& aHistories) const
-{
-    WriteFrames(aWriter, Frames);
-    aWriter.WriteBits(Runs.size(), 16);
-    for (const auto& cRun : Runs)
-        WriteRun(aWriter, cRun, aHistories[cRun.ActorId]);
-}
-
-template <class THistories> bool GraphOps::Deserialize(Wire::Buffer::Reader& aReader, THistories& aHistories)
-{
-    if (!ReadFrames(aReader, Frames))
-        return false;
-    uint64_t runs = 0;
-    if (!aReader.ReadBits(runs, 16))
-        return false;
-    Runs.assign(runs, {});
-    for (auto& run : Runs)
-    {
-        uint64_t id = 0;
-        if (!aReader.ReadBits(id, 32))
-            return false;
-        run.ActorId = static_cast<uint32_t>(id);
-        if (!ReadRun(aReader, run, aHistories[run.ActorId], Frames.size()))
-            return false;
-    }
-    return true;
-}

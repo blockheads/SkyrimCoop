@@ -114,6 +114,10 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
     Listen<&CharacterService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&CharacterService::OnRemoteRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+    Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSync, &CharacterService::OnGraphSync>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSyncPoint, &CharacterService::OnGraphSyncPoint>(m_connections, m_dispatcher, this);
 
 }
 
@@ -671,8 +675,71 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
 
 void CharacterService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
 {
-    if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity); pForm && m_actorBridge.ActorExists(pForm->Id))
+    const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity);
+    if (!pForm)
+        return;
+    m_world.GetGraphStreams().Forget(pForm->Id);
+    if (m_actorBridge.ActorExists(pForm->Id))
         m_actorBridge.SetGraphUpdatedEveryFrame(pForm->Id, false);
+}
+
+void CharacterService::OnRemoteRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
+{
+    if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity))
+        m_world.GetGraphStreams().Forget(pForm->Id);
+}
+
+void CharacterService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto& cRun : acMessage.Ops.Runs)
+        for (const auto cEntity : view)
+            if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
+            {
+                const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+                streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
+                if (streams.ShouldAsk(cFormId))
+                {
+                    GraphSyncRequest ask;
+                    ask.Id = cRun.ActorId;
+                    m_transport.Send(ask);
+                }
+                break;
+            }
+}
+
+void CharacterService::OnGraphSync(const NotifyGraphSync& acMessage) const noexcept
+{
+    auto view = m_world.view<LocalComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<LocalComponent>(cEntity).Id == acMessage.Id)
+            m_world.GetGraphStreams().WantPoint(view.get<FormIdComponent>(cEntity).Id);
+}
+
+void CharacterService::OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept
+{
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<RemoteComponent>(cEntity).Id == acMessage.Id)
+            m_world.GetGraphStreams().Load(view.get<FormIdComponent>(cEntity).Id, acMessage);
+}
+
+void CharacterService::SendGraphStream() const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    if (auto ops = streams.TakeOps())
+    {
+        GraphOpsRequest request;
+        request.Ops = std::move(*ops);
+        m_transport.Send(request);
+    }
+    for (auto& point : streams.TakePoints())
+    {
+        GraphSyncPointRequest request;
+        static_cast<Payloads::GraphSyncPoint&>(request) = std::move(point);
+        m_transport.Send(request);
+    }
 }
 
 void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noexcept
@@ -1522,6 +1589,9 @@ void CharacterService::RunLocalUpdates() noexcept
         // Its graph steps every frame, as its copies' do: far from the camera it would step in chunks (63587),
         // and its clips would end up to 0.25 s after its copies'.
         m_actorBridge.SetGraphUpdatedEveryFrame(cFormId, true);
+        // Its graph's inputs, for its copies (graph-input-stream.md); players' later (phase 4).
+        if (cFormId != cPlayer)
+            m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {
@@ -1546,6 +1616,7 @@ void CharacterService::RunLocalUpdates() noexcept
 
     if (!message.Updates.empty())
         m_transport.Send(message);
+    SendGraphStream();
 }
 
 void CharacterService::RunRemoteUpdates() noexcept

@@ -73,6 +73,13 @@ struct CharacterService
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     // An actor this game no longer owns gets vanilla animation interpolation back.
     void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
+    void OnRemoteRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
+    // The graph input stream (graph-input-stream.md): an owner's ops for its copies here; a copy asking this game, its
+    // owner, for a sync point; the owner's sync point for a copy here.
+    void OnGraphOps(const NotifyGraphOps& acMessage) const noexcept;
+    void OnGraphSync(const NotifyGraphSync& acMessage) const noexcept;
+    void OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept;
+    void SendGraphStream() const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     // An owned actor's factions changed: they reach its copies if they differ from the last sent.
     void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;

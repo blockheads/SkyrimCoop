@@ -5,6 +5,7 @@
 namespace
 {
 constexpr uint64_t cMaxFrames = 4096;
+constexpr uint64_t cMaxRuns = 4096;
 constexpr uint64_t cMaxOps = 65536;
 constexpr uint64_t cMaxChanged = 4096;
 constexpr uint32_t cNoFrame = UINT32_MAX;
@@ -46,9 +47,30 @@ bool GraphOps::ReadFrames(Wire::Buffer::Reader& aReader, std::vector<GraphOpFram
     return true;
 }
 
-void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun, GraphOpsHistory& aHistory)
+void GraphOps::Serialize(Wire::Buffer::Writer& aWriter) const
 {
-    aWriter.WriteBits(acRun.ActorId, 32);
+    WriteFrames(aWriter, Frames);
+    Wire::Serialization::WriteVarInt(aWriter, Runs.size());
+    for (const auto& cRun : Runs)
+        WriteRun(aWriter, cRun);
+}
+
+bool GraphOps::Deserialize(Wire::Buffer::Reader& aReader)
+{
+    uint64_t runs = 0;
+    if (!ReadFrames(aReader, Frames) || !ReadVarInt(aReader, runs) || runs > cMaxRuns)
+        return false;
+    Runs.assign(runs, {});
+    for (auto& run : Runs)
+        if (!ReadRun(aReader, run, Frames.size()))
+            return false;
+    return true;
+}
+
+void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
+{
+    std::vector<uint32_t> last; // each variable's last value in the run
+    Wire::Serialization::WriteVarInt(aWriter, acRun.ActorId);
     Wire::Serialization::WriteVarInt(aWriter, acRun.FirstUpdate);
     Wire::Serialization::WriteVarInt(aWriter, acRun.Ops.size());
     uint32_t lastFrame = cNoFrame;
@@ -82,10 +104,10 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun,
         {
             Wire::Serialization::WriteVarInt(aWriter, cIndex - index); // ascending
             index = cIndex;
-            if (aHistory.Values.size() <= cIndex)
-                aHistory.Values.resize(cIndex + 1);
-            const uint32_t cXor = cValue ^ aHistory.Values[cIndex];
-            aHistory.Values[cIndex] = cValue;
+            if (last.size() <= cIndex)
+                last.resize(cIndex + 1);
+            const uint32_t cXor = cValue ^ last[cIndex];
+            last[cIndex] = cValue;
             uint64_t mask = 0;
             for (int b = 0; b < 4; ++b)
                 mask |= ((cXor >> (8 * b)) & 0xFF) ? (1u << b) : 0;
@@ -97,9 +119,13 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun,
     }
 }
 
-bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, GraphOpsHistory& aHistory, size_t aFrames)
+bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t aFrames)
 {
-    uint64_t first = 0, count = 0;
+    std::vector<uint32_t> last;
+    uint64_t id = 0, first = 0, count = 0;
+    if (!ReadVarInt(aReader, id) || id > UINT32_MAX)
+        return false;
+    aRun.ActorId = static_cast<uint32_t>(id);
     if (!ReadVarInt(aReader, first) || first > UINT32_MAX || !ReadVarInt(aReader, count) || count > cMaxOps)
         return false;
     aRun.FirstUpdate = static_cast<uint32_t>(first);
@@ -173,10 +199,10 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, GraphOp
                     return false;
                 xorValue |= static_cast<uint32_t>(byte) << (8 * b);
             }
-            if (aHistory.Values.size() <= index)
-                aHistory.Values.resize(index + 1);
-            aHistory.Values[index] ^= xorValue;
-            op.Changed.emplace_back(static_cast<uint16_t>(index), aHistory.Values[index]);
+            if (last.size() <= index)
+                last.resize(index + 1);
+            last[index] ^= xorValue;
+            op.Changed.emplace_back(static_cast<uint16_t>(index), last[index]);
         }
     }
     return true;
