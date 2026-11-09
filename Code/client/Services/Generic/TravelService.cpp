@@ -62,6 +62,13 @@ bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& a
                                             GridCellCoords::CalculateGridCellCoords(x, y), false);
 }
 
+bool TravelService::OnSpot(const glm::vec3& acSpot) const noexcept
+{
+    glm::vec3 position;
+    m_playerBridge.GetPlayerPosition(position.x, position.y, position.z);
+    return glm::distance(glm::vec2(position), glm::vec2(acSpot)) <= ArrivalStack::kOnSpot;
+}
+
 uint32_t TravelService::CellAt(const GameId& acWorldSpaceId, const GameId& acCellId,
                                const glm::vec3& acPosition) const noexcept
 {
@@ -144,8 +151,9 @@ void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const gl
 void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept
 {
     if (!m_transport.IsOnline()) return;
-    // Already there, unless a move of the tether's is still to come: that one would take it away again.
-    if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition))
+    // Any teleport brings the party, inside the cell too (docs/design/party-travel.md, "Every teleport"): only a
+    // player already on the spot stays, unless a move of the tether's is still to come.
+    if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition) && OnSpot(aPosition))
     {
         spdlog::info("Party travel to cell {:X} (worldspace {:X}): already there", aCell.BaseId, aWorld.BaseId);
         return;
