@@ -231,6 +231,12 @@ advance.
 - **The SWF's pick gate starts at the line's start:** voice ready (52858) comes once the line has its voice, so a
   menu takes a pick 750 ms into an NPC's line; the pick then waits in 35283 for the line to end. A guest's menu
   refilled with the party's list gets voice ready itself, so it can pick while the host's NPC still greets.
+- **A joining menu starts on the party's highlight in practice** (measured, `dialogue-joiner-keeps-party-highlight`):
+  the host joining Hulda's conversation after her magic topic was said and listed again came up on the top option,
+  not on that topic, though 51515 passes 35295's index for a new list; why the SWF does not land there is not read
+  (`SetSelectedTopic` only scrolls, "The highlight"). A guest's engine says no line, so its history is empty and its
+  default is the top. A joiner whose party highlight is elsewhere gets it when the others resend theirs after the
+  list shows again (the host's `Merge` on a join).
 - **A press within 750 ms of a line's end is dropped** (read: 35285 shows the list and sends voice ready, 52858; the
   SWF's `OnVoiceReady` restarts its 750 ms `bAllowProgress` timer; single player too). Seen as a guest's E 560 ms after
   Andurs's greeting ended saying nothing (`dialogue-hover-while-guest-picks`, 1 of 3 before it waited for the line).

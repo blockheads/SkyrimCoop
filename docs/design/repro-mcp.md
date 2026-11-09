@@ -79,7 +79,7 @@ together(lanes=[{call, args}, ...], sync="frame")
   moment = now + 0.4 s; each lane in its own thread
   a lane's first key/mouse/input command goes as {..., "at": moment on that game's clock}
      TestHarness/Scheduled: runs it in the first frame at or past it; "scheduled" {id} hands back frame, late_ms
-  inputs more than a frame (20 ms) apart fail the call: they did not land together
+  inputs more than one slow frame (40 ms) apart fail the call: they did not land together
   exported as ctx.together([lambda: ..., ...], sync=...)
 line_delay(ms, jitter_ms): netem on the guest's namespace link (coop2-host, coop2-ns), both ways;
   unstage and every duo boot take it off

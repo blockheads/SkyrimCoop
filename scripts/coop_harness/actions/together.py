@@ -8,7 +8,7 @@ from .. import game as game_module
 
 # How far ahead the shared moment is: each lane reads its game's clock and queues its input before it.
 LEAD_SECONDS = 0.4
-FRAME_MS = 20.0  # inputs further apart than a frame did not land together
+FRAME_MS = 40.0  # each input runs in its game's first frame past the moment: one slow frame (25 fps) apart at most
 
 
 class TogetherActions:
@@ -90,16 +90,28 @@ class TogetherActions:
         ctx.wait_for(f"[{instance or 'host'}] its menu takes a pick", lambda: ctx.menu_takes_pick(instance), seconds)
 
     def wait_npc_quiet(ctx, seconds=90):
-        """The host's NPC has said its line (no current info) and both menus take a pick: a line's end re-arms the SWF's
-        750 ms gate (35285 sends voice ready), so a press then is dropped, in single player too."""
-        ctx.wait_for("the NPC's line is over on the host", lambda: not ctx.dialogue("").get("current_info"), seconds)
-        for game in ("", "client"):
-            ctx.wait_takes_pick(game)
+        """The NPC's line is over on every game in the conversation (a guest's copy ends it on its own timer) and each
+        menu has taken a pick for a moment: a line's end re-arms the SWF's 750 ms gate (35285 sends voice ready, 52858),
+        so a press then is dropped, in single player too."""
+        games = [game for game in ("", "client") if game == "" or ctx.dialogue(game).get("menu")]
+        for game in games:
+            ctx.wait_for(f"[{game or 'host'}] the NPC's line is over", lambda g=game: not ctx.dialogue(g).get("current_info"), seconds)
+        for game in games:
+            if not ctx.dialogue(game).get("menu"):  # the host's game running it without its menu
+                continue
+            since = {"at": None}
+            def steady(g=game):
+                if not ctx.menu_takes_pick(g):
+                    since["at"] = None
+                    return False
+                since["at"] = since["at"] or time.monotonic()
+                return time.monotonic() - since["at"] >= 0.3
+            ctx.wait_for(f"[{game or 'host'}] its menu keeps taking a pick", steady, 15)
 
     def dialogue_highlight(ctx, instance, index):
         """That game's player moves its menu's highlight to option `index` with W and S."""
-        ctx.wait_list_shown(instance)
         for _ in range(16):
+            ctx.wait_list_shown(instance)  # each key: a list sent again (a player leaving) slides in anew
             here = ctx.cursor_index(instance)
             if here == index:
                 return {"highlight": here}
@@ -116,10 +128,11 @@ class TogetherActions:
         game_module.SCHEDULE.at = armed
         return dialogue_mouse.hover(ctx, instance, index, scale, settle=False)
 
-    def expect_same_highlight(ctx, seconds=2.0):
-        """Both menus highlight the same option within `seconds` (the conversation's one highlight)."""
+    def expect_same_highlight(ctx, seconds=2.0, index=None):
+        """Both menus highlight the same option within `seconds` (the conversation's one highlight); with `index`, that one."""
         def same():
-            return ctx.cursor_index("") == ctx.cursor_index("client") >= 0
+            host = ctx.cursor_index("")
+            return host == ctx.cursor_index("client") >= 0 and index in (None, host)
         try:
             ctx.wait_for("both menus highlight the same option", same, seconds)
         except TestFailure:

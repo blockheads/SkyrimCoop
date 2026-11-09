@@ -66,7 +66,9 @@ over 40 ms: one line said; a press can say an option another player highlighted 
 of Andurs's first answers (Tab and talk again between), the host joining each conversation and never picking; one
 line per pick, the menus agree. Following a path into a goodbye and talking again at once finds the NPC with nothing
 to say (37200 returns true when StartDialogue opened nothing; answered since dev's `cb60efb2`), so the walk stops
-short of goodbyes.
+short of goodbyes. A joining menu keeping its own highlight (code review) did not show in Skyrim: the host joining
+after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
+entry is gone, the scenario and GameTests flow guard it.
 
 2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
 NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
