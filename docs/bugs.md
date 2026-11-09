@@ -119,7 +119,6 @@ other section needs the duo.
 - [The second wipe loads another character's save](#the-second-wipe-loads-another-characters-save): small
 - [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
 - [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
-- [Black faces after a new area](#black-faces-after-a-new-area): small
 - [A guest's pickpocket](#a-guests-pickpocket): medium
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
@@ -1106,20 +1105,6 @@ Size: medium. Needs: duo, then GameTests.
   - Related: [The older crime scenarios](#the-older-crime-scenarios) (`guest-pickpocket-party-alarm` passes or fails
     either way).
   - Test: a scenario: the guest pickpockets Lucan, once caught and once not.
-
-### Black faces after a new area
-
-Copies of players.
-
-Agent task: Make a player's copy keep its painted face after its 3D is built again.
-
-Size: small. Needs: GameTests, duo to see it.
-
-- **Faces turn black when loading into a new area** (2026-11-08, the user; not in the logs). Read in code:
-  `FaceGenSystem` paints a copy's head once (`FaceGenComponent::Generated`) and never again, and a new area builds
-  the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
-  players' copies; whose faces the user saw is to be asked.
-  - Test: GameTests, a copy's 3D rebuilt paints its face again.
 
 ### The sneak eye with the other player looking
 

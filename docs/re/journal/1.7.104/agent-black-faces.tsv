@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-09T05:12:13Z	read		0x3bfcf3	{"name": "TESNPC::sub_24708"}
+2026-11-09T05:12:21Z	read	26842	0x433ab0	{"name": "sub_140433AB0"}
+2026-11-09T05:13:48Z	name	24708	0x3bfc70	{"addr": "0x1403bfc70", "name": "TESNPC::GetFaceTintPath"}
+2026-11-09T05:13:48Z	name	24709	0x3bfd30	{"addr": "0x1403bfd30", "name": "TESNPC::LoadFaceTintTexture"}
+2026-11-09T05:13:48Z	name	24726	0x3c2e00	{"addr": "0x1403c2e00", "name": "TESNPC::GetFaceGeomPath"}
+2026-11-09T05:13:48Z	name	24727	0x3c2ec0	{"addr": "0x1403c2ec0", "name": "TESNPC::LoadPreprocessedHead"}
+2026-11-09T05:13:48Z	name	24728	0x3c34c0	{"addr": "0x1403c34c0", "name": "TESNPC::ApplyFaceTintFileToHeadPart"}
+2026-11-09T05:13:48Z	name	24731	0x3c3b70	{"addr": "0x1403c3b70", "name": "TESNPC::BuildHead"}
+2026-11-09T05:13:48Z	name	26842	0x433ab0	{"addr": "0x140433ab0", "name": "TESNPC::QueueHeadResources"}
+2026-11-09T05:13:52Z	comment	24708	0x3bfc70	{"addr": "0x1403bfc70", "comment": "Face tint .dds path of the root faceNPC (+0x1F0 chain) from its plugin file; false for a form with no file (a temporary FF base: a coop copy)"}
+2026-11-09T05:13:52Z	comment	24728	0x3c34c0	{"addr": "0x1403c34c0", "comment": "Face head part (type 1) with a Facegen material (feature 4): material+0xA0 tintTexture = the base's FaceTint .dds, null when there is none"}
+2026-11-09T05:13:52Z	comment	24731	0x3c3b70	{"addr": "0x1403c3b70", "comment": "24731 (skee64 PreprocessedHeads): builds a new head node; FaceGeom nif + FaceTint if bUseFaceGenPreprocessedHeads and found, else at runtime from race head parts. A new face material each time: coop's painted tint (FaceGenSystem) is lost"}
+2026-11-09T05:13:52Z	comment		0x6f692b	{"addr": "0x1406f692b", "comment": "Every 3D rebuild (cell change, Reset3D) builds the head again via TESNPC::BuildHead (24731)"}
+2026-11-09T05:13:57Z	read	70717	0xef3b40	{"name": "CreateSourceTexture"}

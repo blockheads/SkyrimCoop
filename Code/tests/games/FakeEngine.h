@@ -494,6 +494,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        std::optional<Tints> HeadTints; // painted on its head (FaceGenSystem); a head built again has none (24731)
         uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
         uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
         WeaponState Weapon = WeaponState::Sheathed;
@@ -967,8 +968,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void EquipSpells(uint32_t aFormId, const MagicEquipment& acMagic);
     // Actor::Set3D(null) (37178) on an NPC: RevertSelectedSpell (38768) clears each hand, selected and held.
     void RevertSelectedSpells(uint32_t aFormId);
-    // Its 3D unloads where it stands (Loaded off, hands cleared); Loaded = true loads it again.
+    // Its 3D unloads where it stands (Loaded off, hands cleared, head gone); Loaded = true loads it again.
     void Unload3D(uint32_t aFormId);
+    // Its head goes with its 3D: the next is built again from its base (TESNPC::BuildHead 24731), unpainted.
+    void DropHead(uint32_t aFormId);
+    bool IsActorFacePainted(uint32_t aFormId) const noexcept override;
+    bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override;
     // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.
     [[nodiscard]] bool RagdollPosed(uint32_t aFormId) const noexcept;
 

@@ -6,6 +6,6 @@ struct FaceGenComponent
 {
     FaceGenComponent() noexcept {}
 
-    bool Generated{false};
+    bool Painted{false}; // these tints painted on a head (another head built since is not)
     Tints FaceTints{};
 };

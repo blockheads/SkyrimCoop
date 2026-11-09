@@ -199,7 +199,7 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
             mod["interpolation_points"] = pInterpolation->TimePoints.size();
         // A copy's head, painted from its owner's tints (FaceGenSystem): compared by the scenarios.
         if (const auto* pFace = world.try_get<FaceGenComponent>(entity))
-            mod["face"] = {{"painted", pFace->Generated}, {"tints", TintsOf(pFace->FaceTints)}};
+            mod["face"] = {{"painted", actors.IsActorFacePainted(aFormId)}, {"tints", TintsOf(pFace->FaceTints)}};
         break;
     }
 

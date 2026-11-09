@@ -489,6 +489,26 @@ void FakeEngine::Unload3D(uint32_t aFormId)
 {
     Actors.at(aFormId).Loaded = false;
     RevertSelectedSpells(aFormId);
+    DropHead(aFormId);
+}
+
+void FakeEngine::DropHead(uint32_t aFormId)
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.HeadTints.reset();
+}
+
+bool FakeEngine::IsActorFacePainted(uint32_t aFormId) const noexcept
+{
+    return ActorHas3D(aFormId) && Actors.at(aFormId).HeadTints.has_value();
+}
+
+bool FakeEngine::PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept
+{
+    if (!ActorHas3D(aFormId))
+        return false;
+    Actors.at(aFormId).HeadTints = acTints;
+    return true;
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
@@ -1159,6 +1179,7 @@ void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
     {
         it->second.Disabled = true;
         it->second.Deleted |= aDelete;
+        it->second.HeadTints.reset();
     }
 }
 
@@ -1267,7 +1288,10 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[2] = aZ;
     // An NPC moved to another cell drops its 3D, and with it its hand spells (seen on a player's copy, 2026-11-04).
     if (aFormId != kPlayer && it->second.Cell != cFrom && cHad3D)
+    {
         RevertSelectedSpells(aFormId);
+        DropHead(aFormId);
+    }
     CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
