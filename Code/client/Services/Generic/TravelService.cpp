@@ -66,6 +66,13 @@ bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& a
                                             GridCellCoords::CalculateGridCellCoords(x, y), false);
 }
 
+bool TravelService::OnSpot(const glm::vec3& acSpot) const noexcept
+{
+    glm::vec3 position;
+    m_playerBridge.GetPlayerPosition(position.x, position.y, position.z);
+    return glm::distance(glm::vec2(position), glm::vec2(acSpot)) <= ArrivalStack::kOnSpot;
+}
+
 uint32_t TravelService::CellAt(const GameId& acWorldSpaceId, const GameId& acCellId,
                                const glm::vec3& acPosition) const noexcept
 {
@@ -157,15 +164,13 @@ void TravelService::OnSummonCommand(const PartySummonCommandEvent&) noexcept
     PartySummonRequest request;
     request.Destination.WorldSpaceId = *cWorld;
     request.Destination.CellId = *cCell;
+    // Onto our player's spot, as a door's arrival: the stack lets everyone pass through until each walks off.
     glm::vec3 spot;
     m_playerBridge.GetPlayerPosition(spot.x, spot.y, spot.z);
-    // No checked spot (no room): onto our player's, where the arrival stack lets them walk off.
-    if (const auto cBeside = m_playerBridge.SpotBesidePlayer())
-        spot = *cBeside;
     request.Destination.Position = spot;
     request.Destination.Heading = m_playerBridge.GetPlayerHeading();
     m_transport.Send(request);
-    // The others' copies land on the spot here too: they pass through us and each other until they walk off.
+    // We never travel, so our game stacks here too: the others' copies land on us.
     StackOn(spot);
     m_dispatcher.trigger(SessionNoticeEvent{"Bringing the party to you."});
 }
@@ -188,8 +193,9 @@ void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const gl
 void TravelService::FollowBetweenFrames(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept
 {
     if (!m_transport.IsOnline()) return;
-    // Already there, unless a move of the tether's is still to come: that one would take it away again.
-    if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition))
+    // Any teleport brings the party, inside the cell too (docs/design/party-travel.md, "Every teleport"): only a
+    // player already on the spot stays, unless a move of the tether's is still to come.
+    if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition) && OnSpot(aPosition))
     {
         spdlog::info("Party travel to cell {:X} (worldspace {:X}): already there", aCell.BaseId, aWorld.BaseId);
         return;

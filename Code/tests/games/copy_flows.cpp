@@ -68,7 +68,8 @@ bool WearsLooks(World& aGame, const FakeEngine& acOwner)
         if (aGame.get<FormIdComponent>(cEntity).Id == cCopy)
             cpFace = &aGame.get<FaceGenComponent>(cEntity);
     return cBase.Looks == acOwner.Player.Base && cBase.Weight == acOwner.Player.Weight && cpFace &&
-           cpFace->FaceTints == acOwner.Player.FaceTints;
+           cpFace->FaceTints == acOwner.Player.FaceTints && cEngine.IsActorFacePainted(cCopy) &&
+           cEngine.Actors.at(cCopy).HeadTints == acOwner.Player.FaceTints;
 }
 
 // A player's tints as the race menu leaves them: skin tone and a war paint.
@@ -289,6 +290,33 @@ SCENARIO("A player's looks change on the existing copies", "[copies][copy-looks]
     CHECK(PlayerCopy(host) == cHostCopy);
     CHECK(PlayerCopy(guest) == cGuestCopy);
 
+}
+
+SCENARIO("A player's copy keeps its painted face when its 3D is built again", "[copies][copy-looks]")
+{
+    // Seen 2026-11-08: black faces after a new area; the new head has its base's FaceTint file, which a copy's has not.
+    Party party(1, PaintedPlayers);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return WearsLooks(party.Guest(), host); }, "the guest's copy of the host's player wears its paint");
+    const uint32_t cCopy = PlayerCopy(guest);
+
+    WHEN("the copy's 3D unloads and loads again where it stands")
+    {
+        party.As(party.Guest(), [&] { guest.Unload3D(cCopy); });
+        party.Step(party.Guest());
+        guest.Actors.at(cCopy).Loaded = true;
+        party.Until([&] { return WearsLooks(party.Guest(), host); }, "the rebuilt head wears the host's paint again");
+    }
+
+    WHEN("the party travels to a new area")
+    {
+        party.As(party.Host(), [&] { host.PlayerTravels(kSinkhole, {100.f, 200.f, 0.f}); });
+        party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).Cell == kSinkhole && guest.Actors.at(cCopy).Cell == kSinkhole; },
+                    "the party arrives in the sinkhole");
+        party.Until([&] { return WearsLooks(party.Guest(), host); }, "the copy's new head wears the host's paint");
+    }
+    CHECK(PlayerCopy(guest) == cCopy);
 }
 
 SCENARIO("The host's NPC goes away: its copy does what it does", "[copies]")

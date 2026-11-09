@@ -25,6 +25,18 @@ one engine call, which sends `PositionPlayerEvent`. That event is what our arriv
 | `LatentPlayerMover` | 55427 | Papyrus `Debug.CenterOnCellAndWait` / `PlayerMoveToAndWait` (55368, 55369) |
 | `TESObjectCELL` / `WinMain` path | 36642, 36549 | Startup and new game: the default cell, not mid-session |
 
+### Not through 40442: jail travel (1.7.104, read in IDA 2026-11-08)
+
+`PlayerCharacter::PayFine` (40659) with `goToJail` and `GoToPrison` (40655) only set a pending flag
+(`PlayerCharacter` +0xBEC bit 0x40). `ProcessQueuedTravel` (40438) checks it at its top: with a sentence (+0x730)
+`QueueJailSentenceTravel` (40656) aims through the faction's jail marker (`TESFaction` +0x60) into the jail,
+without one `QueueJailRelease` (40661) aims at the marker's own spot (Riften: outdoors, in the same worldspace).
+Both write `queuedTarget` (+0x650) inline, and 40438 carries it out in the same call. Our hook at 40438's entry
+therefore sees no queued target: only the arrival (`PositionPlayerEvent`) reports these moves.
+
+Console `SetPos` (`SetPositionOnAxis` 22053) writes the position in place: no queued target, no
+`PositionPlayerEvent`, so it is not a teleport for the party (the harness's `place` neither).
+
 Not through it: walking or riding across exterior cell borders (no teleport; the grid moves) and
 loading a save.
 
@@ -34,7 +46,8 @@ So the arrival needs no hook per kind of travel. What differs between kinds is w
 - Fast travel measures a calendar step on the traveler's game (1.2 h for ~16,000 units, the river to Riverwood).
   A guest sends that skipped native step to HostClock; the host advances once and shares its calendar (2026-10-27).
 - A `MoveTo` within the cell sends the event too; the arrival keeps the copies when the cell is the same
-  (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and nobody follows (already there).
+  (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and since 2026-11-08 the party follows it like any
+  teleport (`docs/design/party-travel.md`, "Every teleport").
 
 The party tether (`TravelService`) moves the others with `MoveTo` on their player (56626, so through 40442 like
 any travel): their arrival is the same event, sent as following, not leading
@@ -43,7 +56,8 @@ their owners, so no travel drops or respawns them (`docs/design/copy-contract.md
 
 Scenarios: `party-uses-door` (the host leads out, the client leads back in),
 `party-fast-travels` (each leads once, the other following within the same worldspace), `party-changes-cells`
-(`coc`), `teleport-keeps-copies` (a move within the cell). The map's own UI (open the map, pick a marker,
+(`coc`), `teleport-keeps-copies` (a move within the cell), `party-teleports-in-cell` (each player's `MoveTo`
+inside the cell brings the other). The map's own UI (open the map, pick a marker,
 confirm) is not driven: the console's `FastTravel` queues the same move with the marker.
 
 ## A move inside the cell (1.7.104, read in IDA 2026-11-09)
@@ -59,26 +73,26 @@ What `/tpa` relies on: moving another player with `MoveTo` works from anywhere, 
   units outdoors, or another interior cell. A target nearer than that still moves the player and still ends in
   `PositionPlayerEvent`, so the arrival is reported (`ConsumeTeleported`) as for any travel.
 
-So the tether's "already there" (`TravelService::FollowBetweenFrames`) is our rule, not the engine's: a forced follow
-(`aForce`, used by respawn and `/tpa`) moves a player that is in the cell already.
+So the tether's "already there" (`TravelService::FollowBetweenFrames`, since 2026-11-08 only a player on the spot) is
+our rule, not the engine's: a forced follow (`aForce`, used by respawn and `/tpa`) moves a player wherever it is.
 
 ### /tpa (2026-11-09)
 
-The chat's `/tpa` (or `/teleportall`) brings every other player to whoever typed it:
+The chat's `/tpa` (or `/teleportall`) brings every other player onto the spot of whoever typed it, as a door's
+arrival puts the party on one spot (the user, 2026-11-09: no spot beside):
 
-1. The summoner's game picks a checked spot beside its player (`GameRaycast::SpotBesidePlayer`:
-   `CheckedPlacement::Beside` on `CastRay`, the same as a join's placement) and sends `PartySummonRequest`.
+1. The summoner's game sends its player's position (`PartySummonRequest`) and stacks the party on it
+   (`ArrivalStack`): it never travels, and pass-through (`PlayerCollision`, 78553) needs both actors on that game's
+   stack.
 2. The host's rule (`HostCharacters::OnPartySummon`) sends `NotifyPartySummon` to every other game and makes the
    spot the tether's last place, so a follower arriving there is not sent on to an older trip.
-3. Each game makes a forced tether move there (`FollowTo(..., true)`), so the arrival is following, not leading.
-   The arrival stacks the party even inside the same cell. The summoner's game stacks on the spot when it sends,
-   since it never travels: pass-through (`PlayerCollision`, 78553) needs both actors on that game's stack. Without a
-   checked spot (no room) everyone lands on the summoner and walks off.
+3. Each game makes a forced tether move there (`FollowTo(..., true)`), so the arrival is following, not leading, and
+   stacks even inside the same cell. Everyone passes through everyone on the spot until each walks off it.
 4. Down players go too, as the tether takes them. A summon replaces a down player's queued respawn move, as a party
    trip does (only the latest queued move is carried out), so `DeathService` retargets the respawn to it.
 
-Measured in the duo (`party-summon-in-cell`): the host moved 740 units inside QASmoke, the guest typed `/tpa`, and
-the host arrived 120 units from the guest (`Beside`'s radius).
+Scenario `party-summon-in-cell`: the host moves 740 units inside QASmoke (console `SetPos`, not a teleport for the
+party), the guest types `/tpa`, and the host arrives on the guest's spot.
 
 ## Copies left behind by travel
 

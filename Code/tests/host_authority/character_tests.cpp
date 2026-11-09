@@ -425,6 +425,55 @@ TEST_CASE("/tpa: everyone else goes to the summoner's spot, even from its cell",
     CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
 }
 
+TEST_CASE("Party tether: a teleport inside the cell takes everyone along", "[HostAuthority][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+
+    // PayFine's release, inside the host's cell: only its arrival reports it (40438 queues it itself).
+    session.Receive(kHost, Arrival(0x32AE7, 0, {900.f, 0.f, 0.f}, EnterCellRequest::Travel::kOwn));
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cTravels = session.SentTo<NotifyPartyTravel>(cTo);
+        REQUIRE(cTravels.size() == 1);
+        CHECK(cTravels[0]->CellId == GameId(0, 0x32AE7));
+        CHECK(cTravels[0]->Position == glm::vec3(900.f, 0.f, 0.f));
+    }
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
+}
+
+TEST_CASE("Party tether: a trip announced before its load is not sent again on arrival", "[HostAuthority][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+
+    PartyTravelRequest queued;
+    queued.Destination.CellId = GameId(0, 0x32AE7);
+    queued.Destination.Position = {400.f, 400.f, 0.f};
+    session.Receive(kPeer, queued);
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).size() == 1);
+
+    // Its arrival: the others are on their way already (or walked off the spot since).
+    session.Outbox.clear();
+    session.Receive(kPeer, Arrival(0x32AE7, 0, {400.f, 400.f, 0.f}, EnterCellRequest::Travel::kOwn));
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
+    CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
+
+    // Its next teleport, unannounced: sent.
+    session.Receive(kPeer, Arrival(0x32AE7, 0, {-400.f, 0.f, 0.f}, EnterCellRequest::Travel::kOwn));
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).size() == 1);
+
+    // An announced trip that arrives elsewhere is sent where it arrived.
+    session.Outbox.clear();
+    session.Receive(kPeer, queued);
+    session.Outbox.clear();
+    session.Receive(kPeer, Arrival(0x200, 0, {}, EnterCellRequest::Travel::kOwn));
+    const auto cTravels = session.SentTo<NotifyPartyTravel>(kHost);
+    REQUIRE(cTravels.size() == 1);
+    CHECK(cTravels[0]->CellId == GameId(0, 0x200));
+}
+
 TEST_CASE("Party tether: a player joining away from the host is sent to it", "[HostAuthority][Characters]")
 {
     Session session;

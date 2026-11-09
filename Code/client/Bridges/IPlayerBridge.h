@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <optional>
-#include <glm/vec3.hpp>
 #include <Structs/Tints.h>
 #include <Structs/Inventory.h>
 #include <Structs/ActionEvent.h>
@@ -30,8 +28,6 @@ public:
     virtual uint32_t GetPlayerCellId() const noexcept = 0;
     virtual uint32_t GetPlayerParentCellId() const noexcept = 0;
     virtual uint32_t GetPlayerWorldSpaceId() const noexcept = 0;
-    // A checked spot beside the player for another player to stand on; none if it has no room or no loaded cell.
-    [[nodiscard]] virtual std::optional<glm::vec3> SpotBesidePlayer() const noexcept = 0;
     virtual void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept = 0;
     virtual void RemovePlayerWaypoint() noexcept = 0;
     // UI-only party locations; a complete replacement, including an empty set on disconnect.

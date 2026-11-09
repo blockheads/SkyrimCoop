@@ -5,7 +5,6 @@
 #include <Actor.h>
 #include <VersionDb.h>
 #include <glm/glm.hpp>
-#include <Games/CheckedPlacement.h>
 
 namespace GameRaycast
 {
@@ -110,23 +109,6 @@ bool HasClearPath(Actor* apFrom, Actor* apTo) noexcept
     const float cStart[3]{cFrom.x, cFrom.y, cFrom.z}, cEnd[3]{cTo.x, cTo.y, cTo.z};
     const auto hit = CastRay(cStart, cEnd, 30, apFrom->formID, apFrom->parentCell);
     return hit && (!hit->Hit || hit->Reference == apTo->formID);
-}
-
-std::optional<glm::vec3> SpotBesidePlayer() noexcept
-{
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer || !pPlayer->parentCell || !pPlayer->parentCell->IsFullyLoaded())
-        return std::nullopt;
-    const glm::vec3 cAnchor(pPlayer->position.x, pPlayer->position.y, pPlayer->position.z);
-    return CheckedPlacement::Beside(cAnchor, [](const glm::vec3& acFrom, const glm::vec3& acTo)
-        -> std::optional<CheckedPlacement::Hit> {
-        const float cFrom[3]{acFrom.x, acFrom.y, acFrom.z};
-        const float cTo[3]{acTo.x, acTo.y, acTo.z};
-        const auto cHit = CastRay(cFrom, cTo);
-        if (!cHit) return std::nullopt;
-        return CheckedPlacement::Hit{cHit->Hit, {cHit->Point[0], cHit->Point[1], cHit->Point[2]},
-                                    {cHit->Normal[0], cHit->Normal[1], cHit->Normal[2]}};
-    });
 }
 
 } // namespace GameRaycast

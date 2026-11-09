@@ -328,43 +328,6 @@ SCENARIO("Party travel closes a following guest's dialogue and takes both guests
     party.Agree("the three games agree after leaving the dialogue");
 }
 
-SCENARIO("/tpa brings every other player beside the summoner, even within its cell", "[travel]")
-{
-    Party party(2, SmokeWorld);
-    party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
-    FakeEngine& summoner = Party::Engine(party.Guest(0));
-    const glm::vec3 cAt{0.f, 0.f, 0.f};
-    std::copy_n(&cAt.x, 3, summoner.Actors.at(FakeEngine::kPlayer).Position);
-    // The others walked off inside QASmoke: the tether sees them already there.
-    for (World* pGame : {&party.Host(), &party.Guest(1)})
-    {
-        auto& player = Party::Engine(*pGame).Actors.at(FakeEngine::kPlayer);
-        player.Position[0] = 3000.f;
-        player.Position[1] = -2000.f;
-    }
-    const auto cDistance = [&](World& aGame) {
-        const auto& cPlayer = Party::Engine(aGame).Actors.at(FakeEngine::kPlayer);
-        return glm::distance(glm::vec2(cPlayer.Position[0], cPlayer.Position[1]), glm::vec2(cAt));
-    };
-    const auto cWhere = [&] {
-        return std::format("host {:.0f} away, other guest {:.0f} away; {}", cDistance(party.Host()),
-                           cDistance(party.Guest(1)), Why(party, 3));
-    };
-
-    party.As(party.Guest(0), [&] { party.Guest(0).GetDispatcher().trigger(PartySummonCommandEvent{}); });
-    party.Until([&] { return cDistance(party.Host()) < 200.f && cDistance(party.Guest(1)) < 200.f; },
-                "the host and the other guest come to the summoner", cWhere);
-    THEN("they stand beside it, on a checked spot, not on it")
-    {
-        CHECK(cDistance(party.Host()) > 100.f);
-        CHECK(cDistance(party.Guest(1)) > 100.f);
-        CHECK(Party::Engine(party.Host()).GetPlayerParentCellId() == kSmoke);
-    }
-    CHECK(summoner.Actors.at(FakeEngine::kPlayer).Position[0] == 0.f);
-    CheckTogether(party, 3);
-    party.Agree("the games agree on the players after /tpa");
-}
-
 SCENARIO("/tpa from another cell brings the party there", "[travel]")
 {
     Party party(1, SmokeWorld);
@@ -379,12 +342,12 @@ SCENARIO("/tpa from another cell brings the party there", "[travel]")
     party.Agree("the games agree on the players after /tpa");
 }
 
-SCENARIO("/tpa with no room beside the summoner: everyone passes through on its spot, in every game", "[travel]")
+SCENARIO("/tpa brings every other player onto the summoner's spot, even within its cell; all pass through there", "[travel]")
 {
     Party party(2, SmokeWorld);
     party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
     FakeEngine& summoner = Party::Engine(party.Guest(0));
-    // Everyone walks off the join's arrival spot, the summoner too.
+    // Everyone walks off the join's arrival spot, the summoner too: the tether sees the others in the cell already.
     const glm::vec3 cAt{500.f, 500.f, 0.f};
     party.As(party.Guest(0), [&] { std::copy_n(&cAt.x, 3, summoner.Actors.at(FakeEngine::kPlayer).Position); });
     for (World* pGame : {&party.Host(), &party.Guest(1)})
@@ -397,8 +360,13 @@ SCENARIO("/tpa with no room beside the summoner: everyone passes through on its 
     party.Until([&] { return std::ranges::all_of(cGames, [](World* pGame) { return Party::Engine(*pGame).PassingThrough.empty(); }); },
                 "the join's arrival stack is walked off in every game");
 
-    summoner.PlacementClear = false;
     party.As(party.Guest(0), [&] { party.Guest(0).GetDispatcher().trigger(PartySummonCommandEvent{}); });
+    const auto cOnSpot = [&](World& aGame) {
+        const auto& cPlayer = Party::Engine(aGame).Actors.at(FakeEngine::kPlayer);
+        return glm::distance(glm::vec2(cPlayer.Position[0], cPlayer.Position[1]), glm::vec2(cAt)) < 1.f;
+    };
+    party.Until([&] { return cOnSpot(party.Host()) && cOnSpot(party.Guest(1)); },
+                "the host and the other guest land on the summoner's spot", [&] { return Why(party, 3); });
     // Each game: its player and both players' copies pass through each other on the spot.
     const auto cAllPassing = [](const FakeEngine& acEngine) {
         size_t players = 0;
@@ -414,6 +382,103 @@ SCENARIO("/tpa with no room beside the summoner: everyone passes through on its 
                         why += std::format("{} passes {}; ", Party::Engine(*pGame).Name, Party::Engine(*pGame).PassingThrough.size());
                     return why + Why(party, 3);
                 });
-    const auto& cHost = Party::Engine(party.Host()).Actors.at(FakeEngine::kPlayer);
-    CHECK(glm::distance(glm::vec2(cHost.Position[0], cHost.Position[1]), glm::vec2(cAt)) < 1.f);
+    CHECK(Party::Engine(party.Host()).GetPlayerParentCellId() == kSmoke);
+    CHECK(cOnSpot(party.Guest(0)));
+    CheckTogether(party, 3);
+    party.Agree("the games agree on the players after /tpa");
+}
+
+namespace
+{
+bool StandsAt(const FakeEngine& acEngine, const glm::vec3& acSpot)
+{
+    const auto& cPlayer = acEngine.Actors.at(FakeEngine::kPlayer);
+    return glm::distance(glm::vec2(cPlayer.Position[0], cPlayer.Position[1]), glm::vec2(acSpot)) < 1.f;
+}
+} // namespace
+
+// Any teleport of a player brings the party, inside the cell too (docs/design/party-travel.md, "Every teleport").
+SCENARIO("The host teleports inside its cell: the guest comes along", "[travel]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return Together(party, 2, kSmoke); }, "the party is together in QASmoke");
+    const size_t cTravels = guest.Travels;
+    const glm::vec3 cSpot{2500.f, -1800.f, 0.f};
+
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSmoke, cSpot); });
+    party.Until([&] { return StandsAt(guest, cSpot); }, "the guest stands where the host arrived",
+                [&] { return Why(party, 2); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    THEN("the guest teleported once, and the party is still together")
+    {
+        CHECK(guest.Travels == cTravels + 1);
+        CHECK(Together(party, 2, kSmoke));
+    }
+    party.Agree("the games agree on the players");
+}
+
+SCENARIO("A guest's teleport inside the cell brings the host and the other guest", "[travel]")
+{
+    Party party(2, SmokeWorld);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the party is together in QASmoke");
+    const glm::vec3 cSpot{-900.f, 1200.f, 0.f};
+
+    party.As(party.Guest(0), [&] { Party::Engine(party.Guest(0)).PlayerTravels(kSmoke, cSpot); });
+    party.Until([&] { return StandsAt(Party::Engine(party.Host()), cSpot) && StandsAt(Party::Engine(party.Guest(1)), cSpot); },
+                "the host and the other guest stand where the guest arrived", [&] { return Why(party, 3); });
+    CheckTogether(party, 3);
+    party.Agree("the three games agree on the players");
+}
+
+SCENARIO("Paying a fine: the host's release inside its worldspace brings the guest", "[travel][crime]")
+{
+    Party party(1, [](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.Exterior(0x3C, 0x10000, 2);
+    });
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    const glm::vec3 cArrest{100.f, 200.f, 0.f};
+    party.As(party.Host(), [&] { host.PlayerTravels(0x10000, cArrest); });
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).WorldSpace == 0x3C && StandsAt(guest, cArrest); },
+                "the party is outdoors together");
+
+    // The release marker, a cell over in the same loaded grid (Riften, 2026-11-08: "already there").
+    const glm::vec3 cRelease{4500.f, 300.f, 0.f};
+    party.As(party.Host(), [&] { host.PlayerTravelsUnannounced(0x10000, cRelease); });
+    party.Until([&] { return StandsAt(guest, cRelease); }, "the guest stands at the release marker with the host",
+                [&] { return Why(party, 2); });
+    party.Agree("the games agree on the players");
+}
+
+SCENARIO("A follower that walked off is not pulled back by its leader's late arrival", "[travel]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return Together(party, 2, kSmoke); }, "the party is together in QASmoke");
+    const glm::vec3 cSpot{1500.f, 1500.f, 0.f};
+
+    // The host's teleport is announced before it loads; the guest follows and walks off before the host arrives.
+    party.As(party.Host(), [&] {
+        party.Host().GetRunner().Trigger(PlayerTravelQueuedEvent{0, kSmoke, cSpot, 0.f});
+    });
+    party.Until([&] { return StandsAt(guest, cSpot); }, "the guest follows the announced teleport");
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    const size_t cTravels = guest.Travels;
+    auto& guestPlayer = guest.Actors.at(FakeEngine::kPlayer);
+    guestPlayer.Position[0] += 400.f;
+    const glm::vec3 cWalked{guestPlayer.Position[0], guestPlayer.Position[1], guestPlayer.Position[2]};
+
+    party.As(party.Host(), [&] { host.PlayerTravelsUnannounced(kSmoke, cSpot); }); // announced above
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    THEN("the host's arrival of the same trip moves the guest no more")
+    {
+        CHECK(guest.Travels == cTravels);
+        CHECK(StandsAt(guest, cWalked));
+    }
 }

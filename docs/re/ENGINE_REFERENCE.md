@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3515** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
+- **3516** distinct engine addresses used; **240** have code in CommonLib or SKSE; **2933** have no community name at all.
 - **232** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -520,10 +520,11 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 35727 | `0x6227f0` | `BGSSaveLoadManager::Save_Impl` | CL SKSE meh | call | `s_save` | [SaveLoadManager.cpp:64](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L64) |  |
 | 35728 | `0x622f30` | `BGSSaveLoadManager::Load_Impl` | CL SKSE meh | hook → `HookLoadImpl` | `RealLoadImpl` | [SaveLoadManager.cpp:50](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L50) |  |
 | 35728 | `0x622f30` | `BGSSaveLoadManager::Load_Impl` | CL SKSE meh | call | `s_load` | [SaveLoadManager.cpp:73](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L73) |  |
+| 35751 | `0x624570` | `BGSSaveLoadManager__SetCurrentCharacter` | IDA meh | call | `s_setCurrent` | [SaveLoadManager.cpp:118](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L118) |  |
 | 35757 | `0x624840` | `BGSSaveLoadManager::GenerateCharacterID` | CL meh | call | `s_generateCharacterId` | [CreationStart.cpp:117](../../Code/client/Games/Skyrim/CreationStart.cpp#L117) |  |
 | 35760 | `0x624b40` | `BGSSaveLoadManager::PopulateSaveList` | CL meh | call | `s_populate` | [SaveLoadManager.cpp:95](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L95) |  |
 | 35769 | `0x625850` | `BGSSaveLoadManager::QueueSaveLoadRequest` | IDA meh | hook → `HookQueueSaveLoad` | `RealQueueSaveLoad` | [SaveLoadManager.cpp:51](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L51) |  |
-| 35789 | `0x629e70` | `BGSSaveLoadManager::GetSaveEntry` | IDA meh | call | `s_entry` | [SaveLoadManager.cpp:117](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L117) |  |
+| 35789 | `0x629e70` | `BGSSaveLoadManager::GetSaveEntry` | IDA meh | call | `s_entry` | [SaveLoadManager.cpp:126](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L126) |  |
 | 37006 | `0x66cea0` | `bhkWorldObject::SetCollisionFilterInfo` | IDA | call | `s_setFilter` | [Actor.cpp:170](../../Code/client/Games/Skyrim/Actor.cpp#L170) |  |
 | 37147 | `0x66f700` | `?` | PL | call | `sub_1405CCB20` | [AnimationExperiments.cpp:337](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L337) | **undocumented** |
 | 37175 | `0x670e20` | `Actor::sub_37175` | meh | data | `s_characterDtor` | [Actor.cpp:1731](../../Code/client/Games/Skyrim/Actor.cpp#L1731) |  |

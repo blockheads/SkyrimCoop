@@ -716,14 +716,14 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     return result;
 }
 
-// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), its
+// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), size, its
 // capsule's position, velocity and last step's velocity, and the actor's position, in game units.
 nlohmann::json Controller(Harness&, const nlohmann::json& acRequest)
 {
     const auto cRead = EngineCalls::GetController(acRequest.value("actor", 0u));
     if (!cRead)
         return Error("no actor or controller");
-    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State},
+    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State}, {"size", cRead->Size},
             {"position", cRead->Position}, {"velocity", cRead->Velocity}, {"step_velocity", cRead->StepVelocity},
             {"actor_position", cRead->ActorPosition}};
 }

@@ -50,7 +50,7 @@ struct PartyTravelRequest final : RequestMessage
     }
 };
 
-// /tpa: everyone else comes to the sender, at a spot it checked beside its player.
+// /tpa: everyone else comes onto the sender's spot.
 struct PartySummonRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kPartySummonRequest;

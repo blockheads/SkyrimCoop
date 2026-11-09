@@ -15,6 +15,7 @@
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
 #include <Games/FormState.h>
+#include <Games/CheckedPlacement.h>
 #include <Havok/Raycast.h>
 #include <Structs/GridCellCoords.h>
 #include <Interface/UI.h>
@@ -399,13 +400,16 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
                  acRecord.Perks.size(), acRecord.Spells.size(), acRecord.Items.Entries.size());
 }
 
-std::optional<IJoinBridge::SaveFiles> JoinBridge::PreviousSave() noexcept
+std::optional<std::string> JoinBridge::PreviousSave() noexcept
 {
     BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
-    const auto cName = pManager ? pManager->PreviousGameplaySave() : std::nullopt;
-    if (!cName)
-        return std::nullopt;
-    return ReadSave(*cName);
+    return pManager ? pManager->PreviousGameplaySave() : std::nullopt;
+}
+
+void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
+{
+    if (BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get())
+        pManager->SetCurrentCharacter(aCharacterId);
 }
 
 std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& acName) noexcept
@@ -421,9 +425,21 @@ std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& ac
 
 bool JoinBridge::PlaceBesideHost() noexcept
 {
-    const auto cSpot = GameRaycast::SpotBesidePlayer();
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->parentCell || !pPlayer->parentCell->IsFullyLoaded())
+        return false;
+    const glm::vec3 cAnchor(pPlayer->position.x, pPlayer->position.y, pPlayer->position.z);
+    const auto cSpot = CheckedPlacement::Beside(cAnchor, [](const glm::vec3& acFrom, const glm::vec3& acTo)
+        -> std::optional<CheckedPlacement::Hit> {
+        const float cFrom[3]{acFrom.x, acFrom.y, acFrom.z};
+        const float cTo[3]{acTo.x, acTo.y, acTo.z};
+        const auto cHit = GameRaycast::CastRay(cFrom, cTo);
+        if (!cHit) return std::nullopt;
+        return CheckedPlacement::Hit{cHit->Hit, {cHit->Point[0], cHit->Point[1], cHit->Point[2]},
+                                    {cHit->Normal[0], cHit->Normal[1], cHit->Normal[2]}};
+    });
     if (!cSpot)
         return false;
-    PlayerCharacter::Get()->SetPosition(NiPoint3(*cSpot), true);
+    pPlayer->SetPosition(NiPoint3(*cSpot), true);
     return true;
 }

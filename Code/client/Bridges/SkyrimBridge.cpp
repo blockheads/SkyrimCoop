@@ -1,5 +1,4 @@
 #include <Camera/PlayerCamera.h>
-#include <Havok/Raycast.h>
 #include <Papyrus/PartyNatives.h>
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
@@ -343,6 +342,32 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
 {
     if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
         pActor->SetCapsuleCollision(aCollides);
+}
+
+uint8_t SkyrimBridge::BodiesLayer(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->BodiesLayer() : 0;
+}
+
+bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
+{
+    // Without graphs, as the engine leaves them: stepping.
+    const Actor* pActor = GetActor(aFormId);
+    return !pActor || ::GraphsStepPhysics(*pActor).value_or(true);
+}
+
+void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
+{
+    // Not while it lies in its ragdoll: those bodies are its ragdoll's (BodyService).
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy() || pActor->LiesInRagdoll())
+        return;
+    if (!aGraphsStep)
+        SetGraphsStepPhysics(*pActor, false);
+    pActor->SetBodiesLayer(aBodiesLayer);
+    if (aGraphsStep)
+        SetGraphsStepPhysics(*pActor, true);
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
@@ -1492,11 +1517,6 @@ bool SkyrimBridge::ConsumeTeleported() noexcept
     return PlayerCharacter::ConsumeTeleported();
 }
 
-std::optional<glm::vec3> SkyrimBridge::SpotBesidePlayer() const noexcept
-{
-    return GameRaycast::SpotBesidePlayer();
-}
-
 float SkyrimBridge::GetPlayerHeading() const noexcept
 {
     const PlayerCharacter* pPlayer = PlayerCharacter::Get();
@@ -1826,6 +1846,13 @@ void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noe
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetIgnoreFriendlyHit(aIgnore);
+}
+
+void SkyrimBridge::SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept
+{
+    Breadcrumbs::Record("SetActorNotOnStealthMeter", aFormId, static_cast<uint32_t>(aNotShown));
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->SetNotShowOnStealthMeter(aNotShown);
 }
 
 void SkyrimBridge::SetActorPlayerFaction(uint32_t aFormId) noexcept
@@ -2179,8 +2206,8 @@ void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) no
     // InterpolationSystem::Update requires InterpolationComponent; called directly in CharacterService
 }
 
-// These two were empty since the bridge refactor, which silently disabled animation replay
-// (remote actors never drew weapons, attacked, ...) and remote face tints.
+// Empty once since the bridge refactor, which silently disabled animation replay (remote actors never drew weapons,
+// attacked, ...).
 void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept
 {
     Breadcrumbs::Record("ActorUpdateAnimation", aFormId);
@@ -2194,17 +2221,17 @@ void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexce
             AnimationSystem::Update(world, entity, pActor, view.get<RemoteAnimationComponent>(entity), aTick);
 }
 
-void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
+bool SkyrimBridge::IsActorFacePainted(uint32_t aFormId) const noexcept
 {
-    Breadcrumbs::Record("ActorUpdateFaceGen", aFormId);
     Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return;
-    auto& world = World::Get();
-    auto view = world.view<FormIdComponent, FaceGenComponent>();
-    for (auto entity : view)
-        if (view.get<FormIdComponent>(entity).Id == aFormId)
-            FaceGenSystem::Update(world, pActor, view.get<FaceGenComponent>(entity));
+    return pActor && FaceGenSystem::IsPainted(pActor);
+}
+
+bool SkyrimBridge::PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept
+{
+    Breadcrumbs::Record("PaintActorFace", aFormId);
+    Actor* pActor = GetActor(aFormId);
+    return pActor && FaceGenSystem::Paint(pActor, acTints);
 }
 
 namespace

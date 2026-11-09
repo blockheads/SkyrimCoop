@@ -17,6 +17,8 @@ struct BShkbAnimationGraph
     virtual bool HasRagdoll();             // 01
     virtual bool AddRagdollToWorld();      // 02
     virtual bool RemoveRagdollFromWorld(); // 03
+    virtual void SetWorld(void* apWorld);  // 04: hkWorldM, the physics world it steps with
+    virtual void ResetRagdoll();           // 05
 
     volatile LONG refCount; // 08, BSIntrusiveRefCounted
     uint8_t padC[0x68 - 0xC];
@@ -30,7 +32,7 @@ struct BShkbAnimationGraph
     hkbBehaviorGraph* behaviorGraph; // 208
     Actor* holder;                   // 210 (CommonLib; Open Animation Replacer reads it from a graph's hkbCharacter)
     uint8_t pad218[0x238 - 0x218];
-    bhkWorldM* hkWorldM; // 238
+    bhkWorldM* hkWorldM; // 238 (CommonLib physicsWorld): null, its ragdoll update (63562) does nothing
 
     // Re do not use
     bool ReSendEvent(BSFixedString* apEventName);
@@ -42,3 +44,4 @@ static_assert(offsetof(BShkbAnimationGraph, character) == 0xC0);
 static_assert(offsetof(BShkbAnimationGraph, projectName) == 0x1F0);
 static_assert(offsetof(BShkbAnimationGraph, behaviorGraph) == 0x208);
 static_assert(offsetof(BShkbAnimationGraph, holder) == 0x210);
+static_assert(offsetof(BShkbAnimationGraph, hkWorldM) == 0x238);
