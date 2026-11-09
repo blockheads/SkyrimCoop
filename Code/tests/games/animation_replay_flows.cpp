@@ -645,3 +645,37 @@ TEST_CASE("The live graph check compares a copy with its owner at the same owner
     // A different pick.
     CHECK(FirstGraphDifference(cOwner, {{2, "A", "load"}, {2, "B", "event go"}, {3, "B", "update"}, {4, "D", "update"}}).contains("its owner in C"));
 }
+
+TEST_CASE("A copy on its owner's stream keeps it when its spawn's graph state could load only later", "[animation][replay-start]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-09): a copy whose graph could take its spawn's state only after its stream had
+    // started loaded that state over the stream's, back in the chair it spawned in (AnimationSystem loaded it first).
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{};
+        engine->GraphTransitions = {{{"Sitting", "standUp"}, "Standing"}};
+    }
+    guest.NewCopiesGraphReady = false;
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x23AB2, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Sitting";
+    });
+    party.Until([&] { return guest.CopiesOf(0x23AB2).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x23AB2).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy) && guest.Actors.at(cCopy).GraphState == "Sitting"; },
+                "the copy's graph starts on its owner's stream");
+    ActionEvent standUp;
+    standUp.ActionId = 0x13030;
+    standUp.EventName = "standUp";
+    party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(npc, standUp)); });
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Standing"; }, "the copy stands up with its owner");
+    guest.Actors.at(cCopy).GraphReady = true; // its spawn's state could load now
+    const uint64_t cFrom = party.Guest().GetFrameTick();
+    party.Until([&] { return party.Guest().GetFrameTick() > cFrom + 200; }, "200 ms on");
+    CHECK(guest.Actors.at(cCopy).GraphState == "Standing");
+    CHECK(FirstGraphDifference(host.Actors.at(npc).Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
+}

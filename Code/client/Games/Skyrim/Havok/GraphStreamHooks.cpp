@@ -2,6 +2,7 @@
 #include <Games/Animation/BSAnimationUpdateData.h>
 #include <Games/Animation/GraphRandom.h>
 #include <Games/Animation/GraphStream.h>
+#include <Games/Skyrim/ActionClips.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/hkbBehaviorGraph.h>
@@ -135,6 +136,11 @@ struct SkyrimGraphTarget final : IGraphTarget
     {
         if (const auto* pName = EventName(Graph, aEventId))
             RealSendEvent(&Graph, pName);
+    }
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t aEventId) override
+    {
+        const auto* pName = EventName(Graph, aEventId);
+        return pName && Graph.holder ? ActionClips::Request(*Graph.holder, pName->data) : nullptr;
     }
     void Update(float aStep) override
     {

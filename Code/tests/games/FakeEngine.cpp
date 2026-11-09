@@ -268,6 +268,11 @@ struct FakeGraphTarget final : IGraphTarget
             Engine.TakeGraphEvent(Actor, cEvents[aEventId]);
     }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t aEventId) override
+    {
+        const auto cEvents = Engine.GraphEventTable();
+        return aEventId < cEvents.size() ? Engine.RequestActionClips(FormId, cEvents[aEventId]) : nullptr;
+    }
 };
 } // namespace
 
@@ -743,6 +748,8 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
         const bool cReleased = it->second.Copy && !aCopy;
+        if (aCopy && !it->second.Copy)
+            it->second.GraphReady = NewCopiesGraphReady;
         it->second.Copy = aCopy;
         if (!aCopy)
             it->second.OwnerCombatTarget = 0;

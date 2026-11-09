@@ -70,7 +70,9 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         }
     }
 
-    // A fresh copy starts in its owner's graph state; the queue waits for it.
+    // A fresh copy starts in its owner's graph state; the queue waits for it. On the stream, its sync point is newer.
+    if (aWorld.all_of<SpawnGraphStateComponent>(aEntity) && aWorld.GetGraphStreams().OnStream(apActor->formID))
+        aWorld.remove<SpawnGraphStateComponent>(aEntity);
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
     {
         if (aWorld.all_of<WaitingFor3D>(aEntity) || !EngineVirtual(apActor->animationGraphHolder).IsReady())

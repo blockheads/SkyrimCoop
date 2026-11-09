@@ -669,6 +669,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::shared_ptr<std::atomic<bool>> Done;
     };
     std::vector<ClipLoad> ClipLoads;
+    bool NewCopiesGraphReady = true; // a copy's graph ready as it is made (Skyrim: its 3D can come later)
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);

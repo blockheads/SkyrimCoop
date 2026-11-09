@@ -69,7 +69,9 @@ graph fed its owner's inputs matched it on every update over the network (Faenda
 humanoid doing chores, about 10 for an idle wolf. The stream is built for host NPCs' copies in production code
 (`GraphStream.h`, `GraphOpsRequest` / `GraphSyncRequest` / `GraphSyncPointRequest`) and runs in GameTests on the fake
 engine's new behaviour graph (`FakeGraph.h`): every wolf flow passes a live check of the copy's graph against its
-owner's at every point, which they all failed without it. Skyrim's hooks are next (step 4). An engine bug fixed on every game: range
+owner's at every point, which they all failed without it. In Skyrim (hooks on 63587 and 63591), the duo's live check
+(`graph_stream_check`) found two production bugs, fixed (clip files, a late spawn state), and copies apart soon after
+their sync point: node memory, phase 2. An engine bug fixed on every game: range
 modifier clones kept uninitialized bounds (`GraphCloneFixes.cpp`).
 
 2026-11-08: a refused action's graph writes reach its copies. A machine's start can be a graph variable (the wolf's

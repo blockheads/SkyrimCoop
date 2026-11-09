@@ -229,6 +229,50 @@ class ReproActions:
             time.sleep(every)
         return changes
 
+    def graph_stream_check(ctx, seconds=60.0):
+        """The graph input stream's live check (docs/design/graph-input-stream.md): every streamed copy's graph states,
+        hashed after each update by its owner's update index, against its owner's, from both games for `seconds`.
+        Fails at the first difference with both games' states then; returns each copy's updates compared."""
+        host, guest = ctx.game(""), ctx.game("client")
+        owners, copies, pending = {}, {}, []
+        compared = collections.Counter()
+        started = time.monotonic()
+
+        def states(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("states")
+
+        def step():
+            for actor in (host.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
+                if actor["role"] == "owner":
+                    owner = owners.setdefault(actor["actor"], {"form": actor["form"], "hashes": {}})
+                    owner["hashes"].update({update: value for update, value in actor.get("hashes", [])})
+            for actor in (guest.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
+                if actor["role"] != "copy":
+                    continue
+                copies[actor["actor"]] = {key: actor[key] for key in ("form", "on_stream", "last")}
+                pending.extend((actor["actor"], actor["form"], update, value) for update, value in actor.get("hashes", []))
+            waiting = []
+            for actor, form, update, value in pending:
+                expected = owners.get(actor, {}).get("hashes", {}).get(update)
+                if expected is None:
+                    waiting.append((actor, form, update, value))
+                elif expected != value:
+                    owner_states = states(host, owners[actor]["form"], update) or []
+                    copy_states = states(guest, form, update) or []
+                    raise ctx.failure(f"copy {form:X} (actor {actor}) left its owner's graph at update {update} after "
+                                      f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
+                                      f"copy only {sorted(set(copy_states) - set(owner_states))}")
+                else:
+                    compared[actor] += 1
+            pending[:] = waiting
+            return time.monotonic() - started >= seconds or None
+
+        ctx.wait_for(f"[both] {seconds:.0f} s of streamed copies' graphs against their owners'", step, seconds + 30,
+                     explain=lambda: f"copies {copies}, compared {dict(compared)}")
+        return {"compared": {f"{copies.get(actor, {}).get('form', 0):X}": count for actor, count in compared.items()},
+                "copies": {f"{value['form']:X}": value for value in copies.values()},
+                "unmatched": len(pending), "owners": len(owners)}
+
     def name_owner(ctx, name, owner):
         """Names an NPC by its owner's form id on the host (hex string or number) and its copy on the guest: `find`
         names only NPCs near the host."""

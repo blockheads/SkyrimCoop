@@ -210,6 +210,30 @@ owner AI (OwnerClipEnds): its clip-end actions LeadMs before the end; refused, t
   slow line too, and the quick turn picks its owner's speed. The setup waits for the copy's stream to start.
 - Still separate rules, moved onto the graph when a flow needs them: `Loop`, `GraphPicks`, `SkippedClips`.
 
+## Skyrim on the stream (duo, Riverwood, 2026-11-09)
+
+```
+owner, 63587 hook (forced)   OnUpdate(words, seed) -> real update -> OnUpdated(words); a point: SaveGraphPoint
+owner, 63591 hook            event id: the project's event table (hkxDB +0xAC, hkHashTable keyed by the pooled
+                             name, bucket = hash 68221 of it): what 63591 reads; then OnEvent
+copy on the stream, 63587    Replay(target): its owner's due ops instead of its own update
+copy on the stream, 63591    its own events dropped
+the stream's own calls       a thread-local flag lets them through (LoadState's zero-step update 63602 calls 63587)
+harness                      GraphStreamCheck chained under 63587: states hashed per owner update index, both games
+```
+
+The live check (`graph_stream_check`, 120 s, every streamed copy in Riverwood), three runs:
+
+| run | first difference | cause | now |
+|---|---|---|---|
+| 1 | Faendal, update 182 of 177 equal: chair entry with its clips "(no file)" | the replayer sent an event before its clip files were in (the proof waited for them) | an event waits for its files, up to 120 runs (`IGraphTarget::RequestClips`, ClientTests) |
+| 2 | 13484, update 77 of 35 equal: the copy in its chair, its owner standing | its spawn's graph state loaded after its stream had started, over the stream's (`AnimationSystem` loaded it first) | a copy on the stream drops its spawn's state (GameTests flow) |
+| 3 | wolf 9B0DD, update 36 of 31 equal: `CannedTurnState` against standing | not read: shortly after its sync point, no event behind it; fits node memory (a range modifier's last range) missing from the point | phase 2 |
+
+- A copy's death ends its stream (the design's exceptions): the copy forgets it and replays its death as before; its owner
+  stops recording a dead actor.
+- Not done yet: the wolf and a humanoid scenario passing the live check, then PR #38 out of draft.
+
 ## Phases
 
 1. **Host NPCs' copies,** with the stream and sync points, old paths kept as the fallback for an actor with no stream yet.
@@ -217,8 +241,9 @@ owner AI (OwnerClipEnds): its clip-end actions LeadMs before the end; refused, t
    1. The encoding (`Structs/GraphOps.h`, TPTests): done.
    2. The fake's graph, with the wolf flows on it, failing the live check without the stream: done.
    3. The stream (`GraphStream.h`, the three messages and their host rules, `CharacterService`), in GameTests: done.
-   4. The Skyrim hooks.
-   5. The live check on the duo.
+   4. The Skyrim hooks (`Games/Skyrim/Havok/GraphStreamHooks.cpp`): done.
+   5. The live check on the duo (`GraphStreamCheck`, verb `graph_stream_check`): built; it finds the copies apart
+      soon after their sync point (Skyrim on the stream, below), which is phase 2.
 2. **Node memory serialization** in sync points.
 3. **Remove the old paths** for copies on the stream; movement drops graph variables.
 4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded).
@@ -229,9 +254,7 @@ owner AI (OwnerClipEnds): its clip-end actions LeadMs before the end; refused, t
   outside the exceptions: everything else is dropped.
 - Graph rebuilds (3D reload, race change): a new graph on either side means a sync point.
 - Open Animation Replacer's random conditions use their own generator (graph-input-replay.md), outside the stream.
-- **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs, Faendal's copy entered `FurnitureState` with
-  `AOWoodPutDown` lacking its file and left it at once. The clip wait didn't hold for it. Read why before the stream
-  relies on `ActionClips::Request`.
-- **A wolf went apart 15 updates after its sync point** (1 run of 4), all variables equal: `CannedTurnState` against
-  `LoopingTurnLeft`. That fits node memory missing from the network sync point (phase 2). Not shown.
+- **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs of the proof, Faendal's copy entered
+  `FurnitureState` with `AOWoodPutDown` lacking its file and left it at once. The production replayer holds an event
+  for its files (below); whether that covers this event is for the live check to show.
 - Players: whether a player's graph has inputs the stream misses (camera-driven variables, first-person).

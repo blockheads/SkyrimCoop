@@ -205,6 +205,9 @@ void World::Update() noexcept
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
     {
         if (!engine.ActorExists(form.Id)) continue;
+        // On the stream, its sync point is newer than its spawn's state (as AnimationSystem).
+        if (all_of<SpawnGraphStateComponent>(cEntity) && GetGraphStreams().OnStream(form.Id))
+            remove<SpawnGraphStateComponent>(cEntity);
         if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
         {
             if (all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;

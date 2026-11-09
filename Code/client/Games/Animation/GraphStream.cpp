@@ -131,8 +131,26 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
     if (!m_started)
         return 0;
     size_t updates = 0;
+    bool waited = false;
     while (!m_queue.empty() && updates < cMaxUpdatesPerRun && m_queue.front().Tick <= aPlaybackTick)
     {
+        // An event waits for its clip files, holding what follows, a bounded number of runs.
+        if (m_queue.front().Op.Event)
+        {
+            if (!std::exchange(m_clipsAsked, true))
+                m_clips = aTarget.RequestClips(m_queue.front().Op.EventId);
+            if (m_clips && !m_clips->load(std::memory_order_acquire))
+            {
+                if (!waited)
+                    ++m_clipWaits;
+                waited = true;
+                if (m_clipWaits <= cMaxClipWaits)
+                    break;
+            }
+            m_clips.reset();
+            m_clipsAsked = false;
+            m_clipWaits = 0;
+        }
         const Queued cOp = std::move(m_queue.front());
         m_queue.pop_front();
         // Its variables are the stream's alone: its own writes since (channels, 63590) are put back.

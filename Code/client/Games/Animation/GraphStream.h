@@ -25,6 +25,9 @@ struct IGraphTarget
     virtual void SetSeed(const GraphSeed& acSeed) = 0;
     [[nodiscard]] virtual bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) = 0; // its state (63602), seed, counters
     virtual void SendEvent(uint16_t aEventId) = 0;                        // 63591, as the copy's replay
+    // The event's clip files loading (39625's half, ActionClips): null when it needs none or has them. A clip started
+    // without its file lasts 0.0133 s (59263): its owner's game loaded them before it sent the event.
+    [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t aEventId) = 0;
     virtual void Update(float aStep) = 0;                                 // 63587, forced
 };
 
@@ -76,6 +79,7 @@ struct GraphRecordedRun
 struct GraphReplayer
 {
     static constexpr size_t cMaxUpdatesPerRun = 4; // behind: catch up a few updates a frame
+    static constexpr uint32_t cMaxClipWaits = 120;  // runs an event waits for its clip files (a cancelled load never ends)
     std::optional<uint16_t> TimeDelta;
 
     // Its owner's run; a run that does not follow the last one is a gap: it waits for a new sync point.
@@ -110,6 +114,9 @@ struct GraphReplayer
     bool m_fed = false;
     bool m_started = false;
     std::atomic<uint32_t> m_current{UINT32_MAX};
+    std::shared_ptr<std::atomic<bool>> m_clips; // the front event's files loading
+    bool m_clipsAsked = false;
+    uint32_t m_clipWaits = 0;
 };
 
 // Every actor's stream on one game: the owner's recorders (written on the graphs' threads), the copies' replayers.

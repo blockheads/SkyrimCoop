@@ -357,3 +357,14 @@ What it established, and still holds:
   - machine states cost about 215 B/s for the cell, against 1.7 MB of graph points in the same window.
 - **Not shown:** the locomotion corrections may come from the same race on speed integers. A delayed float,
   transition or graph phase would also explain them, and none of these was traced. Treat it as a hypothesis.
+
+### A graph event's id (read 2026-11-09)
+
+- `BShkbAnimationGraph::SendEvent` (63591) turns the event's pooled name into its id through the project's event table:
+  `hkxDB` (graph +0x200, CommonLibSSE-NG's `BShkbHkxDB::ProjectDBData`) +0xAC, an `hkHashTable` keyed by the
+  `BSFixedString` pointer. The bucket is `hash 68221 (name) & (bucketCount - 1)`, then the chain to `end` (+0xB8).
+- It then sends `hkbEvent{id}` to the root behaviour's `handleEvent` (vtable +0x30), if the behaviour is active
+  (+0x12C) and `hkxDB +0x160` is set.
+- The graph input stream sends that id. A copy maps it back to the name by walking the same table and calls 63591
+  with it (`GraphStreamHooks.cpp`).
+

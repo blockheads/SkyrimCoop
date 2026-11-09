@@ -39,6 +39,8 @@ struct ToyGraph final : IGraphTarget
         State = State * 31 + aEventId + Vars[0];
         Calls.push_back("event " + std::to_string(aEventId));
     }
+    std::shared_ptr<std::atomic<bool>> Clips; // an event's files loading
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint16_t) override { return Clips; }
     void Update(float aStep) override
     {
         State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Seed.Current;
@@ -222,4 +224,35 @@ TEST_CASE("An owner's sync point is taken after the update a copy asked at", "[g
     REQUIRE(cOps);
     CHECK(cOps->Runs[0].ActorId == 7);
     CHECK(cOps->Runs[0].Ops.size() == 2);
+}
+
+TEST_CASE("An event waits for its clip files, holding what follows", "[graph-stream]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    GraphReplayer replayer;
+    replayer.Load(Point(owner, recorder.Updates()));
+    recorder.Event(2, 7, owner.Vars, owner.Seed);
+    owner.SendEvent(7);
+    OwnerUpdate(recorder, owner, 2, 0.016f);
+    const GraphOps cOps = Batch(recorder);
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    copy.Clips = std::make_shared<std::atomic<bool>>(false);
+    CHECK(replayer.Run(10, copy) == 0); // its files are not in: the event and the update after it wait
+    CHECK(copy.Calls == std::vector<std::string>{"load"});
+    copy.Clips->store(true);
+    CHECK(replayer.Run(10, copy) == 1);
+    CHECK(copy.State == owner.State);
+
+    // A load that never ends (a cancelled one): it goes on after cMaxClipWaits runs.
+    recorder.Event(3, 8, owner.Vars, owner.Seed);
+    owner.SendEvent(8);
+    OwnerUpdate(recorder, owner, 3, 0.016f);
+    const GraphOps cMore = Batch(recorder);
+    replayer.Feed(cMore.Runs[0], cMore.Frames);
+    copy.Clips = std::make_shared<std::atomic<bool>>(false);
+    for (uint32_t i = 0; i < GraphReplayer::cMaxClipWaits; ++i)
+        CHECK(replayer.Run(10, copy) == 0);
+    CHECK(replayer.Run(10, copy) == 1);
 }

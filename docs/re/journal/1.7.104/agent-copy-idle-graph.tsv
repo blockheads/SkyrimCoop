@@ -160,3 +160,4 @@ time	op	id	rva	item
 2026-11-08T22:54:16Z	comment	59727	0xb0a390	{"addr": "0x140b0a390", "comment": "59727 slot 12 cloneNode: 0x70 bytes from the Havok router, then 59723"}
 2026-11-08T22:54:16Z	comment	63450	0xbc49c0	{"addr": "0x140bc49c0", "comment": "63450: not on the graph replay path (read while following the graph manager)"}
 2026-11-08T22:54:16Z	comment	59386	0xaf7a90	{"addr": "0x140af7a90", "comment": "59386: not on the graph replay path (read with the state machine's transition functions)"}
+2026-11-09T06:32:54Z	read		0xae5e40	{"name": "sub_140AE5E20"}
