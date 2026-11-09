@@ -1620,6 +1620,8 @@ void CharacterService::RunRemoteUpdates() noexcept
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
             m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, cOwnerCollides);
+            // Seated, its bodies take the crosshair, as its owner's do (re/systems/dialogue.md, the crosshair).
+            m_actorBridge.SetCopyFurnitureBodies(pFormIdComponent->Id);
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }

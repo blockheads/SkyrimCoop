@@ -344,6 +344,13 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
         pActor->SetCapsuleCollision(aCollides);
 }
 
+void SkyrimBridge::SetCopyFurnitureBodies(uint32_t aFormId) noexcept
+{
+    // Not while it lies in its ragdoll: those bodies are its ragdoll's (39912 skips them too).
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy() && !pActor->LiesInRagdoll())
+        pActor->SetFurnitureBodies(pActor->InFurniture());
+}
+
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))

@@ -490,6 +490,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
+        bool BodiesInWorld = false; // its own 3D's bodies keyframed on layer 33 in the world: the AI puts an actor's there
+                                    // as it sits or sleeps (40063), never a copy's (it runs no AI)
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -742,6 +744,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     {
         if (Actors.contains(aFormId))
             Actors.at(aFormId).Collides = aCollides;
+    }
+    void SetCopyFurnitureBodies(uint32_t aFormId) noexcept override
+    {
+        if (Actors.contains(aFormId) && Actors.at(aFormId).Copy)
+            Actors.at(aFormId).BodiesInWorld = Actors.at(aFormId).InFurniture;
+    }
+    // This game's crosshair on an actor it faces (CrosshairPickData::Pick): a seated or sleeping one only by its bodies
+    // in the world (its capsule's hit is skipped), any other by its capsule (re/systems/dialogue.md, the crosshair).
+    [[nodiscard]] bool CrosshairTakes(uint32_t aFormId) const noexcept
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && !it->second.Dead && (!it->second.InFurniture || it->second.BodiesInWorld);
     }
     Perks GetPlayerPerks() const noexcept override;
     void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;

@@ -92,6 +92,9 @@ public:
     [[nodiscard]] virtual bool CapsuleCollides(uint32_t aFormId) const noexcept = 0;
     // A copy's capsule made to collide or not, as its owner's (CapsuleCollides).
     virtual void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept = 0;
+    // A copy's bodies follow its own sit state as the engine's AI sets an actor's (39912, 40063): seated, the crosshair
+    // takes it only by them (CrosshairPickData::Pick). A copy runs no AI, so its engine never does it.
+    virtual void SetCopyFurnitureBodies(uint32_t aFormId) noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
 
     // --- Actor values ---

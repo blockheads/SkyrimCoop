@@ -6,6 +6,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
+#include <cstring>
 #include <vector>
 
 // A 3D node's physics, as far as reading and moving its bodies (CommonLibSSE-NG bhkNiCollisionObject, bhkWorldObject,
@@ -62,6 +63,13 @@ struct hkpRigidBody
         return motionType == kDynamic || motionType == kSphereInertia || motionType == kBoxInertia || motionType == kThinBoxInertia;
     }
     [[nodiscard]] bool IsActive() const noexcept { return simulationIsland && simulationIsland->IsActive(); }
+    // hkpCollidable's broad phase collisionFilterInfo (collidable +0x2C): layer in the low 7 bits, group the high 16.
+    [[nodiscard]] uint32_t CollisionFilterInfo() const noexcept
+    {
+        uint32_t filter = 0;
+        std::memcpy(&filter, collidable + 0x2C, sizeof(filter));
+        return filter;
+    }
 };
 
 struct bhkWorld;

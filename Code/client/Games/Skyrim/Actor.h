@@ -238,6 +238,11 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool CapsuleCollides() const noexcept;
     // Turns its capsule's collision off or on; false without a capsule.
     bool SetCapsuleCollision(bool aCollides) noexcept;
+    // Its own 3D's bodies as AIProcess::SetSitSleepState (39912) sets them: in furniture keyframed on layer 33 in the
+    // world (40063), out of it layer 8 out of it; queued as the engine queues them. False: nothing to change.
+    bool SetFurnitureBodies(bool aInFurniture) noexcept;
+    // Sit/sleep state set (ActorState1::sitSleepState not 0).
+    [[nodiscard]] bool InFurniture() const noexcept { return actorState.GetSitSleepState() != 0; }
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.

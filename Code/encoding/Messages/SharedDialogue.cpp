@@ -176,12 +176,14 @@ void NotifyDialogueClosed::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 void DialogueStartFailedRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteBool(aWriter, NothingToSay);
 }
 
 void DialogueStartFailedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
+    NothingToSay = Serialization::ReadBool(aReader);
 }
 
 void NotifyDialogueRefused::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

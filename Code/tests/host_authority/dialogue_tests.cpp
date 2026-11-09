@@ -158,6 +158,23 @@ TEST_CASE("Dialogue: only the host's NPCs talk", "[HostAuthority][Dialogue]")
     CHECK(session.SentTo<NotifyDialogueStart>(kHost).empty());
 }
 
+TEST_CASE("Dialogue: talking to a player's character is refused, the host's too", "[HostAuthority][Dialogue]")
+{
+    Session session;
+    // The host's player, announced by its game as its own actor (the 2026-11-08 playtest: a guest's E on it).
+    AnnounceCharacterRequest announce;
+    announce.SessionId = session.CharacterId(kHost);
+    announce.ReferenceId = GameId(0, 0x14);
+    session.Receive(kHost, announce);
+    session.Outbox.clear();
+
+    session.Receive(kPeer, Start(session.CharacterId(kHost)));
+    CHECK(session.SentTo<NotifyDialogueStart>(kHost).empty());
+    const auto cRefused = session.SentTo<NotifyDialogueRefused>(kPeer);
+    REQUIRE(cRefused.size() == 1);
+    CHECK(cRefused[0]->NpcId == session.CharacterId(kHost));
+}
+
 TEST_CASE("Dialogue: the host's menu opening opens it for everyone", "[HostAuthority][Dialogue]")
 {
     Session session;
@@ -736,6 +753,16 @@ TEST_CASE("Dialogue: a start that cannot happen is refused, with why", "[HostAut
     REQUIRE(cRefused.size() == 1);
     CHECK(cRefused[0]->NpcId == cNpc);
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).size() == 1);
+
+    // Started, and the host's engine opened nothing (an NPC with only a hello): the asker is told so.
+    session.Outbox.clear();
+    session.Receive(kPeer, Start(cNpc));
+    failed.NothingToSay = true;
+    session.Receive(kHost, failed);
+    REQUIRE(session.SentTo<NotifyDialogueRefused>(kPeer).size() == 1);
+    const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(kPeer);
+    REQUIRE(cLines.size() == 1);
+    CHECK(cLines[0]->ChatMessage == "They have nothing to say.");
 }
 
 TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[HostAuthority][Dialogue]")

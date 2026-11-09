@@ -173,6 +173,58 @@ bool Actor::SetCapsuleCollision(bool aCollides) noexcept
     return true;
 }
 
+bool Actor::SetFurnitureBodies(bool aInFurniture) noexcept
+{
+    constexpr uint32_t cBipedLayer = 8, cBipedNoControllerLayer = 33;
+    constexpr uint32_t cAllowRagdollCollision = 0x40000; // RACE_DATA::Flag: left on layer 33 in the world (39912)
+    NiNode* pRoot = GetNiNode();
+    auto* pProcess = currentProcess;
+    auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!pRoot || !pController || !parentCell)
+        return false;
+    const auto cBodies = RigidBodiesOf(*pRoot);
+    const auto cFirst = std::ranges::find_if(cBodies, [](const bhkWorldObject* apBody) { return apBody && apBody->referencedObject; });
+    if (cFirst == cBodies.end())
+        return false;
+    const hkpRigidBody& cBody = *(*cFirst)->referencedObject;
+    const bool cIn = cBody.world && (cBody.CollisionFilterInfo() & 0x7F) == cBipedNoControllerLayer;
+    const bool cKept = race && race->raceFlags & cAllowRagdollCollision;
+    if (cIn == aInFurniture || (cKept && !aInFurniture))
+        return false;
+
+    POINTER_SKYRIMSE(void*, s_queue, 403759); // TaskQueueInterface::singleton
+    using TAddToWorld = void(void*, NiAVObject*, void* apWorld, int32_t);
+    using TRemoveFromWorld = void(void*, NiAVObject*);
+    using TSetMotionType = void(void*, NiAVObject*, uint32_t, bool);
+    using TSetLayerAndGroup = void(void*, NiAVObject*, uint32_t, uint32_t);
+    POINTER_SKYRIMSE(TAddToWorld, s_addToWorld, 36922);
+    POINTER_SKYRIMSE(TRemoveFromWorld, s_removeFromWorld, 36924);
+    POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 36925);
+    POINTER_SKYRIMSE(TSetLayerAndGroup, s_setLayerAndGroup, 36929);
+    void* pQueue = *s_queue.Get();
+    if (!pQueue)
+        return false;
+    uint32_t filter = 0;
+    pController->GetCollisionFilterInfo(filter);
+    const uint32_t cGroup = filter >> 16;
+    if (aInFurniture)
+    {
+        // EnterFurnitureCollision (40063): keyframed, layer 33 with its capsule's group, in its cell's world.
+        s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
+        s_setLayerAndGroup.Get()(pQueue, pRoot, cBipedNoControllerLayer, cGroup);
+        s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
+    }
+    else
+    {
+        // SetSitSleepState leaving (39912): back on the biped layer, out of the world unless bAddBipedWhenKeyframed.
+        POINTER_SKYRIMSE(Setting, s_addBipedWhenKeyframed, 358838);
+        if (!(s_addBipedWhenKeyframed.Get()->data & 0xFF))
+            s_removeFromWorld.Get()(pQueue, pRoot);
+        s_setLayerAndGroup.Get()(pQueue, pRoot, cBipedLayer, cGroup);
+    }
+    return true;
+}
+
 void Actor::QueueUpdate() noexcept
 {
     auto* pSetting = INISettingCollection::Get()->GetSetting("bUseFaceGenPreprocessedHeads:General");

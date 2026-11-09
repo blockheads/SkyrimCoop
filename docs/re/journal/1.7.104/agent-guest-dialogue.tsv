@@ -1,0 +1,20 @@
+time	op	id	rva	item
+2026-11-09T05:14:38Z	read	37200	0x672e30	{"name": "Actor::SetDialogueWithPlayer"}
+2026-11-09T05:17:40Z	read	26130	0x40b1e0	{"name": "CrosshairPickData::CanPickRef"}
+2026-11-09T05:17:41Z	read	75858	0xfcd130	{"name": "sub_140FCD130"}
+2026-11-09T05:32:03Z	read	36023	0x6389f0	{"name": "sub_1406389F0"}
+2026-11-09T05:34:02Z	read	40063	0x72b3f0	{"name": "AIProcess::EnterFurnitureCollision"}
+2026-11-09T05:35:33Z	read	35406	0x60e990	{"name": "coop_menuMode"}
+2026-11-09T05:36:19Z	name	36922	0x6683f0	{"addr": "0x1406683f0", "name": "TaskQueueInterface::QueueAddToWorld"}
+2026-11-09T05:36:19Z	name	36924	0x668480	{"addr": "0x140668480", "name": "TaskQueueInterface::QueueRemoveFromWorld"}
+2026-11-09T05:36:19Z	name	36925	0x6684c0	{"addr": "0x1406684c0", "name": "TaskQueueInterface::QueueSetMotionType"}
+2026-11-09T05:36:19Z	name	36929	0x6685c0	{"addr": "0x1406685c0", "name": "TaskQueueInterface::QueueSetCollisionLayerAndGroup"}
+2026-11-09T05:36:30Z	comment	36922	0x6683f0	{"addr": "0x1406683f0", "comment": "36922 (queue, 3D, bhkWorld or null: the ref's cell's, flag): task 18, bhkWorld vfunc +0x1A8 adds the 3D's collision to the world"}
+2026-11-09T05:36:30Z	comment	36924	0x668480	{"addr": "0x140668480", "comment": "36924 (queue, 3D): task 19, takes the 3D's collision out of the world (77869, then NiAVObject remove)"}
+2026-11-09T05:36:30Z	comment	36925	0x6684c0	{"addr": "0x1406684c0", "comment": "36925 (queue, 3D, motion type, flag): task 34, NiAVObject::SetMotionType 77866 recursive"}
+2026-11-09T05:36:30Z	comment	36929	0x6685c0	{"addr": "0x1406685c0", "comment": "36929 (queue, 3D, layer, group): task 38, NiAVObject::SetCollisionLayerAndGroup 77999"}
+2026-11-09T05:36:30Z	comment		0x40a7e7	{"addr": "0x14040a7e7", "comment": "Layer 30 (char controller) hit skipped when the controller's size (+0x2A0) is 1 and the actor sits or sleeps (sit state 3/7): a seated actor is picked only through its layer 33 bodies (40063 puts them in the world). A copy never runs 40063: nothing to pick (2026-11-08)"}
+2026-11-09T05:36:30Z	comment		0x673264	{"addr": "0x140673264", "comment": "StartDialogue's result (v15) only picks the cleanup path: 37200 returns true even when 35282 refused (a hello-only NPC: empty list, cleared). A start is real only if the manager's speaker is the actor after it"}
+2026-11-09T05:36:30Z	comment		0x5ef9b8	{"addr": "0x1405ef9b8", "comment": "No list after the greeting (a hello-only NPC), or a goodbye greeting: cleared, returns false, no menu asked"}
+2026-11-09T05:36:30Z	comment		0x724e5b	{"addr": "0x140724e5b", "comment": "Leaving furniture: the 3D's bodies back to layer 8 (33 for a race with flag 0x40000) and, unless bAddBipedWhenKeyframed, out of the world"}
+2026-11-09T05:36:33Z	name	35282	0x5ef4c0	{"addr": "0x1405ef4c0", "name": "MenuTopicManager::StartDialogue"}

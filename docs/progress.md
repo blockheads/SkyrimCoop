@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
+actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
+AI, so theirs never were. A copy's bodies now follow its sit state as the engine sets an actor's
+(`Actor::SetFurnitureBodies`). And a guest's ask always gets an answer: `SetDialogueWithPlayer` (37200) returns true even
+when `StartDialogue` (35282) opened nothing (an NPC with nothing to say: Hilde, most guards), so the host's game now checks
+its speaker after the start and the guest reads "They have nothing to say."; an ask to talk to a player's character is
+refused. One conversation for the party stays. `re/systems/dialogue.md`; GameTests "A guest's crosshair takes an NPC copy
+seated in its furniture", "A guest talks to an NPC with nothing to say"; HostAuthorityTests; scenarios
+`guest-crosshair-skips-leaning-npc`, `guest-talk-nothing-to-say`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

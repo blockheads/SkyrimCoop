@@ -17,6 +17,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     bool IsOnGround(uint32_t) const noexcept override { return true; }
     bool CapsuleCollides(uint32_t) const noexcept override { return true; }
     void SetCapsuleCollision(uint32_t, bool) noexcept override {}
+    void SetCopyFurnitureBodies(uint32_t) noexcept override {}
     void StaggerActor(uint32_t, float, uint32_t) noexcept override {}
     std::string Name;
     uint16_t Level = 1;

@@ -797,6 +797,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         greetingReader.ReadBits(trash, 8);
         recvOpened.DeserializeRaw(greetingReader);
         CHECK(recvOpened.Greeting == sendOpened.Greeting);
+
+        DialogueStartFailedRequest sendFailed, recvFailed;
+        sendFailed.NpcId = 0x22;
+        sendFailed.NothingToSay = true;
+        Buffer failedBuffer(100);
+        Buffer::Writer failedWriter(&failedBuffer);
+        sendFailed.Serialize(failedWriter);
+        Buffer::Reader failedReader(&failedBuffer);
+        failedReader.ReadBits(trash, 8);
+        recvFailed.DeserializeRaw(failedReader);
+        CHECK((recvFailed.NpcId == 0x22 && recvFailed.NothingToSay));
     }
 
     SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")
