@@ -175,6 +175,13 @@ void FakeEngine::EnterClip(Actor& aActor) const
 
 bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
 {
+    if (const auto* pBlend = Graph ? Graph->BlendOf(aActor.GraphState) : nullptr; pBlend && !pBlend->FreezeOn.empty() && pBlend->FreezeOn == acEvent)
+    {
+        const auto& cIntegers = aActor.GraphVariables.Integers;
+        aActor.Graph.FrozenParameter = pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
+        GraphEntry(aActor, "event " + acEvent);
+        return true;
+    }
     const auto it = GraphTransitions.find({aActor.GraphState, acEvent});
     if (it == GraphTransitions.end())
         return false;
@@ -239,6 +246,7 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         graph.BlendState.clear();
         graph.Child.clear();
         graph.PendingChild.clear();
+        graph.FrozenParameter.reset();
     }
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
@@ -278,7 +286,7 @@ void FakeEngine::GenerateGraph(Actor& aActor) const
     if (const auto* pBlend = Graph->BlendOf(aActor.GraphState); pBlend && pBlend->Generated && graph.BlendState == aActor.GraphState)
     {
         const auto& cIntegers = aActor.GraphVariables.Integers;
-        const size_t cPick = pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
+        const size_t cPick = graph.FrozenParameter ? *graph.FrozenParameter : pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
         if (const auto& cChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)]; cChild != graph.Child)
         {
             graph.PendingChild = cChild;
@@ -446,6 +454,9 @@ void FakeEngine::Frame()
     if (Graph)
         for (auto& [cId, actor] : Actors)
         {
+            // Out of its pair: back onto its owner's stream (Games/Skyrim's 63587 hook).
+            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
+                streams.HoldWhile(cId, actor.InKillMove || actor.InPairClip);
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
@@ -1177,6 +1188,11 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // An uninterruptible transition still playing drops the new pair's event too.
         if ((actor.InPairClip && actor.StopsDropped) || (cPartner->second.InPairClip && cPartner->second.StopsDropped))
             return false;
+        // 32803 plays the target's half through its graph (63591), both already in the instance: a copy on its
+        // owner's stream takes it only held off the stream (Games/Skyrim's 63591 hook); refused, the pair fails.
+        if (auto& streams = World::Get().GetGraphStreams();
+            cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
+            return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
         CollapsedPairs += cCollapsed;
@@ -1371,6 +1387,9 @@ std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
     const auto& cGraph = it->second.Graph;
     GraphState::Node blend{.Id = 1, .State = cGraph.BlendState + '\n' + cGraph.Child + '\n' + cGraph.PendingChild};
     GraphState::Node damp{.Id = 2, .State = std::to_string(std::bit_cast<uint32_t>(it->second.Graph.Damped))};
+    // The blend node's plain members, beside its internal state (GraphInternalState's members).
+    if (cGraph.FrozenParameter)
+        blend.Runtime = std::to_string(*cGraph.FrozenParameter);
     return GraphState::Encode({machine, blend, damp});
 }
 
@@ -1390,6 +1409,7 @@ bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acS
     graph.Child = cBreak == std::string::npos ? std::string{} : cBlend.substr(cBreak + 1, cSecond == std::string::npos ? std::string::npos : cSecond - cBreak - 1);
     graph.PendingChild = cSecond == std::string::npos ? std::string{} : cBlend.substr(cSecond + 1);
     graph.ActiveNodesChanged = false; // not node state: Havok's restore walk clears it
+    graph.FrozenParameter = nodes[1].Runtime.empty() ? std::nullopt : std::optional<uint32_t>(uint32_t(std::stoul(nodes[1].Runtime)));
     graph.Damped = std::bit_cast<float>(uint32_t(std::stoul(*nodes[2].State)));
     if (Graph && !graph.History.empty() && graph.History.back().Input == "load")
     {

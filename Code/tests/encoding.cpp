@@ -2219,6 +2219,7 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     point.Seed = {5, 6};
     point.ClipSets = {{3, 513}, {4, 7}, {47, 65535}};
     point.ActiveNodesChanged = true;
+    point.Project = 0xC0FFEE;
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     ops.Serialize(writer);

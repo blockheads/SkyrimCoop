@@ -172,6 +172,15 @@ std::vector<std::pair<uint8_t, uint16_t>> HeldClipSets(const BShkbAnimationGraph
     return sets;
 }
 
+// Its behaviour project ("WolfProject"), hashed: never 0.
+uint32_t Project(const BShkbAnimationGraph& acGraph)
+{
+    uint32_t hash = 2166136261u;
+    for (const char* p = acGraph.projectName; p && *p; ++p)
+        hash = (hash ^ uint8_t(*p)) * 16777619u;
+    return hash ? hash : 1;
+}
+
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
 using TBehaviourUpdate = void(hkbBehaviorGraph*, hkEventContext*, float);
@@ -254,6 +263,9 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         return RealUpdate(apGraph, apData, apScratch);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
+    // Out of its pair: back onto its owner's stream, from a new sync point.
+    if (streams.Held(cFormId))
+        streams.HoldWhile(cFormId, apGraph->holder->InPair());
     if (streams.OnStream(cFormId))
     {
         if (streams.NeedsTimeDelta(cFormId))
@@ -261,7 +273,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         // Its owner's ops due by now instead of its own update; none due, its graph holds its pose.
         InStream _;
         SkyrimGraphTarget target(*apGraph, *apData, apScratch);
-        streams.Replay(cFormId, target, apGraph);
+        streams.Replay(cFormId, target, apGraph, Project(*apGraph));
         // Its generate passes are its owner's, run in the replay: 63589 only interpolates its pose (63581).
         apGraph->behaviourUpdated = false;
         return target.Result;
@@ -298,6 +310,7 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         point.Words = Words(*pGraph);
         point.Seed = Seed(*pGraph);
         point.ActiveNodesChanged = pGraph->behaviorGraph->stateOrTransitionChanged != 0;
+        point.Project = Project(*pGraph);
         point.ClipSets = HeldClipSets(*pGraph);
         if (!point.State.empty())
             streams.AddPoint(cFormId, std::move(point));
@@ -314,8 +327,10 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
         return RealSendEvent(apGraph, apEvent);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
-    if (streams.OnStream(cFormId))
-        return false; // a copy on the stream takes its owner's events alone
+    // A copy on the stream takes its owner's events alone, but in a pair on this game (a kill move's half, 32803):
+    // that one plays on its own body, off the stream.
+    if (streams.OnStream(cFormId) && !streams.HoldWhile(cFormId, apGraph->holder->InPair()))
+        return false;
     if (streams.Recording(cFormId))
     {
         SendClipLoads(streams, cFormId, *apGraph);

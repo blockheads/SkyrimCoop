@@ -284,7 +284,10 @@ animation interpolation for distant actors, read in IDA:
   jumped (0.17 s in 33 ms) while the copy's ran with the clock. The wolf's distance from the host's camera was not
   recorded.
 - Any clip-end trigger on a far owner can come up to an interval after its copy's, so this is not only the wolf's turn.
-- **The fix:** every actor a game owns steps every frame, as its copies do (`SetGraphUpdatedEveryFrame`, set by
+- **Superseded 2026-11-09:** `force` also raises the LOD to full off camera and creatures hovered with it; owners
+  now step every frame by the interpolation flag alone (`+0x2B`, graph-input-stream.md, Owner). What follows is the
+  first fix and its measured cost.
+- **The first fix:** every actor a game owns steps every frame, as its copies do (`SetGraphUpdatedEveryFrame`, set by
   `CharacterService` each send round, cleared when it stops being owned). Under the party tether every guest is where
   the host is, so the host's synced NPCs are the ones whose copies are watched. The cost is the host's animation LOD
   for them.

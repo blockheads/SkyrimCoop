@@ -126,13 +126,9 @@ const NodeMemory::Class* StateOf(std::string_view aNodeClass)
     return pReflected && !NodeMemory::HasPointers(*pReflected) ? pReflected : nullptr;
 }
 
-bool HasStateClass(std::string_view aNodeClass)
-{
-    return ClassNamed(std::string(aNodeClass) + "InternalState") != nullptr;
-}
-
-// A node class without an internal state (Skyrim's BS nodes): its runtime members, the plain SERIALIZE_IGNORED ones of
-// it and its parents up to the node bases (BSTimerModifier::secondsElapsed, BSEventEveryNEventsModifier's counts).
+// A node's plain members, of its class and its parents up to the node bases: a BS node's runtime ones, which have no
+// internal state (BSTimerModifier::secondsElapsed), and the ones another node writes (a blender's blendParameter,
+// frozen by BSCyclicBlendTransitionGenerator 63132). The rest equal the template's on every game.
 const NodeMemory::Class* RuntimeOf(const hkClass* apNodeClass)
 {
     static std::mutex s_lock;
@@ -153,8 +149,6 @@ const NodeMemory::Class* RuntimeOf(const hkClass* apNodeClass)
         for (int32_t i = 0; i < pLevel->numDeclaredMembers; ++i)
         {
             const hkClassMember& cMember = pLevel->declaredMembers[i];
-            if (!(cMember.flags & hkClassMember::kSerializeIgnored))
-                continue;
             const uint8_t cValue = cMember.type == NodeMemory::kEnum || cMember.type == NodeMemory::kFlags ? cMember.subtype : cMember.type;
             const auto* pStruct = cMember.type == NodeMemory::kStruct ? Reflected(cMember.klass) : nullptr;
             if (NodeMemory::PlainSize(cValue) || (pStruct && !NodeMemory::HasPointers(*pStruct)))
@@ -374,8 +368,7 @@ std::string Take(const BShkbAnimationGraph& acGraph)
         {
             auto node = NodeOf(*pInfo, *it->second, hooks);
             states += node.State.has_value();
-            if (!HasStateClass(ClassName(*it->second)))
-                if (const auto* pRuntime = RuntimeOf(it->second->GetClassType()))
+            if (const auto* pRuntime = RuntimeOf(it->second->GetClassType()))
                 {
                     Wire::Buffer buffer;
                     Wire::Buffer::Writer writer(&buffer);
@@ -514,7 +507,7 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
     for (auto* pState : hooks.States)
         RemoveReference(pState);
 
-    // The BS nodes' runtime members, onto their new clones.
+    // The nodes' plain members, onto their new clones.
     uint32_t runtimes = 0;
     {
         for (const auto* pNode : runtime)

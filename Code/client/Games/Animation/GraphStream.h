@@ -101,6 +101,11 @@ struct GraphReplayer
     {
         return !m_started && !m_point;
     }
+    // The project of the point it is about to load (0: none waiting, or unknown).
+    [[nodiscard]] uint32_t PointProject() const noexcept
+    {
+        return m_point ? m_point->Project : 0;
+    }
     // The ops due by aPlaybackTick, in order (on the graph's thread): the updates it ran.
     size_t Run(uint64_t aPlaybackTick, IGraphTarget& aTarget);
     // The owner's update index it runs now or ran last (a readout: the harness's live check).
@@ -167,11 +172,18 @@ struct GraphStreams
     void Feed(uint32_t aFormId, const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames);
     void Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoint);
     [[nodiscard]] bool OnStream(uint32_t aFormId) const;
+    // A copy in a pair on this game (a kill move: BGSSynchronizedAnimationManager's instance) plays its half on its
+    // own body against its partner's graph: held off its stream while aPaired, then it asks for a new sync point.
+    // Returns whether it is held.
+    bool HoldWhile(uint32_t aFormId, bool aPaired);
+    [[nodiscard]] bool Held(uint32_t aFormId) const;
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
     // apGraph: which graph it replays into; another than the one its point loaded into waits for a new point.
-    size_t Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph = nullptr);
+    // aProject: that graph's behaviour project; a point of another project's is dropped, and it asks again only with
+    // a new graph (its leveled base becoming its owner's reloads its 3D).
+    size_t Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph = nullptr, uint32_t aProject = 0);
 
   private:
     struct Owned
@@ -192,6 +204,8 @@ struct GraphStreams
         uint64_t Playback = 0;
         bool TimeDeltaKnown = false;
         bool Asked = false;
+        std::atomic<bool> Held{false}; // in a pair on this game: off its stream
+        const void* WrongGraph = nullptr; // a graph of another project than its owner's: no point fits it
     };
     [[nodiscard]] std::shared_ptr<Owned> FindOwned(uint32_t aFormId) const;
     [[nodiscard]] std::shared_ptr<Copied> FindCopied(uint32_t aFormId, bool aCreate = false);

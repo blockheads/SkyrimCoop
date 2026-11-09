@@ -37,7 +37,7 @@ struct Node
     SyncInfo Sync;
     bool Activated = false;           // hkbNodeInternalStateInfo::hasActivateBeenCalled
     std::optional<std::string> State; // its internal state's bytes (NodeMemory), when its class has one
-    std::string Runtime;              // or its class's runtime members' (SERIALIZE_IGNORED): BS nodes have no state
+    std::string Runtime;              // its plain members' bytes: BS nodes' runtime ones, and what other nodes write
 };
 
 [[nodiscard]] uint32_t Check(std::string_view aClass, std::string_view aName) noexcept;

@@ -44,6 +44,9 @@ struct FakeGraphRules
         size_t ChooseFrom = 0;
         std::vector<std::string> Children;
         bool Generated = false;
+        // BSCyclicBlendTransitionGenerator (63132): this event freezes the blend's parameter, a plain member of the
+        // node, at the variable's value then; its picks read the member while frozen. No internal state carries it.
+        std::string FreezeOn;
     };
     // hkbDampingModifier (TurnDeltaDamped from TurnDelta): its member moves toward Floats[Input] by Gain x its last
     // update's step in each generate pass (63568: modify), which writes it to Floats[Output]; each update writes the
@@ -96,6 +99,7 @@ struct FakeGraphMemory
     bool Updated = false;
     double LastStepMs = 0.0; // its last update's step, which its modifiers keep for modify
     float Damped = 0.f;      // the damping modifier's member (Damp)
+    std::optional<uint32_t> FrozenParameter; // a blend's parameter member, frozen (Blend::FreezeOn)
     std::string PendingChild;        // a Generated blend's child its generate pass picked (its node state)
     bool ActiveNodesChanged = false; // stateOrTransitionChanged: the next update walks the active nodes
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.

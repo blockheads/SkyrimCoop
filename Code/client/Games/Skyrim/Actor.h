@@ -300,6 +300,8 @@ struct Actor : TESObjectREFR
     void EndKillMove() noexcept;
     // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
     void EndPairs() noexcept;
+    // A participant of a running pair (BGSSynchronizedAnimationManager::IsInInstance 32808): from before its half's event.
+    [[nodiscard]] bool InPair() const noexcept;
     [[nodiscard]] bool InPairClip() noexcept;
     void StopPairClip() noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).

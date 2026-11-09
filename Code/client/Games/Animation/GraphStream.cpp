@@ -405,7 +405,35 @@ void GraphStreams::Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoin
 {
     const auto pCopied = FindCopied(aFormId, true);
     std::scoped_lock _{pCopied->Lock};
-    pCopied->Replayer.Load(acPoint);
+    if (!pCopied->Held) // in a pair: it asks again once out of it
+        pCopied->Replayer.Load(acPoint);
+}
+
+bool GraphStreams::HoldWhile(uint32_t aFormId, bool aPaired)
+{
+    const auto pCopied = FindCopied(aFormId);
+    if (!pCopied)
+        return false;
+    std::scoped_lock _{pCopied->Lock};
+    if (aPaired && !pCopied->Held)
+    {
+        pCopied->Held = true;
+        pCopied->Replayer.Restart();
+        pCopied->Graph = nullptr;
+    }
+    else if (!aPaired && pCopied->Held)
+    {
+        pCopied->Held = false;
+        pCopied->Asked = false;
+    }
+    return pCopied->Held;
+}
+
+bool GraphStreams::Held(uint32_t aFormId) const
+{
+    std::scoped_lock _{m_lock};
+    const auto it = m_copied.find(aFormId);
+    return it != m_copied.end() && it->second->Held;
 }
 
 bool GraphStreams::OnStream(uint32_t aFormId) const
@@ -428,7 +456,7 @@ bool GraphStreams::ShouldAsk(uint32_t aFormId)
     if (!pCopied)
         return false;
     std::scoped_lock _{pCopied->Lock};
-    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked)
+    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked || pCopied->Held || pCopied->WrongGraph)
         return false;
     pCopied->Asked = true;
     return true;
@@ -443,7 +471,7 @@ void GraphStreams::SetPlayback(uint32_t aFormId, uint64_t aTick)
     }
 }
 
-size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph)
+size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph, uint32_t aProject)
 {
     const auto pCopied = FindCopied(aFormId);
     if (!pCopied)
@@ -455,6 +483,17 @@ size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void*
         pCopied->Replayer.Restart();
         pCopied->Graph = nullptr;
         pCopied->Asked = false;
+        return 0;
+    }
+    if (pCopied->WrongGraph && pCopied->WrongGraph != apGraph)
+    {
+        pCopied->WrongGraph = nullptr;
+        pCopied->Asked = false;
+    }
+    if (const uint32_t cPoint = pCopied->Replayer.PointProject(); cPoint && aProject && cPoint != aProject)
+    {
+        pCopied->Replayer.Restart(); // its owner's point is another project's
+        pCopied->WrongGraph = apGraph;
         return 0;
     }
     const bool cLoading = pCopied->Replayer.Started();

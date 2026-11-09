@@ -523,6 +523,7 @@ struct GraphSyncPoint
     // Its next update walks its active nodes again (stateOrTransitionChanged: its last generate pass changed a
     // blender's children). Not node state: Havok's restore clears it.
     bool ActiveNodesChanged{};
+    uint32_t Project{}; // its behaviour project's name hashed: a copy with another graph (a leveled base not yet its owner's) waits
     // Each clip set its process holds: (the set, ActionClips::Set; the event loaded into it). Its clips play them.
     std::vector<std::pair<uint8_t, uint16_t>> ClipSets;
 };

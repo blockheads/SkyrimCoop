@@ -812,6 +812,75 @@ TEST_CASE("A copy starting between its owner's generate pass and its next update
     CHECK(wolf.Difference() == "");
 }
 
+TEST_CASE("A copy starting while its owner's walk blend is frozen keeps the frozen direction", "[animation][replay-start]")
+{
+    // Skyrim (duo, Whiterun, 2026-11-09): copy 37081, restored as its owner started to walk out of a turn, blended
+    // MT_WalkForwardLeft where its owner had Right. BSCyclicBlendTransitionGenerator had frozen its blender's
+    // blendParameter (63132, mode 1): a plain member, in no internal state. The point carries nodes' plain members.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->Graph->Blends = {{.State = "Walk", .ChooseFrom = 2, .Children = {"Forward", "Right"}, .Generated = true, .FreezeOn = "freezeBlend"}};
+        engine->GraphTransitions[{"Standing", "moveStart"}] = "Walk";
+        engine->GraphTransitions[{"Walk", "freezeBlend"}] = "Walk"; // in its event table
+    }
+    ActionEvent walk;
+    walk.ActionId = 0x13030;
+    walk.EventName = "moveStart";
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, walk)); });
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    wolf.party.Until([&] { return cCopy.Graph.Child == "Forward"; }, "the copy walks forward with its owner");
+    ActionEvent freeze;
+    freeze.ActionId = 0x13031;
+    freeze.EventName = "freezeBlend";
+    wolf.party.As(wolf.party.Host(), [&] {
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, freeze));
+        auto& integers = wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers;
+        integers.resize(3);
+        integers[2] = 1; // its direction turns; the frozen blend keeps Forward
+    });
+    wolf.party.Until([&] { return cCopy.Graph.FrozenParameter.has_value() && cCopy.GraphVariables.Integers.size() > 2 && cCopy.GraphVariables.Integers[2] == 1; },
+                     "the copy froze with its owner and has the new direction");
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.party.Guest().GetGraphStreams().Forget(wolf.copy); });
+    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy starts again from a point taken while frozen");
+    const double cFrom = cCopy.Graph.Timeline;
+    wolf.party.Until([&] { return cCopy.Graph.Timeline > cFrom + 50.0; }, "the copy replays 50 ms of its owner's stream from there");
+    CHECK(cOwner.Graph.Child == "Forward");
+    CHECK(cCopy.Graph.Child == "Forward");
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pair ends", "[animation][replay-start][kill-move]")
+{
+    // Skyrim (duo, client-kill-move, 2026-11-09): the guest's blow killed the wolf plainly. The pair's start plays the
+    // victim's half through its graph (32803 -> 63591), and a copy on its owner's stream refused every event but its
+    // owner's, so the pair failed. A copy in a pair on this game plays its half on its own body, off the stream.
+    WolfTurn wolf;
+    ActionEvent kill;
+    kill.ActionId = 0x13005;
+    kill.EventName = "pa_KillMoveI";
+    kill.TargetEventName = "KillMoveI";
+    kill.TargetId = wolf.copy;
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    bool started = false;
+    wolf.party.As(wolf.party.Guest(), [&] { started = wolf.guest.PerformAnimation(FakeEngine::kPlayer, kill); });
+    REQUIRE(started);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    CHECK(cCopy.InKillMove);
+    CHECK(streams.Held(wolf.copy));
+    CHECK_FALSE(streams.OnStream(wolf.copy));
+    // The pair ends without a kill: the copy asks for a new point and follows its owner again.
+    const size_t cPoints = SyncPoints(cCopy);
+    wolf.party.As(wolf.party.Guest(), [&] {
+        wolf.guest.EndKillMove(wolf.copy);
+        wolf.guest.StopPairClip(wolf.copy);
+    });
+    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
+                     "the copy is back on its owner's stream from a new sync point");
+}
+
 TEST_CASE("A copy starting after its owner's idle loads that idle's clip files, not its last event's", "[animation][replay-start]")
 {
     // Skyrim (duo, Whiterun, 2026-11-09): copy 1A684 started on its owner's stream as its owner leaned on a counter. At

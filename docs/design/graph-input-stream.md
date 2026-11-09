@@ -39,8 +39,14 @@ CharacterService's send round (10/s; 30/s in a fight) -> GraphOpsRequest { sessi
   ones only (u16 index, u32 word), never quantized. Compression is lossless only (below).
 - **Owner time:** each update op's tick is the first update's tick plus the steps before it, so the copy can place every
   op on its playback clock.
-- **Already true:** owners update every frame (`SetGraphUpdatedEveryFrame`), so their steps are the frame's. Cost: about
-  4 ms/s of job-thread time per NPC, with no measurable frame-time change in Whiterun (animation-replay-recovery.md).
+- **Owners step every frame, without `force`:** the 63587 hook clears the update data's interpolation flag (`+0x2B`)
+  for a recorded owner, so its graph steps each frame at the engine's own LOD. `force` (`+0x2A`, or the actor's
+  `kForceAnimGraphUpdate`) also gives full LOD off camera, and creatures hovered with it (a restrained wolf 72 units
+  up; which of its effects holds it up is not read yet). The step recorded is the behaviour graph's real one (58329).
+- **Generate passes are ops:** a graph's modifiers and blenders move in its generate pass (63568), run once after each
+  frame it updated in (63589). The owner's are recorded in order with its events and updates; a copy runs them in
+  place and never its own (the hook clears `+0x246` after its replay). On the wire a pass right after its update is
+  one bit of that update.
 
 ## Transport
 
@@ -93,8 +99,12 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 | get-up | the clip is picked from the copy's ragdoll pose (`hkbPoseMatchingGenerator`) | sync point once the owner stands |
 | paired animations (kill moves) | a synchronized clip plays against its partner's graph (`BSSynchronizedClipGenerator`) | sync point after the pair |
 
-The owner marks the pause in its ops (an op kind) when it enters one, and sends a sync point when it leaves; the copy
-runs today's paths in between (`KnockReplay`, death actions, `ReplayState` pairs).
+- **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
+  through its graph (63591). A copy on the stream that is in an instance on this game (`Actor::InPair`, 32808) is held
+  off its stream (`GraphStreams::HoldWhile`): it takes that event, runs today's paths, and asks for a new sync point
+  once out of the instance. Before, the copy refused the event and a guest's kill move on a host NPC never started
+  (`client-kill-move`).
+- **Ragdoll and get-up:** a death ends the stream (`AnimationSystem`); a knock-down's pause is not built.
 
 ## What goes away for copies on the stream
 
@@ -300,7 +310,11 @@ What it found on the duo (2026-11-09), in order:
 | `TurnToWalkEnd` a few updates late, its clip's time a step behind | the clip restored before its movement set was in | a point's sets loaded before it restores |
 | a copy's clips a little ahead from its first update, its `TurnDeltaDamped` apart | the point was taken right after an update; the owner's generate pass then moved blenders' sync and modifiers' outputs | the point is taken as the next update begins; the events just before it are in it |
 | `Wall_IdleBackEnter (no file)`, `Chair_FrontEnterVar1 (no file)` | sets loaded by the queued loader (43622) and by a save's reload (`FinishLoadGame`, 43624, which names a graph manager, not an actor) | every loader recorded, by graph manager |
-| none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s | | |
+| `TurnDeltaDamped` written by the copy's update only; its walk blend picks another child | owners back on the engine's stepping generated only after their chunks, copies every frame | generate passes are ops; owners step every frame without `force` |
+| a blend's child kept or dropped at a copy's first update | the owner's generate pass before the point set `stateOrTransitionChanged`, which Havok's restore clears | the point carries the flag |
+| `MT_WalkForwardLeft` where the owner has `Right`, at a copy's first update | `BSCyclicBlendTransitionGenerator` had frozen its blender's `blendParameter` (63132), a plain member in no internal state | the point carries every active node's plain members |
+| a hare's graph given a wolf's point | the guest's leveled reference did not have its owner's base yet | a point names its behaviour project; another project's is dropped until the copy's graph is replaced |
+| none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s (again 2026-11-09 with the rows above) | | |
 
 ## Phases
 

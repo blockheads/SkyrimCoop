@@ -1049,6 +1049,15 @@ void Actor::EndPairs() noexcept
     StopPairClip();
 }
 
+bool Actor::InPair() const noexcept
+{
+    using TIsInInstance = bool(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TIsInInstance, s_isInInstance, 32808);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    return *s_manager.Get() && (s_isInInstance.Get())(*s_manager.Get(), &cHandle);
+}
+
 bool Actor::InPairClip() noexcept
 {
     // The graph's bIsSynced, on through a pair's clip.

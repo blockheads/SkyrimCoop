@@ -194,6 +194,30 @@ TEST_CASE("A copy catching up never ends a frame between an update and its gener
     CHECK(copy.State == owner.State);
 }
 
+TEST_CASE("A copy whose graph is another project's drops its owner's point and asks again with a new graph", "[graph-stream]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-09): the host's leveled 105A25 was a wolf, the guest's reference still a hare.
+    // The wolf's point went into the hare's graph (nodes matched by id), and the copy parted at once.
+    GraphStreams streams;
+    GraphOpsRun run{1, 0, {{.Frame = 0}}};
+    streams.Feed(0x99, run, {{1, 0.016f}});
+    CHECK(streams.ShouldAsk(0x99));
+    ToyGraph hare, wolf;
+    Payloads::GraphSyncPoint point = Point(wolf, 0);
+    point.Project = 7;
+    streams.Load(0x99, point);
+    CHECK(streams.Replay(0x99, hare, &hare, 8) == 0);
+    CHECK(hare.Calls.empty());
+    CHECK_FALSE(streams.OnStream(0x99));
+    CHECK_FALSE(streams.ShouldAsk(0x99)); // nothing fits this graph
+    CHECK(streams.Replay(0x99, wolf, &wolf, 7) == 0); // its 3D reloaded with its owner's base
+    CHECK(streams.ShouldAsk(0x99));
+    streams.Load(0x99, point);
+    streams.SetPlayback(0x99, 100);
+    CHECK(streams.Replay(0x99, wolf, &wolf, 7) == 1);
+    CHECK(streams.OnStream(0x99));
+}
+
 TEST_CASE("Actors' updates in one frame share its step", "[graph-stream]")
 {
     GraphRecorder a, b;
