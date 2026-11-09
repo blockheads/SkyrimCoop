@@ -400,13 +400,16 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
                  acRecord.Perks.size(), acRecord.Spells.size(), acRecord.Items.Entries.size());
 }
 
-std::optional<IJoinBridge::SaveFiles> JoinBridge::PreviousSave() noexcept
+std::optional<std::string> JoinBridge::PreviousSave() noexcept
 {
     BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
-    const auto cName = pManager ? pManager->PreviousGameplaySave() : std::nullopt;
-    if (!cName)
-        return std::nullopt;
-    return ReadSave(*cName);
+    return pManager ? pManager->PreviousGameplaySave() : std::nullopt;
+}
+
+void JoinBridge::SetCharacter(uint32_t aCharacterId) noexcept
+{
+    if (BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get())
+        pManager->SetCurrentCharacter(aCharacterId);
 }
 
 std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& acName) noexcept
