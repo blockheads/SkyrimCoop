@@ -4,6 +4,8 @@
 #include <Events/UpdateEvent.h>
 #include <Events/FastTravelEvent.h>
 #include <Events/PlayerTravelQueuedEvent.h>
+#include <Events/PartySummonCommandEvent.h>
+#include <Events/SessionNoticeEvent.h>
 #include <Messages/TravelMessages.h>
 
 #include <Messages/NotifyPartyTravel.h>
@@ -46,6 +48,8 @@ TravelService::TravelService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     Listen<FastTravelEvent, &TravelService::OnFastTravel>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &TravelService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<NotifyPartyTravel, &TravelService::OnPartyTravel>(m_connections, aDispatcher, this);
+    Listen<PartySummonCommandEvent, &TravelService::OnSummonCommand>(m_connections, aDispatcher, this);
+    Listen<NotifyPartySummon, &TravelService::OnPartySummon>(m_connections, aDispatcher, this);
 }
 
 bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& acCellId,
@@ -109,7 +113,7 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
 
     // The party arrives on one spot (a door's, a coc's, the leader's): its players stack there, passing through
     // each other until each walks off (docs/design/host-authority-migration.md, "Party tether").
-    if (cCellId != m_arrivalCellId)
+    if (cCellId != m_arrivalCellId || std::exchange(m_stackNextArrival, false))
     {
         m_arrivalCellId = cCellId;
         glm::vec3 spot;
@@ -139,6 +143,44 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
 void TravelService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept
 {
     FollowTo(acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position, acMessage.Heading);
+}
+
+void TravelService::OnSummonCommand(const PartySummonCommandEvent&) noexcept
+{
+    if (!m_transport.IsOnline())
+    {
+        m_dispatcher.trigger(SessionNoticeEvent{"/tpa works in a party only."});
+        return;
+    }
+    const uint32_t cCellId = m_playerBridge.GetPlayerParentCellFormId();
+    const uint32_t cWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
+    const auto cCell = cCellId ? ToSessionCell(cCellId, cWorldSpaceId) : std::nullopt;
+    const auto cWorld = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
+    if (!cCell || !cWorld || (!*cWorld && !*cCell))
+    {
+        m_dispatcher.trigger(SessionNoticeEvent{"The party can't be brought here."});
+        return;
+    }
+    PartySummonRequest request;
+    request.Destination.WorldSpaceId = *cWorld;
+    request.Destination.CellId = *cCell;
+    // Onto our player's spot, as a door's arrival: the stack lets everyone pass through until each walks off.
+    glm::vec3 spot;
+    m_playerBridge.GetPlayerPosition(spot.x, spot.y, spot.z);
+    request.Destination.Position = spot;
+    request.Destination.Heading = m_playerBridge.GetPlayerHeading();
+    m_transport.Send(request);
+    // We never travel, so our game stacks here too: the others' copies land on us.
+    StackOn(spot);
+    m_dispatcher.trigger(SessionNoticeEvent{"Bringing the party to you."});
+}
+
+void TravelService::OnPartySummon(const NotifyPartySummon& acMessage) noexcept
+{
+    m_dispatcher.trigger(SessionNoticeEvent{acMessage.Username + " brought the party to them."});
+    const auto& cTo = acMessage.Destination;
+    m_stackNextArrival = true;
+    FollowTo(cTo.WorldSpaceId, cTo.CellId, cTo.Position, cTo.Heading, true);
 }
 
 void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept

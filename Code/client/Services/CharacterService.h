@@ -29,6 +29,7 @@ struct NotifyFactionsChanges;
 struct FactionsChangeEvent;
 struct ReferenceJumpEvent;
 struct ReferenceLoadedEvent;
+struct NpcHeldEvent;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
 struct SpellCastEvent;
@@ -88,6 +89,9 @@ struct CharacterService
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
+    void OnNpcHeld(const NpcHeldEvent& acEvent) noexcept;
+    // A spawn waiting on that actor to finish loading goes on.
+    void SpawnPending(uint32_t aFormId) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnMountEvent(const MountEvent& acEvent) noexcept;
     // The player's owned horse accompanies a tether move.

@@ -20,6 +20,7 @@ struct ActorDeathChangeEvent;
 struct NotifySettingsChange;
 struct PlayerArrivedEvent;
 struct NotifyPartyTravel;
+struct NotifyPartySummon;
 struct NotifyCharacterSpawn;
 struct ReferenceLoadedEvent;
 struct ActorRemovedEvent;
@@ -65,6 +66,8 @@ private:
     void GoDown(bool aDying) noexcept;
     void OnRespawn(const NotifyPlayerRespawn& acMessage) noexcept;
     void OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept;
+    // A /tpa replaces a queued respawn move as a party trip does (the engine runs only the latest).
+    void OnPartySummon(const NotifyPartySummon& acMessage) noexcept;
     void OnRespawnArrival(const PlayerArrivedEvent& acEvent) noexcept;
     // Not down any more (revived, disconnected, gone): the camera and controls its own again.
     void StandUp() noexcept;

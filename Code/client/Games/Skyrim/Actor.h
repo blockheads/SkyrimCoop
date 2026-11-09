@@ -248,6 +248,14 @@ struct Actor : TESObjectREFR
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.
     void EndReleasedCopyPackage() noexcept;
+    // A guest's own NPC, without AI or 3D until the host spawns its copy (GuestNpcs::Held).
+    [[nodiscard]] bool IsHeldOnGuest() noexcept;
+    // Load3D (19727), from the loader threads: true refuses it while held; false lets it load.
+    [[nodiscard]] bool RefuseHeld3D() noexcept;
+    // A load job of its ended (QueuedReference::Finish 13022): NpcHeldEvent if refused, then ApplyHeld3D.
+    void FinishLoad3D() noexcept;
+    // Its 3D as the held rule says: none while held (reloaded, so refused), queued once not after a refused load.
+    void ApplyHeld3D() noexcept;
     // The package conditions and Papyrus see (37399): the running one, or for an engine-made one the form package
     // under it (ExtraPackage).
     [[nodiscard]] TESPackage* GetCurrentPackage() const noexcept;

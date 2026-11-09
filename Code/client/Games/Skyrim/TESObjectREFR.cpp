@@ -12,6 +12,7 @@
 #include <Games/Overrides.h>
 #include <Games/ItemChanges.h>
 #include <Games/HiddenCopies.h>
+#include <Games/GuestNpcs.h>
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
@@ -674,7 +675,12 @@ void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
     MarkChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
-    // The 3D is the old base's: dropped and loaded again as Disable and Enable do, leaving no form-flags record.
+    // The 3D is the old base's.
+    Reload3D();
+}
+
+void TESObjectREFR::Reload3D() noexcept
+{
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     const bool cRecorded = pSaveLoad && pSaveLoad->HasChange(*this, CHANGE_FORM_FLAGS);
     // The reference's own Disable (19801): Actor's (37267) only queues it, which would land after the Enable.
@@ -1473,6 +1479,40 @@ bool HookSetDisabled(TESForm* apThis, bool aDisabled)
     return RealSetDisabled(apThis, aDisabled);
 }
 
+// TESObjectREFR::Load3D (19727; Actor::Load3D 37177 calls it first): a guest's own NPC gets none until the host
+// spawns its copy, as a disabled reference (GuestNpcs, actor-ai-and-copies.md). Runs on the loader threads too.
+using TLoad3D = NiAVObject*(TESObjectREFR*, bool aBackground);
+static TLoad3D* RealLoad3D = nullptr;
+NiAVObject* HookLoad3D(TESObjectREFR* apThis, bool aBackground)
+{
+    if (GuestNpcs::Session() && apThis->formType == Actor::Type && static_cast<Actor*>(apThis)->RefuseHeld3D())
+        return nullptr;
+    return RealLoad3D(apThis, aBackground);
+}
+
+// QueuedReference (QueuedActor, QueuedPlayer...): one 3D load job of TESQueuedHandles (QueueReference 13057).
+struct QueuedReference
+{
+    uint8_t pad0[0x2C0];
+    uint32_t refHandle; // 2C0; its model (BackgroundLoad3D 13019) at 2C8
+};
+static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
+
+// QueuedReference::Finish (13022, vtable slot 12 of every queued kind): a load job ends on the main thread, its handle
+// leaving the queue last. A held NPC's job ending, refused or begun before holding started (GuestNpcs,
+// actor-ai-and-copies.md).
+using TFinishLoad3D = uint64_t(QueuedReference*);
+static TFinishLoad3D* RealFinishLoad3D = nullptr;
+uint64_t HookFinishLoad3D(QueuedReference* apThis)
+{
+    const uint32_t cHandle = apThis->refHandle;
+    const uint64_t cResult = RealFinishLoad3D(apThis);
+    if (GuestNpcs::Session())
+        if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cHandle)))
+            pActor->FinishLoad3D();
+    return cResult;
+}
+
 static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1497,4 +1537,6 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(20232, &RealPickLeveledBase, HookPickLeveledBase);
         HOOK_ID(19800, &RealEnable, HookEnable);
         HOOK_ID(14646, &RealSetDisabled, HookSetDisabled);
+        HOOK_ID(19727, &RealLoad3D, HookLoad3D);
+        HOOK_ID(13022, &RealFinishLoad3D, HookFinishLoad3D);
     });

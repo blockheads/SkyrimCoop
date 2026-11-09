@@ -16,7 +16,7 @@ target("ClientTests")
               "../../client/Games/Skyrim/Misc/PartyArrivals.cpp", "../../client/Games/Skyrim/Misc/JudgedRules.cpp",
               "../../client/Games/Skyrim/Misc/StoryEventRules.cpp",
               "../../client/Physics/BodyPrediction.cpp", "../../client/Physics/BodySends.cpp", "../../client/Physics/BodyPlayback.cpp",
-              "../../client/Physics/BodyRelevance.cpp", "../../client/Games/HiddenCopies.cpp",
+              "../../client/Physics/BodyRelevance.cpp", "../../client/Games/HiddenCopies.cpp", "../../client/Games/GuestNpcs.cpp",
               "../../client/Games/Animation/GraphStream.cpp", "../../client/Games/Animation/NodeMemory.cpp",
               "../../client/Games/Animation/GraphState.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")

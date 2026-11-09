@@ -61,6 +61,20 @@ parts: variables, handled events with their sender, clip times. GameTests: a cop
 through a turn its owner loaded nothing for. Both scenarios still fail their end comparisons, on ambient differences
 filed under bugs.md's End comparisons in towns (Whiterun's containers; a creature's copy 57 units off in height).
 
+2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
+NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
+Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (`UpdateAI` at every process level).
+Decided: the host ignores them, and the guest gives them no AI (`HookUpdateAI`) and no 3D (`HookLoad3D` on 19727, the
+disabled path), until the host's spawn makes them copies and queues their 3D (`QueueReference` 13057). A horse the
+guest rides is its own. Tests: GameTests `[guest-own-npc]`, and an actor checksum that fails any guest showing an actor
+of its own; ClientTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
+(`actor_place` also reports the package and process level). On the duo its steps pass; its end comparison in Whiterun
+fails on the town differences in bugs.md ("End comparisons in towns", "Doors the host's NPCs unlock").
+From the PR's review: NPCs already shown when holding starts (the host's save loads before the guest connects; a
+rejoin) are reloaded so their 3D is refused (32 hidden at a Whiterun rejoin, each a copy again within 10 s), and a
+refused load job ends in `QueuedReference::Finish` (13022, hooked), where the NPC's 3D is queued again if a spawn came
+while the job was out, and where a model loaded before holding started is reloaded as it attaches. GameTests flows for both; the scenario now leaves and rejoins.
+
 2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
 actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
 AI, so theirs never were. A copy's bodies and graphs now mirror its owner's, as its capsule does: each movement snapshot
@@ -553,7 +567,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Quests | done 2026-10-20 as world state: the host runs every quest, guests take its stages (fragments skipped), objectives and alias fills (`docs/design/world-state-sync.md`, `docs/re/systems/quest-apply.md`); upstream's quest relay deleted with phase 5 |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
-| Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
+| Teleport command, teleport to a player | `/tpa` (or `/teleportall`, 2026-11-09): anyone brings every other player onto their spot (stacked, as a door's arrival), a forced tether move, from the same cell too (`player-travel.md`, "/tpa"; `party-summon-in-cell`, GameTests `/tpa ...`) |
 | Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed`. Since 2026-11-08 every teleport, inside the cell too (PayFine's release; `docs/design/party-travel.md`, "Every teleport"), `party-teleports-in-cell` |
 
 ### Experience: wiring up

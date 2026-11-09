@@ -766,7 +766,8 @@ class ReproActions:
         at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing), "stream"
         (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
         update; with `name`, its copy compared on at least `value` updates, by default 30 a second; without, at least
-        `value` copies, default 1, compared through most of it)."""
+        `value` copies, default 1, compared through most of it), "guest_npcs" (the guest shows no NPC of its own, all
+        through `seconds`)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -828,6 +829,8 @@ class ReproActions:
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))
             return {"agree": True}
+        if check == "guest_npcs":
+            return ctx.expect_no_guest_npcs(seconds)
         if check == "agree":
             ids = [f"{ref:08X}" for ref in ctx.handles().get(name, {}).values()]
             problems = [p for p in ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())) if name == "all" or any(ref in p for ref in ids)]
@@ -925,6 +928,21 @@ class ReproActions:
                 raise ctx.failure(f"{name}: {field} is {got}, expected {expected}")
             time.sleep(0.2)
         return {field: got}
+
+
+    def expect_no_guest_npcs(ctx, seconds=0.0):
+        """The host owns every NPC: no loaded actor on the guest is its own but its player, read every 0.5 s through
+        `seconds` (copy-contract.md, "A guest's own NPCs")."""
+        ended, started = time.monotonic() + seconds, time.monotonic()
+        while True:
+            world = (ctx.game("client").read_status() or {}).get("world") or {}
+            own = sorted(f"{(row.get('identity') or {}).get('name') or '?'} {int(form_id):08X}"
+                         for form_id, row in world.items() if row.get("role") == "own" and not row.get("player"))
+            if own:
+                raise ctx.failure(f"the guest runs NPCs of its own, {time.monotonic() - started:.1f} s in: {', '.join(own)}")
+            if time.monotonic() >= ended:
+                return {"guest_npcs": 0, "loaded": len(world)}
+            time.sleep(min(0.5, max(0.0, ended - time.monotonic())))
 
 
 def where(row):

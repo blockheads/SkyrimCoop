@@ -18,6 +18,7 @@ struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct EnterCellRequest;
 struct PartyTravelRequest;
+struct PartySummonRequest;
 
 struct HostNetwork;
 
@@ -90,6 +91,8 @@ private:
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
     void OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // /tpa: everyone else goes to the sender's spot; the tether's last place becomes it.
+    void OnPartySummon(const PartySummonRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
     // Indoors anywhere; outdoors within the host's player's loaded grid (GridCellCoords::IsCellInGridCell).

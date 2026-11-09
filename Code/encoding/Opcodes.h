@@ -75,6 +75,7 @@
     X(DialogueHighlightRequest)    \
     X(DialogueSkipRequest) \
     X(PlayerNameRequest)           \
+    X(PartySummonRequest)          \
     X(GraphOpsRequest)             \
     X(GraphSyncRequest)            \
     X(GraphSyncPointRequest)
@@ -157,6 +158,7 @@
     X(NotifyDialogueSkip) \
     X(NotifyPlayerName)            \
     X(NotifyActorName)             \
+    X(NotifyPartySummon)           \
     X(NotifyGraphOps)              \
     X(NotifyGraphSync)             \
     X(NotifyGraphSyncPoint)

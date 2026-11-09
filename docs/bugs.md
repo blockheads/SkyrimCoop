@@ -48,6 +48,7 @@ other section needs the duo.
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
+- [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
@@ -158,6 +159,13 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
   `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
   change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
+- **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
+  Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
+  it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
+  `RagdollInstant`: a body lying in its ragdoll. Also there: a copy looking at nobody, the bullet above. Only after a
+  rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
+  its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
+  ragdolled copy's body settles when its 3D loads after its spawn placed it.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 
@@ -359,6 +367,23 @@ Size: medium. Needs: duo.
     holds the copy's capsule at that height.
   - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
     only), loose food and a door, 45-52 references.
+
+### Doors the host's NPCs unlock
+
+Whiterun's doors open on the host, locked on the guest.
+
+Agent task: Find what unlocks these doors on the host, and make that change reach the guests.
+
+Size: medium. Needs: duo, IDA.
+
+- **Three doors unlocked on the host stay locked on the guest** (2026-11-09, `guest_shows_only_hosts_npcs` after its
+  steps, at noon). Doors of base `252C7` in Whiterun's exterior cell `1A278` (`1A6F5`, `252CD`, `24E25`); both games'
+  have change flag `0x10000000`. First seen once a guest stopped running its own NPCs (copy-contract.md, "A guest's
+  own NPCs"): the guest's NPC packages likely locked and unlocked them there before, hiding it.
+  - Not read yet: whether package door locks do it (the lock-doors package flags), and whether the host sends a lock
+    change its own NPC made (a guest proposes only its player's, `GuestWorldState::OnLockChange`; `HookLockChange`
+    19512 raises `LockChangeEvent` for every lock change).
+  - Test: that scenario's end comparison, or `world_state` on the three doors in both games.
 
 ### Trade markers
 

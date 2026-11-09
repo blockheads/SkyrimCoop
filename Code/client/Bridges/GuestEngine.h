@@ -59,7 +59,7 @@ public:
     // Off while a guest, the host's game deciding instead: its story manager starts no quest, its world's
     // scripts do not react to its player (activations, triggers), it rolls no leveled container or placed
     // leveled item, its container menus' takes and stores are the host's (ContainerTransfers), and its story events
-    // go to the host's story manager (OwnStoryEvent).
+    // go to the host's story manager (OwnStoryEvent), and its own NPCs are held until the host spawns them (GuestNpcs).
     void SetDecidesWorld(bool aOn) noexcept;
     // This game's story event as the session names it; none for one the host's game raises itself (it names another
     // game's actor: a kill, an assault).
