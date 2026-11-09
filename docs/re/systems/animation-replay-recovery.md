@@ -184,9 +184,12 @@ only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stay
 
 ## Why copies refuse (2026-11-09)
 
-Measured in a wolf fight (a harness probe on `BShkbAnimationGraph::SendEvent` 63591, owner against copy) and read in
-IDA on 1.7.104: copies missed no event their owners' graphs took; they refused about 6 % of their owners' actions, for
-five reasons:
+Measured in a wolf fight on the duo (a harness probe on `BShkbAnimationGraph::SendEvent` 63591, read in IDA: owner
+against copy): copies missed no event their owners' graphs took; they refused about 6 % of their owners' actions, for
+five reasons. Reason 1 is read in IDA (63358, 63590, 37984 and the channel reads 42767/42773/42777, journal
+`agent-smooth-movement.tsv`) and measured (`graph_compare.py`: the copy's `TurnDelta` off in 22 of 88 samples); 2, 3
+and 5 are measured in the traces (graph events and clips each frame), their engine cause inferred from them; 4 is read
+in our code and measured:
 
 ```
 1. the copy's own inputs    BSAnimationGraphManager::Update (63358, our name) polls the actor's animation graph data
@@ -210,4 +213,6 @@ from the spawn (down) when its 3D loaded, over the newer `NotifyDrawWeapon`; the
 `InventoryService::RunWeaponDrawConvergence` sheathed the copy mid-fight, and out of combat stance its graph idled and
 refused its owner's attacks. It is now set from each spawn as it arrives and from each draw notification, never again at
 the 3D load (`CharacterService`). GameTests "An NPC that readies its weapon while its copy loads keeps it ready on the
-copy"; scenario `npc-copy-keeps-weapon-ready` (it shows the bug only when the wolves engage at once).
+copy"; scenario `npc-copy-keeps-weapon-ready` (the wolves sent into combat as they appear, so each draws right after
+its spawn; it requires an owner and its copy seen ready together, then no copy sheathed over 1 s while its owner is
+ready: 2 of 2 on the fixed build, all four pairs ready together, at most 0.1 s apart).

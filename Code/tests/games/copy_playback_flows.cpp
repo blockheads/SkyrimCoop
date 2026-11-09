@@ -5,6 +5,8 @@
 
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
+#include <Services/CharacterService.h>
+#include <Messages/NotifyCharacterSpawn.h>
 
 #include <set>
 #include <thread>
@@ -313,8 +315,8 @@ SCENARIO("A player's actions play on its copy where its movement was when it act
 
 SCENARIO("A walking player's copy steps as evenly as its owner", "[copies][copy-clock][wire]")
 {
-    // Skyrim showed a walking copy (84 units/s) step 0.9 to 1.55 units a frame against its owner's steady 1.4, and sideways
-    // not at all, then half a unit at once: its place went over the wire in whole units (smooth-movement baseline).
+    // Skyrim: a walking copy stepped 0.9 to 1.55 units a frame against its owner's 1.4; its place went in whole units
+    // (copy-clock.md, "Measuring smoothness").
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
@@ -468,8 +470,8 @@ SCENARIO("Over a lossy line a guest's player reaches the host without stalls", "
 
 SCENARIO("Over a lossy line a strafing player's copy never jumps back where its guess overshot", "[copies][copy-clock][net]")
 {
-    // Past its newest snapshot a copy goes on its way (InterpolationSystem's short guess); a lost snapshot at a turn
-    // makes it overshoot, and the late one put it back in one frame (smooth-movement baseline: copy turn-backs strafing).
+    // A lost snapshot at a turn made the copy's short guess overshoot, and the late one snapped it back
+    // (copy-clock.md, "Measuring smoothness").
     Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 30, .JitterMs = 10, .LossPercent = 15, .Seed = 11});
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
@@ -502,6 +504,37 @@ SCENARIO("Over a lossy line a strafing player's copy never jumps back where its 
     }
     INFO(jumps << " frames the copy moved over twice its owner's " << cOwnerStep << " units; the biggest " << biggest);
     CHECK(jumps == 0);
+}
+
+SCENARIO("A refreshed spawn drops a copy's guess and correction with its points", "[copies][copy-clock][net]")
+{
+    // A refreshed spawn (an arrival) drops a copy's points; a correction against its old guess would pull it back
+    // (copy-clock.md, "Measuring smoothness").
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] { wolf = host.LoadNpc(0x23ABE, 0x31D2E, {}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1; }, "the wolf's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    const auto cEntity = CopyEntity(party.Guest(), cCopy);
+    REQUIRE((cEntity != entt::null));
+    auto& interpolation = party.Guest().get<InterpolationComponent>(cEntity);
+    InterpolationComponent::TimePoint cOld;
+    cOld.Tick = 1;
+    cOld.Position = {-500.f, 0.f, 0.f};
+    interpolation.Guess.emplace(cOld, cOld);
+    interpolation.Correction.Begin({30.f, 0.f, 0.f}, party.Guest().GetFrameTick());
+
+    std::vector<NotifyCharacterSpawn> spawns;
+    party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
+    party.As(party.Guest(), [&] {
+        for (const auto& cSpawn : spawns)
+            if (cSpawn.SessionId == party.Guest().get<RemoteComponent>(cEntity).Id)
+                party.Guest().GetCharacterService().OnCharacterSpawn(cSpawn);
+    });
+    CHECK_FALSE(interpolation.Guess.has_value());
+    CHECK(interpolation.Correction.At(party.Guest().GetFrameTick()) == glm::vec3{});
 }
 
 SCENARIO("A jumping player's copy rises and falls with it, never stuck on the ground", "[copies][copy-clock][copy-step]")

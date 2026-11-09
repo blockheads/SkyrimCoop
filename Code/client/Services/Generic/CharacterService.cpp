@@ -599,10 +599,7 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
-    {
-        pInterpolation->TimePoints.clear();
-        pInterpolation->Position = acMessage.Position;
-    }
+        InterpolationSystem::Restart(*pInterpolation, acMessage.Position);
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
     place.CellId = acMessage.CellId;
     place.LastMove = {};
@@ -655,11 +652,8 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
-            interpolationComponent.TimePoints.clear();
-            interpolationComponent.Position = movement.Position;
+            InterpolationSystem::Restart(interpolationComponent, movement.Position);
             interpolationComponent.Playback.Snap(clock);
-            interpolationComponent.Guess.reset();
-            interpolationComponent.Correction = {};
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
 

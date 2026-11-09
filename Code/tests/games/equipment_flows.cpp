@@ -314,9 +314,8 @@ SCENARIO("A player's copy whose 3D comes back holds its owner's spell, not only 
 
 TEST_CASE("An NPC that readies its weapon while its copy loads keeps it ready on the copy", "[equipment][weapon-draw]")
 {
-    // Skyrim (a wolf fight, 2026-11-09): the host's wolf drew right after its spawn was sent; when its copy's 3D loaded
-    // the guest set the owner's hands from the spawn (down) over the newer draw, and its convergence sheathed the copy,
-    // which left combat stance and refused its owner's attacks (animation-replay-recovery.md, "Why copies refuse", 4).
+    // Skyrim (a wolf fight): the copy's 3D load reset its owner's hands from the spawn over a newer draw, and the guest
+    // sheathed it (animation-replay-recovery.md, "Why copies refuse", 4).
     Party party(1, SmokeWorld);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());

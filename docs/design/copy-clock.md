@@ -106,9 +106,10 @@ owner's graph steps (a frame, but the uneven gaps made copies stutter).
 - **skymp** (another Skyrim multiplayer) extrapolates the newest position 0.2 s ahead and lets the engine glide there
   (`TranslateTo`), its locomotion animated by the engine (`KeepOffsetFromActor`): less delay, but paths overshoot
   and correct. Copies follow the owner's path instead.
-- **In the frame** (read 2026-11-09, `actor-movement.md`, "Where a copy's step falls in the frame"): the job table
-  runs `Job_Actor_movement`, then `Job_VM_update` (ours: goals set, placed copies placed, graphs loaded), then
-  `Job_Cell_animations` (Havok's step), then render. A stepped copy reaches its goal the next frame, a placed one the
+- **In the frame** (`actor-movement.md`, "Where a copy's step falls in the frame"): the job table, read in IDA
+  2026-11-09, lists `Job_Actor_movement` (39053), then `Job_VM_update` (39074; ours: goals set, placed copies placed,
+  graphs loaded), then `Job_Cell_animations` (39067; Havok's step); that they run in that order within one frame is
+  inferred from the list's sync entries, not read. A stepped copy reaches its goal the next frame, a placed one the
   same frame (a constant lag; a frame held at a Place-to-Step switch); an owner's snapshot reads the previous frame's
   movement.
 
@@ -145,7 +146,8 @@ What the baseline showed and what changed:
 - **A late snapshot is blended, not jumped.** Past its newest snapshot a copy goes on its way; a snapshot lost at a
   turn made it overshoot and the late one put it back in one frame (a copy moving against its owner in the strafe
   trace). `CopyCorrection`: from where the guess showed it, over 100 ms; past 64 units (`CopyStep::kSnap`) or at a
-  teleport it jumps. ClientTests `[copy-correction]`; GameTests "Over a lossy line a strafing player's copy never jumps
+  teleport it jumps. A teleport or a refreshed spawn (an arrival) drops the guess and correction with the points
+  (`InterpolationSystem::Restart`; GameTests "A refreshed spawn drops a copy's guess and correction with its points"). ClientTests `[copy-correction]`; GameTests "Over a lossy line a strafing player's copy never jumps
   back where its guess overshot" (up to 23 units in a frame before).
 - **Smaller snapshots.** The graph variables were diffed against nothing, so every integer and float went each time;
   now against zeros of their sizes (only those set travel; the reader already fills zeros), and `Direction` in 16 bits.
