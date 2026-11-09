@@ -241,6 +241,9 @@ class ReproActions:
         def states(game, form, update):
             return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("states")
 
+        def events(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("events")
+
         def step():
             for actor in (host.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
                 if actor["role"] == "owner":
@@ -261,7 +264,9 @@ class ReproActions:
                     copy_states = states(guest, form, update) or []
                     raise ctx.failure(f"copy {form:X} (actor {actor}) left its owner's graph at update {update} after "
                                       f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
-                                      f"copy only {sorted(set(copy_states) - set(owner_states))}")
+                                      f"copy only {sorted(set(copy_states) - set(owner_states))}; events before (update: "
+                                      f"name taken/refused) owner {events(host, owners[actor]['form'], update)}, copy "
+                                      f"{events(guest, form, update)}")
                 else:
                     compared[actor] += 1
             pending[:] = waiting

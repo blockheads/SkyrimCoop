@@ -228,11 +228,34 @@ The live check (`graph_stream_check`, 120 s, every streamed copy in Riverwood), 
 |---|---|---|---|
 | 1 | Faendal, update 182 of 177 equal: chair entry with its clips "(no file)" | the replayer sent an event before its clip files were in (the proof waited for them) | an event waits for its files, up to 120 runs (`IGraphTarget::RequestClips`, ClientTests) |
 | 2 | 13484, update 77 of 35 equal: the copy in its chair, its owner standing | its spawn's graph state loaded after its stream had started, over the stream's (`AnimationSystem` loaded it first) | a copy on the stream drops its spawn's state (GameTests flow) |
-| 3 | wolf 9B0DD, update 36 of 31 equal: `CannedTurnState` against standing | not read: shortly after its sync point, no event behind it; fits node memory (a range modifier's last range) missing from the point | phase 2 |
+| 3 | wolf 9B0DD, update 36 of 31 equal: `CannedTurnState` against standing | soon after its sync point, the same events on both | phase 2, below |
+| 4-6 | a hare, a chicken, Faendal at updates 20-90: a turn's state against standing | both in a turn clip from the sync point on, its end trigger (`TurnInPlaceEnd`, `cannedTurnStop`) came on the owner's first: the point held no clip's progress (`hkbClipGeneratorInternalState.localTime`), nor a modifier's memory | phase 2 |
+| 7 | **none: 23 copies matched 6608 of 6608 updates each, a hare 2829 of 2829** (wolves, Faendal, villagers, a dog, chickens; 120 s) | | |
 
 - A copy's death ends its stream (the design's exceptions): the copy forgets it and replays its death as before; its owner
   stops recording a dead actor.
-- Not done yet: the wolf and a humanoid scenario passing the live check, then PR #38 out of draft.
+- Not done yet: the live check in the wolf and a humanoid scenario (combined runs), then PR #38 out of draft.
+
+## Node memory in sync points (phase 2, 2026-11-09)
+
+```
+owner, the update a copy asked at: each active node whose internal state holds no pointer
+  state class = "<node class>InternalState" in hkBuiltinTypeRegistry::StaticLinkedClasses (239939, 594 hkClass*;
+                a state object's own getClassType, vtable 1, returns 0)
+  CreateInternalState (0D), GetInternalState (0E) -> NodeMemory::Write over the class's members -> Release (vtable 0)
+  point.Memory = [key "<behaviour>/<node id>", state class, bytes]...
+copy, after LoadGraphPoint (whose activation reset its nodes): the same key and class
+  CreateInternalState, GetInternalState (its arrays sized by its own node) -> NodeMemory::Read -> SetInternalState (10)
+```
+
+- **One reader for every class** (`Games/Animation/NodeMemory.h`, ClientTests `[node-memory]`): Havok 2010's
+  `hkClassMember` list (type +0x18, subtype +0x19, offset +0x1E): plain values, enums, inline arrays, structs and
+  `hkArray`s of them. An array is applied only if the copy's has the same count; nothing is allocated in Havok's heap.
+- **What it carries** (read: every `...InternalState` class's members): clips' times and echoes, blenders' and
+  selectors' children, sequences, and every modifier's memory (range modifiers' last ranges, damping, timers, look-at).
+  Left out: state machines' (their active transitions point at nodes; the graph state holds their states) and the
+  behaviour graph's own.
+- **Its weight:** 4-12 nodes a point, a few hundred bytes, once per copy start.
 
 ## Phases
 

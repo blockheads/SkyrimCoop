@@ -5,9 +5,47 @@
 // Behaviour graph nodes as the variable writers walk reads them: Havok 2010.2 layouts (hkxcmd compat/,
 // CommonLibSSE-NG) checked in IDA. docs/design/graph-replication.md.
 
+struct hkClassMember;
+// Havok 2010's class reflection (coop_hkClass_ctor 57620; static, filled by each class's initializer).
 struct hkClass
 {
-    const char* name; // 0
+    const char* name;                     // 00
+    const hkClass* parent;                // 08
+    int32_t objectSize;                   // 10
+    int32_t numImplementedInterfaces;     // 14
+    const void* declaredEnums;            // 18
+    int32_t numDeclaredEnums;             // 20
+    const hkClassMember* declaredMembers; // 28
+    int32_t numDeclaredMembers;           // 30
+};
+static_assert(offsetof(hkClass, objectSize) == 0x10);
+static_assert(offsetof(hkClass, declaredMembers) == 0x28);
+static_assert(offsetof(hkClass, numDeclaredMembers) == 0x30);
+
+struct hkClassMember
+{
+    const char* name;      // 00
+    const hkClass* klass;  // 08: a struct's, a pointer's or an array's element class
+    const void* enumClass; // 10
+    uint8_t type;          // 18: hkClassMember::Type (NodeMemory.h)
+    uint8_t subtype;       // 19
+    int16_t cArraySize;    // 1A
+    uint16_t flags;        // 1C
+    uint16_t offset;       // 1E
+    const void* attributes;
+};
+static_assert(offsetof(hkClassMember, type) == 0x18);
+static_assert(offsetof(hkClassMember, offset) == 0x1E);
+static_assert(sizeof(hkClassMember) == 0x28);
+
+// A node's internal state object's base. Its class is not virtual (vtable 1 returns 0 for internal states): it is
+// found by name in hkBuiltinTypeRegistry::StaticLinkedClasses (239939).
+struct hkReferencedObject
+{
+    virtual ~hkReferencedObject(); // 00, deleting: Havok's own allocator frees it
+
+    uint16_t memSizeAndFlags; // 08
+    int16_t referenceCount;   // 0A
 };
 
 template <class T> struct hkArrayView

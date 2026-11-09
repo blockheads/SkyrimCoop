@@ -161,3 +161,16 @@ time	op	id	rva	item
 2026-11-08T22:54:16Z	comment	63450	0xbc49c0	{"addr": "0x140bc49c0", "comment": "63450: not on the graph replay path (read while following the graph manager)"}
 2026-11-08T22:54:16Z	comment	59386	0xaf7a90	{"addr": "0x140af7a90", "comment": "59386: not on the graph replay path (read with the state machine's transition functions)"}
 2026-11-09T06:32:54Z	read		0xae5e40	{"name": "sub_140AE5E20"}
+2026-11-09T07:34:34Z	read		0xcfb8c	{"name": "sub_1400CFB70"}
+2026-11-09T07:34:34Z	read	57620	0xab1660	{"name": "sub_140AB1660"}
+2026-11-09T07:34:45Z	name	57620	0xab1660	{"addr": "0x140AB1660", "name": "coop_hkClass_ctor"}
+2026-11-09T07:34:45Z	name	8268	0xcfb70	{"addr": "0x1400CFB70", "name": "coop_init_hkbEventsFromRangeModifierInternalStateClass"}
+2026-11-09T07:34:46Z	comment	57620	0xab1660	{"addr": "0x140AB1660", "comment": "hkClass ctor (Havok 2010): name +0, parent +8, objectSize +0x10, numImplementedInterfaces +0x14, declaredEnums +0x18, numEnums +0x20, declaredMembers +0x28, numMembers +0x30, defaults +0x38, attributes +0x40, flags +0x48, describedVersion +0x4C. The graph input stream's node memory serializer walks members by this (NodeMemory)."}
+2026-11-09T07:34:46Z	comment	8268	0xcfb70	{"addr": "0x1400CFB70", "comment": "Static init of hkbEventsFromRangeModifierInternalState's hkClass: objectSize 32, one member wasActiveInPreviousFrame (hkArray<hkBool>, offset 0x10)."}
+2026-11-09T07:34:46Z	comment		0xae5e40	{"addr": "0x140AE5E40", "comment": "not on the path: hkbCharacterStringData's static array init, reached by a wrong address while looking for 63591."}
+2026-11-09T07:42:32Z	read		0xb2ed70	{"name": "sub_140B2ED10"}
+2026-11-09T07:42:49Z	name	60152	0xb2ed10	{"addr": "0x140B2ED10", "name": "coop_hkBuiltinTypeRegistry_Init"}
+2026-11-09T07:42:49Z	data			{"old": "off_141A877F0", "new": "hkBuiltinTypeRegistry_StaticLinkedClasses"}
+2026-11-09T07:42:49Z	data			{"old": "off_141A866C0", "new": "hkBuiltinTypeRegistry_StaticLinkedTypeInfos"}
+2026-11-09T07:42:51Z	comment	239939	0x1a877f0	{"addr": "0x141A877F0", "comment": "hkBuiltinTypeRegistry::StaticLinkedClasses (ID 239939): 594 const hkClass*, null-terminated, names filled by each class's static init. The graph input stream finds a node's internal state class here by name (<node class>InternalState): an internal state object's getClassType (vtable 1) returns 0."}
+2026-11-09T07:42:51Z	comment	60152	0xb2ed10	{"addr": "0x140B2ED10", "comment": "hkBuiltinTypeRegistry setup: registers StaticLinkedTypeInfos and StaticLinkedClasses (sub_140BFE4F0)."}

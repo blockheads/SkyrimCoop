@@ -368,3 +368,14 @@ What it established, and still holds:
 - The graph input stream sends that id. A copy maps it back to the name by walking the same table and calls 63591
   with it (`GraphStreamHooks.cpp`).
 
+### A node's internal state, by reflection (read 2026-11-09)
+
+- Each node class's memory is an `<class>InternalState` object (`CreateInternalState` 0D, `GetInternalState` 0E,
+  `SetInternalState` 10). Its class is static (`coop_hkClass_ctor` 57620: name +0, parent +8, objectSize +0x10,
+  declaredMembers +0x28, numDeclaredMembers +0x30), but the object's own `getClassType` (vtable 1) returns 0.
+- Every linked class is in `hkBuiltinTypeRegistry::StaticLinkedClasses` (239939, 594 entries, null-terminated, read by
+  `coop_hkBuiltinTypeRegistry_Init`): the stream finds a state's class there by name.
+- Members of the 28 `...InternalState` classes (types: Havok 2010 `hkClassMember::Type`): plain values (bool, int8-32,
+  real, vector4, quaternion, QsTransform), enums, and arrays of plain values or structs; pointers only in
+  `hkbStateMachineInternalState`'s and `hkbBehaviorGraphInternalState`'s, and `hkbBlendingTransitionEffect`'s pose.
+

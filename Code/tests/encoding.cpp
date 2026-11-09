@@ -2147,6 +2147,7 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
     point.Seed = {5, 6};
     point.Counters = "counters";
+    point.Memory = std::string("\0\3mem", 5);
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     ops.Serialize(writer);

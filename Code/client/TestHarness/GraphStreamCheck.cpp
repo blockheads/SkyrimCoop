@@ -17,12 +17,16 @@ namespace
 {
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
+using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
+TSendEvent* RealSendEvent = nullptr;
 
 struct Hashes
 {
     std::optional<uint32_t> Last;                        // the update last hashed
     std::deque<std::pair<uint32_t, uint64_t>> Fresh;     // not taken yet
     std::map<uint32_t, std::string> Recent;              // the states behind them, for a difference's report
+    std::vector<std::string> Events;                     // the events its graph handled since its last update
+    std::map<uint32_t, std::vector<std::string>> EventsBefore; // by update, for a difference's report
 };
 std::mutex s_lock;
 std::unordered_map<uint32_t, Hashes> s_actors;
@@ -94,7 +98,28 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     hashes.Recent[*cUpdate] = std::move(states);
     while (hashes.Recent.size() > 2000)
         hashes.Recent.erase(hashes.Recent.begin());
+    if (!hashes.Events.empty())
+        hashes.EventsBefore[*cUpdate] = std::exchange(hashes.Events, {});
+    while (hashes.EventsBefore.size() > 500)
+        hashes.EventsBefore.erase(hashes.EventsBefore.begin());
     return cResult;
+}
+
+// Beneath the stream's 63591 hook: the events a streamed graph handles (a copy's own never get here) and whether it
+// took them.
+bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
+{
+    const bool cTaken = RealSendEvent(apGraph, apEvent);
+    if (!apGraph || !apGraph->holder || !apEvent || !apEvent->data)
+        return cTaken;
+    const uint32_t cFormId = apGraph->holder->formID;
+    if (!World::Get().GetGraphStreams().UpdateIndex(cFormId))
+        return cTaken;
+    std::scoped_lock _{s_lock};
+    auto& events = s_actors[cFormId].Events;
+    if (events.size() < 64)
+        events.push_back(std::format("{} {}", apEvent->data, cTaken ? "taken" : "refused"));
+    return cTaken;
 }
 
 std::vector<std::string> Lines(const std::string& acStates)
@@ -119,6 +144,10 @@ void GraphStreamCheck::Install() noexcept
     if (!Hooks::FunctionHookManager::GetInstance().AddChained(
             Hooks::FunctionHook(reinterpret_cast<void**>(&RealUpdate), reinterpret_cast<void*>(HookUpdate), "GraphStreamCheck")))
         spdlog::warn("GraphStreamCheck: could not chain under the graph update hook");
+    Hooks::Resolve<63591>(&RealSendEvent);
+    if (!Hooks::FunctionHookManager::GetInstance().AddChained(
+            Hooks::FunctionHook(reinterpret_cast<void**>(&RealSendEvent), reinterpret_cast<void*>(HookSendEvent), "GraphStreamCheckEvents")))
+        spdlog::warn("GraphStreamCheck: could not chain under the graph event hook");
 }
 
 nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexcept
@@ -131,10 +160,15 @@ nlohmann::json GraphStreamCheck::Command(const nlohmann::json& acRequest) noexce
         const auto it = s_actors.find(cAt.value("form", 0u));
         if (it == s_actors.end())
             return {{"ok", false}};
-        const auto cStates = it->second.Recent.find(cAt.value("update", 0u));
+        const uint32_t cUpdate = cAt.value("update", 0u);
+        const auto cStates = it->second.Recent.find(cUpdate);
         if (cStates == it->second.Recent.end())
             return {{"ok", false}};
-        return {{"ok", true}, {"states", Lines(cStates->second)}};
+        // The events before the updates leading to it, for what made it differ.
+        nlohmann::json events = nlohmann::json::object();
+        for (auto e = it->second.EventsBefore.lower_bound(cUpdate >= 20 ? cUpdate - 20 : 0); e != it->second.EventsBefore.end() && e->first <= cUpdate; ++e)
+            events[std::to_string(e->first)] = e->second;
+        return {{"ok", true}, {"states", Lines(cStates->second)}, {"events", events}};
     }
     const bool cTake = acRequest.value("take", false);
     nlohmann::json actors = nlohmann::json::array();
