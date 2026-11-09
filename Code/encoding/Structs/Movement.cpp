@@ -7,7 +7,8 @@ bool Movement::operator==(const Movement& acRhs) const noexcept
 {
     return CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && Variables == acRhs.Variables && Direction == acRhs.Direction &&
            Teleported == acRhs.Teleported && Lying == acRhs.Lying && Knocked == acRhs.Knocked &&
-           OnGround == acRhs.OnGround && CapsuleCollides == acRhs.CapsuleCollides;
+           OnGround == acRhs.OnGround && CapsuleCollides == acRhs.CapsuleCollides && BodiesLayer == acRhs.BodiesLayer &&
+           GraphsStepPhysics == acRhs.GraphsStepPhysics;
 }
 
 bool Movement::operator!=(const Movement& acRhs) const noexcept
@@ -28,6 +29,8 @@ void Movement::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteBool(aWriter, Knocked);
     Serialization::WriteBool(aWriter, OnGround);
     Serialization::WriteBool(aWriter, CapsuleCollides);
+    aWriter.WriteBits(BodiesLayer & 0x7F, 7); // a collision layer: 7 bits
+    Serialization::WriteBool(aWriter, GraphsStepPhysics);
 }
 
 void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -48,4 +51,7 @@ void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Knocked = Serialization::ReadBool(aReader);
     OnGround = Serialization::ReadBool(aReader);
     CapsuleCollides = Serialization::ReadBool(aReader);
+    aReader.ReadBits(tmp, 7);
+    BodiesLayer = static_cast<uint8_t>(tmp);
+    GraphsStepPhysics = Serialization::ReadBool(aReader);
 }

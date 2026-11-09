@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
+actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
+AI, so theirs never were. A copy's bodies and graphs now mirror its owner's, as its capsule does: each movement snapshot
+carries the layer the owner's bodies are on in the world and whether its graphs step with the physics world (40063
+detaches them, or the ragdoll driver would drive the bodies) (`Movement::BodiesLayer`, `GraphsStepPhysics`). And a guest's ask always gets an answer: `SetDialogueWithPlayer` (37200) returns true even
+when `StartDialogue` (35282) opened nothing (an NPC with nothing to say: Hilde, most guards), so the host's game now checks
+its speaker after the start and the guest reads "They have nothing to say."; an ask to talk to a player's character is
+refused. One conversation for the party stays. `re/systems/dialogue.md`; GameTests "A guest's crosshair takes an NPC copy
+seated in its furniture", "A guest talks to an NPC with nothing to say"; HostAuthorityTests; scenarios
+`guest-crosshair-skips-leaning-npc`, `guest-talk-nothing-to-say`.
+
 2026-11-08: hardening, the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md));
 the playtest's report stays open in bugs.md (not reproduced). Read in IDA:
 `HookUpdateDetectionState` (42704) skipped the copy's pass, which left its request queued for good, and 42702 answers a

@@ -174,6 +174,11 @@ A copy whose owner's capsule collides with nothing is placed, not stepped (`Copy
 on. The engine does not step such an owner either: in furniture `Move` takes its no-step branch, far off it moves on the
 navmesh.
 
+The capsule is not all 40063 does: it also puts the actor's own 3D's bodies, keyframed, on layer 33 in the world, and the
+crosshair takes a seated actor only through them, and it detaches the actor's graphs from the physics world first. Since
+2026-11-09 a copy's bodies and graphs mirror its owner's as its capsule does (`Movement::BodiesLayer`, `GraphsStepPhysics`;
+`dialogue.md`, "The crosshair on a seated actor").
+
 So an NPC moving far from the host's player (`MoveOnNavmeshUnseen`, past `fVisibleNavmeshMoveDist` 4096 or
 `fNotVisibleNavmeshMoveDist` 2048), its collision off, has a copy the guest passes through, as the owner would.
 

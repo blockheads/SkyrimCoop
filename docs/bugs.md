@@ -116,9 +116,7 @@ other section needs the duo.
 
 **From the 2026-11-08 playtest** (in the triage's recommended order)
 
-- [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
 - [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
-- [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
 - [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
@@ -1022,53 +1020,6 @@ The user hosting, the user's brother as guest (Windows), 21:09 to 21:44 local, R
 about 400 ms and 0.8% loss. Evidence: the guest's `/export` (`hdTkv.zip`, the user's Downloads) and the host's
 `SkyrimCoop-Chris_Cringle-2026-11-08-2144-d61.zip` (the host's prefix, `My Games/Skyrim Special Edition/SkyrimCoop/`),
 with both games' 21:26 `/bug` reports. Times are the logs' local times.
-
-### A guest's crosshair skips a leaning NPC
-
-The guest can't talk to some NPCs at all: no name, no Talk prompt.
-
-Agent task: Make the guest's crosshair take an NPC copy leaning on a counter, as the host's takes the NPC.
-
-Size: medium. Needs: IDA, GameTests, duo.
-
-- **A guest's crosshair never takes a copy in its counter lean** (2026-11-08, the user and the brother: Orgnar, Lucan;
-  measured on the duo). With Lucan leaning (`sit_sleep` 3, `IdleCounterStart`), the guest's camera ray hits his copy
-  `13487` at 112 units and `CrosshairPickData`'s target stays 0; standing, the copy is taken; the host's crosshair
-  takes Lucan either way. So the guest presses E on nothing, sometimes (while the NPC leans).
-  - Read in IDA: `PickCrosshairReference` (40620) calls `CrosshairPickData::Pick`, whose `CanPickRef` refuses an actor
-    sitting in furniture with `kDisablesActivation`. That check passes on the copy: it has no furniture while leaning
-    (`ai.furniture` 0; the host's Lucan has `230333`, his counter, also in the 21:26 snapshots).
-  - Ruled out, measured: `Actor::CanTalkToPlayer` (37469, `ExtraCanTalkToPlayer`, `AllowPCDialogue`): set on the copy,
-    the crosshair still skipped it.
-  - Start: the rest of `Pick` (its two hit paths before `CanPickRef`) for an actor sitting with no furniture.
-  - Test: `guest-crosshair-skips-leaning-npc` (fails at the guest's crosshair, 28 s from a boot).
-
-### A guest's talk that never opens
-
-The guest asks, the host's game starts it, nothing opens, nobody is told.
-
-Agent task: Find why the host's background start of a guest's conversation stops opening, and answer every ask.
-
-Size: medium. Needs: IDA, duo; a decision from the user (below).
-
-- **The host starts a guest's conversation in the background and it never opens** (2026-11-08, 21:37 to 21:38).
-  Conversation 2 (the guest's, `44A8E`) ran with the host joined; its line paid a gold and showed `Message.Show` on
-  the guest; no end was logged on the host. Then the guest's asks for `19DD8` (21:37:36, 21:37:42) and `4584C`
-  (21:38:32): each time the host logged "a guest started a conversation ... run in the background" and no step 1
-  followed. The guest got no refusal and no chat line (`GuestDialogue` keeps `m_asked`, no timeout). The host's own
-  talk worked meanwhile (a guard's greet at 21:39:09), so "the host can talk, the guest can't".
-  - Start: what the engine keeps after a conversation that ended with the host's menu up and a message box, so that
-    `bridge.Start` returns true and no conversation opens; and an answer for an ask that never opens.
-  - Test: the playtest's order as a scenario: the guest talks, the host joins, a line with a message box, then the
-    guest asks another NPC.
-- **A guest's E on the host's player starts a conversation with it** (2026-11-08, host log 21:10:55 five times,
-  21:23:30). The host's copy has a session id, so `GuestDialogue` asks the host to talk to `14`, and the host's game
-  tries to start a conversation with its own player.
-  - Test: a `HostAuthorityTests` case: an ask for a player's session is refused.
-- **Decision for the user:** one conversation for the party runs through the host's player (`shared-dialogue.md`,
-  "One conversation at a time"), so while the host talks to anyone a guest's ask is refused. The brother read that as
-  a bug ("the host talking to anyone locks out the client"). Keep it, with a clear answer, or allow conversations in
-  parallel (large: the host's engine has one dialogue speaker).
 
 ### A guest's crash loading a wipe's save
 

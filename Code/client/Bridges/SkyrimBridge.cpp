@@ -344,6 +344,32 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
         pActor->SetCapsuleCollision(aCollides);
 }
 
+uint8_t SkyrimBridge::BodiesLayer(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->BodiesLayer() : 0;
+}
+
+bool SkyrimBridge::GraphsStepPhysics(uint32_t aFormId) const noexcept
+{
+    // Without graphs, as the engine leaves them: stepping.
+    const Actor* pActor = GetActor(aFormId);
+    return !pActor || ::GraphsStepPhysics(*pActor).value_or(true);
+}
+
+void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept
+{
+    // Not while it lies in its ragdoll: those bodies are its ragdoll's (BodyService).
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->GetExtension()->IsCopy() || pActor->LiesInRagdoll())
+        return;
+    if (!aGraphsStep)
+        SetGraphsStepPhysics(*pActor, false);
+    pActor->SetBodiesLayer(aBodiesLayer);
+    if (aGraphsStep)
+        SetGraphsStepPhysics(*pActor, true);
+}
+
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))

@@ -104,6 +104,7 @@ struct DialogueStartFailedRequest final : RequestMessage
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
+    bool NothingToSay{}; // started, and the engine opened nothing: the NPC only says its hello
 };
 
 // To the host's game: start its player's conversation with this NPC.

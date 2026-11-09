@@ -78,6 +78,13 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
         spdlog::info("Dialogue: the engine did not start the conversation with {:X}", cFormId);
         m_dialogue.Transport().Send(failed);
     }
+    // Started, yet no conversation: an NPC with nothing to say (37200 returns true when 35282 refused, dialogue.md).
+    else if (bridge.GetSpeaker() != cFormId)
+    {
+        spdlog::info("Dialogue: {:X} has nothing to say: no conversation", cFormId);
+        failed.NothingToSay = true;
+        m_dialogue.Transport().Send(failed);
+    }
 }
 
 void HostConversation::OnLineSkipped() noexcept

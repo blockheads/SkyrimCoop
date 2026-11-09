@@ -57,7 +57,9 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   press is refused, the Breton guest answers). When nobody in it has one, the conversation ends, as it does in the game.
 - **A start the host's game cannot make is refused** with a chat line: the NPC fighting or dead (as talking
   to them is in the game), the host's player talking to someone else. The host in a menu, in combat or far
-  away does not stop it (its world paused pauses the lines).
+  away does not stop it (its world paused pauses the lines). An NPC with nothing to say (a hello and no topics:
+  Hilde, most guards) opens nothing, as in the game, and the asker reads "They have nothing to say." (2026-11-08).
+  A player's character, the host's too, is nobody to talk to: refused without a line.
 - **Anyone skips a line** (2026-11-03, the user): a press while the NPC speaks moves it on, as in the game, from any
   player in the conversation: the next response, then the next list, on every menu.
 - **Anyone leaves on their own** (Tab, Esc). The conversation ends only when the last player in it leaves,
@@ -123,12 +125,13 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
 
 1. **Start.** A peer activates a copy. The start reaches `Actor::SetDialogueWithPlayer` (37200), which
    `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's session id). `HostDialogue`
-   refuses it for an actor the host does not own, or while another conversation runs; a start for the NPC
+   refuses it for an actor the host does not own or a player's character, or while another conversation runs; a start for the NPC
    already in conversation returns silently (the peer joins locally, step 7). Otherwise it tells the host's
    game to start (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a
    time), starts it hidden: `DialogueBridge::Start(npc, false)` skips the menu (52853) and the turn (40496),
    and refuses an NPC fighting or dead (a start from code would run all the same). A start it cannot make goes
-   back as `DialogueStartFailedRequest`. Every refusal reaches the asker as `NotifyDialogueRefused` (it
+   back as `DialogueStartFailedRequest`, and so does one that opened nothing (37200 returns true when 35282 refused:
+   its speaker is checked after it, `NothingToSay`; `docs/re/systems/dialogue.md`, "A start that opens nothing"). Every refusal reaches the asker as `NotifyDialogueRefused` (it
    forgets its ask; kept, the host's next conversation with that NPC opened its menu) and a chat line.
 2. **Open.** A force greet reaches the start filter with its flag (37200's `forceGreet`); the host's game marks
    the open `Everyone`, `HostDialogue` puts every player in it and every peer opens its menu on its copy.
@@ -222,7 +225,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerChat`, the picker's name, its line's text |
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
-| `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals) |
+| `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals); `NothingToSay`: started, and the engine opened nothing |
 | `DialogueOpenedRequest` / `NotifyDialogueOpen` `Everyone` | host's game → host → all | the NPC started it (a force greet): every peer opens its menu |
 | `RoutedCallRequest` / `NotifyRoutedCall` (to the owner) | host's game → host → that guest | a native on the player a script ran for a guest (rule 2; not dialogue's own) |
 
