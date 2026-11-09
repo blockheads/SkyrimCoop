@@ -1,7 +1,17 @@
 #include <Structs/Movement.h>
 #include <Wire/Serialization.h>
 
+#include <algorithm>
+#include <cmath>
+
 using Wire::Serialization;
+
+namespace
+{
+// Direction (radians, the middle process's) in 1/4096 over 16 bits: ±8, a 0.00025 rad step.
+constexpr float kDirectionScale = 4096.f;
+constexpr uint32_t kDirectionBits = 16;
+} // namespace
 
 bool Movement::operator==(const Movement& acRhs) const noexcept
 {
@@ -21,8 +31,15 @@ void Movement::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     WorldSpaceId.Serialize(aWriter);
     Position.Serialize(aWriter);
     Rotation.Serialize(aWriter);
-    Variables.GenerateDiff(AnimationVariables{}, aWriter);
-    aWriter.WriteBits(*reinterpret_cast<const uint32_t*>(&Direction), 32);
+    // Against zeros of its sizes: only the variables set travel (ApplyDiff fills the rest with zeros).
+    AnimationVariables zeros;
+    zeros.Booleans.resize(Variables.Booleans.size());
+    zeros.Integers.resize(Variables.Integers.size());
+    zeros.Floats.resize(Variables.Floats.size());
+    Variables.GenerateDiff(zeros, aWriter);
+    constexpr int64_t cHalf = int64_t{1} << (kDirectionBits - 1);
+    const int64_t cDirection = std::isfinite(Direction) ? std::clamp<int64_t>(std::llround(Direction * kDirectionScale), -cHalf, cHalf - 1) : 0;
+    aWriter.WriteBits(static_cast<uint64_t>(cDirection + cHalf), kDirectionBits);
     Serialization::WriteBool(aWriter, Teleported);
     Serialization::WriteBool(aWriter, Lying);
     Serialization::WriteBool(aWriter, Knocked);
@@ -39,10 +56,9 @@ void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Variables = AnimationVariables{};
     Variables.ApplyDiff(aReader);
 
-    uint64_t tmp = 0;
-    aReader.ReadBits(tmp, 32);
-    uint32_t tmp32 = tmp & 0xFFFFFFFF;
-    Direction = *reinterpret_cast<float*>(&tmp32);
+    uint64_t direction = 0;
+    aReader.ReadBits(direction, kDirectionBits);
+    Direction = static_cast<float>(static_cast<int64_t>(direction) - (int64_t{1} << (kDirectionBits - 1))) / kDirectionScale;
     Teleported = Serialization::ReadBool(aReader);
     Lying = Serialization::ReadBool(aReader);
     Knocked = Serialization::ReadBool(aReader);

@@ -224,7 +224,7 @@ void HostService::MakeAuthority() noexcept
                     return BodyKey{.Object = cKey.Object};
             return std::nullopt;
         };
-        engine.PhysicsTick = m_pNetwork->GetTick();
+        engine.PhysicsTick = engine.PhysicsTime(m_pNetwork->GetTick());
         const auto cUpdate = physics->Take();
         HostBodies bodies;
         for (const auto& cAwake : cUpdate.Awake)
@@ -353,7 +353,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     if (!IsHosting())
         return;
     m_pNetwork->Update();
-    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta);
+    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);

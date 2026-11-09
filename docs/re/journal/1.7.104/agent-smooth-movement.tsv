@@ -1,0 +1,40 @@
+time	op	id	rva	item
+2026-11-09T15:27:07Z	read	37507	0x689370	{"name": "Actor::Move"}
+2026-11-09T15:28:36Z	read	39074	0x6e57d0	{"name": "Job_VM_update"}
+2026-11-09T15:28:36Z	read	39053	0x6e5100	{"name": "Job_Actor_movement"}
+2026-11-09T15:29:22Z	read	36567	0x659620	{"name": "sub_140659620"}
+2026-11-09T15:29:50Z	read	18870	0x2b79a0	{"name": "UpdateExteriorWorldJob"}
+2026-11-09T15:30:35Z	read	39067	0x6e54d0	{"name": "Job_Cell_animations"}
+2026-11-09T15:30:35Z	read	13291	0x1a1500	{"name": "TES::sub_13291"}
+2026-11-09T15:30:44Z	name	13291	0x1a1500	{"addr": "0x1401a1500", "name": "TES::RunCellAnimationsAndPhysics"}
+2026-11-09T15:30:44Z	name	77851	0x104ac30	{"addr": "0x14104ac30", "name": "bhkWorld::Step"}
+2026-11-09T15:30:53Z	comment	13291	0x1a1500	{"addr": "0x1401a1500", "comment": "[re]\nAddressLib ID 13291\nOur name. Queues UpdateExteriorWorldJob (18870: the frame's Havok step, bhkWorld vfunc 50) on gJobList_TES_CellAnimations with the sky cell's animated refs and Pre_UpdateManagedNodesJob, runs it, then FOCollisionListener. Called by Job_Cell_animations (39067), after Job_VM_update in the frame's job table: our update's copy goals are integrated by Havok only after the next Job_Actor_movement steps them (smooth-movement, 2026-11-09)."}
+2026-11-09T15:30:53Z	comment	77851	0x104ac30	{"addr": "0x14104ac30", "comment": "[re]\nAddressLib ID 77851\nUsed by plugin: Precision/src/Hooks.cpp:712 (pre-physics step hook, 'main loop')\nOur name bhkWorld::Step: bhkWorld vfunc 50 (+0x190), the frame's Havok world step; called only from UpdateExteriorWorldJob (18870) and 0x1402BA870. Substep count from BSTimer::value x 3.9 (min 4) scaled by fMaxTime; steps hkpWorld until done (ahkpWorld 61414/61415 loop).\nHolds the Havok world for write while trigger events reach the VM (SendEvent -> GetUniqueIDs: ref extra-data read). Reverse: ExtraDataList::TakeExtra3C (11979, list write) > bhkRigidBody::SetMotionType (world write). Engine-internal (docs/re/systems/lock-order.md)."}
+2026-11-09T15:30:53Z	comment	18870	0x2b79a0	{"addr": "0x1402b79a0", "comment": "[re]\nAddressLib ID 18870\nThe Havok step job: bhkWorld::Step (77851, vfunc 50) on the world at qword_1421A0598, then signals job event 13. Queued by TES::RunCellAnimationsAndPhysics (13291) from Job_Cell_animations."}
+2026-11-09T15:30:53Z	comment	39067	0x6e54d0	{"addr": "0x1406e54d0", "comment": "[re]\nAddressLib ID 39067\nFrame job table entry after Job_VM_update: TES::RunCellAnimationsAndPhysics (13291), which runs the frame's Havok step (UpdateExteriorWorldJob 18870). Order in a frame: Job_Actor_movement (Actor::Move sets controller velocities) -> Job_Actor_animation -> Job_VM_update (our update) -> Job_Cell_animations (Havok integrates) -> Job_Ragdoll_post_physics."}
+2026-11-09T15:30:53Z	comment	39053	0x6e5100	{"addr": "0x1406e5100", "comment": "[re]\nAddressLib ID 39053\nQueues every high actor's UpdateMovement (37350 -> ApplyMovement 37356 -> Actor::Move 37507) on job list 4. Runs before Job_VM_update in the job table, so a copy's step goal set by our update is stepped in the next frame's movement job (a constant one-frame lag; a Place is immediate)."}
+2026-11-09T17:06:25Z	read	32901	0x554220	{"name": "IAnimationGraphManagerHolder::NotifyAnimationGraph"}
+2026-11-09T17:06:37Z	read	38048	0x6b61a0	{"name": "Actor__NotifyAnimationGraph"}
+2026-11-09T17:06:46Z	read	63362	0xbc0c90	{"name": "BSAnimationGraphManager::NotifyAllGraphs"}
+2026-11-09T17:06:54Z	read	63591	0xbcf690	{"name": "BShkbAnimationGraph::SendEvent"}
+2026-11-09T17:17:55Z	read	37933	0x6adea0	{"name": "PlayerCharacter::sub_37933"}
+2026-11-09T17:17:55Z	read	37957	0x6af0d0	{"name": "Actor::sub_37957"}
+2026-11-09T17:17:59Z	read	39559	0x701360	{"name": "sub_140701360"}
+2026-11-09T17:19:35Z	name	37933	0x6adea0	{"addr": "0x1406adea0", "name": "Actor::AnimationChannelsFrozen"}
+2026-11-09T17:19:35Z	name	37934	0x6aded0	{"addr": "0x1406aded0", "name": "Actor::SetAnimationChannelsFrozen"}
+2026-11-09T17:19:35Z	name	39559	0x701360	{"addr": "0x140701360", "name": "HighProcessData::AnimationChannelsFrozen"}
+2026-11-09T17:19:35Z	name	39560	0x701380	{"addr": "0x140701380", "name": "HighProcessData::SetAnimationChannelsFrozen"}
+2026-11-09T17:19:35Z	name	42773	0x7c6be0	{"addr": "0x1407c6be0", "name": "ActorTurnDeltaChannel::Read"}
+2026-11-09T17:19:35Z	name	42767	0x7c6a10	{"addr": "0x1407c6a10", "name": "ActorSpeedChannel::Read"}
+2026-11-09T17:19:35Z	name	42777	0x7c6d60	{"addr": "0x1407c6d60", "name": "ActorDirectionChannel::Read"}
+2026-11-09T17:19:42Z	comment	37933	0x6adea0	{"addr": "0x1406adea0", "comment": "[re]\nAddressLib ID 37933\nOur name. True while the actor's high process byte +0x46D is set (HighProcessData::AnimationChannelsFrozen): every animation graph data channel (Speed, TurnDelta, Direction...) keeps its stored value instead of reading the actor. Set only by the animation-driven movement tweener (42238/42239/42246/42248) via 37934."}
+2026-11-09T17:19:42Z	comment	37934	0x6aded0	{"addr": "0x1406aded0", "comment": "[re]\nAddressLib ID 37934\nOur name. HighProcessData +0x46D = arg (animation graph data channels frozen). Callers: MovementTweenerAgentAnimationDriven 42238, 42239, 42248 and IMovementTweenerAgent 42246."}
+2026-11-09T17:19:42Z	comment		0x6b0ba1	{"addr": "0x1406b0ba1", "comment": "[re]\nAddressLib ID 37984\nIAnimationGraphManagerHolder vfunc 10 (CommonLib CreateAnimationChannels): an actor's graph data channels, each a graph variable refilled from the actor: Speed, TargetSpeed, Pitch, Roll, Direction, TurnDelta, PitchDelta, weaponSpeedMult, leftWeaponSpeedMult, iWantBlock, bHeadTracking, TimeDelta. On a copy they read the copy's own actor, not its owner (smooth-movement 2026-11-09)."}
+2026-11-09T17:19:42Z	comment	42773	0x7c6be0	{"addr": "0x1407c6be0", "comment": "Our name. TurnDelta channel read (38333): frozen (37933) -> stored value; else the actor's movement state (+0xC0) turn speed vfunc +0x30 x -57.3 (degrees). On a change it notifies the process (+0xF8, sub_1406F3110) with 99/100 (turn left/right starts) or 101 (stops)."}
+2026-11-09T17:19:42Z	comment	42767	0x7c6a10	{"addr": "0x1407c6a10", "comment": "Our name. Speed channel read (38330): frozen -> stored/scale; else Actor::sub_37957 (process speed) / scale. Notifies 97 (moving) / 98 (stopped) at 5 units/s."}
+2026-11-09T17:19:42Z	comment	42777	0x7c6d60	{"addr": "0x1407c6d60", "comment": "Our name. Direction channel read (38325): frozen -> stored; else GetMoveDirectionRelativeToFacing / 2pi. Notifies 102-105 at quadrant changes."}
+2026-11-09T17:20:37Z	read	63590	0xbcf570	{"name": "BShkbAnimationGraph::sub_63590"}
+2026-11-09T17:21:06Z	name	63358	0xbc0680	{"addr": "0x140bc0680", "name": "BSAnimationGraphManager::Update"}
+2026-11-09T17:21:06Z	name	63590	0xbcf570	{"addr": "0x140bcf570", "name": "BShkbAnimationGraph::WriteChannelVariables"}
+2026-11-09T17:21:09Z	comment	63358	0xbc0680	{"addr": "0x140bc0680", "comment": "[re]\nAddressLib ID 63358\nOur name. The manager's graph update: each bound channel (+0x10) polled (vfunc 1 PollChannelUpdateImpl: reads the actor, e.g. TurnDelta 38333), then each graph (+0x48) gets the channels' values (63590), then the graphs update. On a copy this overwrites the owner's Speed/Direction/TurnDelta/Pitch we loaded with the copy's own actor data, every update (smooth-movement 2026-11-09)."}
+2026-11-09T17:21:09Z	comment	63590	0xbcf570	{"addr": "0x140bcf570", "comment": "[re]\nAddressLib ID 63590\nOur name. For each bound channel: its variable's index by name (CRC32 lookup in the graph data's name map, +0x200 -> +0x98) and the channel's value (+0x18) written straight into the behaviour graph's variable values (+0x208 -> +0xD8 -> +0x10)."}

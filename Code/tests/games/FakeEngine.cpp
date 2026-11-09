@@ -1177,6 +1177,7 @@ uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
     const uint32_t cId = NewTemporary();
     Actors[cId] = Actor{.Base = aNpcFormId, .Cell = Actors.at(kPlayer).Cell, .WorldSpace = Actors.at(kPlayer).WorldSpace,
                         .Created = true, .Essential = EssentialBases.contains(aNpcFormId), .Made = m_made};
+    Actors[cId].Loaded = MadeActors3D;
     return cId;
 }
 

@@ -449,6 +449,25 @@ TEST_CASE("Static structures", "[encoding.static]")
         }
     }
 
+    GIVEN("Vector3_NetQuantize keeps a walking copy's place to an eighth of a unit")
+    {
+        // Whole units made a walking copy step unevenly: 0 for a while, then a unit at once (smooth-movement baseline).
+        for (const glm::vec3 cAt : {glm::vec3{142.56f, -45687.7f, -142.37f}, glm::vec3{-0.3f, 0.62f, 7123.88f},
+                                    glm::vec3{250000.12f, -250000.9f, -30000.6f}})
+        {
+            Vector3_NetQuantize sent, received;
+            sent = cAt;
+            Buffer buff(100);
+            Buffer::Writer writer(&buff);
+            sent.Serialize(writer);
+            Buffer::Reader reader(&buff);
+            received.Deserialize(reader);
+            for (int axis = 0; axis < 3; ++axis)
+                CHECK(std::abs(received[axis] - cAt[axis]) <= 0.125f);
+            CHECK(writer.Size() == 8);
+        }
+    }
+
     GIVEN("Vector2_NetQuantize")
     {
         Vector2_NetQuantize sendObjects, recvObjects;
@@ -1243,6 +1262,44 @@ TEST_CASE("Packets", "[encoding.packets]")
         recvMessage.DeserializeRaw(reader);
 
         REQUIRE(recvMessage.Updates[1].UpdatedMovement == sendMessage.Updates[1].UpdatedMovement);
+    }
+
+    GIVEN("A walking humanoid's movement snapshot")
+    {
+        // The human graph's synced variables (Master_Behavior: 59 booleans, 13 floats, 14 integers), as walking sets
+        // them: most are zero. Measured on Skyrim before: 112 bytes a snapshot (smooth-movement baseline).
+        Movement move;
+        move.CellId = GameId(0, 0x31D2E);
+        move.Position = glm::vec3(1234.56f, -9876.5f, 512.25f);
+        move.Rotation.x = 0.1f;
+        move.Rotation.y = 2.5f;
+        move.Direction = 1.5707f;
+        move.OnGround = true;
+        move.Variables.Booleans.assign(59, false);
+        move.Variables.Booleans[3] = move.Variables.Booleans[26] = move.Variables.Booleans[34] = true;
+        move.Variables.Floats.assign(13, 0.f);
+        move.Variables.Floats[0] = -0.03f; // TurnDelta
+        move.Variables.Floats[1] = 0.25f;  // Direction
+        move.Variables.Floats[2] = 84.2f;  // SpeedSampled
+        move.Variables.Floats[4] = 84.f;   // Speed
+        move.Variables.Floats[7] = 83.7f;  // SpeedDamped
+        move.Variables.Floats[8] = 0.12f;  // Pitch
+        move.Variables.Integers.assign(14, 0);
+        move.Variables.Integers[0] = move.Variables.Integers[1] = 1;
+        move.Variables.GraphRandom = 0x1234;
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        move.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        Movement received;
+        received.Deserialize(reader);
+
+        CHECK(received.Variables == move.Variables);
+        CHECK(std::abs(received.Direction - move.Direction) < 0.001f);
+        CHECK(received.Position == move.Position);
+        INFO(writer.Size() << " bytes");
+        CHECK(writer.Size() <= 64);
     }
 }
 

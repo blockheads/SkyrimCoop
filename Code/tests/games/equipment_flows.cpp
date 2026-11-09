@@ -311,3 +311,28 @@ SCENARIO("A player's copy whose 3D comes back holds its owner's spell, not only 
     party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy's hand holds the spell once its 3D is back", {}, nullptr,
                 std::chrono::seconds(5));
 }
+
+TEST_CASE("An NPC that readies its weapon while its copy loads keeps it ready on the copy", "[equipment][weapon-draw]")
+{
+    // Skyrim (a wolf fight, 2026-11-09): the host's wolf drew right after its spawn was sent; when its copy's 3D loaded
+    // the guest set the owner's hands from the spawn (down) over the newer draw, and its convergence sheathed the copy,
+    // which left combat stance and refused its owner's attacks (animation-replay-recovery.md, "Why copies refuse", 4).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    guest.MadeActors3D = false; // the copy's 3D loads later
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] { wolf = host.LoadNpc(0x23ABE, kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1; }, "the wolf's copy is made, waiting for its 3D");
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    REQUIRE_FALSE(guest.ActorHas3D(cCopy));
+    party.As(party.Host(), [&] { host.Draws(wolf, true); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame(); // its draw reaches the guest before the copy's 3D
+    guest.Actors.at(cCopy).Loaded = true;
+    party.Until([&] { return guest.ActorHas3D(cCopy); }, "the copy's 3D loads");
+    party.Until([&] { return guest.GetWeaponState(cCopy) == WeaponState::Drawn; }, "the copy's hands are up, as its owner's");
+    for (int i = 0; i < 60; ++i)
+        party.Frame();
+    CHECK(guest.GetWeaponState(cCopy) == WeaponState::Drawn);
+}

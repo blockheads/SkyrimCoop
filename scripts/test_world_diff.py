@@ -3,6 +3,7 @@ import unittest
 import copy
 
 from coop_harness.common import log_time
+from coop_harness import smoothness
 from coop_harness.comparisons import compare_actors, dialogue_differences, reference_differences, refused_replays, world_differences
 
 
@@ -155,6 +156,42 @@ class PoseVisibility(unittest.TestCase):
 
     def test_player_body_checks_keep_their_existing_scope(self):
         self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds(False, False, player=True))))
+
+
+class Smoothness(unittest.TestCase):
+    """coop_harness/smoothness.py: speeds per engine frame, so uneven frames moving evenly in time read as smooth."""
+
+    @staticmethod
+    def entries(who, moves, frames):
+        x, out, t = 0.0, [], 0.0
+        for f, (move, dt) in enumerate(zip(moves, frames)):
+            out.append({"kind": "pos", "game": "", "who": who, "f": f, "time": t, "dt": dt * 1000, "pos": [x, 0.0, 0.0], "yaw": 0.0})
+            x += move
+            t += dt
+        return out
+
+    def test_even_motion_over_uneven_frames_is_smooth(self):
+        frames = [0.010, 0.024] * 20
+        path = smoothness.series(self.entries("a", [300 * dt for dt in frames], frames), "", "a")
+        self.assertEqual(smoothness.roughness(smoothness.frame_speeds(path, lag=1))["median"], 0.0)
+
+    def test_a_step_off_by_a_third_every_other_frame_is_rough(self):
+        frames = [1 / 60] * 40
+        moves = [5.0 * (1.33 if i % 2 else 1.0) for i in range(40)]
+        found = smoothness.roughness(smoothness.frame_speeds(smoothness.series(self.entries("a", moves, frames), "", "a")))
+        self.assertGreater(found["median"], 0.1)
+
+    def test_a_copy_behind_its_owner_tracks_at_its_delay(self):
+        frames = [1 / 60] * 120
+        owner = smoothness.series(self.entries("owner", [5.0] * 120, frames), "", "owner")
+        copy = [(f, t + 0.1, dt, p, y) for f, t, dt, p, y in owner]
+        found = smoothness.tracking(owner, copy)
+        self.assertEqual(found["delay_ms"], 100)
+        self.assertLess(found["mean"], 0.5)
+
+    def test_message_bytes_per_second(self):
+        perf = {"messages": {"window_s": 2.0, "top": [{"name": "ReferencesMoveRequest", "way": "o", "count": 60, "bytes": 7200}]}}
+        self.assertEqual(smoothness.message_bytes(perf)["ReferencesMoveRequest o"], {"bytes_s": 3600, "count_s": 30.0, "bytes_each": 120.0})
 
 
 if __name__ == "__main__":

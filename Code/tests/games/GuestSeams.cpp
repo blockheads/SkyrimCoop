@@ -365,7 +365,7 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;
     own.Moved = std::exchange(engine.OwnMoves, {});
-    auto ragdoll = engine.TakeBodies(World::Get().GetTransport().GetTick(), [](const BodyKey& acKey) { return acKey.Actor == 0x14; });
+    auto ragdoll = engine.TakeBodies(engine.PhysicsTime(World::Get().GetTransport().GetTick()), [](const BodyKey& acKey) { return acKey.Actor == 0x14; });
     for (BodyFrame& frame : ragdoll.Awake)
     {
         frame.Key = {.Index = frame.Key.Index};

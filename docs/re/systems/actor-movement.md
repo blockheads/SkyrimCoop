@@ -111,6 +111,29 @@ after the physics step: the engine writes the actor's place from its controller 
   snaps it past 40 to 80 units. PLANCK ignores an actor's collision for a moment after a warp. Notes:
   `docs/research/sync-and-testing-references.md`.
 
+## Where a copy's step falls in the frame (2026-11-09)
+
+Read on 1.7.104 (the frame job table at `0x1420B4D00`, `Job_VM_update` 39074, `Job_Actor_movement` 39053,
+`Job_Cell_animations` 39067, `UpdateExteriorWorldJob` 18870, `bhkWorld::Step` 77851; names and comments in IDA):
+
+```
+frame N, the job table in order
+  Job_Actor_movement   UpdateMovement -> our HookApplyMovement: Actor::Move toward
+                       the goal set by frame N-1's update (velocity = delta / dt)
+  Job_Actor_animation
+  Job_VM_update        HookVMUpdate -> World::Update: copies' goals for N+1,
+                       graph variables, Place (ForcePosition) at once
+  Job_Cell_animations  13291 -> 18870 -> bhkWorld::Step: Havok integrates the
+                       controller velocity over this frame's step
+  Job_Ragdoll_post_physics, then render
+```
+
+So a stepped copy shows its goal one frame after our update sets it, a placed one the same frame: a constant lag,
+but a frame held where a copy switches from Place to Step (a landing). Table order is read; that the entries run in
+that order within one frame is inferred from the list's sync entries (to confirm with a frame-counter probe).
+`copy-clock.md` ("In the frame") said our update runs before the movement job, from the direct call in
+`Main::Update` (0x140658DB5), which runs only with `byte_143230521` set.
+
 ## A copy in the air (2026-11-03)
 
 A stepped copy cannot jump. Havok's character step moves it across, but its height is up to its own support

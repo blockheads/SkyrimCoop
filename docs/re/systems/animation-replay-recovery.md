@@ -181,3 +181,33 @@ The verb `graph_watch` is the same watch on demand. It logs and does not fail a 
 checks, and `scenario --no-graph-watch` leaves it out. A run whose actor stops being read ends at its last reading apart and says
 so (`lost`, "until no longer read"). The pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating: it counts
 only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stays watched while it can be read.
+
+## Why copies refuse (2026-11-09)
+
+Measured in a wolf fight (a harness probe on `BShkbAnimationGraph::SendEvent` 63591, owner against copy) and read in
+IDA on 1.7.104: copies missed no event their owners' graphs took; they refused about 6 % of their owners' actions, for
+five reasons:
+
+```
+1. the copy's own inputs    BSAnimationGraphManager::Update (63358, our name) polls the actor's animation graph data
+                            channels (made by 37984: Speed, Direction, TurnDelta, Pitch, the weapon speeds, TimeDelta...)
+                            and 63590 writes them into the graph each update: on a copy, its own actor's values over
+                            its owner's, before the graph decides (TurnDelta from its interpolated heading)
+2. a frame early            the owner's AI acts the frame its clip ends; the copy's replay landed just before its own
+                            clip's end, and the carried graph state loaded before the retries ran
+3. one frame, two actions   the owner's same-frame actions played a graph update apart on the copy
+4. the weapon-draw race     fixed, below
+5. a backlog                a fresh copy's first clip load stalled its queue; the backlog then came faster than its
+                            owner's actions and met the copy's clips still running
+```
+
+Fixes for 1, 2, 3 and 5 were built and measured (6.2 % refused down to 3.1 %, the rest turns: the copy's locomotion
+following its own speed) and then dropped: the graph input stream (`docs/design/graph-input-stream.md`, branch
+`copy-idle-graph`) feeds a copy's graph its owner's inputs and replaces action replay, which they patched.
+
+**4, fixed:** a host NPC that drew right after its spawn was sent had a copy whose knowledge of its owner's hands was set
+from the spawn (down) when its 3D loaded, over the newer `NotifyDrawWeapon`; the owner never sent again, so
+`InventoryService::RunWeaponDrawConvergence` sheathed the copy mid-fight, and out of combat stance its graph idled and
+refused its owner's attacks. It is now set from each spawn as it arrives and from each draw notification, never again at
+the 3D load (`CharacterService`). GameTests "An NPC that readies its weapon while its copy loads keeps it ready on the
+copy"; scenario `npc-copy-keeps-weapon-ready` (it shows the bug only when the wolves engage at once).

@@ -953,6 +953,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A hit of aDamage on an actor, as the engine's: at 0 health it dies, or goes down if essential; a copy is in
     // deferred kill and does neither (actor-ai-and-copies.md, "A copy is in deferred kill").
     void Hit(uint32_t aFormId, float aDamage);
+    // A made actor's 3D loads at once; false: later, when the test sets its Loaded (Skyrim loads it on a worker).
+    bool MadeActors3D = true;
     // How many actors of each NPC base this game has made (SpawnActorFromNpc), ever.
     std::map<uint32_t, size_t> Spawned;
     // The actors that are copies of aBase here (0 for any base), by form id.
@@ -1064,6 +1066,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's frame length (GetRealFrameSeconds), steady while our update lands unevenly in it (S10);
     // 0: the wall time since our last update.
     double FrameMs = 0.0;
+    // With FrameMs: the engine's own time, its frames summed from the session's time when set; Havok steps by it.
+    double EngineMs = 0.0;
+    [[nodiscard]] uint64_t PhysicsTime(uint64_t aSessionTick) const noexcept { return FrameMs > 0.0 ? static_cast<uint64_t>(EngineMs) : aSessionTick; }
     std::deque<std::function<void()>> MainTasks;
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
