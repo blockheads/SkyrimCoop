@@ -626,6 +626,9 @@ struct DialogueState
     int32_t CursorIndex = -1; // the highlighted option's place in the list (two lines of a topic are two options)
     uint32_t CurrentInfo = 0; // MenuTopicManager's currentTopicInfo and lastTopicInfo, form ids
     uint32_t LastInfo = 0;
+    // MenuTopicManager +0xB0..+0xBB by name, and +0x30 rootTopicInfo (a line's choices): why a conversation waits.
+    std::vector<std::pair<const char*, bool>> Flags;
+    uint32_t RootInfo = 0;
 };
 DialogueState GetDialogue() noexcept;
 // Says the option at this index as the menu's click does, with the menu open or not (MenuTopicManager::Pick).

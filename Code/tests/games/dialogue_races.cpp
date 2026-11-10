@@ -169,3 +169,165 @@ SCENARIO("A quest deletes a placed NPC a guest talks to: the conversation ends o
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.Speaker && !guestTalk.MenuOpen; }, "the conversation ends on both games",
                 [&] { return std::format("speakers: host {:X}, guest {:X}; guest's menu {}", hostTalk.Speaker, guestTalk.Speaker, guestTalk.MenuOpen); });
 }
+
+namespace
+{
+const IDialogueBridge::Option kThird{.Topic = 0x1003, .Info = 0x2003, .Text = "Third"};
+const IDialogueBridge::Option kFourth{.Topic = 0x1004, .Info = 0x2004, .Text = "Fourth"};
+
+// Frames for a while of real time: whatever is on the (delayed) line arrives.
+void Settle(Party& aParty, std::chrono::milliseconds aFor = std::chrono::milliseconds(300))
+{
+    const auto cUntil = std::chrono::steady_clock::now() + aFor;
+    while (std::chrono::steady_clock::now() < cUntil)
+        aParty.Frame();
+}
+
+// Every game's player talks to the NPC (the first guest first, the host's game in the background), each menu on the
+// party's list of four. Returns the host's NPC.
+uint32_t EveryoneTalks(Party& aParty, std::vector<World*> aOrder)
+{
+    std::vector<World*> games{&aParty.Host()};
+    for (size_t i = 0; i + 1 < aParty.GameCount(); ++i)
+        games.push_back(&aParty.Guest(i));
+    for (World* pGame : games)
+        Talk(*pGame).Greeting = {kFirst, kSecond, kThird, kFourth};
+    uint32_t npc = 0;
+    aParty.As(aParty.Host(), [&] { npc = Party::Engine(aParty.Host()).LoadNpc(kNpc, kCell); });
+    aParty.Until([&] { return std::ranges::all_of(games, [&](World* p) { return p == games.front() || Party::Engine(*p).CopiesOf(kNpc).size() == 1; }); },
+                 "every game has the speaker");
+    for (World* pGame : aOrder)
+    {
+        aParty.As(*pGame, [&] { Talk(*pGame).PlayerTalksTo(pGame == &aParty.Host() ? npc : Party::Engine(*pGame).CopiesOf(kNpc)[0]); });
+        aParty.Until([&] { return Talk(*pGame).ListShown && Talk(*pGame).Options.size() == 4 && pGame->ctx().at<DialogueService>().Joined(); },
+                     "a player joins the conversation");
+    }
+    Settle(aParty);
+    return npc;
+}
+
+std::string Highlights(const std::vector<FakeDialogue*>& acTalks)
+{
+    std::string text;
+    for (const FakeDialogue* pTalk : acTalks)
+        text += std::format("{} ", pTalk->Highlight ? std::to_string(*pTalk->Highlight) : "-");
+    return text;
+}
+} // namespace
+
+// Two players move the highlight in the same frame (dialogue-highlights-cross): every menu ends on one option. Over a
+// line with some delay, as between two machines: each move is sent before the other arrives.
+SCENARIO("Highlights moved on two games at once end on the same option on every menu", "[dialogue][dialogue-race]")
+{
+    const size_t cGuests = GENERATE(1u, 2u);
+    Party party(cGuests, SmokeWorld, true, NetConditions{.DelayMs = 30});
+    std::vector<World*> order{&party.Guest(), &party.Host()};
+    if (cGuests == 2)
+        order.push_back(&party.Guest(1));
+    EveryoneTalks(party, order);
+    std::vector<FakeDialogue*> talks;
+    for (World* pGame : order)
+        talks.push_back(&Talk(*pGame));
+
+    // In one frame, before any game hears of another's move.
+    for (size_t i = 0; i < order.size(); ++i)
+        party.As(*order[i], [&] { talks[i]->PlayerHighlights(static_cast<uint32_t>(i + 1)); });
+    Settle(party);
+    INFO("highlights: " << Highlights(talks));
+    CHECK(std::ranges::all_of(talks, [&](FakeDialogue* p) { return p->Highlight == talks.front()->Highlight; }));
+}
+
+// A player keeps moving the highlight: the host's echo of an older move never pulls its menu back.
+SCENARIO("A player moving the highlight fast keeps its own place on its menu", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 30});
+    EveryoneTalks(party, {&party.Guest(), &party.Host()});
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    for (uint32_t index : {1u, 2u, 3u})
+    {
+        party.As(party.Guest(), [&] { guestTalk.PlayerHighlights(index); });
+        party.Step(party.Guest());
+        CHECK(guestTalk.Highlight == index);
+    }
+    const auto cUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    while (std::chrono::steady_clock::now() < cUntil)
+    {
+        party.Frame();
+        REQUIRE(guestTalk.Highlight == 3u);
+    }
+    party.Until([&] { return hostTalk.Highlight == 3u; }, "the host's menu follows to the last");
+}
+
+// A player joins a conversation whose highlight another moved (dialogue-joiner-gets-highlight): its menu shows it there.
+SCENARIO("A player joining a conversation sees the party's highlight", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    const uint32_t npc = EveryoneTalks(party, {&party.Guest()});
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    party.As(party.Guest(), [&] { guestTalk.PlayerHighlights(2); });
+    Settle(party);
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+    party.Until([&] { return hostTalk.MenuOpen && hostTalk.ListShown && party.Host().ctx().at<DialogueService>().Joined(); },
+                "the host joins by talking");
+    party.Until([&] { return hostTalk.Highlight == 2u; }, "the host's menu shows the guest's highlight",
+                [&] { return Highlights({&hostTalk, &guestTalk}); });
+    Settle(party);
+    CHECK(guestTalk.Highlight == 2u);
+    CHECK(hostTalk.Highlight == 2u);
+}
+
+// The host talks to the NPC while it answers a guest's pick (dialogue-host-joins-mid-line): its menu shows the pick, as
+// the guest's does, never the last step's list, and takes no pick until the next list. Twice: every conversation's.
+SCENARIO("A player joining while the NPC answers sees the pick, not the last list", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    const std::vector<IDialogueBridge::Option> cNext{kFourth};
+    for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
+        pTalk->After = {{kThird.Topic, cNext}, {kFourth.Topic, {kFirst, kSecond}}};
+    hostTalk.LinesTakeTime = true;
+    const uint32_t npc = EveryoneTalks(party, {&party.Guest()});
+    auto& guest = Party::Engine(party.Guest());
+    for (int conversation = 0; conversation < 2; ++conversation)
+    {
+        INFO("conversation " << conversation + 1);
+        if (conversation)
+        {
+            party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kNpc)[0]); });
+            party.Until([&] { return guestTalk.ListShown && guestTalk.Options.size() == 4; }, "the guest talks again");
+            Settle(party);
+        }
+        const size_t cSaid = hostTalk.Said.size();
+        party.As(party.Guest(), [&] { guestTalk.PlayerPicks(2); });
+        party.Until([&] { return hostTalk.Said.size() == cSaid + 1; }, "the host's game says the guest's line");
+        REQUIRE(guestTalk.PickedText == kThird.Text);
+
+        party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+        party.Until([&] { return hostTalk.MenuOpen && party.Host().ctx().at<DialogueService>().Joined(); }, "the host joins mid-line");
+        Settle(party, std::chrono::milliseconds(100));
+        CHECK_FALSE(hostTalk.ListShown);
+        CHECK(hostTalk.PickedText == kThird.Text);
+        party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
+        CHECK(hostTalk.Said.size() == cSaid + 1);
+
+        // Its menu closed and opened again while the NPC still answers: the pick again, not the last list.
+        party.As(party.Host(), [&] { hostTalk.PlayerLeaves(); });
+        party.Until([&] { return !hostTalk.MenuOpen && !party.Host().ctx().at<DialogueService>().Joined(); }, "the host leaves mid-line");
+        REQUIRE(hostTalk.Speaker);
+        party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+        party.Until([&] { return hostTalk.MenuOpen && party.Host().ctx().at<DialogueService>().Joined(); }, "the host joins again mid-line");
+        Settle(party, std::chrono::milliseconds(100));
+        CHECK_FALSE(hostTalk.ListShown);
+        CHECK(hostTalk.PickedText == kThird.Text);
+
+        party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+        party.Until([&] { return hostTalk.ListShown && guestTalk.ListShown && hostTalk.Options == cNext && guestTalk.Options == cNext; },
+                    "both menus show the next list");
+        party.As(party.Host(), [&] { hostTalk.PlayerLeaves(); });
+        party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+        party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the conversation ends");
+    }
+}

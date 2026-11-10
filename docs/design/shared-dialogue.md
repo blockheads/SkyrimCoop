@@ -48,7 +48,10 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   highlight for its owner to press. Everyone's chat names who said what: `Lydia: I found Lucan's claw.` Then every
   menu shows the next list.
 - **One conversation at a time.** Talking to another NPC while one is open does nothing (a chat line says
-  someone is talking). An NPC's force greet waits too.
+  someone is talking). An NPC's force greet waits too. The host's own talk is the exception the host's game has: its engine holds one
+  conversation, so the host talking to another NPC ends the one it runs (Flow, step 2). Both pressed in one frame
+  (`dialogue-two-starts-at-once`), either wins: the host's start first refuses the guest's ask; the guest's ask first
+  opens the guest's menu for about 250 ms until the host's start ends it.
 - **An NPC that starts a conversation greets the party** (decided 2026-10-19): NPCs run their AI on the host's
   game, so its force greet reaches the host's player, and every player's menu opens on it (the peers' on their
   copies), as for the peer who asks.
@@ -298,6 +301,15 @@ HostDialogue (DialogueLineFor): the presser's own line for the topic, else refus
 - The highlight is read each update while the list shows (`selectedEntry.topicIndex`): the SWF tells the game nothing
   when it moves (`docs/re/systems/dialogue.md`, "The highlight"). A move another game made is applied once this menu
   shows the same step's list, and is not sent back.
+- **A menu joining while the NPC answers shows the pick** (2026-11-09, `dialogue-host-joins-mid-line`): the host's
+  engine opens its menu on the last step's list (no pick taken, but its highlight moved alone); the pick's text comes
+  with `NotifyDialoguePicked` (the host's rule copies the request's), and the joining menu shows it as every other
+  menu does once it shows a list, until the next one (`DialogueService`, `ShowPicked` returning whether it took).
+- **The host's order is the highlight's** (2026-11-09, `dialogue-highlights-cross`): the host relays each move to every
+  menu in the conversation, the mover's too, with the mover's count of its moves (`Seq`). A menu's own move goes
+  first (sent, a waiting move dropped); its own echo counts only for its latest move, so a fast mover is never pulled
+  back. Two moves crossing on the line end every menu on the one that reached the host last; before, each menu
+  kept the other's.
 - Tests: `HostAuthorityTests` (`dialogue_tests.cpp`: the merge, its own options said, another's refused with the
   line to the presser only, the highlight relay), `ClientTests` (`PartyOptionText`, `CanSay`, `CannotSayText`),
   `GameTests` (`dialogue_flows.cpp`: each menu's own lines and the tags, the host pressing a guest's option refused on

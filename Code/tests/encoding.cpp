@@ -2045,6 +2045,7 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     sent.Topic = GameId(0, 0x1F4E2);
     sent.Info = GameId(0, 0x803);
     sent.PlayerId = 2;
+    sent.Text = "Tell me about him.";
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -2052,12 +2053,14 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     moved.Conversation = 3;
     moved.Step = 4;
     moved.Index = 2;
+    moved.PlayerId = 9;
+    moved.Seq = 300;
     moved.Serialize(writer);
     Buffer::Reader reader(&buffer);
     auto decoded = NotifyMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     const auto& cPicked = static_cast<const NotifyDialoguePicked&>(*decoded);
-    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info));
+    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info && cPicked.Text == sent.Text));
     auto decodedMove = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decodedMove);
     REQUIRE(decodedMove->GetOpcode() == kDialogueHighlightRequest);

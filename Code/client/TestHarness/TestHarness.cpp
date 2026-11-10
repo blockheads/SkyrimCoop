@@ -51,6 +51,7 @@ void Poll()
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
     harness.Inputs.Poll();
+    harness.Schedule.Poll(harness);
     harness.Commands.Poll();
     harness.Events.Poll();
 

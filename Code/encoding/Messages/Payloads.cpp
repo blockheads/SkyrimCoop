@@ -617,6 +617,7 @@ void Payloads::DialogueHighlight::SerializePayload(Wire::Buffer::Writer& aWriter
     Serialization::WriteVarInt(aWriter, Step);
     Serialization::WriteVarInt(aWriter, Index);
     Serialization::WriteVarInt(aWriter, PlayerId);
+    Serialization::WriteVarInt(aWriter, Seq);
 }
 
 void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -625,6 +626,7 @@ void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aRead
     Step = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Index = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Seq = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
 namespace Payloads

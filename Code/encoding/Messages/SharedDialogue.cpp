@@ -150,6 +150,7 @@ void NotifyDialoguePicked::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Topic.Serialize(aWriter);
     Info.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, PlayerId);
+    Serialization::WriteString(aWriter, Text);
 }
 
 void NotifyDialoguePicked::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -160,6 +161,7 @@ void NotifyDialoguePicked::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     Topic.Deserialize(aReader);
     Info.Deserialize(aReader);
     PlayerId = ReadId(aReader);
+    Text = Serialization::ReadString(aReader);
 }
 
 void NotifyDialogueClosed::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
