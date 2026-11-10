@@ -15,7 +15,9 @@ Damage history is removed when the victim dies, disappears or leaves combat, or 
 ## Crime fights
 
 An NPC fighting a player because of a party crime is a party fight too, with no damage needed (`party-model.md`, Crime):
-the same score, the first pick made at once, and any player it sees eligible (`crime.md`).
+the same score, the first pick made at once, and any player it sees eligible (`crime.md`). "Because of a party crime":
+its faction is the party's enemy, a crime against it, kAngryWithPlayer, or it is on a party crime's witness list (a
+guard answering the alarm); `CrimeRules::PartyIsCriminalTo`, `crime.md`, "Who an NPC fights for a party crime".
 
 ## Evidence and engine bindings
 

@@ -91,7 +91,10 @@ SCENARIO("The host can draw aggro from a guest with greater damage", "[party-agg
     DamageSwitches(true);
 }
 
-SCENARIO("An NPC hostile for a party crime goes for the nearest player, not the one who did it", "[party-aggro][crime]")
+namespace
+{
+// Skyrim names the host's player in a guest's crime, so the NPC's fight starts on the far host (crime.md).
+void CrimeFightGoesNearest(const CrimeRules::Grudge& acGrudge)
 {
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
@@ -100,18 +103,36 @@ SCENARIO("An NPC hostile for a party crime goes for the nearest player, not the 
     party.Until([&] { return PlayerCopy(host); }, "the host has the guest's copy");
     const uint32_t cGuest = PlayerCopy(host);
     party.As(party.Host(), [&] {
-        // Skyrim names the host's player in a guest's crime, so its fight starts on the host (crime.md).
         host.CombatProposals[witness] = FakeEngine::kPlayer;
         host.CombatCandidates[witness] = {{FakeEngine::kPlayer, 2000.f, true}, {cGuest, 150.f, true}};
         // Skyrim: the guest it sees is known at detection 100 with stealth points left (2026-11-05).
         host.CombatPerception[PartyThreat::State::Key(witness, cGuest)] = {.Known = true, .Detection = 100, .Stealth = 40};
         host.Actors.at(witness).Ai.CombatState = 1;
         host.Actors.at(witness).Ai.CombatTargetId = FakeEngine::kPlayer;
-        party.Host().ctx().at<FakeCrime&>().CriminalTo.insert(witness);
+        party.Host().ctx().at<FakeCrime&>().Grudges[witness] = acGrudge;
         party.Host().GetRunner().Trigger(AiStateChangeEvent{witness});
     });
     party.Until([&] { return host.Actors.at(witness).Ai.CombatTargetId == cGuest; },
-                "the witness turns from the far host to the guest beside it");
+                "the NPC turns from the far host to the guest beside it");
+}
+} // namespace
+
+SCENARIO("An NPC hostile for a party crime goes for the nearest player, not the one who did it", "[party-aggro][crime]")
+{
+    // The victim: the crime is on its kPlayerCrimeList.
+    CrimeFightGoesNearest({.Victim = true});
+}
+
+SCENARIO("A theft's witness, only angry, goes for the nearest player", "[party-aggro][crime]")
+{
+    // ProcessPendingCrime (39631) / the owner's alarm (39651): kAngryWithPlayer, no faction flag, no crime against it.
+    CrimeFightGoesNearest({.AngryWithPlayer = true});
+}
+
+SCENARIO("A guard answering a party crime goes for the nearest player", "[party-aggro][crime]")
+{
+    // AlertCrimeResponders (39695): StartCombat on the host's player, the guard only on the crime's witness list.
+    CrimeFightGoesNearest({.Witness = true});
 }
 
 SCENARIO("An NPC fighting the host for other reasons keeps Skyrim's pick", "[party-aggro][crime]")

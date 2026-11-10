@@ -94,6 +94,18 @@ class CrimeActions:
             raise ctx.failure(f"the party's bounty is {ctx.party_bounty()}, expected at least {at_least} in both games") from None
         return ctx.party_bounty()
 
+    def expect_bounty_message(ctx, seconds=10.0):
+        """The host's newest bounty HUD line ("<n> <sAddCrimeGold> <hold>", 37679) shows on the guest too within
+        `seconds`: every player hears the party's bounty."""
+        bounty_line = lambda lines: [line for line in lines if line.split(" ", 1)[0].isdigit()]
+        ctx.wait_for("the host shows a bounty line", lambda: bounty_line(ctx.hud_messages("")), seconds)
+        line = bounty_line(ctx.hud_messages(""))[-1]
+        try:
+            ctx.wait_for(f"the guest shows '{line}'", lambda: line in ctx.hud_messages("client"), seconds)
+        except Exception:
+            raise ctx.failure(f"the guest's HUD shows {ctx.hud_messages('client')[-5:]}, expected '{line}'") from None
+        return {"line": line}
+
     def expect_target(ctx, npc, player="guest_player", seconds=10.0):
         """The host's `npc` targets `player` (combat or package target) within `seconds`: a crime's reaction goes to
         the player who did it."""

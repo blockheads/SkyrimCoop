@@ -28,6 +28,33 @@ SCENARIO("Host bounty reaches every guest and corrects a local overwrite", "[cri
                 "the native host's pardon clears every guest");
 }
 
+SCENARIO("A guest's witnessed theft shows the bounty line in every game", "[crime]")
+{
+    Party party(2);
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    // Skyrim: 37679 writes the bounty and shows its HUD line on the host only (2026-11-10, guest-theft-bounty-message).
+    host.JudgeAction = [&](uint32_t, const CrimeRequest&) {
+        host.Gold = {{GameId(0, 0x267EA), 0, 5}};
+        host.Reports.push_back({GameId(0, 0x267EA), 5});
+        return false;
+    };
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0x1397E);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    guest.Actions.push_back(theft);
+    const std::vector<CrimeReport> cLine{{GameId(0, 0x267EA), 5}};
+    party.Until([&] { return guest.Shown == cLine && Crime(party.Guest(1)).Shown == cLine; },
+                "the thief and the other guest show the host's bounty line");
+    CHECK(guest.Gold == host.Gold);
+    CHECK(host.Shown.empty()); // the host's engine showed it already
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    CHECK(guest.Shown.size() == 1);
+}
+
 SCENARIO("Guest crime actions go to the host engine once and its judgment returns", "[crime]")
 {
     Party party;

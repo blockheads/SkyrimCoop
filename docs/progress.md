@@ -56,6 +56,15 @@ him either way (measured on the duo). The engine's pick is read (`PickCrosshairR
 (the host's Lucan has his counter). The cause in `Pick` is still to be read. Scenario
 `guest-crosshair-skips-leaning-npc` (fails); the MCP's new `expect` `crosshair`.
 
+2026-11-10: a party crime reaches every player ([crime.md](re/systems/crime.md), "Who an NPC fights for a party
+crime", "Every player hears the bounty"). Read in IDA: a theft's witness is only angry (+0x204 bit 0x800) and a guard
+answering the alarm only on the crime's witness list (KnownCrime 41354), and `CriminalInterest` checked neither, so
+their fights kept the host as target; now they are crime fights and go for the nearest player. The "N bounty added to
+<hold>" line (37679) showed on the host only; the host now relays each report (`NotifyCrimeState.Reports`) and guests
+show the engine's line. Scenario `guest-theft-bounty-message` (failed before), flows "A theft's witness, only angry",
+"A guard answering a party crime", "A guest's witnessed theft shows the bounty line in every game", HostAuthorityTests
+and ClientTests `[CrimeRules]`. MCP: `expect_bounty_message`.
+
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
 stops its games and takes it, and the old holder queues again. A hook (`scripts/duo_hook.py`) reminds a session holding

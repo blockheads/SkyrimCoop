@@ -145,6 +145,12 @@ void NotifyCrimeState::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcep
         Serialization::WriteVarInt(aWriter, row.ViolentInfamy);
         Serialization::WriteBool(aWriter, row.PlayerEnemy);
     }
+    Serialization::WriteVarInt(aWriter, Reports.size());
+    for (const auto& report : Reports)
+    {
+        report.Faction.Serialize(aWriter);
+        Serialization::WriteVarInt(aWriter, report.Bounty);
+    }
 }
 
 void NotifyCrimeState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -163,5 +169,15 @@ void NotifyCrimeState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
         row.NonViolentInfamy = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
         row.ViolentInfamy = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
         row.PlayerEnemy = Serialization::ReadBool(aReader);
+    }
+    Reports.clear();
+    const auto reports = Serialization::ReadVarInt(aReader);
+    if (reports > 4096)
+        return;
+    Reports.resize(static_cast<size_t>(reports));
+    for (auto& report : Reports)
+    {
+        report.Faction.Deserialize(aReader);
+        report.Bounty = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     }
 }

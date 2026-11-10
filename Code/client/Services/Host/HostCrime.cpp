@@ -51,11 +51,14 @@ void HostCrime::Update() noexcept
     if (!m_game.ReadCrimeGold)
         return;
     auto gold = m_game.ReadCrimeGold();
-    if (gold == m_gold)
+    // The host's engine showed its bounty line; every other game shows it with the new totals.
+    auto reports = m_game.TakeCrimeReports ? m_game.TakeCrimeReports() : std::vector<CrimeReport>{};
+    if (gold == m_gold && reports.empty())
         return;
     m_gold = std::move(gold);
     NotifyCrimeState state;
     state.Gold = m_gold;
+    state.Reports = std::move(reports);
     m_players.SendToOthers(state, m_players.Host());
 }
 

@@ -6,6 +6,7 @@
 #include <SessionIds.h>
 #include <Services/Host/CrimeRules.h>
 #include <functional>
+#include <map>
 #include <set>
 
 // Engine seam only. Native witnesses/costs are covered by the Skyrim scenarios.
@@ -82,10 +83,22 @@ struct FakeCrime final : ICrimeBridge
     {
         ++Asks;
     }
-    std::set<uint32_t> CriminalTo; // NPCs a party crime made hostile
+    // What each NPC holds against the party, as Skyrim keeps it (crime.md, "Who an NPC fights for a party crime").
+    std::map<uint32_t, CrimeRules::Grudge> Grudges;
     bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept override
     {
-        return CriminalTo.contains(aActorFormId);
+        const auto cGrudge = Grudges.find(aActorFormId);
+        return cGrudge != Grudges.end() && CrimeRules::PartyIsCriminalTo(cGrudge->second);
+    }
+    std::vector<CrimeReport> Reports; // reported by this game's engine (37679), not yet taken
+    std::vector<CrimeReport> Shown;   // bounty lines this game's HUD showed
+    std::vector<CrimeReport> TakeReports() noexcept override
+    {
+        return std::exchange(Reports, {});
+    }
+    void ShowReport(const CrimeReport& acReport) noexcept override
+    {
+        Shown.push_back(acReport);
     }
     void LockCaught(uint32_t aAttempt) noexcept override
     {

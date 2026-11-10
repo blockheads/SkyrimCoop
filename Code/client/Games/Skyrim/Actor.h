@@ -312,6 +312,7 @@ struct Actor : TESObjectREFR
         IS_A_MOUNT = 1 << 1,
         GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
         SHOULD_ANIM_GRAPH_UPDATE = 1 << 8, // its graph runs (holder vfunc 0x0E, 37985); KillImpl clears it
+        ANGRY_WITH_PLAYER = 1 << 11,       // kAngryWithPlayer: Actor__SetAngryWithPlayer (37463), read by ShouldAttack (37534)
         CAN_SPEAK = 1 << 13,               // cleared for the dead (Character::UpdateAI 37347)
         IS_COMMANDED_ACTOR = 1 << 16,
         IS_ESSENTIAL = 1 << 18,
@@ -329,6 +330,7 @@ struct Actor : TESObjectREFR
     }
 
     bool IsCommandedActor() const noexcept { return flags2 & ActorFlags::IS_COMMANDED_ACTOR; }
+    bool IsAngryWithPlayer() const noexcept { return flags2 & ActorFlags::ANGRY_WITH_PLAYER; }
 
 public:
     enum ChangeFlags : uint32_t

@@ -137,6 +137,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     NotifyCrimeState state;
     state.Gold = {{GameId(0, 0x28170), 1000, 25, 75, 3000, true}, {GameId(0xFE, 0x100812), 0, 50, 80, 0},
                   {GameId(0, 0x2816B), 0, 0, 0, 0, true}};
+    state.Reports = {{GameId(0, 0x267EA), 5}, {GameId(0, 0x28170), 40}};
     Buffer reply;
     Buffer::Writer replyWriter(&reply);
     state.Serialize(replyWriter);
@@ -145,6 +146,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     REQUIRE(notification);
     REQUIRE(notification->GetOpcode() == NotifyCrimeState::Opcode);
     CHECK(static_cast<const NotifyCrimeState&>(*notification).Gold == state.Gold);
+    CHECK(static_cast<const NotifyCrimeState&>(*notification).Reports == state.Reports);
 
     NotifyLockCrime caught;
     caught.Attempt = 81;
