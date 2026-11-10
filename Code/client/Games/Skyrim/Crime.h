@@ -78,6 +78,9 @@ struct ActorKnowledge
     uint8_t pad28[0x44 - 0x28];
     float RequestedAt; // -FLT_MAX when no update is queued (42712)
 };
+// ProcessLists' crime lists, +0xB0 + type * 8 (ExpireOldCrimes 41350 walks < 7). 41354 accepts 7, which reads past them.
+inline constexpr uint32_t cCrimeTypes = 7;
+
 // A crime record (Crime__ctor 42502): handles, the bounty 37679 wrote and the faction it was reported to.
 struct Crime
 {

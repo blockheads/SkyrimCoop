@@ -184,7 +184,8 @@ Victim           extra 0x34 kPlayerCrimeList: the crimes against this actor
 AngryWithPlayer  +0x204 bit 0x800 (37463): a theft's owner alarm (39651), a pending-crime witness (39631)
 Witness          the crime's witness array (+0x28, count +0x38; Crime__AddWitness 42506, Crime__HasWitness 42505):
                  every alarm (37422, 37423, 37425-37428), Actor__StartAlarm, ProcessPendingCrime and each guard
-                 AlertCrimeResponders (39695) alerts; KnownCrime (41354) with criminal = g_thePlayer finds it
+                 AlertCrimeResponders (39695) alerts; KnownCrime (41354) with criminal = g_thePlayer finds it,
+                 asked per crime type 0-6 (41350 walks 7 lists; 41354's own guard accepts 7, past the lists)
 ```
 
 `CriminalInterest` read only the first two. A theft's witness is angry and nothing else for a nonviolent crime,

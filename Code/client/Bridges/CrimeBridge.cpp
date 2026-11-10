@@ -350,10 +350,10 @@ bool CriminalInterest(Actor* aWitness)
                               .AngryWithPlayer = aWitness->IsAngryWithPlayer()};
     if (CrimeRules::PartyIsCriminalTo(grudge))
         return true;
-    // KnownCrime (41354): any type, any victim, any day; only the player's (the party's) crimes are kept (41349).
+    // KnownCrime (41354): any victim, any day; only the player's (the party's) crimes are kept (41349).
     static VersionDbPtr<TKnownCrime> knownCrime(41354);
     auto* player = PlayerCharacter::Get();
-    for (uint32_t type = 0; player && type <= 7 && !grudge.Witness; ++type)
+    for (uint32_t type = 0; player && type < CrimeEngine::cCrimeTypes && !grudge.Witness; ++type)
         grudge.Witness = knownCrime(ProcessLists::Get(), nullptr, player, aWitness, type, 0, -1);
     return CrimeRules::PartyIsCriminalTo(grudge);
 }

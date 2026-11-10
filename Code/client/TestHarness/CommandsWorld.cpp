@@ -812,10 +812,13 @@ nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
     return Error("no such menu open, or no number, boolean or string there");
 }
 
-// {"cmd": "hud_messages"}: the HUD's latest notifications here, the newest last (TestHarness::HudMessages).
+// {"cmd": "hud_messages"}: the HUD's latest notifications here, the newest last, and how many it showed in all
+// (TestHarness::HudMessages).
 nlohmann::json HudMessagesShown(Harness&, const nlohmann::json&)
 {
-    return {{"ok", true}, {"messages", HudMessages::Recent()}};
+    uint64_t shown{};
+    auto messages = HudMessages::Recent(shown);
+    return {{"ok", true}, {"messages", std::move(messages)}, {"shown", shown}};
 }
 
 // {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
