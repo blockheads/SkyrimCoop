@@ -70,6 +70,16 @@ short of goodbyes. A joining menu keeping its own highlight (code review) did no
 after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
 entry is gone, the scenario and GameTests flow guard it.
 
+2026-11-09: the two kill-move leftovers of the stream's combined run, fixed. `kill-moves-cross` (2 fails in 5, none
+on dev): the host's pair waited 330 ms on the guest behind a `moveStart` its copy's graph clock held back, and was
+refused once the guest's player had died; a pair or a death now comes at playback with the actions before it
+(`AtPlayback`; 8 passes in 8). `host-kill-move` (the guest's blow 20-70 ms before the host's): a replayed pair with a
+copy partner makes no instance on the guest, so the wolf's copy took the kill move from its stream, where its
+synchronized clip skips its owner's 150 ms wait at the mark. An owner in a pair is not recorded now, and its copy
+leaves the stream at its half's action until a sync point from after the pair, as before the stream: the guest's blow
+35-123 ms after the host's (dev 62-65), the copy dead 100-144 ms after its owner (dev 95-150), 4 runs. Three GameTests
+flows; both bugs.md entries gone.
+
 2026-11-09: the stream's combined run (21 scenarios tagged animation or copies) and what it found. A copy off its
 stream died up to 250 ms late: its death was spaced from the last action it replayed before the stream
 (`host-kill-move` 2 fails in 4; now none in 6, GameTests "A copy back off its stream dies..."). A copy whose point was

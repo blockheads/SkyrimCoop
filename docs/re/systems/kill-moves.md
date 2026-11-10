@@ -29,6 +29,13 @@ death action
 - Both directions work the same; an NPC victim's owner is always the host.
 - A copy's half counts as at its mark (`HookUpdateSynchronizedClip`): its owner's game placed it.
 - The victim's own half comes back to the attacker's game as an action. That copy is already in the pair: skipped.
+- A replayed pair whose partner is a copy names no target event (`PlayReplayedAction`): 32803 makes no instance there,
+  and each copy plays its half alone, the victim's by its owner's action (the half `TESActionData::Func5` played on the
+  owner's game, sent as the victim's own action). Only the attacker's and the victim's own games hold an instance.
+- An owner in an instance is off the graph input stream (`GraphStreams::PauseWhile`): its synchronized clip waits for
+  the mark on its instance (about 150 ms on the host, `KillMove1HMWolfA/B`, 2026-11-09), and a copy outside one starts
+  at once (`HookUpdateSynchronizedClip`). Its copy leaves the stream at the half's action and is back from a sync point
+  after the pair (graph-input-stream.md, Pairs).
 - A copy in a pair takes no plain action of its owner.
 
 ## Engine facts

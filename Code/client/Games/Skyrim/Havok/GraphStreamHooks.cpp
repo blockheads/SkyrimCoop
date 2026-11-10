@@ -284,7 +284,8 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         apGraph->behaviourUpdated = false;
         return target.Result;
     }
-    if (!streams.Recording(cFormId))
+    // In a pair its clip is its instance's (32803: the wait at the mark): not recorded, and started over after.
+    if (!streams.Recording(cFormId) || streams.PauseWhile(cFormId, apGraph->holder->InPair()))
         return RealUpdate(apGraph, apData, apScratch);
     if (streams.NeedsTimeDelta(cFormId))
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
@@ -338,7 +339,8 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     if (streams.OnStream(cFormId) &&
         !streams.HoldWhile(cFormId, apGraph->holder->InPair() || apGraph->holder->actorState.GetKnockState() != 0))
         return false;
-    if (streams.Recording(cFormId))
+    // An owner in a pair (its half comes through here, both already in the instance: 32803) is not recorded.
+    if (streams.Recording(cFormId) && !streams.PauseWhile(cFormId, apGraph->holder->InPair()))
     {
         SendClipLoads(streams, cFormId, *apGraph);
         if (const auto cId = EventId(*apGraph, *apEvent))

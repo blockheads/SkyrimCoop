@@ -308,7 +308,8 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
     WriteGraphChannels(aActor, cStep);
     auto& streams = World::Get().GetGraphStreams();
-    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
+    // In a pair its clip is the instance's: not recorded (Games/Skyrim's 63587 hook).
+    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId) && !streams.PauseWhile(aFormId, aActor.InPair);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
     if (cRecorded && streams.PointWanted(aFormId, GraphIdentity(aActor)))
     {
@@ -466,7 +467,7 @@ void FakeEngine::Frame()
             // On its own body (knocked down, in a pair): off its owner's stream, and back after (Games/Skyrim's
             // 63587 hook).
             if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && (actor.KnockedDown || streams.Held(cId)))
-                streams.HoldWhile(cId, actor.KnockedDown || actor.InKillMove || actor.InPairClip);
+                streams.HoldWhile(cId, actor.KnockedDown || actor.InPair);
             if (actor.Copy)
                 World::Get().GetGraphStreams().SeeGraph(cId, GraphIdentity(actor));
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
@@ -1135,7 +1136,9 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
         return true;
     if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
         return true;
+    Replaying = true;
     const bool cTaken = ReplayAnimation(aFormId, acAction);
+    Replaying = false;
     if (acAction.ActionId == kActionGetUp && cTaken)
         Actors.at(aFormId).KnockedDown = false;
     ApplyActionWrites(aFormId, acAction.EventName);
@@ -1161,6 +1164,7 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
         return;
     }
     actor.InPairClip = false;
+    actor.InPair = false;
     actor.PairBlowIn = 0;
 }
 
@@ -1202,10 +1206,13 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // An uninterruptible transition still playing drops the new pair's event too.
         if ((actor.InPairClip && actor.StopsDropped) || (cPartner->second.InPairClip && cPartner->second.StopsDropped))
             return false;
-        // 32803 plays the target's half through its graph (63591), both already in the instance: a copy on its
-        // owner's stream takes it only held off the stream (Games/Skyrim's 63591 hook); refused, the pair fails.
+        // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
+        // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
+        const bool cInstance = !(Replaying && cPartner->second.Copy);
+        // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
+        // the pair fails.
         if (auto& streams = World::Get().GetGraphStreams();
-            cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
+            cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
             return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
@@ -1218,6 +1225,29 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             actor.PairVictim = acAction.TargetId;
         }
         actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
+        if (cInstance || cCollapsed)
+            actor.InPair = cPartner->second.InPair = !cCollapsed;
+        // The victim's half is its own action (TESActionData::Func5 41557 under Animation.cpp's hook): an owner's is
+        // sent, and its graph takes the event in the instance.
+        if (cInstance && !cCollapsed && !Replaying && !cPartner->second.Copy)
+        {
+            ActionEvent half = acAction;
+            half.ActorId = acAction.TargetId;
+            half.TargetId = aFormId;
+            half.EventName = acAction.TargetEventName;
+            half.TargetEventName = acAction.EventName;
+            half.Variables = cPartner->second.GraphVariables;
+            half.Variables.GraphRandom = cPartner->second.GraphRandom;
+            half.GraphState.clear();
+            if (!GraphTransitions.empty() && !cPartner->second.GraphState.empty())
+            {
+                if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(half.ActorId) && !streams.PauseWhile(half.ActorId, true))
+                    streams.OnEvent(half.ActorId, streams.Tick(), GraphEventId(half.EventName), GraphWords(cPartner->second), {cPartner->second.GraphRandom, 0});
+                TakeGraphEvent(cPartner->second, half.EventName);
+            }
+            cPartner->second.LatestAnimation = half;
+            World::Get().GetDispatcher().trigger(half);
+        }
         actor.PairedWithCopy = cPartner->second.Copy;
         cPartner->second.PairedWithCopy = actor.Copy;
         actor.StopsDropped = cPartner->second.StopsDropped = PairStopsDropped;

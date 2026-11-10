@@ -122,3 +122,30 @@ TEST_CASE("A copy's first action comes at playback", "[animation][replay-step][a
     // Ticks out of order (an older action after a newer one): no negative gap.
     CHECK(ActionDue({10000, 1'000'000, true}, 9990, 1'000'000, 9800));
 }
+
+TEST_CASE("A pair or a death in a copy's queue comes at playback, with the actions before it", "[animation][replay-step][action-spacing]")
+{
+    ActionEvent move, pair, death;
+    move.Tick = 10480;
+    pair.Tick = 10500;
+    pair.TargetEventName = "KillMoveI";
+    death.Tick = 10500;
+    death.State1 = DeathActions::kDying;
+    REQUIRE(DeathActions::IsDying(death.State1));
+    const ActionAnchor cAnchor{10000, 1'000'000, true};
+    // The move alone waits on its graph's clock.
+    CHECK_FALSE(AtPlayback(std::vector<ActionEvent>{move}, 10500));
+    CHECK_FALSE(ActionDue(cAnchor, move.Tick, 1'200'000, 10500, false));
+    for (const auto& cLater : {pair, death})
+    {
+        // At the front it comes at playback, never before on the graph's clock.
+        CHECK(AtPlayback(std::vector<ActionEvent>{cLater}, 10400));
+        CHECK_FALSE(ActionDue(cAnchor, cLater.Tick, 2'000'000, 10400, true));
+        CHECK(ActionDue(cAnchor, cLater.Tick, 1'000'000, 10500, true));
+        // Behind the move: once due it takes the move along.
+        const std::vector<ActionEvent> cQueue{move, cLater};
+        CHECK_FALSE(AtPlayback(cQueue, 10499));
+        CHECK(AtPlayback(cQueue, 10500));
+        CHECK(ActionDue(cAnchor, move.Tick, 1'200'000, 10500, AtPlayback(cQueue, 10500)));
+    }
+}

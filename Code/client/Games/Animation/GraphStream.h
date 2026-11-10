@@ -147,6 +147,9 @@ struct GraphStreams
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
     void OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
+    // An owner on its own body (in a pair: the instance drives its clip, 32803): nothing of it is recorded while
+    // aOwnBody, and its recording starts over after, so its copies ask for a point. Returns whether it is paused.
+    bool PauseWhile(uint32_t aFormId, bool aOwnBody);
     // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
     // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.
     [[nodiscard]] bool PointWanted(uint32_t aFormId, const void* apGraph = nullptr);
@@ -177,6 +180,9 @@ struct GraphStreams
     // a new sync point. Returns whether it is held.
     bool HoldWhile(uint32_t aFormId, bool aOwnBody);
     [[nodiscard]] bool Held(uint32_t aFormId) const;
+    // Its owner's pair began (its half's action, at aTick): off its stream, on its owner's actions, until a sync
+    // point from after it.
+    void HoldUntilPoint(uint32_t aFormId, uint64_t aTick);
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
@@ -196,6 +202,7 @@ struct GraphStreams
         const void* Graph = nullptr;
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
+        bool Paused = false; // on its own body: not recorded
     };
     struct Copied
     {
@@ -208,6 +215,7 @@ struct GraphStreams
         bool Asked = false;
         std::atomic<bool> Held{false}; // in a pair on this game: off its stream
         const void* WrongGraph = nullptr; // a graph of another project than its owner's: no point fits it
+        uint64_t PointAfter = 0; // held for its owner's pair: until a point newer than this tick
     };
     [[nodiscard]] std::shared_ptr<Owned> FindOwned(uint32_t aFormId) const;
     [[nodiscard]] std::shared_ptr<Copied> FindCopied(uint32_t aFormId, bool aCreate = false);

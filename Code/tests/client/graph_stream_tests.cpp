@@ -480,3 +480,57 @@ TEST_CASE("A sync point taken as an update begins holds the events just before i
     CHECK(copy.Calls == std::vector<std::string>{"load", "update"});
     CHECK(copy.State == owner.State);
 }
+
+TEST_CASE("An owner in a pair is not recorded, gives no point, and starts over after", "[graph-stream]")
+{
+    // Skyrim (duo, host-kill-move, 2026-11-09): a pair's clip runs on its instance (32803: the wait at the mark), which
+    // no stream carries; a copy replaying the owner's inputs through it ran 150 ms ahead of its owner.
+    GraphStreams streams;
+    streams.Record(0x50, 7);
+    ToyGraph graph;
+    streams.OnUpdate(0x50, 1, 0.016f, graph.Vars, graph.Seed);
+    streams.OnUpdated(0x50, graph.Vars);
+    (void)streams.TakeOps();
+    CHECK(streams.PauseWhile(0x50, true));
+    streams.OnEvent(0x50, 2, 3, graph.Vars, graph.Seed);
+    streams.OnUpdate(0x50, 2, 0.016f, graph.Vars, graph.Seed);
+    streams.OnUpdated(0x50, graph.Vars);
+    streams.OnGenerate(0x50, 2);
+    CHECK_FALSE(streams.TakeOps());
+    streams.WantPoint(0x50);
+    CHECK_FALSE(streams.PointWanted(0x50)); // kept for after the pair
+    CHECK_FALSE(streams.PauseWhile(0x50, false));
+    CHECK(streams.PointWanted(0x50));
+    streams.OnUpdate(0x50, 3, 0.016f, graph.Vars, graph.Seed);
+    const auto cOps = streams.TakeOps();
+    REQUIRE(cOps);
+    CHECK(cOps->Runs[0].FirstUpdate == 0); // its recording started over: its copies see the gap
+}
+
+TEST_CASE("A copy held for its owner's pair is back on its stream from a point after the pair, not one before", "[graph-stream]")
+{
+    GraphStreams streams;
+    streams.Feed(0x99, {1, 0, {{.Frame = 0}}}, {{1, 0.016f}});
+    ToyGraph copy;
+    Payloads::GraphSyncPoint point = Point(copy, 1);
+    point.Tick = 90;
+    streams.Load(0x99, point);
+    streams.SetPlayback(0x99, 5);
+    (void)streams.Replay(0x99, copy);
+    REQUIRE(streams.OnStream(0x99));
+    (void)streams.ShouldAsk(0x99);
+
+    streams.HoldUntilPoint(0x99, 100); // its owner's half of the pair, at tick 100
+    CHECK(streams.Held(0x99));
+    CHECK_FALSE(streams.OnStream(0x99));
+    CHECK(streams.HoldWhile(0x99, false)); // it is in no instance here: still held
+    CHECK(streams.ShouldAsk(0x99));       // its owner answers once its pair is over
+    CHECK_FALSE(streams.ShouldAsk(0x99));
+    streams.Load(0x99, point); // asked for before the pair
+    CHECK(streams.Held(0x99));
+    CHECK(streams.ShouldAsk(0x99));
+    point.Tick = 2000;
+    streams.Load(0x99, point);
+    CHECK_FALSE(streams.Held(0x99));
+    CHECK(streams.OnStream(0x99));
+}

@@ -489,6 +489,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool PairedWithCopy = false;
         uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
+        bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
         uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
@@ -630,6 +631,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
+    bool Replaying = false; // under PlayReplayed (g_forceAnimation)
     void EndKillMove(uint32_t aFormId);
     // ActionGetUp (the default object): replayed on a knocked-down copy it stands it up (AnimationSystem's
     // PerformAction, KnockReplay); nothing else ends a living copy's knock.

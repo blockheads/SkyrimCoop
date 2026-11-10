@@ -230,12 +230,17 @@ void World::Update() noexcept
         if (streams.OnStream(form.Id))
         {
             animation.Anchor = {};
-            bool dying = false;
+            bool dying = false, paired = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
                 if ((dying = DeathActions::IsDying(cAction.State1)))
                     break;
+                if ((paired = !cAction.TargetEventName.empty()))
+                {
+                    streams.HoldUntilPoint(form.Id, cAction.Tick); // its owner's pair: its half by this action
+                    break;
+                }
                 animation.TimePoints.pop_front();
                 if (!VariablesOnly(cAction))
                 {
@@ -244,7 +249,7 @@ void World::Update() noexcept
                 }
             }
             animation.GraphPoint.reset();
-            if (!dying)
+            if (paired || !dying)
                 continue;
             streams.Forget(form.Id); // its death is its own body's: the stream ends, the death replays below
         }
@@ -322,7 +327,8 @@ void World::Update() noexcept
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
         const uint64_t cGraphUs = uint64_t(actor.AnimationMs * 1000.0);
-        if (!ActionDue(animation.Anchor, action.Tick, cGraphUs, InterpolationSystem::PlaybackTick(*this, cEntity), !action.TargetEventName.empty())) continue;
+        const uint64_t cDueTick = InterpolationSystem::PlaybackTick(*this, cEntity);
+        if (!ActionDue(animation.Anchor, action.Tick, cGraphUs, cDueTick, AtPlayback(animation.TimePoints, cDueTick))) continue;
         if (!engine.IsAnimationGraphReady(form.Id)) continue;
         animation.Anchor = {action.Tick, cGraphUs, true};
         if (VariablesOnly(action))

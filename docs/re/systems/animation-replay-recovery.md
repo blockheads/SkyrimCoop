@@ -314,6 +314,12 @@ frame, both graphs' times run alike (`ActionDue`, `ReplayStep.h`). A paired acti
 against a partner of the copy's game, which acts on that game's time (spaced early, crossed kill moves settled wrong in
 GameTests).
 
+Also on playback (`AtPlayback`, 2026-11-09): a death, and any action a due pair or death waits behind. Skyrim showed
+both. In `kill-moves-cross` the host's pair waited 330 ms on the guest behind a `moveStart` its graph's clock held
+back; the guest's player died of the forwarded hit first and the pair was refused (2 runs in 5). In `host-kill-move`
+the wolf's copy, off its stream for the pair, took four of its owner's actions a step each (57-80 ms apiece), the last
+400 ms late, and its death was spaced from that one: it stood 311-396 ms after its owner died.
+
 - GameTests `[replay-start]`: with `Turn()` stepping both games (it stepped only the host while the owner turned, which
   hid the copy's timing), the slow line and the turn after a fight fail on playback spacing; the far owner's turn
   (`FarOwnerChunkMs` 250, the fake's 63587) fails without the owner's force. The fake's owner AI performs its refused

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/DeathActions.h>
 #include <Structs/ActionEvent.h>
 #include <atomic>
 #include <cstdint>
@@ -49,19 +50,33 @@ struct ActionAnchor
 // Whether a copy's next action is due. After the last one, as far in its graph's time as on its owner's: its clips run
 // at the frames' time while its playback steers (0.85-1.1x), and a clip's end must meet the actions its owner had
 // around it (animation-replay-recovery.md, "Actions spaced on the copy's graph time"). Never more than kAheadMs before
-// playback; due kBehindMs after it, when its graph stood still or nothing anchors it. A paired action comes at playback:
-// it is settled against a partner of this game's, which acts on this game's time (ReplayState::SettlePairedReplay).
+// playback; due kBehindMs after it, when its graph stood still or nothing anchors it. aAtPlayback: see AtPlayback.
 [[nodiscard]] constexpr bool ActionDue(const ActionAnchor& acAnchor, uint64_t aActionTick, uint64_t aGraphUs, uint64_t aPlaybackTick,
-                                       bool aPaired = false) noexcept
+                                       bool aAtPlayback = false) noexcept
 {
     constexpr uint64_t kAheadMs = 250;
     constexpr uint64_t kBehindMs = 250;
     if (aActionTick + kBehindMs <= aPlaybackTick)
         return true;
-    if (aPaired || !acAnchor.Set || aActionTick > aPlaybackTick + kAheadMs)
+    if (aAtPlayback || !acAnchor.Set || aActionTick > aPlaybackTick + kAheadMs)
         return aActionTick <= aPlaybackTick;
     const uint64_t cGapUs = aActionTick > acAnchor.OwnerTick ? (aActionTick - acAnchor.OwnerTick) * 1000 : 0;
     return aGraphUs >= acAnchor.GraphUs && aGraphUs - acAnchor.GraphUs >= cGapUs;
+}
+
+// Whether the front of a copy's queue comes at playback, not on its graph's clock: a paired action (settled against
+// this game's partner) or a death (its owner's timeline), or an action one of those, due, waits behind. A pair played
+// late is refused once its partner died of the forwarded hit; a death played late leaves the copy standing.
+template <class Actions> [[nodiscard]] bool AtPlayback(const Actions& acActions, uint64_t aPlaybackTick) noexcept
+{
+    bool front = true;
+    for (const auto& cAction : acActions)
+    {
+        if ((!cAction.TargetEventName.empty() || DeathActions::IsDying(cAction.State1)) && (front || cAction.Tick <= aPlaybackTick))
+            return true;
+        front = false;
+    }
+    return false;
 }
 
 // Whether a step in kClips may go on: its clips are in, or they are not coming. A clip started without its file

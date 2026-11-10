@@ -279,6 +279,8 @@ void GraphStreams::OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint1
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Paused)
+            return;
         pOwned->Recorder.Clips(aTick, aSet, aEventId);
     }
 }
@@ -288,6 +290,8 @@ void GraphStreams::OnGenerate(uint32_t aFormId, uint64_t aTick)
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Paused)
+            return;
         pOwned->Recorder.Generate(aTick);
     }
 }
@@ -298,6 +302,8 @@ void GraphStreams::OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, 
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Paused)
+            return;
         pOwned->Recorder.Event(aTick, aEventId, aWords, acSeed);
     }
 }
@@ -308,6 +314,8 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Paused)
+            return;
         if (pOwned->Graph && apGraph && pOwned->Graph != apGraph)
         {
             pOwned->Recorder = GraphRecorder{}; // a new graph: its copies see the gap and ask for a point
@@ -324,8 +332,25 @@ void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
+        if (pOwned->Paused)
+            return;
         pOwned->Recorder.Updated(aWords);
     }
+}
+
+bool GraphStreams::PauseWhile(uint32_t aFormId, bool aOwnBody)
+{
+    const auto pOwned = FindOwned(aFormId);
+    if (!pOwned)
+        return false;
+    std::scoped_lock _{pOwned->Lock};
+    if (pOwned->Paused && !aOwnBody)
+    {
+        pOwned->Recorder = GraphRecorder{}; // its copies see the gap and ask for a point
+        pOwned->TimeDeltaKnown = false;
+    }
+    pOwned->Paused = aOwnBody;
+    return aOwnBody;
 }
 
 bool GraphStreams::PointWanted(uint32_t aFormId, const void* apGraph)
@@ -336,6 +361,8 @@ bool GraphStreams::PointWanted(uint32_t aFormId, const void* apGraph)
     std::scoped_lock _{pOwned->Lock};
     if (apGraph && pOwned->Graph && pOwned->Graph != apGraph)
         return false; // a new graph: its recording starts over at this update, and its copies ask again
+    if (pOwned->Paused)
+        return false; // on its own body: a point once it is recorded again
     return std::exchange(pOwned->WantsPoint, false);
 }
 
@@ -405,6 +432,16 @@ void GraphStreams::Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoin
 {
     const auto pCopied = FindCopied(aFormId, true);
     std::scoped_lock _{pCopied->Lock};
+    if (pCopied->PointAfter)
+    {
+        if (acPoint.Tick <= pCopied->PointAfter)
+        {
+            pCopied->Asked = false; // from before its owner's pair: ask again
+            return;
+        }
+        pCopied->PointAfter = 0;
+        pCopied->Held = false;
+    }
     if (!pCopied->Held) // in a pair: it asks again once out of it
         pCopied->Replayer.Load(acPoint);
 }
@@ -421,12 +458,25 @@ bool GraphStreams::HoldWhile(uint32_t aFormId, bool aOwnBody)
         pCopied->Replayer.Restart();
         pCopied->Graph = nullptr;
     }
-    else if (!aOwnBody && pCopied->Held)
+    else if (!aOwnBody && pCopied->Held && !pCopied->PointAfter)
     {
         pCopied->Held = false;
         pCopied->Asked = false;
     }
     return pCopied->Held;
+}
+
+void GraphStreams::HoldUntilPoint(uint32_t aFormId, uint64_t aTick)
+{
+    const auto pCopied = FindCopied(aFormId);
+    if (!pCopied)
+        return;
+    std::scoped_lock _{pCopied->Lock};
+    pCopied->Held = true;
+    pCopied->PointAfter = aTick;
+    pCopied->Replayer.Restart();
+    pCopied->Graph = nullptr;
+    pCopied->Asked = false;
 }
 
 bool GraphStreams::Held(uint32_t aFormId) const
@@ -456,7 +506,7 @@ bool GraphStreams::ShouldAsk(uint32_t aFormId)
     if (!pCopied)
         return false;
     std::scoped_lock _{pCopied->Lock};
-    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked || pCopied->Held || pCopied->WrongGraph)
+    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked || (pCopied->Held && !pCopied->PointAfter) || pCopied->WrongGraph)
         return false;
     pCopied->Asked = true;
     return true;

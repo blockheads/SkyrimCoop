@@ -108,6 +108,12 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   off its stream (`GraphStreams::HoldWhile`): it takes that event, runs today's paths, and asks for a new sync point
   once out of the instance. Before, the copy refused the event and a guest's kill move on a host NPC never started
   (`client-kill-move`).
+  A pair on its owner's game alone (the host's kill move on its own NPC) makes no instance on a guest: a replayed
+  pair names no target event for a copy partner, and each copy plays its half alone. There the copy leaves its stream
+  at its owner's half of the pair, a paired action (`AnimationSystem`, `GraphStreams::HoldUntilPoint`), plays it as
+  before the stream, and is back from a sync point taken after that action. The owner is not recorded while it is in
+  an instance (`GraphStreams::PauseWhile`, 32808): it gives no point, and its recording starts over after, so its
+  copies see the gap and ask. A synchronized clip waits for the mark on its instance, which no stream carries.
 - **Knock-downs: built (2026-11-09).** A copy stands up only by its owner's `ActionGetUp` replayed on it
   (`AnimationSystem`, `KnockReplay`), and a copy on the stream takes actions as bookkeeping: it never got up
   (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
@@ -212,6 +218,10 @@ UpdateGraph(actor), when its graph steps this frame (AnimationStepMs: a frame; a
 events (GraphTransitions, PerformAnimation / ReplayAnimation): History += (Timeline, state, "event X")
 owner AI (OwnerClipEnds): its clip-end actions LeadMs before the end; refused, their ActionWrites (39004) land
 ```
+
+A pair (`ReplayAnimation` with a target event) puts both actors in an instance (`Actor::InPair`, 32808) and plays the
+victim's half as its own action, sent when the victim is an owner's. A replayed pair with a copy partner makes no
+instance (`PlayReplayedAction` names no target event). An owner in an instance is not recorded.
 
 - **The live check** (`FirstGraphDifference`): from a copy's first sync point (its stream's start; before it, it runs on
   the old paths), at every point of its history, its state is its owner's at the same owner graph time. The fake's
@@ -323,6 +333,7 @@ What it found on the duo (2026-11-09), in order:
 | a hare's graph given a wolf's point | the guest's leveled reference did not have its owner's base yet | a point names its behaviour project; another project's is dropped until the copy's graph is replaced |
 | a copy with another project's graph never on its stream again, its graph replaced with the right one | the hook replays, and so saw the new graph, only for a copy on its stream; a dropped point leaves it off | `GraphStreams::SeeGraph` each update, on or off the stream (GameTests "A copy with another project's graph...") |
 | `host-kill-move`: the wolf's copy stands 330-400 ms after its blow, 2 runs in 4 | off its stream after the pair, its death was spaced (`ActionDue`) from the last action it replayed before the stream, 5 s earlier; its graph's clock had run 110-150 ms short of its owner's ticks | a copy on its stream has no action anchor: its next action off it comes at playback (180-237 ms in 6 runs) |
+| `host-kill-move`: the guest's blow 20-70 ms before the host's, its victim's clip 60 ms shorter | the wolf's copy took the kill move's event from its stream (63587 on the stack, not the pair's 43567) outside any instance: its synchronized clip started at once, its owner's after 150 ms at the mark | an owner in an instance is not recorded; its copy leaves the stream at the half's action until a point from after the pair (GameTests "A host's kill move takes its victim's copy off its stream...") |
 | none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s (again 2026-11-09 with the rows above) | | |
 
 ## Phases

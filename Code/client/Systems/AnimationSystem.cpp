@@ -113,6 +113,12 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 streams.Forget(apActor->formID);
                 return;
             }
+            // Its owner's pair: its half is its own body's, by this action, until a point from after the pair.
+            if (!action.TargetEventName.empty())
+            {
+                streams.HoldUntilPoint(apActor->formID, action.Tick);
+                return;
+            }
             actions.pop_front();
             if (VariablesOnly(action))
                 continue;
@@ -182,7 +188,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
     const auto it = std::begin(actions);
     const uint64_t cGraphUs = apActor->GetExtension()->GraphUs.load(std::memory_order_relaxed);
-    if (it != std::end(actions) && ActionDue(aAnimationComponent.Anchor, it->Tick, cGraphUs, aTick, !it->TargetEventName.empty()))
+    if (it != std::end(actions) && ActionDue(aAnimationComponent.Anchor, it->Tick, cGraphUs, aTick, AtPlayback(actions, aTick)))
     {
         // Check if animation graph is ready before attempting to play animations
         if (!EngineVirtual(apActor->animationGraphHolder).IsReady())
