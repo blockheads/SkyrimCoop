@@ -203,7 +203,7 @@ share. Each actor's graph is its `GraphState`, `GraphVariables`, `GraphRandom` a
 frame its graph steps (`FakeEngine::UpdateGraph`, 63358's order):
 
 ```
-UpdateGraph(actor), when its graph steps this frame (AnimationStepMs: a frame, or a far owner's chunk)
+UpdateGraph(actor), when its graph steps this frame (AnimationStepMs: a frame; a far owner nobody records, a chunk)
   Timeline += step                       its owner's graph time (a copy's starts at the sync point it loaded)
   channels: Floats[TurnDelta] = this actor's heading change / step (63590; a copy's heading is interpolated)
   ranges:   in State, Floats[Input] >= Bound -> Above, else Below (hkbEventsFromRangeModifier)
@@ -321,6 +321,8 @@ What it found on the duo (2026-11-09), in order:
 | a blend's child kept or dropped at a copy's first update | the owner's generate pass before the point set `stateOrTransitionChanged`, which Havok's restore clears | the point carries the flag |
 | `MT_WalkForwardLeft` where the owner has `Right`, at a copy's first update | `BSCyclicBlendTransitionGenerator` had frozen its blender's `blendParameter` (63132), a plain member in no internal state | the point carries every active node's plain members |
 | a hare's graph given a wolf's point | the guest's leveled reference did not have its owner's base yet | a point names its behaviour project; another project's is dropped until the copy's graph is replaced |
+| a copy with another project's graph never on its stream again, its graph replaced with the right one | the hook replays, and so saw the new graph, only for a copy on its stream; a dropped point leaves it off | `GraphStreams::SeeGraph` each update, on or off the stream (GameTests "A copy with another project's graph...") |
+| `host-kill-move`: the wolf's copy stands 330-400 ms after its blow, 2 runs in 4 | off its stream after the pair, its death was spaced (`ActionDue`) from the last action it replayed before the stream, 5 s earlier; its graph's clock had run 110-150 ms short of its owner's ticks | a copy on its stream has no action anchor: its next action off it comes at playback (180-237 ms in 6 runs) |
 | none: every streamed copy matched its owner at every update, the wolf scenario's 180 s and the town's 120 s (again 2026-11-09 with the rows above) | | |
 
 ## Phases

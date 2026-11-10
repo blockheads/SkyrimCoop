@@ -104,6 +104,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     streams.SetPlayback(apActor->formID, aTick);
     if (streams.OnStream(apActor->formID))
     {
+        aAnimationComponent.Anchor = {}; // off it again, its next action comes at playback (ActionDue)
         while (!actions.empty() && actions.front().Tick <= aTick)
         {
             ActionEvent action = actions.front();

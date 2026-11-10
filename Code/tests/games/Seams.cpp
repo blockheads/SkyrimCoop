@@ -229,6 +229,7 @@ void World::Update() noexcept
         streams.SetPlayback(form.Id, cPlayback);
         if (streams.OnStream(form.Id))
         {
+            animation.Anchor = {};
             bool dying = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {

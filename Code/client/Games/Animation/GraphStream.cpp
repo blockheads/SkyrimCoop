@@ -471,6 +471,19 @@ void GraphStreams::SetPlayback(uint32_t aFormId, uint64_t aTick)
     }
 }
 
+void GraphStreams::SeeGraph(uint32_t aFormId, const void* apGraph)
+{
+    const auto pCopied = FindCopied(aFormId);
+    if (!pCopied)
+        return;
+    std::scoped_lock _{pCopied->Lock};
+    if (pCopied->WrongGraph && pCopied->WrongGraph != apGraph)
+    {
+        pCopied->WrongGraph = nullptr;
+        pCopied->Asked = false;
+    }
+}
+
 size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph, uint32_t aProject)
 {
     const auto pCopied = FindCopied(aFormId);
@@ -484,11 +497,6 @@ size_t GraphStreams::Replay(uint32_t aFormId, IGraphTarget& aTarget, const void*
         pCopied->Graph = nullptr;
         pCopied->Asked = false;
         return 0;
-    }
-    if (pCopied->WrongGraph && pCopied->WrongGraph != apGraph)
-    {
-        pCopied->WrongGraph = nullptr;
-        pCopied->Asked = false;
     }
     if (const uint32_t cPoint = pCopied->Replayer.PointProject(); cPoint && aProject && cPoint != aProject)
     {

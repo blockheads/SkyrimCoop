@@ -472,12 +472,11 @@ TEST_CASE("A copy's machine started at a clip's end reads its owner's new variab
     CHECK(wolf.Difference() == "");
 }
 
-TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][replay-start]")
+TEST_CASE("A far owner on the stream steps every frame, and its canned turn ends where its copy's does", "[animation][replay-start]")
 {
     // Skyrim (duo trace, 2026-11-08): the host's wolf, far from the host's camera, stepped its graph 0.08-0.25 s at a
-    // time (animation interpolation, 63587) while its copy stepped every frame. A turn sent just after a chunk ended up
-    // to a chunk after its copy's, so the copy read iSyncTurnState before its owner's refused turnStop set it. The owner
-    // keeps its own stepping (forcing it made creatures hover); the stream carries its chunks (58329).
+    // time (animation interpolation, 63587) while its copy stepped every frame, and its turn ended up to a chunk after
+    // its copy's. A recorded owner is not interpolated (the hook's interpAllowed): it steps every frame, as its copy.
     WolfTurn wolf;
     for (auto* engine : {&wolf.host, &wolf.guest})
     {
@@ -485,8 +484,11 @@ TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][r
         engine->Graph->Clips[0].Ms = 1267; // TurnCannedR180
     }
     const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
-    wolf.party.Until([&] { return cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
-    wolf.Turn();
+    double longest = 0.0;
+    const auto cStep = [&] { longest = std::max(longest, cOwner.AnimationStepMs); };
+    wolf.Turn(cStep, cStep);
+    wolf.party.Until([&] { cStep(); return cOwner.AnimationMs > 3000.0; }, "the owner's graph runs on");
+    CHECK(longest < 100.0);
     CHECK(wolf.guest.Actors.at(wolf.copy).Graph.ReadAtEnd == 1);
     CHECK(wolf.guest.Actors.at(wolf.copy).GraphState == "StandingIdle");
     CHECK(wolf.Difference() == "");
@@ -494,10 +496,10 @@ TEST_CASE("A far owner's canned turn ends where its copy's does", "[animation][r
 
 TEST_CASE("A far owner's damped turn picks its walk where its copy's does", "[animation][replay-start]")
 {
-    // Skyrim (duo, Riverwood, 2026-11-09): the host's wolf, off its camera, stepped in chunks; its copy's update wrote a
-    // different TurnDeltaDamped (a damping modifier's member, moved in each generate pass, 63568) and its walk picked
-    // WalkForwardR where its owner's did not. A graph generates after each frame it updated in (63589): the owner only
-    // after its chunks, the copy every frame. The copy runs its owner's generate passes instead (the stream's).
+    // Skyrim (duo, Riverwood, 2026-11-09): the copy's update wrote a different TurnDeltaDamped (a damping modifier's
+    // member, moved in each generate pass, 63568) and its walk picked WalkForwardR where its owner's did not. A graph
+    // generates after each frame it updated in (63589): the owner once an update, the copy once a frame, whatever it
+    // replayed in it. The copy runs its owner's generate passes instead (the stream's).
     WolfTurn wolf;
     for (auto* engine : {&wolf.host, &wolf.guest})
     {
@@ -746,6 +748,28 @@ TEST_CASE("An owner whose graph is replaced gives its copy a new sync point", "[
     CHECK(wolf.Difference() == "");
 }
 
+TEST_CASE("A copy with another project's graph than its owner's loads no point until its own graph is its owner's", "[animation][replay-start]")
+{
+    // A copy made from a leveled base not yet its owner's has another race's graph: Havok's restore (58373) would
+    // write the owner's nodes into it. The point names its project; the copy asks again only with a new graph.
+    WolfTurn wolf({}, true);
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    wolf.guest.ReloadGraph(wolf.copy, "Standing", 2);
+    const double cFrom = cOwner.AnimationMs;
+    wolf.party.Until([&] { return cOwner.AnimationMs > cFrom + 1000.0; }, "its owner's point comes and a second passes");
+    CHECK(cCopy.ForeignPoints == 0);
+    CHECK(SyncPoints(cCopy) == 1);
+    CHECK_FALSE(wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy));
+    wolf.guest.ReloadGraph(wolf.copy, "Standing", 1);
+    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy's graph of its owner's project starts from a new sync point");
+    wolf.Turn();
+    CHECK(cCopy.ForeignPoints == 0);
+    CHECK(cCopy.GraphState == "StandingIdle");
+    CHECK(wolf.Difference() == "");
+}
+
 TEST_CASE("A copy starting mid-blend plays its owner's child, not the one its variables pick now", "[animation][replay-start]")
 {
     // Skyrim (duo, Riverwood, 2026-11-09): Faendal's copy parted from its owner at its first update. Its turn blend,
@@ -797,18 +821,19 @@ TEST_CASE("A copy starting between its owner's generate pass and its next update
     const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
     wolf.party.Until([&] { return cCopy.Graph.Child == "Forward"; }, "the copy walks forward with its owner");
-    wolf.party.Until([&] { return cOwner.InterpCountdownMs > 200.0; }, "just after the owner's graph stepped a chunk");
-    wolf.party.As(wolf.party.Host(), [&] {
+    // Its AI turns it one way, then the other: each generate pass picks a new child, so every update starts flagged.
+    const auto cTurning = [&] {
         auto& integers = wolf.host.Actors.at(wolf.wolf).GraphVariables.Integers;
         integers.resize(3);
-        integers[2] = 1; // its AI turns it: the blend's next generate pass picks Right
-    });
-    wolf.party.Until([&] { return cOwner.Graph.ActiveNodesChanged; }, "the owner's generate pass picks the new child");
-    REQUIRE(cOwner.Graph.Child == "Forward");
+        integers[2] = (cOwner.Graph.Child == "Right") == cOwner.Graph.ActiveNodesChanged ? 1 : 0;
+    };
+    wolf.party.Until([&] { cTurning(); return cOwner.Graph.ActiveNodesChanged && cCopy.Graph.Child == "Right"; },
+                     "the owner's generate passes pick new children, and the copy's blend follows");
     wolf.party.As(wolf.party.Guest(), [&] { wolf.party.Guest().GetGraphStreams().Forget(wolf.copy); }); // asks for a new point
-    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy) && cCopy.Graph.Child == "Right"; },
-                     "the copy starts again from a point taken before that child's update");
-    CHECK(cOwner.Graph.Child == "Right");
+    wolf.party.Until([&] { cTurning(); return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy starts again from a point taken between a generate pass and its update");
+    const size_t cReplayed = cCopy.Graph.History.size();
+    wolf.party.Until([&] { cTurning(); return cCopy.Graph.History.size() >= cReplayed + 8; }, "the copy replays on from it");
     CHECK(wolf.Difference() == "");
 }
 
@@ -905,6 +930,50 @@ TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pa
     });
     wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
                      "the copy is back on its owner's stream from a new sync point");
+}
+
+TEST_CASE("A copy back off its stream dies with its owner, not as long after an action from before the stream", "[animation][replay-start]")
+{
+    // Skyrim (duo, host-kill-move, 2026-11-09): the wolf's copy stood 330-350 ms after its blow. Its last replayed
+    // action, 5 s before, still anchored its next (ActionDue): its graph's clock had run 110-150 ms short of its
+    // owner's ticks on the stream, and its death waited that long. On its stream a copy has no anchor.
+    WolfTurn wolf;
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    // Off its stream (knocked down), it replays its owner's get-up: that action anchors its next.
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "Standing";
+    wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
+    wolf.guest.Actors.at(wolf.copy).KnockedDown = true;
+    wolf.party.Until([&] { return streams.Held(wolf.copy); }, "the copy is off its owner's stream while it lies");
+    const size_t cPoints = SyncPoints(cCopy);
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.Actors.at(wolf.wolf).KnockedDown = false;
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
+    });
+    wolf.party.Until([&] { return !cCopy.KnockedDown && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
+                     "the copy gets up with its owner and is back on its stream");
+    // Its graph's clock falls behind its owner's ticks while it is on the stream.
+    const uint64_t cFrom = wolf.party.Guest().GetTick();
+    wolf.guest.Actors.at(wolf.copy).GraphUpdating = false;
+    wolf.party.Until([&] { return wolf.party.Guest().GetTick() >= cFrom + 200; }, "200 ms its graph does not step in");
+    wolf.guest.Actors.at(wolf.copy).GraphUpdating = true;
+    uint64_t died = 0;
+    wolf.party.As(wolf.party.Host(), [&] {
+        died = wolf.party.Host().GetTick();
+        wolf.host.Strikes(FakeEngine::kPlayer, wolf.wolf, 1000.f);
+    });
+    REQUIRE(wolf.host.Actors.at(wolf.wolf).Dead);
+    wolf.party.Until([&] { return cCopy.Dead; }, "the copy dies with its owner");
+    uint64_t shown = 0;
+    for (auto&& [entity, form, animation] : wolf.party.Guest().view<FormIdComponent, RemoteAnimationComponent>().each())
+        if (form.Id == wolf.copy)
+            shown = InterpolationSystem::PlaybackTick(wolf.party.Guest(), entity);
+    INFO("the copy died showing its owner " << int64_t(shown) - int64_t(died) << " ms after the death");
+    CHECK(shown < died + 100);
 }
 
 TEST_CASE("A copy starting after its owner's idle loads that idle's clip files, not its last event's", "[animation][replay-start]")

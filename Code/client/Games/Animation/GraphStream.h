@@ -180,9 +180,11 @@ struct GraphStreams
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
+    // Its graph now, each update on or off its stream: a new one since another project's point was dropped asks again.
+    void SeeGraph(uint32_t aFormId, const void* apGraph);
     // apGraph: which graph it replays into; another than the one its point loaded into waits for a new point.
     // aProject: that graph's behaviour project; a point of another project's is dropped, and it asks again only with
-    // a new graph (its leveled base becoming its owner's reloads its 3D).
+    // a new graph (its leveled base becoming its owner's reloads its 3D: SeeGraph).
     size_t Replay(uint32_t aFormId, IGraphTarget& aTarget, const void* apGraph = nullptr, uint32_t aProject = 0);
 
   private:

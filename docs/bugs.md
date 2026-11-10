@@ -48,6 +48,8 @@ other section needs the duo.
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
+- [A host's kill move runs ahead on the guest](#a-hosts-kill-move-runs-ahead-on-the-guest): small
+- [Crossing kill moves leave a copy's last action wrong](#crossing-kill-moves-leave-a-copys-last-action-wrong): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
@@ -367,6 +369,39 @@ Size: medium. Needs: duo.
     holds the copy's capsule at that height.
   - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
     only), loose food and a door, 45-52 references.
+
+### A host's kill move runs ahead on the guest
+
+`host-kill-move` passes, close to its limit: the guest's blow lands 20-70 ms before the host's, and the wolf's copy
+stands 180-237 ms after it until its owner's death comes (6 runs, 2026-11-09, graph input stream). On dev's plugin the
+guest's blow lands 62-65 ms after the host's and the copy stands 56-112 ms (3 runs, same day).
+
+Agent task: find why the guest's pair starts sooner and its victim's clip is shorter since the graph input stream.
+
+Size: small. Needs: duo, then GameTests.
+
+- Measured from the scenario's timeline, host against guest: the guest's pair action 131-192 ms after the host's
+  (dev 234-254); the wolf's `KillMoveStart` to `KillActor` 1389-1402 ms on the guest against 1452-1474 on the host
+  for `KillMove1HMWolfB` (dev: 1467-1475 both). The host's own timing is dev's.
+- Not read yet: what steps the copy's graph in the frames it leaves its stream for the pair (63587 under the hold),
+  and whether its first update there takes more than a frame's step.
+- Start: the harness's per-update steps (`repro.py` `steps`) for the copy through the pair's first 200 ms.
+
+### Crossing kill moves leave a copy's last action wrong
+
+`kill-moves-cross` fails its end comparison 2 runs in 5 on the graph input stream's branch and 0 in 6 on dev's plugin
+(2026-11-09): on the guest, the host player's copy has `moveStart` (959F8, idle 959FA) as its last action where its
+owner has `pa_KillMoveShortD`. The moves themselves play.
+
+Agent task: find what plays `moveStart` on the host player's copy after its pair, and make the copy's record its owner's.
+
+Size: small. Needs: duo, then GameTests.
+
+- Since the branch an owner's refused action is sent with its variables only (`SendRefusedVariables`); a copy's
+  record is written by the action hook only when we force an action on it (`g_forceAnimation`), so a replayed
+  `moveStart` was played, not only loaded. Not read: which path played it.
+- Start: log each action `AnimationSystem::Update` stages on that copy around the pair, and read
+  `ReplayState::HeldByPair` in `PlayReplayedAction`.
 
 ### Doors the host's NPCs unlock
 

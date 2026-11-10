@@ -271,6 +271,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
     const bool cKnocked = apGraph->holder->actorState.GetKnockState() != 0;
     if (cKnocked || streams.Held(cFormId))
         streams.HoldWhile(cFormId, cKnocked || apGraph->holder->InPair());
+    streams.SeeGraph(cFormId, apGraph);
     if (streams.OnStream(cFormId))
     {
         if (streams.NeedsTimeDelta(cFormId))

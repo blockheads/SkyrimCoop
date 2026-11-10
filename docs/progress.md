@@ -70,6 +70,16 @@ short of goodbyes. A joining menu keeping its own highlight (code review) did no
 after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
 entry is gone, the scenario and GameTests flow guard it.
 
+2026-11-09: the stream's combined run (21 scenarios tagged animation or copies) and what it found. A copy off its
+stream died up to 250 ms late: its death was spaced from the last action it replayed before the stream
+(`host-kill-move` 2 fails in 4; now none in 6, GameTests "A copy back off its stream dies..."). A copy whose point was
+another project's never asked again with its new graph (`GraphStreams::SeeGraph`, found by its new GameTests flow).
+The fake no longer chunks a recorded far owner or runs a generate pass in a frame without a step. Left: the guest's
+kill move still a little ahead and `kill-moves-cross` failing its end comparison 2 runs in 5, 0 in 6 on dev (bugs.md,
+A host's kill move runs ahead on the guest; Crossing kill moves leave a copy's last action wrong); `copy-strafes-with-host`
+stutters on dev's plugin too (2 runs in 3); `placed-speaker-deleted-mid-conversation` fails on dev since `talk`
+refuses a frozen speaker (its stage freezes Vilkas).
+
 2026-11-09: the graph input stream's owners step every frame without `force` (creatures no longer hover), a graph's
 generate passes are in the stream, sync points carry nodes' plain members and the active-node flag, and a copy in a
 pair on its game leaves its stream for it: a guest's kill move on a host NPC works again (all six kill-move scenarios

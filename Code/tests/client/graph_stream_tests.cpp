@@ -210,7 +210,9 @@ TEST_CASE("A copy whose graph is another project's drops its owner's point and a
     CHECK(hare.Calls.empty());
     CHECK_FALSE(streams.OnStream(0x99));
     CHECK_FALSE(streams.ShouldAsk(0x99)); // nothing fits this graph
-    CHECK(streams.Replay(0x99, wolf, &wolf, 7) == 0); // its 3D reloaded with its owner's base
+    streams.SeeGraph(0x99, &hare);
+    CHECK_FALSE(streams.ShouldAsk(0x99));
+    streams.SeeGraph(0x99, &wolf); // its 3D reloaded with its owner's base: off its stream, nothing replays
     CHECK(streams.ShouldAsk(0x99));
     streams.Load(0x99, point);
     streams.SetPlayback(0x99, 100);

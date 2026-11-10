@@ -570,6 +570,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
         FakeGraphMemory Graph;                // its graph's clip, channels and history (FakeGraph.h)
         uint32_t GraphGeneration = 0;         // which graph: a 3D reload makes a new one (ReloadGraph)
+        uint32_t GraphProject = 1;            // its graph's behaviour project, its race's (projectName hashed)
+        uint32_t ForeignPoints = 0;           // another project's sync points restored into its graph (58373)
         AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
@@ -677,7 +679,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
     bool m_replaying = false; // inside ReplayStream: a copy's graph takes its owner's inputs
     // Its 3D reloaded: a new graph in aState, its clip and variables reset (Skyrim: a new BShkbAnimationGraph).
-    void ReloadGraph(uint32_t aFormId, const std::string& aState);
+    void ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject = 0); // aProject: its new race's
     [[nodiscard]] static const void* GraphIdentity(const Actor& acActor) noexcept
     {
         return reinterpret_cast<const void*>(uintptr_t(acActor.GraphGeneration) + 1);
@@ -690,7 +692,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     [[nodiscard]] uint16_t GraphEventId(const std::string& acEvent) const;
     // Animation interpolation (63587): an owner's graph far from this game's camera, not forced, steps this much at
     // once when its countdown runs out (fAnimInterpMaxTime 250 ms beyond fAnimInterpFarDist), and not between. 0: every
-    // frame. A copy's is forced (AnimationSystem), so it steps every frame.
+    // frame. A copy's and a recorded owner's are not interpolated (the stream's hooks), so they step every frame.
     double FarOwnerChunkMs = 0.0;
     // 39004's integer writes by event: run by PerformAction (38949, not for a query) and ForceAction (38953)
     // whether or not the graph takes the event (TurnStop: iSyncTurnState 1). {variable, value}.

@@ -319,6 +319,7 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
                 sets.emplace_back(3, cClips);
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
                                    .Seed = {aActor.GraphRandom, 0}, .ActiveNodesChanged = aActor.Graph.ActiveNodesChanged,
+                                   .Project = aActor.GraphProject,
                                    .ClipSets = std::move(sets)});
     }
     if (cRecorded)
@@ -343,6 +344,8 @@ struct FakeGraphTarget final : IGraphTarget
     void SetSeed(const GraphSeed& acSeed) override { Actor.GraphRandom = acSeed.Seed; }
     bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
     {
+        if (acPoint.Project != Actor.GraphProject)
+            ++Actor.ForeignPoints;
         if (!Engine.LoadGraphInternalState(FormId, acPoint.State))
             return false;
         Actor.Graph.ActiveNodesChanged = acPoint.ActiveNodesChanged; // the restore's own walk cleared it
@@ -370,15 +373,17 @@ void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
 {
     FakeGraphTarget target(*this, aFormId, aActor);
     m_replaying = true;
-    World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor));
+    World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor), aActor.GraphProject);
     m_replaying = false;
     aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (Games/Skyrim's 63587 hook)
 }
 
-void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState)
+void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject)
 {
     auto& actor = Actors.at(aFormId);
     ++actor.GraphGeneration;
+    if (aProject)
+        actor.GraphProject = aProject;
     actor.GraphState = aState;
     actor.GraphVariables = {};
     actor.Graph.ClipStartedAt.reset();
@@ -416,15 +421,19 @@ void FakeEngine::Frame()
         actor.AnimationStepMs = 0.0;
         if (!actor.GraphUpdating)
             continue;
-        if (FarOwnerChunkMs <= 0.0 || actor.Copy)
+        // A recorded owner's is not interpolated (the 63587 hook's interpAllowed), so it steps every frame.
+        if (FarOwnerChunkMs <= 0.0 || actor.Copy || World::Get().GetGraphStreams().Recording(cId))
+        {
             actor.AnimationStepMs = cFrameMs;
+            actor.InterpCountdownMs = 0.0;
+        }
         else if ((actor.InterpCountdownMs -= cFrameMs) <= 0.0)
         {
             actor.AnimationStepMs = FarOwnerChunkMs;
             actor.InterpCountdownMs += FarOwnerChunkMs;
         }
-        else
-            actor.Graph.Updated = false; // 63587 ran, its behaviour graph did not
+        if (actor.AnimationStepMs <= 0.0)
+            actor.Graph.Updated = false; // no step this frame: no generate pass either
         actor.AnimationMs += actor.AnimationStepMs;
     }
     // An owner's AI acts on its clip's time, in frames its graph does not update too (a chunked one's end lands on its
@@ -458,6 +467,8 @@ void FakeEngine::Frame()
             // 63587 hook).
             if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && (actor.KnockedDown || streams.Held(cId)))
                 streams.HoldWhile(cId, actor.KnockedDown || actor.InKillMove || actor.InPairClip);
+            if (actor.Copy)
+                World::Get().GetGraphStreams().SeeGraph(cId, GraphIdentity(actor));
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
