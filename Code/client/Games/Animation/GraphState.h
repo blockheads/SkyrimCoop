@@ -40,6 +40,13 @@ struct Node
     std::string Runtime;              // its plain members' bytes: BS nodes' runtime ones, and what other nodes write
 };
 
+// BSCyclicBlendTransitionGenerator's mode (+0xA8): cross-blending (2) or asked to (3), it runs a transition effect
+// between two blenders its event handler linked (63133): pointers, which no point carries. A point waits it out.
+[[nodiscard]] constexpr bool CarriesCyclicMode(uint8_t aMode) noexcept
+{
+    return aMode != 2 && aMode != 3;
+}
+
 [[nodiscard]] uint32_t Check(std::string_view aClass, std::string_view aName) noexcept;
 [[nodiscard]] std::string Encode(const std::vector<Node>& acNodes);
 [[nodiscard]] bool Decode(std::string_view aBytes, std::vector<Node>& aNodes);

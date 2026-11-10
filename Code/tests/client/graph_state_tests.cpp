@@ -59,3 +59,12 @@ TEST_CASE("A node's check tells another class or name apart; a cut graph state i
     CHECK_FALSE(Decode(bytes, decoded));
     CHECK_FALSE(Decode(std::string("\xff\xff\xff\xff\x0f", 5), decoded)); // a count past the cap
 }
+
+TEST_CASE("No sync point carries a cyclic blend generator's cross-blend", "[graph-state]")
+{
+    // 63132's modes: following and frozen are plain members; a cross-blend (2, or 3 asked) runs on linked blenders.
+    CHECK(GraphState::CarriesCyclicMode(0));
+    CHECK(GraphState::CarriesCyclicMode(1));
+    CHECK_FALSE(GraphState::CarriesCyclicMode(2));
+    CHECK_FALSE(GraphState::CarriesCyclicMode(3));
+}

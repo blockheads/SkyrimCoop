@@ -737,6 +737,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;
     // A sync point's: the whole graph, its generators' choices too (Havok's internal state, not Skyrim's save).
     [[nodiscard]] std::string SaveGraphInternalState(uint32_t aFormId) const;
+    // Graphs restored from a point taken in a cross-blend: Skyrim crashes at their next update (59960, null blenders).
+    uint32_t RestoredMidCrossBlend = 0;
     bool LoadGraphInternalState(uint32_t aFormId, const std::string& acState);
     bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
@@ -1024,6 +1026,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     int32_t StealthEye();
     [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
     void DetectionPass(); // DoDetectionJob 42742: each queued request answered
+    // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
+    // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
+    void ProcessTracking();
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).

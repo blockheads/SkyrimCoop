@@ -76,8 +76,11 @@ graph) and the host passes a guest's ops and sync points on by owner. Fixed on t
 state after it), a rider's copy stuck getting on, then stuck riding (a copy gets off by its clip's own exit event:
 it stays off its stream until its sit state leaves wants-to-stand). `teleport-keeps-copies` failed on a stale
 reading, not a graph: a player's copy is culled like any actor, and the observer now skips its pose while it is not
-drawn (`docs/re/systems/culled-npc-pose-readings.md`). Open: one unexplained guest crash in about 150 runs, and a
-rider's copy left "deferred kill" (`docs/design/graph-input-stream.md`, Players).
+drawn (`docs/re/systems/culled-npc-pose-readings.md`). The guest crash is explained and fixed: a sync point taken
+while a walk's direction blend cross-blended put a copy's generator in that mode with no blenders; an owner now takes
+no point until the cross-blend ends. `guest-rides-host-horse`'s head-tracking failure was not the stream's: the
+engine drops a look at this game's player its tracker does not detect, and a player's copy detects nobody; a copy's
+tracking no longer asks. Open: a rider's copy left "deferred kill" (`docs/design/graph-input-stream.md`, Players).
 
 2026-11-10: the graph input stream's phase 3. A streamed owner's movement carries no graph variables and its copy's
 graph loads none; graph points and every-N counters (`GraphRandom`) are removed, with the branch's interim fixes

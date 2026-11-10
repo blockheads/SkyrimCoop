@@ -231,6 +231,15 @@ static_assert(offsetof(hkbClipGenerator, animationControl) == 0x88);
 static_assert(offsetof(hkbClipGenerator, localTime) == 0xF0);
 static_assert(offsetof(hkbClipGenerator, atEnd) == 0x104);
 
+// A walk's direction blend (CommonLib BSCyclicBlendTransitionGenerator): 0 following, 1 frozen, 2 cross-blending,
+// 3 cross-blend asked (its update 63132, its events 63133).
+struct BSCyclicBlendTransitionGenerator : hkbNode
+{
+    uint8_t pad48[0xA8 - 0x48];
+    uint8_t currentMode; // A8
+};
+static_assert(offsetof(BSCyclicBlendTransitionGenerator, currentMode) == 0xA8);
+
 // One active node of a behaviour graph (CommonLib hkbNodeInfo): its sync info first (0x50, hkbGeneratorSyncInfo).
 struct hkbNodeInfo
 {

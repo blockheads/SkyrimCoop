@@ -1,3 +1,4 @@
+#include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
@@ -182,6 +183,13 @@ bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
         GraphEntry(aActor, "event " + acEvent);
         return true;
     }
+    else if (pBlend && !pBlend->CrossBlendOn.empty() && pBlend->CrossBlendOn == acEvent && aActor.Graph.FrozenParameter)
+    {
+        aActor.Graph.FrozenParameter.reset();
+        aActor.Graph.CrossBlendLeftMs = pBlend->CrossBlendMs;
+        GraphEntry(aActor, "event " + acEvent);
+        return true;
+    }
     const auto it = GraphTransitions.find({aActor.GraphState, acEvent});
     if (it == GraphTransitions.end())
         return false;
@@ -233,6 +241,7 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         StepLoop(aActor);
     auto& graph = aActor.Graph;
     graph.Timeline += aStepMs;
+    graph.CrossBlendLeftMs = std::max(0.0, graph.CrossBlendLeftMs - aStepMs);
     graph.Updated = true;
     graph.LastStepMs = aStepMs;
     auto& floats = aActor.GraphVariables.Floats;
@@ -265,6 +274,7 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         graph.Child.clear();
         graph.PendingChild.clear();
         graph.FrozenParameter.reset();
+        graph.CrossBlendLeftMs = 0.0;
     }
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
@@ -603,6 +613,7 @@ void FakeEngine::Frame()
     }
     ++DetectionFrame;
     StealthEye();
+    ProcessTracking();
     DetectionPass();
     RunQueued();
 }
@@ -1448,12 +1459,18 @@ std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
-    GraphState::Node machine{.Id = 0, .State = SaveActorGraphState(aFormId)};
     const auto& cGraph = it->second.Graph;
+    // GraphInternalState::Take: no point while a cyclic generator cross-blends (mode 2), frozen (1) or following (0).
+    const uint8_t cCyclicMode = cGraph.CrossBlendLeftMs > 0.0 ? 2 : cGraph.FrozenParameter ? 1 : 0;
+    if (!GraphState::CarriesCyclicMode(cCyclicMode))
+        return {};
+    GraphState::Node machine{.Id = 0, .State = SaveActorGraphState(aFormId)};
     GraphState::Node blend{.Id = 1, .State = cGraph.BlendState + '\n' + cGraph.Child + '\n' + cGraph.PendingChild};
     GraphState::Node damp{.Id = 2, .State = std::to_string(std::bit_cast<uint32_t>(it->second.Graph.Damped))};
     // The blend node's plain members, beside its internal state (GraphInternalState's members).
-    if (cGraph.FrozenParameter)
+    if (cCyclicMode == 2)
+        blend.Runtime = "x"; // its mode, a plain member; its effect's blenders are not
+    else if (cGraph.FrozenParameter)
         blend.Runtime = std::to_string(*cGraph.FrozenParameter);
     // A clip's local time and its every-N counter: internal state, which the plain graph state leaves out.
     GraphState::Node loop{.Id = 3, .State = std::format("{} {} {}", it->second.LoopFrames, it->second.LoopsSeen, it->second.LoopsToSend)};
@@ -1481,7 +1498,11 @@ bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acS
     graph.Child = cBreak == std::string::npos ? std::string{} : cBlend.substr(cBreak + 1, cSecond == std::string::npos ? std::string::npos : cSecond - cBreak - 1);
     graph.PendingChild = cSecond == std::string::npos ? std::string{} : cBlend.substr(cSecond + 1);
     graph.ActiveNodesChanged = false; // not node state: Havok's restore walk clears it
-    graph.FrozenParameter = nodes[1].Runtime.empty() ? std::nullopt : std::optional<uint32_t>(uint32_t(std::stoul(nodes[1].Runtime)));
+    // Mode 2 on a new clone: its effect has no blenders, and the next active-node walk reads them (63140, 59960).
+    const bool cCrossBlending = nodes[1].Runtime == "x";
+    RestoredMidCrossBlend += cCrossBlending;
+    graph.CrossBlendLeftMs = 0.0;
+    graph.FrozenParameter = nodes[1].Runtime.empty() || cCrossBlending ? std::nullopt : std::optional<uint32_t>(uint32_t(std::stoul(nodes[1].Runtime)));
     graph.Damped = std::bit_cast<float>(uint32_t(std::stoul(*nodes[2].State)));
     if (Graph && !graph.History.empty() && graph.History.back().Input == "load")
     {
@@ -2533,6 +2554,25 @@ int32_t FakeEngine::StealthEye()
             if (const auto* cpState = FreshState(cId))
                 highest = std::max(highest, cpState->Level);
     return highest;
+}
+
+void FakeEngine::ProcessTracking()
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (cId == kPlayer || !actor.Loaded || actor.Dead || actor.KnockedDown)
+            continue;
+        auto& slots = actor.Ai.HeadTrackIds;
+        const auto cTargets = HeadTrackRead::Targets(slots, cId);
+        if (cTargets.empty() || cTargets[0] != kPlayer || !slots[0] || !DetectionRules::HeadTrackAsksDetection(actor.Copy))
+            continue;
+        if (const auto* cpState = FreshState(cId); cpState && cpState->Level <= 0)
+        {
+            slots[0] = 0;
+            if (!actor.Copy)
+                World::Get().GetRunner().Trigger(AiStateChangeEvent{cId});
+        }
+    }
 }
 
 void FakeEngine::DetectionPass()

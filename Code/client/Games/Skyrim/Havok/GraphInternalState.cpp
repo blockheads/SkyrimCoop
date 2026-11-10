@@ -348,7 +348,17 @@ std::string Take(const BShkbAnimationGraph& acGraph)
     std::unordered_map<uint16_t, const hkbNode*> active;
     for (int32_t i = 0; i < pGraph->activeNodes->size; ++i)
         if (const hkbNode* pClone = pGraph->activeNodes->data[i].nodeClone)
+        {
+            // A cross-blend's effect and second blender are no point's to carry: none until it ends.
+            if (ClassName(*pClone) == "BSCyclicBlendTransitionGenerator" &&
+                !GraphState::CarriesCyclicMode(static_cast<const BSCyclicBlendTransitionGenerator*>(pClone)->currentMode))
+            {
+                spdlog::debug("Graph stream: {:X}'s sync point waits for {}'s cross-blend", acGraph.holder ? acGraph.holder->formID : 0,
+                              pClone->name ? Text(pClone->name) : "");
+                return {};
+            }
             active.emplace(pClone->id, pClone);
+        }
 
     using TGetState = void(void*, hkbBehaviorGraphInternalState*);
     POINTER_SKYRIMSE(TGetState, s_getInternalState, 58372);

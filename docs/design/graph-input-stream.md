@@ -158,11 +158,28 @@ host, and a culled skeleton keeps its last drawn pose, here the bottom of a land
 (`docs/re/systems/culled-npc-pose-readings.md`). Nothing re-activates a graph in place on a teleport: 58328's callers
 are a new graph (32893) and a save load (32883 from `TES` 13381), read in IDA.
 
+**A guest crash, explained (2026-11-10):** 59960+0x95 under 59327 under 60079, in a copy's first replayed update
+after its sync point (seen twice in about 160 runs, both as a guest arrived in Riverwood; the second on Faendal's
+copy). Read in IDA:
+
+```
+BSCyclicBlendTransitionGenerator (a walk's direction blend), mode at +0xA8
+  0 following, 1 frozen: plain members, carried by a point
+  cross-blend event (63133): its effect (+0xA0) gets its two blenders (+0x50, +0x90), mode 3, then 2
+  mode 2: the active-node walk asks its sync through the effect (63140 -> 59960), which reads both blenders unchecked
+copy: activate (63130) makes a new effect with no blenders; the point's plain members then wrote mode 2 onto it
+  -> next walk: 59960 reads a null blender
+```
+
+A point cannot carry a cross-blend: its second blender is a clone with the first's node id, and its effect is no
+active node. So an owner takes no point while one of its cyclic generators is in mode 2 or 3
+(`GraphState::CarriesCyclicMode`, `GraphInternalState::Take`); the point is wanted again at its next update, a
+fraction of a second later. GameTests "A copy asking while its owner's walk blend cross-blends gets its point after
+the blend" (the fake's `Blend::CrossBlendOn`), ClientTests `[graph-state]`. The wait never showed in about 70 duo runs
+after the fix, so Skyrim's proof is the code read and the two stacks, not a rerun.
+
 **Open (duo, 2026-11-10):**
 
-- **One guest crash** in about 60 runs: the guest's own player's graph update, 59960+0x95 under 59327 under 60079, a
-  `hkbBlendingTransitionEffect` active with no from or to generator, as it arrived in Riverwood. Not reproduced, not
-  explained; none in 18 runs with players off the stream, none in about 90 runs since.
 - **A copy stays "deferred kill" after a ride** (`state.deferred_kill` true on the host's copy of a rider, false on
   its owner): 37462 starts one with `GETTING_ON_OFF_MOUNT`; what ends the copy's is not read.
 

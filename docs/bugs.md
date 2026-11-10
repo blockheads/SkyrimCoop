@@ -50,6 +50,7 @@ other section needs the duo.
 - [End comparisons in towns](#end-comparisons-in-towns): medium
 - [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
 - [Crossed kill moves: a short winner's blow lands first](#crossed-kill-moves-a-short-winners-blow-lands-first): small
+- [After crossed kill moves the guest's own body floats](#after-crossed-kill-moves-the-guests-own-body-floats): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
@@ -395,6 +396,25 @@ Size: small. Needs: duo, then GameTests (`friendly_fire_flows.cpp`, the crossing
 - The stops are resent for 30 of the copy's updates while the player's `IsInKillMove` or `bIsSynced` holds
   (`AnimationSystem::Update`, `ReplayState::ResendPairStop`): 500 ms, longer than the short move's 384 ms to its hit.
   Not read: which of the two still held after `KillMoveEnd`.
+
+### After crossed kill moves the guest's own body floats
+
+After `kill-moves-cross`, the guest's own third-person skeleton stands about 2,100 units above its feet wherever it
+next arrives, sinking about 20 units a second; its root and its copy on the host are right. In first person the guest
+does not see it (its shadow may show it). Every scenario after it that compares the guest's body then fails:
+`host-rides-horse` 14 runs of 14, "skeleton lifted off its feet (pelvis 2123 above them)".
+
+Agent task: find what the crossed kill moves leave on the guest's player that lifts its pelvis and head (the yielded
+pair's end, or its foot IK), starting with which bone above the root carries the offset.
+
+Size: small. Needs: IDA, the duo, then GameTests.
+
+- **Measured** (2026-11-10): from a fresh duo, `kill-moves-cross` then a trip to Riverwood: `pose.pelvis` 2138 on the
+  guest's own player (72 standing), `pose.root` 0.5; the host's own player 72. Dev's plugin (`build/devdll`, 2026-11-09)
+  the same: 2172, then 2120 after `sneak-client-player`. So it is not the graph input stream's.
+- In the cell the scenarios start from it reads low instead (21-40), and it lasts through a cog swap.
+- None of `host-kill-move`, `client-kill-move`, `teleport-keeps-copies`, `copy-jumps-with-owner`, `sneak-*`,
+  `dialogue-copy-looks-at-speaker` or the rides leaves it (one run each from a fresh duo).
 
 ### Doors the host's NPCs unlock
 

@@ -841,6 +841,44 @@ TEST_CASE("A copy starting while its owner's walk blend is frozen keeps the froz
     CHECK(wolf.Difference() == "");
 }
 
+TEST_CASE("A copy asking while its owner's walk blend cross-blends gets its point after the blend", "[animation][replay-start]")
+{
+    // Skyrim (duo, guest-rides-host-horse, 2026-11-10): a guest crashed at 59960+0x95 in a copy's first update after
+    // its sync point. Its owner's BSCyclicBlendTransitionGenerator was cross-blending (mode 2): the point carried the
+    // mode, a plain member, onto a clone whose effect had no blenders (63133 links them). No point in a cross-blend.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->Graph->Blends = {{.State = "Walk", .ChooseFrom = 2, .Children = {"Forward", "Right"}, .Generated = true,
+                                  .FreezeOn = "freezeBlend", .CrossBlendOn = "crossBlend", .CrossBlendMs = 1500.0}};
+        engine->GraphTransitions[{"Standing", "moveStart"}] = "Walk";
+        engine->GraphTransitions[{"Walk", "freezeBlend"}] = "Walk"; // in its event table
+        engine->GraphTransitions[{"Walk", "crossBlend"}] = "Walk";
+    }
+    const auto cPerform = [&](uint32_t aActionId, const char* apEvent) {
+        ActionEvent action;
+        action.ActionId = aActionId;
+        action.EventName = apEvent;
+        wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, action)); });
+    };
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    cPerform(0x13030, "moveStart");
+    wolf.party.Until([&] { return cCopy.Graph.Child == "Forward"; }, "the copy walks forward with its owner");
+    cPerform(0x13031, "freezeBlend");
+    wolf.party.Until([&] { return cCopy.Graph.FrozenParameter.has_value(); }, "the copy froze with its owner");
+    cPerform(0x13032, "crossBlend");
+    REQUIRE(cOwner.Graph.CrossBlendLeftMs > 0.0);
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.party.Guest().GetGraphStreams().Forget(wolf.copy); });
+    wolf.party.Until([&] { return SyncPoints(cCopy) >= 2 && wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy); },
+                     "the copy starts again from a point");
+    CHECK(wolf.guest.RestoredMidCrossBlend == 0);
+    CHECK(cOwner.Graph.CrossBlendLeftMs == 0.0);
+    const double cFrom = cCopy.Graph.Timeline;
+    wolf.party.Until([&] { return cCopy.Graph.Timeline > cFrom + 50.0; }, "the copy replays 50 ms of its owner's stream from there");
+    CHECK(wolf.Difference() == "");
+}
+
 TEST_CASE("A streamed copy knocked down with its owner gets up with it", "[animation][replay-start][knock]")
 {
     // Skyrim (duo, knockdown-lies-as-host, 2026-11-09): "got up: owner 1.54 s, copy never". A copy stands up only by
