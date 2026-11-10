@@ -1661,7 +1661,7 @@ bool SendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) 
     return apGraph && SendEvent.Get()(apGraph, &acEvent);
 }
 
-std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter) noexcept
+std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph) noexcept
 {
     std::vector<GraphMachine> machines;
     Actor* pActor = GetActor(aFormId);
@@ -1670,8 +1670,7 @@ std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& 
         return machines;
     {
         BSScopedLock<BSRecursiveLock> _{pManager->lock};
-        if (pManager->animationGraphIndex < pManager->animationGraphs.size)
-            if (const BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(pManager->animationGraphIndex))
+        if (const BShkbAnimationGraph* pGraph = pManager->GetGraph(aGraph))
                 CollectMachines(reinterpret_cast<const hkbBehaviorGraphNode*>(pGraph->behaviorGraph), acFilter, machines, 0);
     }
     pManager->Release();

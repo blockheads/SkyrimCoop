@@ -488,6 +488,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool PairedWithCopy = false;
         uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
+        uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
+        uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
         uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
@@ -699,8 +701,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // 39004's integer writes by event: run by PerformAction (38949, not for a query) and ForceAction (38953)
     // whether or not the graph takes the event (TurnStop: iSyncTurnState 1). {variable, value}.
     std::map<std::string, std::pair<size_t, int32_t>> ActionWrites;
+    // An action that sets (true) or clears a bit of its actor's state as the engine takes it (ActionSneak toggles
+    // ActorState1::sneaking), on an owner and on a copy replaying it.
+    std::map<std::string, std::pair<uint32_t, bool>> ActionStates;
     void ApplyActionWrites(uint32_t aFormId, const std::string& acEvent);
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
+    // Exit actions (HorseExit) and their clips' length in frames: the actor wants to stand (sit state 4) from the
+    // action until its own clip's exit event (ChairFurnitureExitHandler 42835), which unlinks it from its mount. A
+    // sync point loaded into a copy's graph before then ends the clip without the event.
+    std::map<std::string, uint32_t> ExitClips;
+    static constexpr uint32_t kSitShift = 14;
+    [[nodiscard]] uint8_t SitState(uint32_t aFormId) const { return Actors.at(aFormId).State1 >> kSitShift & 0xF; }
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
     std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent);

@@ -533,10 +533,11 @@ def compare_actors(worlds):
                 problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):
-                # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
+                # A culled actor's NiNode bones are its last drawn pose, not its current graph's
                 # output (native camera control: head88 ->124, same JumpLand). Never use that
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
-                if field.startswith("pose.") and not owned["player"] and not all(map(drawn, (owned, copy))):
+                # A player's own game reads its body as it stands; its copy is culled like any actor.
+                if field.startswith("pose.") and not (drawn(copy) and (owned["player"] or drawn(owned))):
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:

@@ -17,6 +17,9 @@ struct ActionEvent
     uint32_t IdleId{0};
     uint32_t State1{0};
     uint32_t State2{0};
+    // Its actor state once the action was taken (sneaking is toggled by it): what a copy on its stream takes.
+    uint32_t StateAfter1{0};
+    uint32_t StateAfter2{0};
     uint32_t Type{0};
     std::string EventName{};
     std::string TargetEventName{};

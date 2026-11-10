@@ -157,11 +157,19 @@ std::string ClipTimes(const hkbBehaviorGraphNode* apGraph)
 
 // What must match: its machines' states (inactive clones too: one resumes its state when its parent activates it
 // again) and its clips. Variables can differ where a node reads the world (foot IK, look-at).
+// Not a player's first-person graph: it runs under the same holder, on no stream (GraphStreamHooks).
+bool Streamed(const BShkbAnimationGraph& acGraph)
+{
+    return acGraph.holder->formID != 0x14 || acGraph.holder->GraphKey(0) == &acGraph;
+}
+
 std::string States(const BShkbAnimationGraph& acGraph)
 {
     std::vector<std::string> lines;
     ActiveClips(reinterpret_cast<const hkbBehaviorGraphNode*>(acGraph.behaviorGraph), lines);
-    for (const auto& cMachine : TestHarness::EngineCalls::GetGraphMachines(acGraph.holder ? acGraph.holder->formID : 0, ""))
+    // A player's third-person graph (its manager's first), whichever it shows: the one its copies have.
+    const uint32_t cHolder = acGraph.holder ? acGraph.holder->formID : 0;
+    for (const auto& cMachine : TestHarness::EngineCalls::GetGraphMachines(cHolder, "", cHolder == 0x14 ? 0 : -1))
         lines.push_back(cMachine.Behaviour + "/" + cMachine.Name + "=" + cMachine.State + (cMachine.Active ? "" : " (inactive)"));
     std::ranges::sort(lines);
     std::string states;
@@ -175,7 +183,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
 {
     auto before = apGraph && apGraph->behaviorGraph ? GraphWords(*apGraph) : std::vector<uint32_t>{};
     const char cResult = RealUpdate(apGraph, apData, apScratch);
-    if (!apGraph || !apGraph->holder || !apGraph->behaviorGraph)
+    if (!apGraph || !apGraph->holder || !apGraph->behaviorGraph || !Streamed(*apGraph))
         return cResult;
     const uint32_t cFormId = apGraph->holder->formID;
     // Lock-free readouts only: a copy's replay holds its stream's lock around this call.
@@ -230,7 +238,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
 bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
     const bool cTaken = RealSendEvent(apGraph, apEvent);
-    if (!apGraph || !apGraph->holder || !apEvent || !apEvent->data)
+    if (!apGraph || !apGraph->holder || !apEvent || !apEvent->data || !Streamed(*apGraph))
         return cTaken;
     const uint32_t cFormId = apGraph->holder->formID;
     if (!World::Get().GetGraphStreams().UpdateIndex(cFormId))

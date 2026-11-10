@@ -119,6 +119,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             }
             actions.pop_front();
             TargetFromNetwork(action);
+            // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
+            // weapon transition kept as a replayed action keeps them.
+            apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);
+            apActor->actorState.flags2 = ReplayState::Flags2(action.StateAfter2, apActor->actorState.flags2);
             aAnimationComponent.LastRanAction = action;
             apActor->GetExtension()->LatestAnimation.Write(action);
         }
@@ -171,6 +175,11 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.Phase.store(PlayReplayedAction(apActor, step) ? ReplayStep::kTaken : ReplayStep::kRefused, std::memory_order_release);
         return;
     }
+
+    // Held for its owner's pair: once that action has played here, it may ask for its sync point.
+    if (streams.Held(apActor->formID) &&
+        std::ranges::none_of(actions, [&](const ActionEvent& acAction) { return !acAction.TargetEventName.empty() && acAction.Tick <= aTick; }))
+        streams.PairPlayed(apActor->formID);
 
     const auto it = std::begin(actions);
     if (it != std::end(actions) && it->Tick <= aTick)
@@ -296,7 +305,7 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     // Historical action flags keep the copy's current ragdoll and weapon transition.
     const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
-    apActor->actorState.flags1 = (cAction.State1 & ~ActorState::kKnockMask) | (cPreviousFlags1 & ActorState::kKnockMask);
+    apActor->actorState.flags1 = ReplayState::Flags1(cAction.State1, cPreviousFlags1);
     apActor->actorState.flags2 = ReplayState::Flags2(cAction.State2, cPreviousFlags2);
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);

@@ -70,6 +70,15 @@ short of goodbyes. A joining menu keeping its own highlight (code review) did no
 after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
 entry is gone, the scenario and GameTests flow guard it.
 
+2026-11-10: the graph input stream's phase 4, players' copies. Each game records its own player (its third-person
+graph) and the host passes a guest's ops and sync points on by owner. Fixed on the way: a kill move replayed whole
+(an owner stays off its stream to the end of its pair's clip), sneaking never shown (an action carries its owner's
+state after it), a rider's copy stuck getting on, then stuck riding (a copy gets off by its clip's own exit event:
+it stays off its stream until its sit state leaves wants-to-stand). `teleport-keeps-copies` failed on a stale
+reading, not a graph: a player's copy is culled like any actor, and the observer now skips its pose while it is not
+drawn (`docs/re/systems/culled-npc-pose-readings.md`). Open: one unexplained guest crash in about 150 runs, and a
+rider's copy left "deferred kill" (`docs/design/graph-input-stream.md`, Players).
+
 2026-11-10: the graph input stream's phase 3. A streamed owner's movement carries no graph variables and its copy's
 graph loads none; graph points and every-N counters (`GraphRandom`) are removed, with the branch's interim fixes
 (refused actions' variables, actions spaced on the copy's graph time): a copy off a stream plays actions at playback

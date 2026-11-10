@@ -170,6 +170,10 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   ragdolled copy's body settles when its 3D loads after its spawn placed it.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
+- **A guest joining again does not wear what it wore** (`guest-swaps-armor-after-join`, 2026-11-10): `[client] the guest
+  wears iron armor again` times out, on dev's plugin 3 runs in 4 and on the graph input stream's 2 in 3 and 2 in 4
+  (with and without players on the stream). The first run of a session passes more often than the next ones. Not
+  read.
 
 ### A copy's interaction idle
 

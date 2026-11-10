@@ -86,6 +86,8 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 
         action.EventName = apAction->eventName.AsAscii();
         action.TargetEventName = apAction->targetEventName.AsAscii();
+        action.StateAfter1 = pActor->actorState.flags1;
+        action.StateAfter2 = pActor->actorState.flags2;
         action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
 
         // A refused action is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the hands were

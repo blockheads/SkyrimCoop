@@ -190,6 +190,16 @@ const void* TESObjectREFR::GraphManagerKey() const noexcept
     return pKey;
 }
 
+const void* TESObjectREFR::GraphKey(int aIndex) const noexcept
+{
+    const void* pKey = nullptr;
+    WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
+        pKey = apManager->GetGraph(aIndex);
+        return true;
+    });
+    return pKey;
+}
+
 bool TESObjectREFR::LoadGraphs(const std::string& acGraphs) const noexcept
 {
     return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });

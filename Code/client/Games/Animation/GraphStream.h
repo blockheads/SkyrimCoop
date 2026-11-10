@@ -135,7 +135,7 @@ struct GraphReplayer
 // Every actor's stream on one game: the owner's recorders (written on the graphs' threads), the copies' replayers.
 struct GraphStreams
 {
-    // Owner: CharacterService records the NPCs this game owns (players: phase 4).
+    // Owner: CharacterService records the actors this game owns, its player included.
     void Record(uint32_t aFormId, uint32_t aActorId);
     void Forget(uint32_t aFormId); // no longer owned, or no longer a copy
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
@@ -156,7 +156,8 @@ struct GraphStreams
     // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
     // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.
     [[nodiscard]] bool PointWanted(uint32_t aFormId, const void* apGraph = nullptr);
-    // Its Id and Update filled in; its ClipSets are the caller's: what its process holds.
+    // Its Id and Update filled in; its ClipSets are the caller's: what its process holds. With no state (a graph
+    // being rebuilt) none is made, and it is wanted again.
     void AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint);
     void WantPoint(uint32_t aFormId);
     [[nodiscard]] std::optional<GraphOps> TakeOps();
@@ -184,8 +185,10 @@ struct GraphStreams
     bool HoldWhile(uint32_t aFormId, bool aOwnBody);
     [[nodiscard]] bool Held(uint32_t aFormId) const;
     // Its owner's pair began (its half's action, at aTick): off its stream, on its owner's actions, until a sync
-    // point from after it.
+    // point from after it. It asks for that point once it has played the action (PairPlayed) and its own body is
+    // out of it (HoldWhile's aOwnBody false: its kill move over, on or off its mount).
     void HoldUntilPoint(uint32_t aFormId, uint64_t aTick);
+    void PairPlayed(uint32_t aFormId);
     // True once while it waits for a sync point: ask its owner for one.
     [[nodiscard]] bool ShouldAsk(uint32_t aFormId);
     void SetPlayback(uint32_t aFormId, uint64_t aTick);
@@ -219,6 +222,8 @@ struct GraphStreams
         std::atomic<bool> Held{false}; // in a pair on this game: off its stream
         const void* WrongGraph = nullptr; // a graph of another project than its owner's: no point fits it
         uint64_t PointAfter = 0; // held for its owner's pair: until a point newer than this tick
+        bool PairPending = false; // that pair's action not played here yet
+        bool OwnBody = false;     // its body still in a pair, a kill move, getting on or off a mount
     };
     [[nodiscard]] std::shared_ptr<Owned> FindOwned(uint32_t aFormId) const;
     [[nodiscard]] std::shared_ptr<Copied> FindCopied(uint32_t aFormId, bool aCreate = false);

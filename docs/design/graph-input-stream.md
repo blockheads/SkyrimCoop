@@ -119,6 +119,53 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
   for a sync point once it stands. A death ends the stream (`AnimationSystem`).
 
+## Players (phase 4, 2026-11-10)
+
+Each game records its own player as it does its NPCs, and the host passes a guest's ops and sync points on by the
+actor's owner (`HostAuthority::OnGraphOps`, the `FromOwner` and `ToOwner` relays): nothing in the messages is the
+host's alone.
+
+- **Only the third-person graph.** A player's manager holds two graphs under one holder, third person at index 0 and
+  first person at 1; 63587 and 63591 run for both (63362 sends an event to every graph). A copy is a third-person
+  actor with one graph, so the hooks take the player's index 0 alone (`CopiesHave`).
+- **A streamed copy takes its owner's actor state with each action** (`ReplayState::Flags1` / `Flags2`): on its stream
+  an action is its record, and sneaking is the actor's state, not its graph's (`sneak-host-player` failed without it).
+- **A kill move keeps its owner off the stream to its end.** The pair's instance ends at the victim's `PairEnd`, the
+  attacker's kill move 1.3 s later (`host-kill-move`: 1820 against 3112 ms). A sync point taken between them is inside
+  the attacker's synchronized clip, which a copy starts over: the whole move played twice. An owner is on its own
+  body while in an instance, in a kill move, or still in the pair's clip (`OwnBody`, `GraphStreamHooks.cpp`).
+- **The live check** (`graph_stream_check`) compares both ways now: the host's actors against the guest's copies and
+  the guest's player against the host's copy, a player by its third-person graph.
+- **A copy held for its owner's pair** asks for its sync point only once it has played that action
+  (`GraphStreams::PairPlayed`) and its own body is out of it (`ReplayState::CopyOwnBody`): a point loaded before then
+  cuts the copy's own clip short.
+  - Its kill move over.
+  - Getting on: `GETTING_ON_OFF_MOUNT` cleared by `MountDismountEndHandler` (42881); a rider's copy stayed "getting
+    on" for good.
+  - Getting off: its sit state out of wants-to-stand. A copy gets off by its owner's `HorseExit` action alone: no
+    `Actor::Dismount` (37906) sets the flag on it, and only its clip's own exit event (`ChairFurnitureExitHandler`
+    42835) unlinks it from the horse. Its owner's sync point came 2.4 s after the action, the copy's clip not over:
+    back on its stream it rode on for good (`host-rides-horse`, `guest-rides-host-horse`: the step timed out in 5
+    runs of 6 before, in none of about 70 after).
+- **A request met by a graph with no state** (being rebuilt after a teleport) is kept for the owner's next update
+  (`GraphStreams::AddPoint`); it was spent.
+- **Only actors' graphs.** Furniture and weapons hold graphs too (a forge's ran through the hooks): `CopiesHave`
+  takes a holder that is an `Actor` alone, before anything reads actor fields off it.
+
+**Not the stream's (2026-11-10):** `teleport-keeps-copies` failed on a "crouched" copy of the guest's player. Its
+graph was its owner's all along (the live check: 524 updates equal through a failing run); the copy was culled on the
+host, and a culled skeleton keeps its last drawn pose, here the bottom of a landing
+(`docs/re/systems/culled-npc-pose-readings.md`). Nothing re-activates a graph in place on a teleport: 58328's callers
+are a new graph (32893) and a save load (32883 from `TES` 13381), read in IDA.
+
+**Open (duo, 2026-11-10):**
+
+- **One guest crash** in about 60 runs: the guest's own player's graph update, 59960+0x95 under 59327 under 60079, a
+  `hkbBlendingTransitionEffect` active with no from or to generator, as it arrived in Riverwood. Not reproduced, not
+  explained; none in 18 runs with players off the stream, none in about 90 runs since.
+- **A copy stays "deferred kill" after a ride** (`state.deferred_kill` true on the host's copy of a rider, false on
+  its owner): 37462 starts one with `GETTING_ON_OFF_MOUNT`; what ends the copy's is not read.
+
 ## What went away with the stream (phase 3, 2026-11-09)
 
 - **Movement's graph variables:** a streamed owner (recorded, not in a pair: `GraphStreams::Streaming`) sends none
@@ -129,7 +176,7 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 - **The branch's interim fixes:** refused actions' variables-only sends (`kVariablesOnly`) and action spacing
   (`ActionDue`): removed.
 
-What stays, for copies off a stream (players' copies until phase 4; a copy before its first sync point, knocked down,
+What stays, for copies off a stream (a copy before its first sync point, knocked down,
 in a pair, dying): action replay into the graph (`ReplayStep`, `PlayReplayedAction`, `ReplayGraph::Recover`) with the
 action's variables, seed and graph state. A paused owner (in a pair) sends its graph variables with its movement
 again. Actions still go to the host for its rules (hits, kills, AI state) and to a streamed copy as bookkeeping
@@ -182,7 +229,7 @@ hooks (step 4) and the fake engine call the same entry points on `World::GetGrap
 that ships.
 
 ```
-owner game, an owned NPC's graph (CharacterService records it each send round; players: phase 4)
+owner game, an owned actor's graph (CharacterService records it each send round, its player's too)
   63591 hook | FakeEngine::ReplayAnimation   OnEvent(formId, tick, eventId, words, seed)   before it's handled
   63587 hook | FakeEngine::UpdateGraph       OnUpdate(formId, tick, step, words, seed)      channels applied
                                              OnUpdated(formId, words) -> true: a copy wants a sync point
@@ -354,7 +401,8 @@ What it found on the duo (2026-11-09), in order:
       soon after their sync point (Skyrim on the stream, below), which is phase 2.
 2. **The whole graph** in sync points (Havok's internal state).
 3. **Remove the old paths** for copies on the stream; movement drops graph variables: done (above).
-4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded).
+4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded): in progress, not
+   shippable yet (Players, above: Open).
 
 ## Open questions
 
@@ -365,4 +413,3 @@ What it found on the duo (2026-11-09), in order:
 - **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs of the proof, Faendal's copy entered
   `FurnitureState` with `AOWoodPutDown` lacking its file and left it at once. The production replayer holds an event
   for its files (below); whether that covers this event is for the live check to show.
-- Players: whether a player's graph has inputs the stream misses (camera-driven variables, first-person).

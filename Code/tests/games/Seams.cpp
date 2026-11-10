@@ -241,6 +241,7 @@ void World::Update() noexcept
                     break;
                 }
                 animation.TimePoints.pop_front();
+                actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);
             }
@@ -297,6 +298,11 @@ void World::Update() noexcept
             }
             continue;
         }
+        // As AnimationSystem: held for its owner's pair, it may ask once that action has played.
+        if (streams.Held(form.Id) && std::ranges::none_of(animation.TimePoints, [&](const ActionEvent& acAction) {
+                return !acAction.TargetEventName.empty() && acAction.Tick <= cPlayback;
+            }))
+            streams.PairPlayed(form.Id);
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
         if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
@@ -358,8 +364,7 @@ void World::Update() noexcept
     }
     // The same graph-job phase machine as Skyrim, with the fake's graph behind it.
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
-        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity) &&
-            !GetGraphStreams().OnStream(form.Id))
+        if (engine.IsAnimationGraphReady(form.Id) && engine.Actors.at(form.Id).GraphUpdating && !all_of<WaitingFor3D>(cEntity))
         {
             auto& step = engine.Actors.at(form.Id).Replay;
             RunAnimationReplayStep(step, [&](const AnimationVariables& acVariables) {

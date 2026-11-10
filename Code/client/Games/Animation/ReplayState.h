@@ -7,9 +7,27 @@ namespace ReplayState
 {
 constexpr uint32_t kWeaponMask = 7u << 5;
 
+constexpr uint32_t kKnockMask = 7u << 25;
+
+// A copy's actor state with its owner's action (sneaking, sitting, life state): its owner's, its own ragdoll kept.
+constexpr uint32_t Flags1(uint32_t aOwner, uint32_t aCopy) noexcept
+{
+    return (aOwner & ~kKnockMask) | (aCopy & kKnockMask);
+}
+
 constexpr uint32_t Flags2(uint32_t aOwner, uint32_t aCopy) noexcept
 {
     return (aOwner & ~kWeaponMask) | (aCopy & kWeaponMask);
+}
+
+// ActorState1::sitSleepState's wants-to-stand: from an exit action until its clip's own exit event (42835).
+constexpr uint8_t kSitWantsToStand = 4;
+
+// A copy on its own body, off its owner's stream: knocked down, in a pair's instance or a kill move, getting on its
+// mount (GETTING_ON_OFF_MOUNT, to 42881) or off it (no Actor::Dismount sets that on a copy: its sit state).
+constexpr bool CopyOwnBody(bool aKnocked, bool aInPair, bool aInKillMove, bool aGettingOnOff, uint8_t aSitState) noexcept
+{
+    return aKnocked || aInPair || aInKillMove || aGettingOnOff || aSitState == kSitWantsToStand;
 }
 
 // A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.

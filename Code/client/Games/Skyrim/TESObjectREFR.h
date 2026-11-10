@@ -216,6 +216,8 @@ struct TESObjectREFR : TESForm
     bool SaveGraphs(std::string& aGraphs) const noexcept;
     // Its BSAnimationGraphManager, as a key only (not held): the clip loads that name no actor (43624) name it.
     [[nodiscard]] const void* GraphManagerKey() const noexcept;
+    // Its manager's graph at an index (the player's: 0 third person, 1 first person), as an identity only.
+    [[nodiscard]] const void* GraphKey(int aIndex) const noexcept;
     bool LoadGraphs(const std::string& acGraphs) const noexcept;
     // An actor's, with its state flags.
     bool SaveAnimationGraphState(std::string& aState) const noexcept;

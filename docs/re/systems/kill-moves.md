@@ -36,6 +36,10 @@ death action
   the mark on its instance (about 150 ms on the host, `KillMove1HMWolfA/B`, 2026-11-09), and a copy outside one starts
   at once (`HookUpdateSynchronizedClip`). Its copy leaves the stream at the half's action and is back from a sync point
   after the pair (graph-input-stream.md, Pairs).
+- The instance ends at the victim's `PairEnd`; the attacker stays in its kill move (`IsInKillMove`, its clip running)
+  until its own `KillMoveEnd`: 1820 against 3112 ms after the swing for `pa_KillMove1HMWolfB` (2026-11-10). A sync
+  point restored inside a synchronized clip starts the clip over, so the owner gives none until it has left the kill
+  move.
 - A copy in a pair takes no plain action of its owner.
 
 ## Engine facts

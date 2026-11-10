@@ -1,6 +1,7 @@
 #include <Actor.h>
 #include <Games/Animation/BSAnimationUpdateData.h>
 #include <Games/Animation/GraphStream.h>
+#include <Games/Animation/ReplayState.h>
 #include <Games/Skyrim/ActionClips.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>
@@ -18,7 +19,7 @@
 #include <mutex>
 #include <unordered_map>
 
-// The graph input stream's hooks (docs/design/graph-input-stream.md): an owned NPC's graph inputs recorded; a copy on
+// The graph input stream's hooks (docs/design/graph-input-stream.md): an owned actor's graph inputs recorded; a copy on
 // the stream driven by its owner's ops instead of its own update and events.
 namespace
 {
@@ -181,6 +182,22 @@ uint32_t Project(const BShkbAnimationGraph& acGraph)
     return hash ? hash : 1;
 }
 
+// The graph of an actor its copies have: any NPC's; of this game's player the third-person one (its manager's first).
+// Its first-person graph, updated and sent events beside it under the same holder, is no copy's.
+// Only an actor's: furniture and weapons hold graphs too (a forge's), and are no Actor to read.
+bool CopiesHave(const BShkbAnimationGraph& acGraph)
+{
+    return acGraph.holder->formType == Actor::Type && (acGraph.holder->formID != 0x14 || acGraph.holder->GraphKey(0) == &acGraph);
+}
+
+// An owner on its own body, off its stream: in a pair's instance (32808), in a kill move, or in a pair's clip
+// (bIsSynced: an attacker's or a rider's runs on after the instance ends). A sync point taken in a synchronized clip
+// starts it over on the copy.
+bool OwnBody(Actor& aHolder)
+{
+    return aHolder.InPair() || aHolder.IsInKillMove() || aHolder.InPairClip();
+}
+
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
 using TBehaviourUpdate = void(hkbBehaviorGraph*, hkEventContext*, float);
@@ -262,15 +279,18 @@ struct SkyrimGraphTarget final : IGraphTarget
 // coop_BShkbAnimationGraph_UpdateInterpolated (63587): one graph's update, its channels already applied (63590).
 char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, void* apScratch)
 {
-    if (s_inStream || !apGraph || !apGraph->holder || !apGraph->behaviorGraph || !apData)
+    if (s_inStream || !apGraph || !apGraph->holder || !apGraph->behaviorGraph || !apData || !CopiesHave(*apGraph))
         return RealUpdate(apGraph, apData, apScratch);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
     // On its own body (knocked down: its ragdoll, then its owner's ActionGetUp replayed, AnimationSystem; in a pair):
     // off its owner's stream, and back from a new sync point once it stands.
     const bool cKnocked = apGraph->holder->actorState.GetKnockState() != 0;
+    // Its own half of a pair plays out after the instance: its kill move's end, getting on or off its mount.
     if (cKnocked || streams.Held(cFormId))
-        streams.HoldWhile(cFormId, cKnocked || apGraph->holder->InPair());
+        streams.HoldWhile(cFormId, ReplayState::CopyOwnBody(cKnocked, apGraph->holder->InPair(), apGraph->holder->IsInKillMove(),
+                                                            (apGraph->holder->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0,
+                                                            apGraph->holder->actorState.GetSitSleepState()));
     streams.SeeGraph(cFormId, apGraph);
     if (streams.OnStream(cFormId))
     {
@@ -285,7 +305,7 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         return target.Result;
     }
     // In a pair its clip is its instance's (32803: the wait at the mark): not recorded, and started over after.
-    if (!streams.Recording(cFormId) || streams.PauseWhile(cFormId, apGraph->holder->InPair()))
+    if (!streams.Recording(cFormId) || streams.PauseWhile(cFormId, OwnBody(*apGraph->holder)))
         return RealUpdate(apGraph, apData, apScratch);
     if (streams.NeedsTimeDelta(cFormId))
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
@@ -319,8 +339,7 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         point.ActiveNodesChanged = pGraph->behaviorGraph->stateOrTransitionChanged != 0;
         point.Project = Project(*pGraph);
         point.ClipSets = HeldClipSets(*pGraph);
-        if (!point.State.empty())
-            streams.AddPoint(cFormId, std::move(point));
+        streams.AddPoint(cFormId, std::move(point));
     }
     streams.OnUpdate(cFormId, streams.Tick(), aStep, Words(*pGraph), Seed(*pGraph), pGraph);
     RealBehaviourUpdate(apBehaviour, apContext, aStep);
@@ -330,7 +349,7 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
 // BShkbAnimationGraph::SendEvent (63591): every input event of a graph, before it handles it.
 bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
-    if (s_inStream || !apGraph || !apGraph->holder || !apEvent)
+    if (s_inStream || !apGraph || !apGraph->holder || !apEvent || !CopiesHave(*apGraph))
         return RealSendEvent(apGraph, apEvent);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
@@ -340,7 +359,7 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
         !streams.HoldWhile(cFormId, apGraph->holder->InPair() || apGraph->holder->actorState.GetKnockState() != 0))
         return false;
     // An owner in a pair (its half comes through here, both already in the instance: 32803) is not recorded.
-    if (streams.Recording(cFormId) && !streams.PauseWhile(cFormId, apGraph->holder->InPair()))
+    if (streams.Recording(cFormId) && !streams.PauseWhile(cFormId, OwnBody(*apGraph->holder)))
     {
         SendClipLoads(streams, cFormId, *apGraph);
         if (const auto cId = EventId(*apGraph, *apEvent))
@@ -396,7 +415,7 @@ void* HookLoadManagerClips(BSFixedString* apEvent, void* apManager, uint32_t aSe
 // coop_BShkbAnimationGraph_Generate (63568), from 63589 when the graph updated this frame: an owner's, for its copies.
 uint64_t HookGenerate(BShkbAnimationGraph* apGraph, char aQueued)
 {
-    if (!s_inStream && apGraph && apGraph->holder)
+    if (!s_inStream && apGraph && apGraph->holder && CopiesHave(*apGraph))
     {
         auto& streams = World::Get().GetGraphStreams();
         if (streams.Recording(apGraph->holder->formID))

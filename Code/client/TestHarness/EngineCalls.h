@@ -590,7 +590,8 @@ struct GraphMachine
 };
 // Every state machine clone in the actor's graphs (each behaviour's template-to-clone map, 58359), those whose name
 // holds `acFilter`: what an inactive machine will resume or start in.
-std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter) noexcept;
+// aGraph: its manager's graph by index (a player's: 0 third person), -1 the one it shows.
+std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph = -1) noexcept;
 // An input event into one graph, through BShkbAnimationGraph::SendEvent (63591) and its hooks: whether a node took it.
 bool SendGraphEvent(struct BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
 

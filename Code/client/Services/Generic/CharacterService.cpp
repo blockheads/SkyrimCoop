@@ -1626,9 +1626,9 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
-        // Its graph's inputs, for its copies (graph-input-stream.md); players' later (phase 4). A death ends it: the
-        // body is the dying actor's own.
-        if (cFormId != cPlayer && !m_actorBridge.IsActorDead(cFormId))
+        // Its graph's inputs, for its copies (graph-input-stream.md): this game's NPCs and its player. A death ends
+        // it: the body is the dying actor's own.
+        if (!m_actorBridge.IsActorDead(cFormId))
             m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
         else
             m_world.GetGraphStreams().Forget(cFormId);

@@ -551,6 +551,8 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         sendAction.EventName = "test";
         sendAction.IdleId = 87964;
         sendAction.State2 = 8963;
+        sendAction.StateAfter1 = 6547 | 0x200;
+        sendAction.StateAfter2 = 8964;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
         sendAction.TargetActor = 0x1200003;
@@ -1038,6 +1040,8 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendAction.EventName = "test";
         sendAction.IdleId = 87964;
         sendAction.State2 = 8963;
+        sendAction.StateAfter1 = 6547 | 0x200;
+        sendAction.StateAfter2 = 8964;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
         sendAction.TargetActor = 0x1200003;

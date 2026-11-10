@@ -326,8 +326,9 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
     WriteGraphChannels(aActor, cStep);
     auto& streams = World::Get().GetGraphStreams();
-    // In a pair its clip is the instance's: not recorded (Games/Skyrim's 63587 hook).
-    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId) && !streams.PauseWhile(aFormId, aActor.InPair);
+    // In a pair or a kill move its clip is its own body's: not recorded (Games/Skyrim's 63587 hook).
+    const bool cOwnBody = aActor.InPair || aActor.InKillMove || aActor.InPairClip;
+    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId) && !streams.PauseWhile(aFormId, cOwnBody);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
     if (cRecorded && streams.PointWanted(aFormId, GraphIdentity(aActor)))
     {
@@ -473,17 +474,27 @@ void FakeEngine::Frame()
             // On its own body (knocked down, in a pair): off its owner's stream, and back after (Games/Skyrim's
             // 63587 hook).
             if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && (actor.KnockedDown || streams.Held(cId)))
-                streams.HoldWhile(cId, actor.KnockedDown || actor.InPair);
+                streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.KnockedDown, actor.InPair, actor.InKillMove, false, SitState(cId)));
             if (actor.Copy)
                 World::Get().GetGraphStreams().SeeGraph(cId, GraphIdentity(actor));
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
             if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
             {
+                actor.ExitIn = 0; // its sync point replaced its own clip: no exit event
                 if (actor.GraphUpdating)
                     ReplayStream(cId, actor);
             }
-            else if (actor.AnimationStepMs > 0.0)
-                UpdateGraph(cId, actor);
+            else
+            {
+                if (actor.AnimationStepMs > 0.0)
+                    UpdateGraph(cId, actor);
+                // Its exit clip's own event (42835): standing, off its mount.
+                if (actor.ExitIn && !--actor.ExitIn)
+                {
+                    actor.State1 &= ~(0xFu << kSitShift);
+                    Mounts.erase(cId);
+                }
+            }
         }
     // Each graph's generate pass after every graph's update (63358 -> 63589 -> 63568), when it updated this frame.
     if (Graph)
@@ -1260,13 +1271,25 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         ++BrokenPairs;
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
+    {
         actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
+        actor.State1 = ReplayState::Flags1(acAction.State1, actor.State1);
+    }
+    if (const auto cState = ActionStates.find(acAction.EventName); cState != ActionStates.end())
+        actor.State1 = cState->second.second ? actor.State1 | cState->second.first : actor.State1 & ~cState->second.first;
+    if (const auto cExit = ExitClips.find(acAction.EventName); cExit != ExitClips.end())
+    {
+        actor.State1 = (actor.State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitWantsToStand) << kSitShift;
+        actor.ExitIn = cExit->second;
+    }
     if (!GraphTransitions.empty() && !actor.GraphState.empty())
     {
         // 63591's hook: an owner's event recorded before its graph handles it (Games/Animation).
         if (auto& streams = World::Get().GetGraphStreams(); Graph && !actor.Copy && streams.Recording(aFormId))
             streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
-        if (!TakeGraphEvent(actor, acAction.EventName))
+        // A copy on its stream takes its owner's events alone (63591's hook drops any other).
+        const bool cDropped = actor.Copy && World::Get().GetGraphStreams().OnStream(aFormId);
+        if (cDropped || !TakeGraphEvent(actor, acAction.EventName))
         {
             ++RefusedAnimations[aFormId];
             if (!ReplayGraph::Recover(false, acAction.GraphState, [&](std::string_view) {
@@ -1298,6 +1321,7 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aForm
 bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
 {
     aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
+    aAction.State1 |= Actors.at(aFormId).State1;
     uint32_t flags = aQuery ? 1 : 0;
     aAction.Type = 2 | (flags ? 4 : 0);
     aAction.Tick = World::Get().GetFrameTick();
@@ -1324,6 +1348,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
         ApplyActionWrites(aFormId, aAction.EventName);
     if (cOutcome.Capture && cOutcome.Result)
     {
+        aAction.StateAfter1 = Actors.at(aFormId).State1;
         if (::ReplayState::StartsAttack(aAction.EventName))
             Actors.at(aFormId).ClashUntil = 0;
         if (aAction.TargetEventName.empty())

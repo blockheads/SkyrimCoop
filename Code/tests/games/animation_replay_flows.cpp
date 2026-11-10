@@ -4,6 +4,8 @@
 #include <Messages/NotifyReferencesMove.h>
 #include <Systems/InterpolationSystem.h>
 #include <Components/InterpolationComponent.h>
+#include <SessionIds.h>
+#include <Games/Animation/ReplayState.h>
 
 namespace
 {
@@ -925,6 +927,58 @@ TEST_CASE("A streamed owner's movement carries no graph variables, and its copy'
     wolf.Turn();
 }
 
+TEST_CASE("Each player's copy is on its owner's graph stream on every other game", "[animation][replay-start][players]")
+{
+    // Phase 4 (graph-input-stream.md): a game records its own player's graph as it does its NPCs'; the host passes a
+    // guest's stream on to the other games by the actor's owner.
+    Party party(2, SmokeWorld, true);
+    std::array<World*, 3> games{&party.Host(), &party.Guest(0), &party.Guest(1)};
+    for (auto* game : games)
+    {
+        auto& engine = Party::Engine(*game);
+        engine.Graph = FakeGraphRules{.Clips = {{.State = "Swing", .Ms = 300, .Starts = {"Standing"}}}};
+        engine.GraphTransitions = {{{"Standing", "attackStart"}, "Swing"}};
+        engine.Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+    }
+    // aIn's copy of aOf's player.
+    const auto cCopy = [&](World& aIn, World& aOf) {
+        uint32_t session = 0, copy = 0;
+        party.As(aOf, [&] { session = Utils::GetSessionIdByFormId(FakeEngine::kPlayer).value_or(0); });
+        if (session)
+            party.As(aIn, [&] { copy = Utils::GetFormIdBySessionId(session); });
+        return copy;
+    };
+    for (auto* owner : games)
+        for (auto* other : games)
+        {
+            if (owner == other)
+                continue;
+            party.Until([&] { const uint32_t cId = cCopy(*other, *owner); return cId && other->GetGraphStreams().OnStream(cId); },
+                        "a player's copy starts on its owner's stream");
+        }
+    for (auto* owner : games)
+    {
+        ActionEvent swing;
+        swing.ActionId = 0x13005;
+        swing.EventName = "attackStart";
+        party.As(*owner, [&] { REQUIRE(Party::Engine(*owner).PerformAnimation(FakeEngine::kPlayer, swing)); });
+        const auto& cOwner = Party::Engine(*owner).Actors.at(FakeEngine::kPlayer);
+        party.Until([&] { return cOwner.GraphState == "Standing"; }, "its swing's clip ends");
+        for (auto* other : games)
+        {
+            if (owner == other)
+                continue;
+            const uint32_t cId = cCopy(*other, *owner);
+            const auto& cCopied = Party::Engine(*other).Actors.at(cId);
+            party.Until([&] { return cCopied.Graph.Timeline >= cOwner.Graph.Timeline - 500 && cCopied.GraphState == "Standing"; },
+                        "its copy played the swing through");
+            CHECK(other->GetGraphStreams().OnStream(cId));
+            CHECK(FirstGraphDifference(cOwner.Graph.History, cCopied.Graph.History) == "");
+            CHECK(Party::Engine(*other).GetActorLatestAnimation(cId).EventName == "attackStart"); // bookkeeping still
+        }
+    }
+}
+
 TEST_CASE("A host's kill move takes its victim's copy off its stream until the owner's pair ends", "[animation][replay-start][kill-move]")
 {
     // Skyrim (duo, host-kill-move, 2026-11-09): the guest's blow landed 20-70 ms before the host's. A replayed pair
@@ -950,8 +1004,8 @@ TEST_CASE("A host's kill move takes its victim's copy off its stream until the o
     CHECK_FALSE(streams.OnStream(wolf.copy));
     wolf.party.Until([&] { return wolf.guest.GetActorLatestAnimation(wolf.copy).EventName == "KillMoveI"; }, "by its owner's action");
     // While its owner's pair lasts no point comes, and it stays off the stream.
-    int frames = 0;
-    wolf.party.Until([&] { return ++frames > 200; }, "the owner's pair runs on");
+    const uint64_t cFrom = wolf.party.Guest().GetTick();
+    wolf.party.Until([&] { return wolf.party.Guest().GetTick() >= cFrom + 1000; }, "the owner's pair runs on a second");
     CHECK(SyncPoints(cCopy) == cPoints);
     CHECK_FALSE(streams.OnStream(wolf.copy));
     // The pair ends without a kill: its owner is recorded again, and the copy follows from a new point.
@@ -961,6 +1015,146 @@ TEST_CASE("A host's kill move takes its victim's copy off its stream until the o
     });
     wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
                      "the copy is back on its owner's stream from a new sync point");
+}
+
+TEST_CASE("A copy held for its owner's paired action is back on its stream only after it played it", "[animation][replay-start][players]")
+{
+    // Skyrim (duo, host-rides-horse, 2026-11-10): a rider's copy never got off. Getting off is a paired action with no
+    // instance on its owner's game, so its owner went on recording and answered the copy's request at once: the copy
+    // was back on its stream before the action's clip files were in, and the action's event was then dropped.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "HorseExit"}] = "Dismounted";
+        engine->ClipFiles.insert({"HorseExit", "Dismounted"});
+    }
+    wolf.guest.ClipLoadFrames = 400; // the action waits for its clip files on the copy's game
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    ActionEvent exit;
+    exit.ActionId = 0x13006;
+    exit.EventName = "HorseExit";
+    exit.TargetEventName = "HorseExitPartner";
+    exit.TargetId = 0; // its partner is not here: no instance, its owner is recorded on
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, exit)); });
+    REQUIRE_FALSE(wolf.host.Actors.at(wolf.wolf).InPair);
+    wolf.party.Until([&] { return wolf.guest.GetActorLatestAnimation(wolf.copy).EventName == "HorseExit"; }, "the copy played the action", [&] {
+        return std::format("held {} on stream {} state {}", streams.Held(wolf.copy), streams.OnStream(wolf.copy), cCopy.GraphState);
+    });
+    CHECK(cCopy.GraphState == "Dismounted");
+    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy); }, "then it is back on its owner's stream");
+}
+
+TEST_CASE("A rider's copy is back on its stream only once its own getting off has ended", "[animation][replay-start][players]")
+{
+    // Skyrim (duo, guest-rides-host-horse, 2026-11-10): a rider's copy stayed on the horse. A copy gets off by its
+    // owner's HorseExit action alone: no Actor::Dismount (37906) marks it getting off, and only its clip's own exit
+    // event (ChairFurnitureExitHandler 42835) unlinks it. Its owner's sync point came 2.4 s after the action, the
+    // copy's clip not over: on its stream again with sit state 4 (wants to stand), riding for good.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "HorseExit"}] = "Dismounted";
+        engine->ClipFiles.insert({"HorseExit", "Dismounted"});
+        engine->ExitClips["HorseExit"] = 3000;
+    }
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    wolf.guest.Mounts[wolf.copy] = 0x1234;
+    ActionEvent exit;
+    exit.ActionId = 0x13006;
+    exit.EventName = "HorseExit";
+    exit.TargetEventName = "HorseExitPartner";
+    exit.TargetId = 0; // its mount is no actor of this fake: no instance, its owner is recorded on
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, exit)); });
+    wolf.party.Until([&] { return wolf.guest.GetActorLatestAnimation(wolf.copy).EventName == "HorseExit"; }, "the copy played the action");
+    CHECK(wolf.guest.SitState(wolf.copy) == ReplayState::kSitWantsToStand);
+    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy); }, "then it is back on its owner's stream", [&] {
+        return std::format("held {} sit state {} exit in {}", streams.Held(wolf.copy), wolf.guest.SitState(wolf.copy), wolf.guest.Actors.at(wolf.copy).ExitIn);
+    });
+    CHECK(wolf.guest.SitState(wolf.copy) == 0);
+    CHECK_FALSE(wolf.guest.Mounts.contains(wolf.copy));
+}
+
+TEST_CASE("A streamed copy takes its owner's actor state with each action", "[animation][replay-start][players]")
+{
+    // Skyrim (duo, sneak-host-player, 2026-11-10): a streamed player's copy never sneaked. Sneaking is the actor's
+    // state (flags1), toggled as the engine takes the sneak action; on its stream a copy takes no action, and the
+    // flags an action carried were its owner's from before it. The action carries the state after it too.
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{};
+        engine->GraphTransitions = {{{"Standing", "SneakStart"}, "Sneaking"}, {{"Sneaking", "SneakStop"}, "Standing"}};
+        engine->ActionStates = {{"SneakStart", {1u << 9, true}}, {"SneakStop", {1u << 9, false}}};
+        engine->Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+    }
+    uint32_t session = 0, copy = 0;
+    party.As(party.Host(), [&] { session = Utils::GetSessionIdByFormId(FakeEngine::kPlayer).value_or(0); });
+    party.Until([&] {
+        party.As(party.Guest(), [&] { copy = Utils::GetFormIdBySessionId(session); });
+        return copy && party.Guest().GetGraphStreams().OnStream(copy);
+    }, "the host's player's copy is on its stream");
+    constexpr uint32_t cSneaking = 1u << 9;
+    const auto& cCopy = guest.Actors.at(copy);
+    for (const bool cSneak : {true, false})
+    {
+        ActionEvent action;
+        action.ActionId = cSneak ? 0x13000 : 0x13001;
+        action.EventName = cSneak ? "SneakStart" : "SneakStop";
+        party.As(party.Host(), [&] { REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, action)); });
+        REQUIRE(((host.Actors.at(FakeEngine::kPlayer).State1 & cSneaking) != 0) == cSneak); // the action toggled it
+        party.Until([&] { return guest.GetActorLatestAnimation(copy).EventName == action.EventName; }, "its copy has the action");
+        CHECK(party.Guest().GetGraphStreams().OnStream(copy));
+        CHECK(((cCopy.State1 & cSneaking) != 0) == cSneak);
+    }
+}
+
+TEST_CASE("A player's copy is back on its stream only once its owner has left its kill move", "[animation][replay-start][kill-move][players]")
+{
+    // Skyrim (duo, host-kill-move, 2026-11-10): the pair's instance ended at the victim's PairEnd, 1.3 s before the
+    // attacker's KillMoveEnd. The attacker's copy took a sync point then, in the middle of its synchronized clip,
+    // which started over: the whole kill move played a second time.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "KillMoveI"}] = "KillMove";
+        engine->GraphTransitions[{"Standing", "pa_KillMoveI"}] = "KillMove";
+        engine->GraphTransitions[{"KillMove", "KillMoveEnd"}] = "Standing";
+    }
+    uint32_t session = 0, copy = 0;
+    wolf.party.As(wolf.party.Host(), [&] { session = Utils::GetSessionIdByFormId(FakeEngine::kPlayer).value_or(0); });
+    wolf.party.As(wolf.party.Guest(), [&] { copy = Utils::GetFormIdBySessionId(session); });
+    REQUIRE(copy != 0);
+    // The fixture's players have no graph: both get one, as every actor in Skyrim has.
+    wolf.host.Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+    wolf.guest.Actors.at(copy).GraphState = "Standing";
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(copy);
+    wolf.party.Until([&] { return streams.OnStream(copy) && SyncPoints(cCopy) > 0; }, "the host's player's copy is on its stream");
+    ActionEvent kill;
+    kill.ActionId = 0x13005;
+    kill.EventName = "pa_KillMoveI";
+    kill.TargetEventName = "KillMoveI";
+    kill.TargetId = wolf.wolf;
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(FakeEngine::kPlayer, kill)); });
+    wolf.party.Until([&] { return cCopy.GraphState == "KillMove" && streams.Held(copy); }, "its copy plays its half, off its stream");
+    const size_t cPoints = SyncPoints(cCopy);
+    // The instance ends with the victim's clip; the attacker's kill move runs on.
+    auto& owner = wolf.host.Actors.at(FakeEngine::kPlayer);
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.StopPairClip(wolf.wolf);
+        wolf.host.StopPairClip(FakeEngine::kPlayer);
+    });
+    REQUIRE_FALSE(owner.InPair);
+    REQUIRE(owner.InKillMove);
+    const uint64_t cFrom = wolf.party.Guest().GetTick();
+    wolf.party.Until([&] { return wolf.party.Guest().GetTick() >= cFrom + 1000; }, "the attacker's kill move runs on a second");
+    CHECK(SyncPoints(cCopy) == cPoints);
+    CHECK_FALSE(streams.OnStream(copy));
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.EndKillMove(FakeEngine::kPlayer); });
+    wolf.party.Until([&] { return streams.OnStream(copy) && SyncPoints(cCopy) > cPoints; }, "then its copy follows from a new sync point");
 }
 
 TEST_CASE("A copy's death comes at playback, however late its owner's last actions played on it", "[animation][replay-start][kill-move]")

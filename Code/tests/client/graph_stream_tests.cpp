@@ -437,7 +437,7 @@ TEST_CASE("An owner's sync point keeps the clip sets its game gave it, whatever 
     const std::vector<uint32_t> cWords{0, 0};
     streams.OnEvent(0x42, 1, 9, cWords, cSeed); // IdleStop, refused: no files of its own
     streams.OnUpdate(0x42, 1, 0.016f, cWords, cSeed);
-    streams.AddPoint(0x42, {.ClipSets = {{3, 3}}});
+    streams.AddPoint(0x42, {.State = "0", .ClipSets = {{3, 3}}});
     const auto cPoints = streams.TakePoints();
     REQUIRE(cPoints.size() == 1);
     CHECK(cPoints[0].ClipSets == std::vector<std::pair<uint8_t, uint16_t>>{{3, 3}});
@@ -523,6 +523,7 @@ TEST_CASE("A copy held for its owner's pair is back on its stream from a point a
     streams.HoldUntilPoint(0x99, 100); // its owner's half of the pair, at tick 100
     CHECK(streams.Held(0x99));
     CHECK_FALSE(streams.OnStream(0x99));
+    streams.PairPlayed(0x99);              // it played the action
     CHECK(streams.HoldWhile(0x99, false)); // it is in no instance here: still held
     CHECK(streams.ShouldAsk(0x99));       // its owner answers once its pair is over
     CHECK_FALSE(streams.ShouldAsk(0x99));
@@ -530,6 +531,58 @@ TEST_CASE("A copy held for its owner's pair is back on its stream from a point a
     CHECK(streams.Held(0x99));
     CHECK(streams.ShouldAsk(0x99));
     point.Tick = 2000;
+    streams.Load(0x99, point);
+    CHECK_FALSE(streams.Held(0x99));
+    CHECK(streams.OnStream(0x99));
+}
+
+TEST_CASE("A sync point that could not be taken is asked for again at the owner's next update", "[graph-stream]")
+{
+    // Skyrim (duo, teleport-keeps-copies, 2026-11-10): a player's copy stayed in its landing pose. Its request reached
+    // its owner while the owner's graph was being rebuilt after the teleport: no active nodes, an empty state, no
+    // point, and the request was spent.
+    GraphStreams streams;
+    streams.Record(0x50, 7);
+    ToyGraph graph;
+    streams.OnUpdate(0x50, 1, 0.016f, graph.Vars, graph.Seed);
+    streams.WantPoint(0x50);
+    REQUIRE(streams.PointWanted(0x50));
+    Payloads::GraphSyncPoint empty;
+    streams.AddPoint(0x50, empty); // its graph had no state to give
+    CHECK(streams.TakePoints().empty());
+    CHECK(streams.PointWanted(0x50)); // still wanted
+    streams.AddPoint(0x50, Point(graph, 0));
+    CHECK(streams.TakePoints().size() == 1);
+    CHECK_FALSE(streams.PointWanted(0x50));
+}
+
+TEST_CASE("A copy held for its owner's pair asks for its point only once it played its half and its body is out of it", "[graph-stream]")
+{
+    // Skyrim (duo, guest-rides-host-horse, 2026-11-10): a rider's copy stayed "getting on" for good. Its owner's sync
+    // point loaded while the copy's own mount clip still ran, and the clip's end (MountDismountEndHandler 42881)
+    // never came.
+    GraphStreams streams;
+    streams.Feed(0x99, {1, 0, {{.Frame = 0}}}, {{1, 0.016f}});
+    ToyGraph copy;
+    Payloads::GraphSyncPoint point = Point(copy, 1);
+    point.Tick = 90;
+    streams.Load(0x99, point);
+    streams.SetPlayback(0x99, 5);
+    (void)streams.Replay(0x99, copy);
+    REQUIRE(streams.OnStream(0x99));
+
+    streams.HoldUntilPoint(0x99, 100);
+    CHECK_FALSE(streams.ShouldAsk(0x99)); // the action has not played here yet
+    point.Tick = 2000;
+    streams.Load(0x99, point); // one asked for earlier
+    CHECK(streams.Held(0x99));
+    streams.PairPlayed(0x99);
+    CHECK(streams.HoldWhile(0x99, true)); // getting on its mount
+    CHECK_FALSE(streams.ShouldAsk(0x99));
+    streams.Load(0x99, point);
+    CHECK(streams.Held(0x99));
+    CHECK(streams.HoldWhile(0x99, false)); // seated: still held, until its point
+    CHECK(streams.ShouldAsk(0x99));
     streams.Load(0x99, point);
     CHECK_FALSE(streams.Held(0x99));
     CHECK(streams.OnStream(0x99));

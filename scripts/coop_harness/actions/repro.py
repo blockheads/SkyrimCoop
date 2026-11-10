@@ -231,7 +231,8 @@ class ReproActions:
 
     def graph_stream_check(ctx, seconds=60.0):
         """The graph input stream's live check (docs/design/graph-input-stream.md): every streamed copy's graph states,
-        hashed after each update by its owner's update index, against its owner's, from both games for `seconds`.
+        hashed after each update by its owner's update index, against its owner's, from both games for `seconds`: the
+        host's actors against their copies on the guest, and the guest's player against its copy on the host.
         Fails at the first difference with both games' states then; returns each copy's updates compared."""
         host, guest = ctx.game(""), ctx.game("client")
         owners, copies, pending = {}, {}, []
@@ -244,7 +245,7 @@ class ReproActions:
         def events(game, form, update):
             return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("events")
 
-        def words_apart(owner_form, form, update):
+        def words_apart(host, guest, owner_form, form, update):
             # The variables owner and copy held differently as the update began and as it ended, by name.
             owner = host.rpc({"cmd": "graph_stream", "states_at": {"form": owner_form, "update": update}}, timeout=10) or {}
             copy = guest.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}
@@ -277,7 +278,7 @@ class ReproActions:
                         return apart
             return apart
 
-        def times(owner_form, form, update):
+        def times(host, guest, owner_form, form, update):
             # The first update whose clip times differ (the start of a drift), and the last few.
             ask = {"form": owner_form, "update": update, "times_from": max(0, update - 400)}
             ours = (host.rpc({"cmd": "graph_stream", "states_at": ask}, timeout=10) or {}).get("times") or {}
@@ -287,7 +288,7 @@ class ReproActions:
             keys = sorted({first, str(update - 1), str(update)} - {None}, key=int)
             return {"first apart": first, **{key: {"owner": ours.get(key), "copy": theirs.get(key)} for key in keys}}
 
-        def steps(owner_form, form, update, around):
+        def steps(host, guest, owner_form, form, update, around):
             # Each side's real steps (58329), dt, force, LOD and countdowns from a few updates before `around`.
             ask = {"form": owner_form, "update": update, "steps_from": max(0, around - 4)}
             ask = {**ask, "handled_from": max(0, around - 4)}
@@ -302,33 +303,38 @@ class ReproActions:
             return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("handled")
 
         def step():
-            for actor in (host.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
-                if actor["role"] == "owner":
-                    owner = owners.setdefault(actor["actor"], {"form": actor["form"], "hashes": {}})
-                    owner["hashes"].update({update: value for update, value in actor.get("hashes", [])})
-            for actor in (guest.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []):
-                if actor["role"] != "copy":
-                    continue
-                copies[actor["actor"]] = {key: actor[key] for key in ("form", "on_stream", "last")}
-                pending.extend((actor["actor"], actor["form"], update, value) for update, value in actor.get("hashes", []))
+            taken = {game: (game.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []) for game in (host, guest)}
+            # Each direction: an owner's game and the game its copy is on; actors keyed by direction (session ids repeat).
+            for way, (owning, copying) in enumerate(((host, guest), (guest, host))):
+                for actor in taken[owning]:
+                    if actor["role"] == "owner":
+                        owner = owners.setdefault((way, actor["actor"]), {"form": actor["form"], "hashes": {}})
+                        owner["hashes"].update({update: value for update, value in actor.get("hashes", [])})
+                for actor in taken[copying]:
+                    if actor["role"] != "copy":
+                        continue
+                    copies[(way, actor["actor"])] = {key: actor[key] for key in ("form", "on_stream", "last")}
+                    pending.extend(((way, actor["actor"]), actor["form"], update, value) for update, value in actor.get("hashes", []))
             waiting = []
             for actor, form, update, value in pending:
                 expected = owners.get(actor, {}).get("hashes", {}).get(update)
                 if expected is None:
                     waiting.append((actor, form, update, value))
                 elif expected != value:
-                    owner_states = states(host, owners[actor]["form"], update) or []
-                    copy_states = states(guest, form, update) or []
-                    apart = words_apart(owners[actor]['form'], form, update)
+                    owning, copying = ((host, guest), (guest, host))[actor[0]]
+                    owner_form = owners[actor]["form"]
+                    owner_states = states(owning, owner_form, update) or []
+                    copy_states = states(copying, form, update) or []
+                    apart = words_apart(owning, copying, owner_form, form, update)
                     first = int((apart.get("first apart") or {}).get("update", update))
-                    raise ctx.failure(f"copy {form:X} (actor {actor}) left its owner's graph at update {update} after "
+                    raise ctx.failure(f"[{copying.name or 'host'}] copy {form:X} (actor {actor[1]}) left its owner's graph at update {update} after "
                                       f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
                                       f"copy only {sorted(set(copy_states) - set(owner_states))}; events before (update: "
-                                      f"name taken/refused) owner {events(host, owners[actor]['form'], update)}, copy "
-                                      f"{events(guest, form, update)}; variables apart (owner, copy) "
-                                      f"{apart}; steps {steps(owners[actor]['form'], form, update, first)}; events handled (event <- sender) owner "
-                                      f"{handled(host, owners[actor]['form'], update)}, copy {handled(guest, form, update)}; clip times "
-                                      f"{times(owners[actor]['form'], form, update)}")
+                                      f"name taken/refused) owner {events(owning, owner_form, update)}, copy "
+                                      f"{events(copying, form, update)}; variables apart (owner, copy) "
+                                      f"{apart}; steps {steps(owning, copying, owner_form, form, update, first)}; events handled (event <- sender) owner "
+                                      f"{handled(owning, owner_form, update)}, copy {handled(copying, form, update)}; clip times "
+                                      f"{times(owning, copying, owner_form, form, update)}")
                 else:
                     compared[actor] += 1
             pending[:] = waiting
@@ -337,12 +343,14 @@ class ReproActions:
         ctx.wait_for(f"[both] {seconds:.0f} s of streamed copies' graphs against their owners'", step, seconds + 30,
                      explain=lambda: f"copies {copies}, compared {dict(compared)}")
         # Each copy's updates compared and its owner's in the window: a far owner steps in chunks (63587), not 30 a second.
-        return {"compared": {f"{copies.get(actor, {}).get('form', 0):X}": count for actor, count in compared.items()},
-                "coverage": {f"{copies.get(actor, {}).get('form', 0):X}": (count, len(owners[actor]["hashes"]))
+        side = lambda actor: "" if actor[0] == 0 else "host:"  # a copy on the host is the guest's player's
+        shown = lambda actor: f"{side(actor)}{copies.get(actor, {}).get('form', 0):X}"
+        return {"compared": {shown(actor): count for actor, count in compared.items()},
+                "coverage": {shown(actor): (count, len(owners[actor]["hashes"])) for actor, count in compared.items() if actor in owners},
+                "by_owner": {(owners[actor]["form"] if actor[0] == 0 else f"guest:{owners[actor]['form']}"): count
                              for actor, count in compared.items() if actor in owners},
-                "by_owner": {owners[actor]["form"]: count for actor, count in compared.items() if actor in owners},
-                "owner_updates": {value["form"]: len(value["hashes"]) for value in owners.values()},
-                "copies": {f"{value['form']:X}": value for value in copies.values()},
+                "owner_updates": {(value["form"] if actor[0] == 0 else f"guest:{value['form']}"): len(value["hashes"]) for actor, value in owners.items()},
+                "copies": {shown(actor): value for actor, value in copies.items()},
                 "unmatched": len(pending), "owners": len(owners)}
 
     def name_owner(ctx, name, owner):

@@ -382,6 +382,11 @@ void GraphStreams::AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint)
         return;
     {
         std::scoped_lock _{pOwned->Lock};
+        if (aPoint.State.empty())
+        {
+            pOwned->WantsPoint = true; // a graph with no state yet (being rebuilt): at its next update
+            return;
+        }
         aPoint.Id = pOwned->ActorId;
         aPoint.Update = pOwned->Recorder.Updates();
     }
@@ -443,9 +448,10 @@ void GraphStreams::Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoin
     std::scoped_lock _{pCopied->Lock};
     if (pCopied->PointAfter)
     {
-        if (acPoint.Tick <= pCopied->PointAfter)
+        // From before its owner's pair, or its own half not played out yet: ask again once it is.
+        if (acPoint.Tick <= pCopied->PointAfter || pCopied->PairPending || pCopied->OwnBody)
         {
-            pCopied->Asked = false; // from before its owner's pair: ask again
+            pCopied->Asked = false;
             return;
         }
         pCopied->PointAfter = 0;
@@ -472,6 +478,7 @@ bool GraphStreams::HoldWhile(uint32_t aFormId, bool aOwnBody)
         pCopied->Held = false;
         pCopied->Asked = false;
     }
+    pCopied->OwnBody = aOwnBody;
     return pCopied->Held;
 }
 
@@ -483,9 +490,19 @@ void GraphStreams::HoldUntilPoint(uint32_t aFormId, uint64_t aTick)
     std::scoped_lock _{pCopied->Lock};
     pCopied->Held = true;
     pCopied->PointAfter = aTick;
+    pCopied->PairPending = true;
     pCopied->Replayer.Restart();
     pCopied->Graph = nullptr;
     pCopied->Asked = false;
+}
+
+void GraphStreams::PairPlayed(uint32_t aFormId)
+{
+    const auto pCopied = FindCopied(aFormId);
+    if (!pCopied)
+        return;
+    std::scoped_lock _{pCopied->Lock};
+    pCopied->PairPending = false;
 }
 
 bool GraphStreams::Held(uint32_t aFormId) const
@@ -515,7 +532,8 @@ bool GraphStreams::ShouldAsk(uint32_t aFormId)
     if (!pCopied)
         return false;
     std::scoped_lock _{pCopied->Lock};
-    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked || (pCopied->Held && !pCopied->PointAfter) || pCopied->WrongGraph)
+    if (!pCopied->Replayer.NeedsPoint() || pCopied->Asked || pCopied->WrongGraph ||
+        (pCopied->Held && (!pCopied->PointAfter || pCopied->PairPending || pCopied->OwnBody)))
         return false;
     pCopied->Asked = true;
     return true;
