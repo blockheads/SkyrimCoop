@@ -52,8 +52,6 @@ struct ActorExtension
     float CopyGoal[3]{};
     bool HasCopyGoal = false;
 
-    // A copy's graph time: the deltas its graph updates got (20123), in microseconds; written in its graph job.
-    std::atomic<uint64_t> GraphUs{0};
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
     using ReplayStep = AnimationReplayStep;
     ReplayStep Replay;

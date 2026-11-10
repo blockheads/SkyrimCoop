@@ -119,15 +119,21 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
   for a sync point once it stands. A death ends the stream (`AnimationSystem`).
 
-## What goes away for copies on the stream
+## What went away with the stream (phase 3, 2026-11-09)
 
-- action replay into the graph: `ReplayStep` staging, `PlayReplayedAction`, `ReplayGraph::Recover`;
-- refused actions' variables-only sends (`kVariablesOnly`) and action spacing (`ActionDue`);
-- graph variables in movement snapshots (`ReferenceUpdate` variables), graph points and every-N counters (`GraphRandom`);
-- the PR #38 fixes for copies, which the stream makes unnecessary; owners updating every frame stays.
+- **Movement's graph variables:** a streamed owner (recorded, not in a pair: `GraphStreams::Streaming`) sends none
+  with its snapshots, and a copy on its stream loads none (`ApplyRemoteMovement` loaded them every frame; the replayer
+  restored them away before each op).
+- **Graph points and every-N counters** (`GraphRandom.h`, `RunGraphPoint`, `ActionEvent::GraphCounters`): removed. They
+  were sent only for living, unpaired NPCs, which are all streamed.
+- **The branch's interim fixes:** refused actions' variables-only sends (`kVariablesOnly`) and action spacing
+  (`ActionDue`): removed.
 
-Actions still go to the host for its rules (hits, kills, AI state) where something reads them; only their replay into a
-copy's graph goes.
+What stays, for copies off a stream (players' copies until phase 4; a copy before its first sync point, knocked down,
+in a pair, dying): action replay into the graph (`ReplayStep`, `PlayReplayedAction`, `ReplayGraph::Recover`) with the
+action's variables, seed and graph state. A paused owner (in a pair) sends its graph variables with its movement
+again. Actions still go to the host for its rules (hits, kills, AI state) and to a streamed copy as bookkeeping
+(its last action, a death, its owner's pair).
 
 ## Weight
 
@@ -347,7 +353,7 @@ What it found on the duo (2026-11-09), in order:
    5. The live check on the duo (`GraphStreamCheck`, verb `graph_stream_check`): built; it finds the copies apart
       soon after their sync point (Skyrim on the stream, below), which is phase 2.
 2. **The whole graph** in sync points (Havok's internal state).
-3. **Remove the old paths** for copies on the stream; movement drops graph variables.
+3. **Remove the old paths** for copies on the stream; movement drops graph variables: done (above).
 4. **Players' copies** (a player's graph driven by its input; first-person graphs excluded).
 
 ## Open questions

@@ -23,8 +23,6 @@ struct ActionEvent
     AnimationVariables Variables{};
     // The resulting graph for an unpaired action, used if a copy cannot take its event.
     std::string GraphState{};
-    // A sync point (ActionId 0, GraphRandom.h): the graph's every-N counters, which GraphState leaves out.
-    std::string GraphCounters{};
 
     ActionEvent() = default;
     ActionEvent(const ActionEvent& acRhs) = default;

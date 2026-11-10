@@ -27,7 +27,6 @@
 #include <Utils.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayState.h>
-#include <Games/Animation/ReplayStep.h>
 #include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
@@ -89,18 +88,12 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         action.TargetEventName = apAction->targetEventName.AsAscii();
         action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
 
-        // A refused action's event is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the
-        // hands were lowered). Its graph writes are sent, with no event (39004: a refused TurnStop sets iSyncTurnState).
+        // A refused action is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the hands were
+        // lowered). Its graph writes (39004: a refused TurnStop sets iSyncTurnState) reach a copy in its owner's stream.
         if (!res)
         {
-            if (g_forceAnimation || cPlayersPartner)
-                return res;
-            AnimationVariables after;
-            pActor->SaveAnimationVariables(after);
-            if (!SendRefusedVariables(action, after))
-                return res;
-            spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, its variables sent", pActor->formID, action.ActionId, action.EventName);
-            World::Get().GetRunner().Trigger(action);
+            if (!g_forceAnimation && !cPlayersPartner)
+                spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
             return res;
         }
 
@@ -150,7 +143,6 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         Actor* pActor = static_cast<Actor*>(apThis);
         if (auto* pExtension = pActor->GetExtension(); pExtension->IsCopy())
         {
-            pExtension->GraphUs.fetch_add(uint64_t(std::max(aDelta, 0.f) * 1e6f), std::memory_order_relaxed);
             AnimationSystem::RunReplayStep(pActor);
             if (ReplayState::PoseHeld(World::Get().GetFrameTick(), pExtension->PoseHeldUntil.load(std::memory_order_relaxed), pActor->IsDead()))
             {

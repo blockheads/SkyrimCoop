@@ -15,16 +15,15 @@ enum DifferentialFlags
     kTargetEventName = 1 << 6,
     kVariables = 1 << 7,
     kTargetActor = 1 << 8,
-    kGraphState = 1 << 9,
-    kGraphCounters = 1 << 10
+    kGraphState = 1 << 9
 };
-constexpr uint32_t cFlagBits = 11;
+constexpr uint32_t cFlagBits = 10;
 
 bool ActionEvent::operator==(const ActionEvent& acRhs) const noexcept
 {
     return Tick == acRhs.Tick &&
            // ActorId == acRhs.ActorId && // ActorId is a local field as it is filled up latter by the game client
-           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && TargetActor == acRhs.TargetActor && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables && GraphState == acRhs.GraphState && GraphCounters == acRhs.GraphCounters;
+           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && TargetActor == acRhs.TargetActor && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables && GraphState == acRhs.GraphState;
 }
 
 bool ActionEvent::operator!=(const ActionEvent& acRhs) const noexcept
@@ -66,8 +65,6 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffe
     if (GraphState != aPrevious.GraphState)
         flags |= kGraphState;
 
-    if (GraphCounters != aPrevious.GraphCounters)
-        flags |= kGraphCounters;
 
     aWriter.WriteBits(flags, cFlagBits);
 
@@ -123,8 +120,6 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffe
     }
     if (flags & kGraphState)
         Serialization::WriteString(aWriter, GraphState);
-    if (flags & kGraphCounters)
-        Serialization::WriteString(aWriter, GraphCounters);
 }
 
 void ActionEvent::ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept
@@ -188,6 +183,4 @@ void ActionEvent::ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept
     }
     if (flags & kGraphState)
         GraphState = Serialization::ReadString(aReader);
-    if (flags & kGraphCounters)
-        GraphCounters = Serialization::ReadString(aReader);
 }

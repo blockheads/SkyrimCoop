@@ -48,6 +48,8 @@ other section needs the duo.
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
+- [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): small
+- [Crossed kill moves: a short winner's blow lands first](#crossed-kill-moves-a-short-winners-blow-lands-first): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
@@ -189,37 +191,19 @@ Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
 
 ### A copy's graph after a turn or a pick
 
-The live check (`copies' graphs, owner against copy:`, animation-replay-recovery.md, "Drift detector") still finds runs
-of 2 s or more on some creatures and a few NPCs. Each is below. A refused action's graph writes now reach the copy
-(2026-11-08, animation-replay-recovery.md, "A refused action still writes its graph variables"), the writer of the wolf's turn variables.
+One shape left of the old live check's runs of 2 s or more. The others (a wolf's turns, creatures' idle picks, the
+counter idle's pick) were a copy's graph fed different inputs: on the graph input stream every streamed copy equals
+its owner at every update (`wolf_copy_turns_with_owner` 180 s, Whiterun 120 s, `npc-counter-copy-falls-back-in`,
+2026-11-09).
 
-Agent task: take each shape in turn, read what moves that machine, and say whether a player could see it.
+Agent task: rerun the death scenarios with the stream's live check (`expect stream`) and say whether this shape is left.
 
-Size: small. Needs: IDA, the duo (`actors-walk-after-arrival`, `dive-host-player`), then GameTests.
+Size: small. Needs: the duo (`death-spectate-host`, `death-spectate-guest`, `party-travel-dead-guest`).
 
 - **A wolf `Attack1State` beside a player's death** (`FF000E05`, 13.8 s, `death-spectate-host`; `FF000826`, 15.4 s,
   `death-spectate-guest`; `FF000859`, 7.7 s, and `FF000D74`, 8.8 s, `party-travel-dead-guest`, until the actor stopped being
-  read): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the owner's graph
-  held by the kill: [After the host dies](#after-the-host-dies).
-- **Idle picks on creatures, a [graph pick](#a-guest-arriving-mid-loop) by the shape** (measured, not read): a cow's
-  `BHR_Idle_TailWag` 2.2 s and 4.2 s, a mudcrab's `idle_MandibleBehavior` 2.2-3.2 s, a dog's standing idle 4.2 s (Riverwood
-  `graph_watch`, 150 s, 14 actors, 4018 samples: six runs; rerun on the corrected verb, 15 actors, 3710 samples: five runs, none
-  cut short: a hare's idle 3.3 s, chickens 2.2 s, a chair's exit against eating 2.3 s, a dog's locomotion against standing 4.4 s).
-- **A wolf's copy kept turning after a refused turn's recovery** (`9B0DB`, 4.7 s and 4.5 s, `wolf_copy_turns_with_owner`,
-  2026-11-08): its copy refused the owner's `TurnRight` 15 s after it spawned (`Copy 9B0DB recovered refused action 959FC
-  'TurnRight' from its owner's graph`). It loaded the owner's graph state, in `StandingBehavior=LoopingTurnRight`, while
-  its owner went on to `StandingIdleState`. The owner's `turnStop` was `refused by the engine, not sent`. So the recovery
-  loads a state the owner leaves with no action. Possibly the same writer: that refused `turnStop` set `iSyncTurnState`
-  on the owner only, and is now sent. Not shown: rerun the scenario and look for this shape.
-- **A wolf's copy kept in `CannedTurnState` with no refused action** (`9B0DD`, 8.4 s, `wolf_copy_turns_with_owner`,
-  2026-11-08, with refused actions' writes sent): its owner went on to `StandingIdleState`. The owner refused no action
-  from 28 s before the run to 6 s into it. A traced run (no stick in 180 s) showed the race behind it: the owner's
-  canned clip sometimes starts 0.1-0.2 s later after its action than its copy's, so the copy's clip ends before the
-  owner's refused `turnStop`/`moveStop` writes reach it (animation-replay-recovery.md, "A refused action still writes
-  its graph variables"). Why: a far owner's graph steps in chunks of 0.08-0.25 s (animation interpolation, 63587),
-  its copy every frame (same doc, "Why an owner's clip starts late").
-- **A counter idle's pick** (`13487`, `npc-counter-copy-falls-back-in`): `CounterBehaviorGraph=AnimObjectCounterRandom`
-  on the owner, `AnimObjectCounterArm` on the copy, 9.0-21.2 s, in all four runs.
+  read; all before the stream): its owner's `RootBehavior` stays in the attack, its copy in combat idle. May be the
+  owner's graph held by the kill: [After the host dies](#after-the-host-dies).
 
 ### Headtracking on copies
 
@@ -284,7 +268,8 @@ sections.
 
 ### A guest arriving mid-loop
 
-Test only: sync points should already cover it.
+Test only: the stream's sync point should already cover it (GameTests "A copy arriving mid-loop is in its owner's loop
+from its sync point").
 
 Agent task: Write the scenario where a guest's copy spawns while its owner is mid-loop.
 
@@ -367,6 +352,45 @@ Size: medium. Needs: duo.
     holds the copy's capsule at that height.
   - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
     only), loose food and a door, 45-52 references.
+
+### A strafing copy catches for a frame
+
+`copy-strafes-with-host` fails on dev's plugin as often as on the graph input stream's (2026-11-09: dev 17 runs in 27,
+the branch 30 in 44; back to back on a quiet machine dev 12 in 12, the branch 9 in 12). Two things trip its stutter
+check, neither a copy out of step with its owner.
+
+Agent task: read why the copy's capsule catches where its owner's does not, and make the check count real time.
+
+Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
+
+- **The copy moves short one frame and long the next at one spot** (4.0 then 8.5 units where its owner moves 5.8 a
+  frame), with its goal, its playback and the watching game's frames all steady. In those two frames it jogs 2 units
+  sideways and back (root x -398.0, -400.3, -397.7 at y 1800-1804 in `QASmoke`, the same place in every run, 4-7 frames
+  after it starts): its capsule meets something its owner's passes. Not read: what is there, and why a stepped copy
+  (`CopyMove::Step`) loses the frame.
+- **A long frame reads as a stutter.** The check takes each frame's move at 60 frames a second
+  (`movement.py` `frame_speeds`), so a 25 ms frame of either game shows a move half again as long. Runs with other
+  load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
+  plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
+
+### Crossed kill moves: a short winner's blow lands first
+
+`kill-moves-cross` fails its end comparison when the first swing is `pa_KillMoveShortD` and the loser's clip does not
+leave at once (2026-11-09, 1 run in 2 with the graph input stream's phase 3, whose off-stream action timing is dev's;
+dev passed its one such draw in 6 runs).
+
+Agent task: make the winner's pair start on the loser's game before the winner's hit can kill there.
+
+Size: small. Needs: duo, then GameTests (`friendly_fire_flows.cpp`, the crossing flows).
+
+- **Measured** (trace `20261109-231028-kill-moves-cross`): host swings at 117 ms, guest at 153 (`pa_KillMoveI`). The
+  guest yields at 219, but its own clip goes on (`KillMoveStart` 235, `KillMoveEnd` 374: `pa_KillMoveI` sits behind an
+  uninterruptible transition, kill-moves.md). The host's `HitFrame` comes at 501 and its forwarded hit kills the
+  guest's player at 545, a plain death. The host's pair is tried on the guest at 605 and refused; the copy's last
+  action stays `moveStart`.
+- The stops are resent for 30 of the copy's updates while the player's `IsInKillMove` or `bIsSynced` holds
+  (`AnimationSystem::Update`, `ReplayState::ResendPairStop`): 500 ms, longer than the short move's 384 ms to its hit.
+  Not read: which of the two still held after `KillMoveEnd`.
 
 ### Doors the host's NPCs unlock
 

@@ -84,6 +84,11 @@ that step, with or without this fix (no idle means nothing shown, never a pass).
 
 ## A graph's random picks (2026-11-04)
 
+> Since the graph input stream's phase 3 (2026-11-09) an NPC's copy takes its owner's seed with every stream op and its
+> every-N counts with the sync point (Havok's internal state). The sync points described below (`GraphRandom.h`,
+> `RunGraphPoint`, `ActionEvent::GraphCounters`) are removed; an action still carries its seed for copies off a stream
+> (players' copies). `npc-counter-matches` and `npc-counter-copy-falls-back-in` pass on the stream alone.
+
 Files loaded, a copy still played other clips: one action gave `DialogueNeutralExpressiveE` on the host and `...H` on the
 guest, and at Lucan's counter his arms crossed 9 to 19 s apart with no action at all. The saved traces matched Lucan
 exactly 90%, 62% and 23% of the time (`npc-clips-match` compared nothing then, only that files were in).
@@ -219,6 +224,9 @@ The same race leaves a copy in `CannedTurnState`: `DefaultBehavior`'s exit needs
 
 ## A refused action still writes its graph variables (2026-11-08)
 
+> The engine facts below stand. The fix they led to (a refused action sent as variables only, `kVariablesOnly`) is
+> removed since phase 3 (2026-11-09): the owner's stream carries every variable set from outside its graph.
+
 Both shapes above have one writer: an action the owner's graph refused. Read in IDA 1.7.104 (names and comments in this
 branch's journal):
 
@@ -303,32 +311,30 @@ animation interpolation for distant actors, read in IDA:
     synced NPCs, would show it first.
   - The narrower option, if needed: force only owners whose copies are near some guest's camera.
 
-### Actions spaced on the copy's graph time (2026-11-08)
+### Actions spaced on the copy's graph time (2026-11-08, removed 2026-11-09)
 
 A copy staged each action when its playback reached the action's tick. Its playback steers at 0.85-1.1x (`CopyClock.h`)
 while its clips run at the frames' time, so over a one-second turn at 0.9x the turnStop its owner had 40 ms before the
-clip's end came after the copy's. Now the first action comes at playback, and each next one as far after the last in
-the copy's graph time (the deltas its graph updates got, 20123, `ActorExtension::GraphUs`) as on its owner, never more
-than 250 ms before playback, and 250 ms after it at the latest (a graph standing still). With owners stepping every
-frame, both graphs' times run alike (`ActionDue`, `ReplayStep.h`). A paired action stays on playback: it is settled
-against a partner of the copy's game, which acts on that game's time (spaced early, crossed kill moves settled wrong in
-GameTests).
+clip's end came after the copy's. The interim fix spaced each action after the last on the copy's graph time
+(`ActionDue`). It is removed with phase 3: a streamed copy's graph takes no actions, and every other copy plays them
+at playback again, as before the branch.
 
-Also on playback (`AtPlayback`, 2026-11-09): a death, and any action a due pair or death waits behind. Skyrim showed
-both. In `kill-moves-cross` the host's pair waited 330 ms on the guest behind a `moveStart` its graph's clock held
-back; the guest's player died of the forwarded hit first and the pair was refused (2 runs in 5). In `host-kill-move`
-the wolf's copy, off its stream for the pair, took four of its owner's actions a step each (57-80 ms apiece), the last
-400 ms late, and its death was spaced from that one: it stood 311-396 ms after its owner died.
+What the spacing cost off the stream, seen on the duo (2026-11-09): in `kill-moves-cross` the host's pair waited
+330 ms on the guest behind a `moveStart` its graph's clock held back, and was refused once the guest's player had
+died; in `host-kill-move` the wolf's copy, off its stream for the pair, took four of its owner's refused actions'
+variables a step each (57-80 ms apiece) and its death was spaced from the last: it stood 311-396 ms after its owner
+died. GameTests keep both ("A kill move starts on its victim's game at playback...", "A copy's death comes at
+playback...").
 
 - GameTests `[replay-start]`: with `Turn()` stepping both games (it stepped only the host while the owner turned, which
   hid the copy's timing), the slow line and the turn after a fight fail on playback spacing; the far owner's turn
   (`FarOwnerChunkMs` 250, the fake's 63587) fails without the owner's force. The fake's owner AI performs its refused
-  turnStop 40 ms before its clip's end (measured 30-45 ms). ClientTests `[action-spacing]`.
+  turnStop 40 ms before its clip's end (measured 30-45 ms). ClientTests `[action-spacing]` went with the spacing.
 - **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
   or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
   turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the
   copy in its canned turn. On a clean line the snapshot still comes in time in the fake. ClientTests
-  `[refused-writes]`.
+  `[refused-writes]` went with the send; the flows run on the stream.
 
 ### Tried and parked: reading the owner's integers ahead
 

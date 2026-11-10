@@ -70,6 +70,16 @@ short of goodbyes. A joining menu keeping its own highlight (code review) did no
 after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
 entry is gone, the scenario and GameTests flow guard it.
 
+2026-11-10: the graph input stream's phase 3. A streamed owner's movement carries no graph variables and its copy's
+graph loads none; graph points and every-N counters (`GraphRandom`) are removed, with the branch's interim fixes
+(refused actions' variables, actions spaced on the copy's graph time): a copy off a stream plays actions at playback
+again, as on dev. On the duo the counter scenarios pass on the stream alone, the kill-move scenarios pass with dev's
+timing (the guest's blow 65-104 ms after the host's, the copy dead 111-135 ms after its owner), and the wolf's and
+Whiterun's live checks hold. `copy-strafes-with-host` is not the branch's: dev fails it as often (12 runs in 12 back to
+back, the branch 9), on long frames and on the copy's capsule catching at one spot (bugs.md, A strafing copy catches
+for a frame). One more `kill-moves-cross` shape filed, dev's by its code (Crossed kill moves: a short winner's blow
+lands first). Left: players' copies (phase 4).
+
 2026-11-09: the two kill-move leftovers of the stream's combined run, fixed. `kill-moves-cross` (2 fails in 5, none
 on dev): the host's pair waited 330 ms on the guest behind a `moveStart` its copy's graph clock held back, and was
 refused once the guest's player had died; a pair or a death now comes at playback with the actions before it

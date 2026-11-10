@@ -274,6 +274,15 @@ bool GraphStreams::Recording(uint32_t aFormId) const
     return FindOwned(aFormId) != nullptr;
 }
 
+bool GraphStreams::Streaming(uint32_t aFormId) const
+{
+    const auto pOwned = FindOwned(aFormId);
+    if (!pOwned)
+        return false;
+    std::scoped_lock _{pOwned->Lock};
+    return !pOwned->Paused;
+}
+
 void GraphStreams::OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint16_t aEventId)
 {
     if (const auto pOwned = FindOwned(aFormId))

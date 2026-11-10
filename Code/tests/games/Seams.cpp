@@ -229,7 +229,6 @@ void World::Update() noexcept
         streams.SetPlayback(form.Id, cPlayback);
         if (streams.OnStream(form.Id))
         {
-            animation.Anchor = {};
             bool dying = false, paired = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
@@ -242,13 +241,9 @@ void World::Update() noexcept
                     break;
                 }
                 animation.TimePoints.pop_front();
-                if (!VariablesOnly(cAction))
-                {
-                    animation.LastRanAction = cAction;
-                    engine.SetActorLatestAnimation(form.Id, cAction);
-                }
+                animation.LastRanAction = cAction;
+                engine.SetActorLatestAnimation(form.Id, cAction);
             }
-            animation.GraphPoint.reset();
             if (paired || !dying)
                 continue;
             streams.Forget(form.Id); // its death is its own body's: the stream ends, the death replays below
@@ -271,7 +266,7 @@ void World::Update() noexcept
         const uint8_t cPhase = step.Phase.load();
         if (cPhase == Step::kTaken || cPhase == Step::kRefused)
         {
-            if (cPhase == Step::kTaken && !VariablesOnly(step.Action))
+            if (cPhase == Step::kTaken)
             {
                 animation.LastRanAction = step.Action;
                 engine.SetActorLatestAnimation(form.Id, step.Action);
@@ -281,28 +276,6 @@ void World::Update() noexcept
                 animation.TimePoints.pop_front();
             step.Phase.store(Step::kIdle);
             continue;
-        }
-        // As AnimationSystem::RunGraphPoint.
-        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
-        GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-        if (cPhase == Step::kIdle && animation.GraphPoint &&
-            (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))
-        {
-            const auto& cPoint = *animation.GraphPoint;
-            const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
-            if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
-            {
-                actor.GraphRandom = cPoint.Variables.GraphRandom;
-                GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-                const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
-                if (!cCounters.empty())
-                {
-                    actor.LoopsSeen = uint32_t(cCounters.front().Seen);
-                    actor.LoopsToSend = uint32_t(cCounters.front().Needed);
-                }
-            }
-            if (cVerdict != GraphRandom::Point::kWait)
-                animation.GraphPoint.reset();
         }
         if (cPhase == Step::kClips)
         {
@@ -326,26 +299,8 @@ void World::Update() noexcept
         }
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
-        const uint64_t cGraphUs = uint64_t(actor.AnimationMs * 1000.0);
-        const uint64_t cDueTick = InterpolationSystem::PlaybackTick(*this, cEntity);
-        if (!ActionDue(animation.Anchor, action.Tick, cGraphUs, cDueTick, AtPlayback(animation.TimePoints, cDueTick))) continue;
+        if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
         if (!engine.IsAnimationGraphReady(form.Id)) continue;
-        animation.Anchor = {action.Tick, cGraphUs, true};
-        if (VariablesOnly(action))
-        {
-            if (action.Tick >= animation.VariablesTick)
-            {
-                animation.Variables = action.Variables;
-                animation.VariablesTick = action.Tick;
-            }
-            step.Action = action;
-            step.Variables = animation.Variables;
-            step.Retries = 0;
-            step.ClipsLoaded.reset();
-            animation.StagedUpdates = 0;
-            step.Phase.store(Step::kVariables);
-            continue;
-        }
         if (DeathActions::IsDying(action.State1))
         {
             if (engine.HoldDeathActions) continue;
@@ -358,8 +313,6 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
-        if (animation.GraphPoint && animation.GraphPoint->Tick < action.Tick)
-            animation.GraphPoint.reset();
         ActionEvent replayed = action;
         if (replayed.TargetActor)
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);

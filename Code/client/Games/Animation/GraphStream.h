@@ -139,6 +139,9 @@ struct GraphStreams
     void Record(uint32_t aFormId, uint32_t aActorId);
     void Forget(uint32_t aFormId); // no longer owned, or no longer a copy
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
+    // Recorded and not paused: its copies' graphs take its stream alone, so its movement carries no graph variables
+    // and it sends no graph points.
+    [[nodiscard]] bool Streaming(uint32_t aFormId) const;
     void OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,
                  const GraphSeed& acSeed);
     void OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint16_t aEventId);

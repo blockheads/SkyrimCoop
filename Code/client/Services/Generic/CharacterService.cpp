@@ -67,6 +67,12 @@
 
 namespace
 {
+// A snapshot of a streamed owner carries none (graph-input-stream.md).
+bool HasVariables(const AnimationVariables& acVariables) noexcept
+{
+    return !acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty();
+}
+
 // TESNPC change flags the player's copies are made from: race, sex and face (NPC_ChangeForm 0x2000000, 0x1000000, 0x800).
 constexpr uint32_t kPlayerLooksFlags = 0x3000800;
 } // namespace
@@ -683,12 +689,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         InterpolationSystem::AddPoint(interpolationComponent, point);
 
         for (const auto& action : update.ActionEvents)
-        {
-            if (!action.ActionId && !action.GraphState.empty())
-                animationComponent.GraphPoint = action;
-            else
-                animationComponent.TimePoints.push_back(action);
-        }
+            animationComponent.TimePoints.push_back(action);
     }
 }
 
@@ -1695,7 +1696,7 @@ void CharacterService::RunRemoteUpdates() noexcept
             const AnimationVariables* pVariables = &first.Variables;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                if (first.Tick > pAnimation->VariablesTick)
+                if (first.Tick > pAnimation->VariablesTick && HasVariables(first.Variables))
                 {
                     pAnimation->Variables = first.Variables;
                     pAnimation->VariablesTick = first.Tick;
@@ -1748,6 +1749,10 @@ void CharacterService::RunRemoteUpdates() noexcept
                 const auto& cOwner = tick >= second.Tick ? second : first;
                 m_actorBridge.SetCopyPhysics(pFormIdComponent->Id, cOwner.BodiesLayer, cOwner.GraphsStepPhysics);
             }
+            // On its stream its graph's variables are the stream's alone.
+            static const AnimationVariables s_none;
+            if (m_world.GetGraphStreams().OnStream(pFormIdComponent->Id))
+                pVariables = &s_none;
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }

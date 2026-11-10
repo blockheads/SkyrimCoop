@@ -2,7 +2,6 @@
 
 #include "FakeGraph.h"
 #include <span>
-#include <Games/Animation/GraphRandom.h>
 #include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
@@ -631,6 +630,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
+    void StepLoop(Actor& aActor);
     bool Replaying = false; // under PlayReplayed (g_forceAnimation)
     void EndKillMove(uint32_t aFormId);
     // ActionGetUp (the default object): replayed on a knocked-down copy it stands it up (AnimationSystem's

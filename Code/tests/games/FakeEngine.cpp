@@ -211,8 +211,26 @@ void FakeEngine::WriteGraphChannels(Actor& aActor, double aStepMs)
 }
 
 // The behaviour graph's update with this step (63587): its rules on its variables, on its own time (Timeline).
+// A looping clip's update; an event every N loops is the graph's, no action behind it (BSEventEveryNEventsModifier).
+void FakeEngine::StepLoop(Actor& aActor)
+{
+    if (aActor.GraphState != Loop->State && aActor.GraphState != Loop->Other)
+        return;
+    if (++aActor.LoopFrames < Loop->Frames)
+        return;
+    aActor.LoopFrames = 0;
+    if (++aActor.LoopsSeen < aActor.LoopsToSend)
+        return;
+    aActor.LoopsSeen = 0;
+    aActor.LoopsToSend = 1 + (DrawGraphRandom(aActor) >> 13) % Loop->Most;
+    aActor.LoopDraws.push_back(aActor.LoopsToSend);
+    aActor.GraphState = aActor.GraphState == Loop->State ? Loop->Other : Loop->State;
+}
+
 void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
 {
+    if (Loop)
+        StepLoop(aActor);
     auto& graph = aActor.Graph;
     graph.Timeline += aStepMs;
     graph.Updated = true;
@@ -398,22 +416,10 @@ void FakeEngine::Frame()
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
             Strikes(cId, actor.PairVictim, 1000.f);
-    // Clips loop on each game's own clock; an event every N of them is the graph's, no action behind it.
-    if (Loop)
+    // Without the graph's rules, clips loop on each game's own clock; with them, in the graph's step (StepGraph).
+    if (Loop && !Graph)
         for (auto& [cId, actor] : Actors)
-        {
-            if (actor.GraphState != Loop->State && actor.GraphState != Loop->Other)
-                continue;
-            if (++actor.LoopFrames < Loop->Frames)
-                continue;
-            actor.LoopFrames = 0;
-            if (++actor.LoopsSeen < actor.LoopsToSend)
-                continue;
-            actor.LoopsSeen = 0;
-            actor.LoopsToSend = 1 + (DrawGraphRandom(actor) >> 13) % Loop->Most;
-            actor.LoopDraws.push_back(actor.LoopsToSend);
-            actor.GraphState = actor.GraphState == Loop->State ? Loop->Other : Loop->State;
-        }
+            StepLoop(actor);
     const uint64_t cFrameTick = World::Get().GetFrameTick();
     const double cFrameMs = FrameMs > 0.0 ? FrameMs : LastFrameTick ? double(cFrameTick - LastFrameTick) : 0.0;
     LastFrameTick = cFrameTick;
@@ -1132,8 +1138,6 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 
 bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 {
-    if (VariablesOnly(acAction))
-        return true;
     if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
         return true;
     Replaying = true;
@@ -1318,14 +1322,6 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
     });
     if (!aQuery)
         ApplyActionWrites(aFormId, aAction.EventName);
-    // Refused: its writes only, as Animation.cpp's hook.
-    if (cOutcome.Capture && !cOutcome.Result)
-    {
-        AnimationVariables after = Actors.at(aFormId).GraphVariables;
-        after.GraphRandom = aAction.Variables.GraphRandom;
-        if (SendRefusedVariables(aAction, after))
-            World::Get().GetDispatcher().trigger(aAction);
-    }
     if (cOutcome.Capture && cOutcome.Result)
     {
         if (::ReplayState::StartsAttack(aAction.EventName))
@@ -1434,17 +1430,24 @@ std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
     // The blend node's plain members, beside its internal state (GraphInternalState's members).
     if (cGraph.FrozenParameter)
         blend.Runtime = std::to_string(*cGraph.FrozenParameter);
-    return GraphState::Encode({machine, blend, damp});
+    // A clip's local time and its every-N counter: internal state, which the plain graph state leaves out.
+    GraphState::Node loop{.Id = 3, .State = std::format("{} {} {}", it->second.LoopFrames, it->second.LoopsSeen, it->second.LoopsToSend)};
+    return GraphState::Encode({machine, blend, damp, loop});
 }
 
 bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acState)
 {
     std::vector<GraphState::Node> nodes;
-    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 3 || !nodes[0].State || !nodes[1].State ||
-        !nodes[2].State)
+    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 4 || !nodes[0].State || !nodes[1].State ||
+        !nodes[2].State || !nodes[3].State)
         return false;
     if (!LoadActorGraphState(aFormId, *nodes[0].State))
         return false;
+    {
+        auto& actor = Actors.at(aFormId);
+        std::istringstream loop(*nodes[3].State);
+        loop >> actor.LoopFrames >> actor.LoopsSeen >> actor.LoopsToSend;
+    }
     auto& graph = Actors.at(aFormId).Graph;
     const auto& cBlend = *nodes[1].State;
     const auto cBreak = cBlend.find('\n');
@@ -1612,7 +1615,9 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
-    it->second.GraphVariables = acVariables;
+    // VariableSync::Write writes the variables it is given: none, the graph keeps its own.
+    if (!acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty())
+        it->second.GraphVariables = acVariables;
     if (aMove == CopyMove::Leave || RagdollPosed(aFormId))
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
