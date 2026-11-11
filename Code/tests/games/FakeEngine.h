@@ -741,6 +741,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     uint32_t RestoredMidCrossBlend = 0;
     bool LoadGraphInternalState(uint32_t aFormId, const std::string& acState);
     bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override;
+    // TESObjectREFR::LoadGraphStateFlags: a saved state's actor state words alone.
+    bool LoadGraphStateFlags(uint32_t aFormId, const std::string& acState) noexcept;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it

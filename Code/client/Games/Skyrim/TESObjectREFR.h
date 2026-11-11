@@ -222,6 +222,8 @@ struct TESObjectREFR : TESForm
     // An actor's, with its state flags.
     bool SaveAnimationGraphState(std::string& aState) const noexcept;
     bool LoadAnimationGraphState(const std::string& acState) const noexcept;
+    // That state's actor state words alone: a copy whose graph is its stream's.
+    bool LoadGraphStateFlags(const std::string& acState) const noexcept;
     uint32_t GetAnimationVariableInt(BSFixedString* apVariableName) noexcept;
 
     void RemoveAllItems() noexcept;

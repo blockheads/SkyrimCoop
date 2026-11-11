@@ -178,10 +178,20 @@ fraction of a second later. GameTests "A copy asking while its owner's walk blen
 the blend" (the fake's `Blend::CrossBlendOn`), ClientTests `[graph-state]`. The wait never showed in about 70 duo runs
 after the fix, so Skyrim's proof is the code read and the two stacks, not a rerun.
 
-**Open (duo, 2026-11-10):**
+**A copy made on its stream kept "about to sit" (fixed 2026-11-10).** Combined run, `npc-clips-match`: Lucan's copy
+read sit state 1 while its owner leaned on his counter (3), in 6 of 8 arrivals; dev's plugin 0 of 8. The sit action
+leaves 1 and the furniture procedure sets 3 with no action (`AIProcess::SetSitSleepState` 39912); the spawn's graph
+state carries both actor state words (`LoadAnimationGraphState`). A copy already on its stream dropped that state
+unloaded (its sync point is the newer graph) and then took its spawn action's state after, the stale 1. Now it takes
+the spawn state's actor state words alone (`TESObjectREFR::LoadGraphStateFlags`, its own ragdoll and weapon
+transition kept) and its spawn action as taken, as off the stream. GameTests "A copy made after its owner sat down is
+seated, not about to sit as its owner's last action left it" (the fake's saved graph state now carries `State1`).
 
-- **A copy stays "deferred kill" after a ride** (`state.deferred_kill` true on the host's copy of a rider, false on
-  its owner): 37462 starts one with `GETTING_ON_OFF_MOUNT`; what ends the copy's is not read.
+**A rider's copy in "deferred kill" after the ride is by design (read 2026-11-10).** Every living copy is in a
+scripted deferred kill, started each update (`docs/re/systems/actor-ai-and-copies.md`, A copy is in deferred kill).
+Getting on or off a mount (37462) starts and ends an unscripted one, and the end (`coop_AIProcess_EndDeferredKill`)
+only applies when its argument equals the flag the start set: the owner's clears, the copy's scripted one stays. The
+comparison already skips the field.
 
 ## What went away with the stream (phase 3, 2026-11-09)
 

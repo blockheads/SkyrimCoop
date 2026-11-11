@@ -1483,7 +1483,11 @@ bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acS
     if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 4 || !nodes[0].State || !nodes[1].State ||
         !nodes[2].State || !nodes[3].State)
         return false;
-    if (!LoadActorGraphState(aFormId, *nodes[0].State))
+    // Havok's internal state holds no actor state: the actor's own stays.
+    const uint32_t cState1 = Actors.at(aFormId).State1;
+    const bool cLoaded = LoadActorGraphState(aFormId, *nodes[0].State);
+    Actors.at(aFormId).State1 = cState1;
+    if (!cLoaded)
         return false;
     {
         auto& actor = Actors.at(aFormId);
@@ -1517,7 +1521,7 @@ std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
-    const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
+    const uint32_t cFlags[2] = {it->second.State1, uint32_t(it->second.Weapon) << 5};
     return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState, it->second.Graph);
 }
 
@@ -1529,10 +1533,11 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
     auto& actor = it->second;
     actor.LoopFrames = 0; // clip times are not saved: a loaded graph's clips start over
     // TESObjectREFR::SaveAnimationGraphState prefixes its graph with both ActorState words.
-    if (acState.size() >= 8 && acState.compare(0, 4, std::string(4, '\0')) == 0)
+    if (acState.size() >= 8 && FakeGraphState(acState))
     {
         uint32_t flags[2];
         std::memcpy(flags, acState.data(), sizeof(flags));
+        actor.State1 = flags[0];
         const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
         // One graph, one active machine: its state is the fake's GraphState.
@@ -1553,6 +1558,18 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
         actor.GraphState = acState; // direct fixtures supply the graph alone
     if (Graph)
         GraphEntry(actor, "load");
+    return true;
+}
+
+bool FakeEngine::LoadGraphStateFlags(uint32_t aFormId, const std::string& acState) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || acState.size() < 8 || !FakeGraphState(acState))
+        return false;
+    uint32_t flags[2];
+    std::memcpy(flags, acState.data(), sizeof(flags));
+    it->second.State1 = ReplayState::Flags1(flags[0], it->second.State1);
+    it->second.Weapon = WeaponState((ReplayState::Flags2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
     return true;
 }
 

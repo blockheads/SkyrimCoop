@@ -69,9 +69,21 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         }
     }
 
-    // A fresh copy starts in its owner's graph state; the queue waits for it. On the stream, its sync point is newer.
-    if (aWorld.all_of<SpawnGraphStateComponent>(aEntity) && aWorld.GetGraphStreams().OnStream(apActor->formID))
+    // A fresh copy starts in its owner's graph state; the queue waits for it. On the stream, its sync point is newer:
+    // it takes that state's actor state alone (a sit state its owner's procedure set, with no action), and its
+    // spawn action is taken as below.
+    if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity); pSpawn && aWorld.GetGraphStreams().OnStream(apActor->formID))
+    {
+        if (apActor->LoadGraphStateFlags(pSpawn->State) && !actions.empty())
+        {
+            ActionEvent spawnAction = actions.front();
+            TargetFromNetwork(spawnAction);
+            aAnimationComponent.LastRanAction = spawnAction;
+            apActor->GetExtension()->LatestAnimation.Write(spawnAction);
+            actions.pop_front();
+        }
         aWorld.remove<SpawnGraphStateComponent>(aEntity);
+    }
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
     {
         if (aWorld.all_of<WaitingFor3D>(aEntity) || !EngineVirtual(apActor->animationGraphHolder).IsReady())

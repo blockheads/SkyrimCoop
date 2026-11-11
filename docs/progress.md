@@ -80,7 +80,7 @@ drawn (`docs/re/systems/culled-npc-pose-readings.md`). The guest crash is explai
 while a walk's direction blend cross-blended put a copy's generator in that mode with no blenders; an owner now takes
 no point until the cross-blend ends. `guest-rides-host-horse`'s head-tracking failure was not the stream's: the
 engine drops a look at this game's player its tracker does not detect, and a player's copy detects nobody; a copy's
-tracking no longer asks. Open: a rider's copy left "deferred kill" (`docs/design/graph-input-stream.md`, Players).
+tracking no longer asks. A rider's copy in "deferred kill" after the ride is the copies' own, by design (`docs/design/graph-input-stream.md`).
 
 2026-11-10: the graph input stream's phase 3. A streamed owner's movement carries no graph variables and its copy's
 graph loads none; graph points and every-N counters (`GraphRandom`) are removed, with the branch's interim fixes

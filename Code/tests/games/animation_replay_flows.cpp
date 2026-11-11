@@ -1149,6 +1149,44 @@ TEST_CASE("A streamed copy takes its owner's actor state with each action", "[an
     }
 }
 
+TEST_CASE("A copy made after its owner sat down is seated, not about to sit as its owner's last action left it", "[animation][replay-start]")
+{
+    // Skyrim (duo, npc-clips-match, 2026-11-10): Lucan's copy stayed in sit state 1 (wants to sit) while its owner
+    // leaned on his counter (3). The sit action leaves 1 and the furniture procedure sets 3 with no action (39912);
+    // the spawn's graph state carries the 3, and a copy already on its stream dropped that state and took the
+    // spawn action's.
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    constexpr uint32_t cSitMask = 0xFu << FakeEngine::kSitShift;
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{};
+        engine->GraphTransitions = {{{"Standing", "sitEnter"}, "Sitting"}};
+        engine->ActionStates = {{"sitEnter", {1u << FakeEngine::kSitShift, true}}};
+    }
+    guest.NewCopiesGraphReady = false; // its stream starts before its spawn's state could load
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x13487, 0x31D2E, {});
+        auto& owner = host.Actors.at(npc);
+        owner.GraphState = "Standing";
+        ActionEvent sit;
+        sit.ActionId = 0x13031;
+        sit.EventName = "sitEnter";
+        REQUIRE(host.PerformAnimation(npc, sit));
+        REQUIRE(host.SitState(npc) == 1);
+        owner.State1 = (owner.State1 & ~cSitMask) | 3u << FakeEngine::kSitShift; // its procedure, once it sits
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy is on its owner's stream");
+    const uint64_t cFrom = party.Guest().GetFrameTick();
+    party.Until([&] { return party.Guest().GetFrameTick() > cFrom + 300; }, "300 ms on");
+    CHECK(guest.SitState(cCopy) == 3);
+    CHECK(guest.Actors.at(cCopy).GraphState == "Sitting");
+}
+
 TEST_CASE("A player's copy is back on its stream only once its owner has left its kill move", "[animation][replay-start][kill-move][players]")
 {
     // Skyrim (duo, host-kill-move, 2026-11-10): the pair's instance ended at the victim's PairEnd, 1.3 s before the

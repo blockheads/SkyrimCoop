@@ -477,7 +477,9 @@ This is skymp's way (`skymp5-client` `formView.ts`: `startDeferredKill()` on eve
 `endDeferredKill()` then `kill()` on the server's death). In deferred kill `HandleHealthDamage`'s
 bleedout/kill check and `KillImpl` only mark a pending kill; `Actor::Kill` and `KillWithDeathAction`
 end it first (`EndDeferredKill` 38618 queues the pending kill on the task queue, so the kill made
-right after wins). A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
+right after wins). The end applies only when its argument equals the flag the start set
+(`coop_AIProcess_EndDeferredKill`, middle/high `+0x332`), so the engine's own unscripted ends (a mount's 37462) leave a
+copy's in place. A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
 deferral started with `false`, so a kill move on a copy does not kill it either. Replaced a 0.01
 health floor and a map undoing it after the death. Measured: the copy shows -2.04 while alive and
 dies with its owner's `DeathAnimation` 0.36 s later; kill-credit, `death-host-npc`, `health-host-npc`

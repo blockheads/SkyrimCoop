@@ -206,8 +206,17 @@ void World::Update() noexcept
     {
         if (!engine.ActorExists(form.Id)) continue;
         // On the stream, its sync point is newer than its spawn's state (as AnimationSystem).
-        if (all_of<SpawnGraphStateComponent>(cEntity) && GetGraphStreams().OnStream(form.Id))
+        if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity); spawn && GetGraphStreams().OnStream(form.Id))
+        {
+            // Its actor state alone, and its spawn action taken (as AnimationSystem).
+            if (engine.LoadGraphStateFlags(form.Id, spawn->State) && !animation.TimePoints.empty())
+            {
+                animation.LastRanAction = animation.TimePoints.front();
+                engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
+                animation.TimePoints.pop_front();
+            }
             remove<SpawnGraphStateComponent>(cEntity);
+        }
         if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
         {
             if (all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;

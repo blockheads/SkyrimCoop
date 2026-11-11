@@ -244,6 +244,18 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
     return cLoaded;
 }
 
+bool TESObjectREFR::LoadGraphStateFlags(const std::string& acState) const noexcept
+{
+    auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(this));
+    uint32_t flags[2]{};
+    if (!pActor || acState.size() < sizeof(flags))
+        return false;
+    std::memcpy(flags, acState.data(), sizeof(flags));
+    pActor->actorState.flags1 = ReplayState::Flags1(flags[0], pActor->actorState.flags1);
+    pActor->actorState.flags2 = ReplayState::Flags2(flags[1], pActor->actorState.flags2);
+    return true;
+}
+
 // Called with the manager locked: its selected graph and descriptor must describe the same project.
 static const AnimationGraphDescriptor* DescriptorFor(BSAnimationGraphManager& aManager, Actor& aActor, int aIndex)
 {

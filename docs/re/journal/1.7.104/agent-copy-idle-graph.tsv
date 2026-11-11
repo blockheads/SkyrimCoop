@@ -398,3 +398,11 @@ time	op	id	rva	item
 2026-11-10T19:54:49Z	comment	39467	0x6fe770	{"addr": "0x1406fe770", "comment": "Clears the default headtrack slot (HighProcessData +0x140, slot 0) and its flag +0x158, then refreshes the look position. From ProcessTracking when the tracker does not detect this game's player."}
 2026-11-10T19:54:49Z	comment	403520	0x3230774	{"addr": "0x143230774", "comment": "403520: this game's player's ref handle (112 readers: escort, follow, dialogue procedures, ProcessTracking). Was misnamed gBarterMenu_TargetRefHandle."}
 2026-11-10T20:29:46Z	name	39467	0x6fe770	{"addr": "0x1406fe770", "name": "coop_AIProcess_ClearDefaultHeadtrackSlot"}
+2026-11-10T22:20:58Z	read	38616	0x6cc910	{"name": "Character::StartDeferredKill"}
+2026-11-10T22:20:59Z	read	38618	0x6cc950	{"name": "Actor::EndDeferredKill"}
+2026-11-10T22:20:59Z	read	40033	0x7285a0	{"name": "ActorProcess::StartDeferredKill"}
+2026-11-10T22:21:02Z	read	40036	0x728620	{"name": "sub_140728620"}
+2026-11-10T22:21:02Z	read	38619	0x6cc970	{"name": "Character::sub_38619"}
+2026-11-10T22:21:11Z	comment	40036	0x728620	{"addr": "0x140728620", "comment": "(process, scripted, actor): EndDeferredKill's body. Ends the deferral only when `scripted` equals the flag byte middleHigh+0x332 (818) StartDeferredKill ORed in; then state +0x2F8 (760) = 0, a held kill (state > 1) is queued with this game's player as killer, flag = 0. So the engine's own unscripted ends (mount 37462, KillActor 42838) leave a scripted deferral (papyrus, our copies') in place."}
+2026-11-10T22:21:11Z	comment	40033	0x7285a0	{"addr": "0x1407285a0", "comment": "40033 (process, scripted): state middleHigh+0x2F8 = 1 if 0, flag +0x332 |= scripted, timer +0x2D4 reset. Safe every frame. Our copies call it with scripted = 1 each update (UpdateCopyAI)."}
+2026-11-10T22:21:15Z	name	40036	0x728620	{"addr": "0x140728620", "name": "coop_AIProcess_EndDeferredKill"}
