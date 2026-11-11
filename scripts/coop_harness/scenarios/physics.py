@@ -665,7 +665,7 @@ def scenario_knockdown_lies_as_host(ctx):
     log("ragdoll: " + trace.report())
     log("copy vs owner: " + trace.compare_report("", npc, "client", copy))
     trace.check_copy("", npc, "client", copy)
-    trace.check(["client"])
+    trace.check_as_owner("", npc, "client", copy)
 
 def scenario_knockdown_smoke(ctx):
     """Lydia stands between the two players, both facing her (watch both games: `watch`, `watch --instance client`);

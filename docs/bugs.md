@@ -609,6 +609,20 @@ Size: medium. Needs: duo, then GameTests.
   state 6: the knock update (39896, state 5) sets a copy's heading from its own ragdoll's bones. Start there. Once
   the host's own Lydia stood 172 units above the floor at the end (not looked into). What is below was measured
   before that.
+- **The fall's start is fixed, and the checks compare with the owner (2026-11-11, evening).** The fall was never
+  late (the copy follows its owner's path within 1 unit, 250-290 ms behind): its graph took the streamed Ragdoll
+  input 40-70 ms before its owner's first body frame knocked its body down, so it drooped 25 units and snapped back.
+  A streamed copy now goes down with its owner's ragdoll action (`KnockReplay::GoesDown`, physics.md, Knockdown).
+  Three checks failed on Skyrim's own behaviour and were corrected (`RagdollTrace`): a fixed 300 ms delay (measured
+  150-310 ms: `DELAY_RANGE`), the copy's flickers counted alone (the host's own Lydia flickers 8-55 times a run:
+  `beyond_owner`), and bones of an actor not drawn (front-and-back's third push sends her out of the guest's view,
+  where Skyrim leaves the skeleton still: `drawn`). Replayed over the morning's samples they still fail the two bad
+  get-ups. After, five runs each: `knockdown-lies-as-host` 5 of 5, `knockdown-front-and-back` 5 of 5,
+  `guest-knockdown-lies-on-host` 5 of 5, `knockdown-smoke` 4 of 5.
+  - Open: one limb jumps 12-14 units for one frame about 1 s into a get-up, the copy only (smoke, 3 of 14 runs);
+    pelvis and head stay put.
+  - Open, not explained: once smoke's end comparison read the copy 66 units above its owner (`pose.floor_gap`), while
+    the frame samples just before show both at the same height. A guess, unverified: the floor ray at a ledge.
 - **The get-up's own turn is fixed (2026-11-11, later):** it was the head held by the room during the physics-driven
   get-up, on one game only; the owner's ragdoll frames now go on until it stands (physics.md, Getting up). 4 runs of
   each scenario after: `guest-knockdown-lies-on-host` 4 of 4, `knockdown-smoke` 3 of 4 (one copy-only snap),

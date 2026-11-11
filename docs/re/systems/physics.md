@@ -225,6 +225,10 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   `Character` vfunc 0xC5 (40292: the byte at `Actor+0x27A`, set by vfunc 0xC4 40295) is zero. With the graph's
   ragdoll (below) it adds the ragdoll to the world and sets the knock state (`ActorState` flags1 bits 25-27) to 2,
   explode lead-in; without one it only makes the 3D dynamic.
+- `KnockExplosion` and `KnockParalyze` (39894) end by playing the default object ActionRagdoll (index 107) on the
+  actor (`0x1407360D0`): the graph's "Ragdoll" input comes in the same call that sets the knock state. A copy on its
+  owner's stream goes down when that action arrives (`KnockReplay::GoesDown`, `BodyBridge::KnockDown`); knocked only
+  by its owner's first body frame it was 40-70 ms late, its graph in its ragdoll state with no ragdoll under it.
 - The knock update (39896, `0x140711020`; process, actor, from `Actor::UpdateAnimation` and the animation jobs):
   - lead-in (2, 4): once the graph has its ragdoll, ragdoll-driven, state 1 (explode) or 3 (out), and the
     down timer (`middleProcess+0x2B0`) set from `dword_142006858`;

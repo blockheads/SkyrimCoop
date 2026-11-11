@@ -907,6 +907,34 @@ TEST_CASE("A streamed copy knocked down with its owner gets up with it", "[anima
     CHECK(wolf.Difference() == "");
 }
 
+TEST_CASE("A streamed copy goes down in the step its owner's ragdoll input reaches its graph", "[animation][replay-start][knock][fall]")
+{
+    // Skyrim (duo, knockdown-front-and-back, 2026-11-11): the copy's graph took the streamed Ragdoll input 40-70 ms
+    // before its owner's first body frame knocked its body down: its skeleton drooped 25 units and snapped back onto
+    // its owner's path. The engine knocks an actor and plays ActionRagdoll in one call (39895).
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        engine->GraphTransitions[{"Standing", "Ragdoll"}] = "Ragdoll";
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    ActionEvent knock;
+    knock.ActionId = FakeEngine::kActionRagdoll;
+    knock.EventName = "Ragdoll";
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, knock));
+    });
+    // No body frame comes in this flow: only the action can take it down.
+    uint32_t drooped = 0;
+    wolf.party.Until([&] {
+        if (cCopy.GraphState == "Ragdoll" && !cCopy.KnockedDown && !cCopy.KnockIn)
+            ++drooped;
+        return cCopy.GraphState == "Ragdoll" && (drooped > 30 || cCopy.KnockedDown);
+    }, "the copy's graph takes its owner's ragdoll input");
+    CHECK(cCopy.KnockedDown);
+    CHECK(drooped <= 1); // its graph in its ragdoll state with no ragdoll under it
+    CHECK(wolf.party.Guest().GetGraphStreams().OnStream(wolf.copy));
+}
+
 TEST_CASE("A knocked-down copy gets up the way its owner does, on its owner's stream", "[animation][replay-start][knock][pick]")
 {
     // Skyrim (duo, knockdown-lies-as-host, 2026-11-11, dev's plugin and the stream alike): "it turned away from the

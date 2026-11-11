@@ -7,6 +7,7 @@
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
+#include <Services/BodyService.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/Animation/ReplayState.h>
 #include <Camera/VATS.h>
@@ -139,6 +140,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 PrepareCopyGetUp(*apActor);
                 apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (5u << 25);
             }
+            // Its owner's knock: its own body goes down in the same step as its graph's Ragdoll input (39895).
+            const auto* pRagdoll = DefaultObjectManager::GetObject(DefaultObjectManager::kActionRagdoll);
+            if (!apActor->IsDead() && KnockReplay::GoesDown(apActor->actorState.GetKnockState(), pRagdoll && action.ActionId == pRagdoll->formID))
+                aWorld.ctx().at<BodyService>().KnockDown(apActor->formID);
             // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
             // weapon transition kept as a replayed action keeps them.
             apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);

@@ -48,6 +48,12 @@ bool BodyBridge::KnockedDown(Actor& aCopy, bool aKnock) noexcept
     return true;
 }
 
+bool BodyBridge::KnockDown(uint32_t aCopyFormId) noexcept
+{
+    auto* pCopy = Cast<Actor>(TESForm::GetById(aCopyFormId));
+    return pCopy && !pCopy->IsDeleted() && !pCopy->IsDead() && KnockedDown(*pCopy, true);
+}
+
 BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, bool aKnock) noexcept
 {
     if (acKey.Actor)

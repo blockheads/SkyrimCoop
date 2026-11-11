@@ -58,6 +58,11 @@ void BodyService::EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept
     });
 }
 
+void BodyService::KnockDown(uint32_t aCopyFormId) noexcept
+{
+    (void)m_bridge.KnockDown(aCopyFormId);
+}
+
 void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
 {
     std::vector<BodyFrame> frames, ragdolls;

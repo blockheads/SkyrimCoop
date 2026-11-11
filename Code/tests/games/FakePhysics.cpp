@@ -116,6 +116,17 @@ bool FakeEngine::Push(const BodyPush& acPush) noexcept
     return true;
 }
 
+bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
+{
+    const auto it = Actors.find(aCopyFormId);
+    if (it == Actors.end() || it->second.Dead)
+        return false;
+    // Queued, as KnockExplosion on the task queue.
+    if (!it->second.KnockedDown && !it->second.KnockIn)
+        it->second.KnockIn = 2;
+    return true;
+}
+
 bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);

@@ -540,6 +540,8 @@ class RagdollTrace:
         rest = next((f["t"] / 1e6 - t0 for i, f in enumerate(frames) if not any(awake[i:])), None)
         stray = 0.0
         for f in frames:
+            if not self.drawn(f):
+                continue
             for b in f["bodies"]:
                 if b and b.get("bone") and b.get("motion") in DYNAMIC_MOTIONS:
                     stray = max(stray, math.dist(b["bone"], b["position"]))
@@ -590,6 +592,11 @@ class RagdollTrace:
             o = owner_at(f["t"] - delay)
             (cf, cl), (of, ol) = facing(f), facing(o)
             turn = abs((cf - of + 180) % 360 - 180)
+            # Its delay is not one number (150 to 310 ms through a knockdown): the owner facing so at any of them counts.
+            if turn > self.SPIN and cl > self.LEVEL and ol > self.LEVEL:
+                near = own[bisect.bisect_left(times, f["t"] - self.DELAY_RANGE[1]):bisect.bisect_right(times, f["t"] - self.DELAY_RANGE[0])]
+                turns = [abs((cf - facing(n)[0] + 180) % 360 - 180) for n in near if facing(n)[1] > self.LEVEL]
+                turn = min(turns + [turn])
             if turn > self.SPIN and cl > self.LEVEL and ol > self.LEVEL:
                 t = (f["t"] - t0) / 1e6
                 if spins and t - spins[-1]["end"] < 0.1:
@@ -638,7 +645,9 @@ class RagdollTrace:
         c = self.compare(owner_game, owner, copy_game, copy)
         delay = (c["delay"] if c else 300) * 1000
         owners = [s["wall"] for s in self.snaps(owner_game, owner)]
-        return [s for s in self.snaps(copy_game, copy) if not any(abs(s["wall"] - delay - w) < 60_000 for w in owners)]
+        lo, hi = self.DELAY_RANGE
+        return [s for s in self.snaps(copy_game, copy)
+                if not any(abs(s["wall"] - delay - w) < 60_000 or lo - 30_000 <= s["wall"] - w <= hi + 30_000 for w in owners)]
 
     def snaps_report(self, owner_game, owner, copy_game, copy):
         ctx = self.session
@@ -698,6 +707,44 @@ class RagdollTrace:
         if problems:
             raise ctx.failure("bodies did not move as bodies do: " + " | ".join(problems) + f" (samples: {self.folder.name})")
 
+    @staticmethod
+    def drawn(frame):
+        """Its 3D was drawn that frame (NiAVObject kNotVisible, 1 << 20, is the last frame's culling). Skyrim leaves a
+        culled actor's skeleton where it was while its ragdoll's bodies move on: nobody sees those bones
+        (knockdown-front-and-back, 2026-11-11: a copy pushed out of the guest's view, its head node still for 3 s)."""
+        return not frame.get("flags_3d", 0) & (1 << 20)
+
+    def beyond_owner(self, owner_game, owner, copy_game, copy):
+        """What the copy's bodies do that its owner's do not, as text, or None: a getting-up owner's own bones shake and
+        flicker in Skyrim (2026-11-11: 8 to 55 flickers a run on the host's own Lydia, its copy's count within one or
+        two), so the copy is held to its owner's, with a margin."""
+        own, cop = self.measure(owner_game, owner), self.measure(copy_game, copy)
+        if not cop:
+            return None
+        flickers = lambda m: sum(len(v["flickers"]) for v in m["series"].values()) if m else 0
+        shake = lambda m: max((v["worst"] for v in m["series"].values()), default=0) if m else 0
+        stray = lambda m: m["stray"] if m else 0.0
+        found = []
+        # A still owner's copy may not flicker at all; a flickering owner's by half as much again.
+        if flickers(cop) > flickers(own) + (max(2, flickers(own) // 2) if flickers(own) else 0):
+            found.append(f"{flickers(cop)} flickers, its owner {flickers(own)}")
+        if shake(cop) > max(self.MAX_SHAKE, shake(own) + 3):
+            found.append(f"a series turned back {shake(cop)} times within a second, its owner's {shake(own)}")
+        if stray(cop) > max(self.MAX_STRAY, stray(own) + 5):
+            found.append(f"a bone {stray(cop):.0f} units off its body, its owner's {stray(own):.0f}")
+        return "; ".join(found) or None
+
+    def check_as_owner(self, owner_game, owner, copy_game, copy):
+        ctx = self.session
+        _game = ctx.host
+        found = self.beyond_owner(owner_game, owner, copy_game, copy)
+        if found:
+            raise ctx.failure(f"the copy's bodies did not move as its owner's: {found} | "
+                              f"{self.describe(copy_game, copy, 'the copy')} (samples: {self.folder.name})")
+
+    # A copy shows its owner this long ago: its playback delay (measured 150 to 310 ms through a knockdown, 2026-11-11).
+    DELAY_RANGE = (100_000, 360_000)
+
     def check_copy_skeleton(self, owner_game, owner, copy_game, copy):
         """Compare visible bones; getting-up animation can depart from rigid bodies on the owner too."""
         ctx = self.session
@@ -707,13 +754,13 @@ class RagdollTrace:
         times = [f["t"] for f in own]
         worst, compared = 0.0, 0
         for frame in cop:
-            if not 1 <= frame["knock"] <= 6:
+            if not 1 <= frame["knock"] <= 6 or not self.drawn(frame):
                 continue
-            target = frame["t"] - 300_000
-            candidates = own[bisect.bisect_left(times, target - 60_000):bisect.bisect_right(times, target + 60_000)]
+            candidates = own[bisect.bisect_left(times, frame["t"] - self.DELAY_RANGE[1]):
+                             bisect.bisect_right(times, frame["t"] - self.DELAY_RANGE[0])]
             gaps = []
             for source in candidates:
-                if not 1 <= source["knock"] <= 6:
+                if not 1 <= source["knock"] <= 6 or not self.drawn(source):
                     continue
                 bones = [math.dist(a["bone"], b["bone"]) for a, b in zip(frame["bodies"], source["bodies"])
                          if a and b and a.get("bone") and b.get("bone")]
@@ -722,11 +769,10 @@ class RagdollTrace:
             if gaps:
                 worst = max(worst, min(gaps))
                 compared += 1
-        measured = self.measure(copy_game, copy)
-        jitter = measured and any(v["worst"] > self.MAX_SHAKE or v["flickers"] for v in measured["series"].values())
+        jitter = self.beyond_owner(owner_game, owner, copy_game, copy)
         if not compared or worst > self.MAX_STRAY or jitter:
             raise ctx.failure(f"the copy's visible skeleton differs from its owner by up to {worst:.1f} units; "
-                              f"{compared} frames compared; jitter={bool(jitter)} (samples: {self.folder.name})")
+                              f"{compared} frames compared; beyond its owner: {jitter or 'nothing'} (samples: {self.folder.name})")
 
 
 # What a brief trace leaves out besides TRACE_NOISE: steps, swings and idles that fire every few frames.

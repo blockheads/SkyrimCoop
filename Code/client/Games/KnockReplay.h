@@ -14,6 +14,12 @@ namespace KnockReplay
 {
     return AfterAction(aCopy, aGetUp, true) != aCopy;
 }
+// A copy on its owner's stream goes down in the step its owner's ragdoll action arrives, as the engine knocks an actor
+// and tells its graph in one call (39895, ActionRagdoll); its owner's first body frame comes a moment later.
+[[nodiscard]] constexpr bool GoesDown(uint8_t aCopy, bool aRagdollAction) noexcept
+{
+    return aRagdollAction && aCopy == 0;
+}
 // An actor's ragdoll bodies are its physics' in that knock state, not its animation's alone: an owner sends them and
 // its living copy steers to them (docs/re/systems/physics.md, Getting up).
 [[nodiscard]] constexpr bool BodiesSimulated(uint8_t aKnock) noexcept

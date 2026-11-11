@@ -441,6 +441,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
     // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
@@ -653,6 +654,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // ActionGetUp (the default object): replayed on a knocked-down copy it stands it up (AnimationSystem's
     // PerformAction, KnockReplay); nothing else ends a living copy's knock.
     static constexpr uint32_t kActionGetUp = 0x13FF0;
+    static constexpr uint32_t kActionRagdoll = 0x13FEF; // what a knock plays (39895)
     void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back

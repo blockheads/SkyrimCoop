@@ -6,13 +6,14 @@ from coop_harness.objects import RagdollTrace
 from coop_harness.errors import TestFailure
 
 
-def trace(copy_bones, copy_bodies):
+def trace(copy_bones, copy_bodies, owner_bones=None, hidden=()):
     result = RagdollTrace(Session(), "fixture", {"": {1: "owner"}, "client": {2: "copy"}})
     result.folder = type("Folder", (), {"name": "fixture"})()
-    for game, actor, shift, bones, bodies in (("", 1, 0, [50] * 5, [0] * 5),
+    for game, actor, shift, bones, bodies in (("", 1, 0, owner_bones or [50] * 5, [0] * 5),
                                               ("client", 2, 300_000, copy_bones, copy_bodies)):
         result.samples[game] = [{"t": 1_000_000 + shift + i * 16_000, "id": actor, "knock": 6,
                                 "head": [bone, 0, 30], "pelvis": [bone, 0, 0],
+                                "flags_3d": (1 << 20) if game == "client" and i in hidden else 0,
                                 "bodies": [{"bone": [bone, 0, 0], "position": [body, 0, 0],
                                             "motion": 2, "awake": False}]}
                                for i, (bone, body) in enumerate(zip(bones, bodies))]
@@ -30,6 +31,22 @@ class GetUpSkeleton(unittest.TestCase):
     def test_copy_only_flickers_still_fail(self):
         with self.assertRaises(TestFailure):
             trace([50, 60, 50, 50, 50], [50, 60, 50, 50, 50]).check_copy_skeleton("", 1, "client", 2)
+
+    def test_flickers_its_owner_has_too_are_skyrims(self):
+        # knockdown-front-and-back, 2026-11-11: the host's own Lydia flickers 8 to 55 times a run, her copy as often.
+        flicker = [50, 60, 50, 50, 50]
+        trace(flicker, flicker, owner_bones=flicker).check_copy_skeleton("", 1, "client", 2)
+
+    def test_a_delay_anywhere_in_its_range_follows_the_owner(self):
+        # The copy went down sooner once knocked by its owner's action: 160 ms behind, not the old fixed 300.
+        result = trace([50] * 5, [50] * 5)
+        for frame in result.samples["client"]:
+            frame["t"] -= 140_000
+        result.check_copy_skeleton("", 1, "client", 2)
+
+    def test_bones_nobody_sees_are_not_compared(self):
+        # Pushed out of the guest's view, Skyrim leaves the culled skeleton where it was.
+        trace([50, 50, 90, 90, 50], [50, 50, 90, 90, 50], hidden=(2, 3)).check_copy_skeleton("", 1, "client", 2)
 
 
 if __name__ == "__main__":

@@ -399,6 +399,14 @@ TEST_CASE("A copy with a ragdoll finishes a get-up action with the native knock-
     CHECK(KnockReplay::AfterAction(6, true, true) == 6);
 }
 
+TEST_CASE("A streamed copy standing goes down at its owner's ragdoll action", "[physics][knock-replay][fall]")
+{
+    CHECK(KnockReplay::GoesDown(0, true));
+    CHECK_FALSE(KnockReplay::GoesDown(0, false)); // another action
+    CHECK_FALSE(KnockReplay::GoesDown(2, true));  // down already, by its owner's body frame
+    CHECK_FALSE(KnockReplay::GoesDown(6, true));  // getting up: its own
+}
+
 TEST_CASE("A ragdoll's bodies are its physics' while it lies and while it gets up", "[physics][knock-replay][rising]")
 {
     // Getting up (5 queued, 6 rising) 58291 only drives the simulated bodies toward the animation.
