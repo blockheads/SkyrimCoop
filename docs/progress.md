@@ -186,6 +186,15 @@ him either way (measured on the duo). The engine's pick is read (`PickCrosshairR
 (the host's Lucan has his counter). The cause in `Pick` is still to be read. Scenario
 `guest-crosshair-skips-leaning-npc` (fails); the MCP's new `expect` `crosshair`.
 
+2026-11-10: a party crime reaches every player ([crime.md](re/systems/crime.md), "Who an NPC fights for a party
+crime", "Every player hears the bounty"). Read in IDA: a theft's witness is only angry (+0x204 bit 0x800) and a guard
+answering the alarm only on the crime's witness list (KnownCrime 41354), and `CriminalInterest` checked neither, so
+their fights kept the host as target; now they are crime fights and go for the nearest player. The "N bounty added to
+<hold>" line (37679) showed on the host only; the host now relays each report (`NotifyCrimeState.Reports`) and guests
+show the engine's line. Scenario `guest-theft-bounty-message` (failed before), flows "A theft's witness, only angry",
+"A guard answering a party crime", "A guest's witnessed theft shows the bounty line in every game", HostAuthorityTests
+and ClientTests `[CrimeRules]`. MCP: `expect_bounty_message`.
+
 2026-11-08: copies move toward the graph input stream ([graph-input-stream.md](design/graph-input-stream.md)): a copy's
 graph fed its owner's inputs matched it on every update over the network (Faendal 17009/17009). The ops' encoding
 (`Structs/GraphOps.h`: only variables set from outside the graph, one bit for an empty update) weighs 559 B/s for a

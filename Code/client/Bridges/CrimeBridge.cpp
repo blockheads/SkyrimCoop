@@ -32,6 +32,7 @@ std::atomic<ICrimeBridge::Role> s_role{};
 std::mutex s_mutex;
 std::vector<CrimeRequest> s_actions;
 std::vector<CrimeConfiscation> s_confiscations;
+std::vector<CrimeReport> s_reports;
 std::vector<CrimeItem> s_containerItems;
 thread_local Actor* t_criminal{};
 thread_local Actor* t_payer{};
@@ -140,6 +141,7 @@ using TConfiscate = uintptr_t(ExtraContainerChanges::Data*, TESObjectREFR*, TESO
 using TLockOpen = uintptr_t(TESObjectREFR*);
 using TLockCrime = bool(void*);
 using TContainerTake = bool(void*, ExtraContainerChanges::Entry*, uint32_t, bool);
+using TReportCrime = void(Actor*, CrimeEngine::Crime*);
 TSteal* RealSteal{};
 TPickpocket* RealPickpocket{};
 TAssault* RealAssault{};
@@ -157,6 +159,21 @@ TConfiscate* RealConfiscate{};
 TLockOpen* RealLockOpen{};
 TLockCrime* RealLockCrime{};
 TContainerTake* RealContainerTake{};
+TReportCrime* RealReportCrime{};
+
+void HookReportCrime(Actor* aReporter, CrimeEngine::Crime* aCrime)
+{
+    RealReportCrime(aReporter, aCrime);
+    // 37679 shows "<bounty> sAddCrimeGold <faction>" only here when the party's player is the criminal.
+    if (s_role != ICrimeBridge::Role::Host || !aCrime || !aCrime->Faction || !(aCrime->Bounty & 0xFFFF) ||
+        TESObjectREFR::GetByHandle(aCrime->Criminal) != PlayerCharacter::Get())
+        return;
+    if (auto faction = ToSession(reinterpret_cast<TESForm*>(aCrime->Faction)->formID))
+    {
+        std::lock_guard lock(s_mutex);
+        s_reports.push_back({*faction, aCrime->Bounty & 0xFFFF});
+    }
+}
 
 bool HookContainerTake(void* aMenu, ExtraContainerChanges::Entry* aEntry, uint32_t aCount, bool aTaking)
 {
@@ -332,7 +349,17 @@ bool CriminalInterest(Actor* aWitness)
     static VersionDbPtr<TFaction> faction(37380);
     static VersionDbPtr<TCrimeList> crimes(11726);
     const auto* known = crimes(&aWitness->extraData);
-    return PlayerEnemy(faction(aWitness)) || (known && (known->entry.data || known->entry.next));
+    CrimeRules::Grudge grudge{.FactionEnemy = PlayerEnemy(faction(aWitness)),
+                              .Victim = known && (known->entry.data || known->entry.next),
+                              .AngryWithPlayer = aWitness->IsAngryWithPlayer()};
+    if (CrimeRules::PartyIsCriminalTo(grudge))
+        return true;
+    // KnownCrime (41354): any victim, any day; only the player's (the party's) crimes are kept (41349).
+    static VersionDbPtr<TKnownCrime> knownCrime(41354);
+    auto* player = PlayerCharacter::Get();
+    for (uint32_t type = 0; player && type < CrimeEngine::cCrimeTypes && !grudge.Witness; ++type)
+        grudge.Witness = knownCrime(ProcessLists::Get(), nullptr, player, aWitness, type, 0, -1);
+    return CrimeRules::PartyIsCriminalTo(grudge);
 }
 
 bool HookCrimeAttack(Actor* aWitness, Actor* aTarget, int32_t aAggression, uint8_t aFlags)
@@ -471,6 +498,7 @@ static Hooks::Initializer s_hooks([] {
     HOOK_ID(51959, &RealLockOpen, HookLockOpen);
     HOOK_ID(51981, &RealLockCrime, HookLockCrime);
     HOOK_ID(51141, &RealContainerTake, HookContainerTake);
+    HOOK_ID(37679, &RealReportCrime, HookReportCrime);
 });
 } // namespace
 
@@ -526,11 +554,32 @@ void CrimeBridge::SetRole(Role aRole) noexcept
         std::lock_guard lock(s_mutex);
         s_actions.clear();
         s_confiscations.clear();
+        s_reports.clear();
         s_containerItems.clear();
         s_caughtLock = 0;
         m_reactionState.clear();
         m_players.clear();
     }
+}
+
+std::vector<CrimeReport> CrimeBridge::TakeReports() noexcept
+{
+    std::lock_guard lock(s_mutex);
+    return std::exchange(s_reports, {});
+}
+
+void CrimeBridge::ShowReport(const CrimeReport& acReport) noexcept
+{
+    // 37679's line: "%d %s %s", the bounty, sAddCrimeGold (378208), the faction's name; queued (SendHUDMessage 52933).
+    POINTER_SKYRIMSE(Setting, s_addCrimeGold, 378208);
+    using TShow = void(const char*, const char*, bool);
+    POINTER_SKYRIMSE(TShow, s_show, 52933);
+    const auto* pFaction = TESForm::GetById(ToGame(acReport.Faction));
+    const char* pName = pFaction ? pFaction->GetName() : nullptr;
+    if (!pName || !acReport.Bounty)
+        return;
+    const auto cLine = std::format("{} {} {}", acReport.Bounty, reinterpret_cast<const char*>(s_addCrimeGold.Get()->data), pName);
+    s_show.Get()(cLine.c_str(), nullptr, true);
 }
 
 std::vector<CrimeRequest> CrimeBridge::TakeActions() noexcept

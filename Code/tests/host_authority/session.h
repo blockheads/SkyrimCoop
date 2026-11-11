@@ -184,6 +184,7 @@ struct Session
 
     bool CrimeCaught{};
     std::vector<CrimeGold> Bounty;
+    std::vector<CrimeReport> CrimeReports; // the host engine's bounty lines (37679), taken each frame
     uint32_t PartyGold{}; // the host's player's gold, the purse
     // The host's player's party stacks (party-items.md), by base and name.
     std::map<std::pair<GameId, std::string>, int32_t> PartyItems;
@@ -249,6 +250,7 @@ private:
             return spawns;
         };
         game.ReadCrimeGold = [this] { return Bounty; };
+        game.TakeCrimeReports = [this] { return std::exchange(CrimeReports, {}); };
         game.ReadPartyGold = [this] { return PartyGold; };
         game.AddPartyGold = [this](int32_t aCount) { PartyGold = static_cast<uint32_t>(std::max<int64_t>(int64_t{PartyGold} + aCount, 0)); };
         game.ReadPartyItem = [this](const Inventory::Entry& acItem) { return PartyItems[{acItem.BaseId, acItem.ExtraName}]; };
