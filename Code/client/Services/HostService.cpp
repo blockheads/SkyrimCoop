@@ -147,6 +147,7 @@ void HostService::MakeAuthority() noexcept
     game.FollowerAnchors = [this]() -> Followers::Anchors& { return m_world.ctx().at<SaveService>().GetFollowerAnchors(); };
     game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
     game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
+    game.TakeCrimeReports = [this] { return m_world.ctx().at<CrimeService>().TakeReports(); };
     game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };
     game.AddPartyGold = [this](int32_t aCount) { m_world.ctx().at<InventoryService>().AddGold(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), aCount); };
     game.ReadPartyItem = [this](const Inventory::Entry& acItem) {

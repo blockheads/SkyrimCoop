@@ -4,6 +4,22 @@ v1.0 feature 2. Implemented on `shared-party-bounty` from `dev` at `526cff31`, i
 `dev` at `9e8bbaa2`. Party rule: one player's crime counts against the party, judged by the host's
 world (`party-model.md`, `copy-contract.md`).
 
+## One path for every crime (2026-11-10)
+
+```
+a player acts            the host's own player: the engine's alarm runs as is
+                         a guest's action the host replays (a hit, a kill): the host's alarm, the guest scoped in
+                         a guest's action the host cannot see (a menu take, a pickpocket, a lock): the guest's alarm
+                           hook proposes its arguments (CrimeRequest), the host runs the same alarm, the guest scoped in
+the host's engine        record, witnesses, alarm, bounty: one crime, the host's player's (the party's)
+  -> every game          NotifyCrimeState: the totals and each 37679 bounty line (CrimeReport)
+  -> every NPC           a grudge of any kind (CrimeRules::Grudge) makes every player the criminal; it fights the nearest
+```
+
+Only the first step knows the kind of crime, and only because the engine has one alarm per kind (37422-37428,
+51981). Everything after is read from the engine's crime record and its effects, whatever the kind, so a new kind
+needs at most its alarm hook to forward its arguments.
+
 ## Authority and boundaries
 
 - The host owns violent/nonviolent bounty, infamy and the native player-enemy flag for every crime faction. Guests propose

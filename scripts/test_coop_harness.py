@@ -2620,5 +2620,33 @@ class ProfileBudgetTests(unittest.TestCase):
         self.assertEqual(str(windows_path("C:\\windows\\ntdll.dll", "/p/drive_c")), "/p/drive_c/windows/ntdll.dll")
 
 
+
+class BountyMessage(unittest.TestCase):
+    """expect_bounty_message counts only lines shown after the mark (docs/re/systems/crime.md, "Every player hears the bounty")."""
+
+    def run_expect(self, host, guest):
+        session = Session()
+        self.addCleanup(session.close)
+        replies = {"": host, "client": guest}
+        session.player_command = lambda instance, command: dict(replies[instance], ok=True)
+        return session.expect_bounty_message(mark={"host": 3, "guest": 3}, seconds=0.2)
+
+    def test_a_stale_identical_guest_line_does_not_count(self):
+        line = "5 bounty added to Whiterun"
+        with self.assertRaises(TestFailure):
+            self.run_expect({"messages": ["a", line, "b", line], "shown": 4},
+                            {"messages": [line, "x", "y"], "shown": 3})
+
+    def test_a_new_guest_line_counts(self):
+        line = "5 bounty added to Whiterun"
+        self.assertEqual(self.run_expect({"messages": ["a", "b", "c", line], "shown": 4},
+                                         {"messages": ["x", "y", "z", line], "shown": 4}), {"line": line})
+
+    def test_a_host_line_before_the_mark_is_not_the_report(self):
+        with self.assertRaises(TestFailure):
+            self.run_expect({"messages": ["5 bounty added to Whiterun", "b", "c"], "shown": 3},
+                            {"messages": ["5 bounty added to Whiterun"], "shown": 4})
+
+
 if __name__ == "__main__":
     unittest.main()

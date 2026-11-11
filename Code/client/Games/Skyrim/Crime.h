@@ -81,6 +81,20 @@ struct ActorKnowledge
     uint8_t pad28[0x44 - 0x28];
     float RequestedAt; // -FLT_MAX when no update is queued (42712)
 };
+// ProcessLists' crime lists, +0xB0 + type * 8 (ExpireOldCrimes 41350 walks < 7). 41354 accepts 7, which reads past them.
+inline constexpr uint32_t cCrimeTypes = 7;
+
+// A crime record (Crime__ctor 42502): handles, the bounty 37679 wrote and the faction it was reported to.
+struct Crime
+{
+    uint32_t pad0;
+    uint32_t Type;
+    uint32_t Victim, Criminal; // ref handles
+    uint8_t pad10[0x58 - 0x10];
+    uint32_t Bounty;
+    uint32_t pad5C;
+    TESFaction* Faction;
+};
 struct LockpickMenu
 {
     uint8_t pad0[0x10D]{};
@@ -103,6 +117,9 @@ static_assert(offsetof(Faction, StolenContainer) == 0x70);
 static_assert(offsetof(DataHandler, Factions) == 0x118);
 static_assert(offsetof(ContainerMenu, StealValue) == 0xB0);
 static_assert(offsetof(LockpickMenu, Reported) == 0x10D);
+static_assert(offsetof(Crime, Criminal) == 0x0C);
+static_assert(offsetof(Crime, Bounty) == 0x58);
+static_assert(offsetof(Crime, Faction) == 0x60);
 static_assert(offsetof(DetectionState, Level) == 0x10);
 static_assert(offsetof(DetectionState, LineOfSight) == 0x14);
 static_assert(offsetof(DetectionState, Seen) == 0x15);
