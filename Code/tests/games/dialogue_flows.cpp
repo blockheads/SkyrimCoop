@@ -7,6 +7,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 #include <Events/SessionNoticeEvent.h>
+#include <Messages/NotifyChatMessageBroadcast.h>
 #include <SessionIds.h>
 
 namespace
@@ -22,6 +23,15 @@ struct Notices
 {
     explicit Notices(World& aGame) { aGame.GetDispatcher().sink<SessionNoticeEvent>().connect<&Notices::On>(*this); }
     void On(const SessionNoticeEvent& acNotice) { Lines.push_back(acNotice.Text); }
+    std::vector<std::string> Lines;
+};
+
+// The chat lines the host's rules send this game (NotifyChatMessageBroadcast).
+struct ChatLines
+{
+    explicit ChatLines(World& aGame) { aGame.GetDispatcher().sink<NotifyChatMessageBroadcast>().connect<&ChatLines::On>(*this); }
+    void On(const NotifyChatMessageBroadcast& acLine) { Lines.push_back(acLine.ChatMessage); }
+    [[nodiscard]] bool Has(const std::string& acLine) const { return std::ranges::find(Lines, acLine) != Lines.end(); }
     std::vector<std::string> Lines;
 };
 
@@ -595,4 +605,72 @@ SCENARIO("A copy looks where its owner does: an NPC in conversation looks at its
     party.As(party.Guest(), [&] { talk.PlayerLeaves(); });
     party.Until([&] { return cDialogueSlot(host, npc) == 0; }, "the host's NPC looks away once the conversation ends");
     party.Until([&] { return cDialogueSlot(guest, cCopy) == 0; }, "the copy looks away too");
+}
+
+SCENARIO("A guest's crosshair takes an NPC copy seated in its furniture, as the host's takes the NPC", "[dialogue][copies][crosshair]")
+{
+    constexpr uint8_t cSeatedLayer = 33; // biped, no controller: where 40063 puts a seated actor's bodies
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the NPC");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    auto& copy = guest.Actors.at(cCopy);
+    REQUIRE(guest.CrosshairTakes(cCopy));
+
+    // The host's AI seats it (Lucan leaning on his counter, 2026-11-08): capsule off, its bodies in the world (40063).
+    auto& owner = host.Actors.at(npc);
+    owner.InFurniture = true;
+    owner.Collides = false;
+    owner.BodiesLayer = cSeatedLayer;
+    owner.GraphsStepPhysics = false;
+    copy.InFurniture = true; // its sit state, from its owner's replayed actions
+    REQUIRE(host.CrosshairTakes(npc));
+    REQUIRE(!host.BodiesDriven(npc));
+    party.Until([&] { return !copy.Collides && copy.BodiesLayer == cSeatedLayer; }, "the copy's capsule and bodies follow its owner's");
+    CHECK(guest.CrosshairTakes(cCopy));
+    CHECK_FALSE(guest.BodiesDriven(cCopy)); // keyframed in the pose, as its owner's (2026-11-09: driven, they went dynamic)
+
+    // Up again: its bodies leave the world with its owner's, and its capsule takes the crosshair.
+    owner.InFurniture = false;
+    owner.Collides = true;
+    owner.BodiesLayer = 0;
+    owner.GraphsStepPhysics = true;
+    copy.InFurniture = false;
+    party.Until([&] { return copy.BodiesLayer == 0 && copy.GraphsStepPhysics && copy.Collides; },
+                "the standing copy's bodies are out of the world, its graphs and capsule as before");
+    CHECK(guest.CrosshairTakes(cCopy));
+}
+
+SCENARIO("A guest talks to an NPC with nothing to say: the host's game opens nothing, and the guest is told", "[dialogue]")
+{
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    FakeDialogue& hostTalk = Dialogue(party.Host());
+    FakeDialogue& guestTalk = Dialogue(party.Guest());
+    ChatLines chat(party.Guest());
+
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest's game has a copy of the NPC");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+
+    // Hilde in Riverwood (2026-11-08, the duo): the host's game starts the guest's ask, and its engine opens nothing.
+    bool hasTopics = false;
+    hostTalk.HasTopics = [&](uint32_t aActor) { return aActor != npc || hasTopics; };
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return chat.Has("They have nothing to say."); }, "the guest is told the NPC has nothing to say");
+    CHECK(!hostTalk.Speaker);
+    CHECK(!guestTalk.MenuOpen);
+
+    // Answered, the guest's next ask is its own: once the NPC has topics, it opens.
+    hasTopics = true;
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.Speaker == cCopy && hostTalk.Speaker == npc; },
+                "the guest's next ask opens the conversation");
 }

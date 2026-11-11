@@ -10,8 +10,9 @@ bool CrimeRequest::IsValid() const noexcept
     switch (Action)
     {
     case CrimeAction::Theft:
-    case CrimeAction::Pickpocket:
         return Item && Count && Count <= 0x7FFFFFFFu;
+    case CrimeAction::Pickpocket:
+        return true; // the caught alarm (PickpocketAlarm 37423) names only its victim: nothing was taken
     case CrimeAction::Lockpick:
         return Count != 0;
     case CrimeAction::PayFine:

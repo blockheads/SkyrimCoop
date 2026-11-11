@@ -49,6 +49,75 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-09: both players at once (`dialogue-stress`). The MCP's `together` runs lanes (any tool or verb) from one
+moment; a lane's first key or mouse input is queued in its game (`TestHarness/Scheduled`, any command's `at`) and
+lands in one frame on both games (0-14 ms apart measured). `line_delay(ms)` puts netem on the guest's namespace link,
+so races two machines meet show on one. First bug from it: two players moving the dialogue highlight at once ended
+each menu on the other's move (host 2, guest 0; `dialogue-highlights-cross`, GameTests "Highlights moved on two games
+at once..."). The host now relays each move to every menu, the mover's too, with the mover's count (`Seq`): every
+menu ends on the order moves reached the host. A pick that seemed stuck mid-greeting was the harness: `stage`'s
+default freeze clears the speaker's `kProcessMe`, its line never ends and `SaySelected` (35283) waits for it;
+`talk` refuses a frozen speaker now ([dialogue.md](re/systems/dialogue.md), "Two players at once"). The host joining
+while the NPC answered a guest's pick saw the last step's list and moved its highlight alone
+(`dialogue-host-joins-mid-line`, GameTests "A player joining while the NPC answers..."): the pick now carries its
+text and a joining menu shows it. New scenarios that pass: `dialogue-picks-cross-frame` (both press E in one frame
+over 40 ms: one line said; a press can say an option another player highlighted milliseconds before, by design),
+`dialogue-hover-while-guest-picks`, `dialogue-two-starts-at-once` (one conversation, the other ask forgotten). `dialogue-guest-walks-every-option`: the guest says each
+of Andurs's first answers (Tab and talk again between), the host joining each conversation and never picking; one
+line per pick, the menus agree. Following a path into a goodbye and talking again at once finds the NPC with nothing
+to say (37200 returns true when StartDialogue opened nothing; answered since dev's `cb60efb2`), so the walk stops
+short of goodbyes. A joining menu keeping its own highlight (code review) did not show in Skyrim: the host joining
+after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
+entry is gone, the scenario and GameTests flow guard it.
+
+2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
+NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
+Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (`UpdateAI` at every process level).
+Decided: the host ignores them, and the guest gives them no AI (`HookUpdateAI`) and no 3D (`HookLoad3D` on 19727, the
+disabled path), until the host's spawn makes them copies and queues their 3D (`QueueReference` 13057). A horse the
+guest rides is its own. Tests: GameTests `[guest-own-npc]`, and an actor checksum that fails any guest showing an actor
+of its own; ClientTests `[GuestNpcs]`; scenario `guest_shows_only_hosts_npcs` with the MCP's new `expect guest_npcs`
+(`actor_place` also reports the package and process level). On the duo its steps pass; its end comparison in Whiterun
+fails on the town differences in bugs.md ("End comparisons in towns", "Doors the host's NPCs unlock").
+From the PR's review: NPCs already shown when holding starts (the host's save loads before the guest connects; a
+rejoin) are reloaded so their 3D is refused (32 hidden at a Whiterun rejoin, each a copy again within 10 s), and a
+refused load job ends in `QueuedReference::Finish` (13022, hooked), where the NPC's 3D is queued again if a spawn came
+while the job was out, and where a model loaded before holding started is reloaded as it attaches. GameTests flows for both; the scenario now leaves and rejoins.
+
+2026-11-08: two of the playtest's dialogue bugs fixed. A seated copy takes the crosshair again: the engine picks a seated
+actor only through its own bodies, which its AI puts keyframed on layer 33 in the world as it sits (40063); copies run no
+AI, so theirs never were. A copy's bodies and graphs now mirror its owner's, as its capsule does: each movement snapshot
+carries the layer the owner's bodies are on in the world and whether its graphs step with the physics world (40063
+detaches them, or the ragdoll driver would drive the bodies) (`Movement::BodiesLayer`, `GraphsStepPhysics`). And a guest's ask always gets an answer: `SetDialogueWithPlayer` (37200) returns true even
+when `StartDialogue` (35282) opened nothing (an NPC with nothing to say: Hilde, most guards), so the host's game now checks
+its speaker after the start and the guest reads "They have nothing to say."; an ask to talk to a player's character is
+refused. One conversation for the party stays. `re/systems/dialogue.md`; GameTests "A guest's crosshair takes an NPC copy
+seated in its furniture", "A guest talks to an NPC with nothing to say"; HostAuthorityTests; scenarios
+`guest-crosshair-skips-leaning-npc`, `guest-talk-nothing-to-say`.
+
+2026-11-08: hardening, the other player's copy can't hold the stealth eye open ([stealth.md](re/systems/stealth.md));
+the playtest's report stays open in bugs.md (not reproduced). Read in IDA:
+`HookUpdateDetectionState` (42704) skipped the copy's pass, which left its request queued for good, and 42702 answers a
+queued knowledge's state at any age, so a level installed before stayed. Measured on the duo the copy held none
+(standing and sneaking, both games). The hook now installs an unseen pass (`DetectionRules`), and a player's copy is
+flagged `kDoNotShowOnStealthMeter` (41408 skips it, as MQ201 does for its allies), which also covers 37765's forced
+detection (42705, no pass). The playtest's moment was not reproduced. Tests: `detection_rules_tests.cpp`, GameTests
+`[stealth]`, scenario `other-player-looking-leaves-eye-hidden`; harness `crime stealth_meter` names each source.
+
+2026-11-08: a party wipe right after a wipe reloads the host's own character. The engine takes a save's character id
+from its file name, so the scratch `SkyrimCoopWipe` load left id 0 and the next wipe took the newest id-0 save
+(another character's); the host now gives the engine the checkpoint's character back after the load
+(`SetCurrentCharacter` 35751; save-game.md, "The character a save belongs to"). GameTests: two wipes in a row, a host
+load of another character's save; duo scenario `death-wipe-twice-keeps-character` (fails at wipe 1 without the fix:
+the host's id left 0). The guest's crash in that playtest's load is a stale form, not the save (bugs.md).
+
+2026-11-08: a guest's caught pickpocket reaches the host (playtest: "nothing happens"). The game raises it with no item
+and count 0 (`AttemptPickpocket` 40654 -> 37423; `crime.md`, Pickpocket), and the guest's hook, the request's check
+and the host's judgment each wanted an item, so it was dropped on the guest. It now names only its victim and the host
+raises the alarm on its NPC. A take was already a container transfer, applied once in both games on the duo; the
+playtest's "multiple copies" did not show. Scenario `guest-pickpockets-lucan` (the MCP's new `pickpocket` verb and
+`expect` `bounty`), GameTests `[pickpocket]`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,
@@ -491,8 +560,8 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Quests | done 2026-10-20 as world state: the host runs every quest, guests take its stages (fragments skipped), objectives and alias fills (`docs/design/world-state-sync.md`, `docs/re/systems/quest-apply.md`); upstream's quest relay deleted with phase 5 |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
-| Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
-| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+| Teleport command, teleport to a player | `/tpa` (or `/teleportall`, 2026-11-09): anyone brings every other player onto their spot (stacked, as a door's arrival), a forced tether move, from the same cell too (`player-travel.md`, "/tpa"; `party-summon-in-cell`, GameTests `/tpa ...`) |
+| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed`. Since 2026-11-08 every teleport, inside the cell too (PayFine's release; `docs/design/party-travel.md`, "Every teleport"), `party-teleports-in-cell` |
 
 ### Experience: wiring up
 
@@ -1086,7 +1155,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |
 | Beast form (a guest's werewolf change) | works: the guest's game runs it (owner-applied effect), its copies respawn for each race from the owner's state; upstream's host-player bug does not occur (2026-10-20) | `client-beast-form-stays-client` |
-| A player's looks changing in a session (race menu, vampirism, any race switch) | works: its copies respawn from its new base data, tints (the shown ones: a vampire's overlay) and weight (2026-10-24) | `guest-changes-looks-in-session`, GameTests "A player's looks change" |
+| A player's looks changing in a session (race menu, vampirism, any race switch) | works: its copies respawn from its new base data, tints (the shown ones: a vampire's overlay) and weight (2026-10-24); a copy's head built again (a new area) is painted again (2026-11-08, `docs/re/systems/copy-face-tints.md`) | `guest-changes-looks-in-session`, GameTests "A player's looks change", "A player's copy keeps its painted face" |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |

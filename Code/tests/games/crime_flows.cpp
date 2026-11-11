@@ -317,3 +317,61 @@ SCENARIO("A guest steals a made item whose owner stands a cell over: still judge
         CHECK(cTheft.Stolen.size() == 1);
     }
 }
+
+namespace
+{
+// A guest sneaks up to a host NPC's copy and takes a sword from its pockets, caught or not.
+struct Pickpocket
+{
+    static constexpr uint32_t kCell = 0x00031D2E, kNpcBase = 0x0001A67C, kSword = 0x00012EB7;
+    Party party{1, [](FakeEngine& aEngine) {
+                    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+                    aEngine.LoadCell(kCell);
+                }};
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t npc = 0;
+
+    Pickpocket()
+    {
+        party.As(party.Host(), [&] {
+            npc = host.LoadNpc(kNpcBase, kCell, {30.f, 40.f, 0.f});
+            host.GetsItem(npc, kSword, 2);
+        });
+        party.Until([&] { return guest.CopiesOf(kNpcBase).size() == 1 && guest.CountOf(Copy(), kSword) == 2; },
+                    "the guest's copy of the NPC carries its two swords");
+    }
+    uint32_t Copy() const { return guest.CopiesOf(kNpcBase).empty() ? 0 : guest.CopiesOf(kNpcBase)[0]; }
+    void Try(bool aCaught)
+    {
+        party.As(party.Guest(), [&] { guest.Pickpockets(Copy(), kSword, aCaught); });
+    }
+};
+} // namespace
+
+SCENARIO("A guest caught pickpocketing an NPC copy raises the host's alarm on the NPC", "[crime][pickpocket]")
+{
+    Pickpocket pick;
+    pick.Try(true);
+    auto& judge = Crime(pick.party.Host());
+    pick.party.Until([&] { return !judge.Pickpocketed.empty(); }, "the host's game raises the caught pickpocket's alarm");
+    CHECK(judge.Pickpocketed == std::vector{pick.npc});
+    CHECK(judge.Judged.size() == 1);
+    CHECK(pick.host.CountOf(pick.npc, Pickpocket::kSword) == 2);
+    CHECK(pick.guest.CountOf(FakeEngine::kPlayer, Pickpocket::kSword) == 0);
+}
+
+SCENARIO("A guest's pickpocket of an NPC copy takes the item once", "[crime][pickpocket][container-transfer]")
+{
+    Pickpocket pick;
+    pick.Try(false);
+    pick.party.Until(
+        [&] {
+            return pick.guest.CountOf(FakeEngine::kPlayer, Pickpocket::kSword) == 1 &&
+                   pick.host.CountOf(pick.npc, Pickpocket::kSword) == 1 &&
+                   pick.guest.CountOf(pick.Copy(), Pickpocket::kSword) == 1;
+        },
+        "the guest carries one sword, the NPC and its copy one");
+    pick.party.Agree("the NPC and player inventories agree");
+    CHECK(Crime(pick.party.Host()).Judged.empty());
+}

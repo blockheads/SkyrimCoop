@@ -5,6 +5,9 @@
 #include <Messages/RelayedMessages.h>
 
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 #include <NoCopyMove.h>
 
 struct World;
@@ -124,6 +127,10 @@ private:
     // The highlight this game last sent or showed, and another game's waiting for this menu's list (step, index).
     std::optional<uint32_t> m_highlight;
     std::optional<std::pair<uint32_t, uint32_t>> m_pendingHighlight;
+    uint32_t m_highlightSeq = 0; // this menu's moves sent
+    // The step's pick while the NPC answers it: a menu joining before the next list shows it.
+    std::string m_pickedText;
+    uint32_t m_pickedShownStep{};
 
     std::vector<entt::scoped_connection> m_connections;
 };

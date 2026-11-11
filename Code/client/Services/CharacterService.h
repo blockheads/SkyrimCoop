@@ -29,6 +29,7 @@ struct NotifyFactionsChanges;
 struct FactionsChangeEvent;
 struct ReferenceJumpEvent;
 struct ReferenceLoadedEvent;
+struct NpcHeldEvent;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
 struct SpellCastEvent;
@@ -39,6 +40,7 @@ struct MountEvent;
 struct DismountEvent;
 struct NotifyRespawn;
 struct PlayerLooksChangeEvent;
+struct ActorHeadUpdateEvent;
 struct PlayerRevivedEvent;
 struct DialogueEvent;
 struct SubtitleEvent;
@@ -78,6 +80,9 @@ struct CharacterService
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     // A spawn waiting for its reference to finish loading: kStillLoading clears before its 3D loads.
     void OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept;
+    void OnNpcHeld(const NpcHeldEvent& acEvent) noexcept;
+    // A spawn waiting on that actor to finish loading goes on.
+    void SpawnPending(uint32_t aFormId) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnMountEvent(const MountEvent& acEvent) noexcept;
     // The player's owned horse accompanies a tether move.
@@ -99,6 +104,9 @@ struct CharacterService
     void SetCopyLevel(uint32_t aFormId, uint32_t aPlayerId) const noexcept;
     // Its base, build and tints reach the existing copies through the host.
     void OnPlayerLooksChange(const PlayerLooksChangeEvent& acEvent) const noexcept;
+    // A copy's face tints on its head: new tints, and each head built again (a new area, TESNPC 24724).
+    void PaintFace(entt::entity aEntity, uint32_t aFormId) noexcept;
+    void OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept;
     // Its copies on the other games are made again, alive (a resurrected copy's graph stays dead).
     void OnPlayerRevived(const PlayerRevivedEvent&) const noexcept;
     void OnDialogueEvent(const DialogueEvent& acEvent) noexcept;

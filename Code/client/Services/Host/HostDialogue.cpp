@@ -80,7 +80,8 @@ const DialogueOption* DialogueLineFor(const GameId& acTopic, const GameId& acInf
 void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
-    if (!cHost || m_characters.OwnerOf(acRequest.NpcId) != cHost)
+    // Only the host's NPCs talk: a player's character (the host's own too) is nobody to start a conversation with.
+    if (!cHost || m_characters.OwnerOf(acRequest.NpcId) != cHost || m_characters.IsPlayerCharacter(acRequest.NpcId))
     {
         spdlog::debug("HostDialogue: {:x} asked to talk to {:x}, not the host's", aSender, acRequest.NpcId);
         Refuse(aSender, acRequest.NpcId, nullptr);
@@ -186,6 +187,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
     picked.Topic = acRequest.Topic;
     picked.Info = cInfo;
     picked.PlayerId = m_players.PlayerIdOf(aSender);
+    picked.Text = acRequest.Text;
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
@@ -233,9 +235,9 @@ void HostDialogue::OnHighlight(const DialogueHighlightRequest& acRequest, Connec
     NotifyDialogueHighlight moved;
     static_cast<Payloads::DialogueHighlight&>(moved) = acRequest;
     moved.PlayerId = m_players.PlayerIdOf(aSender);
+    // To every menu, the mover's too: the order moves reach the host is the one every menu ends on.
     for (const ConnectionId_t cPlayer : pConversation->Players)
-        if (cPlayer != aSender)
-            m_network.Send(cPlayer, moved);
+        m_network.Send(cPlayer, moved);
 }
 
 void HostDialogue::OnSkip(const DialogueSkipRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -253,7 +255,7 @@ void HostDialogue::OnStartFailed(const DialogueStartFailedRequest& acRequest, Co
 {
     if (aSender != m_players.Host() || !m_asked || m_asked->NpcId != acRequest.NpcId)
         return;
-    Refuse(m_asked->Player, acRequest.NpcId, "The host can't talk to them right now.");
+    Refuse(m_asked->Player, acRequest.NpcId, acRequest.NothingToSay ? "They have nothing to say." : "The host can't talk to them right now.");
     m_asked.reset();
 }
 

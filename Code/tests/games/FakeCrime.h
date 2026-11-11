@@ -61,6 +61,7 @@ struct FakeCrime final : ICrimeBridge
         GameId Owner;
     };
     std::vector<Alarm> Stolen;
+    std::vector<uint32_t> Pickpocketed; // PickpocketAlarm's victims (37423), past Judge's checks
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
@@ -75,6 +76,8 @@ struct FakeCrime final : ICrimeBridge
             const GameId cTargetOwner = cActorTarget ? ToSession(cTarget->second.Owner).value_or(GameId{}) : GameId{};
             Stolen.push_back({aRequest, CrimeRules::AlarmOwner(aRequest.Owner, cTargetOwner)});
         }
+        if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
+            Pickpocketed.push_back(cTarget->first);
         return JudgeAction && JudgeAction(aActor, aRequest);
     }
     // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).

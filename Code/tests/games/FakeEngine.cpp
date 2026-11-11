@@ -1,5 +1,6 @@
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
+#include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
@@ -22,6 +23,8 @@
 #include <Events/ActorValueChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/NpcHeldEvent.h>
+#include <Games/GuestNpcs.h>
 #include <Games/DeathActions.h>
 #include <Games/Animation/ReplayCapture.h>
 #include <Games/Animation/ReplayGraph.h>
@@ -53,6 +56,7 @@
 #include <Events/MenuEvent.h>
 #include <Events/PlayerFormChangeEvent.h>
 #include <Services/SaveService.h>
+#include <Services/SaveNames.h>
 #include <Wire/Buffer.h>
 #include <World.h>
 #include <FormIds.h>
@@ -137,6 +141,27 @@ void FakeEngine::Frame()
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
+    // Load jobs end (QueuedReference::Finish): a model attaches; then Actor::FinishLoad3D (HookFinishLoad3D).
+    if (!LoadsHeld)
+        for (auto& [cId, actor] : Actors)
+        {
+            if (!std::exchange(actor.LoadQueued, false))
+                continue;
+            if (std::exchange(actor.ModelReady, false))
+            {
+                actor.Loaded = true;
+                World::Get().GetRunner().Trigger(ReferenceLoadedEvent{cId});
+            }
+            if (!actor.Refused3D && !(ActorHas3D(cId) && HeldOnGuest(cId)))
+                continue;
+            if (actor.Refused3D)
+                World::Get().GetRunner().Trigger(NpcHeldEvent{cId});
+            World::Get().GetRunner().Queue([this, cId] {
+                if (Actors.contains(cId))
+                    ApplyHeld3D(cId);
+            });
+        }
+    BuildHeads();
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -197,6 +222,9 @@ void FakeEngine::Frame()
         if (++player.DeadFrames >= kDeathReloadFrames && !DeathReloadHeld)
             Reloaded = true;
     }
+    ++DetectionFrame;
+    StealthEye();
+    DetectionPass();
     RunQueued();
 }
 
@@ -387,10 +415,48 @@ void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, cons
 
 void FakeEngine::FinishLoading(uint32_t aFormId)
 {
+    Actors.at(aFormId).Initializing = false;
+    Load3D(aFormId);
+}
+
+bool FakeEngine::NpcWalks(uint32_t aFormId, uint32_t aCell, const glm::vec3& acPosition)
+{
     auto& actor = Actors.at(aFormId);
-    actor.Initializing = false;
-    actor.Loaded = true;
-    World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+    if (actor.Copy || HeldOnGuest(aFormId))
+        return false;
+    const bool cWasIn = Attached.contains(actor.Cell);
+    actor.Cell = aCell;
+    std::copy_n(&acPosition.x, 3, actor.Position);
+    if (!cWasIn && Attached.contains(aCell))
+        Load3D(aFormId);
+    return true;
+}
+
+void FakeEngine::Load3D(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.Refused3D = HeldOnGuest(aFormId);
+    // A job ends in Frame (QueuedReference::Finish); a load with no job held back attaches at once, as the services
+    // see it. Held back, its model waits for Finish (BackgroundLoad3D's result, +0x2C8).
+    actor.LoadQueued = actor.Refused3D || LoadsHeld;
+    actor.ModelReady = !actor.Refused3D && LoadsHeld;
+    actor.Loaded = !actor.Refused3D && !LoadsHeld;
+    if (actor.Loaded)
+        World::Get().GetRunner().Trigger(ReferenceLoadedEvent{aFormId});
+}
+
+void FakeEngine::ApplyHeld3D(uint32_t aFormId)
+{
+    const auto& cActor = Actors.at(aFormId);
+    // Held with 3D: Reload3D, so refused. Not held after a refused load: queued, unless its job is still out.
+    if (HeldOnGuest(aFormId) ? ActorHas3D(aFormId) : cActor.Refused3D && !cActor.LoadQueued)
+        Load3D(aFormId);
+}
+
+bool FakeEngine::HeldOnGuest(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && GuestNpcs::Held(HoldSession, aFormId == kPlayer, it->second.Copy, it->second.ClaimedIn);
 }
 
 void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
@@ -489,11 +555,59 @@ void FakeEngine::Unload3D(uint32_t aFormId)
 {
     Actors.at(aFormId).Loaded = false;
     RevertSelectedSpells(aFormId);
+    DropHead(aFormId);
+}
+
+void FakeEngine::DropHead(uint32_t aFormId)
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        it->second.HeadBuilt = false;
+        it->second.HeadTints.reset();
+    }
+}
+
+void FakeEngine::BuildHeads()
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!ActorHas3D(cId))
+        {
+            actor.HeadBuilt = false;
+            actor.HeadTints.reset();
+        }
+        else if (!actor.HeadBuilt)
+        {
+            actor.HeadBuilt = true;
+            World::Get().GetRunner().Trigger(ActorHeadUpdateEvent{cId});
+        }
+    }
+}
+
+bool FakeEngine::IsActorFacePainted(uint32_t aFormId) const noexcept
+{
+    return ActorHas3D(aFormId) && Actors.at(aFormId).HeadBuilt && Actors.at(aFormId).HeadTints.has_value();
+}
+
+// Only a head that is built takes paint (FaceGenSystem finds no face before).
+bool FakeEngine::PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept
+{
+    if (!ActorHas3D(aFormId) || !Actors.at(aFormId).HeadBuilt)
+        return false;
+    Actors.at(aFormId).HeadTints = acTints;
+    return true;
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
 {
     MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
+}
+
+void FakeEngine::PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition)
+{
+    m_unannouncedMove = true;
+    MoveActorTo(kPlayer, aCell, acPosition.x, acPosition.y, acPosition.z);
+    m_unannouncedMove = false;
 }
 
 void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
@@ -503,7 +617,11 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
         const bool cReleased = it->second.Copy && !aCopy;
         it->second.Copy = aCopy;
         if (!aCopy)
+        {
             it->second.OwnerCombatTarget = 0;
+            it->second.ClaimedIn = HoldSession;
+        }
+        ApplyHeld3D(aFormId); // SkyrimBridge::SetActorCopy
         // Skyrim: only Actor::EndInterruptPackage (37474) ends it; the engine then picks the actor's own package.
         if (cReleased && CopyPackage::EndsOnRelease(it->second.RunningPackageType, it->second.DoNothing.packFlags))
             it->second.RunningPackageType = 0;
@@ -1159,6 +1277,7 @@ void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
     {
         it->second.Disabled = true;
         it->second.Deleted |= aDelete;
+        it->second.HeadTints.reset();
     }
 }
 
@@ -1267,7 +1386,10 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     it->second.Position[2] = aZ;
     // An NPC moved to another cell drops its 3D, and with it its hand spells (seen on a player's copy, 2026-11-04).
     if (aFormId != kPlayer && it->second.Cell != cFrom && cHad3D)
+    {
         RevertSelectedSpells(aFormId);
+        DropHead(aFormId);
+    }
     CellChanged(aFormId, cFrom);
     // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
     // four cells off is gone that frame, before SetActorPersistent).
@@ -1285,7 +1407,7 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (aFormId == kPlayer)
     {
         // Party travel announces it (PlayerCharacter.cpp's 40438), but another game's party call's move.
-        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove)
+        if (World::Get().GetTransport().IsOnline() && !m_mirroredMove && !m_unannouncedMove)
             World::Get().GetRunner().Trigger(PlayerTravelQueuedEvent{
                 it->second.WorldSpace, it->second.WorldSpace ? 0u : it->second.Cell, {aX, aY, aZ}, Heading});
         World::Get().ctx().at<FakeDialogue&>().End();
@@ -1742,6 +1864,7 @@ void FakeEngine::RunMainLoop() noexcept
     saves.RevertCoSave();
     saves.ReadCoSave(cFiles.CoSave, CharacterRecords::kVersion);
     AtMainMenu = false;
+    CharacterId = SaveNames::CharacterId(cName);
     Loaded.push_back(cName);
     World::Get().GetRunner().Trigger(GameLoadedEvent{});
 }
@@ -1849,6 +1972,58 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
     return effects;
 }
 
+void FakeEngine::JudgedPlayer(uint32_t aWitness, int32_t aLevel)
+{
+    KnowledgeOfPlayer[aWitness] = {DetectionRules::Pass{.Level = aLevel, .LineOfSight = true, .Seen = true}, DetectionFrame, false};
+}
+
+void FakeEngine::ForcesDetected(uint32_t aWitness)
+{
+    auto& known = KnowledgeOfPlayer[aWitness];
+    const auto cBefore = known.State.value_or(DetectionRules::Pass{});
+    known.State = DetectionRules::Pass{.Level = 100, .LineOfSight = cBefore.LineOfSight, .Seen = cBefore.Seen, .Unk16 = 2};
+    known.UpdatedAt = DetectionFrame;
+}
+
+const DetectionRules::Pass* FakeEngine::FreshState(uint32_t aWitness)
+{
+    // Priority 3: refreshed after 1 s, answered unseen after 2 s (table 0x1420B8AB8), at 60 frames a second.
+    auto& known = KnowledgeOfPlayer[aWitness];
+    if (!known.State || known.Queued)
+    {
+        known.Queued = true;
+        return known.State ? &*known.State : nullptr;
+    }
+    const uint32_t cAge = DetectionFrame - known.UpdatedAt;
+    if (cAge > 60)
+        known.Queued = true;
+    return cAge > 120 ? nullptr : &*known.State;
+}
+
+int32_t FakeEngine::StealthEye()
+{
+    int32_t highest = DetectionRules::kUnseen;
+    for (const auto& [cId, cActor] : Actors)
+        if (cId != kPlayer && cActor.Loaded && !cActor.Dead && !cActor.NotOnStealthMeter)
+            if (const auto* cpState = FreshState(cId))
+                highest = std::max(highest, cpState->Level);
+    return highest;
+}
+
+void FakeEngine::DetectionPass()
+{
+    for (auto& [cWitness, known] : KnowledgeOfPlayer)
+    {
+        if (!known.Queued)
+            continue;
+        const auto cSees = Sees.find(cWitness);
+        DetectionRules::Pass computed{};
+        if (cSees != Sees.end())
+            computed = {.Level = cSees->second, .LineOfSight = true, .Seen = true};
+        known = {DetectionRules::Installed(PartyOf(cWitness) == HitRules::Party::OtherPlayer, true, computed), DetectionFrame, false};
+    }
+}
+
 HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
 {
     using enum HitRules::Party;
@@ -1947,11 +2122,11 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }
 
-std::optional<IJoinBridge::SaveFiles> FakeEngine::PreviousSave() noexcept
+std::optional<std::string> FakeEngine::PreviousSave() noexcept
 {
     for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
-        if (!i->starts_with("SkyrimCoop"))
-            if (const auto f = SavedFiles.find(*i); f != SavedFiles.end()) return f->second;
+        if (!i->starts_with("SkyrimCoop") && SaveNames::CharacterId(*i) == CharacterId && SavedFiles.contains(*i))
+            return *i;
     return std::nullopt;
 }
 

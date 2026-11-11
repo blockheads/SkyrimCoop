@@ -716,14 +716,14 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     return result;
 }
 
-// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), its
+// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), size, its
 // capsule's position, velocity and last step's velocity, and the actor's position, in game units.
 nlohmann::json Controller(Harness&, const nlohmann::json& acRequest)
 {
     const auto cRead = EngineCalls::GetController(acRequest.value("actor", 0u));
     if (!cRead)
         return Error("no actor or controller");
-    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State},
+    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State}, {"size", cRead->Size},
             {"position", cRead->Position}, {"velocity", cRead->Velocity}, {"step_velocity", cRead->StepVelocity},
             {"actor_position", cRead->ActorPosition}};
 }
@@ -831,7 +831,7 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
-// still loading (kStillLoading: a spawn for it waits).
+// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process).
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -840,6 +840,7 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
         return Error("no such actor");
     float position[3]{};
     actors.GetActorPosition(cActor, position[0], position[1], position[2]);
+    const auto cLevel = EngineCalls::GetProcessLevel(cActor);
     return {{"ok", true},
             {"cell", actors.GetActorParentCellFormId(cActor)},
             {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
@@ -848,7 +849,9 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"disabled", actors.IsActorDisabled(cActor)},
             {"deleted", actors.IsActorDeleted(cActor)},
             {"still_loading", actors.IsActorStillLoading(cActor)},
-            {"copy", actors.IsActorCopy(cActor)}};
+            {"copy", actors.IsActorCopy(cActor)},
+            {"package", actors.GetActorAiFields(cActor).PackageId},
+            {"process_level", cLevel ? int(*cLevel) : -1}};
 }
 
 // {"cmd": "is_current_package", "actor": id, "package": id}: the condition GetIsCurrentPackage on the actor here.
@@ -941,6 +944,13 @@ nlohmann::json Dialogue(Harness&, const nlohmann::json&)
             {"skip_head", cState.SkipHead},
             {"current_info", cState.CurrentInfo},
             {"last_info", cState.LastInfo},
+            {"root_info", cState.RootInfo},
+            {"flags", [&] {
+                 nlohmann::json flags = nlohmann::json::object();
+                 for (const auto& [cpName, cSet] : cState.Flags)
+                     flags[cpName] = cSet;
+                 return flags;
+             }()},
             {"options", options},
             {"swf", {{"allow_progress", cState.AllowProgress}, {"state", cState.SwfState}, {"selected", cState.Selected},
                      {"cursor", cState.CursorTopic}, {"cursor_index", cState.CursorIndex}}}};

@@ -17,3 +17,16 @@ void NotifyPartyTravel::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Position.Deserialize(aReader);
     Heading = Serialization::ReadFloat(aReader);
 }
+
+void NotifyPartySummon::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Destination.SerializeRaw(aWriter);
+    Serialization::WriteString(aWriter, Username);
+}
+
+void NotifyPartySummon::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
+{
+    NotifyMessage::DeserializeRaw(aReader);
+    Destination.DeserializeRaw(aReader);
+    Username = Serialization::ReadString(aReader);
+}

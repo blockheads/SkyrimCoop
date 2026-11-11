@@ -1464,6 +1464,14 @@ std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noex
     return result == 1.0;
 }
 
+std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || !pActor->currentProcess)
+        return std::nullopt;
+    return pActor->currentProcess->processLevel;
+}
+
 std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept
 {
     // GameFunc::native::GetFactionRank (subject, the faction parameter, unused, the result).
@@ -1647,6 +1655,12 @@ DialogueState GetDialogue() noexcept
     state.SkipHead = pManager->skipHeadResponse;
     state.CurrentInfo = pManager->currentTopicInfo ? pManager->currentTopicInfo->formID : 0;
     state.LastInfo = pManager->lastTopicInfo ? pManager->lastTopicInfo->formID : 0;
+    state.RootInfo = pManager->rootTopicInfo ? pManager->rootTopicInfo->formID : 0;
+    state.Flags = {{"greeting_player", pManager->isGreetingPlayer}, {"menu_open", pManager->menuOpen},
+                   {"force_goodbye", pManager->forceGoodbye}, {"shut_menu", pManager->shutMenu},
+                   {"waiting_to_advance", pManager->waitingToAdvance}, {"advance_requested", pManager->advanceRequested},
+                   {"advance_in_progress", pManager->advanceInProgress}, {"line_skipped", pManager->lineSkipped},
+                   {"can_skip", pManager->canSkip}, {"close_in_progress", pManager->closeInProgress}};
     if (TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->speaker))
         state.Speaker = pSpeaker->formID;
     for (const MenuTopicManager::Dialogue* pDialogue : pManager->Options())

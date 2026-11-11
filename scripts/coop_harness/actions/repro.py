@@ -340,6 +340,7 @@ class ReproActions:
                 ctx.staged().append(("npc", host))
             if npc.get("frozen", True):
                 ctx.freeze("", host)
+                ctx.__dict__.setdefault("FROZEN_HANDLES", set()).add(npc["name"])
             ctx.name_handle(npc["name"], {"host": host, "guest": copy})
         for item in spec.get("items", []):
             game = "client" if item.get("who") in ("guest", "client") else ""
@@ -430,15 +431,23 @@ class ReproActions:
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
         with contextlib.suppress(TestFailure):
             ctx.freeze_world(False)
+        if getattr(ctx, "LINE_DELAY", 0):
+            # Held: off now; a hold that ended leaves the link to its next holder, whose boot clears it.
+            with contextlib.suppress(TestFailure):
+                ctx.line_delay(0)
+            ctx.LINE_DELAY = 0
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             game = "client" if kind == "guest-object" else ""
             # An item a player picked up is gone already.
             if kind in ("object", "guest-object") and ref not in ctx.world_state(game, [ref]):
                 continue
-            ctx.console_on(game, f"{ref:X}.disable")
-            ctx.console_on(game, f"{ref:X}.markfordelete")
+            # A staged NPC gone already (a reload, another session's games): nothing to remove.
+            with contextlib.suppress(TestFailure):
+                ctx.console_on(game, f"{ref:X}.disable")
+                ctx.console_on(game, f"{ref:X}.markfordelete")
         ctx.staged().clear()
+        getattr(ctx, "FROZEN_HANDLES", set()).clear()
         ctx.handles().clear()
         ctx.REPRO_SCENE = []
 
@@ -630,12 +639,21 @@ class ReproActions:
         holds the same in both games), "crosshair" (that game's player, or each, faces `name` in first person and the engine's
         crosshair takes it within `seconds`), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
-        `name`, or anywhere with name "all")."""
+        `name`, or anywhere with name "all"), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
                 raise ctx.failure(f"{name}: holds differently: " + ctx.item_differences(held["host"], held["guest"], "host", "guest"))
             return {"items": len(held["host"])}
+        if check == "bounty":  # `name` a crime faction (hex id): the host's bounty there at least value[0], the guest's the same
+            def rows():
+                return {g: sum(ctx.party_bounty()[g].get(f"{int(name, 16):X}", [0, 0])) for g in ("host", "guest")}
+            try:
+                ctx.wait_for(f"{name}: the party's bounty", lambda: rows()["host"] >= value[0] and rows()["host"] == rows()["guest"],
+                             seconds or 5)
+            except TestFailure:
+                raise ctx.failure(f"{name}: the bounty is {rows()}, not at least {value[0]} in both games") from None
+            return {"bounty": rows()}
         if check == "actor":
             return ctx.expect_actor(name, field, game, value, seconds)
         if check == "crosshair":
@@ -646,6 +664,8 @@ class ReproActions:
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))
             return {"agree": True}
+        if check == "guest_npcs":
+            return ctx.expect_no_guest_npcs(seconds)
         if check == "agree":
             ids = [f"{ref:08X}" for ref in ctx.handles().get(name, {}).values()]
             problems = [p for p in ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())) if name == "all" or any(ref in p for ref in ids)]
@@ -745,6 +765,21 @@ class ReproActions:
         return {field: got}
 
 
+    def expect_no_guest_npcs(ctx, seconds=0.0):
+        """The host owns every NPC: no loaded actor on the guest is its own but its player, read every 0.5 s through
+        `seconds` (copy-contract.md, "A guest's own NPCs")."""
+        ended, started = time.monotonic() + seconds, time.monotonic()
+        while True:
+            world = (ctx.game("client").read_status() or {}).get("world") or {}
+            own = sorted(f"{(row.get('identity') or {}).get('name') or '?'} {int(form_id):08X}"
+                         for form_id, row in world.items() if row.get("role") == "own" and not row.get("player"))
+            if own:
+                raise ctx.failure(f"the guest runs NPCs of its own, {time.monotonic() - started:.1f} s in: {', '.join(own)}")
+            if time.monotonic() >= ended:
+                return {"guest_npcs": 0, "loaded": len(world)}
+            time.sleep(min(0.5, max(0.0, ended - time.monotonic())))
+
+
 def where(row):
     """A shown thing's place: an actor's actual or position, a reference's position."""
     if not row:
@@ -783,6 +818,8 @@ def _line(tool, args):
             return f"ctx.use({game}, {args['target']!r})"
         case "take":
             return f"ctx.take({game}, {args['target']!r})"
+        case "pickpocket":
+            return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
             return f"ctx.fight({game}, {args['target']!r})"
         case "world_freeze":
@@ -841,6 +878,11 @@ def _line(tool, args):
             if "instance" in verb_args:
                 verb_args["instance"] = _INSTANCE.get(verb_args["instance"], verb_args["instance"])
             return f"ctx.{args['name']}(" + ", ".join(f"{key}={value!r}" for key, value in verb_args.items()) + ")"
+        case "together":
+            body = [line for lane in args["lanes"] if (line := _called(lane["call"], lane.get("args") or {}))]
+            if not body:
+                return None
+            return "ctx.together([\n" + "".join(f"    lambda: {line},\n" for line in body) + f"], sync={args.get('sync', 'frame')!r})"
         case "rounds":
             body = [line for name, given in ((args.get("reset"), args.get("reset_args")), (args["call"], args.get("args")))
                     if name and (line := _called(name, given or {}))]

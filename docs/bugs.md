@@ -48,6 +48,7 @@ other section needs the duo.
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
 - [End comparisons in towns](#end-comparisons-in-towns): medium
+- [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [Trade markers](#trade-markers): small
 - [Sigurd's registration](#sigurds-registration): small
 - [Copy one-offs](#copy-one-offs): small
@@ -96,6 +97,7 @@ other section needs the duo.
 **Crime and aggro**
 
 - [The older crime scenarios](#the-older-crime-scenarios): medium
+- [The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate): medium, a scenario first
 
 **Combat**
 
@@ -115,13 +117,8 @@ other section needs the duo.
 
 **From the 2026-11-08 playtest** (in the triage's recommended order)
 
-- [A guest's crosshair skips a leaning NPC](#a-guests-crosshair-skips-a-leaning-npc): medium
-- [The second wipe loads another character's save](#the-second-wipe-loads-another-characters-save): small
-- [A guest's talk that never opens](#a-guests-talk-that-never-opens): medium, a decision first
-- [Paying a fine moves only the host](#paying-a-fine-moves-only-the-host): small, a rule first
-- [Black faces after a new area](#black-faces-after-a-new-area): small
-- [A guest's pickpocket](#a-guests-pickpocket): medium
-- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small
+- [A guest's crash loading a wipe's save](#a-guests-crash-loading-a-wipes-save): small
+- [The sneak eye with the other player looking](#the-sneak-eye-with-the-other-player-looking): small, a repro first
 - [A guest crash at the main menu](#a-guest-crash-at-the-main-menu): small, no duo
 
 **Test tools**
@@ -162,6 +159,13 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
   `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
   change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
+- **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
+  Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
+  it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
+  `RagdollInstant`: a body lying in its ragdoll. Also there: a copy looking at nobody, the bullet above. Only after a
+  rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
+  its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
+  ragdolled copy's body settles when its 3D loads after its spawn placed it.
 - **Also after a join with the host's save** (2 of 3): one hanging plant in the shop (`FLOR 38B0C`, `38BE6` or `38BE7`), its `b_Lower` bone
   turned differently. `released-copy-takes-up-its-ai` ends in the blank cell, so it does not fail on this.
 
@@ -348,6 +352,23 @@ Size: medium. Needs: duo.
   - Containers in the Bannered Mare differ at the end too (2026-11-06): `changes 0x8000000` on the host's and none on
     the guest's, 39 references (`held-copy-goes-with-owner` run there).
   - The rabbit and Olava with no owner are fixed: [copy-lifecycle.md](re/systems/copy-lifecycle.md).
+
+### Doors the host's NPCs unlock
+
+Whiterun's doors open on the host, locked on the guest.
+
+Agent task: Find what unlocks these doors on the host, and make that change reach the guests.
+
+Size: medium. Needs: duo, IDA.
+
+- **Three doors unlocked on the host stay locked on the guest** (2026-11-09, `guest_shows_only_hosts_npcs` after its
+  steps, at noon). Doors of base `252C7` in Whiterun's exterior cell `1A278` (`1A6F5`, `252CD`, `24E25`); both games'
+  have change flag `0x10000000`. First seen once a guest stopped running its own NPCs (copy-contract.md, "A guest's
+  own NPCs"): the guest's NPC packages likely locked and unlocked them there before, hiding it.
+  - Not read yet: whether package door locks do it (the lock-doors package flags), and whether the host sends a lock
+    change its own NPC made (a guest proposes only its player's, `GuestWorldState::OnLockChange`; `HookLockChange`
+    19512 raises `LockChangeEvent` for every lock change).
+  - Test: that scenario's end comparison, or `world_state` on the three doors in both games.
 
 ### Trade markers
 
@@ -819,6 +840,27 @@ Size: medium. Needs: duo.
   - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
     the code, not run.
 
+### The guest's eye is its own estimate
+
+On the guest, the stealth eye shows what its NPC copies judge themselves, not what the host's NPCs see.
+
+Agent task: Show with a scenario that the guest's eye and the host's NPCs disagree in a way a player feels; only then
+make the guest's eye show the host's detection.
+
+Size: medium. Needs: duo, then a decision.
+
+- **NPC copies judge the guest's player in the guest's game** (2026-11-08, found with the sneak eye fix,
+  `docs/re/systems/stealth.md`). The eye (40593 through 41408) counts every high-process actor's state of the player,
+  and a copy's detection pass still runs: Lydia's copy read -21, fresh, while the guest sneaked in QASmoke. On 2026-11-01
+  the host's eye read Lydia's real 30 and the guest's its copy's 20 (`playtests/2026-10-31-fabien.md`, S6): an estimate,
+  not stuck.
+  - The host's side is no better yet: nothing keeps the host's NPCs' state of a guest's copy fresh (`crime.md`, Hulda 4.7 s
+    old), and [A still guest unseen up close](#a-still-guest-unseen-up-close) reads no line of sight to it.
+  - Shape if it matters: the host asks its NPCs about each guest's copy and sends the highest level (a message, at a rate:
+    detection has no event); the guest's eye shows it, and NPC copies become unseen witnesses (`DetectionRules`).
+  - Test: a scenario where the guest's eye says hidden while a host NPC spots the guest (combat, a crime reported), or
+    the reverse. With none, this entry goes.
+
 ## Combat
 
 ### After the host dies
@@ -1004,138 +1046,49 @@ about 400 ms and 0.8% loss. Evidence: the guest's `/export` (`hdTkv.zip`, the us
 `SkyrimCoop-Chris_Cringle-2026-11-08-2144-d61.zip` (the host's prefix, `My Games/Skyrim Special Edition/SkyrimCoop/`),
 with both games' 21:26 `/bug` reports. Times are the logs' local times.
 
-### A guest's crosshair skips a leaning NPC
+### A guest's crash loading a wipe's save
 
-The guest can't talk to some NPCs at all: no name, no Talk prompt.
+Seen once.
 
-Agent task: Make the guest's crosshair take an NPC copy leaning on a counter, as the host's takes the NPC.
+Agent task: Name the stale form the guest's load reached in its 21:19 dump.
 
-Size: medium. Needs: IDA, GameTests, duo.
+Size: small. Needs: IDA, the dump; duo to prove it.
 
-- **A guest's crosshair never takes a copy in its counter lean** (2026-11-08, the user and the brother: Orgnar, Lucan;
-  measured on the duo). With Lucan leaning (`sit_sleep` 3, `IdleCounterStart`), the guest's camera ray hits his copy
-  `13487` at 112 units and `CrosshairPickData`'s target stays 0; standing, the copy is taken; the host's crosshair
-  takes Lucan either way. So the guest presses E on nothing, sometimes (while the NPC leans).
-  - Read in IDA: `PickCrosshairReference` (40620) calls `CrosshairPickData::Pick`, whose `CanPickRef` refuses an actor
-    sitting in furniture with `kDisablesActivation`. That check passes on the copy: it has no furniture while leaning
-    (`ai.furniture` 0; the host's Lucan has `230333`, his counter, also in the 21:26 snapshots).
-  - Ruled out, measured: `Actor::CanTalkToPlayer` (37469, `ExtraCanTalkToPlayer`, `AllowPCDialogue`): set on the copy,
-    the crosshair still skipped it.
-  - Start: the rest of `Pick` (its two hit paths before `CanPickRef`) for an actor sitting with no furniture.
-  - Test: `guest-crosshair-skips-leaning-npc` (fails at the guest's crosshair, 28 s from a boot).
-
-### A guest's talk that never opens
-
-The guest asks, the host's game starts it, nothing opens, nobody is told.
-
-Agent task: Find why the host's background start of a guest's conversation stops opening, and answer every ask.
-
-Size: medium. Needs: IDA, duo; a decision from the user (below).
-
-- **The host starts a guest's conversation in the background and it never opens** (2026-11-08, 21:37 to 21:38).
-  Conversation 2 (the guest's, `44A8E`) ran with the host joined; its line paid a gold and showed `Message.Show` on
-  the guest; no end was logged on the host. Then the guest's asks for `19DD8` (21:37:36, 21:37:42) and `4584C`
-  (21:38:32): each time the host logged "a guest started a conversation ... run in the background" and no step 1
-  followed. The guest got no refusal and no chat line (`GuestDialogue` keeps `m_asked`, no timeout). The host's own
-  talk worked meanwhile (a guard's greet at 21:39:09), so "the host can talk, the guest can't".
-  - Start: what the engine keeps after a conversation that ended with the host's menu up and a message box, so that
-    `bridge.Start` returns true and no conversation opens; and an answer for an ask that never opens.
-  - Test: the playtest's order as a scenario: the guest talks, the host joins, a line with a message box, then the
-    guest asks another NPC.
-- **A guest's E on the host's player starts a conversation with it** (2026-11-08, host log 21:10:55 five times,
-  21:23:30). The host's copy has a session id, so `GuestDialogue` asks the host to talk to `14`, and the host's game
-  tries to start a conversation with its own player.
-  - Test: a `HostAuthorityTests` case: an ask for a player's session is refused.
-- **Decision for the user:** one conversation for the party runs through the host's player (`shared-dialogue.md`,
-  "One conversation at a time"), so while the host talks to anyone a guest's ask is refused. The brother read that as
-  a bug ("the host talking to anyone locks out the client"). Keep it, with a clear answer, or allow conversations in
-  parallel (large: the host's engine has one dialogue speaker).
-
-### The second wipe loads another character's save
-
-A party wipe right after a wipe loads an old character.
-
-Agent task: Make a wipe always reload the host's own character, also after a wipe.
-
-Size: small. Needs: GameTests, IDA; duo to prove it.
-
-- **The wipe after a wipe takes the newest save of character id 0** (2026-11-08, measured from the logs and the
-  saves). 21:17 and 21:31 (each the first wipe after a normal load) reloaded `ABC467A6` (scrombonius, the host's
-  character); 21:19 and 21:32 (each after loading `SkyrimCoopWipe.ess`) sent `Save4_00000000` (Chris Cringle,
-  2026-10-31, Riften), so the session went on as Chris. The Load menu then listed only that character's saves (the
-  user: "it showed me a previous character's save"). 15 of the host's saves carry id 0.
-  - Read in code: `PreviousGameplaySave` takes the newest save whose `characterId` is the engine's `currentCharacterId`.
-    Inferred: loading a save named `SkyrimCoopWipe` (no id in the name) leaves that id 0. Read in IDA: 35760, 35789,
-    where the current id is set on a load.
-  - The guest crashed loading the 21:19 save (c0000005, during the load, a dump in its export); check it goes with the
-    fix. Related: [The scratch save in the Load list](#the-scratch-save-in-the-load-list), the same scratch save.
-  - Test: GameTests, two wipes in a row (the fake learns how a load sets the character id); the user asked for more
-    tests around dying and reloading.
-
-### Paying a fine moves only the host
-
-Party travel.
-
-Agent task: Make a teleport the host's engine makes inside its cell bring the party, as one to another cell does.
-
-Size: small. Needs: duo; a rule from the user (below).
-
-- **The guest stays behind when the host pays a fine** (2026-11-08, 21:39, measured). The host paid the Riften guard
-  (`4584D`, topic `267DB`); its game moved it to the release marker and logged "Arrived in cell 42245 (RiftenWorld),
-  leading the party"; the guest logged "Party travel to cell 42245: already there" and stayed. The tether follows by
-  cell, and a move inside the cell is "already there" (`player-travel.md`), so `PayFine`'s move
-  (`shared-party-bounty.md`) never reaches the party there.
-  - Rule for the user: does every teleport inside a cell bring the party, or only past some distance?
-  - Test: a host `MoveTo` inside its cell, far from the guest (GameTests), then `guest-guard-arrest-fine`.
-  - The user's `/tpa` (everyone to the host) is in `docs/ideas.md`.
-
-### A guest's pickpocket
-
-Crime: the guest's theft from a copy.
-
-Agent task: Make a guest's pickpocket of an NPC copy reach the host, caught or not, and stop it duplicating items.
-
-Size: medium. Needs: duo, then GameTests.
-
-- **No guest pickpocket reached the host** (2026-11-08). The brother sneaked to pickpocket: "nothing happens, they just
-  can't talk to them", and once "they still get the item, just multiple copies". The host logs every guest crime it
-  gets ("Party crime: ..."), and the whole session has only four thefts (21:28, Riverwood Trader, action 0): no
-  pickpocket, caught or not (`shared-party-bounty.md`: a caught one sends a proposal, 37423).
-  - Inferred: the duplicate is a take from the copy that the host never applies, so the copy keeps it, as in
-    [A looted corpse keeps items on the guest](#a-looted-corpse-keeps-items-on-the-guest).
-  - Related: [The older crime scenarios](#the-older-crime-scenarios) (`guest-pickpocket-party-alarm` passes or fails
-    either way).
-  - Test: a scenario: the guest pickpockets Lucan, once caught and once not.
-
-### Black faces after a new area
-
-Copies of players.
-
-Agent task: Make a player's copy keep its painted face after its 3D is built again.
-
-Size: small. Needs: GameTests, duo to see it.
-
-- **Faces turn black when loading into a new area** (2026-11-08, the user; not in the logs). Read in code:
-  `FaceGenSystem` paints a copy's head once (`FaceGenComponent::Generated`) and never again, and a new area builds
-  the copy's 3D again, so the new head has no tints (a temporary base has no face file). Inferred, and only for
-  players' copies; whose faces the user saw is to be asked.
-  - Test: GameTests, a copy's 3D rebuilt paints its face again.
+- **The guest crashed in a wipe's load** (2026-11-08 21:19, the guest's export `SkyrimCoop-player-2026-11-08-2119-e04.zip`
+  in `hdTkv.zip`, with its dump). c0000005 1.3 s into loading `SkyrimCoopJoin.ess`, a lock order report just before.
+  The same save (3118302 bytes packed) loaded fine at 21:32, so the save is not the cause. The second wipe's
+  wrong character (the save it carried) is fixed: the load now gives the host its character back
+  (`docs/re/systems/save-game.md`, "The character a save belongs to"; GameTests "Two party wipes in a row both reload
+  the host's own character").
+  - Read in the dump and IDA: `Thread::LoadGame_HookTarget` → `BGSSaveLoadGame::InitAndFinishLoadedForms` →
+    `sub_140638B20` → `sub_140638CB0` → `sub_140638FE0` calls vfunc `+0x160` on a form whose memory has
+    `BSLightingShaderMaterial`'s vtable (a freed form pointer, the memory reused); commented at `0x140639011`.
+  - Start: which list `sub_140638B20` walks and which form left it freed (the log's last line before the load:
+    `Temporary Remote Deleted FF000DC3`, a copy deleted as the guest disconnects).
 
 ### The sneak eye with the other player looking
 
-S6 of 2026-10-31 again.
+S6 of 2026-10-31 again. Hardened (PR #40), not reproduced.
 
-Agent task: Make the other player's copy never raise the local player's stealth eye.
+Agent task: Catch the eye open with the other player looking, name its source with the readout, and fix that source.
 
-Size: small. Needs: duo, IDA.
+Size: small. Needs: duo, the user's report.
 
-- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you").
-  S6 (`playtests/2026-10-31-fabien.md`) did not reproduce on 2026-11-01 with both sneaking face to face:
-  `HookUpdateDetectionState` (42704) skips a player copy's detection of the local player. New here: the other player
-  looking at you (maybe standing). Read in code: the hook skips the update but keeps the knowledge entry, so a level
-  set before could stay (inferred). Nothing in the logs.
-  - Start: what the eye reads (41408, `stealth_meter`) with the other player looking, standing and sneaking.
-  - Test: a scenario: the local player sneaks, nobody else near, the other player turns to face it.
+- **The other player looking counts as being seen** (2026-11-08, the user: "friends when looking at you detect you";
+  "just standing next to another player if we're sneaking and they are looking at us"). Not reproduced on the duo
+  (2026-11-08/09, dev's hook): standing or sneaking face to face, both games, the eye stayed closed on screen; the
+  copy's knowledge held no state; talking to or pickpocketing a player's copy is refused. The playtest's 21:26 `/bug`
+  reports caught no sneaking moment (Riverwood Trader, Lucan and Camilla by).
+  - Hardened (`docs/re/systems/stealth.md`): a player's copy now carries `kDoNotShowOnStealthMeter` (41408 skips it),
+    and `HookUpdateDetectionState` installs an unseen pass instead of skipping (a skip left the request queued; 42702
+    then answered an older level at any age, and 37765's forced 100 through 42705 the same).
+  - Suspects left: a real NPC near (the Sleeping Giant: Orgnar read -5 and "seen" on a sneaking host), NPC copies on the
+    guest ([The guest's eye is its own estimate](#the-guests-eye-is-its-own-estimate)), combat (40593 shows 100 minus
+    the search level).
+  - Start: the user's conditions (whose eye, where, who was near), or a `/bug` taken while the eye shows detected; the
+    harness's `crime stealth_meter` lists each actor holding a level of the player (`sources`).
+  - Test: scenario `other-player-looking-leaves-eye-hidden` is the base; it must fail before a fix on what the readout
+    names.
 
 ### A guest crash at the main menu
 
