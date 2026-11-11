@@ -499,31 +499,34 @@ TEST_CASE("A sync point taken as an update begins holds the events just before i
     CHECK(copy.State == owner.State);
 }
 
-TEST_CASE("An owner in a pair is not recorded, gives no point, and starts over after", "[graph-stream]")
+TEST_CASE("An owner in a pair is recorded on, and gives no point until it is out", "[graph-stream][pair-stream]")
 {
-    // Skyrim (duo, host-kill-move, 2026-11-09): a pair's clip runs on its instance (32803: the wait at the mark), which
-    // no stream carries; a copy replaying the owner's inputs through it ran 150 ms ahead of its owner.
+    // Skyrim (duo, host-kill-move, 2026-11-10): a sync point restored inside a synchronized clip starts the clip over.
+    // Its recording goes on: two copies of the pair on another game each replay their own stream through it.
     GraphStreams streams;
     streams.Record(0x50, 7);
     ToyGraph graph;
     streams.OnUpdate(0x50, 1, 0.016f, graph.Vars, graph.Seed);
     streams.OnUpdated(0x50, graph.Vars);
     (void)streams.TakeOps();
-    CHECK(streams.PauseWhile(0x50, true));
+    CHECK(streams.HoldPointsWhile(0x50, true));
+    CHECK_FALSE(streams.Streaming(0x50)); // a copy held off its stream plays its actions: they carry its graph state
     streams.OnEvent(0x50, 2, 3, graph.Vars, graph.Seed);
     streams.OnUpdate(0x50, 2, 0.016f, graph.Vars, graph.Seed);
+    streams.OnPick(0x50, 100, 0); // its clip waits at the mark (63050)
     streams.OnUpdated(0x50, graph.Vars);
     streams.OnGenerate(0x50, 2);
-    CHECK_FALSE(streams.TakeOps());
+    const auto cPair = streams.TakeOps();
+    REQUIRE(cPair);
+    CHECK(cPair->Runs[0].FirstUpdate == 1); // it follows on: no gap
+    REQUIRE(cPair->Runs[0].Ops.size() == 3);
+    CHECK(cPair->Runs[0].Ops[0].Event);
+    CHECK(cPair->Runs[0].Ops[1].Picks == std::vector<GraphPick>{{100, 0}});
     streams.WantPoint(0x50);
     CHECK_FALSE(streams.PointWanted(0x50)); // kept for after the pair
-    CHECK_FALSE(streams.PauseWhile(0x50, false));
+    CHECK_FALSE(streams.HoldPointsWhile(0x50, false));
+    CHECK(streams.Streaming(0x50));
     CHECK(streams.PointWanted(0x50));
-    streams.OnUpdate(0x50, 3, 0.016f, graph.Vars, graph.Seed);
-    streams.OnUpdated(0x50, graph.Vars);
-    const auto cOps = streams.TakeOps();
-    REQUIRE(cOps);
-    CHECK(cOps->Runs[0].FirstUpdate == 0); // its recording started over: its copies see the gap
 }
 
 TEST_CASE("A copy held for its owner's pair is back on its stream from a point after the pair, not one before", "[graph-stream]")

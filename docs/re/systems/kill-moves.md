@@ -44,6 +44,16 @@ death action
 
 ## Engine facts
 
+- **A synchronized clip's scene (read 2026-11-11).** `BSSynchronizedClipGenerator::Update` (63050) asks its scene
+  (`+0x70`) each update: slot 4 (`+0x20`) "every actor at its mark" into `+0x12C`, slot 3 (`+0x18`) "all in scene" into
+  `+0x12B`; the inner clip updates only while `+0x12C` is set. `Activate` (63048) gives a generator with no scene a
+  `hkbDefaultSynchronizedScene` (vtable `0x141a02da0`), whose two answers are always yes: a clip outside a pair's
+  instance runs at once. These answers are a copy's pick on the graph input stream (graph-input-stream.md).
+- **The kill move flag comes from the action, not the graph.** 39004 (the action's effects beside the graph), for an
+  event starting "pa_Kill" (strnicmp 7) with an actor target: attack state 1, then `EnterKillMove` (38613) on the actor
+  (no killer) and on the target (killer: the actor). 38613: a deferred kill, the flag (`Actor+0x204` 0x4000), the
+  killer's handle.
+
 - **32803 (the pair's start).** If either actor is already in an instance, it does not start one: when both are in the
   same instance it returns true, as if this were that pair. Replaying a second pair there plays a second clip into the
   first, which ends both clips.

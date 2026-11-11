@@ -1093,6 +1093,13 @@ void Actor::StopPairClip() noexcept
     SendAnimationEvent(&stop);
 }
 
+void Actor::EnterKillMove(Actor* apKiller) noexcept
+{
+    using TEnterKillMove = int64_t(Actor*, Actor*);
+    POINTER_SKYRIMSE(TEnterKillMove, s_enterKillMove, 38613);
+    (s_enterKillMove.Get())(this, apKiller);
+}
+
 void Actor::EndKillMove() noexcept
 {
     // Character 38614: clears the kill move flag, and kills an actor with a recorded killer.

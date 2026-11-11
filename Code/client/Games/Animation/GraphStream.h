@@ -152,8 +152,8 @@ struct GraphStreams
     void Record(uint32_t aFormId, uint32_t aActorId);
     void Forget(uint32_t aFormId); // no longer owned, or no longer a copy
     [[nodiscard]] bool Recording(uint32_t aFormId) const;
-    // Recorded and not paused: its copies' graphs take its stream alone, so its movement carries no graph variables
-    // and it sends no graph points.
+    // Recorded and not on its own body: its copies' graphs take its stream alone, so its movement carries no graph
+    // variables and it sends no graph points.
     [[nodiscard]] bool Streaming(uint32_t aFormId) const;
     void OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, std::span<const uint32_t> aWords,
                  const GraphSeed& acSeed);
@@ -164,8 +164,13 @@ struct GraphStreams
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
     void OnPick(uint32_t aFormId, uint16_t aNode, int32_t aValue);
     void OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
-    // An owner on its own body (in a pair: the instance drives its clip, 32803): nothing of it is recorded while
-    // aOwnBody, and its recording starts over after, so its copies ask for a point. Returns whether it is paused.
+    // An owner on its own body (in a pair's instance or clip, 32803): recorded on (two copies of a pair elsewhere each
+    // replay their own stream, its clip's wait at the mark a pick), but it gives no sync point while aOwnBody (one
+    // restored inside a synchronized clip starts the clip over) and its actions carry what a copy held off its
+    // stream needs (Streaming). Returns aOwnBody.
+    bool HoldPointsWhile(uint32_t aFormId, bool aOwnBody);
+    // An owner in a mount's pair (getting on or off, riding: its body is its mount's): nothing of it is recorded
+    // while aOwnBody, and its recording starts over after, so its copies ask for a point. Returns aOwnBody.
     bool PauseWhile(uint32_t aFormId, bool aOwnBody);
     // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
     // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.
@@ -222,7 +227,8 @@ struct GraphStreams
         const void* Graph = nullptr;
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
-        bool Paused = false; // on its own body: not recorded
+        bool Paused = false; // on its own body (HoldPointsWhile): no sync point, not Streaming
+        bool NotRecorded = false; // in a mount's pair (PauseWhile)
     };
     struct Copied
     {

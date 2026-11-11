@@ -504,6 +504,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
         uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
         bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
+        double MarkWaitMs = 0.0;    // in an instance: until every actor is at its mark, its synchronized clip waits
         uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
@@ -643,6 +644,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
     uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
+    double PairMarkMs = 0.0; // how long a pair's actors take to reach their marks in its instance (150 ms on the host)
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)

@@ -458,10 +458,11 @@ def mod_problems(snapshot, role):
     return problems
 
 
-def body_problems(snapshot):
+def body_problems(snapshot, bones=True):
     """What looks wrong with a player's body as a person would see it (harness `pose`): floating or sunk feet, a
     skeleton lifted off its feet, or lying while it should stand. Nothing for NPCs, the dead, the knocked down,
-    the seated, riders and swimmers."""
+    the seated, riders and swimmers. `bones` False: its 3D was not drawn when read, so its skeleton is its last drawn
+    pose, which nobody sees (a copy knocked down out of the host's view read as lying after it stood, 2026-11-11)."""
     pose, state, placement = snapshot.get("pose"), snapshot.get("state") or {}, snapshot.get("placement") or {}
     water = (snapshot.get("mod") or {}).get("water") or {}
     if not snapshot.get("player") or not pose or state.get("dead") or state.get("knock") or state.get("sit_sleep"):
@@ -473,6 +474,8 @@ def body_problems(snapshot):
         problems.append(f"body: floats {pose['floor_gap']:.0f} units above the floor")
     elif pose["floor_gap"] < -FLOAT_TOLERANCE:
         problems.append(f"body: sunk {-pose['floor_gap']:.0f} units into the floor")
+    if not bones:
+        return problems
     pelvis = pose["pelvis"] - pose["floor_gap"]  # above its own feet
     if pelvis > RAISED_PELVIS:
         problems.append(f"body: skeleton lifted off its feet (pelvis {pelvis:.0f} above them, ~71 standing)")
@@ -529,7 +532,7 @@ def compare_actors(worlds):
                 continue
             copy_id, copy = copies[other][sid]
             paired[other].add(sid)
-            for problem in mod_problems(copy, "copy") + body_problems(copy):
+            for problem in mod_problems(copy, "copy") + body_problems(copy, bones=drawn(copy)):
                 problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):

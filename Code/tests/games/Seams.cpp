@@ -245,11 +245,19 @@ void World::Update() noexcept
                 const ActionEvent cAction = animation.TimePoints.front();
                 if ((dying = DeathActions::IsDying(cAction.State1)))
                     break;
-                if ((paired = !cAction.TargetEventName.empty()))
+                // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
+                const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
+                const auto cPartner = engine.Actors.find(cPartnerId);
+                if ((paired = !cAction.TargetEventName.empty() &&
+                              !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy,
+                                                           ::ReplayState::KillMoveHalf(cAction.EventName))))
                 {
-                    streams.HoldUntilPoint(form.Id, cAction.Tick); // its owner's pair: its half by this action
+                    streams.HoldUntilPoint(form.Id, cAction.Tick);
                     break;
                 }
+                // What playing the action does beside the graph (39004), as AnimationSystem.
+                if (!cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName))
+                    actor.InKillMove = cPartner->second.InKillMove = true;
                 animation.TimePoints.pop_front();
                 // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
                 if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))

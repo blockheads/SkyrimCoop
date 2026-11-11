@@ -124,14 +124,25 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 streams.Forget(apActor->formID);
                 return;
             }
-            // Its owner's pair: its half is its own body's, by this action, until a point from after the pair.
+            TargetFromNetwork(action);
+            // Its owner's pair: with its partner this game's own, a mount's, or not here, its half is its own body's,
+            // by this action, until a point from after the pair. Two copies each stay on their own stream.
             if (!action.TargetEventName.empty())
             {
-                streams.HoldUntilPoint(apActor->formID, action.Tick);
-                return;
+                auto* pPartner = Cast<Actor>(TESForm::GetById(action.TargetId));
+                if (!ReplayState::PairOnStream(pPartner && pPartner->GetExtension()->IsCopy(), ReplayState::KillMoveHalf(action.EventName)))
+                {
+                    streams.HoldUntilPoint(apActor->formID, action.Tick);
+                    return;
+                }
+                // What playing the action does beside the graph (39004): both in the kill move, the victim's killer.
+                if (ReplayState::EntersKillMove(action.EventName))
+                {
+                    apActor->EnterKillMove(nullptr);
+                    pPartner->EnterKillMove(apActor);
+                }
             }
             actions.pop_front();
-            TargetFromNetwork(action);
             // Its owner's get-up: its own body is prepared and queued to rise (BeginGetUp 40150, knock state 5); the
             // get-up itself is its graph's, from the stream.
             const auto* pGetUp = DefaultObjectManager::GetObject(DefaultObjectManager::kActionGetUp);
@@ -143,7 +154,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             // Its owner's knock: its own body goes down in the same step as its graph's Ragdoll input (39895).
             const auto* pRagdoll = DefaultObjectManager::GetObject(DefaultObjectManager::kActionRagdoll);
             if (!apActor->IsDead() && KnockReplay::GoesDown(apActor->actorState.GetKnockState(), pRagdoll && action.ActionId == pRagdoll->formID))
+            {
+                spdlog::debug("Copy {:X}: down with its owner's ragdoll action", apActor->formID);
                 aWorld.ctx().at<BodyService>().KnockDown(apActor->formID);
+            }
             // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
             // weapon transition kept as a replayed action keeps them.
             apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);

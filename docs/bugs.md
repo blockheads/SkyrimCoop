@@ -625,6 +625,11 @@ Size: medium. Needs: duo, then GameTests.
     copy's hand shook 8-14 units where its owner's shook 4-6: between frames a body is guessed onward at its last
     velocity, which overshoots a limb reversing every step. A getting-up owner's frames now carry the pose only
     (`PhysicsBodies`). After: 23 of 24 runs of the four knockdown scenarios, smoke 6 of 6.
+  - Open (2026-11-11, with kill moves between two copies on the stream): `kill-moves-cross` once in 12 runs ended with
+    the host's player's copy naming `KillMoveD` as its last action where its owner names `pa_KillMoveShortD`. Not
+    looked into; whether it predates that work is not known.
+  - Open: `knockdown-lies-as-host` once with a bone 29 units off its body against its owner's 19 (the margin is 25,
+    or its owner's plus 5).
   - Open: once `knockdown-front-and-back` ended "the copy never lay as the host's body", every bone about 23 units
     lower on the copy, after its third push off the ledge (6927 against 6950). Not looked into.
   - Open, not explained: once smoke's end comparison read the copy 66 units above its owner (`pose.floor_gap`), while

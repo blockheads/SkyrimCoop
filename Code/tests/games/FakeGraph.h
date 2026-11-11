@@ -23,6 +23,10 @@ struct FakeGraphRules
         std::optional<size_t> StartFrom;
         std::optional<size_t> ExitVariable;
         std::vector<int32_t> ExitValues;
+        // BSSynchronizedClipGenerator (63050): its clip advances only while its scene answers that every actor is at
+        // its mark. In a pair's instance that takes a moment (FakeEngine::PairMarkMs); outside one its default scene
+        // answers yes at once (63048). Outside the graph: a copy on its stream takes its owner's answer.
+        bool Synchronized = false;
     };
     // hkbEventsFromRangeModifier: on each update in State, the graph goes to Above if Floats[Input] >= Bound, else to
     // Below (an empty one: stays). TurnRight_EventsFromRangeMod reads TurnDelta.
@@ -93,6 +97,14 @@ struct FakeGraphRules
         for (size_t i = 0; i < Matches.size(); ++i)
             if (Matches[i].State == acState)
                 return uint16_t(4 + i);
+        return std::nullopt;
+    }
+    // A synchronized clip's node id: past the match nodes'.
+    [[nodiscard]] std::optional<uint16_t> SceneNode(const std::string& acState) const noexcept
+    {
+        for (size_t i = 0; i < Clips.size(); ++i)
+            if (Clips[i].State == acState && Clips[i].Synchronized)
+                return uint16_t(100 + i);
         return std::nullopt;
     }
     [[nodiscard]] const Blend* BlendOf(const std::string& acState) const noexcept

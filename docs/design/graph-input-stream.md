@@ -100,19 +100,38 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 | case | why the stream pauses | after |
 |---|---|---|
 | death | its ragdoll is its own body's | the stream ends |
-| paired animations (kill moves) | a synchronized clip plays against its partner's graph (`BSSynchronizedClipGenerator`) | sync point after the pair |
+| a pair whose partner here is this game's own actor (a guest's kill move on a host NPC) | the pair's instance is on this game: its half is its own body's | sync point after the pair |
+| any pair but a kill move's (mounts) | played by its actions, as before the stream | sync point after the pair |
 
 - **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
   through its graph (63591). A copy on the stream that is in an instance on this game (`Actor::InPair`, 32808) is held
   off its stream (`GraphStreams::HoldWhile`): it takes that event, runs today's paths, and asks for a new sync point
   once out of the instance. Before, the copy refused the event and a guest's kill move on a host NPC never started
   (`client-kill-move`).
-  A pair on its owner's game alone (the host's kill move on its own NPC) makes no instance on a guest: a replayed
-  pair names no target event for a copy partner, and each copy plays its half alone. There the copy leaves its stream
-  at its owner's half of the pair, a paired action (`AnimationSystem`, `GraphStreams::HoldUntilPoint`), plays it as
-  before the stream, and is back from a sync point taken after that action. The owner is not recorded while it is in
-  an instance (`GraphStreams::PauseWhile`, 32808): it gives no point, and its recording starts over after, so its
-  copies see the gap and ask. A synchronized clip waits for the mark on its instance, which no stream carries.
+  A pair on its owner's game alone made no instance on a guest, and until 2026-11-11 the copy left its stream there
+  too, at its owner's half of the pair (`GraphStreams::HoldUntilPoint`), the owner not recorded while in an instance
+  (`GraphStreams::PauseWhile`). That still holds for every pair but a kill move's (next).
+- **Kill moves between two copies: on the stream since 2026-11-11.** Read in IDA: a synchronized clip advances only
+  while its scene answers "every actor at its mark" (63050, `+0x12C`), and a generator with no scene gets
+  `hkbDefaultSynchronizedScene` at activation (63048), which always answers yes. So a copy outside an instance needs
+  no scene, only its owner's answer each update: a pick (`HookUpdateSynchronizedClip`: the owner's answers go with
+  its update, and a copy's replayed update asks a stand-in scene that gives them). What follows from that:
+  - An owner in a kill move's pair is recorded on; it still gives no sync point until out of it
+    (`GraphStreams::HoldPointsWhile`). Which pair it is comes from the first event of its own-body spell
+    (`ReplayState::KillMoveHalf`: `pa_KillMove...`, `KillMove...`).
+  - A copy stays on its stream at its owner's paired action when its partner here is a copy too and the pair is a
+    kill move's (`ReplayState::PairOnStream`); else as above.
+  - Playing a `pa_Kill` action puts both actors in the kill move beside the graph (39004: `EnterKillMove` 38613 on
+    each); a streamed copy plays none, so `AnimationSystem` does it (`ReplayState::EntersKillMove`).
+  - Any other pair stays as it was. Recorded through a mount's pair, a rider's skeleton was left 2100 units from its
+    body on getting off (`host-rides-horse`, 5 of 7 runs); why is not explained.
+  - Measured (duo, `host-kill-move`): on the guest both copies took the pair from their streams; KillMoveStart,
+    HitFrame and KillActor came 115-190 ms after the host's, the blow and the death 115-120 ms. Five kill-move
+    scenarios, four runs each: 18 of 20 (`kill-move-kills-guest` once never at rest, as before; `kill-moves-cross`
+    once ended with the host's player's copy naming the other half as its last action: bugs.md).
+    `host-rides-horse` and `guest-rides-host-horse` 4 of 4.
+  - Tests: GameTests `[pair-stream]` (the fake's synchronized clip waits `PairMarkMs` in an instance and not outside
+    one); ClientTests `[pair-stream]`.
 - **Knock-downs: on the stream since 2026-11-11** (A node's pick, below). Before, a knocked-down copy was held off
   its stream until it stood (built 2026-11-09). A death ends the stream (`AnimationSystem`).
 

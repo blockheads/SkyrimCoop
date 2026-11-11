@@ -296,7 +296,7 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         if (!m_replaying)
             graph.Picked = GraphPick{*cNode, cMatch->second}; // each update it matches in (59583's hook)
     }
-    graph.OwnersPicks.clear();
+    const std::vector<GraphPick> cOwnersPicks = std::exchange(graph.OwnersPicks, {});
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
     {
@@ -304,6 +304,28 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         graph.Stuck = graph.EndsSent = false;
         GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
         return;
+    }
+    if (const auto cNode = Graph->SceneNode(aActor.GraphState))
+    {
+        // Its scene's answer (63050): its instance's once every actor reached its mark, a default scene's at once; a
+        // copy on its stream takes its owner's, kept from update to update.
+        if (!m_replaying)
+        {
+            if (aActor.InPair && aActor.MarkWaitMs > 0.0)
+                aActor.MarkWaitMs -= aStepMs;
+            graph.Matches[*cNode] = !(aActor.InPair && aActor.MarkWaitMs > 0.0);
+            graph.Picked = GraphPick{*cNode, graph.Matches[*cNode]};
+        }
+        else if (const auto it = std::ranges::find(cOwnersPicks, *cNode, &GraphPick::Node); it != cOwnersPicks.end())
+            graph.Matches[*cNode] = it->Value;
+        if (const auto cAt = graph.Matches.find(*cNode); cAt != graph.Matches.end() && !cAt->second)
+        {
+            // Not at the mark: its clip waits.
+            if (graph.ClipStartedAt)
+                *graph.ClipStartedAt += aStepMs;
+            GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
+            return;
+        }
     }
     auto& integers = aActor.GraphVariables.Integers;
     integers.resize(std::max(integers.size(), std::max(pClip->StartFrom.value_or(0), pClip->ExitVariable.value_or(0)) + 1));
@@ -357,9 +379,11 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
     WriteGraphChannels(aActor, cStep);
     auto& streams = World::Get().GetGraphStreams();
-    // In a pair or a kill move its clip is its own body's: not recorded (Games/Skyrim's 63587 hook).
+    // In a pair or a kill move it is recorded on, but gives no sync point (Games/Skyrim's 63587 hook).
     const bool cOwnBody = aActor.InPair || aActor.InKillMove || aActor.InPairClip;
-    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId) && !streams.PauseWhile(aFormId, cOwnBody);
+    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
+    if (cRecorded)
+        streams.HoldPointsWhile(aFormId, cOwnBody);
     const GraphSeed cSeed{aActor.GraphRandom, 0};
     if (cRecorded && streams.PointWanted(aFormId, GraphIdentity(aActor)))
     {
@@ -1303,7 +1327,10 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         }
         actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
         if (cInstance || cCollapsed)
+        {
             actor.InPair = cPartner->second.InPair = !cCollapsed;
+            actor.MarkWaitMs = cPartner->second.MarkWaitMs = PairMarkMs; // each walks to its mark first (32792)
+        }
         // The victim's half is its own action (TESActionData::Func5 41557 under Animation.cpp's hook): an owner's is
         // sent, and its graph takes the event in the instance.
         if (cInstance && !cCollapsed && !Replaying && !cPartner->second.Copy)
@@ -1318,7 +1345,7 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             half.GraphState.clear();
             if (!GraphTransitions.empty() && !cPartner->second.GraphState.empty())
             {
-                if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(half.ActorId) && !streams.PauseWhile(half.ActorId, true))
+                if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(half.ActorId) && streams.HoldPointsWhile(half.ActorId, true))
                     streams.OnEvent(half.ActorId, streams.Tick(), GraphEventId(half.EventName), GraphWords(cPartner->second), {cPartner->second.GraphRandom, 0});
                 TakeGraphEvent(cPartner->second, half.EventName);
             }

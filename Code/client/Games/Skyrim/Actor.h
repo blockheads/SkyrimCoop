@@ -299,6 +299,8 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsInKillMove() const noexcept;
     // What the KillMoveEnd event does (KillMoveEndHandler 42871).
     void EndKillMove() noexcept;
+    // Character::EnterKillMove (38613): the kill move flag, a deferred kill, its killer (none for the attacker).
+    void EnterKillMove(Actor* apKiller) noexcept;
     // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
     void EndPairs() noexcept;
     // A participant of a running pair (BGSSynchronizedAnimationManager::IsInInstance 32808): from before its half's event.

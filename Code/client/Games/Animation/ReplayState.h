@@ -31,6 +31,40 @@ constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, u
     return aInPair || aInKillMove || aGettingOnOff || aSitState == kSitWantsToStand;
 }
 
+// A copy's owner's pair, at its half's action: the copy stays on its stream when its partner on this game is a copy
+// too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick). Its
+// partner this game's own actor: the instance is here, and its half its own body's. Any pair but a kill move's (a
+// mount's), or one whose partner is not here, is played by its action as before.
+constexpr bool PairOnStream(bool aPartnerIsCopy, bool aKillMove) noexcept
+{
+    return aPartnerIsCopy && aKillMove;
+}
+
+// Playing a "pa_Kill..." action puts its actor and its target in a kill move (39004: EnterKillMove 38613 on each);
+// two copies that take the pair from their streams play no action, so it is done for them.
+constexpr bool StartsWithNoCase(std::string_view acText, std::string_view acLowerPrefix) noexcept
+{
+    if (acText.size() < acLowerPrefix.size())
+        return false;
+    for (size_t i = 0; i < acLowerPrefix.size(); ++i)
+        if ((acText[i] | 0x20) != acLowerPrefix[i] && acText[i] != acLowerPrefix[i])
+            return false;
+    return true;
+}
+
+constexpr bool EntersKillMove(std::string_view acEvent) noexcept
+{
+    return StartsWithNoCase(acEvent, "pa_kill");
+}
+
+// A kill move's half, by its event: the attacker's "pa_KillMove..." or the victim's "KillMove...". Only a kill
+// move's pair goes on the stream; any other (a mount's above all) is played by its actions and not recorded, as
+// before: recorded through a mount's pair, a rider's skeleton left its body on getting off (host-rides-horse).
+constexpr bool KillMoveHalf(std::string_view acEvent) noexcept
+{
+    return EntersKillMove(acEvent) || StartsWithNoCase(acEvent, "killmove");
+}
+
 // A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.
 // A replayed pair was judged on its owner's game (docs/re/systems/kill-moves.md).
 constexpr bool PairMarkClear(bool aMoved, bool aReplayed) noexcept

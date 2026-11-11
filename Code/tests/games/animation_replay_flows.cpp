@@ -1132,16 +1132,20 @@ TEST_CASE("Each player's copy is on its owner's graph stream on every other game
     }
 }
 
-TEST_CASE("A host's kill move takes its victim's copy off its stream until the owner's pair ends", "[animation][replay-start][kill-move]")
+TEST_CASE("Two copies of one game's pair stay on their streams, their clip waiting at the mark as their owner's", "[animation][replay-start][kill-move][pair-stream]")
 {
-    // Skyrim (duo, host-kill-move, 2026-11-09): the guest's blow landed 20-70 ms before the host's. A replayed pair
-    // with a copy partner makes no instance on the guest (PlayReplayedAction names no target event), so the wolf's
-    // copy stayed on its stream and took the kill move's event from it: its synchronized clip started at once, where
-    // its owner's waits for the mark in its instance. Its half is its owner's action, as before the stream.
+    // Skyrim (duo, host-kill-move, 2026-11-09): on its stream the wolf's copy started its synchronized clip at once,
+    // where its owner's waits about 150 ms for the mark in its instance (63050), and its blow landed 20-70 ms early.
+    // It was then taken off its stream for the pair. The wait is the clip's one read outside its graph: a pick.
     WolfTurn wolf;
     for (auto* engine : {&wolf.host, &wolf.guest})
+    {
         engine->GraphTransitions[{"Standing", "KillMoveI"}] = "KillMove";
+        engine->Graph->Clips.push_back({.State = "KillMove", .Ms = 600, .Starts = {"Standing"}, .Synchronized = true});
+    }
+    wolf.host.PairMarkMs = 150.0;
     auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
     const size_t cPoints = SyncPoints(cCopy);
     ActionEvent kill;
@@ -1150,24 +1154,31 @@ TEST_CASE("A host's kill move takes its victim's copy off its stream until the o
     kill.TargetEventName = "KillMoveI";
     kill.TargetId = wolf.wolf;
     wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(FakeEngine::kPlayer, kill)); });
-    REQUIRE(wolf.host.Actors.at(wolf.wolf).InPair);
-    wolf.party.Until([&] { return cCopy.GraphState == "KillMove"; }, "the copy plays its half");
+    REQUIRE(cOwner.InPair);
+    bool held = false;
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cCopy.GraphState == "KillMove";
+    }, "the copy takes its half from its stream");
     CHECK_FALSE(cCopy.InPair); // no instance on the guest
-    CHECK(streams.Held(wolf.copy));
-    CHECK_FALSE(streams.OnStream(wolf.copy));
-    wolf.party.Until([&] { return wolf.guest.GetActorLatestAnimation(wolf.copy).EventName == "KillMoveI"; }, "by its owner's action");
-    // While its owner's pair lasts no point comes, and it stays off the stream.
-    const uint64_t cFrom = wolf.party.Guest().GetTick();
-    wolf.party.Until([&] { return wolf.party.Guest().GetTick() >= cFrom + 1000; }, "the owner's pair runs on a second");
-    CHECK(SyncPoints(cCopy) == cPoints);
-    CHECK_FALSE(streams.OnStream(wolf.copy));
-    // The pair ends without a kill: its owner is recorded again, and the copy follows from a new point.
+    // In the kill move all the same: playing the action sets that, and they played none (39004).
+    wolf.party.Until([&] { return cCopy.InKillMove; }, "the victim's copy is in the kill move");
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cOwner.GraphState == "Standing";
+    }, "the owner's clip ends");
     wolf.party.As(wolf.party.Host(), [&] {
         wolf.host.EndKillMove(wolf.wolf);
         wolf.host.StopPairClip(wolf.wolf);
     });
-    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
-                     "the copy is back on its owner's stream from a new sync point");
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cCopy.GraphState == "Standing";
+    }, "the copy's clip ends");
+    CHECK_FALSE(held);
+    CHECK(streams.OnStream(wolf.copy));
+    CHECK(SyncPoints(cCopy) == cPoints); // it never left its stream
+    CHECK(wolf.Difference() == "");      // its clip ran when its owner's did: the wait at the mark too
 }
 
 TEST_CASE("A copy held for its owner's paired action is back on its stream only after it played it", "[animation][replay-start][players]")
@@ -1333,7 +1344,7 @@ TEST_CASE("A streamed owner's action carries no graph state, and its copy still 
     party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Sitting"; }, "the copy sits by its owner's stream");
 }
 
-TEST_CASE("A player's copy is back on its stream only once its owner has left its kill move", "[animation][replay-start][kill-move][players]")
+TEST_CASE("An owner in its kill move gives no sync point: a copy that needs one waits for its end", "[animation][replay-start][kill-move][players]")
 {
     // Skyrim (duo, host-kill-move, 2026-11-10): the pair's instance ended at the victim's PairEnd, 1.3 s before the
     // attacker's KillMoveEnd. The attacker's copy took a sync point then, in the middle of its synchronized clip,
@@ -1361,7 +1372,8 @@ TEST_CASE("A player's copy is back on its stream only once its owner has left it
     kill.TargetEventName = "KillMoveI";
     kill.TargetId = wolf.wolf;
     wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(FakeEngine::kPlayer, kill)); });
-    wolf.party.Until([&] { return cCopy.GraphState == "KillMove" && streams.Held(copy); }, "its copy plays its half, off its stream");
+    wolf.party.Until([&] { return cCopy.GraphState == "KillMove"; }, "its copy takes its half from its stream");
+    CHECK_FALSE(streams.Held(copy)); // its partner here is a copy too: no instance, nothing of its own body's
     const size_t cPoints = SyncPoints(cCopy);
     // The instance ends with the victim's clip; the attacker's kill move runs on.
     auto& owner = wolf.host.Actors.at(FakeEngine::kPlayer);
@@ -1371,6 +1383,8 @@ TEST_CASE("A player's copy is back on its stream only once its owner has left it
     });
     REQUIRE_FALSE(owner.InPair);
     REQUIRE(owner.InKillMove);
+    // A copy that needs a point now (its graph rebuilt) gets none while its owner's kill move lasts.
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.guest.ReloadGraph(copy, "KillMove"); });
     const uint64_t cFrom = wolf.party.Guest().GetTick();
     wolf.party.Until([&] { return wolf.party.Guest().GetTick() >= cFrom + 1000; }, "the attacker's kill move runs on a second");
     CHECK(SyncPoints(cCopy) == cPoints);

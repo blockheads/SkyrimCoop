@@ -728,7 +728,11 @@ def scenario_knockdown_front_and_back(ctx):
 def scenario_guest_knockdown_lies_on_host(ctx):
     """The client's player is knocked down in its game: the host's copy of it lies and gets up with it."""
     copy = ctx.client_on_host()
-    ctx.knocked_down_together("client", 0x14, "", copy, lambda: ctx.console_on("client", "player.pushactoraway player 5"))
+    # Its graphs' events and clips on both games (traces/<time>-guest-knockdown-lies-on-host/timeline.txt).
+    bodies = RagdollTrace(ctx, "guest-knockdown-lies-on-host", {"client": {0x14: "the guest's player"}, "": {copy: "the host's copy"}})
+    with bodies, AnimTrace(ctx, "guest-knockdown-lies-on-host", {"client": {0x14: "player"}, "": {copy: "player"}}, video=False):
+        ctx.knocked_down_together("client", 0x14, "", copy, lambda: ctx.console_on("client", "player.pushactoraway player 5"))
+    log("ragdoll: " + bodies.report())
 
 def scenario_world_changes_reach_guest(ctx):
     """World-state sync's check: every kind of change to a reference the host can make, one at a time, each put

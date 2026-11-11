@@ -91,3 +91,23 @@ TEST_CASE("An action carries its owner's graph state only for copies that take a
     CHECK(ReplayState::CarriesGraphState(false, true, true));        // on its own body: its copies play its actions
     CHECK_FALSE(ReplayState::CarriesGraphState(true, true, true));
 }
+
+TEST_CASE("A copy stays on its stream through its owner's pair when its partner here is a copy too", "[replay-state][pair-stream]")
+{
+    CHECK(ReplayState::PairOnStream(true, true));
+    CHECK_FALSE(ReplayState::PairOnStream(false, true)); // this game's own actor, or not here: the instance or the action plays it
+    CHECK_FALSE(ReplayState::PairOnStream(true, false)); // not a kill move (a mount's pair): played by its action
+    CHECK(ReplayState::KillMoveHalf("pa_KillMove1HMWolfA"));
+    CHECK(ReplayState::KillMoveHalf("KillMove1HMWolfA")); // the victim's half
+    CHECK_FALSE(ReplayState::KillMoveHalf("HorseEnter"));
+    CHECK_FALSE(ReplayState::KillMoveHalf("HorseExit"));
+}
+
+TEST_CASE("A pa_Kill action puts both actors in a kill move, as the engine's own test of its name", "[replay-state][pair-stream]")
+{
+    CHECK(ReplayState::EntersKillMove("pa_KillMove1HMWolfA"));
+    CHECK(ReplayState::EntersKillMove("PA_KILLMOVEI")); // strnicmp
+    CHECK_FALSE(ReplayState::EntersKillMove("pa_1HMShieldBash"));
+    CHECK_FALSE(ReplayState::EntersKillMove("KillMove1HMWolfA")); // the victim's half
+    CHECK_FALSE(ReplayState::EntersKillMove("pa_K"));
+}

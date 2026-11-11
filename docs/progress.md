@@ -1712,7 +1712,9 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   (`GraphPick`), and the copy's node takes it. `knockdown-lies-as-host` and `knockdown-smoke` pass 4 of 7 each (0 of 3 on dev and
   before), `guest-knockdown-lies-on-host` 7 of 7. The turn left at some get-ups was physics (a getting-up ragdoll is
   still simulated): owners now send their ragdoll until they stand, and the long turn is gone (bugs.md, Get-up). A streamed copy goes
-  down with its owner's ragdoll action, not its first body frame; the knockdown scenarios pass 19 of 20. Was: the copy's body still turns away at some get-ups (its own heading
+  down with its owner's ragdoll action, not its first body frame; the knockdown scenarios pass 19 of 20. Kill moves
+  between two copies are on the stream too (the clip's wait at its mark is a pick); what stays off it is a pair
+  with this game's own actor, and any pair but a kill move's (mounts). Was: the copy's body still turns away at some get-ups (its own heading
   from its ragdoll, 39896). Design and what Skyrim taught: [graph-input-stream.md](design/graph-input-stream.md), "A node's pick".
   Next of the same kind: the ragdoll contact event, a pair's scene answers.
 - **Graph stream: the full run (2026-11-11).** 388 scenarios on the branch: 339 pass. The 49 failures rerun alone on

@@ -33,8 +33,6 @@ using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
 static TPerformAction* RealPerformAction;
 using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
-using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
-static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
 using TKillActorEvent = bool(void*, Actor*);
 static TKillActorEvent* RealKillActorEvent;
 using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent*);
@@ -157,19 +155,6 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
-}
-
-// A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
-// a copy there, so a kill move with a copy waited out the engine's fallback (docs/re/systems/actor-ai-and-copies.md).
-void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbContext& acContext, float aTimestep)
-{
-    RealUpdateSynchronizedClip(apThis, acContext, aTimestep);
-    if (apThis->atMark || !acContext.character)
-        return;
-    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
-                                                                      offsetof(BShkbAnimationGraph, character));
-    if (pGraph->holder && pGraph->holder->GetExtension()->IsCopy())
-        apThis->atMark = true;
 }
 
 // bhkCharacterController::TryMoveTo 78260, the sweep a pair starts with (32792): each game judges it on its own positions,
@@ -327,7 +312,6 @@ static Hooks::Initializer s_animationHook(
         const HookGate cGate(__FILE__);
         HOOK_ID(38949, &RealPerformAction, HookPerformAction);
         HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
-        HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
         HOOK_ID(63092, &RealContactPoint, HookContactPoint);
         HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);

@@ -1,10 +1,12 @@
 #include <Actor.h>
+#include <Games/ActorExtension.h>
 #include <Games/Animation/BSAnimationUpdateData.h>
 #include <Games/Animation/GraphStream.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/Skyrim/ActionClips.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>
+#include <Havok/BSSynchronizedClipGenerator.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Havok/GraphInternalState.h>
 #include <Havok/hkbNode.h>
@@ -198,6 +200,31 @@ bool OwnBody(Actor& aHolder)
     return aHolder.InPair() || aHolder.IsInKillMove() || aHolder.InPairClip();
 }
 
+// The owners whose own-body spell began with a kill move's half (ReplayState::KillMoveHalf): recorded through it.
+std::mutex s_pairLock;
+std::unordered_map<uint32_t, bool> s_killPairs;
+
+// An owner's own body for this update or event: through a kill move's pair it is recorded on and only gives no sync
+// point; through any other (a mount's) it is not recorded (true), as before. apEvent: the event its graph takes now,
+// the first of which while own-body says which it is.
+bool NotRecorded(GraphStreams& aStreams, uint32_t aFormId, Actor& aHolder, const BSFixedString* apEvent = nullptr)
+{
+    const bool cOwnBody = OwnBody(aHolder);
+    bool killMove = false;
+    {
+        std::scoped_lock _{s_pairLock};
+        if (!cOwnBody)
+            s_killPairs.erase(aFormId);
+        else if (const auto it = s_killPairs.find(aFormId); it != s_killPairs.end())
+            killMove = it->second;
+        else if (apEvent && apEvent->data)
+            killMove = s_killPairs[aFormId] = ReplayState::KillMoveHalf(apEvent->data);
+    }
+    const bool cPaused = aStreams.PauseWhile(aFormId, cOwnBody && !killMove);
+    aStreams.HoldPointsWhile(aFormId, cOwnBody);
+    return cPaused;
+}
+
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
 using TBehaviourUpdate = void(hkbBehaviorGraph*, hkEventContext*, float);
@@ -313,8 +340,9 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         apGraph->behaviourUpdated = false;
         return target.Result;
     }
-    // In a pair its clip is its instance's (32803: the wait at the mark): not recorded, and started over after.
-    if (!streams.Recording(cFormId) || streams.PauseWhile(cFormId, OwnBody(*apGraph->holder)))
+    // In a pair it is recorded on (its clip's wait at the mark is a pick, 63050), but gives no sync point; in a
+    // mount's it is not recorded.
+    if (!streams.Recording(cFormId) || NotRecorded(streams, cFormId, *apGraph->holder))
         return RealUpdate(apGraph, apData, apScratch);
     if (streams.NeedsTimeDelta(cFormId))
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
@@ -391,6 +419,67 @@ void HookMatchRagdollPose(hkbPoseMatchingGenerator* apNode, void* apContext, flo
     World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apNode->id, apNode->currentMatch);
 }
 
+using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext&, float);
+TUpdateSynchronizedClip* RealUpdateSynchronizedClip = nullptr;
+
+// Its owner's scene answers, standing in for a copy's default scene through one replayed update.
+struct OwnersScene final : BSSynchronizedClipGenerator::Scene
+{
+    uint64_t SizeAndReferences = 0x1FFFF; // hkReferencedObject's, as the default scene's: never freed
+    bool InScene = true;
+    bool AtMarks = true;
+    bool AllInScene() override { return InScene; }
+    bool AllAtMarks() override { return AtMarks; }
+};
+
+enum ScenePick : int32_t
+{
+    kAllAtMarks = 1 << 0,
+    kAllInScene = 1 << 1,
+    kAtMark = 1 << 2,
+};
+
+// BSSynchronizedClipGenerator::Update (63050, vtable 5): a pair's clip, which advances only while its scene answers
+// that every actor is at its mark, its one read outside its graph. An owner's answers go with its update; a copy
+// replaying its stream takes them where its own scene (the default one, no instance here) says yes at once.
+void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbContext& acContext, float aTimestep)
+{
+    const auto* pGraph = acContext.character
+                             ? reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
+                                                                            offsetof(BShkbAnimationGraph, character))
+                             : nullptr;
+    if (s_inStream)
+    {
+        // Its owner's answers from this update's pick, else those of its last update (sent when they change).
+        int32_t answers = (apThis->allAtMarks ? kAllAtMarks : 0) | (apThis->allInScene ? kAllInScene : 0) | (apThis->atMark ? kAtMark : 0);
+        for (const auto& cPick : s_picks)
+            if (cPick.Node == apThis->id)
+                answers = cPick.Value;
+        OwnersScene scene;
+        scene.AtMarks = (answers & kAllAtMarks) != 0;
+        scene.InScene = (answers & kAllInScene) != 0;
+        auto* pOwn = std::exchange(apThis->scene, &scene);
+        RealUpdateSynchronizedClip(apThis, acContext, aTimestep);
+        apThis->scene = pOwn;
+        apThis->atMark = (answers & kAtMark) != 0;
+        return;
+    }
+    RealUpdateSynchronizedClip(apThis, acContext, aTimestep);
+    if (!pGraph || !pGraph->holder)
+        return;
+    // A copy's half in an instance on this game is at its mark: its owner's game placed it, and the engine cannot
+    // walk a copy there (docs/re/systems/actor-ai-and-copies.md).
+    if (pGraph->holder->formType == Actor::Type && pGraph->holder->GetExtension()->IsCopy())
+    {
+        apThis->atMark = true;
+        return;
+    }
+    if (CopiesHave(*pGraph))
+        World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apThis->id,
+                                              (apThis->allAtMarks ? kAllAtMarks : 0) | (apThis->allInScene ? kAllInScene : 0) |
+                                                  (apThis->atMark ? kAtMark : 0));
+}
+
 // BShkbAnimationGraph::SendEvent (63591): every input event of a graph, before it handles it.
 bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
 {
@@ -402,8 +491,8 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     // that one plays on its own body, off the stream.
     if (streams.OnStream(cFormId) && !streams.HoldWhile(cFormId, apGraph->holder->InPair()))
         return false;
-    // An owner in a pair (its half comes through here, both already in the instance: 32803) is not recorded.
-    if (streams.Recording(cFormId) && !streams.PauseWhile(cFormId, OwnBody(*apGraph->holder)))
+    // An owner's half of a pair comes through here too (both already in the instance: 32803).
+    if (streams.Recording(cFormId) && !NotRecorded(streams, cFormId, *apGraph->holder, apEvent))
     {
         SendClipLoads(streams, cFormId, *apGraph);
         if (const auto cId = EventId(*apGraph, *apEvent))
@@ -474,6 +563,7 @@ Hooks::Initializer s_graphStreamHooks([]() {
     HOOK_ID(63568, &RealGenerate, HookGenerate);
     HOOK_ID(63591, &RealSendEvent, HookSendEvent);
     HOOK_ID(59583, &RealMatchRagdollPose, HookMatchRagdollPose);
+    HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip);
     HOOK_ID(43621, &RealLoadEventClips, HookLoadEventClips);
     HOOK_ID(43622, &RealLoadEventClipsQueued, HookLoadEventClipsQueued);
     HOOK_ID(43624, &RealLoadManagerClips, HookLoadManagerClips);

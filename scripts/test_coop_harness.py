@@ -2741,5 +2741,21 @@ class BountyMessage(unittest.TestCase):
                             {"messages": ["5 bounty added to Whiterun"], "shown": 4})
 
 
+class UndrawnBodies(unittest.TestCase):
+    """A copy's skeleton is its last drawn pose while its 3D is culled: nobody sees it."""
+
+    LYING = {"player": True, "pose": {"floor_gap": 0.0, "pelvis": 9.0, "head": 16.0}, "state": {}, "placement": {}}
+
+    def test_a_drawn_body_lying_while_it_should_stand_is_a_problem(self):
+        from coop_harness.comparisons import body_problems
+        self.assertEqual(len(body_problems(self.LYING)), 1)
+
+    def test_an_undrawn_bodys_skeleton_is_not_judged_but_its_feet_are(self):
+        from coop_harness.comparisons import body_problems
+        self.assertEqual(body_problems(self.LYING, bones=False), [])
+        sunk = dict(self.LYING, pose={"floor_gap": -30.0, "pelvis": 41.0, "head": 94.0})
+        self.assertEqual(len(body_problems(sunk, bones=False)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

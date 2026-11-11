@@ -317,9 +317,8 @@ void GraphStreams::OnClips(uint32_t aFormId, uint64_t aTick, uint8_t aSet, uint1
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (pOwned->Paused)
-            return;
-        pOwned->Recorder.Clips(aTick, aSet, aEventId);
+        if (!pOwned->NotRecorded)
+            pOwned->Recorder.Clips(aTick, aSet, aEventId);
     }
 }
 
@@ -328,9 +327,8 @@ void GraphStreams::OnGenerate(uint32_t aFormId, uint64_t aTick)
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (pOwned->Paused)
-            return;
-        pOwned->Recorder.Generate(aTick);
+        if (!pOwned->NotRecorded)
+            pOwned->Recorder.Generate(aTick);
     }
 }
 
@@ -340,9 +338,8 @@ void GraphStreams::OnEvent(uint32_t aFormId, uint64_t aTick, uint16_t aEventId, 
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (pOwned->Paused)
-            return;
-        pOwned->Recorder.Event(aTick, aEventId, aWords, acSeed);
+        if (!pOwned->NotRecorded)
+            pOwned->Recorder.Event(aTick, aEventId, aWords, acSeed);
     }
 }
 
@@ -352,7 +349,7 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (pOwned->Paused)
+        if (pOwned->NotRecorded)
             return;
         if (pOwned->Graph && apGraph && pOwned->Graph != apGraph)
         {
@@ -370,7 +367,7 @@ void GraphStreams::OnPick(uint32_t aFormId, uint16_t aNode, int32_t aValue)
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (!pOwned->Paused)
+        if (!pOwned->NotRecorded)
             pOwned->Recorder.Pick(aNode, aValue);
     }
 }
@@ -380,9 +377,8 @@ void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
     if (const auto pOwned = FindOwned(aFormId))
     {
         std::scoped_lock _{pOwned->Lock};
-        if (pOwned->Paused)
-            return;
-        pOwned->Recorder.Updated(aWords);
+        if (!pOwned->NotRecorded)
+            pOwned->Recorder.Updated(aWords);
     }
 }
 
@@ -392,11 +388,22 @@ bool GraphStreams::PauseWhile(uint32_t aFormId, bool aOwnBody)
     if (!pOwned)
         return false;
     std::scoped_lock _{pOwned->Lock};
-    if (pOwned->Paused && !aOwnBody)
+    if (pOwned->NotRecorded && !aOwnBody)
     {
         pOwned->Recorder = GraphRecorder{}; // its copies see the gap and ask for a point
         pOwned->TimeDeltaKnown = false;
     }
+    pOwned->NotRecorded = aOwnBody;
+    pOwned->Paused |= aOwnBody;
+    return aOwnBody;
+}
+
+bool GraphStreams::HoldPointsWhile(uint32_t aFormId, bool aOwnBody)
+{
+    const auto pOwned = FindOwned(aFormId);
+    if (!pOwned)
+        return false;
+    std::scoped_lock _{pOwned->Lock};
     pOwned->Paused = aOwnBody;
     return aOwnBody;
 }
@@ -410,7 +417,7 @@ bool GraphStreams::PointWanted(uint32_t aFormId, const void* apGraph)
     if (apGraph && pOwned->Graph && pOwned->Graph != apGraph)
         return false; // a new graph: its recording starts over at this update, and its copies ask again
     if (pOwned->Paused)
-        return false; // on its own body: a point once it is recorded again
+        return false; // in a pair's clip: a point restored there starts the clip over, so one once it is out
     return std::exchange(pOwned->WantsPoint, false);
 }
 
