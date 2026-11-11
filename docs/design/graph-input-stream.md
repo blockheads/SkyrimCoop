@@ -176,16 +176,34 @@ active node. So an owner takes no point while one of its cyclic generators is in
 (`GraphState::CarriesCyclicMode`, `GraphInternalState::Take`); the point is wanted again at its next update, a
 fraction of a second later. GameTests "A copy asking while its owner's walk blend cross-blends gets its point after
 the blend" (the fake's `Blend::CrossBlendOn`), ClientTests `[graph-state]`. The wait never showed in about 70 duo runs
-after the fix, so Skyrim's proof is the code read and the two stacks, not a rerun.
+after the fix. Forced on the duo (2026-11-10): in Whiterun every copy's stream restarted over and over for 150 s (the
+harness's `graph_stream restart`), 8,013 restarts of 36 copies and 7,754 sync points; the wait held a point back 71
+times and neither game crashed.
 
 **A copy made on its stream kept "about to sit" (fixed 2026-11-10).** Combined run, `npc-clips-match`: Lucan's copy
-read sit state 1 while its owner leaned on his counter (3), in 6 of 8 arrivals; dev's plugin 0 of 8. The sit action
+read sit state 1 while its owner leaned on his counter (3), in 6 of 8 arrivals, 0 of 8 after the fix. The sit action
 leaves 1 and the furniture procedure sets 3 with no action (`AIProcess::SetSitSleepState` 39912); the spawn's graph
 state carries both actor state words (`LoadAnimationGraphState`). A copy already on its stream dropped that state
 unloaded (its sync point is the newer graph) and then took its spawn action's state after, the stale 1. Now it takes
 the spawn state's actor state words alone (`TESObjectREFR::LoadGraphStateFlags`, its own ragdoll and weapon
 transition kept) and its spawn action as taken, as off the stream. GameTests "A copy made after its owner sat down is
 seated, not about to sit as its owner's last action left it" (the fake's saved graph state now carries `State1`).
+
+**`npc-clips-match` failed on repeats: the scenario's (fixed 2026-11-10).** On the branch 7 runs in 8 timed out on
+"the menu opens on Lucan" or "its conversation ends"; dev's plugin none in 8. Not the stream's: activated while he sits
+down again (sit state 2) Lucan opens no menu on dev's plugin either, and a visit with no conversation sends the next
+runs' topic walk into his shop topic, whose barter menu the scenario cannot close. On the branch he starts that walk to
+his counter about a second sooner after the quest's restart (`moveStart` 2.3-2.6 s after the host arrives, once 3.3 s
+on dev), so the scenario's activation fell in it; why sooner is not read. The scenario now waits until he stands or
+sits, reads its trace up to the moment it checks for his gesture (the gesture at a line's end came 30-50 ms before the
+check and was missed, on dev too), never asks for his shop, and says his state when the menu stays shut. After: the
+branch 10 runs in 10, dev's plugin 7 in 10 (its 3 failures are clips differing or started without their files).
+
+**Cost measured (2026-11-10).** `coop_test.py profile --load wolves=10 --seconds 30 --no-tracy`, this branch against
+dev's plugin (the fight differs run to run): the host 58.9 fps against 59.4, its update 2.14 ms a frame against 1.80
+(p95 3.59 against 2.87); the guest 58.4 fps against 59.9, its update 0.83 ms against 0.64 (p95 1.48 against 1.06, one
+frame of 11.6 ms against 2.5). Messages 84.8 KB/s against 73.6: the ops add 11.6 KB/s and the movement messages stay
+about 70. The pair-clip check (`Actor::InPairClip`) is inside those update times, not measured apart.
 
 **A rider's copy in "deferred kill" after the ride is by design (read 2026-11-10).** Every living copy is in a
 scripted deferred kill, started each update (`docs/re/systems/actor-ai-and-copies.md`, A copy is in deferred kill).

@@ -410,8 +410,8 @@ pair's end, or its foot IK), starting with which bone above the root carries the
 Size: small. Needs: IDA, the duo, then GameTests.
 
 - **Measured** (2026-11-10): from a fresh duo, `kill-moves-cross` then a trip to Riverwood: `pose.pelvis` 2138 on the
-  guest's own player (72 standing), `pose.root` 0.5; the host's own player 72. Dev's plugin (`build/devdll`, 2026-11-09)
-  the same: 2172, then 2120 after `sneak-client-player`. So it is not the graph input stream's.
+  guest's own player (72 standing), `pose.root` 0.5; the host's own player 72. Dev's plugin (the `devcheck`
+  worktree's build of `2fcb5452`) the same: 2117 on `host-rides-horse` straight after it. So it is not the graph input stream's.
 - In the cell the scenarios start from it reads low instead (21-40), and it lasts through a cog swap.
 - None of `host-kill-move`, `client-kill-move`, `teleport-keeps-copies`, `copy-jumps-with-owner`, `sneak-*`,
   `dialogue-copy-looks-at-speaker` or the rides leaves it (one run each from a fresh duo).

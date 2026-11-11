@@ -60,6 +60,7 @@ from ..objects import AnimTrace
 from ..comparisons import distance
 from ..utilities import log
 
+LUCAN_SHOP = 0x7F6BB  # "What have you got for sale?"
 CLIP_TOPICS = 6  # topics asked before Lucan is taken to have no gesture to give
 CLIP_DELAY = 1.0  # seconds a copy's clip may start after its owner's: 99% of saved starts were within 0.85
 BLENDED_CLIPS = ("MT_Walk", "MT_Run", "MT_Turn", "Sneak_")  # a blender's children: variables weigh them, none is started
@@ -192,11 +193,23 @@ def scenario_npc_clips_match(ctx):
             behind = (math.degrees(ctx.wait_for("[host] Lucan's heading is read", yaw, 10)) + 180) % 360
             ctx.place_before("", LUCAN, 110, behind)
             ctx.place_before("client", lucan_copy, 200, (behind + 180) % 360)
+            # Back from a conversation he walks to his counter again: mid sit-down he opens no menu (dev's plugin too).
+            ctx.wait_for("[host] Lucan stands or sits, not between the two",
+                         lambda: ctx.actor_state("", LUCAN).get("state", {}).get("sit_sleep") in (0, 3), 30)
             ctx.activate_on("", LUCAN)
-            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15)
+            def unopened():  # why his menu stayed shut: his state, and what the host's conversation holds
+                state, talk = ctx.actor_state("", LUCAN).get("state", {}), ctx.dialogue("")
+                return (f"Lucan sit state {state.get('sit_sleep')}, AI {ctx.ai_state('', LUCAN)}; the host's dialogue: "
+                        f"menu {talk.get('menu')}, speaker {talk.get('speaker')}, {dict((k, v) for k, v in talk.items() if k not in ('menu', 'speaker', 'swf'))}")
+            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15, explain=unopened)
             talking = time.time()
             def owner_idle():
-                trace.take()
+                # The trace up to this moment: a gesture at his line's end is recorded a frame after the line is over.
+                asked = time.time()
+                while time.time() < asked + 5:
+                    trace.take()
+                    if any(e["game"] == "" and e["time"] >= asked for e in reversed(trace.entries)):
+                        break
                 return next((e for e in trace.entries if e["game"] == "" and e["who"] == lucan and is_clip_action(e, talking)), None)
             # Past his greeting he stands silent: asking him things makes him speak, and a line brings its gesture.
             for _ in range(CLIP_TOPICS):
@@ -211,11 +224,16 @@ def scenario_npc_clips_match(ctx):
                              lambda: ctx.menu_takes_pick("") or not ctx.talking_to("", LUCAN), 30)
                 if not ctx.talking_to("", LUCAN):
                     continue
-                if not ctx.topics_shown(""):
+                # His shop is no line: it opens the barter menu over the conversation.
+                shown = ctx.topics_shown("")
+                asks = [topic for topic in shown if topic != LUCAN_SHOP]
+                if not shown:
                     ctx.wait_for("[host] Lucan finishes his greeting", lambda: ctx.line_over("", LUCAN), 60)
                     ctx.close_dialogues()
                     continue
-                ctx.pick_with_keys("", ctx.topics_shown("")[0])
+                if not asks:  # everything else is asked
+                    break
+                ctx.pick_with_keys("", asks[0])
                 ctx.wait_for("[host] Lucan answers", lambda: ctx.line_playing("", LUCAN) or not ctx.talking_to("", LUCAN), 15)
                 ctx.wait_for("[host] Lucan finishes", lambda: ctx.line_over("", LUCAN), 60)
             idle = ctx.wait_for("[host] Lucan performs an idle in conversation", owner_idle, 5)
