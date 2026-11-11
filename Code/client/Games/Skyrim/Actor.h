@@ -245,6 +245,7 @@ struct Actor : TESObjectREFR
     // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
     bool SetBodiesLayer(uint8_t aLayer) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
+    void ShowWeaponDrawn(bool aDrawn) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.
     void EndReleasedCopyPackage() noexcept;

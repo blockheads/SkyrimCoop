@@ -364,6 +364,25 @@ void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
     g_forceAnimation = false;
 }
 
+// The weaponDraw or weaponSheathe event's result with no action: RightHandWeaponDrawHandler (42824, its handler
+// unused), 37169. Both set the weapon state through ActorState vfunc 21, which skips a pending opposite request.
+void Actor::ShowWeaponDrawn(bool aDrawn) noexcept
+{
+    using TDrawn = bool(void*, Actor*);
+    using TSheathed = void(Actor*);
+    POINTER_SKYRIMSE(TDrawn, s_drawn, 42824);
+    POINTER_SKYRIMSE(TSheathed, s_sheathed, 37169);
+
+    if (actorState.GetWeaponState() == 1)
+        actorState.SetWeaponStateFlags(0);
+    else if (actorState.GetWeaponState() == 4)
+        actorState.SetWeaponStateFlags(3);
+    if (aDrawn)
+        s_drawn(nullptr, this);
+    else
+        s_sheathed(this);
+}
+
 void Actor::SetEssentialEx(bool aSet) noexcept
 {
     SetEssential(aSet);

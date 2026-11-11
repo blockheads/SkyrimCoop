@@ -1167,6 +1167,43 @@ Size: small. Needs: no duo (the dump).
   (1,642 lines), while the session ran three plugins: which list that run had is unknown.
   - Start: the dump's stack in IDA.
 
+## Found by the full run of 2026-11-11
+
+From the 388-scenario run on `agent/copy-idle-graph`, each compared with dev's plugin: both builds show them.
+
+### A spawn's inventory over a newer equip
+
+Stands alone: one copy's worn set.
+
+Agent task: Make a copy keep an equip its owner sent after the spawn's inventory was read.
+
+Size: small. Needs: GameTests, then the duo.
+
+- **A fresh copy loses what its owner equipped right after spawning** (`host-quickloads-party`: branch 3 of 4, dev 2
+  of 4, 2026-11-11). The host places Aela; her game equips her bow 50 ms later and sends the equipment change. On the
+  guest the change lands first ("equip 1D4EC: ours", "Equipment reconcile: reset worn set"), then the spawn's
+  inventory, read before the bow, is applied when the copy's 3D is ready ("Setting inventory for actor") and unequips
+  it: the copy stands with an empty hand until the next change.
+  - Start: `CharacterService`'s `WaitingFor3D` inventory against `InventoryService`'s equipment changes for the same
+    copy: the older one must not win.
+  - Test: a GameTests flow, an NPC that equips one frame after it is announced, the copy's 3D ready later.
+
+### An action sent before its copy exists
+
+Stands alone: a copy's last action.
+
+Agent task: Make a copy made just after its owner's action hold that action as its last.
+
+Size: small. Needs: GameTests.
+
+- **A copy's last action stays one behind its owner's** (`party-travel-mounted-guest`, 2 of 9 on the branch,
+  2026-11-11; the scenario itself fails 6 of 10 on dev for other reasons). After the party's travel the guest's player
+  sent `swimStop` 0.8 s after `JumpFall`; the host's new copy kept `JumpFall` (once `SwimStart`, with the swimming bit
+  of `state1` still set). Actions ride movement updates (`CharacterService::OnReferencesMoveRequest`), which are
+  dropped for an actor with no copy yet, and the spawn carries the owner's last action from when it was announced.
+  On the stream the copy's graph is still its owner's (its sync point); the action record and actor state are not.
+  - Start: whether the host's record of a character should take the actions it relays, so a spawn carries the last.
+
 ## Test tools
 
 ### An old crash reported as new
@@ -1185,3 +1222,16 @@ Size: small. Needs: no duo.
     (`wait_for`). `duo_stop` and `duo_start` do not touch the list. So a crash no check saw waits for the next verb that waits.
   - Start: fill the list again when `duo_start` boots new games. A crash in the games a verb is using must still fail it.
   - Test: a unit test over a directory of crash logs, if the check can be split from the games.
+
+### A character's base bytes after joining, once
+
+Stands alone: one save section.
+
+Agent task: Run `form-state-round-trips` until it fails and read which base section differs.
+
+Size: small. Needs: the duo.
+
+- **`form-state-round-trips` found the guest's base saving other bytes in the host's world** (once in the full run of
+  2026-11-11, 388 scenarios in; it passed alone on both builds). Which section is not known: the message could not be
+  built, because `runtime.py`'s `shown` hid `actions/join.py`'s (renamed `section_shown` the same day), and the run
+  reported "Runtime.shown() takes 1 positional argument but 2 were given".

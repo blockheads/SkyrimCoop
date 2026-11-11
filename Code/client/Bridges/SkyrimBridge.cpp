@@ -1730,6 +1730,13 @@ void SkyrimBridge::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
         pActor->SetWeaponDrawnEx(aDraw);
 }
 
+void SkyrimBridge::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
+{
+    Breadcrumbs::Record("ShowActorWeaponDrawn", aFormId, static_cast<uint32_t>(aDrawn));
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->ShowWeaponDrawn(aDrawn);
+}
+
 WeaponState SkyrimBridge::GetWeaponState(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);

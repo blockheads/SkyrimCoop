@@ -406,3 +406,15 @@ time	op	id	rva	item
 2026-11-10T22:21:11Z	comment	40036	0x728620	{"addr": "0x140728620", "comment": "(process, scripted, actor): EndDeferredKill's body. Ends the deferral only when `scripted` equals the flag byte middleHigh+0x332 (818) StartDeferredKill ORed in; then state +0x2F8 (760) = 0, a held kill (state > 1) is queued with this game's player as killer, flag = 0. So the engine's own unscripted ends (mount 37462, KillActor 42838) leave a scripted deferral (papyrus, our copies') in place."}
 2026-11-10T22:21:11Z	comment	40033	0x7285a0	{"addr": "0x1407285a0", "comment": "40033 (process, scripted): state middleHigh+0x2F8 = 1 if 0, flag +0x332 |= scripted, timer +0x2D4 reset. Safe every frame. Our copies call it with scripted = 1 each update (UpdateCopyAI)."}
 2026-11-10T22:21:15Z	name	40036	0x728620	{"addr": "0x140728620", "name": "coop_AIProcess_EndDeferredKill"}
+2026-11-11T08:58:50Z	read	37279	0x675930	{"name": "Actor::DrawWeaponMagicHands"}
+2026-11-11T08:59:00Z	read	38979	0x6e13c0	{"name": "ActorState::Func21_38979"}
+2026-11-11T08:59:05Z	read	42824	0x7ccac0	{"name": "RightHandWeaponDrawHandler::Process_Origin"}
+2026-11-11T08:59:22Z	read	42825	0x7ccc20	{"name": "RightHandWeaponSheatheHandler::Process_Origin"}
+2026-11-11T09:00:09Z	read		0x669eb0	{"name": "BSTaskPool_HandleTask"}
+2026-11-11T09:00:14Z	read	37169	0x66fca0	{"name": "Character::sub_37169"}
+2026-11-11T09:00:15Z	read	37168	0x66fc60	{"name": "PlayerCharacter::sub_37168"}
+2026-11-11T09:00:20Z	name	37169	0x66fca0	{"addr": "0x14066fca0", "name": "Actor::WeaponSheathed_37169"}
+2026-11-11T09:00:20Z	name	37168	0x66fc60	{"addr": "0x14066fc60", "name": "Actor::GetEquippedWeaponInHand_37168"}
+2026-11-11T09:00:25Z	comment	37279	0x675930	{"addr": "0x140675930", "comment": "SkyrimCoop: draw (a2): runs ActionDraw; weapon state = 1 (wants to draw) when the action is refused, 2 (drawing) when taken. Nothing here reaches 3: only the graph's weaponDraw event (RightHandWeaponDrawHandler 42824) does. Sheathe: ActionSheath, 4 refused / 5 taken; weaponSheathe (42825 -> 37169) sets 0. A copy on its owner's graph stream refuses its own events (63591 hook), so a forced draw leaves it at 1."}
+2026-11-11T09:00:25Z	comment	42824	0x7ccac0	{"addr": "0x1407ccac0", "comment": "SkyrimCoop: the weaponDraw event's result: both hands' weapons attached to the hand nodes (Actor vfunc 0xB4, a3=1), ActorState vfunc 21 (38979) -> weapon state 3, the process's hand state (sub_140728500), third-person camera for the camera's actor. a1 (the handler) is unused."}
+2026-11-11T09:00:25Z	comment	37169	0x66fca0	{"addr": "0x14066fca0", "comment": "SkyrimCoop: the weaponSheathe event's result (RightHandWeaponSheatheHandler 42825 calls only this): both hands' weapons back to their sheath nodes (vfunc 0xB4, a3=0), ActorState vfunc 21 false -> weapon state 0, the process's hand state."}

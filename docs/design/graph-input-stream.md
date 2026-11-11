@@ -119,6 +119,27 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
   for a sync point once it stands. A death ends the stream (`AnimationSystem`).
 
+## Hands on a streamed copy (2026-11-11)
+
+A draw has two halves in the engine (read in IDA):
+
+```
+Actor::DrawWeaponMagicHands 37279   runs ActionDraw; weapon state 1 if refused, 2 if taken
+graph event weaponDraw              RightHandWeaponDrawHandler 42824: weapons to the hand nodes (vfunc 0xB4),
+                                    ActorState vfunc 21 (38979) -> state 3, the process's hand state
+graph event weaponSheathe           42825 -> 37169: weapons to their sheaths, state 0
+```
+
+- A copy on the stream gets the second half from its owner's events, as they play in its graph.
+- A copy that starts from a sync point of an owner with its hands up has the graph of drawn hands and weapon state 0:
+  the event was before the point. The hands convergence (`InventoryService::RunWeaponDrawConvergence`) then forced a
+  draw, which a copy on the stream refuses (63591's hook drops its own events): state 1, again every 0.25 s
+  (`hands-survive-reload-*`, `late-join-client`, 2026-11-11; dev's copies took the forced draw).
+- So on the stream the convergence applies the event's result alone (`Actor::ShowWeaponDrawn`: 42824 or 37169), with
+  no action. Off the stream it forces the action as before.
+- Fast test: "A copy on its owner's graph stream shows hands its owner raised with no action of its own" (GameTests;
+  the fake's forced draw is refused on a streamed copy).
+
 ## Players (phase 4, 2026-11-10)
 
 Each game records its own player as it does its NPCs, and the host passes a guest's ops and sync points on by the

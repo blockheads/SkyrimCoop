@@ -661,6 +661,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override
     {
     }
+    void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override
+    {
+    }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override
     {
         return {};

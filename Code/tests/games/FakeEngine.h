@@ -1328,8 +1328,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
     void Draws(uint32_t aActor, bool aDraw) { Actors.at(aActor).Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed; }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
-    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played.
+    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
+    // a copy on its owner's stream (weapon state 1 or 4).
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
+    // Actor::ShowWeaponDrawn: the weaponDraw or weaponSheathe event's result (42824, 37169), no action.
+    void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override;
     // Items. The actor gets or loses some by itself (a script's AddItem, a sale, eating), as our hooks on
     // AddInventoryItem and RemoveItem: raised (InventoryChangeEvent) unless under ScopedInventoryOverride; the last of
     // a worn item comes off first (through UnEquipHook).
