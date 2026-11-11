@@ -249,7 +249,23 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   (`knockRagdolls`, set by vfunc 0xC4 40295), else it pushes the character controller. Copies read 1. Off the main
   thread it goes through the task queue, so the knock state can still read 0 right after the call.
 - A knocked down actor's ragdoll bodies stay dynamic while it gets up (knock states 5 and 6); its animation drives
-  them again. `PhysicsBodies` reads a living actor's ragdoll only in knock states 1 to 4.
+  them again, toward its pose, not onto it (Getting up, below).
+- **Getting up** (read in IDA 2026-11-11; knock states 5 and 6). What poses the actor then:
+  - The graph plays the get-up clip its pose matcher picked (`hkbPoseMatchingGenerator` 59583).
+  - `hkbGetUpModifier::modify` (59766), on its first modify, reads the ragdoll's world pose and writes the output's
+    worldFromModel so the clip starts where the ragdoll lies (three bones: root, other, another); after that it only
+    turns worldFromModel's up to the ground normal. It keeps nothing another node reads.
+  - `hkbRagdollDriver::driveToPose` (58291) reads the output's powered and rigid body ragdoll controls and drives the
+    ragdoll's bodies toward the output's pose. The bodies stay dynamic (motion types 2 and 3 through state 6):
+    gravity and contacts still move them, and the skeleton shows the bodies.
+  - So the pose shown while getting up is each game's own physics, as while lying. Measured (duo, `RagdollTrace`
+    of `knockdown-lies-as-host`, 11 runs): the head either rises steadily from 2.5 s after the get-up starts, or
+    stays 52-60 units above the floor at one place of the room (about -980, 2105 in QASmoke) and comes free 2 to 3 s
+    later, or only when the get-up ends. Owners show both; in 4 of 11 runs owner and copy took different ones. The
+    actor's heading, its knock state times and its clip were the same on both games in every run.
+  - `PhysicsBodies` therefore reads a living actor's ragdoll through states 1 to 6 (`KnockReplay::BodiesSimulated`),
+    and a copy steers to those frames until it stands (`BodyBridge`, `CopyRagdollPhysics` after 58291). Standing
+    (state 0) the bodies cannot be read (they have left the world): the last frame read is the rest.
 - Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
   puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
   `KnockDown::Carry` did).

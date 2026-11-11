@@ -1,5 +1,6 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
+#include <Games/KnockReplay.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/Ragdoll.h>
 #include <HookSwitch.h>
@@ -25,8 +26,7 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         std::scoped_lock lock(s_bodyLock);
         bodies = s_bodies.Take(aCopy.formID);
     }
-    const uint8_t cKnock = aCopy.actorState.GetKnockState();
-    if (!aCopy.IsDead() && (cKnock < 1 || cKnock > 4))
+    if (!aCopy.IsDead() && !KnockReplay::BodiesSimulated(aCopy.actorState.GetKnockState()))
         return;
     const auto* pRagdoll = aDriver.ragdoll;
     for (const auto& cDrive : bodies)

@@ -253,7 +253,7 @@ void World::Update() noexcept
                 animation.TimePoints.pop_front();
                 // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
                 if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
-                    actor.KnockedDown = false;
+                    engine.StandUp(form.Id);
                 actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);

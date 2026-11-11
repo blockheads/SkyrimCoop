@@ -373,6 +373,65 @@ SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies 
     }
 }
 
+SCENARIO("A host NPC gets up from a knockdown: its copy's ragdoll follows its owner's until both stand", "[physics][rising]")
+{
+    // Skyrim (duo, knockdown-lies-as-host, 2026-11-11, 2 of 7 runs): the copy's head stayed 52 units above the floor for
+    // 2.5 s of its get-up while its owner's rose (the same place each time; its heading and clip were its owner's).
+    // Getting up, a ragdoll's bodies are still simulated (58291 only drives them toward the animation), so what the
+    // room does to them is each game's own (physics.md, Getting up).
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {20.f, 20.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the host's guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const uint32_t cSession = SessionOf(party.Host(), guard);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = guard;
+        host.Bodies[{.Actor = guard, .Index = i}] = bone;
+        bone.RagdollOf = cCopy;
+        guest.Bodies[{.Actor = cSession, .Index = i}] = bone;
+    }
+    party.As(party.Host(), [&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {10.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
+    });
+    const BodyKey cOwnersHead{.Actor = guard, .Index = kRagdollBodies - 1};
+    const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
+    party.Until([&] { return !host.Bodies.at(cOwnersHead).Awake && guest.Bodies.at(cHead).Rests > 0; }, "the guard lies still on both games");
+
+    // The guest's room holds the copy's head where it lies.
+    guest.Bodies.at(cHead).Caught = true;
+    const glm::vec3 cLay = guest.Bodies.at(cHead).Flight.Body.Position;
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    party.As(party.Host(), [&] {
+        host.StandUp(guard);
+        (void)host.PerformAnimation(guard, getUp);
+    });
+    REQUIRE(host.Actors.at(guard).Rising > 0);
+    bool rose = false;
+    float apart = 0.f;
+    party.Until([&] {
+        rose |= guest.Actors.at(cCopy).Rising > 0;
+        // While both get up: the copy's head against its owner's (the copy plays a moment behind).
+        if (host.Actors.at(guard).Rising && guest.Actors.at(cCopy).Rising)
+            apart = glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, host.Bodies.at(cOwnersHead).Flight.Body.Position);
+        return rose && !host.Actors.at(guard).Rising && !guest.Actors.at(cCopy).Rising && !guest.Actors.at(cCopy).KnockedDown;
+    }, "the guard and its copy stand");
+    const glm::vec3 cOwners = host.Bodies.at(cOwnersHead).Flight.Body.Position;
+    REQUIRE(glm::distance(cOwners, cLay) > 20.f); // the owner's head rose
+    INFO("the copy's head ended " << glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) << " units from its owner's, "
+                                  << apart << " while both rose");
+    THEN("the copy's head rose with its owner's, whatever its own room held")
+        CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) < 2.f);
+}
+
 SCENARIO("A living ragdoll's reliable rest survives lost moving frames and is held until its owner gets up", "[physics][held-knock-rest]")
 {
     Party party(1, Plugins);

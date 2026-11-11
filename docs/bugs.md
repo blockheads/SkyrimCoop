@@ -609,6 +609,12 @@ Size: medium. Needs: duo, then GameTests.
   state 6: the knock update (39896, state 5) sets a copy's heading from its own ragdoll's bones. Start there. Once
   the host's own Lydia stood 172 units above the floor at the end (not looked into). What is below was measured
   before that.
+- **The get-up's own turn is fixed (2026-11-11, later):** it was the head held by the room during the physics-driven
+  get-up, on one game only; the owner's ragdoll frames now go on until it stands (physics.md, Getting up). 4 runs of
+  each scenario after: `guest-knockdown-lies-on-host` 4 of 4, `knockdown-smoke` 3 of 4 (one copy-only snap),
+  `knockdown-lies-as-host` 2 of 4, `knockdown-front-and-back` 0 of 4. What fails now is the fall, not the get-up:
+  the copy 25-50 units and up to 50 degrees off in the first second after the knock (it starts falling a moment
+  late), once bone jitter while lying, and 34-71 ms turns 1 s into a get-up in smoke.
 - **All three get-up scenarios fail every run on both builds** (2026-11-11, dev's plugin and `agent/copy-idle-graph`,
   one run each alone plus the full run):
   - `knockdown-lies-as-host`: the copy turned away from its owner's facing once, 40-51 degrees for 0.5-0.8 s, at knock

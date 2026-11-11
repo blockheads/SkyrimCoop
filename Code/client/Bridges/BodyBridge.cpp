@@ -6,6 +6,7 @@
 #include <AI/AIProcess.h>
 #include <Actor.h>
 #include <FormIds.h>
+#include <Games/KnockReplay.h>
 #include <Messages/WorldState.h>
 #include <Physics/BodyPrediction.h>
 #include <TESObjectREFR.h>
@@ -27,9 +28,6 @@ uint32_t BodyBridge::ReferenceFormId(const BodyKey& acKey) const noexcept
 bool BodyBridge::KnockedDown(Actor& aCopy, bool aKnock) noexcept
 {
     const uint8_t cState = aCopy.actorState.GetKnockState();
-    // Getting up (its knock update, or its owner's get up replayed): its animation's again.
-    if (cState >= 5)
-        return false;
     if (const auto it = m_knocked.find(aCopy.formID); it != m_knocked.end())
     {
         // Down; or not yet, the knock queued (KnockExplosion may run on the task queue).
@@ -41,7 +39,8 @@ bool BodyBridge::KnockedDown(Actor& aCopy, bool aKnock) noexcept
         m_knocked.erase(it);
         return false;
     }
-    if (!aKnock || !aCopy.currentProcess)
+    // Getting up without its owner's knock: its own, left alone.
+    if (!aKnock || !aCopy.currentProcess || (cState != 0 && !KnockReplay::Lies(cState)))
         return false;
     aCopy.currentProcess->KnockExplosion(&aCopy, &aCopy.position, 0.f);
     m_knocked.emplace(aCopy.formID, cState != 0);
@@ -58,13 +57,14 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
             return {};
         if (!pCopy->IsDead() && !m_knocked.contains(pCopy->formID))
             std::erase_if(m_ragdolls, [&](const auto& acBody) { return acBody.first.Actor == acKey.Actor; });
-        // Its animation's while the copy stands (a creature's powered ragdoll is dynamic then, a revived one's again).
+        // Its animation's while the copy stands (a creature's powered ragdoll is dynamic then, a revived one's again);
+        // lying and getting up, its owner's (58291 only drives its simulated bodies toward the animation).
         if (!pCopy->IsDead() && !KnockedDown(*pCopy, aKnock))
         {
             m_ragdolls.erase(acKey);
             return {.Waiting = true};
         }
-        if (!pCopy->IsDead() && !pCopy->actorState.IsKnockedDown())
+        if (!pCopy->IsDead() && !KnockReplay::BodiesSimulated(pCopy->actorState.GetKnockState()))
             return {.Waiting = true};
         // The knock creates a new copy's physics wrappers; they need not exist before it is requested.
         const auto cBodies = RagdollBodiesOf(*pCopy);

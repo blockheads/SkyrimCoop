@@ -77,7 +77,7 @@ bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
     if (it->second.Copy)
         return RagdollPosed(aFormId);
     return it->second.KnockedDown || std::ranges::any_of(Bodies, [&](const auto& acBody) {
-        return acBody.second.RagdollOf == aFormId && (acBody.second.Awake || it->second.Dead);
+        return acBody.second.RagdollOf == aFormId && ((acBody.second.Awake && !it->second.Rising) || it->second.Dead);
     });
 }
 
@@ -576,6 +576,31 @@ void FakeEngine::Frame()
             });
         }
     BuildHeads();
+    // Getting up (knock states 5 and 6): its ragdoll's bodies stay simulated, driven toward its animation's pose
+    // (58291); one this game's world holds stays where it is. Standing, they leave the world.
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!actor.Rising)
+            continue;
+        const bool cStands = --actor.Rising == 0;
+        for (auto& [cKey, body] : Bodies)
+        {
+            if (body.RagdollOf != cId)
+                continue;
+            body.Flight.Body.LinearVelocity = {};
+            body.Flight.Body.AngularVelocity = {};
+            body.Awake = !cStands;
+            body.OutOfWorld = cStands;
+            body.Held = false;
+            if (cStands || body.Caught)
+                continue;
+            const glm::vec3 cTo = StandingPose(cId, cKey.Index) - body.Flight.Body.Position;
+            const float cStep = kRisingSpeed / 60.f;
+            const glm::vec3 cMove = glm::length(cTo) > cStep ? glm::normalize(cTo) * cStep : cTo;
+            body.Flight.Body.Position += cMove;
+            body.Flight.Body.LinearVelocity = cMove * 60.f;
+        }
+    }
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -584,7 +609,8 @@ void FakeEngine::Frame()
             actor.KnockedDown = true;
         for (const auto& cDrive : m_pendingRagdolls.Take(cId))
         {
-            if (!actor.Dead && !actor.KnockedDown)
+            // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
+            if (!actor.Dead && !KnockReplay::BodiesSimulated(KnockStateOf(cId)))
                 continue;
             const auto it = Bodies.find(cDrive.Frame.Key);
             if (it == Bodies.end())
@@ -1191,7 +1217,7 @@ bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
     const bool cTaken = ReplayAnimation(aFormId, acAction);
     Replaying = false;
     if (acAction.ActionId == kActionGetUp && cTaken)
-        Actors.at(aFormId).KnockedDown = false;
+        StandUp(aFormId);
     ApplyActionWrites(aFormId, acAction.EventName);
     return cTaken;
 }

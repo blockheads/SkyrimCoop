@@ -146,10 +146,13 @@ copy, replaying that update: the pick written into its node (the first takes its
   `knockdown-front-and-back` 0 of 3, as on dev (the visible skeleton up to 30 units off). 22 other stream scenarios
   (kill moves, mounts, hands, casts, furniture) passed once each; `kill-move-kills-guest` 3 of 4 (once the dead
   copy's ragdoll never slept: bugs.md, Copy ragdolls at rest).
-- **What still fails is the body's, not the graph's.** The copy still turns 49-50 degrees away for 0.6-0.7 s at its
-  get-up in 2 of 7 runs, both in knock state 6: its graph plays its owner's clip, but its knock update (39896, state
-  5) sets the actor's heading from its own ragdoll's bones before its owner's heading reaches it. Next: a copy's
-  heading at that step from its owner. The rest: a snap the owner does not have (smoke, 2 of 7), ragdoll flicker
+- **What still failed was the body's, not the graph's** (fixed later the same day). The copy turned 49-50 degrees
+  away for 0.6-0.7 s in 2 of 7 runs, 4 s into its get-up. Not its heading (the first guess: the body trace shows it
+  equal to its owner's throughout): getting up, a ragdoll's bodies are still simulated, and the copy's head was held
+  at one place of the room while its owner's rose (re/systems/physics.md, Getting up). An owner now sends its
+  ragdoll until it stands and its copy steers to it (`KnockReplay::BodiesSimulated`). After: no such turn in 20
+  get-ups (4 runs each of the four knockdown scenarios), bones within 1-5 units of the owner's through the get-up.
+  The rest: a snap the owner does not have (smoke, 2 of 7), ragdoll flicker
   while lying (1 of 7), and once the host's own Lydia 172 units above the floor at the end (not looked into).
 - **Tests:** GameTests `[pick]` (the fake's match node reads its game's own `LyingPose`, forgets its match as it
   activates, and plays no child without one); ClientTests `[graph-stream][pick]`, `[knock-replay]`; TPTests'

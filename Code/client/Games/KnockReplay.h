@@ -14,4 +14,15 @@ namespace KnockReplay
 {
     return AfterAction(aCopy, aGetUp, true) != aCopy;
 }
+// An actor's ragdoll bodies are its physics' in that knock state, not its animation's alone: an owner sends them and
+// its living copy steers to them (docs/re/systems/physics.md, Getting up).
+[[nodiscard]] constexpr bool BodiesSimulated(uint8_t aKnock) noexcept
+{
+    return aKnock != 0;
+}
+// Lying (1 to 4), not getting up (5, 6): only a lying owner's frame takes a standing copy down.
+[[nodiscard]] constexpr bool Lies(uint8_t aKnock) noexcept
+{
+    return aKnock >= 1 && aKnock <= 4;
+}
 } // namespace KnockReplay

@@ -19,6 +19,7 @@
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IBodyReads.h>
+#include <Games/KnockReplay.h>
 #include <Physics/RagdollPending.h>
 
 #include <Games/QuestChanges.h>
@@ -400,7 +401,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
+        bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
+        bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
     };
+    // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
+    static constexpr uint32_t kRisingFrames = 60;
+    static constexpr float kRisingSpeed = 120.f;
+    // Where its animation has that ragdoll body once it stands.
+    [[nodiscard]] glm::vec3 StandingPose(uint32_t aFormId, uint8_t aIndex) const;
+    // Lying no longer: with a ragdoll its bodies stay simulated while it gets up (Rising).
+    void StandUp(uint32_t aFormId);
+    // Its knock state as ActorState's: 1 lying, 6 getting up, 0 standing.
+    [[nodiscard]] uint8_t KnockStateOf(uint32_t aFormId) const;
     std::map<BodyKey, Body> Bodies;
     // A ragdolled actor's heading as this engine turns it with its root body: where the body's y axis points, about z.
     static float HeadingOf(const glm::quat& acRotation) noexcept;
@@ -495,6 +507,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
+        uint32_t Rising = 0;       // frames left getting up (knock states 5 and 6): its ragdoll's bodies are still this
+                                   // game's physics', driven toward its animation's pose (58291)
         bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
         uint32_t Owner = 0;          // its ExtraOwnership (a horse bought: the player faction)
