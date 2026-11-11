@@ -83,3 +83,12 @@ TEST_CASE("A copy getting off its mount is on its own body until its sit state l
     CHECK(ReplayState::CopyOwnBody(false, true, false, false, 0));
     CHECK(ReplayState::CopyOwnBody(false, false, true, false, 0));
 }
+
+TEST_CASE("An action carries its owner's graph state only for copies that take actions", "[replay-state]")
+{
+    CHECK(ReplayState::CarriesGraphState(false, false, false));
+    CHECK_FALSE(ReplayState::CarriesGraphState(true, false, false)); // a pair's half
+    CHECK_FALSE(ReplayState::CarriesGraphState(false, true, false)); // its copies replay its stream
+    CHECK(ReplayState::CarriesGraphState(false, true, true));        // knocked down: its copies play its get-up
+    CHECK_FALSE(ReplayState::CarriesGraphState(true, true, true));
+}

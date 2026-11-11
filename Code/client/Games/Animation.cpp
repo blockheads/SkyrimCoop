@@ -100,7 +100,10 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         }
 
         // A copy whose clip already advanced can recover from the accepted action's result.
-        if (!g_forceAnimation && !cPlayersPartner && action.TargetEventName.empty() && !World::Get().GetGraphStreams().Streaming(pActor->formID))
+        const bool cOwnBody = ReplayState::CopyOwnBody(pActor->actorState.GetKnockState() != 0, pActor->InPair(), pActor->IsInKillMove(),
+                                                       (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0, pActor->actorState.GetSitSleepState());
+        if (!g_forceAnimation && !cPlayersPartner &&
+            ReplayState::CarriesGraphState(!action.TargetEventName.empty(), World::Get().GetGraphStreams().Streaming(pActor->formID), cOwnBody))
         {
             COUNT_TIME("graph state save us");
             pActor->SaveAnimationGraphState(action.GraphState);

@@ -1362,7 +1362,10 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
         aAction.StateAfter1 = Actors.at(aFormId).State1;
         if (::ReplayState::StartsAttack(aAction.EventName))
             Actors.at(aFormId).ClashUntil = 0;
-        if (aAction.TargetEventName.empty())
+        // Without a behaviour graph no copy is on a stream (a fixture's scripted transitions alone).
+        const auto& cActor = Actors.at(aFormId);
+        const bool cOwnBody = ::ReplayState::CopyOwnBody((cActor.State1 & ::ReplayState::kKnockMask) != 0, false, false, false, SitState(aFormId));
+        if (::ReplayState::CarriesGraphState(!aAction.TargetEventName.empty(), Graph && World::Get().GetGraphStreams().Streaming(aFormId), cOwnBody))
             aAction.GraphState = SaveActorGraphState(aFormId);
         Actors.at(aFormId).LatestAnimation = aAction;
         World::Get().GetDispatcher().trigger(aAction);

@@ -1187,6 +1187,37 @@ TEST_CASE("A copy made after its owner sat down is seated, not about to sit as i
     CHECK(guest.Actors.at(cCopy).GraphState == "Sitting");
 }
 
+TEST_CASE("A streamed owner's action carries no graph state, and its copy still follows it", "[animation][replay-start]")
+{
+    // Skyrim (duo, profile of ten wolves fighting, 2026-11-10): every accepted action carried its owner's whole graph
+    // state (7-8 KB) for a copy's recovery, 70 KB/s of the fight's 85. A streamed owner's copies take no actions.
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{};
+        engine->GraphTransitions = {{{"Standing", "sitEnter"}, "Sitting"}};
+    }
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x13487, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x13487).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13487).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy is on its owner's stream");
+    party.As(party.Host(), [&] {
+        REQUIRE(party.Host().GetGraphStreams().Streaming(npc));
+        ActionEvent sit;
+        sit.ActionId = 0x13031;
+        sit.EventName = "sitEnter";
+        REQUIRE(host.PerformAnimation(npc, sit));
+    });
+    CHECK(host.Actors.at(npc).LatestAnimation.GraphState.empty());
+    party.Until([&] { return guest.Actors.at(cCopy).GraphState == "Sitting"; }, "the copy sits by its owner's stream");
+}
+
 TEST_CASE("A player's copy is back on its stream only once its owner has left its kill move", "[animation][replay-start][kill-move][players]")
 {
     // Skyrim (duo, host-kill-move, 2026-11-10): the pair's instance ended at the victim's PairEnd, 1.3 s before the

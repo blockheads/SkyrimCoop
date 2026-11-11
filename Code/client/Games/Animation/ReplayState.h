@@ -110,4 +110,11 @@ constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
     const bool cReplayedFirst = acReplay.Tick != acReplay.PairTick ? acReplay.Tick < acReplay.PairTick : acReplay.Session < acReplay.PairSession;
     return cReplayedFirst ? PairOutcome::kYield : PairOutcome::kSkip;
 }
+// An accepted action carries its owner's whole graph state for a copy that refuses it (ReplayGraph::Recover). A pair's
+// halves never do. A streamed owner's copies take no actions, but while they are on their own bodies (aOwnBody: the
+// owner's own CopyOwnBody, its copies' follows it): then they play its actions (graph-input-stream.md, Cost measured).
+constexpr bool CarriesGraphState(bool aPaired, bool aStreamed, bool aOwnBody) noexcept
+{
+    return !aPaired && (!aStreamed || aOwnBody);
+}
 } // namespace ReplayState
