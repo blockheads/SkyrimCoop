@@ -173,6 +173,23 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Faction == confiscation.Faction);
 }
 
+TEST_CASE("A caught pickpocket is a valid crime request with no item", "[encoding.crime]")
+{
+    CrimeRequest request;
+    request.Sequence = 1;
+    request.Action = CrimeAction::Pickpocket;
+    request.TargetActor = 0x4321;
+    CHECK(request.IsValid()); // caught: AttemptPickpocket (40654) passes no item, count 0
+    request.Count = 3;
+    CHECK_FALSE(request.IsValid()); // a count with no item
+    request.Item = GameId(0, 0xF);
+    CHECK(request.IsValid());
+    request.Count = 0;
+    CHECK_FALSE(request.IsValid()); // an item with no count
+    request.Action = CrimeAction::Theft;
+    CHECK_FALSE(request.IsValid()); // a theft always names its item and count
+}
+
 TEST_CASE("Crime requests initialize omitted IDs and reject invalid ownership stacks", "[encoding.crime]")
 {
     CrimeRequest request;

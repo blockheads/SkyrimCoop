@@ -44,7 +44,7 @@ struct CrimeRequest final : RequestMessage
     uint32_t TargetActor{}; // session id instead of Target for a copied actor
     GameId Item{};
     GameId Owner{}; // theft: the item's owner StealAlarm was given (a created item's target is its owner actor)
-    uint32_t Count{}; // theft quantity; lockpick menu attempt id
+    uint32_t Count{}; // theft quantity (0 with no item: a caught pickpocket); lockpick menu attempt id
     bool GoToJail{}; // native PayFine: move to the release marker, not a jail sentence
     bool RemoveStolenItems{};
     bool AllowWarning{};
