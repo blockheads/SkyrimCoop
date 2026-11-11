@@ -49,5 +49,35 @@ class GetUpSkeleton(unittest.TestCase):
         trace([50, 50, 90, 90, 50], [50, 50, 90, 90, 50], hidden=(2, 3)).check_copy_skeleton("", 1, "client", 2)
 
 
+def snapping(owner_at, copy_at, owner_jump=20, copy_jump=20):
+    """Both stand still; each one's bone jumps that far for one frame at those frames."""
+    result = RagdollTrace(Session(), "fixture", {"": {1: "owner"}, "client": {2: "copy"}})
+    for game, actor, shift, at, jump in (("", 1, 0, owner_at, owner_jump), ("client", 2, 200_000, copy_at, copy_jump)):
+        result.samples[game] = [{"t": 1_000_000 + shift + i * 16_000, "id": actor, "knock": 6, "position": [0, 0, 0],
+                                "head": [0, 0, 30], "pelvis": [0, 0, 0],
+                                "bodies": [{"bone": [jump if i in at else 0, 0, 0], "position": [0, 0, 0], "motion": 2,
+                                            "awake": True}]} for i in range(80)]
+    return result
+
+
+class GetUpSnaps(unittest.TestCase):
+    def test_a_snap_its_owner_never_has_is_the_copys(self):
+        self.assertEqual(len(snapping((), (30,)).copy_snaps("", 1, "client", 2)), 1)
+
+    def test_the_tail_of_its_owners_shake_is_not_the_copys(self):
+        # knockdown-smoke, 2026-11-11: the owner's limb shook for 170 ms; its copy's last snaps came after the owner's.
+        self.assertEqual(snapping((20, 22, 24, 26), (22, 24, 26, 28, 34, 36)).copy_snaps("", 1, "client", 2), [])
+
+    def test_a_shake_just_under_the_snap_size_on_its_owner_is_still_its_owners(self):
+        # The owner's bone went back and forth 11 units a frame, its copy's 13: one each side of SNAP.
+        self.assertEqual(snapping((20, 22, 24), (22, 24, 26), owner_jump=11, copy_jump=13).copy_snaps("", 1, "client", 2), [])
+
+    def test_a_snap_twice_its_owners_is_the_copys(self):
+        self.assertEqual(len(snapping((20,), (22,), owner_jump=13, copy_jump=40).copy_snaps("", 1, "client", 2)), 1)
+
+    def test_a_snap_long_after_its_owners_is_the_copys(self):
+        self.assertEqual(len(snapping((10,), (60,)).copy_snaps("", 1, "client", 2)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

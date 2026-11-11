@@ -619,8 +619,14 @@ Size: medium. Needs: duo, then GameTests.
   where Skyrim leaves the skeleton still: `drawn`). Replayed over the morning's samples they still fail the two bad
   get-ups. After, five runs each: `knockdown-lies-as-host` 5 of 5, `knockdown-front-and-back` 5 of 5,
   `guest-knockdown-lies-on-host` 5 of 5, `knockdown-smoke` 4 of 5.
-  - Open: one limb jumps 12-14 units for one frame about 1 s into a get-up, the copy only (smoke, 3 of 14 runs);
-    pelvis and head stay put.
+  - The limb snap (smoke, 3 of 14 runs) was two things. Mostly Skyrim's own: a getting-up owner's forearm and hand
+    go back and forth 8-12 units a frame for some 150 ms, its copy's 6-12 a moment later, either side of the 12 unit
+    threshold; `copy_snaps` now pairs a copy's snap with its owner's bone jumps by size (`SNAP_SHARE`). Once the
+    copy's hand shook 8-14 units where its owner's shook 4-6: between frames a body is guessed onward at its last
+    velocity, which overshoots a limb reversing every step. A getting-up owner's frames now carry the pose only
+    (`PhysicsBodies`). After: 23 of 24 runs of the four knockdown scenarios, smoke 6 of 6.
+  - Open: once `knockdown-front-and-back` ended "the copy never lay as the host's body", every bone about 23 units
+    lower on the copy, after its third push off the ledge (6927 against 6950). Not looked into.
   - Open, not explained: once smoke's end comparison read the copy 66 units above its owner (`pose.floor_gap`), while
     the frame samples just before show both at the same height. A guess, unverified: the floor ray at a ledge.
 - **The get-up's own turn is fixed (2026-11-11, later):** it was the head held by the room during the physics-driven

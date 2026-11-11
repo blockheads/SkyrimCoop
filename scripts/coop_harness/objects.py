@@ -611,6 +611,8 @@ class RagdollTrace:
 
     SNAP = 12.0          # units a bone jumps in one frame, to come back within SNAP_FRAMES (half way at least)
     SNAP_FRAMES = 4
+    SNAP_TRAIN = 200_000 # microseconds a train of snaps lasts (a get-up's limb shake)
+    SNAP_SHARE = 0.75    # of a copy's jump: its owner's bones jumping that far then makes it the owner's
 
     def snaps(self, game, actor):
         """Its skeleton's snaps: a frame where its bones jump and come back within a few frames (what a person sees as
@@ -645,9 +647,19 @@ class RagdollTrace:
         c = self.compare(owner_game, owner, copy_game, copy)
         delay = (c["delay"] if c else 300) * 1000
         owners = [s["wall"] for s in self.snaps(owner_game, owner)]
+        # A getting-up owner's forearm and hand shake for some 150 ms (a bone back and forth 8-12 units a frame on the
+        # host's own Lydia, its copy's 6-12, 2026-11-11: either side of SNAP), and its copy's do after it. A copy's
+        # snap is its owner's when the owner's bones jumped nearly as far in a frame around then, at any of its delays.
         lo, hi = self.DELAY_RANGE
+        frames = [f for f in self.frames(owner_game, owner) if f["bodies"] and any(f["bodies"])]
+        jumps = [(now["t"], max((math.dist(x["bone"], y["bone"]) for x, y in zip(now["bodies"], before["bodies"])
+                                 if x and y and x.get("bone") and y.get("bone")), default=0.0))
+                 for before, now in zip(frames, frames[1:])]
+        def owners_jump(wall):
+            return max((j for t, j in jumps if lo - self.SNAP_TRAIN <= wall - t <= hi + self.SNAP_TRAIN), default=0.0)
         return [s for s in self.snaps(copy_game, copy)
-                if not any(abs(s["wall"] - delay - w) < 60_000 or lo - 30_000 <= s["wall"] - w <= hi + 30_000 for w in owners)]
+                if not any(abs(s["wall"] - delay - w) < 60_000 for w in owners)
+                and owners_jump(s["wall"]) < self.SNAP_SHARE * s["jump"]]
 
     def snaps_report(self, owner_game, owner, copy_game, copy):
         ctx = self.session

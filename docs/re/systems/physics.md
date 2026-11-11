@@ -270,6 +270,8 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   - `PhysicsBodies` therefore reads a living actor's ragdoll through states 1 to 6 (`KnockReplay::BodiesSimulated`),
     and a copy steers to those frames until it stands (`BodyBridge`, `CopyRagdollPhysics` after 58291). Standing
     (state 0) the bodies cannot be read (they have left the world): the last frame read is the rest.
+  - Its limbs shake while it gets up (forearm and hand reversing every physics step, 8-12 units, on the host's own
+    Lydia about 0.8 s into state 6), so those frames carry no velocity: a copy blends between poses.
 - Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
   puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
   `KnockDown::Carry` did).

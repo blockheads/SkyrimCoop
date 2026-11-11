@@ -134,9 +134,14 @@ TEST_CASE("An actor getting up still sends its ragdoll, without knocking its cop
     {
         reads.Ref.Rising = true;
         reads.Ref.Bodies[0]->Read.Position = {20.f, 0.f, 30.f};
+        reads.Ref.Bodies[0]->Read.LinearVelocity = {300.f, 0.f, 0.f};
+        reads.Ref.Bodies[0]->Read.AngularVelocity = {0.f, 4.f, 0.f};
         const auto cRising = physics.Take();
         CHECK(cRising.Rested.empty());
         REQUIRE(cRising.Awake.size() == 1);
+        // Driven by its animation, shaking step to step: a pose, with no velocity to guess onward.
+        CHECK(cRising.Awake[0].Read[0].LinearVelocity == glm::vec3{});
+        CHECK(cRising.Awake[0].Read[0].AngularVelocity == glm::vec3{});
         CHECK_FALSE(cRising.Awake[0].Read[0].Knocked); // a late one must not take a copy already up down again
         // Standing: its bodies have left the world, so its last frame is its rest.
         reads.Ref.Rising = false;

@@ -88,6 +88,10 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
             // Only a lying owner's frame takes a standing copy down: a getting-up owner's can come late.
             frame.Knocked = cActor && !cReference->Dead && !cReference->Rising;
+            // Getting up its animation drives it, and its limbs shake step to step: a pose to blend between, no
+            // flight to guess onward (a copy's hand shook twice as far as its owner's).
+            if (cActor && cReference->Rising)
+                frame.LinearVelocity = frame.AngularVelocity = {};
             all.Read.push_back(frame);
             if (cRead.Active || it->first == cHeld)
                 awake.Read.push_back(frame);

@@ -428,8 +428,10 @@ SCENARIO("A host NPC gets up from a knockdown: its copy's ragdoll follows its ow
     REQUIRE(glm::distance(cOwners, cLay) > 20.f); // the owner's head rose
     INFO("the copy's head ended " << glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) << " units from its owner's, "
                                   << apart << " while both rose");
+    // The copy stands a playback delay before its owner's last frames are due (its get-up is its graph's, sooner than
+    // its bodies'): it ends a few frames' travel behind, not where its room held it (85 units).
     THEN("the copy's head rose with its owner's, whatever its own room held")
-        CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) < 2.f);
+        CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) < 15.f);
 }
 
 SCENARIO("A living ragdoll's reliable rest survives lost moving frames and is held until its owner gets up", "[physics][held-knock-rest]")

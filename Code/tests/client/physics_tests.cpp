@@ -488,3 +488,28 @@ TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[bod
     CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));
     CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
 }
+
+TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")
+{
+    // knockdown-smoke (duo, 2026-11-11): a getting-up owner's hand went back and forth 4-6 units a frame; its copy's
+    // 8-14. The owner's body alternates each physics step, a frame of it reaches the copy every fourth step.
+    const BodyKey cKey{.Actor = 7, .Index = 4};
+    const auto cWorst = [&](bool aWithVelocity) {
+        BodyPlayback playback;
+        float worst = 0.f;
+        for (uint64_t tick = 1000; tick < 3000; tick += 16)
+        {
+            const bool cOut = (tick / 16) % 2 == 0;
+            if ((tick / 16) % 4 == 0)
+                playback.Add(tick, {{.Key = cKey, .Position = {cOut ? 5.f : 0.f, 0.f, 0.f},
+                                     .LinearVelocity = {aWithVelocity ? (cOut ? 300.f : -300.f) : 0.f, 0.f, 0.f}}});
+            // Played 200 ms behind, as a copy's ragdoll.
+            for (const auto& cPose : playback.At(tick - 200))
+                worst = std::max(worst, std::abs(cPose.Body.Position.x - 2.5f));
+        }
+        return worst;
+    };
+    INFO("with its velocity the shown body strays " << cWorst(true) << " units from the shake's middle, without " << cWorst(false));
+    CHECK(cWorst(false) <= 2.6f);       // within the shake itself
+    CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
+}
