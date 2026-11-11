@@ -64,12 +64,6 @@ their fights kept the host as target; now they are crime fights and go for the n
 show the engine's line. Scenario `guest-theft-bounty-message` (failed before), flows "A theft's witness, only angry",
 "A guard answering a party crime", "A guest's witnessed theft shows the bounty line in every game", HostAuthorityTests
 and ClientTests `[CrimeRules]`. MCP: `expect_bounty_message`.
-A guest's caught pickpocket now reaches the host ("A guest's pickpocket"): the engine's caught alarm (37423, from
-`AttemptPickpocket` 40654) has no item, and the guest's proposal and `CrimeRequest::IsValid` both required one. The
-host runs the alarm with the arguments as given; bounty, line and nearest-player aggro follow the one crime path
-(shared-party-bounty.md, "One path for every crime"). The unseen take was already a container transfer. Scenario
-`guest-pickpocket`, flow "A guest's caught pickpocket reaches the host's engine with no item", HostAuthorityTests,
-TPTests. MCP: `pickpocket` (real sneak, menu and E), `stock`, `expect_holds`.
 
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter

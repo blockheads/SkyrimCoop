@@ -1,6 +1,5 @@
 """Crime verbs for repros (docs/re/systems/crime.md): ownership, the party's bounty, what a witness saw."""
 import math
-from ..common import ACTIVATE_KEY, ITEM_LISTS, LISTS_SHOWN, TAB_KEY
 from ..comparisons import flatten
 from ..utilities import log
 
@@ -118,54 +117,6 @@ class CrimeActions:
             raise ctx.failure(f"the guest's new HUD lines are {ctx.hud_since('client', mark['guest'])}, "
                               f"expected '{line}'") from None
         return {"line": line}
-
-    def stock(ctx, npc, item, count=1):
-        """Adds `count` of `item` (hex base id) to the host's `npc`, as its owner; its copy on the guest follows."""
-        before = ctx.item_count("client", ctx.resolve(npc, "guest"), int(item, 16)) or 0
-        ctx.console_on("", f"{ctx.resolve(npc, 'host'):X}.additem {item} {count}")
-        ctx.expect_holds(npc, item, before + count)
-        return {"holds": before + count}
-
-    def expect_holds(ctx, holder, item, count, seconds=5.0):
-        """`holder` (a handle name) holds `count` of `item` (hex base id) in both games within `seconds`."""
-        held = lambda: {label: ctx.item_count(instance, ctx.resolve(holder, label), int(item, 16)) or 0
-                        for label, instance in (("host", ""), ("guest", "client"))}
-        try:
-            ctx.wait_for(f"{holder} holds {count} of {item} in both games",
-                         lambda: all(n == count for n in held().values()), seconds)
-        except Exception:
-            raise ctx.failure(f"{holder} holds {held()} of {item}, expected {count} in both games") from None
-        return held()
-
-    def pickpocket(ctx, instance, target, item, name, caught=False):
-        """The player sneaks to `target`, opens its pockets (Activate while sneaking), highlights `name` and takes it (E),
-        as a player does; that game's roll (AttemptPickpocket 40654) is made sure by fPickPocketMin/MaxChance, caught or not.
-        Returns how many of `item` (hex base id) the player gained."""
-        who, ref, base = f"[{instance or 'host'}]", ctx.resolve(target, instance), int(item, 16)
-        chance = 0 if caught else 100
-        for setting in ("fPickPocketMinChance", "fPickPocketMaxChance"):
-            ctx.console_on(instance, f"setgs {setting} {chance}")
-        before = ctx.item_count(instance, 0x14, base) or 0
-        try:
-            ctx.sneak(instance, True)
-            ctx.reach(instance, target)
-            ctx.activate_ref(instance, ref, target)
-            ctx.wait_for(f"{who} {target}'s pockets show", lambda: ctx.menu_var(
-                instance, "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5)
-            ctx.select_entry(instance, "ContainerMenu", ITEM_LISTS + ".ItemsList", name)
-            ctx.tap_key(instance, ACTIVATE_KEY)
-            if caught:  # the caught HUD line, and the menu closes
-                ctx.wait_for(f"{who} caught: the menu closes", lambda: "ContainerMenu" not in ctx.menus(instance), 5)
-            else:
-                ctx.wait_for(f"{who} holds the {item}", lambda: (ctx.item_count(instance, 0x14, base) or 0) > before, 5)
-                ctx.tap_key(instance, TAB_KEY)
-                ctx.wait_for(f"{who} the menu closed", lambda: ctx.takes_input(instance), 5)
-        finally:
-            for setting, value in (("fPickPocketMinChance", 0), ("fPickPocketMaxChance", 90)):  # Skyrim's defaults
-                ctx.console_on(instance, f"setgs {setting} {value}")
-            if ctx.takes_input(instance):
-                ctx.sneak(instance, False)
-        return {"caught": caught, "gained": (ctx.item_count(instance, 0x14, base) or 0) - before}
 
     def expect_target(ctx, npc, player="guest_player", seconds=10.0):
         """The host's `npc` targets `player` (combat or package target) within `seconds`: a crime's reaction goes to

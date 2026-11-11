@@ -43,24 +43,6 @@ TEST_CASE("Crime proposals identify the authenticated player's character", "[cri
     CHECK(session.Crimes.size() == 2);
 }
 
-TEST_CASE("A guest's caught pickpocket, with no item, reaches the host's judgment", "[crime]")
-{
-    Session session;
-    Enter(session, kPeer);
-    CrimeRequest caught; // AttemptPickpocket (40654) gives the alarm no item and count 0
-    caught.Sequence = 1;
-    caught.Action = CrimeAction::Pickpocket;
-    caught.TargetActor = 0x4321;
-    session.Receive(kPeer, caught);
-    REQUIRE(session.Crimes.size() == 1);
-    CHECK(session.Crimes[0].second.Action == CrimeAction::Pickpocket);
-    CHECK_FALSE(session.Crimes[0].second.Item);
-    caught.Sequence = 2;
-    caught.Count = 4; // a count with no item is not a pickpocket the engine makes
-    session.Receive(kPeer, caught);
-    CHECK(session.Crimes.size() == 1);
-}
-
 TEST_CASE("Only host judgment changes bounty for a proposed guest crime", "[crime]")
 {
     Session session;

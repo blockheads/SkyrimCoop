@@ -55,28 +55,6 @@ SCENARIO("A guest's witnessed theft shows the bounty line in every game", "[crim
     CHECK(guest.Shown.size() == 1);
 }
 
-SCENARIO("A guest's caught pickpocket reaches the host's engine with no item", "[crime]")
-{
-    Party party(2);
-    auto& host = Crime(party.Host());
-    // Skyrim: a caught pickpocket's alarm (37423) gets no item and count 0 from AttemptPickpocket (40654).
-    host.JudgeAction = [&](uint32_t, const CrimeRequest&) {
-        host.Gold = {{GameId(0, 0x28170), 0, 25}};
-        host.Reports.push_back({GameId(0, 0x28170), 25});
-        return false;
-    };
-    CrimeRequest caught;
-    caught.Action = CrimeAction::Pickpocket;
-    caught.TargetActor = 0x4321;
-    Crime(party.Guest()).Actions.push_back(caught);
-    party.Until([&] { return host.Judged.size() == 1; }, "the host's engine judges the caught pickpocket");
-    CHECK(host.Judged.front().second.Action == CrimeAction::Pickpocket);
-    CHECK(!host.Judged.front().second.Item);
-    const std::vector<CrimeReport> cLine{{GameId(0, 0x28170), 25}};
-    party.Until([&] { return Crime(party.Guest()).Shown == cLine && Crime(party.Guest(1)).Shown == cLine; },
-                "every guest shows the pickpocket's bounty line");
-}
-
 SCENARIO("Guest crime actions go to the host engine once and its judgment returns", "[crime]")
 {
     Party party;

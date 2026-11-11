@@ -4,22 +4,6 @@ v1.0 feature 2. Implemented on `shared-party-bounty` from `dev` at `526cff31`, i
 `dev` at `9e8bbaa2`. Party rule: one player's crime counts against the party, judged by the host's
 world (`party-model.md`, `copy-contract.md`).
 
-## One path for every crime (2026-11-10)
-
-```
-a player acts            the host's own player: the engine's alarm runs as is
-                         a guest's action the host replays (a hit, a kill): the host's alarm, the guest scoped in
-                         a guest's action the host cannot see (a menu take, a pickpocket, a lock): the guest's alarm
-                           hook proposes its arguments (CrimeRequest), the host runs the same alarm, the guest scoped in
-the host's engine        record, witnesses, alarm, bounty: one crime, the host's player's (the party's)
-  -> every game          NotifyCrimeState: the totals and each 37679 bounty line (CrimeReport)
-  -> every NPC           a grudge of any kind (CrimeRules::Grudge) makes every player the criminal; it fights the nearest
-```
-
-Only the first step knows the kind of crime, and only because the engine has one alarm per kind (37422-37428,
-51981). Everything after is read from the engine's crime record and its effects, whatever the kind, so a new kind
-needs at most its alarm hook to forward its arguments.
-
 ## Authority and boundaries
 
 - The host owns violent/nonviolent bounty, infamy and the native player-enemy flag for every crime faction. Guests propose
@@ -44,7 +28,7 @@ All added hooks live in `CrimeBridge.cpp`; host rules and transport remain engin
 | Path | Native seam and adaptation |
 | --- | --- |
 | Theft | StealAlarm 37422 accepts the real player after teammate resolution. The guest sends an item action; the host rechecks permission and runs the native alarm. Host activation replay on a guest copy is suppressed to avoid double charging. |
-| Pickpocket | Caught-pickpocket 37423 sends a guest proposal with the alarm's own arguments: no item and count 0 from AttemptPickpocket 40654 (until 2026-11-10 dropped for lacking an item, `crime.md`). The native alarm handles victim/forgiveness rules; an unowned actor does not grant permission to pick its pockets. An unseen take is a steal container transfer. |
+| Pickpocket | Caught-pickpocket 37423 sends a guest proposal. The native alarm handles victim/forgiveness rules; an unowned actor does not grant permission to pick its pockets. |
 | Assault / murder | Host-native alarms 37425 / 37426 adapt the guest attacker to the host player for native tracking, with the guest retained in scoped detection context. Guest replay does not create another alarm. |
 | Werewolf / trespass | Native alarms 37428 / 37427 use the same scoped criminal. Copies skip UpdateAI, so CrimeService separately refreshes their trespass flag/package using the NPC-safe portion of 37578; it never calls the PlayerCharacter-only tail 42676 on an NPC. |
 | Actor crime views | Native NPC-body bounty getter 37379 reads the party player's bounty for guest copies. Known-crime query 41354 aliases a guest culprit to the party record, preserving victim, witness, type and day filters. Ordinary NPCs keep their own bounty and crime queries. |
