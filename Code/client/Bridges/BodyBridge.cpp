@@ -142,7 +142,7 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
     if (acPose.Key.Actor)
     {
         QueueCopyBodyFrame(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
-                                      .Knocked = acPose.Knocked}, true);
+                                      .Knocked = acPose.Knocked}, true, true);
         return true;
     }
     // A reference's body not held and already there (the owner's settle in place): moving it would record a move

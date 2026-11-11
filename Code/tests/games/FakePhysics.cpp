@@ -222,7 +222,7 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         {
             ++it->second.Rests;
             m_pendingRagdolls.Put(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
-                                               .Knocked = acPose.Knocked}, true);
+                                               .Knocked = acPose.Knocked}, true, true);
         }
         return true;
     }

@@ -596,6 +596,19 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
             CHECK(cCopyBone.Drives > 0);
             CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < 0.01f);
         }
+    // Skyrim (duo, kill-move-kills-guest, 2026-11-11, 14 of 14 runs): every dead copy's 18 bodies stayed awake at 3 to
+    // 8 units/s within 0.8 units of their rests. Its owner's rest was steered to every step with no end, and a
+    // steered body never sleeps. At its rest a copy's body is left alone.
+    THEN("at their rests the copies' bodies are left alone")
+    {
+        std::vector<size_t> drives;
+        for (World* pGame : cOthers)
+            drives.push_back(Party::Engine(*pGame).Bodies.at(cHead).Drives);
+        for (int i = 0; i < 30; ++i)
+            party.Frame();
+        for (size_t i = 0; i < cOthers.size(); ++i)
+            CHECK(Party::Engine(*cOthers[i]).Bodies.at(cHead).Drives == drives[i]);
+    }
 }
 
 SCENARIO("A guest's player holds the plate: the host's player cannot grab it, nor can another guest's", "[physics]")

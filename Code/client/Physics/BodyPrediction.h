@@ -42,6 +42,13 @@ struct Velocities
 [[nodiscard]] Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget,
                                float aSeconds = kSteerSeconds) noexcept;
 
+// A copy's ragdoll body is at its owner's rest: left alone there, so it falls asleep. Steered on (78089/78090 wake
+// it each step) it never rests: every dead copy's 18 bodies stayed awake at 3 to 8 units/s, within 0.8 units of their
+// rests (kill-move-kills-guest, 14 of 14 runs, 2026-11-11).
+constexpr float kRestDistance = 0.5f; // units
+constexpr float kRestAngle = 0.03f;   // radians
+[[nodiscard]] bool AtRest(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acRest) noexcept;
+
 // Whether a body falls freely: its velocity changed by gravity alone between two reads aSeconds apart (a body on
 // the ground, sliding or rolling, goes on as it moves instead).
 [[nodiscard]] bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds,

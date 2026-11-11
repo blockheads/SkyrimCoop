@@ -563,8 +563,17 @@ Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
   Copy and owner lie within 8 units. Cause not found: candidates are the owner's rest arriving as frames the copy keeps
   steering towards (`BodyBridge::Rest` queues a frame for an actor's bodies, never puts them to sleep), or steering
   velocities never reaching zero (`BodyPrediction::Steer`).
-  - Start: the copy's `body_trace` motion and awake bits after its owner's `BodyRestsRequest`; whether `CopyRagdollPhysics`
-    steers a body already at its frame.
+  - Found 2026-11-11: two causes. (1) Ours, fixed: its owner's rest was steered to on every physics step with no end,
+    and a steered body never sleeps (all 18 bodies awake at 3-8 units/s within 0.8 units of their rests, 14 of 14 saved
+    runs). A copy's body within half a unit of its rest is now put exactly there once and left
+    (`BodyPrediction::AtRest`, `CopyRagdollPhysics`); `ragdoll-lies-as-host` went from failing every run (dev too) to
+    3 of 4. (2) Open: with our steering gone the dead copy's bodies still move at about 4 units/s, asleep for one
+    frame every half second. Nothing of ours touches them then (logged). The engine drives a dead actor's ragdoll
+    through `driveToPose` with powered controls on both games (logged: enabled 1, powered 1, rigid 0), and the
+    owner's sleeps; a guess, unverified: the copy's graph poses it differently after its death (its stream ends at the
+    death action), so its motors keep pushing.
+  - Start: the dead owner's and copy's graph states and clips after a kill move's death (`AnimTrace` in
+    `kill-move-kills-guest`), then what pose the powered controls aim at.
   - Test: a `RagdollTrace` check that a copy sleeps within a second of its owner (`kill-move-kills-guest`).
 - **Dead guest's copy can have a displaced pose.** The original report was a 16-unit body offset with three bones
   displaced up to 17 units. The reduced build passes one complete guest death/revive and one kill-move scenario

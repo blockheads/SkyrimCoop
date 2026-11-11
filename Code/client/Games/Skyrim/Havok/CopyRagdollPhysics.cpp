@@ -9,6 +9,7 @@
 #include <Physics/BodyPrediction.h>
 #include <Physics/RagdollPending.h>
 #include <RTTI.h>
+#include <map>
 #include <mutex>
 
 struct hkbContext;
@@ -18,6 +19,7 @@ namespace
 {
 std::mutex s_bodyLock;
 RagdollPending s_bodies;
+std::map<std::pair<uint32_t, uint8_t>, glm::vec3> s_rested; // the copies' bodies put at their owners' rests
 
 void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
 {
@@ -39,6 +41,22 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         if (!pBody || !pRigid->IsDynamic())
             continue;
         BodyRead read;
+        // At its owner's rest: put exactly there once, then left to fall asleep (steering wakes it each step).
+        const auto cBody = std::make_pair(aCopy.formID, cFrame.Key.Index);
+        if (cDrive.Rest && ReadBody(*pBody, read) && BodyPrediction::AtRest(read.Position, read.Rotation, cFrame))
+        {
+            std::scoped_lock lock(s_bodyLock);
+            if (const auto it = s_rested.find(cBody); it == s_rested.end() || it->second != cFrame.Position)
+            {
+                s_rested[cBody] = cFrame.Position;
+                PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, {}, {}, true);
+            }
+            continue;
+        }
+        {
+            std::scoped_lock lock(s_bodyLock);
+            s_rested.erase(cBody);
+        }
         if (ReadBody(*pBody, read) && glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
         {
             const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, cFrame);
@@ -94,8 +112,8 @@ void HoldCopyRagdollStill(Actor& aCopy) noexcept
             SteerBody(*pBody, {}, {});
 }
 
-void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace) noexcept
+void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace, bool aRest) noexcept
 {
     std::scoped_lock lock(s_bodyLock);
-    s_bodies.Put(aFormId, acFrame, aPlace);
+    s_bodies.Put(aFormId, acFrame, aPlace, aRest);
 }
