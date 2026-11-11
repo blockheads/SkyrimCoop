@@ -28,6 +28,8 @@ struct IGraphTarget
     // The event's clip files loading into a process's set, as its owner's process did (ActionClips): null when it
     // needs none or has them. A clip started without its file lasts 0.0133 s (59263).
     [[nodiscard]] virtual std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) = 0;
+    // The picks its owner's nodes made from outside the graph in the update that follows: its own nodes take them.
+    virtual void Picks(std::span<const GraphPick> aPicks) = 0;
     virtual void Update(float aStep) = 0;                                 // 63587, every op at once (interpolation off)
     virtual void Generate() = 0; // the generate pass (63568), where its owner ran one: never on its own
 };
@@ -52,6 +54,10 @@ struct GraphRecorder
     void Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId);
     // Its generate pass (63568), once after each frame its graph updated in: modifiers move there.
     void Generate(uint64_t aTick);
+    // During its update, each update the node picks in: its pick from outside the graph (GraphPick). It goes with
+    // that update when it changed or the node was idle before. ForgetPicks: a copy started now may lack them.
+    void Pick(uint16_t aNode, int32_t aValue);
+    void ForgetPicks() noexcept { m_picked.clear(); }
     // After its update: what the graph wrote itself, which the copy's graph writes too.
     void Updated(std::span<const uint32_t> aWords);
     [[nodiscard]] uint32_t Updates() const noexcept
@@ -69,6 +75,13 @@ struct GraphRecorder
     std::vector<GraphRecordedOp> m_ops;
     uint32_t m_updates = 0;
     uint32_t m_takenUpdates = 0;
+    struct Picked
+    {
+        int32_t Value = 0;
+        uint32_t Update = 0; // m_updates at its last pick; 0: none
+    };
+    std::unordered_map<uint16_t, Picked> m_picked; // each node's last pick
+    bool m_open = false; // its last op is an update still running: not taken until it ends (its picks go with it)
 };
 
 // One batch from several actors' ops: each update's frame in a table they share.
@@ -149,6 +162,7 @@ struct GraphStreams
     // apGraph: which graph it is; another one (a 3D reload) starts its recording over, so its copies ask for a point.
     void OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::span<const uint32_t> aWords,
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
+    void OnPick(uint32_t aFormId, uint16_t aNode, int32_t aValue);
     void OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
     // An owner on its own body (in a pair: the instance drives its clip, 32803): nothing of it is recorded while
     // aOwnBody, and its recording starts over after, so its copies ask for a point. Returns whether it is paused.

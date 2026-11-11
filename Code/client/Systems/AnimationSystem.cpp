@@ -131,6 +131,14 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             }
             actions.pop_front();
             TargetFromNetwork(action);
+            // Its owner's get-up: its own body is prepared and queued to rise (BeginGetUp 40150, knock state 5); the
+            // get-up itself is its graph's, from the stream.
+            const auto* pGetUp = DefaultObjectManager::GetObject(DefaultObjectManager::kActionGetUp);
+            if (KnockReplay::StandsUp(apActor->actorState.GetKnockState(), pGetUp && action.ActionId == pGetUp->formID))
+            {
+                PrepareCopyGetUp(*apActor);
+                apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (5u << 25);
+            }
             // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
             // weapon transition kept as a replayed action keeps them.
             apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);

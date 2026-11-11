@@ -881,18 +881,19 @@ TEST_CASE("A copy asking while its owner's walk blend cross-blends gets its poin
 
 TEST_CASE("A streamed copy knocked down with its owner gets up with it", "[animation][replay-start][knock]")
 {
-    // Skyrim (duo, knockdown-lies-as-host, 2026-11-09): "got up: owner 1.54 s, copy never". A copy stands up only by
-    // its owner's ActionGetUp replayed on it (AnimationSystem, KnockReplay), and a copy on the stream takes actions as
-    // bookkeeping. Knocked down, a copy is on its own body: off the stream until it stands, then a new sync point.
+    // Skyrim (duo, knockdown-lies-as-host, 2026-11-09): "got up: owner 1.54 s, copy never". A copy's own body stands
+    // up only by its owner's ActionGetUp (AnimationSystem, KnockReplay), which a copy on the stream takes as
+    // bookkeeping: that bookkeeping stands it up, and its graph's get-up is the stream's.
     WolfTurn wolf;
     for (auto* engine : {&wolf.host, &wolf.guest})
         engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "Standing";
     auto& streams = wolf.party.Guest().GetGraphStreams();
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    const size_t cPoints = SyncPoints(cCopy);
     wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
     wolf.guest.Actors.at(wolf.copy).KnockedDown = true; // with its owner's ragdoll (physics_flows)
-    wolf.party.Until([&] { return streams.Held(wolf.copy) && !streams.OnStream(wolf.copy); }, "the copy is off its owner's stream while it lies");
-    const size_t cPoints = SyncPoints(cCopy);
+    const double cLying = cCopy.Graph.Timeline;
+    wolf.party.Until([&] { return cCopy.Graph.Timeline > cLying + 100.0; }, "the copy replays its owner's stream while it lies");
     ActionEvent getUp;
     getUp.ActionId = FakeEngine::kActionGetUp;
     getUp.EventName = "GetUpBegin";
@@ -901,8 +902,94 @@ TEST_CASE("A streamed copy knocked down with its owner gets up with it", "[anima
         REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
     });
     wolf.party.Until([&] { return !cCopy.KnockedDown; }, "the copy gets up with its owner");
-    wolf.party.Until([&] { return !streams.Held(wolf.copy) && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
-                     "and is back on its owner's stream from a new sync point");
+    CHECK(streams.OnStream(wolf.copy));
+    CHECK(SyncPoints(cCopy) == cPoints); // it never left its stream
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A knocked-down copy gets up the way its owner does, on its owner's stream", "[animation][replay-start][knock][pick]")
+{
+    // Skyrim (duo, knockdown-lies-as-host, 2026-11-11, dev's plugin and the stream alike): "it turned away from the
+    // owner's facing: 40-51 deg for 0.5-0.8 s". A get-up's clip is picked from the ragdoll's pose
+    // (hkbPoseMatchingGenerator 59583), each game's own, and a knocked-down copy was off its owner's stream.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "GettingUp";
+        engine->Graph->Matches = {{"GettingUp", {"FaceUp", "FaceDown"}}};
+        engine->Graph->Clips.push_back({.State = "GettingUp", .Ms = 500, .Starts = {"Standing"}});
+    }
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    const size_t cPoints = SyncPoints(cCopy);
+    wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
+    wolf.host.Actors.at(wolf.wolf).LyingPose = 1;        // face down
+    wolf.guest.Actors.at(wolf.copy).KnockedDown = true;  // with its owner's ragdoll (physics_flows)
+    wolf.guest.Actors.at(wolf.copy).LyingPose = 0;       // its own ragdoll came to rest face up
+    const double cLying = cCopy.Graph.Timeline;
+    wolf.party.Until([&] { return cCopy.Graph.Timeline > cLying + 100.0; }, "the copy replays its owner's stream while it lies");
+    CHECK(streams.OnStream(wolf.copy));
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    wolf.party.As(wolf.party.Host(), [&] {
+        wolf.host.Actors.at(wolf.wolf).KnockedDown = false;
+        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
+    });
+    wolf.party.Until([&] { return cCopy.GraphState == "GettingUp" && !cCopy.Graph.Child.empty(); }, "the copy starts getting up");
+    CHECK(cOwner.Graph.Child == "FaceDown");
+    CHECK(cCopy.Graph.Child == "FaceDown"); // its owner's pick, not its own ragdoll's
+    wolf.party.Until([&] { return !cCopy.KnockedDown && cCopy.GraphState == "Standing"; }, "the copy is up with its owner");
+    CHECK(streams.OnStream(wolf.copy));
+    CHECK_FALSE(streams.Held(wolf.copy));
+    CHECK(SyncPoints(cCopy) == cPoints); // it never left its stream
+    CHECK(wolf.Difference() == "");
+}
+
+TEST_CASE("A copy started after its owner's first knockdown still gets up as its owner the next time", "[animation][replay-start][knock][pick]")
+{
+    // Skyrim (duo, guest-knockdown-lies-on-host, 2026-11-11): the copy's get-up played no clip and it stayed in knock
+    // state 6. Its owner's GetUpPoseMatcher kept its match from an earlier knockdown, so nothing was new to send, and
+    // the copy's node had none: a sync point leaves an idle node out.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "GettingUp";
+        engine->Graph->Matches = {{"GettingUp", {"FaceUp", "FaceDown"}}};
+        engine->Graph->Clips.push_back({.State = "GettingUp", .Ms = 500, .Starts = {"Standing"}});
+    }
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    const auto cKnockAndRise = [&] {
+        wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
+        wolf.host.Actors.at(wolf.wolf).LyingPose = 1;
+        wolf.guest.Actors.at(wolf.copy).KnockedDown = true;
+        wolf.party.As(wolf.party.Host(), [&] {
+            wolf.host.Actors.at(wolf.wolf).KnockedDown = false;
+            REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
+        });
+        wolf.party.Until([&] { return cCopy.GraphState == "GettingUp"; }, "the copy starts getting up");
+    };
+    cKnockAndRise();
+    wolf.party.Until([&] { return cCopy.GraphState == "Standing"; }, "the copy is up");
+    // A new graph for the copy (its 3D reloaded): it starts over from a sync point taken while both stand.
+    const size_t cPoints = SyncPoints(cCopy);
+    wolf.party.As(wolf.party.Guest(), [&] { wolf.guest.ReloadGraph(wolf.copy, "Standing"); });
+    wolf.party.Until([&] { return SyncPoints(cCopy) > cPoints && streams.OnStream(wolf.copy); }, "the copy starts again from a point");
+    cKnockAndRise();
+    wolf.party.Until([&] { return !cCopy.Graph.Child.empty() || cCopy.GraphState != "GettingUp"; }, "its get-up plays a clip");
+    CHECK(cCopy.Graph.Child == "FaceDown");
+    wolf.party.Until([&] { return cCopy.GraphState == "Standing"; }, "the copy is up again");
+    // A third time, lying the same way: nothing changed for its owner's node, and the copy's forgot its match.
+    cKnockAndRise();
+    wolf.party.Until([&] { return !cCopy.Graph.Child.empty() || cCopy.GraphState != "GettingUp"; }, "its third get-up plays a clip");
+    CHECK(cCopy.Graph.Child == "FaceDown");
+    wolf.party.Until([&] { return cCopy.GraphState == "Standing"; }, "the copy is up a third time");
+    CHECK(wolf.Difference() == "");
 }
 
 TEST_CASE("A guest's kill move takes a streamed copy off its stream until the pair ends", "[animation][replay-start][kill-move]")
@@ -1325,22 +1412,20 @@ TEST_CASE("A copy back off its stream dies with its owner, not as long after an 
     WolfTurn wolf;
     auto& streams = wolf.party.Guest().GetGraphStreams();
     const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
-    // Off its stream (knocked down), it replays its owner's get-up: that action anchors its next.
+    // Off its stream (its own body in a kill move), it replays its owner's action: that action anchors its next.
     for (auto* engine : {&wolf.host, &wolf.guest})
-        engine->GraphTransitions[{"Standing", "GetUpBegin"}] = "Standing";
-    wolf.host.Actors.at(wolf.wolf).KnockedDown = true;
-    wolf.guest.Actors.at(wolf.copy).KnockedDown = true;
-    wolf.party.Until([&] { return streams.Held(wolf.copy); }, "the copy is off its owner's stream while it lies");
+        engine->GraphTransitions[{"Standing", "staggerStart"}] = "Standing";
+    wolf.guest.Actors.at(wolf.copy).InKillMove = true;
+    wolf.party.As(wolf.party.Guest(), [&] { streams.HoldWhile(wolf.copy, true); });
+    wolf.party.Until([&] { return streams.Held(wolf.copy); }, "the copy is off its owner's stream on its own body");
     const size_t cPoints = SyncPoints(cCopy);
-    ActionEvent getUp;
-    getUp.ActionId = FakeEngine::kActionGetUp;
-    getUp.EventName = "GetUpBegin";
-    wolf.party.As(wolf.party.Host(), [&] {
-        wolf.host.Actors.at(wolf.wolf).KnockedDown = false;
-        REQUIRE(wolf.host.PerformAnimation(wolf.wolf, getUp));
-    });
-    wolf.party.Until([&] { return !cCopy.KnockedDown && streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; },
-                     "the copy gets up with its owner and is back on its stream");
+    ActionEvent stagger;
+    stagger.ActionId = 0x13040;
+    stagger.EventName = "staggerStart";
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(wolf.wolf, stagger)); });
+    wolf.party.Until([&] { return cCopy.LatestAnimation.EventName == "staggerStart"; }, "the copy replays its owner's action");
+    wolf.guest.Actors.at(wolf.copy).InKillMove = false;
+    wolf.party.Until([&] { return streams.OnStream(wolf.copy) && SyncPoints(cCopy) > cPoints; }, "the copy is back on its stream");
     // Its graph's clock falls behind its owner's ticks while it is on the stream.
     const uint64_t cFrom = wolf.party.Guest().GetTick();
     wolf.guest.Actors.at(wolf.copy).GraphUpdating = false;

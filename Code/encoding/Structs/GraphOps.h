@@ -15,6 +15,15 @@ struct GraphSeed
     bool operator==(const GraphSeed&) const noexcept = default;
 };
 
+// What a node of its graph took from outside it during an update (a get-up's pose match, 59583): the node's id and
+// the value it settled on. Its copy's node takes the value and reads nothing itself.
+struct GraphPick
+{
+    uint16_t Node = 0;
+    int32_t Value = 0;
+    bool operator==(const GraphPick&) const noexcept = default;
+};
+
 struct GraphOp
 {
     bool Event = false;
@@ -25,6 +34,7 @@ struct GraphOp
                          // that set (ActionClips::Set), which the copy's loads before its next ops
     std::optional<GraphSeed> Seed;                      // the graph's generator, when it changed since the last op
     std::vector<std::pair<uint16_t, uint32_t>> Changed; // variables set since the last op ended, by index, ascending
+    std::vector<GraphPick> Picks;                       // an update's: its nodes' picks during it
     bool operator==(const GraphOp&) const noexcept = default;
 };
 

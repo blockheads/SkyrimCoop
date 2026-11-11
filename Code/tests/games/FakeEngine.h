@@ -566,6 +566,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
+        uint32_t LyingPose = 0;            // the get-up candidate its own ragdoll lies closest to (FakeGraphRules::Match)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
         double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
         double AnimationStepMs = 0.0;         // what this frame's graph update added to AnimationMs

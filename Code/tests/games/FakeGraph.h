@@ -1,6 +1,8 @@
 #pragma once
 
+#include <Structs/GraphOps.h>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -61,9 +63,18 @@ struct FakeGraphRules
         size_t Output = 1;
         float Gain = 10.f;
     };
+    // hkbPoseMatchingGenerator (59583): while State is active its child follows the candidate its game's own ragdoll
+    // lies closest to (the actor's LyingPose), read each update. Outside the graph: no variable, event or seed holds it.
+    // Activating, it forgets its match and plays no child until it has one (GetUpPoseMatcher, duo 2026-11-11).
+    struct Match
+    {
+        std::string State;
+        std::vector<std::string> Children;
+    };
     std::vector<Clip> Clips;
     std::vector<Range> Ranges;
     std::vector<Blend> Blends;
+    std::vector<Match> Matches;
     std::optional<Damp> Damping;
     // Channels (63590): before each update the engine writes Floats[TurnDelta] from this game's actor, its heading's
     // change since its last update over the step (a copy's: its interpolated heading).
@@ -75,6 +86,14 @@ struct FakeGraphRules
             if (cClip.State == acState)
                 return &cClip;
         return nullptr;
+    }
+    // A match node's id (Havok numbers every node of a graph, 58369): past the fake's four fixed ones.
+    [[nodiscard]] std::optional<uint16_t> MatchNode(const std::string& acState) const noexcept
+    {
+        for (size_t i = 0; i < Matches.size(); ++i)
+            if (Matches[i].State == acState)
+                return uint16_t(4 + i);
+        return std::nullopt;
     }
     [[nodiscard]] const Blend* BlendOf(const std::string& acState) const noexcept
     {
@@ -106,6 +125,9 @@ struct FakeGraphMemory
     std::optional<uint32_t> FrozenParameter; // a blend's parameter member, frozen (Blend::FreezeOn)
     double CrossBlendLeftMs = 0.0;   // cross-blending (Blend::CrossBlendOn) while above 0
     std::string PendingChild;        // a Generated blend's child its generate pass picked (its node state)
+    std::optional<GraphPick> Picked; // its match node's match in its last update: an owner's recorder sends new ones
+    std::map<uint16_t, int32_t> Matches; // each match node's match since it activated
+    std::vector<GraphPick> OwnersPicks; // a copy's replay: its owner's picks for the update that follows
     bool ActiveNodesChanged = false; // stateOrTransitionChanged: the next update walks the active nodes
     // Its owner's graph time: an owner's own steps; a copy's from the sync point it loaded, then its own steps.
     double Timeline = 0.0;

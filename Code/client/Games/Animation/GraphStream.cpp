@@ -24,6 +24,7 @@ void GraphRecorder::Record(GraphRecordedOp aOp, std::span<const uint32_t> aWords
         aOp.Op.Seed = m_seed = acSeed;
     // An event's own writes go with the next op; an update's are replaced after it runs (Updated).
     m_after.assign(aWords.begin(), aWords.end());
+    m_open = false;
     m_ops.push_back(std::move(aOp));
 }
 
@@ -34,11 +35,13 @@ void GraphRecorder::Event(uint64_t aTick, uint16_t aEventId, std::span<const uin
 
 void GraphRecorder::Clips(uint64_t aTick, uint8_t aSet, uint16_t aEventId)
 {
+    m_open = false;
     m_ops.push_back({{.Event = true, .EventId = aEventId, .ClipSet = aSet}, aTick, 0.f});
 }
 
 void GraphRecorder::Generate(uint64_t aTick)
 {
+    m_open = false;
     m_ops.push_back({{.Generate = true}, aTick, 0.f});
 }
 
@@ -46,18 +49,43 @@ void GraphRecorder::Update(uint64_t aTick, float aStep, std::span<const uint32_t
 {
     Record({{}, aTick, aStep}, aWords, acSeed);
     ++m_updates;
+    m_open = true;
+}
+
+void GraphRecorder::Pick(uint16_t aNode, int32_t aValue)
+{
+    if (!m_open || m_ops.empty())
+        return;
+    // Sent when it changed, or when the node did not pick in the update before: it was idle, and a copy's node
+    // forgets its pick as it activates.
+    auto& picked = m_picked[aNode];
+    const bool cNew = picked.Value != aValue || picked.Update + 1 != m_updates;
+    picked = {aValue, m_updates};
+    if (cNew)
+        m_ops.back().Op.Picks.push_back({aNode, aValue});
 }
 
 void GraphRecorder::Updated(std::span<const uint32_t> aWords)
 {
     m_after.assign(aWords.begin(), aWords.end());
+    m_open = false;
 }
 
 std::vector<GraphRecordedOp> GraphRecorder::Take(uint32_t& aFirstUpdate)
 {
     aFirstUpdate = m_takenUpdates;
-    m_takenUpdates = m_updates;
-    return std::exchange(m_ops, {});
+    if (!m_open || m_ops.empty())
+    {
+        m_takenUpdates = m_updates;
+        return std::exchange(m_ops, {});
+    }
+    // An update still running stays for the next take.
+    auto open = std::move(m_ops.back());
+    m_ops.pop_back();
+    m_takenUpdates = m_updates - 1;
+    auto taken = std::exchange(m_ops, {});
+    m_ops.push_back(std::move(open));
+    return taken;
 }
 
 GraphOps BatchGraphOps(const std::vector<GraphRecordedRun>& acRuns)
@@ -225,6 +253,7 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
         else
         {
             m_current.store(cOp.Next, std::memory_order_relaxed);
+            aTarget.Picks(cOp.Op.Picks);
             aTarget.Update(cOp.Step);
             ++updates;
         }
@@ -336,6 +365,16 @@ void GraphStreams::OnUpdate(uint32_t aFormId, uint64_t aTick, float aStep, std::
     }
 }
 
+void GraphStreams::OnPick(uint32_t aFormId, uint16_t aNode, int32_t aValue)
+{
+    if (const auto pOwned = FindOwned(aFormId))
+    {
+        std::scoped_lock _{pOwned->Lock};
+        if (!pOwned->Paused)
+            pOwned->Recorder.Pick(aNode, aValue);
+    }
+}
+
 void GraphStreams::OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords)
 {
     if (const auto pOwned = FindOwned(aFormId))
@@ -389,6 +428,7 @@ void GraphStreams::AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint)
         }
         aPoint.Id = pOwned->ActorId;
         aPoint.Update = pOwned->Recorder.Updates();
+        pOwned->Recorder.ForgetPicks(); // the point leaves out idle nodes: the copy it starts may lack their picks
     }
     std::scoped_lock _{m_lock};
     m_points.push_back(std::move(aPoint));

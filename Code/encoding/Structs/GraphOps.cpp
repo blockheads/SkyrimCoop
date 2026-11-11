@@ -8,6 +8,7 @@ constexpr uint64_t cMaxFrames = 4096;
 constexpr uint64_t cMaxRuns = 4096;
 constexpr uint64_t cMaxOps = 65536;
 constexpr uint64_t cMaxChanged = 4096;
+constexpr uint64_t cMaxPicks = 64;
 constexpr uint32_t cNoFrame = UINT32_MAX;
 
 bool ReadVarInt(Wire::Buffer::Reader& aReader, uint64_t& aValue) noexcept
@@ -81,7 +82,7 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
         // An update's generate pass right after it goes with it.
         const bool cGenerated = cUpdate && i + 1 < acRun.Ops.size() && acRun.Ops[i + 1].Generate;
         const bool cNext = cUpdate && lastFrame != cNoFrame && cOp.Frame == lastFrame + 1;
-        const bool cEmpty = cNext && cGenerated && !cOp.Seed && cOp.Changed.empty();
+        const bool cEmpty = cNext && cGenerated && !cOp.Seed && cOp.Changed.empty() && cOp.Picks.empty();
         aWriter.WriteBits(cEmpty, 1);
         if (cUpdate)
             lastFrame = cOp.Frame;
@@ -106,6 +107,16 @@ void GraphOps::WriteRun(Wire::Buffer::Writer& aWriter, const GraphOpsRun& acRun)
             if (!cNext)
                 Wire::Serialization::WriteVarInt(aWriter, cOp.Frame);
             aWriter.WriteBits(cGenerated, 1);
+            aWriter.WriteBits(!cOp.Picks.empty(), 1);
+            if (!cOp.Picks.empty())
+            {
+                Wire::Serialization::WriteVarInt(aWriter, cOp.Picks.size());
+                for (const auto& cPick : cOp.Picks)
+                {
+                    aWriter.WriteBits(cPick.Node, 16);
+                    aWriter.WriteBits(static_cast<uint32_t>(cPick.Value), 32);
+                }
+            }
         }
         aWriter.WriteBits(cOp.Seed.has_value(), 1);
         if (cOp.Seed)
@@ -198,6 +209,16 @@ bool GraphOps::ReadRun(Wire::Buffer::Reader& aReader, GraphOpsRun& aRun, size_t 
                 return false;
             op.Frame = lastFrame = static_cast<uint32_t>(frame);
             generated = generate != 0;
+            uint64_t picked = 0, picks = 0;
+            if (!aReader.ReadBits(picked, 1) || (picked && (!ReadVarInt(aReader, picks) || !picks || picks > cMaxPicks)))
+                return false;
+            for (uint64_t i = 0; i < picks; ++i)
+            {
+                uint64_t node = 0, value = 0;
+                if (!aReader.ReadBits(node, 16) || !aReader.ReadBits(value, 32))
+                    return false;
+                op.Picks.push_back({static_cast<uint16_t>(node), static_cast<int32_t>(static_cast<uint32_t>(value))});
+            }
         }
         if (!aReader.ReadBits(bit, 1))
             return false;

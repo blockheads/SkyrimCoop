@@ -75,13 +75,12 @@ TEST_CASE("A copy holds its pose until its owner's death, or its time", "[copies
 TEST_CASE("A copy getting off its mount is on its own body until its sit state leaves wants-to-stand", "[replay][graph-stream]")
 {
     // Nothing else marks it: a copy's exit sets no GETTING_ON_OFF_MOUNT (Actor::Dismount 37906 never runs for it).
-    CHECK(ReplayState::CopyOwnBody(false, false, false, false, ReplayState::kSitWantsToStand));
-    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, false, 0));
-    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, false, 3)); // sitting: riding, on its stream
-    CHECK(ReplayState::CopyOwnBody(false, false, false, true, 2));        // getting on: the engine's flag
-    CHECK(ReplayState::CopyOwnBody(true, false, false, false, 0));
-    CHECK(ReplayState::CopyOwnBody(false, true, false, false, 0));
-    CHECK(ReplayState::CopyOwnBody(false, false, true, false, 0));
+    CHECK(ReplayState::CopyOwnBody(false, false, false, ReplayState::kSitWantsToStand));
+    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, 0));
+    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, 3)); // sitting: riding, on its stream
+    CHECK(ReplayState::CopyOwnBody(false, false, true, 2)); // getting on: the engine's flag
+    CHECK(ReplayState::CopyOwnBody(true, false, false, 0));
+    CHECK(ReplayState::CopyOwnBody(false, true, false, 0));
 }
 
 TEST_CASE("An action carries its owner's graph state only for copies that take actions", "[replay-state]")
@@ -89,6 +88,6 @@ TEST_CASE("An action carries its owner's graph state only for copies that take a
     CHECK(ReplayState::CarriesGraphState(false, false, false));
     CHECK_FALSE(ReplayState::CarriesGraphState(true, false, false)); // a pair's half
     CHECK_FALSE(ReplayState::CarriesGraphState(false, true, false)); // its copies replay its stream
-    CHECK(ReplayState::CarriesGraphState(false, true, true));        // knocked down: its copies play its get-up
+    CHECK(ReplayState::CarriesGraphState(false, true, true));        // on its own body: its copies play its actions
     CHECK_FALSE(ReplayState::CarriesGraphState(true, true, true));
 }

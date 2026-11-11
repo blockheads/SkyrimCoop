@@ -1,6 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include <Games/Animation/ReplayState.h>
+#include <Games/KnockReplay.h>
 #include <SessionIds.h>
 #include "FakeDialogue.h"
 #include <MainLoopTasks.h>
@@ -250,6 +251,9 @@ void World::Update() noexcept
                     break;
                 }
                 animation.TimePoints.pop_front();
+                // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
+                if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
+                    actor.KnockedDown = false;
                 actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);

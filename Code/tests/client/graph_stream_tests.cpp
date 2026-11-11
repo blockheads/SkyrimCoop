@@ -3,6 +3,7 @@
 #include <catch2/catch.hpp>
 
 #include <bit>
+#include <format>
 
 namespace
 {
@@ -46,9 +47,20 @@ struct ToyGraph final : IGraphTarget
         Asked.emplace_back(aSet, aEventId);
         return Clips;
     }
+    // A node that reads outside the graph: an owner's reads Outside; a copy's takes its owner's pick.
+    std::optional<int32_t> Outside;
+    int32_t Match = -1;
+    void Picks(std::span<const GraphPick> aPicks) override
+    {
+        for (const auto& cPick : aPicks)
+        {
+            Match = cPick.Value;
+            Calls.push_back(std::format("pick {} {}", cPick.Node, cPick.Value));
+        }
+    }
     void Update(float aStep) override
     {
-        State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Vars[3] + Seed.Current;
+        State = State * 17 + std::bit_cast<uint32_t>(aStep) + Vars[0] + Vars[1] + Vars[3] + Seed.Current + uint32_t(Match + 1) * 1000;
         Vars[2] = uint32_t(State); // a variable the graph writes itself
         Calls.push_back("update");
     }
@@ -63,6 +75,12 @@ struct ToyGraph final : IGraphTarget
 void OwnerUpdate(GraphRecorder& aRecorder, ToyGraph& aGraph, uint64_t aTick, float aStep)
 {
     aRecorder.Update(aTick, aStep, aGraph.Vars, aGraph.Seed);
+    // Its node's read from outside, during the update (59583): a new match goes with this update.
+    if (aGraph.Outside && *aGraph.Outside != aGraph.Match)
+    {
+        aGraph.Match = *aGraph.Outside;
+        aRecorder.Pick(7, aGraph.Match);
+    }
     aGraph.Update(aStep);
     aRecorder.Updated(aGraph.Vars);
 }
@@ -502,6 +520,7 @@ TEST_CASE("An owner in a pair is not recorded, gives no point, and starts over a
     CHECK_FALSE(streams.PauseWhile(0x50, false));
     CHECK(streams.PointWanted(0x50));
     streams.OnUpdate(0x50, 3, 0.016f, graph.Vars, graph.Seed);
+    streams.OnUpdated(0x50, graph.Vars);
     const auto cOps = streams.TakeOps();
     REQUIRE(cOps);
     CHECK(cOps->Runs[0].FirstUpdate == 0); // its recording started over: its copies see the gap
@@ -587,3 +606,92 @@ TEST_CASE("A copy held for its owner's pair asks for its point only once it play
     CHECK_FALSE(streams.Held(0x99));
     CHECK(streams.OnStream(0x99));
 }
+
+TEST_CASE("A node's pick from outside the graph goes with its update, and the copy's node takes it", "[graph-stream][pick]")
+{
+    // Skyrim: a get-up's hkbPoseMatchingGenerator picks its clip from the ragdoll's pose (59583), each game's own.
+    GraphRecorder recorder;
+    GraphReplayer replayer;
+    ToyGraph owner, copy;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    replayer.Load(Point(owner, recorder.Updates()));
+    owner.Outside = 2; // its ragdoll lies face down
+    OwnerUpdate(recorder, owner, 2, 0.016f);
+    OwnerUpdate(recorder, owner, 3, 0.016f); // the same match: no pick
+    const GraphOps cOps = Batch(recorder);
+    REQUIRE(cOps.Runs[0].Ops.size() == 3);
+    CHECK(cOps.Runs[0].Ops[1].Picks == std::vector<GraphPick>{{7, 2}});
+    CHECK(cOps.Runs[0].Ops[2].Picks.empty());
+
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    cOps.Serialize(writer);
+    Wire::Buffer::Reader reader(&buffer);
+    GraphOps read;
+    REQUIRE(read.Deserialize(reader));
+    CHECK(read == cOps);
+
+    copy.Outside = 1; // its own ragdoll lies face up: never read
+    replayer.Feed(read.Runs[0], read.Frames);
+    CHECK(replayer.Run(3, copy) == 2);
+    CHECK(copy.Calls == std::vector<std::string>{"load", "pick 7 2", "update", "update"});
+    CHECK(copy.State == owner.State);
+}
+
+TEST_CASE("An update still running is not taken: a pick made in it goes with it", "[graph-stream][pick]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    recorder.Update(2, 0.016f, owner.Vars, owner.Seed); // its update begins on its graph's thread
+    uint32_t first = 9;
+    auto ops = recorder.Take(first); // the send round, meanwhile
+    CHECK(first == 0);
+    REQUIRE(ops.size() == 1);
+    recorder.Pick(7, 1);
+    owner.Update(0.016f);
+    recorder.Updated(owner.Vars);
+    ops = recorder.Take(first);
+    CHECK(first == 1);
+    REQUIRE(ops.size() == 1);
+    CHECK(ops[0].Op.Picks == std::vector<GraphPick>{{7, 1}});
+}
+
+TEST_CASE("A node's pick is sent once, and again after a sync point", "[graph-stream][pick]")
+{
+    // Skyrim (duo, 2026-11-11): GetUpPoseMatcher kept its match from one knockdown to the next, so the second sent
+    // nothing, and a copy started in between had none: its get-up played no clip.
+    GraphStreams streams;
+    streams.Record(0x50, 7);
+    ToyGraph graph;
+    const auto cUpdate = [&](uint64_t aTick, int32_t aMatch) {
+        streams.OnUpdate(0x50, aTick, 0.016f, graph.Vars, graph.Seed);
+        streams.OnPick(0x50, 61, aMatch); // each update its node matches in
+        streams.OnUpdated(0x50, graph.Vars);
+    };
+    cUpdate(1, 1);
+    cUpdate(2, 1);
+    auto ops = streams.TakeOps();
+    REQUIRE(ops);
+    CHECK(ops->Runs[0].Ops[0].Picks == std::vector<GraphPick>{{61, 1}});
+    CHECK(ops->Runs[0].Ops[1].Picks.empty());
+    streams.WantPoint(0x50);
+    REQUIRE(streams.PointWanted(0x50));
+    streams.AddPoint(0x50, {.State = "1"}); // a copy starts here, the node idle in it
+    cUpdate(3, 1);
+    ops = streams.TakeOps();
+    REQUIRE(ops);
+    CHECK(ops->Runs[0].Ops[0].Picks == std::vector<GraphPick>{{61, 1}});
+    // The node idle for an update (the actor stood up), then matching again with the same result: a copy's node
+    // forgot its match as it activated (duo: "takes its owner's match 0 (had -1)" only at the owner's first change).
+    streams.OnUpdate(0x50, 4, 0.016f, graph.Vars, graph.Seed);
+    streams.OnUpdated(0x50, graph.Vars);
+    cUpdate(5, 1);
+    cUpdate(6, 1);
+    ops = streams.TakeOps();
+    REQUIRE(ops);
+    REQUIRE(ops->Runs[0].Ops.size() == 3);
+    CHECK(ops->Runs[0].Ops[1].Picks == std::vector<GraphPick>{{61, 1}});
+    CHECK(ops->Runs[0].Ops[2].Picks.empty());
+}
+

@@ -99,8 +99,7 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 
 | case | why the stream pauses | after |
 |---|---|---|
-| ragdoll (knocked down, dead) | the graph is driven by the copy's own ragdoll (`BSRagdollContactListenerModifier`) | death: the stream ends |
-| get-up | the clip is picked from the copy's ragdoll pose (`hkbPoseMatchingGenerator`) | sync point once the owner stands |
+| death | its ragdoll is its own body's | the stream ends |
 | paired animations (kill moves) | a synchronized clip plays against its partner's graph (`BSSynchronizedClipGenerator`) | sync point after the pair |
 
 - **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
@@ -114,10 +113,49 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   before the stream, and is back from a sync point taken after that action. The owner is not recorded while it is in
   an instance (`GraphStreams::PauseWhile`, 32808): it gives no point, and its recording starts over after, so its
   copies see the gap and ask. A synchronized clip waits for the mark on its instance, which no stream carries.
-- **Knock-downs: built (2026-11-09).** A copy stands up only by its owner's `ActionGetUp` replayed on it
-  (`AnimationSystem`, `KnockReplay`), and a copy on the stream takes actions as bookkeeping: it never got up
-  (`knockdown-lies-as-host`). While its knock state is not 0 the copy is held off its stream the same way, and asks
-  for a sync point once it stands. A death ends the stream (`AnimationSystem`).
+- **Knock-downs: on the stream since 2026-11-11** (A node's pick, below). Before, a knocked-down copy was held off
+  its stream until it stood (built 2026-11-09). A death ends the stream (`AnimationSystem`).
+
+## A node's pick: get-ups on the stream (2026-11-11)
+
+A get-up's clip is chosen by `hkbPoseMatchingGenerator` from its ragdoll's pose (59583), each game's own. The choice
+is one integer, `currentMatch`, and it is all the graph takes from the ragdoll. So it is an input:
+
+```
+owner, in its update: 59583 runs, the node matching  ->  OnPick(node id, currentMatch)
+  its recorder adds GraphPick { node, value } to that update's op when the value changed,
+  or the node did not pick in the update before (it was idle), or a sync point was given since
+copy, replaying that update: the pick written into its node (the first takes its child's whole weight, as 59583's
+  own first match), and its 59583 run in play mode: it reads no ragdoll
+```
+
+- **A knocked-down copy stays on its stream** (`ReplayState::CopyOwnBody` no longer counts it). Its own body is still
+  its own: knocked down with its owner's frames (`BodyBridge::KnockedDown`), and stood up when its owner's
+  `ActionGetUp` arrives as bookkeeping (`AnimationSystem`: `BeginGetUp` 40150, knock state 5, `KnockReplay::StandsUp`).
+  Its graph's get-up comes from the stream, so the engine's own handlers end it: `GetUpStart` (42879), `GetUpEnd`
+  (42880, which queues `AIProcess::EndKnock` 39897).
+- **Why "when it changed" was not enough** (duo, `guest-knockdown-lies-on-host`): activating, a node forgets its
+  match (a copy's read "had -1" at every knockdown) and an owner's matches again at once, often to the same value. A
+  copy sent nothing played no clip, raised no `GetUpEnd` and stayed in knock state 6.
+- **The first match** of an owner's node ran outside its recorded update once (its log: "in its recorded update:
+  false"); the next update's report sends it.
+- **Measured** (duo, one knockdown of the guest's player, 2026-11-11): the copy's graph raised `GetUpStart`, `Getup`
+  and `GetUpEnd` 0.11 s after its owner's each, over a 6 s get-up.
+- **Scenarios** (seven runs each over three boots, the final build): `guest-knockdown-lies-on-host` 7 of 7;
+  `knockdown-lies-as-host` 4 of 7 and `knockdown-smoke` 4 of 7 (each 0 of 3 on dev's plugin and before);
+  `knockdown-front-and-back` 0 of 3, as on dev (the visible skeleton up to 30 units off). 22 other stream scenarios
+  (kill moves, mounts, hands, casts, furniture) passed once each; `kill-move-kills-guest` 3 of 4 (once the dead
+  copy's ragdoll never slept: bugs.md, Copy ragdolls at rest).
+- **What still fails is the body's, not the graph's.** The copy still turns 49-50 degrees away for 0.6-0.7 s at its
+  get-up in 2 of 7 runs, both in knock state 6: its graph plays its owner's clip, but its knock update (39896, state
+  5) sets the actor's heading from its own ragdoll's bones before its owner's heading reaches it. Next: a copy's
+  heading at that step from its owner. The rest: a snap the owner does not have (smoke, 2 of 7), ragdoll flicker
+  while lying (1 of 7), and once the host's own Lydia 172 units above the floor at the end (not looked into).
+- **Tests:** GameTests `[pick]` (the fake's match node reads its game's own `LyingPose`, forgets its match as it
+  activates, and plays no child without one); ClientTests `[graph-stream][pick]`, `[knock-replay]`; TPTests'
+  round trip.
+- Not done: the ragdoll contact event (63091), the paired clip's scene answers (63050), the dragon's trigger: the
+  same op fits each.
 
 ## Hands on a streamed copy (2026-11-11)
 
@@ -494,3 +532,49 @@ What it found on the duo (2026-11-09), in order:
 - **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs of the proof, Faendal's copy entered
   `FurnitureState` with `AOWoodPutDown` lacking its file and left it at once. The production replayer holds an event
   for its files (below); whether that covers this event is for the live check to show.
+
+## What the exceptions have in common (2026-11-11: read, nothing built)
+
+Asked: is there one cause behind the list in `CopyOwnBody`? Two, and only the first is the graph's.
+
+**1. A node reads outside its graph.** Every node class in every vanilla behaviour file (61 classes, 38 actors; the
+class names in the Animations BSA's `.hkx` files): four let something outside the graph change its state.
+
+| class | actors | reads | keeps it as (reflected members) |
+|---|---|---|---|
+| `BSRagdollContactListenerModifier` | 29 | a physics contact (63092 sets `+0x70`) | an event it queues (63091) |
+| `hkbPoseMatchingGenerator` | 36 | the ragdoll's pose | `currentMatch`, `bestMatch`, `timeSinceBetterMatch` |
+| `BSSynchronizedClipGenerator` | 17 | its scene: all at mark, all in scene (63050) | `bAtMark`, `bAllCharactersAtMarks`, `bAllCharactersInScene` |
+| `BSPassByTargetTriggerModifier` | dragon | where its target is | `targetPassed`, an event |
+
+- Pose only, or a variable the stream already carries: look-at, direct-at, foot and limb IK, the ragdoll controls,
+  `hkbGetUpModifier`, `hkbRotateCharacterModifier`, `BSSpeedSamplerModifier`, `BSGetTimeStepModifier`. The rest read
+  variables, events and time.
+- Each of the four turns what it read into a few values in its own memory or an event in the graph's own queue
+  (`hkbEventQueue`, not 63591): neither is an op today. The reader sync points use (`NodeMemory`) reads those members.
+- A behaviour mod cannot add a node class (they are compiled into the game), so the list is closed. In the executable
+  but in no vanilla behaviour: `hkbDetectCloseToGroundModifier`, `hkbSenseHandleModifier`, `hkbCatchFallModifier`,
+  `hkbCheckRagdollSpeedModifier`, `hkbTargetRigidBodyModifier`, `BSDistTriggerModifier`.
+- The dragon's trigger is on no exception list: whether a dragon's copy differs there has not been looked at.
+
+**2. Two owners in one animation.** A guest's kill move on the host's wolf: on the guest's game the attacker is live
+and the wolf's stream arrives a round trip later. No recording fixes that; the copy has to play its half locally
+(today's `InPair` case), or the pair needs one owner for its length. Riding another game's horse is the same.
+
+Read the same day (IDA, journaled):
+
+- **The get-up pick is one integer.** `hkbPoseMatchingGenerator`'s update (59576) calls its match step (59583), then
+  the blender's update. The match step reads the ragdoll's pose only while its mode is matching: the closest candidate
+  into `bestMatch`, and `currentMatch` moved to it once it held long enough and the ragdoll is moving. In play mode it
+  reads nothing. After that, every update, each child's weight steps towards 1 for `currentMatch` and 0 for the rest.
+  So a copy given its owner's `currentMatch`, with its own match step skipped, blends as its owner does.
+- **A pair's events stay in their own graph.** `RemapClipEvents` (63060) renames the events its inner clip queued
+  (`2_KillActor` to `KillActor` for the supporting half) in the same graph's queue. Nothing crosses to the partner's
+  graph. The clip's outside reads are the scene's two answers (all at mark, all in scene) and its character's
+  position against its mark (63050).
+- **A node's own event never passes 63591:** 63091 writes the contact event into the graph's `hkbEventQueue`.
+- Reference: Ersh's Paired Animation Improvements (`reference/plugins/PairedAnimationImprovements`) hooks the same
+  clip (63048, 63050) to rebuild its triggers; it does not touch the scene or the mark.
+
+Not read yet: which of a streamed copy's handlers run on the events its graph raises (the knock state and kill move
+flag are the actor's, not the graph's); the dragon's trigger (63296-63300).

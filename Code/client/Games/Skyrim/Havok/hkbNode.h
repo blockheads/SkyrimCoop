@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Animation/PoseMatch.h>
 #include <Havok/hkbVariableInfo.h>
 
 // Behaviour graph nodes as the variable writers walk reads them: Havok 2010.2 layouts (hkxcmd compat/,
@@ -172,6 +173,47 @@ struct hkbNode
 static_assert(offsetof(hkbNode, bindings) == 0x10);
 static_assert(offsetof(hkbNode, name) == 0x38);
 static_assert(sizeof(hkbNode) == 0x48);
+
+// hkbBlenderGeneratorChild: its weight in its blender.
+struct hkbBlenderGeneratorChild
+{
+    uint8_t pad00[0x40];
+    float weight; // 40
+};
+static_assert(offsetof(hkbBlenderGeneratorChild, weight) == 0x40);
+
+// hkbPoseMatchingGenerator : hkbBlenderGenerator: a get-up's candidates, one picked from the ragdoll's pose (59583;
+// members by Havok's reflection names, offsets read in IDA).
+struct hkbPoseMatchingGenerator : hkbNode
+{
+    static constexpr int8_t kMatching = 0; // reads the ragdoll's pose each update
+    static constexpr int8_t kPlaying = 1;
+
+    // Its owner's match (GraphPick): the first takes the child's whole weight at once, as 59583's own first match.
+    void TakeMatch(int32_t aMatch) noexcept
+    {
+        if (PoseMatch::Snaps(currentMatch))
+            for (int32_t i = 0; i < childCount; ++i)
+                children[i]->weight = i == aMatch ? 1.f : 0.f;
+        currentMatch = aMatch;
+    }
+
+    uint8_t pad48[0x60 - 0x48];
+    hkbBlenderGeneratorChild** children; // 60
+    int32_t childCount;                  // 68
+    uint8_t pad6C[0xD0 - 0x6C];
+    int8_t mode;                // D0
+    int32_t currentMatch;       // D4: -1 before its first
+    int32_t bestMatch;          // D8
+    float timeSinceBetterMatch; // DC
+    float error;                // E0
+    void* poseMatchingUtility;  // E8
+};
+static_assert(offsetof(hkbPoseMatchingGenerator, children) == 0x60);
+static_assert(offsetof(hkbPoseMatchingGenerator, childCount) == 0x68);
+static_assert(offsetof(hkbPoseMatchingGenerator, mode) == 0xD0);
+static_assert(offsetof(hkbPoseMatchingGenerator, currentMatch) == 0xD4);
+static_assert(offsetof(hkbPoseMatchingGenerator, poseMatchingUtility) == 0xE8);
 
 struct hkbBehaviorGraphStringData
 {

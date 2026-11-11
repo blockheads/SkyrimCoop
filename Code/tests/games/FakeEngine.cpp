@@ -268,7 +268,7 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
             graph.Child = graph.PendingChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)];
         }
     }
-    else
+    else if (!Graph->MatchNode(aActor.GraphState))
     {
         graph.BlendState.clear();
         graph.Child.clear();
@@ -276,6 +276,27 @@ void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
         graph.FrozenParameter.reset();
         graph.CrossBlendLeftMs = 0.0;
     }
+    graph.Picked.reset();
+    if (const auto cNode = Graph->MatchNode(aActor.GraphState))
+    {
+        // Its match (59583): its own ragdoll's pose; a copy on its stream takes its owner's and reads nothing.
+        const auto& cChildren = Graph->Matches[*cNode - 4].Children;
+        // Activating, the node forgets its match (duo: a copy's "had -1" at each knockdown); an owner's matches at once.
+        if (graph.BlendState != aActor.GraphState)
+            graph.Matches.erase(*cNode);
+        if (!m_replaying)
+            graph.Matches[*cNode] = int32_t(aActor.LyingPose);
+        else if (const auto it = std::ranges::find(graph.OwnersPicks, *cNode, &GraphPick::Node); it != graph.OwnersPicks.end())
+            graph.Matches[*cNode] = it->Value;
+        graph.BlendState = aActor.GraphState;
+        const auto cMatch = graph.Matches.find(*cNode);
+        // No match yet: no child gets any weight.
+        graph.Child = graph.PendingChild =
+            cMatch == graph.Matches.end() || cChildren.empty() ? std::string{} : cChildren[std::min<size_t>(cMatch->second, cChildren.size() - 1)];
+        if (!m_replaying)
+            graph.Picked = GraphPick{*cNode, cMatch->second}; // each update it matches in (59583's hook)
+    }
+    graph.OwnersPicks.clear();
     const auto* pClip = Graph->ClipOf(aActor.GraphState);
     if (!pClip)
     {
@@ -355,6 +376,9 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
     if (cRecorded)
         streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
     StepGraph(aActor, cStep);
+    // 59583's hook: its node's pick from outside its graph, with this update.
+    if (cRecorded && aActor.Graph.Picked)
+        streams.OnPick(aFormId, aActor.Graph.Picked->Node, aActor.Graph.Picked->Value);
     if (cRecorded)
         streams.OnUpdated(aFormId, GraphWords(aActor));
 }
@@ -389,6 +413,7 @@ struct FakeGraphTarget final : IGraphTarget
         if (const auto cEvents = Engine.GraphEventTable(); aEventId < cEvents.size())
             Engine.TakeGraphEvent(Actor, cEvents[aEventId]);
     }
+    void Picks(std::span<const GraphPick> aPicks) override { Actor.Graph.OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
@@ -418,6 +443,7 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
     actor.GraphVariables = {};
     actor.Graph.ClipStartedAt.reset();
     actor.Graph.Stuck = false;
+    actor.Graph.Matches.clear();
     GraphEntry(actor, "reload");
 }
 
@@ -481,10 +507,9 @@ void FakeEngine::Frame()
     if (Graph)
         for (auto& [cId, actor] : Actors)
         {
-            // On its own body (knocked down, in a pair): off its owner's stream, and back after (Games/Skyrim's
-            // 63587 hook).
-            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && (actor.KnockedDown || streams.Held(cId)))
-                streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.KnockedDown, actor.InPair, actor.InKillMove, false, SitState(cId)));
+            // On its own body (in a pair): off its owner's stream, and back after (Games/Skyrim's 63587 hook).
+            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
+                streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.InPair, actor.InKillMove, false, SitState(cId)));
             if (actor.Copy)
                 World::Get().GetGraphStreams().SeeGraph(cId, GraphIdentity(actor));
             // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
@@ -1364,7 +1389,7 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
             Actors.at(aFormId).ClashUntil = 0;
         // Without a behaviour graph no copy is on a stream (a fixture's scripted transitions alone).
         const auto& cActor = Actors.at(aFormId);
-        const bool cOwnBody = ::ReplayState::CopyOwnBody((cActor.State1 & ::ReplayState::kKnockMask) != 0, false, false, false, SitState(aFormId));
+        const bool cOwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId));
         if (::ReplayState::CarriesGraphState(!aAction.TargetEventName.empty(), Graph && World::Get().GetGraphStreams().Streaming(aFormId), cOwnBody))
             aAction.GraphState = SaveActorGraphState(aFormId);
         Actors.at(aFormId).LatestAnimation = aAction;
@@ -1505,6 +1530,13 @@ bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acS
     graph.Child = cBreak == std::string::npos ? std::string{} : cBlend.substr(cBreak + 1, cSecond == std::string::npos ? std::string::npos : cSecond - cBreak - 1);
     graph.PendingChild = cSecond == std::string::npos ? std::string{} : cBlend.substr(cSecond + 1);
     graph.ActiveNodesChanged = false; // not node state: Havok's restore walk clears it
+    // An active match node's state is in the point; an idle one's is not (58372 walks the active nodes).
+    if (const auto cNode = Graph ? Graph->MatchNode(graph.BlendState) : std::nullopt)
+    {
+        const auto& cChildren = Graph->Matches[*cNode - 4].Children;
+        if (const auto it = std::ranges::find(cChildren, graph.Child); it != cChildren.end())
+            graph.Matches[*cNode] = int32_t(it - cChildren.begin());
+    }
     // Mode 2 on a new clone: its effect has no blenders, and the next active-node walk reads them (63140, 59960).
     const bool cCrossBlending = nodes[1].Runtime == "x";
     RestoredMidCrossBlend += cCrossBlending;

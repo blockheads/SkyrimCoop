@@ -208,6 +208,12 @@ TGenerate* RealGenerate = nullptr;
 thread_local BShkbAnimationGraph* s_owner = nullptr;
 using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
 TSendEvent* RealSendEvent = nullptr;
+using TMatchRagdollPose = void(hkbPoseMatchingGenerator*, void*, float);
+TMatchRagdollPose* RealMatchRagdollPose = nullptr;
+// The owner whose behaviour graph's update runs on this thread (0: none): its nodes' picks go with that update.
+thread_local uint32_t s_recording = 0;
+// A copy's replayed update on this thread: its owner's picks in it.
+thread_local std::span<const GraphPick> s_picks;
 
 // The replayer's surface over a copy's graph, inside its update (63587).
 struct SkyrimGraphTarget final : IGraphTarget
@@ -262,6 +268,8 @@ struct SkyrimGraphTarget final : IGraphTarget
                       pName && pName->data ? pName->data : "?", aSet, loading ? "loading" : "none");
         return loading;
     }
+    std::vector<GraphPick> OwnersPicks;
+    void Picks(std::span<const GraphPick> aPicks) override { OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
     void Update(float aStep) override
     {
         BSAnimationUpdateData data = Data;
@@ -270,7 +278,10 @@ struct SkyrimGraphTarget final : IGraphTarget
         // the engine would not solve it for, which held a dropped creature in the air.
         data.force = false;
         data.interpAllowed = false;
+        s_picks = OwnersPicks;
         Result = RealUpdate(&Graph, &data, Scratch);
+        s_picks = {};
+        OwnersPicks.clear();
     }
     // Inline, not through the behaviour job queue (63568's second argument): the same pass.
     void Generate() override { RealGenerate(&Graph, 0); }
@@ -283,12 +294,10 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         return RealUpdate(apGraph, apData, apScratch);
     auto& streams = World::Get().GetGraphStreams();
     const uint32_t cFormId = apGraph->holder->formID;
-    // On its own body (knocked down: its ragdoll, then its owner's ActionGetUp replayed, AnimationSystem; in a pair):
-    // off its owner's stream, and back from a new sync point once it stands.
-    const bool cKnocked = apGraph->holder->actorState.GetKnockState() != 0;
-    // Its own half of a pair plays out after the instance: its kill move's end, getting on or off its mount.
-    if (cKnocked || streams.Held(cFormId))
-        streams.HoldWhile(cFormId, ReplayState::CopyOwnBody(cKnocked, apGraph->holder->InPair(), apGraph->holder->IsInKillMove(),
+    // On its own body (in a pair): off its owner's stream, and back from a new sync point after. Its own half of a
+    // pair plays out after the instance: its kill move's end, getting on or off its mount.
+    if (streams.Held(cFormId))
+        streams.HoldWhile(cFormId, ReplayState::CopyOwnBody(apGraph->holder->InPair(), apGraph->holder->IsInKillMove(),
                                                             (apGraph->holder->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0,
                                                             apGraph->holder->actorState.GetSitSleepState()));
     streams.SeeGraph(cFormId, apGraph);
@@ -342,8 +351,44 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         streams.AddPoint(cFormId, std::move(point));
     }
     streams.OnUpdate(cFormId, streams.Tick(), aStep, Words(*pGraph), Seed(*pGraph), pGraph);
+    s_recording = cFormId;
     RealBehaviourUpdate(apBehaviour, apContext, aStep);
+    s_recording = 0;
     streams.OnUpdated(cFormId, Words(*pGraph));
+}
+
+// hkbPoseMatchingGenerator's match step (59583), in its update: the get-up candidate its ragdoll lies closest to, the
+// node's one read from outside its graph. An owner's pick goes with its update; a copy's node takes it and reads nothing.
+void HookMatchRagdollPose(hkbPoseMatchingGenerator* apNode, void* apContext, float aStep)
+{
+    if (s_inStream)
+    {
+        for (const auto& cPick : s_picks)
+            if (cPick.Node == apNode->id)
+            {
+                spdlog::debug("Graph stream: a copy's node {} '{}' takes its owner's match {} (had {})", apNode->id,
+                              apNode->name ? apNode->name : "", cPick.Value, apNode->currentMatch);
+                apNode->TakeMatch(cPick.Value);
+            }
+        const int8_t cMode = std::exchange(apNode->mode, hkbPoseMatchingGenerator::kPlaying); // no match of its own
+        RealMatchRagdollPose(apNode, apContext, aStep);
+        apNode->mode = cMode;
+        return;
+    }
+    const int32_t cBefore = apNode->currentMatch;
+    RealMatchRagdollPose(apNode, apContext, aStep);
+    // Its match while it matches, each update: its recorder sends it when it changed or a copy may lack it.
+    const auto* pContext = static_cast<const hkEventContext*>(apContext);
+    if (apNode->mode != hkbPoseMatchingGenerator::kMatching || apNode->currentMatch < 0 || !pContext || !pContext->character)
+        return;
+    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(pContext->character) -
+                                                                      offsetof(BShkbAnimationGraph, character));
+    if (!pGraph->holder || !CopiesHave(*pGraph))
+        return;
+    if (apNode->currentMatch != cBefore)
+        spdlog::debug("Graph stream: {:X}'s node {} '{}' matched {} (had {}); in its recorded update: {}", pGraph->holder->formID, apNode->id,
+                      apNode->name ? apNode->name : "", apNode->currentMatch, cBefore, s_recording == pGraph->holder->formID);
+    World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apNode->id, apNode->currentMatch);
 }
 
 // BShkbAnimationGraph::SendEvent (63591): every input event of a graph, before it handles it.
@@ -355,8 +400,7 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     const uint32_t cFormId = apGraph->holder->formID;
     // A copy on the stream takes its owner's events alone, but in a pair on this game (a kill move's half, 32803):
     // that one plays on its own body, off the stream.
-    if (streams.OnStream(cFormId) &&
-        !streams.HoldWhile(cFormId, apGraph->holder->InPair() || apGraph->holder->actorState.GetKnockState() != 0))
+    if (streams.OnStream(cFormId) && !streams.HoldWhile(cFormId, apGraph->holder->InPair()))
         return false;
     // An owner in a pair (its half comes through here, both already in the instance: 32803) is not recorded.
     if (streams.Recording(cFormId) && !streams.PauseWhile(cFormId, OwnBody(*apGraph->holder)))
@@ -429,6 +473,7 @@ Hooks::Initializer s_graphStreamHooks([]() {
     HOOK_ID(58329, &RealBehaviourUpdate, HookBehaviourUpdate);
     HOOK_ID(63568, &RealGenerate, HookGenerate);
     HOOK_ID(63591, &RealSendEvent, HookSendEvent);
+    HOOK_ID(59583, &RealMatchRagdollPose, HookMatchRagdollPose);
     HOOK_ID(43621, &RealLoadEventClips, HookLoadEventClips);
     HOOK_ID(43622, &RealLoadEventClipsQueued, HookLoadEventClipsQueued);
     HOOK_ID(43624, &RealLoadManagerClips, HookLoadManagerClips);

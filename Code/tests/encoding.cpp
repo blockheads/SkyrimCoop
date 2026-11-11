@@ -2154,9 +2154,11 @@ TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
                                   {.Event = true, .EventId = 78, .ClipSet = 47}, // a movement idle's
                                   {.Frame = 1},
                                   {.Generate = true}, // its generate pass, with the update
-                                  {.Frame = 2, .Changed = {{0, 0x42A343EC}}},
+                                  {.Frame = 2, .Changed = {{0, 0x42A343EC}}, .Picks = {{31, -1}, {40, 3}}}, // its nodes' picks
                                   {.Generate = true},
-                                  {.Frame = 3},
+                                  {.Frame = 3, .Picks = {{31, 2}}}, // a pick alone is no empty update
+                                  {.Generate = true},
+                                  {.Frame = 4},
                                   {.Event = true, .EventId = 6},
                                   {.Generate = true}, // after something else: an op of its own
                                   {.Frame = 5}}, // a skipped frame

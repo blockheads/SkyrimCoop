@@ -2,6 +2,7 @@
 // guest's playback.
 #include <catch2/catch.hpp>
 #include <Games/KnockReplay.h>
+#include <Games/Animation/PoseMatch.h>
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
 
@@ -396,6 +397,19 @@ TEST_CASE("A copy with a ragdoll finishes a get-up action with the native knock-
     CHECK(KnockReplay::AfterAction(0, true, true) == 0);
     CHECK(KnockReplay::AfterAction(1, true, false) == 1);
     CHECK(KnockReplay::AfterAction(6, true, true) == 6);
+}
+
+TEST_CASE("A streamed copy's own body stands up at its owner's get-up; its first match takes its child at once", "[physics][knock-replay][pick]")
+{
+    CHECK(KnockReplay::StandsUp(1, true));
+    CHECK(KnockReplay::StandsUp(4, true));
+    CHECK_FALSE(KnockReplay::StandsUp(1, false)); // another action
+    CHECK_FALSE(KnockReplay::StandsUp(0, true));  // not lying
+    CHECK_FALSE(KnockReplay::StandsUp(5, true));  // rising already
+    // hkbPoseMatchingGenerator (59583): no match yet is -1.
+    CHECK(PoseMatch::Snaps(-1));
+    CHECK_FALSE(PoseMatch::Snaps(0));
+    CHECK_FALSE(PoseMatch::Snaps(2));
 }
 
 TEST_CASE("Havok steps with the frame at any frame rate", "[physics][havok-step]")

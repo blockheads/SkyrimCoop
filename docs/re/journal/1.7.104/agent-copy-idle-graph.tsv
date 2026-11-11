@@ -418,3 +418,34 @@ time	op	id	rva	item
 2026-11-11T09:00:25Z	comment	37279	0x675930	{"addr": "0x140675930", "comment": "SkyrimCoop: draw (a2): runs ActionDraw; weapon state = 1 (wants to draw) when the action is refused, 2 (drawing) when taken. Nothing here reaches 3: only the graph's weaponDraw event (RightHandWeaponDrawHandler 42824) does. Sheathe: ActionSheath, 4 refused / 5 taken; weaponSheathe (42825 -> 37169) sets 0. A copy on its owner's graph stream refuses its own events (63591 hook), so a forced draw leaves it at 1."}
 2026-11-11T09:00:25Z	comment	42824	0x7ccac0	{"addr": "0x1407ccac0", "comment": "SkyrimCoop: the weaponDraw event's result: both hands' weapons attached to the hand nodes (Actor vfunc 0xB4, a3=1), ActorState vfunc 21 (38979) -> weapon state 3, the process's hand state (sub_140728500), third-person camera for the camera's actor. a1 (the handler) is unused."}
 2026-11-11T09:00:25Z	comment	37169	0x66fca0	{"addr": "0x14066fca0", "comment": "SkyrimCoop: the weaponSheathe event's result (RightHandWeaponSheatheHandler 42825 calls only this): both hands' weapons back to their sheath nodes (vfunc 0xB4, a3=0), ActorState vfunc 21 false -> weapon state 0, the process's hand state."}
+2026-11-11T17:19:46Z	read	63091	0xbb2370	{"name": "BSRagdollContactListenerModifier::Modify"}
+2026-11-11T17:19:47Z	read	63050	0xbb0c80	{"name": "BSSynchronizedClipGenerator::Update"}
+2026-11-11T17:20:27Z	comment		0xbb0cf2	{"addr": "0x140bb0cf2", "comment": "Outside read 1 of 2: the scene (+0x70) answers 'all at mark' (+0x12C) and 'all in scene' (+0x12B) each update. The inner clip advances only while +0x12C is set. Reflected as bAllCharactersAtMarks / bAllCharactersInScene."}
+2026-11-11T17:20:27Z	comment		0xbb0e10	{"addr": "0x140bb0e10", "comment": "Outside read 2 of 2: the character's world transform (context +0x88) against its mark, into doneReorientingSupportChar (+0x12A), which the scene reads back (32794)."}
+2026-11-11T17:20:27Z	comment		0xbb2433	{"addr": "0x140bb2433", "comment": "A node's own event goes straight into the graph's hkbEventQueue (context +0x18, else character +0x80), never through BShkbAnimationGraph::SendEvent 63591. The trigger (+0x70) was set by the physics contact callback 63092."}
+2026-11-11T17:23:53Z	read	63060	0xbb1750	{"name": "BSSynchronizedClipGenerator::RemapClipEvents"}
+2026-11-11T17:24:01Z	read	59576	0xb048a0	{"name": "hkbPoseMatchingGenerator::sub_59576"}
+2026-11-11T17:24:01Z	read	59581	0xb04b80	{"name": "hkbPoseMatchingGenerator::sub_59581"}
+2026-11-11T17:24:02Z	read	59578	0xb04910	{"name": "hkbPoseMatchingGenerator::sub_59578"}
+2026-11-11T17:24:12Z	read	59583	0xb04d20	{"name": "hkbPoseMatchingGenerator::sub_59583"}
+2026-11-11T17:24:19Z	name	59583	0xb04d20	{"addr": "0x140b04d20", "name": "hkbPoseMatchingGenerator::MatchRagdollPose_59583"}
+2026-11-11T17:24:19Z	name	59576	0xb048a0	{"addr": "0x140b048a0", "name": "hkbPoseMatchingGenerator::Update_59576"}
+2026-11-11T17:24:23Z	comment	59583	0xb04d20	{"addr": "0x140b04d20", "comment": "The node's only outside read. While mode (+0xD0) is 0 (matching), it has its pose utility (+0xE8) and the character a ragdoll: reads the ragdoll's pose (64153), finds the closest candidate (sub_140BF54A0, error to +0xE0) into bestMatch (+0xD8) and timeSinceBetterMatch (+0xDC), and moves currentMatch (+0xD4) to it once it held long enough and the ragdoll bone (+0xCE) moves faster than +0xB4. In play mode it reads nothing. Then, always: each child's weight (+0x40) steps towards 1 for currentMatch and 0 for the rest, by step * blendSpeed (+0xB0): the graph's result depends only on currentMatch."}
+2026-11-11T17:24:23Z	comment	59576	0xb048a0	{"addr": "0x140b048a0", "comment": "vtable 5: MatchRagdollPose (59583), then hkbBlenderGenerator's update (59522)."}
+2026-11-11T17:42:09Z	read	39896	0x723b60	{"name": "ActorProcess::UpdateKnockState"}
+2026-11-11T17:42:10Z	read	40150	0x735c20	{"name": "coop_beginGetUp"}
+2026-11-11T17:42:35Z	read	38085	0x6b7c40	{"name": "sub_1406B7C40"}
+2026-11-11T17:58:38Z	read	42880	0x7cec80	{"name": "GetUpEndHandler::Handle"}
+2026-11-11T17:58:38Z	read	42879	0x7cead0	{"name": "GetUpStartHandler::Handle"}
+2026-11-11T17:59:13Z	read	36918	0x668310	{"name": "sub_140668310"}
+2026-11-11T17:59:22Z	comment	36918	0x668310	{"addr": "0x140668310", "comment": "Queues task 14 for the actor (from GetUpEndHandler 42880 when iGetUpType is 1 or 2). What the task does is not read yet: expected to end the get-up (knock state 6 to 0)."}
+2026-11-11T17:59:22Z	comment	38085	0x6b7c40	{"addr": "0x1406B7C40", "comment": "Asks every graph of the holder's manager one question through a functor (a2: result byte). In UpdateKnockState 39896: whether the graph has its ragdoll (the hkbRagdollDriver's instance), each game's own, not a graph variable."}
+2026-11-11T17:59:22Z	comment	42880	0x7cec80	{"addr": "0x1407cec80", "comment": "GetUpEnd: reads iGetUpType; queues the ragdoll's removal from the world; type 1 or 2 queues task 14 (36918), type 0 the standing branch (38820, motion type). On a copy on its owner's stream the variable is its owner's."}
+2026-11-11T17:59:22Z	comment	42879	0x7cead0	{"addr": "0x1407cead0", "comment": "GetUpStart: reads iGetUpType; character controller back at the actor's position; type 1 or 2 sets knock state 6, type 0 sets flags2 0x10."}
+2026-11-11T17:59:22Z	comment	40150	0x735c20	{"addr": "0x140735c20", "comment": "BeginGetUp(actor, perform): ragdoll constraints rigid (UpdateRigidConstraints), the graphs' ragdoll flag cleared; with perform: iGetUpType 1, or 2 by a cast under the actor, then ActionGetUp (TESActionData 41557). Always: knock state 5."}
+2026-11-11T17:59:22Z	comment		0x723d44	{"addr": "0x140723d44", "comment": "Knock state 5, once the graph no longer has its ragdoll: the actor's heading from its own ragdoll's bones (SetHeading), then knock state 6. On a copy that heading is its own body's, not its owner's."}
+2026-11-11T18:08:08Z	read	39897	0x723ff0	{"name": "sub_140723FF0"}
+2026-11-11T18:08:32Z	name	39897	0x723ff0	{"addr": "0x140723FF0", "name": "AIProcess::EndKnock_39897"}
+2026-11-11T18:08:32Z	name	36918	0x668310	{"addr": "0x140668310", "name": "TaskQueueInterface::QueueEndKnock_36918"}
+2026-11-11T18:08:35Z	comment	39897	0x723ff0	{"addr": "0x140723FF0", "comment": "Ends a knockdown (process, actor): for a knocked actor, its 3D back to its animated motion type or its constraints rigid and the graphs' ragdoll flag cleared, then knock state 0 (flags1 &= ~0xE000000) and the camera's bleedout left for the player. Run as task 14, queued by GetUpEndHandler (42880) when iGetUpType is 1 or 2."}
+2026-11-11T18:08:35Z	comment	36918	0x668310	{"addr": "0x140668310", "comment": "Queues task 14 for the actor: AIProcess::EndKnock (39897)."}

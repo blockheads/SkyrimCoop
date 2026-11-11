@@ -1707,12 +1707,18 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
+- **Graph stream: get-ups on the stream (2026-11-11).** A knocked-down copy no longer leaves its owner's stream: the
+  owner's get-up pick (the clip `hkbPoseMatchingGenerator` chooses from its ragdoll, 59583) is a new stream input
+  (`GraphPick`), and the copy's node takes it. `knockdown-lies-as-host` and `knockdown-smoke` pass 4 of 7 each (0 of 3 on dev and
+  before), `guest-knockdown-lies-on-host` 7 of 7; the copy's body still turns away at some get-ups (its own heading
+  from its ragdoll, 39896). Design and what Skyrim taught: [graph-input-stream.md](design/graph-input-stream.md), "A node's pick".
+  Next of the same kind: the ragdoll contact event, a pair's scene answers.
 - **Graph stream: the full run (2026-11-11).** 388 scenarios on the branch: 339 pass. The 49 failures rerun alone on
   both builds: three were the branch's, one cause, fixed (a copy on its owner's stream never showed hands its owner
   already had up: `hands-survive-reload-host-player`, `hands-survive-reload-client-player`, `late-join-client`, now 2
   of 2 each; [graph-input-stream.md](design/graph-input-stream.md), "Hands on a streamed copy"). The rest fail on
-  dev's plugin too or pass alone; two shared races are new entries in [bugs.md](bugs.md) ("Found by the full run of
-  2026-11-11"). `join-refused-shows-why` and `join-panel-shows-refusal` needed `coop_peer` built in the worktree.
+  dev's plugin too or pass alone; all 46 are triaged in [bugs.md](bugs.md) ("Found by the full run of 2026-11-11":
+  where each went, twelve new entries, the rest as evidence on existing ones). `join-refused-shows-why` and `join-panel-shows-refusal` needed `coop_peer` built in the worktree.
 - **Graph stream: a fight's traffic a quarter of dev's (2026-11-10).** A streamed owner's actions no longer carry its
   whole graph state: ten wolves fighting 15-21 KB/s, dev 74 (`graph-input-stream.md`, Cost measured).
 - **`npc-clips-match` timed out before comparing clips (2026-11-04, fixed 2026-11-10).** The host's dialogue menu never
