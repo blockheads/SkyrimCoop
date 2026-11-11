@@ -1698,10 +1698,12 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
+- **Graph stream: a fight's traffic a quarter of dev's (2026-11-10).** A streamed owner's actions no longer carry its
+  whole graph state: ten wolves fighting 15-21 KB/s, dev 74 (`graph-input-stream.md`, Cost measured).
 - **`npc-clips-match` timed out before comparing clips (2026-11-04, fixed 2026-11-10).** The host's dialogue menu never
-  opened on Lucan, or his conversation never ended. The scenario's: it activated him while he sat down again (he opens
-  no menu then), and a visit with no conversation sent the next runs' topic walk into his shop topic's barter menu. It
-  now waits until he stands or sits and never asks for his shop (`graph-input-stream.md`, "`npc-clips-match` failed on
+  opened on Lucan, or his conversation never ended. The scenario's: activated while he sits down he opens no menu, and
+  leaning on his counter he gives no gesture, so the topic walk ended in his shop's barter menu. It now gets him
+  standing first and never asks for his shop (`graph-input-stream.md`, "`npc-clips-match` failed on
   repeats").
 - **Sync points add network cost, not measured (2026-11-04).** Each action now carries the graph seed and each pick no
   action made sends a graph snapshot (about 7 KB, one per actor per second at most). `scripts/net_check.sh` not run.

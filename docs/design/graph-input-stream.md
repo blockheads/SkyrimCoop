@@ -189,21 +189,36 @@ the spawn state's actor state words alone (`TESObjectREFR::LoadGraphStateFlags`,
 transition kept) and its spawn action as taken, as off the stream. GameTests "A copy made after its owner sat down is
 seated, not about to sit as its owner's last action left it" (the fake's saved graph state now carries `State1`).
 
-**`npc-clips-match` failed on repeats: the scenario's (fixed 2026-11-10).** On the branch 7 runs in 8 timed out on
-"the menu opens on Lucan" or "its conversation ends"; dev's plugin none in 8. Not the stream's: activated while he sits
-down again (sit state 2) Lucan opens no menu on dev's plugin either, and a visit with no conversation sends the next
-runs' topic walk into his shop topic, whose barter menu the scenario cannot close. On the branch he starts that walk to
-his counter about a second sooner after the quest's restart (`moveStart` 2.3-2.6 s after the host arrives, once 3.3 s
-on dev), so the scenario's activation fell in it; why sooner is not read. The scenario now waits until he stands or
-sits, reads its trace up to the moment it checks for his gesture (the gesture at a line's end came 30-50 ms before the
-check and was missed, on dev too), never asks for his shop, and says his state when the menu stays shut. After: the
-branch 10 runs in 10, dev's plugin 7 in 10 (its 3 failures are clips differing or started without their files).
+**`npc-clips-match` failed on repeats: the scenario's (fixed 2026-11-10).** On the branch most repeats timed out on
+"the menu opens on Lucan" or "its conversation ends". Not the stream's: the outcome follows Lucan's sit state at the
+moment the host activates him, the same on dev's plugin (8 runs each with the state logged: standing passes, sitting
+down (2) opens no menu, leaning on his counter (3) he gives no gesture and the topic walk ends in his shop's barter
+menu, which the scenario cannot close). A pass leaves him standing for the next run and a failure leaves him seated, so
+runs chain: dev's clean first block was such a chain, not a difference. His walk back to the counter starts at the
+same times on both (10 runs each from the logs); an earlier note here of "a second sooner on the branch" rested on one
+sample and is withdrawn. The scenario now waits until he stands or sits, moves a seated Lucan to where he is so he
+stands (`moveto` himself), reads its trace up to the moment it checks, takes only a gesture he keeps (one replaced a
+frame later never shows in a copy's trace, which samples a frame's last action), never asks for his shop, and says his
+state when the menu stays shut. The clip comparison's loop test allows 5% of the time between samples (both games had
+the same idle 0.26 s behind over 9.4 s; 0.25 s was the limit). After: the branch 14 runs in 14, two of them started
+with him seated; dev's plugin 7 in 10 on the first fix (clips differing or started without their files).
 
-**Cost measured (2026-11-10).** `coop_test.py profile --load wolves=10 --seconds 30 --no-tracy`, this branch against
-dev's plugin (the fight differs run to run): the host 58.9 fps against 59.4, its update 2.14 ms a frame against 1.80
-(p95 3.59 against 2.87); the guest 58.4 fps against 59.9, its update 0.83 ms against 0.64 (p95 1.48 against 1.06, one
-frame of 11.6 ms against 2.5). Messages 84.8 KB/s against 73.6: the ops add 11.6 KB/s and the movement messages stay
-about 70. The pair-clip check (`Actor::InPairClip`) is inside those update times, not measured apart.
+**Cost measured (2026-11-10).** `coop_test.py profile --load wolves=10 --seconds 30 --no-tracy`, against dev's plugin
+(the fight differs run to run):
+
+| | dev | the branch before | the branch now (3 runs) |
+|---|---|---|---|
+| messages | 73.6 KB/s | 84.8 KB/s | 15.0, 21.5, 17.6 KB/s |
+| host's update, ms a frame (p50) | 1.80 | 2.14 | 1.45-1.55 |
+| guest's update | 0.64 | 0.83 | 0.56-0.60 |
+| fps (host / guest) | 59.4 / 59.9 | 58.9 / 58.4 | 59.1-60.3 / 59.8-60.3 |
+
+"Before", every accepted action still carried its owner's whole graph state for a copy's recovery
+(`HookPerformAction`, `SaveAnimationGraphState`, 7-8 KB each), which was most of a fight's traffic on dev too
+(`NotifyReferencesMove` about 70 KB/s). A streamed owner's copies take no actions, so it no longer saves or sends it
+(`GraphStreams::Streaming`); a paused owner (in a pair) still does. A copy off its stream while its owner streams
+(knocked down) plays actions without that recovery. The pair-clip check (`Actor::InPairClip`) is inside the update
+times, not measured apart.
 
 **A rider's copy in "deferred kill" after the ride is by design (read 2026-11-10).** Every living copy is in a
 scripted deferred kill, started each update (`docs/re/systems/actor-ai-and-copies.md`, A copy is in deferred kill).

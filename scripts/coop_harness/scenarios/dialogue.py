@@ -193,9 +193,14 @@ def scenario_npc_clips_match(ctx):
             behind = (math.degrees(ctx.wait_for("[host] Lucan's heading is read", yaw, 10)) + 180) % 360
             ctx.place_before("", LUCAN, 110, behind)
             ctx.place_before("client", lucan_copy, 200, (behind + 180) % 360)
-            # Back from a conversation he walks to his counter again: mid sit-down he opens no menu (dev's plugin too).
-            ctx.wait_for("[host] Lucan stands or sits, not between the two",
-                         lambda: ctx.actor_state("", LUCAN).get("state", {}).get("sit_sleep") in (0, 3), 30)
+            # Standing he gestures as he speaks; leaning on his counter he gives none, and mid sit-down he opens no menu
+            # (dev's plugin too). Moved to where he is, he leaves the counter.
+            def sits():
+                return ctx.actor_state("", LUCAN).get("state", {}).get("sit_sleep")
+            ctx.wait_for("[host] Lucan stands or sits, not between the two", lambda: sits() in (0, 3), 30)
+            if sits() == 3:
+                ctx.console_on("", f"{LUCAN:X}.moveto {LUCAN:X}")
+                ctx.wait_for("[host] Lucan stands", lambda: sits() == 0, 10)
             ctx.activate_on("", LUCAN)
             def unopened():  # why his menu stayed shut: his state, and what the host's conversation holds
                 state, talk = ctx.actor_state("", LUCAN).get("state", {}), ctx.dialogue("")
@@ -210,7 +215,10 @@ def scenario_npc_clips_match(ctx):
                     trace.take()
                     if any(e["game"] == "" and e["time"] >= asked for e in reversed(trace.entries)):
                         break
-                return next((e for e in trace.entries if e["game"] == "" and e["who"] == lucan and is_clip_action(e, talking)), None)
+                # One he keeps: an action a frame after it replaces it, and a copy's trace shows a frame's last action.
+                acts = [e for e in trace.entries if e["game"] == "" and e["who"] == lucan and e["kind"] == "action"]
+                return next((e for i, e in enumerate(acts) if is_clip_action(e, talking) and e["time"] < asked - 0.2
+                             and not any(0 <= later["time"] - e["time"] < 0.2 for later in acts[i + 1:])), None)
             # Past his greeting he stands silent: asking him things makes him speak, and a line brings its gesture.
             for _ in range(CLIP_TOPICS):
                 if owner_idle():
@@ -372,7 +380,8 @@ def clip_starts(trace, game, who):
                 local = (detail.get(clip) or {}).get("local_time", 0.0)
                 length = (detail.get(clip) or {}).get("duration", 0.0)
                 moved = began - before.get(clip, began)
-                loops = length > 0 and abs(moved - round(moved / length) * length) < 0.25
+                # A loop's start moves on by whole lengths, less what its blends slowed it (the same in both games).
+                loops = length > 0 and abs(moved - round(moved / length) * length) < max(0.25, 0.05 * moved)
                 if clip not in before or (moved > 0.3 and local < 0.5 and not loops):
                     starts.append((entry["time"], clip))
         before = now
