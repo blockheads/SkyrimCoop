@@ -164,10 +164,10 @@ struct GraphStreams
                   const GraphSeed& acSeed, const void* apGraph = nullptr);
     void OnPick(uint32_t aFormId, uint16_t aNode, int32_t aValue);
     void OnUpdated(uint32_t aFormId, std::span<const uint32_t> aWords);
-    // An owner on its own body (in a pair's instance or clip, 32803): recorded on (two copies of a pair elsewhere each
-    // replay their own stream, its clip's wait at the mark a pick), but it gives no sync point while aOwnBody (one
-    // restored inside a synchronized clip starts the clip over) and its actions carry what a copy held off its
-    // stream needs (Streaming). Returns aOwnBody.
+    // An owner in a pair (its instance or clip, 32803), a kill move's or a mount's: recorded on (two copies of a pair
+    // elsewhere each replay their own stream, its clip's wait at the mark a pick), but it gives no sync point while
+    // aOwnBody (one restored inside a synchronized clip starts the clip over) and its actions carry what a copy held
+    // off its stream needs (Streaming). Returns aOwnBody.
     bool HoldPointsWhile(uint32_t aFormId, bool aOwnBody);
     // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
     // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.

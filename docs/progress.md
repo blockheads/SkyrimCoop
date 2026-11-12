@@ -1717,6 +1717,13 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   with this game's own actor, and any pair but a kill move's (mounts). Was: the copy's body still turns away at some get-ups (its own heading
   from its ragdoll, 39896). Design and what Skyrim taught: [graph-input-stream.md](design/graph-input-stream.md), "A node's pick".
   Next of the same kind: the ragdoll contact event, a pair's scene answers.
+- **Graph stream: one exception left (2026-11-12).** A copy leaves its owner's stream only for a pair with an actor
+  this game owns (two owners in one animation). Mount pairs between two copies stay on it (an action writes nothing a
+  mount's beside the graph, 39004; `PauseWhile`, `PairSpell`, `KillMoveHalf` deleted), and so does a death (`KillImpl`'s
+  action gates nothing after it, and a dead owner's graph updates on: `Actor::KillBesideGraph`). Duo: mounts 16 of 16,
+  `kill-move-kills-guest` 20 of 23 where it was 51 of 80. Also settled: "A rider after a spectated kill move" fails 4 of
+  4 on dev's plugin, so it is older than the stream. [graph-input-stream.md](design/graph-input-stream.md), "The one
+  exception".
 - **Graph stream: the final review and a second full run (2026-11-12).** Second full run on `1a4a44a4`: 337 pass,
   51 fail; 15 failures of the morning pass now (`ragdoll-lies-as-host`, `knockdown-smoke`, `knockdown-lies-as-host`,
   `knockdown-front-and-back`, `host-kill-move`, `kill-move-runs-full-length` among them), 17 are new to the list and each

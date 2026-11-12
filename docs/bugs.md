@@ -1578,6 +1578,41 @@ start (`HookTryMoveTo`, the instance, `PairOnStream`).
 
 Size: small. Needs: the duo, IDA.
 
+### A guest crash in the garbage collector's job
+
+`guest-rides-across-border`, once (2026-11-12), the guest: RIP 0 from `coop_GarbageCollector_DeleteNextForm` (36479) on a
+`Job_Garbage` thread, a queued entry whose deleting destructor was null. It followed a failed `host-rides-horse` (the rider
+2100 units off its feet) in the same session. Not investigated: `docs/re/crashes/2026-11-12-guest-gc-deletes-null-vtable.md`.
+
+Agent task: reproduce with the heap history on (`coop_test.py repro`), running the five scenarios the crash note names.
+
+Size: medium. Needs: the duo, IDA.
+
+### A dead player's copy a little off its owner's body
+
+`death-spectate-host`, 2 of 23 runs with deaths on the stream (2026-11-12), none in 8 on the build before it:
+`[client] the copy does not lie as the host's body`, up to 13 bones within a unit or two of the owner's but turned over the
+check's 0.05 radians. Too few runs to say the stream does it. The check now prints each bone's distance, turn and whether
+it is awake. The same scenario's other misses there: the enemy never landing its kill (4), the host's player sunk 28
+units (1, listed under [After the host dies](#after-the-host-dies)).
+
+Agent task: `death-spectate-host --repeat 30` with a `RagdollTrace` on the dead player's copy, then read whether the copy
+was put at its owner's rest (`StepToRest`) or only steered.
+
+Size: small. Needs: the duo.
+
+### A respawned player's draw that does nothing
+
+`death-spectate-host` (`[host] hands ready`) and `client-melee-kill-credit` right after `friendly-fire-kill`
+(`[client] hands ready`), once each in 58 runs (2026-11-12): the just respawned player presses Ready Weapon and no draw
+follows in 5 s. The host's log has the press 0.65 s after the respawn, the player still falling into place (`JumpFall`,
+`SwimStart`, `WeapEquip` refused by the engine). Not seen in the session's earlier runs, and in none of 34 more runs after
+(24 with deaths on the stream, 8 without).
+
+Agent task: make the respawn step wait for the player to stand (its fall over) before it presses, then see what is left.
+
+Size: small. Needs: the duo.
+
 ### The attacker's copy not in its kill move
 
 `host-kill-move`: `Timed out after 3s: [client] player's kill_move is True`, once in 14 runs on the build that records

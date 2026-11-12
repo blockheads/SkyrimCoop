@@ -440,7 +440,11 @@ class PhysicsActions:
         """The bones where two ragdolls differ, as text (empty: alike within `units` and `turn` radians)."""
         if len(host) != len(guest):
             return f"{len(host)} bones vs {len(guest)}"
+        def turned(a, b):  # degrees between two quaternions
+            return math.degrees(2 * math.acos(min(1.0, abs(sum(x * y for x, y in zip(a, b))))))
         apart = [f"bone {i} at {show_value('position', a['position'])} vs {show_value('position', b['position'])}"
+                 f" ({math.dist(a['position'], b['position']):.1f} units, {turned(a['rotation'], b['rotation']):.0f} deg"
+                 f"{', awake' if b.get('awake') else ''})"
                  for i, (a, b) in enumerate(zip(host, guest))
                  if not near(a["position"], b["position"], units) or not same_turn(a["rotation"], b["rotation"], turn)]
         return "; ".join(apart[:4]) + (f" (+{len(apart) - 4} more)" if len(apart) > 4 else "")

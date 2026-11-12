@@ -23,9 +23,9 @@ constexpr uint32_t Flags2(uint32_t aOwner, uint32_t aCopy) noexcept
 // ActorState1::sitSleepState's wants-to-stand: from an exit action until its clip's own exit event (42835).
 constexpr uint8_t kSitWantsToStand = 4;
 
-// A copy on its own body, off its owner's stream: in a pair's instance or a kill move, getting on its mount
-// (GETTING_ON_OFF_MOUNT, to 42881) or off it (no Actor::Dismount sets that on a copy: its sit state). Knocked down
-// it stays on its stream: its get-up's pick is its owner's (GraphPick).
+// A copy held off its stream for a pair with this game's actor (PairOnStream) stays on its own body until its half
+// has played out: out of the pair's instance and its kill move, on its mount (GETTING_ON_OFF_MOUNT, to 42881) or off
+// it (no Actor::Dismount sets that on a copy: its sit state).
 constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, uint8_t aSitState) noexcept
 {
     return aInPair || aInKillMove || aGettingOnOff || aSitState == kSitWantsToStand;

@@ -95,11 +95,16 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   `hkClassMember` list; one reflection-driven writer and reader serializes any class (A graph's whole state, below).
 - **Spawn:** the copy's spawn message carries the owner's graph state today; it becomes a sync point request at spawn.
 
-## Exceptions: the copy's own body
+## The one exception: a pair with an actor this game owns
 
 | case | why the stream pauses | after |
 |---|---|---|
-| a pair whose partner here is this game's own actor (a guest's kill move on a host NPC) | the pair's instance is on this game: its half is its own body's | sync point after the pair |
+| a pair whose partner here is this game's own actor (a guest's kill move on a host NPC), or is not here | two owners in one animation: the pair's instance is on this game and its partner's stream is a round trip behind, so its half is its own body's | sync point after the pair |
+
+Since 2026-11-12 it is the only one (`ReplayState::PairOnStream`). Deaths, knock-downs and get-ups, and pairs between two
+copies (kill moves, mounts) are on the stream: "A death on the stream", "A node's pick", "Mounts between two copies"
+below. A stream still starts and restarts from a sync point (a new copy, a gap, a replaced graph), which is not an
+exception but how it begins.
 
 - **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
   through its graph (63591). A copy on the stream that is in an instance on this game (`Actor::InPair`, 32808) is held
@@ -135,7 +140,7 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
   - Tests: GameTests `[pair-stream]` (the fake's synchronized clip waits `PairMarkMs` in an instance and not outside
     one); ClientTests `[pair-stream]`.
 - **Knock-downs: on the stream since 2026-11-11** (A node's pick, below). Before, a knocked-down copy was held off
-  its stream until it stood (built 2026-11-09). A death ends the stream (`AnimationSystem`).
+  its stream until it stood (built 2026-11-09). A death ended the stream until 2026-11-12 (A death on the stream, below).
 
 ## A node's pick: get-ups on the stream (2026-11-11)
 
@@ -319,8 +324,8 @@ comparison already skips the field.
 - **The branch's interim fixes:** refused actions' variables-only sends (`kVariablesOnly`) and action spacing
   (`ActionDue`): removed.
 
-What stays, for copies off a stream (a copy before its first sync point, knocked down,
-in a pair, dying): action replay into the graph (`ReplayStep`, `PlayReplayedAction`, `ReplayGraph::Recover`) with the
+What stays, for copies off a stream (a copy before its first sync point, or in a pair with this game's actor, and
+one that dies there): action replay into the graph (`ReplayStep`, `PlayReplayedAction`, `ReplayGraph::Recover`) with the
 action's variables, seed and graph state. A paused owner (in a pair) sends its graph variables with its movement
 again. Actions still go to the host for its rules (hits, kills, AI state) and to a streamed copy as bookkeeping
 (its last action, a death, its owner's pair).
@@ -454,8 +459,8 @@ The live check (`graph_stream_check`, 120 s, every streamed copy in Riverwood), 
 | 4-6 | a hare, a chicken, Faendal at updates 20-90: a turn's state against standing | both in a turn clip from the sync point on, its end trigger (`TurnInPlaceEnd`, `cannedTurnStop`) came on the owner's first: the point held no clip's progress (`hkbClipGeneratorInternalState.localTime`), nor a modifier's memory | phase 2 |
 | 7 | **none: 23 copies matched 6608 of 6608 updates each, a hare 2829 of 2829** (wolves, Faendal, villagers, a dog, chickens; 120 s) | | |
 
-- A copy's death ends its stream (the design's exceptions): the copy forgets it and replays its death as before; its owner
-  stops recording a dead actor.
+- Then (changed 2026-11-12, A death on the stream): a copy's death ended its stream, the copy replaying its death as
+  before and its owner no longer recorded.
 - Not done yet: the live check in the wolf and a humanoid scenario (combined runs), then PR #38 out of draft.
 
 ## A graph's whole state in sync points (2026-11-09)
@@ -593,9 +598,20 @@ before (`KillWithDeathAction`) and stays off it.
 Duo, 2026-11-12: `death-host-npc`, `host-kill-move`, `friendly-fire-kill`, `death-spectate-guest` 3 of 3,
 `client-melee-kill-credit`, `client-spell-kill-credit`, `ragdoll-lies-as-host`, `kill-moves-cross`, `client-kill-move`,
 `spectator-watches-kill-move` 2 of 2; `kill-move-kills-guest` 20 of 23 (51 of 80 before: `NEVER came to rest` gone, three
-small flickers left). `death-spectate-host` and `death-wipe-checkpoint` each missed once on the enemy never landing its
-kill. GameTests "A copy dies on its owner's stream"; the fake's owner now takes its death as a recorded graph event and
+small flickers left). `death-spectate-host` 16 of 23: four misses on the enemy never landing its kill, one known sinking,
+and two where the dead player's copy lay a little off its owner's body (bugs.md, "A dead player's copy a little off its
+owner's body": 0 of 8 on the build before, too few to decide). `death-wipe-checkpoint` missed once on the enemy too. GameTests "A copy dies on its owner's stream"; the fake's owner now takes its death as a recorded graph event and
 updates on.
+
+## With one exception left: what was run (2026-11-12)
+
+- 29 stream scenarios twice: 50 of 58. The eight: a guest crash in the garbage collector's job (once, not repeated in 4;
+  `docs/re/crashes/2026-11-12-guest-gc-deletes-null-vtable.md`), `host-rides-horse` after the kill moves (dev's too), a
+  respawned player's draw that did nothing (twice, not again in 34), and listed intermittents (`knockdown-lies-as-host`,
+  `kill-moves-cross`, `kill-move-kills-guest`, `friendly-fire-kill`'s death camera).
+- The live check: `wolf_copy_turns_with_owner` 180 s and `copies_follow_owners_graphs_in_town` 120 s with no difference
+  between any copy's graph and its owner's; both end on the listed world differences (containers, fish).
+- Not run: the full suite on this build; the live check through a ride or a death (it blocks while it compares).
 
 ## What the exceptions have in common (2026-11-11: read, nothing built)
 
@@ -623,7 +639,11 @@ class names in the Animations BSA's `.hkx` files): four let something outside th
 
 **2. Two owners in one animation.** A guest's kill move on the host's wolf: on the guest's game the attacker is live
 and the wolf's stream arrives a round trip later. No recording fixes that; the copy has to play its half locally
-(today's `InPair` case), or the pair needs one owner for its length. Riding another game's horse is the same.
+(today's `InPair` case), or the pair needs one owner for its length. Riding another game's horse is not the same,
+as first written here: the horse's ownership moves to the rider's game for the ride (`OnNotifyMount`).
+
+Since 2026-11-12 cause 1 is closed for what is built (the pose match and the synchronized clip are picks; a mount's
+pair and a death needed no pick at all), and cause 2 is the one exception left.
 
 Read the same day (IDA, journaled):
 
