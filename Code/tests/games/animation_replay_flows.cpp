@@ -1491,6 +1491,42 @@ TEST_CASE("A copy's death comes at playback, however late its owner's last actio
     CHECK(shown < died + 100);
 }
 
+TEST_CASE("A copy dies on its owner's stream: the kill beside its graph, its death's clip from the stream", "[animation][replay-start][death-stream]")
+{
+    // Skyrim (duo, 2026-11-12): a dead owner's graph updates on, 250 updates in the 250 its living player ran, and
+    // KillImpl's death action gates nothing after it (37896). So a death needs no end of the stream: before, the
+    // copy left its stream at its owner's dying action and played the death action itself, forced.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+        engine->GraphTransitions[{"Standing", FakeEngine::kDeathEvent}] = "dead";
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    REQUIRE(streams.OnStream(wolf.copy));
+    const size_t cPoints = SyncPoints(cCopy);
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.Strikes(FakeEngine::kPlayer, wolf.wolf, 1000.f); });
+    REQUIRE(wolf.host.Actors.at(wolf.wolf).Dead);
+    bool left = false;
+    wolf.party.Until([&] {
+        left |= !streams.OnStream(wolf.copy) || streams.Held(wolf.copy);
+        return cCopy.Dead;
+    }, "the copy dies with its owner");
+    wolf.party.Until([&] {
+        left |= !streams.OnStream(wolf.copy) || streams.Held(wolf.copy);
+        return cCopy.GraphState == "dead";
+    }, "its graph takes the death from its stream");
+    CHECK_FALSE(left);
+    CHECK(SyncPoints(cCopy) == cPoints);
+    CHECK(wolf.guest.GetActorLatestAnimation(wolf.copy).EventName == FakeEngine::kDeathEvent); // bookkeeping still
+    CHECK(wolf.Difference() == "");
+    // And on: its owner's graph updates while it lies dead, and so does its copy's.
+    const size_t cHistory = cCopy.Graph.History.size();
+    const uint64_t cFrom = wolf.party.Host().GetTick();
+    wolf.party.Until([&] { return wolf.party.Host().GetTick() >= cFrom + 500; }, "both lie dead a while");
+    CHECK(streams.OnStream(wolf.copy));
+    CHECK(cCopy.Graph.History.size() > cHistory);
+    CHECK(wolf.Difference() == "");
+}
+
 TEST_CASE("A copy back off its stream dies with its owner, not as long after an action from before the stream", "[animation][replay-start]")
 {
     // Skyrim (duo, host-kill-move, 2026-11-09): the wolf's copy stood 330-350 ms after its blow. Its last replayed

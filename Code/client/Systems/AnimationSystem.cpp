@@ -111,7 +111,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
     }
 
     // On its owner's graph input stream (graph-input-stream.md): its graph's inputs are the stream's, so its actions
-    // are bookkeeping only; a death ends the stream (its own body's) and replays as before.
+    // are bookkeeping only. Its death too: the kill beside the graph is done here, its death's clip is its stream's.
     auto& streams = aWorld.GetGraphStreams();
     streams.SetPlayback(apActor->formID, aTick);
     if (streams.OnStream(apActor->formID))
@@ -121,8 +121,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             ActionEvent action = actions.front();
             if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying && !apActor->IsDead())
             {
-                streams.Forget(apActor->formID);
-                return;
+                spdlog::debug("Copy {:X} dies on its owner's stream at its death action {:X} '{}'", apActor->formID, action.ActionId, action.EventName);
+                apActor->KillBesideGraph(action);
             }
             TargetFromNetwork(action);
             // Its owner's pair: with its partner this game's own, or not here, its half is its own body's, by this

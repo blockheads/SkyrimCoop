@@ -1154,6 +1154,17 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
 }
 
+void Actor::KillBesideGraph(const ActionEvent& acAction) noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsLocalPlayer())
+        return;
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    EndDeferredKill();
+    KillImpl(nullptr, 100.f, true, SameName(acAction.EventName, "RagdollInstant"));
+    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
+}
+
 void Actor::Reset() noexcept
 {
     using ObjectReference = TESObjectREFR;

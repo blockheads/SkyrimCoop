@@ -948,7 +948,15 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
-        aActor.GraphUpdating = false;
+        // KillImpl performs the death action (37896): an input of its graph, recorded for its copies, and its graph
+        // updates on while it lies dead (Skyrim, duo 2026-11-12: 250 updates in the 250 its living player ran).
+        if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(aFormId) && GraphEventId(kDeathEvent) != UINT16_MAX)
+        {
+            streams.OnEvent(aFormId, streams.Tick(), GraphEventId(kDeathEvent), GraphWords(aActor), {aActor.GraphRandom, 0});
+            TakeGraphEvent(aActor, kDeathEvent);
+        }
+        else
+            aActor.GraphUpdating = false;
         aActor.GraphState = "dead";
         if (aFormId == kPlayer)
         {
@@ -973,7 +981,7 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         action.ActorId = aFormId;
         action.ActionId = 0x1337;
         action.State1 = DeathActions::kDying;
-        action.EventName = "DeathAnim";
+        action.EventName = kDeathEvent;
         World::Get().GetDispatcher().trigger(action);
         World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId, false});
     }
@@ -1239,6 +1247,19 @@ void FakeEngine::FinishDeath(uint32_t aFormId)
 {
     Actors.at(aFormId).BlockResurrect = false;
     World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
+}
+
+// Actor::KillBesideGraph: KillImpl's effects on a copy on its owner's stream, its own death action refused.
+void FakeEngine::KillBesideGraph(uint32_t aFormId, const ActionEvent& acAction)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.PoseHeldUntil = 0;
+    const bool cWasDead = actor.Dead;
+    actor.Dead = true;
+    actor.LatestAnimation = acAction;
+    if (!cWasDead)
+        World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
+    World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
 }
 
 void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction)

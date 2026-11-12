@@ -708,7 +708,8 @@ void CharacterService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcep
             if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
             {
                 const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
-                if (m_actorBridge.IsActorDead(cFormId))
+                // A copy that died off its stream (a pair with this game's actor) stays off it.
+                if (m_actorBridge.IsActorDead(cFormId) && !streams.OnStream(cFormId))
                     break;
                 streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
                 if (streams.ShouldAsk(cFormId))
@@ -1618,12 +1619,10 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
-        // Its graph's inputs, for its copies (graph-input-stream.md): this game's NPCs and its player. A death ends
-        // it: the body is the dying actor's own.
-        if (!m_actorBridge.IsActorDead(cFormId))
+        // Its graph's inputs, for its copies (graph-input-stream.md): this game's NPCs and its player. Recorded on
+        // through its death; one found dead is not started.
+        if (!m_actorBridge.IsActorDead(cFormId) || m_world.GetGraphStreams().Recording(cFormId))
             m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
-        else
-            m_world.GetGraphStreams().Forget(cFormId);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {

@@ -239,12 +239,13 @@ void World::Update() noexcept
         streams.SetPlayback(form.Id, cPlayback);
         if (streams.OnStream(form.Id))
         {
-            bool dying = false, paired = false;
+            bool paired = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
-                if ((dying = DeathActions::IsDying(cAction.State1)))
-                    break;
+                // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
+                if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
+                    engine.KillBesideGraph(form.Id, cAction);
                 // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
                 const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
                 const auto cPartner = engine.Actors.find(cPartnerId);
@@ -267,9 +268,7 @@ void World::Update() noexcept
                 animation.LastRanAction = cAction;
                 engine.SetActorLatestAnimation(form.Id, cAction);
             }
-            if (paired || !dying)
-                continue;
-            streams.Forget(form.Id); // its death is its own body's: the stream ends, the death replays below
+            continue;
         }
         if (actor.PairStops)
         {

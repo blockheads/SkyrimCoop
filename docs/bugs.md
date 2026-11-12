@@ -1569,8 +1569,8 @@ Each line is a run of the branch's current code unless it says committed build. 
 `kill-move-kills-guest`: `Timed out after 3s: [host] the kill move pairs the host with the guest's copy`, 3 of about 16
 runs on builds with the review's edits (once with the player left 100 units off its baseline, so the duo booted again),
 then none in 40 on `1a4a44a4` and none in 40 on `0492014e` (2026-11-12). Chance, or the wrong check those builds carried.
-The same 80 runs passed 27 of 40 and 24 of 40: the scenario fails a third of the time on both, always in the dead copy's
-ragdoll (flicker, `NEVER came to rest`). The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
+The same 80 runs passed 27 of 40 and 24 of 40: the scenario failed a third of the time on both, always in the dead copy's
+ragdoll (flicker, `NEVER came to rest`). With deaths on the stream (2026-11-12): 20 of 23, three flickers of 2 to 5. The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
 [Copy ragdolls at rest](#copy-ragdolls-at-rest).
 
 Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the current code, then read why the pair did not

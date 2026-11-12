@@ -307,6 +307,9 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool InPair() const noexcept;
     [[nodiscard]] bool InPairClip() noexcept;
     void StopPairClip() noexcept;
+    // A copy on its owner's stream dies with its owner: KillImpl's effects (37896: life state, death items, its
+    // drops), its own death action refused as any action of a copy's: the death's clip is its stream's.
+    void KillBesideGraph(const ActionEvent& acAction) noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;

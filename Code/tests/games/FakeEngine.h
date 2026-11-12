@@ -753,6 +753,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool HoldDeathActions = false;
     bool RefuseDeathActions = false;
     void ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction);
+    void KillBesideGraph(uint32_t aFormId, const ActionEvent& acAction);
+    static constexpr const char* kDeathEvent = "DeathAnim"; // its death action's graph event
     void FinishDeath(uint32_t aFormId);
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;

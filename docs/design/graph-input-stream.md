@@ -99,7 +99,6 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 
 | case | why the stream pauses | after |
 |---|---|---|
-| death | its ragdoll is its own body's | the stream ends |
 | a pair whose partner here is this game's own actor (a guest's kill move on a host NPC) | the pair's instance is on this game: its half is its own body's | sync point after the pair |
 
 - **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
@@ -577,6 +576,26 @@ Duo, 2026-11-12: `host-rides-horse` 8 of 8, `guest-rides-host-horse`, `guest-rid
 `client-kill-move`, `kill-moves-cross`, `knockdown-smoke` 2 of 2. Not done: the live check through a ride (it blocks
 while it compares, so a scenario cannot ride during it yet). GameTests "Two copies of a rider and its mount stay on their
 streams through getting on"; the fake now puts a pair in a kill move only for a `pa_Kill` action, as 39004 does.
+
+## A death on the stream (2026-11-12)
+
+Read in IDA (`KillImpl` 37896): its graph part is one action, `ActionDeath` (then `ActionDeathWait`), or for an instant
+ragdoll `Character::sub_37186`, itself an action; its result gates nothing after it (life state, death items, drops,
+the death force). Measured on the duo: a dead owner's graph updates on, every frame (250 updates in the 250 its living
+player ran), and its copy's replays them.
+
+So a death ends nothing. The owner is recorded on through it (`CharacterService::RunLocalUpdates`; an actor found dead
+is not started), and a copy on its stream runs the kill beside its graph at its owner's dying action
+(`Actor::KillBesideGraph`: `KillImpl` unforced, its own death action refused as any action of a copy's), its death's
+clip and ragdoll input from the stream. A copy off its stream at that moment (in a pair with this game's actor) dies as
+before (`KillWithDeathAction`) and stays off it.
+
+Duo, 2026-11-12: `death-host-npc`, `host-kill-move`, `friendly-fire-kill`, `death-spectate-guest` 3 of 3,
+`client-melee-kill-credit`, `client-spell-kill-credit`, `ragdoll-lies-as-host`, `kill-moves-cross`, `client-kill-move`,
+`spectator-watches-kill-move` 2 of 2; `kill-move-kills-guest` 20 of 23 (51 of 80 before: `NEVER came to rest` gone, three
+small flickers left). `death-spectate-host` and `death-wipe-checkpoint` each missed once on the enemy never landing its
+kill. GameTests "A copy dies on its owner's stream"; the fake's owner now takes its death as a recorded graph event and
+updates on.
 
 ## What the exceptions have in common (2026-11-11: read, nothing built)
 
