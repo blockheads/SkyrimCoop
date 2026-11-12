@@ -198,9 +198,8 @@ struct GraphStreams
     void Feed(uint32_t aFormId, const GraphOpsRun& acRun, const std::vector<GraphOpFrame>& acFrames);
     void Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoint);
     [[nodiscard]] bool OnStream(uint32_t aFormId) const;
-    // A copy on its own body: in a pair on this game (a kill move: BGSSynchronizedAnimationManager's instance), or
-    // knocked down (its ragdoll, then its owner's get-up action). Held off its stream while aOwnBody, then it asks for
-    // a new sync point. Returns whether it is held.
+    // A copy on its own body (ReplayState::CopyOwnBody: in a pair's instance on this game, a kill move, getting on or
+    // off a mount): held off its stream while aOwnBody, then it asks for a new sync point. Returns whether it is held.
     bool HoldWhile(uint32_t aFormId, bool aOwnBody);
     [[nodiscard]] bool Held(uint32_t aFormId) const;
     // Its owner's pair began (its half's action, at aTick): off its stream, on its owner's actions, until a sync
@@ -222,7 +221,7 @@ struct GraphStreams
     struct Owned
     {
         std::mutex Lock;
-        uint32_t ActorId = 0;
+        std::atomic<uint32_t> ActorId{0}; // set again each round (Record), read on the graphs' threads
         GraphRecorder Recorder;
         const void* Graph = nullptr;
         bool WantsPoint = false;

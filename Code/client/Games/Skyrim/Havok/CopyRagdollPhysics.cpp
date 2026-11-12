@@ -47,7 +47,8 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         if (!pBody || !pRigid->IsDynamic())
             continue;
         BodyRead read;
-        // At its owner's rest: put exactly there once, then left to fall asleep (steering wakes it each step).
+        // At its owner's rest: steered there a while, every body put exactly there in one step, then left to fall
+        // asleep (steering wakes it each step).
         const auto cBody = std::make_pair(aCopy.formID, cFrame.Key.Index);
         if (cDrive.Rest && ReadBody(*pBody, read))
         {
@@ -55,7 +56,6 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
             Resting& resting = s_rested[cBody];
             if (resting.Position != cFrame.Position)
                 resting = {.Position = cFrame.Position};
-            // Steered there a while, then every body put exactly there in one step, then left to fall asleep.
             const auto cStep = BodyPrediction::StepToRest(resting.Steps);
             if (resting.Steps <= BodyPrediction::kRestSettleSteps)
                 ++resting.Steps;

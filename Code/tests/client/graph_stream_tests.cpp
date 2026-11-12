@@ -2,6 +2,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <bit>
 #include <format>
 
@@ -235,6 +236,26 @@ TEST_CASE("A copy whose graph is another project's drops its owner's point and a
     streams.Load(0x99, point);
     streams.SetPlayback(0x99, 100);
     CHECK(streams.Replay(0x99, wolf, &wolf, 7) == 1);
+    CHECK(streams.OnStream(0x99));
+}
+
+TEST_CASE("A running copy leaves a sync point another game asked for", "[graph-stream]")
+{
+    // Read, not played (the duo has two games): the host relays an owner's point to every other game, so a third
+    // game's ask reached a copy already on its stream, which restored its whole graph again mid-animation.
+    GraphStreams streams;
+    GraphOpsRun run{1, 0, {{.Frame = 0}}};
+    streams.Feed(0x99, run, {{1, 0.016f}});
+    CHECK(streams.ShouldAsk(0x99));
+    ToyGraph owner, copy;
+    streams.Load(0x99, Point(owner, 0));
+    streams.SetPlayback(0x99, 100);
+    CHECK(streams.Replay(0x99, copy, &copy) == 1);
+    const auto cLoads = std::ranges::count(copy.Calls, "load");
+    CHECK(cLoads == 1);
+    streams.Load(0x99, Point(owner, 1)); // another game's
+    CHECK(streams.Replay(0x99, copy, &copy) == 0);
+    CHECK(std::ranges::count(copy.Calls, "load") == cLoads);
     CHECK(streams.OnStream(0x99));
 }
 

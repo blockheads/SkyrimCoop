@@ -74,6 +74,7 @@ bool ReadSync(Wire::Buffer::Reader& aReader, SyncInfo& aSync)
     if (!ReadFloat(aReader, aSync.BaseFrequency) || !ReadFloat(aReader, aSync.LocalTime) || !ReadFloat(aReader, aSync.PlaybackSpeed) ||
         !aReader.ReadBits(numSyncPoints, 8) || !aReader.ReadBits(flags, 3))
         return false;
+    // As its owner's, unchecked: a node that uses no sync points leaves the count unset (a guest's player's read over 8).
     aSync.NumSyncPoints = int8_t(uint8_t(numSyncPoints));
     aSync.IsCyclic = flags & 1;
     aSync.IsMirrored = flags & 2;

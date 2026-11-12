@@ -63,6 +63,9 @@ bool HasPointers(const Class& acClass) noexcept
 
 namespace
 {
+// A state's arrays are short (a machine's transitions, a blender's children): a longer one is not a state's.
+constexpr uint64_t cMaxArray = 4096;
+
 // An enum's or flags' storage is its subtype's.
 uint32_t ValueSize(uint8_t aType, uint8_t aSubtype) noexcept
 {
@@ -144,7 +147,7 @@ bool Read(Wire::Buffer::Reader& aReader, uint8_t* apObject, const Class& acClass
             auto* pArray = reinterpret_cast<ArrayView*>(pValue);
             const uint32_t cElement = ElementSize(cMember);
             uint64_t count = 0;
-            if (!Wire::Serialization::TryReadVarInt(aReader, count) || count > (1u << 20) || (count && !cElement))
+            if (!Wire::Serialization::TryReadVarInt(aReader, count) || count > cMaxArray || (count && !cElement))
                 return false;
             const uint32_t cHave = pArray->Data && pArray->Size > 0 ? uint32_t(pArray->Size) : 0;
             if (count != cHave)

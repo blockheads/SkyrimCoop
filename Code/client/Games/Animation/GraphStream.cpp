@@ -288,7 +288,7 @@ void GraphStreams::Record(uint32_t aFormId, uint32_t aActorId)
     auto& owned = m_owned[aFormId];
     if (!owned)
         owned = std::make_shared<Owned>();
-    owned->ActorId = aActorId;
+    owned->ActorId.store(aActorId, std::memory_order_relaxed);
 }
 
 void GraphStreams::Forget(uint32_t aFormId)
@@ -433,7 +433,7 @@ void GraphStreams::AddPoint(uint32_t aFormId, Payloads::GraphSyncPoint aPoint)
             pOwned->WantsPoint = true; // a graph with no state yet (being rebuilt): at its next update
             return;
         }
-        aPoint.Id = pOwned->ActorId;
+        aPoint.Id = pOwned->ActorId.load(std::memory_order_relaxed);
         aPoint.Update = pOwned->Recorder.Updates();
         pOwned->Recorder.ForgetPicks(); // the point leaves out idle nodes: the copy it starts may lack their picks
     }
@@ -462,7 +462,7 @@ std::optional<GraphOps> GraphStreams::TakeOps()
     for (const auto& pOwned : owned)
     {
         std::scoped_lock _{pOwned->Lock};
-        GraphRecordedRun run{pOwned->ActorId, 0, {}};
+        GraphRecordedRun run{pOwned->ActorId.load(std::memory_order_relaxed), 0, {}};
         run.Ops = pOwned->Recorder.Take(run.FirstUpdate);
         if (!run.Ops.empty())
             runs.push_back(std::move(run));
@@ -504,7 +504,9 @@ void GraphStreams::Load(uint32_t aFormId, const Payloads::GraphSyncPoint& acPoin
         pCopied->PointAfter = 0;
         pCopied->Held = false;
     }
-    if (!pCopied->Held) // in a pair: it asks again once out of it
+    // Held in a pair, it asks again once out of it. Already on its stream, the point is one another game asked for
+    // (the host relays it to every game): restoring it would start its graph over mid-animation.
+    if (!pCopied->Held && pCopied->Replayer.NeedsPoint())
         pCopied->Replayer.Load(acPoint);
 }
 
@@ -708,7 +710,7 @@ uint32_t GraphStreams::ActorIdOf(uint32_t aFormId) const
 {
     std::scoped_lock _{m_lock};
     if (const auto it = m_owned.find(aFormId); it != m_owned.end())
-        return it->second->ActorId; // set by Record, on the main thread before its graph is recorded
+        return it->second->ActorId.load(std::memory_order_relaxed);
     if (const auto it = m_copied.find(aFormId); it != m_copied.end())
         return it->second->ActorId.load(std::memory_order_relaxed);
     return 0;

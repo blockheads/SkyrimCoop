@@ -1,4 +1,5 @@
 #include <Games/Animation/NodeMemory.h>
+#include <Wire/Serialization.h>
 
 #include <catch2/catch.hpp>
 
@@ -214,4 +215,18 @@ TEST_CASE("A new state's empty arrays are sized for its owner's; its transitions
     MachineState unsized{{}, {nullptr, 0, int32_t(0x80000000)}, {nullptr, 0, int32_t(0x80000000)}, 0};
     Wire::Buffer::Reader again{std::span<const uint8_t>(cBytes)};
     CHECK_FALSE(Read(again, reinterpret_cast<uint8_t*>(&unsized), cMachine));
+}
+
+TEST_CASE("An array longer than any state's is refused before its storage is asked for", "[node-memory]")
+{
+    // A few bytes naming a million elements: no Reserve, so a guest's point cannot make a game allocate for it.
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    Wire::Serialization::WriteVarInt(writer, 1u << 20);
+    const std::vector<uint8_t> cBytes(buffer.GetData(), buffer.GetData() + writer.Size());
+    TestHooks hooks;
+    MachineState copy{{}, {nullptr, 0, int32_t(0x80000000)}, {nullptr, 0, int32_t(0x80000000)}, 0};
+    Wire::Buffer::Reader reader{std::span<const uint8_t>(cBytes)};
+    CHECK_FALSE(Read(reader, reinterpret_cast<uint8_t*>(&copy), cMachine, &hooks));
+    CHECK(hooks.Blocks.empty());
 }

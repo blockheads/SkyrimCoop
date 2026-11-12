@@ -123,8 +123,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
-    Listen<&CharacterService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
-    Listen<&CharacterService::OnRemoteRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
     Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);
     Listen<NotifyGraphSync, &CharacterService::OnGraphSync>(m_connections, m_dispatcher, this);
     Listen<NotifyGraphSyncPoint, &CharacterService::OnGraphSyncPoint>(m_connections, m_dispatcher, this);
@@ -693,15 +693,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
     }
 }
 
-void CharacterService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
-{
-    const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity);
-    if (!pForm)
-        return;
-    m_world.GetGraphStreams().Forget(pForm->Id);
-}
-
-void CharacterService::OnRemoteRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
+void CharacterService::OnStreamedRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
 {
     if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity))
         m_world.GetGraphStreams().Forget(pForm->Id);

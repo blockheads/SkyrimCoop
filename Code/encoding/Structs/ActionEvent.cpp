@@ -68,7 +68,6 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffe
     if (GraphState != aPrevious.GraphState)
         flags |= kGraphState;
 
-
     aWriter.WriteBits(flags, cFlagBits);
 
     {

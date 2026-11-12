@@ -34,10 +34,11 @@ struct InStream
     ~InStream() noexcept { s_inStream = false; }
 };
 
-std::vector<uint32_t> Words(const BShkbAnimationGraph& acGraph)
+// Its variables' words, in place.
+std::span<const uint32_t> Words(const BShkbAnimationGraph& acGraph)
 {
     const auto* pSet = acGraph.behaviorGraph ? acGraph.behaviorGraph->animationVariables : nullptr;
-    return pSet && pSet->data ? std::vector<uint32_t>(pSet->data, pSet->data + pSet->size) : std::vector<uint32_t>{};
+    return pSet && pSet->data ? std::span<const uint32_t>(pSet->data, pSet->size) : std::span<const uint32_t>{};
 }
 
 GraphSeed Seed(const BShkbAnimationGraph& acGraph)
@@ -98,8 +99,9 @@ std::optional<uint16_t> TimeDeltaIndex(const BShkbAnimationGraph& acGraph)
 {
     if (!acGraph.hkxDB)
         return std::nullopt;
-    const BSFixedString cName("TimeDelta");
-    const auto* pEntry = Find(acGraph.hkxDB->animationVariables, cName.data);
+    BSFixedString name("TimeDelta");
+    const auto* pEntry = Find(acGraph.hkxDB->animationVariables, name.data);
+    name.Release();
     return pEntry && pEntry->value >= 0 && pEntry->value <= UINT16_MAX ? std::optional(uint16_t(pEntry->value)) : std::nullopt;
 }
 
@@ -252,8 +254,6 @@ using TSendEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
 TSendEvent* RealSendEvent = nullptr;
 using TMatchRagdollPose = void(hkbPoseMatchingGenerator*, void*, float);
 TMatchRagdollPose* RealMatchRagdollPose = nullptr;
-// The owner whose behaviour graph's update runs on this thread (0: none): its nodes' picks go with that update.
-thread_local uint32_t s_recording = 0;
 // A copy's replayed update on this thread: its owner's picks in it.
 thread_local std::span<const GraphPick> s_picks;
 
@@ -269,7 +269,11 @@ struct SkyrimGraphTarget final : IGraphTarget
     {
     }
 
-    std::vector<uint32_t> Words() override { return ::Words(Graph); }
+    std::vector<uint32_t> Words() override
+    {
+        const auto cWords = ::Words(Graph);
+        return {cWords.begin(), cWords.end()};
+    }
     void WriteWords(std::span<const uint32_t> aWords) override
     {
         auto* pSet = Graph.behaviorGraph ? Graph.behaviorGraph->animationVariables : nullptr;
@@ -302,7 +306,7 @@ struct SkyrimGraphTarget final : IGraphTarget
     }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
-        if (aSet != ActionClips::kAction && aSet != ActionClips::kInstant && aSet != ActionClips::kMovement)
+        if (!Mirrored(aSet))
             return nullptr;
         const auto* pName = EventName(Graph, aEventId);
         auto loading = pName && Graph.holder ? ActionClips::Request(*Graph.holder, pName->data, ActionClips::Set(aSet)) : nullptr;
@@ -386,7 +390,8 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         Payloads::GraphSyncPoint point;
         point.Tick = streams.Tick();
         point.State = GraphInternalState::Take(*pGraph);
-        point.Words = Words(*pGraph);
+        const auto cWords = Words(*pGraph);
+        point.Words.assign(cWords.begin(), cWords.end());
         point.Seed = Seed(*pGraph);
         point.ActiveNodesChanged = pGraph->behaviorGraph->stateOrTransitionChanged != 0;
         point.Project = Project(*pGraph);
@@ -394,9 +399,7 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         streams.AddPoint(cFormId, std::move(point));
     }
     streams.OnUpdate(cFormId, streams.Tick(), aStep, Words(*pGraph), Seed(*pGraph), pGraph);
-    s_recording = cFormId;
     RealBehaviourUpdate(apBehaviour, apContext, aStep);
-    s_recording = 0;
     streams.OnUpdated(cFormId, Words(*pGraph));
 }
 
@@ -429,8 +432,8 @@ void HookMatchRagdollPose(hkbPoseMatchingGenerator* apNode, void* apContext, flo
     if (!pGraph->holder || !CopiesHave(*pGraph))
         return;
     if (apNode->currentMatch != cBefore)
-        spdlog::debug("Graph stream: {:X}'s node {} '{}' matched {} (had {}); in its recorded update: {}", pGraph->holder->formID, apNode->id,
-                      apNode->name ? apNode->name : "", apNode->currentMatch, cBefore, s_recording == pGraph->holder->formID);
+        spdlog::debug("Graph stream: {:X}'s node {} '{}' matched {} (had {})", pGraph->holder->formID, apNode->id,
+                      apNode->name ? apNode->name : "", apNode->currentMatch, cBefore);
     World::Get().GetGraphStreams().OnPick(pGraph->holder->formID, apNode->id, apNode->currentMatch);
 }
 

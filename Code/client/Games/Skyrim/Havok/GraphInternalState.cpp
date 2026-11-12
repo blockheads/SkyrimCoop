@@ -195,7 +195,6 @@ const hkbNode* EffectTemplate(const hkbStateMachineTransitions& acMachine, const
     return pTransitions->transitions.data[acReference.transitionIndex].transition;
 }
 
-
 // Skyrim's updateActiveNodes (60079) walks with 59319, which drops its restore map; while a restore runs, that walk
 // goes to Havok's own 59318 instead, whose 59326 gives each node its state as it activates.
 thread_local bool s_restoring = false;
@@ -379,13 +378,13 @@ std::string Take(const BShkbAnimationGraph& acGraph)
             auto node = NodeOf(*pInfo, *it->second, hooks);
             states += node.State.has_value();
             if (const auto* pRuntime = RuntimeOf(it->second->GetClassType()))
-                {
-                    Wire::Buffer buffer;
-                    Wire::Buffer::Writer writer(&buffer);
-                    NodeMemory::Write(writer, reinterpret_cast<const uint8_t*>(it->second), *pRuntime);
-                    node.Runtime = Bytes(buffer, writer);
-                    ++runtimes;
-                }
+            {
+                Wire::Buffer buffer;
+                Wire::Buffer::Writer writer(&buffer);
+                NodeMemory::Write(writer, reinterpret_cast<const uint8_t*>(it->second), *pRuntime);
+                node.Runtime = Bytes(buffer, writer);
+                ++runtimes;
+            }
             nodes.push_back(std::move(node));
         }
         RemoveReference(pInfo); // its state with it (58398)
@@ -405,7 +404,11 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
     auto* pGraph = reinterpret_cast<hkbBehaviorGraphNode*>(pBehaviour);
     std::vector<GraphState::Node> nodes;
     if (!pGraph || !pGraph->rootGenerator || !pBehaviour->animationVariables || !GraphState::Decode(acState, nodes))
+    {
+        spdlog::debug("Graph stream: {:X} takes no sync point: {}", aGraph.holder ? aGraph.holder->formID : 0,
+                      !pGraph || !pGraph->rootGenerator ? "no root generator" : !pBehaviour->animationVariables ? "no variables" : "its state does not decode");
         return false;
+    }
 
     // Its templates by id: numbered alike from the same behaviour files (setNodeIds 58369).
     std::unordered_map<uint16_t, hkbNode*> templates;
@@ -519,14 +522,12 @@ bool Give(BShkbAnimationGraph& aGraph, hkEventContext& aContext, const std::stri
 
     // The nodes' plain members, onto their new clones.
     uint32_t runtimes = 0;
+    for (const auto* pNode : runtime)
     {
-        for (const auto* pNode : runtime)
-        {
-            const auto it = clones.find(pNode->Id);
-            const auto* pRuntime = it != clones.end() && CheckOf(*it->second) == pNode->Check ? RuntimeOf(it->second->GetClassType()) : nullptr;
-            auto reader = ReaderOf(pNode->Runtime);
-            runtimes += pRuntime && NodeMemory::Read(reader, reinterpret_cast<uint8_t*>(it->second), *pRuntime);
-        }
+        const auto it = clones.find(pNode->Id);
+        const auto* pRuntime = it != clones.end() && CheckOf(*it->second) == pNode->Check ? RuntimeOf(it->second->GetClassType()) : nullptr;
+        auto reader = ReaderOf(pNode->Runtime);
+        runtimes += pRuntime && NodeMemory::Read(reader, reinterpret_cast<uint8_t*>(it->second), *pRuntime);
     }
     spdlog::debug("Graph stream: {:X} restored {} of {} nodes with a state, {} runtime of {} (no node {}, other node {}, not fitting {}; "
                   "transition effects {}, lost {}); then {} active, {} of its owner's not, {} machines in another state; {} events dropped; clips {}",

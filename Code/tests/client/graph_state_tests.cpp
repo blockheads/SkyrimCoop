@@ -58,6 +58,7 @@ TEST_CASE("A node's check tells another class or name apart; a cut graph state i
     bytes.pop_back();
     CHECK_FALSE(Decode(bytes, decoded));
     CHECK_FALSE(Decode(std::string("\xff\xff\xff\xff\x0f", 5), decoded)); // a count past the cap
+
 }
 
 TEST_CASE("No sync point carries a cyclic blend generator's cross-blend", "[graph-state]")
