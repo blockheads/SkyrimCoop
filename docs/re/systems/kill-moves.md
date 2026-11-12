@@ -32,10 +32,11 @@ death action
 - A replayed pair whose partner is a copy names no target event (`PlayReplayedAction`): 32803 makes no instance there,
   and each copy plays its half alone, the victim's by its owner's action (the half `TESActionData::Func5` played on the
   owner's game, sent as the victim's own action). Only the attacker's and the victim's own games hold an instance.
-- An owner in an instance is off the graph input stream (`GraphStreams::PauseWhile`): its synchronized clip waits for
-  the mark on its instance (about 150 ms on the host, `KillMove1HMWolfA/B`, 2026-11-09), and a copy outside one starts
-  at once (`HookUpdateSynchronizedClip`). Its copy leaves the stream at the half's action and is back from a sync point
-  after the pair (graph-input-stream.md, Pairs).
+- An owner in an instance is recorded on but gives no sync point (`GraphStreams::HoldPointsWhile`): its synchronized
+  clip waits for the mark on its instance (about 150 ms on the host, `KillMove1HMWolfA/B`, 2026-11-09), and its copies'
+  clips take that wait as a pick (`HookUpdateSynchronizedClip`). A copy leaves the stream at the half's action only when
+  its partner here is this game's own actor, and is back from a sync point after the pair (graph-input-stream.md, The
+  one exception). Until 2026-11-11 every owner in an instance was off the stream.
 - The instance ends at the victim's `PairEnd`; the attacker stays in its kill move (`IsInKillMove`, its clip running)
   until its own `KillMoveEnd`: 1820 against 3112 ms after the swing for `pa_KillMove1HMWolfB` (2026-11-10). A sync
   point restored inside a synchronized clip starts the clip over, so the owner gives none until it has left the kill

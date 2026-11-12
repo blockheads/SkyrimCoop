@@ -477,3 +477,7 @@ time	op	id	rva	item
 2026-11-12T18:30:05Z	read	36479	0x64f6f0	{"name": "sub_14064F6F0"}
 2026-11-12T18:31:48Z	name	36479	0x64f6f0	{"addr": "0x14064f6f0", "name": "coop_GarbageCollector_DeleteNextForm"}
 2026-11-12T18:31:50Z	comment	36479	0x64f6f0	{"addr": "0x14064f6f0", "comment": "36479 (ours): the garbage collector's job (36468, Job_Garbage 39077) takes the last entry of its array at +0x20 (count +0x30), has TESDataHandler forget it (sub_1401B6EA0) and calls its deleting destructor (vtable 0, flag 1). A guest crashed here 2026-11-12 with RIP 0: the entry's vtable slot was null, an object already destroyed or never a form. A temporary 'Wilderness' cell FF000A70 was on the stack (docs/re/crashes/2026-11-12-guest-gc-deletes-null-vtable.md)."}
+2026-11-12T19:56:41Z	read		0x6d62c0	{"name": "Character::sub_38754"}
+2026-11-12T20:19:35Z	read		0xbca900	{"name": "BShkbAnimationGraph::UpdateRagdollPrePhysics"}
+2026-11-12T20:19:45Z	read	63551	0xbc9810	{"name": "sub_140BC9810"}
+2026-11-12T20:20:08Z	comment	63551	0xbc9810	{"addr": "0x140bc9810", "comment": "A graph manager's physics pre-step (vtable): UpdateRagdollPrePhysics 63562 for each of its graphs, every physics step whether or not the graph updated that frame. So a copy on its owner's stream drives its ragdoll (58291, our CopyRagdollPhysics hook) even while no op is due (read 2026-11-12)."}

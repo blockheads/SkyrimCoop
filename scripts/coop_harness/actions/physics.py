@@ -395,10 +395,13 @@ class PhysicsActions:
         return response["bodies"]
 
 
-    def ragdoll_lies_as_owner(ctx, owner, actor, other, copy):
-        """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone."""
+    def ragdoll_lies_as_owner(ctx, owner, actor, other, copy, trace=None):
+        """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone.
+        `trace`: a RagdollTrace kept from filling while it waits."""
         who, where = owner or "host", other or "host"
         def owner_rests():
+            if trace:
+                trace.take()
             bodies = ctx.ragdoll_of(owner, actor)
             return any(b["motion"] in DYNAMIC_MOTIONS for b in bodies) and not any(b["awake"] for b in bodies)
         ctx.wait_for(f"[{who}] the ragdoll of {actor:X} comes to rest", owner_rests, 30)
@@ -406,6 +409,8 @@ class PhysicsActions:
         apart = {}
         owner_dead = ctx.is_dead(ctx.actor_snapshot(owner, actor))
         def lies_as_owner():
+            if trace:
+                trace.take()
             bodies = ctx.ragdoll_of(other, copy)
             if owner_dead and not ctx.is_dead(ctx.actor_snapshot(other, copy)):
                 apart["now"] = "the owner's actor is dead and the copy lives"

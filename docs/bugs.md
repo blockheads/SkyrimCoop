@@ -1590,14 +1590,19 @@ Size: medium. Needs: the duo, IDA.
 
 ### A dead player's copy a little off its owner's body
 
-`death-spectate-host`, 2 of 23 runs with deaths on the stream (2026-11-12), none in 8 on the build before it:
-`[client] the copy does not lie as the host's body`, up to 13 bones within a unit or two of the owner's but turned over the
-check's 0.05 radians. Too few runs to say the stream does it. The check now prints each bone's distance, turn and whether
-it is awake. The same scenario's other misses there: the enemy never landing its kill (4), the host's player sunk 28
-units (1, listed under [After the host dies](#after-the-host-dies)).
+`death-spectate-host`, 4 of 46 runs with deaths on the stream (2026-11-12), none in 8 on the build before it, then none in
+25 more: `[client] the copy does not lie as the host's body`, once 13 to 16 units and about 30 degrees off, the other
+times within a unit but turned 3 to 14 degrees, over the check's 0.05 radians.
 
-Agent task: `death-spectate-host --repeat 30` with a `RagdollTrace` on the dead player's copy, then read whether the copy
-was put at its owner's rest (`StepToRest`) or only steered.
+Measured (`RagdollTrace` on the dead player's copy, now part of the scenario): the copy's bodies reach the owner's rest
+within 0.2 to 0.8 units and fall asleep at about the moment the owner's do, then wake again: sleep for a frame, awake
+about half a second, sleep, in 11 of 13 traces, the owner's staying asleep. One wake lines up with the owner's rest
+arriving (steering wakes a body each step, `StepToRest`), the next with its place step 30 steps later. Woken, they settle
+again a few degrees off. Tried: leaving a copy whose every body is already asleep near its rest; the condition never
+held in 13 runs (the reason not found: its angle, or what `BodyRead::Active` means), so it was taken out.
+
+Agent task: log, at the owner's rest's arrival, each of the copy's bodies' awake flag, distance and angle from the rest,
+and read why "asleep and there" never holds; then leave such a copy alone.
 
 Size: small. Needs: the duo.
 
@@ -1673,6 +1678,18 @@ load, `SeeGraph`), in the scenario that shows it.
 Size: medium. Needs: the duo, GameTests.
 
 ## Test tools
+
+### Heap history crashes the host at a kill move
+
+With `SKYRIMCOOP_HEAP_HISTORY` set on a duo boot (2026-11-12), the host crashed 4 of 4 at the start of
+`spectator-watches-kill-move`, inside the tool: `HeapHistory::Capture` (its `RtlCaptureStackBackTrace`) under
+`HookFormAllocate`, an access violation in ntdll's unwinder. Read, not measured: Wine's unwinder faults on a frame with no
+unwind data where Windows' stops (a hook's trampoline is one). The other four scenarios of that run passed under it.
+
+Agent task: make the capture stop at a frame with no unwind data (`RtlLookupFunctionEntry` first, or a guarded walk),
+then use it on "A guest crash in the garbage collector's job".
+
+Size: small. Needs: the duo.
 
 ### The gate fails on GameTests now and then
 

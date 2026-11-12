@@ -239,7 +239,6 @@ void World::Update() noexcept
         streams.SetPlayback(form.Id, cPlayback);
         if (streams.OnStream(form.Id))
         {
-            bool paired = false;
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
@@ -249,8 +248,7 @@ void World::Update() noexcept
                 // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
                 const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
                 const auto cPartner = engine.Actors.find(cPartnerId);
-                if ((paired = !cAction.TargetEventName.empty() &&
-                              !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy)))
+                if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy))
                 {
                     streams.HoldUntilPoint(form.Id, cAction.Tick);
                     break;

@@ -113,17 +113,17 @@ exception but how it begins.
   (`client-kill-move`).
   A pair on its owner's game alone made no instance on a guest, and until 2026-11-11 the copy left its stream there
   too, at its owner's half of the pair (`GraphStreams::HoldUntilPoint`), the owner not recorded while in an instance
-  (`GraphStreams::PauseWhile`). That still holds for every pair but a kill move's (next).
+  (`GraphStreams::PauseWhile`, deleted 2026-11-12). Since then that holds only for a pair whose partner here is this
+  game's own actor, or is not here (The one exception).
 - **Kill moves between two copies: on the stream since 2026-11-11.** Read in IDA: a synchronized clip advances only
   while its scene answers "every actor at its mark" (63050, `+0x12C`), and a generator with no scene gets
   `hkbDefaultSynchronizedScene` at activation (63048), which always answers yes. So a copy outside an instance needs
   no scene, only its owner's answer each update: a pick (`HookUpdateSynchronizedClip`: the owner's answers go with
   its update, and a copy's replayed update asks a stand-in scene that gives them). What follows from that:
-  - An owner in a kill move's pair is recorded on; it still gives no sync point until out of it
-    (`GraphStreams::HoldPointsWhile`). Which pair it is comes from the first event of its own-body spell
-    (`ReplayState::KillMoveHalf`: `pa_KillMove...`, `KillMove...`).
-  - A copy stays on its stream at its owner's paired action when its partner here is a copy too and the pair is a
-    kill move's (`ReplayState::PairOnStream`); else as above.
+  - An owner in a pair is recorded on; it still gives no sync point until out of it (`GraphStreams::HoldPointsWhile`).
+    Until 2026-11-12 only a kill move's pair was (told by its first event, `KillMoveHalf`, now deleted).
+  - A copy stays on its stream at its owner's paired action when its partner here is a copy too
+    (`ReplayState::PairOnStream`); else as above.
   - Playing a `pa_Kill` action puts both actors in the kill move beside the graph (39004: `EnterKillMove` 38613 on
     each); a streamed copy plays none, so `AnimationSystem` does it (`ReplayState::EntersKillMove`).
   - Until 2026-11-12 any other pair stayed off the stream, on the belief that a rider's body is put on its mount by
@@ -600,7 +600,7 @@ Duo, 2026-11-12: `death-host-npc`, `host-kill-move`, `friendly-fire-kill`, `deat
 `spectator-watches-kill-move` 2 of 2; `kill-move-kills-guest` 20 of 23 (51 of 80 before: `NEVER came to rest` gone, three
 small flickers left). `death-spectate-host` 16 of 23: four misses on the enemy never landing its kill, one known sinking,
 and two where the dead player's copy lay a little off its owner's body (bugs.md, "A dead player's copy a little off its
-owner's body": 0 of 8 on the build before, too few to decide). `death-wipe-checkpoint` missed once on the enemy too. GameTests "A copy dies on its owner's stream"; the fake's owner now takes its death as a recorded graph event and
+owner's body": 4 of 46 in all, then none in 25; its bodies are woken after their first sleep by the rest steering). `death-wipe-checkpoint` missed once on the enemy too. GameTests "A copy dies on its owner's stream"; the fake's owner now takes its death as a recorded graph event and
 updates on.
 
 ## With one exception left: what was run (2026-11-12)
