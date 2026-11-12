@@ -1558,6 +1558,72 @@ Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's
   [An action sent before its copy exists](#an-action-sent-before-its-copy-exists),
   `form-state-round-trips` under [Test tools](#a-characters-base-bytes-after-joining-once).
 
+## Seen in the final review's duo runs (2026-11-12)
+
+Each line is a run of the branch's current code unless it says committed build. All are intermittent; none is read yet
+(step 0, CLAUDE.md). Rates are from runs of 3 to 6, so they say "sometimes" and no more.
+
+### A kill move that never pairs
+
+`kill-move-kills-guest`: `Timed out after 3s: [host] the kill move pairs the host with the guest's copy`, 3 of about 16
+runs on builds with the review's edits (once with the player left 100 units off its baseline, so the duo booted again),
+none in 5 on the committed `1a4a44a4` and none in 3 on the final build. Whether the edits matter or it is chance: not
+known. The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
+[Copy ragdolls at rest](#copy-ragdolls-at-rest).
+
+Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the current code, then read why the pair did not
+start (`HookTryMoveTo`, the instance, `PairOnStream`).
+
+Size: small. Needs: the duo, IDA.
+
+### A ragdoll that never settles after a failed ride
+
+`ragdoll-lies-as-host`: 1 of 6 and 1 of 5 in repeats (`NEVER came to rest`, a bone 55 units off its body, once 115
+flickers with a bone 211 off), and the run with 115 flickers came straight after `host-rides-horse` failed on the same
+player (the rider 2100 units off its feet:
+[A rider after a spectated kill move](#a-rider-after-a-spectated-kill-move)). Leftover state from that failure is the
+suspect; unchecked. `host-rides-horse` itself: failed 2 of 2 early on, then passed 5 of 5.
+
+Agent task: run `host-rides-horse` then `ragdoll-lies-as-host`, `--repeat 5`, and read what the first leaves on the
+player.
+
+Size: small. Needs: the duo.
+
+### The guest's ride ends with the horse still the guest's
+
+`guest-rides-host-horse`: `Timed out after 10s: [host] the horse is its own again, the client's player off it`, once in
+about 20 runs (the committed build and the review build both passed 5 of 5 later); earlier in the day 3 of 4, the miss a
+kneeling copy at cleanup, not read. Two ends of one ride disagreeing on who rides.
+
+Agent task: read what ends a ride for a copy on its mount (`GETTING_ON_OFF_MOUNT`, sit state) against the host's horse
+ownership.
+
+Size: small. Needs: IDA, the duo.
+
+### A knocked-down copy placed 62 units off
+
+`knockdown-lies-as-host`: `desync before removing FF00099A: Lydia placement.position: host [-987, 2095, 6976] vs client
+copy [-987, 2094, 7037]` once (62 units up) in about 25 runs. Also once `the copy 250 ms behind its owner; turned away from
+its owner's facing once, 31 degrees for 33 ms`, and `bone 8 / bone 29 off` shapes already under [Get-up](#get-up). Rate
+over the day: 3 of 5 and 0 of 3 only while a wrong check refused sync points (removed), 6 of 6 and 3 of 3 once it was out.
+
+Agent task: read what places a copy that stands up 62 units above the floor (its capsule against the bodies' last frame).
+
+Size: small. Needs: IDA, the duo.
+
+### Sync points asked for over and over
+
+Whole-session logs of the duo show some copies starting on a new sync point about every sixth update for long stretches: one
+actor 1189 times on the host, one hare 384 on the guest, against 69 and 127 restores logged in the same sessions. In the
+last three-scenario run, starts and restores matched (4 and 4, 32 and 32). Which scenario loops, and whether the asks, the
+points or the logging is what repeats: not found. It costs messages and a graph restore each time, so it is the first
+thing to look at when the host is profiled in a crowded cell (graph-input-stream.md, "The final review").
+
+Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset by `Feed` on a gap, `Replay` on a failed
+load, `SeeGraph`), in the scenario that shows it.
+
+Size: medium. Needs: the duo, GameTests.
+
 ## Test tools
 
 ### The gate fails on GameTests now and then

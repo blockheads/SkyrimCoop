@@ -605,3 +605,38 @@ Read the same day (IDA, journaled):
 
 Not read yet: which of a streamed copy's handlers run on the events its graph raises (the knock state and kill move
 flag are the actor's, not the graph's); the dragon's trigger (63296-63300).
+
+## The final review, and what is not proven (2026-11-12)
+
+Read in full before the merge: the stream core, its hooks, the state restore, the wire encoding, the services, physics.
+
+**Found and fixed**
+- **A sync point reached a running copy.** The host relays an owner's point to every game, so with three or more players a
+  copy already on its stream restored its whole graph again mid-animation (`GraphStreams::Load` now takes a point only while
+  the copy needs one). Read, not played: the duo has two games. Unit test "A running copy leaves a sync point another game
+  asked for".
+- **A state's array of any length was trusted.** `NodeMemory::Read` reserved storage for a count from the wire up to a
+  million; it is capped at 4096 (`cMaxArray`) and refused before `Reserve`.
+- **Smaller:** a `TimeDelta` name string left unreleased; an actor id written and read on different threads (atomic now);
+  the owner's variables copied three times an update (read in place); two handlers doing one job (`OnStreamedRemoved`).
+
+**A check that was wrong, and removed.** A sync point whose node reports more than 8 sync points was refused, as Havok walks
+at most eight. Skyrim leaves that count unset on nodes that use none, so real points were refused and
+`knockdown-lies-as-host` failed 3 of 8. Found by running the committed build against the edit. `GraphState::ReadSync` takes
+the count as sent and says why.
+
+**Not proven (what a player build could meet)**
+1. **Two machines.** Everything ran on one machine. The stream depends on two games computing the same graph update bit for
+   bit; a different CPU or game version could diverge, and a player build has no check for it (the live check is
+   harness-only; a copy resyncs only after a gap or a pair). If a session shows divergence: a periodic check and resync in
+   player builds, which leaves the design as it is.
+2. **Cost.** Not profiled on this branch: every owned actor steps its graph every frame with interpolation off, and its
+   inputs go out on the reliable channel. Run `coop_test.py profile --load` on the host in a crowded cell.
+3. **Three or more players.** Only two were played. `net_check.sh` has not been run on the branch either.
+4. **No switch.** Stopping recording would put copies back on the older action replay, which a copy off the stream already
+   uses, but that path has not been run with recording off; it needs its own test.
+5. **Other mods** hooking the same Havok functions (Precision hooks the ragdoll driver) are untested beside this.
+
+**Left as is.** `GraphStreams::UpdateIndex`, `ActorIdOf` and `GraphReplayer::CurrentUpdate` serve only the harness's live
+check: a bend of "test code never widens production interfaces", kept because the check needs them. A restored state is
+trusted as sent, as other guest data is.

@@ -1717,6 +1717,20 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   with this game's own actor, and any pair but a kill move's (mounts). Was: the copy's body still turns away at some get-ups (its own heading
   from its ragdoll, 39896). Design and what Skyrim taught: [graph-input-stream.md](design/graph-input-stream.md), "A node's pick".
   Next of the same kind: the ragdoll contact event, a pair's scene answers.
+- **Graph stream: the final review and a second full run (2026-11-12).** Second full run on `1a4a44a4`: 337 pass,
+  51 fail; 15 failures of the morning pass now (`ragdoll-lies-as-host`, `knockdown-smoke`, `knockdown-lies-as-host`,
+  `knockdown-front-and-back`, `host-kill-move`, `kill-move-runs-full-length` among them), 17 are new to the list and each
+  was rerun twice: 12 passed or are listed shapes, `copy-strafes-with-host` (3 of 3) is the old strafe stutter (in its
+  traces since 2026-11-09), two shapes are new entries (the guest player's copy wearing nothing, an extra item in a
+  starting kit; neither touches code this branch changed). The code review read all of it: a sync point reaching a
+  running copy (three or more players), a state array of any length trusted, and smaller cleanups, fixed with tests;
+  one wrong check of mine (refusing sync points with more than 8 sync points) broke `knockdown-lies-as-host` 3 of 8 and
+  was removed. Not proven, in [graph-input-stream.md](design/graph-input-stream.md) ("The final review"): two
+  machines (every run was one), cost on a crowded host, three players, a switch to stop recording, other mods on the same
+  Havok functions. New intermittents in [bugs.md](bugs.md) ("Seen in the final review's duo runs"): a kill move that
+  never pairs, a ragdoll that never settles after a failed ride, the guest's ride ending with the horse still its own,
+  a knocked-down copy 62 units off, sync points asked for over and over; and the gate failing on `GameTests` now and
+  then, uncaught.
 - **Graph stream: the full run (2026-11-11).** 388 scenarios on the branch: 339 pass. The 49 failures rerun alone on
   both builds: three were the branch's, one cause, fixed (a copy on its owner's stream never showed hands its owner
   already had up: `hands-survive-reload-host-player`, `hands-survive-reload-client-player`, `late-join-client`, now 2
