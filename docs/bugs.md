@@ -1319,6 +1319,41 @@ Where each of the other 46 went:
   run.
 - **Test tools:** `form-state-round-trips`, `placed-speaker-deleted-mid-conversation`.
 
+The second full run, on `1a4a44a4` that evening: 337 passed, 51 failed, 17 of them not in the first run's 49. Each of
+the 17 was rerun twice: 12 passed both times or failed in a shape already listed. Where they went:
+
+- [A strafing copy catches for a frame](#a-strafing-copy-catches-for-a-frame): `copy-strafes-with-host`, 3 of 3. The
+  same stutter is in its traces from 2026-11-09 and 2026-11-10; the morning's pass was the lucky one.
+- [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): `save-load-gate` (Aela, 2 of 2
+  in the rerun). Its first failure was Hilde, placed in her chair with `IdleChairEnterInstant` while her copy turned:
+  [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action).
+- [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): `party-buys-house-host` (`JumpLandEnd`
+  against `JumpLand`, 1 of 2).
+- [The older crime scenarios](#the-older-crime-scenarios): `guest-pickpocket-party-alarm`, `guest-theft-bounty-message`.
+- `follower-guest-recruits`: `vanilla recruitment fills the shared follower alias`, as in
+  [Headtracking on copies](#headtracking-on-copies) (Elk); once no clear spot to stage; once an elk 84 units off.
+- New entries below: `dialogue-picked-text-visual`, `quest-gold-turn-in-guest`; `guest-makes-character-then-joins`.
+
+### The guest player's copy wears nothing
+
+`dialogue-picked-text-visual` (2 of 3) and `quest-gold-turn-in-guest` (1 of 3), 2026-11-11: at the end, the host's copy of
+the guest's player has no equipment (`[]`, owner `[77387, 77385, 77382, 77389, 79760]`) and empty hands. The same shape
+was in `dialogue-options-are-the-partys` on 2026-10-30 and 2026-10-31 (the copy kept one item of five), so it predates the
+graph input stream. Unread: whether the copy was spawned again during the scenario, and what applies its worn set after.
+
+Agent task: read what gives a re-spawned player copy its owner's worn set, then make a GameTests flow for it.
+
+Size: small. Needs: the duo (`dialogue-picked-text-visual --repeat 4`), then GameTests.
+
+### A starting kit with an extra item
+
+`guest-makes-character-then-joins` (1 of 3, 2026-11-11): `[client] the starting kit changed`, with `F11B6` beside the
+two expected items. First seen in this run. Unread: what `F11B6` is and which side added it.
+
+Agent task: read where `F11B6` came from, in the guest's log and the host's.
+
+Size: small. Needs: the duo.
+
 ### A spawn's inventory over a newer equip
 
 Stands alone: one copy's worn set.
