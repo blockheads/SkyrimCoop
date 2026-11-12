@@ -2,6 +2,7 @@
 import bisect
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -46,6 +47,8 @@ class AnimTrace:
     def __init__(self, ctx, name, actors, bools=("bIsSynced",), video=True, floats=(), ints=()):
         _game = ctx.host
         self.session = ctx
+        # COOP_TRACE_VIDEO=1 records both screens for every trace, also those that ask for none (a demo's recording).
+        video = video or os.environ.get("COOP_TRACE_VIDEO") == "1"
         self.name, self.actors, self.bools, self.video, self.floats = name, actors, list(bools), video, list(floats)
         self.ints = list(ints)
         self.entries, self.marks, self.captures = [], [], {}
