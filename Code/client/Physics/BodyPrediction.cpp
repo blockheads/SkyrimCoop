@@ -40,12 +40,6 @@ Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const
     return velocities;
 }
 
-bool AtRest(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acRest) noexcept
-{
-    const Error cApart = Between({.Position = acPosition, .Rotation = acRotation}, acRest);
-    return cApart.Distance < kRestDistance && cApart.Angle < kRestAngle;
-}
-
 bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds, float aGravity) noexcept
 {
     if (aSeconds <= 0.f)

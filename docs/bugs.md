@@ -61,6 +61,7 @@ other section needs the duo.
 
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 - [Copy ragdolls at rest](#copy-ragdolls-at-rest): medium
+- [A rider after a spectated kill move](#a-rider-after-a-spectated-kill-move): medium
 - [Get-up](#get-up): medium
 - [A wolf's slow rest](#a-wolfs-slow-rest): small
 
@@ -565,15 +566,16 @@ Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
   velocities never reaching zero (`BodyPrediction::Steer`).
   - Found 2026-11-11: two causes. (1) Ours, fixed: its owner's rest was steered to on every physics step with no end,
     and a steered body never sleeps (all 18 bodies awake at 3-8 units/s within 0.8 units of their rests, 14 of 14 saved
-    runs). A copy's body within half a unit of its rest is now put exactly there once and left
-    (`BodyPrediction::AtRest`, `CopyRagdollPhysics`); `ragdoll-lies-as-host` went from failing every run (dev too) to
-    3 of 4. (2) Open: with our steering gone the dead copy's bodies still move at about 4 units/s, asleep for one
-    frame every half second. Nothing of ours touches them then (logged). The engine drives a dead actor's ragdoll
-    through `driveToPose` with powered controls on both games (logged: enabled 1, powered 1, rigid 0), and the
-    owner's sleeps; a guess, unverified: the copy's graph poses it differently after its death (its stream ends at the
-    death action), so its motors keep pushing.
-  - Start: the dead owner's and copy's graph states and clips after a kill move's death (`AnimTrace` in
-    `kill-move-kills-guest`), then what pose the powered controls aim at.
+    runs). (2) Also ours, found by counting what `CopyRagdollPhysics` did each second: left alone once within half a
+    unit, about three of a ragdoll's bodies never got that close while the others were on their way (their joints hold
+    them off), so 190 steers a second went on for good and woke the whole ragdoll every half second. Now every body is
+    steered toward the rest for 30 physics steps, all are put exactly there in one step (the owner's poses fit its
+    joints together), and then left (`BodyPrediction::StepToRest`). Two guesses on the way were wrong and are not in
+    the code: the forced graph updates of a dead copy, and a margin for staying at rest.
+  - After (duo, four runs each): the copy came to rest in every `kill-move-kills-guest` run; `ragdoll-lies-as-host`
+    3 of 4 (it failed every run, on dev too) and `death-spectate-guest` 3 of 4. Those two scenarios now compare the
+    copy's shake and rest with its owner's (`RagdollTrace.check_as_owner`): the remaining failures were the owner's
+    own (a wolf blown 500 units by a second fireball, a body's few flickers as it falls).
   - Test: a `RagdollTrace` check that a copy sleeps within a second of its owner (`kill-move-kills-guest`).
 - **Dead guest's copy can have a displaced pose.** The original report was a 16-unit body offset with three bones
   displaced up to 17 units. The reduced build passes one complete guest death/revive and one kill-move scenario
@@ -584,6 +586,17 @@ Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
   unit, and they print the same ("bone 12 at (-952, 2034, 6982) vs (-952, 2034, 6982)"), so what differs, a fraction of a
   unit or the bone's turn, cannot be read from it.
   - Start: make the message print the difference it failed on and its limit; then the bone's trace on both games.
+
+### A rider after a spectated kill move
+
+Severity: medium. Found 2026-11-11 while testing kill moves on the stream; not that work's.
+
+- `host-rides-horse` run right after `spectator-watches-kill-move`: the guest's own player, riding, has its skeleton
+  about 2100 units above its feet ("skeleton lifted off its feet (pelvis 2165 above them)"), its copy on the host
+  standing right. 4 of 4 on `e0f66e3a` (the branch that morning), 5 of 5 on `66c45d59`, 2 of 4 on the current code;
+  it passes when it does not follow that scenario. dev's plugin was not tried.
+- Not looked into. Start: what `spectator-watches-kill-move` leaves on the guest's game (its camera, its player's 3D
+  after spectating), then the guest's body trace through the mount.
 
 ### Get-up
 

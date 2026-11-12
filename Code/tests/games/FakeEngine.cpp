@@ -641,17 +641,22 @@ void FakeEngine::Frame()
                 continue;
             auto& body = it->second;
             // At its owner's rest it is left alone (CopyRagdollPhysics): steered on, Havok never lets it sleep.
-            if (cDrive.Rest && BodyPrediction::AtRest(body.Flight.Body.Position, body.Flight.Body.Rotation, cDrive.Frame))
+            if (cDrive.Rest)
             {
-                // Put exactly there once.
-                if (body.Flight.Body.Position != cDrive.Frame.Position)
+                if (body.RestAt != cDrive.Frame.Position)
                 {
-                    body.Flight.Body.Position = cDrive.Frame.Position;
-                    body.Flight.Body.Rotation = cDrive.Frame.Rotation;
-                    ++body.Drives;
+                    body.RestAt = cDrive.Frame.Position;
+                    body.RestSteps = 0;
                 }
-                continue;
+                // Steered a while, put exactly there, then left alone (CopyRagdollPhysics).
+                const auto cStep = BodyPrediction::StepToRest(body.RestSteps);
+                if (body.RestSteps <= BodyPrediction::kRestSettleSteps)
+                    ++body.RestSteps;
+                if (cStep == BodyPrediction::RestStep::kLeave)
+                    continue;
             }
+            else
+                body.RestAt.reset();
             body.Held = true;
             body.Awake = false;
             body.RagdollOf = cId;

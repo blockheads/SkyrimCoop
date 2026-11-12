@@ -604,6 +604,12 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
         std::vector<size_t> drives;
         for (World* pGame : cOthers)
             drives.push_back(Party::Engine(*pGame).Bodies.at(cHead).Drives);
+        // Steered there for half a second, put there, then no more.
+        for (int i = 0; i < 2 * BodyPrediction::kRestSettleSteps; ++i)
+            party.Frame();
+        drives.clear();
+        for (World* pGame : cOthers)
+            drives.push_back(Party::Engine(*pGame).Bodies.at(cHead).Drives);
         for (int i = 0; i < 30; ++i)
             party.Frame();
         for (size_t i = 0; i < cOthers.size(); ++i)

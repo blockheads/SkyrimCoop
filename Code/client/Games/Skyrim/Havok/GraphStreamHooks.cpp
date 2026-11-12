@@ -200,13 +200,19 @@ bool OwnBody(Actor& aHolder)
     return aHolder.InPair() || aHolder.IsInKillMove() || aHolder.InPairClip();
 }
 
-// The owners whose own-body spell began with a kill move's half (ReplayState::KillMoveHalf): recorded through it.
+// An owner's own-body spell, by its first event: a kill move's half (ReplayState::KillMoveHalf) is recorded through
+// while that kill move lasts; any other (a mount's) is not.
+enum class PairSpell : uint8_t
+{
+    kOther,    // not a kill move's, or its kill move is over (its clip's flag can outlast it, into a mount's pair)
+    kStarting, // a kill move's half taken; its flag comes with the action's effects (39004), a moment later
+    kKillMove, // in its kill move
+};
 std::mutex s_pairLock;
-std::unordered_map<uint32_t, bool> s_killPairs;
+std::unordered_map<uint32_t, PairSpell> s_pairSpells;
 
 // An owner's own body for this update or event: through a kill move's pair it is recorded on and only gives no sync
-// point; through any other (a mount's) it is not recorded (true), as before. apEvent: the event its graph takes now,
-// the first of which while own-body says which it is.
+// point; through any other (a mount's) it is not recorded (true), as before. apEvent: the event its graph takes now.
 bool NotRecorded(GraphStreams& aStreams, uint32_t aFormId, Actor& aHolder, const BSFixedString* apEvent = nullptr)
 {
     const bool cOwnBody = OwnBody(aHolder);
@@ -214,11 +220,20 @@ bool NotRecorded(GraphStreams& aStreams, uint32_t aFormId, Actor& aHolder, const
     {
         std::scoped_lock _{s_pairLock};
         if (!cOwnBody)
-            s_killPairs.erase(aFormId);
-        else if (const auto it = s_killPairs.find(aFormId); it != s_killPairs.end())
-            killMove = it->second;
-        else if (apEvent && apEvent->data)
-            killMove = s_killPairs[aFormId] = ReplayState::KillMoveHalf(apEvent->data);
+            s_pairSpells.erase(aFormId);
+        else
+        {
+            const auto [it, cNew] = s_pairSpells.try_emplace(aFormId, PairSpell::kOther);
+            const bool cHalf = apEvent && apEvent->data && ReplayState::KillMoveHalf(apEvent->data);
+            if (cHalf && (cNew || it->second == PairSpell::kOther))
+                it->second = PairSpell::kStarting;
+            const bool cInKillMove = aHolder.IsInKillMove();
+            if (it->second == PairSpell::kStarting && cInKillMove)
+                it->second = PairSpell::kKillMove;
+            else if (it->second == PairSpell::kKillMove && !cInKillMove)
+                it->second = PairSpell::kOther;
+            killMove = it->second != PairSpell::kOther;
+        }
     }
     const bool cPaused = aStreams.PauseWhile(aFormId, cOwnBody && !killMove);
     aStreams.HoldPointsWhile(aFormId, cOwnBody);

@@ -12,7 +12,7 @@ class RagdollPending
     {
         BodyFrame Frame;
         bool Place{};
-        bool Rest{}; // its owner's rest: not steered once it is there (BodyPrediction::AtRest)
+        bool Rest{}; // its owner's rest: steered a while, put there, then left (BodyPrediction::StepToRest)
     };
 
     void Put(uint32_t aCopy, const BodyFrame& acFrame, bool aPlace, bool aRest = false)

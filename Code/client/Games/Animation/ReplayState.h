@@ -59,7 +59,7 @@ constexpr bool EntersKillMove(std::string_view acEvent) noexcept
 
 // A kill move's half, by its event: the attacker's "pa_KillMove..." or the victim's "KillMove...". Only a kill
 // move's pair goes on the stream; any other (a mount's above all) is played by its actions and not recorded, as
-// before: recorded through a mount's pair, a rider's skeleton left its body on getting off (host-rides-horse).
+// before: its body is put on its mount by the action, which no stream carries.
 constexpr bool KillMoveHalf(std::string_view acEvent) noexcept
 {
     return EntersKillMove(acEvent) || StartsWithNoCase(acEvent, "killmove");

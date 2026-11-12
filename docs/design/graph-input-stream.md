@@ -123,8 +123,13 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
     kill move's (`ReplayState::PairOnStream`); else as above.
   - Playing a `pa_Kill` action puts both actors in the kill move beside the graph (39004: `EnterKillMove` 38613 on
     each); a streamed copy plays none, so `AnimationSystem` does it (`ReplayState::EntersKillMove`).
-  - Any other pair stays as it was. Recorded through a mount's pair, a rider's skeleton was left 2100 units from its
-    body on getting off (`host-rides-horse`, 5 of 7 runs); why is not explained.
+  - Any other pair stays as it was: a rider's body is put on its mount by the action, which no stream carries. An
+    owner's kill move spell ends with its kill move, not with its clip's lingering flag (`PairSpell`), so a mount's
+    pair right after is not recorded.
+  - Correction: `host-rides-horse` failing with the rider's skeleton 2100 units off its feet was blamed on recording
+    through a mount's pair. It is not this work's: run right after `spectator-watches-kill-move` it fails 4 of 4 on
+    the plugin of that morning (`e0f66e3a`) and 5 of 5 on the one before this work (`66c45d59`), and 2 of 4 after it
+    (bugs.md, "A rider after a spectated kill move").
   - Measured (duo, `host-kill-move`): on the guest both copies took the pair from their streams; KillMoveStart,
     HitFrame and KillActor came 115-190 ms after the host's, the blow and the death 115-120 ms. Five kill-move
     scenarios, four runs each: 18 of 20 (`kill-move-kills-guest` once never at rest, as before; `kill-moves-cross`

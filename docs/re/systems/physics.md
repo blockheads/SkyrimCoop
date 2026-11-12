@@ -272,6 +272,10 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
     (state 0) the bodies cannot be read (they have left the world): the last frame read is the rest.
   - Its limbs shake while it gets up (forearm and hand reversing every physics step, 8-12 units, on the host's own
     Lydia about 0.8 s into state 6), so those frames carry no velocity: a copy blends between poses.
+- **A copy at its owner's rest (2026-11-11).** Setting a body's velocity (78089/78090) wakes it, so a copy steered
+  to its owner's rest on every step never sleeps. Its bodies cannot all be brought there one by one either: with the
+  others still off, about three of a ragdoll's 18 to 22 are held a little away by their joints. All put at the owner's
+  poses in one step they fit, and Havok lets them sleep about half a second later (`BodyPrediction::StepToRest`).
 - Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
   puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
   `KnockDown::Carry` did).

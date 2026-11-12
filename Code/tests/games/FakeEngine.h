@@ -401,6 +401,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
+        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: the rest it is being taken to, and for how many steps
+        uint16_t RestSteps = 0;
         bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
     };

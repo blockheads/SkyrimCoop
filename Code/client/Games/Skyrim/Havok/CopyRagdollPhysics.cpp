@@ -19,7 +19,13 @@ namespace
 {
 std::mutex s_bodyLock;
 RagdollPending s_bodies;
-std::map<std::pair<uint32_t, uint8_t>, glm::vec3> s_rested; // the copies' bodies put at their owners' rests
+// A copy's body on its way to its owner's rest: which rest, and the physics steps it has been at it.
+struct Resting
+{
+    glm::vec3 Position{};
+    uint16_t Steps{};
+};
+std::map<std::pair<uint32_t, uint8_t>, Resting> s_rested;
 
 void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
 {
@@ -43,16 +49,25 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         BodyRead read;
         // At its owner's rest: put exactly there once, then left to fall asleep (steering wakes it each step).
         const auto cBody = std::make_pair(aCopy.formID, cFrame.Key.Index);
-        if (cDrive.Rest && ReadBody(*pBody, read) && BodyPrediction::AtRest(read.Position, read.Rotation, cFrame))
+        if (cDrive.Rest && ReadBody(*pBody, read))
         {
             std::scoped_lock lock(s_bodyLock);
-            if (const auto it = s_rested.find(cBody); it == s_rested.end() || it->second != cFrame.Position)
+            Resting& resting = s_rested[cBody];
+            if (resting.Position != cFrame.Position)
+                resting = {.Position = cFrame.Position};
+            // Steered there a while, then every body put exactly there in one step, then left to fall asleep.
+            const auto cStep = BodyPrediction::StepToRest(resting.Steps);
+            if (resting.Steps <= BodyPrediction::kRestSettleSteps)
+                ++resting.Steps;
+            if (cStep == BodyPrediction::RestStep::kLeave)
+                continue;
+            if (cStep == BodyPrediction::RestStep::kPlace)
             {
-                s_rested[cBody] = cFrame.Position;
                 PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, {}, {}, true);
+                continue;
             }
-            continue;
         }
+        else
         {
             std::scoped_lock lock(s_bodyLock);
             s_rested.erase(cBody);

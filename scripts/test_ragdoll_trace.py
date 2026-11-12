@@ -79,5 +79,28 @@ class GetUpSnaps(unittest.TestCase):
         self.assertEqual(len(snapping((10,), (60,)).copy_snaps("", 1, "client", 2)), 1)
 
 
+class CopyAtRest(unittest.TestCase):
+    @staticmethod
+    def lying(copy_awake_until, owner_awake_until=10, frames=400):
+        result = RagdollTrace(Session(), "fixture", {"": {1: "owner"}, "client": {2: "copy"}})
+        result.folder = type("Folder", (), {"name": "fixture"})()
+        for game, actor, until in (("", 1, owner_awake_until), ("client", 2, copy_awake_until)):
+            result.samples[game] = [{"t": 1_000_000 + i * 16_000, "id": actor, "knock": 0, "head": [0, 0, 30], "pelvis": [0, 0, 0],
+                                    "bodies": [{"bone": [0, 0, 0], "position": [0, 0, 0], "motion": 2, "awake": i < until}]}
+                                   for i in range(frames)]
+        return result
+
+    def test_a_copy_asleep_soon_after_its_owner_is_at_rest(self):
+        self.lying(copy_awake_until=40).check_as_owner("", 1, "client", 2)
+
+    def test_a_copy_still_awake_long_after_its_owner_slept_never_rested(self):
+        # kill-move-kills-guest, 2026-11-11: steered to its owner's rest with no end, a dead copy never slept.
+        with self.assertRaises(TestFailure):
+            self.lying(copy_awake_until=400).check_as_owner("", 1, "client", 2)
+
+    def test_a_trace_that_ends_as_its_owner_falls_asleep_says_nothing(self):
+        self.lying(copy_awake_until=400, owner_awake_until=390).check_as_owner("", 1, "client", 2)
+
+
 if __name__ == "__main__":
     unittest.main()

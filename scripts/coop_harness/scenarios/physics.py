@@ -650,7 +650,8 @@ def scenario_ragdoll_lies_as_host(ctx):
         trace.__exit__(None, None, None)
         ctx.sheathe("")
     log("ragdoll: " + trace.report())
-    trace.check(["client"])
+    # Against its owner's: a wolf blown about by a second fireball shakes and flickers on the host too.
+    trace.check_as_owner("", npc, "client", copy)
 
 def scenario_knockdown_lies_as_host(ctx):
     """The host's player knocks a living NPC down: the client's copy lies and gets up with it."""

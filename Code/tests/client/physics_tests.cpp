@@ -489,13 +489,14 @@ TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[bod
     CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
 }
 
-TEST_CASE("A copy's body at its owner's rest is left alone", "[physics][rest]")
+TEST_CASE("A copy's ragdoll is steered to its owner's rest, put there, then left alone", "[physics][rest]")
 {
     using namespace BodyPrediction;
-    const BodyFrame cRest{.Position = {10.f, 20.f, 30.f}};
-    CHECK(AtRest({10.2f, 20.f, 30.1f}, cRest.Rotation, cRest));
-    CHECK_FALSE(AtRest({11.f, 20.f, 30.f}, cRest.Rotation, cRest)); // a unit off: steered there
-    CHECK_FALSE(AtRest(cRest.Position, glm::angleAxis(0.1f, glm::vec3{0.f, 0.f, 1.f}), cRest)); // turned
+    // Steered toward its rest for half a second, put exactly there with every other body in one step, then left.
+    CHECK(StepToRest(0) == RestStep::kSteer);
+    CHECK(StepToRest(kRestSettleSteps - 1) == RestStep::kSteer);
+    CHECK(StepToRest(kRestSettleSteps) == RestStep::kPlace);
+    CHECK(StepToRest(kRestSettleSteps + 1) == RestStep::kLeave);
 }
 
 TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")

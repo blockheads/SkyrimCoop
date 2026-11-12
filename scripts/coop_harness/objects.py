@@ -611,6 +611,7 @@ class RagdollTrace:
 
     SNAP = 12.0          # units a bone jumps in one frame, to come back within SNAP_FRAMES (half way at least)
     SNAP_FRAMES = 4
+    REST_AFTER = 2.0     # seconds after its owner's ragdoll fell asleep by which a copy's must have
     SNAP_TRAIN = 200_000 # microseconds a train of snaps lasts (a get-up's limb shake)
     SNAP_SHARE = 0.75    # of a copy's jump: its owner's bones jumping that far then makes it the owner's
 
@@ -744,6 +745,9 @@ class RagdollTrace:
             found.append(f"a series turned back {shake(cop)} times within a second, its owner's {shake(own)}")
         if stray(cop) > max(self.MAX_STRAY, stray(own) + 5):
             found.append(f"a bone {stray(cop):.0f} units off its body, its owner's {stray(own):.0f}")
+        # Its owner's ragdoll asleep for REST_AFTER seconds and still traced, the copy's never was.
+        if own and own["rest"] is not None and cop["rest"] is None and own["seconds"] - own["rest"] > self.REST_AFTER:
+            found.append(f"NEVER came to rest, its owner's did {own['seconds'] - own['rest']:.1f} s before the trace's end")
         return "; ".join(found) or None
 
     def check_as_owner(self, owner_game, owner, copy_game, copy):
