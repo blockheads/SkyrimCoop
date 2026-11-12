@@ -32,12 +32,12 @@ constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, u
 }
 
 // A copy's owner's pair, at its half's action: the copy stays on its stream when its partner on this game is a copy
-// too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick). Its
-// partner this game's own actor: the instance is here, and its half its own body's. Any pair but a kill move's (a
-// mount's), or one whose partner is not here, is played by its action as before.
-constexpr bool PairOnStream(bool aPartnerIsCopy, bool aKillMove) noexcept
+// too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick), a kill
+// move's or a mount's alike (an action writes nothing a mount's beside the graph, 39004). Its partner this game's own
+// actor, or not here: the instance is on this game or there is none to follow, and its half is its own body's.
+constexpr bool PairOnStream(bool aPartnerIsCopy) noexcept
 {
-    return aPartnerIsCopy && aKillMove;
+    return aPartnerIsCopy;
 }
 
 // Playing a "pa_Kill..." action puts its actor and its target in a kill move (39004: EnterKillMove 38613 on each);
@@ -55,14 +55,6 @@ constexpr bool StartsWithNoCase(std::string_view acText, std::string_view acLowe
 constexpr bool EntersKillMove(std::string_view acEvent) noexcept
 {
     return StartsWithNoCase(acEvent, "pa_kill");
-}
-
-// A kill move's half, by its event: the attacker's "pa_KillMove..." or the victim's "KillMove...". Only a kill
-// move's pair goes on the stream; any other (a mount's above all) is played by its actions and not recorded, as
-// before: its body is put on its mount by the action, which no stream carries.
-constexpr bool KillMoveHalf(std::string_view acEvent) noexcept
-{
-    return EntersKillMove(acEvent) || StartsWithNoCase(acEvent, "killmove");
 }
 
 // A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.

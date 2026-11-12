@@ -1181,6 +1181,51 @@ TEST_CASE("Two copies of one game's pair stay on their streams, their clip waiti
     CHECK(wolf.Difference() == "");      // its clip ran when its owner's did: the wait at the mark too
 }
 
+TEST_CASE("Two copies of a rider and its mount stay on their streams through getting on", "[animation][replay-start][pair-stream]")
+{
+    // Read in IDA (39004, 2026-11-12): a mount's action writes nothing a mount's beside the graph. The rider's link is
+    // MountInteraction's (PutOnMount, by the mount message) and its sit state its clip's handlers'. So a pair between
+    // two copies needs no action here, a mount's as a kill move's: before, any pair but a kill move's took both off.
+    WolfTurn wolf;
+    for (auto* engine : {&wolf.host, &wolf.guest})
+    {
+        engine->GraphTransitions[{"Standing", "HorseEnterPartner"}] = "Ridden";
+        engine->Graph->Clips.push_back({.State = "Ridden", .Ms = 600, .Starts = {"Standing"}, .Synchronized = true});
+    }
+    wolf.host.PairMarkMs = 150.0;
+    auto& streams = wolf.party.Guest().GetGraphStreams();
+    const auto& cOwner = wolf.host.Actors.at(wolf.wolf);
+    const auto& cCopy = wolf.guest.Actors.at(wolf.copy);
+    const size_t cPoints = SyncPoints(cCopy);
+    ActionEvent enter;
+    enter.ActionId = 0x13007;
+    enter.EventName = "HorseEnter";
+    enter.TargetEventName = "HorseEnterPartner";
+    enter.TargetId = wolf.wolf;
+    wolf.party.As(wolf.party.Host(), [&] { REQUIRE(wolf.host.PerformAnimation(FakeEngine::kPlayer, enter)); });
+    REQUIRE(cOwner.InPair);
+    bool held = false;
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cCopy.GraphState == "Ridden";
+    }, "the mount's copy takes its half from its stream");
+    CHECK_FALSE(cCopy.InPair);     // no instance on the guest
+    CHECK_FALSE(cCopy.InKillMove); // and no kill move: that is a pa_Kill action's alone
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cOwner.GraphState == "Standing";
+    }, "the owner's clip ends");
+    wolf.party.As(wolf.party.Host(), [&] { wolf.host.StopPairClip(wolf.wolf); });
+    wolf.party.Until([&] {
+        held |= streams.Held(wolf.copy);
+        return cCopy.GraphState == "Standing";
+    }, "the copy's clip ends");
+    CHECK_FALSE(held);
+    CHECK(streams.OnStream(wolf.copy));
+    CHECK(SyncPoints(cCopy) == cPoints); // it never left its stream
+    CHECK(wolf.Difference() == "");
+}
+
 TEST_CASE("A copy held for its owner's paired action is back on its stream only after it played it", "[animation][replay-start][players]")
 {
     // Skyrim (duo, host-rides-horse, 2026-11-10): a rider's copy never got off. Getting off is a paired action with no

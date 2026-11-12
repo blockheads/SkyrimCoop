@@ -249,8 +249,7 @@ void World::Update() noexcept
                 const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
                 const auto cPartner = engine.Actors.find(cPartnerId);
                 if ((paired = !cAction.TargetEventName.empty() &&
-                              !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy,
-                                                           ::ReplayState::KillMoveHalf(cAction.EventName))))
+                              !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy)))
                 {
                     streams.HoldUntilPoint(form.Id, cAction.Tick);
                     break;

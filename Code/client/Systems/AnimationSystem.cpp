@@ -125,12 +125,12 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 return;
             }
             TargetFromNetwork(action);
-            // Its owner's pair: with its partner this game's own, a mount's, or not here, its half is its own body's,
-            // by this action, until a point from after the pair. Two copies each stay on their own stream.
+            // Its owner's pair: with its partner this game's own, or not here, its half is its own body's, by this
+            // action, until a point from after the pair. Two copies each stay on their own stream.
             if (!action.TargetEventName.empty())
             {
                 auto* pPartner = Cast<Actor>(TESForm::GetById(action.TargetId));
-                if (!ReplayState::PairOnStream(pPartner && pPartner->GetExtension()->IsCopy(), ReplayState::KillMoveHalf(action.EventName)))
+                if (!ReplayState::PairOnStream(pPartner && pPartner->GetExtension()->IsCopy()))
                 {
                     streams.HoldUntilPoint(apActor->formID, action.Tick);
                     return;

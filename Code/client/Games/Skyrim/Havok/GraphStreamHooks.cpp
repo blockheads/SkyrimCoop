@@ -202,46 +202,6 @@ bool OwnBody(Actor& aHolder)
     return aHolder.InPair() || aHolder.IsInKillMove() || aHolder.InPairClip();
 }
 
-// An owner's own-body spell, by its first event: a kill move's half (ReplayState::KillMoveHalf) is recorded through
-// while that kill move lasts; any other (a mount's) is not.
-enum class PairSpell : uint8_t
-{
-    kOther,    // not a kill move's, or its kill move is over (its clip's flag can outlast it, into a mount's pair)
-    kStarting, // a kill move's half taken; its flag comes with the action's effects (39004), a moment later
-    kKillMove, // in its kill move
-};
-std::mutex s_pairLock;
-std::unordered_map<uint32_t, PairSpell> s_pairSpells;
-
-// An owner's own body for this update or event: through a kill move's pair it is recorded on and only gives no sync
-// point; through any other (a mount's) it is not recorded (true), as before. apEvent: the event its graph takes now.
-bool NotRecorded(GraphStreams& aStreams, uint32_t aFormId, Actor& aHolder, const BSFixedString* apEvent = nullptr)
-{
-    const bool cOwnBody = OwnBody(aHolder);
-    bool killMove = false;
-    {
-        std::scoped_lock _{s_pairLock};
-        if (!cOwnBody)
-            s_pairSpells.erase(aFormId);
-        else
-        {
-            const auto [it, cNew] = s_pairSpells.try_emplace(aFormId, PairSpell::kOther);
-            const bool cHalf = apEvent && apEvent->data && ReplayState::KillMoveHalf(apEvent->data);
-            if (cHalf && (cNew || it->second == PairSpell::kOther))
-                it->second = PairSpell::kStarting;
-            const bool cInKillMove = aHolder.IsInKillMove();
-            if (it->second == PairSpell::kStarting && cInKillMove)
-                it->second = PairSpell::kKillMove;
-            else if (it->second == PairSpell::kKillMove && !cInKillMove)
-                it->second = PairSpell::kOther;
-            killMove = it->second != PairSpell::kOther;
-        }
-    }
-    const bool cPaused = aStreams.PauseWhile(aFormId, cOwnBody && !killMove);
-    aStreams.HoldPointsWhile(aFormId, cOwnBody);
-    return cPaused;
-}
-
 using TUpdate = char(BShkbAnimationGraph*, BSAnimationUpdateData*, void*);
 TUpdate* RealUpdate = nullptr;
 using TBehaviourUpdate = void(hkbBehaviorGraph*, hkEventContext*, float);
@@ -359,10 +319,10 @@ char HookUpdate(BShkbAnimationGraph* apGraph, BSAnimationUpdateData* apData, voi
         apGraph->behaviourUpdated = false;
         return target.Result;
     }
-    // In a pair it is recorded on (its clip's wait at the mark is a pick, 63050), but gives no sync point; in a
-    // mount's it is not recorded.
-    if (!streams.Recording(cFormId) || NotRecorded(streams, cFormId, *apGraph->holder))
+    if (!streams.Recording(cFormId))
         return RealUpdate(apGraph, apData, apScratch);
+    // In a pair it is recorded on (its clip's wait at the mark is a pick, 63050), but gives no sync point.
+    streams.HoldPointsWhile(cFormId, OwnBody(*apGraph->holder));
     if (streams.NeedsTimeDelta(cFormId))
         streams.SetTimeDelta(cFormId, TimeDeltaIndex(*apGraph));
     // No interpolation: it steps every frame, as its copies replay it, at the engine's own LOD (not `force`, whose
@@ -510,8 +470,9 @@ bool HookSendEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
     if (streams.OnStream(cFormId) && !streams.HoldWhile(cFormId, apGraph->holder->InPair()))
         return false;
     // An owner's half of a pair comes through here too (both already in the instance: 32803).
-    if (streams.Recording(cFormId) && !NotRecorded(streams, cFormId, *apGraph->holder, apEvent))
+    if (streams.Recording(cFormId))
     {
+        streams.HoldPointsWhile(cFormId, OwnBody(*apGraph->holder));
         SendClipLoads(streams, cFormId, *apGraph);
         if (const auto cId = EventId(*apGraph, *apEvent))
             streams.OnEvent(cFormId, streams.Tick(), *cId, Words(*apGraph), Seed(*apGraph));

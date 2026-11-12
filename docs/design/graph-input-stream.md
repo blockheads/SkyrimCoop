@@ -101,7 +101,6 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
 |---|---|---|
 | death | its ragdoll is its own body's | the stream ends |
 | a pair whose partner here is this game's own actor (a guest's kill move on a host NPC) | the pair's instance is on this game: its half is its own body's | sync point after the pair |
-| any pair but a kill move's (mounts) | played by its actions, as before the stream | sync point after the pair |
 
 - **Pairs: built (2026-11-09).** A pair's start (32803) puts both actors in its instance, then plays the target's half
   through its graph (63591). A copy on the stream that is in an instance on this game (`Actor::InPair`, 32808) is held
@@ -123,9 +122,8 @@ copy: GraphSyncRequest(session id)  ->  owner, as its next update begins (after 
     kill move's (`ReplayState::PairOnStream`); else as above.
   - Playing a `pa_Kill` action puts both actors in the kill move beside the graph (39004: `EnterKillMove` 38613 on
     each); a streamed copy plays none, so `AnimationSystem` does it (`ReplayState::EntersKillMove`).
-  - Any other pair stays as it was: a rider's body is put on its mount by the action, which no stream carries. An
-    owner's kill move spell ends with its kill move, not with its clip's lingering flag (`PairSpell`), so a mount's
-    pair right after is not recorded.
+  - Until 2026-11-12 any other pair stayed off the stream, on the belief that a rider's body is put on its mount by
+    the action. Read in IDA since: it is not (next bullet).
   - Correction: `host-rides-horse` failing with the rider's skeleton 2100 units off its feet was blamed on recording
     through a mount's pair. It is not this work's: run right after `spectator-watches-kill-move` it fails 4 of 4 on
     the plugin of that morning (`e0f66e3a`) and 5 of 5 on the one before this work (`66c45d59`), and 2 of 4 after it
@@ -559,6 +557,26 @@ What it found on the duo (2026-11-09), in order:
 - **Clip files on `IdleWoodPutDownEnter`:** in 2 of 6 external runs of the proof, Faendal's copy entered
   `FurnitureState` with `AOWoodPutDown` lacking its file and left it at once. The production replayer holds an event
   for its files (below); whether that covers this event is for the live check to show.
+
+## Mounts between two copies: on the stream (2026-11-12)
+
+Read in IDA: an action's effects beside the graph (39004) are actor state by event name (attack state, sneaking,
+sprint, the kill move for `pa_Kill`) and graph variables; nothing there is a mount's. A rider's link to its mount is
+`MountInteraction`'s (40345 / 41532), which a copy gets from the mount message (`Actor::PutOnMount`), and its sit state
+is its clip's event handlers' (42868, 42881, 42835), which run on the events a copy's replayed graph raises.
+
+So a pair is on the stream whenever the partner on this game is a copy, a mount's as a kill move's
+(`ReplayState::PairOnStream(partnerIsCopy)`), and an owner is recorded through every pair. Gone: `GraphStreams::PauseWhile`,
+`Owned::NotRecorded`, `PairSpell` and `KillMoveHalf`. An owner in a pair still gives no sync point (`HoldPointsWhile`).
+
+A guest riding the host's horse is no exception either: the horse's ownership moves to the rider's game for the ride
+(`OnNotifyMount`), so rider and mount have one owner.
+
+Duo, 2026-11-12: `host-rides-horse` 8 of 8, `guest-rides-host-horse`, `guest-rides-across-border`,
+`mounted-guest-leaves` 4 of 4 each; `host-kill-move` 13 of 14 (bugs.md, "The attacker's copy not in its kill move"),
+`client-kill-move`, `kill-moves-cross`, `knockdown-smoke` 2 of 2. Not done: the live check through a ride (it blocks
+while it compares, so a scenario cannot ride during it yet). GameTests "Two copies of a rider and its mount stay on their
+streams through getting on"; the fake now puts a pair in a kill move only for a `pa_Kill` action, as 39004 does.
 
 ## What the exceptions have in common (2026-11-11: read, nothing built)
 

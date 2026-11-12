@@ -1335,7 +1335,9 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
         CollapsedPairs += cCollapsed;
-        actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+        // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
+        if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
+            actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
         actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {

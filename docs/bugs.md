@@ -594,7 +594,8 @@ Severity: medium. Found 2026-11-11 while testing kill moves on the stream; not t
 - `host-rides-horse` run right after `spectator-watches-kill-move`: the guest's own player, riding, has its skeleton
   about 2100 units above its feet ("skeleton lifted off its feet (pelvis 2165 above them)"), its copy on the host
   standing right. 4 of 4 on `e0f66e3a` (the branch that morning), 5 of 5 on `66c45d59`, 2 of 4 on the current code;
-  it passes when it does not follow that scenario. dev's plugin was not tried.
+  it passes when it does not follow that scenario. dev's plugin (`2fcb5452`, before the stream): 4 of 4 too
+  (2026-11-12), so it is older than the stream.
 - Not looked into. Start: what `spectator-watches-kill-move` leaves on the guest's game (its camera, its player's 3D
   after spectating), then the guest's body trace through the mount.
 
@@ -1567,14 +1568,26 @@ Each line is a run of the branch's current code unless it says committed build. 
 
 `kill-move-kills-guest`: `Timed out after 3s: [host] the kill move pairs the host with the guest's copy`, 3 of about 16
 runs on builds with the review's edits (once with the player left 100 units off its baseline, so the duo booted again),
-none in 5 on the committed `1a4a44a4` and none in 3 on the final build. Whether the edits matter or it is chance: not
-known. The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
+then none in 40 on `1a4a44a4` and none in 40 on `0492014e` (2026-11-12). Chance, or the wrong check those builds carried.
+The same 80 runs passed 27 of 40 and 24 of 40: the scenario fails a third of the time on both, always in the dead copy's
+ragdoll (flicker, `NEVER came to rest`). The same scenario's other intermittents (flicker, `NEVER came to rest`) are under
 [Copy ragdolls at rest](#copy-ragdolls-at-rest).
 
 Agent task: run `kill-move-kills-guest --repeat 20` on `1a4a44a4` and on the current code, then read why the pair did not
 start (`HookTryMoveTo`, the instance, `PairOnStream`).
 
 Size: small. Needs: the duo, IDA.
+
+### The attacker's copy not in its kill move
+
+`host-kill-move`: `Timed out after 3s: [client] player's kill_move is True`, once in 14 runs on the build that records
+through every pair (2026-11-12); not seen in about 20 runs before it. On its stream the attacker's copy is put in the kill
+move by `AnimationSystem` at its owner's `pa_Kill` action (`ReplayState::EntersKillMove`); a copy off its stream at that
+moment plays the action instead. Which path missed: not read.
+
+Agent task: log which branch took the `pa_Kill` action for the attacker's copy, then `host-kill-move --repeat 30`.
+
+Size: small. Needs: the duo.
 
 ### A ragdoll that never settles after a failed ride
 

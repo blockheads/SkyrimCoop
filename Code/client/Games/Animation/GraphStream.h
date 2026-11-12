@@ -169,9 +169,6 @@ struct GraphStreams
     // restored inside a synchronized clip starts the clip over) and its actions carry what a copy held off its
     // stream needs (Streaming). Returns aOwnBody.
     bool HoldPointsWhile(uint32_t aFormId, bool aOwnBody);
-    // An owner in a mount's pair (getting on or off, riding: its body is its mount's): nothing of it is recorded
-    // while aOwnBody, and its recording starts over after, so its copies ask for a point. Returns aOwnBody.
-    bool PauseWhile(uint32_t aFormId, bool aOwnBody);
     // As an update begins, before OnUpdate (its graph after the generate pass since its last update, which moves
     // blenders' sync and modifiers' outputs): true when a copy asked for a sync point, which the caller saves then.
     [[nodiscard]] bool PointWanted(uint32_t aFormId, const void* apGraph = nullptr);
@@ -227,7 +224,6 @@ struct GraphStreams
         bool WantsPoint = false;
         bool TimeDeltaKnown = false;
         bool Paused = false; // on its own body (HoldPointsWhile): no sync point, not Streaming
-        bool NotRecorded = false; // in a mount's pair (PauseWhile)
     };
     struct Copied
     {
