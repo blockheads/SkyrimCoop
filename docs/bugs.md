@@ -1560,6 +1560,17 @@ Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's
 
 ## Test tools
 
+### The gate fails on GameTests now and then
+
+`scripts/check.sh` at a push, 2026-11-11 and 2026-11-12 on `agent/copy-idle-graph`: `check: FAILED (run GameTests)`, twice in
+about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
+(its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). Which case fails: not caught; the
+hook shows only the summary line.
+
+Agent task: make `check.sh` keep a failed target's output, then loop `GameTests` until it shows the case.
+
+Size: small. Needs: nothing but the fast suite.
+
 ### An old crash reported as new
 
 Harness only: the game is right.
