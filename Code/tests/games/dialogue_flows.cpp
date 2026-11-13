@@ -2,6 +2,7 @@
 // guest talking to its copy of a host NPC starts the host's game's conversation with the NPC, its menu shows the
 // host's game's list, its pick is said by the host's game, and the conversation ends for everyone.
 #include "FakeDialogue.h"
+#include <cmath>
 #include <Services/DialogueService.h>
 #include <Events/MenuEvent.h>
 #include "Party.h"
@@ -735,4 +736,34 @@ SCENARIO("A guest talks to an NPC with nothing to say: the host's game opens not
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
     party.Until([&] { return guestTalk.MenuOpen && guestTalk.Speaker == cCopy && hostTalk.Speaker == npc; },
                 "the guest's next ask opens the conversation");
+}
+
+SCENARIO("A guest talks to an NPC from behind it: its body turns to the guest, on every game", "[dialogue][ai][headtrack]")
+{
+    // npc-turns-body-to-guest-talker: talking to this game's player, the body turns only to it (38011); the host's
+    // game runs a guest's conversation with its own player (re/systems/dialogue.md, Who the speaker looks at).
+    Party party(1, SmokeWorld);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {0.f, 100.f, 0.f}); });
+    host.Actors.at(npc).Rotation[2] = 0.f; // facing north, away from the guest
+    party.As(party.Guest(), [&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] = 0.f;
+        guest.Actors.at(FakeEngine::kPlayer).Position[1] = 0.f;
+    });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the NPC");
+    const auto cCopy = guest.CopiesOf(kGuard)[0];
+    const auto cBehind = [](float aHeading) { return std::abs(std::remainder(aHeading - 3.14159265f, 6.28318531f)) < 0.2f; };
+    const auto cHeadings = [&] {
+        return std::format("host's NPC {:.2f}, guest's copy {:.2f}", host.Actors.at(npc).Rotation[2], guest.Actors.at(cCopy).Rotation[2]);
+    };
+    party.Until([&] { return std::abs(guest.Actors.at(cCopy).Rotation[2]) < 0.2f; }, "the copy faces north too", cHeadings);
+
+    party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return cBehind(host.Actors.at(npc).Rotation[2]); }, "the host's NPC turns its body to the guest", cHeadings);
+    party.Until([&] { return cBehind(guest.Actors.at(cCopy).Rotation[2]); }, "the copy turns with it", cHeadings);
 }

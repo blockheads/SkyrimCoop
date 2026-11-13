@@ -42,6 +42,8 @@ struct FakeDialogue final : IDialogueBridge
     // the end (re/systems/dialogue.md, Who the speaker looks at).
     std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
     std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
+    // The speaker's body turns to face its target (Character::TurnBodyToPoint 37811 from ProcessTracking).
+    std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerTurns;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
     // An NPC with something to say. One with nothing (Hilde, most guards) says its hello and starts nothing:
@@ -284,8 +286,13 @@ struct FakeDialogue final : IDialogueBridge
     void LookAtTalker()
     {
         const uint32_t cTalker = m_filters.LookAt ? m_filters.LookAt(Speaker) : 0;
+        const uint32_t cTarget = cTalker ? cTalker : 0x14;
         if (SpeakerLooks)
-            SpeakerLooks(Speaker, cTalker ? cTalker : 0x14);
+            SpeakerLooks(Speaker, cTarget);
+        // Talking to this game's player, the body turns only to it (38011); the hook adds the named talker.
+        const bool cTurns = cTarget == 0x14;
+        if (SpeakerTurns && (cTurns || DialogueMenuPolicy::AskTurnForTalker(cTurns, true, true, cTarget, cTalker)))
+            SpeakerTurns(Speaker, cTarget);
     }
     // The engine says the option, then builds the next list or ends.
     void Say(const Option& acOption)

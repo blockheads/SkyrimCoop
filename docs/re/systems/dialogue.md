@@ -68,7 +68,9 @@ but not its body. **Hooked** (`HookShouldRotateToTrack`): when that rule alone s
 `LookAt` filter names, it is asked again with `talkingToPC` cleared for the call (`DialogueMenuPolicy::AskTurnForTalker`); the
 cleared flag lets one other rule in: an NPC in a scene does not turn. Copies run no `UpdateAI`; their body follows the
 owner's heading. Measured (Lydia, guest behind her): before, her body stayed 178° off the guest on both games while vanilla
-turned her to the host talking from behind; after, she turns to the guest (`npc-turns-body-to-guest-talker`). Measured (2026-11-13, Lydia in
+turned her to the host talking from behind; after, she turns to the guest (`npc-turns-body-to-guest-talker`). The other
+caller of 37811, `Character::GuardTowardDetected` (37405, ours), turns an actor that detected someone toward it.
+The fake turns a speaker's body by the same rule and `AskTurnForTalker` (GameTests "A guest talks to an NPC from behind it"). Measured (2026-11-13, Lydia in
 QASmoke, the guest talking): the host's slot 4 held `session 1` (the host's player) before, `session 2` (the guest's)
 after, and her copy reads the same (`npc-looks-at-guest-talker`). Staged frozen (the harness's `freeze`: no AI), the
 owner's slot was set but her copy's slots stayed empty; the scenario stages her unfrozen. Not read why.

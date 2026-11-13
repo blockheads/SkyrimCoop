@@ -21,3 +21,8 @@ time	op	id	rva	item
 2026-11-13T16:12:55Z	comment		0x6b4a83	{"addr": "0x1406b4a83", "comment": "In a conversation with this game's player (IsTalkingToPC, 39347 via 37199) the body turns only toward g_thePlayer (below, 0x1406b4bc4 region): on the host, a guest's conversation runs with the host's player, so a guest's character as target turns the head but not the body."}
 2026-11-13T16:12:56Z	name	37811	0x6a5bf0	{"addr": "0x1406a5bf0", "name": "Character::TurnBodyToPoint"}
 2026-11-13T16:12:56Z	name	37199	0x672e00	{"addr": "0x140672e00", "name": "Character::IsTalkingToPC"}
+2026-11-13T17:15:49Z	read	39462	0x6fe6b0	{"name": "sub_1406FE6B0"}
+2026-11-13T17:15:58Z	name	37405	0x6801d0	{"addr": "0x1406801d0", "name": "Character::GuardTowardDetected"}
+2026-11-13T17:15:58Z	name	39462	0x6fe6b0	{"addr": "0x1406fe6b0", "name": "ActorProcess::SetActionHeadtrackSlot"}
+2026-11-13T17:16:01Z	comment	37405	0x6801d0	{"addr": "0x1406801d0", "comment": "37405 (ours: GuardTowardDetected): the reaction to a detection (only caller StandardDetectionListener::ReactToDetection). Moving state set (+0xC8 & 0x3C000): stops (vfunc 0x6F0). Otherwise puts a created guard package (type 14, GuardActorPackageData) on the detected target, looks at it (action headtrack slot 1, ActorProcess::SetActionHeadtrackSlot), sets kShouldRotateToTrack from ShouldRotateToTrack 38011 and turns its body to the target (TurnBodyToPoint 37811). Read 2026-11-13."}
+2026-11-13T17:16:01Z	comment	39462	0x6fe6b0	{"addr": "0x1406fe6b0", "comment": "ActorProcess::SetActionHeadtrackSlot (ours): HighProcessData slot 1 (action), as 39461/39465 do for theirs. Callers: Say/SayTo, procedures, GuardTowardDetected 37405."}

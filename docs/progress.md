@@ -58,7 +58,7 @@ so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md),
 player it faces leaves while others stay, it turns to the first player still in it (`NotifyDialogueFace`, from the host's
 rules). Its body turns to that player too: the engine turns the body only to its own player in a conversation
 (`Character::ShouldRotateToTrack` 38011), now also to the named talker (`HookShouldRotateToTrack`). GameTests `[headtrack]`
-(both fail without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
+(each fails without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
 `npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
 
 2026-11-13: `coop_test.py play` follows: the game you don't control walks after your player and faces it, so the watch
