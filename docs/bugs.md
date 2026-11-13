@@ -39,8 +39,10 @@ other section needs the duo.
 
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
+- [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
+- [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
@@ -130,6 +132,7 @@ other section needs the duo.
 - [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small (the wine's sweep)
 - [The guest's highlight with a still mouse](#the-guests-highlight-with-a-still-mouse): small
 - [A refused join shows nothing](#a-refused-join-shows-nothing): small
+- [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
 - [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
@@ -189,6 +192,21 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   wears iron armor again` times out, on dev's plugin 3 runs in 4 and on the graph input stream's 2 in 3 and 2 in 4
   (with and without players on the stream). The first run of a session passes more often than the next ones. Not
   read.
+
+### A copy's interaction idle
+
+A copy played an idle its owner cancelled (before the graph input stream). Expected gone: a living, unpaired NPC's
+copy now replays its owner's graph inputs, not actions (PR #38, graph-input-stream.md, "What went away with the
+stream"), but no run since has caught a cancelled pick-up.
+
+Agent task: catch a cancelled pick-up on the stream and check the copy leaves the idle with its owner; then a fast test.
+
+Size: small. Needs: the duo (Riverwood), then GameTests.
+
+- **Sigrid `13483`, measured before the stream** (trace `20261106-093521-mcp-sigrid`, t=41): the owner takes
+  `IdlePickup_Ground` and drops it within about 60 ms, with no `PickUp` event; her copy played the whole clip (`PickUp`
+  at 42.7, `IdleStop` at 44.2). What cancels it on the owner is not read; 350 s of `graph_watch` on her saw no pick-up.
+  - Start: watch her by `ids` with `expect stream` until a pick-up is cancelled.
 
 ### A copy's graph after a turn or a pick
 
@@ -255,6 +273,21 @@ Settled by the check, recorded so they are not filed again:
   no head is inferred, not measured.
 - Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the copy in
   70 ms.
+
+### A guest arriving mid-loop
+
+Test only. A loaded copy whose stream starts over mid-loop keeps step (`1a967a00`: `npc-counter-copy-falls-back-in`
+restarts it while Lucan's arms are crossed; GameTests "A copy arriving mid-loop is in its owner's loop from its sync
+point"). Not covered: a copy that spawns and loads its 3D mid-loop, with its spawn's graph state and first sync point.
+
+Agent task: Write the scenario where a guest's copy spawns while its owner is mid-loop.
+
+Size: small. Needs: duo.
+
+- **A guest walking in on an NPC mid-loop is untested natively** (2026-11-04). The party tether brings the guest along,
+  so a real late arrival is hard to stage.
+  - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
+    boundary later).
 
 ### Animation mods' random picks
 
@@ -1363,6 +1396,21 @@ Size: small. Needs: the duo.
   handshake changed under the stand-in (`Code/tests/peer/`) or the guest's handling of a refusal broke.
   - Start: the guest's log from the connect to the timeout; `coop_peer`'s output for the refusal it sent.
 
+### A player at a chest reads lower than its copy
+
+Stands alone: one end comparison, not seen on 2026-11-13.
+
+Agent task: Rerun `chest-take-all` until it shows, then find what the guest's player is doing that its copy is not.
+
+Size: small. Needs: the duo.
+
+- **After taking all from a chest the guest's player stood 26-31 units lower than its copy on the host**
+  (`chest-take-all`, 2026-11-11, every run on both builds): `pose.head` 93-96 on the owner against 124 on the copy,
+  `pose.pelvis` 45 against 71; once the owner also read as kneeling (pelvis 26 above its feet). On dev (`32c1b38f`,
+  2026-11-13) it passed 2 of 2 with a clean end comparison. Why is not known: no commit since changed the pose
+  comparison (`d087d0f6` changed only the body check of an undrawn copy).
+  - Start: `observe` both at the end: the owner's last action, sneak state and drawn state against the copy's.
+
 ### A rider at a scenario's end
 
 Riders failing the standing check. The copy that stood while its owner rode (dev's plugin, 2026-11-11,
@@ -1460,8 +1508,7 @@ Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's
 - **`dialogue-refused-pick-restores-list`:** "[client] its chat shows the host's refusal".
 - **`guest-changes-looks-in-session`:** "the vampire change replaced the existing copy".
 - **`furniture-host-player`:** the guest's player `pose.head` 99.6 against its copy's 124.1 afterwards: the same shape
-  as `chest-take-all`'s, which passes 2 of 2 since
-  2026-11-13 (`d087d0f6` stopped the end check reading the bones of a copy not drawn).
+  as [the chest's](#a-player-at-a-chest-reads-lower-than-its-copy).
 - **`host-kill-move`:** "[client] wolf's graph sends KillActor" timed out after 5 s.
 - **`dialogue-guest-barter-earns-speech` and `dialogue-guest-placed-barter-reopens`,** one after the other: "the
   merchant offers its barter line" timed out after 30 s.

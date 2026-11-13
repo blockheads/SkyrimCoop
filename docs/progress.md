@@ -50,18 +50,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-13: bugs.md and progress.md audited against dev (`32c1b38f`): every entry checked against the merged PRs,
-the code and tests, and where neither settled it, a targeted duo rerun. Deleted as resolved, with where the evidence
-went: a dead copy's ragdoll never sleeping and a lying copy's bones (PR #38, `BodyPrediction::StepToRest`, ClientTests
-and GameTests rest checks, the 2026-11-12 full runs); Get-up's every-run timing, facing, turn and snap (PR #38; four
-one-offs left); Lydia's queued greeting (`dialogue-pick-reaches-host` passed all three full runs on the silent device);
-a copy's interaction idle and players' idle variants (no action replay for streamed copies, players on the stream:
-PR #38); a guest arriving mid-loop (`1a967a00`, GameTests "A copy arriving mid-loop..."); the strafe check's long
-frames (PR #48); an old crash reported as new (`1165bcb7`, `d7b13125`, `McpDuo.test_crash_history_resets_on_a_new_hold_only`);
-a player at a chest reading lower than its copy (`chest-take-all` 2 of 2 on dev); the green flash grab (6 of 6
-grabs on dev; the wine's sweep drop stays); a copy standing while its owner rides (0 of 11 since the stream). New:
-the guest's player's copy still swimming after a mounted trip (bugs.md, Copy one-offs). Loose ends lost the bullets
-already marked fixed, done or merged, and those since settled (network cost measured, EngineFixes answered in
+2026-11-13: bugs.md and progress.md audited against dev (`32c1b38f`): every entry checked against the merged PRs, the
+code and tests, and where neither settled it, a targeted duo rerun. Deleted as resolved, with where the evidence went:
+a dead copy's ragdoll never sleeping and a lying copy's bones (PR #38, `BodyPrediction::StepToRest`, ClientTests and
+GameTests rest checks, the 2026-11-12 full runs); Get-up's every-run timing, facing, turn and snap (PR #38; four
+one-offs left); Lydia's queued greeting (`dialogue-pick-reaches-host` passed all three full runs on the silent
+device); players' idle variants (players on the stream: PR #38); the strafe check's long frames (PR #48); an old crash
+reported as new (`1165bcb7`, `d7b13125`, `McpDuo.test_crash_history_resets_on_a_new_hold_only`); the green flash grab
+(6 of 6 grabs on dev; the wine's sweep drop stays); a copy standing while its owner rides (0 of 11 since the stream).
+Narrowed, not deleted: a copy's interaction idle (expected gone with the stream, a cancelled pick-up not yet caught),
+a guest arriving mid-loop (a native spawn mid-loop), the chest's pose (2 of 2 on dev, cause unknown). New: the guest's
+player's copy still swimming after a mounted trip (bugs.md, Copy one-offs). Loose ends lost the bullets already marked
+fixed, done or merged, and those since settled (network cost measured, EngineFixes answered in
 `engine-fixes-compatibility.md`, shared wait and sleep, save transfer at join, the `SetActorRotation` headings).
 
 2026-11-13: a steal warning lost to its owner's scene is vanilla's, and the party already matches it

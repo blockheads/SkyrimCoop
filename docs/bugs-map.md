@@ -15,7 +15,7 @@ How sure each link is:
  CHECKS THAT REPORT WHAT DID NOT HAPPEN        REAL COPY BUGS BEHIND THEM
  --------------------------------------        --------------------------
  Drift detector, fixed: reads live ----------> Owner cancels an idle, copy plays it
-   entries deleted 11-06                         "interaction idle"  (gone: stream, 11-13)
+   entries deleted 11-06                         "interaction idle"  (stream: to verify)
                                                  "after a turn or a pick" (new)
  ai_state.head_track, fixed -----------------> a player's copy's look target
    dead actors, self slots (not read)
@@ -54,7 +54,8 @@ How sure each link is:
 **Fixed 2026-11-06:** the check reads owner and copy live (animation-replay-recovery.md, "Drift detector"). The entries
 "A copy walks while its owner turns" and "A copy's idle variant" are deleted: the evidence is here. Measured after the fix:
 Camilla's `npc-counter-matches`, 1144 samples over two runs, no run of 2 s; no owner turning against a walking copy in the second run's 30 flows (the reverse, a wolf, is in the
-entry below). Left: [A copy's graph after a turn or a pick](bugs.md#a-copys-graph-after-a-turn-or-a-pick).
+entry below). Left: [A copy's interaction idle](bugs.md#a-copys-interaction-idle),
+[A copy's graph after a turn or a pick](bugs.md#a-copys-graph-after-a-turn-or-a-pick).
 
 Cause, read: `PerformAction` (38949) sends its event through `NotifyAnimationGraph` (32901, 63362, 63591) to
 `hkbBehaviorGraph::HandleEventOnActiveNodes` (58377), which updates active nodes at once (60079). So the owner's
@@ -78,8 +79,8 @@ about 60 ms, with no `PickUp` event; the copy plays the whole clip (`PickUp` at 
 owner's clip plays (t=52), the games agree. The live run's time fits t=41 (the verb's clock is not the trace's, so read as a fit, not a match).
 **So the interaction idle entry has the direction backwards:** the copy
 plays an idle its owner cancelled. What cancels it on the owner is not read.
-Deleted from bugs.md 2026-11-13: a living, unpaired NPC's copy no longer replays actions but its owner's graph inputs
-(PR #38, graph-input-stream.md, "What went away with the stream"), so a cancelled pick-up reaches it as its owner's own events.
+Since 2026-11-13 expected gone: a living, unpaired NPC's copy no longer replays actions but its owner's graph inputs
+(PR #38); a cancelled pick-up on the stream is still to be caught (bugs.md).
 
 Ruled out, measured: the graph recovery as a cause. Only 2 of 53 lasting reports start at a recovery.
 
