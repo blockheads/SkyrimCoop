@@ -707,6 +707,85 @@ class ReproActions:
             raise ctx.failure(f"[host] {name} lies back where it rested before the swing ({math.dist(ends['host'], starts['host']):.1f} units off)")
         return {"moved": {who: round(math.dist(ends[who], starts[who]), 1) for who in refs}}
 
+    def swing_at_moving(ctx, name, game="guest", force=8.0, knock=40.0, seconds=6, gap=60):
+        """That game's player lines its swing up on the handle's resting object, the host pushes its object along that
+        line (ApplyHavokImpulse x `force`: it stays in the swing's path), and while the host's frames move it the
+        player swings: in its own game the swing knocks it (its velocity leaves the host's by `knock` units/s; a played
+        body keeps its mass, physics-sync.md "One rule"), and both games come to show it at one place."""
+        instance = "client" if game in ("guest", "client") else ""
+        mine = "guest" if instance else "host"
+        refs = {"host": ctx.resolve(name, "host"), "guest": ctx.resolve(name, "guest")}
+        games = {"host": "", "guest": "client"}
+        body = lambda who: ctx.body_of(games[who], refs[who])
+        ctx.draw(instance)
+        ctx.place_before(instance, refs[mine], gap)
+        lined = ctx.line_up_swing(instance, refs[mine], lifts=(0, 3, 6, 9))
+        look = lined["direction"]
+        flat = math.hypot(look[0], look[1]) or 1.0
+        ctx.console_on("", f"{refs['host']:X}.applyhavokimpulse {look[0] / flat:.3f} {look[1] / flat:.3f} 0.1 {force}")
+        ctx.wait_for(f"[{mine}] {name} moves on the host's frames", lambda: math.hypot(*body(mine)["velocity"]) > 3, seconds)
+        swings_before = ctx.player_command(instance, {"cmd": "last_swing"})["count"]
+        at_swing = ctx.describe_bodies(refs, mine)
+        # Still moving on the host's frames as the swing starts, or this is swing_at's still case.
+        moving = math.hypot(*body("host")["velocity"])
+        if moving < 2:
+            raise ctx.failure(f"[host] {name} stopped before the swing ({moving:.1f} units/s): a stronger `force`")
+        ctx.attack(instance)
+        seen = {"apart": 0.0, "motion": None}
+        def knocked():
+            mine_now, host_now = body(mine), body("host")
+            seen["motion"] = mine_now["motion"]
+            seen["apart"] = max(seen["apart"], math.dist(mine_now["velocity"], host_now["velocity"]))
+            return seen["apart"] > knock
+        try:
+            ctx.wait_for(f"[{mine}] the swing knocks the moving {name}", knocked, 2)
+        except TestFailure as failure:
+            raise ctx.failure(f"{failure}: its velocity at most {seen['apart']:.1f} units/s off the host's, motion "
+                              f"{seen['motion']}; {ctx.describe_swing(instance, lined, swings_before, refs[mine])}; "
+                              f"at the swing {at_swing}") from None
+        def one_place():
+            host, guest = body("host"), body("guest")
+            return not host["awake"] and math.dist(host["position"], guest["position"]) < 1.0
+        ctx.wait_for(f"{name} comes to lie at one place in both games", one_place, seconds * 5)
+        return {"apart": round(seen["apart"], 1), "moving": round(moving, 1)}
+
+    def knock_to_rest(ctx, name, push=(1.0, 0.0, 0.1), force=3.0, lift=0.0, seconds=10):
+        """The host moves the handle's object (ApplyHavokImpulse `push` x `force` on the host's; with `lift`, sets it that
+        far up instead, to drop and settle), then guest_gets_rest."""
+        ref = ctx.resolve(name, "host")
+        start = ctx.body_of("", ref)["position"]
+        if lift:
+            ctx.console_on("", f"{ref:X}.setpos z {ctx.world_state('', [ref])[ref]['position'][2] + lift:.1f}")
+        else:
+            ctx.console_on("", f"{ref:X}.applyhavokimpulse {push[0]} {push[1]} {push[2]} {force}")
+        ctx.wait_for(f"[host] {name} moves", lambda: math.dist(ctx.body_of("", ref)["position"], start) > 2, seconds)
+        return ctx.guest_gets_rest(name, seconds)
+
+    def guest_gets_rest(ctx, name, seconds=10):
+        """The host's moving object stops; within 2 s the guest places the host's rest of it (its `BodyService: placed
+        the owner's rest` line: no readout tells a placed rest from frames still played) and shows it at the host's
+        place, though Havok may keep the host's island awake (physics-sync.md, "One rule": rest from a body's own
+        motion). Returns whether the host's stayed awake."""
+        refs = {"host": ctx.resolve(name, "host"), "guest": ctx.resolve(name, "guest")}
+        body = lambda game, who: ctx.body_of(game, refs[who])
+        log = ctx.plugin_log("client")
+        logged = log.stat().st_size
+        ctx.settled(refs["host"], still_for=0.5, timeout=seconds)
+        rest_line = re.compile(rf"BodyService: placed the owner's rest of 0*{refs['guest']:X} body")
+        seen = {}
+        def rested():
+            host, guest = body("", "host"), body("client", "guest")
+            with log.open("rb") as file:
+                file.seek(logged)
+                seen["rest"] = bool(rest_line.search(file.read().decode(errors="replace")))
+            seen.update(host_awake=host["awake"], motion=guest["motion"], apart=round(math.dist(host["position"], guest["position"]), 2))
+            return seen["rest"] and guest["motion"] != 4 and seen["apart"] < 1.0
+        try:
+            ctx.wait_for(f"[guest] {name} has the host's rest", rested, 2)
+        except TestFailure as failure:
+            raise ctx.failure(f"{failure}: {seen}") from None
+        return {"host_awake": seen["host_awake"]}
+
     def unstage(ctx):
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
         with contextlib.suppress(TestFailure):

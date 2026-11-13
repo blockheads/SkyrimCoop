@@ -61,6 +61,16 @@ rules). Its body turns to that player too: the engine turns the body only to its
 (each fails without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
 `npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
 
+2026-11-13: one rule for every copy, objects included: physically present, nudged toward its owner, placed only when
+far off ([physics-sync.md](design/physics-sync.md), "One rule"). A played object stays simulated with its mass
+(`BodyBridge::Drive` steers it, `BodyPrediction::Steer`); only a hold's frames keyframe it, the host's own player's hold
+now included (`HostBodies::Held`). Read in IDA: walk-in, swing, shout (`ConeProjectile::ProcessHits` 43802), explosion
+(`Explosion::ApplyHavokImpulses` 43850) and grab all skip a keyframed body ([physics.md](re/systems/physics.md), "Every
+hand skips a keyframed body"). So a guest's swing at an object the host is moving now knocks it (scenario
+`guest-swing-moving-object`, MCP verb `swing_at_moving`; GameTests and HostAuthorityTests cases). Next: rest per body
+from its motion (built: a body still for 300 ms rests though Havok keeps its island awake, scenario
+`object-rests-beside-orgnar`); the guest's "moved by itself, ask the host" stays (it covers what the host never moves).
+
 2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. Skyrim wakes resting clutter it never
 moves: Orgnar's animated body shares the bar bottles' island and re-activates it on each animation update (78910 ->
 `hkpEntity::Activate`), and a character's proxy activates what it touches each step (62648); found with the new harness

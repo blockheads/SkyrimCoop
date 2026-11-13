@@ -6,6 +6,53 @@ holds what it grabs; only the host's loaded cells; frames sent on prediction err
 (`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
 objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
 
+## One rule (2026-11-13, built)
+
+Everything another game owns is a copy here, the same way for an NPC, a ragdoll and an object (memory
+`sync-model-decisions`): physically present, nudged toward its owner's place each frame, placed only when far off, and
+deciding nothing itself. NPC copies already worked so ("Copies step", `actor-movement.md`); objects were keyframed
+puppets, and every way a player moves a body skips a keyframed one: walk-in, swing, shout, explosion, grab
+(`docs/re/systems/physics.md`, "Every hand skips a keyframed body"). Each bug of the old playback sat at a switch into
+or out of that mode.
+
+```text
+a reference's body another game moves (BodyService -> IBodyBridge::Drive)
+  not held there: kept simulated, its mass kept
+    velocities set to reach the frame in 50 ms (BodyPrediction::Steer, as copies' ragdolls)
+    64+ units off (BodyBridge::kPlaceFar): put there (SetPositionAndRotation 78082, motion kept)
+    keyframed for a hold that ended: its own motion back first (FreeBody 78182)
+  held there (a hold's frames, NotifyBodyFrames::Held): keyframed as before, so this game's grab refuses it
+the owner's rest: placed and put to sleep (60850), an awake played body included
+the host's own player's hold: sent as a hold too (HostBodies::Held), every guest keyframes it
+```
+
+- A guest's swing, shout, blast or walk-in on a played body now moves it in its own game at once; the host's result
+  follows (its copies replay those actions; a swing goes as a push, "A swing's hit").
+- Measured on the duo against the keyframed playback (`physics-push-reaches-guest`, `guest-cast-moves-host`): both
+  follow the host within 0.1-0.5 units typically and flicker 0 times; a 22 s, 118-unit roll was 5.4 units off at
+  worst. A guest's swing at a ladle the host's frames moved: keyframed, nothing moved (2 of 2); nudged, knocked
+  (`guest-swing-moving-object`).
+- Tests: GameTests "A guest's player hits the bucket the host's knock still moves: it keeps its mass, so both games
+  are knocked" (the fake's `Drive` keyframes only a hold), HostAuthorityTests "the host's player holds a body: each
+  guest gets it as a hold".
+- **Rest from a body's own motion** (step 3): a reference's body rests once Havok sleeps it or it keeps one pose
+  (0.5 units, 0.01 rad) for 300 ms (`BodyPrediction::Still`, in `PhysicsBodies::Take`, on both games); its rest goes
+  out when all its bodies rest. Havok sleeps an island only when all of it is quiet, so a body beside an animated
+  one (Orgnar leaning on his bar, 78910) or a character never got a rest. A rest within 0.05 units and 0.002 rad
+  of the last one sent (a body Orgnar keeps waking where it lies) goes again only after 2 s
+  (`PhysicsBodies::kRestAgainMs`): the guest's own Orgnar wobbles its copy too, and the rest puts it back. With the
+  still limits as the "same" test, a slow settle's last tilt never went out and the inn's clutter ended turned
+  differently on the guest (ClientTests "A body still for a while rests though its island stays awake"). Ragdolls keep the island rule (their own lying and
+  get-up rules). Scenario `object-rests-beside-orgnar` (a cheese wheel dropped on the bar; the old rule: 6 of 7
+  without a rest, keyframed on the guest; now 5 of 5), GameTests "A knocked bucket stops where an animated body keeps
+  its island awake" (the fake's `KeptAwake`), ClientTests "A body is at rest once it keeps one pose".
+- **Kept: the guest's "moved by itself, ask the host"** (step 4 of the plan, dropped). The nudge corrects only a body
+  the host sends frames of; one the host never moves (a guest's own blast's push the host's copy missed) gets no
+  frames, so the guest asks for the host's pose (GameTests "A guest's own blast throws a bucket the host's does not").
+  It fires less now: the host replays the guest's casts, shouts and walk-ins through its copy.
+
+The keyframed playback below ("How a guest applies it", "As built") is replaced for objects not held.
+
 ## Owners (2026-10-26, built)
 
 The game that simulates a body streams it; every other game plays it; the host relays. Today the split is by role
@@ -199,8 +246,8 @@ guest game: a reference's body at rest is dynamic, asleep (the host's frames hol
        the motion's applyPointImpulse)
   its player's weapon hits one (Actor::CalculateCurrentHitTargetForWeaponSwing 38628's applyPointImpulse, patched:
     PlayerHands; built 2026-11-13) -> a push like the above: the host's copy of the swing hits nothing
-    (docs/re/systems/physics.md, "A swing's hit"); before, the guest's knock snapped back to the host's pose. A body
-    the host's frames move is keyframed here, massless: the swing's impulse is 0 and nothing moves (docs/bugs.md)
+    (docs/re/systems/physics.md, "A swing's hit"); before, the guest's knock snapped back to the host's pose. Since
+    2026-11-13 a body the host's frames move keeps its mass here ("One rule"), so the swing knocks it too
   its player grabs one (Activate held: StartGrabObject 40552; a body the host's frames still move is keyframed, which
     the engine's grab refuses)
     -> each update its frames (BodySends' rule) as BodyFramesRequest: the host steers its body after them, 100 ms

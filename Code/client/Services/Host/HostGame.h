@@ -24,6 +24,7 @@ struct HostBodies
 {
     std::vector<BodyFrame> Awake;
     std::vector<BodyPose> Rested;
+    std::vector<BodyKey> Held; // the host's player holds them: sent as a hold (physics-sync.md, "Exclusive holds")
 };
 
 /**
@@ -78,8 +79,8 @@ struct HostGame
         ReadCellState;
     // Everything a created container of the host's holds (kContents, its roll made now); none for no container.
     std::function<std::optional<ObjectChange>(const GameId& acObject)> ReadContents;
-    // The host's world's physics bodies: awake ones read now, and those that fell asleep since the last call.
-    std::function<HostBodies()> TakeBodies;
+    // The host's world's physics bodies at aTick (the frame clock): awake ones read now, and those that came to rest.
+    std::function<HostBodies(uint64_t aTick)> TakeBodies;
     // Where the host's game shows a guest's character (its copy), by player id; none without one.
     std::function<std::optional<glm::vec3>(uint32_t aPlayerId)> ReadPlayerPosition;
     // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; let go (its holder's

@@ -548,3 +548,25 @@ TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", 
     CHECK(cWorst(false) <= 2.6f);       // within the shake itself
     CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
 }
+
+TEST_CASE("A body is at rest once it keeps one pose for a while, whatever Havok's island says", "[physics][still]")
+{
+    BodyPrediction::Still still;
+    BodyFrame frame{.Position = {10.f, 0.f, 0.f}};
+    CHECK_FALSE(still.Read(frame, 1000));
+    frame.Position.x += 0.3f; // a creep under the limit
+    CHECK_FALSE(still.Read(frame, 1200));
+    CHECK(still.Read(frame, 1300));
+    SECTION("moving again starts over")
+    {
+        frame.Position.x += 1.f;
+        CHECK_FALSE(still.Read(frame, 1400));
+        CHECK_FALSE(still.Read(frame, 1600));
+        CHECK(still.Read(frame, 1700));
+    }
+    SECTION("turning counts as moving")
+    {
+        frame.Rotation = glm::angleAxis(0.05f, glm::vec3(0.f, 0.f, 1.f));
+        CHECK_FALSE(still.Read(frame, 1400));
+    }
+}

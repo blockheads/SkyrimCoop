@@ -407,6 +407,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
         uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
         uint64_t StillUntil = 0;
+        // An animated body shares its island (Orgnar's, 78910): Havok never sleeps it, stopped or not (physics.md,
+        // "Woken still").
+        bool KeptAwake = false;
     };
     // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
     static constexpr uint32_t kRisingFrames = 60;
@@ -452,7 +455,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
-    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's

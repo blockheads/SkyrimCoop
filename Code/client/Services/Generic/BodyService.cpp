@@ -208,7 +208,7 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
         else
             m_ragdollRests.erase(cKey);
         // A held body too: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
-        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy);
+        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy, m_held.contains(cKey));
         if (cPose.Rest && !cKey.Actor && !cDone)
         {
             m_pendingRests[cKey] = {cPose.Tick, cAt};

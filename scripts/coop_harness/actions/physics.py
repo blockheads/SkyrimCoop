@@ -282,8 +282,8 @@ class PhysicsActions:
 
 
     def guest_follows_and_lies(ctx, target, start):
-        """After the host's `target` moved off `start`: the client's 3D follows it held keyframed, and it lies where the
-        host's lies."""
+        """After the host's `target` moved off `start`: the client's 3D follows it, kept simulated with its mass (steered,
+        physics-sync.md "One rule"), and it lies where the host's lies."""
         seen = []
         def follows():
             # What the player sees: its 3D with its body (a keyframed body leaves its node behind, physics-sync.md).
@@ -291,10 +291,10 @@ class PhysicsActions:
             body = first_body(ref)
             seen.append(f"motion {body['motion']}, 3D {math.dist(ref['position_3d'], start):.0f} off its start and "
                         f"{math.dist(ref['position_3d'], body['position']):.1f} from its body")
-            return (body["motion"] == KEYFRAMED_MOTION and not near(ref["position_3d"], start, 5)
+            return (body["motion"] != KEYFRAMED_MOTION and not near(ref["position_3d"], start, 5)
                     and near(ref["position_3d"], body["position"], 3))
         try:
-            ctx.wait_for(f"[client] {target:X} and its 3D follow the host's, held keyframed", follows, 5)
+            ctx.wait_for(f"[client] {target:X} and its 3D follow the host's, with its mass", follows, 5)
         except TestFailure as failure:
             changes = [s for i, s in enumerate(seen) if i == 0 or s != seen[i - 1]]
             raise ctx.failure(f"{failure}: the client's was " + "; then ".join(changes[-6:])) from None

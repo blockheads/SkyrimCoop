@@ -67,4 +67,20 @@ constexpr RestStep StepToRest(uint16_t aSteps) noexcept
 // Whether a woken body has left where it woke (physics.md, "Woken still"): its pose past the send limits
 // (BodySendLimits: 2 units, 0.05 rad). Skyrim wakes islands it never moves, with velocity bursts that go nowhere.
 [[nodiscard]] bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept;
+
+// A body at rest by its own motion (physics-sync.md, "One rule"): within kDistance and kAngle of one pose for kMs,
+// whatever Havok's island says (an animated body or a character beside it keeps the island awake).
+struct Still
+{
+    static constexpr float kDistance = 0.5f;
+    static constexpr float kAngle = 0.01f; // radians
+    static constexpr uint64_t kMs = 300;
+
+    // Each read at aTick (ms): true once it has kept one pose for kMs.
+    [[nodiscard]] bool Read(const BodyFrame& acNow, uint64_t aTick) noexcept;
+
+    BodyFrame Anchor{};
+    uint64_t Since{};
+    bool Started{};
+};
 } // namespace BodyPrediction

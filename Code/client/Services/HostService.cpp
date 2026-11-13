@@ -172,8 +172,8 @@ void HostService::MakeAuthority() noexcept
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeQuestChanges = [this] { return m_pEngine->TakeQuestChanges(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
-    game.TakeBodies = [this] {
-        return m_pEngine->TakeBodies([this](uint32_t aFormId) -> uint32_t {
+    game.TakeBodies = [this](uint64_t aTick) {
+        return m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;

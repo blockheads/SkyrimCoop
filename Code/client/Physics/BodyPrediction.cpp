@@ -57,4 +57,17 @@ bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept
     const auto cApart = Between(acNow, acWoke);
     return cApart.Distance >= cDistance || cApart.Angle >= cAngle;
 }
+
+bool Still::Read(const BodyFrame& acNow, uint64_t aTick) noexcept
+{
+    const auto cApart = Started ? Between(acNow, Anchor) : Error{kDistance, kAngle};
+    if (cApart.Distance >= kDistance || cApart.Angle >= kAngle)
+    {
+        Anchor = acNow;
+        Since = aTick;
+        Started = true;
+        return false;
+    }
+    return aTick - Since >= kMs;
+}
 } // namespace BodyPrediction

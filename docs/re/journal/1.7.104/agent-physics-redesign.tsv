@@ -1,0 +1,31 @@
+time	op	id	rva	item
+2026-11-13T18:56:03Z	read		0x104a37a	{"name": "bhkWorld::sub_77843"}
+2026-11-13T18:56:07Z	read	61383	0xb59440	{"name": "hkpWorld_addContactListener"}
+2026-11-13T18:56:43Z	name	77843	0x104a300	{"addr": "0x14104a300", "name": "bhkWorldObject::AddContactListener"}
+2026-11-13T18:56:43Z	name	61383	0xb59440	{"addr": "0x140b59440", "name": "hkpWorld::addContactListener"}
+2026-11-13T18:56:46Z	comment	77843	0x104a300	{"addr": "0x14104a300", "comment": "77843: adds an hkpContactListener to this world object's hkpWorld (vfunc 0x138 the hkpWorld, 0x140 the bhkWorld via +0x430) under the world's write lock (+0xC598). The engine's only caller of 61383. Precision registers its own listener directly (61383 after requireCollisionCallbackUtil 61437): every contact point event with both bodies."}
+2026-11-13T18:56:46Z	comment	61383	0xb59440	{"addr": "0x140b59440", "comment": "61383: appends the listener to hkpWorld+0x258 (contactListeners array, count +0x260, capacity +0x264). Takes no lock; callers hold the world's write lock."}
+2026-11-13T18:56:52Z	comment	61383	0xb59440	{"addr": "0x140b59440", "comment": "[re]\nAddressLib ID 61383\nmeh321: ahkpWorld::sub_61383\nUsed by plugin: Precision/src/Offsets.h:111 as hkpWorld_addContactListener\n61383: appends the listener to hkpWorld+0x258 (contactListeners array, count +0x260, capacity +0x264). Takes no lock; callers hold the world's write lock."}
+2026-11-13T18:56:52Z	comment	77843	0x104a300	{"addr": "0x14104a300", "comment": "[re]\nAddressLib ID 77843\n77843: adds an hkpContactListener to this world object's hkpWorld (vfunc 0x138 the hkpWorld, 0x140 the bhkWorld via +0x430) under the world's write lock (+0xC598). The engine's only caller of 61383. Precision registers its own listener directly (61383 after requireCollisionCallbackUtil 61437): every contact point event with both bodies."}
+2026-11-13T19:39:21Z	read	26005	0x4048e0	{"name": "AddExplosionImpulse"}
+2026-11-13T19:39:28Z	read	43854	0x7e8080	{"name": "Explosion::sub_43854"}
+2026-11-13T19:39:28Z	read	78091	0x1058f10	{"name": "bhkRigidBody::SetLinearImpulse"}
+2026-11-13T19:39:34Z	read	43846	0x7e5a60	{"name": "Explosion::GetActorCause"}
+2026-11-13T19:39:39Z	read	43850	0x7e65b0	{"name": "Explosion::sub_43850"}
+2026-11-13T19:42:11Z	read		0x7e2553	{"name": "ConeProjectile::Func190_43802"}
+2026-11-13T19:42:46Z	read	78109	0x105a590	{"name": "sub_14105A590"}
+2026-11-13T19:42:54Z	name	78109	0x105a590	{"addr": "0x14105A590", "name": "hkpMotion::IsDynamicType"}
+2026-11-13T19:42:54Z	name	43850	0x7e65b0	{"addr": "0x1407e65b0", "name": "Explosion::ApplyHavokImpulses"}
+2026-11-13T19:42:54Z	name	43854	0x7e8080	{"addr": "0x1407e8080", "name": "Explosion::ApplyImpulseToBody"}
+2026-11-13T19:42:54Z	name	43802	0x7e20a0	{"addr": "0x1407e20a0", "name": "ConeProjectile::ProcessHits"}
+2026-11-13T19:43:00Z	comment	78109	0x105a590	{"addr": "0x14105A590", "comment": "(*motionType - 1) <= 2 || == 6: dynamic (box, sphere, thin box... 1-3, 6). Keyframed 4 and fixed 5 are not. Gates explosion and shout impulses."}
+2026-11-13T19:43:00Z	comment	43850	0x7e65b0	{"addr": "0x1407e65b0", "comment": "[re]\nAddressLib ID 43850\nExplosion: once, every collidable its phantom (Explosion+0xC0, bhkSimpleShapePhantom) overlaps gets ApplyImpulseToBody (43854) when its motion is dynamic (IsDynamicType) or its layer is 20 (debris large); then flags (+0x144) |= 8. Who caused it: Explosion+0xF8 actorOwner (ActorHandle), +0x108 actorCause (GetActorCause 43846). A keyframed body gets no impulse."}
+2026-11-13T19:43:00Z	comment	43854	0x7e8080	{"addr": "0x1407e8080", "comment": "[re]\nAddressLib ID 43854\nOne body's blast: direction from the explosion's position (+0x54) to the body, force BGSExplosion data +200 scaled by ScaleGameplayImpulseForce (mass), capped unless the body is the explosion's own target (+0xFC handle). bhkRigidBody::SetLinearImpulse (78091) plus a RANDOM angular impulse (GetRandomNumber x3): two games' blasts never match."}
+2026-11-13T19:43:00Z	comment	43802	0x7e20a0	{"addr": "0x1407e20a0", "comment": "[re]\nAddressLib ID 43802\nConeProjectile (shouts, Unrelenting Force) hits: each collector hit's body, once (list at +0x208), if dynamic (IsDynamicType) or layer 20: SetLinearImpulse (78091) away from the cone's origin (+0x1F0) and a random angular impulse. Actors go through the projectile's hit path (vfunc 0x5E8). Who: the projectile's shooter."}
+2026-11-13T19:43:30Z	comment	25850	0x3fcdc0	{"addr": "0x1403fcdc0", "comment": "[re]\nThe engine's island sleep (hkpIslandActivationListener on each world). For each entity of the island: its reference (FindReferenceFor3D), PopTemporaryMass, then the 3D's bookkeeping through the task queue (moved back under its cell's node) or, for a reference flagged in its extra data (+0x70, kind 2), SetMotionType fixed (5, NiAVObject 77866); a layer 20 (debris large) non-actor body goes keyframed (78077, 4). So the engine's 'rest' work hangs on Havok deactivating the island: a rest we judge from motion alone would skip this on the game that simulates."}
+2026-11-13T19:43:31Z	read	60850	0xb4b0c0	{"name": "hkpEntity::deactivate"}
+2026-11-13T19:43:52Z	read	61513	0xb608c0	{"name": "ahkpWorld::sub_61513"}
+2026-11-13T19:54:14Z	read	61523	0xb61da0	{"name": "ahkpWorld::sub_61523"}
+2026-11-13T19:54:24Z	read		0xb60750	{"name": "hkpSimulationIsland::sub_61511"}
+2026-11-13T19:54:43Z	comment	61513	0xb608c0	{"addr": "0x140b608c0", "comment": "[re]\nAddressLib ID 61513\nCalled by hkpEntity::deactivate (60850) with the entity's island: clears its in-active-array bits (+0x31), moves the island between the world's active (+0x40) and inactive (+0x50) island arrays (hkpSimulationIsland 61511) and queues islands still marked (61523, the world's +0x60 list). Whether the island-deactivated listeners (world +0x1F8, FOIslandActivationListener) fire from here is not read yet."}
+2026-11-13T19:54:43Z	comment	61523	0xb61da0	{"addr": "0x140b61da0", "comment": "[re]\nAddressLib ID 61523\nClears the island's active mark bits (+0x32 bits 2-3) and appends it once to the world's list at +0x60 (index kept at island +0x2E, 0xFFFF when not listed)."}

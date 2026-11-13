@@ -14,7 +14,10 @@ class BodyBridge final : public IBodyBridge
 public:
     void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept override;
     [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
-    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    // A played reference body this far off its frame is put there, not steered.
+    static constexpr float kPlaceFar = 64.f;
+
+    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;

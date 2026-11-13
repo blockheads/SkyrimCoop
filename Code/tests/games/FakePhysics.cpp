@@ -152,7 +152,7 @@ bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
     return true;
 }
 
-bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
+bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHeld) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
     // An actor's body needs its copy here (BodyBridge::Find): none yet, or gone, is not loaded here.
@@ -180,10 +180,14 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
         return true;
     }
     Body& body = it->second;
-    body.Held = true;
-    body.Awake = false;
+    // Held in another game: keyframed (massless); else simulated, steered onto the frame (BodyBridge::Drive).
+    body.Held = aHeld;
+    body.Awake = !aHeld;
+    body.Flight.Resting = aHeld;
     body.Flight.Body.Position = acFrame.Position;
     body.Flight.Body.Rotation = acFrame.Rotation;
+    body.Flight.Body.LinearVelocity = aHeld ? glm::vec3{} : acFrame.LinearVelocity;
+    body.Flight.Body.AngularVelocity = aHeld ? glm::vec3{} : acFrame.AngularVelocity;
     body.SceneWritesDuringJobs += !AtMainLoop;
     body.NodePosition = acFrame.Position;
     body.NodeRotation = acFrame.Rotation;
@@ -259,8 +263,13 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         body.NodePosition = acPose.Position;
         body.NodeRotation = acPose.Rotation;
     }
-    // A reference's body is simulated again at its rest; a ragdoll's stays held.
+    // A reference's body is simulated again at its rest, asleep (BodyBridge::SettleFound); a ragdoll's stays held.
     body.Held = body.RagdollOf != 0;
+    if (!body.RagdollOf)
+    {
+        body.Awake = false;
+        body.Flight.Resting = true;
+    }
     body.Flight.Body.Position = acPose.Position;
     body.Flight.Body.Rotation = acPose.Rotation;
     body.Flight.Body.LinearVelocity = {};
@@ -395,13 +404,13 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             std::copy_n(&body.Flight.Body.Position.x, 3, cActor->second.Position);
             cActor->second.Rotation[2] = HeadingOf(body.Flight.Body.Rotation);
         }
-        if (body.Flight.Resting && !cRising)
+        if (body.Flight.Resting && !cRising && !body.KeptAwake)
             body.Awake = false;
         if (reference.Bodies.size() <= cKey.Index)
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting)};
+                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake)};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);
