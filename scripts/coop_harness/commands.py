@@ -865,8 +865,11 @@ class Commands:
                 seen = lines
                 said = {(text or "").strip().lower() for _, text in new}
                 if "!stay" in said and follower.on:
-                    follower.stop()
-                    log(f"The {'guest' if other else 'host'} stays")
+                    try:
+                        follower.stop()
+                        log(f"The {'guest' if other else 'host'} stays")
+                    except (TestFailure, OSError) as error:
+                        log(f"The {'guest' if other else 'host'} did not stop following ({error}); say !stay again")
                 if "!follow" in said and not follower.on:
                     follower.start()
                     log(f"The {'guest' if other else 'host'} follows you")

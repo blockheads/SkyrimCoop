@@ -164,7 +164,7 @@ The follow (`scripts/coop_harness/follow.py`, 2026-11-13) drives the other game'
 ```
 copy of your player missing  -> wait (the party tether brings the follower across a door or a trip)
 more than 2500 units apart   -> place beside it (the harness's checked placement: floor, headroom, sight)
-behind (350+), moved < 60 in 3 s, the follow set 5+ s ago (a new one takes 2-5 s to set off)
+behind (350+, or 200+ up or down), moved < 60 in 3 s, the follow set 5+ s ago (a new one takes 2-5 s to set off)
                              -> a 6 s PathToReference leg round what stops it; after 2 legs, place
 no follow set                -> Actor.KeepOffsetFromActor(copy, catch-up 350: runs, follow radius 200: walks, stands)
 standing within 350, facing off by 25+ degrees (at most every 1.5 s) -> face it (the harness's `face`)

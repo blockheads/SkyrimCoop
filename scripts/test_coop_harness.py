@@ -755,6 +755,32 @@ class PlayFollow(unittest.TestCase):
         _, steps = self.steps(walking, [100, 300, 0], state=FollowState(following=True))
         self.assertNotIn("face", steps)
 
+    def test_another_floor_is_not_arrived(self):
+        from coop_harness.follow import STUCK_SECONDS, FollowState
+        stuck = [[0, 0, 1000]] * (int(STUCK_SECONDS / 0.25) + 2)  # on a balcony over the copy
+        _, steps = self.steps(stuck, [100, 0, 0], state=FollowState(following=True, since=-10.0, unsticks=1))
+        self.assertEqual(steps[-1], "unstick")
+        self.assertNotIn("face", steps)
+
+    def test_stop_tries_both_cleanups_and_can_try_again(self):
+        from coop_harness.follow import Follower
+        ctx, calls = Mock(), []
+        def command(instance, request):
+            calls.append(request["function"])
+            if request["function"] == "ClearKeepOffsetFromActor" and calls.count("ClearKeepOffsetFromActor") == 1:
+                raise TestFailure("loading")
+        ctx.player_command.side_effect = command
+        ctx.player_script_call.side_effect = lambda instance, klass, function, args: calls.append(f"{function}{args}")
+        follower = Follower(ctx, "client")
+        follower.start()
+        with self.assertRaises(TestFailure):
+            follower.stop()
+        self.assertIn("SetPlayerAIDriven[False]", calls)  # given back even though the clear failed
+        self.assertTrue(follower.on)
+        follower.stop()
+        self.assertFalse(follower.on)
+        self.assertEqual(calls.count("ClearKeepOffsetFromActor"), 2)
+
     def test_heading_error(self):
         import math
         from coop_harness.follow import heading_error

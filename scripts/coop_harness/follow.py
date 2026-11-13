@@ -9,6 +9,7 @@ from .utilities import log
 
 FOLLOW_RADIUS = 200.0  # units: KeepOffsetFromActor walks inside this, stands at it
 CATCH_UP = 350.0  # units: beyond this it runs (KeepOffsetFromActor's catch-up radius)
+HEIGHT_GAP = 200.0  # units up or down: another floor or below a ledge, not arrived however close
 FAR = 2500.0  # units: beyond this, left behind (a sprint, a jump down): placed beside it
 STUCK_UNITS, STUCK_SECONDS = 60.0, 3.0  # behind and moved less than this: something is in the way
 SET_OFF_SECONDS = 5.0  # a new KeepOffsetFromActor takes a package evaluation to set off (play_verbs.SET_OFF_SECONDS)
@@ -58,9 +59,10 @@ def decide(state, now, here, heading, there):
     state.gone, state.told_gone = None, False
     state.track = [(t, p) for t, p in state.track if now - t <= max(STUCK_SECONDS, STILL_SECONDS) + 1] + [(now, here)]
     apart = math.dist(here[:2], there[:2])
+    close = apart <= CATCH_UP and abs(here[2] - there[2]) <= HEIGHT_GAP
     if apart > FAR:
         return "place"
-    if apart <= CATCH_UP:
+    if close:
         state.unsticks = 0
     elif (state.following and now - state.since >= SET_OFF_SECONDS
           and (gone := moved(state.track, now, STUCK_SECONDS)) is not None and gone < STUCK_UNITS):
@@ -68,7 +70,7 @@ def decide(state, now, here, heading, there):
     if not state.following:
         return "follow"
     still = moved(state.track, now, STILL_SECONDS)
-    if (apart <= CATCH_UP and still is not None and still < STILL_UNITS and now - state.faced >= FACE_EVERY
+    if (close and still is not None and still < STILL_UNITS and now - state.faced >= FACE_EVERY
             and heading_error(here, heading, there) > FACE_DEGREES):
         return "face"
     return "stay"
@@ -88,11 +90,19 @@ class Follower:
         self.state, self.on = FollowState(), True
 
     def stop(self):
+        """Both cleanups tried; if either fails it stays on, so another stop tries again."""
         if not self.on:
             return
+        failed = None
+        for cleanup in (lambda: self.keep_offset(None),
+                        lambda: self.ctx.player_script_call(self.instance, "Game", "SetPlayerAIDriven", [False])):
+            try:
+                cleanup()
+            except (TestFailure, OSError) as error:
+                failed = failed or error
+        if failed:
+            raise failed
         self.on = False
-        self.keep_offset(None)
-        self.ctx.player_script_call(self.instance, "Game", "SetPlayerAIDriven", [False])
 
     def keep_offset(self, copy):
         call = {"cmd": "papyrus_call", "class": "Actor", "player_action": True, "self": 0x14}
