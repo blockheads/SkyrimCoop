@@ -30,7 +30,7 @@ __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_
 
     if (pFaceNode && pActorBase)
     {
-        BGSHeadPart* pFacePart = pActorBase->GetHeadPart(aPartType);
+        BGSHeadPart* pFacePart = pActorBase->GetCurrentHeadPart(aPartType);
 
         if (pFacePart)
         {
@@ -57,79 +57,102 @@ using TCreateResourceView = Ni2DBuffer*(TextureHolder*, uint32_t, uint32_t);
 using TCreateTexture = NiRenderedTexture*(BSFixedString& aName);
 using TCreateTints = void(const GameArray<TintMask*>& acTints, NiRenderedTexture* apTexture);
 
-void FaceGenSystem::Update(World& aWorld, Actor* apActor, FaceGenComponent& aFaceGenComponent) noexcept
+namespace
+{
+// The name our painted texture carries: a head built again has the base's FaceTint file instead (TESNPC::BuildHead 24731).
+constexpr std::string_view kPaintedName = "SkyrimCoop face tints";
+
+// The face's Facegen material, whose tint texture shows the face tints (TESNPC 24728).
+BSMaskedShaderMaterial* GetFaceMaterial(Actor* apActor) noexcept
 {
     POINTER_SKYRIMSE(NiRTTI, NiMaskedShaderRTTI, 414675);
+
+    auto pTriBasedGeom = GetHeadTriBasedGeom(apActor, 1);
+    if (!pTriBasedGeom)
+        return nullptr;
+
+    BSShaderProperty* pShaderProperty = niptr_cast<BSShaderProperty>(pTriBasedGeom->effect);
+    if (!pShaderProperty)
+        return nullptr;
+
+    BSLightingShaderProperty* pLightingShader = static_cast<BSLightingShaderProperty*>(pShaderProperty);
+    if (pLightingShader->GetRTTI() != NiMaskedShaderRTTI.Get())
+        return nullptr;
+
+    return static_cast<BSMaskedShaderMaterial*>(pLightingShader->material);
+}
+} // namespace
+
+bool FaceGenSystem::IsPainted(Actor* apActor) noexcept
+{
+    const BSMaskedShaderMaterial* cpMaterial = GetFaceMaterial(apActor);
+    const NiTexture* cpTexture = cpMaterial ? cpMaterial->renderedTexture.object : nullptr;
+    return cpTexture && cpTexture->name && cpTexture->name == kPaintedName;
+}
+
+FaceGenSystem::HeadRead FaceGenSystem::Read(Actor* apActor) noexcept
+{
+    HeadRead read;
+    read.Geometry = GetHeadTriBasedGeom(apActor, 1) != nullptr;
+    const BSMaskedShaderMaterial* cpMaterial = GetFaceMaterial(apActor);
+    read.Material = cpMaterial != nullptr;
+    const NiTexture* cpTexture = cpMaterial ? cpMaterial->renderedTexture.object : nullptr;
+    if (cpTexture)
+        read.Tint = cpTexture->name ? cpTexture->name : "(unnamed)";
+    return read;
+}
+
+bool FaceGenSystem::Paint(Actor* apActor, const Tints& acTints) noexcept
+{
     POINTER_SKYRIMSE(TCreateTexture, CreateTexture, 70717);
     POINTER_SKYRIMSE(TCreateResourceView, CreateResourceView, 77299);
     POINTER_SKYRIMSE(TCreateTints, CreateTints, 27040);
     POINTER_SKYRIMSE(TextureHolder, s_textureHolder, 411393);
 
-    if (aFaceGenComponent.Generated)
-        return;
+    BSMaskedShaderMaterial* pMaterial = GetFaceMaterial(apActor);
+    if (!pMaterial)
+        return false;
 
-    auto pTriBasedGeom = GetHeadTriBasedGeom(apActor, 1);
+    BSFixedString name(kPaintedName.data());
+    auto pTexture = CreateTexture(name);
+    pTexture->buffer = CreateResourceView(s_textureHolder.Get(), 512, 512);
 
-    if (!pTriBasedGeom)
-        return;
+    auto& tintsEntries = acTints.Entries;
 
-    BSShaderProperty* pShaderProperty = niptr_cast<BSShaderProperty>(pTriBasedGeom->effect);
+    GameArray<TintMask*> tints;
+    tints.capacity = tints.length = tintsEntries.size() & 0xFFFFFFFF;
+    tints.data = (TintMask**)Memory::Allocate(sizeof(TintMask*) * tints.length);
 
-    if (!pShaderProperty)
-        return;
-
-    pShaderProperty->IncRef();
-
-    BSLightingShaderProperty* pLightingShader = static_cast<BSLightingShaderProperty*>(pShaderProperty);
-
-    if (pLightingShader->GetRTTI() == NiMaskedShaderRTTI.Get())
+    for (auto i = 0u; i < tints.length; ++i)
     {
-        BSMaskedShaderMaterial* pMaterial = static_cast<BSMaskedShaderMaterial*>(pLightingShader->material);
+        tints[i] = Memory::New<TintMask>();
 
-        BSFixedString name("");
-        auto pTexture = CreateTexture(name);
-        pTexture->buffer = CreateResourceView(s_textureHolder.Get(), 512, 512);
+        tints[i]->alpha = tintsEntries[i].Alpha;
+        tints[i]->color = tintsEntries[i].Color;
+        tints[i]->type = tintsEntries[i].Type;
 
-        auto& tintsEntries = aFaceGenComponent.FaceTints.Entries;
+        auto pNewTexture = Memory::New<TESTexture>();
+        pNewTexture->Construct();
+        pNewTexture->Init();
 
-        GameArray<TintMask*> tints;
-        tints.capacity = tints.length = aFaceGenComponent.FaceTints.Entries.size() & 0xFFFFFFFF;
-        tints.data = (TintMask**)Memory::Allocate(sizeof(TintMask*) * tints.length);
+        pNewTexture->name.Set(tintsEntries[i].Name.c_str());
 
-        for (auto i = 0u; i < tints.length; ++i)
-        {
-            tints[i] = Memory::New<TintMask>();
-
-            tints[i]->alpha = tintsEntries[i].Alpha;
-            tints[i]->color = tintsEntries[i].Color;
-            tints[i]->type = tintsEntries[i].Type;
-
-            auto pNewTexture = Memory::New<TESTexture>();
-            pNewTexture->Construct();
-            pNewTexture->Init();
-
-            pNewTexture->name.Set(tintsEntries[i].Name.c_str());
-
-            tints[i]->texture = pNewTexture;
-        }
-
-        CreateTints(tints, pTexture);
-
-        for (auto i = 0u; i < tints.length; ++i)
-        {
-            tints[i]->texture->~TESTexture();
-            Memory::Free(tints[i]->texture);
-            Memory::Free(tints[i]);
-        }
-
-        Memory::Free(tints.data);
-
-        pMaterial->renderedTexture = pTexture;
-
-        aFaceGenComponent.Generated = true;
+        tints[i]->texture = pNewTexture;
     }
 
-    pShaderProperty->DecRef();
+    CreateTints(tints, pTexture);
+
+    for (auto i = 0u; i < tints.length; ++i)
+    {
+        tints[i]->texture->~TESTexture();
+        Memory::Free(tints[i]->texture);
+        Memory::Free(tints[i]);
+    }
+
+    Memory::Free(tints.data);
+
+    pMaterial->renderedTexture = pTexture;
+    return true;
 }
 
 void FaceGenSystem::Setup(World& aWorld, const entt::entity aEntity, const Tints& acTints) noexcept

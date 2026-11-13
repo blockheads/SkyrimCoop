@@ -213,6 +213,7 @@ void World::Update() noexcept
         const double cEngineFrameMs = GetWorldBridge().GetRealFrameSeconds() * 1000.0;
         m_frameClock.Advance(GetTick(), cEngineFrameMs);
         m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
+        m_graphStreams.SetTick(m_frameClock.Now());
         // Force run this before so we get the tasks scheduled to run
         m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
         m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));

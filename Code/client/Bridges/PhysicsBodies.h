@@ -14,10 +14,8 @@
 #include <vector>
 
 // The host's physics objects (docs/design/physics-sync.md): each reference physics moves (the change funnel's havok
-// move) is read each update while any of its bodies is awake (its island active) and one has left where it woke;
-// once all sleep it rests (woken and never moved: only the rest). An actor's
-// bodies are its ragdoll's, read while they are simulated (dead, knocked down), not while its animation drives them.
-// It reads through IBodyReads (the engine's BodyReads; the fake engine's in GameTests).
+// move) is read while awake and moved from where it woke; asleep, it rests. An actor's bodies are its ragdoll's,
+// read while simulated (dead, knocked down, getting up). Reads through IBodyReads (the fake engine's in GameTests).
 class PhysicsBodies
 {
 public:
@@ -66,8 +64,9 @@ private:
     {
         Pose At;          // where its physics took it
         bool Ragdoll{};   // an actor whose ragdoll physics simulated
-        // A reference's bodies where they woke: awake is not moving (physics.md, "Woken still").
-        std::vector<std::optional<BodyFrame>> Woke;
+        bool Resting{};   // a living actor lying still: its rest is sent
+        std::vector<BodyFrame> Last; // an actor's bodies as last read awake
+        std::vector<std::optional<BodyFrame>> Woke; // a reference's bodies where they woke (physics.md, "Woken still")
         bool Moved{};
     };
 

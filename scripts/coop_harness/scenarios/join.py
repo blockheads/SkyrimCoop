@@ -328,7 +328,7 @@ def scenario_guest_makes_character_then_joins(ctx, steam=False, race=KHAJIIT_RAC
             raise ctx.failure(f"[client] its face tints in the host's world are not the ones it made: {len(now_tints)} "
                               f"masks, {len(made_tints)} made; missing {lost}")
         now = base_sections()
-        if differ := [f"{flag:#x} ({ctx.shown(mine[flag])} -> {ctx.shown(now[flag])})" for flag in sections if now[flag] != mine[flag]]:
+        if differ := [f"{flag:#x} ({ctx.section_shown(mine[flag])} -> {ctx.section_shown(now[flag])})" for flag in sections if now[flag] != mine[flag]]:
             raise ctx.failure(f"[client] its base in the host's world saves other bytes than the character it made, "
                               f"in the sections of change flags {', '.join(differ)}")
         kit = {"0:3C9FE": 1, "0:3CA00": 1}

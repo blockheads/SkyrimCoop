@@ -1,6 +1,9 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Wire/Serialization.h>
 
+#include <algorithm>
+#include <cmath>
+
 using Wire::Serialization;
 
 bool Vector3_NetQuantize::operator==(const Vector3_NetQuantize& acRhs) const noexcept
@@ -32,40 +35,35 @@ void Vector3_NetQuantize::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Unpack(data);
 }
 
+namespace
+{
+// Quarter units, rounded, in one word: x and y over 22 bits (±524288), z over 20 (±131072). Whole units made a walking
+// copy step unevenly (docs/design/copy-clock.md, "Measuring smoothness").
+constexpr float kScale = 4.f;
+constexpr uint32_t kBits[3] = {22, 22, 20};
+
+uint64_t ToBits(float aValue, uint32_t aBits) noexcept
+{
+    const int64_t cHalf = int64_t{1} << (aBits - 1);
+    const int64_t cValue = std::isfinite(aValue) ? std::clamp<int64_t>(std::llround(aValue * kScale), -cHalf, cHalf - 1) : 0;
+    return static_cast<uint64_t>(cValue + cHalf);
+}
+} // namespace
+
 void Vector3_NetQuantize::Unpack(uint64_t aValue) noexcept
 {
-    int32_t xSign = (aValue & 1) != 0;
-    int32_t ySign = (aValue & 2) != 0;
-    int32_t zSign = (aValue & 4) != 0;
-
-    auto xValue = static_cast<float>((aValue >> 3) & ((1 << 20) - 1));
-    auto yValue = static_cast<float>((aValue >> 23) & ((1 << 20) - 1));
-    auto zValue = static_cast<float>((aValue >> 43) & ((1 << 20) - 1));
-
-    x = xSign ? -xValue : xValue;
-    y = ySign ? -yValue : yValue;
-    z = zSign ? -zValue : zValue;
+    for (int axis = 0, shift = 0; axis < 3; shift += kBits[axis++])
+    {
+        const int64_t cHalf = int64_t{1} << (kBits[axis] - 1);
+        const auto cBits = static_cast<int64_t>((aValue >> shift) & ((uint64_t{1} << kBits[axis]) - 1));
+        (*this)[axis] = static_cast<float>(cBits - cHalf) / kScale;
+    }
 }
 
 uint64_t Vector3_NetQuantize::Pack() const noexcept
 {
     uint64_t data = 0;
-
-    int32_t ix = static_cast<int32_t>(x);
-    int32_t iy = static_cast<int32_t>(y);
-    int32_t iz = static_cast<int32_t>(z);
-
-    data |= (ix < 0) ? 1 : 0;
-    data |= (iy < 0) ? 2 : 0;
-    data |= (iz < 0) ? 4 : 0;
-
-    const uint64_t xVal = std::abs(ix) & ((1 << 20) - 1);
-    const uint64_t yVal = std::abs(iy) & ((1 << 20) - 1);
-    const uint64_t zVal = std::abs(iz) & ((1 << 20) - 1);
-
-    data |= xVal << 3;
-    data |= yVal << 23;
-    data |= zVal << 43;
-
+    for (int axis = 0, shift = 0; axis < 3; shift += kBits[axis++])
+        data |= ToBits((*this)[axis], kBits[axis]) << shift;
     return data;
 }

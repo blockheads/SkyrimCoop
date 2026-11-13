@@ -9,6 +9,10 @@
 #include <Physics/BodyPrediction.h>
 #include <Bridges/PhysicsBodies.h>
 
+#include <chrono>
+#include <format>
+#include <thread>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
@@ -94,6 +98,48 @@ SCENARIO("The bottles on Orgnar's bar wake without moving: the guest's player ca
         CHECK(refused == 0);
         CHECK(glm::distance(guestPlate.Flight.Body.Position, hostPlate.Flight.Body.Position) < 0.01f);
     }
+}
+
+SCENARIO("A flying body moves evenly on the guest's game though the session's time is read unevenly", "[physics][copy-clock]")
+{
+    // S10 for bodies: the engine's frames are steady and Havok steps by them, while our update lands 0 or 11 ms into
+    // each, where the session's time is read. The guest's bucket must step as the host's flight does each frame.
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    host.FrameMs = guest.FrameMs = cFrameMs;
+    party.Frame();
+    constexpr float cSpeed = 300.f;
+    party.As(party.Host(), [&] { host.Knock(kBucket, {cSpeed, 0.f, 400.f}, {}); });
+
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    std::vector<std::pair<int, float>> xs; // the guest's bucket each frame (frame, x) while it flies at cSpeed across
+    const auto cStart = std::chrono::steady_clock::now();
+    for (int frame = 0; frame < 150; ++frame)
+    {
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        std::this_thread::sleep_for(std::chrono::milliseconds(frame % 2 ? 11 : 0));
+        party.Frame();
+        if (guestBucket.Drives > 0 && guestBucket.Flight.Body.Position.z > 1.f)
+            xs.emplace_back(frame, guestBucket.Flight.Body.Position.x);
+    }
+    REQUIRE(xs.size() > 30);
+
+    const float cStep = cSpeed * static_cast<float>(cFrameMs / 1000.0);
+    int uneven = 0;
+    std::string steps;
+    for (size_t i = 8; i + 1 < xs.size(); ++i) // past the first frame's blend from where it stood
+    {
+        if (xs[i + 1].first != xs[i].first + 1)
+            continue; // on the floor between (its bounce)
+        const float cMove = xs[i + 1].second - xs[i].second;
+        uneven += std::abs(cMove - cStep) > cStep / 3.f;
+        if (steps.size() < 200)
+            steps += std::format("{:.1f} ", cMove);
+    }
+    INFO(uneven << " of " << xs.size() - 9 << " frames a third off the host's steady " << cStep << " units; steps " << steps);
+    CHECK(uneven == 0);
 }
 
 SCENARIO("A guest whose game has not loaded the body skips the host's frames", "[physics]")
@@ -398,6 +444,67 @@ SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies 
     }
 }
 
+SCENARIO("A host NPC gets up from a knockdown: its copy's ragdoll follows its owner's until both stand", "[physics][rising]")
+{
+    // Skyrim (duo, knockdown-lies-as-host, 2026-11-11, 2 of 7 runs): the copy's head stayed 52 units above the floor for
+    // 2.5 s of its get-up while its owner's rose (the same place each time; its heading and clip were its owner's).
+    // Getting up, a ragdoll's bodies are still simulated (58291 only drives them toward the animation), so what the
+    // room does to them is each game's own (physics.md, Getting up).
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {20.f, 20.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the host's guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const uint32_t cSession = SessionOf(party.Host(), guard);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = guard;
+        host.Bodies[{.Actor = guard, .Index = i}] = bone;
+        bone.RagdollOf = cCopy;
+        guest.Bodies[{.Actor = cSession, .Index = i}] = bone;
+    }
+    party.As(party.Host(), [&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {10.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
+    });
+    const BodyKey cOwnersHead{.Actor = guard, .Index = kRagdollBodies - 1};
+    const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
+    party.Until([&] { return !host.Bodies.at(cOwnersHead).Awake && guest.Bodies.at(cHead).Rests > 0; }, "the guard lies still on both games");
+
+    // The guest's room holds the copy's head where it lies.
+    guest.Bodies.at(cHead).Caught = true;
+    const glm::vec3 cLay = guest.Bodies.at(cHead).Flight.Body.Position;
+    ActionEvent getUp;
+    getUp.ActionId = FakeEngine::kActionGetUp;
+    getUp.EventName = "GetUpBegin";
+    party.As(party.Host(), [&] {
+        host.StandUp(guard);
+        (void)host.PerformAnimation(guard, getUp);
+    });
+    REQUIRE(host.Actors.at(guard).Rising > 0);
+    bool rose = false;
+    float apart = 0.f;
+    party.Until([&] {
+        rose |= guest.Actors.at(cCopy).Rising > 0;
+        // While both get up: the copy's head against its owner's (the copy plays a moment behind).
+        if (host.Actors.at(guard).Rising && guest.Actors.at(cCopy).Rising)
+            apart = glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, host.Bodies.at(cOwnersHead).Flight.Body.Position);
+        return rose && !host.Actors.at(guard).Rising && !guest.Actors.at(cCopy).Rising && !guest.Actors.at(cCopy).KnockedDown;
+    }, "the guard and its copy stand");
+    const glm::vec3 cOwners = host.Bodies.at(cOwnersHead).Flight.Body.Position;
+    REQUIRE(glm::distance(cOwners, cLay) > 20.f); // the owner's head rose
+    INFO("the copy's head ended " << glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) << " units from its owner's, "
+                                  << apart << " while both rose");
+    // The copy stands a playback delay before its owner's last frames are due (its get-up is its graph's, sooner than
+    // its bodies'): it ends a few frames' travel behind, not where its room held it (85 units).
+    THEN("the copy's head rose with its owner's, whatever its own room held")
+        CHECK(glm::distance(guest.Bodies.at(cHead).Flight.Body.Position, cOwners) < 15.f);
+}
+
 SCENARIO("A living ragdoll's reliable rest survives lost moving frames and is held until its owner gets up", "[physics][held-knock-rest]")
 {
     Party party(1, Plugins);
@@ -560,6 +667,25 @@ SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's c
             CHECK(cCopyBone.Drives > 0);
             CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < 0.01f);
         }
+    // Skyrim (duo, kill-move-kills-guest, 2026-11-11, 14 of 14 runs): every dead copy's 18 bodies stayed awake at 3 to
+    // 8 units/s within 0.8 units of their rests. Its owner's rest was steered to every step with no end, and a
+    // steered body never sleeps. At its rest a copy's body is left alone.
+    THEN("at their rests the copies' bodies are left alone")
+    {
+        std::vector<size_t> drives;
+        for (World* pGame : cOthers)
+            drives.push_back(Party::Engine(*pGame).Bodies.at(cHead).Drives);
+        // Steered there for half a second, put there, then no more.
+        for (int i = 0; i < 2 * BodyPrediction::kRestSettleSteps; ++i)
+            party.Frame();
+        drives.clear();
+        for (World* pGame : cOthers)
+            drives.push_back(Party::Engine(*pGame).Bodies.at(cHead).Drives);
+        for (int i = 0; i < 30; ++i)
+            party.Frame();
+        for (size_t i = 0; i < cOthers.size(); ++i)
+            CHECK(Party::Engine(*cOthers[i]).Bodies.at(cHead).Drives == drives[i]);
+    }
 }
 
 SCENARIO("A guest's player holds the plate: the host's player cannot grab it, nor can another guest's", "[physics]")

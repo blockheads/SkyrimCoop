@@ -2,6 +2,7 @@
 // guest's playback.
 #include <catch2/catch.hpp>
 #include <Games/KnockReplay.h>
+#include <Games/Animation/PoseMatch.h>
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
 
@@ -413,6 +414,40 @@ TEST_CASE("A copy with a ragdoll finishes a get-up action with the native knock-
     CHECK(KnockReplay::AfterAction(6, true, true) == 6);
 }
 
+TEST_CASE("A streamed copy standing goes down at its owner's ragdoll action", "[physics][knock-replay][fall]")
+{
+    CHECK(KnockReplay::GoesDown(0, true));
+    CHECK_FALSE(KnockReplay::GoesDown(0, false)); // another action
+    CHECK_FALSE(KnockReplay::GoesDown(2, true));  // down already, by its owner's body frame
+    CHECK_FALSE(KnockReplay::GoesDown(6, true));  // getting up: its own
+}
+
+TEST_CASE("A ragdoll's bodies are its physics' while it lies and while it gets up", "[physics][knock-replay][rising]")
+{
+    // Getting up (5 queued, 6 rising) 58291 only drives the simulated bodies toward the animation.
+    CHECK_FALSE(KnockReplay::BodiesSimulated(0));
+    for (uint8_t knock = 1; knock <= 6; ++knock)
+        CHECK(KnockReplay::BodiesSimulated(knock));
+    CHECK(KnockReplay::Lies(1));
+    CHECK(KnockReplay::Lies(4));
+    CHECK_FALSE(KnockReplay::Lies(0));
+    CHECK_FALSE(KnockReplay::Lies(5)); // its late frames must not knock a copy that is up
+    CHECK_FALSE(KnockReplay::Lies(6));
+}
+
+TEST_CASE("A streamed copy's own body stands up at its owner's get-up; its first match takes its child at once", "[physics][knock-replay][pick]")
+{
+    CHECK(KnockReplay::StandsUp(1, true));
+    CHECK(KnockReplay::StandsUp(4, true));
+    CHECK_FALSE(KnockReplay::StandsUp(1, false)); // another action
+    CHECK_FALSE(KnockReplay::StandsUp(0, true));  // not lying
+    CHECK_FALSE(KnockReplay::StandsUp(5, true));  // rising already
+    // hkbPoseMatchingGenerator (59583): no match yet is -1.
+    CHECK(PoseMatch::Snaps(-1));
+    CHECK_FALSE(PoseMatch::Snaps(0));
+    CHECK_FALSE(PoseMatch::Snaps(2));
+}
+
 TEST_CASE("Havok steps with the frame at any frame rate", "[physics][havok-step]")
 {
     constexpr float cLongest = 1.f / 60.f;
@@ -467,4 +502,39 @@ TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[bod
 {
     CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));
     CHECK(BodyPrediction::PlaceDistance(true) > 12.f); // a kill move's start, measured
+}
+
+TEST_CASE("A copy's ragdoll is steered to its owner's rest, put there, then left alone", "[physics][rest]")
+{
+    using namespace BodyPrediction;
+    // Steered toward its rest for half a second, put exactly there with every other body in one step, then left.
+    CHECK(StepToRest(0) == RestStep::kSteer);
+    CHECK(StepToRest(kRestSettleSteps - 1) == RestStep::kSteer);
+    CHECK(StepToRest(kRestSettleSteps) == RestStep::kPlace);
+    CHECK(StepToRest(kRestSettleSteps + 1) == RestStep::kLeave);
+}
+
+TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", "[physics][rising][shake]")
+{
+    // knockdown-smoke (duo, 2026-11-11): a getting-up owner's hand went back and forth 4-6 units a frame; its copy's
+    // 8-14. The owner's body alternates each physics step, a frame of it reaches the copy every fourth step.
+    const BodyKey cKey{.Actor = 7, .Index = 4};
+    const auto cWorst = [&](bool aWithVelocity) {
+        BodyPlayback playback;
+        float worst = 0.f;
+        for (uint64_t tick = 1000; tick < 3000; tick += 16)
+        {
+            const bool cOut = (tick / 16) % 2 == 0;
+            if ((tick / 16) % 4 == 0)
+                playback.Add(tick, {{.Key = cKey, .Position = {cOut ? 5.f : 0.f, 0.f, 0.f},
+                                     .LinearVelocity = {aWithVelocity ? (cOut ? 300.f : -300.f) : 0.f, 0.f, 0.f}}});
+            // Played 200 ms behind, as a copy's ragdoll.
+            for (const auto& cPose : playback.At(tick - 200))
+                worst = std::max(worst, std::abs(cPose.Body.Position.x - 2.5f));
+        }
+        return worst;
+    };
+    INFO("with its velocity the shown body strays " << cWorst(true) << " units from the shake's middle, without " << cWorst(false));
+    CHECK(cWorst(false) <= 2.6f);       // within the shake itself
+    CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
 }

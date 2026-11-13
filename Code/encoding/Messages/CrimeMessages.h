@@ -62,6 +62,14 @@ struct CrimeGold
     bool operator==(const CrimeGold&) const = default;
 };
 
+// A bounty the host's engine reported (37679): each guest shows the same HUD line.
+struct CrimeReport
+{
+    GameId Faction{};
+    uint32_t Bounty{};
+    bool operator==(const CrimeReport&) const = default;
+};
+
 // Absolute totals: retransmission cannot add bounty. A full snapshot also clears absent factions.
 struct NotifyCrimeState final : NotifyMessage
 {
@@ -72,6 +80,7 @@ struct NotifyCrimeState final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer&) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader&) noexcept override;
     std::vector<CrimeGold> Gold;
+    std::vector<CrimeReport> Reports; // shown once, never a total
 };
 
 struct NotifyLockCrime final : NotifyMessage

@@ -25,8 +25,10 @@ static_assert(sizeof(GameplaySaveEntry) == 0x78);
 struct BGSSaveLoadManager
 {
     uint8_t pad00[0xD0];
+    // Set by a load from the save's file name (0 for a name without the engine's fields), saves filed under it.
     uint32_t currentCharacterId;
-    uint8_t padD4[0x2C];
+    uint32_t currentCharacterModded;
+    uint8_t padD8[0x28];
     GameArray<GameplaySaveEntry*> saveGameList;
     // CommonLibSSE-NG SaveEntry: per-character catalogue, including the exact save quickload selects.
     struct SaveEntry
@@ -38,6 +40,8 @@ struct BGSSaveLoadManager
     static_assert(sizeof(SaveEntry) == 0x48);
     [[nodiscard]] std::string QuickSaveName() noexcept;
     [[nodiscard]] std::optional<std::string> PreviousGameplaySave() noexcept;
+    // SetCurrentCharacter (35751): current and display character, as a load sets them; the modded flag kept.
+    void SetCurrentCharacter(uint32_t aCharacterId) noexcept;
     static BGSSaveLoadManager* Get() noexcept;
 
     // Save_Impl(2, 0, name) (35727): a named save, written before it returns; false when the engine refused.
@@ -50,4 +54,5 @@ struct BGSSaveLoadManager
 };
 
 static_assert(offsetof(BGSSaveLoadManager, currentCharacterId) == 0xD0);
+static_assert(offsetof(BGSSaveLoadManager, currentCharacterModded) == 0xD4);
 static_assert(offsetof(BGSSaveLoadManager, saveGameList) == 0x100);

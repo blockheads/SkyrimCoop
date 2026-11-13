@@ -137,6 +137,44 @@ def scenario_sneaking_players_stay_hidden(ctx):
         ctx.sneak("client", False)
 
 
+
+def scenario_other_player_looking_leaves_eye_hidden(ctx):
+    """One player sneaks, the other stands and turns to face it: in the sneaker's game the other player's copy is left
+    out of the stealth eye (boolFlags kDoNotShowOnStealthMeter, which 41408 skips; docs/re/systems/stealth.md), whatever
+    its detection holds, and the eye stays hidden."""
+    def copy_in(instance):
+        return ctx.other_player((ctx.game(instance).read_status() or {}).get("actors") or {})
+    for sneaker, looker in (("", "client"), ("client", "")):
+        name = sneaker or "host"
+        copy, sneaker_copy = copy_in(sneaker), copy_in(looker)
+        if not copy or not sneaker_copy:
+            raise ctx.failure(f"[{name}] no copy of the other player to watch")
+        try:
+            ctx.sneak(sneaker, True)
+            ctx.sneak(looker, False)
+            ctx.face(looker, sneaker_copy)
+            known = {}
+            def watched():
+                # In the sneaker's game: the copy in high process (a 41408 candidate), near, turned to face the sneaker.
+                known.update(ctx.player_command(sneaker, {"cmd": "crime", "action": "knowledge", "actor": copy, "target": 0x14}))
+                at, me = ctx.actors_on(sneaker).get(str(copy)) or {}, ctx.my_position(sneaker)
+                if not known.get("high") or not at.get("actual") or not at.get("rotation") or not me:
+                    return False
+                dx, dy = me[0] - at["actual"][0], me[1] - at["actual"][1]
+                return math.hypot(dx, dy) < 400 and abs(math.remainder(at["rotation"][2] - math.atan2(dx, dy), math.tau)) < 0.5
+            ctx.wait_for(f"[{name}] the other player's copy, near and in high process, faces the sneaking player", watched, 10,
+                         explain=lambda: f"its knowledge: {known}, its status: {ctx.actors_on(sneaker).get(str(copy))}")
+            if not known.get("not_on_meter"):
+                raise ctx.failure(f"[{name}] the other player's copy counts on the stealth eye: {known}")
+            meter = ctx.player_command(sneaker, {"cmd": "crime", "action": "stealth_meter"})
+            counted = [s for s in meter.get("sources", []) if s.get("other_player") and not s.get("not_on_meter")]
+            if meter["level"] >= 0 or counted:
+                raise ctx.failure(f"[{name}] the sneaking player's eye shows {meter['level']} with the other player "
+                                  f"looking: {meter.get('sources')}")
+        finally:
+            ctx.sneak(sneaker, False)
+
+
 # The locomotion graph's floats: the synced ones (Master_Behavior's) and what the graph damps from them.
 LOCOMOTION = ("Direction", "DirectionDamped", "Speed", "SpeedSampled", "SpeedDamped", "TurnDelta")
 
@@ -173,18 +211,25 @@ def compare_strafe(owner, copy):
     return {"delay": best, "mean": round(mean, 1), "worst": round(abs(worst[1] - worst[2]), 1), "frames": len(found)}
 
 
-def frame_speeds(path):
-    """[(time, speed)] between a path's frames: each frame's move at 60 frames a second (what a frame shows; the
-    harness's own stamps jitter by up to a frame)."""
-    return [((t0 + t1) / 2, (x1 - x0) * 60) for (t0, x0), (t1, x1) in zip(path, path[1:]) if t1 > t0]
+def frame_lengths(entries, game, who):
+    """{time: seconds}: that actor's frames' engine lengths (the trace's dt), where recorded."""
+    return {e["time"]: e["dt"] / 1000 for e in entries if e["kind"] == "pos" and e["game"] == game and e["who"] == who and e.get("dt")}
 
 
-def strafe_stutters(owner, copy, delay, tolerance=0.35, settle=0.1):
+def frame_speeds(path, lengths=None):
+    """[(time, speed)] between a path's frames: each frame's move over the engine frame that made it (the earlier
+    one's length: smoothness.frame_speeds), or at 60 frames a second without lengths (the harness's own stamps jitter
+    by up to a frame, so a game dropping to 40 fps read as a copy running fast)."""
+    lengths = lengths or {}
+    return [((t0 + t1) / 2, (x1 - x0) / lengths.get(t0, 1 / 60)) for (t0, x0), (t1, x1) in zip(path, path[1:]) if t1 > t0]
+
+
+def strafe_stutters(owner, copy, delay, tolerance=0.35, settle=0.1, owner_lengths=None, copy_lengths=None):
     """The copy's frames that move more than `tolerance` faster or slower than its owner did then, where the owner
     moved steadily for `settle` seconds either side (a turn blends over a snapshot interval): (time, owner's speed,
     copy's speed)."""
-    theirs, found = frame_speeds(owner), []
-    for t, speed in frame_speeds(copy):
+    theirs, found = frame_speeds(owner, owner_lengths), []
+    for t, speed in frame_speeds(copy, copy_lengths):
         at = t - delay
         near = [v for tt, v in theirs if abs(tt - at) <= settle]
         if len(near) < 5:
@@ -247,7 +292,8 @@ def scenario_copy_strafes_with_owner(ctx, strafer=""):
     if lags and (sum(lags) / len(lags) > 16 or max(lags) > 34):
         raise ctx.failure(f"[{watcher or 'host'}] the copy slides the new way in its old strafe: its animation flips "
                           f"{sorted(lags)} ms after its movement turns (a frame on average, two at most)")
-    if stutters := strafe_stutters(owner, theirs, result["delay"]):
+    if stutters := strafe_stutters(owner, theirs, result["delay"], owner_lengths=frame_lengths(trace.entries, strafer, "owner"),
+                                   copy_lengths=frame_lengths(trace.entries, watcher, "copy")):
         raise ctx.failure(f"[{watcher or 'host'}] the copy stutters: {len(stutters)} frames off its owner's steady speed by "
                           f"over a third, e.g. (owner, copy) {[(o, c) for _, o, c in stutters[:5]]}")
 

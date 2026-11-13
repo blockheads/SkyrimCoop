@@ -150,6 +150,16 @@ jump past 6 units (`FlightTrace.check`). Skyrim's own flight is less even than t
 hosting (none of ours running), a knocked ladle's speed per frame swings 80% from frame to frame (Havok steps at 60
 Hz, the frames come 1-57 ms apart), as on the host; the guest plays by the clock, 10-30%.
 
+**On the frame clock (2026-11-09).** Frames were stamped with the host's session time as read and played at the
+guest's session time as read less 100 ms: both uneven (S10, `copy-clock.md`), so a flying body's shown time jumped 27
+then 6 ms between steady frames, and in the fake its steps went -1.8 to 11.8 units a frame against a steady 5. The host
+stamps frames with the frame clock (`HostAuthority::Update`'s frame tick), and every game plays them at the frame clock
+less 100 ms, or the line's lateness if more (`BodyService::PlaybackTick`, the copy clock). GameTests "A flying body moves
+evenly on the guest's game though the session's time is read unevenly" (the fake's Havok now steps by the engine's
+frame when a test sets `FrameMs`, as `HavokStepFix` steps Skyrim). On the duo `physics-push-reaches-guest` passes, the
+guest 140 to 180 ms behind, its extra step beyond the host's per frame typically 0.04 to 0.06 units (p95 0.25 to 0.45;
+`FlightTrace` now fits the delay).
+
 ### Woken still (2026-11-13)
 
 Skyrim wakes islands it never moves: an actor's animated body sharing their island, a character's proxy touching
@@ -610,7 +620,11 @@ the copy stays on its ragdoll, never rises before it falls, never snaps.
 
 After 3 and 5: four of five knockdown-smoke runs with no copy-only snap (before: one or two in every run).
 
-Open (2026-10-26): the copy gets up on its own engine's timing and way (now and then 1.6 s early or 7 s late, or a
+Since 2026-11-11 the copy's get-up is its owner's: its clip by the graph stream's pick, and its ragdoll's bodies by
+its owner's frames until it stands (they stay simulated while getting up: re/systems/physics.md, Getting up). GameTests
+"A host NPC gets up from a knockdown" (the fake's `Rising`, a body its room holds: `Caught`).
+
+Open before that (2026-10-26): the copy gets up on its own engine's timing and way (now and then 1.6 s early or 7 s late, or a
 different get-up facing 40-110 degrees away for up to 2 s): its get-up follows its own knock update, not its owner's.
 Skyrim pops a getting-up skeleton onto its reference for one frame at knock state 6 (owners too, up to 80 units);
 a copy getting up apart from its owner shows it at another time, and knockdown-smoke counts it as the copy's own.

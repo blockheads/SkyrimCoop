@@ -60,6 +60,7 @@ from ..objects import AnimTrace
 from ..comparisons import distance
 from ..utilities import log
 
+LUCAN_SHOP = 0x7F6BB  # "What have you got for sale?"
 CLIP_TOPICS = 6  # topics asked before Lucan is taken to have no gesture to give
 CLIP_DELAY = 1.0  # seconds a copy's clip may start after its owner's: 99% of saved starts were within 0.85
 BLENDED_CLIPS = ("MT_Walk", "MT_Run", "MT_Turn", "Sneak_")  # a blender's children: variables weigh them, none is started
@@ -192,12 +193,32 @@ def scenario_npc_clips_match(ctx):
             behind = (math.degrees(ctx.wait_for("[host] Lucan's heading is read", yaw, 10)) + 180) % 360
             ctx.place_before("", LUCAN, 110, behind)
             ctx.place_before("client", lucan_copy, 200, (behind + 180) % 360)
+            # Standing he gestures as he speaks; leaning on his counter he gives none, and mid sit-down he opens no menu
+            # (dev's plugin too). Moved to where he is, he leaves the counter.
+            def sits():
+                return ctx.actor_state("", LUCAN).get("state", {}).get("sit_sleep")
+            ctx.wait_for("[host] Lucan stands or sits, not between the two", lambda: sits() in (0, 3), 30)
+            if sits() == 3:
+                ctx.console_on("", f"{LUCAN:X}.moveto {LUCAN:X}")
+                ctx.wait_for("[host] Lucan stands", lambda: sits() == 0, 10)
             ctx.activate_on("", LUCAN)
-            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15)
+            def unopened():  # why his menu stayed shut: his state, and what the host's conversation holds
+                state, talk = ctx.actor_state("", LUCAN).get("state", {}), ctx.dialogue("")
+                return (f"Lucan sit state {state.get('sit_sleep')}, AI {ctx.ai_state('', LUCAN)}; the host's dialogue: "
+                        f"menu {talk.get('menu')}, speaker {talk.get('speaker')}, {dict((k, v) for k, v in talk.items() if k not in ('menu', 'speaker', 'swf'))}")
+            ctx.wait_for("[host] the menu opens on Lucan", lambda: ctx.talking_to("", LUCAN), 15, explain=unopened)
             talking = time.time()
             def owner_idle():
-                trace.take()
-                return next((e for e in trace.entries if e["game"] == "" and e["who"] == lucan and is_clip_action(e, talking)), None)
+                # The trace up to this moment: a gesture at his line's end is recorded a frame after the line is over.
+                asked = time.time()
+                while time.time() < asked + 5:
+                    trace.take()
+                    if any(e["game"] == "" and e["time"] >= asked for e in reversed(trace.entries)):
+                        break
+                # One he keeps: an action a frame after it replaces it, and a copy's trace shows a frame's last action.
+                acts = [e for e in trace.entries if e["game"] == "" and e["who"] == lucan and e["kind"] == "action"]
+                return next((e for i, e in enumerate(acts) if is_clip_action(e, talking) and e["time"] < asked - 0.2
+                             and not any(0 <= later["time"] - e["time"] < 0.2 for later in acts[i + 1:])), None)
             # Past his greeting he stands silent: asking him things makes him speak, and a line brings its gesture.
             for _ in range(CLIP_TOPICS):
                 if owner_idle():
@@ -211,11 +232,16 @@ def scenario_npc_clips_match(ctx):
                              lambda: ctx.menu_takes_pick("") or not ctx.talking_to("", LUCAN), 30)
                 if not ctx.talking_to("", LUCAN):
                     continue
-                if not ctx.topics_shown(""):
+                # His shop is no line: it opens the barter menu over the conversation.
+                shown = ctx.topics_shown("")
+                asks = [topic for topic in shown if topic != LUCAN_SHOP]
+                if not shown:
                     ctx.wait_for("[host] Lucan finishes his greeting", lambda: ctx.line_over("", LUCAN), 60)
                     ctx.close_dialogues()
                     continue
-                ctx.pick_with_keys("", ctx.topics_shown("")[0])
+                if not asks:  # everything else is asked
+                    break
+                ctx.pick_with_keys("", asks[0])
                 ctx.wait_for("[host] Lucan answers", lambda: ctx.line_playing("", LUCAN) or not ctx.talking_to("", LUCAN), 15)
                 ctx.wait_for("[host] Lucan finishes", lambda: ctx.line_over("", LUCAN), 60)
             idle = ctx.wait_for("[host] Lucan performs an idle in conversation", owner_idle, 5)
@@ -255,8 +281,8 @@ def scenario_npc_counter_matches(ctx):
 
 
 def scenario_npc_counter_copy_falls_back_in(ctx):
-    """Lucan's copy pushed out of step, his crossed arms loaded into it alone while his are down (as a copy arrives
-    mid-loop, which a tethered guest cannot stage): it falls back in with him at his next pick."""
+    """Lucan's copy starting mid-loop, its graph stream started over while his arms are crossed (as a copy arriving
+    mid-loop starts, which a tethered guest cannot stage): from its new sync point it keeps step with him."""
     # His shop hours: by evening his schedule takes him from the counter.
     ctx.console_on("", "set gamehour to 12")
     ctx.both_go("Lucan's shop", f"player.moveto {LUCAN:X}")
@@ -267,7 +293,7 @@ def scenario_npc_counter_copy_falls_back_in(ctx):
 
 
 def watch_counter(ctx, push=False):
-    """Two crossings of Lucan's arms from his first, compared from there. With `push`, his copy is put out of step first."""
+    """Two crossings of Lucan's arms from his first, compared from there. With `push`, his copy starts again mid-loop first."""
     ctx.wait_for(f"[host] Lucan {LUCAN:X} is here", lambda: ctx.host_npc_state(LUCAN).get("session_id", -1) >= 0, 30)
     session = ctx.host_npc_state(LUCAN)["session_id"]
     ctx.wait_for("[client] Lucan's copy is here", lambda: ctx.copy_of("client", session), 30)
@@ -292,15 +318,14 @@ def watch_counter(ctx, push=False):
                     now = [e for e in trace.entries if e["kind"] == "clips" and e["game"] == ""]
                     return now and now[-1]["clips"] == [clip]
                 return plays
-            def apart():
-                trace.take()
-                last = {g: [e for e in trace.entries if e["kind"] == "clips" and e["game"] == g][-1]["clips"] for g in ("", "client")}
-                return last[""] == [COUNTER_DOWN] and COUNTER_CROSSED in last["client"]
+            copy = ctx.copy_of("client", session)
+            def on_stream():
+                actors = (ctx.game("client").rpc({"cmd": "graph_stream"}, timeout=10) or {}).get("actors", [])
+                return any(a["form"] == copy and a["on_stream"] for a in actors)
             ctx.wait_for("[host] Lucan's arms are crossed", host_plays(COUNTER_CROSSED), 120)
-            crossed_state = ctx.game("").rpc({"cmd": "graph_state", "actor": LUCAN}, timeout=10)["state"]
-            ctx.wait_for("[host] Lucan's arms are down", host_plays(COUNTER_DOWN), 120)
-            ctx.game("client").rpc({"cmd": "load_graph_state", "actor": ctx.copy_of("client", session), "state": crossed_state}, timeout=10)
-            ctx.wait_for("[client] his copy's arms are crossed while his are down", apart, 5)
+            # A copy arriving mid-loop starts from a sync point (graph-input-stream.md, Sync points).
+            ctx.game("client").rpc({"cmd": "graph_stream", "restart": copy}, timeout=10)
+            ctx.wait_for("[client] his copy starts again on his graph stream", on_stream, 10)
             pushed = time.time()
         first = len([s for s in clip_starts(trace, "", lucan) if s[1] == COUNTER_ARMS and s[0] < pushed])
         ctx.wait_for("[host] Lucan crosses his arms", lambda: arms("", first + 1), 90)
@@ -355,7 +380,8 @@ def clip_starts(trace, game, who):
                 local = (detail.get(clip) or {}).get("local_time", 0.0)
                 length = (detail.get(clip) or {}).get("duration", 0.0)
                 moved = began - before.get(clip, began)
-                loops = length > 0 and abs(moved - round(moved / length) * length) < 0.25
+                # A loop's start moves on by whole lengths, less what its blends slowed it (the same in both games).
+                loops = length > 0 and abs(moved - round(moved / length) * length) < max(0.25, 0.05 * moved)
                 if clip not in before or (moved > 0.3 and local < 0.5 and not loops):
                     starts.append((entry["time"], clip))
         before = now

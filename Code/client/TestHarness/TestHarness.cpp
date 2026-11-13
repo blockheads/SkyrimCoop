@@ -1,3 +1,4 @@
+#include "GraphStreamCheck.h"
 #include "TestHarness.h"
 #include "Harness.h"
 #include "ActivateWatch.h"
@@ -46,10 +47,12 @@ void Poll()
     if (!harness.CommandsStarted)
     {
         harness.CommandsStarted = true;
+        GraphStreamCheck::Install();
         if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return HandleCommand(harness, acRequest); }))
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
     harness.Inputs.Poll();
+    harness.Schedule.Poll(harness);
     harness.Commands.Poll();
     harness.Events.Poll();
 

@@ -58,7 +58,9 @@ struct hkbBehaviorGraph
     uint8_t padE0[0x12C - 0xE0];
     uint8_t byte12C;
     uint8_t byte12D;
-    uint8_t byte12E;
+    // Havok's stateOrTransitionChanged: the next update walks the active nodes again (cleared by updateActiveNodes
+    // 60079). Set by GoToState, transitions and a blender's new children (its generate pass); not node state.
+    uint8_t stateOrTransitionChanged;
 };
 
 static_assert(offsetof(hkbBehaviorGraph, random) == 0x78);
@@ -67,3 +69,4 @@ static_assert(offsetof(hkbBehaviorGraph, struct98) == 0x98);
 static_assert(offsetof(hkbBehaviorGraph, symbolIdMap) == 0xB8);
 static_assert(offsetof(hkbBehaviorGraph, animationVariables) == 0xD8);
 static_assert(offsetof(hkbBehaviorGraph, byte12C) == 0x12C);
+static_assert(offsetof(hkbBehaviorGraph, stateOrTransitionChanged) == 0x12E);

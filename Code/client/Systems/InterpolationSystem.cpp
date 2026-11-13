@@ -69,6 +69,14 @@ void InterpolationSystem::AddPoint(InterpolationComponent& aInterpolationCompone
     aInterpolationComponent.TimePoints.push_back(acPoint);
 }
 
+void InterpolationSystem::Restart(InterpolationComponent& aInterpolationComponent, const glm::vec3& acPosition) noexcept
+{
+    aInterpolationComponent.TimePoints.clear();
+    aInterpolationComponent.Position = acPosition;
+    aInterpolationComponent.Guess.reset();
+    aInterpolationComponent.Correction = {};
+}
+
 uint64_t InterpolationSystem::PlaybackTick(World& aWorld, entt::entity aEntity) noexcept
 {
     auto& clock = aWorld.GetCopyClock();

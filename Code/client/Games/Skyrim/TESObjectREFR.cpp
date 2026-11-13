@@ -12,6 +12,7 @@
 #include <Games/Overrides.h>
 #include <Games/ItemChanges.h>
 #include <Games/HiddenCopies.h>
+#include <Games/GuestNpcs.h>
 #include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
@@ -179,6 +180,26 @@ bool TESObjectREFR::SaveGraphs(std::string& aGraphs) const noexcept
     return WithGraphs(*this, [&aGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Save(apManager, aGraphs); });
 }
 
+const void* TESObjectREFR::GraphManagerKey() const noexcept
+{
+    const void* pKey = nullptr;
+    WithGraphs(*this, [&pKey](BSAnimationGraphManager* apManager) {
+        pKey = apManager;
+        return true;
+    });
+    return pKey;
+}
+
+const void* TESObjectREFR::GraphKey(int aIndex) const noexcept
+{
+    const void* pKey = nullptr;
+    WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
+        pKey = apManager->GetGraph(aIndex);
+        return true;
+    });
+    return pKey;
+}
+
 bool TESObjectREFR::LoadGraphs(const std::string& acGraphs) const noexcept
 {
     return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });
@@ -221,6 +242,18 @@ bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const no
         pActor->actorState.flags2 = pActor->GetExtension()->IsCopy() ? ReplayState::Flags2(flags[1], cPreviousFlags2) : flags[1];
     }
     return cLoaded;
+}
+
+bool TESObjectREFR::LoadGraphStateFlags(const std::string& acState) const noexcept
+{
+    auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(this));
+    uint32_t flags[2]{};
+    if (!pActor || acState.size() < sizeof(flags))
+        return false;
+    std::memcpy(flags, acState.data(), sizeof(flags));
+    pActor->actorState.flags1 = ReplayState::Flags1(flags[0], pActor->actorState.flags1);
+    pActor->actorState.flags2 = ReplayState::Flags2(flags[1], pActor->actorState.flags2);
+    return true;
 }
 
 // Called with the manager locked: its selected graph and descriptor must describe the same project.
@@ -305,85 +338,6 @@ uint32_t TESObjectREFR::GetGraphRandom() const noexcept
 void TESObjectREFR::SetGraphRandom(uint32_t aSeed) const noexcept
 {
     WithGraphRandom(*this, -1, [&](hkPseudoRandomGenerator& aRandom) { aRandom.current = aSeed; });
-}
-
-// aWork on each active BSEventEveryNEventsModifier of a graph and the sub-behaviours in it.
-template <class T> static void EachCounter(const hkbBehaviorGraphNode* apGraph, T&& aWork, int aDepth = 0) noexcept
-{
-    if (!apGraph || !apGraph->activeNodes || aDepth > 8)
-        return;
-    const auto& cNodes = *apGraph->activeNodes;
-    for (int32_t i = 0; i < cNodes.size; ++i)
-    {
-        hkbNode* pNode = cNodes.data[i].nodeClone;
-        const hkClass* pClass = pNode ? pNode->GetClassType() : nullptr;
-        if (!pClass || !pClass->name)
-            continue;
-        const std::string_view cClass = pClass->name;
-        if (cClass == "hkbBehaviorReferenceGenerator")
-            EachCounter(static_cast<const hkbBehaviorReferenceGenerator*>(pNode)->behavior, aWork, aDepth + 1);
-        else if (cClass == "BSEventEveryNEventsModifier" && pNode->name)
-            aWork(*static_cast<BSEventEveryNEventsModifier*>(pNode));
-    }
-}
-
-template <class T> static void WithCounters(const TESObjectREFR& acRef, T&& aWork) noexcept
-{
-    WithGraphs(acRef, [&](BSAnimationGraphManager* apManager) {
-        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
-        const auto* pGraph = apManager->GetGraph(-1);
-        if (!pGraph || !pGraph->behaviorGraph)
-            return false;
-        EachCounter(reinterpret_cast<const hkbBehaviorGraphNode*>(pGraph->behaviorGraph), aWork);
-        return true;
-    });
-}
-
-std::vector<GraphRandom::Counter> TESObjectREFR::GetGraphCounters() const noexcept
-{
-    std::vector<GraphRandom::Counter> counters;
-    WithCounters(*this, [&](const BSEventEveryNEventsModifier& acEvery) {
-        counters.push_back({acEvery.name, acEvery.numberOfEventsSeen, acEvery.calculatedNumberOfEventsBefore});
-    });
-    return counters;
-}
-
-bool TESObjectREFR::SetGraphCounters(const std::vector<GraphRandom::Counter>& acCounters) const noexcept
-{
-    size_t set = 0;
-    WithCounters(*this, [&](BSEventEveryNEventsModifier& aEvery) {
-        for (const auto& cCounter : acCounters)
-            if (cCounter.Name == aEvery.name)
-            {
-                aEvery.numberOfEventsSeen = cCounter.Seen;
-                aEvery.calculatedNumberOfEventsBefore = int8_t(cCounter.Needed);
-                ++set;
-                break;
-            }
-    });
-    return set >= acCounters.size();
-}
-
-void TESObjectREFR::SaveGraphPoint(uint32_t& aSeed, std::string& aState, std::vector<GraphRandom::Counter>& aCounters) const noexcept
-{
-    WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
-        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
-        aSeed = GetGraphRandom();
-        SaveAnimationGraphState(aState);
-        aCounters = GetGraphCounters();
-        return true;
-    });
-}
-
-bool TESObjectREFR::LoadGraphPoint(uint32_t aSeed, const std::string& acState) const noexcept
-{
-    return WithGraphs(*this, [&](BSAnimationGraphManager* apManager) {
-        BSScopedLock<BSRecursiveLock> lock{apManager->lock};
-        if (!LoadAnimationGraphState(acState))
-            return false;
-        SetGraphRandom(aSeed);
-        return true;
-    });
 }
 
 uint32_t TESObjectREFR::GetCellId() const noexcept
@@ -664,7 +618,12 @@ void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
     MarkChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
-    // The 3D is the old base's: dropped and loaded again as Disable and Enable do, leaving no form-flags record.
+    // The 3D is the old base's.
+    Reload3D();
+}
+
+void TESObjectREFR::Reload3D() noexcept
+{
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     const bool cRecorded = pSaveLoad && pSaveLoad->HasChange(*this, CHANGE_FORM_FLAGS);
     // The reference's own Disable (19801): Actor's (37267) only queues it, which would land after the Enable.
@@ -1463,6 +1422,40 @@ bool HookSetDisabled(TESForm* apThis, bool aDisabled)
     return RealSetDisabled(apThis, aDisabled);
 }
 
+// TESObjectREFR::Load3D (19727; Actor::Load3D 37177 calls it first): a guest's own NPC gets none until the host
+// spawns its copy, as a disabled reference (GuestNpcs, actor-ai-and-copies.md). Runs on the loader threads too.
+using TLoad3D = NiAVObject*(TESObjectREFR*, bool aBackground);
+static TLoad3D* RealLoad3D = nullptr;
+NiAVObject* HookLoad3D(TESObjectREFR* apThis, bool aBackground)
+{
+    if (GuestNpcs::Session() && apThis->formType == Actor::Type && static_cast<Actor*>(apThis)->RefuseHeld3D())
+        return nullptr;
+    return RealLoad3D(apThis, aBackground);
+}
+
+// QueuedReference (QueuedActor, QueuedPlayer...): one 3D load job of TESQueuedHandles (QueueReference 13057).
+struct QueuedReference
+{
+    uint8_t pad0[0x2C0];
+    uint32_t refHandle; // 2C0; its model (BackgroundLoad3D 13019) at 2C8
+};
+static_assert(offsetof(QueuedReference, refHandle) == 0x2C0);
+
+// QueuedReference::Finish (13022, vtable slot 12 of every queued kind): a load job ends on the main thread, its handle
+// leaving the queue last. A held NPC's job ending, refused or begun before holding started (GuestNpcs,
+// actor-ai-and-copies.md).
+using TFinishLoad3D = uint64_t(QueuedReference*);
+static TFinishLoad3D* RealFinishLoad3D = nullptr;
+uint64_t HookFinishLoad3D(QueuedReference* apThis)
+{
+    const uint32_t cHandle = apThis->refHandle;
+    const uint64_t cResult = RealFinishLoad3D(apThis);
+    if (GuestNpcs::Session())
+        if (auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(cHandle)))
+            pActor->FinishLoad3D();
+    return cResult;
+}
+
 static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1487,4 +1480,6 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(20232, &RealPickLeveledBase, HookPickLeveledBase);
         HOOK_ID(19800, &RealEnable, HookEnable);
         HOOK_ID(14646, &RealSetDisabled, HookSetDisabled);
+        HOOK_ID(19727, &RealLoad3D, HookLoad3D);
+        HOOK_ID(13022, &RealFinishLoad3D, HookFinishLoad3D);
     });

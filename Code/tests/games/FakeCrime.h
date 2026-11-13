@@ -6,6 +6,7 @@
 #include <SessionIds.h>
 #include <Services/Host/CrimeRules.h>
 #include <functional>
+#include <map>
 #include <set>
 
 // Engine seam only. Native witnesses/costs are covered by the Skyrim scenarios.
@@ -60,6 +61,7 @@ struct FakeCrime final : ICrimeBridge
         GameId Owner;
     };
     std::vector<Alarm> Stolen;
+    std::vector<uint32_t> Pickpocketed; // PickpocketAlarm's victims (37423), past Judge's checks
     // Opt-in StealAlarm (37422) for a seen theft: the owner's warning (37556, to the host's player) while the party has
     // warnings left and the judge allows one, else bounty.
     bool SeenThefts = false;
@@ -78,6 +80,8 @@ struct FakeCrime final : ICrimeBridge
             const GameId cTargetOwner = cActorTarget ? ToSession(cTarget->second.Owner).value_or(GameId{}) : GameId{};
             Stolen.push_back({aRequest, CrimeRules::AlarmOwner(aRequest.Owner, cTargetOwner)});
         }
+        if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
+            Pickpocketed.push_back(cTarget->first);
         const bool cTheft = (aRequest.Action == CrimeAction::Theft && !cStops) || aRequest.Action == CrimeAction::ContainerTheft;
         if (SeenThefts && cTheft)
         {
@@ -96,10 +100,22 @@ struct FakeCrime final : ICrimeBridge
     {
         ++Asks;
     }
-    std::set<uint32_t> CriminalTo; // NPCs a party crime made hostile
+    // What each NPC holds against the party, as Skyrim keeps it (crime.md, "Who an NPC fights for a party crime").
+    std::map<uint32_t, CrimeRules::Grudge> Grudges;
     bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept override
     {
-        return CriminalTo.contains(aActorFormId);
+        const auto cGrudge = Grudges.find(aActorFormId);
+        return cGrudge != Grudges.end() && CrimeRules::PartyIsCriminalTo(cGrudge->second);
+    }
+    std::vector<CrimeReport> Reports; // reported by this game's engine (37679), not yet taken
+    std::vector<CrimeReport> Shown;   // bounty lines this game's HUD showed
+    std::vector<CrimeReport> TakeReports() noexcept override
+    {
+        return std::exchange(Reports, {});
+    }
+    void ShowReport(const CrimeReport& acReport) noexcept override
+    {
+        Shown.push_back(acReport);
     }
     void LockCaught(uint32_t aAttempt) noexcept override
     {

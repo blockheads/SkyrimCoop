@@ -106,6 +106,30 @@ class CrimeActions:
             raise ctx.failure(f"the party's bounty is {ctx.party_bounty()}, expected at least {at_least} in both games") from None
         return ctx.party_bounty()
 
+    def hud_mark(ctx):
+        """How many HUD lines each game has shown so far: pass it to expect_bounty_message to count only later ones."""
+        return {label: ctx.player_command(instance, {"cmd": "hud_messages"}).get("shown", 0)
+                for label, instance in (("host", ""), ("guest", "client"))}
+
+    def hud_since(ctx, instance, mark):
+        """The HUD lines `instance` showed after `mark` (its count from hud_mark) still in the harness's last 32."""
+        reply = ctx.player_command(instance, {"cmd": "hud_messages"})
+        messages, shown = reply.get("messages") or [], reply.get("shown", 0)
+        return messages[len(messages) - min(len(messages), max(0, shown - mark)):]
+
+    def expect_bounty_message(ctx, mark, seconds=10.0):
+        """A bounty HUD line ("<n> <sAddCrimeGold> <hold>", 37679) the host shows after `mark` (hud_mark) shows on the
+        guest too, also after `mark`, within `seconds`: every player hears the party's bounty."""
+        bounty_lines = lambda lines: [line for line in lines if line.split(" ", 1)[0].isdigit()]
+        ctx.wait_for("the host shows a new bounty line", lambda: bounty_lines(ctx.hud_since("", mark["host"])), seconds)
+        line = bounty_lines(ctx.hud_since("", mark["host"]))[-1]
+        try:
+            ctx.wait_for(f"the guest shows '{line}'", lambda: line in ctx.hud_since("client", mark["guest"]), seconds)
+        except Exception:
+            raise ctx.failure(f"the guest's new HUD lines are {ctx.hud_since('client', mark['guest'])}, "
+                              f"expected '{line}'") from None
+        return {"line": line}
+
     def expect_target(ctx, npc, player="guest_player", seconds=10.0):
         """The host's `npc` targets `player` (combat or package target) within `seconds`: a crime's reaction goes to
         the player who did it."""

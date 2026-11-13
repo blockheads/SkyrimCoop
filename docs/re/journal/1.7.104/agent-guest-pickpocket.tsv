@@ -1,0 +1,13 @@
+time	op	id	rva	item
+2026-11-09T05:12:10Z	read	37423	0x6827e0	{"name": "PlayerCharacter::sub_37423"}
+2026-11-09T05:12:30Z	read	40654	0x759b90	{"name": "PlayerCharacter::AttemptPickpocket"}
+2026-11-09T05:12:59Z	read	37797	0x6a5370	{"name": "Actor::RemoveItem"}
+2026-11-09T05:17:26Z	read	26379	0x41d860	{"name": "AIFormulas::ComputePickpocketSuccess"}
+2026-11-09T05:23:56Z	name	37423	0x6827e0	{"addr": "0x1406827e0", "name": "Actor__PickpocketAlarm"}
+2026-11-09T05:23:56Z	name	51141	0x9120d0	{"addr": "0x1409120d0", "name": "ContainerMenu__TransferItem"}
+2026-11-09T05:24:01Z	comment	37423	0x6827e0	{"addr": "0x1406827e0", "comment": "PickpocketAlarm(criminal, victim, item, count): crime type 1 on the victim; forces detection both ways, AddPlayerCrime, StartAlarm, witnesses, ReportCrimeAddBounty (victim reports), SetAngryWithPlayer, assault. Player's call from AttemptPickpocket passes item null, count 0 (nothing was taken). Returns early for the player when SetPlayerReportCrime (+0xBEC bit 2) is clear."}
+2026-11-09T05:24:01Z	comment		0x759ddb	{"addr": "0x140759ddb", "comment": "Caught (roll >= ComputePickpocketSuccess) and not in prison (+0x728 jail faction): PickpocketAlarm(player, victim, 0, 0): no item, no count. Then the 'caught' HUD line and return false: TransferItem moves nothing."}
+2026-11-09T05:24:01Z	comment		0x759d01	{"addr": "0x140759d01", "comment": "Success: roll < chance (26379, clamped to fPickPocketMin/MaxChance). Stat, skill advance; return true, TransferItem then moves the item."}
+2026-11-09T05:24:01Z	comment		0x9121fb	{"addr": "0x1409121fb", "comment": "Pickpocket mode (ContainerMenu::mode 2): AttemptPickpocket first, on a take or a place; false: nothing moves."}
+2026-11-09T05:24:01Z	comment		0x9123a5	{"addr": "0x1409123a5", "comment": "Take: victim->RemoveItem (vfunc 0x56, Actor::RemoveItem 37797 -> TESObjectREFR::RemoveItem 19689) with reason 1 (kSteal) in modes 1-2, moveTo the player."}
+2026-11-09T05:24:01Z	comment		0x3c0c7b	{"addr": "0x1403c0c7b", "comment": "Sneaking player activates an NPC (race flag 0x800000 allows pickpocket, not ghost, not attack-on-sight or already pickpocketed): ContainerMenu::OpenMenu mode 2, the pickpocket menu."}

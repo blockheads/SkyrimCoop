@@ -185,6 +185,31 @@ SCENARIO("A guest joining sees the host's player with its weapon drawn", "[equip
     party.Agree("the guest's copy of the host's player has its hands up");
 }
 
+SCENARIO("A copy on its owner's graph stream shows hands its owner raised with no action of its own", "[equipment][players]")
+{
+    // Skyrim (duo, hands-survive-reload-host-player and late-join-client, 2026-11-11): a fresh copy took its owner's
+    // graph from a sync point, hands up, with weapon state 0. The convergence's forced draw was refused every 0.25 s
+    // (a copy on the stream drops its own events, 63591's hook), leaving weapon state 1 for good (37279).
+    Party party(1, SmokeWorld, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+        engine->Graph = FakeGraphRules{};
+    party.As(party.Host(), [&] { host.Actors.at(FakeEngine::kPlayer).GraphState = "Standing"; });
+    party.Join(party.Guest());
+    party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
+    guest.Actors.at(PlayerCopy(guest)).GraphState = "Standing";
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(PlayerCopy(guest)); }, "its copy is on its owner's stream");
+
+    for (const bool cUp : {true, false})
+    {
+        party.As(party.Host(), [&] { host.Draws(FakeEngine::kPlayer, cUp); });
+        party.Until([&] { return guest.Actors.at(PlayerCopy(guest)).Weapon == (cUp ? WeaponState::Drawn : WeaponState::Sheathed); },
+                    cUp ? "its copy has its hands up" : "its copy has its hands down");
+    }
+    party.Agree("the guest's copy of the host's player has its owner's hands");
+}
+
 SCENARIO("A quest's outfit rebuild cannot leave a player's copy partly undressed", "[equipment][outfit-rebuild]")
 {
     Party party(1, SmokeWorld);
@@ -310,4 +335,28 @@ SCENARIO("A player's copy whose 3D comes back holds its owner's spell, not only 
     guest.Actors.at(cCopy).Loaded = true;
     party.Until([&] { return cHeld() == cHealing.BaseId; }, "the copy's hand holds the spell once its 3D is back", {}, nullptr,
                 std::chrono::seconds(5));
+}
+
+TEST_CASE("An NPC that readies its weapon while its copy loads keeps it ready on the copy", "[equipment][weapon-draw]")
+{
+    // Skyrim (a wolf fight): the copy's 3D load reset its owner's hands from the spawn over a newer draw, and the guest
+    // sheathed it (animation-replay-recovery.md, "Why copies refuse", 4).
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    guest.MadeActors3D = false; // the copy's 3D loads later
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] { wolf = host.LoadNpc(0x23ABE, kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1; }, "the wolf's copy is made, waiting for its 3D");
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    REQUIRE_FALSE(guest.ActorHas3D(cCopy));
+    party.As(party.Host(), [&] { host.Draws(wolf, true); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame(); // its draw reaches the guest before the copy's 3D
+    guest.Actors.at(cCopy).Loaded = true;
+    party.Until([&] { return guest.ActorHas3D(cCopy); }, "the copy's 3D loads");
+    party.Until([&] { return guest.GetWeaponState(cCopy) == WeaponState::Drawn; }, "the copy's hands are up, as its owner's");
+    for (int i = 0; i < 60; ++i)
+        party.Frame();
+    CHECK(guest.GetWeaponState(cCopy) == WeaponState::Drawn);
 }
