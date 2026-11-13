@@ -46,7 +46,8 @@ experience) |
 
 - `Actor::SetDialogueWithPlayer` (37200): a started conversation, and its cleanup path on a start (a stop clears the slot).
 - `Actor::UpdateInDialogue` (37541): each line the speaker says, again.
-- 37367: a greeting line with no conversation under way (`MenuTopicManager` +0xB1 clear).
+- `Character::SayLineToPlayer` (37367, ours): a line said to the player with no conversation under way (`MenuTopicManager`
+  +0xB1 clear), a greeting's timers when it greets.
 
 So the host's game, running a guest's conversation with its own player (below, "A conversation without its menu"), turned
 the NPC's head to the host's player, and the copies took that slot from their owner (actor-ai-and-copies.md,

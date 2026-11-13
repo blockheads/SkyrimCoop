@@ -564,9 +564,8 @@ SCENARIO("A guest closes barter and dialogue then trades with the same merchant 
 
 SCENARIO("An NPC in conversation looks at the player talking to it, on every game", "[dialogue][ai][headtrack]")
 {
-    // dialogue-copy-looks-at-speaker (Skyrim 2026-10-31): copies run no AI, which sets the slots, so a copy takes its
-    // owner's. npc-looks-at-guest-talker (2026-11-13): the host's engine wrote its own player in the slot for a guest's
-    // conversation (39465 from 37200 and 37541 take g_thePlayer), so every game's NPC looked at the host's player.
+    // npc-looks-at-guest-talker: the host's engine writes its own player in the slot (39465); a copy takes its owner's
+    // (re/systems/dialogue.md, Who the speaker looks at).
     Party party(1, SmokeWorld);
     Topics(party.Host());
     Topics(party.Guest());

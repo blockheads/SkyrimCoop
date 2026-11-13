@@ -38,9 +38,8 @@ struct FakeDialogue final : IDialogueBridge
         const auto it = LineQuest.find(acOption.Info);
         return it == LineQuest.end() || DialogueLoaded(it->second);
     }
-    // The speaker's AI looks at this game's player while they talk (its dialogue headtrack slot; Skyrim
-    // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0. Written at the start and with each
-    // line (39465 from 37200 and 37541), where the LookAt filter names who instead.
+    // The speaker's dialogue headtrack slot: this game's player, or LookAt's, at the start and each line (39465); 0 at
+    // the end (re/systems/dialogue.md, Who the speaker looks at).
     std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
     std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
     // Actors that cannot talk (dead, fighting): Start refuses them.
