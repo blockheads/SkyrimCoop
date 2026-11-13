@@ -11,6 +11,7 @@
 
 #include <Events/ContainerChangeEvent.h>
 #include <Papyrus/StoryGifts.h>
+#include <Services/ContainerTransfers.h>
 #include <Games/ItemChanges.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
@@ -388,6 +389,29 @@ void FakeEngine::PicksUp(uint32_t aObject)
         RecordCreated(aObject);
 }
 
+void FakeEngine::Pickpockets(uint32_t aVictim, uint32_t aItem, bool aCaught)
+{
+    if (aCaught)
+    {
+        // A guest's CrimeBridge sends the alarm to the host (HookPickpocket); its own engine raises none.
+        if (IsGuest)
+        {
+            CrimeRequest alarm;
+            alarm.Action = CrimeAction::Pickpocket;
+            alarm.TargetActor = Utils::GetSessionIdByFormId(aVictim).value_or(0);
+            World::Get().ctx().at<FakeCrime&>().Actions.push_back(std::move(alarm));
+        }
+        return;
+    }
+    Inventory::Entry item;
+    item.BaseId = ToSession(aItem).value_or(GameId{});
+    item.Count = 1;
+    if (!DecidesWorld && ContainerTransfers::Propose(World::Get(), aVictim, kPlayer, item, true))
+        return;
+    GetsItem(aVictim, aItem, -1);
+    GetsItem(kPlayer, aItem, 1);
+}
+
 std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, uint32_t aCell)
 {
     if (!Attached.contains(aCell))
@@ -556,7 +580,22 @@ WeaponState FakeEngine::GetWeaponState(uint32_t aFormId) const noexcept
 
 void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
 {
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    // On its owner's stream its graph drops its own events (63591's hook): the draw action is refused (37279).
+    if (Graph && it->second.Copy && World::Get().GetGraphStreams().OnStream(aFormId))
+    {
+        if (aDraw || it->second.Weapon >= WeaponState::Drawn)
+            it->second.Weapon = aDraw ? WeaponState::WantToDraw : WeaponState::WantToSheathe;
+        return;
+    }
+    it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+}
+
+void FakeEngine::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
+{
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+        it->second.Weapon = aDrawn ? WeaponState::Drawn : WeaponState::Sheathed;
 }
 

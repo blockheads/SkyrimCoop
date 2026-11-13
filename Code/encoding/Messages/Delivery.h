@@ -27,7 +27,8 @@ enum class Delivery
 {
     switch (acMessage.GetOpcode())
     {
-    case kPartyTravelRequest: return Delivery::kReliableNow;
+    case kPartyTravelRequest:
+    case kPartySummonRequest: return Delivery::kReliableNow;
     case kReferencesMoveRequest:
         return MustArrive(static_cast<const ReferencesMoveRequest&>(acMessage).Updates) ? Delivery::kReliable : Delivery::kUnreliable;
     default: return Delivery::kReliable;

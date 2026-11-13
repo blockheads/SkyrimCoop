@@ -84,6 +84,9 @@ class Runtime:
                             ["ip", "netns", "exec", CLIENT_NETNS, "ip", "route", "add", "default", "via", HOST_SIDE_ADDRESS]):
                 if (result := ctx.sudo(*command)).returncode != 0:
                     raise ctx.failure(f"netns setup failed: {' '.join(command)}: {result.stderr.strip()}")
+        # A delay a run left on the link (line_delay) never reaches the next boot.
+        ctx.sudo("tc", "qdisc", "del", "dev", "coop2-host", "root")
+        ctx.sudo("ip", "netns", "exec", CLIENT_NETNS, "tc", "qdisc", "del", "dev", "coop2-ns", "root")
         ctx.sudo("sysctl", "-q", "-w", "net.ipv4.ip_forward=1")
         # Forwarding is dropped by default here (Docker's policy): let the namespace's traffic through, then NAT it.
         for table, chain, rule in (("filter", "FORWARD", ["-i", "coop2-host", "-j", "ACCEPT"]),

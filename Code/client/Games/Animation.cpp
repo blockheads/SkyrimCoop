@@ -33,8 +33,6 @@ using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
 static TPerformAction* RealPerformAction;
 using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
-using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
-static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
 using TKillActorEvent = bool(void*, Actor*);
 static TKillActorEvent* RealKillActorEvent;
 using TContactPoint = void(BSRagdollContactListener*, const hkpContactPointEvent*);
@@ -86,11 +84,12 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 
         action.EventName = apAction->eventName.AsAscii();
         action.TargetEventName = apAction->targetEventName.AsAscii();
+        action.StateAfter1 = pActor->actorState.flags1;
+        action.StateAfter2 = pActor->actorState.flags2;
         action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
 
-        // An action the engine refused changed nothing here: replayed on a copy it could take
-        // (e.g. a late 'MRh_Equipped_Event' after the hands were lowered) and leave the copy
-        // showing something its owner never did.
+        // A refused action is never replayed: a copy could take it (a late 'MRh_Equipped_Event' after the hands were
+        // lowered). Its graph writes (39004: a refused TurnStop sets iSyncTurnState) reach a copy in its owner's stream.
         if (!res)
         {
             if (!g_forceAnimation && !cPlayersPartner)
@@ -99,7 +98,10 @@ uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
         }
 
         // A copy whose clip already advanced can recover from the accepted action's result.
-        if (!g_forceAnimation && !cPlayersPartner && action.TargetEventName.empty())
+        const bool cOwnBody = ReplayState::CopyOwnBody(pActor->InPair(), pActor->IsInKillMove(),
+                                                       (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT) != 0, pActor->actorState.GetSitSleepState());
+        if (!g_forceAnimation && !cPlayersPartner &&
+            ReplayState::CarriesGraphState(!action.TargetEventName.empty(), World::Get().GetGraphStreams().Streaming(pActor->formID), cOwnBody))
         {
             COUNT_TIME("graph state save us");
             pActor->SaveAnimationGraphState(action.GraphState);
@@ -153,19 +155,6 @@ bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
         }
     }
     return RealUpdateAnimationGraphs(apThis, aDelta);
-}
-
-// A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
-// a copy there, so a kill move with a copy waited out the engine's fallback (docs/re/systems/actor-ai-and-copies.md).
-void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbContext& acContext, float aTimestep)
-{
-    RealUpdateSynchronizedClip(apThis, acContext, aTimestep);
-    if (apThis->atMark || !acContext.character)
-        return;
-    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
-                                                                      offsetof(BShkbAnimationGraph, character));
-    if (pGraph->holder && pGraph->holder->GetExtension()->IsCopy())
-        apThis->atMark = true;
 }
 
 // bhkCharacterController::TryMoveTo 78260, the sweep a pair starts with (32792): each game judges it on its own positions,
@@ -323,7 +312,6 @@ static Hooks::Initializer s_animationHook(
         const HookGate cGate(__FILE__);
         HOOK_ID(38949, &RealPerformAction, HookPerformAction);
         HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
-        HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
         HOOK_ID(63092, &RealContactPoint, HookContactPoint);
         HOOK_ID(42838, &RealKillActorEvent, HookKillActorEvent);
         HOOK_ID(78260, &RealTryMoveTo, HookTryMoveTo);

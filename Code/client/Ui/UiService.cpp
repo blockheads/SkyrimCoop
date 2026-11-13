@@ -11,6 +11,7 @@
 #include <Components/PlayerComponent.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Events/SetTimeCommandEvent.h>
+#include <Events/PartySummonCommandEvent.h>
 #include <Games/Skyrim/Interface/MenuCursor.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
@@ -533,6 +534,11 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
         m_world.ctx().at<BugReportService>().Export();
         return;
     }
+    if (acLine == "/tpa" || acLine == "/teleportall")
+    {
+        m_world.GetDispatcher().trigger(PartySummonCommandEvent{});
+        return;
+    }
     char command[16]{};
     int hours = -1, minutes = -1;
     const int cRead = std::sscanf(acLine.c_str(), "/%15s %d %d", command, &hours, &minutes);
@@ -545,7 +551,7 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
     }
-    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>");
+    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>, /tpa (everyone to you)");
 }
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept

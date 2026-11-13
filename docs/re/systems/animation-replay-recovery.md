@@ -84,6 +84,11 @@ that step, with or without this fix (no idle means nothing shown, never a pass).
 
 ## A graph's random picks (2026-11-04)
 
+> Since the graph input stream's phase 3 (2026-11-09) an NPC's copy takes its owner's seed with every stream op and its
+> every-N counts with the sync point (Havok's internal state). The sync points described below (`GraphRandom.h`,
+> `RunGraphPoint`, `ActionEvent::GraphCounters`) are removed; an action still carries its seed for copies off a stream
+> (players' copies). `npc-counter-matches` and `npc-counter-copy-falls-back-in` pass on the stream alone.
+
 Files loaded, a copy still played other clips: one action gave `DialogueNeutralExpressiveE` on the host and `...H` on the
 guest, and at Lucan's counter his arms crossed 9 to 19 s apart with no action at all. The saved traces matched Lucan
 exactly 90%, 62% and 23% of the time (`npc-clips-match` compared nothing then, only that files were in).
@@ -181,3 +186,303 @@ The verb `graph_watch` is the same watch on demand. It logs and does not fail a 
 checks, and `scenario --no-graph-watch` leaves it out. A run whose actor stops being read ends at its last reading apart and says
 so (`lost`, "until no longer read"). The pairs refresh every 3 s, so up to 3 s of it can be a graph that stopped updating: it counts
 only past 5 s. Read failures end a run the same way. With a `limit`, an NPC stays watched while it can be read.
+
+## A machine's start state is each game's own (2026-11-07)
+
+The live check's lasting shape on creatures, a wolf's copy turning on the spot while its owner idles (`9B0DD`, 4 to 20 s),
+comes from where a state machine starts, not from an event. Read in IDA 1.7.104 (each ID below, named in this branch's
+journal) unless marked measured (duo, Riverwood) or from the behaviour file (`scripts/re/behavior_dump.py` on
+`meshes\actors\canine\behaviors\quadrupedbehavior.hkx`).
+
+```
+owner and copy get the same events (measured, trace "input": all through PerformAction 38949 / ForceAction 38953)
+TurnCannedR180's clip ends: its trigger cannedTurnStop, no action (behaviour file; measured in the trace)
+  DefaultBehavior CannedTurnState -> StandingState (flags 0, iSyncIdleLocomotion == 0; behaviour file)
+  StandingBehavior activates: a new clone of its template (GetOrCreateNodeClone 58360 -> clone ctor 59330,
+    which copies startStateId..selfTransitionMode, +0x68..+0x87, and resets +0xFC and isActive +0x88)
+  hkbBindable::CopyVariablesToMembers (58522) -> hkbVariableBindingSet::CopyVariablesToMembers (59467) writes the bound
+  variable into the clone's startStateId (+0x68): the write itself measured (watchpoint, RVA B1F4BF under 59467)
+    StandingBehavior.startStateId <- iSyncTurnState   (behaviour file; DefaultBehavior <- iSyncIdleLocomotion,
+    LocomotionBehavior <- iSyncForwardState, the turn clips' machines <- iTurnMirrored)
+  Activate (59334) -> ChooseStartStateId (59405): override +0xFC if >= 0, else by startStateMode +0x86:
+    0 startStateId, 1 sync variable, 2 random (59406), 3 chooser
+owner: iSyncTurnState 1 -> StandingIdleState        copy: still 0 -> LoopingTurnRight, until the next action
+```
+
+- Measured (harness `graph_machines`, trace `start` and a write watchpoint, since removed): every new clone holds the
+  template's start (1), and at ChooseStartStateId some hold 0 or 2 with no override and mode 0; the watchpoint caught the
+  write at RVA `B1F4BF` under `hkbVariableBindingSet::sub_59467` each time.
+- The owner's engine changes `iSyncTurnState` in the frame its clip ends; in the trace that frame also holds a `turnStop`
+  the engine refused (so never sent). That refused action is the writer (next section).
+- A copy's integer variables are its current movement snapshot's (`CharacterService`, the 10-a-second rate for NPCs not
+  in a fight), and its clip ends on its own clock: the measured runs read the old value.
+- Read, not on the path: StartTransition (59383) and the nested-state path (58380) write +0xFC only for transitions flagged
+  0x2000; no canine transition targets `StandingBehavior`'s states. setInternalState (60010) does not touch +0x68.
+
+The same race leaves a copy in `CannedTurnState`: `DefaultBehavior`'s exit needs `iSyncIdleLocomotion` 0 or 1 at
+`cannedTurnStop`, and the copy can still hold another value (behaviour file; seen on the duo, 3.8 s, 2026-11-07).
+
+## A refused action still writes its graph variables (2026-11-08)
+
+> The engine facts below stand. The fix they led to (a refused action sent as variables only, `kVariablesOnly`) is
+> removed since phase 3 (2026-11-09): the owner's stream carries every variable set from outside its graph.
+
+Both shapes above have one writer: an action the owner's graph refused. Read in IDA 1.7.104 (names and comments in this
+branch's journal):
+
+```
+owner's AI: PerformAction (38949, hooked: HookPerformAction)
+  event sent to the graph; refused (CannedTurnState has no turnStop)
+  not a query (flags & 1 == 0) -> 39004 (coop_ApplyActionGraphEffects, started = 0)
+    its variable writes sit outside its started-only branch, so they run for a refused action too:
+      MoveStart 97 / MoveStop 98         -> iSyncIdleLocomotion (FixedStrings +0x310) = 1 / 0
+      TurnRight 99 / TurnStop 101 / TurnLeft 100 -> iSyncTurnState (+0x318) = 0 / 1 / 2
+      MoveForward 102 / MoveBackward 103 -> +0x558 = 0 / 1;  MoveRight 105 / MoveLeft 104 -> +0x560 = 0 / 1
+    (SetGraphVariableInt at 0x1406e2917)
+ForceAction (38953, a copy's replays): the same 39004 call, started or not
+```
+
+- Nothing else in the executable or the canine behaviour files writes these two variables. The graphs only read them
+  (bound `startStateId`, transition conditions), and so does `AIProcess::StopCurrentIdle` (39257).
+- **Read (our code, before the fix):** `HookPerformAction` dropped a refused action ("refused by the engine, not sent"),
+  so its write reached the copy only in a later movement snapshot. The copy's machine started, or its exit was judged,
+  on the old value.
+- **Measured (duo, 2026-11-08):** in the long runs apart, the copy's integers equalled its owner's snapshots, and the
+  owner's log held a refused `turnStop` next to each one.
+- **The fix:** a refused action that changed its owner's variables is sent as variables only (`kVariablesOnly` in
+  `ActionEvent::Type`, `ReplayStep.h`), with the variables as they stand after 38949. The copy stages it on its action
+  queue, at its owner's tick, and loads the variables in step with its graph (the step's variables phase), with no
+  event: replaying the event could let the copy take what its owner refused. A refused action that changed nothing is
+  still not sent.
+- **Measured (duo, 2026-11-08, scenario `wolf_copy_turns_with_owner`):** the host sent about 300 refused actions'
+  variables in 3 minutes, and the copies loaded them. The scenario failed on another shape: wolf `9B0DD`'s copy stayed in
+  `CannedTurnState` 8.4 s, with no refused action on its owner near it (`docs/bugs.md`).
+- **Measured (duo, 2026-11-08, a traced run with the integers, `trace_start(ints=...)`):** in 9 canned turns, the
+  owner's refused `turnStop` set `iSyncTurnState` 1 within 50 ms before its clip's end, and the copy loaded it about
+  0.2 s later, at the line's delay. In 2 of them the copy's clip ended before that, holding 2. The owner's clip started
+  late: action to first footfall took 0.35 s and 0.31 s on the owner, 0.18 s and 0.20 s on the copy (0.14 to 0.25 s
+  on the owner in the other 7). After the first footfall both clips run in step, and no frame was longer than 50 ms.
+  So the copy's clip end can run up to about 0.18 s ahead of its owner's in the owner's timeline, and a write made
+  just before the owner's end arrives too late. The stuck `CannedTurnState` is likely the same race on `MoveStop`'s
+  `iSyncIdleLocomotion` 0 (in the traced turn, the copy got it 50 ms before its own end).
+
+### Why an owner's clip starts late: distant graphs step in chunks (read 2026-11-08)
+
+The canned turn's data has no wait in it: `DefaultBlendToAnimationDriven` (an `hkbBlendingTransitionEffect`, duration
+bound to `blendDefault`, no sync flag) into plain clips played from 0 at speed 1 (behaviour file). The delay is Skyrim's
+animation interpolation for distant actors, read in IDA:
+
+```
+41453 -> 20123: BSAnimationUpdateData.deltaTime = frame seconds x VATS multiplier, for every actor
+  Actor::ModifyAnimationUpdateData (38054): +0x2A force (kForceAnimGraphUpdate; we set it on copies),
+    +0x2C visible, +0x2B interpolation allowed (37988: bAnimInterpEnable, and the graph's bIsSynced,
+    bSpeedSynced and bDisableInterp all false)
+  coop_BSAnimationGraphManager_Update (63358) -> coop_BShkbAnimationGraph_UpdateInterpolated (63587):
+    two countdowns (+0x1E8/+0x1EC) each less dt per frame
+    near (camera distance x (80/fov)^2 within fAnimInterpNearDist 400), forced, or not allowed:
+      the behaviour graph steps dt every frame
+    far: when the countdown runs out, the graph steps a whole interval at once
+      (fAnimInterpMinTime 0.08 s .. fAnimInterpMaxTime 0.25 s across 400..fAnimInterpFarDist 800, cut by 63864),
+      and not again until that interval has passed; the drawn pose is interpolated between the two buffered poses
+```
+
+- So a far owner's graph runs ahead of the clock in chunks. An event arriving mid-chunk starts its clip at 0, and the
+  clip does not move until the next chunk: up to one interval late. Its copy is forced and steps every frame, so its
+  clip starts at once and ends earlier in the owner's timeline. The trace agrees: the owner's clip time stood still or
+  jumped (0.17 s in 33 ms) while the copy's ran with the clock. The wolf's distance from the host's camera was not
+  recorded.
+- Any clip-end trigger on a far owner can come up to an interval after its copy's, so this is not only the wolf's turn.
+- **Superseded 2026-11-09:** `force` also raises the LOD to full off camera and creatures hovered with it; owners
+  now step every frame by the interpolation flag alone (`+0x2B`, graph-input-stream.md, Owner). What follows is the
+  first fix and its measured cost.
+- **The first fix:** every actor a game owns steps every frame, as its copies do (`SetGraphUpdatedEveryFrame`, set by
+  `CharacterService` each send round, cleared when it stops being owned). Under the party tether every guest is where
+  the host is, so the host's synced NPCs are the ones whose copies are watched. The cost is the host's animation LOD
+  for them.
+- **Measured cost (2026-11-08, duo, host standing at `WhiterunOrigin`, 29-31 synced NPCs):** five 45 s windows on one
+  duo with `profile --stacks`. Each switch was a cog swap; the unforced build cleared the flag.
+  - Job-thread time under `HookUpdateAnimationGraphs`: 59 and 22 ms/s unforced, against 158, 146 and 178 ms/s forced.
+    That's about 120 ms/s more, 0.12 of a core, about 4 ms/s per NPC.
+  - The six job threads stayed 80-85% idle either way.
+  - Frame time p50 17.9 and 17.1 ms unforced, against 17.6, 18.6 and 18.5 forced. p95 was 32.5-34.3 throughout.
+  - One forced window had 9 engine-side stalls (our update about 1 ms in each). They didn't come back in the next forced
+    window.
+  - So the cost is in the noise of a busy town's frame time on this machine (28 threads). A weaker CPU, or many more
+    synced NPCs, would show it first.
+  - The narrower option, if needed: force only owners whose copies are near some guest's camera.
+
+### Actions spaced on the copy's graph time (2026-11-08, removed 2026-11-09)
+
+A copy staged each action when its playback reached the action's tick. Its playback steers at 0.85-1.1x (`CopyClock.h`)
+while its clips run at the frames' time, so over a one-second turn at 0.9x the turnStop its owner had 40 ms before the
+clip's end came after the copy's. The interim fix spaced each action after the last on the copy's graph time
+(`ActionDue`). It is removed with phase 3: a streamed copy's graph takes no actions, and every other copy plays them
+at playback again, as before the branch.
+
+What the spacing cost off the stream, seen on the duo (2026-11-09): in `kill-moves-cross` the host's pair waited
+330 ms on the guest behind a `moveStart` its graph's clock held back, and was refused once the guest's player had
+died; in `host-kill-move` the wolf's copy, off its stream for the pair, took four of its owner's refused actions'
+variables a step each (57-80 ms apiece) and its death was spaced from the last: it stood 311-396 ms after its owner
+died. GameTests keep both ("A kill move starts on its victim's game at playback...", "A copy's death comes at
+playback...").
+
+- GameTests `[replay-start]`: with `Turn()` stepping both games (it stepped only the host while the owner turned, which
+  hid the copy's timing), the slow line and the turn after a fight fail on playback spacing; the far owner's turn
+  (`FarOwnerChunkMs` 250, the fake's 63587) fails without the owner's force. The fake's owner AI performs its refused
+  turnStop 40 ms before its clip's end (measured 30-45 ms). ClientTests `[action-spacing]` went with the spacing.
+- **GameTests `[replay-start]`:** the fake runs 39004's writes (`ActionWrites`) for PerformAction and ForceAction, taken
+  or refused. The owner's AI performs a refused `turnStop` (and `moveStop` for the exit condition) just before its canned
+  turn's clip ends, on the main thread before the graph update. Without the send, two turns over a slow line leave the
+  copy in its canned turn. On a clean line the snapshot still comes in time in the fake. ClientTests
+  `[refused-writes]` went with the send; the flows run on the stream.
+
+### Tried and parked: reading the owner's integers ahead
+
+Before the writer was read, three fixes moved snapshot integers instead: integers read up to an interval ahead of
+playback, at an estimated graph clock, then at a measured graph time (`CopyVariables.h`, commits up to `bcc96169` on
+PR #38). Each guessed when to read a value whose write arrived with no timing of its own. On the duo the measured graph
+time lagged the owner by 50 to 110 ms and did not explain the stuck runs. One fact from it still holds: 41453 passes
+20123 the frame's seconds times VATS's time multiplier (read).
+
+### Tried and parked: reconciling copies' machines to their owner's
+
+The first fix sent the owner's start choices and matched them to copy activations by time. The second sent every state
+an NPC's machines entered and moved a copy's machine that differed, after 250 ms, through GoToState 59369 (branch
+`agent/copy-machine-reconcile`). Three Codex design reviews on PR #38 found it unsound to ship:
+- the owner reports a state on entry while the copy was judged by a transition's destination, so a correct delayed
+  transition could be force-cut, running entry and exit effects;
+- name and state names alias distinct canine machines (`Head_Stand_Behavior` in both `noncombatidle.hkx` and
+  `quadrupedbehavior.hkx`);
+- history and baselines had holes;
+- a catch-up clock truncated running actions.
+
+What it established, and still holds:
+- **GoToState (59369):** not active or `force` → it clears transitions (59384, which enters a delayed transition's
+  destination first), sets +0x100 and the graph's +0x12E, then calls SetActiveState and 59399. Otherwise it starts an
+  eligible transition (59377, 59381, 59382), or jumps when told to.
+- **Inside a node's update:** the graph's update (58329) runs `updateActiveNodes` when +0x12E is set; 59387 calls
+  GoToState inside Update.
+- **State changes:** SetActiveState 59390 sees every state a machine enters, from Activate 59334, StartTransition 59383
+  (at its start, or at its end via 59384 under flag 0x10) and GoToState. Deactivate 59337 ends a machine.
+- **Running transitions:** at +0xB0 (count +0xB8, 40-byte entries, toStateId +0x20).
+- **Clone lifetime:** the engine frees a clone when its node leaves the active graph (60079, 58363).
+- **Measured (duo, Riverwood):**
+  - of 46 corrections, 34 followed an owner change 250 to 281 ms after it (all the `ForwardLocomotionBehavior` ones),
+    9 undid a copy-only change, and 3 fought;
+  - machine states cost about 215 B/s for the cell, against 1.7 MB of graph points in the same window.
+- **Not shown:** the locomotion corrections may come from the same race on speed integers. A delayed float,
+  transition or graph phase would also explain them, and none of these was traced. Treat it as a hypothesis.
+
+### A graph event's id (read 2026-11-09)
+
+- `BShkbAnimationGraph::SendEvent` (63591) turns the event's pooled name into its id through the project's event table:
+  `hkxDB` (graph +0x200, CommonLibSSE-NG's `BShkbHkxDB::ProjectDBData`) +0xAC, an `hkHashTable` keyed by the
+  `BSFixedString` pointer. The bucket is `hash 68221 (name) & (bucketCount - 1)`, then the chain to `end` (+0xB8).
+- It then sends `hkbEvent{id}` to the root behaviour's `handleEvent` (vtable +0x30), if the behaviour is active
+  (+0x12C) and `hkxDB +0x160` is set.
+- The graph input stream sends that id. A copy maps it back to the name by walking the same table and calls 63591
+  with it (`GraphStreamHooks.cpp`).
+
+### A node's internal state, by reflection (read 2026-11-09)
+
+- Each node class's memory is an `<class>InternalState` object (`CreateInternalState` 0D, `GetInternalState` 0E,
+  `SetInternalState` 10). Its class is static (`coop_hkClass_ctor` 57620: name +0, parent +8, objectSize +0x10,
+  declaredMembers +0x28, numDeclaredMembers +0x30), but the object's own `getClassType` (vtable 1) returns 0.
+- Every linked class is in `hkBuiltinTypeRegistry::StaticLinkedClasses` (239939, 594 entries, null-terminated, read by
+  `coop_hkBuiltinTypeRegistry_Init`): the stream finds a state's class there by name.
+- Members of the 28 `...InternalState` classes (types: Havok 2010 `hkClassMember::Type`): plain values (bool, int8-32,
+  real, vector4, quaternion, QsTransform), enums, and arrays of plain values or structs. Pointers only in a running
+  transition (`hkbStateMachineActiveTransitionInfo`: `transitionEffect`, `transitionEffectInternalStateInfo`) and in
+  `hkbBehaviorGraphInternalState`; `hkbBlendingTransitionEffect`'s pose is an array of QsTransforms.
+- Skyrim's BS nodes have no internal state class. Their runtime members are flagged `SERIALIZE_IGNORED` (0x400) in their
+  reflection: `BSTimerModifier::secondsElapsed`, `BSEventEveryNEventsModifier::numberOfEventsSeen`, the tweener's
+  `startTransform` and `time`, the look-at's `timeStep`.
+
+### A graph's whole state (read 2026-11-09)
+
+Havok saves and restores a whole behaviour graph itself; nothing in the game calls either.
+
+```
+getInternalState (58372): graph +0x98 active nodes (0x90 each: sync info 0x00-0x50, template +0x50, clone +0x58)
+  skip a node whose template answers vfunc 19 (59489: transition effects)
+  clone: createInternalState 13, getInternalState 14, getInternalStateUser 15 (graph, state)
+  -> hkbNodeInternalStateInfo (0x78): sync +0x10, name +0x60, state +0x68, node id +0x70, activated +0x72
+  then a copy of the variable set (+0x20)
+setInternalState (58373) (graph, context, state):
+  map node id -> info; variables copied from state +0x20 (58542; onto itself, nothing changes)
+  fresh active-node arrays (+0x98/+0xA0/+0xA8; the old ones are not freed: deactivate 58331 first); +0x12C = 1
+  updateActiveNodes (60079, its third argument the map) -> the walk 59318 -> per node 59326:
+    not active before: CopyVariablesToMembers, Activate (4), then with a map entry for its id:
+      setInternalState (16), setInternalStateUser (17: context, state, map); the entry's sync and byte to its node info
+    its active children (getChildren 9, FLAG_ACTIVE_ONLY) read after that, so restored states pick them
+```
+
+- **Running transitions** (`hkbStateMachine`): getInternalStateUser (59342) stores each effect's own state and node info
+  in `activeTransitions[i].transitionEffectInternalStateInfo`; setInternalStateUser (59343) clones the effect named by
+  `transitionInfoReferenceForTE` (a state's transitions +0x50 or the machine's wildcards +0xA0, 0x48 each, effect at
+  +0x20), gives it a new id (58370) and puts that state in the map under it. The machine's state owns those infos (59350
+  releases them).
+- **Node ids:** setNodeIds (58369) numbers every node under the root generator in walk order (59317, nested behaviours
+  included), the same on every game for the same files; only transition-effect clones take new ids (58370).
+- **Nested behaviours** are nodes of the root graph's walk: `hkbBehaviorReferenceGenerator`'s child is its graph
+  (59237), a graph's child its root generator (58332), and a nested graph's own activate and deactivate do nothing while
+  the context names a behaviour (58328, 58331). The root graph's state holds them all.
+- **Variables:** deactivate (58331) releases the variable set unless the graph keeps it when inactive (+0x48).
+- **Skyrim's restore cannot follow it:** `SaveDataRestoreFunctor` (65149, walker 65232) ends every running transition
+  of a machine it has data for and restarts it, only a blending effect's times restored (65164); a machine without data
+  goes to its start state. Its other parts set the BS nodes' runtime members (65160: a node's own vfunc 26).
+- **Clip files:** `AIProcess::QueryActionAndLoadClips` (39625) loads an action's clips with `coop_LoadEventClips`
+  (43621: event, actor, set 3, ...); `IMovementSelectIdle` and one more caller load other sets.
+- **Skyrim's build drops the map (measured on the duo, then read):** `updateActiveNodes` (60079) walks with 59319
+  (`collectActiveNodesLeafFirst`), which never reads its 10th and 11th arguments and recurses with 59327, 59326's
+  optimized twin with no restore map. So 58373 alone restores the variables and activates every node fresh: on the duo
+  no machine's `SetInternalState` ran, and a copy's machines came out in their start states. Havok's walk, 59318 with
+  59326, is still in the game (CollectNodes 59317 uses it): the graph input stream hands 59319's walk to it, with the
+  map, while its restore runs. Then every copy's nodes and machines came out as their owner's.
+- **Raised events:** activating a node enters a machine's start state before its state is set, and entering a state
+  raises its enter events (59365) into `context.eventQueue` (+0x18), or the character's (`hkbCharacter` +0x80) when the
+  context has none; deactivating raises exit events. The owner's queue was empty after its update at every point
+  measured (28 of 28); a copy's held 6 to 13 events after its restore, which its next update would handle. The stream
+  empties it.
+- **Clip sets:** a process holds its clip files in sets by kind (`AIProcess` middle +0x1B8, 0x20 apiece, kept by
+  40055): 3 an action's (39625, callback high +0x430), 4 an instant interaction's (39291 from `Character` 37325: an
+  NPC entering furniture or an idle marker at once, callback middle +0x230 by 39731, its load at sets +0x80). A movement
+  idle's (`IMovementSelectIdle` 41694, kind 47) is held by the selector itself, not the process. The three are the
+  only callers of `coop_LoadEventClips` (43621). A clip binds its file as it activates: one activated before its file is
+  in plays as a clip with none (0.0133 s, 59263).
+- Used by the graph input stream's sync point (`Havok/GraphInternalState.cpp`, docs/design/graph-input-stream.md).
+
+## Why copies refuse (2026-11-09)
+
+Measured in a wolf fight on the duo (a harness probe on `BShkbAnimationGraph::SendEvent` 63591, read in IDA: owner
+against copy): copies missed no event their owners' graphs took; they refused about 6 % of their owners' actions, for
+five reasons. Reason 1 is read in IDA (63358, 63590, 37984 and the channel reads 42767/42773/42777, journal
+`agent-smooth-movement.tsv`) and measured (`graph_compare.py`: the copy's `TurnDelta` off in 22 of 88 samples); 2, 3
+and 5 are measured in the traces (graph events and clips each frame), their engine cause inferred from them; 4 is read
+in our code and measured:
+
+```
+1. the copy's own inputs    BSAnimationGraphManager::Update (63358, our name) polls the actor's animation graph data
+                            channels (made by 37984: Speed, Direction, TurnDelta, Pitch, the weapon speeds, TimeDelta...)
+                            and 63590 writes them into the graph each update: on a copy, its own actor's values over
+                            its owner's, before the graph decides (TurnDelta from its interpolated heading)
+2. a frame early            the owner's AI acts the frame its clip ends; the copy's replay landed just before its own
+                            clip's end, and the carried graph state loaded before the retries ran
+3. one frame, two actions   the owner's same-frame actions played a graph update apart on the copy
+4. the weapon-draw race     fixed, below
+5. a backlog                a fresh copy's first clip load stalled its queue; the backlog then came faster than its
+                            owner's actions and met the copy's clips still running
+```
+
+Fixes for 1, 2, 3 and 5 were built and measured (6.2 % refused down to 3.1 %, the rest turns: the copy's locomotion
+following its own speed) and then dropped: the graph input stream (`docs/design/graph-input-stream.md`, branch
+`copy-idle-graph`) feeds a copy's graph its owner's inputs and replaces action replay, which they patched.
+
+**4, fixed:** a host NPC that drew right after its spawn was sent had a copy whose knowledge of its owner's hands was set
+from the spawn (down) when its 3D loaded, over the newer `NotifyDrawWeapon`; the owner never sent again, so
+`InventoryService::RunWeaponDrawConvergence` sheathed the copy mid-fight, and out of combat stance its graph idled and
+refused its owner's attacks. It is now set from each spawn as it arrives and from each draw notification, never again at
+the 3D load (`CharacterService`). GameTests "An NPC that readies its weapon while its copy loads keeps it ready on the
+copy"; scenario `npc-copy-keeps-weapon-ready` (the wolves sent into combat as they appear, so each draws right after
+its spawn; it requires an owner and its copy seen ready together, then no copy sheathed over 1 s while its owner is
+ready: 2 of 2 on the fixed build, all four pairs ready together, at most 0.1 s apart).

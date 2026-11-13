@@ -111,6 +111,15 @@ std::optional<std::string> BGSSaveLoadManager::PreviousGameplaySave() noexcept
     return pNewest ? std::optional<std::string>(pNewest->fileName.AsAscii()) : std::nullopt;
 }
 
+void BGSSaveLoadManager::SetCurrentCharacter(uint32_t aCharacterId) noexcept
+{
+    // The engine's {id, modded} pair (CommonLibSSE-NG currentCharacterID, currentCharacterModded).
+    using TSetCurrent = void(BGSSaveLoadManager*, const uint32_t*);
+    POINTER_SKYRIMSE(TSetCurrent, s_setCurrent, 35751);
+    const uint32_t cPair[2]{aCharacterId, currentCharacterModded};
+    s_setCurrent(this, cPair);
+}
+
 std::string BGSSaveLoadManager::QuickSaveName() noexcept
 {
     using TGetSaveEntry = SaveEntry*(BGSSaveLoadManager*, const uint32_t*);

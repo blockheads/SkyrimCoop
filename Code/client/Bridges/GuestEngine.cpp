@@ -1,4 +1,5 @@
 #include <Bridges/GuestEngine.h>
+#include <Games/GuestNpcs.h>
 #include <Games/QuestStarts.h>
 
 #include <Bridges/IBodyBridge.h>
@@ -309,6 +310,23 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
 }
 
+// Its NPCs shown before the session (the host's save loads before the guest connects, join-flow.md) lose their 3D.
+static void HideHeldNpcs() noexcept
+{
+    ProcessLists* pLists = ProcessLists::Get();
+    if (!pLists)
+        return;
+    std::vector<uint32_t> shown;
+    for (auto* pHandles : {&pLists->highActorHandleArray, &pLists->middleHighActorHandleArray})
+        for (uint32_t i = 0; i < pHandles->length; ++i)
+            if (const auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle((*pHandles)[i])))
+                shown.push_back(pActor->formID);
+    // Not while walking the lists: a reload takes the actor out of them.
+    for (const uint32_t cFormId : shown)
+        if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+            pActor->ApplyHeld3D();
+}
+
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     BGSStoryManager::SetPicksQuests(aOn);
@@ -317,6 +335,9 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     TESObjectREFR::SetPicksLeveledBases(aOn);
     TESObjectREFR::SetMovesContainerItems(aOn);
     StoryEvents::SetSends(!aOn);
+    GuestNpcs::SetHolding(!aOn);
+    if (!aOn)
+        HideHeldNpcs();
 }
 
 std::optional<StoryEvent> GuestEngine::ReadStoryEvent(const OwnStoryEvent& acEvent) const noexcept

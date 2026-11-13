@@ -1,0 +1,15 @@
+time	op	id	rva	item
+2026-11-13T14:55:02Z	read	54709	0xa010d0	{"name": "papyrus::Actor::KeepOffsetFromActor"}
+2026-11-13T14:55:05Z	read	37894	0x6a9c90	{"name": "sub_1406A9C90"}
+2026-11-13T14:55:11Z	read	42185	0x7a8b90	{"name": "MovementPlannerAgentKeepOffset::Func11_42185"}
+2026-11-13T14:55:12Z	read	42186	0x7a8c90	{"name": "MovementPlannerAgentKeepOffset::Func12_42186"}
+2026-11-13T14:55:20Z	read	42181	0x7a8730	{"name": "MovementPlannerAgentKeepOffset::Func2_42181"}
+2026-11-13T14:55:21Z	read	42176	0x7a8590	{"name": "MovementPlannerAgentKeepOffset::sub_42176"}
+2026-11-13T14:55:24Z	read	42177	0x7a8610	{"name": "MovementPlannerAgentKeepOffset::Func4_42177"}
+2026-11-13T14:55:32Z	comment	54709	0xa010d0	{"addr": "0x140a010d0", "comment": "Papyrus Actor.KeepOffsetFromActor: offset angles degrees->radians, target to a handle, then Actor_SetKeepOffsetFromActor (movement controller's IMovementSetKeepOffsetFromActor)."}
+2026-11-13T14:55:32Z	comment	37894	0x6a9c90	{"addr": "0x1406A9C90", "comment": "Actor+0x150 movement controller: QueryInterface(IMovementSetKeepOffsetFromActor), then SetKeepOffset({target handle, offset xyz, angle xyz (rad), catchUpRadius, followRadius})."}
+2026-11-13T14:55:32Z	comment	42186	0x7a8c90	{"addr": "0x1407a8c90", "comment": "KeepOffset agent load: +0x38 target handle, +0x3C..0x44 offset xyz, +0x48..0x50 angle xyz, +0x54 catchUpRadius, +0x58 followRadius."}
+2026-11-13T14:55:32Z	comment	42185	0x7a8b90	{"addr": "0x1407a8b90", "comment": "KeepOffset agent save: target form id, then offset xyz, angle xyz, catchUpRadius, followRadius."}
+2026-11-13T14:55:34Z	name	37894	0x6a9c90	{"addr": "0x1406A9C90", "name": "Actor_SetKeepOffsetFromActor"}
+2026-11-13T14:55:34Z	name	42185	0x7a8b90	{"addr": "0x1407a8b90", "name": "MovementPlannerAgentKeepOffset::SaveGame"}
+2026-11-13T14:55:34Z	name	42186	0x7a8c90	{"addr": "0x1407a8c90", "name": "MovementPlannerAgentKeepOffset::LoadGame"}

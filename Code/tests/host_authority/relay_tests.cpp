@@ -615,3 +615,33 @@ TEST_CASE("A quest one per player: the game that learned it tells every other", 
     }
     CHECK(session.SentTo<NotifySystemQuests>(kPeer).empty());
 }
+
+TEST_CASE("Graph stream: ops from each actor's owner, sync points asked of the owner", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    GraphOpsRequest ops;
+    ops.Ops.Frames = {{100, 0.016f}};
+    ops.Ops.Runs = {{cHostNpc, 0, {{.Frame = 0}}}, {cPeerPlayer, 0, {{.Frame = 0}}}}; // the player's: not the host's to say
+    session.Receive(kHost, ops);
+    const auto cOps = session.SentTo<NotifyGraphOps>(kPeer);
+    REQUIRE(cOps.size() == 1);
+    REQUIRE(cOps[0]->Ops.Runs.size() == 1);
+    CHECK(cOps[0]->Ops.Runs[0].ActorId == cHostNpc);
+    CHECK(session.SentTo<NotifyGraphOps>(kHost).empty());
+
+    GraphSyncRequest ask;
+    ask.Id = cHostNpc;
+    session.Receive(kPeer, ask);
+    CHECK(session.SentTo<NotifyGraphSync>(kHost).size() == 1); // the owner's game alone
+    CHECK(session.SentTo<NotifyGraphSync>(kOtherPeer).empty());
+
+    GraphSyncPointRequest point;
+    point.Id = cHostNpc;
+    session.Receive(kPeer, point); // not the peer's actor
+    CHECK(session.SentTo<NotifyGraphSyncPoint>(kOtherPeer).empty());
+    session.Receive(kHost, point);
+    CHECK(session.SentTo<NotifyGraphSyncPoint>(kPeer).size() == 1);
+}

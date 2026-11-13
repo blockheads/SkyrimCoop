@@ -124,6 +124,14 @@ session end                  a hidden one shown, a kept one's own persistence ba
 Hidden is for guests only: the host's own reference that a guest's mount was is the host's to own again.
 `OnNotifyDismount` places a horse through `FollowOwner` too, its owner still there, so it is not hidden.
 
+**A rider's copy gets off by its clip alone** (read in IDA, measured on the duo 2026-11-10). On its owner's game
+`Actor::Dismount` (37906) builds the dismount package and sets `GETTING_ON_OFF_MOUNT` on rider and mount (37462, with
+a deferred kill each). A copy runs neither: it plays its owner's `HorseExit` action, its sit state wants to stand (4),
+and its clip's own exit event (`ChairFurnitureExitHandler` 42835) sets sit state 0 through
+`AIProcess::SetSitSleepState`, which ends the mount interaction. Getting on ends at `PairedStopHandler` (42868: sit
+state 2 to 3) with `MountDismountEndHandler` (42881) clearing the flag. Anything that replaces the copy's graph state
+before the exit event (a graph stream sync point) leaves it riding: `ReplayState::CopyOwnBody`.
+
 Tests: GameTests `[copies]` (the three flows at the end of `copy_flows.cpp`) and "A quest deletes a placed NPC a guest
 talks to" (`dialogue_races.cpp`); ClientTests `SpeakerUpdate::Skipped`; the two scenarios named above and
 `leveled-placed-npc-is-hosts`. The fake cannot fault: the dialogue hook itself is proven only by the scenario.

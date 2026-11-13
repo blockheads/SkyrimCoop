@@ -7,9 +7,54 @@ namespace ReplayState
 {
 constexpr uint32_t kWeaponMask = 7u << 5;
 
+constexpr uint32_t kKnockMask = 7u << 25;
+
+// A copy's actor state with its owner's action (sneaking, sitting, life state): its owner's, its own ragdoll kept.
+constexpr uint32_t Flags1(uint32_t aOwner, uint32_t aCopy) noexcept
+{
+    return (aOwner & ~kKnockMask) | (aCopy & kKnockMask);
+}
+
 constexpr uint32_t Flags2(uint32_t aOwner, uint32_t aCopy) noexcept
 {
     return (aOwner & ~kWeaponMask) | (aCopy & kWeaponMask);
+}
+
+// ActorState1::sitSleepState's wants-to-stand: from an exit action until its clip's own exit event (42835).
+constexpr uint8_t kSitWantsToStand = 4;
+
+// A copy held off its stream for a pair with this game's actor (PairOnStream) stays on its own body until its half
+// has played out: out of the pair's instance and its kill move, on its mount (GETTING_ON_OFF_MOUNT, to 42881) or off
+// it (no Actor::Dismount sets that on a copy: its sit state).
+constexpr bool CopyOwnBody(bool aInPair, bool aInKillMove, bool aGettingOnOff, uint8_t aSitState) noexcept
+{
+    return aInPair || aInKillMove || aGettingOnOff || aSitState == kSitWantsToStand;
+}
+
+// A copy's owner's pair, at its half's action: the copy stays on its stream when its partner on this game is a copy
+// too (no instance here, 32803: each replays its own stream, its clip's wait at the mark its owner's pick), a kill
+// move's or a mount's alike (an action writes nothing a mount's beside the graph, 39004). Its partner this game's own
+// actor, or not here: the instance is on this game or there is none to follow, and its half is its own body's.
+constexpr bool PairOnStream(bool aPartnerIsCopy) noexcept
+{
+    return aPartnerIsCopy;
+}
+
+// Playing a "pa_Kill..." action puts its actor and its target in a kill move (39004: EnterKillMove 38613 on each);
+// two copies that take the pair from their streams play no action, so it is done for them.
+constexpr bool StartsWithNoCase(std::string_view acText, std::string_view acLowerPrefix) noexcept
+{
+    if (acText.size() < acLowerPrefix.size())
+        return false;
+    for (size_t i = 0; i < acLowerPrefix.size(); ++i)
+        if ((acText[i] | 0x20) != acLowerPrefix[i] && acText[i] != acLowerPrefix[i])
+            return false;
+    return true;
+}
+
+constexpr bool EntersKillMove(std::string_view acEvent) noexcept
+{
+    return StartsWithNoCase(acEvent, "pa_kill");
 }
 
 // A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.
@@ -91,5 +136,12 @@ constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
         return PairOutcome::kSkip;
     const bool cReplayedFirst = acReplay.Tick != acReplay.PairTick ? acReplay.Tick < acReplay.PairTick : acReplay.Session < acReplay.PairSession;
     return cReplayedFirst ? PairOutcome::kYield : PairOutcome::kSkip;
+}
+// An accepted action carries its owner's whole graph state for a copy that refuses it (ReplayGraph::Recover). A pair's
+// halves never do. A streamed owner's copies take no actions, but while they are on their own bodies (aOwnBody: the
+// owner's own CopyOwnBody, its copies' follows it): then they play its actions (graph-input-stream.md, Cost measured).
+constexpr bool CarriesGraphState(bool aPaired, bool aStreamed, bool aOwnBody) noexcept
+{
+    return !aPaired && (!aStreamed || aOwnBody);
 }
 } // namespace ReplayState

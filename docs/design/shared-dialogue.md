@@ -48,7 +48,10 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   highlight for its owner to press. Everyone's chat names who said what: `Lydia: I found Lucan's claw.` Then every
   menu shows the next list.
 - **One conversation at a time.** Talking to another NPC while one is open does nothing (a chat line says
-  someone is talking). An NPC's force greet waits too.
+  someone is talking). An NPC's force greet waits too. The host's own talk is the exception the host's game has: its engine holds one
+  conversation, so the host talking to another NPC ends the one it runs (Flow, step 2). Both pressed in one frame
+  (`dialogue-two-starts-at-once`), either wins: the host's start first refuses the guest's ask; the guest's ask first
+  opens the guest's menu for about 250 ms until the host's start ends it.
 - **An NPC that starts a conversation greets the party** (decided 2026-10-19): NPCs run their AI on the host's
   game, so its force greet reaches the host's player, and every player's menu opens on it (the peers' on their
   copies), as for the peer who asks.
@@ -57,7 +60,9 @@ its picker (its items, gold, Speech experience and training the picker's), refus
   press is refused, the Breton guest answers). When nobody in it has one, the conversation ends, as it does in the game.
 - **A start the host's game cannot make is refused** with a chat line: the NPC fighting or dead (as talking
   to them is in the game), the host's player talking to someone else. The host in a menu, in combat or far
-  away does not stop it (its world paused pauses the lines).
+  away does not stop it (its world paused pauses the lines). An NPC with nothing to say (a hello and no topics:
+  Hilde, most guards) opens nothing, as in the game, and the asker reads "They have nothing to say." (2026-11-08).
+  A player's character, the host's too, is nobody to talk to: refused without a line.
 - **Anyone skips a line** (2026-11-03, the user): a press while the NPC speaks moves it on, as in the game, from any
   player in the conversation: the next response, then the next list, on every menu.
 - **Anyone leaves on their own** (Tab, Esc). The conversation ends only when the last player in it leaves,
@@ -123,12 +128,13 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
 
 1. **Start.** A peer activates a copy. The start reaches `Actor::SetDialogueWithPlayer` (37200), which
    `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's session id). `HostDialogue`
-   refuses it for an actor the host does not own, or while another conversation runs; a start for the NPC
+   refuses it for an actor the host does not own or a player's character, or while another conversation runs; a start for the NPC
    already in conversation returns silently (the peer joins locally, step 7). Otherwise it tells the host's
    game to start (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a
    time), starts it hidden: `DialogueBridge::Start(npc, false)` skips the menu (52853) and the turn (40496),
    and refuses an NPC fighting or dead (a start from code would run all the same). A start it cannot make goes
-   back as `DialogueStartFailedRequest`. Every refusal reaches the asker as `NotifyDialogueRefused` (it
+   back as `DialogueStartFailedRequest`, and so does one that opened nothing (37200 returns true when 35282 refused:
+   its speaker is checked after it, `NothingToSay`; `docs/re/systems/dialogue.md`, "A start that opens nothing"). Every refusal reaches the asker as `NotifyDialogueRefused` (it
    forgets its ask; kept, the host's next conversation with that NPC opened its menu) and a chat line.
 2. **Open.** A force greet reaches the start filter with its flag (37200's `forceGreet`); the host's game marks
    the open `Everyone`, `HostDialogue` puts every player in it and every peer opens its menu on its copy.
@@ -223,7 +229,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
 | `NotifyDialogueFace` | host → host's game | conversation, player: the one the NPC faced (the starter, then each picker) left; it turns to this one, the first still in it |
-| `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals) |
+| `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals); `NothingToSay`: started, and the engine opened nothing |
 | `DialogueOpenedRequest` / `NotifyDialogueOpen` `Everyone` | host's game → host → all | the NPC started it (a force greet): every peer opens its menu |
 | `RoutedCallRequest` / `NotifyRoutedCall` (to the owner) | host's game → host → that guest | a native on the player a script ran for a guest (rule 2; not dialogue's own) |
 
@@ -296,6 +302,15 @@ HostDialogue (DialogueLineFor): the presser's own line for the topic, else refus
 - The highlight is read each update while the list shows (`selectedEntry.topicIndex`): the SWF tells the game nothing
   when it moves (`docs/re/systems/dialogue.md`, "The highlight"). A move another game made is applied once this menu
   shows the same step's list, and is not sent back.
+- **A menu joining while the NPC answers shows the pick** (2026-11-09, `dialogue-host-joins-mid-line`): the host's
+  engine opens its menu on the last step's list (no pick taken, but its highlight moved alone); the pick's text comes
+  with `NotifyDialoguePicked` (the host's rule copies the request's), and the joining menu shows it as every other
+  menu does once it shows a list, until the next one (`DialogueService`, `ShowPicked` returning whether it took).
+- **The host's order is the highlight's** (2026-11-09, `dialogue-highlights-cross`): the host relays each move to every
+  menu in the conversation, the mover's too, with the mover's count of its moves (`Seq`). A menu's own move goes
+  first (sent, a waiting move dropped); its own echo counts only for its latest move, so a fast mover is never pulled
+  back. Two moves crossing on the line end every menu on the one that reached the host last; before, each menu
+  kept the other's.
 - Tests: `HostAuthorityTests` (`dialogue_tests.cpp`: the merge, its own options said, another's refused with the
   line to the presser only, the highlight relay), `ClientTests` (`PartyOptionText`, `CanSay`, `CannotSayText`),
   `GameTests` (`dialogue_flows.cpp`: each menu's own lines and the tags, the host pressing a guest's option refused on

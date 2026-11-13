@@ -115,6 +115,7 @@ SOURCE_TAGS = [
     ("Code/client/Services/*MapService.*", {'ui', 'world'}),
     ("Code/client/Events/PlayerTravelQueuedEvent.h", {'cells', 'travel'}),
     ("Code/client/Events/FastTravelEvent.h", {'world', 'travel'}),
+    ("Code/client/Events/PartySummonCommandEvent.h", {'travel', 'ui'}),
     ("Code/encoding/Messages/TravelMessages.h", {'world', 'cells', 'travel'}),
     ("Code/client/Services/*TravelService.*", {'cells', 'travel'}),
     ("Code/client/Services/*TimeScaleService.*", {'world', 'combat'}),

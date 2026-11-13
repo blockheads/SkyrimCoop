@@ -9,6 +9,7 @@ struct DefaultObjectManager
     static DefaultObjectManager& Get();
     enum Object : uint32_t
     {
+        kActionRagdoll = 107, // what KnockExplosion (39895) and KnockParalyze (39894) play
         kActionGetUp = 108,
         kWerewolfAvailablePerks = 320,
         kVampireAvailablePerks = 321,

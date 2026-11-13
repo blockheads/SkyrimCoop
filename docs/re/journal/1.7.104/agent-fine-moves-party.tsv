@@ -1,0 +1,13 @@
+time	op	id	rva	item
+2026-11-09T05:11:46Z	read	40659	0x75a660	{"name": "PlayerCharacter::PayFine"}
+2026-11-09T05:12:13Z	read		0x7430ed	{"name": "PlayerCharacter::ProcessQueuedTravel"}
+2026-11-09T05:12:25Z	read	40661	0x75aa50	{"name": "sub_14075AA50"}
+2026-11-09T05:12:26Z	read	40656	0x75a180	{"name": "sub_14075A180"}
+2026-11-09T05:12:57Z	name	40661	0x75aa50	{"addr": "0x14075aa50", "name": "PlayerCharacter::QueueJailRelease"}
+2026-11-09T05:12:57Z	name	40656	0x75a180	{"addr": "0x14075a180", "name": "PlayerCharacter::QueueJailSentenceTravel"}
+2026-11-09T05:13:01Z	comment		0x75a848	{"addr": "0x14075a848", "comment": "goToJail: sets the pending-jail-travel flag (PlayerCharacter +0xBEC bit 0x40); ProcessQueuedTravel (40438) consumes it next frame"}
+2026-11-09T05:13:01Z	comment		0x7430ed	{"addr": "0x1407430ed", "comment": "Pending jail travel (+0xBEC & 0x40, set by PayFine/GoToPrison): sentence (+0x730) ? QueueJailSentenceTravel (40656) : QueueJailRelease (40661). Both write queuedTarget (+0x650) inline, carried out below in this same call, so a hook at entry sees no queued target; only the arrival reports it"}
+2026-11-09T05:13:01Z	comment	40661	0x75aa50	{"addr": "0x14075aa50", "comment": "Release (no sentence): queuedTarget = teleport data of the faction jail marker's (TESFaction +0x60) linked ref, i.e. the spot at the marker (Riften: outside, same worldspace). Clears faction enemy, sentence, crime faction (+0x728)"}
+2026-11-09T05:13:01Z	comment	40656	0x75a180	{"addr": "0x14075a180", "comment": "Sentence > 0: queuedTarget = the faction jail marker's own teleport data (through it, into the jail cell)"}
+2026-11-09T05:14:54Z	read	22053	0x3508d0	{"name": "TESObjectREFR::SetPositionOnAxis"}
+2026-11-09T05:14:59Z	comment		0x35092f	{"addr": "0x14035092f", "comment": "Writes the position in place: no queuedTarget, no PositionPlayerEvent, so console SetPos never reads as a player teleport (the party tether ignores it)"}

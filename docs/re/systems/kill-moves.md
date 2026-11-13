@@ -29,9 +29,31 @@ death action
 - Both directions work the same; an NPC victim's owner is always the host.
 - A copy's half counts as at its mark (`HookUpdateSynchronizedClip`): its owner's game placed it.
 - The victim's own half comes back to the attacker's game as an action. That copy is already in the pair: skipped.
+- A replayed pair whose partner is a copy names no target event (`PlayReplayedAction`): 32803 makes no instance there,
+  and each copy plays its half alone, the victim's by its owner's action (the half `TESActionData::Func5` played on the
+  owner's game, sent as the victim's own action). Only the attacker's and the victim's own games hold an instance.
+- An owner in an instance is recorded on but gives no sync point (`GraphStreams::HoldPointsWhile`): its synchronized
+  clip waits for the mark on its instance (about 150 ms on the host, `KillMove1HMWolfA/B`, 2026-11-09), and its copies'
+  clips take that wait as a pick (`HookUpdateSynchronizedClip`). A copy leaves the stream at the half's action only when
+  its partner here is this game's own actor, and is back from a sync point after the pair (graph-input-stream.md, The
+  one exception). Until 2026-11-11 every owner in an instance was off the stream.
+- The instance ends at the victim's `PairEnd`; the attacker stays in its kill move (`IsInKillMove`, its clip running)
+  until its own `KillMoveEnd`: 1820 against 3112 ms after the swing for `pa_KillMove1HMWolfB` (2026-11-10). A sync
+  point restored inside a synchronized clip starts the clip over, so the owner gives none until it has left the kill
+  move.
 - A copy in a pair takes no plain action of its owner.
 
 ## Engine facts
+
+- **A synchronized clip's scene (read 2026-11-11).** `BSSynchronizedClipGenerator::Update` (63050) asks its scene
+  (`+0x70`) each update: slot 4 (`+0x20`) "every actor at its mark" into `+0x12C`, slot 3 (`+0x18`) "all in scene" into
+  `+0x12B`; the inner clip updates only while `+0x12C` is set. `Activate` (63048) gives a generator with no scene a
+  `hkbDefaultSynchronizedScene` (vtable `0x141a02da0`), whose two answers are always yes: a clip outside a pair's
+  instance runs at once. These answers are a copy's pick on the graph input stream (graph-input-stream.md).
+- **The kill move flag comes from the action, not the graph.** 39004 (the action's effects beside the graph), for an
+  event starting "pa_Kill" (strnicmp 7) with an actor target: attack state 1, then `EnterKillMove` (38613) on the actor
+  (no killer) and on the target (killer: the actor). 38613: a deferred kill, the flag (`Actor+0x204` 0x4000), the
+  killer's handle.
 
 - **32803 (the pair's start).** If either actor is already in an instance, it does not start one: when both are in the
   same instance it returns true, as if this were that pair. Replaying a second pair there plays a second clip into the

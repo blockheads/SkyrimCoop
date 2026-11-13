@@ -1,0 +1,16 @@
+time	op	id	rva	item
+2026-11-09T15:21:48Z	read	56626	0xa5d370	{"name": "TESObjectREFR::MoveTo_Impl"}
+2026-11-09T15:21:48Z	read	40442	0x743e50	{"name": "PlayerCharacter::QueueTravel"}
+2026-11-09T15:21:55Z	read	40438	0x743090	{"name": "PlayerCharacter::ProcessQueuedTravel"}
+2026-11-09T15:22:26Z	comment		0x7434fe	{"addr": "0x1407434fe", "comment": "Exterior: a different worldspace or more than 4096 units (one cell) away loads the destination's location and cell; a closer target in the same worldspace skips the load (v74 'near' flag) but is still carried out below and still sends PositionPlayerEvent (read 2026-11-09, /tpa)"}
+2026-11-09T15:22:26Z	comment		0x7435a7	{"addr": "0x1407435a7", "comment": "Interior: a target in the player's own parentCell (+0x60) skips the location change but is still carried out (sub_40744) and reported as an arrival, so a MoveTo inside the cell is a travel too (read 2026-11-09, /tpa)"}
+2026-11-09T15:22:26Z	comment		0xa5d4fb	{"addr": "0x140a5d4fb", "comment": "The player: no same-cell check, every MoveTo builds a PLAYER_TARGET_LOC (world a4 at +0, interior a3 at +8, position +0x10, angle z +0x24, furniture handle +0x38, resetWeather +0x40=1, allowAutoSave/valid +0x41) and queues it (40442); 40438 carries it out next frame (read on 1.7.104 2026-11-09)"}
+2026-11-09T15:22:26Z	comment		0x743e53	{"addr": "0x140743e53", "comment": "queuedTarget is at +0x650 (1616) on 1.7.104 (+0x648 on 1.6.1170): PlayerCharacter.h static_asserts it with PlayerShift"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "v28", "new": "targetLoc"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "v9", "new": "pActor"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "a5", "new": "apPosition"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "a6", "new": "apRotation"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "a3", "new": "apCell"}
+2026-11-09T15:22:32Z	local	56626	0xa5d370	{"func_addr": "0x140a5d370", "old": "a4", "new": "apWorldSpace"}
+2026-11-09T15:22:32Z	local	40438	0x743090	{"func_addr": "0x140743090", "old": "v74", "new": "nearTarget"}
+2026-11-09T15:22:32Z	local	40438	0x743090	{"func_addr": "0x140743090", "old": "v77", "new": "moved"}

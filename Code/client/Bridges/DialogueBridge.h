@@ -29,7 +29,7 @@ public:
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;
     bool PickOption(uint32_t aTopic, uint32_t aInfo) noexcept override;
     void SkipLine() noexcept override;
-    void ShowPicked(const std::string& acText) noexcept override;
+    bool ShowPicked(const std::string& acText) noexcept override;
 
     std::optional<uint32_t> GetHighlight() const noexcept override;
     void SetHighlight(uint32_t aIndex) noexcept override;

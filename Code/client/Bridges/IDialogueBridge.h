@@ -100,8 +100,8 @@ public:
     /// Moves past the line being said, as a press in the menu does (with or without the menu).
     virtual void SkipLine() noexcept = 0;
     /// Another player picked: an open menu showing its list shows that option's text picked, as after its own click
-    /// (the SWF's TOPIC_CLICKED), until the next list is shown.
-    virtual void ShowPicked(const std::string& acText) noexcept = 0;
+    /// (the SWF's TOPIC_CLICKED), until the next list is shown. False: the menu shows neither yet (it slides in).
+    virtual bool ShowPicked(const std::string& acText) noexcept = 0;
 
     // The highlight (the menu's selected option).
 

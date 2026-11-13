@@ -69,13 +69,16 @@ class Observations:
                     pairs[session] = (int(form), copies[session])
         return pairs
 
-    def graph_watch_start(ctx, every=0.25, lasting=2.0, wanted=(), limit=None):
+    def graph_watch_start(ctx, every=0.25, lasting=2.0, wanted=(), limit=None, entering=None, strict=False):
         """Watches NPCs' graphs, owner against copy, on connections of its own until graph_watch_stop: `wanted` owner form ids,
-        else every pair, the first `limit` of them if given."""
+        else every pair, the first `limit` of them if given. Only a reading of both games counts: `seen`, `changes`, `gaps`
+        (the longest time between two) and `entered` (times the owner entered an active state containing `entering`)."""
         games = [copy.copy(ctx.game("")), copy.copy(ctx.game("client"))]
         for game in games:
             game.rpc_connections = {}
-        stop, apart, started, actors = threading.Event(), GraphApart(lasting), time.time(), set()
+        stop, apart, started, actors = threading.Event(), GraphApart(lasting, strict), time.time(), set()
+        seen, state = {}, {"error": None}  # owner -> [first read, last read, reads]; why it stopped
+        changes, last_owner, gaps, entered, failed = {}, {}, {}, {}, {}
 
         def read(game, form):
             return active_states((game.rpc({"cmd": "graph_state", "actor": form}) or {}).get("state", ""))
@@ -94,7 +97,21 @@ class Observations:
                         if stop.is_set():
                             break
                         reading = other.submit(read, games[1], copy_form)
-                        apart.observe(owner, read(games[0], owner), reading.result(), time.time())
+                        now = time.time()
+                        owner_states, copy_states = read(games[0], owner), reading.result()
+                        apart.observe(owner, owner_states, copy_states, now)
+                        if owner_states is None or copy_states is None:
+                            failed[owner] = failed.get(owner, 0) + 1
+                            continue
+                        if owner in last_owner:
+                            if owner_states != last_owner[owner]:
+                                changes[owner] = changes.get(owner, 0) + 1
+                            if entering and any(entering in s for s in owner_states - last_owner[owner]):
+                                entered[owner] = entered.get(owner, 0) + 1
+                        last_owner[owner] = owner_states
+                        first, last, reads = seen.get(owner, (now, now, 0))
+                        gaps[owner] = max(gaps.get(owner, 0.0), now - last)
+                        seen[owner] = (first, now, reads + 1)
                     stop.wait(every)
 
         def guarded():
@@ -102,6 +119,7 @@ class Observations:
                 watch()
             except Exception as error:  # a check's own failure says so, it never fails the flow
                 log(f"graph watch stopped: {error}")
+                state["error"] = str(error)
                 apart.keep_only(())  # the gap is no evidence: each run ends at its last reading apart
             finally:
                 for game in games:
@@ -109,7 +127,8 @@ class Observations:
 
         thread = threading.Thread(target=guarded, daemon=True, name="graph-watch")
         thread.start()
-        return {"thread": thread, "stop": stop, "apart": apart, "started": started, "actors": actors}
+        return {"thread": thread, "stop": stop, "apart": apart, "started": started, "actors": actors, "seen": seen, "state": state,
+                "changes": changes, "gaps": gaps, "entered": entered, "failed": failed}
 
     def graph_watch_stop(ctx, watch):
         """The runs apart since graph_watch_start, as one log line ('' if it read nothing)."""

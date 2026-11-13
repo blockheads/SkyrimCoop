@@ -110,8 +110,13 @@ ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acRefere
 
 void FakeEngine::LoadCell(uint32_t aCell)
 {
-    Attached.insert(aCell);
+    const bool cAttaching = Attached.insert(aCell).second;
     InMemory.insert(aCell);
+    // Cell attach queues each reference's 3D (QueueReference 13057).
+    if (cAttaching)
+        for (auto& [cId, cActor] : Actors)
+            if (cId != kPlayer && cActor.Cell == aCell && !cActor.Initializing)
+                Load3D(cId);
 }
 
 // An actor Actor::Create made goes with it, unless persistent (copy-contract.md, "Players' copies"); a placeatme
@@ -120,9 +125,13 @@ void FakeEngine::UnloadCell(uint32_t aCell)
 {
     Attached.erase(aCell);
     std::vector<uint32_t> left;
-    for (const auto& [cId, cActor] : Actors)
-        if (cActor.Created && cActor.Cell == aCell && !cActor.Persistent)
+    for (auto& [cId, actor] : Actors)
+    {
+        if (actor.Cell == aCell)
+            actor.HeadTints.reset(); // its 3D goes with the cell
+        if (actor.Created && actor.Cell == aCell && !actor.Persistent)
             left.push_back(cId);
+    }
     for (const uint32_t cId : left)
         DeleteActor(cId);
 }

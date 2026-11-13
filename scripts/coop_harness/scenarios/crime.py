@@ -171,7 +171,7 @@ def guest_theft(ctx, from_menu=False, alarm=None):
             ctx.tap_key("client", ESCAPE_KEY)
             ctx.wait_for("the lock menu closes", lambda: "Lockpicking Menu" not in ctx.menus("client"), 5)
         elif alarm == "pickpocket":
-            crime(ctx, "client", "pickpocket", target=npc_copy, item=0xF, count=5)
+            crime(ctx, "client", "pickpocket", target=npc_copy)
         elif alarm:
             victim = npc
             if alarm == "murder":

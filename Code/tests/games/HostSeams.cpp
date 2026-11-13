@@ -102,6 +102,7 @@ void HostService::MakeAuthority() noexcept
     game.FollowerAnchors = [this]() -> Followers::Anchors& { return m_world.ctx().at<SaveService>().GetFollowerAnchors(); };
     game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
     game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
+    game.TakeCrimeReports = [this] { return m_world.ctx().at<CrimeService>().TakeReports(); };
     game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };
     game.AddPartyGold = [this](int32_t aCount) { m_world.ctx().at<InventoryService>().AddGold(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), aCount); };
     game.ReadPartyItem = [this](const Inventory::Entry& acItem) {
@@ -224,7 +225,7 @@ void HostService::MakeAuthority() noexcept
                     return BodyKey{.Object = cKey.Object};
             return std::nullopt;
         };
-        engine.PhysicsTick = m_pNetwork->GetTick();
+        engine.PhysicsTick = engine.PhysicsTime(m_pNetwork->GetTick());
         const auto cUpdate = physics->Take();
         HostBodies bodies;
         for (const auto& cAwake : cUpdate.Awake)
@@ -353,7 +354,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     if (!IsHosting())
         return;
     m_pNetwork->Update();
-    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta);
+    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);
@@ -386,28 +387,13 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     cActors.GetActorRotation(formIdComponent.Id, x, y, z);
     movement.Rotation.x = x;
     movement.Rotation.y = z;
-    if (const auto it = aWorld.ctx().at<FakeEngine&>().Actors.find(formIdComponent.Id); it != aWorld.ctx().at<FakeEngine&>().Actors.end())
+    const bool cStreamed = aWorld.GetGraphStreams().Streaming(formIdComponent.Id);
+    if (const auto it = aWorld.ctx().at<FakeEngine&>().Actors.find(formIdComponent.Id); it != aWorld.ctx().at<FakeEngine&>().Actors.end() && !cStreamed)
         movement.Variables = it->second.GraphVariables;
     for (auto& entry : animationComponent.Actions)
         update.ActionEvents.push_back(entry);
     if (auto latestAction = animationComponent.GetLatestAction())
         localComponent.CurrentAction = std::move(*latestAction);
-    auto& engine = aWorld.ctx().at<FakeEngine&>();
-    const auto cActor = engine.Actors.find(formIdComponent.Id);
-    const uint64_t cNow = aWorld.GetFrameTick();
-    if (!animationComponent.Actions.empty())
-        animationComponent.Random.ActionAt = cNow;
-    if (cActor != engine.Actors.end() && GraphRandom::Picked(animationComponent.Random, cActor->second.GraphRandom, cNow))
-    {
-        ActionEvent point;
-        point.Tick = cNow;
-        point.ActorId = formIdComponent.Id;
-        point.Variables.GraphRandom = animationComponent.Random.Seed;
-        point.GraphState = engine.SaveActorGraphState(formIdComponent.Id);
-        point.GraphCounters = GraphRandom::Pack({{"Loop", int32_t(cActor->second.LoopsSeen), int32_t(cActor->second.LoopsToSend)}});
-        if (!point.GraphState.empty())
-            update.ActionEvents.push_back(std::move(point));
-    }
     animationComponent.Actions.clear();
 }
 
