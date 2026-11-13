@@ -1077,6 +1077,20 @@ class Scenes(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "the same in both"):
             actions.expect(ctx, "lydia", "actor", field="ai.follow_target")
 
+    def test_expect_faces_measures_the_heading_against_the_bearing(self):
+        import math
+        from coop_harness.actions.repro import facing_off
+        self.assertAlmostEqual(facing_off([0, 0, 0], math.pi / 2, [100, 0, 0]), 0, places=3)  # facing east, the target east
+        self.assertAlmostEqual(facing_off([0, 0, 0], math.pi / 2, [-100, 0, 0]), 180, places=3)  # behind
+        self.assertAlmostEqual(facing_off([0, 0, 0], 0.0, [100, 100, 0]), 45, places=3)
+        ctx, actions = self.expect_ctx()
+        ctx.expect_faces = lambda *args: actions.expect_faces(ctx, *args)
+        rows = {1: {"placement": {"position": [0, 0, 0], "rotation": [0, 0, math.pi / 2]}}, 2: {"placement": {"position": [-100, 0, 0]}}}
+        ctx.resolve.side_effect = lambda value, game: 1 if value == "lydia" else 2
+        ctx.actor_row.side_effect = lambda instance, ref: rows[ref]
+        with self.assertRaisesRegex(TestFailure, "180.0 degrees|180.0}"):
+            actions.expect(ctx, "lydia", "faces", within=20, of="guest_player")
+
     def test_a_held_key_is_spelt_as_xdotool_reads_it(self):
         from unittest.mock import patch
         from coop_harness.actions.input import InputActions

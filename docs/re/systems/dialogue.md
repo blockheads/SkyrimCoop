@@ -56,7 +56,19 @@ player talking instead: the guest who asked for it (`NotifyDialogueStart::Player
 that player's character and every game's copy looks at its own copy of that player. When the player it faces leaves the
 conversation while others stay, the host's rules (`HostDialogue::Face`) send the host's game `NotifyDialogueFace` and it turns
 the NPC at once to the first player still in it (`DialogueBridge::FaceTalker` writes the slot through the hook, not waiting
-for the next line). Measured (2026-11-13, Lydia in
+for the next line).
+
+**The body follows the same target** (read in IDA, 2026-11-13). There is no separate "face the talker" target: when
+`kShouldRotateToTrack` (`Actor::boolBits` 0x400000) is set, `Actor::ProcessTracking` (38009) also hands the head's target
+position to `Character::TurnBodyToPoint` (37811, ours: it passes the point to `ActorMover` 41620), with a graph bool
+(`FixedStrings` +0x530) set. `Character::UpdateAI` sets the flag from `Character::ShouldRotateToTrack` (38011), which in a
+conversation with this game's player (`Character::IsTalkingToPC` 37199 → `AIProcess::IsTalkingToPC` 39347,
+`HighProcessData::talkingToPC` +0x458) turns the body only toward `g_thePlayer`. So the host's NPC turned its head to a guest
+but not its body. **Hooked** (`HookShouldRotateToTrack`): when that rule alone says no and the target is the talker the
+`LookAt` filter names, it is asked again with `talkingToPC` cleared for the call (`DialogueMenuPolicy::AskTurnForTalker`); the
+cleared flag lets one other rule in: an NPC in a scene does not turn. Copies run no `UpdateAI`; their body follows the
+owner's heading. Measured (Lydia, guest behind her): before, her body stayed 178° off the guest on both games while vanilla
+turned her to the host talking from behind; after, she turns to the guest (`npc-turns-body-to-guest-talker`). Measured (2026-11-13, Lydia in
 QASmoke, the guest talking): the host's slot 4 held `session 1` (the host's player) before, `session 2` (the guest's)
 after, and her copy reads the same (`npc-looks-at-guest-talker`). Staged frozen (the harness's `freeze`: no AI), the
 owner's slot was set but her copy's slots stayed empty; the scenario stages her unfrozen. Not read why.

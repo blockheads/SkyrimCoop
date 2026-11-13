@@ -56,7 +56,10 @@ owner's slots. Now the host's game names the player talking (the guest who start
 engine writes the slot (`HookSetDialogueHeadtrack`, `HostConversation::LookAt`; `NotifyDialogueStart` carries the asker),
 so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md), "Who the speaker looks at"). When the
 player it faces leaves while others stay, it turns to the first player still in it (`NotifyDialogueFace`, from the host's
-rules). GameTests `[headtrack]` (both fail without it), HostAuthorityTests, the scenario `npc-looks-at-guest-talker`.
+rules). Its body turns to that player too: the engine turns the body only to its own player in a conversation
+(`Character::ShouldRotateToTrack` 38011), now also to the named talker (`HookShouldRotateToTrack`). GameTests `[headtrack]`
+(both fail without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
+`npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
 
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
