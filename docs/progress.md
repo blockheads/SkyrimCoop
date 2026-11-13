@@ -66,8 +66,8 @@ far off ([physics-sync.md](design/physics-sync.md), "One rule"). A played object
 (`BodyBridge::Drive` steers it, `BodyPrediction::Steer`); only a hold's frames keyframe it, the host's own player's hold
 now included (`HostBodies::Held`). Read in IDA: walk-in, swing, shout (`ConeProjectile::ProcessHits` 43802), explosion
 (`Explosion::ApplyHavokImpulses` 43850) and grab all skip a keyframed body ([physics.md](re/systems/physics.md), "Every
-hand skips a keyframed body"). So a guest's swing at an object the host is moving now knocks it (scenario
-`guest-swing-moving-object`, MCP verb `swing_at_moving`; GameTests and HostAuthorityTests cases). Next: rest per body
+hand skips a keyframed body"). So a guest's swing at an object the host is moving now knocks it (measured
+with the MCP verb `swing_at_moving`; GameTests and HostAuthorityTests cases). Next: rest per body
 from its motion (built: a body still for 300 ms rests though Havok keeps its island awake, scenario
 `object-rests-beside-orgnar`); the guest's "moved by itself, ask the host" stays (it covers what the host never moves).
 

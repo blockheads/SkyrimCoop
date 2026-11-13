@@ -32,7 +32,8 @@ the host's own player's hold: sent as a hold too (HostBodies::Held), every guest
 - Measured on the duo against the keyframed playback (`physics-push-reaches-guest`, `guest-cast-moves-host`): both
   follow the host within 0.1-0.5 units typically and flicker 0 times; a 22 s, 118-unit roll was 5.4 units off at
   worst. A guest's swing at a ladle the host's frames moved: keyframed, nothing moved (2 of 2); nudged, knocked
-  (`guest-swing-moving-object`).
+  (MCP verb `swing_at_moving`, the ladle slid by the harness's `body_velocity`). No scenario keeps it: the slid ladle
+  sometimes stops before the swing lands (4 of 5 passed); GameTests keeps the case.
 - Tests: GameTests "A guest's player hits the bucket the host's knock still moves: it keeps its mass, so both games
   are knocked" (the fake's `Drive` keyframes only a hold), HostAuthorityTests "the host's player holds a body: each
   guest gets it as a hold".
