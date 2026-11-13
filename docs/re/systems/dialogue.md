@@ -39,6 +39,42 @@ experience) |
 | 35272 | 0x5dfbd0 | `MenuTopicManager::ProcessMenuOpenClose` | The `MenuOpenCloseEvent` sink: the Dialogue Menu closing with a speaker sets `shutMenu` (+0xB3), which ends the conversation. So a `kHide` of the menu (`UIMessageQueue::AddMessage` 13631) ends it from code |
 | 37548 | 0x67c240 | `Actor::InitiateDialogue` (meh) | Not the player's menu: an AI dialogue package (type 28) between two actors (an NPC walking up to talk) |
 
+## Who the speaker looks at (read in IDA, 1.7.104, 2026-11-13)
+
+`ActorProcess::SetDialogueHeadtrackSlot` (39465, 0x1406fe710) sets the speaker's dialogue headtrack slot (4,
+`HighProcessData::SetHeadtrackTarget` 39783). Its callers all pass `g_thePlayer`:
+
+- `Actor::SetDialogueWithPlayer` (37200): a started conversation, and its cleanup path on a start (a stop clears the slot).
+- `Actor::UpdateInDialogue` (37541): each line the speaker says, again.
+- `Character::SayLineToPlayer` (37367, ours): a line said to the player with no conversation under way (`MenuTopicManager`
+  +0xB1 clear), a greeting's timers when it greets.
+
+So the host's game, running a guest's conversation with its own player (below, "A conversation without its menu"), turned
+the NPC's head to the host's player, and the copies took that slot from their owner (actor-ai-and-copies.md,
+Headtracking). **Hooked** (`HookSetDialogueHeadtrack`): for the conversation's speaker, the `LookAt` filter names the
+player talking instead: the guest who asked for it (`NotifyDialogueStart::PlayerId`), then each picker, so the slot holds
+that player's character and every game's copy looks at its own copy of that player. When the player it faces leaves the
+conversation while others stay, the host's rules (`HostDialogue::Face`) send the host's game `NotifyDialogueFace` and it turns
+the NPC at once to the first player still in it (`DialogueBridge::FaceTalker` writes the slot through the hook, not waiting
+for the next line).
+
+**The body follows the same target** (read in IDA, 2026-11-13). There is no separate "face the talker" target: when
+`kShouldRotateToTrack` (`Actor::boolBits` 0x400000) is set, `Actor::ProcessTracking` (38009) also hands the head's target
+position to `Character::TurnBodyToPoint` (37811, ours: it passes the point to `ActorMover` 41620), with a graph bool
+(`FixedStrings` +0x530) set. `Character::UpdateAI` sets the flag from `Character::ShouldRotateToTrack` (38011), which in a
+conversation with this game's player (`Character::IsTalkingToPC` 37199 → `AIProcess::IsTalkingToPC` 39347,
+`HighProcessData::talkingToPC` +0x458) turns the body only toward `g_thePlayer`. So the host's NPC turned its head to a guest
+but not its body. **Hooked** (`HookShouldRotateToTrack`): when that rule alone says no and the target is the talker the
+`LookAt` filter names, it is asked again with `talkingToPC` cleared for the call (`DialogueMenuPolicy::AskTurnForTalker`); the
+cleared flag lets one other rule in: an NPC in a scene does not turn. Copies run no `UpdateAI`; their body follows the
+owner's heading. Measured (Lydia, guest behind her): before, her body stayed 178° off the guest on both games while vanilla
+turned her to the host talking from behind; after, she turns to the guest (`npc-turns-body-to-guest-talker`). The other
+caller of 37811, `Character::GuardTowardDetected` (37405, ours), turns an actor that detected someone toward it.
+The fake turns a speaker's body by the same rule and `AskTurnForTalker` (GameTests "A guest talks to an NPC from behind it"). Measured (2026-11-13, Lydia in
+QASmoke, the guest talking): the host's slot 4 held `session 1` (the host's player) before, `session 2` (the guest's)
+after, and her copy reads the same (`npc-looks-at-guest-talker`). Staged frozen (the harness's `freeze`: no AI), the
+owner's slot was set but her copy's slots stayed empty; the scenario stages her unfrozen. Not read why.
+
 ## The menu (`DialogueMenu`, vtable 0x18f6148)
 
 - Slot 1 `Accept` (51507, 0x914690) registers the SWF's calls: `SkipText` (0x914840), `TopicClicked`

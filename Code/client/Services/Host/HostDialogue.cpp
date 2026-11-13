@@ -99,6 +99,7 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
     m_asked = Asked{aSender, acRequest.NpcId};
     NotifyDialogueStart start;
     start.NpcId = acRequest.NpcId;
+    start.PlayerId = m_players.PlayerIdOf(aSender);
     m_network.Send(cHost, start);
 }
 
@@ -126,6 +127,7 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     }
     else if (m_asked && m_asked->NpcId == acRequest.NpcId)
         m_conversation->Players.push_back(m_asked->Player);
+    m_conversation->Facing = m_asked && m_asked->NpcId == acRequest.NpcId ? m_asked->Player : aSender;
     m_asked.reset();
 
     NotifyDialogueOpen open;
@@ -191,6 +193,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
+    pConversation->Facing = aSender;
     pConversation->Options.reset();
     pConversation->PlayerOptions.clear();
     pConversation->Merged.clear();
@@ -320,12 +323,26 @@ void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 
 void HostDialogue::Leave(ConnectionId_t aPlayer) noexcept
 {
-    if (!std::erase(m_conversation->Players, aPlayer))
-        return;
-    if (m_conversation->Players.empty())
+    // The host's game is in it without being listed: its player leaving ends nothing.
+    const bool cListed = std::erase(m_conversation->Players, aPlayer) != 0;
+    if (cListed && m_conversation->Players.empty())
+    {
         End();
-    else
+        return;
+    }
+    if (m_conversation->Facing == aPlayer && !m_conversation->Players.empty())
+        Face(m_conversation->Players.front());
+    if (cListed)
         Merge(); // its options leave the party's list
+}
+
+void HostDialogue::Face(ConnectionId_t aPlayer) noexcept
+{
+    m_conversation->Facing = aPlayer;
+    NotifyDialogueFace face;
+    face.Conversation = m_conversation->Id;
+    face.PlayerId = m_players.PlayerIdOf(aPlayer);
+    m_network.Send(m_players.Host(), face);
 }
 
 HostDialogue::Conversation* HostDialogue::Current(uint32_t aId) noexcept

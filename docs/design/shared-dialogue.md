@@ -218,7 +218,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | Message | From → to | Content |
 |---|---|---|
 | `DialogueStartRequest` | game → host | NPC session id |
-| `NotifyDialogueStart` | host → host's game | NPC session id |
+| `NotifyDialogueStart` | host → host's game | NPC session id, the asker (the NPC faces it) |
 | `DialogueOpenedRequest` | host's game → host | NPC session id |
 | `NotifyDialogueOpen` | host → all | conversation, NPC session id |
 | `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → each game in it | conversation, step, choices, options (topic, info, quest, text); the request also each other player's own list (`Players`); the notification the party's list, each option's `Players` (who has it, none: everyone) |
@@ -228,6 +228,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerChat`, the picker's name, its line's text |
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
+| `NotifyDialogueFace` | host → host's game | conversation, player: the one the NPC faced (the starter, then each picker) left; it turns to this one, the first still in it |
 | `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals); `NothingToSay`: started, and the engine opened nothing |
 | `DialogueOpenedRequest` / `NotifyDialogueOpen` `Everyone` | host's game → host → all | the NPC started it (a force greet): every peer opens its menu |
 | `RoutedCallRequest` / `NotifyRoutedCall` (to the owner) | host's game → host → that guest | a native on the player a script ran for a guest (rule 2; not dialogue's own) |

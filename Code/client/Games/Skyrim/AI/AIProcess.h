@@ -94,6 +94,8 @@ struct HighProcessData
     void* actionClipsLoaded; // 430, the callback of the action's load under way (39625)
     uint8_t pad438[0x440 - 0x438];
     void* pendingCrime; // 440, the crime this witness judges on its next update (39557, 39631)
+    uint8_t pad448[0x458 - 0x448];
+    bool talkingToPC; // 458, in a conversation with this game's player (AIProcess::IsTalkingToPC 39347)
 };
 
 static_assert(sizeof(BSSoundHandle) == 0xC);
@@ -102,6 +104,7 @@ static_assert(offsetof(HighProcessData, headTracked) == 0x158);
 static_assert(offsetof(HighProcessData, soundHandles) == 0x2FC);
 static_assert(offsetof(HighProcessData, actionClipsLoaded) == 0x430);
 static_assert(offsetof(HighProcessData, pendingCrime) == 0x440);
+static_assert(offsetof(HighProcessData, talkingToPC) == 0x458);
 static_assert(offsetof(AIProcess, highProcess) == 0x10);
 static_assert(offsetof(AIProcess, currentPackage) == 0x18);
 static_assert(offsetof(AIProcess, equippedObject) == 0xF0);

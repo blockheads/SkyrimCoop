@@ -39,6 +39,9 @@ public:
         /// An actor's line starts or ends, running its script (any thread): the player character its script runs
         /// for (0: this game's player).
         std::function<uint32_t(uint32_t aSpeakerFormId)> LineFor;
+        /// The speaker turns its head to this game's player while they talk (any thread): the player character it
+        /// looks at instead (0: this game's player).
+        std::function<uint32_t(uint32_t aSpeakerFormId)> LookAt;
         /// The engine builds a list (any thread): the other players' characters it judges each line for too, as if
         /// each were the player (GetOptionsFor).
         std::function<std::vector<uint32_t>()> Judged;
@@ -79,6 +82,8 @@ public:
     virtual void SetMenuCloseEnds(bool aEnds) noexcept = 0;
     /// Ends the conversation (the speaker's next update), as the menu does when nothing is left to say.
     virtual void End() noexcept = 0;
+    /// The speaker turns to the player the LookAt filter names now, not at its next line.
+    virtual void FaceTalker() noexcept = 0;
     /// A conversation whose speaker is gone or has no process (deleted while talking: the engine's end then does
     /// nothing and no conversation starts again) is cleared, as ending one does. True: there was one.
     virtual bool ClearOrphaned() noexcept = 0;

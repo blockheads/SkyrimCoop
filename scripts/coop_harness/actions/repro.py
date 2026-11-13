@@ -794,7 +794,8 @@ class ReproActions:
         rested, as wait_rest saw it), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
         holds the same in both games), "crosshair" (that game's player, or each, faces `name` in first person and the engine's
         crosshair takes it within `seconds`), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
-        value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
+        value "set": anything but nothing; no value: the two games equal), "faces" (actor `name`'s body faces handle `of`
+        within `within` degrees, in `game` or both, within `seconds`), "dialogue" (the menus agreed), "agree" (no desync of
         `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
         `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
         at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing), "stream"
@@ -802,6 +803,8 @@ class ReproActions:
         update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
         second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
         through `seconds`)."""
+        if check == "faces":
+            return ctx.expect_faces(name, of, game, within, seconds)
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -944,15 +947,48 @@ class ReproActions:
             taken[label] = f"{ref:X}"
         return {"crosshair": taken}
 
+    def expect_faces(ctx, name, of, game, within, seconds=0.0):
+        """Actor `name`'s heading points at `of` within `within` degrees in each game asked, within `seconds`."""
+        games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
+        def off():
+            ctx.refresh_handles()
+            angles = {}
+            for label, instance in games:
+                row = flatten(ctx.actor_row(instance, ctx.resolve(name, label)))
+                other = flatten(ctx.actor_row(instance, ctx.resolve(of, label)))
+                here, there = row.get("placement.position"), other.get("placement.position")
+                heading = (row.get("placement.rotation") or [0, 0, None])[2]
+                if not here or not there or heading is None:
+                    angles[label] = None
+                    continue
+                angles[label] = round(facing_off(here, heading, there), 1)
+            return angles
+        ended = time.monotonic() + seconds
+        wrong = lambda angles: any(a is None or a > within for a in angles.values())
+        while wrong(got := off()):
+            if time.monotonic() >= ended:
+                raise ctx.failure(f"{name}: its body is {got} degrees off facing {of}, expected within {within:g}")
+            time.sleep(0.2)
+        return {"degrees_off": got}
+
     def expect_actor(ctx, name, field, game, value, seconds=0.0, stays=False):
         """`field` of a handle's snapshot (ai.follow_target, state.dead) as expected within `seconds`, or, with `stays`,
         all through them (read every 0.2 s); see `expect`."""
         games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
         ctx.refresh_handles()
         read = lambda: {label: flatten(ctx.actor_row(instance, ctx.resolve(name, label))).get(field) for label, instance in games}
+        # A handle as the value of a target field (ai.combat_target, ai_state.head_track): that handle in each game.
+        target = isinstance(value, str) and value != "set" and (value == "player" or value in ctx.handles())
+        def as_target(label, instance):
+            form = ctx.resolve(value, label)
+            session = flatten(ctx.actor_row(instance, form)).get("mod.session_id")
+            return (form, f"session {session}", [f"session {session}"])
+        targets = {label: as_target(label, instance) for label, instance in games} if target else {}
         def wrong(got):
             if value is None:
                 return len(set(map(repr, got.values()))) > 1
+            if target:
+                return any(seen not in targets[label] for label, seen in got.items())
             return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
         ended, started = time.monotonic() + seconds, time.monotonic()
         expected = 'the same in both' if value is None else repr(value)
@@ -985,6 +1021,12 @@ class ReproActions:
             if time.monotonic() >= ended:
                 return {"guest_npcs": 0, "loaded": len(world)}
             time.sleep(min(0.5, max(0.0, ended - time.monotonic())))
+
+
+def facing_off(here, heading, there):
+    """Degrees between a heading (radians, 0 north, clockwise: the engine's angle z) and the bearing from here to there."""
+    bearing = math.atan2(there[0] - here[0], there[1] - here[1])
+    return abs((math.degrees(bearing - heading) + 180) % 360 - 180)
 
 
 def where(row):

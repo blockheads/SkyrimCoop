@@ -107,7 +107,7 @@ struct DialogueStartFailedRequest final : RequestMessage
     bool NothingToSay{}; // started, and the engine opened nothing: the NPC only says its hello
 };
 
-// To the host's game: start its player's conversation with this NPC.
+// To the host's game: start its player's conversation with this NPC, for the player who asked.
 struct NotifyDialogueStart final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialogueStart;
@@ -117,6 +117,7 @@ struct NotifyDialogueStart final : NotifyMessage
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
+    uint32_t PlayerId{};
 };
 
 // A conversation opened: the player who asked opens its menu on its copy, every player when the NPC started it
@@ -178,6 +179,19 @@ struct NotifyDialogueClosed final : NotifyMessage
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
+};
+
+// To the host's game: the player the NPC faced left the conversation; it turns to this one.
+struct NotifyDialogueFace final : NotifyMessage
+{
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueFace;
+    NotifyDialogueFace() : NotifyMessage(Opcode) {}
+
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t Conversation{};
+    uint32_t PlayerId{};
 };
 
 // The conversation this game asked for will not start.

@@ -38,10 +38,12 @@ struct FakeDialogue final : IDialogueBridge
         const auto it = LineQuest.find(acOption.Info);
         return it == LineQuest.end() || DialogueLoaded(it->second);
     }
-    // The speaker's AI looks at this game's player while they talk (its dialogue headtrack slot; Skyrim
-    // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0.
+    // The speaker's dialogue headtrack slot: this game's player, or LookAt's, at the start and each line (39465); 0 at
+    // the end (re/systems/dialogue.md, Who the speaker looks at).
     std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
     std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
+    // The speaker's body turns to face its target (Character::TurnBodyToPoint 37811 from ProcessTracking).
+    std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerTurns;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
     // An NPC with something to say. One with nothing (Hilde, most guards) says its hello and starts nothing:
@@ -162,8 +164,7 @@ struct FakeDialogue final : IDialogueBridge
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
         Choices = false;
-        if (SpeakerLooks)
-            SpeakerLooks(Speaker, 0x14);
+        LookAtTalker();
         Build(Greeting);
         return true;
     }
@@ -187,6 +188,11 @@ struct FakeDialogue final : IDialogueBridge
     void SetMenuCloseEnds(bool aEnds) noexcept override
     {
         MenuCloseEnds = aEnds;
+    }
+    void FaceTalker() noexcept override
+    {
+        if (Speaker)
+            LookAtTalker();
     }
     void End() noexcept override
     {
@@ -277,11 +283,23 @@ struct FakeDialogue final : IDialogueBridge
     }
 
   private:
+    void LookAtTalker()
+    {
+        const uint32_t cTalker = m_filters.LookAt ? m_filters.LookAt(Speaker) : 0;
+        const uint32_t cTarget = cTalker ? cTalker : 0x14;
+        if (SpeakerLooks)
+            SpeakerLooks(Speaker, cTarget);
+        // Talking to this game's player, the body turns only to it (38011); the hook adds the named talker.
+        const bool cTurns = cTarget == 0x14;
+        if (SpeakerTurns && (cTurns || DialogueMenuPolicy::AskTurnForTalker(cTurns, true, true, cTarget, cTalker)))
+            SpeakerTurns(Speaker, cTarget);
+    }
     // The engine says the option, then builds the next list or ends.
     void Say(const Option& acOption)
     {
         Said.push_back(acOption);
         LastLineFor = m_filters.LineFor ? m_filters.LineFor(Speaker) : 0;
+        LookAtTalker();
         if (OnSaid)
             OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);

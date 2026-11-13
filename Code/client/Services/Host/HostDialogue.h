@@ -84,6 +84,8 @@ private:
         // The party's list for the step, for the players in it now.
         DialogueOptions Merged;
         bool Choices{};
+        // The game whose player the NPC faces: who started it, then each picker.
+        ConnectionId_t Facing{};
 
         [[nodiscard]] bool Has(ConnectionId_t aPlayer) const noexcept
         {
@@ -115,6 +117,8 @@ private:
     void End(ConnectionId_t aExcept = 0) noexcept;
     // The player is out of it: the conversation ends when it was the last one in it.
     void Leave(ConnectionId_t aPlayer) noexcept;
+    // The NPC turns to that game's player (the host's game turns it).
+    void Face(ConnectionId_t aPlayer) noexcept;
 
     HostNetwork& m_network;
     const HostPlayers& m_players;

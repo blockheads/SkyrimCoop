@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: an NPC talking with a guest looked at the host's player, on every game. The host's game runs a guest's
+conversation with its own player, and the engine puts that player in the NPC's dialogue headtrack slot at the start and
+with each line (`ActorProcess::SetDialogueHeadtrackSlot` 39465 from 37200 and 37541, read in IDA); the copy takes the
+owner's slots. Now the host's game names the player talking (the guest who started it, then each picker) where the
+engine writes the slot (`HookSetDialogueHeadtrack`, `HostConversation::LookAt`; `NotifyDialogueStart` carries the asker),
+so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md), "Who the speaker looks at"). When the
+player it faces leaves while others stay, it turns to the first player still in it (`NotifyDialogueFace`, from the host's
+rules). Its body turns to that player too: the engine turns the body only to its own player in a conversation
+(`Character::ShouldRotateToTrack` 38011), now also to the named talker (`HookShouldRotateToTrack`). GameTests `[headtrack]`
+(each fails without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
+`npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
+
 2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. Skyrim wakes resting clutter it never
 moves: Orgnar's animated body shares the bar bottles' island and re-activates it on each animation update (78910 ->
 `hkpEntity::Activate`), and a character's proxy activates what it touches each step (62648); found with the new harness

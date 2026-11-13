@@ -1,5 +1,6 @@
 #include <Bridges/DialogueBridge.h>
 
+#include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESQuest.h>
@@ -167,6 +168,44 @@ uint64_t HookBeginTopicInfo(TESTopicInfo* apThis, int32_t aStage, uint32_t* apSp
     if (const uint32_t cFor = pSpeaker && s_filters.LineFor ? s_filters.LineFor(pSpeaker->formID) : 0)
         cause.emplace(cFor);
     return RealBeginTopicInfo(apThis, aStage, apSpeakerHandle, aAnySpeaker);
+}
+
+// ActorProcess::SetDialogueHeadtrackSlot (39465): the speaker looks at this game's player, at a conversation's start
+// (37200) and each line (37541). The LookAt filter names the player it talks to instead.
+using TSetDialogueHeadtrack = void(AIProcess*, TESObjectREFR* apTarget);
+TSetDialogueHeadtrack* RealSetDialogueHeadtrack = nullptr;
+
+void HookSetDialogueHeadtrack(AIProcess* apThis, TESObjectREFR* apTarget)
+{
+    const MenuTopicManager* cpManager = s_filters.LookAt && apTarget == PlayerCharacter::Get() ? Conversation() : nullptr;
+    const Actor* cpSpeaker = cpManager ? Cast<Actor>(TESObjectREFR::GetByHandle(cpManager->speaker)) : nullptr;
+    if (cpSpeaker && cpSpeaker->currentProcess == apThis)
+        if (auto* pTalker = FormAs<TESObjectREFR>(s_filters.LookAt(cpSpeaker->formID)))
+            apTarget = pTalker;
+    RealSetDialogueHeadtrack(apThis, apTarget);
+}
+
+// Character::ShouldRotateToTrack (38011, from UpdateAI): whether the body turns to the head's target. Talking to this game's
+// player it turns only to that player (IsTalkingToPC 37199): the player the LookAt filter names counts as that player.
+using TShouldRotateToTrack = bool(Actor*);
+TShouldRotateToTrack* RealShouldRotateToTrack = nullptr;
+
+bool HookShouldRotateToTrack(Actor* apThis)
+{
+    const bool cRotates = RealShouldRotateToTrack(apThis);
+    HighProcessData* pHigh = apThis->currentProcess ? apThis->currentProcess->highProcess : nullptr;
+    const MenuTopicManager* cpManager = !cRotates && pHigh && s_filters.LookAt ? Conversation() : nullptr;
+    if (!cpManager)
+        return cRotates;
+    const TESObjectREFR* cpTarget = apThis->currentProcess->GetHeadTrackTarget();
+    if (!DialogueMenuPolicy::AskTurnForTalker(cRotates, pHigh->talkingToPC, TESObjectREFR::GetByHandle(cpManager->speaker) == apThis,
+                                              cpTarget ? cpTarget->formID : 0, s_filters.LookAt(apThis->formID)))
+        return cRotates;
+    // Asked again as if not talking to this game's player, the one rule that names it.
+    pHigh->talkingToPC = false;
+    const bool cToTalker = RealShouldRotateToTrack(apThis);
+    pHigh->talkingToPC = true;
+    return cToTalker;
 }
 
 // TESNPC::Activate (24715, CommonLibSSE-NG TESBoundObject::Activate): the player talking to an NPC. Talking to its
@@ -377,6 +416,8 @@ Hooks::Initializer s_dialogueHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(37200, &RealSetDialogueWithPlayer, HookSetDialogueWithPlayer);
         HOOK_ID(25616, &RealBeginTopicInfo, HookBeginTopicInfo);
+        HOOK_ID(39465, &RealSetDialogueHeadtrack, HookSetDialogueHeadtrack);
+        HOOK_ID(38011, &RealShouldRotateToTrack, HookShouldRotateToTrack);
         HOOK_ID(24715, &RealNpcActivate, HookNpcActivate);
         HOOK_ID(51509, &RealTopicClicked, HookTopicClicked);
         HOOK_ID(51508, &RealSkipText, HookSkipText);
@@ -499,6 +540,14 @@ void DialogueBridge::End() noexcept
 {
     if (MenuTopicManager* pManager = MenuTopicManager::Get())
         pManager->shutMenu = true;
+}
+
+void DialogueBridge::FaceTalker() noexcept
+{
+    const MenuTopicManager* cpManager = Conversation();
+    Actor* pSpeaker = cpManager ? Cast<Actor>(TESObjectREFR::GetByHandle(cpManager->speaker)) : nullptr;
+    if (pSpeaker && pSpeaker->currentProcess)
+        HookSetDialogueHeadtrack(pSpeaker->currentProcess, PlayerCharacter::Get());
 }
 
 bool DialogueBridge::ClearOrphaned() noexcept

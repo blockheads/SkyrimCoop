@@ -2,6 +2,7 @@
 // guest talking to its copy of a host NPC starts the host's game's conversation with the NPC, its menu shows the
 // host's game's list, its pick is said by the host's game, and the conversation ends for everyone.
 #include "FakeDialogue.h"
+#include <cmath>
 #include <Services/DialogueService.h>
 #include <Events/MenuEvent.h>
 #include "Party.h"
@@ -572,22 +573,23 @@ SCENARIO("A guest closes barter and dialogue then trades with the same merchant 
     }
 }
 
-SCENARIO("A copy looks where its owner does: an NPC in conversation looks at its partner on every game", "[dialogue][ai][headtrack]")
+SCENARIO("An NPC in conversation looks at the player talking to it, on every game", "[dialogue][ai][headtrack]")
 {
-    // dialogue-copy-looks-at-speaker (Skyrim 2026-10-31): the host's Lydia had her dialogue slot on the talking
-    // player, her copy none; copies run no AI, which sets the slots.
+    // npc-looks-at-guest-talker: the host's engine writes its own player in the slot (39465); a copy takes its owner's
+    // (re/systems/dialogue.md, Who the speaker looks at).
     Party party(1, SmokeWorld);
     Topics(party.Host());
     Topics(party.Guest());
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     auto& talk = Dialogue(party.Guest());
+    auto& hostTalk = Dialogue(party.Host());
     uint32_t npc = 0;
     party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke); });
     party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the NPC");
     const auto cCopy = guest.CopiesOf(kGuard)[0];
-    const auto cHostPlayerCopy = [&] {
-        for (const auto& [cId, cActor] : guest.Actors)
+    const auto cPlayerCopy = [](const FakeEngine& acEngine) {
+        for (const auto& [cId, cActor] : acEngine.Actors)
             if (cActor.Copy && cActor.Player)
                 return cId;
         return 0u;
@@ -595,16 +597,77 @@ SCENARIO("A copy looks where its owner does: an NPC in conversation looks at its
     const auto cDialogueSlot = [](const FakeEngine& acEngine, uint32_t aActor) {
         return acEngine.GetActorAiFields(aActor).HeadTrackIds[FakeEngine::kDialogueHeadTrack];
     };
+    const auto cSlots = [&] {
+        return std::format("host's NPC {:X}, guest's copy {:X}", cDialogueSlot(host, npc), cDialogueSlot(guest, cCopy));
+    };
 
     party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
-    party.Until([&] { return cDialogueSlot(host, npc) == FakeEngine::kPlayer; }, "the host's NPC looks at the host's player");
-    party.Until([&] { return cHostPlayerCopy() && cDialogueSlot(guest, cCopy) == cHostPlayerCopy(); },
-                "the copy looks at the same player, the host's player's copy here",
-                [&] { return std::format("copy's dialogue slot {:X}", cDialogueSlot(guest, cCopy)); });
+    party.Until([&] { return cPlayerCopy(host) && cDialogueSlot(host, npc) == cPlayerCopy(host); },
+                "the host's NPC looks at the guest's character", cSlots);
+    party.Until([&] { return cDialogueSlot(guest, cCopy) == FakeEngine::kPlayer; },
+                "the copy looks at the guest's own player", cSlots);
+
+    party.Until([&] { return talk.MenuOpen && talk.ListShown; }, "the guest's menu opens on the party's list");
+    party.As(party.Host(), [&] { hostTalk.PlayerTalksTo(npc); });
+    party.Until([&] { return party.Host().ctx().at<DialogueService>().Joined() && hostTalk.ListShown && talk.ListShown; },
+                "the host joins");
+    party.As(party.Host(), [&] { hostTalk.PlayerPicks(0); });
+    party.Until([&] { return cDialogueSlot(host, npc) == FakeEngine::kPlayer && cPlayerCopy(guest) &&
+                             cDialogueSlot(guest, cCopy) == cPlayerCopy(guest); },
+                "the host picks: every game's NPC looks at the host's player", cSlots);
+
+    party.Until([&] { return talk.ListShown && talk.Options == std::vector{kMore, kGoodbye}; }, "the guest has the next list");
+    party.As(party.Guest(), [&] { talk.PlayerPicks(0); });
+    party.Until([&] { return cDialogueSlot(host, npc) == cPlayerCopy(host) && cDialogueSlot(guest, cCopy) == FakeEngine::kPlayer; },
+                "the guest picks: every game's NPC looks at the guest again", cSlots);
 
     party.As(party.Guest(), [&] { talk.PlayerLeaves(); });
-    party.Until([&] { return cDialogueSlot(host, npc) == 0; }, "the host's NPC looks away once the conversation ends");
-    party.Until([&] { return cDialogueSlot(guest, cCopy) == 0; }, "the copy looks away too");
+    party.As(party.Host(), [&] { hostTalk.PlayerLeaves(); });
+    party.Until([&] { return cDialogueSlot(host, npc) == 0; }, "the host's NPC looks away once the conversation ends", cSlots);
+    party.Until([&] { return cDialogueSlot(guest, cCopy) == 0; }, "the copy looks away too", cSlots);
+}
+
+SCENARIO("The player an NPC faces leaves the conversation: it turns to someone still in it", "[dialogue][ai][headtrack]")
+{
+    Party party(2, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& other = Party::Engine(party.Guest(1));
+    for (World* pGame : {&party.Host(), &party.Guest(), &party.Guest(1)})
+        Topics(*pGame);
+    auto& guestTalk = Dialogue(party.Guest());
+    auto& otherTalk = Dialogue(party.Guest(1));
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && other.CopiesOf(kGuard).size() == 1; }, "every game has the NPC");
+    // That guest's player on the host's game.
+    const auto cCharacter = [&](World& aGuest) {
+        uint32_t character = 0;
+        party.As(aGuest, [&] { character = Utils::GetSessionIdByFormId(FakeEngine::kPlayer).value_or(0); });
+        party.As(party.Host(), [&] { character = character ? Utils::GetFormIdBySessionId(character) : 0; });
+        return character;
+    };
+    uint32_t guestCharacter = 0, otherCharacter = 0;
+    party.Until([&] { return (guestCharacter = cCharacter(party.Guest())) && (otherCharacter = cCharacter(party.Guest(1))); },
+                "the host's game has both guests' characters");
+    const auto cDialogueSlot = [](const FakeEngine& acEngine, uint32_t aActor) {
+        return acEngine.GetActorAiFields(aActor).HeadTrackIds[FakeEngine::kDialogueHeadTrack];
+    };
+    const auto cOtherCopy = other.CopiesOf(kGuard)[0];
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return guestTalk.MenuOpen && guestTalk.ListShown; }, "the guest talks to the NPC");
+    party.As(party.Guest(1), [&] { otherTalk.PlayerTalksTo(cOtherCopy); });
+    party.Until([&] { return otherTalk.MenuOpen && otherTalk.ListShown && party.Guest(1).ctx().at<DialogueService>().Joined(); },
+                "the other guest joins");
+    party.Until([&] { return cDialogueSlot(host, npc) == guestCharacter; }, "the NPC faces the guest who started it");
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
+    party.Until([&] { return cDialogueSlot(host, npc) == otherCharacter && cDialogueSlot(other, cOtherCopy) == FakeEngine::kPlayer; },
+                "it turns to the other guest, on every game", [&] {
+                    return std::format("host's NPC {:X} (guest {:X}, other {:X}), the other guest's copy {:X}", cDialogueSlot(host, npc),
+                                       guestCharacter, otherCharacter, cDialogueSlot(other, cOtherCopy));
+                });
 }
 
 SCENARIO("A guest's crosshair takes an NPC copy seated in its furniture, as the host's takes the NPC", "[dialogue][copies][crosshair]")
@@ -673,4 +736,34 @@ SCENARIO("A guest talks to an NPC with nothing to say: the host's game opens not
     party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
     party.Until([&] { return guestTalk.MenuOpen && guestTalk.Speaker == cCopy && hostTalk.Speaker == npc; },
                 "the guest's next ask opens the conversation");
+}
+
+SCENARIO("A guest talks to an NPC from behind it: its body turns to the guest, on every game", "[dialogue][ai][headtrack]")
+{
+    // npc-turns-body-to-guest-talker: talking to this game's player, the body turns only to it (38011); the host's
+    // game runs a guest's conversation with its own player (re/systems/dialogue.md, Who the speaker looks at).
+    Party party(1, SmokeWorld);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] { npc = host.LoadNpc(kGuard, kSmoke, {0.f, 100.f, 0.f}); });
+    host.Actors.at(npc).Rotation[2] = 0.f; // facing north, away from the guest
+    party.As(party.Guest(), [&] {
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] = 0.f;
+        guest.Actors.at(FakeEngine::kPlayer).Position[1] = 0.f;
+    });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the NPC");
+    const auto cCopy = guest.CopiesOf(kGuard)[0];
+    const auto cBehind = [](float aHeading) { return std::abs(std::remainder(aHeading - 3.14159265f, 6.28318531f)) < 0.2f; };
+    const auto cHeadings = [&] {
+        return std::format("host's NPC {:.2f}, guest's copy {:.2f}", host.Actors.at(npc).Rotation[2], guest.Actors.at(cCopy).Rotation[2]);
+    };
+    party.Until([&] { return std::abs(guest.Actors.at(cCopy).Rotation[2]) < 0.2f; }, "the copy faces north too", cHeadings);
+
+    party.As(party.Guest(), [&] { talk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return cBehind(host.Actors.at(npc).Rotation[2]); }, "the host's NPC turns its body to the guest", cHeadings);
+    party.Until([&] { return cBehind(guest.Actors.at(cCopy).Rotation[2]); }, "the copy turns with it", cHeadings);
 }
