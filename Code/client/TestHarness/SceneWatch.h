@@ -4,7 +4,7 @@
 
 #include <span>
 
-// Who stops scenes (SceneWatch.cpp): each call of BGSScene's stop (24140) with its call stack.
+// Who stops scenes (SceneWatch.cpp): each call of BGSScene::SetPlaying (24140) with its call stack.
 namespace TestHarness::SceneWatch
 {
 std::span<const Command> Commands();

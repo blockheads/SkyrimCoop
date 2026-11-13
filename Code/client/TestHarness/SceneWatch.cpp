@@ -1,5 +1,5 @@
-// Who stops a scene (docs/re/systems/crime.md, "The steal warning in a scene"): each call of BGSScene's stop (24140,
-// read in IDA: StartAlarm, quest stops, Papyrus Scene.Stop, a phase's end) with the scene and its call stack.
+// Who stops a scene (docs/re/systems/crime.md, "The steal warning in a scene"): each call of BGSScene::SetPlaying
+// (24140, our name) with the scene and its call stack.
 #include "SceneWatch.h"
 #include "Commands.h"
 
@@ -19,7 +19,7 @@ namespace TestHarness::SceneWatch
 {
 namespace
 {
-using TStop = void(TESForm*, bool);
+using TStop = void(TESForm*, bool); // BGSScene::SetPlaying(scene, playing), read in IDA
 TStop* RealStop{};
 
 constexpr size_t cMaxEvents = 256;

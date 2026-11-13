@@ -185,11 +185,11 @@ to Orgnar (both games: 0 on the guest, 1 on Orgnar), warnings 1, bounty 0, 7 s a
 
 ## The steal warning in a scene (2026-11-13)
 
-Read in IDA. Nothing on the warning's path checks the owner's scene: `StealAlarm` starts it (0x1406823b5) and
+Read in IDA. Nothing on the warning's path checks the owner's scene: `StealAlarm` (37422) starts it (0x1406823b5) and
 `StartStealWarning` (37556) puts it as the current package. A package-action scene takes it back at its next update:
 
 ```
-BGSScene::UpdatePhase (24126) -> BGSScene__UpdatePhaseAction (0x1403A97A0), per action of the phase:
+BGSScene::UpdatePhase (24126) -> BGSScene__UpdatePhaseAction (24160), per action of the phase:
     skips an actor in dialogue with the player (MenuTopicManager +0x68); no check for an interrupt package
     active, not done: BGSSceneActionPackage::UpdateAction (24246, vfunc 0x13):
         actor's scene (vfunc 0x4A) is this one and its package is not the current one (+0x20):
@@ -201,7 +201,11 @@ EndInterruptPackage (37474), type 34 with the theft still on the owner's crime l
 ```
 
 `Actor__StartAlarm` (37554) and 40257 stop an interruptible scene (flags +0xA0 bit 0x10) before they start their
-package (0x14068fc77); the warning does not.
+package (0x14068fc77, `BGSScene::SetPlaying(scene, false)` 24140); the warning does not.
+
+`BGSScene::SetPlaying` (24140, our name, read; no community declaration) is `void(BGSScene*, bool)`: `false` on a
+playing scene is the stop (results event, every phase and action ended, the quest told), `true` on an idle one marks
+it playing. Every stopping caller passes `false`. The harness `scene_watch` hooks it with that signature.
 
 Measured in vanilla (the stand-in, no plugin, Orgnar's bar scene `BCF05` playing, Orgnar detecting the player at 34,
 warnings 0): after the theft the Whiterun bounty was 5 and the player kept the bottle. With our plugin and no session
@@ -374,7 +378,8 @@ near it.
 | 39333, 39255 | AIProcess__SayTopicTo (named from its callers, body not read), AIProcess__PlayDefaultAction (read) | the warning's line and its take animation |
 | 29811, 29855 | PackageLocation__SetReference, PackageTarget__SetReference (both read) | the warning's location and target |
 | 24246, 24244 | BGSSceneActionPackage::UpdateAction, StartAction (read) | a scene re-takes its actor, ending an interrupt package |
-| 24140 | BGSScene::sub_24140 | stops a scene (harness `scene_watch`) |
+| 24140 | BGSScene::SetPlaying (ours, read) | (scene, false) stops a scene (harness `scene_watch`) |
+| 24160 | BGSScene__UpdatePhaseAction (ours, read) | each action's start, update and end |
 | 16120 | coop_RealConfiscate | (items, from, to, owner filter, all stolen, show): the given-back and the fine's |
 | 39155 | ActorProcess::GetPackageThatIsRunning (read) | run-once package, else the current one (+0x20) |
 | 39361, 39695 | ActorProcess__AlertNearbyToCrime, ProcessLists__AlertCrimeResponders | guards respond |
