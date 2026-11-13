@@ -164,3 +164,71 @@ TEST_CASE("An actor getting up still sends its ragdoll, without knocking its cop
         CHECK(physics.Take().Awake.empty());
     }
 }
+
+namespace
+{
+// A reference woken in place (physics.md, "Woken still"): its bodies awake, each 3D on its body.
+SceneReads WokenInPlace(size_t aBodies)
+{
+    SceneReads reads;
+    reads.Ref.Bodies.clear();
+    for (size_t i = 0; i < aBodies; ++i)
+    {
+        IBodyReads::Body body;
+        body.Read.Dynamic = true;
+        body.Read.Active = true;
+        body.Read.Position = {10.f * static_cast<float>(i), 0.f, 80.f};
+        body.Node = std::pair(body.Read.Position, body.Read.Rotation);
+        reads.Ref.Bodies.push_back(body);
+    }
+    reads.Ref.Position = reads.Ref.Bodies[0]->Read.Position;
+    return reads;
+}
+} // namespace
+
+TEST_CASE("A reference woken in place sends no frames, and its rest when it sleeps", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(2);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    CHECK(physics.Take().Awake.empty());
+    for (auto& body : reads.Ref.Bodies)
+        body->Read.Active = false;
+    const auto cAsleep = physics.Take();
+    REQUIRE(cAsleep.Rested.size() == 1);
+    CHECK(cAsleep.Rested[0].Read.size() == 2);
+}
+
+TEST_CASE("Either body of a woken reference leaving where it woke sends the reference's frames", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(2);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    reads.Ref.Bodies[1]->Read.Position.x += 3.f;
+    reads.Ref.Bodies[1]->Node->first = reads.Ref.Bodies[1]->Read.Position; // the engine followed it
+    const auto cMoved = physics.Take();
+    REQUIRE(cMoved.Awake.size() == 1);
+    CHECK(cMoved.Awake[0].Read.size() == 2);
+    THEN("moved stays moved, back in place or not")
+    {
+        reads.Ref.Bodies[1]->Read.Position.x -= 3.f;
+        reads.Ref.Bodies[1]->Node->first = reads.Ref.Bodies[1]->Read.Position;
+        CHECK(physics.Take().Awake.size() == 1);
+    }
+}
+
+TEST_CASE("A woken reference the host's player then grabs sends its frames at once", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(1);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    reads.Holds = 42;
+    CHECK(physics.Take().Awake.size() == 1);
+    THEN("held still and asleep, still the hand's: frames, no rest")
+    {
+        reads.Ref.Bodies[0]->Read.Active = false;
+        const auto cHeld = physics.Take();
+        CHECK(cHeld.Awake.size() == 1);
+        CHECK(cHeld.Rested.empty());
+    }
+}

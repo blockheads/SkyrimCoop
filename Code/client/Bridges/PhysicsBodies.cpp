@@ -93,8 +93,25 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             if (cActor && cReference->Rising)
                 frame.LinearVelocity = frame.AngularVelocity = {};
             all.Read.push_back(frame);
+            // A reference's island is woken by actors near it without moving it (Orgnar's animated body, 78910).
+            if (!cActor && !it->second.Moved)
+            {
+                auto& woke = it->second.Woke;
+                if (woke.size() <= i)
+                    woke.resize(i + 1);
+                if (!woke[i])
+                    woke[i] = frame;
+                // Its node left behind: the engine moved the body off where its 3D stood.
+                it->second.Moved = it->first == cHeld || NodeLeftBehind(*cBody) || BodyPrediction::LeftRest(frame, *woke[i]);
+            }
             if (cRead.Active || it->first == cHeld)
                 awake.Read.push_back(frame);
+        }
+        // Woken, unmoved: no frames (a guest would play it keyframed); its rest still goes, settles included.
+        if (!cActor && !it->second.Moved && !awake.Read.empty())
+        {
+            ++it;
+            continue;
         }
         if (!awake.Read.empty())
         {

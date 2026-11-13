@@ -42,4 +42,9 @@ template <class T> [[nodiscard]] constexpr T AlarmOwner(T aGiven, T aTargetOwner
 {
     return aGiven ? aGiven : aTargetOwner;
 }
+// A steal warning (StartStealWarning 37556) goes to the host's player alone: a guest's seen theft is never warned.
+[[nodiscard]] constexpr bool Warns(bool aAllowed, bool aByGuest) noexcept
+{
+    return aAllowed && !aByGuest;
+}
 } // namespace CrimeRules

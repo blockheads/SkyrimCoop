@@ -405,6 +405,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint16_t RestSteps = 0;
         bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
+        uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
+        uint64_t StillUntil = 0;
     };
     // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
     static constexpr uint32_t kRisingFrames = 60;
@@ -420,6 +422,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
+    // An actor's animated body in its island wakes it, unmoved (Orgnar at his bar, 78910): awake for aMs, then asleep.
+    void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
     HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});

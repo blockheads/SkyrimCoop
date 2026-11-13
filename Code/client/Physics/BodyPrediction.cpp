@@ -50,4 +50,11 @@ bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocit
     return std::abs(cAcceleration.x) < cTolerance && std::abs(cAcceleration.y) < cTolerance &&
            std::abs(cAcceleration.z - aGravity) < cTolerance;
 }
+bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept
+{
+    constexpr float cDistance = 2.f;
+    constexpr float cAngle = 0.05f;
+    const auto cApart = Between(acNow, acWoke);
+    return cApart.Distance >= cDistance || cApart.Angle >= cAngle;
+}
 } // namespace BodyPrediction

@@ -116,7 +116,8 @@ class PlayActions:
 
     def grab(ctx, instance, target):
         """The player, standing and looking at it, holds Activate until it holds `target` (a grab), then lets go of
-        the button: the object stays held."""
+        the button: the object stays held. `target`: a form id or a handle name."""
+        target = ctx.resolve(target, instance)
         return ctx.act(instance, {"name": f"grabs {target:X}", "ready": ["takes_input", "on_ground"], "buttons": ["activate"],
                                   "until": [{"holding": target}], "seconds": 3})
 

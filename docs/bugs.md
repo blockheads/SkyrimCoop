@@ -1014,6 +1014,8 @@ Size: medium. Needs: duo.
     pickpocket): not caused by them. `-resist`, `-jail` and `guest-assault` were not run on it.
   - Suspects: the two theft warnings (`crime.md`): `crime theft` passes no warning, but the menu path does; a held guest
     theft now judges 0.5 s later against the same 10 s wait.
+  - Since 2026-11-13 a guest's theft is never warned (`CrimeRules::Warns`: the warning went to the host's player), which
+    rules the warnings out for the guest scenarios; these were not rerun since.
   - Matters because a guest's alarm stays on the host's player so that the arrest works (`crime.md`): that is read from
     the code, not run.
   - Full run and reruns of 2026-11-11, dev's plugin and `agent/copy-idle-graph` alike:

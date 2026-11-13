@@ -160,6 +160,25 @@ frame when a test sets `FrameMs`, as `HavokStepFix` steps Skyrim). On the duo `p
 guest 140 to 180 ms behind, its extra step beyond the host's per frame typically 0.04 to 0.06 units (p95 0.25 to 0.45;
 `FlightTrace` now fits the delay).
 
+### Woken still (2026-11-13)
+
+Skyrim wakes islands it never moves: an actor's animated body sharing their island, a character's proxy touching
+them (`docs/re/systems/physics.md`, "Woken still: awake is not moving").
+
+```
+host PhysicsBodies: a reference wakes (havok move, island active)
+  each body's frame at the first read: where it woke (Moving::Woke)
+  until one leaves it (BodyPrediction::LeftRest: 2 units, 0.05 rad) or the host's player holds it:
+    no frames (a guest would play it keyframed, and the engine's grab refuses that)
+  then frames as before; asleep: its rest as always (settles of under 2 units included)
+guest: never driven, so dynamic: its player grabs it; the host's rest places it where it already is
+```
+
+Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: each of Orgnar's
+wakes keyframed the guest's bottle. Tests: `ClientTests` "A woken body that never left where it woke is not moving",
+`GameTests` "The bottles on Orgnar's bar wake without moving" (the fake's `Wake`, woken three times), scenario
+`guest-grabs-orgnar-bottle`.
+
 ### Near each guest
 
 A guest gets the frames of the awake bodies within `BodyRelevance::kGuestRadius` (4096 units, one exterior cell) of

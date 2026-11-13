@@ -756,7 +756,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
         spdlog::info("Party crime: actor {:X}, container theft, target {:X}, value {}", aActorFormId, target->formID, total);
         if (total)
             RealSteal(player, target, nullptr, 0, static_cast<int32_t>(total), target->GetOwner(),
-                      aRequest.AllowWarning);
+                      CrimeRules::Warns(aRequest.AllowWarning, true));
         return false;
     }
     if (aRequest.Action == CrimeAction::Pickpocket)
@@ -786,7 +786,8 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
     // A created item's target is its owner actor (40533), whose own owner is not the item's.
     auto* given = aRequest.Owner ? TESForm::GetById(ToGame(aRequest.Owner)) : nullptr;
     if (aRequest.Action == CrimeAction::Theft)
-        RealSteal(player, target, item, aRequest.Count, 0, CrimeRules::AlarmOwner(given, target->GetOwner()), aRequest.AllowWarning);
+        RealSteal(player, target, item, aRequest.Count, 0, CrimeRules::AlarmOwner(given, target->GetOwner()),
+                  CrimeRules::Warns(aRequest.AllowWarning, true));
     return false;
 }
 

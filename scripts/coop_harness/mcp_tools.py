@@ -117,11 +117,18 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     return {"ok": True, "booting": True, "log": str(duo["log"])}
 
 
+def gated_hook_files() -> str:
+    """Every client file whose hooks HookGate can leave out, by name (the harness's own included)."""
+    names = {path.stem for path in (ROOT / "Code/client").rglob("*.cpp") if "HookGate cGate" in path.read_text(errors="ignore")}
+    return ",".join(sorted(names))
+
+
 @tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -> dict:
+def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False, disable_hooks: str = "") -> dict:
     """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
-    one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
+    one game with our plugin and no session instead: what the plugin costs alone (profile game="host"). disable_hooks (with
+    plugin): SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h), or "all" for every gated file."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:
@@ -129,8 +136,11 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]
-    duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"])}
+    env = dict(os.environ)
+    if disable_hooks:
+        env["SKYRIMCOOP_DISABLE_HOOKS"] = gated_hook_files() if disable_hooks == "all" else disable_hooks
+    duo["process"] = subprocess.Popen(command, cwd=ROOT, env=env, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
+    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": env.get("SKYRIMCOOP_DISABLE_HOOKS", "")}
 
 
 @tool

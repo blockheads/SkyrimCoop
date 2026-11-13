@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from coop_harness import Session
 from coop_harness.actions.combat import CombatActions
+from coop_harness.actions.physics import PhysicsActions
 from coop_harness.common import WINDOWS
 from coop_harness.errors import TestFailure
 from coop_harness.game import Game
@@ -2350,6 +2351,39 @@ class DuoNudgeTests(unittest.TestCase):
     def test_a_batch_hold_is_never_nudged(self):
         start = self.held(capped=False)
         self.assertIsNone(self.nudge(self.home, now=start + 30 * 60))
+
+
+class WhoWakes(unittest.TestCase):
+    def watch(self, poll_fails=False, stop_fails=False):
+        ctx = MagicMock()
+        ctx.resolve.side_effect = lambda ref, instance: ref
+        def command(instance, request):
+            if request.get("stop") and stop_fails:
+                raise TestFailure("stop refused")
+            if "refs" not in request and not request.get("stop") and poll_fails:
+                raise TestFailure("poll timed out")
+            return {"events": [], "dropped": 0, "disabled_hooks": ""}
+        ctx.player_command.side_effect = command
+        return ctx
+
+    def stops(self, ctx):
+        return [call.args[1] for call in ctx.player_command.call_args_list if call.args[1].get("stop")]
+
+    def test_a_failed_poll_still_stops_the_watch_and_keeps_its_error(self):
+        ctx = self.watch(poll_fails=True)
+        with patch("coop_harness.actions.physics.time.sleep"), self.assertRaisesRegex(TestFailure, "poll timed out"):
+            PhysicsActions.who_wakes(ctx, "", [0x33288], seconds=5)
+        self.assertEqual(len(self.stops(ctx)), 1)
+
+    def test_a_failed_stop_never_hides_the_first_error(self):
+        ctx = self.watch(poll_fails=True, stop_fails=True)
+        with patch("coop_harness.actions.physics.time.sleep"), self.assertRaisesRegex(TestFailure, "poll timed out"):
+            PhysicsActions.who_wakes(ctx, "", [0x33288], seconds=5)
+
+    def test_a_failed_stop_after_a_clean_watch_is_reported(self):
+        ctx = self.watch(stop_fails=True)
+        with patch("coop_harness.actions.physics.time.sleep"), self.assertRaisesRegex(TestFailure, "stop refused"):
+            PhysicsActions.who_wakes(ctx, "", [0x33288], seconds=0)
 
 
 class KillMoveActions(unittest.TestCase):
