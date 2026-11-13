@@ -97,8 +97,8 @@ lands first). Left: players' copies (phase 4).
 went in whole units (a walking copy's frames over 20 % off: 35 % to 7 %, its owner's 7 %); physics frames were stamped
 and played on the uneven session time (S10 for bodies, `physics-sync.md`); a late snapshot after the short guess
 jumped the copy back (now blended over 100 ms); a standing snapshot is 50 bytes (was 112). Read in IDA: where the
-Havok step and our update fall in the frame (`actor-movement.md`). Open: a moving player's actions carry their whole
-graph state (17 to 20 KB/s; parked, `docs/ideas.md`).
+Havok step and our update fall in the frame (`actor-movement.md`). With the graph input stream (2026-11-13): a moving
+player costs about 3.5 KB/s on the wire, a 15-wolf fight 32.7 KB/s to each guest (was 76).
 
 2026-11-09: a host NPC's copy no longer sheathes mid-fight: its knowledge of its owner's hands was reset from its
 spawn when its 3D loaded, over a newer draw (`animation-replay-recovery.md`, "Why copies refuse", 4). The same

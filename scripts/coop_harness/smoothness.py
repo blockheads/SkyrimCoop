@@ -115,7 +115,8 @@ def measure(entries, owner_game, copy_game, segments):
     return out
 
 
-def message_bytes(perf, names=("ReferencesMoveRequest", "NotifyReferencesMove", "NotifyBodyFrames")):
+def message_bytes(perf, names=("ReferencesMoveRequest", "NotifyReferencesMove", "NotifyBodyFrames", "GraphOpsRequest", "NotifyGraphOps",
+                                "GraphSyncPointRequest", "NotifyGraphSyncPoint")):
     """Bytes/s and messages/s per message name from a perf readout's top rows (both ways summed)."""
     messages = (perf or {}).get("messages") or {}
     window = messages.get("window_s") or 1.0

@@ -152,10 +152,10 @@ What the baseline showed and what changed:
 - **Smaller snapshots.** The graph variables were diffed against nothing, so every integer and float went each time;
   now against zeros of their sizes (only those set travel; the reader already fills zeros), and `Direction` in 16 bits.
   A walking humanoid's snapshot is 65 bytes (TPTests), a standing one 50 on the duo.
-- **What still costs:** a moving player's snapshots average 525 to 750 bytes (17 to 20 KB/s; 7.9 KB/s on the wire after
-  Snappy), not for movement: each accepted action carries its whole graph state (12 to 15 KB raw, `red-flags.md`, 3).
-  A 15-wolf fight: 76 KB/s on the wire to each guest (`wire_cost`). Parked with a plan: `docs/ideas.md`, "Graph state
-  only when a copy needs it".
+- **What costs (2026-11-13, with the graph input stream):** a moving player's snapshot is 38 bytes and its stream
+  ops 33, about 3 to 3.5 KB/s on the wire each way. A 15-wolf fight is 32.7 KB/s on the wire to each guest: movement
+  17 KB/s before compression, stream ops 9.3, physics frames 5.5, sync points 2.6 (`wire_cost`). Before the stream,
+  each action carried its whole graph state (76 KB/s in the same fight).
 - `copy-strafes-with-*`'s stutter check measured speed at 60 fps; a watcher dropping to 43 fps read as a copy running
   40 % fast (most of its known flakiness). It now divides by each frame's recorded length. Still flaky after all of
   the above (`copy-strafes-with-host` 3 of 5 on the duo, `-guest` 3 of 3): the copy turns as often as its owner and

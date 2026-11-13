@@ -321,29 +321,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   A mod that starts players differently (its own spells or kit outside MQ101's script) is not applied. When mods are
   in scope: a mod-settings override for the kit and starting spells, or running the start mod's own setup.
 
-- **Graph state only when a copy needs it (2026-11-02, red-flags.md 3; planned and parked 2026-11-09).** Each accepted
-  owner action carries its whole graph state (4-15 KB, ~13.5 KB/s raw in a 15-wolf fight), for the rare copy that
-  refuses the action's event (`animation-replay-recovery.md`). Measured 2026-11-09 (`smoothness`, `wire_cost` MCP tools):
-  a moving player's snapshots average 525-750 bytes before compression (17-20 KB/s), against 50 for movement alone;
-  after Snappy that is 7.9 KB/s on the wire. A 15-wolf fight (god-mode players at the host's): the host's movement
-  out is 150 KB/s of messages (5.2 KB each, 30/s) and 76 KB/s on the wire to each guest; the host saved 579 states,
-  2.1 MB, in the fight and its run-up. So a big fight costs a 4-player host about 230 KB/s (1.8 Mbit/s) of upload. In all of that day's duo runs copies used the state 28 times, every one an NPC's `IdleStopInstant`
-  (dialogue); a player's copy never. Parked: it smooths nothing, and it adds async phases to the replay step machine,
-  where most copy animation bugs have been. Pick it up when playtest lag traces to upload, or for a big party.
-  The plan (the copy asks the owner):
-
-  ```
-  owner, accepted unpaired action
-    state = SaveAnimationGraphState()        as now
-    GraphStateRing[actor].Keep({tick, actionId}, state)   last 2 s, at most 8
-    action sent without GraphState
-  copy, replay refused, no state
-    step -> kAwaitingState (action held at the queue's front); GraphStateRequest{session, tick, actionId} -> host
-  host (Services/Host/HostGraphStates): to the owner (its own game for host NPCs), the answer to the asker only
-  copy, the state arrives -> kLoadState: LoadAnimationGraphState in its next graph update (same call and place)
-    empty answer, or 1 s without one -> dropped as a refusal
-  ```
-
-  A refused action plays a round trip late. Tests: GameTests `[replay-graph]` turned to the ask, an expired state drops
-  without stalling, movement carries no graph state; HostAuthorityTests routing; ClientTests the ring; TPTests the four
-  messages. Duo: `follower-switches-anchor`, `npc-clips-match`, kill moves, beast form.
+- **Graph state only when a copy needs it (2026-11-02, red-flags.md 3): done by the graph input stream.** Each
+  accepted action carried its whole graph state (12-15 KB raw a player). Since the stream (`graph-input-stream.md`)
+  streamed actors' actions carry none (`ReplayState::CarriesGraphState`). Measured 2026-11-13 (`wire_cost`, 15 wolves
+  fighting): 32.7 KB/s on the wire to each guest, was 76 KB/s; 2 graph states saved in the fight, was 579.
