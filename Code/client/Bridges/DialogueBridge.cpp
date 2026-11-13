@@ -167,6 +167,21 @@ uint64_t HookBeginTopicInfo(TESTopicInfo* apThis, int32_t aStage, uint32_t* apSp
     return RealBeginTopicInfo(apThis, aStage, apSpeakerHandle, aAnySpeaker);
 }
 
+// ActorProcess::SetDialogueHeadtrackSlot (39465): the speaker looks at this game's player, at a conversation's start
+// (37200) and each line (37541). The LookAt filter names the player it talks to instead.
+using TSetDialogueHeadtrack = void(AIProcess*, TESObjectREFR* apTarget);
+TSetDialogueHeadtrack* RealSetDialogueHeadtrack = nullptr;
+
+void HookSetDialogueHeadtrack(AIProcess* apThis, TESObjectREFR* apTarget)
+{
+    const MenuTopicManager* cpManager = s_filters.LookAt && apTarget == PlayerCharacter::Get() ? Conversation() : nullptr;
+    const Actor* cpSpeaker = cpManager ? Cast<Actor>(TESObjectREFR::GetByHandle(cpManager->speaker)) : nullptr;
+    if (cpSpeaker && cpSpeaker->currentProcess == apThis)
+        if (auto* pTalker = FormAs<TESObjectREFR>(s_filters.LookAt(cpSpeaker->formID)))
+            apTarget = pTalker;
+    RealSetDialogueHeadtrack(apThis, apTarget);
+}
+
 // TESNPC::Activate (24715, CommonLibSSE-NG TESBoundObject::Activate): the player talking to an NPC. Talking to its
 // last speaker again can do nothing (a copy never leaves its conversation), so joins are decided here.
 using TNpcActivate = bool(TESForm*, TESObjectREFR* apTarget, TESObjectREFR* apActivator, uint8_t aUnk1, TESForm* apObject,
@@ -375,6 +390,7 @@ Hooks::Initializer s_dialogueHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(37200, &RealSetDialogueWithPlayer, HookSetDialogueWithPlayer);
         HOOK_ID(25616, &RealBeginTopicInfo, HookBeginTopicInfo);
+        HOOK_ID(39465, &RealSetDialogueHeadtrack, HookSetDialogueHeadtrack);
         HOOK_ID(24715, &RealNpcActivate, HookNpcActivate);
         HOOK_ID(51509, &RealTopicClicked, HookTopicClicked);
         HOOK_ID(51508, &RealSkipText, HookSkipText);

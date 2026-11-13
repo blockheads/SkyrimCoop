@@ -39,6 +39,24 @@ experience) |
 | 35272 | 0x5dfbd0 | `MenuTopicManager::ProcessMenuOpenClose` | The `MenuOpenCloseEvent` sink: the Dialogue Menu closing with a speaker sets `shutMenu` (+0xB3), which ends the conversation. So a `kHide` of the menu (`UIMessageQueue::AddMessage` 13631) ends it from code |
 | 37548 | 0x67c240 | `Actor::InitiateDialogue` (meh) | Not the player's menu: an AI dialogue package (type 28) between two actors (an NPC walking up to talk) |
 
+## Who the speaker looks at (read in IDA, 1.7.104, 2026-11-13)
+
+`ActorProcess::SetDialogueHeadtrackSlot` (39465, 0x1406fe710) sets the speaker's dialogue headtrack slot (4,
+`HighProcessData::SetHeadtrackTarget` 39783). Its callers all pass `g_thePlayer`:
+
+- `Actor::SetDialogueWithPlayer` (37200): a started conversation, and its cleanup path on a start (a stop clears the slot).
+- `Actor::UpdateInDialogue` (37541): each line the speaker says, again.
+- 37367: a greeting line with no conversation under way (`MenuTopicManager` +0xB1 clear).
+
+So the host's game, running a guest's conversation with its own player (below, "A conversation without its menu"), turned
+the NPC's head to the host's player, and the copies took that slot from their owner (actor-ai-and-copies.md,
+Headtracking). **Hooked** (`HookSetDialogueHeadtrack`): for the conversation's speaker, the `LookAt` filter names the
+player talking instead: the guest who asked for it (`NotifyDialogueStart::PlayerId`), then each picker, so the slot holds
+that player's character and every game's copy looks at its own copy of that player. Measured (2026-11-13, Lydia in
+QASmoke, the guest talking): the host's slot 4 held `session 1` (the host's player) before, `session 2` (the guest's)
+after, and her copy reads the same (`npc-looks-at-guest-talker`). Staged frozen (the harness's `freeze`: no AI), the
+owner's slot was set but her copy's slots stayed empty; the scenario stages her unfrozen. Not read why.
+
 ## The menu (`DialogueMenu`, vtable 0x18f6148)
 
 - Slot 1 `Accept` (51507, 0x914690) registers the SWF's calls: `SkipText` (0x914840), `TopicClicked`

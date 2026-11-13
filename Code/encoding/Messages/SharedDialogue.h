@@ -106,7 +106,7 @@ struct DialogueStartFailedRequest final : RequestMessage
     uint32_t NpcId{};
 };
 
-// To the host's game: start its player's conversation with this NPC.
+// To the host's game: start its player's conversation with this NPC, for the player who asked.
 struct NotifyDialogueStart final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialogueStart;
@@ -116,6 +116,7 @@ struct NotifyDialogueStart final : NotifyMessage
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
+    uint32_t PlayerId{};
 };
 
 // A conversation opened: the player who asked opens its menu on its copy, every player when the NPC started it

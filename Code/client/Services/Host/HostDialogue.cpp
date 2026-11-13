@@ -98,6 +98,7 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
     m_asked = Asked{aSender, acRequest.NpcId};
     NotifyDialogueStart start;
     start.NpcId = acRequest.NpcId;
+    start.PlayerId = m_players.PlayerIdOf(aSender);
     m_network.Send(cHost, start);
 }
 

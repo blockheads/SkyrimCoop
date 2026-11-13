@@ -797,6 +797,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         greetingReader.ReadBits(trash, 8);
         recvOpened.DeserializeRaw(greetingReader);
         CHECK(recvOpened.Greeting == sendOpened.Greeting);
+
+        NotifyDialogueStart sendStart, recvStart;
+        sendStart.NpcId = 0x21;
+        sendStart.PlayerId = 3;
+        Buffer startBuffer(100);
+        Buffer::Writer startWriter(&startBuffer);
+        sendStart.Serialize(startWriter);
+        Buffer::Reader startReader(&startBuffer);
+        startReader.ReadBits(trash, 8);
+        recvStart.DeserializeRaw(startReader);
+        CHECK((recvStart.NpcId == 0x21 && recvStart.PlayerId == 3));
     }
 
     SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")

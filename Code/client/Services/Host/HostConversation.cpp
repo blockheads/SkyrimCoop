@@ -30,6 +30,7 @@ bool HostConversation::OnStartAsked(uint32_t aActorFormId, bool aForceGreet) noe
     if (!m_dialogue.Conversation() || !cSpeaker || bridge.IsMenuOpen() || aActorFormId == cSpeaker)
     {
         m_greeter = aForceGreet ? aActorFormId : 0;
+        m_talker = 0;
         return true;
     }
     spdlog::info("Dialogue: {:X} would talk to the host, but the party talks to {:X}", aActorFormId, cSpeaker);
@@ -53,6 +54,11 @@ uint32_t HostConversation::LineFor(uint32_t aSpeakerFormId) noexcept
     return aSpeakerFormId == m_pickerSpeaker ? m_picker.load() : 0;
 }
 
+uint32_t HostConversation::LookAt(uint32_t aSpeakerFormId) noexcept
+{
+    return aSpeakerFormId == m_talkerSpeaker ? m_talker.load() : 0;
+}
+
 void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
 {
     auto& bridge = m_dialogue.Bridge();
@@ -73,6 +79,8 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
     }
     // This game's player is the one talking, wherever it stands, without its menu: it joins by talking to the NPC.
     spdlog::info("Dialogue: a guest started a conversation with {:X}, run in the background", cFormId);
+    m_talkerSpeaker = cFormId;
+    m_talker = CharacterOf(acMessage.PlayerId);
     if (!bridge.Start(cFormId, false))
     {
         spdlog::info("Dialogue: the engine did not start the conversation with {:X}", cFormId);
@@ -117,6 +125,8 @@ void HostConversation::OnPicked(const NotifyDialoguePicked& acMessage, uint32_t 
     // Before its line begins: its script runs for the picker, the host's own player (0x14) or a guest's character.
     m_pickerSpeaker = bridge.GetSpeaker();
     m_picker = aOwnLine ? 0x14 : CharacterOf(acMessage.PlayerId);
+    m_talkerSpeaker = m_pickerSpeaker.load();
+    m_talker = aOwnLine ? 0 : m_picker.load();
     m_awaitingList = true;
     if (!bridge.GetSpeaker())
         return;
@@ -172,6 +182,8 @@ void HostConversation::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
         transport.Send(close);
         m_dialogue.Restart();
     }
+    if (!aSpeaker)
+        m_talker = 0;
     // Its player leaving the menu leaves the conversation, which the host's rule ends once nobody is in it.
     m_dialogue.Bridge().SetMenuCloseEnds(!m_dialogue.Conversation());
     m_menuAsked = m_menuAsked && aSpeaker && !aMenuOpen;

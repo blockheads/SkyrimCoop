@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: an NPC talking with a guest looked at the host's player, on every game. The host's game runs a guest's
+conversation with its own player, and the engine puts that player in the NPC's dialogue headtrack slot at the start and
+with each line (`ActorProcess::SetDialogueHeadtrackSlot` 39465 from 37200 and 37541, read in IDA); the copy takes the
+owner's slots. Now the host's game names the player talking (the guest who started it, then each picker) where the
+engine writes the slot (`HookSetDialogueHeadtrack`, `HostConversation::LookAt`; `NotifyDialogueStart` carries the asker),
+so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md), "Who the speaker looks at"). GameTests
+`[headtrack]` (fails without it), HostAuthorityTests, the scenario `npc-looks-at-guest-talker`.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

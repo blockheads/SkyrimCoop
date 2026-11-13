@@ -723,9 +723,18 @@ class ReproActions:
         games = [("guest", "client")] if game in ("guest", "client") else [("host", "")] if game else [("host", ""), ("guest", "client")]
         ctx.refresh_handles()
         read = lambda: {label: flatten(ctx.actor_row(instance, ctx.resolve(name, label))).get(field) for label, instance in games}
+        # A handle as the value of a target field (ai.combat_target, ai_state.head_track): that handle in each game.
+        target = isinstance(value, str) and value != "set" and (value == "player" or value in ctx.handles())
+        def as_target(label, instance):
+            form = ctx.resolve(value, label)
+            session = flatten(ctx.actor_row(instance, form)).get("mod.session_id")
+            return (form, f"session {session}", [f"session {session}"])
+        targets = {label: as_target(label, instance) for label, instance in games} if target else {}
         def wrong(got):
             if value is None:
                 return len(set(map(repr, got.values()))) > 1
+            if target:
+                return any(seen not in targets[label] for label, seen in got.items())
             return not all(got.values()) if value == "set" else any(seen != value for seen in got.values())
         ended, started = time.monotonic() + seconds, time.monotonic()
         expected = 'the same in both' if value is None else repr(value)

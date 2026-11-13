@@ -101,12 +101,14 @@ void DialogueJoinRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 void NotifyDialogueStart::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteVarInt(aWriter, PlayerId);
 }
 
 void NotifyDialogueStart::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
+    PlayerId = ReadId(aReader);
 }
 
 void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

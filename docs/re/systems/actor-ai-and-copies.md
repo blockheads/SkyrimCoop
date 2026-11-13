@@ -681,6 +681,7 @@ meh321 where they have one, ours otherwise.
   session id or form), and a copy's owner's slots (`ActorExtension::HeadTrack`) are put in before the engine reads
   them, so the copy's own engine turns its head. Compared as `ai_state.head_track`; GameTests `[headtrack]`.
   An owner beyond the distance gate is not processed, so its slot changes go out once it is close again.
+  A conversation's dialogue slot holds the player talking, not the host's player: dialogue.md, "Who the speaker looks at".
 
   **When the slots are read (read in IDA, 1.7.104, 2026-11-05 and 2026-11-06).** Both callers skip ProcessTracking for an
   actor that is dead or dying (`IsDead`, life state 1), in life state 3 (4, 5 and 8, bleeding out, pass here, and `ProcessTracking` then ignores the slots), knocked (knock state not 0), asleep (sit state 7;

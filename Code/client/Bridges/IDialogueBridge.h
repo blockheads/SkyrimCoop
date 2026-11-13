@@ -39,6 +39,9 @@ public:
         /// An actor's line starts or ends, running its script (any thread): the player character its script runs
         /// for (0: this game's player).
         std::function<uint32_t(uint32_t aSpeakerFormId)> LineFor;
+        /// The speaker turns its head to this game's player while they talk (any thread): the player character it
+        /// looks at instead (0: this game's player).
+        std::function<uint32_t(uint32_t aSpeakerFormId)> LookAt;
         /// The engine builds a list (any thread): the other players' characters it judges each line for too, as if
         /// each were the player (GetOptionsFor).
         std::function<std::vector<uint32_t>()> Judged;

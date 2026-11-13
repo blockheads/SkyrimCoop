@@ -29,6 +29,8 @@ struct HostConversation final : DialogueService::Role
     [[nodiscard]] bool RunsWithoutMenu() const noexcept override { return true; }
     // A pick's picker: its lines run for that player's character until the next pick (any thread).
     uint32_t LineFor(uint32_t aSpeakerFormId) noexcept override;
+    // The player talking: the guest who started it, then each picker (any thread).
+    uint32_t LookAt(uint32_t aSpeakerFormId) noexcept override;
     std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept override;
     // The other players' characters here (any thread), as of the last update.
     std::vector<uint32_t> Judged() noexcept override;
@@ -58,6 +60,9 @@ private:
     // The character of the last picker in the latest conversation, and the NPC (read on any thread).
     std::atomic<uint32_t> m_picker{};
     std::atomic<uint32_t> m_pickerSpeaker{};
+    // The character the NPC talks to (0: this game's player), and the NPC (read on any thread).
+    std::atomic<uint32_t> m_talker{};
+    std::atomic<uint32_t> m_talkerSpeaker{};
     bool m_menuAsked{}; // the menu asked for on the conversation under way, not open yet
     uint32_t m_speaker{};
     // Picked: the next list the engine builds, once the NPC has answered, is the next step's.

@@ -1077,6 +1077,18 @@ class Scenes(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "the same in both"):
             actions.expect(ctx, "lydia", "actor", field="ai.follow_target")
 
+    def test_expect_actor_takes_a_handle_as_a_target_in_each_game(self):
+        ctx, actions = self.expect_ctx()
+        ctx.handles.return_value = {"guest_player": {"host": 0xFF000829, "guest": 0x14}}
+        rows = {0xFF000829: {"mod": {"session_id": 2}}, 0x14: {"mod": {"session_id": 2}}, 7: {"ai_state": {"head_track": ["session 2"]}}}
+        ctx.actor_row.side_effect = lambda instance, ref: rows[7 if ref == "lydia" else ref]
+        ctx.resolve.side_effect = lambda value, game: "lydia" if value == "lydia" else ctx.handles()[value][game]
+        self.assertEqual(actions.expect(ctx, "lydia", "actor", field="ai_state.head_track", value="guest_player"),
+                         {"ai_state.head_track": {"host": ["session 2"], "guest": ["session 2"]}})
+        rows[7] = {"ai_state": {"head_track": ["session 1"]}}
+        with self.assertRaisesRegex(TestFailure, "session 1"):
+            actions.expect(ctx, "lydia", "actor", field="ai_state.head_track", value="guest_player")
+
     def test_expect_agree_is_about_the_handle_unless_all(self):
         ctx, actions = self.expect_ctx()
         ctx.handles.return_value = {"lydia": {"host": 0xA2C8E}}

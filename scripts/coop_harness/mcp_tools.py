@@ -266,7 +266,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
     takes it, as for its name and Activate prompt), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
+    `seconds`; "set": not nothing; a handle: that handle in each game, for targets; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 

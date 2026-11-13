@@ -105,6 +105,7 @@ TEST_CASE("Dialogue: a peer talking to a copy starts the host's conversation", "
     const auto cStarts = session.SentTo<NotifyDialogueStart>(kHost);
     REQUIRE(cStarts.size() == 1);
     CHECK(cStarts[0]->NpcId == cNpc);
+    CHECK(cStarts[0]->PlayerId == session.PlayerId(kPeer)); // the NPC looks at the asker
     // Nobody else opens anything until the host's menu is open.
     CHECK(session.SentTo<NotifyDialogueOpen>(kPeer).empty());
     CHECK(session.SentTo<NotifyDialogueOpen>(kOtherPeer).empty());

@@ -39,7 +39,8 @@ struct FakeDialogue final : IDialogueBridge
         return it == LineQuest.end() || DialogueLoaded(it->second);
     }
     // The speaker's AI looks at this game's player while they talk (its dialogue headtrack slot; Skyrim
-    // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0.
+    // 2026-10-31, dialogue-copy-looks-at-speaker), and away once it ends: target 0. Written at the start and with each
+    // line (39465 from 37200 and 37541), where the LookAt filter names who instead.
     std::function<void(uint32_t aSpeaker, uint32_t aTarget)> SpeakerLooks;
     std::function<bool(uint32_t aSpeaker)> SpeakerHasProcess;
     // Actors that cannot talk (dead, fighting): Start refuses them.
@@ -156,8 +157,7 @@ struct FakeDialogue final : IDialogueBridge
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
         Choices = false;
-        if (SpeakerLooks)
-            SpeakerLooks(Speaker, 0x14);
+        LookAtTalker();
         Build(Greeting);
         return true;
     }
@@ -268,11 +268,18 @@ struct FakeDialogue final : IDialogueBridge
     }
 
   private:
+    void LookAtTalker()
+    {
+        const uint32_t cTalker = m_filters.LookAt ? m_filters.LookAt(Speaker) : 0;
+        if (SpeakerLooks)
+            SpeakerLooks(Speaker, cTalker ? cTalker : 0x14);
+    }
     // The engine says the option, then builds the next list or ends.
     void Say(const Option& acOption)
     {
         Said.push_back(acOption);
         LastLineFor = m_filters.LineFor ? m_filters.LineFor(Speaker) : 0;
+        LookAtTalker();
         if (OnSaid)
             OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);

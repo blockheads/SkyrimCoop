@@ -42,6 +42,8 @@ struct DialogueService
         virtual std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept { return std::nullopt; }
         // An actor's line runs its script (any thread): the player character it runs for (0: this game's).
         virtual uint32_t LineFor(uint32_t /*aSpeakerFormId*/) noexcept { return 0; }
+        // The speaker looks at the player it talks to (any thread): that player's character (0: this game's).
+        virtual uint32_t LookAt(uint32_t /*aSpeakerFormId*/) noexcept { return 0; }
         // The engine builds a list (any thread): the other players' characters to judge it for too.
         virtual std::vector<uint32_t> Judged() noexcept { return {}; }
         virtual void OnOpen(const NotifyDialogueOpen&) noexcept {}
