@@ -162,10 +162,10 @@ guest: never driven, so dynamic: its player can grab it; the host's rest places 
 ```
 
 Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: every time the
-host's NPCs woke the bottles, their frames keyframed the guest's, which the engine's grab refuses
+bottles woke on the host (measured; the cause not read), their frames keyframed the guest's, which the engine's grab refuses
 (`docs/re/systems/physics.md`, "Grabbing", "Woken still"). The guest's own sends (held frames, `GuestHands`) keep the
 first frame: a hold must reach the host at once. Tests: `ClientTests` "A body woken still stays the guest's to grab
-until it moves", `GameTests` "Orgnar wakes the bottles on his bar without moving them" (the fake's `Wake`), scenario
+until it moves", `GameTests` "The bottles on Orgnar's bar wake without moving" (the fake's `Wake`), scenario
 `guest-grabs-orgnar-bottle`.
 
 ### Near each guest

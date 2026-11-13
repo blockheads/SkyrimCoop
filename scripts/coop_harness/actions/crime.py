@@ -57,6 +57,18 @@ class CrimeActions:
         ctx.crime_command("", "set_warnings", warnings=2)
         return {"warnings": ctx.crime_command("", "read")["warnings"]}
 
+    def set_warnings(ctx, warnings=0):
+        """Sets the party's spent theft warnings on the host (TheftWarnings, crime.md) and reads them back."""
+        ctx.crime_command("", "set_warnings", warnings=warnings)
+        return ctx.expect_warnings(warnings)
+
+    def expect_warnings(ctx, count):
+        """The host's spent theft warnings are `count` (a seen theft's warning goes to the host's player, 37556)."""
+        warnings = ctx.crime_command("", "read")["warnings"]
+        if warnings != count:
+            raise ctx.failure(f"the party has spent {warnings} theft warnings, expected {count}")
+        return {"warnings": warnings}
+
     def stand_witness(ctx, npc, near="guest_player", gap=180):
         """Moves the host's `npc` `gap` units north of a player, to witness what they do without them walking."""
         ctx.refresh_handles()

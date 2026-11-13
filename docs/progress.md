@@ -49,8 +49,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. The host's NPCs wake the bar's bottles every
-few seconds without moving them, and every wake sent the guest a frame, which keyframed its bottle; the engine's grab
+2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. The bar's bottles wake on the host every
+few seconds without moving (measured; what wakes them is not read), and every wake sent the guest a frame, which keyframed its bottle; the engine's grab
 refuses a keyframed body (`CreateMouseSprings` 40555), so the release picked it up instead, a theft. The host's send
 rule now keeps a body woken still where the guest has it (`physics-sync.md`, "Woken still"). A guest's seen theft is
 also no longer warned: the steal warning (37556) goes only to the host's player, so the guest saw neither warning nor

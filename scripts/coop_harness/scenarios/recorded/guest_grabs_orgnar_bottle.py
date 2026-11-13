@@ -1,10 +1,10 @@
-"""The guest holds Activate on a bottle on Orgnar's bar: it grabs it. Orgnar wakes the bar's bottles without moving them; the host's frames of them keyframed the guest's, the grab (CreateMouseSprings 40555) refused, and the release picked the bottle up (docs/re/systems/physics.md, Woken still).
+"""The guest holds Activate on a bottle on Orgnar's bar: it grabs it. The bar's bottles wake every few seconds without moving (what wakes them is not read); the host's frames of them keyframed the guest's, the grab (CreateMouseSprings 40555) refused, and the release picked the bottle up (docs/re/systems/physics.md, Woken still).
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # hand-written: from the recording 20261113-091549-guest-grabs-orgnar-bottle.jsonl, whose failing grabs (the bug) the export dropped
 NAME = 'guest-grabs-orgnar-bottle'
 TAGS = ['physics', 'scene']
-DOC = "The guest holds Activate on a bottle on Orgnar's bar: it grabs it. Orgnar wakes the bar's bottles without moving them; the host's frames of them keyframed the guest's, the grab (CreateMouseSprings 40555) refused, and the release picked the bottle up (docs/re/systems/physics.md, Woken still)."
+DOC = "The guest holds Activate on a bottle on Orgnar's bar: it grabs it. The bar's bottles wake every few seconds without moving (what wakes them is not read); the host's frames of them keyframed the guest's, the grab (CreateMouseSprings 40555) refused, and the release picked the bottle up (docs/re/systems/physics.md, Woken still)."
 
 
 def run(ctx):

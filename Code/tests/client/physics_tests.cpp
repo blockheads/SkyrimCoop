@@ -215,7 +215,7 @@ SCENARIO("A body the guest guesses right sends again only to repair a lost frame
 
 SCENARIO("A body woken still stays the guest's to grab until it moves", "[physics][woken-still]")
 {
-    // The Sleeping Giant's bar: an NPC wakes the bottles, which never move (playtest 2026-11-13).
+    // The Sleeping Giant's bar: its bottles wake without moving (measured, playtest 2026-11-13).
     BodySends sends(BodySendLimits{.StillStaysPut = true});
     BodyFrame bottle{.Key = {.Object = GameId(0, 1)}, .Position = {-1154.f, 22.f, 78.f}, .LinearVelocity = {0.5f, 0.f, 0.f}};
     for (uint64_t tick = 1000; tick < 3000; tick += 16)
@@ -235,6 +235,8 @@ SCENARIO("A body woken still stays the guest's to grab until it moves", "[physic
         const BodyFrame cHeld{.Key = {.Object = GameId(0, 3)}};
         CHECK(sends.Due({cHeld}, 1016, {cHeld.Key}).size() == 1);
     }
+    THEN("a kept body the host's player then grabs goes at once, unmoved")
+        CHECK(sends.Due({bottle}, 3000, {bottle.Key}).size() == 1);
     THEN("without the rule, the first frame goes as before")
     {
         BodySends plain;

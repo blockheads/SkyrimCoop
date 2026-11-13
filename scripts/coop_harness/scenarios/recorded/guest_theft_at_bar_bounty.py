@@ -12,6 +12,7 @@ def run(ctx):
         ctx.name_players()
         ctx.scene(save=None, at='coc RiverwoodSleepingGiantInn', pin=True)
         ctx.report_crimes()
+        ctx.set_warnings(0)
         ctx.name_handle('bottle', {'host': 0x33288, 'guest': 0x33288})
         ctx.stage({'players': {'guest': {'near': 'bottle', 'gap': 90}, 'host': {'near': 'bottle', 'gap': 700}}})
         ctx.turn_to(instance='client', face=ctx.resolve('bottle', 'guest'))
@@ -20,5 +21,6 @@ def run(ctx):
         before = ctx.bounty_total()
         ctx.hold_key('client', 'e', 0.05)  # a tap takes it; a hold past fZKeyDelay would grab
         ctx.expect_bounty(at_least=before + 1, seconds=10)
+        ctx.expect_warnings(0)
     finally:
         ctx.unstage()

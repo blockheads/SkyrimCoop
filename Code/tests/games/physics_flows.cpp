@@ -71,10 +71,9 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
     }
 }
 
-SCENARIO("Orgnar wakes the bottles on his bar without moving them: the guest's player can still grab one", "[physics][woken-still]")
+SCENARIO("The bottles on Orgnar's bar wake without moving: the guest's player can still grab one", "[physics][woken-still]")
 {
-    // Playtest 2026-11-13: the host's frames of a still bottle keyframed the guest's, and the grab refuses a
-    // keyframed body (CreateMouseSprings 40555), so a held Activate picked it up on release instead.
+    // Playtest 2026-11-13: the host's frames of a still bottle keyframed the guest's; the grab refuses that (40555).
     Party party(1, Plugins);
     auto& hostPlate = BodyOf(party, party.Host(), kPlate);
     auto& guestPlate = BodyOf(party, party.Guest(), kPlate);

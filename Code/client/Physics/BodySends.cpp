@@ -22,10 +22,17 @@ std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uin
     std::vector<Candidate> candidates;
     for (const auto& cFrame : acAwake)
     {
-        const auto it = m_sent.find(cFrame.Key);
+        const bool cHeld = std::ranges::find(acHeld, cFrame.Key) != acHeld.end();
+        auto it = m_sent.find(cFrame.Key);
+        // Kept, then grabbed: other games must keyframe the hold now.
+        if (it != m_sent.end() && it->second.Kept && cHeld)
+        {
+            m_sent.erase(it);
+            it = m_sent.end();
+        }
         if (it == m_sent.end())
         {
-            if (m_limits.StillStaysPut && Still(cFrame) && std::ranges::find(acHeld, cFrame.Key) == acHeld.end())
+            if (m_limits.StillStaysPut && !cHeld && Still(cFrame))
             {
                 // Woken still (physics.md, "Woken still"): the guest's guess is its rest, here.
                 BodyFrame rest = cFrame.Quantized();

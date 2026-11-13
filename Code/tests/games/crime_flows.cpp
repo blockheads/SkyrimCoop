@@ -83,6 +83,36 @@ SCENARIO("A guest's theft is judged after the witnesses looked, and what follows
     CHECK(judged[1].first == CrimeAction::PayFine);
 }
 
+SCENARIO("A guest's seen theft adds bounty at once: the owner's warning would go to the host's player", "[crime][theft-warning]")
+{
+    // guest-theft-at-bar-bounty (2026-11-13): StartStealWarning (37556) warns g_thePlayer, never the guest.
+    Party party;
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    host.SeenThefts = true;
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0xF);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    theft.AllowWarning = true;
+    guest.Actions.push_back(theft);
+    party.Until([&] { return !guest.Gold.empty() && guest.Gold == host.Gold; }, "the loose item's theft: bounty in both games");
+    CHECK(host.TheftWarnings == 0);
+    CrimeRequest chest;
+    chest.Action = CrimeAction::ContainerTheft;
+    chest.Target = GameId(0, 0x1235);
+    chest.AllowWarning = true;
+    CrimeItem line;
+    line.Item.BaseId = GameId(0, 0x64B36);
+    line.Item.Count = 1;
+    chest.Items.push_back(line);
+    guest.Actions.push_back(chest);
+    party.Until([&] { return host.Judged.size() == 2 && guest.Gold == host.Gold; }, "the container theft: bounty in both games");
+    CHECK(host.Gold.front().NonViolent == 10);
+    CHECK(host.TheftWarnings == 0);
+}
+
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
 {
     Party party(2);
