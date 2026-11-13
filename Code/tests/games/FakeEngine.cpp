@@ -1,9 +1,16 @@
+#include <Diagnostics/HeadTrackRead.h>
 #include <Games/Skyrim/CopyCombat.h>
 #include <Events/MenuEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+
+#include <Games/Animation/GraphState.h>
+#include <Games/Animation/GraphStream.h>
+#include <bit>
+#include <set>
+#include <span>
 #include <Events/ActorRenamedEvent.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
@@ -70,7 +77,7 @@ bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
     if (it->second.Copy)
         return RagdollPosed(aFormId);
     return it->second.KnockedDown || std::ranges::any_of(Bodies, [&](const auto& acBody) {
-        return acBody.second.RagdollOf == aFormId && (acBody.second.Awake || it->second.Dead);
+        return acBody.second.RagdollOf == aFormId && ((acBody.second.Awake && !it->second.Rising) || it->second.Dead);
     });
 }
 
@@ -105,27 +112,458 @@ void FakeEngine::ShovePlayer() noexcept
     }
 }
 
+void FakeEngine::GraphEntry(Actor& aActor, std::string aInput) const
+{
+    const bool cOwn = aActor.Copy && !m_replaying && (aInput.starts_with("update") || aInput.starts_with("event"));
+    const auto& cGraph = aActor.Graph;
+    const auto cState = cGraph.BlendState == aActor.GraphState && !cGraph.Child.empty() ? aActor.GraphState + "/" + cGraph.Child : aActor.GraphState;
+    aActor.Graph.History.push_back({aActor.Graph.Timeline, cState, cOwn ? "own " + aInput : std::move(aInput)});
+}
+
+std::vector<uint32_t> FakeEngine::GraphWords(const Actor& acActor)
+{
+    std::vector<uint32_t> words(2 * kGraphWords, 0);
+    const auto& cVariables = acActor.GraphVariables;
+    for (size_t i = 0; i < kGraphWords && i < cVariables.Integers.size(); ++i)
+        words[i] = cVariables.Integers[i];
+    for (size_t i = 0; i < kGraphWords && i < cVariables.Floats.size(); ++i)
+        words[kGraphWords + i] = std::bit_cast<uint32_t>(cVariables.Floats[i]);
+    return words;
+}
+
+void FakeEngine::SetGraphWords(Actor& aActor, std::span<const uint32_t> aWords)
+{
+    auto& variables = aActor.GraphVariables;
+    variables.Integers.resize(std::max<size_t>(variables.Integers.size(), kGraphWords));
+    variables.Floats.resize(std::max<size_t>(variables.Floats.size(), kGraphWords));
+    for (size_t i = 0; i < kGraphWords && i < aWords.size(); ++i)
+        variables.Integers[i] = aWords[i];
+    for (size_t i = 0; i < kGraphWords && kGraphWords + i < aWords.size(); ++i)
+        variables.Floats[i] = std::bit_cast<float>(aWords[kGraphWords + i]);
+}
+
+// The graph's event table: every event the rules name, sorted, the same on every game (as a behaviour file's).
+std::vector<std::string> FakeEngine::GraphEventTable() const
+{
+    std::set<std::string> names;
+    for (const auto& [cKey, cTo] : GraphTransitions)
+        names.insert(cKey.second);
+    for (const auto& [cEvent, cWrite] : ActionWrites)
+        names.insert(cEvent);
+    if (OwnerClipEnds)
+        names.insert(OwnerClipEnds->Events.begin(), OwnerClipEnds->Events.end());
+    return {names.begin(), names.end()};
+}
+
+uint16_t FakeEngine::GraphEventId(const std::string& acEvent) const
+{
+    const auto cEvents = GraphEventTable();
+    const auto it = std::ranges::find(cEvents, acEvent);
+    return it == cEvents.end() ? UINT16_MAX : uint16_t(it - cEvents.begin());
+}
+
+// A clip whose files its process does not hold lasts no time (59263): its graph runs on to the next.
+void FakeEngine::EnterClip(Actor& aActor) const
+{
+    for (const auto& [cEvent, cState] : ClipFiles)
+        if (cState == aActor.GraphState && !aActor.LoadedClips.contains(cEvent))
+            if (const auto cNext = SkippedClips.find(aActor.GraphState); cNext != SkippedClips.end())
+            {
+                aActor.GraphState = cNext->second;
+                return;
+            }
+}
+
+bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
+{
+    if (const auto* pBlend = Graph ? Graph->BlendOf(aActor.GraphState) : nullptr; pBlend && !pBlend->FreezeOn.empty() && pBlend->FreezeOn == acEvent)
+    {
+        const auto& cIntegers = aActor.GraphVariables.Integers;
+        aActor.Graph.FrozenParameter = pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
+        GraphEntry(aActor, "event " + acEvent);
+        return true;
+    }
+    else if (pBlend && !pBlend->CrossBlendOn.empty() && pBlend->CrossBlendOn == acEvent && aActor.Graph.FrozenParameter)
+    {
+        aActor.Graph.FrozenParameter.reset();
+        aActor.Graph.CrossBlendLeftMs = pBlend->CrossBlendMs;
+        GraphEntry(aActor, "event " + acEvent);
+        return true;
+    }
+    const auto it = GraphTransitions.find({aActor.GraphState, acEvent});
+    if (it == GraphTransitions.end())
+        return false;
+    aActor.Graph.EventWords = GraphWords(aActor);
+    aActor.GraphState = it->second;
+    if (const auto cPicks = GraphPicks.find(aActor.GraphState); cPicks != GraphPicks.end())
+        aActor.GraphState = cPicks->second[(DrawGraphRandom(aActor) >> 13) % cPicks->second.size()];
+    EnterClip(aActor);
+    if (Graph)
+        GraphEntry(aActor, "event " + acEvent);
+    return true;
+}
+
+// Channels (63590): this game's actor's into its graph's variables.
+void FakeEngine::WriteGraphChannels(Actor& aActor, double aStepMs)
+{
+    auto& graph = aActor.Graph;
+    if (const auto cTurnDelta = Graph->TurnDeltaChannel)
+    {
+        auto& floats = aActor.GraphVariables.Floats;
+        floats.resize(std::max(floats.size(), *cTurnDelta + 1));
+        const float cHeading = aActor.Rotation[2];
+        floats[*cTurnDelta] = graph.HeadingKnown ? std::remainder(cHeading - graph.LastHeading, 6.28318531f) / float(aStepMs / 1000.0) : 0.f;
+        graph.LastHeading = cHeading;
+        graph.HeadingKnown = true;
+    }
+}
+
+// The behaviour graph's update with this step (63587): its rules on its variables, on its own time (Timeline).
+// A looping clip's update; an event every N loops is the graph's, no action behind it (BSEventEveryNEventsModifier).
+void FakeEngine::StepLoop(Actor& aActor)
+{
+    if (aActor.GraphState != Loop->State && aActor.GraphState != Loop->Other)
+        return;
+    if (++aActor.LoopFrames < Loop->Frames)
+        return;
+    aActor.LoopFrames = 0;
+    if (++aActor.LoopsSeen < aActor.LoopsToSend)
+        return;
+    aActor.LoopsSeen = 0;
+    aActor.LoopsToSend = 1 + (DrawGraphRandom(aActor) >> 13) % Loop->Most;
+    aActor.LoopDraws.push_back(aActor.LoopsToSend);
+    aActor.GraphState = aActor.GraphState == Loop->State ? Loop->Other : Loop->State;
+}
+
+void FakeEngine::StepGraph(Actor& aActor, double aStepMs)
+{
+    if (Loop)
+        StepLoop(aActor);
+    auto& graph = aActor.Graph;
+    graph.Timeline += aStepMs;
+    graph.CrossBlendLeftMs = std::max(0.0, graph.CrossBlendLeftMs - aStepMs);
+    graph.Updated = true;
+    graph.LastStepMs = aStepMs;
+    auto& floats = aActor.GraphVariables.Floats;
+    if (const auto& cDamp = Graph->Damping)
+    {
+        floats.resize(std::max(floats.size(), std::max(cDamp->Input, cDamp->Output) + 1));
+        floats[cDamp->Output] = graph.Damped; // its output binding, as the update copies members out
+    }
+    for (const auto& cRange : Graph->Ranges)
+        if (aActor.GraphState == cRange.State && cRange.Input < floats.size())
+            if (const auto& cNext = floats[cRange.Input] >= cRange.Bound ? cRange.Above : cRange.Below; !cNext.empty())
+                aActor.GraphState = cNext;
+    if (const auto* pBlend = Graph->BlendOf(aActor.GraphState))
+    {
+        // The active-node walk (60079), only while the flag is set: a generate pass's new child.
+        if (graph.BlendState == aActor.GraphState && pBlend->Generated && std::exchange(graph.ActiveNodesChanged, false) &&
+            !graph.PendingChild.empty())
+            graph.Child = graph.PendingChild;
+        if (graph.BlendState != aActor.GraphState && !pBlend->Children.empty())
+        {
+            auto& integers = aActor.GraphVariables.Integers;
+            const size_t cPick = pBlend->ChooseFrom < integers.size() ? integers[pBlend->ChooseFrom] : 0;
+            graph.BlendState = aActor.GraphState;
+            graph.Child = graph.PendingChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)];
+        }
+    }
+    else if (!Graph->MatchNode(aActor.GraphState))
+    {
+        graph.BlendState.clear();
+        graph.Child.clear();
+        graph.PendingChild.clear();
+        graph.FrozenParameter.reset();
+        graph.CrossBlendLeftMs = 0.0;
+    }
+    graph.Picked.reset();
+    if (const auto cNode = Graph->MatchNode(aActor.GraphState))
+    {
+        // Its match (59583): its own ragdoll's pose; a copy on its stream takes its owner's and reads nothing.
+        const auto& cChildren = Graph->Matches[*cNode - 4].Children;
+        // Activating, the node forgets its match (duo: a copy's "had -1" at each knockdown); an owner's matches at once.
+        if (graph.BlendState != aActor.GraphState)
+            graph.Matches.erase(*cNode);
+        if (!m_replaying)
+            graph.Matches[*cNode] = int32_t(aActor.LyingPose);
+        else if (const auto it = std::ranges::find(graph.OwnersPicks, *cNode, &GraphPick::Node); it != graph.OwnersPicks.end())
+            graph.Matches[*cNode] = it->Value;
+        graph.BlendState = aActor.GraphState;
+        const auto cMatch = graph.Matches.find(*cNode);
+        // No match yet: no child gets any weight.
+        graph.Child = graph.PendingChild =
+            cMatch == graph.Matches.end() || cChildren.empty() ? std::string{} : cChildren[std::min<size_t>(cMatch->second, cChildren.size() - 1)];
+        if (!m_replaying)
+            graph.Picked = GraphPick{*cNode, cMatch->second}; // each update it matches in (59583's hook)
+    }
+    const std::vector<GraphPick> cOwnersPicks = std::exchange(graph.OwnersPicks, {});
+    const auto* pClip = Graph->ClipOf(aActor.GraphState);
+    if (!pClip)
+    {
+        graph.ClipStartedAt.reset();
+        graph.Stuck = graph.EndsSent = false;
+        GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
+        return;
+    }
+    if (const auto cNode = Graph->SceneNode(aActor.GraphState))
+    {
+        // Its scene's answer (63050): its instance's once every actor reached its mark, a default scene's at once; a
+        // copy on its stream takes its owner's, kept from update to update.
+        if (!m_replaying)
+        {
+            if (aActor.InPair && aActor.MarkWaitMs > 0.0)
+                aActor.MarkWaitMs -= aStepMs;
+            graph.Matches[*cNode] = !(aActor.InPair && aActor.MarkWaitMs > 0.0);
+            graph.Picked = GraphPick{*cNode, graph.Matches[*cNode]};
+        }
+        else if (const auto it = std::ranges::find(cOwnersPicks, *cNode, &GraphPick::Node); it != cOwnersPicks.end())
+            graph.Matches[*cNode] = it->Value;
+        if (const auto cAt = graph.Matches.find(*cNode); cAt != graph.Matches.end() && !cAt->second)
+        {
+            // Not at the mark: its clip waits.
+            if (graph.ClipStartedAt)
+                *graph.ClipStartedAt += aStepMs;
+            GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
+            return;
+        }
+    }
+    auto& integers = aActor.GraphVariables.Integers;
+    integers.resize(std::max(integers.size(), std::max(pClip->StartFrom.value_or(0), pClip->ExitVariable.value_or(0)) + 1));
+    if (!graph.ClipStartedAt)
+    {
+        // Its event came before this update, which played the clip's first step (20123).
+        graph.ClipStartedAt = graph.Timeline - aStepMs;
+        graph.ReadAtStart = pClip->StartFrom ? int32_t(integers[*pClip->StartFrom]) : -1;
+    }
+    if (!graph.Stuck && graph.Timeline >= *graph.ClipStartedAt + pClip->Ms)
+    {
+        graph.ClipStartedAt.reset();
+        graph.EndsSent = false;
+        graph.ReadAtEnd = pClip->StartFrom ? int32_t(integers[*pClip->StartFrom]) : -1;
+        if (pClip->ExitVariable && !std::ranges::contains(pClip->ExitValues, int32_t(integers[*pClip->ExitVariable])))
+            graph.Stuck = true;
+        else
+        {
+            aActor.GraphState = pClip->Starts.at(pClip->StartFrom ? std::min<size_t>(integers[*pClip->StartFrom], pClip->Starts.size() - 1) : 0);
+            EnterClip(aActor);
+        }
+    }
+    GraphEntry(aActor, std::format("update {:.1f}", aStepMs));
+}
+
+void FakeEngine::GenerateGraph(Actor& aActor) const
+{
+    auto& graph = aActor.Graph;
+    if (const auto* pBlend = Graph->BlendOf(aActor.GraphState); pBlend && pBlend->Generated && graph.BlendState == aActor.GraphState)
+    {
+        const auto& cIntegers = aActor.GraphVariables.Integers;
+        const size_t cPick = graph.FrozenParameter ? *graph.FrozenParameter : pBlend->ChooseFrom < cIntegers.size() ? cIntegers[pBlend->ChooseFrom] : 0;
+        if (const auto& cChild = pBlend->Children[std::min(cPick, pBlend->Children.size() - 1)]; cChild != graph.Child)
+        {
+            graph.PendingChild = cChild;
+            graph.ActiveNodesChanged = true;
+        }
+    }
+    const auto& cDamp = Graph->Damping;
+    if (!cDamp)
+        return;
+    auto& floats = aActor.GraphVariables.Floats;
+    floats.resize(std::max(floats.size(), std::max(cDamp->Input, cDamp->Output) + 1));
+    graph.Damped += (floats[cDamp->Input] - graph.Damped) * std::min(1.f, cDamp->Gain * float(graph.LastStepMs / 1000.0));
+    floats[cDamp->Output] = graph.Damped;
+}
+
+// One graph update (63358): channels, then the step; an owner's recorded for its copies (Games/Animation's hooks).
+void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
+{
+    const auto cStep = float(aActor.AnimationStepMs); // the stream carries it as a float, as Skyrim's deltaTime
+    WriteGraphChannels(aActor, cStep);
+    auto& streams = World::Get().GetGraphStreams();
+    // In a pair or a kill move it is recorded on, but gives no sync point (Games/Skyrim's 63587 hook).
+    const bool cOwnBody = aActor.InPair || aActor.InKillMove || aActor.InPairClip;
+    const bool cRecorded = !aActor.Copy && streams.Recording(aFormId);
+    if (cRecorded)
+        streams.HoldPointsWhile(aFormId, cOwnBody);
+    const GraphSeed cSeed{aActor.GraphRandom, 0};
+    if (cRecorded && streams.PointWanted(aFormId, GraphIdentity(aActor)))
+    {
+        // As the update begins: its whole graph (Havok's internal state, 58372) and the clip sets its process holds.
+        std::vector<std::pair<uint8_t, uint16_t>> sets;
+        if (!aActor.LoadedClips.empty())
+            if (const uint16_t cClips = GraphEventId(*aActor.LoadedClips.begin()); cClips != UINT16_MAX)
+                sets.emplace_back(3, cClips);
+        streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
+                                   .Seed = {aActor.GraphRandom, 0}, .ActiveNodesChanged = aActor.Graph.ActiveNodesChanged,
+                                   .Project = aActor.GraphProject,
+                                   .ClipSets = std::move(sets)});
+    }
+    if (cRecorded)
+        streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
+    StepGraph(aActor, cStep);
+    // 59583's hook: its node's pick from outside its graph, with this update.
+    if (cRecorded && aActor.Graph.Picked)
+        streams.OnPick(aFormId, aActor.Graph.Picked->Node, aActor.Graph.Picked->Value);
+    if (cRecorded)
+        streams.OnUpdated(aFormId, GraphWords(aActor));
+}
+
+namespace
+{
+// The replayer's surface over the fake's graph.
+struct FakeGraphTarget final : IGraphTarget
+{
+    FakeEngine& Engine;
+    uint32_t FormId;
+    FakeEngine::Actor& Actor;
+    FakeGraphTarget(FakeEngine& aEngine, uint32_t aFormId, FakeEngine::Actor& aActor) : Engine(aEngine), FormId(aFormId), Actor(aActor) {}
+
+    std::vector<uint32_t> Words() override { return FakeEngine::GraphWords(Actor); }
+    void WriteWords(std::span<const uint32_t> aWords) override { FakeEngine::SetGraphWords(Actor, aWords); }
+    void SetSeed(const GraphSeed& acSeed) override { Actor.GraphRandom = acSeed.Seed; }
+    bool LoadPoint(const Payloads::GraphSyncPoint& acPoint) override
+    {
+        if (acPoint.Project != Actor.GraphProject)
+            ++Actor.ForeignPoints;
+        if (!Engine.LoadGraphInternalState(FormId, acPoint.State))
+            return false;
+        Actor.Graph.ActiveNodesChanged = acPoint.ActiveNodesChanged; // the restore's own walk cleared it
+        Actor.GraphRandom = acPoint.Seed.Seed;
+        if (!Actor.Graph.History.empty())
+            Actor.Graph.History.back().Input = "sync point";
+        return true;
+    }
+    void SendEvent(uint16_t aEventId) override
+    {
+        if (const auto cEvents = Engine.GraphEventTable(); aEventId < cEvents.size())
+            Engine.TakeGraphEvent(Actor, cEvents[aEventId]);
+    }
+    void Picks(std::span<const GraphPick> aPicks) override { Actor.Graph.OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
+    void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
+    void Generate() override { Engine.GenerateGraph(Actor); }
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
+    {
+        const auto cEvents = Engine.GraphEventTable();
+        return aEventId < cEvents.size() ? Engine.RequestActionClips(FormId, cEvents[aEventId]) : nullptr;
+    }
+};
+} // namespace
+
+void FakeEngine::ReplayStream(uint32_t aFormId, Actor& aActor)
+{
+    FakeGraphTarget target(*this, aFormId, aActor);
+    m_replaying = true;
+    World::Get().GetGraphStreams().Replay(aFormId, target, GraphIdentity(aActor), aActor.GraphProject);
+    m_replaying = false;
+    aActor.Graph.Updated = false; // its generate passes are its owner's, in the replay (Games/Skyrim's 63587 hook)
+}
+
+void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject)
+{
+    auto& actor = Actors.at(aFormId);
+    ++actor.GraphGeneration;
+    if (aProject)
+        actor.GraphProject = aProject;
+    actor.GraphState = aState;
+    actor.GraphVariables = {};
+    actor.Graph.ClipStartedAt.reset();
+    actor.Graph.Stuck = false;
+    actor.Graph.Matches.clear();
+    GraphEntry(actor, "reload");
+}
+
 void FakeEngine::Frame()
 {
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
             Strikes(cId, actor.PairVictim, 1000.f);
-    // Clips loop on each game's own clock; an event every N of them is the graph's, no action behind it.
-    if (Loop)
+    // Without the graph's rules, clips loop on each game's own clock; with them, in the graph's step (StepGraph).
+    if (Loop && !Graph)
+        for (auto& [cId, actor] : Actors)
+            StepLoop(actor);
+    const uint64_t cFrameTick = World::Get().GetFrameTick();
+    const double cFrameMs = FrameMs > 0.0 ? FrameMs : LastFrameTick ? double(cFrameTick - LastFrameTick) : 0.0;
+    LastFrameTick = cFrameTick;
+    for (auto& [cId, actor] : Actors)
+    {
+        actor.AnimationStepMs = 0.0;
+        if (!actor.GraphUpdating)
+            continue;
+        // A recorded owner's is not interpolated (the 63587 hook's interpAllowed), so it steps every frame.
+        if (FarOwnerChunkMs <= 0.0 || actor.Copy || World::Get().GetGraphStreams().Recording(cId))
+        {
+            actor.AnimationStepMs = cFrameMs;
+            actor.InterpCountdownMs = 0.0;
+        }
+        else if ((actor.InterpCountdownMs -= cFrameMs) <= 0.0)
+        {
+            actor.AnimationStepMs = FarOwnerChunkMs;
+            actor.InterpCountdownMs += FarOwnerChunkMs;
+        }
+        if (actor.AnimationStepMs <= 0.0)
+            actor.Graph.Updated = false; // no step this frame: no generate pass either
+        actor.AnimationMs += actor.AnimationStepMs;
+    }
+    // An owner's AI acts on its clip's time, in frames its graph does not update too (a chunked one's end lands on its
+    // next chunk).
+    if (Graph && OwnerClipEnds)
         for (auto& [cId, actor] : Actors)
         {
-            if (actor.GraphState != Loop->State && actor.GraphState != Loop->Other)
+            auto& graph = actor.Graph;
+            const auto* pClip = Graph->ClipOf(actor.GraphState);
+            if (actor.Copy || graph.EndsSent || !graph.ClipStartedAt || !pClip || actor.GraphState != OwnerClipEnds->State)
                 continue;
-            if (++actor.LoopFrames < Loop->Frames)
+            const double cEnd = *graph.ClipStartedAt + pClip->Ms;
+            const bool cChunked = FarOwnerChunkMs > 0.0;
+            const double cUntilEnd = cChunked ? (graph.Timeline + FarOwnerChunkMs >= cEnd ? actor.InterpCountdownMs : 1e9)
+                                              : cEnd - graph.Timeline;
+            if (cUntilEnd > OwnerClipEnds->LeadMs)
                 continue;
-            actor.LoopFrames = 0;
-            if (++actor.LoopsSeen < actor.LoopsToSend)
+            graph.EndsSent = true;
+            for (const auto& cEvent : OwnerClipEnds->Events)
+            {
+                ActionEvent end;
+                end.ActionId = 0x13000 + uint32_t(cEvent.size());
+                end.EventName = cEvent;
+                PerformAnimation(cId, end);
+            }
+        }
+    if (Graph)
+        for (auto& [cId, actor] : Actors)
+        {
+            // On its own body (in a pair): off its owner's stream, and back after (Games/Skyrim's 63587 hook).
+            if (auto& streams = World::Get().GetGraphStreams(); actor.Copy && streams.Held(cId))
+                streams.HoldWhile(cId, ::ReplayState::CopyOwnBody(actor.InPair, actor.InKillMove, false, SitState(cId)));
+            if (actor.Copy)
+                World::Get().GetGraphStreams().SeeGraph(cId, GraphIdentity(actor));
+            // A copy on the stream: its owner's inputs alone (graph-input-stream.md).
+            if (actor.Copy && World::Get().GetGraphStreams().OnStream(cId))
+            {
+                actor.ExitIn = 0; // its sync point replaced its own clip: no exit event
+                if (actor.GraphUpdating)
+                    ReplayStream(cId, actor);
+            }
+            else
+            {
+                if (actor.AnimationStepMs > 0.0)
+                    UpdateGraph(cId, actor);
+                // Its exit clip's own event (42835): standing, off its mount.
+                if (actor.ExitIn && !--actor.ExitIn)
+                {
+                    actor.State1 &= ~(0xFu << kSitShift);
+                    Mounts.erase(cId);
+                }
+            }
+        }
+    // Each graph's generate pass after every graph's update (63358 -> 63589 -> 63568), when it updated this frame.
+    if (Graph)
+        for (auto& [cId, actor] : Actors)
+        {
+            if (!actor.GraphUpdating || !actor.Graph.Updated)
                 continue;
-            actor.LoopsSeen = 0;
-            actor.LoopsToSend = 1 + (DrawGraphRandom(actor) >> 13) % Loop->Most;
-            actor.LoopDraws.push_back(actor.LoopsToSend);
-            actor.GraphState = actor.GraphState == Loop->State ? Loop->Other : Loop->State;
+            if (auto& streams = World::Get().GetGraphStreams(); !actor.Copy && streams.Recording(cId))
+                streams.OnGenerate(cId, streams.Tick());
+            GenerateGraph(actor);
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
@@ -135,7 +573,7 @@ void FakeEngine::Frame()
             continue;
         }
         if (const auto cActor = Actors.find(it->FormId); cActor != Actors.end())
-            cActor->second.LoadedClips.insert(it->Event);
+            cActor->second.LoadedClips = {it->Event};
         it->Done->store(true);
         it = ClipLoads.erase(it);
     }
@@ -162,6 +600,31 @@ void FakeEngine::Frame()
             });
         }
     BuildHeads();
+    // Getting up (knock states 5 and 6): its ragdoll's bodies stay simulated, driven toward its animation's pose
+    // (58291); one this game's world holds stays where it is. Standing, they leave the world.
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!actor.Rising)
+            continue;
+        const bool cStands = --actor.Rising == 0;
+        for (auto& [cKey, body] : Bodies)
+        {
+            if (body.RagdollOf != cId)
+                continue;
+            body.Flight.Body.LinearVelocity = {};
+            body.Flight.Body.AngularVelocity = {};
+            body.Awake = !cStands;
+            body.OutOfWorld = cStands;
+            body.Held = false;
+            if (cStands || body.Caught)
+                continue;
+            const glm::vec3 cTo = StandingPose(cId, cKey.Index) - body.Flight.Body.Position;
+            const float cStep = kRisingSpeed / 60.f;
+            const glm::vec3 cMove = glm::length(cTo) > cStep ? glm::normalize(cTo) * cStep : cTo;
+            body.Flight.Body.Position += cMove;
+            body.Flight.Body.LinearVelocity = cMove * 60.f;
+        }
+    }
     for (auto& [cId, actor] : Actors)
     {
         if (!actor.Copy)
@@ -170,12 +633,30 @@ void FakeEngine::Frame()
             actor.KnockedDown = true;
         for (const auto& cDrive : m_pendingRagdolls.Take(cId))
         {
-            if (!actor.Dead && !actor.KnockedDown)
+            // After its own physics (CopyRagdollPhysics steers after 58291): lying or getting up, never standing.
+            if (!actor.Dead && !KnockReplay::BodiesSimulated(KnockStateOf(cId)))
                 continue;
             const auto it = Bodies.find(cDrive.Frame.Key);
             if (it == Bodies.end())
                 continue;
             auto& body = it->second;
+            // At its owner's rest it is left alone (CopyRagdollPhysics): steered on, Havok never lets it sleep.
+            if (cDrive.Rest)
+            {
+                if (body.RestAt != cDrive.Frame.Position)
+                {
+                    body.RestAt = cDrive.Frame.Position;
+                    body.RestSteps = 0;
+                }
+                // Steered a while, put exactly there, then left alone (CopyRagdollPhysics).
+                const auto cStep = BodyPrediction::StepToRest(body.RestSteps);
+                if (body.RestSteps <= BodyPrediction::kRestSettleSteps)
+                    ++body.RestSteps;
+                if (cStep == BodyPrediction::RestStep::kLeave)
+                    continue;
+            }
+            else
+                body.RestAt.reset();
             body.Held = true;
             body.Awake = false;
             body.RagdollOf = cId;
@@ -224,6 +705,7 @@ void FakeEngine::Frame()
     }
     ++DetectionFrame;
     StealthEye();
+    ProcessTracking();
     DetectionPass();
     RunQueued();
 }
@@ -466,7 +948,15 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
-        aActor.GraphUpdating = false;
+        // KillImpl performs the death action (37896): an input of its graph, recorded for its copies, and its graph
+        // updates on while it lies dead (Skyrim, duo 2026-11-12: 250 updates in the 250 its living player ran).
+        if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(aFormId) && GraphEventId(kDeathEvent) != UINT16_MAX)
+        {
+            streams.OnEvent(aFormId, streams.Tick(), GraphEventId(kDeathEvent), GraphWords(aActor), {aActor.GraphRandom, 0});
+            TakeGraphEvent(aActor, kDeathEvent);
+        }
+        else
+            aActor.GraphUpdating = false;
         aActor.GraphState = "dead";
         if (aFormId == kPlayer)
         {
@@ -491,7 +981,7 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
         action.ActorId = aFormId;
         action.ActionId = 0x1337;
         action.State1 = DeathActions::kDying;
-        action.EventName = "DeathAnim";
+        action.EventName = kDeathEvent;
         World::Get().GetDispatcher().trigger(action);
         World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId, false});
     }
@@ -615,6 +1105,8 @@ void FakeEngine::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
         const bool cReleased = it->second.Copy && !aCopy;
+        if (aCopy && !it->second.Copy)
+            it->second.GraphReady = NewCopiesGraphReady;
         it->second.Copy = aCopy;
         if (!aCopy)
         {
@@ -757,6 +1249,19 @@ void FakeEngine::FinishDeath(uint32_t aFormId)
     World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
 }
 
+// Actor::KillBesideGraph: KillImpl's effects on a copy on its owner's stream, its own death action refused.
+void FakeEngine::KillBesideGraph(uint32_t aFormId, const ActionEvent& acAction)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.PoseHeldUntil = 0;
+    const bool cWasDead = actor.Dead;
+    actor.Dead = true;
+    actor.LatestAnimation = acAction;
+    if (!cWasDead)
+        World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
+    World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
+}
+
 void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction)
 {
     Actors.at(aFormId).PoseHeldUntil = 0;
@@ -768,7 +1273,25 @@ void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction
 
 bool FakeEngine::PlayReplayed(uint32_t aFormId, const ActionEvent& acAction)
 {
-    return ::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()) || ReplayAnimation(aFormId, acAction);
+    if (::ReplayState::HeldByPair(Actors.at(aFormId).InKillMove, !acAction.TargetEventName.empty()))
+        return true;
+    Replaying = true;
+    const bool cTaken = ReplayAnimation(aFormId, acAction);
+    Replaying = false;
+    if (acAction.ActionId == kActionGetUp && cTaken)
+        StandUp(aFormId);
+    ApplyActionWrites(aFormId, acAction.EventName);
+    return cTaken;
+}
+
+void FakeEngine::ApplyActionWrites(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto it = ActionWrites.find(acEvent);
+    if (it == ActionWrites.end())
+        return;
+    auto& integers = Actors.at(aFormId).GraphVariables.Integers;
+    integers.resize(std::max(integers.size(), it->second.first + 1));
+    integers[it->second.first] = uint32_t(it->second.second);
 }
 
 void FakeEngine::StopPairClip(uint32_t aFormId)
@@ -780,6 +1303,7 @@ void FakeEngine::StopPairClip(uint32_t aFormId)
         return;
     }
     actor.InPairClip = false;
+    actor.InPair = false;
     actor.PairBlowIn = 0;
 }
 
@@ -812,6 +1336,8 @@ void FakeEngine::EndKillMove(uint32_t aFormId)
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 {
     auto& actor = Actors.at(aFormId);
+    if (actor.Copy)
+        actor.ReplayedOn = actor.GraphVariables;
     if (const auto cPartner = Actors.find(acAction.TargetId); !acAction.TargetEventName.empty() && cPartner != Actors.end())
     {
         if (!(actor.InKillMove && cPartner->second.InKillMove) && !::ReplayState::PairMarkClear(!PairMarkBlocked, actor.Copy))
@@ -819,10 +1345,20 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         // An uninterruptible transition still playing drops the new pair's event too.
         if ((actor.InPairClip && actor.StopsDropped) || (cPartner->second.InPairClip && cPartner->second.StopsDropped))
             return false;
+        // 32803 makes an instance and plays the target's half through its graph (63591); a replay names no target
+        // event for a copy partner (PlayReplayedAction): no instance, its half is its owner's action.
+        const bool cInstance = !(Replaying && cPartner->second.Copy);
+        // A copy on its owner's stream takes the half only held off the stream (Games/Skyrim's 63591 hook); refused,
+        // the pair fails.
+        if (auto& streams = World::Get().GetGraphStreams();
+            cInstance && cPartner->second.Copy && streams.OnStream(acAction.TargetId) && !streams.HoldWhile(acAction.TargetId, true))
+            return false;
         // 32803 takes a pair on two actors already paired as the same pair; the second clip ends both at once.
         const bool cCollapsed = actor.InKillMove && cPartner->second.InKillMove;
         CollapsedPairs += cCollapsed;
-        actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
+        // Only a "pa_Kill" action puts both in a kill move (39004); a mount's pair leaves that alone.
+        if (cCollapsed || ::ReplayState::EntersKillMove(acAction.EventName))
+            actor.InKillMove = cPartner->second.InKillMove = !cCollapsed;
         actor.LatestPairAction = acAction;
         if (PairBlows && !cCollapsed && !actor.Copy && acAction.EventName.starts_with("pa_"))
         {
@@ -830,6 +1366,32 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
             actor.PairVictim = acAction.TargetId;
         }
         actor.InPairClip = cPartner->second.InPairClip = !cCollapsed;
+        if (cInstance || cCollapsed)
+        {
+            actor.InPair = cPartner->second.InPair = !cCollapsed;
+            actor.MarkWaitMs = cPartner->second.MarkWaitMs = PairMarkMs; // each walks to its mark first (32792)
+        }
+        // The victim's half is its own action (TESActionData::Func5 41557 under Animation.cpp's hook): an owner's is
+        // sent, and its graph takes the event in the instance.
+        if (cInstance && !cCollapsed && !Replaying && !cPartner->second.Copy)
+        {
+            ActionEvent half = acAction;
+            half.ActorId = acAction.TargetId;
+            half.TargetId = aFormId;
+            half.EventName = acAction.TargetEventName;
+            half.TargetEventName = acAction.EventName;
+            half.Variables = cPartner->second.GraphVariables;
+            half.Variables.GraphRandom = cPartner->second.GraphRandom;
+            half.GraphState.clear();
+            if (!GraphTransitions.empty() && !cPartner->second.GraphState.empty())
+            {
+                if (auto& streams = World::Get().GetGraphStreams(); Graph && streams.Recording(half.ActorId) && streams.HoldPointsWhile(half.ActorId, true))
+                    streams.OnEvent(half.ActorId, streams.Tick(), GraphEventId(half.EventName), GraphWords(cPartner->second), {cPartner->second.GraphRandom, 0});
+                TakeGraphEvent(cPartner->second, half.EventName);
+            }
+            cPartner->second.LatestAnimation = half;
+            World::Get().GetDispatcher().trigger(half);
+        }
         actor.PairedWithCopy = cPartner->second.Copy;
         cPartner->second.PairedWithCopy = actor.Copy;
         actor.StopsDropped = cPartner->second.StopsDropped = PairStopsDropped;
@@ -838,11 +1400,25 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
         ++BrokenPairs;
     const auto cWeaponBefore = actor.Weapon;
     if (actor.Copy)
+    {
         actor.Weapon = WeaponState((ReplayState::Flags2(acAction.State2, uint32_t(actor.Weapon) << 5) >> 5) & 7);
+        actor.State1 = ReplayState::Flags1(acAction.State1, actor.State1);
+    }
+    if (const auto cState = ActionStates.find(acAction.EventName); cState != ActionStates.end())
+        actor.State1 = cState->second.second ? actor.State1 | cState->second.first : actor.State1 & ~cState->second.first;
+    if (const auto cExit = ExitClips.find(acAction.EventName); cExit != ExitClips.end())
+    {
+        actor.State1 = (actor.State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitWantsToStand) << kSitShift;
+        actor.ExitIn = cExit->second;
+    }
     if (!GraphTransitions.empty() && !actor.GraphState.empty())
     {
-        const auto it = GraphTransitions.find({actor.GraphState, acAction.EventName});
-        if (it == GraphTransitions.end())
+        // 63591's hook: an owner's event recorded before its graph handles it (Games/Animation).
+        if (auto& streams = World::Get().GetGraphStreams(); Graph && !actor.Copy && streams.Recording(aFormId))
+            streams.OnEvent(aFormId, streams.Tick(), GraphEventId(acAction.EventName), GraphWords(actor), {actor.GraphRandom, 0});
+        // A copy on its stream takes its owner's events alone (63591's hook drops any other).
+        const bool cDropped = actor.Copy && World::Get().GetGraphStreams().OnStream(aFormId);
+        if (cDropped || !TakeGraphEvent(actor, acAction.EventName))
         {
             ++RefusedAnimations[aFormId];
             if (!ReplayGraph::Recover(false, acAction.GraphState, [&](std::string_view) {
@@ -852,15 +1428,6 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
                 actor.Weapon = cWeaponBefore;
                 return false;
             }
-        }
-        else
-        {
-            actor.GraphState = it->second;
-            if (const auto cPicks = GraphPicks.find(actor.GraphState); cPicks != GraphPicks.end())
-                actor.GraphState = cPicks->second[(DrawGraphRandom(actor) >> 13) % cPicks->second.size()];
-            if (ClipFiles.contains(acAction.EventName) && !actor.LoadedClips.contains(acAction.EventName))
-                if (const auto cNext = SkippedClips.find(actor.GraphState); cNext != SkippedClips.end())
-                    actor.GraphState = cNext->second;
         }
     }
     return true;
@@ -873,7 +1440,7 @@ uint32_t FakeEngine::DrawGraphRandom(Actor& aActor) noexcept
 
 std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)
 {
-    if (!ClipFiles.contains(acEvent))
+    if (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent))
         return nullptr;
     auto done = std::make_shared<std::atomic<bool>>(false);
     ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done});
@@ -883,13 +1450,20 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aForm
 bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQuery)
 {
     aAction.State2 = (aAction.State2 & ~ReplayState::kWeaponMask) | (uint32_t(Actors.at(aFormId).Weapon) << 5);
+    aAction.State1 |= Actors.at(aFormId).State1;
     uint32_t flags = aQuery ? 1 : 0;
     aAction.Type = 2 | (flags ? 4 : 0);
     aAction.Tick = World::Get().GetFrameTick();
     aAction.ActorId = aFormId;
+    aAction.Variables = Actors.at(aFormId).GraphVariables; // SaveAnimationVariables, as Animation.cpp's hook
     aAction.Variables.GraphRandom = Actors.at(aFormId).GraphRandom;
     if (ClipFiles.contains(aAction.EventName))
-        Actors.at(aFormId).LoadedClips.insert(aAction.EventName);
+    {
+        // Its process loads the action's clip set first (39625), in its stream's place.
+        Actors.at(aFormId).LoadedClips = {aAction.EventName};
+        if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
+            streams.OnClips(aFormId, streams.Tick(), 3, GraphEventId(aAction.EventName));
+    }
     const auto cOutcome = ReplayCapture::Run(flags, [&]() -> uint8_t {
         // PerformAction (38949) resolves a query, changes flag 1 to 2 and never sends its event.
         if (flags & 1)
@@ -899,11 +1473,17 @@ bool FakeEngine::PerformAnimation(uint32_t aFormId, ActionEvent aAction, bool aQ
         }
         return ReplayAnimation(aFormId, aAction);
     });
+    if (!aQuery)
+        ApplyActionWrites(aFormId, aAction.EventName);
     if (cOutcome.Capture && cOutcome.Result)
     {
+        aAction.StateAfter1 = Actors.at(aFormId).State1;
         if (::ReplayState::StartsAttack(aAction.EventName))
             Actors.at(aFormId).ClashUntil = 0;
-        if (aAction.TargetEventName.empty())
+        // Without a behaviour graph no copy is on a stream (a fixture's scripted transitions alone).
+        const auto& cActor = Actors.at(aFormId);
+        const bool cOwnBody = ::ReplayState::CopyOwnBody(false, false, false, SitState(aFormId));
+        if (::ReplayState::CarriesGraphState(!aAction.TargetEventName.empty(), Graph && World::Get().GetGraphStreams().Streaming(aFormId), cOwnBody))
             aAction.GraphState = SaveActorGraphState(aFormId);
         Actors.at(aFormId).LatestAnimation = aAction;
         World::Get().GetDispatcher().trigger(aAction);
@@ -920,7 +1500,7 @@ ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
 namespace
 {
 // SaveState 63601's layout for one graph ("fake") with one active machine ("Root") in acState.
-std::string FakeGraphBlock(const std::string& acState)
+std::string FakeGraphBlock(const std::string& acState, const FakeGraphMemory& acGraph)
 {
     std::string graph;
     const auto cPut = [&graph](const void* apData, size_t aSize) { graph.append(static_cast<const char*>(apData), aSize); };
@@ -936,6 +1516,13 @@ std::string FakeGraphBlock(const std::string& acState)
     cString(acState);
     cPut(&cZero, 4);
     cPut(&cZero, 4);
+    // The fake's own: its owner's graph time, which the stream's sync point carries (Skyrim's SaveState has no clock);
+    // its clip's progress (-1: none) and whether its exit failed.
+    const double cElapsed = acGraph.ClipStartedAt ? acGraph.Timeline - *acGraph.ClipStartedAt : -1.0;
+    const double cStuck = acGraph.Stuck ? 1.0 : 0.0;
+    cPut(&acGraph.Timeline, 8);
+    cPut(&cElapsed, 8);
+    cPut(&cStuck, 8);
     std::string block;
     const uint16_t cProject = 4;
     block.append(reinterpret_cast<const char*>(&cProject), 2).append("fake");
@@ -944,8 +1531,14 @@ std::string FakeGraphBlock(const std::string& acState)
     return block;
 }
 
-// FakeGraphBlock's state, after the save's 8 bytes of ActorState: none unless it is one graph with one machine.
-std::optional<std::string> FakeGraphState(const std::string& acSaved)
+// FakeGraphBlock's state and graph time, after the save's 8 bytes of ActorState: none unless it is one graph with one machine.
+struct FakeSavedGraph
+{
+    std::string State;
+    double Timeline = 0.0, Elapsed = -1.0;
+    bool Stuck = false;
+};
+std::optional<FakeSavedGraph> FakeGraphState(const std::string& acSaved)
 {
     size_t at = 8;
     bool bad = false;
@@ -972,19 +1565,92 @@ std::optional<std::string> FakeGraphState(const std::string& acSaved)
     auto state = cString();
     cTake(uint32_t{});
     cTake(uint32_t{});
+    const double cTimeline = cTake(double{});
+    const double cElapsed = cTake(double{});
+    const double cStuck = cTake(double{});
     if (bad || cMachines != 1 || at != acSaved.size())
         return std::nullopt;
-    return state;
+    return FakeSavedGraph{state, cTimeline, cElapsed, cStuck != 0.0};
 }
 } // namespace
+
+// As Havok's (58372 / 58373): its machine's block as node 0, its blend's chosen child as node 1.
+std::string FakeEngine::SaveGraphInternalState(uint32_t aFormId) const
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || it->second.GraphState.empty())
+        return {};
+    const auto& cGraph = it->second.Graph;
+    // GraphInternalState::Take: no point while a cyclic generator cross-blends (mode 2), frozen (1) or following (0).
+    const uint8_t cCyclicMode = cGraph.CrossBlendLeftMs > 0.0 ? 2 : cGraph.FrozenParameter ? 1 : 0;
+    if (!GraphState::CarriesCyclicMode(cCyclicMode))
+        return {};
+    GraphState::Node machine{.Id = 0, .State = SaveActorGraphState(aFormId)};
+    GraphState::Node blend{.Id = 1, .State = cGraph.BlendState + '\n' + cGraph.Child + '\n' + cGraph.PendingChild};
+    GraphState::Node damp{.Id = 2, .State = std::to_string(std::bit_cast<uint32_t>(it->second.Graph.Damped))};
+    // The blend node's plain members, beside its internal state (GraphInternalState's members).
+    if (cCyclicMode == 2)
+        blend.Runtime = "x"; // its mode, a plain member; its effect's blenders are not
+    else if (cGraph.FrozenParameter)
+        blend.Runtime = std::to_string(*cGraph.FrozenParameter);
+    // A clip's local time and its every-N counter: internal state, which the plain graph state leaves out.
+    GraphState::Node loop{.Id = 3, .State = std::format("{} {} {}", it->second.LoopFrames, it->second.LoopsSeen, it->second.LoopsToSend)};
+    return GraphState::Encode({machine, blend, damp, loop});
+}
+
+bool FakeEngine::LoadGraphInternalState(uint32_t aFormId, const std::string& acState)
+{
+    std::vector<GraphState::Node> nodes;
+    if (!Actors.contains(aFormId) || !GraphState::Decode(acState, nodes) || nodes.size() != 4 || !nodes[0].State || !nodes[1].State ||
+        !nodes[2].State || !nodes[3].State)
+        return false;
+    // Havok's internal state holds no actor state: the actor's own stays.
+    const uint32_t cState1 = Actors.at(aFormId).State1;
+    const bool cLoaded = LoadActorGraphState(aFormId, *nodes[0].State);
+    Actors.at(aFormId).State1 = cState1;
+    if (!cLoaded)
+        return false;
+    {
+        auto& actor = Actors.at(aFormId);
+        std::istringstream loop(*nodes[3].State);
+        loop >> actor.LoopFrames >> actor.LoopsSeen >> actor.LoopsToSend;
+    }
+    auto& graph = Actors.at(aFormId).Graph;
+    const auto& cBlend = *nodes[1].State;
+    const auto cBreak = cBlend.find('\n');
+    const auto cSecond = cBreak == std::string::npos ? std::string::npos : cBlend.find('\n', cBreak + 1);
+    graph.BlendState = cBlend.substr(0, cBreak);
+    graph.Child = cBreak == std::string::npos ? std::string{} : cBlend.substr(cBreak + 1, cSecond == std::string::npos ? std::string::npos : cSecond - cBreak - 1);
+    graph.PendingChild = cSecond == std::string::npos ? std::string{} : cBlend.substr(cSecond + 1);
+    graph.ActiveNodesChanged = false; // not node state: Havok's restore walk clears it
+    // An active match node's state is in the point; an idle one's is not (58372 walks the active nodes).
+    if (const auto cNode = Graph ? Graph->MatchNode(graph.BlendState) : std::nullopt)
+    {
+        const auto& cChildren = Graph->Matches[*cNode - 4].Children;
+        if (const auto it = std::ranges::find(cChildren, graph.Child); it != cChildren.end())
+            graph.Matches[*cNode] = int32_t(it - cChildren.begin());
+    }
+    // Mode 2 on a new clone: its effect has no blenders, and the next active-node walk reads them (63140, 59960).
+    const bool cCrossBlending = nodes[1].Runtime == "x";
+    RestoredMidCrossBlend += cCrossBlending;
+    graph.CrossBlendLeftMs = 0.0;
+    graph.FrozenParameter = nodes[1].Runtime.empty() || cCrossBlending ? std::nullopt : std::optional<uint32_t>(uint32_t(std::stoul(nodes[1].Runtime)));
+    graph.Damped = std::bit_cast<float>(uint32_t(std::stoul(*nodes[2].State)));
+    if (Graph && !graph.History.empty() && graph.History.back().Input == "load")
+    {
+        graph.History.pop_back(); // its entry with its blend's child
+        GraphEntry(Actors.at(aFormId), "load");
+    }
+    return true;
+}
 
 std::string FakeEngine::SaveActorGraphState(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end() || it->second.GraphState.empty())
         return {};
-    const uint32_t cFlags[2] = {0, uint32_t(it->second.Weapon) << 5};
-    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState);
+    const uint32_t cFlags[2] = {it->second.State1, uint32_t(it->second.Weapon) << 5};
+    return std::string(reinterpret_cast<const char*>(cFlags), sizeof(cFlags)) + FakeGraphBlock(it->second.GraphState, it->second.Graph);
 }
 
 bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
@@ -995,20 +1661,43 @@ bool FakeEngine::LoadActorGraphState(uint32_t aFormId, const std::string& acStat
     auto& actor = it->second;
     actor.LoopFrames = 0; // clip times are not saved: a loaded graph's clips start over
     // TESObjectREFR::SaveAnimationGraphState prefixes its graph with both ActorState words.
-    if (acState.size() >= 8 && acState.compare(0, 4, std::string(4, '\0')) == 0)
+    if (acState.size() >= 8 && FakeGraphState(acState))
     {
         uint32_t flags[2];
         std::memcpy(flags, acState.data(), sizeof(flags));
+        actor.State1 = flags[0];
         const uint32_t cFlags2 = actor.Copy ? ReplayState::Flags2(flags[1], uint32_t(actor.Weapon) << 5) : flags[1];
         actor.Weapon = WeaponState((cFlags2 >> 5) & 7);
         // One graph, one active machine: its state is the fake's GraphState.
         const auto cState = FakeGraphState(acState);
         if (!cState)
             return false;
-        actor.GraphState = *cState;
+        actor.GraphState = cState->State;
+        actor.Graph.Timeline = cState->Timeline;
+        actor.Graph.BlendState.clear(); // its generators choose again as they activate
+        actor.Graph.Child.clear();
+        if (Graph)
+        {
+            actor.Graph.ClipStartedAt = cState->Elapsed >= 0.0 ? std::optional(cState->Timeline - cState->Elapsed) : std::nullopt;
+            actor.Graph.Stuck = cState->Stuck;
+        }
     }
     else
         actor.GraphState = acState; // direct fixtures supply the graph alone
+    if (Graph)
+        GraphEntry(actor, "load");
+    return true;
+}
+
+bool FakeEngine::LoadGraphStateFlags(uint32_t aFormId, const std::string& acState) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || acState.size() < 8 || !FakeGraphState(acState))
+        return false;
+    uint32_t flags[2];
+    std::memcpy(flags, acState.data(), sizeof(flags));
+    it->second.State1 = ReplayState::Flags1(flags[0], it->second.State1);
+    it->second.Weapon = WeaponState((ReplayState::Flags2(flags[1], uint32_t(it->second.Weapon) << 5) >> 5) & 7);
     return true;
 }
 
@@ -1117,7 +1806,9 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
-    it->second.GraphVariables = acVariables;
+    // VariableSync::Write writes the variables it is given: none, the graph keeps its own.
+    if (!acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty())
+        it->second.GraphVariables = acVariables;
     if (aMove == CopyMove::Leave || RagdollPosed(aFormId))
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
@@ -2008,6 +2699,25 @@ int32_t FakeEngine::StealthEye()
             if (const auto* cpState = FreshState(cId))
                 highest = std::max(highest, cpState->Level);
     return highest;
+}
+
+void FakeEngine::ProcessTracking()
+{
+    for (auto& [cId, actor] : Actors)
+    {
+        if (cId == kPlayer || !actor.Loaded || actor.Dead || actor.KnockedDown)
+            continue;
+        auto& slots = actor.Ai.HeadTrackIds;
+        const auto cTargets = HeadTrackRead::Targets(slots, cId);
+        if (cTargets.empty() || cTargets[0] != kPlayer || !slots[0] || !DetectionRules::HeadTrackAsksDetection(actor.Copy))
+            continue;
+        if (const auto* cpState = FreshState(cId); cpState && cpState->Level <= 0)
+        {
+            slots[0] = 0;
+            if (!actor.Copy)
+                World::Get().GetRunner().Trigger(AiStateChangeEvent{cId});
+        }
+    }
 }
 
 void FakeEngine::DetectionPass()

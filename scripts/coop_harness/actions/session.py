@@ -65,7 +65,7 @@ class SessionActions:
 
     def run_peer(ctx, *args):
         if not PEER.exists():
-            raise ctx.failure(f"{PEER} missing: scripts/xmake-linux.sh build -j16 coop_peer")
+            raise ctx.failure(f"{PEER} missing: scripts/xmake-linux.sh build -j8 coop_peer")
         return [str(PEER), *map(str, args)]
 
 

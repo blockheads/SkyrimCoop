@@ -71,6 +71,10 @@ Measured on the duo (2026-11-09, dev's hook): talking to or pickpocketing the ot
 eye stayed closed on screen with the copy facing the sneaking player from 120 units. The playtest's "detected" was not
 reproduced; its `/bug` reports caught no sneaking moment.
 
+Head tracking reads the same state: `ProcessTracking` (38009) drops a look at this game's player its tracker does
+not detect (37758). The unseen state above made a player's copy drop its owner's look at this game's player, so a
+copy's tracking does not ask (`actor-ai-and-copies.md`, "A look at this game's player needs detection").
+
 ## Not covered here
 
 - An NPC copy on the guest judges the guest's player itself (its own pass, measured: Lydia's copy, level -21, fresh).

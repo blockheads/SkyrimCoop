@@ -67,6 +67,12 @@
 
 namespace
 {
+// A snapshot of a streamed owner carries none (graph-input-stream.md).
+bool HasVariables(const AnimationVariables& acVariables) noexcept
+{
+    return !acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty();
+}
+
 // TESNPC change flags the player's copies are made from: race, sex and face (NPC_ChangeForm 0x2000000, 0x1000000, 0x800).
 constexpr uint32_t kPlayerLooksFlags = 0x3000800;
 } // namespace
@@ -117,6 +123,11 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+    Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSync, &CharacterService::OnGraphSync>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSyncPoint, &CharacterService::OnGraphSyncPoint>(m_connections, m_dispatcher, this);
 
 }
 
@@ -678,12 +689,72 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         InterpolationSystem::AddPoint(interpolationComponent, point);
 
         for (const auto& action : update.ActionEvents)
+            animationComponent.TimePoints.push_back(action);
+    }
+}
+
+void CharacterService::OnStreamedRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
+{
+    if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity))
+        m_world.GetGraphStreams().Forget(pForm->Id);
+}
+
+void CharacterService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto& cRun : acMessage.Ops.Runs)
+        for (const auto cEntity : view)
+            if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
+            {
+                const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+                // A copy that died off its stream (a pair with this game's actor) stays off it.
+                if (m_actorBridge.IsActorDead(cFormId) && !streams.OnStream(cFormId))
+                    break;
+                streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
+                if (streams.ShouldAsk(cFormId))
+                {
+                    GraphSyncRequest ask;
+                    ask.Id = cRun.ActorId;
+                    m_transport.Send(ask);
+                }
+                break;
+            }
+}
+
+void CharacterService::OnGraphSync(const NotifyGraphSync& acMessage) const noexcept
+{
+    auto view = m_world.view<LocalComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<LocalComponent>(cEntity).Id == acMessage.Id)
+            m_world.GetGraphStreams().WantPoint(view.get<FormIdComponent>(cEntity).Id);
+}
+
+void CharacterService::OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept
+{
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<RemoteComponent>(cEntity).Id == acMessage.Id)
         {
-            if (!action.ActionId && !action.GraphState.empty())
-                animationComponent.GraphPoint = action;
-            else
-                animationComponent.TimePoints.push_back(action);
+            spdlog::info("Copy {:X} starts on its owner's graph stream at update {} ({} clip sets held)", view.get<FormIdComponent>(cEntity).Id, acMessage.Update, acMessage.ClipSets.size());
+            m_world.GetGraphStreams().Load(view.get<FormIdComponent>(cEntity).Id, acMessage);
         }
+}
+
+void CharacterService::SendGraphStream() const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    if (auto ops = streams.TakeOps())
+    {
+        GraphOpsRequest request;
+        request.Ops = std::move(*ops);
+        m_transport.Send(request);
+    }
+    for (auto& point : streams.TakePoints())
+    {
+        GraphSyncPointRequest request;
+        static_cast<Payloads::GraphSyncPoint&>(request) = std::move(point);
+        m_transport.Send(request);
     }
 }
 
@@ -1548,6 +1619,10 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
+        // Its graph's inputs, for its copies (graph-input-stream.md): this game's NPCs and its player. Recorded on
+        // through its death; one found dead is not started.
+        if (!m_actorBridge.IsActorDead(cFormId) || m_world.GetGraphStreams().Recording(cFormId))
+            m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {
@@ -1574,6 +1649,7 @@ void CharacterService::RunLocalUpdates() noexcept
 
     if (!message.Updates.empty())
         m_transport.Send(message);
+    SendGraphStream();
 }
 
 void CharacterService::RunRemoteUpdates() noexcept
@@ -1611,7 +1687,7 @@ void CharacterService::RunRemoteUpdates() noexcept
             const AnimationVariables* pVariables = &first.Variables;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                if (first.Tick > pAnimation->VariablesTick)
+                if (first.Tick > pAnimation->VariablesTick && HasVariables(first.Variables))
                 {
                     pAnimation->Variables = first.Variables;
                     pAnimation->VariablesTick = first.Tick;
@@ -1664,6 +1740,10 @@ void CharacterService::RunRemoteUpdates() noexcept
                 const auto& cOwner = tick >= second.Tick ? second : first;
                 m_actorBridge.SetCopyPhysics(pFormIdComponent->Id, cOwner.BodiesLayer, cOwner.GraphsStepPhysics);
             }
+            // On its stream its graph's variables are the stream's alone.
+            static const AnimationVariables s_none;
+            if (m_world.GetGraphStreams().OnStream(pFormIdComponent->Id))
+                pVariables = &s_none;
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }

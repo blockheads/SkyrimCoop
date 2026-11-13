@@ -206,6 +206,162 @@ class ReproActions:
         ctx.handles()[name] = {game: ids[game] for game in ("host", "guest") if ids.get(game)}
         return ctx.handles()[name]
 
+    def graph_machines(ctx, who, name=""):
+        """A handle's state machines on both games, active or not (harness graph_machines): the state each holds and
+        the state its next activation enters (`start_override`), for machines whose name holds `name`."""
+        def read(game, label):
+            reply = ctx.game(game).rpc({"cmd": "graph_machines", "actor": ctx.resolve(who, label), "name": name}) or {}
+            return {f"{m['behaviour']}/{m['name']}": {k: m[k] for k in ("active", "state", "start_override", "clone", "template_active", "template_state", "template_start") if k in m}
+                    for m in reply.get("machines", [])}
+        return {"host": read("", "host"), "guest": read("client", "guest")}
+
+    def graph_machines_watch(ctx, who, name="", seconds=30.0, every=0.05):
+        """graph_machines on both games for `seconds`: each change of a machine (appearing, gone, active, state, start
+        override), stamped in seconds from the start and in wall-clock time (@, as the animation trace's)."""
+        start, last, changes = time.time(), {}, []
+        while time.time() - start < seconds:
+            for game, machines in ctx.graph_machines(who, name).items():
+                for key in set(machines) | {k for (g, k) in last if g == game}:
+                    now = machines.get(key)
+                    if last.get((game, key)) != now:
+                        changes.append(f"{time.time() - start:6.2f} @{time.time():.2f} {game:5} {key.split('/')[-1]}: {now or 'gone'}")
+                        last[(game, key)] = now
+            time.sleep(every)
+        return changes
+
+    def graph_stream_check(ctx, seconds=60.0):
+        """The graph input stream's live check (docs/design/graph-input-stream.md): every streamed copy's graph states,
+        hashed after each update by its owner's update index, against its owner's, from both games for `seconds`: the
+        host's actors against their copies on the guest, and the guest's player against its copy on the host.
+        Fails at the first difference with both games' states then; returns each copy's updates compared."""
+        host, guest = ctx.game(""), ctx.game("client")
+        owners, copies, pending = {}, {}, []
+        compared = collections.Counter()
+        started = time.monotonic()
+
+        def states(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("states")
+
+        def events(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("events")
+
+        def words_apart(host, guest, owner_form, form, update):
+            # The variables owner and copy held differently as the update began and as it ended, by name.
+            owner = host.rpc({"cmd": "graph_stream", "states_at": {"form": owner_form, "update": update}}, timeout=10) or {}
+            copy = guest.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}
+            names = owner.get("names") or []
+            apart = {}
+            for when in ("before", "after"):
+                ours, theirs = (owner.get("words") or {}).get(when) or [], (copy.get("words") or {}).get(when) or []
+                apart[when] = {(names[i] if i < len(names) else str(i)): (f"{ours[i]:08X}", f"{theirs[i]:08X}")
+                               for i in range(min(len(ours), len(theirs))) if ours[i] != theirs[i]}
+            # The first update whose variables differed (an input the stream missed, or a node that reads the copy).
+            ask = {"update": update, "words_from": max(0, update - 300)}
+            ours = (host.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": owner_form}}, timeout=20) or {}).get("words_from") or {}
+            theirs = (guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=20) or {}).get("words_from") or {}
+            for key in sorted(theirs, key=int):
+                if key not in ours:
+                    continue
+                for when, side in (("before", 0), ("after", 1)):
+                    o, c = ours[key][side], theirs[key][side]
+                    diff = {(names[i] if i < len(names) else str(i)): (f"{o[i]:08X}", f"{c[i]:08X}") for i in range(min(len(o), len(c))) if o[i] != c[i]}
+                    if diff:
+                        apart["first apart"] = {"update": key, "when": when, "variables": diff}
+                        # Those variables around it, before and after each update, owner then copy.
+                        indices = [i for i in range(min(len(o), len(c))) if o[i] != c[i]]
+                        around = {}
+                        for k in [str(int(key) + d) for d in range(-4, 2)]:
+                            if k in ours and k in theirs:
+                                around[k] = {(names[i] if i < len(names) else str(i)): [f"{ours[k][0][i]:08X}>{ours[k][1][i]:08X}",
+                                                                                       f"{theirs[k][0][i]:08X}>{theirs[k][1][i]:08X}"] for i in indices}
+                        apart["around"] = around
+                        return apart
+            return apart
+
+        def times(host, guest, owner_form, form, update):
+            # The first update whose clip times differ (the start of a drift), and the last few.
+            ask = {"form": owner_form, "update": update, "times_from": max(0, update - 400)}
+            ours = (host.rpc({"cmd": "graph_stream", "states_at": ask}, timeout=10) or {}).get("times") or {}
+            theirs = (guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=10) or {}).get("times") or {}
+            apart = [key for key in sorted(theirs, key=int) if key in ours and ours[key] != theirs[key]]
+            first = apart[0] if apart else None
+            keys = sorted({first, str(update - 1), str(update)} - {None}, key=int)
+            return {"first apart": first, **{key: {"owner": ours.get(key), "copy": theirs.get(key)} for key in keys}}
+
+        def steps(host, guest, owner_form, form, update, around):
+            # Each side's real steps (58329), dt, force, LOD and countdowns from a few updates before `around`.
+            ask = {"form": owner_form, "update": update, "steps_from": max(0, around - 4)}
+            ask = {**ask, "handled_from": max(0, around - 4)}
+            ours = host.rpc({"cmd": "graph_stream", "states_at": ask}, timeout=10) or {}
+            theirs = guest.rpc({"cmd": "graph_stream", "states_at": {**ask, "form": form}}, timeout=10) or {}
+            keys = sorted(set(ours.get("steps") or {}) & set(theirs.get("steps") or {}), key=int)
+            return {key: {"owner": ours["steps"][key], "copy": theirs["steps"][key],
+                          "handled": [(ours.get("handled") or {}).get(key), (theirs.get("handled") or {}).get(key)]}
+                    for key in keys if int(key) <= around + 1}
+
+        def handled(game, form, update):
+            return (game.rpc({"cmd": "graph_stream", "states_at": {"form": form, "update": update}}, timeout=10) or {}).get("handled")
+
+        def step():
+            taken = {game: (game.rpc({"cmd": "graph_stream", "take": True}, timeout=10) or {}).get("actors", []) for game in (host, guest)}
+            # Each direction: an owner's game and the game its copy is on; actors keyed by direction (session ids repeat).
+            for way, (owning, copying) in enumerate(((host, guest), (guest, host))):
+                for actor in taken[owning]:
+                    if actor["role"] == "owner":
+                        owner = owners.setdefault((way, actor["actor"]), {"form": actor["form"], "hashes": {}})
+                        owner["hashes"].update({update: value for update, value in actor.get("hashes", [])})
+                for actor in taken[copying]:
+                    if actor["role"] != "copy":
+                        continue
+                    copies[(way, actor["actor"])] = {key: actor[key] for key in ("form", "on_stream", "last")}
+                    pending.extend(((way, actor["actor"]), actor["form"], update, value) for update, value in actor.get("hashes", []))
+            waiting = []
+            for actor, form, update, value in pending:
+                expected = owners.get(actor, {}).get("hashes", {}).get(update)
+                if expected is None:
+                    waiting.append((actor, form, update, value))
+                elif expected != value:
+                    owning, copying = ((host, guest), (guest, host))[actor[0]]
+                    owner_form = owners[actor]["form"]
+                    owner_states = states(owning, owner_form, update) or []
+                    copy_states = states(copying, form, update) or []
+                    apart = words_apart(owning, copying, owner_form, form, update)
+                    first = int((apart.get("first apart") or {}).get("update", update))
+                    raise ctx.failure(f"[{copying.name or 'host'}] copy {form:X} (actor {actor[1]}) left its owner's graph at update {update} after "
+                                      f"{compared[actor]} equal: owner only {sorted(set(owner_states) - set(copy_states))}, "
+                                      f"copy only {sorted(set(copy_states) - set(owner_states))}; events before (update: "
+                                      f"name taken/refused) owner {events(owning, owner_form, update)}, copy "
+                                      f"{events(copying, form, update)}; variables apart (owner, copy) "
+                                      f"{apart}; steps {steps(owning, copying, owner_form, form, update, first)}; events handled (event <- sender) owner "
+                                      f"{handled(owning, owner_form, update)}, copy {handled(copying, form, update)}; clip times "
+                                      f"{times(owning, copying, owner_form, form, update)}")
+                else:
+                    compared[actor] += 1
+            pending[:] = waiting
+            return time.monotonic() - started >= seconds or None
+
+        ctx.wait_for(f"[both] {seconds:.0f} s of streamed copies' graphs against their owners'", step, seconds + 30,
+                     explain=lambda: f"copies {copies}, compared {dict(compared)}")
+        # Each copy's updates compared and its owner's in the window: a far owner steps in chunks (63587), not 30 a second.
+        side = lambda actor: "" if actor[0] == 0 else "host:"  # a copy on the host is the guest's player's
+        shown = lambda actor: f"{side(actor)}{copies.get(actor, {}).get('form', 0):X}"
+        return {"compared": {shown(actor): count for actor, count in compared.items()},
+                "coverage": {shown(actor): (count, len(owners[actor]["hashes"])) for actor, count in compared.items() if actor in owners},
+                "by_owner": {(owners[actor]["form"] if actor[0] == 0 else f"guest:{owners[actor]['form']}"): count
+                             for actor, count in compared.items() if actor in owners},
+                "owner_updates": {(value["form"] if actor[0] == 0 else f"guest:{value['form']}"): len(value["hashes"]) for actor, value in owners.items()},
+                "copies": {shown(actor): value for actor, value in copies.items()},
+                "unmatched": len(pending), "owners": len(owners)}
+
+    def name_owner(ctx, name, owner):
+        """Names an NPC by its owner's form id on the host (hex string or number) and its copy on the guest: `find`
+        names only NPCs near the host."""
+        owner = int(owner, 16) if isinstance(owner, str) else owner
+        copy_form = next((pair[1] for pair in ctx.copy_pairs().values() if pair[0] == owner), None)
+        if copy_form is None:
+            raise ctx.failure(f"{owner:X} has no owner on the host with a copy on the guest, both in 3D")
+        return ctx.name_handle(name, {"host": owner, "guest": copy_form})
+
     def resolve(ctx, value, game):
         """A form id in that game for a handle name, "player", or a number (or hex string) as given."""
         game = "guest" if game in ("client", "guest") else "host"
@@ -639,7 +795,13 @@ class ReproActions:
         holds the same in both games), "crosshair" (that game's player, or each, faces `name` in first person and the engine's
         crosshair takes it within `seconds`), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "dialogue" (the menus agreed), "agree" (no desync of
-        `name`, or anywhere with name "all"), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
+        `name`, or anywhere with name "all"), "graph" (owner's and copy's graphs read live for `seconds`: never apart for
+        `within` seconds or more, no gap between readings of both as long, and the owner entering a state named like `field`
+        at least `value` times, or with no `field` its graph changing that often: a quiet run proves nothing), "stream"
+        (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
+        update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
+        second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
+        through `seconds`)."""
         if check == "items":
             held = {g: ctx.container_items(i, ctx.resolve(name, g)) for g, i in (("host", ""), ("guest", "client"))}
             if held["host"] != held["guest"]:
@@ -660,6 +822,51 @@ class ReproActions:
             return ctx.expect_crosshair(name, game, seconds or 2.0)
         if check == "stays":
             return ctx.expect_actor(name, field, game, value, seconds, stays=True)
+        if check == "stream":
+            seconds = seconds or 60.0
+            result = ctx.graph_stream_check(seconds)
+
+            def needed(owner_updates):
+                # Most of its owner's updates (the copy runs a little behind), and an owner that stepped: 4 a second at
+                # least, a far graph's longest chunks (fAnimInterpMaxTime 0.25 s).
+                return max(int(4 * seconds), int(0.9 * owner_updates))
+
+            if name:
+                owner = ctx.resolve(name, "host")
+                compared, owner_updates = result["by_owner"].get(owner, 0), result["owner_updates"].get(owner, 0)
+                if compared < (value if value is not None else needed(owner_updates)):
+                    raise ctx.failure(f"{name}: its copy's graph compared on {compared} of its owner's {owner_updates} updates, "
+                                      f"{value if value is not None else needed(owner_updates)} needed (on its owner's "
+                                      f"stream: {result['copies']})")
+            elif (through := sum(count >= needed(updates) for count, updates in result["coverage"].values())) < (value or 1):
+                raise ctx.failure(f"{through} copies compared through the window, {value or 1} needed (compared, owner's "
+                                  f"updates): {result['coverage']}")
+            return {"copies": len(result["compared"]), "least": min(result["compared"].values(), default=0)}
+        if check == "graph":
+            owner, seconds = ctx.resolve(name, "host"), seconds or 60.0
+            watch = ctx.graph_watch_start(0.25, within, {owner}, None, field, strict=True)
+            watch["stop"].wait(seconds)
+            watch["stop"].set()
+            watch["thread"].join(10)
+            if error := watch["state"]["error"]:
+                raise ctx.failure(f"{name}: the graph watch stopped: {error}")
+            first, last, reads = watch["seen"].get(owner, (0.0, 0.0, 0))
+            failed = watch["failed"].get(owner, 0)
+            # Read through the interval (a second's slack), once a second at least: a pair lost early is no pass.
+            if reads < max(1.0, seconds) or last - first < seconds - 1.0:
+                raise ctx.failure(f"{name}: owner and copy both read {reads} times over {last - first:.1f} of {seconds:g} s "
+                                  f"({failed} failed)")
+            if (gap := watch["gaps"].get(owner, 0.0)) >= within:
+                raise ctx.failure(f"{name}: {gap:.1f} s without a reading of both graphs ({failed} failed): a run apart could hide there")
+            changed, entered = watch["changes"].get(owner, 0), watch["entered"].get(owner, 0)
+            if field and entered < int(value or 1):
+                raise ctx.failure(f"{name}: the owner entered {field} {entered} times, fewer than {int(value or 1)}: nothing to follow")
+            if not field and value and changed < int(value):
+                raise ctx.failure(f"{name}: the owner's graph changed {changed} times, fewer than {int(value)}: nothing to follow")
+            if runs := watch["apart"].finish(time.time()):
+                raise ctx.failure(f"{name}: owner and copy graphs apart for {within:g} s or more: " + " | ".join(
+                    f"{run['seconds']:.1f} s, owner {run.get('owner_only')}, copy {run.get('copy_only')}" for run in runs[:3]))
+            return {"samples": watch["apart"].samples, "owner_changes": changed, **({"entered": entered} if field else {}), "failed": failed}
         if check == "dialogue":
             if problems := ctx.check_dialogue_trace():
                 raise ctx.failure("the menus differ in a conversation: " + " | ".join(problems[:6]))

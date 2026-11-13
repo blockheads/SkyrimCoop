@@ -628,3 +628,88 @@ void Payloads::DialogueHighlight::DeserializePayload(Wire::Buffer::Reader& aRead
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Seq = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
+
+namespace Payloads
+{
+void GraphOpsBatch::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Ops.Serialize(aWriter);
+}
+void GraphOpsBatch::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    if (!Ops.Deserialize(aReader))
+        Ops = {};
+}
+
+void GraphSync::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+}
+void GraphSync::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    Serialization::WriteVarInt(aWriter, Update);
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteString(aWriter, State);
+    Serialization::WriteVarInt(aWriter, Words.size());
+    for (const uint32_t cWord : Words)
+        aWriter.WriteBits(cWord, 32);
+    aWriter.WriteBits(Seed.Seed, 32);
+    aWriter.WriteBits(Seed.Current, 32);
+    aWriter.WriteBits(ActiveNodesChanged, 1);
+    aWriter.WriteBits(Project, 32);
+    Serialization::WriteVarInt(aWriter, ClipSets.size());
+    for (const auto& [cSet, cEvent] : ClipSets)
+    {
+        aWriter.WriteBits(cSet, 8);
+        aWriter.WriteBits(cEvent, 16);
+    }
+}
+void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Update = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Tick = Serialization::ReadVarInt(aReader);
+    State = Serialization::ReadString(aReader);
+    uint64_t count = 0;
+    if (!Serialization::TryReadVarInt(aReader, count) || count > 65536)
+        count = 0;
+    Words.assign(count, 0);
+    for (auto& word : Words)
+    {
+        uint64_t value = 0;
+        if (!aReader.ReadBits(value, 32))
+        {
+            Words.clear();
+            break;
+        }
+        word = static_cast<uint32_t>(value);
+    }
+    uint64_t seed = 0, current = 0;
+    if (aReader.ReadBits(seed, 32) && aReader.ReadBits(current, 32))
+        Seed = {static_cast<uint32_t>(seed), static_cast<uint32_t>(current)};
+    uint64_t changed = 0;
+    ActiveNodesChanged = aReader.ReadBits(changed, 1) && changed;
+    uint64_t project = 0;
+    Project = aReader.ReadBits(project, 32) ? uint32_t(project) : 0;
+    uint64_t sets = 0;
+    ClipSets.clear();
+    if (!Serialization::TryReadVarInt(aReader, sets) || sets > 8)
+        return;
+    for (uint64_t i = 0; i < sets; ++i)
+    {
+        uint64_t set = 0, event = 0;
+        if (!aReader.ReadBits(set, 8) || !aReader.ReadBits(event, 16))
+        {
+            ClipSets.clear();
+            return;
+        }
+        ClipSets.emplace_back(uint8_t(set), uint16_t(event));
+    }
+}
+} // namespace Payloads

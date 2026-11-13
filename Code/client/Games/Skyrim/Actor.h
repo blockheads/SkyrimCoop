@@ -245,6 +245,7 @@ struct Actor : TESObjectREFR
     // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
     bool SetBodiesLayer(uint8_t aLayer) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
+    void ShowWeaponDrawn(bool aDrawn) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.
     void EndReleasedCopyPackage() noexcept;
@@ -298,10 +299,17 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsInKillMove() const noexcept;
     // What the KillMoveEnd event does (KillMoveEndHandler 42871).
     void EndKillMove() noexcept;
+    // Character::EnterKillMove (38613): the kill move flag, a deferred kill, its killer (none for the attacker).
+    void EnterKillMove(Actor* apKiller) noexcept;
     // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
     void EndPairs() noexcept;
+    // A participant of a running pair (BGSSynchronizedAnimationManager::IsInInstance 32808): from before its half's event.
+    [[nodiscard]] bool InPair() const noexcept;
     [[nodiscard]] bool InPairClip() noexcept;
     void StopPairClip() noexcept;
+    // A copy on its owner's stream dies with its owner: KillImpl's effects (37896: life state, death items, its
+    // drops), its own death action refused as any action of a copy's: the death's clip is its stream's.
+    void KillBesideGraph(const ActionEvent& acAction) noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;

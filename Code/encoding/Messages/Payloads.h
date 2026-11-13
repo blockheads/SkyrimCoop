@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Structs/GraphOps.h>
 #include <Structs/Perks.h>
 
 // What a request and its notification carry when a relay passes the request on unchanged (the
@@ -485,5 +486,46 @@ struct DialogueHighlight
     uint32_t Index{};
     uint32_t PlayerId{}; // the host's: who moved it
     uint32_t Seq{};      // the mover's count of its moves: its own echo counts only for its latest
+};
+// An owner game's graph inputs for its actors since its last batch (docs/design/graph-input-stream.md).
+struct GraphOpsBatch
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphOpsBatch&) const noexcept = default;
+
+    GraphOps Ops{}; // emptied if it does not decode
+};
+// A copy's game asks the owner for a sync point: its copy has none yet, or its stream had a gap.
+struct GraphSync
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphSync&) const noexcept = default;
+
+    uint32_t Id{};
+};
+// An owner's graph right after one of its updates: where its copies' replay starts.
+struct GraphSyncPoint
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const GraphSyncPoint&) const noexcept = default;
+
+    uint32_t Id{};
+    uint32_t Update{};  // its updates so far: the ops from this update index on follow it
+    uint64_t Tick{};    // the owner's frame tick then
+    std::string State;  // its whole graph (Skyrim: Havok's internal state, Games/Animation/GraphState.h)
+    std::vector<uint32_t> Words; // its variables, exact
+    GraphSeed Seed{};
+    // Its next update walks its active nodes again (stateOrTransitionChanged: its last generate pass changed a
+    // blender's children). Not node state: Havok's restore clears it.
+    bool ActiveNodesChanged{};
+    uint32_t Project{}; // its behaviour project's name hashed: a copy with another graph (a leveled base not yet its owner's) waits
+    // Each clip set its process holds: (the set, ActionClips::Set; the event loaded into it). Its clips play them.
+    std::vector<std::pair<uint8_t, uint16_t>> ClipSets;
 };
 } // namespace Payloads

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Wire/Buffer.h>
+#include <glm/vec3.hpp>
 
 using Wire::Buffer;
 

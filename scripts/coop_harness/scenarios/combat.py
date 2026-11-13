@@ -254,7 +254,9 @@ def scenario_kill_move_kills_guest(ctx):
                 lambda actors: (actors.get(str(copy), {}).get("health") or 100) <= 3.5, 5)
         ctx.place_before(attacker, copy, MELEE_GAP)
         ctx.draw(attacker)
-        with RagdollTrace(ctx, "kill-move-kills-guest", {victim: {0x14: "the guest's body"}, attacker: {copy: "the host's copy of the guest"}}) as trace:
+        # Its graphs too (traces/<time>-kill-move-kills-guest/timeline.txt): the dead owner's against its copy's.
+        with AnimTrace(ctx, "kill-move-kills-guest", {victim: {0x14: "guest"}, attacker: {copy: "guest"}}, video=False), \
+             RagdollTrace(ctx, "kill-move-kills-guest", {victim: {0x14: "the guest's body"}, attacker: {copy: "the host's copy of the guest"}}) as trace:
             ctx.attack(attacker)
             ctx.wait_for("[host] the kill move pairs the host with the guest's copy",
                      lambda: ctx.graph_bools(attacker, "bIsSynced")["bIsSynced"], 3)
@@ -283,7 +285,8 @@ def scenario_kill_move_kills_guest(ctx):
             if body_problems(snapshot):
                 problems.append(f"[{instance or 'host'}] the respawned guest's body: {body_report(snapshot)}")
         try:
-            trace.check()
+            # Against its owner's: the guest's own body flickers a little as it falls, and wakes again now and then.
+            trace.check_as_owner(victim, 0x14, attacker, copy)
         except TestFailure as failure:
             problems.append(str(failure))
         if problems:

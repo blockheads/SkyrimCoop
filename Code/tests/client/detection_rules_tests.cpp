@@ -26,3 +26,10 @@ TEST_CASE("Every other witness keeps the pass it computed", "[DetectionRules]")
     CHECK(Installed(true, false, kSeen) == kSeen);  // a player's copy judging an NPC
     CHECK(Installed(false, false, kSeen) == kSeen); // an NPC judging an NPC
 }
+
+TEST_CASE("Head tracking asks an actor's own detection, never a copy's", "[detection-rules]")
+{
+    // 38009 drops a look at this game's player its tracker does not detect; a copy looks where its owner does.
+    CHECK(DetectionRules::HeadTrackAsksDetection(false));
+    CHECK_FALSE(DetectionRules::HeadTrackAsksDetection(true));
+}

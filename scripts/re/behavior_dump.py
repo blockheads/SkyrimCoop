@@ -2,7 +2,8 @@
 """Read Skyrim's behaviour graphs (.hkx in the Animations BSA): state machines, transitions with their
 event names and conditions, and which nodes write a graph variable.
 
-    scripts/re/behavior_dump.py extract OUT_DIR             third-person character behaviours from the BSA
+    scripts/re/behavior_dump.py extract OUT_DIR [ACTOR]     an actor folder's behaviours from the BSA (default character;
+                                                            canine for wolves and dogs)
     scripts/re/behavior_dump.py machines FILE.hkx [NAMES]   state machines (comma-separated names) and transitions
     scripts/re/behavior_dump.py writers OUT_DIR VARIABLE    nodes in every behaviour that write VARIABLE
 
@@ -172,8 +173,9 @@ if __name__ == '__main__':
     command = sys.argv[1] if len(sys.argv) > 1 else ''
     if command == 'extract':
         os.makedirs(sys.argv[2], exist_ok=True)
+        folder = f"meshes\\actors\\{sys.argv[3] if len(sys.argv) > 3 else 'character'}\\behaviors\\".lower()
         for name, data in read_bsa(os.path.join(GAME, 'Data/Skyrim - Animations.bsa'),
-                                   lambda n: n.lower().startswith('meshes\\actors\\character\\behaviors\\') and n.lower().endswith('.hkx')):
+                                   lambda n: n.lower().startswith(folder) and n.lower().endswith('.hkx')):
             open(os.path.join(sys.argv[2], name.split('\\')[-1]), 'wb').write(data)
     elif command == 'machines':
         machines(sys.argv[2], set(sys.argv[3].split(',')) if len(sys.argv) > 3 else None)

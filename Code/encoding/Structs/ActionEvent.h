@@ -17,14 +17,15 @@ struct ActionEvent
     uint32_t IdleId{0};
     uint32_t State1{0};
     uint32_t State2{0};
+    // Its actor state once the action was taken (sneaking is toggled by it): what a copy on its stream takes.
+    uint32_t StateAfter1{0};
+    uint32_t StateAfter2{0};
     uint32_t Type{0};
     std::string EventName{};
     std::string TargetEventName{};
     AnimationVariables Variables{};
     // The resulting graph for an unpaired action, used if a copy cannot take its event.
     std::string GraphState{};
-    // A sync point (ActionId 0, GraphRandom.h): the graph's every-N counters, which GraphState leaves out.
-    std::string GraphCounters{};
 
     ActionEvent() = default;
     ActionEvent(const ActionEvent& acRhs) = default;

@@ -105,3 +105,62 @@ TEST_CASE("A body this game's player holds still is not at rest: Havok sleeps it
     reads.Holds = 0;
     CHECK(physics.Take().Rested.size() == 1); // let go: its rest
 }
+
+TEST_CASE("An actor getting up still sends its ragdoll, without knocking its copies down, and rests once it stands", "[body-scene-phase][rising]")
+{
+    // knockdown-lies-as-host (duo, 2026-11-11): getting up, a ragdoll's bodies are still simulated (58291), so each
+    // game's room moved them its own way; the owner stopped sending at its get-up's start.
+    SceneReads reads;
+    reads.Ref.Actor = true;
+    reads.Ref.Bodies[0]->Node.reset();
+    reads.Ref.Bodies[0]->Read.Active = true;
+    PhysicsBodies physics(reads);
+    const auto cLying = physics.Take();
+    REQUIRE(cLying.Awake.size() == 1);
+    CHECK(cLying.Awake[0].Read[0].Knocked);
+
+    SECTION("lying still it rests once and is kept: its get-up need not mark it moved again")
+    {
+        reads.Ref.Bodies[0]->Read.Active = false;
+        CHECK(physics.Take().Rested.size() == 1);
+        const auto cStill = physics.Take();
+        CHECK(cStill.Rested.empty());
+        CHECK(cStill.Awake.empty());
+        reads.Ref.Rising = true;
+        reads.Ref.Bodies[0]->Read.Active = true;
+        CHECK(physics.Take().Awake.size() == 1);
+    }
+    SECTION("getting up its frames go on, as a getting-up owner's")
+    {
+        reads.Ref.Rising = true;
+        reads.Ref.Bodies[0]->Read.Position = {20.f, 0.f, 30.f};
+        reads.Ref.Bodies[0]->Read.LinearVelocity = {300.f, 0.f, 0.f};
+        reads.Ref.Bodies[0]->Read.AngularVelocity = {0.f, 4.f, 0.f};
+        const auto cRising = physics.Take();
+        CHECK(cRising.Rested.empty());
+        REQUIRE(cRising.Awake.size() == 1);
+        // Driven by its animation, shaking step to step: a pose, with no velocity to guess onward.
+        CHECK(cRising.Awake[0].Read[0].LinearVelocity == glm::vec3{});
+        CHECK(cRising.Awake[0].Read[0].AngularVelocity == glm::vec3{});
+        CHECK_FALSE(cRising.Awake[0].Read[0].Knocked); // a late one must not take a copy already up down again
+        // Standing: its bodies have left the world, so its last frame is its rest.
+        reads.Ref.Rising = false;
+        reads.Ref.Up = true;
+        reads.Ref.Bodies[0].reset();
+        const auto cUp = physics.Take();
+        CHECK(cUp.Awake.empty());
+        REQUIRE(cUp.Rested.size() == 1);
+        CHECK(cUp.Rested[0].Read[0].Position.z == 30.f);
+        CHECK_FALSE(cUp.Rested[0].Read[0].Knocked);
+        CHECK(physics.Take().Rested.empty());
+    }
+    SECTION("a corpse asleep is done with")
+    {
+        reads.Ref.Dead = true;
+        reads.Ref.Bodies[0]->Read.Active = false;
+        CHECK(physics.Take().Rested.size() == 1);
+        CHECK(physics.Take().Rested.empty());
+        reads.Ref.Bodies[0]->Read.Active = true; // not read again until physics marks it moved
+        CHECK(physics.Take().Awake.empty());
+    }
+}

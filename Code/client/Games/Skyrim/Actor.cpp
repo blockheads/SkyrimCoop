@@ -364,6 +364,25 @@ void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
     g_forceAnimation = false;
 }
 
+// The weaponDraw or weaponSheathe event's result with no action: RightHandWeaponDrawHandler (42824, its handler
+// unused), 37169. Both set the weapon state through ActorState vfunc 21, which skips a pending opposite request.
+void Actor::ShowWeaponDrawn(bool aDrawn) noexcept
+{
+    using TDrawn = bool(void*, Actor*);
+    using TSheathed = void(Actor*);
+    POINTER_SKYRIMSE(TDrawn, s_drawn, 42824);
+    POINTER_SKYRIMSE(TSheathed, s_sheathed, 37169);
+
+    if (actorState.GetWeaponState() == 1)
+        actorState.SetWeaponStateFlags(0);
+    else if (actorState.GetWeaponState() == 4)
+        actorState.SetWeaponStateFlags(3);
+    if (aDrawn)
+        s_drawn(nullptr, this);
+    else
+        s_sheathed(this);
+}
+
 void Actor::SetEssentialEx(bool aSet) noexcept
 {
     SetEssential(aSet);
@@ -1049,6 +1068,15 @@ void Actor::EndPairs() noexcept
     StopPairClip();
 }
 
+bool Actor::InPair() const noexcept
+{
+    using TIsInInstance = bool(void*, const uint32_t*);
+    POINTER_SKYRIMSE(TIsInInstance, s_isInInstance, 32808);
+    POINTER_SKYRIMSE(void*, s_manager, 401100);
+    const uint32_t cHandle = GetHandle().handle.iBits;
+    return *s_manager.Get() && (s_isInInstance.Get())(*s_manager.Get(), &cHandle);
+}
+
 bool Actor::InPairClip() noexcept
 {
     // The graph's bIsSynced, on through a pair's clip.
@@ -1063,6 +1091,13 @@ void Actor::StopPairClip() noexcept
     // An attacker's KillMoveState leaves only on pairedStop, sent by the instance only if PairEnd went unanswered.
     BSFixedString stop("pairedStop");
     SendAnimationEvent(&stop);
+}
+
+void Actor::EnterKillMove(Actor* apKiller) noexcept
+{
+    using TEnterKillMove = int64_t(Actor*, Actor*);
+    POINTER_SKYRIMSE(TEnterKillMove, s_enterKillMove, 38613);
+    (s_enterKillMove.Get())(this, apKiller);
 }
 
 void Actor::EndKillMove() noexcept
@@ -1117,6 +1152,17 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     g_forceAnimation = false;
     World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
     return pExtension->LatestAnimation.FinishAttempt(acAction.ActionId, cAttempt);
+}
+
+void Actor::KillBesideGraph(const ActionEvent& acAction) noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsLocalPlayer())
+        return;
+    pExtension->PoseHeldUntil.store(0, std::memory_order_relaxed);
+    EndDeferredKill();
+    KillImpl(nullptr, 100.f, true, SameName(acAction.EventName, "RagdollInstant"));
+    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
 }
 
 void Actor::Reset() noexcept

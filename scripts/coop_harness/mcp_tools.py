@@ -270,7 +270,7 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
     takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
     and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
+    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
@@ -643,15 +643,17 @@ def _trace():
 
 @tool
 def trace_start(names: list[str], bools: list[str] | None = None, floats: list[str] | None = None,
-                video: bool = False) -> dict:
-    """Starts the animation trace of handles in both games (objects.AnimTrace: graph events, actions, states such as
-    kill_move and life, positions); trace_read shows it. One at a time: a new one stops the last."""
+                ints: list[str] | None = None, video: bool = False) -> dict:
+    """Starts the animation trace of handles in both games (objects.AnimTrace: graph events, events sent into the graph
+    with their engine callers (input), actions, states such as kill_move and life, positions; `ints`: graph integers
+    recorded with the state as they change); trace_read shows it.
+    One at a time: a new one stops the last."""
     if shared.get("trace"):
         trace_stop()
     session.refresh_handles()
     actors = {instance: {session.resolve(name, label): name for name in names} for label, instance in (("host", ""), ("guest", "client"))}
     trace = AnimTrace(session, "mcp-" + "-".join(names)[:40], actors, bools=["bIsSynced", *(bools or [])], video=video,
-                      floats=floats or ())
+                      floats=floats or (), ints=ints or ())
     shared["trace"] = trace.__enter__()
     return {"ok": True, "dir": str(trace.dir)}
 
@@ -660,7 +662,7 @@ def trace_start(names: list[str], bools: list[str] | None = None, floats: list[s
 def trace_read(origin: str = "", who: list[str] | None = None, kinds: list[str] | None = None, grep: str = "",
                limit: int = 200, everything: bool = False) -> dict:
     """The trace so far as short lines, in seconds from the first action or graph event matching `origin` (a regex:
-    "^pa_" for a kill move); positions, noise and unchanged states left out. `who` handles, `kinds` (graph, action,
+    "^pa_" for a kill move); positions, noise and unchanged states left out. `who` handles, `kinds` (graph, input, action,
     state, game), `grep` a regex on the line; everything=true keeps the noise."""
     trace = _trace()
     trace.take()

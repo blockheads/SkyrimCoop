@@ -196,6 +196,8 @@ public:
 
     // --- Weapon draw ---
     virtual void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept = 0;
+    // The draw or sheathe's result with no action or animation: for a copy whose graph is already its owner's.
+    virtual void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept = 0;
     virtual WeaponState GetWeaponState(uint32_t aFormId) const noexcept = 0;
 
     // --- Actor lifecycle flags ---

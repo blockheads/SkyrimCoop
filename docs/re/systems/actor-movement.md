@@ -159,8 +159,8 @@ into furniture BGSProcedureSit/Sleep -> AIProcess::SetSitSleepState (39912)
                leaving: SetSitSleepState clears 0x8000; Actor::Move clears it at sit state 0
 ```
 
-A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its owner's replayed actions, and its
-capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
+A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its spawn's graph state (both actor state words) and its
+owner's replayed actions, and its capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
 lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy moved there, and the next frame pulled
 it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
 

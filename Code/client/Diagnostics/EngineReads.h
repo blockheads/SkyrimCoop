@@ -159,6 +159,7 @@ uint32_t GetGrabbedObject() noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
 float GetGraphFloat(uint32_t aFormId, const char* acpName) noexcept;
+int32_t GetGraphInt(uint32_t aFormId, const char* acpName) noexcept; // -1 if it has none
 
 KillState GetKillState(uint32_t aFormId) noexcept;
 

@@ -5,6 +5,7 @@
 #include <AI/AIProcess.h>
 #include <Games/ActorExtension.h>
 #include <Combat/CombatController.h>
+#include <DetectionRules.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/EventDispatcher.h>
 #include <Games/Events.h>
@@ -98,6 +99,21 @@ void HookUpdatePlayerInCombat(PlayerCharacter* apPlayer, float aDelta)
         Raise(apPlayer);
 }
 
+// A copy's ProcessTracking is running on this thread.
+thread_local bool s_copyTracking = false;
+
+using TDetectionStateOf = void*(Actor*, Actor*, uint32_t);
+TDetectionStateOf* RealDetectionStateOf = nullptr;
+
+// Actor__GetFreshDetectionStateOf (37758): the actor's fresh detection state of a target, null with none.
+// ProcessTracking asks it of this game's player and drops the look when it is not detected.
+void* HookDetectionStateOf(Actor* apActor, Actor* apTarget, uint32_t aPriority)
+{
+    if (!DetectionRules::HeadTrackAsksDetection(s_copyTracking))
+        return nullptr;
+    return RealDetectionStateOf(apActor, apTarget, aPriority);
+}
+
 using TProcessTracking = void(Actor*, float, NiAVObject*);
 TProcessTracking* RealProcessTracking = nullptr;
 
@@ -117,7 +133,9 @@ void HookProcessTracking(Actor* apActor, float aDelta, NiAVObject* apObject)
         std::ranges::transform(seen, targets.begin(), [](const auto& acSlot) { return acSlot.load(std::memory_order_relaxed); });
         pHigh->SetHeadTrackTargets(targets);
     }
+    s_copyTracking = cCopy;
     RealProcessTracking(apActor, aDelta, apObject);
+    s_copyTracking = false;
     if (cCopy)
         return;
     targets = pHigh->GetHeadTrackTargets();
@@ -133,6 +151,7 @@ Hooks::Initializer s_aiStateHooks(
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(33235, &RealSetCombatTarget, HookSetCombatTarget);
+        HOOK_ID(37758, &RealDetectionStateOf, HookDetectionStateOf);
         HOOK_ID(38009, &RealProcessTracking, HookProcessTracking);
         HOOK_ID(41238, &RealUpdatePlayerInCombat, HookUpdatePlayerInCombat);
     });

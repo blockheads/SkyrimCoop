@@ -146,6 +146,10 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     On(*this, &HostAuthority::OnInventoryChanges);
     Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
     Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::SessionId);
+    // The graph input stream: ops from each actor's owner; a copy's game asks the owner for a sync point.
+    On(*this, &HostAuthority::OnGraphOps);
+    Relay<GraphSyncRequest, NotifyGraphSync>(ToOwner, &GraphSyncRequest::Id);
+    Relay<GraphSyncPointRequest, NotifyGraphSyncPoint>(FromOwner, &GraphSyncPointRequest::Id);
     Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
 
     // Actor values: a hit lands in its owner's game, which then reports the resulting values.
@@ -392,6 +396,17 @@ void HostAuthority::NameActor(uint32_t aSessionId, const std::string& acName) co
     notify.ActorId = aSessionId;
     notify.Name = acName;
     m_players.SendToOthers(notify, m_players.Host(), Net::kReliable);
+}
+
+void HostAuthority::OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyGraphOps notify;
+    notify.Ops.Frames = acRequest.Ops.Frames;
+    for (const auto& cRun : acRequest.Ops.Runs)
+        if (m_characters.OwnerOf(cRun.ActorId) == aSender)
+            notify.Ops.Runs.push_back(cRun);
+    if (!notify.Ops.Runs.empty())
+        m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept

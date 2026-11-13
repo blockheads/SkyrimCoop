@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Games/Animation/GraphRandom.h>
+#include "FakeGraph.h"
+#include <span>
 #include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
@@ -18,6 +19,7 @@
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/IBodyReads.h>
+#include <Games/KnockReplay.h>
 #include <Physics/RagdollPending.h>
 
 #include <Games/QuestChanges.h>
@@ -399,7 +401,20 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
+        std::optional<glm::vec3> RestAt; // a copy's ragdoll body: the rest it is being taken to, and for how many steps
+        uint16_t RestSteps = 0;
+        bool Caught = false;    // this game's world holds it (a head under a table's edge): its get-up cannot move it
+        bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
     };
+    // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
+    static constexpr uint32_t kRisingFrames = 60;
+    static constexpr float kRisingSpeed = 120.f;
+    // Where its animation has that ragdoll body once it stands.
+    [[nodiscard]] glm::vec3 StandingPose(uint32_t aFormId, uint8_t aIndex) const;
+    // Lying no longer: with a ragdoll its bodies stay simulated while it gets up (Rising).
+    void StandUp(uint32_t aFormId);
+    // Its knock state as ActorState's: 1 lying, 6 getting up, 0 standing.
+    [[nodiscard]] uint8_t KnockStateOf(uint32_t aFormId) const;
     std::map<BodyKey, Body> Bodies;
     // A ragdolled actor's heading as this engine turns it with its root body: where the body's y axis points, about z.
     static float HeadingOf(const glm::quat& acRotation) noexcept;
@@ -428,6 +443,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
     // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
@@ -487,10 +503,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool PairedWithCopy = false;
         uint64_t PoseHeldUntil = 0;
         bool InPairClip = false;    // bIsSynced: on through a pair's clip
+        uint32_t State1 = 0;        // ActorState's flags1 (sneaking 1 << 9): an owner's goes with its actions
+        uint32_t ExitIn = 0;        // frames until its exit clip's own event (42835) ends its getting off, 0 none
+        bool InPair = false;        // in a pair's instance on this game (32808): a replay with a copy partner makes none
+        double MarkWaitMs = 0.0;    // in an instance: until every actor is at its mark, its synchronized clip waits
         uint32_t StopsDropped = 0; // pairedStops its uninterruptible transition still drops
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
+        uint32_t Rising = 0;       // frames left getting up (knock states 5 and 6): its ragdoll's bodies are still this
+                                   // game's physics', driven toward its animation's pose (58291)
         bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
         uint32_t Owner = 0;          // its ExtraOwnership (a horse bought: the player faction)
@@ -559,10 +581,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         } Replay;
         ActionEvent LatestAnimation;
         std::string GraphState;
-        std::set<std::string> LoadedClips; // the events whose clip files this actor's process holds
+        std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
+        uint32_t LyingPose = 0;            // the get-up candidate its own ragdoll lies closest to (FakeGraphRules::Match)
         uint32_t LoopFrames = 0, LoopsSeen = 0, LoopsToSend = 1;
+        double AnimationMs = 0.0;             // its graph's own clock: the frames' time while its graph updates
+        double AnimationStepMs = 0.0;         // what this frame's graph update added to AnimationMs
+        double InterpCountdownMs = 0.0;       // a far owner's graph: until its next chunk (63587)
+        FakeGraphMemory Graph;                // its graph's clip, channels and history (FakeGraph.h)
+        uint32_t GraphGeneration = 0;         // which graph: a 3D reload makes a new one (ReloadGraph)
+        uint32_t GraphProject = 1;            // its graph's behaviour project, its race's (projectName hashed)
+        uint32_t ForeignPoints = 0;           // another project's sync points restored into its graph (58373)
+        AnimationVariables ReplayedOn;        // a copy's graph variables as its last replayed event was sent
         std::vector<uint32_t> LoopDraws;   // each number of loops its graph drew (BSEventEveryNEventsModifier)
         // Native skeleton observations are independent of the latest action and saved state-machine IDs.
         // Optional: the fake has no Havok/IK solver; fixtures supply readings at an observed boundary.
@@ -615,12 +646,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool PairBlows = false; // an owner's pair lands its blow on its victim's copy after PairBlowFrames: uninterruptible (pa_KillMoveI)
     uint32_t PairStopsDropped = 0; // a clip's entry transition drops this many pairedStops (flags 0xd04)
     uint32_t PairBlowFrames = 2000; // after the other game replays the pair (~700 frames here), as HitFrame at ~1.2 s is
+    double PairMarkMs = 0.0; // how long a pair's actors take to reach their marks in its instance (150 ms on the host)
     bool PairMarkBlocked = false; // the mark sweep (TryMoveTo 78260) fails here: this game's positions, its own walls
     uint32_t BrokenPairs = 0; // a plain action took a copy out of its pair's clip, the pair ended before its blow
     uint32_t CollapsedPairs = 0; // a pair played on two actors already paired: both clips ended at once (32803)
     bool ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction);
     bool PlayReplayed(uint32_t aFormId, const ActionEvent& acAction); // AnimationSystem::PlayReplayedAction
+    void StepLoop(Actor& aActor);
+    bool Replaying = false; // under PlayReplayed (g_forceAnimation)
     void EndKillMove(uint32_t aFormId);
+    // ActionGetUp (the default object): replayed on a knocked-down copy it stands it up (AnimationSystem's
+    // PerformAction, KnockReplay); nothing else ends a living copy's knock.
+    static constexpr uint32_t kActionGetUp = 0x13FF0;
+    static constexpr uint32_t kActionRagdoll = 0x13FEF; // what a knock plays (39895)
     void ClipKillActor(uint32_t aFormId); // KillActorHandler 42838: a copy holds its pose
     [[nodiscard]] bool PoseHeld(uint32_t aFormId) const noexcept; // HookUpdateAnimationGraphs: its graph takes no update
     void RagdollContact(uint32_t aFormId); // a kill move's victim touches something: 63092 kills it, unless held back
@@ -629,6 +667,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
     std::map<std::string, std::string> ClipFiles;    // an event to its clip's state: it needs a file loaded first
+    // Events with clip files a process loads into another set (IMovementSelectIdle's): loaded into the action set
+    // anyway (ActionClips::Request), they replace what it held (KeepSet 40055).
+    std::set<std::string> OtherSetClips;
     // A state to the states its machine starts in at random (hkbStateMachine 59406): gestures, idle variants.
     std::map<std::string, std::vector<std::string>> GraphPicks;
     // A state whose clip loops, and after a random number of loops sends to the other (Lucan's counter): no action.
@@ -640,7 +681,58 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         uint32_t Most = 3;   // loops before it sends, 1 up to this
     };
     std::optional<GraphLoop> Loop;
+    // The graph's rules (FakeGraph.h), on every actor's graph: clips that end with no event, range modifiers, channels.
+    std::optional<FakeGraphRules> Graph;
+    // An owner's AI performs Events LeadMs of the frames' time before State's clip ends (the wolf's turnStop came 30-45 ms
+    // before TurnCannedR180's end, duo trace 2026-11-08); the graph refuses them, their ActionWrites still land.
+    struct ClipEndActions
+    {
+        std::string State;
+        std::vector<std::string> Events;
+        double LeadMs = 40.0;
+    };
+    std::optional<ClipEndActions> OwnerClipEnds;
+    // A graph update or event the graph took, in its history.
+    void GraphEntry(Actor& aActor, std::string aInput) const;
+    void UpdateGraph(uint32_t aFormId, Actor& aActor);
+    void WriteGraphChannels(Actor& aActor, double aStepMs);
+    void StepGraph(Actor& aActor, double aStepMs);
+    // Its generate pass (63568): after each frame its graph updated in (63589), and an owner's replayed on its copies.
+    void GenerateGraph(Actor& aActor) const;
+    bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
+    void EnterClip(Actor& aActor) const;
+    void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
+    bool m_replaying = false; // inside ReplayStream: a copy's graph takes its owner's inputs
+    // Its 3D reloaded: a new graph in aState, its clip and variables reset (Skyrim: a new BShkbAnimationGraph).
+    void ReloadGraph(uint32_t aFormId, const std::string& aState, uint32_t aProject = 0); // aProject: its new race's
+    [[nodiscard]] static const void* GraphIdentity(const Actor& acActor) noexcept
+    {
+        return reinterpret_cast<const void*>(uintptr_t(acActor.GraphGeneration) + 1);
+    }
+    // Its graph's variables as the stream's words: kGraphWords integers, then kGraphWords floats' bits.
+    static constexpr size_t kGraphWords = 8;
+    [[nodiscard]] static std::vector<uint32_t> GraphWords(const Actor& acActor);
+    static void SetGraphWords(Actor& aActor, std::span<const uint32_t> aWords);
+    [[nodiscard]] std::vector<std::string> GraphEventTable() const;
+    [[nodiscard]] uint16_t GraphEventId(const std::string& acEvent) const;
+    // Animation interpolation (63587): an owner's graph far from this game's camera, not forced, steps this much at
+    // once when its countdown runs out (fAnimInterpMaxTime 250 ms beyond fAnimInterpFarDist), and not between. 0: every
+    // frame. A copy's and a recorded owner's are not interpolated (the stream's hooks), so they step every frame.
+    double FarOwnerChunkMs = 0.0;
+    // 39004's integer writes by event: run by PerformAction (38949, not for a query) and ForceAction (38953)
+    // whether or not the graph takes the event (TurnStop: iSyncTurnState 1). {variable, value}.
+    std::map<std::string, std::pair<size_t, int32_t>> ActionWrites;
+    // An action that sets (true) or clears a bit of its actor's state as the engine takes it (ActionSneak toggles
+    // ActorState1::sneaking), on an owner and on a copy replaying it.
+    std::map<std::string, std::pair<uint32_t, bool>> ActionStates;
+    void ApplyActionWrites(uint32_t aFormId, const std::string& acEvent);
     uint32_t DrawGraphRandom(Actor& aActor) noexcept; // 59406, 63213: seed * 1664525 + 1013904223
+    // Exit actions (HorseExit) and their clips' length in frames: the actor wants to stand (sit state 4) from the
+    // action until its own clip's exit event (ChairFurnitureExitHandler 42835), which unlinks it from its mount. A
+    // sync point loaded into a copy's graph before then ends the clip without the event.
+    std::map<std::string, uint32_t> ExitClips;
+    static constexpr uint32_t kSitShift = 14;
+    [[nodiscard]] uint8_t SitState(uint32_t aFormId) const { return Actors.at(aFormId).State1 >> kSitShift & 0xF; }
     uint32_t ClipLoadFrames = 3;
     // AIProcess's action load (39625's half): nothing when the event needs no file; set once it is in.
     std::shared_ptr<std::atomic<bool>> RequestActionClips(uint32_t aFormId, const std::string& acEvent);
@@ -652,6 +744,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::shared_ptr<std::atomic<bool>> Done;
     };
     std::vector<ClipLoad> ClipLoads;
+    bool NewCopiesGraphReady = true; // a copy's graph ready as it is made (Skyrim: its 3D can come later)
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
@@ -660,10 +753,19 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool HoldDeathActions = false;
     bool RefuseDeathActions = false;
     void ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction);
+    void KillBesideGraph(uint32_t aFormId, const ActionEvent& acAction);
+    static constexpr const char* kDeathEvent = "DeathAnim"; // its death action's graph event
     void FinishDeath(uint32_t aFormId);
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;
+    // A sync point's: the whole graph, its generators' choices too (Havok's internal state, not Skyrim's save).
+    [[nodiscard]] std::string SaveGraphInternalState(uint32_t aFormId) const;
+    // Graphs restored from a point taken in a cross-blend: Skyrim crashes at their next update (59960, null blenders).
+    uint32_t RestoredMidCrossBlend = 0;
+    bool LoadGraphInternalState(uint32_t aFormId, const std::string& acState);
     bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override;
+    // TESObjectREFR::LoadGraphStateFlags: a saved state's actor state words alone.
+    bool LoadGraphStateFlags(uint32_t aFormId, const std::string& acState) noexcept;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
@@ -949,6 +1051,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     int32_t StealthEye();
     [[nodiscard]] const DetectionRules::Pass* FreshState(uint32_t aWitness);
     void DetectionPass(); // DoDetectionJob 42742: each queued request answered
+    // Actor::ProcessTracking (38009), each frame: an actor whose look is this game's player asks its own detection of
+    // that player (37758) and, with a state of level 0 or less, drops its default slot (slot 0).
+    void ProcessTracking();
     uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
@@ -1156,6 +1261,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The engine's frame length (GetRealFrameSeconds), steady while our update lands unevenly in it (S10);
     // 0: the wall time since our last update.
     double FrameMs = 0.0;
+    uint64_t LastFrameTick = 0; // Frame's previous frame tick: the graphs' step without FrameMs
     std::deque<std::function<void()>> MainTasks;
     uint32_t AppearanceAttempts = 0;
     bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
@@ -1245,8 +1351,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
     void Draws(uint32_t aActor, bool aDraw) { Actors.at(aActor).Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed; }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
-    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played.
+    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played; refused on
+    // a copy on its owner's stream (weapon state 1 or 4).
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
+    // Actor::ShowWeaponDrawn: the weaponDraw or weaponSheathe event's result (42824, 37169), no action.
+    void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override;
     // Items. The actor gets or loses some by itself (a script's AddItem, a sale, eating), as our hooks on
     // AddInventoryItem and RemoveItem: raised (InventoryChangeEvent) unless under ScopedInventoryOverride; the last of
     // a worn item comes off first (through UnEquipHook).

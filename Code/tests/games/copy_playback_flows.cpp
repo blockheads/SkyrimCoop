@@ -214,12 +214,19 @@ SCENARIO("Players and fights are sent 30 times a second, other actors 10", "[cop
 SCENARIO("A strafing player's copy turns its animation with its movement", "[copies][copy-clock]")
 {
     // S10: the owner's strafe direction flips the frame it turns; its copy's must flip as its movement turns, within
-    // half a round, not a whole snapshot later (sliding the new way in the old strafe).
-    Party party(1, SmokeWorld);
+    // half a round, not a whole snapshot later (sliding the new way in the old strafe). Its graph's variables come in
+    // its owner's stream, on the playback clock its movement is shown on.
+    Party party(1, SmokeWorld, true);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{};
+        engine->Actors.at(FakeEngine::kPlayer).GraphState = "Standing";
+    }
     party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
     const uint32_t cCopy = HostPlayerCopy(guest);
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy is on its owner's stream");
     auto& graph = host.Actors.at(FakeEngine::kPlayer).GraphVariables;
     graph.Floats = {0.25f, 340.f}; // Direction (right), Speed
     Walk(party, std::chrono::milliseconds(800), 200.f);

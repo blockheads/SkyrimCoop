@@ -1,4 +1,5 @@
 #include "HudMessages.h"
+#include "GraphStreamCheck.h"
 #include <map>
 #include <mutex>
 #include "Commands.h"
@@ -195,7 +196,7 @@ nlohmann::json IdleConditions(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"idles", idles}, {"conditions", conditions}};
 }
 
-// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
+// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...], "ints": [...]}: starts recording these actors'
 // animations (AnimationTrace), or adds them; {"cmd": "anim_trace"} alone takes what was recorded so far, and
 // {"cmd": "anim_trace", "stop": true} stops and takes the rest.
 // {"cmd": "body_trace", "refs": [id, ...]}: starts recording these references' physics each frame (BodyTrace), or
@@ -233,7 +234,7 @@ nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
         return {{"ok", true}, {"entries", aHarness.Trace.Stop()}};
     if (acRequest.contains("actors"))
         aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}),
-                             acRequest.value("floats", std::vector<std::string>{}));
+                             acRequest.value("floats", std::vector<std::string>{}), acRequest.value("ints", std::vector<std::string>{}));
     return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 
@@ -265,6 +266,25 @@ nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
     if (cState.empty())
         return Error("no graph state");
     return {{"ok", true}, {"state", ToHex(cState)}, {"micros", micros}};
+}
+
+// {"cmd": "graph_machines", "actor": id, "name": "Standing"}: the actor's state machine clones whose name holds `name`,
+// active or not, with the state each holds and the one its next activation enters.
+nlohmann::json GraphMachines(Harness&, const nlohmann::json& acRequest)
+{
+    nlohmann::json machines = nlohmann::json::array();
+    for (const auto& cMachine : EngineCalls::GetGraphMachines(acRequest.value("actor", 0u), acRequest.value("name", std::string{})))
+        machines.push_back({{"behaviour", cMachine.Behaviour}, {"name", cMachine.Name}, {"active", cMachine.Active},
+                            {"state", cMachine.State}, {"start_override", cMachine.StartOverride},
+                            {"clone", std::format("{:X}", cMachine.Clone)}, {"template_active", cMachine.TemplateActive},
+                            {"template_state", cMachine.TemplateState}, {"template_start", cMachine.TemplateStart}});
+    return {{"ok", true}, {"machines", machines}};
+}
+
+// {"cmd": "graph_stream", ...}: the graph input stream's live check (GraphStreamCheck.h).
+nlohmann::json GraphStreamCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return GraphStreamCheck::Command(acRequest);
 }
 
 // {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor or object now.
@@ -1222,6 +1242,8 @@ constexpr Command cCommands[] = {
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},
+    {"graph_machines", true, &GraphMachines},
+    {"graph_stream", true, &GraphStreamCommand},
     {"graph_writers", true, &GraphWriters},
 };
 } // namespace

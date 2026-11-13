@@ -2,6 +2,7 @@
 
 #include <Actor.h>
 #include <Forms/FormChanges.h>
+#include <Games/KnockReplay.h>
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
 #include <NetImmerse/NiNode.h>
@@ -73,7 +74,7 @@ std::vector<uint32_t> BodyReads::TakeMovedReferences() noexcept
 uint32_t BodyReads::PlayerInRagdoll() noexcept
 {
     const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    return pPlayer && (pPlayer->IsDead() || pPlayer->actorState.IsKnockedDown()) ? pPlayer->formID : 0;
+    return pPlayer && (pPlayer->IsDead() || KnockReplay::BodiesSimulated(pPlayer->actorState.GetKnockState())) ? pPlayer->formID : 0;
 }
 
 uint32_t BodyReads::PlayerHolds() noexcept
@@ -92,7 +93,9 @@ std::optional<IBodyReads::Reference> BodyReads::ReadReference(uint32_t aFormId, 
     const auto* pActor = Cast<Actor>(pObject);
     Reference reference{.Actor = pActor != nullptr,
                         .Dead = pActor && pActor->IsDead(),
-                        .Up = pActor && !pActor->IsDead() && !pActor->actorState.IsKnockedDown(),
+                        .Up = pActor && !pActor->IsDead() && !KnockReplay::BodiesSimulated(pActor->actorState.GetKnockState()),
+                        .Rising = pActor && !pActor->IsDead() && pActor->actorState.GetKnockState() != 0 &&
+                                  !KnockReplay::Lies(pActor->actorState.GetKnockState()),
                         .Player = pObject == PlayerCharacter::Get(),
                         .Position = {pObject->position.x, pObject->position.y, pObject->position.z},
                         .Rotation = {pObject->rotation.x, pObject->rotation.y, pObject->rotation.z}};

@@ -24,4 +24,11 @@ struct Pass
 {
     return aWitnessIsOtherPlayer && aTargetIsLocalPlayer ? Pass{} : aComputed;
 }
+
+// ProcessTracking (38009) drops a default look at this game's player its tracker does not detect (37758: a state of
+// level 0 or less). A copy's look is its owner's, judged on its owner's game: its own detection is not asked.
+[[nodiscard]] constexpr bool HeadTrackAsksDetection(bool aCopy) noexcept
+{
+    return !aCopy;
+}
 } // namespace DetectionRules

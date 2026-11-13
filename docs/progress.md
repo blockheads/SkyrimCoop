@@ -70,6 +70,67 @@ short of goodbyes. A joining menu keeping its own highlight (code review) did no
 after a listed topic was said came up on the party's highlight (`dialogue-joiner-keeps-party-highlight`); the bugs.md
 entry is gone, the scenario and GameTests flow guard it.
 
+2026-11-10: the graph input stream's phase 4, players' copies. Each game records its own player (its third-person
+graph) and the host passes a guest's ops and sync points on by owner. Fixed on the way: a kill move replayed whole
+(an owner stays off its stream to the end of its pair's clip), sneaking never shown (an action carries its owner's
+state after it), a rider's copy stuck getting on, then stuck riding (a copy gets off by its clip's own exit event:
+it stays off its stream until its sit state leaves wants-to-stand). `teleport-keeps-copies` failed on a stale
+reading, not a graph: a player's copy is culled like any actor, and the observer now skips its pose while it is not
+drawn (`docs/re/systems/culled-npc-pose-readings.md`). The guest crash is explained and fixed: a sync point taken
+while a walk's direction blend cross-blended put a copy's generator in that mode with no blenders; an owner now takes
+no point until the cross-blend ends. `guest-rides-host-horse`'s head-tracking failure was not the stream's: the
+engine drops a look at this game's player its tracker does not detect, and a player's copy detects nobody; a copy's
+tracking no longer asks. A rider's copy in "deferred kill" after the ride is the copies' own, by design (`docs/design/graph-input-stream.md`).
+
+2026-11-10: the graph input stream's phase 3. A streamed owner's movement carries no graph variables and its copy's
+graph loads none; graph points and every-N counters (`GraphRandom`) are removed, with the branch's interim fixes
+(refused actions' variables, actions spaced on the copy's graph time): a copy off a stream plays actions at playback
+again, as on dev. On the duo the counter scenarios pass on the stream alone, the kill-move scenarios pass with dev's
+timing (the guest's blow 65-104 ms after the host's, the copy dead 111-135 ms after its owner), and the wolf's and
+Whiterun's live checks hold. `copy-strafes-with-host` is not the branch's: dev fails it as often (12 runs in 12 back to
+back, the branch 9), on long frames and on the copy's capsule catching at one spot (bugs.md, A strafing copy catches
+for a frame). One more `kill-moves-cross` shape filed, dev's by its code (Crossed kill moves: a short winner's blow
+lands first). Left: players' copies (phase 4).
+
+2026-11-09: the two kill-move leftovers of the stream's combined run, fixed. `kill-moves-cross` (2 fails in 5, none
+on dev): the host's pair waited 330 ms on the guest behind a `moveStart` its copy's graph clock held back, and was
+refused once the guest's player had died; a pair or a death now comes at playback with the actions before it
+(`AtPlayback`; 8 passes in 8). `host-kill-move` (the guest's blow 20-70 ms before the host's): a replayed pair with a
+copy partner makes no instance on the guest, so the wolf's copy took the kill move from its stream, where its
+synchronized clip skips its owner's 150 ms wait at the mark. An owner in a pair is not recorded now, and its copy
+leaves the stream at its half's action until a sync point from after the pair, as before the stream: the guest's blow
+35-123 ms after the host's (dev 62-65), the copy dead 100-144 ms after its owner (dev 95-150), 4 runs. Three GameTests
+flows; both bugs.md entries gone.
+
+2026-11-09: the stream's combined run (21 scenarios tagged animation or copies) and what it found. A copy off its
+stream died up to 250 ms late: its death was spaced from the last action it replayed before the stream
+(`host-kill-move` 2 fails in 4; now none in 6, GameTests "A copy back off its stream dies..."). A copy whose point was
+another project's never asked again with its new graph (`GraphStreams::SeeGraph`, found by its new GameTests flow).
+The fake no longer chunks a recorded far owner or runs a generate pass in a frame without a step. Left: the guest's
+kill move still a little ahead and `kill-moves-cross` failing its end comparison 2 runs in 5, 0 in 6 on dev (bugs.md,
+A host's kill move runs ahead on the guest; Crossing kill moves leave a copy's last action wrong); `copy-strafes-with-host`
+stutters on dev's plugin too (2 runs in 3); `placed-speaker-deleted-mid-conversation` fails on dev since `talk`
+refuses a frozen speaker (its stage freezes Vilkas).
+
+2026-11-09: the graph input stream's owners step every frame without `force` (creatures no longer hover), a graph's
+generate passes are in the stream, sync points carry nodes' plain members and the active-node flag, and a copy in a
+pair on its game leaves its stream for it: a guest's kill move on a host NPC works again (all six kill-move scenarios
+pass). The hover was `force` turning foot IK on for unseen actors (graph-input-stream.md, Owner); copies replay
+without it too. A copy knocked down is held off its stream until it stands (it never got up: its owner's get-up
+action was bookkeeping). Open: the fake still chunking recorded owners; the get-up's snaps and jitter (bugs.md).
+
+2026-11-09: copies on the graph input stream match their owners at every update on the duo: the wolf scenario's 180 s
+and Whiterun's market for 120 s, every streamed copy ([graph-input-stream.md](design/graph-input-stream.md), A graph's
+whole state). A sync point is now the owner's whole behaviour graph through Havok's own save and restore
+(`getInternalState` 58372 / `setInternalState` 58373): each node's state, a running transition's effect inside its
+machine's, BS nodes' runtime members by reflection. Read in IDA and measured: Skyrim's `updateActiveNodes` walks with
+59319, which drops the restore map, so the restore hands that walk to Havok's own 59318 while it runs; its activations'
+events are dropped (the owner's queue is empty). The owner's clip loads (action, instant interaction, movement idle,
+a save's reload) are ops in the stream, and a point's sets load before it restores. The live check now says why a copy
+parts: variables, handled events with their sender, clip times. GameTests: a copy starting mid-blend, after an idle,
+through a turn its owner loaded nothing for. Both scenarios still fail their end comparisons, on ambient differences
+filed under bugs.md's End comparisons in towns (Whiterun's containers; a creature's copy 57 units off in height).
+
 2026-11-09: a guest holds the NPCs its own engine runs until the host spawns them (copy-contract.md, "A guest's own
 NPCs"). Aela, Ria and Farkas stood in Whiterun's market on the guest, running their own AI, while the host had them in
 Jorrvaskr. Each game's engine walks a non-copy NPC's schedule on its own clock (`UpdateAI` at every process level).
@@ -133,6 +194,31 @@ their fights kept the host as target; now they are crime fights and go for the n
 show the engine's line. Scenario `guest-theft-bounty-message` (failed before), flows "A theft's witness, only angry",
 "A guard answering a party crime", "A guest's witnessed theft shows the bounty line in every game", HostAuthorityTests
 and ClientTests `[CrimeRules]`. MCP: `expect_bounty_message`.
+
+2026-11-08: copies move toward the graph input stream ([graph-input-stream.md](design/graph-input-stream.md)): a copy's
+graph fed its owner's inputs matched it on every update over the network (Faendal 17009/17009). The ops' encoding
+(`Structs/GraphOps.h`: only variables set from outside the graph, one bit for an empty update) weighs 559 B/s for a
+humanoid doing chores, about 10 for an idle wolf. The stream is built for host NPCs' copies in production code
+(`GraphStream.h`, `GraphOpsRequest` / `GraphSyncRequest` / `GraphSyncPointRequest`) and runs in GameTests on the fake
+engine's new behaviour graph (`FakeGraph.h`): every wolf flow passes a live check of the copy's graph against its
+owner's at every point, which they all failed without it. In Skyrim (hooks on 63587 and 63591), the duo's live check
+(`graph_stream_check`) found two production bugs, fixed (clip files, a late spawn state), and copies apart soon after
+their sync point. Sync points now carry every active node's memory (clip times, modifiers' state; generic, by Havok's
+class reflection): 23 copies in Riverwood matched their owners on all 6608 updates of a 120 s live check. An engine bug fixed on every game: range
+modifier clones kept uninitialized bounds (`GraphCloneFixes.cpp`).
+
+2026-11-08: a refused action's graph writes reach its copies. A machine's start can be a graph variable (the wolf's
+`StandingBehavior.startStateId` <- `iSyncTurnState`, written into the new clone by its binding set, 59467), read when it
+activates at a clip's end with no action; so is a transition's condition (CannedTurnState's exit on
+`iSyncIdleLocomotion`). Their writer is an action the owner's graph refused: PerformAction (38949) still runs its
+variable writes (39004; a refused `TurnStop` sets `iSyncTurnState` 1), and we sent no refused action, so the copy read
+the old value: it turned on the spot for 4 to 20 s or stayed in its canned turn. A refused action that changed its
+owner's variables is now sent as variables only, loaded in step on the copy with no event (`ReplayStep.h`)
+([animation-replay-recovery.md](re/systems/animation-replay-recovery.md), "A refused action still writes its graph variables"; reading integers ahead
+and reconciling machines were tried and parked there). Harness: the animation trace records each event sent into a graph
+with its engine callers (`input`); `graph_machines` / `graph_machines_watch` read state machines on both games;
+`name_owner`; `expect` check `graph` (its `value`: the owner changes a run needs); behavior_dump extracts creature
+behaviours.
 
 2026-11-07: the shared duo can't be held for long while others wait (testing.md, The duo lock). An interactive hold
 (the MCP's `duo_start`, a keeper's) goes to the first in line after 15 minutes held with someone waiting; that waiter
@@ -1621,11 +1707,54 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
 
 - **A dragged object blinked once in play (2026-11-01).** Not reproduced with `body_trace`; nothing traces a hold; a
   scenario that drags an object while both games trace it would catch a recurrence.
-- **`npc-clips-match` times out before comparing clips (2026-11-04).** 2 of the final 3 runs failed: the host's dialogue
-  menu never opened on Lucan, or his conversation never ended (`close_dialogues`). Both with Lucan on package `1E603`;
-  passing runs had `1CB0B` or `AB87B`. Cause not found. A test-setup fault, not an animation mismatch (no clips
-  compared), but it makes the scenario unreliable. Start: what `1E603` is and whether `set gamehour` (as the counter
-  scenarios do) keeps him off it.
+- **Graph stream: get-ups on the stream (2026-11-11).** A knocked-down copy no longer leaves its owner's stream: the
+  owner's get-up pick (the clip `hkbPoseMatchingGenerator` chooses from its ragdoll, 59583) is a new stream input
+  (`GraphPick`), and the copy's node takes it. `knockdown-lies-as-host` and `knockdown-smoke` pass 4 of 7 each (0 of 3 on dev and
+  before), `guest-knockdown-lies-on-host` 7 of 7. The turn left at some get-ups was physics (a getting-up ragdoll is
+  still simulated): owners now send their ragdoll until they stand, and the long turn is gone (bugs.md, Get-up). A streamed copy goes
+  down with its owner's ragdoll action, not its first body frame; the knockdown scenarios pass 19 of 20. Kill moves
+  between two copies are on the stream too (the clip's wait at its mark is a pick); what stays off it is a pair
+  with this game's own actor, and any pair but a kill move's (mounts). Was: the copy's body still turns away at some get-ups (its own heading
+  from its ragdoll, 39896). Design and what Skyrim taught: [graph-input-stream.md](design/graph-input-stream.md), "A node's pick".
+  Next of the same kind: the ragdoll contact event, a pair's scene answers.
+- **Graph stream: third full run (2026-11-12).** On `372f2abe`: 348 pass, 40 fail (the second run: 337, 51). The 7
+  failures new to the list were rerun 4 times, and those still failing 4 times on dev's plugin: each fails on dev too
+  or passed every rerun, so none is the branch's ([bugs.md](bugs.md), "Found by the full run of 2026-11-11", the third
+  run). New entries: the host showing a guest's relief box, a party wipe's fight that misfires.
+- **Graph stream: one exception left (2026-11-12).** A copy leaves its owner's stream only for a pair with an actor
+  this game owns (two owners in one animation). Mount pairs between two copies stay on it (an action writes nothing a
+  mount's beside the graph, 39004; `PauseWhile`, `PairSpell`, `KillMoveHalf` deleted), and so does a death (`KillImpl`'s
+  action gates nothing after it, and a dead owner's graph updates on: `Actor::KillBesideGraph`). Duo: mounts 16 of 16,
+  `kill-move-kills-guest` 20 of 23 where it was 51 of 80. Also settled: "A rider after a spectated kill move" fails 4 of
+  4 on dev's plugin, so it is older than the stream. [graph-input-stream.md](design/graph-input-stream.md), "The one
+  exception".
+- **Graph stream: the final review and a second full run (2026-11-12).** Second full run on `1a4a44a4`: 337 pass,
+  51 fail; 15 failures of the morning pass now (`ragdoll-lies-as-host`, `knockdown-smoke`, `knockdown-lies-as-host`,
+  `knockdown-front-and-back`, `host-kill-move`, `kill-move-runs-full-length` among them), 17 are new to the list and each
+  was rerun twice: 12 passed or are listed shapes, `copy-strafes-with-host` (3 of 3) is the old strafe stutter (in its
+  traces since 2026-11-09), two shapes are new entries (the guest player's copy wearing nothing, an extra item in a
+  starting kit; neither touches code this branch changed). The code review read all of it: a sync point reaching a
+  running copy (three or more players), a state array of any length trusted, and smaller cleanups, fixed with tests;
+  one wrong check of mine (refusing sync points with more than 8 sync points) broke `knockdown-lies-as-host` 3 of 8 and
+  was removed. Not proven, in [graph-input-stream.md](design/graph-input-stream.md) ("The final review"): two
+  machines (every run was one), cost on a crowded host, three players, a switch to stop recording, other mods on the same
+  Havok functions. New intermittents in [bugs.md](bugs.md) ("Seen in the final review's duo runs"): a kill move that
+  never pairs, a ragdoll that never settles after a failed ride, the guest's ride ending with the horse still its own,
+  a knocked-down copy 62 units off, sync points asked for over and over; and the gate failing on `GameTests` now and
+  then, uncaught.
+- **Graph stream: the full run (2026-11-11).** 388 scenarios on the branch: 339 pass. The 49 failures rerun alone on
+  both builds: three were the branch's, one cause, fixed (a copy on its owner's stream never showed hands its owner
+  already had up: `hands-survive-reload-host-player`, `hands-survive-reload-client-player`, `late-join-client`, now 2
+  of 2 each; [graph-input-stream.md](design/graph-input-stream.md), "Hands on a streamed copy"). The rest fail on
+  dev's plugin too or pass alone; all 46 are triaged in [bugs.md](bugs.md) ("Found by the full run of 2026-11-11":
+  where each went, twelve new entries, the rest as evidence on existing ones). `join-refused-shows-why` and `join-panel-shows-refusal` needed `coop_peer` built in the worktree.
+- **Graph stream: a fight's traffic a quarter of dev's (2026-11-10).** A streamed owner's actions no longer carry its
+  whole graph state: ten wolves fighting 15-21 KB/s, dev 74 (`graph-input-stream.md`, Cost measured).
+- **`npc-clips-match` timed out before comparing clips (2026-11-04, fixed 2026-11-10).** The host's dialogue menu never
+  opened on Lucan, or his conversation never ended. The scenario's: activated while he sits down he opens no menu, and
+  leaning on his counter he gives no gesture, so the topic walk ended in his shop's barter menu. It now gets him
+  standing first and never asks for his shop (`graph-input-stream.md`, "`npc-clips-match` failed on
+  repeats").
 - **Sync points add network cost, not measured (2026-11-04).** Each action now carries the graph seed and each pick no
   action made sends a graph snapshot (about 7 KB, one per actor per second at most). `scripts/net_check.sh` not run.
 - **A guest crashed once in `follower-trade-to-picker` (2026-10-29, party dialogue).** `Actor::UpdateInDialogue`

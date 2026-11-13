@@ -580,7 +580,22 @@ WeaponState FakeEngine::GetWeaponState(uint32_t aFormId) const noexcept
 
 void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
 {
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    // On its owner's stream its graph drops its own events (63591's hook): the draw action is refused (37279).
+    if (Graph && it->second.Copy && World::Get().GetGraphStreams().OnStream(aFormId))
+    {
+        if (aDraw || it->second.Weapon >= WeaponState::Drawn)
+            it->second.Weapon = aDraw ? WeaponState::WantToDraw : WeaponState::WantToSheathe;
+        return;
+    }
+    it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+}
+
+void FakeEngine::ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept
+{
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+        it->second.Weapon = aDrawn ? WeaponState::Drawn : WeaponState::Sheathed;
 }
 

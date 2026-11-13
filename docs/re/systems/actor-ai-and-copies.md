@@ -477,7 +477,9 @@ This is skymp's way (`skymp5-client` `formView.ts`: `startDeferredKill()` on eve
 `endDeferredKill()` then `kill()` on the server's death). In deferred kill `HandleHealthDamage`'s
 bleedout/kill check and `KillImpl` only mark a pending kill; `Actor::Kill` and `KillWithDeathAction`
 end it first (`EndDeferredKill` 38618 queues the pending kill on the task queue, so the kill made
-right after wins). A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
+right after wins). The end applies only when its argument equals the flag the start set
+(`coop_AIProcess_EndDeferredKill`, middle/high `+0x332`), so the engine's own unscripted ends (a mount's 37462) leave a
+copy's in place. A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
 deferral started with `false`, so a kill move on a copy does not kill it either. Replaced a 0.01
 health floor and a map undoing it after the death. Measured: the copy shows -2.04 while alive and
 dies with its owner's `DeathAnimation` 0.36 s later; kill-credit, `death-host-npc`, `health-host-npc`
@@ -805,6 +807,18 @@ meh321 where they have one, ours otherwise.
   (37552) sets the delay to 1.0, the engine's own way to hold the pick back, and moves the dialogue slot to slot 0;
   `ClearHeadtrackTarget` (39756) with its third argument moves any cleared slot to slot 0.
   `Actor::KillImpl` clears all six (`ActorProcess::ClearAllHeadtrackSlots` 39477).
+
+  **A look at this game's player needs detection (read in IDA, measured 2026-11-10).** When the target is this game's
+  player (handle 403520), ProcessTracking asks the tracker's fresh detection state of that player
+  (`Actor__GetFreshDetectionStateOf` 37758, priority 3). With a state of level 0 or less, and the tracker not talking
+  to the player, not greeting, its package not type 2, it clears slot 0 (`coop_AIProcess_ClearDefaultHeadtrackSlot` 39467) and reads the target again.
+  No state at all clears nothing. A player's copy holds an unseen state of this game's player (-1000,
+  `stealth.md`, Our hook), so its slot 0 on that player was cleared every frame: `guest-rides-host-horse` failed with
+  `owner ['session 1'] vs host copy []` once the guest's player picked the host's as its ambient target (logged: the
+  owner's slot pushed each frame, the copy's raw slot 0 again before the next push). A copy's look is its owner's,
+  judged on its owner's game, so inside a copy's ProcessTracking 37758 answers no state
+  (`DetectionRules::HeadTrackAsksDetection`, `AiStateEvents`). GameTests `[stealth][headtrack]`; duo 36 of 36 after,
+  the copy holding its owner's target through each ride.
 
   Measured (a wolf killed on its owner, slots sampled on both games, 20/s): at dying, slot 1 becomes each game's own
   player; about 2 s later it moves to slot 0 on both; the owner's clears at life state 2 (2.47 s). The copy reached life

@@ -1,6 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include <Games/Animation/ReplayState.h>
+#include <Games/KnockReplay.h>
 #include <SessionIds.h>
 #include "FakeDialogue.h"
 #include <MainLoopTasks.h>
@@ -197,6 +198,7 @@ void World::Update() noexcept
     const double cEngineFrameMs = mainEngine.FrameMs > 0.0 ? mainEngine.FrameMs : cDelta * 1000.0;
     m_frameClock.Advance(GetTick(), cEngineFrameMs);
     m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
+    m_graphStreams.SetTick(m_frameClock.Now());
     // A delayed line delivers in wall time: recovery must use that clock too.
     m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     // The real AnimationSystem replays a dying owner's action at its copy's time (CopyPlayback).
@@ -204,6 +206,18 @@ void World::Update() noexcept
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
     {
         if (!engine.ActorExists(form.Id)) continue;
+        // On the stream, its sync point is newer than its spawn's state (as AnimationSystem).
+        if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity); spawn && GetGraphStreams().OnStream(form.Id))
+        {
+            // Its actor state alone, and its spawn action taken (as AnimationSystem).
+            if (engine.LoadGraphStateFlags(form.Id, spawn->State) && !animation.TimePoints.empty())
+            {
+                animation.LastRanAction = animation.TimePoints.front();
+                engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
+                animation.TimePoints.pop_front();
+            }
+            remove<SpawnGraphStateComponent>(cEntity);
+        }
         if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
         {
             if (all_of<WaitingFor3D>(cEntity) || !engine.IsAnimationGraphReady(form.Id)) continue;
@@ -218,6 +232,42 @@ void World::Update() noexcept
             remove<SpawnGraphStateComponent>(cEntity);
         }
         auto& actor = engine.Actors.at(form.Id);
+        // On its owner's graph input stream (graph-input-stream.md), as AnimationSystem: its graph's inputs are the
+        // stream's, so its actions are bookkeeping only, but a death (its own body's).
+        auto& streams = GetGraphStreams();
+        const uint64_t cPlayback = InterpolationSystem::PlaybackTick(*this, cEntity);
+        streams.SetPlayback(form.Id, cPlayback);
+        if (streams.OnStream(form.Id))
+        {
+            while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
+            {
+                const ActionEvent cAction = animation.TimePoints.front();
+                // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
+                if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
+                    engine.KillBesideGraph(form.Id, cAction);
+                // Its owner's pair: its half by this action, unless its partner here is a copy too (AnimationSystem).
+                const uint32_t cPartnerId = cAction.TargetActor ? Utils::GetFormIdBySessionId(cAction.TargetActor - 1) : cAction.TargetId;
+                const auto cPartner = engine.Actors.find(cPartnerId);
+                if (!cAction.TargetEventName.empty() && !::ReplayState::PairOnStream(cPartner != engine.Actors.end() && cPartner->second.Copy))
+                {
+                    streams.HoldUntilPoint(form.Id, cAction.Tick);
+                    break;
+                }
+                // What playing the action does beside the graph (39004), as AnimationSystem.
+                if (!cAction.TargetEventName.empty() && ::ReplayState::EntersKillMove(cAction.EventName))
+                    actor.InKillMove = cPartner->second.InKillMove = true;
+                animation.TimePoints.pop_front();
+                // Its owner's get-up stands its own body up; its graph's get-up is the stream's (AnimationSystem).
+                if (KnockReplay::StandsUp(actor.KnockedDown ? 1 : 0, cAction.ActionId == FakeEngine::kActionGetUp))
+                    engine.StandUp(form.Id);
+                if (!actor.Dead && KnockReplay::GoesDown(engine.KnockStateOf(form.Id), cAction.ActionId == FakeEngine::kActionRagdoll))
+                    ctx().at<BodyService>().KnockDown(form.Id);
+                actor.State1 = ::ReplayState::Flags1(cAction.StateAfter1, actor.State1); // as AnimationSystem
+                animation.LastRanAction = cAction;
+                engine.SetActorLatestAnimation(form.Id, cAction);
+            }
+            continue;
+        }
         if (actor.PairStops)
         {
             --actor.PairStops;
@@ -247,28 +297,6 @@ void World::Update() noexcept
             step.Phase.store(Step::kIdle);
             continue;
         }
-        // As AnimationSystem::RunGraphPoint.
-        const uint64_t cTick = InterpolationSystem::PlaybackTick(*this, cEntity);
-        GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-        if (cPhase == Step::kIdle && animation.GraphPoint &&
-            (animation.TimePoints.empty() || animation.TimePoints.front().Tick > animation.GraphPoint->Tick))
-        {
-            const auto& cPoint = *animation.GraphPoint;
-            const auto cVerdict = GraphRandom::Judge(animation.Random, cPoint.Variables.GraphRandom, cPoint.Tick, cTick);
-            if (cVerdict == GraphRandom::Point::kLoad && engine.LoadActorGraphState(form.Id, cPoint.GraphState))
-            {
-                actor.GraphRandom = cPoint.Variables.GraphRandom;
-                GraphRandom::Track(animation.Random, actor.GraphRandom, cTick);
-                const auto cCounters = GraphRandom::Unpack(cPoint.GraphCounters);
-                if (!cCounters.empty())
-                {
-                    actor.LoopsSeen = uint32_t(cCounters.front().Seen);
-                    actor.LoopsToSend = uint32_t(cCounters.front().Needed);
-                }
-            }
-            if (cVerdict != GraphRandom::Point::kWait)
-                animation.GraphPoint.reset();
-        }
         if (cPhase == Step::kClips)
         {
             if (ClipWaitOver(step, ++animation.StagedUpdates))
@@ -289,6 +317,11 @@ void World::Update() noexcept
             }
             continue;
         }
+        // As AnimationSystem: held for its owner's pair, it may ask once that action has played.
+        if (streams.Held(form.Id) && std::ranges::none_of(animation.TimePoints, [&](const ActionEvent& acAction) {
+                return !acAction.TargetEventName.empty() && acAction.Tick <= cPlayback;
+            }))
+            streams.PairPlayed(form.Id);
         if (animation.TimePoints.empty()) continue;
         const auto& action = animation.TimePoints.front();
         if (InterpolationSystem::PlaybackTick(*this, cEntity) < action.Tick) continue;
@@ -305,8 +338,6 @@ void World::Update() noexcept
             animation.TimePoints.pop_front();
             continue;
         }
-        if (animation.GraphPoint && animation.GraphPoint->Tick < action.Tick)
-            animation.GraphPoint.reset();
         ActionEvent replayed = action;
         if (replayed.TargetActor)
             replayed.TargetId = Utils::GetFormIdBySessionId(replayed.TargetActor - 1);
