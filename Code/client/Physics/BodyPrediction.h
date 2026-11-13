@@ -41,6 +41,9 @@ struct Velocities
 };
 [[nodiscard]] Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget,
                                float aSeconds = kSteerSeconds) noexcept;
+// The correction time for a body steered once a frame, given the last frame's seconds: past the frame Havok integrates
+// it over, or the gap overshoots (clamped to kSteerSeconds..0.5 s).
+[[nodiscard]] float SteerSeconds(float aLastFrameSeconds) noexcept;
 
 // A copy's ragdoll at its owner's rest (docs/re/systems/physics.md, A copy at its owner's rest). Steered there on every
 // step with no end (78089/78090 wake a body each time) it never slept: every dead copy's 18 bodies stayed awake at 3
@@ -67,4 +70,20 @@ constexpr RestStep StepToRest(uint16_t aSteps) noexcept
 // Whether a woken body has left where it woke (physics.md, "Woken still"): its pose past the send limits
 // (BodySendLimits: 2 units, 0.05 rad). Skyrim wakes islands it never moves, with velocity bursts that go nowhere.
 [[nodiscard]] bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept;
+
+// A body at rest by its own motion (physics-sync.md, "One rule"): within kDistance and kAngle of one pose for kMs,
+// whatever Havok's island says (an animated body or a character beside it keeps the island awake).
+struct Still
+{
+    static constexpr float kDistance = 0.5f;
+    static constexpr float kAngle = 0.01f; // radians
+    static constexpr uint64_t kMs = 300;
+
+    // Each read at aTick (ms): true once it has kept one pose for kMs.
+    [[nodiscard]] bool Read(const BodyFrame& acNow, uint64_t aTick) noexcept;
+
+    BodyFrame Anchor{};
+    uint64_t Since{};
+    bool Started{};
+};
 } // namespace BodyPrediction

@@ -17,6 +17,21 @@ bool NodeLeftBehind(const IBodyReads::Body& acBody) noexcept
     return cApart.Distance > PhysicsBodies::kLeftBehind || cApart.Angle > PhysicsBodies::kLeftBehindAngle;
 }
 
+// Every body where the last rest had it (PhysicsBodies::kSameRest).
+bool SameRest(const std::vector<BodyFrame>& acLast, const std::vector<BodyFrame>& acNow) noexcept
+{
+    if (acLast.size() != acNow.size() || acNow.empty())
+        return false;
+    for (size_t i = 0; i < acNow.size(); ++i)
+    {
+        const auto cApart = BodyPrediction::Between(acLast[i], acNow[i]);
+        if (acLast[i].Key.Index != acNow[i].Key.Index || cApart.Distance >= PhysicsBodies::kSameRest ||
+            cApart.Angle >= PhysicsBodies::kSameRestAngle)
+            return false;
+    }
+    return true;
+}
+
 BodyFrame FrameOf(const BodyRead& acRead, uint8_t aIndex) noexcept
 {
     return {.Key = {.Index = aIndex}, .Position = acRead.Position, .Rotation = acRead.Rotation, .LinearVelocity = acRead.LinearVelocity,
@@ -41,7 +56,7 @@ PhysicsBodies::PhysicsBodies(IBodyReads& aReads, bool aAllActors) noexcept
 {
 }
 
-PhysicsBodies::Update PhysicsBodies::Take() noexcept
+PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
 {
     auto moved = m_reads.TakeMovedReferences();
     // A revived player's next ragdoll need not mark the reference as moved again.
@@ -104,7 +119,20 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
                 // Its node left behind: the engine moved the body off where its 3D stood.
                 it->second.Moved = it->first == cHeld || NodeLeftBehind(*cBody) || BodyPrediction::LeftRest(frame, *woke[i]);
             }
-            if (cRead.Active || it->first == cHeld)
+            // A reference's body rests by its own motion too: Havok keeps an island awake while anything in it moves.
+            bool resting = !cRead.Active;
+            if (!cActor)
+            {
+                auto& still = it->second.Still;
+                if (still.size() <= i)
+                    still.resize(i + 1);
+                // Held still in the hand is not still: its release starts the count.
+                if (it->first == cHeld)
+                    still[i] = {};
+                else
+                    resting |= still[i].Read(frame, aTick);
+            }
+            if (!resting || it->first == cHeld)
                 awake.Read.push_back(frame);
         }
         // Woken, unmoved: no frames (a guest would play it keyframed); its rest still goes, settles included.
@@ -119,6 +147,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             it->second.Resting = false;
             if (cActor)
                 it->second.Last = all.Read;
+            awake.Held = it->first == cHeld;
             update.Awake.push_back(std::move(awake));
             ++it;
             continue;
@@ -147,9 +176,19 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
         if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {
-            // An actor's place is its own sync's; a reference's move row follows its queued node repair.
+            // An actor's place is its own sync's; a reference's move row follows its queued node repair. Woken again
+            // where it last rested (Orgnar's bottles, many times a minute), it has nothing new to say.
+            if (const auto& cLast = m_lastRests[it->first];
+                !cActor && !it->second.Moved && aTick - cLast.Tick < kRestAgainMs && SameRest(cLast.Rest, all.Read))
+            {
+                it = m_awake.erase(it);
+                continue;
+            }
             if (!cActor)
+            {
                 QueueRest(it->first, it->second.At);
+                m_lastRests[it->first] = {all.Read, aTick};
+            }
             update.Rested.push_back(std::move(all));
         }
         it = m_awake.erase(it);
@@ -166,6 +205,7 @@ void PhysicsBodies::Forget(uint32_t aFormId) noexcept
 {
     ++m_sceneGeneration[aFormId];
     m_awake.erase(aFormId);
+    m_lastRests.erase(aFormId);
     std::erase(m_restedAway, aFormId);
 }
 

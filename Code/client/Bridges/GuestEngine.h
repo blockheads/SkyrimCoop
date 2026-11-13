@@ -108,7 +108,7 @@ public:
         std::vector<BodyFrame> Ragdoll;
         std::vector<BodyPose> RagdollRested;
     };
-    [[nodiscard]] OwnBodies TakeOwnBodies() noexcept;
+    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick) noexcept;
 
     // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
     // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.

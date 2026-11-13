@@ -53,6 +53,26 @@ TEST_CASE("Physics: a guest's player holds a body, its alone: every other game p
     }
 }
 
+TEST_CASE("Physics: the host's player holds a body: each guest gets it as a hold, the rest as plain frames", "[HostAuthority][Physics]")
+{
+    // A guest plays plain frames simulated (its grab takes them); a hold keyframed, so its grab refuses it.
+    Session session;
+    const BodyKey cBucket{.Object = GameId(0, 0x0001A0F4)};
+    session.Moving.Awake = {{.Key = kLadle, .Position = {100.f, 0.f, 0.f}, .LinearVelocity = {300.f, 0.f, 0.f}},
+                            {.Key = cBucket, .Position = {120.f, 0.f, 0.f}, .LinearVelocity = {300.f, 0.f, 0.f}}};
+    session.Moving.Held = {kLadle};
+    session.Frame(1000);
+    for (const auto cGuest : {kPeer, kOtherPeer})
+    {
+        std::vector<std::pair<BodyKey, bool>> sent;
+        for (const auto* pFrames : session.SentTo<NotifyBodyFrames>(cGuest))
+            for (const auto& cFrame : pFrames->Frames)
+                sent.emplace_back(cFrame.Key, pFrames->Held);
+        std::ranges::sort(sent);
+        CHECK(sent == std::vector<std::pair<BodyKey, bool>>{{kLadle, true}, {cBucket, false}});
+    }
+}
+
 TEST_CASE("Physics: a guest's player lets go, the host simulates it from there", "[HostAuthority][Physics]")
 {
     Session session;

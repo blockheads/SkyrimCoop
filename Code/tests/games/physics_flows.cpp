@@ -59,7 +59,7 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
     auto& hostBucket = BodyOf(party, party.Host(), kBucket);
     auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
     party.Until([&] { return guestBucket.Drives > 0; }, "the guest's bucket follows the host's frames");
-    THEN("the guest's is held by the host's, not simulated") CHECK(guestBucket.Held);
+    THEN("the guest's follows the host's simulated, its mass kept (physics-sync.md, \"One rule\")") CHECK_FALSE(guestBucket.Held);
 
     const auto cWhere = [&] {
         return std::format("host's at z {:.1f} {}, guest's at z {:.1f}, {} drives, {} rests", hostBucket.Flight.Body.Position.z,
@@ -235,24 +235,84 @@ SCENARIO("A guest's player hits the bucket with its sword: the host's is knocked
     }
 }
 
-SCENARIO("A guest's player hits the bucket the host's knock still moves: nothing moves, the guest follows the host", "[physics]")
+SCENARIO("A knocked bucket stops where an animated body keeps its island awake: it rests on both games", "[physics][still]")
+{
+    // Havok's island sleep never came (Orgnar's body, 78910), so the host never sent the rest; a rest by its own
+    // motion does (physics-sync.md, "One rule").
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    hostBucket.KeptAwake = true;
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return guestBucket.Drives > 2; }, "the guest's bucket follows the host's frames");
+    const auto cWhere = [&] {
+        return std::format("host's at y {:.1f} {}{}, guest's at y {:.1f}, {} rests", hostBucket.Flight.Body.Position.y,
+                           hostBucket.Flight.Resting ? "stopped" : "moving", hostBucket.Awake ? " (awake)" : "", guestBucket.Flight.Body.Position.y,
+                           guestBucket.Rests);
+    };
+    party.Until([&] { return hostBucket.Flight.Resting; }, "the host's bucket stops", cWhere);
+    THEN("its rest reaches the guest though Havok keeps it awake, and the guest's lies there asleep")
+    {
+        party.Until([&] { return guestBucket.Rests > 0; }, "the guest places the host's rest", cWhere);
+        INFO(cWhere());
+        CHECK(hostBucket.Awake);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+        CHECK_FALSE(guestBucket.Awake);
+    }
+}
+
+SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
+{
+    // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& held = BodyOf(party, party.Host(), kBucket);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    held.Flight.Floor = kTable;
+    const float cAloft = held.Flight.Body.Position.z + 60.f;
+    party.As(party.Host(), [&] {
+        host.Grabbed = kBucket;
+        held.Flight.Body.Position.z = cAloft;
+        held.Flight.Resting = false;
+        held.Awake = true;
+    });
+    const auto cBegan = std::chrono::steady_clock::now();
+    party.Until([&] { return std::chrono::steady_clock::now() - cBegan > std::chrono::milliseconds(600); }, "the host's player holds it still");
+    party.As(party.Host(), [&] { host.Grabbed.reset(); });
+    party.Until([&] { return watched.Rests > 0; }, "the guest places a rest", [&] {
+        return std::format("host's at z {:.1f} {}", held.Flight.Body.Position.z, held.Awake ? "awake" : "asleep");
+    });
+    THEN("that rest is on the table, not in the air where it was held")
+    {
+        INFO(std::format("guest's at z {:.1f}, held at {:.1f}", watched.Flight.Body.Position.z, cAloft));
+        CHECK(watched.Flight.Body.Position.z < cAloft - 30.f);
+    }
+}
+
+SCENARIO("A guest's player hits the bucket the host's knock still moves: it keeps its mass, so both games are knocked", "[physics]")
 {
     Party party(1, Plugins);
     auto& hostBucket = BodyOf(party, party.Host(), kBucket);
     auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
     hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
-    // The host's player knocks it along y; the guest's plays it keyframed on the host's frames.
+    // The host's player knocks it along y; the guest's plays it nudged onto the host's frames, simulated (its mass).
     party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {0.f, 120.f, 0.f}); });
-    party.Until([&] { return guestBucket.Held && guestBucket.Drives > 2; }, "the guest's bucket follows the host's frames");
-    // Keyframed, it has no mass: the swing's impulse is 0 (38628), so no hit to send.
+    party.Until([&] { return guestBucket.Drives > 2; }, "the guest's bucket follows the host's frames");
     party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Swing(kBucket, {160.f, 0.f, 0.f}); });
-    const size_t cDrivesAtHit = guestBucket.Drives;
-    THEN("the guest's keeps following the host's frames to the host's rest, which only the knock moved")
+    THEN("the hit reaches the host, and the guest's lies at the host's rest, which the knock and the hit moved")
     {
-        party.Until([&] { return guestBucket.Drives > cDrivesAtHit + 2; }, "the guest's bucket follows the host's after the swing");
-        party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0; }, "the bucket rests on both games");
+        const auto cWhere = [&] {
+            return std::format("host's at ({:.1f}, {:.1f}) {}, guest's at ({:.1f}, {:.1f}) {}, {} hits sent", hostBucket.Flight.Body.Position.x,
+                               hostBucket.Flight.Body.Position.y, hostBucket.Awake ? "awake" : "asleep", guestBucket.Flight.Body.Position.x,
+                               guestBucket.Flight.Body.Position.y, guestBucket.Held ? "keyframed" : "simulated",
+                               Party::Engine(party.Guest()).PlayerHits.size());
+        };
+        party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0; }, "the bucket rests on both games", cWhere);
+        INFO(cWhere());
         CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
-        CHECK(std::abs(hostBucket.Flight.Body.Position.x - 100.f) < 0.01f);
+        CHECK(hostBucket.Flight.Body.Position.x > 110.f);
+        CHECK_FALSE(guestBucket.Held);
     }
 }
 
@@ -276,7 +336,7 @@ SCENARIO("A guest's player stands beside a bucket the host knocks: it comes to r
     };
     party.Until([&] { return cCopy() != nullptr; }, "the guest's copy stands at the table on the host");
     party.As(party.Host(), [&] { host.Knock(kBucket, {0.f, 60.f, 0.f}); });
-    party.Until([&] { return guestBucket.Held; }, "the guest's bucket follows the host's knock", [&] {
+    party.Until([&] { return guestBucket.Drives > 0; }, "the guest's bucket follows the host's knock", [&] {
         return std::format("host's {} at ({:.1f}, {:.1f}), {} drives", hostBucket.Awake ? "awake" : "asleep", hostBucket.Flight.Body.Position.x,
                            hostBucket.Flight.Body.Position.y, guestBucket.Drives);
     });

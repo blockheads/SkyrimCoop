@@ -22,7 +22,7 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
 {
     std::vector<BodyKey> owned;
     std::vector<BodyFrame> frames;
-    auto own = m_engine.TakeOwnBodies();
+    auto own = m_engine.TakeOwnBodies(aTick);
     // Its player's drop falls as this game's physics drops it until the host's rest.
     for (const BodyKey& cKey : m_engine.TakeAdoptedDrops())
         Own(cKey, aTick, "dropped", owned);

@@ -371,7 +371,7 @@ std::vector<BodyPush> GuestEngine::TakeHits() noexcept
 }
 
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;

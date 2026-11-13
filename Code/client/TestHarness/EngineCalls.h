@@ -311,6 +311,8 @@ struct Placement
 Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
 // Moves the player to that spot (its feet), facing the reference.
 bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept;
+// A reference's first body woken, moving at that velocity (game units/s; 78089). False: no dynamic body.
+bool SetBodyVelocity(uint32_t aFormId, const float acVelocity[3]) noexcept;
 
 // A ray through the player's cell's physics world (bhkWorld::PickObject), as a collision layer sees it (30, the
 // character controller's: what stops a player walking). Game units.

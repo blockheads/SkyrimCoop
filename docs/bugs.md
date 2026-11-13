@@ -70,7 +70,7 @@ other section needs the duo.
 - [A long roll jumps](#a-long-roll-jumps): small
 - [A dropped sword](#a-dropped-sword): small
 - [A chest lid's pose](#a-chest-lids-pose): small
-- [A guest's swing at a moving object](#a-guests-swing-at-a-moving-object): small
+- [A late rest undoes a scripted move](#a-late-rest-undoes-a-scripted-move): small
 
 **Dialogue**
 
@@ -736,23 +736,26 @@ Size: small. Needs: duo, then GameTests.
   - Start: compare the lid's animation state on both games after the interruption (the chest's `BGSOpenCloseForm`
     open state, `SetOpenState` 14287 in form-state.md) and replay the host's final open state.
 
-### A guest's swing at a moving object
+### A late rest undoes a scripted move
 
-Stands alone: the guest's hand on a body the host's frames move.
+Stands alone: the order of a body's rest and a move row on a guest.
 
-Agent task: Let a guest's melee swing knock an object the host's frames are moving, as it would in a game without co-op.
+Agent task: Make a host's move row of a reference win over an older body rest of it that the guest plays later.
 
 Size: small. Needs: GameTests, then duo.
 
-- **A guest's swing at an object the host is moving does nothing** (2026-11-13). On the guest such a body is
-  keyframed on the host's frames, and a keyframed motion is massless: `Actor::CalculateCurrentHitTargetForWeaponSwing`
-  (38628) scales the swing's impulse by its mass, to 0, so neither game moves it (read in IDA; measured with the
-  harness's `last_swing`, `docs/re/systems/physics.md`, "A swing's hit"). A body woken still is PR #52's
-  ("Woken still"): only one really moving (knocked, rolling, thrown) is left.
-  - Start: the swing's direction and strength before the mass scaling (38628, `0x1406cdd7e` on), sent for the host
-    to scale by its own body's mass.
-  - Test: GameTests "A guest's player hits the bucket the host's knock still moves" (states today's nothing), then a
-    scenario swinging at a rolling object (`swing_at` after a knock).
+- **The Sleeping Giant's rack weapons lay on the guest's floor after the scene** (2026-11-13,
+  `guest-grabs-orgnar-bottle`'s end comparison). The weapons A0E41, A0D77 and A0E2F fell on the host and rested; then
+  the host put them back on their racks (enable and move rows, `HostWorldState`), and the guest applied those moves
+  at once, but the earlier rests of the fallen weapons, played 100 ms behind (`BodyService`), were placed after them:
+  `BodyService: placed the owner's rest of A0E41 body 0 at (-1, 484, -201)` 70 ms after `GuestWorldState: applied ...
+  move A0E41 to (14, 478, -103)`. Host on the rack, guest on the floor.
+  - Start: the guest's log around the move rows; a move row for a reference could drop its queued playback and rest
+    (the opposite of "A loaded body takes its rest from the host's body rest alone").
+  - Test: GameTests: a host rest then a move row of the same reference in one update; the guest ends at the move.
+  - Every Sleeping Giant scene flow (`guest-grabs-orgnar-bottle`, `object-rests-beside-orgnar`) passes its steps and
+    fails the runner's end comparison on these weapons, with the host-only container change flags (`0x8000000`, "A
+    town's end comparison finds ambient differences") and now and then one or two pieces of clutter turned differently.
 
 ## Dialogue
 

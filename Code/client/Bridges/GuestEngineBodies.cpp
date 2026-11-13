@@ -97,10 +97,10 @@ std::vector<BodyPush> GuestEngine::TakeHits() noexcept
     return Keyed(PlayerHands::TakeHits());
 }
 
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
 {
     OwnBodies own;
-    const auto cUpdate = m_moving.Take();
+    const auto cUpdate = m_moving.Take(aTick);
     for (const auto& cAwake : cUpdate.Awake)
     {
         if (cAwake.Actor)

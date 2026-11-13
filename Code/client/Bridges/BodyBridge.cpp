@@ -110,7 +110,7 @@ std::optional<BodyPose> BodyBridge::ReadPose(const BodyKey& acKey) noexcept
     return std::nullopt;
 }
 
-bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
+bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHeld) noexcept
 {
     const Found cFound = Find(acFrame.Key, aCopyFormId, acFrame.Knocked);
     if (cFound.Waiting)
@@ -120,6 +120,33 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     if (acFrame.Key.Actor)
     {
         QueueCopyBodyFrame(aCopyFormId, acFrame, cFound.First);
+        return true;
+    }
+    // Played, not held: a copy keeps its mass, so hits, pushes and grabs reach it (physics-sync.md, "One rule"); one
+    // keyframed for a hold that ended gets its own motion back first.
+    if (const auto it = m_motions.find(acFrame.Key); !aHeld && cFound.pCollision && it != m_motions.end())
+    {
+        if (!::FreeBody(*cFound.pCollision, static_cast<hkpRigidBody::MotionType>(it->second), acFrame.LinearVelocity, acFrame.AngularVelocity))
+            return false;
+        m_motions.erase(it);
+    }
+    if (BodyRead read; !aHeld && cFound.pCollision && !m_motions.contains(acFrame.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic)
+    {
+        // Bodies driven within a couple of ms share a frame; Havok integrates the steer over the next one.
+        const auto cNow = std::chrono::steady_clock::now();
+        if (const float cSince = std::chrono::duration<float>(cNow - m_lastFrame).count(); cSince > 0.002f)
+        {
+            m_frameSeconds = std::min(cSince, 0.5f);
+            m_lastFrame = cNow;
+        }
+        if (glm::distance(read.Position, acFrame.Position) <= kPlaceFar)
+        {
+            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame, BodyPrediction::SteerSeconds(m_frameSeconds));
+            return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
+        }
+        if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity, true))
+            return false;
+        FollowBody(*cFound.pCollision);
         return true;
     }
     RememberMotion(acFrame.Key, cFound);
@@ -145,9 +172,9 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
                                       .Knocked = acPose.Knocked}, true, true);
         return true;
     }
-    // A reference's body not held and already there (the owner's settle in place): moving it would record a move
-    // here the owner's game has not.
-    if (BodyRead read; cFound.pCollision && !m_motions.contains(acPose.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic &&
+    // A reference's body not held, asleep and already there (the owner's settle in place): moving it would record a
+    // move here the owner's game has not. A played one is awake, steered: it is put to sleep at the rest below.
+    if (BodyRead read; cFound.pCollision && !m_motions.contains(acPose.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic && !read.Active &&
                        glm::distance(read.Position, acPose.Position) < ReferenceBodies::kSameDistance &&
                        std::abs(glm::dot(read.Rotation, acPose.Rotation)) > std::cos(ReferenceBodies::kSameAngle))
         return true;

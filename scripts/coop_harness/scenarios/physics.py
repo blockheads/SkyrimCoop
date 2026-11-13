@@ -37,14 +37,14 @@ from ..objects import (
 
 def scenario_physics_push_reaches_guest(ctx):
     """Physics sync (docs/design/physics-sync.md): the host's player knocks clutter with a fireball. The client's
-    object it knocks hardest is held by the host's frames (keyframed, its own physics off), its 3D flies with the
+    object it knocks hardest follows the host's frames (simulated, nudged onto them: its mass kept), its 3D flies with the
     host's and lies where the host's lies; everything the blast woke rests before the world is compared."""
     ctx.knock_clutter_with_fireball("")
 
 def scenario_guest_cast_moves_host(ctx):
     """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player knocks clutter
     with a fireball. Its copy's cast is replayed on the host, whose blast throws the host's clutter; the client's
-    follows the host's, held keyframed, and lies where the host's lies."""
+    follows the host's (nudged, its mass kept) and lies where the host's lies."""
     ctx.knock_clutter_with_fireball("client")
 
 def scenario_guest_bump_moves_host(ctx):
@@ -89,7 +89,7 @@ def scenario_guest_throw_lands_on_host(ctx):
     starts = ctx.where_now([target])
     ctx.place_before("client", target, 90)
     ctx.face("client", target)
-    # Ready first: a ladle the host's frames still move is keyframed in the client's game, and the grab refuses it.
+    # Ready first: the host's rest placed, so the hold starts from where both games agree.
     # Placed by teleport, the client's copy reaches the host a moment later, while its ladle may still stir.
     ctx.wait_until_settled(target, "client")
     # A refused grab turns the release into an activation (ActivateHandler::ProcessButton 42420), which would pick

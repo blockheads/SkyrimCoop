@@ -2,6 +2,9 @@
 
 #include <Bridges/IBodyBridge.h>
 
+#include <Physics/BodyPrediction.h>
+
+#include <chrono>
 #include <map>
 #include <set>
 
@@ -14,7 +17,10 @@ class BodyBridge final : public IBodyBridge
 public:
     void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept override;
     [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
-    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    // A played reference body this far off its frame is put there, not steered.
+    static constexpr float kPlaceFar = 64.f;
+
+    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
@@ -46,4 +52,6 @@ private:
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type
     std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
     std::map<uint32_t, bool> m_knocked;   // living copies knocked down with their owners: lying yet
+    std::chrono::steady_clock::time_point m_lastFrame{}; // the last frame that drove a body
+    float m_frameSeconds = BodyPrediction::kSteerSeconds;  // the time between those frames (SteerSeconds)
 };

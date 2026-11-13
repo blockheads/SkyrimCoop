@@ -53,7 +53,7 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
 {
     if (!m_game.TakeBodies)
         return;
-    HostBodies bodies = m_game.TakeBodies();
+    HostBodies bodies = m_game.TakeBodies(aTick);
     const ConnectionId_t cHost = m_players.Host();
     if (!cHost)
         return;
@@ -95,13 +95,19 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
                          WorldStateLog::List(started, [](const BodyKey& acKey) { return WorldStateLog::DescribeBody(acKey); }, 16),
                          cPosition ? std::format("near its copy at ({:.0f}, {:.0f}, {:.0f})", cPosition->x, cPosition->y, cPosition->z)
                                    : std::string("no copy shown: all"));
-        for (size_t first = 0; first < cDue.size(); first += kFramesPerPacket)
-        {
-            NotifyBodyFrames frames;
-            frames.Tick = aTick;
-            frames.Frames.assign(cDue.begin() + first, cDue.begin() + std::min(cDue.size(), first + kFramesPerPacket));
-            m_network.Send(cGuest, frames, Net::kUnreliable);
-        }
+        // What the host's player holds goes as a hold: the guest keeps it keyframed, so its grab refuses it.
+        std::vector<BodyFrame> held, free;
+        for (const auto& cFrame : cDue)
+            (std::ranges::find(bodies.Held, cFrame.Key) != bodies.Held.end() ? held : free).push_back(cFrame);
+        for (const auto* pFrames : {&free, &held})
+            for (size_t first = 0; first < pFrames->size(); first += kFramesPerPacket)
+            {
+                NotifyBodyFrames frames;
+                frames.Tick = aTick;
+                frames.Held = pFrames == &held;
+                frames.Frames.assign(pFrames->begin() + first, pFrames->begin() + std::min(pFrames->size(), first + kFramesPerPacket));
+                m_network.Send(cGuest, frames, Net::kUnreliable);
+            }
     }
 
     if (bodies.Rested.empty())

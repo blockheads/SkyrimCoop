@@ -207,7 +207,7 @@ void HostService::MakeAuthority() noexcept
     game.TakeQuestObject = [&engine](const GameId& acObject) { return engine.TakeQuestObject(acObject); };
     // The real PhysicsBodies over the fake engine's physics, keyed as HostEngine::TakeBodies keys them: an actor's
     // ragdoll by its session id, only this game's own actors' (a copy's is played here).
-    game.TakeBodies = [&engine, this, physics = std::make_shared<PhysicsBodies>(engine)] {
+    game.TakeBodies = [&engine, this, physics = std::make_shared<PhysicsBodies>(engine)](uint64_t aTick) {
         const auto cSessionOf = [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
@@ -226,13 +226,15 @@ void HostService::MakeAuthority() noexcept
             return std::nullopt;
         };
         engine.PhysicsTick = engine.PhysicsTime(m_pNetwork->GetTick());
-        const auto cUpdate = physics->Take();
+        const auto cUpdate = physics->Take(aTick);
         HostBodies bodies;
         for (const auto& cAwake : cUpdate.Awake)
             if (const auto cKey = cOwner(cAwake))
                 for (BodyFrame frame : cAwake.Read)
                 {
                     frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
+                    if (cAwake.Held)
+                        bodies.Held.push_back(frame.Key);
                     bodies.Awake.push_back(frame);
                 }
         for (const auto& cRested : cUpdate.Rested)

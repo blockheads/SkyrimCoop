@@ -170,7 +170,55 @@ game: a keyframed motion's inverse mass is 0, so `getMass` (60959) reads 0 and 3
 (read in IDA; measured on the duo with `last_swing`: the swing met the ladle with the line-up's look, no hit recorded,
 the ladle stayed at 0.0 units/s). The host kept a ladle awake (0.0-0.09 units/s) with the guest's copy beside it, so
 the guest's stayed keyframed and unhittable: the copy's own step woke it each frame (fixed 2026-11-13, below, "Woken
-still"). A swing at a body really moving on the host's frames stays a miss (`docs/bugs.md`).
+still"). A body really moving on the host's frames is no longer keyframed on the guest, so the swing knocks it
+(2026-11-13, `docs/design/physics-sync.md`, "One rule").
+
+## Every hand skips a keyframed body (read in IDA 2026-11-13)
+
+Each way a player moves a body ignores one keyframed (motion type 4), so a body played keyframed is out of reach:
+
+- walking into it: the character proxy gives it no interaction (79133, "A player's push");
+- a swing: 38628 scales the impulse by `getMass` (60959), 0 for a keyframed motion ("A swing's hit");
+- a shout: `ConeProjectile::ProcessHits` (43802, our name) pushes a hit body only when `hkpMotion::IsDynamicType`
+  (78109, our name, read: motion types 1-3 and 6) or its layer is 20, through `bhkRigidBody::SetLinearImpulse`
+  (78091) and a random angular impulse;
+- an explosion: `Explosion::ApplyHavokImpulses` (43850, our name) runs once over the bodies its phantom
+  (`Explosion+0xC0`) overlaps, with the same gate, then `Explosion::ApplyImpulseToBody` (43854): linear impulse from
+  the blast's centre, scaled by mass, and a random angular one (`GetRandomNumber` three times), so two games' blasts
+  never match;
+- a grab: `CreateMouseSprings` (40555) refuses types 4 and 5 ("Grabbing").
+
+Each knows its cause where it pushes: an explosion its `actorOwner` (`+0xF8`) and `actorCause` (`+0x108`,
+`GetActorCause` 43846), a shout its projectile's shooter, a swing its swinger.
+
+Contacts: the engine adds contact listeners only through `bhkWorldObject::AddContactListener` (77843, our name), which
+calls `hkpWorld::addContactListener` (61383: the array at `hkpWorld+0x258`); Precision registers its own the same way
+after `requireCollisionCallbackUtil` (61437) and hears every contact point with both bodies.
+
+Sleep (read in IDA 2026-11-13 unless marked):
+
+- `FOIslandActivationListener::islandDeactivatedCallback` (25850) is the engine's work when Havok deactivates an
+  island. Per body it calls `PopTemporaryMass`, does the 3D's bookkeeping through the task queue, sets references
+  flagged in their extra data to fixed (`NiAVObject::SetMotionType` 77866, 5), and keyframes large debris (layer 20;
+  78077, 4).
+- `hkpEntity::deactivate` (60850) clears the island's marks. It calls `moveIslandBetweenActiveLists` (61513, our
+  name), which moves the island between the world's active (`+0x40`) and inactive (`+0x50`) arrays through 61511
+  (island bookkeeping), then `markIslandInactive` (61523, our name, the mirror of `markIslandActive` 61525). That
+  clears the activation bits and queues the island on the world's list at `+0x60`. Last, it resets each body's sleep
+  reference (`+0x25C`, `+0x26C`; Havok's per-body deactivation reference, inferred from its motion layout).
+- None of these calls the island listeners (world `+0x1F8`). They run where the world drains `+0x60`, not found yet
+  (IDA's byte search returned nothing).
+
+Havok sleeps an island only when all its bodies are quiet, which is why one animated body keeps its neighbours awake
+("Woken still"). Since a reference's rest now comes from its own stillness, the two games differ here:
+
+- On the host, 25850's work waits for Havok's island sleep, as in a game without co-op: beside a leaning Orgnar,
+  never.
+- On a guest, placing the host's rest calls 60850 (`BodyBridge::SettleFound`), as before this change. That queues the
+  island inactive at once. Whether 25850 then runs for it is not read.
+- Seen on the duo: the guest's object stays dynamic and its pose matches (`object-rests-beside-orgnar`). A reference
+  that 25850 makes fixed on sleep could still end up fixed on the guest and dynamic on the host; that is not
+  measured.
 
 ## Rays
 
@@ -187,6 +235,10 @@ The engine records a reference's havok move (change flag 0x4, `TESForm::AddChang
 (`PhysicsBodies` watches the change funnel for it). Each update the host reads those references' bodies; a body is
 awake while its island's `activeMark` is set, and a reference rests when none of its dynamic bodies is awake (Havok
 deactivates an island after `kNumInactiveFramesToDeactivate` quiet frames and zeroes its velocities).
+
+Since 2026-11-13 a reference's body also rests once it keeps one pose for 300 ms (`BodyPrediction::Still`): its
+island can stay active for good beside an animated body ("Woken still"), measured with a cheese wheel on Orgnar's bar
+(`object-rests-beside-orgnar`: the host's body awake, no island sleep in 6 of 7 drops).
 
 Havok's own listeners (island activation, post simulation) would say the same per island; they need an object with
 Havok's vtable registered on each world as the player changes worlds. Not needed while the funnel's event and the
