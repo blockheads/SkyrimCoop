@@ -67,7 +67,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         const bool cActor = cReference->Actor;
         // A living actor's ragdoll is its physics' only while it is knocked down; up again, its animation's.
         const bool cUp = cReference->Up;
-        Bodies awake{it->first, cActor};
+        Bodies awake{it->first, cActor, it->first == cHeld};
         Bodies all{it->first, cActor};
         for (size_t i = 0; i < cReference->Bodies.size(); ++i)
         {

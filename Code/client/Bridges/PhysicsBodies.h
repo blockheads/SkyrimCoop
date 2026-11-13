@@ -34,6 +34,7 @@ public:
     {
         uint32_t FormId{};
         bool Actor{}; // its ragdoll's
+        bool Held{};  // this game's player holds it
         std::vector<BodyFrame> Read;
     };
     struct Update

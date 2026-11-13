@@ -188,11 +188,31 @@ the springs (`BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>`) at `+0x8A0` (ca
 (count); `grabbedObject` at `+0x8D0`, not `0x8C8` (`PlayerCharacter::grabbedObject`; `world_state`'s player status
 `grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion: vanilla has no
 throw for a grabbed object (no `fZKey...Throw` setting; telekinesis has its own). The harness holds Activate as the
-`activate` button. `StartGrabObject` takes the body only if its vfunc 0x27 says so (a keyframed body: no): a guest
+`activate` button. `StartGrabObject` needs the body in a world (`bhkSerializable` vfunc 0x27 `GetWorld1`) and light
+enough (a keyframed body's mass reads 0); `PlayerCharacter::CreateMouseSprings` (40555, our name, `0x140752630`; read
+on 1.7.104, 2026-11-13) sets the grab mode (`+0xB04`: 1 the player's, 2 telekinesis) and then refuses a body whose
+motion type (`hkpRigidBody+0x160`) is 4 (keyframed) or 5 (fixed): `DestroyMouseSprings` at `0x140752ea3`. So a guest
 grabs a resting body (dynamic, asleep), not one the host's frames still move (a hook freeing it first was removed,
-`docs/progress.md`, loose ends). A grab holds the object where
+`docs/progress.md`, loose ends).
+
+`ActivateHandler::ProcessButton` (42420, `0x1407b2660`; read 2026-11-13): a press marks an activation pending
+(`+0x18`); held past `fZKeyDelay:Controls` once, `StartGrabObject`; on release, a grab going (mode 1) lets go, else
+the pending activation runs (`ActivatePickRef`): a refused grab turns a held E into a pickup, and an owned item's
+pickup is a theft (`StealAlarm` 37422, `crime.md`). A grab holds the object where
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
+
+## Woken still (2026-11-13)
+
+Something wakes resting clutter without moving it: on the duo, the Sleeping Giant's bar bottles (33284, 33287, 33288...)
+woke every 1-5 s with nobody touching them, each for 0.5-1.5 s, then slept where they were (measured: the host's
+`HostPhysics: ... gets the frames` / `got 1 frames` lines, 133 wakes in 4.5 min of the playtest). What wakes them is
+not read; the NPCs behind the bar (Orgnar, Delphine) are near all of them. Before the fix every wake sent the guest
+a first frame, so its bottle was keyframed (`BodyService: follows the owner's ...`) until the rest, and a held E in that
+window was a pickup (above), a theft in front of Orgnar. The host's send rule now keeps a body woken still where the
+guest has it (`BodySendLimits::StillStaysPut`, `docs/design/physics-sync.md`, "Woken still"). Measured on the duo: before,
+two held-E grabs of 33288 and 33287 timed out after 3 s and the release picked them up; after, each took in 0.22 s
+(`guest-grabs-orgnar-bottle`).
 
 ## What stops a held body (2026-11-01)
 

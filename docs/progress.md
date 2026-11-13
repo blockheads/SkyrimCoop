@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. The host's NPCs wake the bar's bottles every
+few seconds without moving them, and every wake sent the guest a frame, which keyframed its bottle; the engine's grab
+refuses a keyframed body (`CreateMouseSprings` 40555), so the release picked it up instead, a theft. The host's send
+rule now keeps a body woken still where the guest has it (`physics-sync.md`, "Woken still"). A guest's seen theft is
+also no longer warned: the steal warning (37556) goes only to the host's player, so the guest saw neither warning nor
+bounty (`crime.md`). Scenario `guest-grabs-orgnar-bottle`; the MCP's `grab` verb takes handle names.
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

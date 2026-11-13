@@ -150,6 +150,24 @@ jump past 6 units (`FlightTrace.check`). Skyrim's own flight is less even than t
 hosting (none of ours running), a knocked ladle's speed per frame swings 80% from frame to frame (Havok steps at 60
 Hz, the frames come 1-57 ms apart), as on the host; the guest plays by the clock, 10-30%.
 
+### Woken still (2026-11-13)
+
+```
+host: a body wakes (its island active) but has not moved from where it rested
+  BodySends (the host's, StillStaysPut): its first frame is still (a refresh's worth of its motion inside the
+    limits)? -> kept: the guest's guess is that rest, no frame, no age refresh
+  it moves past the limits (2 units, 0.05 rad) -> sent as any wrong guess; a knock (moving) -> sent at once
+  the host's player holds it (HostBodies::Held, PhysicsBodies' hold) -> sent: every guest keyframes a hold
+guest: never driven, so dynamic: its player can grab it; the host's rest places it where it already is
+```
+
+Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: every time the
+host's NPCs woke the bottles, their frames keyframed the guest's, which the engine's grab refuses
+(`docs/re/systems/physics.md`, "Grabbing", "Woken still"). The guest's own sends (held frames, `GuestHands`) keep the
+first frame: a hold must reach the host at once. Tests: `ClientTests` "A body woken still stays the guest's to grab
+until it moves", `GameTests` "Orgnar wakes the bottles on his bar without moving them" (the fake's `Wake`), scenario
+`guest-grabs-orgnar-bottle`.
+
 ### Near each guest
 
 A guest gets the frames of the awake bodies within `BodyRelevance::kGuestRadius` (4096 units, one exterior cell) of

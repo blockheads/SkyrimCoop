@@ -1,0 +1,18 @@
+time	op	id	rva	item
+2026-11-13T15:00:11Z	read	42420	0x7b2660	{"name": "ActivateHandler::ProcessButton"}
+2026-11-13T15:00:18Z	read	40552	0x751870	{"name": "PlayerCharacter::StartGrabObject"}
+2026-11-13T15:00:46Z	read	40555	0x752630	{"name": "PlayerCharacter::sub_40555"}
+2026-11-13T15:01:24Z	name	40555	0x752630	{"addr": "0x140752630", "name": "PlayerCharacter::CreateMouseSprings"}
+2026-11-13T15:01:24Z	local	42420	0x7b2660	{"func_addr": "0x1407b2660", "old": "a1", "new": "handler"}
+2026-11-13T15:01:24Z	local	42420	0x7b2660	{"func_addr": "0x1407b2660", "old": "a2", "new": "button"}
+2026-11-13T15:01:30Z	comment	42420	0x7b2660	{"addr": "0x1407b2660", "comment": "ActivateHandler::ProcessButton (42420). Press: +0x18 pending activate. Held past fZKeyDelay (dword_1420B8640) once (+0x19): StartGrabObject (40552) if the player's grab mode +0xB04 is 0; +0x1A = a grab started. Release: grab mode 1 -> let go (0x140751A30); else no grab and pending -> ActivatePickRef (a pickup). So a refused grab turns a held E into a pickup on release. Coop: docs/re/systems/physics.md, Grabbing."}
+2026-11-13T15:01:30Z	comment		0x7b275d	{"addr": "0x1407b275d", "comment": "held past fZKeyDelay: try the grab; refused (keyframed/fixed body) leaves +0xB04 at 0"}
+2026-11-13T15:01:30Z	comment		0x7b2835	{"addr": "0x1407b2835", "comment": "release with no grab: activate the crosshair ref (pickup / theft via StealAlarm 37422)"}
+2026-11-13T15:01:30Z	comment	40555	0x752630	{"addr": "0x140752630", "comment": "PlayerCharacter::CreateMouseSprings (40555; player, ref, grab mode 1 player/2 telekinesis, distance, ragdoll flag). Sets +0xB04 = mode, builds the spring on the ray's body; refuses (DestroyMouseSprings 40557) a body whose motion type (hkpRigidBody+0x160) is 4 keyframed or 5 fixed, at 0x140752ea3."}
+2026-11-13T15:01:30Z	comment		0x752ea3	{"addr": "0x140752ea3", "comment": "motion type 4 (KEYFRAMED) or 5 (FIXED), or no hkpRigidBody: no grab (DestroyMouseSprings). A guest's body driven by the host's frames is keyframed here."}
+2026-11-13T15:01:30Z	comment	40552	0x751870	{"addr": "0x140751870", "comment": "PlayerCharacter::StartGrabObject (40552), read on 1.7.104 2026-11-13: grab mode +0xB04 zero; the crosshair ref (CrosshairPickData+4); its 3D's rigid body in a world (bhkSerializable vfunc 0x27 GetWorld1) and mass <= dword_1420A9548 (keyframed reads 0): CreateMouseSprings (40555), which itself refuses a keyframed/fixed body."}
+2026-11-13T15:10:33Z	read	37422	0x681de0	{"name": "Actor::StealAlarm"}
+2026-11-13T15:19:02Z	read	37556	0x690780	{"name": "Actor__StartStealWarning"}
+2026-11-13T15:19:22Z	comment	37556	0x690780	{"addr": "0x140690780", "comment": "Actor__StartStealWarning (37556), read 2026-11-13: the owner's steal warning, no bounty. Clears its run-once package, interrupts an interrupt-type one, creates a package type 34 (flags |= 6) whose location (0x140690870) and target (0x1406908ba) are g_thePlayer, puts it on the owner (vfunc 0xDF). Coop: a guest's theft judged on the host warns the host's player, never the guest (crime.md)."}
+2026-11-13T15:19:22Z	comment		0x690870	{"addr": "0x140690870", "comment": "the warning's location: g_thePlayer (the host's player even for a guest's theft)"}
+2026-11-13T15:19:22Z	comment		0x6908ba	{"addr": "0x1406908ba", "comment": "the warning's target: g_thePlayer"}

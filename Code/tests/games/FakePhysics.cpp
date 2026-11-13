@@ -73,6 +73,15 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Tick = 0;
 }
 
+void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
+{
+    Body& body = Bodies.at(acKey);
+    body.Flight.Resting = false;
+    body.Awake = true;
+    body.StillFor = aMs;
+    body.StillUntil = 0;
+}
+
 std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) noexcept
 {
     const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
@@ -228,6 +237,16 @@ void StepBody(FakeEngine::Body& aBody, uint64_t aTick)
 {
     if (!aBody.Tick)
         aBody.Tick = aTick;
+    // Woken still (Wake): unmoved until Havok sleeps it.
+    if (aBody.StillFor)
+    {
+        if (!aBody.StillUntil)
+            aBody.StillUntil = aTick + aBody.StillFor;
+        if (aTick < aBody.StillUntil)
+            return;
+        aBody.StillFor = aBody.StillUntil = 0;
+        aBody.Flight.Resting = true;
+    }
     for (; aBody.Tick + kStepMs <= aTick && !aBody.Flight.Resting; aBody.Tick += kStepMs)
         aBody.Flight.Step(kStepMs / 1000.f);
     if (!aBody.NodeLeftBehind)

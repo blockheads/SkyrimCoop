@@ -213,6 +213,35 @@ SCENARIO("A body the guest guesses right sends again only to repair a lost frame
     CHECK(sends.Due({frame}, 1500).size() == 1);
 }
 
+SCENARIO("A body woken still stays the guest's to grab until it moves", "[physics][woken-still]")
+{
+    // The Sleeping Giant's bar: an NPC wakes the bottles, which never move (playtest 2026-11-13).
+    BodySends sends(BodySendLimits{.StillStaysPut = true});
+    BodyFrame bottle{.Key = {.Object = GameId(0, 1)}, .Position = {-1154.f, 22.f, 78.f}, .LinearVelocity = {0.5f, 0.f, 0.f}};
+    for (uint64_t tick = 1000; tick < 3000; tick += 16)
+        CHECK(sends.Due({bottle}, tick).empty());
+    THEN("once it moves, it is sent")
+    {
+        bottle.Position.x += 3.f;
+        CHECK(sends.Due({bottle}, 3000).size() == 1);
+    }
+    THEN("a knocked one is sent at once")
+    {
+        const BodyFrame cKnocked{.Key = {.Object = GameId(0, 2)}, .LinearVelocity = {200.f, 0.f, 0.f}};
+        CHECK(sends.Due({cKnocked}, 1016).size() == 1);
+    }
+    THEN("a player's hold goes even still: the other games keyframe it")
+    {
+        const BodyFrame cHeld{.Key = {.Object = GameId(0, 3)}};
+        CHECK(sends.Due({cHeld}, 1016, {cHeld.Key}).size() == 1);
+    }
+    THEN("without the rule, the first frame goes as before")
+    {
+        BodySends plain;
+        CHECK(plain.Due({bottle}, 1000).size() == 1);
+    }
+}
+
 SCENARIO("A guest's budget sends the most wrong first and the rest later", "[physics]")
 {
     BodySends::Limits limits;

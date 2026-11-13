@@ -71,6 +71,28 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
     }
 }
 
+SCENARIO("Orgnar wakes the bottles on his bar without moving them: the guest's player can still grab one", "[physics][woken-still]")
+{
+    // Playtest 2026-11-13: the host's frames of a still bottle keyframed the guest's, and the grab refuses a
+    // keyframed body (CreateMouseSprings 40555), so a held Activate picked it up on release instead.
+    Party party(1, Plugins);
+    auto& hostPlate = BodyOf(party, party.Host(), kPlate);
+    auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kPlate, 1000); });
+    size_t refused = 0;
+    party.Until([&] {
+        refused += hostPlate.Awake && !Party::Engine(party.Guest()).TryGrab(kPlate);
+        Party::Engine(party.Guest()).Grabbed.reset();
+        return !hostPlate.Awake;
+    }, "the host's plate sleeps again", [&] { return std::format("{} drives on the guest's", guestPlate.Drives); });
+    THEN("the guest's plate stayed its own, grabbable all along")
+    {
+        CHECK(guestPlate.Drives == 0);
+        CHECK_FALSE(guestPlate.Held);
+        CHECK(refused == 0);
+    }
+}
+
 SCENARIO("A guest whose game has not loaded the body skips the host's frames", "[physics]")
 {
     Party party(1, Plugins);

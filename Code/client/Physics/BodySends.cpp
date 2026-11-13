@@ -8,7 +8,7 @@ BodySends::BodySends(const Limits& acLimits) noexcept
 {
 }
 
-std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uint64_t aTick) noexcept
+std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uint64_t aTick, const std::vector<BodyKey>& acHeld) noexcept
 {
     if (m_lastTick && aTick > m_lastTick)
         m_allowance = std::min(m_limits.BurstBytes, m_allowance + m_limits.BytesPerSecond * static_cast<float>(aTick - m_lastTick) / 1000.f);
@@ -25,6 +25,15 @@ std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uin
         const auto it = m_sent.find(cFrame.Key);
         if (it == m_sent.end())
         {
+            if (m_limits.StillStaysPut && Still(cFrame) && std::ranges::find(acHeld, cFrame.Key) == acHeld.end())
+            {
+                // Woken still (physics.md, "Woken still"): the guest's guess is its rest, here.
+                BodyFrame rest = cFrame.Quantized();
+                rest.LinearVelocity = rest.AngularVelocity = {};
+                rest.Gravity = false;
+                m_sent[cFrame.Key] = {rest, aTick, true};
+                continue;
+            }
             // Never sent: the guest shows it where it was.
             candidates.push_back({&cFrame, 1e9f});
             continue;
@@ -33,7 +42,8 @@ std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uin
         const float cSeconds = static_cast<float>(aTick - std::min(aTick, cSent.Tick)) / 1000.f;
         const auto cError = BodyPrediction::Between(BodyPrediction::Predict(cSent.Frame, cSeconds), cFrame);
         const float cWrong = std::max(cError.Distance / m_limits.Distance, cError.Angle / m_limits.Angle);
-        const float cAge = cSeconds * 1000.f / static_cast<float>(m_limits.RefreshMs);
+        // A kept rest has no frame to lose.
+        const float cAge = cSent.Kept ? 0.f : cSeconds * 1000.f / static_cast<float>(m_limits.RefreshMs);
         if (cWrong >= 1.f || cAge >= 1.f)
             candidates.push_back({&cFrame, std::max(cWrong, cAge)});
     }
@@ -50,6 +60,15 @@ std::vector<BodyFrame> BodySends::Due(const std::vector<BodyFrame>& acAwake, uin
         due.push_back(cFrame);
     }
     return due;
+}
+
+bool BodySends::Still(const BodyFrame& acFrame) const noexcept
+{
+    // Still: a refresh's worth of its own motion stays inside the send limits.
+    BodyFrame frame = acFrame;
+    frame.Gravity = false;
+    const auto cDrift = BodyPrediction::Between(BodyPrediction::Predict(frame, static_cast<float>(m_limits.RefreshMs) / 1000.f), frame);
+    return cDrift.Distance < m_limits.Distance && cDrift.Angle < m_limits.Angle;
 }
 
 void BodySends::Forget(const BodyKey& acKey) noexcept

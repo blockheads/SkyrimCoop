@@ -381,12 +381,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
+        uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
+        uint64_t StillUntil = 0;
     };
     std::map<BodyKey, Body> Bodies;
     // A ragdolled actor's heading as this engine turns it with its root body: where the body's y axis points, about z.
     static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
+    // Something wakes it without moving it (an NPC's character controller beside the Sleeping Giant's bar, measured
+    // 2026-11-13): its island stays awake, still, for aMs, then Havok sleeps it where it was.
+    void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
     HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});

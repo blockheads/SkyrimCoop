@@ -145,6 +145,16 @@ Harness `crime knowledge` (39763) reads a witness's state without asking for one
 - Harness: a frozen NPC stops detecting (its age only grows). After a hot reload, states of existing copies went stale
   and `Judge` logged nothing until a save load; suspected, not proved: the copies lost their player flag.
 
+## The guest's thefts at Orgnar's bar (playtest 2026-11-13)
+
+The guest held E on the bar's bottles; each was picked up, not grabbed (`physics.md`, "Woken still"), so each was a
+theft. On the host: seven `Party crime` judgements and seven `StealAlarm` calls, no bounty. On the duo, same bar, the
+same build, from warnings 0 (reporting on, `crime read`): the guest's first seen theft raised `TheftWarnings` to 1 and
+no bounty (the warning, to the host's player); its second added 6 in both games, and Orgnar and Delphine went for the
+host (inferred, not read: the warning count stayed 1, so the owner's own check missed it and a witness's caught it). Which of the playtest's later five any NPC saw is not known: the log has no
+detection readout. With warnings skipped for a guest (measured, same bar, warnings 0, Orgnar seeing the guest at level 17):
+the first theft added 5 in both games and the warning count stayed 0 (`guest-theft-at-bar-bounty`).
+
 ## A created item's theft names its owner (2026-11-07)
 
 Read in IDA. The player's pickup is `PlayerCharacter::PickUpObject` (40533), not `Actor::PickUpObject` (37521). With
@@ -186,6 +196,9 @@ near it.
 - `CrimeService` holds a guest's theft 0.5 s, asking every witness each frame (41408), then judges: the greeting pass
   does this for the real player, and a copy's state has to be fresh in that one call. Actions after it wait behind it;
   a lock check is answered at once.
+- A guest's theft is judged with no warning (`CrimeRules::Warns`): `StartStealWarning` (37556, read 2026-11-13) puts
+  its type 34 package's location and target on `g_thePlayer` (`0x140690870`, `0x1406908ba`), so the owner walked to the
+  host's player while the guest saw nothing. Seen, a guest's theft alarms and adds bounty at once (below).
 - Tried and removed: remembering which guest did a crime and running 39631 / 39651 in its scope so only that guest was
   attacked (wrong for the party rule, and one alarm can hold several players' crimes).
 

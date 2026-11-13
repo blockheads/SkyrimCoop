@@ -13,6 +13,7 @@ struct BodySendLimits
     uint64_t RefreshMs = 500;      // a lost frame's repair
     float BytesPerSecond = 8192.f; // the guest's budget
     float BurstBytes = 2048.f;     // what a quiet guest saves up
+    bool StillStaysPut = false;    // a body woken still is where the guest has it: no frame until it moves
 };
 
 // The host's send rule for one guest (docs/design/physics-sync.md, "Which bodies"): a body's frame goes when the
@@ -26,15 +27,20 @@ public:
     explicit BodySends(const Limits& acLimits = {}) noexcept;
 
     // This update's awake bodies, read at aTick: the frames due to the guest, each as the guest gets it.
-    [[nodiscard]] std::vector<BodyFrame> Due(const std::vector<BodyFrame>& acAwake, uint64_t aTick) noexcept;
+    // acHeld: a player's hold, never kept still (other games keyframe it: physics-sync.md, "Exclusive holds").
+    [[nodiscard]] std::vector<BodyFrame> Due(const std::vector<BodyFrame>& acAwake, uint64_t aTick,
+                                             const std::vector<BodyKey>& acHeld = {}) noexcept;
     // A body that rested (its rest goes reliably) or left: no guess of it is kept.
     void Forget(const BodyKey& acKey) noexcept;
 
 private:
+    [[nodiscard]] bool Still(const BodyFrame& acFrame) const noexcept;
+
     struct Sent
     {
         BodyFrame Frame; // as the guest got it
         uint64_t Tick{};
+        bool Kept{}; // never sent: the guest keeps it where it rests
     };
 
     Limits m_limits;

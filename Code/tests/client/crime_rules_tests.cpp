@@ -35,3 +35,10 @@ TEST_CASE("The alarm gets the owner the guest's alarm was given, else the target
     CHECK(AlarmOwner(0x13479u, 0x5u) == 0x13479u);
     CHECK(AlarmOwner(0u, 0x5u) == 0x5u);
 }
+
+TEST_CASE("A guest's seen theft alarms at once: the steal warning would go to the host's player", "[CrimeRules]")
+{
+    CHECK_FALSE(Warns(true, true));
+    CHECK_FALSE(Warns(false, true));
+    CHECK(Warns(true, false));
+}
