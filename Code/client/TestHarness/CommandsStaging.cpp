@@ -167,6 +167,14 @@ nlohmann::json Place(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"bearing", cPlacement.Bearing}, {"position", cPlacement.Position}};
 }
 
+// {"cmd": "body_velocity", "target": id, "velocity": [x, y, z]}: the reference's first body woken and moving so
+// (game units/s): a known push for a scenario, where the console's ApplyHavokImpulse is fixed by the body's mass.
+nlohmann::json BodyVelocity(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cVelocity = acRequest.value("velocity", std::array<float, 3>{});
+    return EngineCalls::SetBodyVelocity(acRequest.value("target", 0u), cVelocity.data()) ? Ok() : Error("no dynamic body");
+}
+
 // {"cmd": "clear_map_marker"}: removes the player's map marker in this game only (outside the map, nothing is sent).
 nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 {
@@ -178,6 +186,7 @@ constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"clear_map_marker", true, &ClearMapMarker},
+    {"body_velocity", true, &BodyVelocity},
 };
 } // namespace
 

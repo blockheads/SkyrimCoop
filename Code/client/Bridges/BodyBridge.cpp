@@ -132,9 +132,16 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
     }
     if (BodyRead read; !aHeld && cFound.pCollision && !m_motions.contains(acFrame.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic)
     {
+        // Bodies driven within a couple of ms share a frame; Havok integrates the steer over the next one.
+        const auto cNow = std::chrono::steady_clock::now();
+        if (const float cSince = std::chrono::duration<float>(cNow - m_lastFrame).count(); cSince > 0.002f)
+        {
+            m_frameSeconds = std::min(cSince, 0.5f);
+            m_lastFrame = cNow;
+        }
         if (glm::distance(read.Position, acFrame.Position) <= kPlaceFar)
         {
-            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame);
+            const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame, BodyPrediction::SteerSeconds(m_frameSeconds));
             return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
         }
         if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity, true))

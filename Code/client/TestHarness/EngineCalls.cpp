@@ -2296,6 +2296,14 @@ bool FacePlayerToward(uint32_t aTargetFormId) noexcept
     return true;
 }
 
+bool SetBodyVelocity(uint32_t aFormId, const float acVelocity[3]) noexcept
+{
+    const auto cBody = ReferenceBodies::At(Cast<TESObjectREFR>(TESForm::GetById(aFormId)), 0);
+    if (!cBody.pBody || !cBody.pBody->referencedObject || !cBody.pBody->referencedObject->IsDynamic())
+        return false;
+    return SteerBody(*cBody.pBody, {acVelocity[0], acVelocity[1], acVelocity[2]}, {});
+}
+
 bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();

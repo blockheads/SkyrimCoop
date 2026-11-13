@@ -2,6 +2,9 @@
 
 #include <Bridges/IBodyBridge.h>
 
+#include <Physics/BodyPrediction.h>
+
+#include <chrono>
 #include <map>
 #include <set>
 
@@ -49,4 +52,6 @@ private:
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type
     std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
     std::map<uint32_t, bool> m_knocked;   // living copies knocked down with their owners: lying yet
+    std::chrono::steady_clock::time_point m_lastFrame{}; // the last frame that drove a body
+    float m_frameSeconds = BodyPrediction::kSteerSeconds;  // the time between those frames (SteerSeconds)
 };

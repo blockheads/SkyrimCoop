@@ -277,3 +277,28 @@ TEST_CASE("A body still for a while rests though its island stays awake; a slow 
         CHECK(std::abs(glm::dot(later.back().Read[0].Rotation, body.Read.Rotation)) > 0.99999f);
     }
 }
+
+TEST_CASE("A body held still aloft, then let go, falls before it rests", "[body-scene-phase][still]")
+{
+    // Review of #56: its stillness matured in the hand, so the first sample after the release was a rest in midair.
+    SceneReads reads;
+    auto& body = *reads.Ref.Bodies[0];
+    body.Node.reset();
+    body.Read.Active = true;
+    body.Read.Position = {0.f, 0.f, 100.f};
+    reads.Holds = 42;
+    PhysicsBodies physics(reads);
+    uint64_t tick = 1000;
+    const auto cTake = [&] {
+        reads.Moved = true;
+        tick += 100;
+        return physics.Take(tick);
+    };
+    for (int i = 0; i < 5; ++i)
+        CHECK(cTake().Rested.empty());
+    reads.Holds = 0;
+    body.Read.Position.z = 99.9f; // falling, still within the still limit
+    const auto cReleased = cTake();
+    CHECK(cReleased.Rested.empty());
+    CHECK(cReleased.Awake.size() == 1);
+}

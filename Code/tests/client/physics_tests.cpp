@@ -570,3 +570,32 @@ TEST_CASE("A body is at rest once it keeps one pose for a while, whatever Havok'
         CHECK_FALSE(still.Read(frame, 1400));
     }
 }
+
+TEST_CASE("A steered object's correction never overshoots, whatever the frame time", "[physics][steer]")
+{
+    // Review of #56: a fixed 50 ms correction integrated over a 100 ms frame flips the error; over 125 ms it grows.
+    const auto cRun = [](const std::vector<float>& acFrames) {
+        float error = 1.f, worst = 1.f, last = acFrames.front(); // the game's frame time, from the frame before
+        for (const float cFrame : acFrames)
+        {
+            const float cSeconds = BodyPrediction::SteerSeconds(last);
+            error *= 1.f - cFrame / cSeconds;
+            worst = std::max(worst, std::abs(error));
+            last = cFrame;
+        }
+        return std::pair(std::abs(error), worst);
+    };
+    for (const float cFrame : {0.016f, 0.033f, 0.1f, 0.125f, 0.25f})
+    {
+        INFO(cFrame);
+        const auto [cEnd, cWorst] = cRun(std::vector<float>(30, cFrame));
+        CHECK(cEnd < 0.05f);
+        CHECK(cWorst <= 1.f);
+    }
+    // One hitch among short frames: a bounded kick, then back on the path.
+    std::vector<float> hitch(30, 0.016f);
+    hitch[10] = 0.125f;
+    const auto [cEnd, cWorst] = cRun(hitch);
+    CHECK(cEnd < 0.05f);
+    CHECK(cWorst < 2.f);
+}

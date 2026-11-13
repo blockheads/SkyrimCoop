@@ -41,6 +41,9 @@ struct Velocities
 };
 [[nodiscard]] Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget,
                                float aSeconds = kSteerSeconds) noexcept;
+// The correction time for a body steered once a frame, given the last frame's seconds: past the frame Havok integrates
+// it over, or the gap overshoots (clamped to kSteerSeconds..0.5 s).
+[[nodiscard]] float SteerSeconds(float aLastFrameSeconds) noexcept;
 
 // A copy's ragdoll at its owner's rest (docs/re/systems/physics.md, A copy at its owner's rest). Steered there on every
 // step with no end (78089/78090 wake a body each time) it never slept: every dead copy's 18 bodies stayed awake at 3

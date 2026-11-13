@@ -22,9 +22,8 @@ public:
     // A body's node further off than this was left behind by the engine (followed, it sits on the body to 0.1 units).
     static constexpr float kLeftBehind = 1.f;
     static constexpr float kLeftBehindAngle = 0.01f; // radians
-    // A rest this near the last one sent is the same rest (a body woken where it lay); any more is sent, so a slow
-    // settle's last tilt reaches the guests. The same rest goes again after kRestAgainMs: a guest's own copy of the
-    // waker (Orgnar) wobbles its body too.
+    // A rest this near the last one sent is the same rest, sent again only after kRestAgainMs (physics-sync.md,
+    // "One rule").
     static constexpr float kSameRest = 0.05f;
     static constexpr float kSameRestAngle = 0.002f; // radians
     static constexpr uint64_t kRestAgainMs = 2000;

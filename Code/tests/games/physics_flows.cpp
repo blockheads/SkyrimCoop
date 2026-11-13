@@ -262,6 +262,34 @@ SCENARIO("A knocked bucket stops where an animated body keeps its island awake: 
     }
 }
 
+SCENARIO("The host's player holds a bucket still in the air and lets go: the guest's first rest is where it lands", "[physics][still]")
+{
+    // Review of #56: its stillness matured in the hand, so the release was taken for a rest in midair.
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& held = BodyOf(party, party.Host(), kBucket);
+    auto& watched = BodyOf(party, party.Guest(), kBucket);
+    held.Flight.Floor = kTable;
+    const float cAloft = held.Flight.Body.Position.z + 60.f;
+    party.As(party.Host(), [&] {
+        host.Grabbed = kBucket;
+        held.Flight.Body.Position.z = cAloft;
+        held.Flight.Resting = false;
+        held.Awake = true;
+    });
+    const auto cBegan = std::chrono::steady_clock::now();
+    party.Until([&] { return std::chrono::steady_clock::now() - cBegan > std::chrono::milliseconds(600); }, "the host's player holds it still");
+    party.As(party.Host(), [&] { host.Grabbed.reset(); });
+    party.Until([&] { return watched.Rests > 0; }, "the guest places a rest", [&] {
+        return std::format("host's at z {:.1f} {}", held.Flight.Body.Position.z, held.Awake ? "awake" : "asleep");
+    });
+    THEN("that rest is on the table, not in the air where it was held")
+    {
+        INFO(std::format("guest's at z {:.1f}, held at {:.1f}", watched.Flight.Body.Position.z, cAloft));
+        CHECK(watched.Flight.Body.Position.z < cAloft - 30.f);
+    }
+}
+
 SCENARIO("A guest's player hits the bucket the host's knock still moves: it keeps its mass, so both games are knocked", "[physics]")
 {
     Party party(1, Plugins);

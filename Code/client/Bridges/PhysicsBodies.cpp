@@ -126,7 +126,11 @@ PhysicsBodies::Update PhysicsBodies::Take(uint64_t aTick) noexcept
                 auto& still = it->second.Still;
                 if (still.size() <= i)
                     still.resize(i + 1);
-                resting |= still[i].Read(frame, aTick);
+                // Held still in the hand is not still: its release starts the count.
+                if (it->first == cHeld)
+                    still[i] = {};
+                else
+                    resting |= still[i].Read(frame, aTick);
             }
             if (!resting || it->first == cHeld)
                 awake.Read.push_back(frame);

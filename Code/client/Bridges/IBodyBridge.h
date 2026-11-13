@@ -18,9 +18,8 @@ public:
     virtual void SetReferences(std::function<uint32_t(const GameId& acId)> aFormIdOf) noexcept = 0;
     // A reference's body where this game shows it.
     [[nodiscard]] virtual std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept = 0;
-    // A reference's body: kept simulated (its mass) and steered onto the frame, put there when far off; held in another
-    // game (aHeld), put at the frame keyframed so this game's grab refuses it. A copy's ragdoll body (aCopyFormId) is
-    // taken only once its own ragdoll simulates it, and kept (true while it waits), steered. False: not here.
+    // Steered onto the frame, simulated; aHeld (held in another game): keyframed, so this game's grab refuses it. A
+    // copy's ragdoll body waits for its own ragdoll (true meanwhile). False: not here (physics-sync.md, "One rule").
     virtual bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept = 0;
     // A living copy standing goes down now, on its own ragdoll (its owner's frames then steer it). False: not here.
     virtual bool KnockDown(uint32_t aCopyFormId) noexcept = 0;

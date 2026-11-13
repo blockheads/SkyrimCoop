@@ -707,9 +707,10 @@ class ReproActions:
             raise ctx.failure(f"[host] {name} lies back where it rested before the swing ({math.dist(ends['host'], starts['host']):.1f} units off)")
         return {"moved": {who: round(math.dist(ends[who], starts[who]), 1) for who in refs}}
 
-    def swing_at_moving(ctx, name, game="guest", force=8.0, knock=40.0, seconds=6, gap=60):
-        """That game's player lines its swing up on the handle's resting object, the host pushes its object along that
-        line (ApplyHavokImpulse x `force`: it stays in the swing's path), and while the host's frames move it the
+    def swing_at_moving(ctx, name, game="guest", speed=40.0, knock=40.0, seconds=6, gap=60):
+        """That game's player lines its swing up on the handle's resting object, the host sets its object sliding across
+        that line at `speed` units/s (harness body_velocity: the console's ApplyHavokImpulse is fixed by the body's
+        mass, 22611 -> ScaleGameplayImpulseForce), and while the host's frames move it the
         player swings: in its own game the swing knocks it (its velocity leaves the host's by `knock` units/s; a played
         body keeps its mass, physics-sync.md "One rule"), and both games come to show it at one place."""
         instance = "client" if game in ("guest", "client") else ""
@@ -722,15 +723,20 @@ class ReproActions:
         lined = ctx.line_up_swing(instance, refs[mine], lifts=(0, 3, 6, 9))
         look = lined["direction"]
         flat = math.hypot(look[0], look[1]) or 1.0
-        ctx.console_on("", f"{refs['host']:X}.applyhavokimpulse {look[0] / flat:.3f} {look[1] / flat:.3f} 0.1 {force}")
-        ctx.wait_for(f"[{mine}] {name} moves on the host's frames", lambda: math.hypot(*body(mine)["velocity"]) > 3, seconds)
         swings_before = ctx.player_command(instance, {"cmd": "last_swing"})["count"]
-        at_swing = ctx.describe_bodies(refs, mine)
+        reply = ctx.player_command("", {"cmd": "body_velocity", "target": refs["host"],
+                                        "velocity": [-look[1] / flat * speed, look[0] / flat * speed, 0.0]})
+        if not reply or not reply.get("ok"):
+            raise ctx.failure(f"[host] body_velocity refused: {reply}")
+        seen_moving = {}
+        def moves():
+            seen_moving["speed"] = math.hypot(*body("host")["velocity"])
+            return seen_moving["speed"] > 3
+        ctx.wait_for(f"[host] {name} moves", moves, seconds)
         # Still moving on the host's frames as the swing starts, or this is swing_at's still case.
-        moving = math.hypot(*body("host")["velocity"])
-        if moving < 2:
-            raise ctx.failure(f"[host] {name} stopped before the swing ({moving:.1f} units/s): a stronger `force`")
+        moving = seen_moving["speed"]
         ctx.attack(instance)
+        at_swing = ctx.describe_bodies(refs, mine)
         seen = {"apart": 0.0, "motion": None}
         def knocked():
             mine_now, host_now = body(mine), body("host")

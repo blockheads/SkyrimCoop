@@ -18,7 +18,8 @@ or out of that mode.
 ```text
 a reference's body another game moves (BodyService -> IBodyBridge::Drive)
   not held there: kept simulated, its mass kept
-    velocities set to reach the frame in 50 ms (BodyPrediction::Steer, as copies' ragdolls)
+    velocities set to reach the frame over 1.5 frames, at least 50 ms (BodyPrediction::Steer, SteerSeconds): once a
+    frame, a fixed 50 ms overshot on 100 ms frames and diverged past them
     64+ units off (BodyBridge::kPlaceFar): put there (SetPositionAndRotation 78082, motion kept)
     keyframed for a hold that ended: its own motion back first (FreeBody 78182)
   held there (a hold's frames, NotifyBodyFrames::Held): keyframed as before, so this game's grab refuses it
@@ -46,6 +47,8 @@ the host's own player's hold: sent as a hold too (HostBodies::Held), every guest
   get-up rules). Scenario `object-rests-beside-orgnar` (a cheese wheel dropped on the bar; the old rule: 6 of 7
   without a rest, keyframed on the guest; now 5 of 5), GameTests "A knocked bucket stops where an animated body keeps
   its island awake" (the fake's `KeptAwake`), ClientTests "A body is at rest once it keeps one pose".
+- A body this game's player holds counts as moving, so a body held still in the air does not rest the moment it is
+  let go (GameTests "The host's player holds a bucket still in the air and lets go").
 - **Kept: the guest's "moved by itself, ask the host"** (step 4 of the plan, dropped). The nudge corrects only a body
   the host sends frames of; one the host never moves (a guest's own blast's push the host's copy missed) gets no
   frames, so the guest asks for the host's pose (GameTests "A guest's own blast throws a bucket the host's does not").
