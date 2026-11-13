@@ -292,6 +292,16 @@ Sleeping Giant (the exterior stays loaded, not attached) and stepped 36 times un
 it there. Once (unexplained, process level not yet recorded): Gerdur stepped 39 units every 0.46 s with an idle graph
 while the party stood in Riverwood; not seen again in 55 s of co-op or 60 s of vanilla traces.
 
+## KeepOffsetFromActor (2026-11-13)
+
+Papyrus `Actor.KeepOffsetFromActor` (54709) turns its angle offsets from degrees to radians, makes the target a handle
+and calls `Actor_SetKeepOffsetFromActor` (0x1406A9C90): the actor's movement controller (`Actor+0x150`) asked for its
+`IMovementSetKeepOffsetFromActor` interface gets `{target handle, offset xyz, angle xyz, catch-up radius, follow
+radius}`. `MovementPlannerAgentKeepOffset` keeps the same fields (+0x38 handle, +0x3C offset, +0x48 angle, +0x54
+catch-up, +0x58 follow; its save and load, 42185/42186). The planner's per-frame step, and so how it turns an actor that
+has arrived, is not read yet: `play`'s follow faces the copy itself with the harness's `face` when it stands. Measured
+on the duo: beyond the catch-up radius it runs (300-450 units/s), inside it walks (repro-mcp.md, Speeds).
+
 ## Others
 
 - Precision hooks the `ApplyMovement` call in `UpdateMovement` (+0xFB) to scale `dt` for hitstop; po3-Tweaks

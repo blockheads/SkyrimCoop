@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: `coop_test.py play` follows: the game you don't control walks after your player and faces it, so the watch
+view shows your player from the other game ([testing.md](design/testing.md), "To play by hand"). Both ways (`--control host`
+or `guest`). Its player runs AI-driven on `KeepOffsetFromActor`, a `PathToReference` leg when stuck, checked placement
+only when left far behind or stuck twice; chat `!stay` / `!follow`, `--no-follow`. Pure part in
+`scripts/coop_harness/follow.py`, units `test_coop_harness.PlayFollow`. KeepOffset's engine side:
+[actor-movement.md](re/systems/actor-movement.md), "KeepOffsetFromActor".
+
 2026-11-09: both players at once (`dialogue-stress`). The MCP's `together` runs lanes (any tool or verb) from one
 moment; a lane's first key or mouse input is queued in its game (`TestHarness/Scheduled`, any command's `at`) and
 lands in one frame on both games (0-14 ms apart measured). `line_delay(ms)` puts netem on the guest's namespace link,

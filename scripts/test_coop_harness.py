@@ -679,6 +679,117 @@ class LoadMenu(unittest.TestCase):
             self.assertEqual(sorted(path.name for path in saves.iterdir()), ["Quicksave0.ess", "Quicksave0.skse"])
 
 
+class PlayFollow(unittest.TestCase):
+    """`play`'s follower (coop_harness/follow.py): the steps it takes as the player it follows moves."""
+
+    def steps(self, path, there, heading=0.0, state=None, every=0.25):
+        from coop_harness.follow import FollowState, decide
+        state = state or FollowState()
+        return state, [decide(state, i * every, here, heading, there) for i, here in enumerate(path)]
+
+    def test_sets_the_follow_once_then_leaves_it_to_the_engine(self):
+        state, steps = self.steps([[0, 0, 0], [0, 50, 0], [0, 100, 0]], [0, 1000, 0])
+        self.assertEqual(steps[0], "follow")
+        state.following = True
+        _, steps = self.steps([[0, 150, 0], [0, 200, 0]], [0, 1000, 0], state=state)
+        self.assertEqual(steps, ["stay", "stay"])
+
+    def test_no_copy_waits(self):
+        from coop_harness.follow import FollowState, decide
+        state = FollowState()
+        self.assertEqual(decide(state, 0.0, [0, 0, 0], 0.0, None), "wait")
+        self.assertEqual(state.gone, 0.0)
+        self.assertEqual(decide(state, 1.0, [0, 0, 0], 0.0, [0, 100, 0]), "follow")
+        self.assertIsNone(state.gone)
+
+    def test_stuck_behind_takes_path_legs_then_is_placed(self):
+        from coop_harness.follow import FollowState, STUCK_SECONDS, UNSTICK_TRIES
+        stuck = [[0, 0, 0]] * (int(STUCK_SECONDS / 0.25) + 2)
+        _, steps = self.steps(stuck, [0, 1000, 0], state=FollowState(following=True, since=-10.0))
+        self.assertEqual(steps[-1], "unstick")
+        self.assertEqual(self.steps(stuck, [0, 1000, 0], state=FollowState(following=True, since=-10.0,
+                                                                           unsticks=UNSTICK_TRIES))[1][-1], "place")
+
+    def test_a_new_follow_gets_its_time_to_set_off(self):
+        from coop_harness.follow import SET_OFF_SECONDS, STUCK_SECONDS, FollowState
+        standing = [[0, 0, 0]] * (int(SET_OFF_SECONDS / 0.25) - 1)  # seen on the duo: 2-5 s before it moves
+        self.assertGreater(SET_OFF_SECONDS, STUCK_SECONDS)
+        _, steps = self.steps(standing, [0, 1000, 0], state=FollowState(following=True, since=0.0))
+        self.assertNotIn("unstick", steps)
+
+    def test_running_behind_is_not_stuck(self):
+        from coop_harness.follow import STUCK_SECONDS, FollowState
+        running = [[0, i * 80, 0] for i in range(int(STUCK_SECONDS / 0.25) + 4)]  # 320 units/s
+        _, steps = self.steps(running, [0, 1900, 0], state=FollowState(following=True))
+        self.assertNotIn("unstick", steps)
+        self.assertNotIn("place", steps)
+
+    def test_left_far_behind_is_placed(self):
+        from coop_harness.follow import FAR, FollowState
+        _, steps = self.steps([[0, 0, 0]], [0, FAR + 1, 0], state=FollowState(following=True))
+        self.assertEqual(steps, ["place"])
+
+    def test_closing_in_forgets_the_path_legs(self):
+        from coop_harness.follow import FollowState, decide
+        state = FollowState(following=True, unsticks=1)
+        decide(state, 0.0, [0, 0, 0], 0.0, [0, 100, 0])
+        self.assertEqual(state.unsticks, 0)
+
+    def test_standing_faces_the_copy_now_and_then(self):
+        import math
+        from coop_harness.follow import FACE_EVERY, FollowState
+        state = FollowState(following=True)
+        standing = [[0, 0, 0]] * 8  # 2 s
+        _, steps = self.steps(standing, [100, 0, 0], heading=0.0, state=state)  # faces north, the copy is east
+        self.assertIn("face", steps)
+        state.faced = 1.75
+        _, steps = self.steps([[0, 0, 0]], [100, 0, 0], state=state)  # right after a turn
+        self.assertEqual(steps, ["stay"])
+        _, steps = self.steps([[0, 0, 0]] * 8, [100, 0, 0], heading=math.pi / 2, state=FollowState(following=True))
+        self.assertNotIn("face", steps)  # already facing it
+        self.assertGreater(FACE_EVERY, 0)
+
+    def test_walking_does_not_turn(self):
+        from coop_harness.follow import FollowState
+        walking = [[0, i * 20, 0] for i in range(8)]  # 80 units/s
+        _, steps = self.steps(walking, [100, 300, 0], state=FollowState(following=True))
+        self.assertNotIn("face", steps)
+
+    def test_another_floor_is_not_arrived(self):
+        from coop_harness.follow import STUCK_SECONDS, FollowState
+        stuck = [[0, 0, 1000]] * (int(STUCK_SECONDS / 0.25) + 2)  # on a balcony over the copy
+        _, steps = self.steps(stuck, [100, 0, 0], state=FollowState(following=True, since=-10.0, unsticks=1))
+        self.assertEqual(steps[-1], "unstick")
+        self.assertNotIn("face", steps)
+
+    def test_stop_tries_both_cleanups_and_can_try_again(self):
+        from coop_harness.follow import Follower
+        ctx, calls = Mock(), []
+        def command(instance, request):
+            calls.append(request["function"])
+            if request["function"] == "ClearKeepOffsetFromActor" and calls.count("ClearKeepOffsetFromActor") == 1:
+                raise TestFailure("loading")
+        ctx.player_command.side_effect = command
+        ctx.player_script_call.side_effect = lambda instance, klass, function, args: calls.append(f"{function}{args}")
+        follower = Follower(ctx, "client")
+        follower.start()
+        with self.assertRaises(TestFailure):
+            follower.stop()
+        self.assertIn("SetPlayerAIDriven[False]", calls)  # given back even though the clear failed
+        self.assertTrue(follower.on)
+        follower.stop()
+        self.assertFalse(follower.on)
+        self.assertEqual(calls.count("ClearKeepOffsetFromActor"), 2)
+
+    def test_heading_error(self):
+        import math
+        from coop_harness.follow import heading_error
+        self.assertAlmostEqual(heading_error([0, 0], 0.0, [0, 10]), 0.0)
+        self.assertAlmostEqual(heading_error([0, 0], math.pi / 2, [10, 0]), 0.0)
+        self.assertAlmostEqual(heading_error([0, 0], 0.0, [0, -10]), 180.0)
+        self.assertAlmostEqual(heading_error([0, 0], math.radians(350), [10, 10]), 55.0)
+
+
 class GoalVerbs(unittest.TestCase):
     def verb_ctx(self, entries=()):
         ctx = MagicMock()
