@@ -86,10 +86,21 @@ void CrimeService::OnConfiscation(const NotifyCrimeConfiscation& aDue) noexcept
     if (aDue.Id && aDue.Id > m_lastConfiscation)
     {
         m_lastConfiscation = aDue.Id;
-        CrimeConfiscation due{.Faction = aDue.Faction, .Owner = aDue.Owner, .To = aDue.To};
-        due.ToActor = aDue.ToActor ? Utils::GetFormIdBySessionId(aDue.ToActor) : 0;
-        m_bridge.Confiscate(due);
+        m_confiscations.push_back({.Faction = aDue.Faction, .Owner = aDue.Owner, .To = aDue.To, .ToActor = aDue.ToActor});
+        ApplyConfiscations();
     }
+}
+
+void CrimeService::ApplyConfiscations() noexcept
+{
+    // A given-back's owner NPC may still be spawning here (CharacterService defers spawns while loading).
+    std::erase_if(m_confiscations, [this](const CrimeConfiscation& acDue) {
+        CrimeConfiscation due = acDue;
+        if (due.ToActor && !(due.ToActor = Utils::GetFormIdBySessionId(acDue.ToActor)))
+            return false;
+        m_bridge.Confiscate(due);
+        return true;
+    });
 }
 
 void CrimeService::OnUpdate(const UpdateEvent& acEvent) noexcept
@@ -112,6 +123,8 @@ void CrimeService::OnUpdate(const UpdateEvent& acEvent) noexcept
         request.Sequence = ++m_sequence;
         m_transport.Send(request);
     }
+    if (!m_confiscations.empty())
+        ApplyConfiscations();
     // Guest-native events or console commands cannot override the host's latest snapshot.
     if (role == ICrimeBridge::Role::Guest && m_hasState && m_bridge.ReadGold() != m_gold)
         m_bridge.ApplyGold(m_gold);
@@ -136,6 +149,7 @@ void CrimeService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_hasState = false;
     m_gold.clear();
     m_held.clear();
+    m_confiscations.clear();
 }
 
 void CrimeService::OnLoaded(const GameLoadedEvent&) noexcept

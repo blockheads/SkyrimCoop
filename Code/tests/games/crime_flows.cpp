@@ -154,6 +154,43 @@ SCENARIO("A guest's seen theft is warned: the owner takes it back from the guest
     CHECK(guest.Gold.empty());
 }
 
+SCENARIO("A steal warning's given-back waits on the guest until the owner NPC is there", "[crime][theft-warning]")
+{
+    // CharacterService holds a spawn while the guest's reference is still loading: the notification can come first.
+    constexpr uint32_t kOrgnar = 0x1A6D8, kOrgnarBase = 0x1A6D7, kSinkhole = 0x9C5E1;
+    Party party(1, [](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.PlaceNpc(kOrgnar, kOrgnarBase, kSinkhole, {-50.f, 20.f, 0.f});
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guestEngine = Party::Engine(party.Guest());
+    auto& guest = Crime(party.Guest());
+    guestEngine.Actors.at(kOrgnar).Cell = 0x31D2E;
+    guestEngine.Actors.at(kOrgnar).Initializing = true;
+    party.As(party.Host(), [&] { host.NpcWalks(kOrgnar, 0x31D2E, {40.f, 10.f, 0.f}); });
+    uint32_t session = 0;
+    party.Until([&] {
+        party.As(party.Host(), [&] { session = Utils::GetSessionIdByFormId(kOrgnar).value_or(0); });
+        return session != 0;
+    }, "the host names its NPC");
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    uint32_t here = 1;
+    party.As(party.Guest(), [&] { here = Utils::GetFormIdBySessionId(session); });
+    REQUIRE(here == 0); // the guest's spawn waits for its reference
+    NotifyCrimeConfiscation due;
+    due.Id = 1;
+    due.Owner = GameId(0, 0x1347B);
+    due.ToActor = session;
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(due); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(guest.Confiscated.empty());
+    party.As(party.Guest(), [&] { guestEngine.FinishLoading(kOrgnar); });
+    party.Until([&] { return !guest.Confiscated.empty(); }, "the given-back runs once the owner's copy is there");
+    CHECK(guest.Confiscated == std::vector<CrimeConfiscation>{{.Owner = GameId(0, 0x1347B), .ToActor = kOrgnar}});
+}
+
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
 {
     Party party(2);

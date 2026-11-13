@@ -101,7 +101,9 @@ struct FakeCrime final : ICrimeBridge
             if (aRequest.AllowWarning && TheftWarnings < 2)
             {
                 ++TheftWarnings;
-                Warnings.push_back({aActor, Stolen.empty() ? aRequest.Owner : Stolen.back().Owner});
+                // Skyrim: 37556 names g_thePlayer; the bridge's swaps put the criminal's copy there (CrimeRules::Warned).
+                const uint32_t cWarned = CrimeRules::Warned<uint32_t>(FakeEngine::kPlayer, FakeEngine::kPlayer, aActor);
+                Warnings.push_back({cWarned, Stolen.empty() ? aRequest.Owner : Stolen.back().Owner});
             }
             else if (Gold.empty())
                 Gold.push_back({GameId(0, 0x28170), 0, 5});
