@@ -359,20 +359,35 @@ std::vector<BodyPush> GuestEngine::TakePushes() noexcept
     return std::exchange(FakeEngine::Current().PlayerPushes, {});
 }
 
+std::vector<BodyPush> GuestEngine::TakeHits() noexcept
+{
+    return std::exchange(FakeEngine::Current().PlayerHits, {});
+}
+
 // The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
 GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
 {
     FakeEngine& engine = FakeEngine::Current();
     OwnBodies own;
     own.Moved = std::exchange(engine.OwnMoves, {});
-    auto ragdoll = engine.TakeBodies(World::Get().GetTransport().GetTick(), [](const BodyKey& acKey) { return acKey.Actor == 0x14; });
-    for (BodyFrame& frame : ragdoll.Awake)
+    // Its player's ragdoll, and the host's references its own physics simulates (not keyframed on the host's frames).
+    auto bodies = engine.TakeBodies(World::Get().GetTransport().GetTick(), [&engine](const BodyKey& acKey) {
+        return acKey.Actor == 0x14 || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
+    });
+    for (BodyFrame& frame : bodies.Awake)
     {
+        if (!frame.Key.Actor)
+        {
+            own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
+            continue;
+        }
         frame.Key = {.Index = frame.Key.Index};
         own.Ragdoll.push_back(frame);
     }
-    for (BodyPose& rest : ragdoll.Rested)
+    for (BodyPose& rest : bodies.Rested)
     {
+        if (!rest.Key.Actor)
+            continue;
         rest.Key = {.Index = rest.Key.Index};
         own.RagdollRested.push_back(rest);
     }

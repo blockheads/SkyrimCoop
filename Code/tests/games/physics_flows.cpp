@@ -141,6 +141,50 @@ SCENARIO("A guest's player bumps the bucket: the host's is pushed alike, and bot
     }
 }
 
+SCENARIO("A guest's player hits the bucket with its sword: the host's is knocked alike, not the guest's snapped back", "[physics]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    const glm::vec3 cStart = hostBucket.Flight.Body.Position;
+    // The guest's swing knocks its own bucket along the table; the host's copy of that swing hits nothing.
+    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Swing(kBucket, {160.f, 0.f, 0.f}); });
+    const auto cWhere = [&] {
+        return std::format("host's at x {:.1f} {}, guest's at x {:.1f}, {} drives, {} rests", hostBucket.Flight.Body.Position.x,
+                           hostBucket.Awake ? "awake" : "asleep", guestBucket.Flight.Body.Position.x, guestBucket.Drives, guestBucket.Rests);
+    };
+    party.Until([&] { return !guestBucket.Awake && guestBucket.Rests > 0; }, "the guest's bucket rests at the host's rest", cWhere);
+    THEN("the host's moved with the hit, and the guest's lies where the host's does, not back where it was")
+    {
+        INFO(cWhere());
+        CHECK(glm::distance(hostBucket.Flight.Body.Position, cStart) > 10.f);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+        CHECK(guestBucket.Drives == 0);
+    }
+}
+
+SCENARIO("A guest's player hits the bucket the host's knock still moves: nothing moves, the guest follows the host", "[physics]")
+{
+    Party party(1, Plugins);
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    // The host's player knocks it along y; the guest's plays it keyframed on the host's frames.
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).Knock(kBucket, {0.f, 120.f, 0.f}); });
+    party.Until([&] { return guestBucket.Held && guestBucket.Drives > 2; }, "the guest's bucket follows the host's frames");
+    // Keyframed, it has no mass: the swing's impulse is 0 (38628), so no hit to send.
+    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Swing(kBucket, {160.f, 0.f, 0.f}); });
+    const size_t cDrivesAtHit = guestBucket.Drives;
+    THEN("the guest's keeps following the host's frames to the host's rest, which only the knock moved")
+    {
+        party.Until([&] { return guestBucket.Drives > cDrivesAtHit + 2; }, "the guest's bucket follows the host's after the swing");
+        party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0; }, "the bucket rests on both games");
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+        CHECK(std::abs(hostBucket.Flight.Body.Position.x - 100.f) < 0.01f);
+    }
+}
+
 SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the host's pose back", "[physics]")
 {
     Party party(1, Plugins);

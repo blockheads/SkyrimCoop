@@ -387,6 +387,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
+    // This game's player's weapon hits it (38628's applyPointImpulse): its own physics knocks it and the hit is
+    // recorded (PlayerHits); a keyframed one (Held) gets a zero impulse, nothing. Every body has a mass of 1.
+    void Swing(const BodyKey& acKey, const glm::vec3& acImpulse);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
     HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});
@@ -403,6 +406,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
     std::vector<BodyPush> PlayerPushes;
+    // Its weapon's swings (Actor::CalculateCurrentHitTargetForWeaponSwing 38628): the impulse each gave a body, which
+    // its own physics moves too (OwnMoves). Swing() makes one.
+    std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;

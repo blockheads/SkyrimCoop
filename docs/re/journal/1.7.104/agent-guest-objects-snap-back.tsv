@@ -1,0 +1,46 @@
+time	op	id	rva	item
+2026-11-13T14:53:01Z	read	38603	0x6cbee0	{"name": "Actor::sub_38603"}
+2026-11-13T14:53:40Z	read		0x6cdee4	{"name": "Actor::CalculateCurrentHitTargetForWeaponSwing"}
+2026-11-13T14:59:15Z	comment		0x6cde19	{"addr": "0x1406cde19", "comment": "Melee hit on a non-actor body: impulse = swing dir x min(cap, weapon weight+3) x scale, scaled down for a light body (hkpMotion 60959 vs dword_1420A6680)"}
+2026-11-13T14:59:15Z	comment		0x6cdea7	{"addr": "0x1406cdea7", "comment": "impulse game units -> Havok (x0.0142875)"}
+2026-11-13T14:59:15Z	comment		0x6cdef3	{"addr": "0x1406cdef3", "comment": "wake the hit body, then hkpMotion vfunc +0xA0 applyPointImpulse(impulse, hit point = collector's first contact) under the world's write lock"}
+2026-11-13T14:59:15Z	comment		0x6cdf0e	{"addr": "0x1406cdf0e", "comment": "applyPointImpulse(motion = rigidBody+0x150, impulse, point): the swing's knock on clutter. Coop: a guest's own swing is hooked here (PlayerHands) and sent to the host as a push"}
+2026-11-13T14:59:15Z	comment		0x6cdfed	{"addr": "0x1406cdfed", "comment": "TESHitEvent (ScriptEventSourceHolder+0x5D8) for the struck reference"}
+2026-11-13T14:59:17Z	read	60959	0xb4f4b0	{"name": "hkpMotion::sub_60959"}
+2026-11-13T14:59:21Z	name	60959	0xb4f4b0	{"addr": "0x140b4f4b0", "name": "hkpMotion::getMass"}
+2026-11-13T14:59:21Z	local	38628	0x6cd850	{"func_addr": "0x1406cd850", "old": "v158", "new": "pHitBody"}
+2026-11-13T14:59:21Z	local	38628	0x6cd850	{"func_addr": "0x1406cd850", "old": "v187", "new": "havokImpulse"}
+2026-11-13T14:59:21Z	local	38628	0x6cd850	{"func_addr": "0x1406cd850", "old": "EquippedLeftHand", "new": "swingWeapon"}
+2026-11-13T14:59:22Z	comment	60959	0xb4f4b0	{"addr": "0x140b4f4b0", "comment": "hkpMotion::getMass: 1 / inverse mass (+0xDC), 0 for an infinite mass"}
+2026-11-13T14:59:22Z	comment	38628	0x6cd850	{"addr": "0x1406cd850", "comment": "Actor::CalculateCurrentHitTargetForWeaponSwing (38628), from the hit frame (38603): shape-casts the swing; an actor hit returns it as the target, a non-actor dynamic body gets a point impulse here (0x1406cdf0e) and a TESHitEvent. Runs in the swinger's own game only."}
+2026-11-13T14:59:33Z	read	38628	0x6cd850	{"name": "Actor::CalculateCurrentHitTargetForWeaponSwing"}
+2026-11-13T15:44:41Z	read		0x6cda08	{"name": "Actor::CalculateCurrentHitTargetForWeaponSwing"}
+2026-11-13T15:44:51Z	read	25931	0x3ff900	{"name": "hkpAllCdPointCollector::sub_25931"}
+2026-11-13T15:44:58Z	read		0x6cd9b2	{"name": "Actor::CalculateCurrentHitTargetForWeaponSwing"}
+2026-11-13T15:45:12Z	read	25925	0x3ff300	{"name": "GetAllCdPointCollector"}
+2026-11-13T15:45:14Z	read	25928	0x3ff530	{"name": "sub_1403FF530"}
+2026-11-13T15:45:17Z	read	25930	0x3ff650	{"name": "hkpAllCdPointCollector::sub_25930"}
+2026-11-13T15:45:22Z	read	25932	0x3ffb10	{"name": "hkpAllCdPointCollector::sub_25932"}
+2026-11-13T15:45:59Z	read	37479	0x6874c0	{"name": "Actor::GetEyeVector"}
+2026-11-13T15:46:10Z	read		0x68753a	{"name": "Actor::GetEyeVector"}
+2026-11-13T15:46:40Z	read	40505	0x74a530	{"name": "sub_14074A530"}
+2026-11-13T15:46:44Z	name	40505	0x74a530	{"addr": "0x14074a530", "name": "PlayerCharacter::GetEyeVector"}
+2026-11-13T15:46:49Z	comment	40505	0x74a530	{"addr": "0x14074a530", "comment": "PlayerCharacter::GetEyeVector (Actor vfunc 0xC2): origin = first-person camera node (PlayerCamera::GetFirstPersonNodePosition), + the camera offset if asked; direction = heading (vfunc 0xA4) and pitch (GetRotationX) as a unit vector. A melee swing's hit cast (38628) starts here."}
+2026-11-13T15:46:49Z	comment	37479	0x6874c0	{"addr": "0x1406874c0", "comment": "Actor::GetEyeVector (37479, vfunc 0xC2): origin = position + eye height (process data or Character 37869); direction = heading only, horizontal (z = 0). PlayerCharacter overrides it with pitch (0x14074A530)."}
+2026-11-13T15:46:49Z	comment		0x6cda38	{"addr": "0x1406cda38", "comment": "GetEyeVector(&origin, &direction, false): the swing's cast starts at the eye and goes along the look"}
+2026-11-13T15:46:49Z	comment		0x6cd9b9	{"addr": "0x1406cd9b9", "comment": "cast length: iActivatePickLength without a weapon; else by the weapon's animation type (+0x19D): 0 fObjectHitH2HReach (64), 5-6 fObjectHitTwoHandReach (112), others fObjectHitWeaponReach (150)"}
+2026-11-13T15:46:49Z	comment	25931	0x3ff900	{"addr": "0x1403ff900", "comment": "hkpAllCdPointCollector::LinearCastFrom(world, origin, direction, length): sweeps the collector's sphere phantom (radius fHitCasterSizeSmall, 12) from origin to origin + direction x length (hkpWorld::LinearCast) under the world read lock; true with hits"}
+2026-11-13T15:46:49Z	comment	25930	0x3ff650	{"addr": "0x1403ff650", "comment": "builds the collector's phantom: a bhkSphereShape of the given radius (GetAllCdPointCollector passes fHitCasterSizeSmall, 12) in a bhkSimpleShapePhantom, layer 0x2B"}
+2026-11-13T15:47:11Z	comment	38628	0x6cd850	{"addr": "0x1406cd850", "comment": "[re]\nAddressLib ID 38628\nUsed by plugin: PapyrusExtenderSSE/src/Game/HookedEventHandler.cpp:189\nUsed by plugin: Precision/src/Hooks.h:52\nUsed by plugin: Precision/src/Offsets.h:54 as CalculateCurrentHitTargetForWeaponSwing\nActor::CalculateCurrentHitTargetForWeaponSwing, from the hit frame (38603): sweeps a 12-unit sphere from the eye (GetEyeVector) for the weapon's reach; an actor hit returns it as the target, a non-actor dynamic body gets a point impulse here (0x1406cdf0e) and a TESHitEvent. Runs in the swinger's own game only."}
+2026-11-13T15:47:11Z	comment	37479	0x6874c0	{"addr": "0x1406874c0", "comment": "[re]\nAddressLib ID 37479\nActor::GetEyeVector (vfunc 0xC2): origin = position + eye height (process data or Character 37869); direction = heading only, horizontal (z = 0). PlayerCharacter overrides it with pitch (0x14074A530)."}
+2026-11-13T15:47:11Z	comment	25931	0x3ff900	{"addr": "0x1403ff900", "comment": "[re]\nAddressLib ID 25931\nhkpAllCdPointCollector LinearCastFrom(world, origin, direction, length): sweeps the collector's sphere phantom (radius fHitCasterSizeSmall, 12) from origin to origin + direction x length (hkpWorld::LinearCast) under the world read lock; true with hits"}
+2026-11-13T15:47:11Z	comment	25930	0x3ff650	{"addr": "0x1403ff650", "comment": "[re]\nAddressLib ID 25930\nbuilds the collector's phantom: a bhkSphereShape of the given radius (GetAllCdPointCollector 25925 passes fHitCasterSizeSmall, 12) in a bhkSimpleShapePhantom, layer 0x2B"}
+2026-11-13T15:47:12Z	name	25931	0x3ff900	{"addr": "0x1403ff900", "name": "hkpAllCdPointCollector::LinearCastFrom"}
+2026-11-13T15:47:12Z	name	25930	0x3ff650	{"addr": "0x1403ff650", "name": "hkpAllCdPointCollector::SetSpherePhantom"}
+2026-11-13T15:47:16Z	comment	60959	0xb4f4b0	{"addr": "0x140b4f4b0", "comment": "[re]\nAddressLib ID 60959\nhkpMotion::getMass: 1 / inverse mass (+0xDC), 0 for an infinite mass"}
+2026-11-13T15:48:36Z	read	60336	0xb3a110	{"name": "bhkCharacterPointCollector::sub_60336"}
+2026-11-13T15:49:40Z	read	37560	0x690be0	{"name": "Actor::GetCollisionFilterInfo"}
+2026-11-13T15:50:02Z	name	25932	0x3ffb10	{"addr": "0x1403ffb10", "name": "hkpAllCdPointCollector::SetFilterGroup"}
+2026-11-13T15:50:02Z	name	60336	0xb3a110	{"addr": "0x140b3a110", "name": "hkpAllCdPointCollector::SortHits"}
+2026-11-13T15:50:04Z	comment	25932	0x3ffb10	{"addr": "0x1403ffb10", "comment": "[re]\nAddressLib ID 25932\nhkpAllCdPointCollector::SetFilterGroup: the phantom's filter info gets this group (+0x22C keeps it), so the cast ignores the swinger's own collision"}
+2026-11-13T15:50:04Z	comment	60336	0xb3a110	{"addr": "0x140b3a110", "comment": "[re]\nAddressLib ID 60336\nsorts the collector's hits (+0x10, count +0x18) nearest first: a swing takes hit 0, which can be the floor under a flat object"}

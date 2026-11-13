@@ -168,6 +168,10 @@ guest game: a reference's body at rest is dynamic, asleep (the host's frames hol
     Havok applies, after the engine's scaling by layer and mass; PlayerHands)
     -> BodyPushRequest{key, impulse, point} (reliable): the host pushes its own alike (hkpEntity::activate 60849,
        the motion's applyPointImpulse)
+  its player's weapon hits one (Actor::CalculateCurrentHitTargetForWeaponSwing 38628's applyPointImpulse, patched:
+    PlayerHands; built 2026-11-13) -> a push like the above: the host's copy of the swing hits nothing
+    (docs/re/systems/physics.md, "A swing's hit"); before, the guest's knock snapped back to the host's pose. A body
+    the host's frames move is keyframed here, massless: the swing's impulse is 0 and nothing moves (docs/bugs.md)
   its player grabs one (Activate held: StartGrabObject 40552; a body the host's frames still move is keyframed, which
     the engine's grab refuses)
     -> each update its frames (BodySends' rule) as BodyFramesRequest: the host steers its body after them, 100 ms

@@ -73,6 +73,16 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Tick = 0;
 }
 
+void FakeEngine::Swing(const BodyKey& acKey, const glm::vec3& acImpulse)
+{
+    Body& body = Bodies.at(acKey);
+    // A keyframed body (played on the host's frames) has no mass: 38628 scales its impulse to 0, nothing moves.
+    if (body.Held)
+        return;
+    PlayerHits.push_back({acKey, acImpulse, body.Flight.Body.Position});
+    Knock(acKey, body.Flight.Body.LinearVelocity + acImpulse, body.Flight.Body.AngularVelocity);
+}
+
 std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) noexcept
 {
     const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);

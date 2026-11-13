@@ -65,6 +65,7 @@ other section needs the duo.
 - [A long roll jumps](#a-long-roll-jumps): small
 - [A dropped sword](#a-dropped-sword): small
 - [A chest lid's pose](#a-chest-lids-pose): small
+- [A guest's swing at a moving object](#a-guests-swing-at-a-moving-object): small
 
 **Dialogue**
 
@@ -551,6 +552,24 @@ Size: small. Needs: duo, then GameTests.
   `guest-menus-close-when-target-goes`). The items and the open state agree; only the lid's pose differs.
   - Start: compare the lid's animation state on both games after the interruption (the chest's `BGSOpenCloseForm`
     open state, `SetOpenState` 14287 in form-state.md) and replay the host's final open state.
+
+### A guest's swing at a moving object
+
+Stands alone: the guest's hand on a body the host's frames move.
+
+Agent task: Let a guest's melee swing knock an object the host's frames are moving, as it would in a game without co-op.
+
+Size: small. Needs: GameTests, then duo.
+
+- **A guest's swing at an object the host is moving does nothing** (2026-11-13). On the guest such a body is
+  keyframed on the host's frames, and a keyframed motion is massless: `Actor::CalculateCurrentHitTargetForWeaponSwing`
+  (38628) scales the swing's impulse by its mass, to 0, so neither game moves it (read in IDA; measured with the
+  harness's `last_swing`, `docs/re/systems/physics.md`, "A swing's hit"). A body woken still is PR #52's
+  ("Woken still"): only one really moving (knocked, rolling, thrown) is left.
+  - Start: the swing's direction and strength before the mass scaling (38628, `0x1406cdd7e` on), sent for the host
+    to scale by its own body's mass.
+  - Test: GameTests "A guest's player hits the bucket the host's knock still moves" (states today's nothing), then a
+    scenario swinging at a rolling object (`swing_at` after a knock).
 
 ## Dialogue
 
