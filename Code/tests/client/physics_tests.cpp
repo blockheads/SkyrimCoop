@@ -214,6 +214,21 @@ SCENARIO("A body the guest guesses right sends again only to repair a lost frame
     CHECK(sends.Due({frame}, 1500).size() == 1);
 }
 
+TEST_CASE("A woken body that never left where it woke is not moving", "[physics][woken-still]")
+{
+    // The Sleeping Giant's bar: Orgnar's animated body wakes the bottles' island 15-18 times a minute (measured).
+    const BodyFrame cWoke{.Position = {-1154.f, 22.f, 78.f}};
+    BodyFrame now = cWoke;
+    now.LinearVelocity = {40.f, 0.f, 0.f}; // a contact's burst (a bottle tilted on the bar's edge, measured): going nowhere
+    now.Position.x += 0.5f;
+    CHECK_FALSE(BodyPrediction::LeftRest(now, cWoke));
+    now.Position.x += 2.f; // a knock covers this within a frame
+    CHECK(BodyPrediction::LeftRest(now, cWoke));
+    BodyFrame turned = cWoke;
+    turned.Rotation = glm::angleAxis(0.1f, glm::vec3(0.f, 0.f, 1.f));
+    CHECK(BodyPrediction::LeftRest(turned, cWoke));
+}
+
 SCENARIO("A guest's budget sends the most wrong first and the rest later", "[physics]")
 {
     BodySends::Limits limits;

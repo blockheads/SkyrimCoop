@@ -62,6 +62,10 @@ struct FakeCrime final : ICrimeBridge
     };
     std::vector<Alarm> Stolen;
     std::vector<uint32_t> Pickpocketed; // PickpocketAlarm's victims (37423), past Judge's checks
+    // Opt-in StealAlarm (37422) for a seen theft: the owner's warning (37556, to the host's player) while the party has
+    // warnings left and the judge allows one, else bounty.
+    bool SeenThefts = false;
+    uint32_t TheftWarnings{};
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
@@ -78,6 +82,16 @@ struct FakeCrime final : ICrimeBridge
         }
         if (aRequest.Action == CrimeAction::Pickpocket && cActorTarget && !cStops)
             Pickpocketed.push_back(cTarget->first);
+        const bool cTheft = (aRequest.Action == CrimeAction::Theft && !cStops) || aRequest.Action == CrimeAction::ContainerTheft;
+        if (SeenThefts && cTheft)
+        {
+            if (CrimeRules::Warns(aRequest.AllowWarning, true) && TheftWarnings < 2)
+                ++TheftWarnings;
+            else if (Gold.empty())
+                Gold.push_back({GameId(0, 0x28170), 0, 5});
+            else
+                Gold.front().NonViolent += 5;
+        }
         return JudgeAction && JudgeAction(aActor, aRequest);
     }
     // Skyrim: a witness's state of a copy goes stale, and an ask is answered by a later detection pass (crime.md).

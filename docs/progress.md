@@ -49,6 +49,17 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. Skyrim wakes resting clutter it never
+moves: Orgnar's animated body shares the bar bottles' island and re-activates it on each animation update (78910 ->
+`hkpEntity::Activate`), and a character's proxy activates what it touches each step (62648); found with the new harness
+probe `activate_watch` (MCP verb `who_wakes`), the same with our physics hooks left out. The host's `PhysicsBodies`
+took "island active" for "moving", so each wake keyframed the guest's bottle and the engine's grab
+(`CreateMouseSprings` 40555) refused it: the release picked it up, a theft. Now a body sends frames only once it has
+left where it woke (`physics.md`, "Woken still: awake is not moving"); its rest still goes. A guest's seen theft is no
+longer warned: the steal warning (37556) goes only to the host's player, so the guest saw neither warning nor bounty
+(`crime.md`). Scenarios `guest-grabs-orgnar-bottle`, `guest-theft-at-bar-bounty`; MCP: `who_wakes`, `vanilla_start`'s
+`disable_hooks`, `set_warnings`, `expect_warnings`; `grab` takes handle names.
+
 2026-11-13: `coop_test.py play` follows: the game you don't control walks after your player and faces it, so the watch
 view shows your player from the other game ([testing.md](design/testing.md), "To play by hand"). Both ways (`--control host`
 or `guest`). Its player runs AI-driven on `KeepOffsetFromActor`, a `PathToReference` leg when stuck, checked placement

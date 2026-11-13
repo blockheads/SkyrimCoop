@@ -191,11 +191,55 @@ the springs (`BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>`) at `+0x8A0` (ca
 (count); `grabbedObject` at `+0x8D0`, not `0x8C8` (`PlayerCharacter::grabbedObject`; `world_state`'s player status
 `grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion: vanilla has no
 throw for a grabbed object (no `fZKey...Throw` setting; telekinesis has its own). The harness holds Activate as the
-`activate` button. `StartGrabObject` takes the body only if its vfunc 0x27 says so (a keyframed body: no): a guest
+`activate` button. `StartGrabObject` needs the body in a world (`bhkSerializable` vfunc 0x27 `GetWorld1`) and light
+enough (a keyframed body's mass reads 0); `PlayerCharacter::CreateMouseSprings` (40555, our name, `0x140752630`; read
+on 1.7.104, 2026-11-13) sets the grab mode (`+0xB04`: 1 the player's, 2 telekinesis) and then refuses a body whose
+motion type (`hkpRigidBody+0x160`) is 4 (keyframed) or 5 (fixed): `DestroyMouseSprings` at `0x140752ea3`. So a guest
 grabs a resting body (dynamic, asleep), not one the host's frames still move (a hook freeing it first was removed,
-`docs/progress.md`, loose ends). A grab holds the object where
+`docs/progress.md`, loose ends).
+
+`ActivateHandler::ProcessButton` (42420, `0x1407b2660`; read 2026-11-13): a press marks an activation pending
+(`+0x18`); held past `fZKeyDelay:Controls` once, `StartGrabObject`; on release, a grab going (mode 1) lets go, else
+the pending activation runs (`ActivatePickRef`): a refused grab turns a held E into a pickup, and an owned item's
+pickup is a theft (`StealAlarm` 37422, `crime.md`). A grab holds the object where
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
+
+## Woken still: awake is not moving (2026-11-13)
+
+Skyrim wakes resting clutter it never moves. The Sleeping Giant's bar bottles (33284, 33287, 33288, 3327A, 3328A) wake
+15-18 times a minute and sleep where they were. Found with the harness probe `activate_watch` (MCP verb `who_wakes`:
+hooks on `hkpEntity::Activate` 60849 and `markIslandActive` 61525, each hit with its call stack and the body it went
+through), in a game with no session. The stack was measured; each step below was then read in IDA and named:
+
+```
+ProcessActorAnimSG (an actor's animation job, job thread)
+  Character::RunPendingNodeUpdate (37371): its node update when pending
+    Character::UpdateNode (37976): the 3D's NiAVObject::Update, flags 0x2001 -> NiNode::UpdateDownwardPass
+      bhkBlendCollisionObject vfunc +0x160 (78910): its keyframed body to its bone
+        bhkCollisionObject (78178) -> bhkRigidBody::DriveToPoseByVelocity (78100)
+          bhkRigidBody::SetLinearVelocity (78089): hkpEntity::Activate (60849), under the world's write lock
+            hkpWorldOperationUtil::markIslandActive (61525) on that body's island
+```
+
+- The body is Orgnar's (13486, motion type 4, keyframed by his animation) while he leans on the counter (sit state 3,
+  `IdleCounterStart`, 17 of 18 ragdoll bodies awake). It shares the bottles' simulation island, so each update
+  re-activates them (measured: every wake of the bottles went through 13486).
+- A character standing against clutter does it too, through its proxy: `hkpCharacterProxy` 62648 calls `Activate` and
+  `applyPointImpulse` on every non-keyframed body in its manifold each `CharacterStep`, whatever the impulse (measured:
+  the player at the bar, 85 wakes in 45 s).
+- Not ours: with our physics, actor, animation and reference hooks left out (`SKYRIMCOOP_DISABLE_HOOKS`: HavokStepFix,
+  PlayerHands, PlayerCollision, CopyRagdollPhysics, Actor, KnockState, Animation, References, TESObjectREFR,
+  MeleeStagger, Projectile, CopyAiState, PlayerCharacter) the rate is the same (23 in 90 s). Not every hook file is
+  gated, and a game without our plugin cannot run the probe.
+- A woken body can get a velocity burst from its contacts and go nowhere (a bottle tilted on the bar's edge).
+
+Before the fix the host's `PhysicsBodies` took "island active" for "moving": every wake sent the guest frames, which
+keyframed its bottle (`BodyService: follows the owner's ...`) until the rest, and the grab refuses a keyframed body
+(above): a held E was a pickup, a theft in front of Orgnar. Now a reference sends frames only once a body has left
+where it woke (`BodyPrediction::LeftRest`: 2 units, 0.05 rad); its rest still goes (`docs/design/physics-sync.md`,
+"Woken still"). Measured on the duo: before, two held-E grabs of 33288 and 33287 timed out after 3 s and the
+release picked them up; after, each took in 0.22 s (`guest-grabs-orgnar-bottle`).
 
 ## What stops a held body (2026-11-01)
 

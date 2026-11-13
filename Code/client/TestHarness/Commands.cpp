@@ -1,4 +1,5 @@
 #include "Commands.h"
+#include "ActivateWatch.h"
 #include "Harness.h"
 
 namespace TestHarness
@@ -29,7 +30,7 @@ std::string HandleCommand(Harness& aHarness, const std::string& acRequest)
             return aHarness.Schedule.Take(cRequest.value("id", 0u)).dump();
         if (cRequest.contains("at"))
             return nlohmann::json{{"ok", true}, {"queued", aHarness.Schedule.Queue(cRequest, cRequest["at"].get<double>())}}.dump();
-        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
+        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), ActivateWatch::Commands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
             for (const Command& cCommand : cCommands)
             {
                 if (cCommand.Name != cName)

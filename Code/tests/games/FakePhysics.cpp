@@ -99,6 +99,18 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Tick = 0;
 }
 
+void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
+{
+    Body& body = Bodies.at(acKey);
+    // Its 3D where it rests, as Skyrim keeps a sleeping body's.
+    body.NodePosition = body.Flight.Body.Position;
+    body.NodeRotation = body.Flight.Body.Rotation;
+    body.Flight.Resting = false;
+    body.Awake = true;
+    body.StillFor = aMs;
+    body.StillUntil = 0;
+}
+
 std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) noexcept
 {
     const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
@@ -268,6 +280,16 @@ void StepBody(FakeEngine::Body& aBody, uint64_t aTick, bool aByFrame = false)
 {
     if (!aBody.Tick)
         aBody.Tick = aTick;
+    // Woken still (Wake): unmoved until Havok sleeps it.
+    if (aBody.StillFor)
+    {
+        if (!aBody.StillUntil)
+            aBody.StillUntil = aTick + aBody.StillFor;
+        if (aTick < aBody.StillUntil)
+            return;
+        aBody.StillFor = aBody.StillUntil = 0;
+        aBody.Flight.Resting = true;
+    }
     if (aByFrame && aTick > aBody.Tick)
     {
         const uint64_t cElapsed = aTick - aBody.Tick;
