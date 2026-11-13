@@ -77,7 +77,8 @@ struct Actor : TESObjectREFR
     virtual void sub_BF();
     virtual void sub_C0();
     virtual void sub_C1();
-    virtual void sub_C2();
+    // C2 (CommonLibSSE-NG GetEyeVector; Actor 37479, PlayerCharacter 40505): a melee swing's cast starts here.
+    virtual void GetEyeVector(NiPoint3& aOrigin, NiPoint3& aDirection, bool aIncludeCameraOffset);
     virtual void SetRefraction(bool aEnable, float aRefraction);
     virtual void sub_C4();
     virtual void sub_C5();

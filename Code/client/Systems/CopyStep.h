@@ -30,10 +30,22 @@ struct CopyStep
         return cOff.x * cOff.x + cOff.y * cOff.y + cOff.z * cOff.z > kSnap * kSnap ? CopyMove::Place : CopyMove::Step;
     }
 
+    // Nearer its owner's place than this a copy stands still: it steps by nothing, as a still NPC, whose body's velocity
+    // the engine leaves alone (79201); any other step sets it and wakes the copy's island (62456).
+    static constexpr float kStill = 0.5f;
+
     // A world offset in an actor's own frame for Actor::Move: x right, y forward (heading aHeading, its rotation z).
     [[nodiscard]] static glm::vec3 Local(const glm::vec3& acOffset, float aHeading) noexcept
     {
         const float cSin = std::sin(aHeading), cCos = std::cos(aHeading);
         return {acOffset.x * cCos - acOffset.y * cSin, acOffset.x * cSin + acOffset.y * cCos, acOffset.z};
+    }
+
+    // This frame's Actor::Move translation toward its owner's place: none within kStill.
+    [[nodiscard]] static glm::vec3 Translation(const glm::vec3& acOffset, float aHeading) noexcept
+    {
+        if (acOffset.x * acOffset.x + acOffset.y * acOffset.y + acOffset.z * acOffset.z < kStill * kStill)
+            return {};
+        return Local(acOffset, aHeading);
     }
 };

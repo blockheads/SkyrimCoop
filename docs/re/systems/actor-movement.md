@@ -103,6 +103,16 @@ after the physics step: the engine writes the actor's place from its controller 
   - her copy's controller stays on her (0.0 off).
 - **Tests:** GameTests "A guest's player presses a held plate against a host NPC's copy" (the fake's capsule pushes
   only for a stepped copy: `FakeEngine::Actor::Stepped`); ClientTests `[copy-step]`.
+- **A still copy kept the clutter beside it awake** (2026-11-13, `guest-swing-moves-host`): its step was `goal -
+  position` every frame, never quite zero (Havok's step lands about 0.04 units short), so its body was given a new
+  velocity each frame, and `hkpCharacterRigidBody::setLinearVelocity` (62456) wakes the body's island whenever the
+  velocity differs (read in IDA). A still NPC sets none: `bhkCharRigidBodyController::ApplyVelocity` (79201) skips it
+  while supported (`kSupport`) and still (read in IDA). Measured with `who_wakes`: a ladle 28 units from the guest's
+  copy woke 40 times in 20 s, every time through the copy's body, so it never slept and the guest kept it keyframed
+  (unhittable, ungrabbable). Now a copy within `CopyStep::kStill` (0.5 units) of its goal steps by nothing
+  (`CopyStep::Translation`): 0 wakes in 20 s, the ladle asleep in both games. Tests: ClientTests "A copy on its owner's
+  place steps by nothing", GameTests "A guest's player stands beside a bucket the host knocks" (the fake's step lands
+  `kStepShort` short and a non-zero step wakes what is within `kIslandReach`).
 - **A stepped copy shoves a player it lands on** (2026-11-03, `follower-lands-on-guest`): the host's Lydia moved
   onto the guest's arrival spot; on the guest's game her copy kept its place and the guest was pushed 27 units out
   (ending 55 to 60 units apart). The arrival stack lets them pass through

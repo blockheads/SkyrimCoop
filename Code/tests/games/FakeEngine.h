@@ -422,6 +422,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
+    // This game's player's weapon hits it (38628's applyPointImpulse): its own physics knocks it and the hit is
+    // recorded (PlayerHits); a keyframed one (Held) gets a zero impulse, nothing. Every body has a mass of 1.
+    void Swing(const BodyKey& acKey, const glm::vec3& acImpulse);
     // An actor's animated body in its island wakes it, unmoved (Orgnar at his bar, 78910): awake for aMs, then asleep.
     void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
@@ -440,6 +443,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
     // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
     std::vector<BodyPush> PlayerPushes;
+    // Its weapon's swings (Actor::CalculateCurrentHitTargetForWeaponSwing 38628): the impulse each gave a body, which
+    // its own physics moves too (OwnMoves). Swing() makes one.
+    std::vector<BodyPush> PlayerHits;
     std::optional<BodyKey> Grabbed;
     // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;
@@ -454,6 +460,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // nothing: guest-holds-into-npc, its bucket 2 units off the copy's axis, 19.7 off an owner's). The duo's probe:
     // the capsule's top 128 above the feet.
     static constexpr float kCapsuleRadius = 20.f;
+    // Havok's character step lands this short of a stepped copy's goal (measured: 0.04 units).
+    static constexpr float kStepShort = 0.04f;
+    // A character's body wakes its island when its step sets a new velocity (62456): the bodies this near its axis.
+    static constexpr float kIslandReach = kCapsuleRadius + 40.f;
     static constexpr float kCapsuleTop = 128.f;
     // Where a simulated body moving from acFrom toward acTo stops: outside every capsule that pushes.
     [[nodiscard]] glm::vec3 OutsideCapsules(const glm::vec3& acFrom, const glm::vec3& acTo) const noexcept;
@@ -536,6 +546,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool LoadQueued = false; // its load job out (TESQueuedHandles' handle), until QueuedReference::Finish
         bool ModelReady = false; // its job's model loaded, attached at Finish
         bool Stepped = false; // a copy last moved by its engine's step (CopyMove::Step), not placed: its capsule pushes
+        float Goal[3]{};      // a stepped copy's owner's place: Havok's step lands kStepShort short of it
         bool InFurniture = false; // sit/sleep state set: a colliding capsule there is pushed off its goal by its furniture
         bool Collides = true;     // its capsule collides (filter bit 0x8000 clear); the engine clears it in furniture
         uint8_t BodiesLayer = 0;  // the layer its own 3D's bodies are on in the world, 0 out of it: the AI puts an
