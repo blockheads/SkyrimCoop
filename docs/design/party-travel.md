@@ -47,6 +47,28 @@ both phase timelines. Network transit and frame scheduling still separate actual
 an 8 ms cached load can finish before another game's loading screen begins. There is no synchronized-time
 barrier or promise that loading screens open in the same frame.
 
+## Every teleport brings the party
+
+The user's rule (2026-11-08): **any teleport of a player brings the whole party**, inside its cell or not, at any
+distance, whoever is teleported (the host or a guest). A teleport is an odd trigger (a quest, a fine, a script), so
+the party goes together. Walking and console `SetPos` are not teleports (`docs/re/systems/player-travel.md`).
+
+```text
+leader's teleport (40438: queued, or written inside it as PayFine's release)
+    -> queued: PartyTravelRequest -> host -> NotifyPartyTravel (as before)
+    -> arrival (kOwn) -> host: sent only if not announced already
+       (HostCharacters::m_announced: a follower that walked off is not pulled back)
+follower: NotifyPartyTravel
+    -> on the spot already (same place, within ArrivalStack::kOnSpot) -> stays
+    -> otherwise MoveTo the leader's spot, in the same cell too
+```
+
+Before, the follower stayed whenever it was in the same interior cell or the same loaded grid ("already there"),
+so a teleport inside the cell (PayFine's release in Riften, playtest 2026-11-08) left the guest behind.
+Tests: `[travel]` GameTests (the host's and a guest's teleport inside the cell, the release written inside 40438,
+a late arrival not pulling a follower back), `HostAuthorityTests` party tether cases, scenario
+`party-teleports-in-cell`.
+
 ## Fast travel advances the party clock
 
 A guest's native Calendar::Update is suppressed by GuestClock. Therefore measuring its clock before/after

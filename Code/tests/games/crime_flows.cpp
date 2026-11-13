@@ -28,6 +28,33 @@ SCENARIO("Host bounty reaches every guest and corrects a local overwrite", "[cri
                 "the native host's pardon clears every guest");
 }
 
+SCENARIO("A guest's witnessed theft shows the bounty line in every game", "[crime]")
+{
+    Party party(2);
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    // Skyrim: 37679 writes the bounty and shows its HUD line on the host only (2026-11-10, guest-theft-bounty-message).
+    host.JudgeAction = [&](uint32_t, const CrimeRequest&) {
+        host.Gold = {{GameId(0, 0x267EA), 0, 5}};
+        host.Reports.push_back({GameId(0, 0x267EA), 5});
+        return false;
+    };
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0x1397E);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    guest.Actions.push_back(theft);
+    const std::vector<CrimeReport> cLine{{GameId(0, 0x267EA), 5}};
+    party.Until([&] { return guest.Shown == cLine && Crime(party.Guest(1)).Shown == cLine; },
+                "the thief and the other guest show the host's bounty line");
+    CHECK(guest.Gold == host.Gold);
+    CHECK(host.Shown.empty()); // the host's engine showed it already
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    CHECK(guest.Shown.size() == 1);
+}
+
 SCENARIO("Guest crime actions go to the host engine once and its judgment returns", "[crime]")
 {
     Party party;
@@ -81,6 +108,36 @@ SCENARIO("A guest's theft is judged after the witnesses looked, and what follows
     CHECK(judged[0].first == CrimeAction::Theft);
     CHECK(judged[0].second >= 3); // asked at the theft and on later frames: a detection pass answers late
     CHECK(judged[1].first == CrimeAction::PayFine);
+}
+
+SCENARIO("A guest's seen theft adds bounty at once: the owner's warning would go to the host's player", "[crime][theft-warning]")
+{
+    // guest-theft-at-bar-bounty (2026-11-13): StartStealWarning (37556) warns g_thePlayer, never the guest.
+    Party party;
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    host.SeenThefts = true;
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0xF);
+    theft.Target = GameId(0, 0x1234);
+    theft.Count = 1;
+    theft.AllowWarning = true;
+    guest.Actions.push_back(theft);
+    party.Until([&] { return !guest.Gold.empty() && guest.Gold == host.Gold; }, "the loose item's theft: bounty in both games");
+    CHECK(host.TheftWarnings == 0);
+    CrimeRequest chest;
+    chest.Action = CrimeAction::ContainerTheft;
+    chest.Target = GameId(0, 0x1235);
+    chest.AllowWarning = true;
+    CrimeItem line;
+    line.Item.BaseId = GameId(0, 0x64B36);
+    line.Item.Count = 1;
+    chest.Items.push_back(line);
+    guest.Actions.push_back(chest);
+    party.Until([&] { return host.Judged.size() == 2 && guest.Gold == host.Gold; }, "the container theft: bounty in both games");
+    CHECK(host.Gold.front().NonViolent == 10);
+    CHECK(host.TheftWarnings == 0);
 }
 
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
@@ -289,4 +346,62 @@ SCENARIO("A guest steals a made item whose owner stands a cell over: still judge
         CHECK(cTheft.Target == cTheft.Owner);
         CHECK(cTheft.Stolen.size() == 1);
     }
+}
+
+namespace
+{
+// A guest sneaks up to a host NPC's copy and takes a sword from its pockets, caught or not.
+struct Pickpocket
+{
+    static constexpr uint32_t kCell = 0x00031D2E, kNpcBase = 0x0001A67C, kSword = 0x00012EB7;
+    Party party{1, [](FakeEngine& aEngine) {
+                    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+                    aEngine.LoadCell(kCell);
+                }};
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t npc = 0;
+
+    Pickpocket()
+    {
+        party.As(party.Host(), [&] {
+            npc = host.LoadNpc(kNpcBase, kCell, {30.f, 40.f, 0.f});
+            host.GetsItem(npc, kSword, 2);
+        });
+        party.Until([&] { return guest.CopiesOf(kNpcBase).size() == 1 && guest.CountOf(Copy(), kSword) == 2; },
+                    "the guest's copy of the NPC carries its two swords");
+    }
+    uint32_t Copy() const { return guest.CopiesOf(kNpcBase).empty() ? 0 : guest.CopiesOf(kNpcBase)[0]; }
+    void Try(bool aCaught)
+    {
+        party.As(party.Guest(), [&] { guest.Pickpockets(Copy(), kSword, aCaught); });
+    }
+};
+} // namespace
+
+SCENARIO("A guest caught pickpocketing an NPC copy raises the host's alarm on the NPC", "[crime][pickpocket]")
+{
+    Pickpocket pick;
+    pick.Try(true);
+    auto& judge = Crime(pick.party.Host());
+    pick.party.Until([&] { return !judge.Pickpocketed.empty(); }, "the host's game raises the caught pickpocket's alarm");
+    CHECK(judge.Pickpocketed == std::vector{pick.npc});
+    CHECK(judge.Judged.size() == 1);
+    CHECK(pick.host.CountOf(pick.npc, Pickpocket::kSword) == 2);
+    CHECK(pick.guest.CountOf(FakeEngine::kPlayer, Pickpocket::kSword) == 0);
+}
+
+SCENARIO("A guest's pickpocket of an NPC copy takes the item once", "[crime][pickpocket][container-transfer]")
+{
+    Pickpocket pick;
+    pick.Try(false);
+    pick.party.Until(
+        [&] {
+            return pick.guest.CountOf(FakeEngine::kPlayer, Pickpocket::kSword) == 1 &&
+                   pick.host.CountOf(pick.npc, Pickpocket::kSword) == 1 &&
+                   pick.guest.CountOf(pick.Copy(), Pickpocket::kSword) == 1;
+        },
+        "the guest carries one sword, the NPC and its copy one");
+    pick.party.Agree("the NPC and player inventories agree");
+    CHECK(Crime(pick.party.Host()).Judged.empty());
 }

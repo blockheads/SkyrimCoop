@@ -239,10 +239,25 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool CapsuleCollides() const noexcept;
     // Turns its capsule's collision off or on; false without a capsule.
     bool SetCapsuleCollision(bool aCollides) noexcept;
+    // The collision layer its own 3D's bodies are on in the physics world, 0 when out of it: its AI puts them there,
+    // keyframed on layer 33, as it sits or sleeps (40063).
+    [[nodiscard]] uint8_t BodiesLayer() const noexcept;
+    // Its own 3D's bodies put on that layer in the world (keyframed, its capsule's group), or out of it for 0, queued
+    // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
+    bool SetBodiesLayer(uint8_t aLayer) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
+    void ShowWeaponDrawn(bool aDrawn) noexcept;
     void InitiateDoNothingPackage() noexcept;
     // No longer a copy: its own do-nothing package ends, and it picks one of its own.
     void EndReleasedCopyPackage() noexcept;
+    // A guest's own NPC, without AI or 3D until the host spawns its copy (GuestNpcs::Held).
+    [[nodiscard]] bool IsHeldOnGuest() noexcept;
+    // Load3D (19727), from the loader threads: true refuses it while held; false lets it load.
+    [[nodiscard]] bool RefuseHeld3D() noexcept;
+    // A load job of its ended (QueuedReference::Finish 13022): NpcHeldEvent if refused, then ApplyHeld3D.
+    void FinishLoad3D() noexcept;
+    // Its 3D as the held rule says: none while held (reloaded, so refused), queued once not after a refused load.
+    void ApplyHeld3D() noexcept;
     // The package conditions and Papyrus see (37399): the running one, or for an engine-made one the form package
     // under it (ExtraPackage).
     [[nodiscard]] TESPackage* GetCurrentPackage() const noexcept;
@@ -285,10 +300,17 @@ struct Actor : TESObjectREFR
     [[nodiscard]] bool IsInKillMove() const noexcept;
     // What the KillMoveEnd event does (KillMoveEndHandler 42871).
     void EndKillMove() noexcept;
+    // Character::EnterKillMove (38613): the kill move flag, a deferred kill, its killer (none for the attacker).
+    void EnterKillMove(Actor* apKiller) noexcept;
     // Ends every pair it is in, as the engine does when its graphs change: its clips stop on both halves.
     void EndPairs() noexcept;
+    // A participant of a running pair (BGSSynchronizedAnimationManager::IsInInstance 32808): from before its half's event.
+    [[nodiscard]] bool InPair() const noexcept;
     [[nodiscard]] bool InPairClip() noexcept;
     void StopPairClip() noexcept;
+    // A copy on its owner's stream dies with its owner: KillImpl's effects (37896: life state, death items, its
+    // drops), its own death action refused as any action of a copy's: the death's clip is its stream's.
+    void KillBesideGraph(const ActionEvent& acAction) noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;
@@ -313,6 +335,7 @@ struct Actor : TESObjectREFR
         IS_A_MOUNT = 1 << 1,
         GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
         SHOULD_ANIM_GRAPH_UPDATE = 1 << 8, // its graph runs (holder vfunc 0x0E, 37985); KillImpl clears it
+        ANGRY_WITH_PLAYER = 1 << 11,       // kAngryWithPlayer: Actor__SetAngryWithPlayer (37463), read by ShouldAttack (37534)
         CAN_SPEAK = 1 << 13,               // cleared for the dead (Character::UpdateAI 37347)
         IS_COMMANDED_ACTOR = 1 << 16,
         IS_ESSENTIAL = 1 << 18,
@@ -330,6 +353,7 @@ struct Actor : TESObjectREFR
     }
 
     bool IsCommandedActor() const noexcept { return flags2 & ActorFlags::IS_COMMANDED_ACTOR; }
+    bool IsAngryWithPlayer() const noexcept { return flags2 & ActorFlags::ANGRY_WITH_PLAYER; }
 
 public:
     enum ChangeFlags : uint32_t
@@ -408,6 +432,13 @@ public:
     static constexpr uint32_t kForceAnimGraphUpdate = 1u << 29;
     // flags2: the head is under water (CommonLib BOOL_FLAGS::kUnderwater; set by Actor::Update, 37348).
     static constexpr uint32_t kUnderwater = 1u << 31;
+    // flags2: never counted on the player's stealth eye (CommonLib BOOL_FLAGS::kDoNotShowOnStealthMeter; read by
+    // 41408, written by Actor::SetNotShowOnStealthMeter 37722, Papyrus 54969).
+    static constexpr uint32_t kDoNotShowOnStealthMeter = 1u << 26;
+    void SetNotShowOnStealthMeter(bool aNotShow) noexcept
+    {
+        flags2 = aNotShow ? flags2 | kDoNotShowOnStealthMeter : flags2 & ~kDoNotShowOnStealthMeter;
+    }
     void* unk200[4];
     struct BGSDialogueBranch* dialogueBranch;
     ActorValueModifiers healthModifiers;

@@ -78,7 +78,13 @@ void BodyReads::WriteNode(uint32_t aFormId, uint8_t aIndex) noexcept
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
+    static uint32_t s_sessions = 0;
     FakeEngine::Current().DecidesWorld = aOn;
+    FakeEngine& engine = FakeEngine::Current();
+    engine.HoldSession = aOn ? 0 : ++s_sessions; // GuestNpcs::SetHolding
+    if (!aOn)
+        for (const uint32_t cId : engine.GetLoadedActorFormIds())
+            engine.ApplyHeld3D(cId); // HideHeldNpcs
 }
 
 // As StoryEvents::ToSend: the fake's members name forms by their ids.
@@ -371,7 +377,7 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
     OwnBodies own;
     own.Moved = std::exchange(engine.OwnMoves, {});
     // Its player's ragdoll, and the host's references its own physics simulates (not keyframed on the host's frames).
-    auto bodies = engine.TakeBodies(World::Get().GetTransport().GetTick(), [&engine](const BodyKey& acKey) {
+    auto bodies = engine.TakeBodies(engine.PhysicsTime(World::Get().GetTransport().GetTick()), [&engine](const BodyKey& acKey) {
         return acKey.Actor == 0x14 || (!acKey.Actor && !engine.Bodies.at(acKey).Held);
     });
     for (BodyFrame& frame : bodies.Awake)

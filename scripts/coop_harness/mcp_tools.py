@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -25,7 +26,7 @@ TOOLS = {}
 # Set by register(): the server's session and the state that outlives a reload (the duo's boot, jobs, trace, log offsets).
 session = None
 duo = jobs = shared = None
-_depth = [0]
+_depth = threading.local()  # per thread: together's lanes are calls inside a call
 
 
 def register(server, state):
@@ -60,8 +61,9 @@ def tool(function):
     @functools.wraps(function)
     def run(*args, **kwargs):
         arguments = inspect.signature(function).bind(*args, **kwargs).arguments
-        top = _depth[0] == 0
-        _depth[0] += 1
+        depth = getattr(_depth, "value", 0)
+        top = depth == 0
+        _depth.value = depth + 1
         with contextlib.redirect_stdout(sys.stderr):
             try:
                 result = function(*args, **kwargs)
@@ -77,7 +79,7 @@ def tool(function):
             except Exception as error:  # a bug in a verb: say where, keep the server up
                 return _brief(error)
             finally:
-                _depth[0] -= 1
+                _depth.value = depth
     TOOLS[function.__name__] = run
     return run
 
@@ -115,11 +117,18 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     return {"ok": True, "booting": True, "log": str(duo["log"])}
 
 
+def gated_hook_files() -> str:
+    """Every client file whose hooks HookGate can leave out, by name (the harness's own included)."""
+    names = {path.stem for path in (ROOT / "Code/client").rglob("*.cpp") if "HookGate cGate" in path.read_text(errors="ignore")}
+    return ",".join(sorted(names))
+
+
 @tool
-def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -> dict:
+def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False, disable_hooks: str = "") -> dict:
     """Holds the duo (as duo_start) and boots its host game without our plugin (the vanilla stand-in: player_trace, console),
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
-    one game with our plugin and no session instead: what the plugin costs alone (profile game="host")."""
+    one game with our plugin and no session instead: what the plugin costs alone (profile game="host"). disable_hooks (with
+    plugin): SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h), or "all" for every gated file."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:
@@ -127,8 +136,11 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False) -
     duo["log"] = TEST_HOME / "mcp" / f"vanilla-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "launch", *([] if plugin else ["--vanilla"]), "--cell", cell]
-    duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"])}
+    env = dict(os.environ)
+    if disable_hooks:
+        env["SKYRIMCOOP_DISABLE_HOOKS"] = gated_hook_files() if disable_hooks == "all" else disable_hooks
+    duo["process"] = subprocess.Popen(command, cwd=ROOT, env=env, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
+    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": env.get("SKYRIMCOOP_DISABLE_HOOKS", "")}
 
 
 @tool
@@ -219,7 +231,8 @@ def step(frames: int = 1) -> dict:
 
 @tool
 def stage(spec: dict) -> dict:
-    """Sets up a scene in one call: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen}],
+    """Sets up a scene in one call: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen
+    (default true; false for anyone talked to: a frozen NPC never finishes a line)}],
     objects: [{name, base | ref}], items: [{who, item, count, equip}]}. Names are handles for later calls;
     host_player and guest_player always exist. Returns every handle's form id per game."""
     return {"ok": True, "handles": session.stage(spec)}
@@ -265,8 +278,9 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
     "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
     `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
-    takes it, as for its name and Activate prompt), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
-    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere)."""
+    takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
+    and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within
+    `seconds`; "set": not nothing; no value: equal in both), "stays" (as actor, but all through `seconds`: nobody dies), "dialogue" (the menus agreed), "agree" (no desync of `name`; "all": anywhere), "graph" (owner's and copy's graphs read live for `seconds`, never apart for `within` s or more nor unread as long, the owner entering a state named like `field` at least `value` times (no `field`: its graph changing that often)), "stream" (the graph input stream's live check for `seconds`: every streamed copy's graph equal to its owner's at each update; with `name`, its copy compared on at least `value` updates), "guest_npcs" (the guest shows no NPC of its own, all through `seconds`)."""
     return {"ok": True, **session.expect(name, check, within, game or None, value, of or None, field or None, seconds)}
 
 
@@ -357,6 +371,24 @@ def jitter(game: str = "client", seconds: float = 8.0, top: int = 12) -> dict:
 
 
 @tool
+def smoothness(mover: str = "host") -> dict:
+    """How smoothly the other game's copy follows the mover's player (coop_harness/smoothness.py): a course by real
+    input (walk, run, strafe, a running curve), then per segment each one's speed roughness per engine frame (median
+    and p95 of a frame's speed off its neighbours', share over 20 %), turn-backs, the copy's delay and distance off
+    its owner's path, and the movement and body messages' bytes/s on both games."""
+    from . import smoothness as measures
+    return {"ok": True, **measures.run_course(session, _game(mover), AnimTrace)}
+
+
+@tool
+def wire_cost(wolves: int = 8, seconds: float = 15.0) -> dict:
+    """Wolves fight both players (god mode) at the host's for `seconds`: each game's bytes/s on the wire (after
+    compression) and per movement message before it, and the graph state actions saved (coop_harness/smoothness.py)."""
+    from . import smoothness as measures
+    return {"ok": True, **measures.run_fight(session, wolves, seconds)}
+
+
+@tool
 def network(game: str = "host") -> dict:
     """That game's line: the session time, round trips (the host's per connection), a guest's clock syncs."""
     return {"ok": True, "network": (session.game(_game(game)).read_status() or {}).get("network")}
@@ -401,6 +433,13 @@ def use(game: str, target: str) -> dict:
 def take(game: str, target: str) -> dict:
     """That game's player opens a container and takes everything; returns how many items left it."""
     return {"ok": True, **session.take(_game(game), target)}
+
+
+@tool
+def pickpocket(game: str, target: str, item: str, caught: bool = False) -> dict:
+    """That game's player sneaks up to an NPC and takes `item` (its name in the list) from its pockets, the chance
+    pinned: caught (the alarm closes the menu) or not."""
+    return {"ok": True, **session.pickpocket(_game(game), target, item, caught)}
 
 
 @tool
@@ -592,6 +631,25 @@ def rounds(call: str, args: dict | None = None, count: int = 10, until: str = ""
 
 
 @tool
+def together(lanes: list[dict], sync: str = "frame") -> dict:
+    """Both players at once: each lane {call, args} (a tool or verb: dialogue_press, dialogue_move, dialogue_highlight, dialogue_hover,
+    talk, go_to...) runs in its own thread from one shared moment. sync "frame": each lane's first key or mouse input
+    lands in its game's first frame at that moment (by the game's clock), so presses in two games share a frame;
+    "start": the lanes only start together. Returns each lane's result and the frame its input landed in."""
+    def lane(call, args):
+        def run():
+            _depth.value = 1  # a lane is part of this call: not recorded on its own
+            return _call(call, args)
+        return run
+    outcomes = session.together([lane(l["call"], l.get("args") or {}) for l in lanes], sync)
+    for spec, outcome in zip(lanes, outcomes):
+        outcome["call"] = spec["call"]
+    apart = session.landed_apart(outcomes)
+    failed = [o for o in outcomes if isinstance(o.get("result"), dict) and o["result"].get("ok") is False]
+    return {"ok": not failed, "ms_apart": apart, "lanes": outcomes}
+
+
+@tool
 def checkpoint(name: str = "mcp-checkpoint") -> dict:
     """The host saves the party here; retry comes back to it in seconds instead of a new duo (staged things included)."""
     return {"ok": True, **session.checkpoint(name)}
@@ -613,15 +671,17 @@ def _trace():
 
 @tool
 def trace_start(names: list[str], bools: list[str] | None = None, floats: list[str] | None = None,
-                video: bool = False) -> dict:
-    """Starts the animation trace of handles in both games (objects.AnimTrace: graph events, actions, states such as
-    kill_move and life, positions); trace_read shows it. One at a time: a new one stops the last."""
+                ints: list[str] | None = None, video: bool = False) -> dict:
+    """Starts the animation trace of handles in both games (objects.AnimTrace: graph events, events sent into the graph
+    with their engine callers (input), actions, states such as kill_move and life, positions; `ints`: graph integers
+    recorded with the state as they change); trace_read shows it.
+    One at a time: a new one stops the last."""
     if shared.get("trace"):
         trace_stop()
     session.refresh_handles()
     actors = {instance: {session.resolve(name, label): name for name in names} for label, instance in (("host", ""), ("guest", "client"))}
     trace = AnimTrace(session, "mcp-" + "-".join(names)[:40], actors, bools=["bIsSynced", *(bools or [])], video=video,
-                      floats=floats or ())
+                      floats=floats or (), ints=ints or ())
     shared["trace"] = trace.__enter__()
     return {"ok": True, "dir": str(trace.dir)}
 
@@ -630,7 +690,7 @@ def trace_start(names: list[str], bools: list[str] | None = None, floats: list[s
 def trace_read(origin: str = "", who: list[str] | None = None, kinds: list[str] | None = None, grep: str = "",
                limit: int = 200, everything: bool = False) -> dict:
     """The trace so far as short lines, in seconds from the first action or graph event matching `origin` (a regex:
-    "^pa_" for a kill move); positions, noise and unchanged states left out. `who` handles, `kinds` (graph, action,
+    "^pa_" for a kill move); positions, noise and unchanged states left out. `who` handles, `kinds` (graph, input, action,
     state, game), `grep` a regex on the line; everything=true keeps the noise."""
     trace = _trace()
     trace.take()

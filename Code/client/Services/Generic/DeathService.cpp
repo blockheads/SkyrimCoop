@@ -39,6 +39,7 @@ DeathService::DeathService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
     Listen<ActorDeathChangeEvent, &DeathService::OnPlayerDeath>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerRespawn, &DeathService::OnRespawn>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyTravel, &DeathService::OnPartyTravel>(m_connections, m_dispatcher, this);
+    Listen<NotifyPartySummon, &DeathService::OnPartySummon>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &DeathService::OnRespawnArrival>(m_connections, m_dispatcher, this);
     Listen<NotifyPartyDeath, &DeathService::OnPartyDeath>(m_connections, m_dispatcher, this);
     Listen<SpectateCycleEvent, &DeathService::OnCycle>(m_connections, m_dispatcher, this);
@@ -151,6 +152,11 @@ void DeathService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept
     m_respawn->CellId = acMessage.CellId;
     m_respawn->Position = acMessage.Position;
     m_respawn->Heading = acMessage.Heading;
+}
+
+void DeathService::OnPartySummon(const NotifyPartySummon& acMessage) noexcept
+{
+    OnPartyTravel(acMessage.Destination);
 }
 
 void DeathService::OnRespawnArrival(const PlayerArrivedEvent& acEvent) noexcept

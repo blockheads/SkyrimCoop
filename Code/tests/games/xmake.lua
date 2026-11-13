@@ -7,7 +7,7 @@ target("GameTests")
     set_pcxxheader("Pch.h")
     add_files("../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp", "../../client/Games/Skyrim/Interface/PartyMarkerLabel.cpp")
     add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp", "../../client/RecipeBook.cpp", "../../client/ItemIds.cpp",
-              "../../client/Services/CopyClock.cpp",
+              "../../client/Services/CopyClock.cpp", "../../client/Games/Animation/GraphStream.cpp", "../../client/Games/Animation/GraphState.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
               "../../client/Services/Generic/BugReportService.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp")

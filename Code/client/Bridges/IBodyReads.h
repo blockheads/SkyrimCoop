@@ -25,7 +25,8 @@ public:
     {
         bool Actor{};  // its bodies are its ragdoll's
         bool Dead{};
-        bool Up{};     // a living actor not knocked down: its animation drives its ragdoll
+        bool Up{};     // a living actor standing (knock state 0): its animation alone poses it
+        bool Rising{}; // getting up (knock states 5, 6): its ragdoll still simulated, driven toward its animation (58291)
         bool Player{}; // this game's player
         glm::vec3 Position{}; // the reference's own pose
         glm::vec3 Rotation{};

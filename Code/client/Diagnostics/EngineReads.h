@@ -123,13 +123,14 @@ int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
 
-// The actor's character controller: its flags (CHARACTER_FLAGS), its bodies' filter info, its state, and where its
-// capsule is and how fast it goes (game units), beside the actor's position; or none without one.
+// The actor's character controller: its flags (CHARACTER_FLAGS), its bodies' filter info, its state, its shape (size),
+// and where its capsule is and how fast it goes (game units), beside the actor's position; or none without one.
 struct ControllerRead
 {
     uint32_t Flags{};
     uint32_t Filter{};
     int32_t State{};
+    uint32_t Size{};
     std::array<float, 3> Position{};
     std::array<float, 3> Velocity{};
     std::array<float, 3> StepVelocity{};
@@ -158,6 +159,7 @@ uint32_t GetGrabbedObject() noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
 float GetGraphFloat(uint32_t aFormId, const char* acpName) noexcept;
+int32_t GetGraphInt(uint32_t aFormId, const char* acpName) noexcept; // -1 if it has none
 
 KillState GetKillState(uint32_t aFormId) noexcept;
 
@@ -185,11 +187,34 @@ std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
 // AI at all (kProcessMe).
 int32_t GetProcessLevel(uint32_t aFormId) noexcept;
 
+// Its head's face: geometry and Facegen material found, the tint texture's name ("" none; FaceGenSystem paints one).
+struct FaceHeadRead
+{
+    bool Geometry = false;
+    bool Material = false;
+    std::string Tint;
+};
+FaceHeadRead GetFaceHead(uint32_t aFormId) noexcept;
+
+// Its base's tint layers (TESNPC::tintLayers +0x260), the engine's source for an NPC's runtime face tint; nullopt
+// when the base has no array.
+struct BaseTintLayer
+{
+    uint16_t Index;
+    uint32_t Color; // 0xRRGGBB
+    uint16_t Preset;
+    uint16_t Interpolation; // alpha * 100
+};
+std::optional<std::vector<BaseTintLayer>> GetBaseTintLayers(uint32_t aFormId) noexcept;
+
 // An actor's ragdoll bodies in the ragdoll's order (Havok/Ragdoll.h), each with its node empty; none for no such actor.
 std::optional<std::vector<RagdollBody>> GetRagdoll(uint32_t aActorFormId) noexcept;
 
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
 float GetRawDaysPassed() noexcept;
+
+// The engine's current character (BGSSaveLoadManager::currentCharacterId): the id its saves are named and filed under.
+uint32_t GetCurrentCharacterId() noexcept;
 
 // The form id of the package in the actor's running slot, as plugins read it inline (0: none).
 uint32_t GetRunningPackage(uint32_t aFormId) noexcept;

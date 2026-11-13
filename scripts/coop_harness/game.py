@@ -3,6 +3,7 @@ import contextlib
 import json
 import os
 import socket
+import threading
 import time
 from pathlib import Path
 from .common import (
@@ -15,15 +16,25 @@ from .errors import TestFailure
 FREE_ENV = "COOP_HARNESS_FREE"  # set: drive the games without holding the duo (a deliberate bypass)
 # Harness commands that only read or trace: any process may send them (the diagnostics: look, desync, world-diff).
 READ_COMMANDS = frozenset("""act_state actor_pools anim_trace body_trace camera change_log clipboard combat_targets
-    container_items controller counters dialogue dialogue_trace engine_events faction_rank form form_known form_save
+    clock container_items controller counters dialogue dialogue_trace engine_events faction_rank form form_known form_save
     gait global graph_bool graph_state graph_writers hud_messages idle_conditions info_conditions info_responses
     info_said input_state is_current_package item_count item_stacks judged_line log_trail menu_var npc_templates objects
     papyrus_result path_probe perf player_probe_read player_record quest quest_fragments ray recipe records ref_enabled
-    reference_effects relationship_rank screen script_stacks script_state script_var skill stack_extras status
+    reference_effects relationship_rank scheduled screen script_stacks script_state script_var skill stack_extras status
     story_trace surroundings terrain terrain_result trainings ui_element world_clock world_state""".split())
 # Reads that write when given this field.
 WRITES_WITH = {"script_var": "value", "trainings": "set"}
 FRONTS = set()  # the sanctioned ways in running in this process (coop_test.py's CLI)
+# together's "frame" sync: a thread's first input command waits for this moment (time.monotonic()) in its game.
+SCHEDULE = threading.local()
+SCHEDULABLE = frozenset({"input", "key", "mouse", "char"})
+_RPC_LOCKS, _RPC_LOCKS_GUARD = {}, threading.Lock()
+
+
+def _rpc_lock(connections):
+    """One request at a time on a connection: together's lanes may share a game."""
+    with _RPC_LOCKS_GUARD:
+        return _RPC_LOCKS.setdefault(id(connections), threading.Lock())
 
 
 def check_duo_held(request):
@@ -90,7 +101,38 @@ class Game:
         self.rpc_connections.clear()
 
     def rpc(self, request, timeout=3.0):
-        """Sends one request to the game; returns the decoded response, or None."""
+        """Sends one request to the game; returns the decoded response, or None. Under together's "frame" sync the
+        thread's first input command runs in the game's frame at the shared moment (`scheduled_rpc`)."""
+        if request.get("cmd") in SCHEDULABLE and getattr(SCHEDULE, "at", None) is not None:
+            return self.scheduled_rpc(request, timeout)
+        with _rpc_lock(self.rpc_connections):
+            return self._rpc(request, timeout)
+
+    def clock_offset(self):
+        """The game's steady clock (ms) minus time.monotonic() (ms), from one round trip's midpoint."""
+        sent = time.monotonic()
+        reply = self.rpc({"cmd": "clock"}) or {}
+        if not reply.get("ok"):
+            raise TestFailure(f"[{self.name or 'host'}] no clock: {reply}")
+        return reply["now_ms"] - (sent + time.monotonic()) * 500.0
+
+    def scheduled_rpc(self, request, timeout=3.0):
+        """Queues `request` for SCHEDULE.at in the game, waits until it ran there and returns its result; the frame it
+        ran in goes to SCHEDULE.landed."""
+        at, SCHEDULE.at = SCHEDULE.at, None
+        offset = (getattr(SCHEDULE, "offsets", None) or {}).get(self.name)
+        queued = self.rpc({**request, "at": (self.clock_offset() if offset is None else offset) + at * 1000.0}, timeout) or {}
+        if not queued.get("queued"):
+            return queued
+        deadline = time.monotonic() + max(timeout, at - time.monotonic() + timeout)
+        while time.monotonic() < deadline:
+            done = self.rpc({"cmd": "scheduled", "id": queued["queued"]}) or {}
+            if done.get("done"):
+                SCHEDULE.landed = {"game": self.name or "host", "frame": done["frame"], "late_ms": round(done["late_ms"], 2)}
+                return done["result"]
+        return None
+
+    def _rpc(self, request, timeout):
         check_duo_held(request)
         key = str(self.control)
         try:

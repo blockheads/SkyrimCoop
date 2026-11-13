@@ -41,6 +41,7 @@ struct HostGame
     std::function<bool(uint32_t, const CrimeRequest&)> JudgeCrime;
     std::function<std::vector<CrimeGold>()> ReadCrimeGold;
     std::function<std::vector<CrimeConfiscation>()> TakeCrimeConfiscations;
+    std::function<std::vector<CrimeReport>()> TakeCrimeReports; // the bounties the host's engine reported (37679)
     // The party's gold: the host's player's (party-purse.md); a change to it, silently (a removal takes at most all).
     std::function<uint32_t()> ReadPartyGold;
     std::function<void(int32_t aCount)> AddPartyGold;

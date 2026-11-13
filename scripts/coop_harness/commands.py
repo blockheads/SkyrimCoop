@@ -33,6 +33,7 @@ from .common import (
 from .duo_lock import TAKEOVER_ENV
 from . import game as game_module
 from .errors import TestFailure
+from .follow import Follower
 from .comparisons import (
     describe_world_differences,
     world_differences,
@@ -781,9 +782,10 @@ class Commands:
     def command_play(ctx, args):
         """Manual play: the game you control in a window on the primary monitor (your mouse and keyboard go straight
         to it), the other off-screen as always, shown by a `watch` view on the second monitor. Keep your window
-        uncovered: a covered window stops getting frames back from the compositor. Chat `!watch` turns the other
-        player to face yours. Ctrl+C closes the view; the games keep running until `stop`. With --vanilla: one solo
-        game without our plugin, in the same window and cell, and no view."""
+        uncovered: a covered window stops getting frames back from the compositor. The other player follows yours
+        and faces it (coop_harness/follow.py; chat `!stay` stops it, `!follow` again, `!watch` turns it once; --no-follow
+        starts it staying). Ctrl+C closes the view and stops the follow; the games keep running until `stop`. With
+        --vanilla: one solo game without our plugin, in the same window and cell, and no view."""
         vanilla = args.vanilla
         if vanilla and args.control != "host":
             raise TestFailure("--vanilla is one solo game: there is no guest to control")
@@ -845,8 +847,12 @@ class Commands:
              "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720", "-i", f"{ctx.game(other).display}+4,30"])
         if window := game_window():
             subprocess.run(["xdotool", "windowactivate", window], capture_output=True)
-        log(f"Playing the {args.control} in its window; watching the {'guest' if other else 'host'} on the second monitor. "
-            f"Chat !watch to have it face you. Ctrl+C closes the view; `coop_test.py stop` ends the games; "
+        follower = Follower(ctx, other)
+        if not args.no_follow:
+            follower.start()
+        log(f"Playing the {args.control} in its window; watching the {'guest' if other else 'host'} on the second monitor"
+            f"{', following you' if follower.on else ''}. Chat !stay / !follow to stop or start the follow, !watch to have "
+            f"it face you. Ctrl+C closes the view; `coop_test.py stop` ends the games; "
             f"`play --control {'guest' if playing == '' else 'host'}` (after stop) plays the other side.")
         seen = None
         try:
@@ -857,17 +863,30 @@ class Commands:
                     seen = lines
                 new = lines[len(seen):] if lines[:len(seen)] == seen else lines[-1:] if lines and lines[-1:] != seen[-1:] else []
                 seen = lines
-                if any((text or "").strip().lower() == "!watch" for _, text in new):
+                said = {(text or "").strip().lower() for _, text in new}
+                if "!stay" in said and follower.on:
+                    try:
+                        follower.stop()
+                        log(f"The {'guest' if other else 'host'} stays")
+                    except (TestFailure, OSError) as error:
+                        log(f"The {'guest' if other else 'host'} did not stop following ({error}); say !stay again")
+                if "!follow" in said and not follower.on:
+                    follower.start()
+                    log(f"The {'guest' if other else 'host'} follows you")
+                if "!watch" in said:
                     if copy := ctx.player_copy(other):
                         ctx.face(other, copy)
                         log(f"The {'guest' if other else 'host'} faces the player you control")
+                follower.tick()
                 if view.poll() is not None:  # closed by hand: open it again
                     view = subprocess.Popen(view.args)
-                time.sleep(0.5)
+                time.sleep(0.25)
         except KeyboardInterrupt:
-            log("View closed; the games keep running (coop_test.py stop)")
+            log("View closed and the follow stopped; the games keep running (coop_test.py stop)")
         finally:
             view.terminate()
+            with contextlib.suppress(TestFailure, OSError):
+                follower.stop()
 
     def cli(ctx):
         _game = ctx.game()
@@ -1009,7 +1028,7 @@ class Commands:
         desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
         desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
         desync.add_argument("--interval", type=float, default=1.0, help="seconds between samples")
-        play = commands.add_parser("play", help="manual play: the game you control in a window, the other off-screen with a live view; chat !watch")
+        play = commands.add_parser("play", help="manual play: the game you control in a window, the other follows it, off-screen with a live view")
         play.add_argument("--control", choices=("host", "guest"), default="host", help="the game you play (default host)")
         play.add_argument("--cell", default="RiverwoodSleepingGiantInn", help="cell both start in (default the Sleeping Giant Inn)")
         play.add_argument("--save", help="load this save instead of coc")
@@ -1019,6 +1038,7 @@ class Commands:
         play.add_argument("--npc", default="", help="NPC base form the host spawns (default none)")
         play.add_argument("--level", type=int)
         play.add_argument("--attach", action="store_true", help="the games already run: only open the view")
+        play.add_argument("--no-follow", action="store_true", help="the other player stays put (chat !follow starts it)")
         play.add_argument("--vanilla", action="store_true",
                           help="one solo game without our plugin (the stand-in harness plugin only runs the boot "
                                "command); no guest, no view; the next normal launch redeploys ours")

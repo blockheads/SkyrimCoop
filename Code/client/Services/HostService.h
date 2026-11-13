@@ -85,6 +85,7 @@ private:
     bool m_readCheckpoint{};  // the save read (m_checkpoint, or none to load)
     bool m_loadingSave{};     // delivered to the guests, loading here
     std::optional<IJoinBridge::SaveFiles> m_checkpoint;
+    uint32_t m_checkpointCharacter{}; // its character's id (in its name), the engine's again once loaded under kReloadSave
     std::map<Net::ConnectionId_t, AuthenticationRequest> m_reloadJoins; // joins (the guests again) that came meanwhile
 
     World& m_world;

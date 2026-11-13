@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Games/Animation/GraphRandom.h>
 #include <Structs/ActionEvent.h>
+#include <optional>
+#include <vector>
 
 struct LocalAnimationComponent
 {
     std::vector<ActionEvent> Actions;
     ActionEvent LastProcessedAction;
-    GraphRandom::Owner Random;
 
     [[nodiscard]] std::optional<ActionEvent> GetLatestAction() const noexcept
     {

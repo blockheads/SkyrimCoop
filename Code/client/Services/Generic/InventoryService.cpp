@@ -1,4 +1,5 @@
 #include <Services/InventoryService.h>
+#include <Games/Animation/GraphStream.h>
 #include <Games/EquipmentRepair.h>
 #include <Events/PlayerProgressEvent.h>
 #include <Bridges/IPlayerBridge.h>
@@ -393,7 +394,11 @@ void InventoryService::RunWeaponDrawConvergence(double aDelta) noexcept
 
         spdlog::debug("Copy {:X} hands {} (weapon state {}) while its owner's are {}: converging", cFormId, ShowsHandsUp(cState) ? "up" : "down",
                       static_cast<int>(cState), owner.HandsUp ? "up" : "down");
-        m_actorBridge.SetActorWeaponDrawnEx(cFormId, owner.HandsUp);
+        // On its owner's stream its graph is its owner's already and drops its own events: the result alone.
+        if (m_world.GetGraphStreams().OnStream(cFormId))
+            m_actorBridge.ShowActorWeaponDrawn(cFormId, owner.HandsUp);
+        else
+            m_actorBridge.SetActorWeaponDrawnEx(cFormId, owner.HandsUp);
         owner.DriftSeconds = 0.0;
     }
 }

@@ -406,13 +406,15 @@ class GraphApart:
     """Owner against copy, both read live: the runs apart for `lasting` s or more. The action's GraphState would not do:
     it is the owner mid-transition (docs/re/systems/animation-replay-recovery.md, "Drift detector")."""
 
-    def __init__(self, lasting=2.0):
-        self.lasting, self.samples, self.open, self.runs = lasting, 0, {}, []
+    def __init__(self, lasting=2.0, strict=False):
+        self.lasting, self.samples, self.open, self.runs, self.strict = lasting, 0, {}, [], strict
 
     def observe(self, actor, owner, copy, now):
-        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart."""
+        """One reading of each game's active states; None for a graph not read: the run ends at its last reading apart, or
+        with `strict` (an expect) stays open until a reading agrees: a missing reading is no agreement."""
         if owner is None or copy is None:
-            self.lose(actor)
+            if not self.strict:
+                self.lose(actor)
             return
         self.samples += 1
         if owner == copy:
@@ -456,10 +458,11 @@ def mod_problems(snapshot, role):
     return problems
 
 
-def body_problems(snapshot):
+def body_problems(snapshot, bones=True):
     """What looks wrong with a player's body as a person would see it (harness `pose`): floating or sunk feet, a
     skeleton lifted off its feet, or lying while it should stand. Nothing for NPCs, the dead, the knocked down,
-    the seated, riders and swimmers."""
+    the seated, riders and swimmers. `bones` False: its 3D was not drawn when read, so its skeleton is its last drawn
+    pose, which nobody sees (a copy knocked down out of the host's view read as lying after it stood, 2026-11-11)."""
     pose, state, placement = snapshot.get("pose"), snapshot.get("state") or {}, snapshot.get("placement") or {}
     water = (snapshot.get("mod") or {}).get("water") or {}
     if not snapshot.get("player") or not pose or state.get("dead") or state.get("knock") or state.get("sit_sleep"):
@@ -471,6 +474,8 @@ def body_problems(snapshot):
         problems.append(f"body: floats {pose['floor_gap']:.0f} units above the floor")
     elif pose["floor_gap"] < -FLOAT_TOLERANCE:
         problems.append(f"body: sunk {-pose['floor_gap']:.0f} units into the floor")
+    if not bones:
+        return problems
     pelvis = pose["pelvis"] - pose["floor_gap"]  # above its own feet
     if pelvis > RAISED_PELVIS:
         problems.append(f"body: skeleton lifted off its feet (pelvis {pelvis:.0f} above them, ~71 standing)")
@@ -527,14 +532,15 @@ def compare_actors(worlds):
                 continue
             copy_id, copy = copies[other][sid]
             paired[other].add(sid)
-            for problem in mod_problems(copy, "copy") + body_problems(copy):
+            for problem in mod_problems(copy, "copy") + body_problems(copy, bones=drawn(copy)):
                 problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):
-                # A culled NPC's NiNode bones are its last drawn pose, not its current graph's
+                # A culled actor's NiNode bones are its last drawn pose, not its current graph's
                 # output (native camera control: head88 ->124, same JumpLand). Never use that
                 # cache to diagnose replay. Visible poses and every other actor field still compare.
-                if field.startswith("pose.") and not owned["player"] and not all(map(drawn, (owned, copy))):
+                # A player's own game reads its body as it stands; its copy is culled like any actor.
+                if field.startswith("pose.") and not (drawn(copy) and (owned["player"] or drawn(owned))):
                     continue
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
                 if reason:

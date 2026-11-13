@@ -42,8 +42,29 @@ struct Velocities
 [[nodiscard]] Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget,
                                float aSeconds = kSteerSeconds) noexcept;
 
+// A copy's ragdoll at its owner's rest (docs/re/systems/physics.md, A copy at its owner's rest). Steered there on every
+// step with no end (78089/78090 wake a body each time) it never slept: every dead copy's 18 bodies stayed awake at 3
+// to 8 units/s within 0.8 units of their rests (kill-move-kills-guest, 14 of 14 runs, 2026-11-11).
+// Its bodies are steered toward the rest for this many physics steps, then all put exactly there in one step and
+// left. About three of them never come within half a unit while the others are still on their way (their joints hold
+// them off: 190 steers a second after the rest, for good); the owner's poses fit its joints together.
+constexpr uint16_t kRestSettleSteps = 30;
+enum class RestStep
+{
+    kSteer, // on its way
+    kPlace, // every body's rest arrived in the same step: all are put there in this one
+    kLeave, // there: left to fall asleep
+};
+constexpr RestStep StepToRest(uint16_t aSteps) noexcept
+{
+    return aSteps < kRestSettleSteps ? RestStep::kSteer : aSteps == kRestSettleSteps ? RestStep::kPlace : RestStep::kLeave;
+}
+
 // Whether a body falls freely: its velocity changed by gravity alone between two reads aSeconds apart (a body on
 // the ground, sliding or rolling, goes on as it moves instead).
 [[nodiscard]] bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds,
                                float aGravity = kGravity) noexcept;
+// Whether a woken body has left where it woke (physics.md, "Woken still"): its pose past the send limits
+// (BodySendLimits: 2 units, 0.05 rad). Skyrim wakes islands it never moves, with velocity bursts that go nowhere.
+[[nodiscard]] bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept;
 } // namespace BodyPrediction

@@ -1,0 +1,30 @@
+time	op	id	rva	item
+2026-11-10T22:30:14Z	read	37534	0x68c170	{"name": "Actor__ShouldAttack"}
+2026-11-10T22:30:14Z	read	37679	0x69d730	{"name": "Character__ReportCrimeAddBounty"}
+2026-11-10T22:30:50Z	read	40660	0x75a890	{"name": "PlayerCharacter::SetEscaping"}
+2026-11-10T22:31:01Z	read	11726	0x164df0	{"name": "ExtraDataList::GetPlayerCrimeList"}
+2026-11-10T22:31:05Z	read	37675	0x69d340	{"name": "sub_14069D340"}
+2026-11-10T22:31:06Z	read	42503	0x7b6e80	{"name": "sub_1407B6E80"}
+2026-11-10T22:31:11Z	read	41350	0x781d60	{"name": "sub_140781D60"}
+2026-11-10T22:31:26Z	name	37675	0x69d340	{"addr": "0x14069D340", "name": "Actor__ForgivePlayerCrimes"}
+2026-11-10T22:31:26Z	name	42503	0x7b6e80	{"addr": "0x1407B6E80", "name": "Crime__Release"}
+2026-11-10T22:31:26Z	name	41350	0x781d60	{"addr": "0x140781D60", "name": "ProcessLists__ExpireOldCrimes"}
+2026-11-10T22:31:32Z	comment	37675	0x69d340	{"addr": "0x14069D340", "comment": "37675: for each crime on this actor's kPlayerCrimeList (extra 0x34, the crimes it is the victim of): SetPlayerEnemy(faction, false); if kAngryWithPlayer (+0x204 bit 0x800): reset its knowledge of the player and clear the flag."}
+2026-11-10T22:31:32Z	comment	42503	0x7b6e80	{"addr": "0x1407B6E80", "comment": "42503: a crime's release: unlinks it from ProcessLists, clears its faction's enemy flag if no other crime holds it, removes it from the VICTIM's kPlayerCrimeList (crime +0x08 handle) and clears that victim's kAngryWithPlayer. So extra 0x34 lists the crimes an actor is the victim of, not the ones it witnessed."}
+2026-11-10T22:31:32Z	comment	41350	0x781d60	{"addr": "0x140781D60", "comment": "41350: expires crimes older than a2 seconds (crime +0x54 stamp) over the 7 crime-type lists: faction enemy flag off unless another crime holds it, out of the victim's kPlayerCrimeList, victim's kAngryWithPlayer cleared."}
+2026-11-10T22:31:32Z	comment		0x69d99d	{"addr": "0x14069d99d", "comment": "The HUD line '<bounty> sAddCrimeGold <faction name>' (0x1420AF9C0): only on the game whose player is the crime's criminal. Guests never run this for a party crime; SkyrimCoop relays it (CrimeReport)."}
+2026-11-10T22:31:32Z	comment		0x75a94a	{"addr": "0x14075a94a", "comment": "Same bounty HUD line as 37679 (sAddCrimeGold), for escaping jail: the jail faction's sentence becomes bounty."}
+2026-11-10T22:31:32Z	comment		0x68c4f2	{"addr": "0x14068c4f2", "comment": "Real player target: kAngryWithPlayer (+0x204 bit 0x800) on the attacker answers yes. Set by a theft's owner alarm (39651) and a pending-crime witness (39631), with no faction enemy flag for a nonviolent crime."}
+2026-11-10T22:31:36Z	read	37463	0x6864b0	{"name": "Actor__SetAngryWithPlayer"}
+2026-11-10T22:38:40Z	read	39695	0x71abb0	{"name": "ProcessLists__AlertCrimeResponders"}
+2026-11-10T22:38:56Z	read	41354	0x7820d0	{"name": "coop_RealKnownCrime"}
+2026-11-10T22:38:57Z	read	42506	0x7b7210	{"name": "sub_1407B7210"}
+2026-11-10T22:39:08Z	name	42506	0x7b7210	{"addr": "0x1407B7210", "name": "Crime__AddWitness"}
+2026-11-10T22:39:08Z	comment	42506	0x7b7210	{"addr": "0x1407B7210", "comment": "42499 area: adds a handle to the crime's witness array (+0x28 data, +0x38 count) under the crime's lock (+0x6C). 39695 adds every responder it alerts; 41354 reads it (sub_1407B7180) to answer 'does this witness know the crime'."}
+2026-11-10T22:39:08Z	comment		0x71af4e	{"addr": "0x14071af4e", "comment": "A responder to the crime the player is fleeing (player +0xB18) fights g_thePlayer at once; else StartAlarm on the crime. Either way the reaction aims at the host's player for a guest's crime; no angry flag, no faction enemy for a nonviolent crime."}
+2026-11-10T22:39:08Z	comment		0x71af7a	{"addr": "0x14071af7a", "comment": "Every alerted responder joins the crime's witnesses (Crime__AddWitness): KnownCrime (41354) with this witness then answers true."}
+2026-11-10T22:39:23Z	read		0x690f00	{"name": "Actor::AttackPlayerOnSight"}
+2026-11-10T22:39:37Z	name	42505	0x7b7180	{"addr": "0x1407B7180", "name": "Crime__HasWitness"}
+2026-11-10T22:39:40Z	comment	42506	0x7b7210	{"addr": "0x1407B7210", "comment": "42506: adds a handle to the crime's witness array (+0x28 data, +0x38 count) under the crime's lock (+0x6C). Called by every alarm (StealAlarm, pickpocket, assault 37425, murder 37426, trespass, werewolf 37428), Actor__StartAlarm, ProcessPendingCrime and the responders (39695): an NPC reacting to a crime is on its witness list."}
+2026-11-10T22:39:40Z	comment	42505	0x7b7180	{"addr": "0x1407B7180", "comment": "42505: is this handle on the crime's witness array (+0x28/+0x38)? Read by KnownCrime 41354 and AttackPlayerOnSight 37566."}
+2026-11-10T22:39:40Z	comment	41354	0x7820d0	{"addr": "0x1407820d0", "comment": "41354 KnownCrime(lists, victim or null for any, criminal, witness or null, type 0-7, unused, day or -1): walks ProcessLists +0xB0 + type*8 for a crime of that criminal whose witness list holds the witness. Only the player's crimes are kept (41349), so criminal = g_thePlayer asks for the party's. SkyrimCoop: CrimeBridge::CriminalInterest asks it for every type."}

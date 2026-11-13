@@ -65,7 +65,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             continue;
         }
         const bool cActor = cReference->Actor;
-        // A living actor's ragdoll is its physics' only while it is knocked down; up again, its animation's.
+        // A living actor's ragdoll is its physics' while it lies and while it gets up; standing, its animation's.
         const bool cUp = cReference->Up;
         Bodies awake{it->first, cActor};
         Bodies all{it->first, cActor};
@@ -75,7 +75,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             if (!cBody || (!cBody->Read.Dynamic && !cUp))
                 continue;
             const BodyRead& cRead = cBody->Read;
-            // Up again: where it lay is its rest (read once, below).
+            // Up again: where its bodies are is its rest (read once, below).
             if (cUp)
             {
                 all.Read.push_back(FrameOf(cRead, static_cast<uint8_t>(i)));
@@ -86,14 +86,39 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             if (!cActor && NodeLeftBehind(*cBody))
                 QueueNode(it->first, static_cast<uint8_t>(i));
             BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
-            frame.Knocked = cActor && !cReference->Dead;
+            // Only a lying owner's frame takes a standing copy down: a getting-up owner's can come late.
+            frame.Knocked = cActor && !cReference->Dead && !cReference->Rising;
+            // Getting up its animation drives it, and its limbs shake step to step: a pose to blend between, no
+            // flight to guess onward (a copy's hand shook twice as far as its owner's).
+            if (cActor && cReference->Rising)
+                frame.LinearVelocity = frame.AngularVelocity = {};
             all.Read.push_back(frame);
+            // A reference's island is woken by actors near it without moving it (Orgnar's animated body, 78910).
+            if (!cActor && !it->second.Moved)
+            {
+                auto& woke = it->second.Woke;
+                if (woke.size() <= i)
+                    woke.resize(i + 1);
+                if (!woke[i])
+                    woke[i] = frame;
+                // Its node left behind: the engine moved the body off where its 3D stood.
+                it->second.Moved = it->first == cHeld || NodeLeftBehind(*cBody) || BodyPrediction::LeftRest(frame, *woke[i]);
+            }
             if (cRead.Active || it->first == cHeld)
                 awake.Read.push_back(frame);
+        }
+        // Woken, unmoved: no frames (a guest would play it keyframed); its rest still goes, settles included.
+        if (!cActor && !it->second.Moved && !awake.Read.empty())
+        {
+            ++it;
+            continue;
         }
         if (!awake.Read.empty())
         {
             it->second.Ragdoll |= cActor;
+            it->second.Resting = false;
+            if (cActor)
+                it->second.Last = all.Read;
             update.Awake.push_back(std::move(awake));
             ++it;
             continue;
@@ -103,6 +128,22 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             ++it;
             continue;
         }
+        // A living actor lying still: its rest once, and kept until it stands (its get-up moves its bodies again,
+        // and need not mark it moved).
+        if (cActor && !cUp && !cReference->Dead)
+        {
+            if (!std::exchange(it->second.Resting, true))
+                update.Rested.push_back(std::move(all));
+            ++it;
+            continue;
+        }
+        // Standing, its bodies have left the world: its last frame is its rest.
+        if (cUp && it->second.Ragdoll && all.Read.empty())
+            for (BodyFrame frame : it->second.Last)
+            {
+                frame.Knocked = false;
+                all.Read.push_back(frame);
+            }
         // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
         if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {

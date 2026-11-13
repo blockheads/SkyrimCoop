@@ -240,6 +240,38 @@ class PhysicsActions:
         return first_body(ctx.world_state(instance, [ref]).get(ref))
 
 
+    def who_wakes(ctx, instance, refs, seconds=30.0):
+        """Watches these references' bodies for `seconds` in that game (harness activate_watch: hkpEntity::Activate 60849,
+        markIslandActive 61525): how often each woke, and the callers that woke them, by call stack, most first."""
+        ids = [ctx.resolve(ref, instance) for ref in refs]
+        disabled = ctx.player_command(instance, {"cmd": "activate_watch", "refs": ids}).get("disabled_hooks", "")
+        events, dropped, failed = [], 0, True
+        try:
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                time.sleep(1.0)
+                reply = ctx.player_command(instance, {"cmd": "activate_watch"})
+                events += reply["events"]
+                dropped += reply.get("dropped", 0)
+            failed = False
+        finally:
+            # Always stopped (a watch left on hooks every activation); a failed stop never hides the first error.
+            try:
+                reply = ctx.player_command(instance, {"cmd": "activate_watch", "stop": True})
+                events += reply["events"]
+                dropped += reply.get("dropped", 0)
+            except Exception:
+                if not failed:
+                    raise
+        woke = collections.Counter(f"{e['ref']:X}" for e in events if e["what"] == "woke")
+        callers = collections.Counter((e["what"], " < ".join(e["stack"])) for e in events if "stack" in e)
+        through = collections.Counter(f"{e['through']['ref']:X} (base {e['through']['base']:X}, motion {e['through']['motion']})"
+                                      for e in events if "through" in e)
+        return {"woke": dict(woke), "calls": sum(callers.values()), "through": dict(through), "dropped": dropped,
+                "hooks_left_out": len(disabled.split(",")) if disabled else 0,
+                "callers": [{"what": what, "count": count, "stack": stack} for (what, stack), count in callers.most_common(8)]}
+
+
     def resting_clutter_on_both(ctx, refs, guest_refs):
         """A filter for clutter both games have, one body, in the physics world, at rest on the host."""
         def resting(ref):
@@ -395,10 +427,13 @@ class PhysicsActions:
         return response["bodies"]
 
 
-    def ragdoll_lies_as_owner(ctx, owner, actor, other, copy):
-        """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone."""
+    def ragdoll_lies_as_owner(ctx, owner, actor, other, copy, trace=None):
+        """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone.
+        `trace`: a RagdollTrace kept from filling while it waits."""
         who, where = owner or "host", other or "host"
         def owner_rests():
+            if trace:
+                trace.take()
             bodies = ctx.ragdoll_of(owner, actor)
             return any(b["motion"] in DYNAMIC_MOTIONS for b in bodies) and not any(b["awake"] for b in bodies)
         ctx.wait_for(f"[{who}] the ragdoll of {actor:X} comes to rest", owner_rests, 30)
@@ -406,6 +441,8 @@ class PhysicsActions:
         apart = {}
         owner_dead = ctx.is_dead(ctx.actor_snapshot(owner, actor))
         def lies_as_owner():
+            if trace:
+                trace.take()
             bodies = ctx.ragdoll_of(other, copy)
             if owner_dead and not ctx.is_dead(ctx.actor_snapshot(other, copy)):
                 apart["now"] = "the owner's actor is dead and the copy lives"
@@ -440,7 +477,11 @@ class PhysicsActions:
         """The bones where two ragdolls differ, as text (empty: alike within `units` and `turn` radians)."""
         if len(host) != len(guest):
             return f"{len(host)} bones vs {len(guest)}"
+        def turned(a, b):  # degrees between two quaternions
+            return math.degrees(2 * math.acos(min(1.0, abs(sum(x * y for x, y in zip(a, b))))))
         apart = [f"bone {i} at {show_value('position', a['position'])} vs {show_value('position', b['position'])}"
+                 f" ({math.dist(a['position'], b['position']):.1f} units, {turned(a['rotation'], b['rotation']):.0f} deg"
+                 f"{', awake' if b.get('awake') else ''})"
                  for i, (a, b) in enumerate(zip(host, guest))
                  if not near(a["position"], b["position"], units) or not same_turn(a["rotation"], b["rotation"], turn)]
         return "; ".join(apart[:4]) + (f" (+{len(apart) - 4} more)" if len(apart) > 4 else "")

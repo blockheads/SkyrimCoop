@@ -105,3 +105,130 @@ TEST_CASE("A body this game's player holds still is not at rest: Havok sleeps it
     reads.Holds = 0;
     CHECK(physics.Take().Rested.size() == 1); // let go: its rest
 }
+
+TEST_CASE("An actor getting up still sends its ragdoll, without knocking its copies down, and rests once it stands", "[body-scene-phase][rising]")
+{
+    // knockdown-lies-as-host (duo, 2026-11-11): getting up, a ragdoll's bodies are still simulated (58291), so each
+    // game's room moved them its own way; the owner stopped sending at its get-up's start.
+    SceneReads reads;
+    reads.Ref.Actor = true;
+    reads.Ref.Bodies[0]->Node.reset();
+    reads.Ref.Bodies[0]->Read.Active = true;
+    PhysicsBodies physics(reads);
+    const auto cLying = physics.Take();
+    REQUIRE(cLying.Awake.size() == 1);
+    CHECK(cLying.Awake[0].Read[0].Knocked);
+
+    SECTION("lying still it rests once and is kept: its get-up need not mark it moved again")
+    {
+        reads.Ref.Bodies[0]->Read.Active = false;
+        CHECK(physics.Take().Rested.size() == 1);
+        const auto cStill = physics.Take();
+        CHECK(cStill.Rested.empty());
+        CHECK(cStill.Awake.empty());
+        reads.Ref.Rising = true;
+        reads.Ref.Bodies[0]->Read.Active = true;
+        CHECK(physics.Take().Awake.size() == 1);
+    }
+    SECTION("getting up its frames go on, as a getting-up owner's")
+    {
+        reads.Ref.Rising = true;
+        reads.Ref.Bodies[0]->Read.Position = {20.f, 0.f, 30.f};
+        reads.Ref.Bodies[0]->Read.LinearVelocity = {300.f, 0.f, 0.f};
+        reads.Ref.Bodies[0]->Read.AngularVelocity = {0.f, 4.f, 0.f};
+        const auto cRising = physics.Take();
+        CHECK(cRising.Rested.empty());
+        REQUIRE(cRising.Awake.size() == 1);
+        // Driven by its animation, shaking step to step: a pose, with no velocity to guess onward.
+        CHECK(cRising.Awake[0].Read[0].LinearVelocity == glm::vec3{});
+        CHECK(cRising.Awake[0].Read[0].AngularVelocity == glm::vec3{});
+        CHECK_FALSE(cRising.Awake[0].Read[0].Knocked); // a late one must not take a copy already up down again
+        // Standing: its bodies have left the world, so its last frame is its rest.
+        reads.Ref.Rising = false;
+        reads.Ref.Up = true;
+        reads.Ref.Bodies[0].reset();
+        const auto cUp = physics.Take();
+        CHECK(cUp.Awake.empty());
+        REQUIRE(cUp.Rested.size() == 1);
+        CHECK(cUp.Rested[0].Read[0].Position.z == 30.f);
+        CHECK_FALSE(cUp.Rested[0].Read[0].Knocked);
+        CHECK(physics.Take().Rested.empty());
+    }
+    SECTION("a corpse asleep is done with")
+    {
+        reads.Ref.Dead = true;
+        reads.Ref.Bodies[0]->Read.Active = false;
+        CHECK(physics.Take().Rested.size() == 1);
+        CHECK(physics.Take().Rested.empty());
+        reads.Ref.Bodies[0]->Read.Active = true; // not read again until physics marks it moved
+        CHECK(physics.Take().Awake.empty());
+    }
+}
+
+namespace
+{
+// A reference woken in place (physics.md, "Woken still"): its bodies awake, each 3D on its body.
+SceneReads WokenInPlace(size_t aBodies)
+{
+    SceneReads reads;
+    reads.Ref.Bodies.clear();
+    for (size_t i = 0; i < aBodies; ++i)
+    {
+        IBodyReads::Body body;
+        body.Read.Dynamic = true;
+        body.Read.Active = true;
+        body.Read.Position = {10.f * static_cast<float>(i), 0.f, 80.f};
+        body.Node = std::pair(body.Read.Position, body.Read.Rotation);
+        reads.Ref.Bodies.push_back(body);
+    }
+    reads.Ref.Position = reads.Ref.Bodies[0]->Read.Position;
+    return reads;
+}
+} // namespace
+
+TEST_CASE("A reference woken in place sends no frames, and its rest when it sleeps", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(2);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    CHECK(physics.Take().Awake.empty());
+    for (auto& body : reads.Ref.Bodies)
+        body->Read.Active = false;
+    const auto cAsleep = physics.Take();
+    REQUIRE(cAsleep.Rested.size() == 1);
+    CHECK(cAsleep.Rested[0].Read.size() == 2);
+}
+
+TEST_CASE("Either body of a woken reference leaving where it woke sends the reference's frames", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(2);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    reads.Ref.Bodies[1]->Read.Position.x += 3.f;
+    reads.Ref.Bodies[1]->Node->first = reads.Ref.Bodies[1]->Read.Position; // the engine followed it
+    const auto cMoved = physics.Take();
+    REQUIRE(cMoved.Awake.size() == 1);
+    CHECK(cMoved.Awake[0].Read.size() == 2);
+    THEN("moved stays moved, back in place or not")
+    {
+        reads.Ref.Bodies[1]->Read.Position.x -= 3.f;
+        reads.Ref.Bodies[1]->Node->first = reads.Ref.Bodies[1]->Read.Position;
+        CHECK(physics.Take().Awake.size() == 1);
+    }
+}
+
+TEST_CASE("A woken reference the host's player then grabs sends its frames at once", "[physics][woken-still]")
+{
+    auto reads = WokenInPlace(1);
+    PhysicsBodies physics(reads);
+    CHECK(physics.Take().Awake.empty());
+    reads.Holds = 42;
+    CHECK(physics.Take().Awake.size() == 1);
+    THEN("held still and asleep, still the hand's: frames, no rest")
+    {
+        reads.Ref.Bodies[0]->Read.Active = false;
+        const auto cHeld = physics.Take();
+        CHECK(cHeld.Awake.size() == 1);
+        CHECK(cHeld.Rested.empty());
+    }
+}

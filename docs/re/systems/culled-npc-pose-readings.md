@@ -50,3 +50,18 @@ off for many actors (`Actor::UpdateAnimation` 37361), so the bit can read true f
 (38054). The harness now reports it as `pose_visibility.drawn`; the observer and the gait check use it. The gait
 results above are now controlled: `GaitWatch` counts drawn steps only (`actor-movement.md`, "A culled actor keeps its
 pose").
+
+## 2026-11-10: a player's copy is culled like any actor
+
+`teleport-keeps-copies` failed with players on the graph input stream: the guest's player's copy on the host read head
+81 against its owner's 124, for seconds, after a landing. Measured on a failing run:
+
+- its graph was its owner's on every update compared (`graph_stream_check`: 524 of 524);
+- the copy read cull 6, not in the frustum, `pose_visibility.drawn` false for the whole 3.7 s (44 samples);
+- the host follows a guest's teleport (the party tether) and the copy is undrawn for about half a second around every
+  one; a landing that falls inside it leaves the crouch on the bones until the copy is drawn again.
+
+So the observer skips a player's pose fields too when its copy is not drawn (`comparisons.py`; `test_world_diff.py`,
+`PoseVisibility`). The owner's side is not asked for a player: its own game reads its body as it stands. With
+players off the stream the same scenario passed 18 of 18: not explained (a replayed action lands a few frames later
+than the stream does).

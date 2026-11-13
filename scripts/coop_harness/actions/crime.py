@@ -57,6 +57,18 @@ class CrimeActions:
         ctx.crime_command("", "set_warnings", warnings=2)
         return {"warnings": ctx.crime_command("", "read")["warnings"]}
 
+    def set_warnings(ctx, warnings=0):
+        """Sets the party's spent theft warnings on the host (TheftWarnings, crime.md) and reads them back."""
+        ctx.crime_command("", "set_warnings", warnings=warnings)
+        return ctx.expect_warnings(warnings)
+
+    def expect_warnings(ctx, count):
+        """The host's spent theft warnings are `count` (a seen theft's warning goes to the host's player, 37556)."""
+        warnings = ctx.crime_command("", "read")["warnings"]
+        if warnings != count:
+            raise ctx.failure(f"the party has spent {warnings} theft warnings, expected {count}")
+        return {"warnings": warnings}
+
     def stand_witness(ctx, npc, near="guest_player", gap=180):
         """Moves the host's `npc` `gap` units north of a player, to witness what they do without them walking."""
         ctx.refresh_handles()
@@ -93,6 +105,30 @@ class CrimeActions:
         except Exception:
             raise ctx.failure(f"the party's bounty is {ctx.party_bounty()}, expected at least {at_least} in both games") from None
         return ctx.party_bounty()
+
+    def hud_mark(ctx):
+        """How many HUD lines each game has shown so far: pass it to expect_bounty_message to count only later ones."""
+        return {label: ctx.player_command(instance, {"cmd": "hud_messages"}).get("shown", 0)
+                for label, instance in (("host", ""), ("guest", "client"))}
+
+    def hud_since(ctx, instance, mark):
+        """The HUD lines `instance` showed after `mark` (its count from hud_mark) still in the harness's last 32."""
+        reply = ctx.player_command(instance, {"cmd": "hud_messages"})
+        messages, shown = reply.get("messages") or [], reply.get("shown", 0)
+        return messages[len(messages) - min(len(messages), max(0, shown - mark)):]
+
+    def expect_bounty_message(ctx, mark, seconds=10.0):
+        """A bounty HUD line ("<n> <sAddCrimeGold> <hold>", 37679) the host shows after `mark` (hud_mark) shows on the
+        guest too, also after `mark`, within `seconds`: every player hears the party's bounty."""
+        bounty_lines = lambda lines: [line for line in lines if line.split(" ", 1)[0].isdigit()]
+        ctx.wait_for("the host shows a new bounty line", lambda: bounty_lines(ctx.hud_since("", mark["host"])), seconds)
+        line = bounty_lines(ctx.hud_since("", mark["host"]))[-1]
+        try:
+            ctx.wait_for(f"the guest shows '{line}'", lambda: line in ctx.hud_since("client", mark["guest"]), seconds)
+        except Exception:
+            raise ctx.failure(f"the guest's new HUD lines are {ctx.hud_since('client', mark['guest'])}, "
+                              f"expected '{line}'") from None
+        return {"line": line}
 
     def expect_target(ctx, npc, player="guest_player", seconds=10.0):
         """The host's `npc` targets `player` (combat or package target) within `seconds`: a crime's reaction goes to

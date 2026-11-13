@@ -35,3 +35,21 @@ TEST_CASE("The alarm gets the owner the guest's alarm was given, else the target
     CHECK(AlarmOwner(0x13479u, 0x5u) == 0x13479u);
     CHECK(AlarmOwner(0u, 0x5u) == 0x5u);
 }
+
+TEST_CASE("An NPC is hostile for a party crime for any grudge Skyrim keeps", "[CrimeRules]")
+{
+    CHECK_FALSE(PartyIsCriminalTo({}));
+    CHECK(PartyIsCriminalTo({.FactionEnemy = true}));
+    CHECK(PartyIsCriminalTo({.Victim = true}));
+    // A theft's witness: angry (39631) with no faction flag and no crime against it (crime.md).
+    CHECK(PartyIsCriminalTo({.AngryWithPlayer = true}));
+    // A guard answering the alarm (39695): on the crime's witness list, nothing else.
+    CHECK(PartyIsCriminalTo({.Witness = true}));
+}
+
+TEST_CASE("A guest's seen theft alarms at once: the steal warning would go to the host's player", "[CrimeRules]")
+{
+    CHECK_FALSE(Warns(true, true));
+    CHECK_FALSE(Warns(false, true));
+    CHECK(Warns(true, false));
+}

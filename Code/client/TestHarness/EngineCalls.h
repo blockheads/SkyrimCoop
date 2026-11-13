@@ -563,6 +563,8 @@ std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormI
 // (ActorPackage::InitFromPackage 38959, TESPackageEvent): staging on the owner, with the actor frozen so evaluation
 // does not replace it.
 bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
+// AIProcess::processLevel (0 high, 1 middle-high, 2 middle-low, 3 low); none without a process.
+std::optional<uint8_t> GetProcessLevel(uint32_t aFormId) noexcept;
 // The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // The condition GetFactionRank (21493) on the actor: -1 when not a member, as conditions read it.
@@ -574,6 +576,26 @@ std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept;
 bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicroseconds) noexcept;
 // The variables each of the actor's graphs writes itself (GraphVariableWriters), with the node writing it and
 // the project-wide name of the node's index, to check how sub-behaviours index variables.
+// A behaviour's state machine as this character's clone holds it, active or not.
+struct GraphMachine
+{
+    std::string Behaviour;
+    std::string Name;
+    bool Active = false;
+    std::string State;         // the current state's name
+    std::string StartOverride; // the state the next activation enters (59405), empty for none
+    uintptr_t Clone = 0;
+    bool TemplateActive = false;
+    std::string TemplateState;
+    std::string TemplateStart; // the start state every new clone copies (59330)
+};
+// Every state machine clone in the actor's graphs (each behaviour's template-to-clone map, 58359), those whose name
+// holds `acFilter`: what an inactive machine will resume or start in.
+// aGraph: its manager's graph by index (a player's: 0 third person), -1 the one it shows.
+std::vector<GraphMachine> GetGraphMachines(uint32_t aFormId, const std::string& acFilter, int aGraph = -1) noexcept;
+// An input event into one graph, through BShkbAnimationGraph::SendEvent (63591) and its hooks: whether a node took it.
+bool SendGraphEvent(struct BShkbAnimationGraph* apGraph, const BSFixedString& acEvent) noexcept;
+
 struct GraphWriter
 {
     std::string Project;
@@ -606,6 +628,9 @@ struct DialogueState
     int32_t CursorIndex = -1; // the highlighted option's place in the list (two lines of a topic are two options)
     uint32_t CurrentInfo = 0; // MenuTopicManager's currentTopicInfo and lastTopicInfo, form ids
     uint32_t LastInfo = 0;
+    // MenuTopicManager +0xB0..+0xBB by name, and +0x30 rootTopicInfo (a line's choices): why a conversation waits.
+    std::vector<std::pair<const char*, bool>> Flags;
+    uint32_t RootInfo = 0;
 };
 DialogueState GetDialogue() noexcept;
 // Says the option at this index as the menu's click does, with the menu open or not (MenuTopicManager::Pick).

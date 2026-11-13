@@ -19,7 +19,7 @@ class IBodyBridge;
 /**
  * @brief Every game plays the bodies other games own (docs/design/physics-sync.md, "Owners"):
  *
- *   frames   played kDelayMs behind the session's time (BodyPlayback): each body put at the pose each update, held
+ *   frames   played kDelayMs behind the frame clock, or the line's lateness if more (BodyPlayback): each body put at the pose each update, held
  *            keyframed, its node with it; a body this game's own physics moved first is blended from there. A copy's
  *            ragdoll plays at its copy's time (CopyPlayback, with its movement), steered
  *   rest     placed exactly; a reference's simulated again (asleep) so this game's player can push and grab it
@@ -61,6 +61,8 @@ struct BodyService
     [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }
     // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
     void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
+    // A copy goes down with its owner's ragdoll action, before its owner's first body frame.
+    void KnockDown(uint32_t aCopyFormId) noexcept;
 
 private:
     void OnFrames(const NotifyBodyFrames& acMessage) noexcept;
@@ -71,6 +73,8 @@ private:
     void Apply() noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTickOf) noexcept;
+    // A reference's playback time at aNow (the frame clock).
+    [[nodiscard]] uint64_t PlaybackTick(uint64_t aNow) const noexcept;
     // A copy's ragdoll's time: its copy's (InterpolationSystem::PlaybackTick), 0 without one.
     [[nodiscard]] uint64_t CopyTickOf(uint32_t aSessionId) noexcept;
     [[nodiscard]] BodyPlayback& PlaybackOf(const BodyKey& acKey) noexcept { return acKey.Actor ? m_ragdolls : m_playback; }

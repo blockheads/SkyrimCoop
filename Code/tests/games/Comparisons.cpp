@@ -1,6 +1,9 @@
 #include "Party.h"
+
 #include <Diagnostics/HeadTrackRead.h>
 #include <Games/EngineNames.h>
+
+#include <ranges>
 
 namespace GameTest
 {
@@ -186,6 +189,12 @@ std::vector<std::string> Party::ActorDifferences()
         for (const uint32_t cCopy : cEngine.CopiesOf())
             if (!accounted.contains(cCopy))
                 differences.push_back(std::format("{}: {:X} is a copy of nothing anyone owns", cEngine.Name, cCopy));
+        // A guest shows only copies and its own (copy-contract.md, "A guest's own NPCs"; the MCP's guest_npcs).
+        if (&game != &Host())
+            for (const uint32_t cShown : cEngine.GetLoadedActorFormIds())
+                if (!cEngine.IsActorCopy(cShown) &&
+                    !std::ranges::any_of(owned | std::views::values, [&](const auto& acOwner) { return acOwner.first == &game && acOwner.second == cShown; }))
+                    differences.push_back(std::format("{} shows its own {:X}, which the host never spawned", cEngine.Name, cShown));
     }
     return differences;
 }

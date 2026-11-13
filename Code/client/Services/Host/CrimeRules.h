@@ -22,9 +22,29 @@ struct Checks
     return {.SameCell = true, .Ownership = aAction != CrimeAction::Pickpocket};
 }
 
+// What an NPC holds against the party (crime.md, "Who an NPC fights for a party crime").
+struct Grudge
+{
+    bool FactionEnemy = false;    // its crime faction's kPlayerIsEnemy (TESFaction +0x58 bit 3)
+    bool Victim = false;          // a crime against it on its kPlayerCrimeList (extra 0x34)
+    bool AngryWithPlayer = false; // kAngryWithPlayer (Actor +0x204 bit 0x800, 37463): a theft's witness or owner
+    bool Witness = false;         // on a party crime's witness list (KnownCrime 41354): every alarm and guard responder
+};
+
+// Hostile for a party crime: then every player is as guilty and the NPC goes for the nearest.
+[[nodiscard]] constexpr bool PartyIsCriminalTo(const Grudge& acGrudge) noexcept
+{
+    return acGrudge.FactionEnemy || acGrudge.Victim || acGrudge.AngryWithPlayer || acGrudge.Witness;
+}
+
 // The owner StealAlarm gets: the one the guest's alarm was given, else the target's own.
 template <class T> [[nodiscard]] constexpr T AlarmOwner(T aGiven, T aTargetOwner) noexcept
 {
     return aGiven ? aGiven : aTargetOwner;
+}
+// A steal warning (StartStealWarning 37556) goes to the host's player alone: a guest's seen theft is never warned.
+[[nodiscard]] constexpr bool Warns(bool aAllowed, bool aByGuest) noexcept
+{
+    return aAllowed && !aByGuest;
 }
 } // namespace CrimeRules

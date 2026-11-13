@@ -197,9 +197,12 @@ island's mark answer it.
 
 The job list at `0x142011ba0` runs the cell animations and then `Job_Ragdoll_post_physics` (39068) after the physics
 step; our update runs in the Papyrus VM's (`SkyrimVM::ProcessRegisteredUpdates` 53926, from `Main::Update` 36564).
-Not checked: where the step itself runs against our update. It does not matter for a hard keyframe, whose velocities
-hold until the next step whenever that runs; the physics substep count comes from `UpdateTimeManager`
-(`uMaxNumPhysicsStepsPerUpdate:HAVOK` 389138).
+The step itself (read 2026-11-09 on 1.7.104): `Job_Cell_animations` (39067), the job table's entry after
+`Job_VM_update`, runs `TES::RunCellAnimationsAndPhysics` (13291, our name), which queues `UpdateExteriorWorldJob`
+(18870) and that calls `bhkWorld::Step` (77851, our name: bhkWorld vfunc 50, Precision's pre-physics hook). The
+physics substep count comes from `UpdateTimeManager` (`uMaxNumPhysicsStepsPerUpdate:HAVOK` 389138). Our playback of
+bodies runs earlier still: `MainLoopTasks` drain in `HookMainLoop`, before `Main::Update` (36564), so a played body is
+placed at its pose before the frame's step, and its node is drawn there (keyframed: node to body).
 
 ## Havok's step (S4, 2026-11-01)
 
@@ -229,11 +232,55 @@ the springs (`BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>`) at `+0x8A0` (ca
 (count); `grabbedObject` at `+0x8D0`, not `0x8C8` (`PlayerCharacter::grabbedObject`; `world_state`'s player status
 `grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion: vanilla has no
 throw for a grabbed object (no `fZKey...Throw` setting; telekinesis has its own). The harness holds Activate as the
-`activate` button. `StartGrabObject` takes the body only if its vfunc 0x27 says so (a keyframed body: no): a guest
+`activate` button. `StartGrabObject` needs the body in a world (`bhkSerializable` vfunc 0x27 `GetWorld1`) and light
+enough (a keyframed body's mass reads 0); `PlayerCharacter::CreateMouseSprings` (40555, our name, `0x140752630`; read
+on 1.7.104, 2026-11-13) sets the grab mode (`+0xB04`: 1 the player's, 2 telekinesis) and then refuses a body whose
+motion type (`hkpRigidBody+0x160`) is 4 (keyframed) or 5 (fixed): `DestroyMouseSprings` at `0x140752ea3`. So a guest
 grabs a resting body (dynamic, asleep), not one the host's frames still move (a hook freeing it first was removed,
-`docs/progress.md`, loose ends). A grab holds the object where
+`docs/progress.md`, loose ends).
+
+`ActivateHandler::ProcessButton` (42420, `0x1407b2660`; read 2026-11-13): a press marks an activation pending
+(`+0x18`); held past `fZKeyDelay:Controls` once, `StartGrabObject`; on release, a grab going (mode 1) lets go, else
+the pending activation runs (`ActivatePickRef`): a refused grab turns a held E into a pickup, and an owned item's
+pickup is a theft (`StealAlarm` 37422, `crime.md`). A grab holds the object where
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
+
+## Woken still: awake is not moving (2026-11-13)
+
+Skyrim wakes resting clutter it never moves. The Sleeping Giant's bar bottles (33284, 33287, 33288, 3327A, 3328A) wake
+15-18 times a minute and sleep where they were. Found with the harness probe `activate_watch` (MCP verb `who_wakes`:
+hooks on `hkpEntity::Activate` 60849 and `markIslandActive` 61525, each hit with its call stack and the body it went
+through), in a game with no session. The stack was measured; each step below was then read in IDA and named:
+
+```
+ProcessActorAnimSG (an actor's animation job, job thread)
+  Character::RunPendingNodeUpdate (37371): its node update when pending
+    Character::UpdateNode (37976): the 3D's NiAVObject::Update, flags 0x2001 -> NiNode::UpdateDownwardPass
+      bhkBlendCollisionObject vfunc +0x160 (78910): its keyframed body to its bone
+        bhkCollisionObject (78178) -> bhkRigidBody::DriveToPoseByVelocity (78100)
+          bhkRigidBody::SetLinearVelocity (78089): hkpEntity::Activate (60849), under the world's write lock
+            hkpWorldOperationUtil::markIslandActive (61525) on that body's island
+```
+
+- The body is Orgnar's (13486, motion type 4, keyframed by his animation) while he leans on the counter (sit state 3,
+  `IdleCounterStart`, 17 of 18 ragdoll bodies awake). It shares the bottles' simulation island, so each update
+  re-activates them (measured: every wake of the bottles went through 13486).
+- A character standing against clutter does it too, through its proxy: `hkpCharacterProxy` 62648 calls `Activate` and
+  `applyPointImpulse` on every non-keyframed body in its manifold each `CharacterStep`, whatever the impulse (measured:
+  the player at the bar, 85 wakes in 45 s).
+- Not ours: with our physics, actor, animation and reference hooks left out (`SKYRIMCOOP_DISABLE_HOOKS`: HavokStepFix,
+  PlayerHands, PlayerCollision, CopyRagdollPhysics, Actor, KnockState, Animation, References, TESObjectREFR,
+  MeleeStagger, Projectile, CopyAiState, PlayerCharacter) the rate is the same (23 in 90 s). Not every hook file is
+  gated, and a game without our plugin cannot run the probe.
+- A woken body can get a velocity burst from its contacts and go nowhere (a bottle tilted on the bar's edge).
+
+Before the fix the host's `PhysicsBodies` took "island active" for "moving": every wake sent the guest frames, which
+keyframed its bottle (`BodyService: follows the owner's ...`) until the rest, and the grab refuses a keyframed body
+(above): a held E was a pickup, a theft in front of Orgnar. Now a reference sends frames only once a body has left
+where it woke (`BodyPrediction::LeftRest`: 2 units, 0.05 rad); its rest still goes (`docs/design/physics-sync.md`,
+"Woken still"). Measured on the duo: before, two held-E grabs of 33288 and 33287 timed out after 3 s and the
+release picked them up; after, each took in 0.22 s (`guest-grabs-orgnar-bottle`).
 
 ## What stops a held body (2026-11-01)
 
@@ -266,6 +313,10 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   `Character` vfunc 0xC5 (40292: the byte at `Actor+0x27A`, set by vfunc 0xC4 40295) is zero. With the graph's
   ragdoll (below) it adds the ragdoll to the world and sets the knock state (`ActorState` flags1 bits 25-27) to 2,
   explode lead-in; without one it only makes the 3D dynamic.
+- `KnockExplosion` and `KnockParalyze` (39894) end by playing the default object ActionRagdoll (index 107) on the
+  actor (`0x1407360D0`): the graph's "Ragdoll" input comes in the same call that sets the knock state. A copy on its
+  owner's stream goes down when that action arrives (`KnockReplay::GoesDown`, `BodyBridge::KnockDown`); knocked only
+  by its owner's first body frame it was 40-70 ms late, its graph in its ragdoll state with no ragdoll under it.
 - The knock update (39896, `0x140711020`; process, actor, from `Actor::UpdateAnimation` and the animation jobs):
   - lead-in (2, 4): once the graph has its ragdoll, ragdoll-driven, state 1 (explode) or 3 (out), and the
     down timer (`middleProcess+0x2B0`) set from `dword_142006858`;
@@ -290,7 +341,29 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   (`knockRagdolls`, set by vfunc 0xC4 40295), else it pushes the character controller. Copies read 1. Off the main
   thread it goes through the task queue, so the knock state can still read 0 right after the call.
 - A knocked down actor's ragdoll bodies stay dynamic while it gets up (knock states 5 and 6); its animation drives
-  them again. `PhysicsBodies` reads a living actor's ragdoll only in knock states 1 to 4.
+  them again, toward its pose, not onto it (Getting up, below).
+- **Getting up** (read in IDA 2026-11-11; knock states 5 and 6). What poses the actor then:
+  - The graph plays the get-up clip its pose matcher picked (`hkbPoseMatchingGenerator` 59583).
+  - `hkbGetUpModifier::modify` (59766), on its first modify, reads the ragdoll's world pose and writes the output's
+    worldFromModel so the clip starts where the ragdoll lies (three bones: root, other, another); after that it only
+    turns worldFromModel's up to the ground normal. It keeps nothing another node reads.
+  - `hkbRagdollDriver::driveToPose` (58291) reads the output's powered and rigid body ragdoll controls and drives the
+    ragdoll's bodies toward the output's pose. The bodies stay dynamic (motion types 2 and 3 through state 6):
+    gravity and contacts still move them, and the skeleton shows the bodies.
+  - So the pose shown while getting up is each game's own physics, as while lying. Measured (duo, `RagdollTrace`
+    of `knockdown-lies-as-host`, 11 runs): the head either rises steadily from 2.5 s after the get-up starts, or
+    stays 52-60 units above the floor at one place of the room (about -980, 2105 in QASmoke) and comes free 2 to 3 s
+    later, or only when the get-up ends. Owners show both; in 4 of 11 runs owner and copy took different ones. The
+    actor's heading, its knock state times and its clip were the same on both games in every run.
+  - `PhysicsBodies` therefore reads a living actor's ragdoll through states 1 to 6 (`KnockReplay::BodiesSimulated`),
+    and a copy steers to those frames until it stands (`BodyBridge`, `CopyRagdollPhysics` after 58291). Standing
+    (state 0) the bodies cannot be read (they have left the world): the last frame read is the rest.
+  - Its limbs shake while it gets up (forearm and hand reversing every physics step, 8-12 units, on the host's own
+    Lydia about 0.8 s into state 6), so those frames carry no velocity: a copy blends between poses.
+- **A copy at its owner's rest (2026-11-11).** Setting a body's velocity (78089/78090) wakes it, so a copy steered
+  to its owner's rest on every step never sleeps. Its bodies cannot all be brought there one by one either: with the
+  others still off, about three of a ragdoll's 18 to 22 are held a little away by their joints. All put at the owner's
+  poses in one step they fit, and Havok lets them sleep about half a second later (`BodyPrediction::StepToRest`).
 - Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
   puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
   `KnockDown::Carry` did).

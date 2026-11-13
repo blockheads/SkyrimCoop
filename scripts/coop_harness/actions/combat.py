@@ -28,7 +28,7 @@ from ..common import (
 from ..errors import TestFailure
 from ..comparisons import distance
 from ..utilities import log
-from ..objects import AnimTrace, GodMode
+from ..objects import AnimTrace, GodMode, RagdollTrace
 
 
 class CombatActions:
@@ -270,9 +270,17 @@ class CombatActions:
             def copy_of_victim():
                 return ctx.actor_snapshot(survivor, ctx.other_player(ctx.actors_on(survivor)))
             ctx.wait_for("the other game's copy dies with its owner", lambda: ctx.is_dead(copy_of_victim()), 5)
-            # Its ragdoll is its game's (physics sync's owners): the copy lies as it does.
+            # Its ragdoll is its game's (physics sync's owners): the copy lies as it does. Traced: what moves the copy's
+            # bodies after they are put at the owner's rest (bugs.md, "A dead player's copy a little off its owner's body").
             if not travel_down:
-                ctx.ragdoll_lies_as_owner(victim, 0x14, survivor, ctx.other_player(ctx.actors_on(survivor)))
+                victim_copy = ctx.other_player(ctx.actors_on(survivor))
+                trace = RagdollTrace(ctx, "death-spectate", {victim: {0x14: "the dead player"}, survivor: {victim_copy: "its copy"}})
+                try:
+                    with trace:
+                        ctx.ragdoll_lies_as_owner(victim, 0x14, survivor, victim_copy, trace)
+                except TestFailure:
+                    log(f"the dead player's bodies: {trace.report()}; samples {trace.folder}")
+                    raise
             ctx.wait_for("spectator camera has a standing player once the player is dead",
                      lambda: ctx.death_state(victim).get("spectating"), 10)
             ctx.camera_sees_followed(victim, "spectating")
