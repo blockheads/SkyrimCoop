@@ -168,10 +168,9 @@ the motion's) and wraps 38628 to know whose swing it is: the player's hits go to
 A hit on a body the host's frames move (keyframed on the guest: knocked, rolling, or woken) moves nothing in either
 game: a keyframed motion's inverse mass is 0, so `getMass` (60959) reads 0 and 38628 scales the impulse to 0
 (read in IDA; measured on the duo with `last_swing`: the swing met the ladle with the line-up's look, no hit recorded,
-the ladle stayed at 0.0 units/s). The host kept a resting ladle awake for seconds with a guest's copy 50 units off
-(0.0-0.09 units/s), so the guest's stayed keyframed and unhittable: PR #52 ("Woken still") sends no frame for a body
-woken still, which leaves the guest's dynamic. A swing at a body really moving on the host's frames stays a miss
-(`docs/bugs.md`).
+the ladle stayed at 0.0 units/s). The host kept a ladle awake (0.0-0.09 units/s) with the guest's copy beside it, so
+the guest's stayed keyframed and unhittable: the copy's own step woke it each frame (fixed 2026-11-13, below, "Woken
+still"). A swing at a body really moving on the host's frames stays a miss (`docs/bugs.md`).
 
 ## Rays
 
@@ -281,6 +280,11 @@ keyframed its bottle (`BodyService: follows the owner's ...`) until the rest, an
 where it woke (`BodyPrediction::LeftRest`: 2 units, 0.05 rad); its rest still goes (`docs/design/physics-sync.md`,
 "Woken still"). Measured on the duo: before, two held-E grabs of 33288 and 33287 timed out after 3 s and the
 release picked them up; after, each took in 0.22 s (`guest-grabs-orgnar-bottle`).
+
+A copy standing still did the same through its own body until 2026-11-13: our step gave it a new velocity each
+frame, which woke its island (`hkpCharacterRigidBody::setLinearVelocity` 62456). A body that had moved and stopped
+beside a guest's copy then never slept, so the host never sent its rest and the guest kept it keyframed (see
+`actor-movement.md`, "Copies step": a still copy now steps by nothing).
 
 ## What stops a held body (2026-11-01)
 

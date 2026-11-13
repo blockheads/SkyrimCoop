@@ -44,3 +44,12 @@ time	op	id	rva	item
 2026-11-13T15:50:02Z	name	60336	0xb3a110	{"addr": "0x140b3a110", "name": "hkpAllCdPointCollector::SortHits"}
 2026-11-13T15:50:04Z	comment	25932	0x3ffb10	{"addr": "0x1403ffb10", "comment": "[re]\nAddressLib ID 25932\nhkpAllCdPointCollector::SetFilterGroup: the phantom's filter info gets this group (+0x22C keeps it), so the cast ignores the swinger's own collision"}
 2026-11-13T15:50:04Z	comment	60336	0xb3a110	{"addr": "0x140b3a110", "comment": "[re]\nAddressLib ID 60336\nsorts the collector's hits (+0x10, count +0x18) nearest first: a swing takes hit 0, which can be the floor under a flat object"}
+2026-11-13T18:04:39Z	read		0x109b238	{"name": "bhkCharRigidBodyController::SetLinearVelocityImpl"}
+2026-11-13T18:04:45Z	read	62456	0xb99710	{"name": "ahkpCharacterRigidBody::sub_62456"}
+2026-11-13T18:04:45Z	read	79198	0x109b1c0	{"name": "bhkCharRigidBodyController::SetLinearVelocityImpl"}
+2026-11-13T18:04:45Z	read	79201	0x109b3d0	{"name": "bhkCharRigidBodyController::Func11_79201"}
+2026-11-13T18:05:27Z	name	62456	0xb99710	{"addr": "0x140b99710", "name": "hkpCharacterRigidBody::setLinearVelocity"}
+2026-11-13T18:05:27Z	name	79201	0x109b3d0	{"addr": "0x14109b3d0", "name": "bhkCharRigidBodyController::ApplyVelocity"}
+2026-11-13T18:05:30Z	comment	62456	0xb99710	{"addr": "0x140b99710", "comment": "[re]\nAddressLib ID 62456\nhkpCharacterRigidBody::setLinearVelocity(velocity, timestep): when the wanted velocity differs from the body's (+0x230) past an epsilon, sets it and calls hkpEntity::Activate on the body: its whole island wakes. The same velocity again does nothing."}
+2026-11-13T18:05:30Z	comment	79201	0x109b3d0	{"addr": "0x14109b3d0", "comment": "[re]\nAddressLib ID 79201\nbhkCharRigidBodyController step (vfunc 11): sets the body's velocity from the controller's wanted one (+0x90, SetLinearVelocityImpl 79198 -> 62456) unless kSupport (flags +0x218, 0x100) and both the wanted and the body's velocity are zero: an NPC standing still wakes nothing. A copy stepped by a residual (StepCopy) never is."}
+2026-11-13T18:05:30Z	comment		0x109b4e8	{"addr": "0x14109b4e8", "comment": "vfunc 7 SetLinearVelocityImpl(wanted velocity +0x90): skipped while supported and still"}

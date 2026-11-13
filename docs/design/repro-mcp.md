@@ -202,7 +202,8 @@ swing_at      (verb)   wait until still and agreeing, line up, one swing; a miss
 
 `guest-swing-moves-host` runs on them. What the readouts found: the line-up and the real swing agree (0.0 degrees); the
 misses left were swings at a body the host kept awake, keyframed on the guest, which gets a zero impulse
-(`docs/re/systems/physics.md`, "A swing's hit"): the scenario waits until the guest's body is its own (dynamic).
+(`docs/re/systems/physics.md`, "A swing's hit"). `who_wakes` showed the guest's own copy waking it every frame
+(fixed: `actor-movement.md`, "Copies step"); the scenario still waits until the guest's body is its own (dynamic).
 
 ## Context
 

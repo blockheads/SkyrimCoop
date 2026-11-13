@@ -256,6 +256,41 @@ SCENARIO("A guest's player hits the bucket the host's knock still moves: nothing
     }
 }
 
+SCENARIO("A guest's player stands beside a bucket the host knocks: it comes to rest, the guest's to hit again", "[physics][copy-step]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& hostBucket = BodyOf(party, party.Host(), kBucket);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    hostBucket.Flight.Floor = guestBucket.Flight.Floor = kTable;
+    // The guest's player stands at the table, 30 units from the bucket; its copy on the host is stepped there.
+    party.As(party.Guest(), [&] {
+        auto& player = Party::Engine(party.Guest()).Actors.at(FakeEngine::kPlayer);
+        player.Position[0] = 130.f, player.Position[1] = 200.f, player.Position[2] = 0.f;
+    });
+    const auto cCopy = [&]() -> const FakeEngine::Actor* {
+        for (const auto& [cFormId, cActor] : host.Actors)
+            if (cActor.Copy && cActor.Player && cActor.Stepped && std::abs(cActor.Goal[0] - 130.f) < 1.f)
+                return &cActor;
+        return nullptr;
+    };
+    party.Until([&] { return cCopy() != nullptr; }, "the guest's copy stands at the table on the host");
+    party.As(party.Host(), [&] { host.Knock(kBucket, {0.f, 60.f, 0.f}); });
+    party.Until([&] { return guestBucket.Held; }, "the guest's bucket follows the host's knock", [&] {
+        return std::format("host's {} at ({:.1f}, {:.1f}), {} drives", hostBucket.Awake ? "awake" : "asleep", hostBucket.Flight.Body.Position.x,
+                           hostBucket.Flight.Body.Position.y, guestBucket.Drives);
+    });
+    THEN("the host's bucket sleeps beside the still copy, and the guest's is its own again (dynamic, hittable)")
+    {
+        const auto cWhere = [&] {
+            return std::format("host's {} at y {:.1f}, guest's {}held, {} rests", hostBucket.Awake ? "awake" : "asleep",
+                               hostBucket.Flight.Body.Position.y, guestBucket.Held ? "" : "not ", guestBucket.Rests);
+        };
+        party.Until([&] { return !hostBucket.Awake && guestBucket.Rests > 0 && !guestBucket.Held; }, "the bucket rests on both games", cWhere);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, hostBucket.Flight.Body.Position) < 0.01f);
+    }
+}
+
 SCENARIO("A guest's own blast throws a bucket the host's does not: it gets the host's pose back", "[physics]")
 {
     Party party(1, Plugins);
