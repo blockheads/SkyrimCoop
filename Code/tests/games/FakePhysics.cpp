@@ -262,12 +262,21 @@ namespace
 constexpr uint64_t kStepMs = 16; // Havok's substeps (fTimePerSubStep)
 
 // Its physics up to aTick: its flight steps (unless a holder's frames move it), and the engine writes its node from it
-// unless it leaves the node behind.
-void StepBody(FakeEngine::Body& aBody, uint64_t aTick)
+// unless it leaves the node behind. aByFrame: the whole frame in equal steps of at most kStepMs, as HavokStepFix
+// steps Skyrim (physics.md, "Havok's step"); else fixed kStepMs substeps.
+void StepBody(FakeEngine::Body& aBody, uint64_t aTick, bool aByFrame = false)
 {
     if (!aBody.Tick)
         aBody.Tick = aTick;
-    for (; aBody.Tick + kStepMs <= aTick && !aBody.Flight.Resting; aBody.Tick += kStepMs)
+    if (aByFrame && aTick > aBody.Tick)
+    {
+        const uint64_t cElapsed = aTick - aBody.Tick;
+        const uint64_t cSteps = (cElapsed + kStepMs) / (kStepMs + 1);
+        for (uint64_t i = 0; i < std::max<uint64_t>(cSteps, 1) && !aBody.Flight.Resting; ++i)
+            aBody.Flight.Step(static_cast<float>(cElapsed) / static_cast<float>(std::max<uint64_t>(cSteps, 1)) / 1000.f);
+        aBody.Tick = aTick;
+    }
+    for (; !aByFrame && aBody.Tick + kStepMs <= aTick && !aBody.Flight.Resting; aBody.Tick += kStepMs)
         aBody.Flight.Step(kStepMs / 1000.f);
     if (!aBody.NodeLeftBehind)
     {
@@ -323,7 +332,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             continue;
         // This game's player's hold keeps it in its hands (the grab's spring), not falling. Getting up, its frame moved it.
         if (body.Awake && !body.Held && Grabbed != cKey && !cRising)
-            StepBody(body, PhysicsTick);
+            StepBody(body, PhysicsTick, FrameMs > 0.0);
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
         // 37996).
         if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && body.Awake && !cRising)
@@ -380,7 +389,7 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const
             bodies.Awake.push_back(frame);
             continue;
         }
-        StepBody(body, aTick);
+        StepBody(body, aTick, FrameMs > 0.0);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,

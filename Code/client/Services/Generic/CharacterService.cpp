@@ -564,6 +564,8 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     AnimationSystem::Setup(m_world, *entity);
 
     m_world.emplace_or_replace<WaitingFor3D>(*entity, acMessage);
+    // Its owner's hands as of this spawn; a later draw change (OnNotifyDrawWeapon) is newer, also while its 3D loads.
+    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*entity, acMessage.IsWeaponDrawn);
 
     auto& remoteAnimationComponent = m_world.get<RemoteAnimationComponent>(*entity);
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
@@ -625,15 +627,13 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
-    {
-        pInterpolation->TimePoints.clear();
-        pInterpolation->Position = acMessage.Position;
-    }
+        InterpolationSystem::Restart(*pInterpolation, acMessage.Position);
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
     place.CellId = acMessage.CellId;
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
+    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(aEntity, acMessage.IsWeaponDrawn);
     if (pFormId && (cBaseChanged || !m_actorBridge.ActorHas3D(pFormId->Id)) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
     spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
@@ -682,8 +682,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
-            interpolationComponent.TimePoints.clear();
-            interpolationComponent.Position = movement.Position;
+            InterpolationSystem::Restart(interpolationComponent, movement.Position);
             interpolationComponent.Playback.Snap(clock);
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
@@ -1654,8 +1653,8 @@ void CharacterService::RunLocalUpdates() noexcept
 
 void CharacterService::RunRemoteUpdates() noexcept
 {
-    // Behind the owners' time, to have points to interpolate between; a copy's ragdoll plays on the same clock.
-    const auto currentTick = m_transport.GetTick();
+    // The frame clock (S10): a copy's ease out of its ragdoll steps steadily.
+    const auto currentTick = m_world.GetFrameTick();
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
@@ -1678,6 +1677,19 @@ void CharacterService::RunRemoteUpdates() noexcept
         const auto cAhead = std::min<uint64_t>(static_cast<uint64_t>(interpolationComponent.Playback.Interval()), 100);
         if (!InterpolationSystem::Interpolate(first, second, tick, position, rotation, cAhead))
             continue;
+        // A newer snapshot ended its guess: from where the guess showed it, blended (copy-clock.md, "A late snapshot").
+        auto& guess = interpolationComponent.Guess;
+        auto& correction = interpolationComponent.Correction;
+        if (guess && guess->second.Tick != second.Tick)
+        {
+            glm::vec3 guessed{}, guessedRotation{};
+            if (InterpolationSystem::Interpolate(guess->first, guess->second, tick, guessed, guessedRotation, cAhead))
+                correction.Begin(guessed + correction.At(tick) - position, tick);
+            guess.reset();
+        }
+        if (tick > second.Tick && cAhead)
+            guess.emplace(first, second);
+        position += correction.At(tick);
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
@@ -1772,8 +1784,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
         m_actorBridge.SetActorFactions(formIdComponent.Id, waitingFor3D.SpawnRequest.FactionsContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
-        if (m_world.all_of<RemoteComponent>(entity))
-            m_world.emplace_or_replace<RemoteWeaponDrawComponent>(entity, waitingFor3D.SpawnRequest.IsWeaponDrawn);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
         if (cIsDead != waitingFor3D.SpawnRequest.IsDead)

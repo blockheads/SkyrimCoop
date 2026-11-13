@@ -294,7 +294,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
     if (!IsHosting())
         return;
     m_pNetwork->Update();
-    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta);
+    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta, m_world.GetFrameTick());
     UpdateReload();
     if (m_pAggro)
         m_pAggro->Update(acEvent);

@@ -196,6 +196,8 @@ void World::Update() noexcept
     const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
     m_lastFrameTime = cNow;
     const double cEngineFrameMs = mainEngine.FrameMs > 0.0 ? mainEngine.FrameMs : cDelta * 1000.0;
+    if (mainEngine.FrameMs > 0.0)
+        mainEngine.EngineMs = mainEngine.EngineMs > 0.0 ? mainEngine.EngineMs + cEngineFrameMs : static_cast<double>(GetTick());
     m_frameClock.Advance(GetTick(), cEngineFrameMs);
     m_copyClock.Advance(m_frameClock.Now(), cEngineFrameMs);
     m_graphStreams.SetTick(m_frameClock.Now());

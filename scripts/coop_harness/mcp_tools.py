@@ -361,6 +361,24 @@ def jitter(game: str = "client", seconds: float = 8.0, top: int = 12) -> dict:
 
 
 @tool
+def smoothness(mover: str = "host") -> dict:
+    """How smoothly the other game's copy follows the mover's player (coop_harness/smoothness.py): a course by real
+    input (walk, run, strafe, a running curve), then per segment each one's speed roughness per engine frame (median
+    and p95 of a frame's speed off its neighbours', share over 20 %), turn-backs, the copy's delay and distance off
+    its owner's path, and the movement and body messages' bytes/s on both games."""
+    from . import smoothness as measures
+    return {"ok": True, **measures.run_course(session, _game(mover), AnimTrace)}
+
+
+@tool
+def wire_cost(wolves: int = 8, seconds: float = 15.0) -> dict:
+    """Wolves fight both players (god mode) at the host's for `seconds`: each game's bytes/s on the wire (after
+    compression) and per movement message before it, and the graph state actions saved (coop_harness/smoothness.py)."""
+    from . import smoothness as measures
+    return {"ok": True, **measures.run_fight(session, wolves, seconds)}
+
+
+@tool
 def network(game: str = "host") -> dict:
     """That game's line: the session time, round trips (the host's per connection), a guest's clock syncs."""
     return {"ok": True, "network": (session.game(_game(game)).read_status() or {}).get("network")}

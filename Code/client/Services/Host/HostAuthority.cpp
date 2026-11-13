@@ -207,7 +207,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     });
 }
 
-void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
+void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) noexcept
 {
     PROFILE_ZONE("HostAuthority::Update");
     // Only the save transfer runs until the host's game loads it.
@@ -226,7 +226,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
     m_worldState.Update(aTick);
     m_items.Update();
     m_hands.Update(aTick);
-    m_physics.Update(aTick);
+    m_physics.Update(aFrameTick ? aFrameTick : aTick);
 }
 
 void HostAuthority::DifficultyChanged(uint32_t aDifficulty) const noexcept

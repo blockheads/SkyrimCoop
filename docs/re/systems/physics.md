@@ -156,9 +156,12 @@ island's mark answer it.
 
 The job list at `0x142011ba0` runs the cell animations and then `Job_Ragdoll_post_physics` (39068) after the physics
 step; our update runs in the Papyrus VM's (`SkyrimVM::ProcessRegisteredUpdates` 53926, from `Main::Update` 36564).
-Not checked: where the step itself runs against our update. It does not matter for a hard keyframe, whose velocities
-hold until the next step whenever that runs; the physics substep count comes from `UpdateTimeManager`
-(`uMaxNumPhysicsStepsPerUpdate:HAVOK` 389138).
+The step itself (read 2026-11-09 on 1.7.104): `Job_Cell_animations` (39067), the job table's entry after
+`Job_VM_update`, runs `TES::RunCellAnimationsAndPhysics` (13291, our name), which queues `UpdateExteriorWorldJob`
+(18870) and that calls `bhkWorld::Step` (77851, our name: bhkWorld vfunc 50, Precision's pre-physics hook). The
+physics substep count comes from `UpdateTimeManager` (`uMaxNumPhysicsStepsPerUpdate:HAVOK` 389138). Our playback of
+bodies runs earlier still: `MainLoopTasks` drain in `HookMainLoop`, before `Main::Update` (36564), so a played body is
+placed at its pose before the frame's step, and its node is drawn there (keyframed: node to body).
 
 ## Havok's step (S4, 2026-11-01)
 

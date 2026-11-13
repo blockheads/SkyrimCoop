@@ -5,6 +5,8 @@
 
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
+#include <Services/CharacterService.h>
+#include <Messages/NotifyCharacterSpawn.h>
 
 #include <set>
 #include <thread>
@@ -318,6 +320,49 @@ SCENARIO("A player's actions play on its copy where its movement was when it act
     CHECK(std::abs(lowest) <= cSpeed * cFrameMs / 1000.0 + 2.f); // at most a frame off
 }
 
+SCENARIO("A walking player's copy steps as evenly as its owner", "[copies][copy-clock][wire]")
+{
+    // Skyrim: a walking copy stepped 0.9 to 1.55 units a frame against its owner's 1.4; its place went in whole units
+    // (copy-clock.md, "Measuring smoothness").
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(guest) != 0; }, "the guest's game makes a copy of the host's player");
+    const uint32_t cCopy = HostPlayerCopy(guest);
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    const glm::vec2 cVelocity{84.f, -3.f};
+    host.FrameMs = guest.FrameMs = cFrameMs;
+
+    const auto cStart = std::chrono::steady_clock::now();
+    const glm::vec2 cFrom{host.Actors.at(FakeEngine::kPlayer).Position[0] + 0.3f, host.Actors.at(FakeEngine::kPlayer).Position[1] + 0.6f};
+    std::vector<glm::vec2> seen;
+    for (int frame = 0; frame < 300; ++frame)
+    {
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        const glm::vec2 cAt = cFrom + cVelocity * static_cast<float>(frame * cFrameMs / 1000.0);
+        host.Actors.at(FakeEngine::kPlayer).Position[0] = cAt.x;
+        host.Actors.at(FakeEngine::kPlayer).Position[1] = cAt.y;
+        std::this_thread::sleep_for(std::chrono::milliseconds(frame % 2 ? 11 : 0));
+        party.Frame();
+        if (frame >= 120)
+            seen.emplace_back(guest.Actors.at(cCopy).Position[0], guest.Actors.at(cCopy).Position[1]);
+    }
+
+    const float cOwnerStep = glm::length(cVelocity) * static_cast<float>(cFrameMs / 1000.0);
+    size_t uneven = 0;
+    float lowest = 1e9f, highest = 0.f;
+    for (size_t i = 1; i < seen.size(); ++i)
+    {
+        const float cStep = glm::length(seen[i] - seen[i - 1]);
+        lowest = std::min(lowest, cStep);
+        highest = std::max(highest, cStep);
+        uneven += std::abs(cStep - cOwnerStep) > 0.2f * cOwnerStep;
+    }
+    INFO(uneven << " of " << seen.size() - 1 << " frames over a fifth off its owner's steady " << cOwnerStep << " units (steps "
+                << lowest << " to " << highest << ")");
+    CHECK(uneven <= 2);
+}
+
 SCENARIO("A guest's player moves evenly on the host's game though its clock runs ahead", "[copies][copy-clock]")
 {
     // Skyrim showed a guest's stamps arriving ahead of the host's time as read: 24% of them, by 9 ms on average
@@ -428,6 +473,75 @@ SCENARIO("Over a lossy line a guest's player reaches the host without stalls", "
     REQUIRE(arrivals > 50);
     INFO("the longest wait for the guest's next snapshot: " << longestGapMs << " ms, over " << arrivals << " arrivals");
     CHECK(longestGapMs < 120.0); // a lost one or two: a few send intervals
+}
+
+SCENARIO("Over a lossy line a strafing player's copy never jumps back where its guess overshot", "[copies][copy-clock][net]")
+{
+    // A lost snapshot at a turn made the copy's short guess overshoot, and the late one snapped it back
+    // (copy-clock.md, "Measuring smoothness").
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = 30, .JitterMs = 10, .LossPercent = 15, .Seed = 11});
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return HostPlayerCopy(host) != 0; }, "the host's game makes a copy of the guest's player");
+    const uint32_t cCopy = HostPlayerCopy(host);
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    constexpr float cSpeed = 300.f;
+    host.FrameMs = guest.FrameMs = cFrameMs;
+
+    const auto cStart = std::chrono::steady_clock::now();
+    float x = guest.Actors.at(FakeEngine::kPlayer).Position[0];
+    std::vector<float> seen;
+    for (int frame = 0; frame < 420; ++frame)
+    {
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        x += ((frame / 20) % 2 ? -cSpeed : cSpeed) * static_cast<float>(cFrameMs / 1000.0); // turns every third of a second
+        guest.Actors.at(FakeEngine::kPlayer).Position[0] = x;
+        party.Frame();
+        if (frame >= 120)
+            seen.push_back(host.Actors.at(cCopy).Position[0]);
+    }
+    const float cOwnerStep = cSpeed * static_cast<float>(cFrameMs / 1000.0);
+    float biggest = 0.f;
+    size_t jumps = 0;
+    for (size_t i = 1; i < seen.size(); ++i)
+    {
+        const float cStep = std::abs(seen[i] - seen[i - 1]);
+        biggest = std::max(biggest, cStep);
+        jumps += cStep > 2.f * cOwnerStep;
+    }
+    INFO(jumps << " frames the copy moved over twice its owner's " << cOwnerStep << " units; the biggest " << biggest);
+    CHECK(jumps == 0);
+}
+
+SCENARIO("A refreshed spawn drops a copy's guess and correction with its points", "[copies][copy-clock][net]")
+{
+    // A refreshed spawn (an arrival) drops a copy's points; a correction against its old guess would pull it back
+    // (copy-clock.md, "Measuring smoothness").
+    Party party(1, SmokeWorld);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t wolf = 0;
+    party.As(party.Host(), [&] { wolf = host.LoadNpc(0x23ABE, 0x31D2E, {}); });
+    party.Until([&] { return guest.CopiesOf(0x23ABE).size() == 1; }, "the wolf's copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x23ABE).front();
+    const auto cEntity = CopyEntity(party.Guest(), cCopy);
+    REQUIRE((cEntity != entt::null));
+    auto& interpolation = party.Guest().get<InterpolationComponent>(cEntity);
+    InterpolationComponent::TimePoint cOld;
+    cOld.Tick = 1;
+    cOld.Position = {-500.f, 0.f, 0.f};
+    interpolation.Guess.emplace(cOld, cOld);
+    interpolation.Correction.Begin({30.f, 0.f, 0.f}, party.Guest().GetFrameTick());
+
+    std::vector<NotifyCharacterSpawn> spawns;
+    party.As(party.Host(), [&] { spawns = party.Host().GetCharacterService().BuildSpawnRequests(0); });
+    party.As(party.Guest(), [&] {
+        for (const auto& cSpawn : spawns)
+            if (cSpawn.SessionId == party.Guest().get<RemoteComponent>(cEntity).Id)
+                party.Guest().GetCharacterService().OnCharacterSpawn(cSpawn);
+    });
+    CHECK_FALSE(interpolation.Guess.has_value());
+    CHECK(interpolation.Correction.At(party.Guest().GetFrameTick()) == glm::vec3{});
 }
 
 SCENARIO("A jumping player's copy rises and falls with it, never stuck on the ground", "[copies][copy-clock][copy-step]")

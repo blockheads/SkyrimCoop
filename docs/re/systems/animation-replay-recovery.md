@@ -452,3 +452,37 @@ setInternalState (58373) (graph, context, state):
   in plays as a clip with none (0.0133 s, 59263).
 - Used by the graph input stream's sync point (`Havok/GraphInternalState.cpp`, docs/design/graph-input-stream.md).
 
+## Why copies refuse (2026-11-09)
+
+Measured in a wolf fight on the duo (a harness probe on `BShkbAnimationGraph::SendEvent` 63591, read in IDA: owner
+against copy): copies missed no event their owners' graphs took; they refused about 6 % of their owners' actions, for
+five reasons. Reason 1 is read in IDA (63358, 63590, 37984 and the channel reads 42767/42773/42777, journal
+`agent-smooth-movement.tsv`) and measured (`graph_compare.py`: the copy's `TurnDelta` off in 22 of 88 samples); 2, 3
+and 5 are measured in the traces (graph events and clips each frame), their engine cause inferred from them; 4 is read
+in our code and measured:
+
+```
+1. the copy's own inputs    BSAnimationGraphManager::Update (63358, our name) polls the actor's animation graph data
+                            channels (made by 37984: Speed, Direction, TurnDelta, Pitch, the weapon speeds, TimeDelta...)
+                            and 63590 writes them into the graph each update: on a copy, its own actor's values over
+                            its owner's, before the graph decides (TurnDelta from its interpolated heading)
+2. a frame early            the owner's AI acts the frame its clip ends; the copy's replay landed just before its own
+                            clip's end, and the carried graph state loaded before the retries ran
+3. one frame, two actions   the owner's same-frame actions played a graph update apart on the copy
+4. the weapon-draw race     fixed, below
+5. a backlog                a fresh copy's first clip load stalled its queue; the backlog then came faster than its
+                            owner's actions and met the copy's clips still running
+```
+
+Fixes for 1, 2, 3 and 5 were built and measured (6.2 % refused down to 3.1 %, the rest turns: the copy's locomotion
+following its own speed) and then dropped: the graph input stream (`docs/design/graph-input-stream.md`, branch
+`copy-idle-graph`) feeds a copy's graph its owner's inputs and replaces action replay, which they patched.
+
+**4, fixed:** a host NPC that drew right after its spawn was sent had a copy whose knowledge of its owner's hands was set
+from the spawn (down) when its 3D loaded, over the newer `NotifyDrawWeapon`; the owner never sent again, so
+`InventoryService::RunWeaponDrawConvergence` sheathed the copy mid-fight, and out of combat stance its graph idled and
+refused its owner's attacks. It is now set from each spawn as it arrives and from each draw notification, never again at
+the 3D load (`CharacterService`). GameTests "An NPC that readies its weapon while its copy loads keeps it ready on the
+copy"; scenario `npc-copy-keeps-weapon-ready` (the wolves sent into combat as they appear, so each draws right after
+its spawn; it requires an owner and its copy seen ready together, then no copy sheathed over 1 s while its owner is
+ready: 2 of 2 on the fixed build, all four pairs ready together, at most 0.1 s apart).

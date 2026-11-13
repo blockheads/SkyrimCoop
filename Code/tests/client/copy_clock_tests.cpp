@@ -3,6 +3,7 @@
 #include <catch2/catch.hpp>
 
 #include <Services/CopyClock.h>
+#include <Systems/CopyCorrection.h>
 
 #include <algorithm>
 #include <deque>
@@ -248,5 +249,25 @@ TEST_CASE("The frame clock steps with the frames and follows the session's time 
     {
         clock.Advance(session + 5000, cFrameMs);
         CHECK(clock.Now() == session + 5000);
+    }
+}
+
+TEST_CASE("A late snapshot's correction is blended out, never jumped", "[copy-clock][copy-correction]")
+{
+    CopyCorrection correction;
+    correction.Begin({12.f, 0.f, 0.f}, 1000);
+    CHECK(correction.At(1000).x == Approx(12.f));
+    CHECK(correction.At(1050).x == Approx(6.f));
+    CHECK(correction.At(1000 + CopyCorrection::kMs).x == 0.f);
+    CHECK(correction.At(5000).x == 0.f);
+
+    SECTION("a teleport-sized one jumps")
+    {
+        correction.Begin({CopyCorrection::kMax + 1.f, 0.f, 0.f}, 2000);
+        CHECK(correction.At(2000).x == 0.f);
+    }
+    SECTION("none until begun")
+    {
+        CHECK(CopyCorrection{}.At(123).x == 0.f);
     }
 }

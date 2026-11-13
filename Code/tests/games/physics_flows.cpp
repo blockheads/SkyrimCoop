@@ -9,6 +9,10 @@
 #include <Physics/BodyPrediction.h>
 #include <Bridges/PhysicsBodies.h>
 
+#include <chrono>
+#include <format>
+#include <thread>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
@@ -69,6 +73,48 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
         CHECK(BodyOf(party, party.Guest(), kPlate).Drives == 0);
         CHECK(!BodyOf(party, party.Guest(), kPlate).Held);
     }
+}
+
+SCENARIO("A flying body moves evenly on the guest's game though the session's time is read unevenly", "[physics][copy-clock]")
+{
+    // S10 for bodies: the engine's frames are steady and Havok steps by them, while our update lands 0 or 11 ms into
+    // each, where the session's time is read. The guest's bucket must step as the host's flight does each frame.
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    constexpr double cFrameMs = 1000.0 / 60.0;
+    host.FrameMs = guest.FrameMs = cFrameMs;
+    party.Frame();
+    constexpr float cSpeed = 300.f;
+    party.As(party.Host(), [&] { host.Knock(kBucket, {cSpeed, 0.f, 400.f}, {}); });
+
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    std::vector<std::pair<int, float>> xs; // the guest's bucket each frame (frame, x) while it flies at cSpeed across
+    const auto cStart = std::chrono::steady_clock::now();
+    for (int frame = 0; frame < 150; ++frame)
+    {
+        std::this_thread::sleep_until(cStart + std::chrono::duration<double, std::milli>(frame * cFrameMs));
+        std::this_thread::sleep_for(std::chrono::milliseconds(frame % 2 ? 11 : 0));
+        party.Frame();
+        if (guestBucket.Drives > 0 && guestBucket.Flight.Body.Position.z > 1.f)
+            xs.emplace_back(frame, guestBucket.Flight.Body.Position.x);
+    }
+    REQUIRE(xs.size() > 30);
+
+    const float cStep = cSpeed * static_cast<float>(cFrameMs / 1000.0);
+    int uneven = 0;
+    std::string steps;
+    for (size_t i = 8; i + 1 < xs.size(); ++i) // past the first frame's blend from where it stood
+    {
+        if (xs[i + 1].first != xs[i].first + 1)
+            continue; // on the floor between (its bounce)
+        const float cMove = xs[i + 1].second - xs[i].second;
+        uneven += std::abs(cMove - cStep) > cStep / 3.f;
+        if (steps.size() < 200)
+            steps += std::format("{:.1f} ", cMove);
+    }
+    INFO(uneven << " of " << xs.size() - 9 << " frames a third off the host's steady " << cStep << " units; steps " << steps);
+    CHECK(uneven == 0);
 }
 
 SCENARIO("A guest whose game has not loaded the body skips the host's frames", "[physics]")

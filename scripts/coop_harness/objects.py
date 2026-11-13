@@ -320,7 +320,7 @@ class Watch:
 class FlightTrace:
     """Records the host's and the client's physics of some references each frame (the harness's body_trace), and
     reports how the client's playback follows the host's flight: each client frame's 3D against the host's 3D
-    BodyService::kDelayMs earlier (both on one machine's wall clock), the worst and typical gap, its biggest
+    a fitted delay earlier (at least BodyService::kDelayMs; both on one machine's wall clock), the worst and typical gap, its biggest
     frame-to-frame jump beyond the host's, and the snap at its rest. Leaves the samples in
     build/coop-test/traces/<time>-<name>/bodies.json.
 
@@ -388,23 +388,31 @@ class FlightTrace:
         if not moving or not guest:
             return None
         start, end = moving[0], moving[-1]
-        gaps, jumps, previous = [], [], None
-        for t, p, *_ in guest:
-            shown = self.at(host, t - self.DELAY) if start + self.DELAY <= t <= end + self.DELAY else None
-            if shown is None:
-                continue
-            gaps.append((math.dist(p, shown), t - start))
-            if previous:
-                jumps.append((abs(math.dist(p, previous[0]) - math.dist(shown, previous[1])), t - start))
-            previous = (p, shown)
+
+        def follow(delay):
+            gaps, jumps, previous = [], [], None
+            for t, p, *_ in guest:
+                shown = self.at(host, t - delay) if start + delay <= t <= end + delay else None
+                if shown is None:
+                    continue
+                gaps.append((math.dist(p, shown), t - start))
+                if previous:
+                    jumps.append((abs(math.dist(p, previous[0]) - math.dist(shown, previous[1])), t - start))
+                previous = (p, shown)
+            return gaps, jumps
+        # The playback's delay: at least DELAY, more when the line is late (BodyService::PlaybackTick); fitted.
+        delay = min((d / 100 for d in range(5, 41)), key=lambda d: (lambda g: sum(x for x, _ in g) / len(g) if g else 1e9)(follow(d)[0]))
+        gaps, jumps = follow(delay)
         if not gaps:
             return None
         # A flicker: one frame's 3D away from both its neighbours, which agree (it went somewhere and came back).
         flickers = [(t1 - start, math.dist(p0, p1)) for (_, p0, *_), (t1, p1, *_), (_, p2, *_) in zip(guest, guest[1:], guest[2:])
                     if math.dist(p0, p1) > 5 and math.dist(p1, p2) > 5 and math.dist(p0, p2) < 0.5 * math.dist(p0, p1)]
-        before = [p for t, p, *_ in guest if t <= end + self.DELAY]
-        return {"seconds": end - start, "distance": math.dist(host[0][1], host[-1][1]), "frames": len(gaps),
+        before = [p for t, p, *_ in guest if t <= end + delay]
+        return {"seconds": end - start, "distance": math.dist(host[0][1], host[-1][1]), "frames": len(gaps), "delay": delay,
                 "typical": sorted(g for g, _ in gaps)[len(gaps) // 2], "worst": max(gaps), "jump": max(jumps, default=(0.0, 0.0)),
+                "jump_p50": sorted(j for j, _ in jumps)[len(jumps) // 2] if jumps else 0.0,
+                "jump_p95": sorted(j for j, _ in jumps)[int(len(jumps) * 0.95)] if jumps else 0.0,
                 "snap": math.dist(before[-1], host[-1][1]) if before else float("nan"), "flickers": flickers}
 
     def report(self, ref):
@@ -415,8 +423,8 @@ class FlightTrace:
             return f"{ref:X}: no flight traced"
         flickers = f" {[f'{a:.2f} s: {d:.0f}' for a, d in m['flickers'][:5]]}" if m["flickers"] else ""
         return (f"{ref:X} flew {m['seconds']:.2f} s ({m['distance']:.0f} units): the client's 3D is {m['typical']:.1f} units off "
-                f"the host's {self.DELAY * 1000:.0f} ms earlier typically, {m['worst'][0]:.1f} at worst ({m['worst'][1]:.2f} s in), "
-                f"its biggest jump {m['jump'][0]:.1f} beyond the host's ({m['jump'][1]:.2f} s in), {m['snap']:.1f} from the "
+                f"the host's {m['delay'] * 1000:.0f} ms earlier typically, {m['worst'][0]:.1f} at worst ({m['worst'][1]:.2f} s in), "
+                f"its biggest jump {m['jump'][0]:.1f} beyond the host's ({m['jump'][1]:.2f} s in; per frame typically {m['jump_p50']:.2f}, p95 {m['jump_p95']:.2f}), {m['snap']:.1f} from the "
                 f"host's rest just before its own; {len(m['flickers'])} flickers{flickers} ({m['frames']} frames; {self.folder.name})")
 
     # The client's playback never jumps further than this in a frame beyond the host's flight (ours did 10-12 units,

@@ -148,12 +148,13 @@ void BodyService::Apply() noexcept
     for (const auto cEntity : m_world.view<RemoteComponent>())
         m_copyIndex.try_emplace(m_world.get<RemoteComponent>(cEntity).Id, cEntity);
     m_copiesIndexed = true;
-    const uint64_t cTick = m_world.GetTransport().GetTick();
+    // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
+    const uint64_t cTick = m_world.GetFrameTick();
     // What this game's player took is its own now: the owner's playback of it stops.
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
             Forget(cKey);
-    Show(m_playback, [cAt = cTick > kDelayMs ? cTick - kDelayMs : 0](const BodyKey&) { return cAt; });
+    Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
@@ -177,6 +178,14 @@ void BodyService::Apply() noexcept
             ++it;
     }
     m_copiesIndexed = false;
+}
+
+uint64_t BodyService::PlaybackTick(uint64_t aNow) const noexcept
+{
+    // kDelayMs behind, or as far as the line's lateness needs (CopyClock) when that is more.
+    const uint64_t cBehind = aNow > kDelayMs ? aNow - kDelayMs : 0;
+    const uint64_t cClock = m_world.GetCopyClock().Now();
+    return cClock ? std::min(cBehind, cClock) : cBehind;
 }
 
 uint64_t BodyService::CopyTickOf(uint32_t aSessionId) noexcept

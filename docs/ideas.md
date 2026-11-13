@@ -321,5 +321,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   A mod that starts players differently (its own spells or kit outside MQ101's script) is not applied. When mods are
   in scope: a mod-settings override for the kit and starting spells, or running the start mod's own setup.
 
-- **Graph state only when a copy needs it (2026-11-02, red-flags.md 3).** Each accepted owner action carries its whole
-  graph state (4-15 KB, ~13.5 KB/s raw in a 15-wolf fight): send it only for actions whose clip a copy cannot follow.
+- **Graph state only when a copy needs it (2026-11-02, red-flags.md 3): done by the graph input stream.** Each
+  accepted action carried its whole graph state (12-15 KB raw a player). Since the stream (`graph-input-stream.md`)
+  streamed actors' actions carry none (`ReplayState::CarriesGraphState`). Measured 2026-11-13 (`wire_cost`, 15 wolves
+  fighting): 32.7 KB/s on the wire to each guest, was 76 KB/s; 2 graph states saved in the fight, was 579.

@@ -12,6 +12,7 @@
 #include <Misc/BSFixedString.h>
 #include <AI/Movement/MovementControllerNPC.h>
 #include <AI/AIProcess.h>
+#include <BSTimer.h>
 #include <NetImmerse/NiNode.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
@@ -329,6 +330,9 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     actors.GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
     nlohmann::json entry = {{"kind", "pos"}, {"actor", aFormId}, {"pos", {position[0], position[1], position[2]}}, {"yaw", rotation[2]}};
     entry["sit"] = pActor->actorState.GetSitSleepState();
+    // The engine's frame (BSTimer's realTimeDelta, ms): per-frame speeds without our update's uneven wall clock (S10).
+    if (const BSTimer* pTimer = BSTimer::Get())
+        entry["dt"] = std::round(pTimer->RealTimeDelta * 1e5f) / 100.f;
     if (const auto cController = EngineCalls::GetController(aFormId))
         entry["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}, {"state", cController->State},
                                {"at", cController->Position}, {"step", cController->StepVelocity}};
