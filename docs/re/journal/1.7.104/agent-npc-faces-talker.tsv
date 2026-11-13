@@ -1,0 +1,28 @@
+time	op	id	rva	item
+2026-11-13T14:51:35Z	read	37200	0x672e30	{"name": "Actor::SetDialogueWithPlayer"}
+2026-11-13T14:52:46Z	read	39465	0x6fe710	{"name": "ActorProcess::SetDialogueHeadtrackSlot"}
+2026-11-13T14:52:51Z	read		0x67df73	{"name": "Character::sub_37367"}
+2026-11-13T14:55:12Z	comment	39465	0x6fe710	{"addr": "0x1406fe710", "comment": "ActorProcess::SetDialogueHeadtrackSlot (39465): HighProcessData::SetHeadtrackTarget(slot 4, dialogue, target). Every caller passes g_thePlayer: 37200 (conversation start and its cleanup path), 37541 UpdateInDialogue (each line), 37367 (the greeting comment, only with no conversation). SkyrimCoop hooks it: on the host, a guest's conversation's speaker looks at the talking player's character instead."}
+2026-11-13T14:55:12Z	comment		0x6732a0	{"addr": "0x1406732a0", "comment": "A started conversation: the speaker's dialogue headtrack slot on this game's player (39465)."}
+2026-11-13T14:55:12Z	comment		0x68cd81	{"addr": "0x14068cd81", "comment": "Each line said: the speaker's dialogue headtrack slot on this game's player again (39465)."}
+2026-11-13T14:55:12Z	comment		0x67df73	{"addr": "0x14067df73", "comment": "The greeting comment (no conversation: MenuTopicManager +0xB1 menuOpen clear): looks at this game's player (39465)."}
+2026-11-13T14:55:31Z	comment	37367	0x67ded0	{"addr": "0x14067ded0", "comment": "37367: only with no conversation (MenuTopicManager +0xB1 clear): with a topic info (a2, else Character::sub_19519's), looks at g_thePlayer (dialogue headtrack slot, 39465), stores the player's handle at Actor +0x100 and says the line (sub_1406E9D90); greeting timers when IsGreetingPlayer. Read 2026-11-13, not named further."}
+2026-11-13T15:26:48Z	name	37367	0x67ded0	{"addr": "0x14067ded0", "name": "Character::SayLineToPlayer"}
+2026-11-13T16:10:11Z	read	38011	0x6b4a30	{"name": "Character::ShouldRotateToTrack"}
+2026-11-13T16:10:24Z	read	36670	0x6603e0	{"name": "sub_1406603E0"}
+2026-11-13T16:10:24Z	read	39347	0x6f5180	{"name": "AIProcess::IsTalkingToPC"}
+2026-11-13T16:10:27Z	read	37199	0x672e00	{"name": "Character::sub_37199"}
+2026-11-13T16:10:35Z	read		0x679f40	{"name": "Character::UpdateAI"}
+2026-11-13T16:11:26Z	read	37405	0x6801d0	{"name": "Character::sub_37405"}
+2026-11-13T16:12:39Z	read		0x6a4f50	{"name": "Actor::sub_37787"}
+2026-11-13T16:12:44Z	read	37811	0x6a5bf0	{"name": "Character::sub_37811"}
+2026-11-13T16:12:55Z	comment	37811	0x6a5bf0	{"addr": "0x1406a5bf0", "comment": "37811: turns the body toward a point: hands it to the actor's mover (ActorMover 41620, not read) unless the actor can't turn (Character::sub_37481, movement state +0xC8). Callers: Actor::ProcessTracking with kShouldRotateToTrack (the headtrack target's look position), 37405 (a guard's target). Read 2026-11-13."}
+2026-11-13T16:12:55Z	comment		0x6b462f	{"addr": "0x1406b462f", "comment": "kShouldRotateToTrack (boolBits 0x400000, Character::ShouldRotateToTrack 38011 from UpdateAI): with the graph's bool (FixedStrings+0x530) set, the body turns toward the head's target (37811). The body follows the same target as the head."}
+2026-11-13T16:12:55Z	comment		0x6b4a83	{"addr": "0x1406b4a83", "comment": "In a conversation with this game's player (IsTalkingToPC, 39347 via 37199) the body turns only toward g_thePlayer (below, 0x1406b4bc4 region): on the host, a guest's conversation runs with the host's player, so a guest's character as target turns the head but not the body."}
+2026-11-13T16:12:56Z	name	37811	0x6a5bf0	{"addr": "0x1406a5bf0", "name": "Character::TurnBodyToPoint"}
+2026-11-13T16:12:56Z	name	37199	0x672e00	{"addr": "0x140672e00", "name": "Character::IsTalkingToPC"}
+2026-11-13T17:15:49Z	read	39462	0x6fe6b0	{"name": "sub_1406FE6B0"}
+2026-11-13T17:15:58Z	name	37405	0x6801d0	{"addr": "0x1406801d0", "name": "Character::GuardTowardDetected"}
+2026-11-13T17:15:58Z	name	39462	0x6fe6b0	{"addr": "0x1406fe6b0", "name": "ActorProcess::SetActionHeadtrackSlot"}
+2026-11-13T17:16:01Z	comment	37405	0x6801d0	{"addr": "0x1406801d0", "comment": "37405 (ours: GuardTowardDetected): the reaction to a detection (only caller StandardDetectionListener::ReactToDetection). Moving state set (+0xC8 & 0x3C000): stops (vfunc 0x6F0). Otherwise puts a created guard package (type 14, GuardActorPackageData) on the detected target, looks at it (action headtrack slot 1, ActorProcess::SetActionHeadtrackSlot), sets kShouldRotateToTrack from ShouldRotateToTrack 38011 and turns its body to the target (TurnBodyToPoint 37811). Read 2026-11-13."}
+2026-11-13T17:16:01Z	comment	39462	0x6fe6b0	{"addr": "0x1406fe6b0", "comment": "ActorProcess::SetActionHeadtrackSlot (ours): HighProcessData slot 1 (action), as 39461/39465 do for theirs. Callers: Say/SayTo, procedures, GuardTowardDetected 37405."}

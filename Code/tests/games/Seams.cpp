@@ -122,6 +122,15 @@ World::World()
         if (const auto it = engine.Actors.find(aSpeaker); it != engine.Actors.end() && !it->second.Copy)
             engine.LooksAt(aSpeaker, FakeEngine::kDialogueHeadTrack, aTarget);
     };
+    // An NPC's AI turns it; a copy follows its owner's heading.
+    static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerTurns = [](uint32_t aSpeaker, uint32_t aTarget) {
+        FakeEngine& engine = FakeEngine::Current();
+        const auto it = engine.Actors.find(aSpeaker);
+        const auto target = engine.Actors.find(aTarget);
+        if (it != engine.Actors.end() && !it->second.Copy && target != engine.Actors.end())
+            it->second.Rotation[2] = std::atan2(target->second.Position[0] - it->second.Position[0],
+                                                target->second.Position[1] - it->second.Position[1]);
+    };
     static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerHasProcess = [](uint32_t aSpeaker) {
         const FakeEngine& engine = FakeEngine::Current();
         const auto it = engine.Actors.find(aSpeaker);

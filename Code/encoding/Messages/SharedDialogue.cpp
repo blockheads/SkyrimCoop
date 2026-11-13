@@ -101,12 +101,14 @@ void DialogueJoinRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 void NotifyDialogueStart::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteVarInt(aWriter, PlayerId);
 }
 
 void NotifyDialogueStart::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
+    PlayerId = ReadId(aReader);
 }
 
 void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -199,3 +201,16 @@ void NotifyDialogueRefused::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     NpcId = ReadId(aReader);
 }
 
+
+void NotifyDialogueFace::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Conversation);
+    Serialization::WriteVarInt(aWriter, PlayerId);
+}
+
+void NotifyDialogueFace::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
+{
+    NotifyMessage::DeserializeRaw(aReader);
+    Conversation = ReadId(aReader);
+    PlayerId = ReadId(aReader);
+}
