@@ -49,13 +49,23 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: a steal warning lost to its owner's scene is vanilla's, and the party already matches it
+([crime.md](re/systems/crime.md), "The steal warning in a scene"). Read in IDA: a package-action scene re-starts its
+action each update while the actor runs another package (`BGSSceneActionPackage::UpdateAction` 24246 ->
+`StartAction` 24244), ending any interrupt package first (`EndInterruptPackage` 37474), which reports a type 34
+warning's theft. Measured in vanilla (stand-in, Orgnar's bar scene `BCF05`): the theft is reported (bounty 5) and the
+bottle kept, as on the duo. No engine change. Scenario `guest-theft-in-scene-reported` (no `stop_scene`); GameTests
+"A guest's warned theft from an owner in a scene is reported" (the fake's `SceneEndsWarnings`). MCP: `expect_scene`,
+`expect_kept`, `watch_scene_stops` / `scene_stops` (harness `scene_watch`: callers of the scene stop 24140);
+`vanilla_start` refuses to boot without the vanilla stand-in built.
+
 2026-11-13: a guest's seen theft is warned, as the host's is ([crime.md](re/systems/crime.md), "The steal warning").
 Read in IDA: the warning's package (37556) and its step (procedure 40, 39673) name `g_thePlayer` throughout, so it
 walked to, faced, warned and took back from the host's player; it is now started for the guest's copy (seven call
 sites swapped in `CrimeBridge`) and the given-back runs on the guest's game (`NotifyCrimeConfiscation` gains owner and
 destination), where the item's ownership is. Also found: our `Confiscate` hook (16120) cut its owner-filter pointer to
 32 bits, so a warning never took anything back, the host's own included. Measured: an NPC in a scene (Orgnar's bar
-scene) drops the warning before its first step, for both players, and the theft is reported. Scenario
+scene) drops the warning before its first step, for both players, and the theft is reported (vanilla does too: above). Scenario
 `guest-theft-warned` (MCP: `stop_scene`, `expect_given_back`, `expect_warnings` waits); GameTests "A guest's seen theft
 is warned", ClientTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
 

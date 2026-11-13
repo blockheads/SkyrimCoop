@@ -154,6 +154,35 @@ SCENARIO("A guest's seen theft is warned: the owner takes it back from the guest
     CHECK(guest.Gold.empty());
 }
 
+SCENARIO("A guest's warned theft from an owner in a scene is reported, as vanilla's", "[crime][theft-warning]")
+{
+    // guest-theft-in-scene-reported (2026-11-13): the scene's package action ends the warning; vanilla reports the
+    // theft then, the item stays with the thief and every player gets the bounty.
+    Party party(2, SmokeWorld);
+    auto& engine = Party::Engine(party.Host());
+    auto& host = Crime(party.Host());
+    auto& guest = Crime(party.Guest());
+    host.SeenThefts = true;
+    party.As(party.Host(), [&] { engine.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Agree("the owner and the players' copies exist everywhere");
+    CrimeRequest theft;
+    theft.Action = CrimeAction::Theft;
+    theft.Item = GameId(0, 0x64B36);
+    theft.Target = GameId(0, 0x33288);
+    theft.Owner = GameId(0, 0x13479);
+    theft.Count = 1;
+    theft.AllowWarning = true;
+    guest.Actions.push_back(theft);
+    party.Until([&] { return host.TheftWarnings == 1; }, "the guest's seen theft spends the party's warning");
+    party.As(party.Host(), [&] { host.SceneEndsWarnings(); });
+    const std::vector<CrimeReport> cLine{{GameId(0, 0x267EA), 5}};
+    party.Until([&] { return guest.Gold == host.Gold && guest.Shown == cLine; },
+                "the guest gets the reported bounty and its line");
+    CHECK(host.Gold.front().NonViolent == 5);
+    CHECK(guest.Confiscated.empty()); // the guest keeps the item
+    CHECK(Crime(party.Guest(1)).Confiscated.empty());
+}
+
 SCENARIO("A steal warning's given-back waits on the guest until the owner NPC is there", "[crime][theft-warning]")
 {
     // CharacterService holds a spawn while the guest's reference is still loading: the notification can come first.

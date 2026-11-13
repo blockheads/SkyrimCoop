@@ -79,6 +79,20 @@ struct FakeCrime final : ICrimeBridge
         for (const auto& warning : std::exchange(Warnings, {}))
             Confiscations.push_back({.Actor = warning.Thief, .Owner = warning.Owner, .ToActor = aOwnerActor});
     }
+    // Skyrim: an owner in a package-action scene loses the warning at the scene's next update (24246 -> 24244 ->
+    // EndInterruptPackage 37474), which reports the theft (37679) and keeps the item where it is.
+    void SceneEndsWarnings() noexcept
+    {
+        for (const auto& warning : std::exchange(Warnings, {}))
+        {
+            (void)warning;
+            if (Gold.empty())
+                Gold.push_back({GameId(0, 0x267EA), 0, 5});
+            else
+                Gold.front().NonViolent += 5;
+            Reports.push_back({GameId(0, 0x267EA), 5});
+        }
+    }
     bool Judge(uint32_t aActor, const CrimeRequest& aRequest) noexcept override
     {
         Judged.emplace_back(aActor, aRequest);
