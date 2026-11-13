@@ -12,15 +12,17 @@ class RagdollPending
     {
         BodyFrame Frame;
         bool Place{};
+        bool Rest{}; // its owner's rest: steered a while, put there, then left (BodyPrediction::StepToRest)
     };
 
-    void Put(uint32_t aCopy, const BodyFrame& acFrame, bool aPlace)
+    void Put(uint32_t aCopy, const BodyFrame& acFrame, bool aPlace, bool aRest = false)
     {
         if (m_copies.size() >= 512 && !m_copies.contains(aCopy))
             m_copies.clear();
         auto& drive = m_copies[aCopy][acFrame.Key.Index];
         drive.Frame = acFrame;
         drive.Place |= aPlace;
+        drive.Rest |= aRest;
     }
 
     std::vector<Drive> Take(uint32_t aCopy)

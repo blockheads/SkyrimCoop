@@ -18,6 +18,7 @@ struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct EnterCellRequest;
 struct PartyTravelRequest;
+struct PartySummonRequest;
 
 struct HostNetwork;
 
@@ -90,6 +91,8 @@ private:
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
     void OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // /tpa: everyone else goes to the sender's spot; the tether's last place becomes it.
+    void OnPartySummon(const PartySummonRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
     // Indoors anywhere; outdoors within the host's player's loaded grid (GridCellCoords::IsCellInGridCell).
@@ -136,6 +139,8 @@ private:
         bool operator==(const Place&) const noexcept = default;
     };
     static Place PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept;
+    // An arrival in that place: its interior cell, or outdoors its worldspace within the loaded grid.
+    static bool At(const NotifyPartyTravel& acPlace, const EnterCellRequest& acArrival) noexcept;
     // From each player's announcement, then its arrivals.
     std::unordered_map<ConnectionId_t, Place> m_places;
     // Arrived where the host is not yet (it led, or the host is still loading): the host's actors there reach
@@ -145,4 +150,7 @@ private:
     std::unordered_set<ConnectionId_t> m_broughtToParty;
     // Where the party went last (the latest player to travel by itself), for followers that arrive elsewhere.
     std::optional<NotifyPartyTravel> m_partyTravel;
+    // Each player's trip announced before its load (PartyTravelRequest), not arrived yet: its arrival there is not
+    // sent again (a follower that walked off its spot stays).
+    std::unordered_map<ConnectionId_t, NotifyPartyTravel> m_announced;
 };

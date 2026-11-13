@@ -17,9 +17,9 @@ namespace TestHarness
 // Game thread, except the graph events (sent where the graphs update).
 struct AnimationTrace
 {
-    // Starts recording these actors (adds them when already recording), and these graph booleans of each.
+    // Starts recording these actors (adds them when already recording), and these graph variables of each.
     void Watch(const std::vector<uint32_t>& acActors, const std::vector<std::string>& acGraphBools,
-               const std::vector<std::string>& acGraphFloats = {});
+               const std::vector<std::string>& acGraphFloats = {}, const std::vector<std::string>& acGraphInts = {});
     // What was recorded since the last take, in order. Keeps recording.
     nlohmann::json Take();
     // Stops, takes what is left, and lets go of the graphs.
@@ -44,6 +44,7 @@ private:
     std::map<uint32_t, Watched> m_actors;
     std::vector<std::string> m_graphBools;
     std::vector<std::string> m_graphFloats; // sampled with each frame's place
+    std::vector<std::string> m_graphInts;   // recorded with the state, as they change
     nlohmann::json m_game;
     // The graphs listened to, each held (its reference) until let go, so it outlives our sink on it.
     std::vector<BShkbAnimationGraph*> m_graphs;

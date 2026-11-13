@@ -107,6 +107,26 @@ TESNPC* TESNPC::Create(const std::string& acBuffer, const uint32_t aChangeFlags)
     return pNpc;
 }
 
+BGSHeadPart* TESNPC::GetCurrentHeadPart(uint32_t aType)
+{
+    using THasOverlays = bool(TESNPC*);
+    using TGetBaseOverlays = BGSHeadPart**(TESNPC*);
+    using TGetNumBaseOverlays = uint32_t(TESNPC*);
+    POINTER_SKYRIMSE(THasOverlays, HasOverlays, 24790);
+    POINTER_SKYRIMSE(TGetBaseOverlays, GetBaseOverlays, 24791);
+    POINTER_SKYRIMSE(TGetNumBaseOverlays, GetNumBaseOverlays, 24792);
+
+    if (!HasOverlays(this))
+        return GetHeadPart(aType);
+
+    BGSHeadPart** pOverlays = GetBaseOverlays(this);
+    const uint32_t cCount = GetNumBaseOverlays(this);
+    for (uint32_t i = 0; pOverlays && i < cCount; ++i)
+        if (pOverlays[i] && pOverlays[i]->type == aType)
+            return pOverlays[i];
+    return nullptr;
+}
+
 BGSHeadPart* TESNPC::GetHeadPart(uint32_t aType)
 {
     if (headparts)

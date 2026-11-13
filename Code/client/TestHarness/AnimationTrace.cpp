@@ -12,11 +12,16 @@
 #include <Misc/BSFixedString.h>
 #include <AI/Movement/MovementControllerNPC.h>
 #include <AI/AIProcess.h>
+#include <BSTimer.h>
 #include <NetImmerse/NiNode.h>
 #include <World.h>
 #include <Bridges/IActorBridge.h>
 #include <Components.h>
 #include <Systems/InterpolationSystem.h>
+
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 #include <atomic>
 #include <mutex>
@@ -61,6 +66,50 @@ struct GraphEventSink final : BSTEventSink<BSAnimationGraphEvent>
     }
 };
 GraphEventSink s_sink;
+
+// The graphs whose input events are recorded: those listened to.
+std::atomic<int> s_inputGraphCount{0};
+const BShkbAnimationGraph* s_inputGraphs[16]{};
+
+// The engine's frames that sent an event, as RVAs (scripts/re/id.py reads them).
+nlohmann::json CallerRvas()
+{
+    void* frames[10];
+    const USHORT cCount = RtlCaptureStackBackTrace(1, 10, frames, nullptr);
+    const auto cBase = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    nlohmann::json rvas = nlohmann::json::array();
+    for (USHORT i = 0; i < cCount; ++i)
+    {
+        const auto cAddress = reinterpret_cast<uintptr_t>(frames[i]);
+        if (cAddress > cBase && cAddress - cBase < 0x4000000)
+            rvas.push_back(std::format("{:X}", cAddress - cBase));
+    }
+    return rvas;
+}
+
+// BShkbAnimationGraph::SendEvent (63591): every input event a graph handles, whoever sends it (an action, the engine
+// directly). Chained under the graph input stream's hook, which drops a copy's own on the stream.
+using TSendGraphEvent = bool(BShkbAnimationGraph*, const BSFixedString*);
+TSendGraphEvent* RealSendGraphEvent = nullptr;
+
+bool HookSendGraphEvent(BShkbAnimationGraph* apGraph, const BSFixedString* apEvent)
+{
+    const bool cTaken = RealSendGraphEvent(apGraph, apEvent);
+    const int cCount = s_inputGraphCount.load(std::memory_order_acquire);
+    for (int i = 0; i < cCount; ++i)
+        if (s_inputGraphs[i] == apGraph)
+        {
+            Record({{"kind", "input"},
+                    {"actor", apGraph->holder ? apGraph->holder->formID : 0},
+                    {"event", apEvent && apEvent->data ? apEvent->data : ""},
+                    {"taken", cTaken},
+                    {"from", CallerRvas()}});
+            break;
+        }
+    return cTaken;
+}
+
+bool s_inputHookInstalled = false;
 
 Actor* GetActor(uint32_t aFormId) noexcept
 {
@@ -123,8 +172,11 @@ std::vector<std::string> ActiveClips(Actor& aActor, nlohmann::json& aDetail, nlo
 } // namespace
 
 void AnimationTrace::Watch(const std::vector<uint32_t>& acActors, const std::vector<std::string>& acGraphBools,
-                           const std::vector<std::string>& acGraphFloats)
+                           const std::vector<std::string>& acGraphFloats, const std::vector<std::string>& acGraphInts)
 {
+    for (const auto& cName : acGraphInts)
+        if (std::find(m_graphInts.begin(), m_graphInts.end(), cName) == m_graphInts.end())
+            m_graphInts.push_back(cName);
     for (const auto& cName : acGraphFloats)
         if (std::find(m_graphFloats.begin(), m_graphFloats.end(), cName) == m_graphFloats.end())
             m_graphFloats.push_back(cName);
@@ -145,6 +197,7 @@ nlohmann::json AnimationTrace::Take()
 
 nlohmann::json AnimationTrace::Stop()
 {
+    s_inputGraphCount.store(0, std::memory_order_release);
     for (BShkbAnimationGraph* pGraph : m_graphs)
     {
         pGraph->animationGraphEvents.UnRegisterSink(&s_sink);
@@ -155,12 +208,21 @@ nlohmann::json AnimationTrace::Stop()
     m_actors.clear();
     m_graphBools.clear();
     m_graphFloats.clear();
+    m_graphInts.clear();
     m_game = nullptr;
     return Take();
 }
 
 void AnimationTrace::Poll()
 {
+    // Chained under the stream's 63591 hook, once the hooks are in.
+    if (!std::exchange(s_inputHookInstalled, true))
+    {
+        Hooks::Resolve<63591>(&RealSendGraphEvent);
+        if (!Hooks::FunctionHookManager::GetInstance().AddChained(Hooks::FunctionHook(
+                reinterpret_cast<void**>(&RealSendGraphEvent), reinterpret_cast<void*>(HookSendGraphEvent), "HookSendGraphEvent")))
+            spdlog::warn("AnimationTrace: could not chain under the graph event hook");
+    }
     ++s_frame;
     Update();
 }
@@ -197,6 +259,11 @@ void AnimationTrace::ListenToGraphs(uint32_t aFormId)
             InterlockedIncrement(&pGraph->refCount);
             pGraph->animationGraphEvents.RegisterSink(&s_sink);
             m_graphs.push_back(pGraph);
+            if (const int cCount = s_inputGraphCount.load(); cCount < static_cast<int>(std::size(s_inputGraphs)))
+            {
+                s_inputGraphs[cCount] = pGraph;
+                s_inputGraphCount.store(cCount + 1, std::memory_order_release);
+            }
             Record({{"kind", "listen"}, {"actor", aFormId}, {"project", pGraph->projectName ? pGraph->projectName : ""}});
         }
     }
@@ -243,12 +310,15 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     }
 
     nlohmann::json state = {{"graph_updates", (pActor->flags2 & Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE) != 0},
+                            {"every_frame", (pActor->flags2 & Actor::kForceAnimGraphUpdate) != 0},
                             {"life", ActorState::LifeStateOf(pActor->actorState.flags1)},
                             {"weapon", pActor->actorState.GetWeaponState()},
                             {"kill_move", EngineCalls::IsInKillMove(aFormId)},
                             {"health", std::round(actors.GetActorValue(aFormId, 24) * 10.f) / 10.f}};
     for (const auto& cName : m_graphBools)
         state[cName] = EngineCalls::GetGraphBool(aFormId, cName.c_str());
+    for (const auto& cName : m_graphInts)
+        state[cName] = EngineCalls::GetGraphInt(aFormId, cName.c_str());
     if (state != aWatched.State)
     {
         Record({{"kind", "state"}, {"actor", aFormId}, {"state", state}});
@@ -260,6 +330,9 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     actors.GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
     nlohmann::json entry = {{"kind", "pos"}, {"actor", aFormId}, {"pos", {position[0], position[1], position[2]}}, {"yaw", rotation[2]}};
     entry["sit"] = pActor->actorState.GetSitSleepState();
+    // The engine's frame (BSTimer's realTimeDelta, ms): per-frame speeds without our update's uneven wall clock (S10).
+    if (const BSTimer* pTimer = BSTimer::Get())
+        entry["dt"] = std::round(pTimer->RealTimeDelta * 1e5f) / 100.f;
     if (const auto cController = EngineCalls::GetController(aFormId))
         entry["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}, {"state", cController->State},
                                {"at", cController->Position}, {"step", cController->StepVelocity}};

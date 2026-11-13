@@ -39,8 +39,11 @@ public:
 
     // An existing save and its co-save, selected by the host.
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
-    // Most recent gameplay save of the current host character, excluding internal transfer saves.
-    [[nodiscard]] virtual std::optional<SaveFiles> PreviousSave() noexcept = 0;
+    // The name of the most recent gameplay save of the engine's current character, excluding internal transfer saves.
+    [[nodiscard]] virtual std::optional<std::string> PreviousSave() noexcept = 0;
+    // The engine's current character (its saves are filed and named under it), as a load of that character's save
+    // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
+    virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;
     // This game's player's character (no key, no place): docs/design/join-flow.md, "The character record".
     [[nodiscard]] virtual PlayerRecord ReadPlayer() const noexcept = 0;
     // Makes this game's player the record's character (the loaded save's player is another's), standing at the

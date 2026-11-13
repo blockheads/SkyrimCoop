@@ -16,6 +16,7 @@ public:
     [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
     bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override;
+    bool KnockDown(uint32_t aCopyFormId) noexcept override;
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     bool Free(const BodyFrame& acFrame) noexcept override;
     bool Push(const BodyPush& acPush) noexcept override;

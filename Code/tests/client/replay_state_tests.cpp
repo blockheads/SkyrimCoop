@@ -71,3 +71,38 @@ TEST_CASE("A copy holds its pose until its owner's death, or its time", "[copies
     CHECK_FALSE(ReplayState::PoseHeld(100, 200, true));
     CHECK_FALSE(ReplayState::PoseHeld(100, 0, false));
 }
+
+TEST_CASE("A copy getting off its mount is on its own body until its sit state leaves wants-to-stand", "[replay][graph-stream]")
+{
+    // Nothing else marks it: a copy's exit sets no GETTING_ON_OFF_MOUNT (Actor::Dismount 37906 never runs for it).
+    CHECK(ReplayState::CopyOwnBody(false, false, false, ReplayState::kSitWantsToStand));
+    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, 0));
+    CHECK_FALSE(ReplayState::CopyOwnBody(false, false, false, 3)); // sitting: riding, on its stream
+    CHECK(ReplayState::CopyOwnBody(false, false, true, 2)); // getting on: the engine's flag
+    CHECK(ReplayState::CopyOwnBody(true, false, false, 0));
+    CHECK(ReplayState::CopyOwnBody(false, true, false, 0));
+}
+
+TEST_CASE("An action carries its owner's graph state only for copies that take actions", "[replay-state]")
+{
+    CHECK(ReplayState::CarriesGraphState(false, false, false));
+    CHECK_FALSE(ReplayState::CarriesGraphState(true, false, false)); // a pair's half
+    CHECK_FALSE(ReplayState::CarriesGraphState(false, true, false)); // its copies replay its stream
+    CHECK(ReplayState::CarriesGraphState(false, true, true));        // on its own body: its copies play its actions
+    CHECK_FALSE(ReplayState::CarriesGraphState(true, true, true));
+}
+
+TEST_CASE("A copy stays on its stream through its owner's pair when its partner here is a copy too", "[replay-state][pair-stream]")
+{
+    CHECK(ReplayState::PairOnStream(true)); // a kill move's or a mount's alike
+    CHECK_FALSE(ReplayState::PairOnStream(false)); // this game's own actor, or not here: the instance or the action plays it
+}
+
+TEST_CASE("A pa_Kill action puts both actors in a kill move, as the engine's own test of its name", "[replay-state][pair-stream]")
+{
+    CHECK(ReplayState::EntersKillMove("pa_KillMove1HMWolfA"));
+    CHECK(ReplayState::EntersKillMove("PA_KILLMOVEI")); // strnicmp
+    CHECK_FALSE(ReplayState::EntersKillMove("pa_1HMShieldBash"));
+    CHECK_FALSE(ReplayState::EntersKillMove("KillMove1HMWolfA")); // the victim's half
+    CHECK_FALSE(ReplayState::EntersKillMove("pa_K"));
+}

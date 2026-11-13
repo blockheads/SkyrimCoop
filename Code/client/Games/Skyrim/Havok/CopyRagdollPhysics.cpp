@@ -1,5 +1,6 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
+#include <Games/KnockReplay.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/Ragdoll.h>
 #include <HookSwitch.h>
@@ -8,6 +9,7 @@
 #include <Physics/BodyPrediction.h>
 #include <Physics/RagdollPending.h>
 #include <RTTI.h>
+#include <map>
 #include <mutex>
 
 struct hkbContext;
@@ -17,6 +19,13 @@ namespace
 {
 std::mutex s_bodyLock;
 RagdollPending s_bodies;
+// A copy's body on its way to its owner's rest: which rest, and the physics steps it has been at it.
+struct Resting
+{
+    glm::vec3 Position{};
+    uint16_t Steps{};
+};
+std::map<std::pair<uint32_t, uint8_t>, Resting> s_rested;
 
 void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
 {
@@ -25,8 +34,7 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         std::scoped_lock lock(s_bodyLock);
         bodies = s_bodies.Take(aCopy.formID);
     }
-    const uint8_t cKnock = aCopy.actorState.GetKnockState();
-    if (!aCopy.IsDead() && (cKnock < 1 || cKnock > 4))
+    if (!aCopy.IsDead() && !KnockReplay::BodiesSimulated(aCopy.actorState.GetKnockState()))
         return;
     const auto* pRagdoll = aDriver.ragdoll;
     for (const auto& cDrive : bodies)
@@ -39,6 +47,31 @@ void ApplyBodies(Actor& aCopy, hkbRagdollDriver& aDriver)
         if (!pBody || !pRigid->IsDynamic())
             continue;
         BodyRead read;
+        // At its owner's rest: steered there a while, every body put exactly there in one step, then left to fall
+        // asleep (steering wakes it each step).
+        const auto cBody = std::make_pair(aCopy.formID, cFrame.Key.Index);
+        if (cDrive.Rest && ReadBody(*pBody, read))
+        {
+            std::scoped_lock lock(s_bodyLock);
+            Resting& resting = s_rested[cBody];
+            if (resting.Position != cFrame.Position)
+                resting = {.Position = cFrame.Position};
+            const auto cStep = BodyPrediction::StepToRest(resting.Steps);
+            if (resting.Steps <= BodyPrediction::kRestSettleSteps)
+                ++resting.Steps;
+            if (cStep == BodyPrediction::RestStep::kLeave)
+                continue;
+            if (cStep == BodyPrediction::RestStep::kPlace)
+            {
+                PlaceBody(*pBody, cFrame.Position, cFrame.Rotation, {}, {}, true);
+                continue;
+            }
+        }
+        else
+        {
+            std::scoped_lock lock(s_bodyLock);
+            s_rested.erase(cBody);
+        }
         if (ReadBody(*pBody, read) && glm::distance(read.Position, cFrame.Position) < BodyPrediction::PlaceDistance(cDrive.Place))
         {
             const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, cFrame);
@@ -94,8 +127,8 @@ void HoldCopyRagdollStill(Actor& aCopy) noexcept
             SteerBody(*pBody, {}, {});
 }
 
-void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace) noexcept
+void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace, bool aRest) noexcept
 {
     std::scoped_lock lock(s_bodyLock);
-    s_bodies.Put(aFormId, acFrame, aPlace);
+    s_bodies.Put(aFormId, acFrame, aPlace, aRest);
 }

@@ -25,6 +25,10 @@ struct CrimeService
         return m_bridge.PartyIsCriminalTo(aActorFormId);
     }
     std::vector<CrimeConfiscation> TakeConfiscations() noexcept;
+    std::vector<CrimeReport> TakeReports() noexcept
+    {
+        return m_bridge.TakeReports();
+    }
 
   private:
     // A guest's crime action, held behind a theft while every witness looks at the guest's copy (crime.md).

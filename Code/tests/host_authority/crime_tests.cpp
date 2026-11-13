@@ -84,6 +84,26 @@ TEST_CASE("Host-native bounty, violent buckets and mod factions reach guests", "
     CHECK(session.SentTo<NotifyCrimeState>(kPeer).back()->Gold.empty());
 }
 
+TEST_CASE("Every guest hears each bounty the host's engine reported, once", "[crime]")
+{
+    Session session;
+    session.Frame(1);
+    const auto cBefore = session.SentTo<NotifyCrimeState>(kPeer).size();
+    session.Bounty = {{GameId(0, 0x267EA), 0, 5}};
+    session.CrimeReports = {{GameId(0, 0x267EA), 5}};
+    session.Frame(2);
+    REQUIRE(session.SentTo<NotifyCrimeState>(kPeer).size() == cBefore + 1);
+    CHECK(session.SentTo<NotifyCrimeState>(kPeer).back()->Gold == session.Bounty);
+    CHECK(session.SentTo<NotifyCrimeState>(kPeer).back()->Reports == std::vector<CrimeReport>{{GameId(0, 0x267EA), 5}});
+    // The same total again: a second report is a second line, though the bounty is unchanged.
+    session.CrimeReports = {{GameId(0, 0x267EA), 5}};
+    session.Frame(3);
+    REQUIRE(session.SentTo<NotifyCrimeState>(kPeer).size() == cBefore + 2);
+    CHECK(session.SentTo<NotifyCrimeState>(kPeer).back()->Reports.size() == 1);
+    session.Frame(4);
+    CHECK(session.SentTo<NotifyCrimeState>(kPeer).size() == cBefore + 2);
+}
+
 TEST_CASE("Party criminal-enemy flags synchronize independently of bounty amounts", "[crime]")
 {
     Session session;

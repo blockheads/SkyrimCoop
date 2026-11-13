@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Games/Primitives.h>
-#include <Games/Animation/GraphRandom.h>
 #include <Forms/TESForm.h>
 #include <NetImmerse/BSFaceGenNiNode.h>
 #include <ExtraData/ExtraContainerChanges.h>
@@ -213,18 +212,18 @@ struct TESObjectREFR : TESForm
     // The seed of its selected graph's random picks (hkbBehaviorGraph's generator); 0 with no graph.
     [[nodiscard]] uint32_t GetGraphRandom() const noexcept;
     void SetGraphRandom(uint32_t aSeed) const noexcept;
-    // Its selected graph's active every-N counters, which a saved graph leaves out. Set: false until all are active.
-    [[nodiscard]] std::vector<GraphRandom::Counter> GetGraphCounters() const noexcept;
-    bool SetGraphCounters(const std::vector<GraphRandom::Counter>& acCounters) const noexcept;
-    // A sync point's seed and graph as one, no graph update between them: the manager's lock, which its updates take.
-    void SaveGraphPoint(uint32_t& aSeed, std::string& aState, std::vector<GraphRandom::Counter>& aCounters) const noexcept;
-    bool LoadGraphPoint(uint32_t aSeed, const std::string& acState) const noexcept;
     // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
     bool SaveGraphs(std::string& aGraphs) const noexcept;
+    // Its BSAnimationGraphManager, as a key only (not held): the clip loads that name no actor (43624) name it.
+    [[nodiscard]] const void* GraphManagerKey() const noexcept;
+    // Its manager's graph at an index (the player's: 0 third person, 1 first person), as an identity only.
+    [[nodiscard]] const void* GraphKey(int aIndex) const noexcept;
     bool LoadGraphs(const std::string& acGraphs) const noexcept;
     // An actor's, with its state flags.
     bool SaveAnimationGraphState(std::string& aState) const noexcept;
     bool LoadAnimationGraphState(const std::string& acState) const noexcept;
+    // That state's actor state words alone: a copy whose graph is its stream's.
+    bool LoadGraphStateFlags(const std::string& acState) const noexcept;
     uint32_t GetAnimationVariableInt(BSFixedString* apVariableName) noexcept;
 
     void RemoveAllItems() noexcept;
@@ -259,6 +258,8 @@ struct TESObjectREFR : TESForm
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;
+    // Drops its 3D and queues it again, as Disable and Enable do, leaving no form-flags record.
+    void Reload3D() noexcept;
     OpenState GetOpenState() noexcept;
 
     Inventory GetInventory() const noexcept;

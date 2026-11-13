@@ -35,7 +35,7 @@ experience) |
 | 35287 | 0x5e1830 | list build | From 35282, 35285, 35290, 35297; clears the list (35275), then the said info's choices or the speaker's topics (35276). See "Building options" |
 | 35294 | 0x5e1e50 | `MenuTopicManager::EndDialogue` | From `UpdateInDialogue` (both), `EndInterruptPackage`, the `PositionPlayerEvent` sink, 35282. Logs " %s  walkaway topic is running"; begins an info (25616, the goodbye or walkaway) and rebuilds the list (35274). Its conditions (distance, travel) still to read |
 | 35293 | 0x5e1dd0 | | The speaker as an `Actor` (handle +0x68, form type 62) |
-| 37200 | 0x660410 | `Actor::SetDialogueWithPlayer` (CommonLibSSE-NG vfunc 0x41) | `(actor, start, forceGreet, topicInfo)`, the actor override of 19524 (the vtables of `Actor`, `Character` and `PlayerCharacter` all point here). Activating an NPC and force greets come here; with `start` it calls 35282. **Hooked** (`DialogueBridge.cpp`): a start with a copy goes to the host instead; returning false is the engine's own "did not start" |
+| 37200 | 0x660410 | `Actor::SetDialogueWithPlayer` (CommonLibSSE-NG vfunc 0x41) | `(actor, start, forceGreet, topicInfo)`, the actor override of 19524 (the vtables of `Actor`, `Character` and `PlayerCharacter` all point here). Activating an NPC and force greets come here; with `start` it calls 35282. **Hooked** (`DialogueBridge.cpp`): a start with a copy goes to the host instead; returning false is the engine's own "did not start", but true does not mean started (below, "A start that opens nothing") |
 | 35272 | 0x5dfbd0 | `MenuTopicManager::ProcessMenuOpenClose` | The `MenuOpenCloseEvent` sink: the Dialogue Menu closing with a speaker sets `shutMenu` (+0xB3), which ends the conversation. So a `kHide` of the menu (`UIMessageQueue::AddMessage` 13631) ends it from code |
 | 37548 | 0x67c240 | `Actor::InitiateDialogue` (meh) | Not the player's menu: an AI dialogue package (type 28) between two actors (an NPC walking up to talk) |
 
@@ -214,6 +214,42 @@ middle are drawn with the old highlight (`UpdateList` draws them before it moves
 `moveSelectionDown` sets it first). On the keyboard W and S move the highlight. The arrow keys' scan codes (0xC8,
 0xD0) do nothing when the harness sends them (not looked into).
 
+## Two players at once (1.7.104, 2026-11-09)
+
+Read in IDA (named and commented there): the menu's fill, its default highlight, a pick during a line, the per-frame
+advance.
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 51515 | 0x92b0d0 | `DialogueMenu::PopulateTopicList` | Under the critical section. Each option (hidden ones counted, not listed) as (text, never said, topicIndex). `sameTexts`: the menu's last list was not empty and every text of it is in the new one. The highlight it passes: -1 when `sameTexts` (the SWF keeps its own), else 35295. Then `DoShowDialogueList(sameTexts, choices)`: choices hide the exit button |
+| 35295 | 0x5f0ec0 | `MenuTopicManager::IndexOfLastSaidTopic` | The newest `topicHistory` topic still listed, else 0: a new list highlights the topic said last, not always the top |
+| 51506 | 0x92a5a0 | `DialogueMenu::ProcessMessage` | kUpdate strings: show/hide text, the list (51515), voice ready, another menu over it; kShow (51516); kHide |
+| 35283 | 0x5efb90 | `SaySelected` | Begins the picked info, sets `rootTopicInfo` to it (choices). With the speaker still talking it stops the line (`ActorStopCurrentDialogue`, vfunc 0x278) and does not advance; else it advances (35285) at once |
+| 35289 | 0x5f0730 | `MenuTopicManager::Update` | Each frame: `advanceRequested` (+0xB6) and `canSkip` (+0xBA) run the advance (35285), else the speaker's `UpdateInDialogue` (37541) |
+| 35290 | 0x5f0820 | `MenuTopicManager::SkipLine` | From `SkipText`: stops a talking speaker, or builds and shows the next list |
+
+- **The SWF's pick gate starts at the line's start:** voice ready (52858) comes once the line has its voice, so a
+  menu takes a pick 750 ms into an NPC's line; the pick then waits in 35283 for the line to end. A guest's menu
+  refilled with the party's list gets voice ready itself, so it can pick while the host's NPC still greets.
+- **A joining menu starts on the party's highlight in practice** (measured, `dialogue-joiner-keeps-party-highlight`):
+  the host joining Hulda's conversation after her magic topic was said and listed again came up on the top option,
+  not on that topic, though 51515 passes 35295's index for a new list; why the SWF does not land there is not read
+  (`SetSelectedTopic` only scrolls, "The highlight"). A guest's engine says no line, so its history is empty and its
+  default is the top. A joiner whose party highlight is elsewhere gets it when the others resend theirs after the
+  list shows again (the host's `Merge` on a join).
+- **A press within 750 ms of a line's end is dropped** (read: 35285 shows the list and sends voice ready, 52858; the
+  SWF's `OnVoiceReady` restarts its 750 ms `bAllowProgress` timer; single player too). Seen as a guest's E 560 ms after
+  Andurs's greeting ended saying nothing (`dialogue-hover-while-guest-picks`, 1 of 3 before it waited for the line).
+- **A speaker the harness froze never finishes a line** (measured): `FreezeActor` clears `kProcessMe`, the engine
+  stops updating the actor, and a pick during its greeting stays unsaid (`current_info` the greeting, no advance
+  requested, minutes); unfrozen, the same pick is said and the next list comes. That the voice timer is what stops
+  is inferred, not read. `talk` refuses a staged frozen speaker.
+- **The host joining mid-line** (`DialogueBridge::ShowMenu`: 52853, 52857 on the engine's current list, no voice
+  ready; measured in `dialogue-host-joins-mid-line`): its menu slides in the last step's list while the NPC answers,
+  W and S move its highlight alone (SWF state 1), E does nothing (`bAllowProgress` 0) until the next list. The pick
+  now carries the picker's text (`NotifyDialoguePicked::Text`) and a menu joining before the next list shows it.
+- Harness readout: `dialogue` gives `flags` (+0xB0..+0xBB by name) and `root_info`.
+
 ## Building options (2026-10-18)
 
 For per-player options (`shared-dialogue.md`, "A peer's option on the host"). Found through Dynamic Dialogue
@@ -355,3 +391,60 @@ read. `ApplyQuest` now calls `TESQuest::LoadDialogue` (25086) when a quest goes 
 on it, ClientTests `[QuestStarts]`. A stopped
 quest's lines stay loaded on the guest (harmless). Harness readouts: `info_conditions` (each condition of a line judged
 for a player) and `info_responses` (a line's responses as the engine loads them).
+
+## A start that opens nothing (1.7.104, 2026-11-08)
+
+Found by the 2026-11-08 playtest: a guest's asks went unanswered. Reproduced on the duo with Hilde in Riverwood, with no
+conversation before: the guest's ask started on the host's game, nothing opened, nobody was told; the host's own talk to
+her opened nothing either.
+
+```
+Actor::SetDialogueWithPlayer (37200), start
+  early outs (flying mount, can't talk vfunc 0x380, furniture blocking): return false
+  greeting = the actor's (Character 19519), or the force greet's info
+  StartDialogue (35282): Clear (35274), say the greeting (35283), build the list (35287)
+    list empty (a hello-only NPC), or a goodbye greeting: Clear again, return false, no menu asked
+  StartDialogue's result only picks the cleanup path
+  return true                               <- whatever 35282 answered
+```
+
+So a start is real only when the manager's speaker is the actor afterwards. An NPC with no topic that passes (Hilde,
+most guards) says its hello and starts nothing, in single player too. `HostConversation::OnStart` checks the speaker after
+`DialogueBridge::Start` and answers such an ask with `DialogueStartFailedRequest::NothingToSay`; the asker's chat reads
+"They have nothing to say." The message box after a beggar's line in the playtest is not needed: Hilde reproduced it from
+a fresh boot (the playtest's 19DD8 and 4584C, in Riften, were not looked up). GameTests "A guest talks to an NPC with nothing to say" (the fake's
+`HasTopics`), scenario `guest-talk-nothing-to-say`.
+
+## The crosshair on a seated actor (1.7.104, 2026-11-08)
+
+Found by the 2026-11-08 playtest: the guest's crosshair never took Lucan's copy while he leaned on his counter (sit state
+3), so no name and no Talk prompt.
+
+| ID | Name (ours) | What |
+|---|---|---|
+| 40620 | `PlayerCharacter::PickCrosshairReference` | Calls `CrosshairPickData::Pick` with the camera's ray |
+| (no ID, 0x140409fd0) | `CrosshairPickData::Pick` | A sphere cast along the ray (pick layer 44, colliding with layers 1-6, 8-10, 13-15, 17-19, 28, 30, 32, 33), then per hit: clutter-like bodies by a ray against their shape, the rest by `NiPick` on the ref's 3D and a line-of-sight ray. A layer 30 (character controller) hit is also skipped when the controller's `size` (+0x2A0) is 1 and the actor sits or sleeps (a leaning Lucan measured `size` 0) |
+| 78553 | `bhkCollisionFilter::CompareFilterInfo` | Across groups, a layer 30 capsule with 0x8000 (collision off) collides only with the layers in the mask at +0x3D0: the pick (layer 44) passes a seated actor's capsule by |
+| (no ID, 0x14040b1e0) | `CrosshairPickData::CanPickRef` | No display name: no; sitting in furniture with `kDisablesActivation`: no |
+| 39912 | `AIProcess::SetSitSleepState` | Entering (1/5, or 0 to 3/7): 40063. Leaving: capsule filter 0x8000 cleared, the 3D's bodies back to layer 8 (33 for a race with `kAllowRagdollCollision` 0x40000) and out of the world unless `bAddBipedWhenKeyframed:HAVOK` (358838); then every graph's `ResetRagdoll` (vfunc 5) under the manager's lock (+0xA0), and the graphs attached to the cell's world again (38087) |
+| 40063 | `AIProcess::EnterFurnitureCollision` | Every graph detached from the physics world (38087 with null), capsule filter 0x8000 (collision off), the actor's own 3D keyframed (36925), its bodies on layer 33 (biped, no controller) with the capsule's group (36929), added to its cell's world (36922) |
+| 38087 | `IAnimationGraphManagerHolder::SetWorld` | `(holder, {world, flag})`: each graph's `SetWorld` (vfunc 4, `physicsWorld` +0x238) under the manager's lock |
+| 63562 | `BShkbAnimationGraph::UpdateRagdollPrePhysics` | Nothing without a `physicsWorld`. With one and ragdoll weight above 0: adds every ragdoll body to that world, then `driveToPose` (58291) or `driveWithoutAnimation` (58292), which power the bodies (dynamic) |
+| 36922, 36924, 36925, 36929 | `TaskQueueInterface::QueueAddToWorld`, `QueueRemoveFromWorld`, `QueueSetMotionType`, `QueueSetCollisionLayerAndGroup` | Tasks 18, 19, 34, 38 (`BSTaskPool` runs them on the main thread) |
+
+A seated actor is picked only through its layer 33 bodies: 40063 turns its capsule's collision off (0x8000), which keeps
+the capsule out of the pick's cast (78553), and puts the bodies in instead. Measured on the duo (Lucan leaning, `ragdoll` readout): the
+host's Lucan had 18 keyframed bodies in the world; his copy on the guest had none, and no copy has any (they run no AI,
+so never 39912). Copies mirrored only the capsule's 0x8000 (`actor-movement.md`, "A copy in furniture"). Now a copy's
+bodies and graphs mirror its owner's the same way: each movement snapshot carries `BodiesLayer` (the layer the owner's own
+bodies are on in the world, 0 when out of it: `Actor::BodiesLayer`) and `GraphsStepPhysics` (a graph of the owner's has a
+physics world: `GraphsStepPhysics` in `Havok/Ragdoll.h`), and the copy's are set to match in the engine's order (detach
+the graphs before the bodies go in, as 40063; reset and attach them after the bodies leave, as 39912). No furniture rule
+of ours: it follows whatever changed the owner's (furniture, `bAddBipedWhenKeyframed`, a mod), as the capsule does.
+
+The graphs matter: with the bodies alone mirrored, the copy's graph still had the cell's world, its ragdoll driver drove
+the bodies (63562), and they came out dynamic (motion 2/3), 15 to 20 units off the owner's (duo, 2026-11-09). With the
+graphs detached too: 18 bodies keyframed (motion 4) within 1.6 units of the host's; Lucan moved off his counter, both
+games' bodies left the world and both crosshairs still took him, now by his capsule. The harness `controller` readout shows the
+controller's `size`; with the fix both games' crosshairs took the leaning Lucan, both controllers at `size` 0. GameTests "A guest's crosshair takes an NPC copy seated in its furniture" (the fake's `BodiesLayer`, `GraphsStepPhysics`, `BodiesDriven`,
+`CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.

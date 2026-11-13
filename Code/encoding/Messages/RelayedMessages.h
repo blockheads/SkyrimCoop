@@ -7,6 +7,9 @@
 namespace Payloads
 {
 struct EquipmentSnapshot;
+struct GraphOpsBatch;
+struct GraphSync;
+struct GraphSyncPoint;
 struct ActorPerks;
 struct MeleeStagger;
 struct DrawWeapon;
@@ -118,3 +121,9 @@ using DialogueHighlightRequest = Relayed<Payloads::DialogueHighlight, kDialogueH
 using NotifyDialogueHighlight = Relayed<Payloads::DialogueHighlight, kNotifyDialogueHighlight>;
 using DialogueSkipRequest = Relayed<Payloads::DialogueSkip, kDialogueSkipRequest>;
 using NotifyDialogueSkip = Relayed<Payloads::DialogueSkip, kNotifyDialogueSkip>;
+using GraphOpsRequest = Relayed<Payloads::GraphOpsBatch, kGraphOpsRequest>;
+using NotifyGraphOps = Relayed<Payloads::GraphOpsBatch, kNotifyGraphOps>;
+using GraphSyncRequest = Relayed<Payloads::GraphSync, kGraphSyncRequest>;
+using NotifyGraphSync = Relayed<Payloads::GraphSync, kNotifyGraphSync>;
+using GraphSyncPointRequest = Relayed<Payloads::GraphSyncPoint, kGraphSyncPointRequest>;
+using NotifyGraphSyncPoint = Relayed<Payloads::GraphSyncPoint, kNotifyGraphSyncPoint>;

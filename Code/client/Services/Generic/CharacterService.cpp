@@ -18,10 +18,12 @@
 #include <Events/DismountEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
+#include <Events/ActorHeadUpdateEvent.h>
 #include <Events/PlayerDeathEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
+#include <Events/NpcHeldEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 
@@ -65,6 +67,12 @@
 
 namespace
 {
+// A snapshot of a streamed owner carries none (graph-input-stream.md).
+bool HasVariables(const AnimationVariables& acVariables) noexcept
+{
+    return !acVariables.Booleans.empty() || !acVariables.Integers.empty() || !acVariables.Floats.empty();
+}
+
 // TESNPC change flags the player's copies are made from: race, sex and face (NPC_ChangeForm 0x2000000, 0x1000000, 0x800).
 constexpr uint32_t kPlayerLooksFlags = 0x3000800;
 } // namespace
@@ -93,6 +101,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
     Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
     Listen<ReferenceLoadedEvent, &CharacterService::OnReferenceLoaded>(m_connections, m_dispatcher, this);
+    Listen<NpcHeldEvent, &CharacterService::OnNpcHeld>(m_connections, m_dispatcher, this);
     Listen<NotifyRemoveCharacter, &CharacterService::OnRemoveCharacter>(m_connections, m_dispatcher, this);
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
@@ -106,6 +115,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerLevel, &CharacterService::OnPlayerLevel>(m_connections, m_dispatcher, this);
     Listen<PlayerLooksChangeEvent, &CharacterService::OnPlayerLooksChange>(m_connections, m_dispatcher, this);
+    Listen<ActorHeadUpdateEvent, &CharacterService::OnActorHeadUpdate>(m_connections, m_dispatcher, this);
     Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
 
     Listen<DialogueEvent, &CharacterService::OnDialogueEvent>(m_connections, m_dispatcher, this);
@@ -113,6 +123,11 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&CharacterService::OnStreamedRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
+    Listen<NotifyGraphOps, &CharacterService::OnGraphOps>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSync, &CharacterService::OnGraphSync>(m_connections, m_dispatcher, this);
+    Listen<NotifyGraphSyncPoint, &CharacterService::OnGraphSyncPoint>(m_connections, m_dispatcher, this);
 
 }
 
@@ -364,7 +379,18 @@ CharacterService::~CharacterService() noexcept
 
 void CharacterService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
 {
-    const auto it = std::ranges::find_if(m_pendingSpawns, [&](const auto& acPending) { return ToGame(acPending.second.FormId) == acEvent.FormId; });
+    SpawnPending(acEvent.FormId);
+}
+
+// Done loading without 3D: its spawn makes it a copy, which loads it (Actor::ApplyHeld3D).
+void CharacterService::OnNpcHeld(const NpcHeldEvent& acEvent) noexcept
+{
+    SpawnPending(acEvent.FormId);
+}
+
+void CharacterService::SpawnPending(uint32_t aFormId) noexcept
+{
+    const auto it = std::ranges::find_if(m_pendingSpawns, [&](const auto& acPending) { return ToGame(acPending.second.FormId) == aFormId; });
     if (it == m_pendingSpawns.end())
         return;
     const NotifyCharacterSpawn cSpawn = std::move(it->second);
@@ -419,6 +445,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
             actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags, acMessage.Weight);
             m_actorBridge.SetupActorFaceGen(actorFormId);
             FaceGenSystem::Setup(m_world, *entity, acMessage.FaceTints);
+            PaintFace(*entity, actorFormId);
         }
     }
     else
@@ -505,6 +532,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
         // (docs/design/copy-contract.md, "Players' copies").
         m_actorBridge.SetActorPersistent(actorFormId);
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
+        m_actorBridge.SetActorNotOnStealthMeter(actorFormId, true); // never a witness on this player's eye (stealth.md)
         m_actorBridge.SetActorPlayerFaction(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
         SetCopyLevel(actorFormId, acMessage.PlayerId);
@@ -536,6 +564,8 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) n
     AnimationSystem::Setup(m_world, *entity);
 
     m_world.emplace_or_replace<WaitingFor3D>(*entity, acMessage);
+    // Its owner's hands as of this spawn; a later draw change (OnNotifyDrawWeapon) is newer, also while its 3D loads.
+    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*entity, acMessage.IsWeaponDrawn);
 
     auto& remoteAnimationComponent = m_world.get<RemoteAnimationComponent>(*entity);
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
@@ -597,15 +627,13 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
-    {
-        pInterpolation->TimePoints.clear();
-        pInterpolation->Position = acMessage.Position;
-    }
+        InterpolationSystem::Restart(*pInterpolation, acMessage.Position);
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
     place.CellId = acMessage.CellId;
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
+    m_world.emplace_or_replace<RemoteWeaponDrawComponent>(aEntity, acMessage.IsWeaponDrawn);
     if (pFormId && (cBaseChanged || !m_actorBridge.ActorHas3D(pFormId->Id)) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
     spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
@@ -639,6 +667,8 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Knocked = movement.Knocked;
         point.OnGround = movement.OnGround;
         point.CapsuleCollides = movement.CapsuleCollides;
+        point.BodiesLayer = movement.BodiesLayer;
+        point.GraphsStepPhysics = movement.GraphsStepPhysics;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -652,19 +682,78 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         interpolationComponent.Playback.OnPoint(point.Tick);
         if (teleported)
         {
-            interpolationComponent.TimePoints.clear();
-            interpolationComponent.Position = movement.Position;
+            InterpolationSystem::Restart(interpolationComponent, movement.Position);
             interpolationComponent.Playback.Snap(clock);
         }
         InterpolationSystem::AddPoint(interpolationComponent, point);
 
         for (const auto& action : update.ActionEvents)
+            animationComponent.TimePoints.push_back(action);
+    }
+}
+
+void CharacterService::OnStreamedRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
+{
+    if (const auto* pForm = aRegistry.try_get<FormIdComponent>(aEntity))
+        m_world.GetGraphStreams().Forget(pForm->Id);
+}
+
+void CharacterService::OnGraphOps(const NotifyGraphOps& acMessage) const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto& cRun : acMessage.Ops.Runs)
+        for (const auto cEntity : view)
+            if (view.get<RemoteComponent>(cEntity).Id == cRun.ActorId)
+            {
+                const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+                // A copy that died off its stream (a pair with this game's actor) stays off it.
+                if (m_actorBridge.IsActorDead(cFormId) && !streams.OnStream(cFormId))
+                    break;
+                streams.Feed(cFormId, cRun, acMessage.Ops.Frames);
+                if (streams.ShouldAsk(cFormId))
+                {
+                    GraphSyncRequest ask;
+                    ask.Id = cRun.ActorId;
+                    m_transport.Send(ask);
+                }
+                break;
+            }
+}
+
+void CharacterService::OnGraphSync(const NotifyGraphSync& acMessage) const noexcept
+{
+    auto view = m_world.view<LocalComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<LocalComponent>(cEntity).Id == acMessage.Id)
+            m_world.GetGraphStreams().WantPoint(view.get<FormIdComponent>(cEntity).Id);
+}
+
+void CharacterService::OnGraphSyncPoint(const NotifyGraphSyncPoint& acMessage) const noexcept
+{
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
+    for (const auto cEntity : view)
+        if (view.get<RemoteComponent>(cEntity).Id == acMessage.Id)
         {
-            if (!action.ActionId && !action.GraphState.empty())
-                animationComponent.GraphPoint = action;
-            else
-                animationComponent.TimePoints.push_back(action);
+            spdlog::info("Copy {:X} starts on its owner's graph stream at update {} ({} clip sets held)", view.get<FormIdComponent>(cEntity).Id, acMessage.Update, acMessage.ClipSets.size());
+            m_world.GetGraphStreams().Load(view.get<FormIdComponent>(cEntity).Id, acMessage);
         }
+}
+
+void CharacterService::SendGraphStream() const noexcept
+{
+    auto& streams = m_world.GetGraphStreams();
+    if (auto ops = streams.TakeOps())
+    {
+        GraphOpsRequest request;
+        request.Ops = std::move(*ops);
+        m_transport.Send(request);
+    }
+    for (auto& point : streams.TakePoints())
+    {
+        GraphSyncPointRequest request;
+        static_cast<Payloads::GraphSyncPoint&>(request) = std::move(point);
+        m_transport.Send(request);
     }
 }
 
@@ -868,6 +957,7 @@ void CharacterService::ApplyPendingLooks() noexcept
             {
                 m_world.remove<FaceGenComponent>(cEntity);
                 FaceGenSystem::Setup(m_world, cEntity, cLooks.FaceTints);
+                PaintFace(cEntity, cFormId);
                 if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
                     SetCopyLevel(cFormId, cpPlayer->Id);
             }
@@ -902,6 +992,22 @@ void CharacterService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) const n
     for (auto&& [cEntity, form, player, copy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
         if (player.Id == acMessage.PlayerId)
             m_actorBridge.SetActorBaseLevel(form.Id, acMessage.NewLevel);
+}
+
+void CharacterService::PaintFace(entt::entity aEntity, uint32_t aFormId) noexcept
+{
+    auto* pFace = m_world.try_get<FaceGenComponent>(aEntity);
+    if (!pFace || (pFace->Painted && m_actorBridge.IsActorFacePainted(aFormId)))
+        return;
+    pFace->Painted = m_actorBridge.PaintActorFace(aFormId, pFace->FaceTints);
+    pFace->Paints += pFace->Painted;
+}
+
+void CharacterService::OnActorHeadUpdate(const ActorHeadUpdateEvent& acEvent) noexcept
+{
+    for (auto&& [cEntity, form, face] : m_world.view<FormIdComponent, FaceGenComponent>().each())
+        if (form.Id == acEvent.FormId)
+            PaintFace(cEntity, form.Id);
 }
 
 void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
@@ -1512,6 +1618,10 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& animationComponent = animatedLocalView.get<LocalAnimationComponent>(entity);
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
         const uint32_t cFormId = formIdComponent.Id;
+        // Its graph's inputs, for its copies (graph-input-stream.md): this game's NPCs and its player. Recorded on
+        // through its death; one found dead is not started.
+        if (!m_actorBridge.IsActorDead(cFormId) || m_world.GetGraphStreams().Recording(cFormId))
+            m_world.GetGraphStreams().Record(cFormId, localComponent.Id);
         const bool cWatched = cFormId == cPlayer || cFormId == m_riddenMount || m_actorBridge.GetActorAiFields(cFormId).CombatState != 0;
         if (!cWatched && localComponent.LastSentRound && m_round - localComponent.LastSentRound < cSlowRounds)
         {
@@ -1530,18 +1640,21 @@ void CharacterService::RunLocalUpdates() noexcept
             it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
             it->second.UpdatedMovement.OnGround = m_actorBridge.IsOnGround(formIdComponent.Id);
             it->second.UpdatedMovement.CapsuleCollides = m_actorBridge.CapsuleCollides(formIdComponent.Id);
+            it->second.UpdatedMovement.BodiesLayer = m_actorBridge.BodiesLayer(formIdComponent.Id);
+            it->second.UpdatedMovement.GraphsStepPhysics = m_actorBridge.GraphsStepPhysics(formIdComponent.Id);
         }
     }
     std::erase_if(m_jumped, [&](uint32_t aFormId) { return !waiting.contains(aFormId); }); // and those not ours
 
     if (!message.Updates.empty())
         m_transport.Send(message);
+    SendGraphStream();
 }
 
 void CharacterService::RunRemoteUpdates() noexcept
 {
-    // Behind the owners' time, to have points to interpolate between; a copy's ragdoll plays on the same clock.
-    const auto currentTick = m_transport.GetTick();
+    // The frame clock (S10): a copy's ease out of its ragdoll steps steadily.
+    const auto currentTick = m_world.GetFrameTick();
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
@@ -1564,6 +1677,19 @@ void CharacterService::RunRemoteUpdates() noexcept
         const auto cAhead = std::min<uint64_t>(static_cast<uint64_t>(interpolationComponent.Playback.Interval()), 100);
         if (!InterpolationSystem::Interpolate(first, second, tick, position, rotation, cAhead))
             continue;
+        // A newer snapshot ended its guess: from where the guess showed it, blended (copy-clock.md, "A late snapshot").
+        auto& guess = interpolationComponent.Guess;
+        auto& correction = interpolationComponent.Correction;
+        if (guess && guess->second.Tick != second.Tick)
+        {
+            glm::vec3 guessed{}, guessedRotation{};
+            if (InterpolationSystem::Interpolate(guess->first, guess->second, tick, guessed, guessedRotation, cAhead))
+                correction.Begin(guessed + correction.At(tick) - position, tick);
+            guess.reset();
+        }
+        if (tick > second.Tick && cAhead)
+            guess.emplace(first, second);
+        position += correction.At(tick);
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
@@ -1573,7 +1699,7 @@ void CharacterService::RunRemoteUpdates() noexcept
             const AnimationVariables* pVariables = &first.Variables;
             if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
             {
-                if (first.Tick > pAnimation->VariablesTick)
+                if (first.Tick > pAnimation->VariablesTick && HasVariables(first.Variables))
                 {
                     pAnimation->Variables = first.Variables;
                     pAnimation->VariablesTick = first.Tick;
@@ -1620,6 +1746,16 @@ void CharacterService::RunRemoteUpdates() noexcept
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
             m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, cOwnerCollides);
+            // Its bodies and graphs as its owner's: seated, its bodies take the crosshair (re/systems/dialogue.md).
+            if (!cOwnerLies)
+            {
+                const auto& cOwner = tick >= second.Tick ? second : first;
+                m_actorBridge.SetCopyPhysics(pFormIdComponent->Id, cOwner.BodiesLayer, cOwner.GraphsStepPhysics);
+            }
+            // On its stream its graph's variables are the stream's alone.
+            static const AnimationVariables s_none;
+            if (m_world.GetGraphStreams().OnStream(pFormIdComponent->Id))
+                pVariables = &s_none;
             m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cMove);
         }
     }
@@ -1633,14 +1769,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, InterpolationSystem::PlaybackTick(m_world, entity));
     }
 
-    auto facegenView = m_world.view<FormIdComponent, FaceGenComponent>();
-
-    for (auto entity : facegenView)
-    {
-        auto& formIdComponent = facegenView.get<FormIdComponent>(entity);
-
-        m_actorBridge.ActorUpdateFaceGen(formIdComponent.Id);
-    }
 
     auto waitingView = m_world.view<FormIdComponent, WaitingFor3D>();
 
@@ -1656,8 +1784,6 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
         m_actorBridge.SetActorFactions(formIdComponent.Id, waitingFor3D.SpawnRequest.FactionsContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
-        if (m_world.all_of<RemoteComponent>(entity))
-            m_world.emplace_or_replace<RemoteWeaponDrawComponent>(entity, waitingFor3D.SpawnRequest.IsWeaponDrawn);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
         if (cIsDead != waitingFor3D.SpawnRequest.IsDead)

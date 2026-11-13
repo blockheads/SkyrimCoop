@@ -1,0 +1,41 @@
+time	op	id	rva	item
+2026-11-09T05:11:14Z	read	41408	0x786350	{"name": "ProcessLists::RequestHighestDetectionLevelAgainstActor"}
+2026-11-09T05:11:15Z	read	42704	0x7c3fc0	{"name": "ActorKnowledge::sub_42704"}
+2026-11-09T05:11:26Z	read	42742	0x7c5220	{"name": "DoDetectionJob"}
+2026-11-09T05:12:19Z	read	37758	0x6a2300	{"name": "Character::sub_37758"}
+2026-11-09T05:12:27Z	read	42702	0x7c3eb0	{"name": "ActorKnowledge__GetFreshDetectionState"}
+2026-11-09T05:13:08Z	name	42704	0x7c3fc0	{"addr": "0x1407c3fc0", "name": "ActorKnowledge__SetDetectionState"}
+2026-11-09T05:13:08Z	name	37758	0x6a2300	{"addr": "0x1406a2300", "name": "Actor__GetFreshDetectionStateOf"}
+2026-11-09T05:13:08Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__QueueStateChanged"}
+2026-11-09T05:13:16Z	comment	42704	0x7c3fc0	{"addr": "0x1407c3fc0", "comment": "Replaces the knowledge's DetectionState (+0x20) and clears RequestedAt (+0x44 = -FLT_MAX). Skipping it leaves the request queued forever: 42712 never re-queues and 42702 returns the old state at any age (coop HookUpdateDetectionState, stealth.md)"}
+2026-11-09T05:13:16Z	comment		0x7569b7	{"addr": "0x1407569b7", "comment": "HUD stealth eye: in combat 100 - combat search; else highest detection of the player (41408), >0 shown as 100. Sneak XP while someone sees (state +0x15) and the player moves"}
+2026-11-09T05:13:16Z	comment		0x7c58e3	{"addr": "0x1407c58e3", "comment": "the computed level (-1000 when skipped), LOS seen (+0x15), into the pooled state; 42704 installs it on the knowledge"}
+2026-11-09T05:13:16Z	comment	42760	0x7c6600	{"addr": "0x1407c6600", "comment": "DetectionState: +0x10 level, +0x14 ?, +0x15 seen (counted by 41408), +0x16, +0x18 time seen, +0x28 time detected, +0x38 UpdatedAt"}
+2026-11-09T05:13:16Z	comment		0x7c3ed3	{"addr": "0x1407c3ed3", "comment": "an update is queued (+0x44 set): the state is returned as-is, whatever its age"}
+2026-11-09T05:13:28Z	name	40593	0x756950	{"addr": "0x140756950", "name": "PlayerCharacter__UpdateStealthMeter"}
+2026-11-09T05:13:29Z	comment	40593	0x756950	{"addr": "0x140756950", "comment": "HUD stealth eye (40593): in combat 100 - combat search; else highest detection of the player (41408), >0 shown as 100. Sneak XP while someone sees (state +0x15) and the player moves"}
+2026-11-09T05:13:29Z	comment		0x7569b7	{"addr": "0x1407569b7", "comment": "the eye's level: any high actor's fresh state of the player, the other player's copy included"}
+2026-11-09T05:13:38Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__AddToGlobalList"}
+2026-11-09T05:33:54Z	name	42715	0x7c4750	{"addr": "0x1407c4750", "name": "ActorKnowledge__QueueForListeners"}
+2026-11-09T05:33:56Z	comment	42760	0x7c6600	{"addr": "0x1407c6600", "comment": "DetectionState: +0x10 level, +0x14 hasLOS, +0x15 seen (counted by 41408; gates +0x18 time/+0x1C place seen), +0x16, +0x28/+0x2C time/place detected (level > 0), +0x38 UpdatedAt (every pass)"}
+2026-11-09T05:33:56Z	comment	42715	0x7c4750	{"addr": "0x1407c4750", "comment": "adds the knowledge (once) to a global list when it has listeners (+0x38 count): called by 42704 after a new state"}
+2026-11-09T05:54:50Z	read	41024	0x76b0c0	{"name": "PlayerCharacter::IsInCombat"}
+2026-11-09T05:54:50Z	read	46877	0x852450	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46877"}
+2026-11-09T05:56:39Z	read	42705	0x7c4030	{"name": "ActorKnowledge::sub_42705"}
+2026-11-09T05:57:52Z	name	42705	0x7c4030	{"addr": "0x1407c4030", "name": "ActorKnowledge__SetDetectionStateKeepQueued"}
+2026-11-09T05:57:55Z	comment	42705	0x7c4030	{"addr": "0x1407c4030", "comment": "Like 42704 but leaves RequestedAt (+0x44): a knowledge already queued keeps answering this state at any age (42702) until a pass installs another"}
+2026-11-09T05:57:55Z	comment	37765	0x6a2580	{"addr": "0x1406a2580", "comment": "Witness a1 detects target a2 at once: level 100 through 42705, no detection pass (our hook on 42704 never sees it). Called by TESNPC::Activate and EndDialogue (the activated/speaking actor of the player), pickpocket and steal alarms"}
+2026-11-09T05:57:55Z	comment		0x3c0dca	{"addr": "0x1403c0dca", "comment": "the activated actor (talked to) detects the player at 100 (37765)"}
+2026-11-09T05:57:55Z	comment		0x5f0cc4	{"addr": "0x1405f0cc4", "comment": "the dialogue's speaker detects the player at 100 (37765)"}
+2026-11-09T06:12:24Z	read	54969	0xa0d8d0	{"name": "papyrus::Actor::SetNotShowOnStealthMeter"}
+2026-11-09T06:12:28Z	read	37722	0x6a0380	{"name": "sub_1406A0380"}
+2026-11-09T06:12:37Z	name	37722	0x6a0380	{"addr": "0x1406A0380", "name": "Actor__SetNotShowOnStealthMeter"}
+2026-11-09T06:12:38Z	comment	37722	0x6a0380	{"addr": "0x1406A0380", "comment": "boolFlags (+0x204) bit 26 kDoNotShowOnStealthMeter: 41408 skips this actor when judging the player (the HUD eye, crime 'seen' checks). MQ201 sets it on allies; coop sets it on other players' copies"}
+2026-11-09T06:12:38Z	comment		0x786407	{"addr": "0x140786407", "comment": "skipped for the player: boolFlags kDoNotShowOnStealthMeter (bit 26), boolBits kPlayerTeammate (bit 26), or commanded by the player (kIsCommandedActor and its commander is the player)"}
+2026-11-09T07:05:56Z	read	40593	0x756950	{"name": "PlayerCharacter__UpdateStealthMeter"}
+2026-11-09T07:05:56Z	read	37765	0x6a2580	{"name": "Actor__ForceDetected"}
+2026-11-09T07:05:56Z	read	42760	0x7c6600	{"name": "DetectionState::Set"}
+2026-11-09T07:05:57Z	read	42761	0x7c66b0	{"name": "DetectionState::Clear"}
+2026-11-09T07:05:58Z	read	42712	0x7c4580	{"name": "ActorKnowledge__RequestDetectionUpdate"}
+2026-11-09T07:06:04Z	read	35294	0x5f0ad0	{"name": "MenuTopicManager::EndDialogue"}
+2026-11-09T07:06:05Z	read	24715	0x3c05c0	{"name": "TESNPC::Activate"}

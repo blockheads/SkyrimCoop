@@ -334,7 +334,7 @@ class JoinActions:
         _game = ctx.game('')
         face = ((((_game.read_status() or {}).get("world") or {}).get(str(copy)) or {}).get("mod") or {}).get("face") or {}
         if not face.get("painted"):
-            return "its head is not painted"
+            return f"its head is not painted (head {face.get('head')}, painted {face.get('paints')} times)"
         painted = sorted(map(ctx.tint_key, face.get("tints") or []))
         if painted == shows:
             return ""
@@ -401,7 +401,7 @@ class JoinActions:
         return made, sections, tints
 
 
-    def shown(ctx, data):
+    def section_shown(ctx, data):
         """A save section's hex in a failure: whole when short."""
         return data if len(data) <= 128 else f"{len(data) // 2} bytes"
 
@@ -427,7 +427,7 @@ class JoinActions:
             own[NPC_RACE], theirs[NPC_RACE] = own[NPC_RACE][:8], theirs[NPC_RACE][:8]
         if NPC_SKILLS in own:
             own[NPC_SKILLS], theirs[NPC_SKILLS] = ctx.unpadded_skills(own[NPC_SKILLS]), ctx.unpadded_skills(theirs[NPC_SKILLS])
-        return ", ".join(f"{flag:#x} ({ctx.shown(own[flag])} -> {ctx.shown(theirs[flag])})" for flag in own if theirs[flag] != own[flag])
+        return ", ".join(f"{flag:#x} ({ctx.section_shown(own[flag])} -> {ctx.section_shown(theirs[flag])})" for flag in own if theirs[flag] != own[flag])
 
 
     def input_state(ctx, instance):

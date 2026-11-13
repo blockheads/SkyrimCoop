@@ -74,7 +74,8 @@ struct HostAuthority
     // True when the message was handled here.
     bool Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept;
     // Every frame: the session's tick (milliseconds) and the game time it took (seconds, none while paused).
-    void Update(uint64_t aTick, double aDelta) noexcept;
+    // aFrameTick: the frame clock (World::GetFrameTick), what physics frames are stamped with (S10); 0: aTick.
+    void Update(uint64_t aTick, double aDelta, uint64_t aFrameTick = 0) noexcept;
     // A party reload (HostServiceReload.cpp): the selected save to every guest, delivered once every guest has it and
     // has left to load it; a failed reload's reason to every player.
     void SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept;
@@ -138,6 +139,9 @@ private:
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Each actor's factions from its owner (one message carries many actors).
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    // An owner game's graph ops (docs/design/graph-input-stream.md): each actor's run goes to the others if the sender
+    // owns that actor.
+    void OnGraphOps(const GraphOpsRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
     void OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnRecipes(const RecipesRequest& acRequest, ConnectionId_t aSender) const noexcept;
