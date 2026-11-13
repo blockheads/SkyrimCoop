@@ -74,6 +74,8 @@ std::vector<CrimeConfiscation> CrimeService::TakeConfiscations() noexcept
         if (!actor)
             return true;
         aDue.Actor = *actor;
+        if (aDue.ToActor)
+            aDue.ToActor = Utils::GetSessionIdByFormId(aDue.ToActor).value_or(0);
         return false;
     });
     return due;
@@ -84,7 +86,9 @@ void CrimeService::OnConfiscation(const NotifyCrimeConfiscation& aDue) noexcept
     if (aDue.Id && aDue.Id > m_lastConfiscation)
     {
         m_lastConfiscation = aDue.Id;
-        m_bridge.Confiscate(aDue.Faction);
+        CrimeConfiscation due{.Faction = aDue.Faction, .Owner = aDue.Owner, .To = aDue.To};
+        due.ToActor = aDue.ToActor ? Utils::GetFormIdBySessionId(aDue.ToActor) : 0;
+        m_bridge.Confiscate(due);
     }
 }
 

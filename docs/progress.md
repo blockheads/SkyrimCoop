@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: a guest's seen theft is warned, as the host's is ([crime.md](re/systems/crime.md), "The steal warning").
+Read in IDA: the warning's package (37556) and its step (procedure 40, 39673) name `g_thePlayer` throughout, so it
+walked to, faced, warned and took back from the host's player; it is now started for the guest's copy (seven call
+sites swapped in `CrimeBridge`) and the given-back runs on the guest's game (`NotifyCrimeConfiscation` gains owner and
+destination), where the item's ownership is. Also found: our `Confiscate` hook (16120) cut its owner-filter pointer to
+32 bits, so a warning never took anything back, the host's own included. Measured: an NPC in a scene (Orgnar's bar
+scene) drops the warning before its first step, for both players, and the theft is reported. Scenario
+`guest-theft-warned` (MCP: `stop_scene`, `expect_given_back`, `expect_warnings` waits); GameTests "A guest's seen theft
+is warned", ClientTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
+
 2026-11-13: an NPC talking with a guest looked at the host's player, on every game. The host's game runs a guest's
 conversation with its own player, and the engine puts that player in the NPC's dialogue headtrack slot at the start and
 with each line (`ActorProcess::SetDialogueHeadtrackSlot` 39465 from 37200 and 37541, read in IDA); the copy takes the

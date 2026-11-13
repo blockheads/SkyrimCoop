@@ -20,6 +20,7 @@ no owner actor: player's unwitnessed stolen value (+0x428 map, 40650), return
 seen = RequestDetectionLevel(ownerActor, criminal, 3) > 0
 if seen && allowWarning && player +0x6D8 (`TheftWarnings`) < 2 (0x14209EAF8):
     Actor__StartStealWarning (37556): a package (type 34) going to g_thePlayer, count + 1, no bounty; return
+    (the warning itself: "The steal warning" below)
 37369 (not read: a process call, topic 38)
 if seen: Actor__StartAlarm(ownerActor, crime) (37554)
 witness loop (ProcessLists__GatherCrimeWitnesses 38094, all high actors; asks each at priority 5):
@@ -145,6 +146,46 @@ Harness `crime knowledge` (39763) reads a witness's state without asking for one
 - Harness: a frozen NPC stops detecting (its age only grows). After a hot reload, states of existing copies went stale
   and `Judge` logged nothing until a save load; suspected, not proved: the copies lost their player flag.
 
+## The steal warning (2026-11-13)
+
+Read in IDA. `Actor__StartStealWarning` (37556) clears the owner's run-once package, makes a type 34 package with
+procedure 40 (+0xD8), sets its location (`PackageLocation` 29811, `0x140690870`) and target
+(`PackageTarget__SetReference` 29855, `0x1406908ba`, type 0 with the ref's handle at +0x8) to `g_thePlayer`, puts it
+on the owner (`PutCreatedPackage` 37570) and counts the party's warning (`PlayerCharacter__CountTheftWarning`, +0x6D8).
+
+Procedure 40 is `AIProcess__ProcStealWarning` (39673), from `UpdateHighProcessAI`'s procedure switch:
+
+```
+timer (high process +0x200) counts down; out of time: StartAlarm (37554) on the owner's theft
+not at the package location: travel to it (walk, run past 500 units)
+not facing g_thePlayer (Actor__IsFacingRef 37250, 0x14071846b): TurnBodyToPoint (37811) to its position
+then once: owner +0x100 = g_thePlayer's handle (12325), say topic 38 (Steal) to g_thePlayer (39333),
+    play default action 55 (39255), and for each theft (type <= 1) on the owner's crime list (extra 0x34):
+    Confiscate (16120) what the crime's owner (+0x40) owns from g_thePlayer to the owner (or its +0x168's +0xD0),
+    free the crime; nothing is reported
+```
+
+The package ending with the theft still listed (the item kept: no given-back) reports it in `EndInterruptPackage`
+(37474) and alerts the guards, the bounty a warned theft gets.
+
+`Confiscate` (16120) is (items, from, to, owner filter, every stolen item, show): the 4th is a form compared with
+each stack's owner (0x14023b35a). Our hook typed it `uint32_t`, cutting the pointer, so before 2026-11-13 a warning's
+given-back found nothing, the host's own included.
+
+Coop: every step names `g_thePlayer`, never the package's target, so a guest's warning faced, warned and took from the
+host's player. `CrimeBridge` swaps those seven calls (by Address Library ID and offset, each checked to call the
+callee) to put the guest's copy in the player's place: in 37556 inside `Judge`'s criminal scope, in procedure 40 while
+the running type 34 package targets a player's copy (`HookWarningStep`). The given-back from a copy finds nothing (a
+copy's items keep no ownership), so the host sends it (`NotifyCrimeConfiscation`: owner, to) and the guest's game runs
+the same Confiscate on its own player; inventory sync moves the item to the owner on the host.
+
+Measured on the duo (`guest-theft-warned`): Orgnar walked to the guest's copy, the guest's game gave the bottle back
+to Orgnar (both games: 0 on the guest, 1 on Orgnar), warnings 1, bounty 0, 7 s after the theft.
+
+In a scene the warning never runs (measured, not read): with Orgnar in his bar scene (`BCF05`, with Delphine) the type
+34 package was replaced before its first step, for the host's own theft as for the guest's, and the theft was reported
+(bounty 5, item kept). Which call replaces it was not read. The scenario stops the scene first (`stop_scene`).
+
 ## The guest's thefts at Orgnar's bar (playtest 2026-11-13)
 
 The guest held E on the bar's bottles; each was picked up, not grabbed (`physics.md`, "Woken still"), so each was a
@@ -262,9 +303,8 @@ near it.
 - `CrimeService` holds a guest's theft 0.5 s, asking every witness each frame (41408), then judges: the greeting pass
   does this for the real player, and a copy's state has to be fresh in that one call. Actions after it wait behind it;
   a lock check is answered at once.
-- A guest's theft is judged with no warning (`CrimeRules::Warns`): `StartStealWarning` (37556, read 2026-11-13) puts
-  its type 34 package's location and target on `g_thePlayer` (`0x140690870`, `0x1406908ba`), so the owner walked to the
-  host's player while the guest saw nothing. Seen, a guest's theft alarms and adds bounty at once (below).
+- A guest's seen theft is warned like the host's (2026-11-13, "The steal warning" below): the warning's calls that name
+  `g_thePlayer` get the guest's copy, and the given-back runs on the guest's game.
 - Tried and removed: remembering which guest did a crime and running 39631 / 39651 in its scope so only that guest was
   attacked (wrong for the party rule, and one alarm can hold several players' crimes).
 
@@ -298,6 +338,13 @@ near it.
 | 37463, 37429, 24526 | Actor__SetAngryWithPlayer, Actor__CrimeFactionIsHostileNow, TESFaction__PlayerEnemyIsActive | what makes a witness attack |
 | 39359, 40079 | ActorProcess::unk_Assault_39359, AIProcess__StartAssault | the assault gate and StartCombat |
 | 37556 | Actor__StartStealWarning | first-theft warning package to g_thePlayer |
+| 39673 | AIProcess__ProcStealWarning | procedure 40: reach, face, warn, take back (all on g_thePlayer) |
+| 39674 | AIProcess__ProcSayWarning | procedure 20: says topic 38 / 41 to the process target |
+| 37250, 37811 | Actor__IsFacingRef, Character::TurnBodyToPoint | the warning's facing |
+| 39333, 39255 | (say topic), AIProcess__PlayDefaultAction | the warning's line and its take animation |
+| 29811, 29855 | PackageLocation::sub_29811, PackageTarget__SetReference | the warning's location and target |
+| 16120 | coop_RealConfiscate | (items, from, to, owner filter, all stolen, show): the given-back and the fine's |
+| 39155 | ActorProcess::GetPackageThatIsRunning | run-once package, else the current one |
 | 39361, 39695 | ActorProcess__AlertNearbyToCrime, ProcessLists__AlertCrimeResponders | guards respond |
 | 40650, 40652 | PlayerCharacter__AddUnwitnessed/WitnessedStolenValue | stolen-value stats, +0x428 |
 | 37764 | Actor::RequestDetectionLevel | fresh detection level or -1000 |

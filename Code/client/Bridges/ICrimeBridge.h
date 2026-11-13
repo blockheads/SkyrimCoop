@@ -25,7 +25,8 @@ class ICrimeBridge
     virtual bool PartyIsCriminalTo(uint32_t aActorFormId) const noexcept = 0;
     virtual void LockCaught(uint32_t aAttempt) noexcept = 0;
     virtual std::vector<CrimeConfiscation> TakeConfiscations() noexcept = 0;
-    virtual void Confiscate(const GameId&) noexcept = 0;
+    // This game's player's stolen items, as the host's engine took them from its copy (CrimeConfiscation).
+    virtual void Confiscate(const CrimeConfiscation&) noexcept = 0;
     virtual void UpdatePlayers(std::span<const uint32_t> aActorFormIds) noexcept = 0;
     // The bounties the host's engine reported for the party since the last call (37679).
     virtual std::vector<CrimeReport> TakeReports() noexcept = 0;

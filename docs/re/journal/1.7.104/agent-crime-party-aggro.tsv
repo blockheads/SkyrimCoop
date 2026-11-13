@@ -1,0 +1,28 @@
+time	op	id	rva	item
+2026-11-13T18:05:28Z	read	37556	0x690780	{"name": "Actor__StartStealWarning"}
+2026-11-13T18:05:32Z	read	40582	0x755950	{"name": "sub_140755950"}
+2026-11-13T18:05:36Z	read	37474	0x687080	{"name": "Actor::EndInterruptPackage"}
+2026-11-13T18:05:54Z	name	40582	0x755950	{"addr": "0x140755950", "name": "PlayerCharacter__CountTheftWarning"}
+2026-11-13T18:06:25Z	read	39674	0x718750	{"name": "sub_140718750"}
+2026-11-13T18:06:54Z	read	39673	0x7182a0	{"name": "sub_1407182A0"}
+2026-11-13T18:07:51Z	read	37250	0x674dc0	{"name": "sub_140674DC0"}
+2026-11-13T18:07:51Z	read	39255	0x6f0800	{"name": "sub_1406F0800"}
+2026-11-13T18:07:57Z	name	39673	0x7182a0	{"addr": "0x1407182A0", "name": "AIProcess__ProcStealWarning"}
+2026-11-13T18:07:57Z	name	39674	0x718750	{"addr": "0x140718750", "name": "AIProcess__ProcSayWarning"}
+2026-11-13T18:07:57Z	name	37250	0x674dc0	{"addr": "0x140674DC0", "name": "Actor__IsFacingRef"}
+2026-11-13T18:07:57Z	name	39255	0x6f0800	{"addr": "0x1406F0800", "name": "AIProcess__PlayDefaultAction"}
+2026-11-13T18:08:05Z	comment	39673	0x7182a0	{"addr": "0x1407182A0", "comment": "Procedure 40 (UpdateHighProcessAI switch), the steal warning's (package type 34 sets +0xD8 = 40 in 37556). While the timer (process middle +0x200) runs: travel to the package location, turn to g_thePlayer (Actor__IsFacingRef 37250), then: owner +0x100 = player handle, say topic 38 (Steal) to g_thePlayer, play default action 55, and for each theft (type <= 1) on the owner's crime list (extra 0x34) Confiscate (16120) crime +0x40 from g_thePlayer back to the owner, free the crime, clear the owner's +0xE8 bit 0x8000. Timer out first: StartAlarm (37554) on the owner's theft. Every step names g_thePlayer, not the package target. Coop: a guest's warning would face, warn and confiscate from the host's player (crime.md, The steal warning)."}
+2026-11-13T18:08:05Z	comment		0x7185da	{"addr": "0x1407185da", "comment": "the given-back: Confiscate (16120) the crime's item from g_thePlayer to the owner (or its merchant container)"}
+2026-11-13T18:08:05Z	comment		0x71853c	{"addr": "0x14071853c", "comment": "say topic subtype 38 (Steal) to g_thePlayer"}
+2026-11-13T18:08:05Z	comment		0x71846b	{"addr": "0x14071846b", "comment": "not yet facing g_thePlayer: turn to its position"}
+2026-11-13T18:08:05Z	comment		0x7183e6	{"addr": "0x1407183e6", "comment": "timer out before reaching the player: alarm on the owner's theft"}
+2026-11-13T18:08:05Z	comment	39674	0x718750	{"addr": "0x140718750", "comment": "Procedure 20: say the warning to the process target (+0x114): topic 38 (Steal) for package type 34, 41 for others; type 23 (trespass) with the actor's trespass flag says 49 to g_thePlayer."}
+2026-11-13T18:08:05Z	comment	37250	0x674dc0	{"addr": "0x140674DC0", "comment": "Actor__IsFacingRef (37250, ours): true when the actor's heading is within the facing tolerance of the ref (or it has no process / is not moving-restricted)."}
+2026-11-13T18:08:05Z	comment	40582	0x755950	{"addr": "0x140755950", "comment": "PlayerCharacter__CountTheftWarning (ours): TheftWarnings (+0x6D8) += 1; starts the warning timer +0x6DC from 0x14209EB28 when unset. Called only by StartStealWarning 37556 on g_thePlayer: the party shares the count."}
+2026-11-13T18:08:05Z	comment	39255	0x6f0800	{"addr": "0x1406F0800", "comment": "AIProcess__PlayDefaultAction (ours): queries the default object a3's action (with a temp ref of base a4 when a5 is null) on the actor and loads its clips; true when played."}
+2026-11-13T18:08:36Z	read	16120	0x23b240	{"name": "coop_RealConfiscate"}
+2026-11-13T18:12:14Z	read	29855	0x4a5c40	{"name": "sub_1404A5C40"}
+2026-11-13T18:12:19Z	name	29855	0x4a5c40	{"addr": "0x1404A5C40", "name": "PackageTarget__SetReference"}
+2026-11-13T18:12:19Z	name	29854	0x4a5bd0	{"addr": "0x1404A5BD0", "name": "PackageTarget__SetType"}
+2026-11-13T18:12:20Z	comment	29855	0x4a5c40	{"addr": "0x1404A5C40", "comment": "PackageTarget__SetReference (ours): with type 0 (a specific reference, byte +0x0) stores the ref's handle at +0x8. StartStealWarning 37556 calls it with g_thePlayer."}
+2026-11-13T18:32:24Z	read	37570	0x691590	{"name": "Actor::PutCreatedPackage"}

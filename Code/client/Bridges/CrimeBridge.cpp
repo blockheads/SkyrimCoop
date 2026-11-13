@@ -8,6 +8,8 @@
 #include <ItemIds.h>
 #include <Forms/TESFaction.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESPackage.h>
+#include <AI/AIProcess.h>
 #include <Games/ActorExtension.h>
 #include <Games/Memory.h>
 #include <Games/TES.h>
@@ -36,6 +38,7 @@ std::vector<CrimeReport> s_reports;
 std::vector<CrimeItem> s_containerItems;
 thread_local Actor* t_criminal{};
 thread_local Actor* t_payer{};
+thread_local Actor* t_warned{}; // the guest's copy a running steal warning's step names (procedure 40)
 uint32_t s_lockAttempt{};
 std::atomic<uint32_t> s_caughtLock{};
 bool s_reactionHooksAttempted{};
@@ -137,7 +140,8 @@ using TCrimeAttack = bool(Actor*, Actor*, int32_t, uint8_t);
 using TKnownCrime = bool(ProcessLists*, TESObjectREFR*, TESObjectREFR*, Actor*, uint32_t, int32_t, int32_t);
 using TPayFine = void(PlayerCharacter*, TESFaction*, bool, bool);
 using TPayGold = uintptr_t(TESObjectREFR*, TESObjectREFR*, uint32_t);
-using TConfiscate = uintptr_t(ExtraContainerChanges::Data*, TESObjectREFR*, TESObjectREFR*, uint32_t, bool, bool);
+// 16120 (from, to, owner filter, every stolen item, show the removal): the 4th is a form, not a count (read in IDA).
+using TConfiscate = uintptr_t(ExtraContainerChanges::Data*, TESObjectREFR*, TESObjectREFR*, TESForm*, bool, bool);
 using TLockOpen = uintptr_t(TESObjectREFR*);
 using TLockCrime = bool(void*);
 using TContainerTake = bool(void*, ExtraContainerChanges::Entry*, uint32_t, bool);
@@ -394,12 +398,124 @@ uintptr_t HookPayGold(TESObjectREFR* aPlayer, TESObjectREFR* aContainer, uint32_
     return RealPayGold(t_payer && aPlayer == PlayerCharacter::Get() ? t_payer : aPlayer, aContainer, aGold);
 }
 
-uintptr_t HookConfiscate(ExtraContainerChanges::Data* aItems, TESObjectREFR* aOwner, TESObjectREFR* aContainer,
-                         uint32_t aReason, bool aStolen, bool aArg)
+uintptr_t HookConfiscate(ExtraContainerChanges::Data* aItems, TESObjectREFR* aFrom, TESObjectREFR* aTo, TESForm* aOwner,
+                         bool aStolen, bool aShow)
 {
-    if (t_payer && aOwner == PlayerCharacter::Get())
+    if (t_warned && aFrom == PlayerCharacter::Get())
+    {
+        // The warning's given-back (procedure 40): only the guest's game knows which of its items the owner owns.
+        CrimeConfiscation due{.Actor = t_warned->formID};
+        due.Owner = aOwner ? ToSession(aOwner->formID).value_or(GameId{}) : GameId{};
+        if (aTo && Cast<Actor>(aTo))
+            due.ToActor = aTo->formID;
+        else if (aTo)
+            due.To = ToSession(aTo->formID).value_or(GameId{});
+        std::lock_guard lock(s_mutex);
+        s_confiscations.push_back(due);
+        return 0;
+    }
+    if (t_payer && aFrom == PlayerCharacter::Get())
         return 0; // The chooser's own inventory retains stolen ownership; copies need not.
-    return aItems ? RealConfiscate(aItems, aOwner, aContainer, aReason, aStolen, aArg) : 0;
+    return aItems ? RealConfiscate(aItems, aFrom, aTo, aOwner, aStolen, aShow) : 0;
+}
+
+// The steal warning (crime.md, "The steal warning"): StartStealWarning (37556) and its step (procedure 40, 39673)
+// name g_thePlayer; for a guest's theft each call below gets the guest's copy in its place.
+using TSetLocation = uintptr_t(void*, TESObjectREFR*);
+using TSetTarget = uint32_t(PackageTarget*, TESObjectREFR*);
+using TIsFacing = bool(Actor*, TESObjectREFR*);
+using TTurnBody = uintptr_t(Actor*, const NiPoint3*, float);
+using TGetHandle = uint32_t*(uint32_t*, TESObjectREFR*);
+using TSay = uintptr_t(void*, Actor*, uint32_t, uint32_t, TESObjectREFR*, uintptr_t, uintptr_t, uintptr_t, uintptr_t,
+                       uintptr_t);
+using TPlayAction = bool(void*, Actor*, uint32_t, TESForm*, TESObjectREFR*);
+using TWarningStep = void(AIProcess*, Actor*);
+TSetLocation* RealWarningLocation{};
+TSetTarget* RealWarningTarget{};
+TIsFacing* RealWarnIsFacing{};
+TTurnBody* RealWarnTurnBody{};
+TGetHandle* RealWarnHandle{};
+TSay* RealWarnSay{};
+TPlayAction* RealWarnAction{};
+TWarningStep* RealWarningStep{};
+
+TESObjectREFR* Warned(TESObjectREFR* aPassed, Actor* aCopy) noexcept
+{
+    return CrimeRules::Warned<TESObjectREFR*>(aPassed, PlayerCharacter::Get(), aCopy);
+}
+
+uintptr_t WarningLocation(void* aLocation, TESObjectREFR* aRef)
+{
+    return RealWarningLocation(aLocation, Warned(aRef, t_criminal));
+}
+
+uint32_t WarningTarget(PackageTarget* aTarget, TESObjectREFR* aRef)
+{
+    TESObjectREFR* pWarned = Warned(aRef, t_criminal);
+    if (pWarned != aRef)
+        spdlog::info("Steal warning: to the guest's copy {:X}", pWarned->formID);
+    return RealWarningTarget(aTarget, pWarned);
+}
+
+bool WarnIsFacing(Actor* aActor, TESObjectREFR* aRef)
+{
+    return RealWarnIsFacing(aActor, Warned(aRef, t_warned));
+}
+
+uintptr_t WarnTurnBody(Actor* aActor, const NiPoint3* aPoint, float aSpeed)
+{
+    return RealWarnTurnBody(aActor, t_warned ? &t_warned->position : aPoint, aSpeed);
+}
+
+uint32_t* WarnHandle(uint32_t* aHandle, TESObjectREFR* aRef)
+{
+    return RealWarnHandle(aHandle, Warned(aRef, t_warned));
+}
+
+uintptr_t WarnSay(void* aProcess, Actor* aActor, uint32_t aKind, uint32_t aTopic, TESObjectREFR* aTarget, uintptr_t a6,
+                  uintptr_t a7, uintptr_t a8, uintptr_t a9, uintptr_t a10)
+{
+    return RealWarnSay(aProcess, aActor, aKind, aTopic, Warned(aTarget, t_warned), a6, a7, a8, a9, a10);
+}
+
+bool WarnAction(void* aProcess, Actor* aActor, uint32_t aAction, TESForm* aBase, TESObjectREFR* aTarget)
+{
+    return RealWarnAction(aProcess, aActor, aAction, aBase, Warned(aTarget, t_warned));
+}
+
+// The guest's copy the running steal warning targets (37556 sets its PackageTarget), else none.
+Actor* WarnedCopy(AIProcess* apProcess) noexcept
+{
+    using TRunning = TESPackage*(AIProcess*);
+    static VersionDbPtr<TRunning> running(39155);
+    auto* package = apProcess ? running(apProcess) : nullptr;
+    if (!package || package->packType != TESPackage::kStealWarning || !package->packTarget ||
+        package->packTarget->targetType != 0)
+        return nullptr;
+    auto* actor = Cast<Actor>(TESObjectREFR::GetByHandle(package->packTarget->handle));
+    return OtherPlayer(actor) ? actor : nullptr;
+}
+
+void HookWarningStep(AIProcess* apProcess, Actor* apActor)
+{
+    Actor* previous = std::exchange(t_warned, s_role == ICrimeBridge::Role::Host ? WarnedCopy(apProcess) : nullptr);
+    RealWarningStep(apProcess, apActor);
+    t_warned = previous;
+}
+
+// Swaps the call at aOffset into function aFunction when it calls aCallee, else logs and leaves it.
+template <class T> void SwapWarningCall(uint32_t aFunction, uint32_t aOffset, uint32_t aCallee, T*& aReal, T* aHook)
+{
+    VersionDbPtr<uint8_t> function(aFunction);
+    VersionDbPtr<uint8_t> callee(aCallee);
+    uint8_t* pCall = function.Get() + aOffset;
+    if (*pCall != 0xE8 || pCall + 5 + *reinterpret_cast<const int32_t*>(pCall + 1) != callee.Get())
+    {
+        spdlog::error("CrimeBridge: {}+{:X} does not call {}: a guest's steal warning goes to the host's player",
+                      aFunction, aOffset, aCallee);
+        return;
+    }
+    Hooks::SwapCall(pCall, aReal, aHook);
 }
 
 void HookPayFine(PlayerCharacter* aPlayer, TESFaction* aFaction, bool aJail, bool aStolen)
@@ -499,6 +615,18 @@ static Hooks::Initializer s_hooks([] {
     HOOK_ID(51981, &RealLockCrime, HookLockCrime);
     HOOK_ID(51141, &RealContainerTake, HookContainerTake);
     HOOK_ID(37679, &RealReportCrime, HookReportCrime);
+    // 1.7.104 offsets (read in IDA); the callees by Address Library ID.
+    if constexpr (!COOP_SKYRIM_1_6_1170)
+    {
+        SwapWarningCall(37556, 0xF0, 29811, RealWarningLocation, &WarningLocation);
+        SwapWarningCall(37556, 0x13A, 29855, RealWarningTarget, &WarningTarget);
+        SwapWarningCall(39673, 0x1CB, 37250, RealWarnIsFacing, &WarnIsFacing);
+        SwapWarningCall(39673, 0x207, 37811, RealWarnTurnBody, &WarnTurnBody);
+        SwapWarningCall(39673, 0x250, 12325, RealWarnHandle, &WarnHandle);
+        SwapWarningCall(39673, 0x29C, 39333, RealWarnSay, &WarnSay);
+        SwapWarningCall(39673, 0x2C8, 39255, RealWarnAction, &WarnAction);
+        HOOK_ID(39673, &RealWarningStep, HookWarningStep);
+    }
 });
 } // namespace
 
@@ -755,8 +883,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
         }
         spdlog::info("Party crime: actor {:X}, container theft, target {:X}, value {}", aActorFormId, target->formID, total);
         if (total)
-            RealSteal(player, target, nullptr, 0, static_cast<int32_t>(total), target->GetOwner(),
-                      CrimeRules::Warns(aRequest.AllowWarning, true));
+            RealSteal(player, target, nullptr, 0, static_cast<int32_t>(total), target->GetOwner(), aRequest.AllowWarning);
         return false;
     }
     if (aRequest.Action == CrimeAction::Pickpocket)
@@ -787,7 +914,7 @@ bool CrimeBridge::Judge(uint32_t aActorFormId, const CrimeRequest& aRequest) noe
     auto* given = aRequest.Owner ? TESForm::GetById(ToGame(aRequest.Owner)) : nullptr;
     if (aRequest.Action == CrimeAction::Theft)
         RealSteal(player, target, item, aRequest.Count, 0, CrimeRules::AlarmOwner(given, target->GetOwner()),
-                  CrimeRules::Warns(aRequest.AllowWarning, true));
+                  aRequest.AllowWarning);
     return false;
 }
 
@@ -802,14 +929,26 @@ std::vector<CrimeConfiscation> CrimeBridge::TakeConfiscations() noexcept
     return std::exchange(s_confiscations, {});
 }
 
-void CrimeBridge::Confiscate(const GameId& aFaction) noexcept
+void CrimeBridge::Confiscate(const CrimeConfiscation& acDue) noexcept
 {
     auto* player = PlayerCharacter::Get();
-    auto* faction = Cast<TESFaction>(TESForm::GetById(ToGame(aFaction)));
-    if (!player || !faction)
+    if (!player)
+        return;
+    if (acDue.Owner || acDue.To || acDue.ToActor)
+    {
+        // The steal warning's given-back, as procedure 40 calls 16120 on the host's player (crime.md).
+        auto* to = Cast<TESObjectREFR>(TESForm::GetById(acDue.ToActor ? acDue.ToActor : ToGame(acDue.To)));
+        auto* owner = acDue.Owner ? TESForm::GetById(ToGame(acDue.Owner)) : nullptr;
+        spdlog::info("Steal warning: giving back what {:X} owns to {:X}", owner ? owner->formID : 0, to ? to->formID : 0);
+        if (to)
+            RealConfiscate(player->GetContainerChanges(), player, to, owner, false, true);
+        return;
+    }
+    auto* faction = Cast<TESFaction>(TESForm::GetById(ToGame(acDue.Faction)));
+    if (!faction)
         return;
     // PayFine 40659's faction stolen-goods chest, read from the same native field.
     auto* chest = reinterpret_cast<CrimeEngine::Faction*>(faction)->StolenContainer;
     if (chest)
-        RealConfiscate(player->GetContainerChanges(), player, chest, 0, true, false);
+        RealConfiscate(player->GetContainerChanges(), player, chest, nullptr, true, false);
 }
