@@ -1335,6 +1335,18 @@ the 17 was rerun twice: 12 passed both times or failed in a shape already listed
   [Headtracking on copies](#headtracking-on-copies) (Elk); once no clear spot to stage; once an elk 84 units off.
 - New entries below: `dialogue-picked-text-visual`, `quest-gold-turn-in-guest`; `guest-makes-character-then-joins`.
 
+The third full run, on `372f2abe` (2026-11-12, one exception left): 348 passed, 40 failed. 18 of the second run's
+failures passed, 7 failures were not in it. Each of the 7 was rerun 4 times on the branch, and those still failing 4
+times on dev's plugin (`2fcb5452`). None is the branch's:
+
+- `spectator-watches-kill-move` (head tracking, as in [Headtracking on copies](#headtracking-on-copies)) and
+  `green-flash-ivarstead-guest` ([The green flash scenarios' grab](#the-green-flash-scenarios-grab)): 4 of 4 in the
+  rerun.
+- [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): `host-loads-party` and
+  `host-menu-loads-party`.
+- [Failures only deep in a long run](#failures-only-deep-in-a-long-run): `party-aggro-host-first`.
+- New entries below: `relief-takes-client-relics`, `death-wipe-twice-keeps-character`.
+
 ### The guest player's copy wears nothing
 
 `dialogue-picked-text-visual` (2 of 3) and `quest-gold-turn-in-guest` (1 of 3), 2026-11-11: at the end, the host's copy of
@@ -1371,6 +1383,35 @@ Size: small. Needs: GameTests, then the duo.
   - Start: `CharacterService`'s `WaitingFor3D` inventory against `InventoryService`'s equipment changes for the same
     copy: the older one must not win.
   - Test: a GameTests flow, an NPC that equips one frame after it is announced, the copy's 3D ready later.
+  - Also `host-loads-party` (branch 1 of 4, dev 1 of 4) and `host-menu-loads-party` (branch 2 of 4, dev 0 of 4),
+    2026-11-12: Aela's copy lacks `1D4EC` and its right hand is empty, the same shape.
+
+### The host shows a guest's relief box
+
+`relief-takes-client-relics` (branch 3 of 4, dev's plugin 2 of 4, 2026-11-12): the guest puts the axe in Volunruud's
+relief and the box saying the sword is missing shows on the host's game too (`[host] shows the client's box`). Once on
+dev it failed before that, with no menu cursor on the host. Unread: which stack's `Message.Show` reached the host's
+screen (party-calls.md: a guest's action's message is its own).
+
+Agent task: read where the door script's `Message.Show` runs for a guest's activation, then a GameTests flow.
+
+Size: small. Needs: the duo (`relief-takes-client-relics --repeat 4`), then GameTests.
+
+### A party wipe's fight that misfires
+
+`death-wipe-twice-keeps-character`, 2026-11-12: dev's plugin 2 of 12, the branch 3 of 13 (one in the full run). The
+failures differ:
+
+- The wolf never downs the host in 12 s (dev and the full run).
+- Wipe 1 loads a save of hour 17.5, not the checkpoint at 12 (dev, once).
+- The wolf spawned for wipe 2, about 3 s after wipe 1's reload, is gone on the host before `startcombat` ("actor for
+  new entity not found", "Actor removed": branch, once).
+- A ladle near the fight moved 2 units, so the world check fails afterwards (branch, once).
+
+Agent task: the wolf removed after the reload first (what removes a fresh spawn in the seconds after a load), then the
+save of the wrong hour.
+
+Size: medium. Needs: the duo (`death-wipe-twice-keeps-character --repeat 8`).
 
 ### An action sent before its copy exists
 
@@ -1545,7 +1586,8 @@ Size: medium. Needs: the duo.
 Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's plugin and on the branch:
 
 - **`party-aggro-host-first`** (the first scenario of the run): "the enemy flipped away from the higher-damage player:
-  20".
+  20". Again first in the run of 2026-11-12, then branch 2 of 4 and dev's plugin 1 of 4 alone (on dev "[host] host's
+  first hit lands" timed out): it fails alone too.
 - **`dialogue-refused-pick-restores-list`:** "[client] its chat shows the host's refusal".
 - **`guest-changes-looks-in-session`:** "the vampire change replaced the existing copy".
 - **`furniture-host-player`:** the guest's player `pose.head` 99.6 against its copy's 124.1 afterwards: the same shape
