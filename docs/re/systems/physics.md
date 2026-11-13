@@ -210,14 +210,16 @@ the crosshair was (carried looking down at the floor, it hangs just off it); tur
 Skyrim wakes resting clutter it never moves. The Sleeping Giant's bar bottles (33284, 33287, 33288, 3327A, 3328A) wake
 15-18 times a minute and sleep where they were. Found with the harness probe `activate_watch` (MCP verb `who_wakes`:
 hooks on `hkpEntity::Activate` 60849 and `markIslandActive` 61525, each hit with its call stack and the body it went
-through), in a game with no session:
+through), in a game with no session. The stack was measured; each step below was then read in IDA and named:
 
 ```
 ProcessActorAnimSG (an actor's animation job, job thread)
-  Character 37371 -> 37976 -> NiNode::UpdateDownwardPass (the actor's 3D)
-    NiAVObject::UpdateWorldData -> bhkBlendCollisionObject vfunc +0x160 (78910): its keyframed body to its bone
-      bhkCollisionObject 78178 -> bhkRigidBody 78100 -> SetLinearVelocity -> hkpEntity::Activate (60849)
-        markIslandActive (61525) on that body's island
+  Character::RunPendingNodeUpdate (37371): its node update when pending
+    Character::UpdateNode (37976): the 3D's NiAVObject::Update, flags 0x2001 -> NiNode::UpdateDownwardPass
+      bhkBlendCollisionObject vfunc +0x160 (78910): its keyframed body to its bone
+        bhkCollisionObject (78178) -> bhkRigidBody::DriveToPoseByVelocity (78100)
+          bhkRigidBody::SetLinearVelocity (78089): hkpEntity::Activate (60849), under the world's write lock
+            hkpWorldOperationUtil::markIslandActive (61525) on that body's island
 ```
 
 - The body is Orgnar's (13486, motion type 4, keyframed by his animation) while he leans on the counter (sit state 3,

@@ -13,9 +13,8 @@
 #include <utility>
 #include <vector>
 
-// The host's physics objects (docs/design/physics-sync.md): each reference physics moves (the change funnel's havok
-// move) is read while awake and moved from where it woke; asleep, it rests. An actor's bodies are its ragdoll's,
-// read while simulated (dead, knocked down, getting up). Reads through IBodyReads (the fake engine's in GameTests).
+// The bodies physics moves (physics-sync.md): read while awake and moved from where they woke, rested once asleep;
+// an actor's are its ragdoll's while simulated. Reads through IBodyReads (the fake engine's in GameTests).
 class PhysicsBodies
 {
 public:

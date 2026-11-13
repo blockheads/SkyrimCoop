@@ -245,17 +245,29 @@ class PhysicsActions:
         markIslandActive 61525): how often each woke, and the callers that woke them, by call stack, most first."""
         ids = [ctx.resolve(ref, instance) for ref in refs]
         disabled = ctx.player_command(instance, {"cmd": "activate_watch", "refs": ids}).get("disabled_hooks", "")
-        events = []
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
-            time.sleep(1.0)
-            events += ctx.player_command(instance, {"cmd": "activate_watch"})["events"]
-        events += ctx.player_command(instance, {"cmd": "activate_watch", "stop": True})["events"]
+        events, dropped, failed = [], 0, True
+        try:
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                time.sleep(1.0)
+                reply = ctx.player_command(instance, {"cmd": "activate_watch"})
+                events += reply["events"]
+                dropped += reply.get("dropped", 0)
+            failed = False
+        finally:
+            # Always stopped (a watch left on hooks every activation); a failed stop never hides the first error.
+            try:
+                reply = ctx.player_command(instance, {"cmd": "activate_watch", "stop": True})
+                events += reply["events"]
+                dropped += reply.get("dropped", 0)
+            except Exception:
+                if not failed:
+                    raise
         woke = collections.Counter(f"{e['ref']:X}" for e in events if e["what"] == "woke")
         callers = collections.Counter((e["what"], " < ".join(e["stack"])) for e in events if "stack" in e)
         through = collections.Counter(f"{e['through']['ref']:X} (base {e['through']['base']:X}, motion {e['through']['motion']})"
                                       for e in events if "through" in e)
-        return {"woke": dict(woke), "calls": sum(callers.values()), "through": dict(through),
+        return {"woke": dict(woke), "calls": sum(callers.values()), "through": dict(through), "dropped": dropped,
                 "hooks_left_out": len(disabled.split(",")) if disabled else 0,
                 "callers": [{"what": what, "count": count, "stack": stack} for (what, stack), count in callers.most_common(8)]}
 
