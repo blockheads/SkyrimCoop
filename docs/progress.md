@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-13: `coop_test.py play` follows: the game you don't control walks after your player and faces it, so the watch
+view shows your player from the other game ([testing.md](design/testing.md), "To play by hand"). Both ways (`--control host`
+or `guest`). Its player runs AI-driven on `KeepOffsetFromActor`, a `PathToReference` leg when stuck, checked placement
+only when left far behind or stuck twice; chat `!stay` / `!follow`, `--no-follow`. Pure part in
+`scripts/coop_harness/follow.py`, units `test_coop_harness.PlayFollow`. KeepOffset's engine side:
+[actor-movement.md](re/systems/actor-movement.md), "KeepOffsetFromActor".
+
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes
 him either way (measured on the duo). The engine's pick is read (`PickCrosshairReference` 40620,

@@ -150,11 +150,31 @@ the desktop. `watch --instance both`, `screenshot`, `look`, `status`, `desync` a
 
 To play by hand, `play [--control host|guest] [--cell CELL]` (default the Sleeping Giant Inn) boots the duo with only
 the controlled game on the desktop, in a window on the primary monitor, and the other off-screen with a live `watch`
-view on the second monitor; chat `!watch` turns the other player to face yours. Only an uncovered window keeps
+view on the second monitor. The other game's player follows yours and faces it, so the view shows your player as the
+other game draws it (below); chat `!stay` stops it, `!follow` starts it again, `!watch` turns it once, and
+`--no-follow` starts it staying. Only an uncovered window keeps
 running (KWin stops completing a covered window's presents, and a game that missed one stays stuck), so keep the
 played window in front; the off-screen game never stops. Playing the other side means `stop` and `play --control`
 again. Tried and dropped (2026-11-01): both games visible (a window covered while booting hung for good) and VNC
 views of the off-screen games (`x11vnc`: the mouse never reached Skyrim).
+
+The follow (`scripts/coop_harness/follow.py`, 2026-11-13) drives the other game's player AI-driven
+(`Game.SetPlayerAIDriven`), every quarter second:
+
+```
+copy of your player missing  -> wait (the party tether brings the follower across a door or a trip)
+more than 2500 units apart   -> place beside it (the harness's checked placement: floor, headroom, sight)
+behind (350+), moved < 60 in 3 s, the follow set 5+ s ago (a new one takes 2-5 s to set off)
+                             -> a 6 s PathToReference leg round what stops it; after 2 legs, place
+no follow set                -> Actor.KeepOffsetFromActor(copy, catch-up 350: runs, follow radius 200: walks, stands)
+standing within 350, facing off by 25+ degrees (at most every 1.5 s) -> face it (the harness's `face`)
+```
+
+The engine paths and paces it, so it walks round tables and through doorways as an NPC follower would; placement is
+the last resort. Tried on the duo (2026-11-13, the Sleeping Giant, each player walking to three NPCs in turn): the
+host's follower stayed within 245 units, standing 140 off and facing; the guest's, before the set-off rule, took two
+path legs and a placement because each leg restarted a follow that had not set off yet. `decide` is the pure part (Python units `test_coop_harness.PlayFollow`). Ctrl+C (or `!stay`) clears
+the follow and gives the player back.
 
 `play --vanilla [--cell CELL]` is the same window and cell for one solo game without our plugin, to compare by hand
 how the game plays without us: `launch --vanilla`'s stand-in plugin (build `SkyrimCoopVanillaHarness` first), no guest
