@@ -94,10 +94,16 @@ struct NotifyLockCrime final : NotifyMessage
     uint32_t Attempt{};
 };
 
+// A fine's (Faction: every stolen item into its chest) or a steal warning's given-back (Owner: what it owns, to To or
+// ToActor), run on the player's own game: only it keeps its items' ownership (crime.md).
 struct CrimeConfiscation
 {
     uint32_t Actor{}; // engine bridge: form id; HostGame: session id
     GameId Faction{};
+    GameId Owner{};
+    GameId To{};
+    uint32_t ToActor{}; // as Actor
+    bool operator==(const CrimeConfiscation&) const noexcept = default;
 };
 
 struct NotifyCrimeConfiscation final : NotifyMessage
@@ -110,4 +116,7 @@ struct NotifyCrimeConfiscation final : NotifyMessage
     void DeserializeRaw(Wire::Buffer::Reader&) noexcept override;
     uint32_t Id{};
     GameId Faction{};
+    GameId Owner{};
+    GameId To{};
+    uint32_t ToActor{}; // session id
 };
