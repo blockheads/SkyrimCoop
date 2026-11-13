@@ -47,6 +47,26 @@ The real quickload scenario checks the guest's own level rolls back, as well as 
 
 The manager is `BGSSaveLoadManager::singleton` (403340).
 
+## The character a save belongs to (2026-11-08)
+
+IDA 1.7.104. The engine keeps no character id inside a save: **the id is in the file's name**.
+
+- Saves are named `Save|Autosave|Quicksave<N>_<id hex>_<modded>_<name hex>_<place>_<playtime>_<yyyymmddhhmmss>_<x>_1`
+  (9 `_` fields), the id the manager's `currentCharacterID` (`+0xD0`, CommonLibSSE-NG; `Save_Impl` files the save
+  under it, `GetSaveEntry` 35789).
+- `BSSaveDataSystemUtility::Entry` parses a name (109348; the prefixes by `_strnicmp`, the last field must be 1, 9
+  fields): the id at `+0x180`. Its constructor (109294) leaves 0 there, so any other name parses to id 0.
+- A load (`LoadGame_HookTarget_Enter` 442580) parses the loaded file's name and, once loaded, sets
+  `currentCharacterID` and `displayCharacterID` (`+0xD8`, copied to `BSWin32SaveDataSystemUtility+0x64`) to
+  `{that id, modded}`: `SetCurrentCharacter` (35751) inlined; `SetDisplayCharacter` (35752) is the display half
+  (the console's `SetDisplayPlayerID`). The catalogue's entries (`characterID` `+0x6C`) come from the same parse.
+- So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: `PreviousGameplaySave` then took the newest id-0 save
+  (another character's, 2026-11-08), and saves made afterwards are named and filed under 0.
+
+Ours: `SaveNames::CharacterId` is the same parse; after the party's scratch load the host calls `SetCurrentCharacter`
+(35751) with the checkpoint's id (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`), keeping the load's modded
+flag. A guest's join load still leaves its id 0 (it makes no saves in a session).
+
 ## Where a save or load can run (2026-10-24)
 
 - Our update (`Plugin::Update`, every service) runs inside the Papyrus VM's update job (`HookVMUpdate`, 53926), on a

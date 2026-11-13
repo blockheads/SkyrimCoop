@@ -185,6 +185,31 @@ SCENARIO("A guest joining sees the host's player with its weapon drawn", "[equip
     party.Agree("the guest's copy of the host's player has its hands up");
 }
 
+SCENARIO("A copy on its owner's graph stream shows hands its owner raised with no action of its own", "[equipment][players]")
+{
+    // Skyrim (duo, hands-survive-reload-host-player and late-join-client, 2026-11-11): a fresh copy took its owner's
+    // graph from a sync point, hands up, with weapon state 0. The convergence's forced draw was refused every 0.25 s
+    // (a copy on the stream drops its own events, 63591's hook), leaving weapon state 1 for good (37279).
+    Party party(1, SmokeWorld, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+        engine->Graph = FakeGraphRules{};
+    party.As(party.Host(), [&] { host.Actors.at(FakeEngine::kPlayer).GraphState = "Standing"; });
+    party.Join(party.Guest());
+    party.Until([&] { return PlayerCopy(guest) != 0; }, "the guest's game has the host's player");
+    guest.Actors.at(PlayerCopy(guest)).GraphState = "Standing";
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(PlayerCopy(guest)); }, "its copy is on its owner's stream");
+
+    for (const bool cUp : {true, false})
+    {
+        party.As(party.Host(), [&] { host.Draws(FakeEngine::kPlayer, cUp); });
+        party.Until([&] { return guest.Actors.at(PlayerCopy(guest)).Weapon == (cUp ? WeaponState::Drawn : WeaponState::Sheathed); },
+                    cUp ? "its copy has its hands up" : "its copy has its hands down");
+    }
+    party.Agree("the guest's copy of the host's player has its owner's hands");
+}
+
 SCENARIO("A quest's outfit rebuild cannot leave a player's copy partly undressed", "[equipment][outfit-rebuild]")
 {
     Party party(1, SmokeWorld);

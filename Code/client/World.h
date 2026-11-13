@@ -12,6 +12,7 @@
 
 #include <RecipeBook.h>
 #include <Services/CopyClock.h>
+#include <Games/Animation/GraphStream.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
@@ -78,6 +79,8 @@ struct World : entt::registry
     CopyClock& GetCopyClock() noexcept { return m_copyClock; }
     // The session's time at this frame (FrameClock): what owners stamp their snapshots and actions with.
     [[nodiscard]] uint64_t GetFrameTick() const noexcept { return m_frameClock.Now(); }
+    // The graph input stream's recorders and replayers (graph-input-stream.md), on the graphs' threads too.
+    GraphStreams& GetGraphStreams() noexcept { return m_graphStreams; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -98,6 +101,7 @@ private:
     RecipeBook m_recipes;
     FrameClock m_frameClock;
     CopyClock m_copyClock;
+    GraphStreams m_graphStreams;
     RunnerService m_runner;
     TransportService m_transport;
 

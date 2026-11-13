@@ -171,6 +171,72 @@ The fix: a theft carries the owner form `StealAlarm` was given (`CrimeRequest::O
 asks only that the actor is loaded (has a process), and passes the carried owner to `StealAlarm` (`AlarmOwner`: an
 actor's `GetOwner` is not the item's). `FindHighOwnerOf` already checked that the actor owns the item.
 
+## Who an NPC fights for a party crime (2026-11-10)
+
+Read in IDA. Every reaction names the host's player, so `HostAggro` must tell an NPC fighting the party for a crime
+from one fighting it for anything else; then `PartyThreat` sends it to the nearest player. What the engine leaves on
+an NPC that knows a party crime:
+
+```
+FactionEnemy     crime faction +0x58 bit 3 (24504): a violent crime, 37679's SetPlayerEnemy, an escape
+Victim           extra 0x34 kPlayerCrimeList: the crimes against this actor
+                 (Crime__Release 42503 unlinks a crime from its victim, crime +0x08; ExpireOldCrimes 41350)
+AngryWithPlayer  +0x204 bit 0x800 (37463): a theft's owner alarm (39651), a pending-crime witness (39631)
+Witness          the crime's witness array (+0x28, count +0x38; Crime__AddWitness 42506, Crime__HasWitness 42505):
+                 every alarm (37422, 37423, 37425-37428), Actor__StartAlarm, ProcessPendingCrime and each guard
+                 AlertCrimeResponders (39695) alerts; KnownCrime (41354) with criminal = g_thePlayer finds it,
+                 asked per crime type 0-6 (41350 walks 7 lists; 41354's own guard accepts 7, past the lists)
+```
+
+`CriminalInterest` read only the first two. A theft's witness is angry and nothing else for a nonviolent crime,
+and a guard answering the alarm is only on the witness list: 39695 calls `StartCombat(guard, g_thePlayer)` for the
+crime the player is fleeing (player +0xB18), else `StartAlarm` (an assault or an alarm package on the criminal).
+So those fights were not crime fights and kept Skyrim's pick: the host, wherever the thief stood (the user's
+playtest, 2026-11-08). Now all four count (`CrimeRules::PartyIsCriminalTo`); the witness walk runs only when the
+cheap three are clear. `HookCrimeAttack`/`HookCrimeReaction` read the same answer, so such an NPC also sees every
+copy as the criminal and puts it among its targets. An alarm package walking to the host ends in the arrest
+(40076), which is the party's: unchanged.
+
+## Every player hears the bounty (2026-11-10)
+
+Read in IDA: `Character__ReportCrimeAddBounty` (37679) writes the bounty (crime +0x58) and, when it is non-zero,
+shows `"%d %s %s"`: the bounty, `sAddCrimeGold` (378208, "bounty added to"), the faction's name, queued
+(`SendHUDMessage::ShowHUDMessage` 52933). Only for the player, so only the host's game showed it; a guest's game got the
+totals through `NotifyCrimeState` and `ApplyGold` (vfunc 0xB5), which shows nothing. `PlayerCharacter::SetEscaping`
+(40660) shows the same line for a jail escape; not relayed.
+
+Measured on the duo (`guest-theft-bounty-message`, before the fix): the host showed "5 bounty added to Whiterun",
+the guest's HUD showed nothing, both held a bounty of 5.
+
+The fix: the host hooks 37679 and keeps each report naming its player with a bounty (`CrimeReport`: faction,
+bounty); `HostCrime` sends them in `NotifyCrimeState.Reports` with the totals, and each guest shows the engine's line
+(`CrimeBridge::ShowReport`). A report is shown once, never resent with a snapshot.
+
+## Pickpocket (2026-11-08)
+
+Read in IDA. A sneaking player's Activate on an NPC opens `ContainerMenu` in mode 2 (`TESNPC::Activate` 24715,
+0x1403C0C7B: the race allows it, the NPC is not attack-on-sight and was not caught on before). Each take or place in that
+menu is `ContainerMenu__TransferItem` (51141):
+
+```
+mode 2: AttemptPickpocket(player, victim, entry, count, taking) (40654), false: nothing moves
+    chance = ComputePickpocketSuccess (26379), clamped to fPickPocketMinChance..fPickPocketMaxChance
+    roll < chance: stat, skill advance, true
+    else, not jailed (+0x728 prison faction): Actor__PickpocketAlarm(player, victim, 0, 0) (37423); HUD line; false
+taken: victim->RemoveItem (Actor::RemoveItem 37797 -> TESObjectREFR::RemoveItem 19689), reason kSteal, to the player
+```
+
+`Actor__PickpocketAlarm(criminal, victim, item, count)` makes a crime of type 1 on the victim, forces detection both ways,
+starts its alarm, asks the witnesses, and the victim reports it (`ReportCrimeAddBounty`), angry with the player. The
+player's caught try passes no item and count 0: nothing was taken. (`TESNPC::Activate` passes an item only for an NPC
+pickpocketing, 0x1403C0BA9.)
+
+What SkyrimCoop does: the take is a container transfer like any guest's menu take (`ContainerTransfers`, Steal), so the
+host moves it and both games apply it once. The caught alarm goes to the host naming only its victim (`HookPickpocket`),
+and the host raises it on its NPC with no item (`CrimeBridge::Judge`). Before 2026-11-08 the guest's hook, the request's
+check and `Judge` each wanted an item and a count, so a caught pickpocket never left the guest
+(`guest-pickpockets-lucan`; `guest-pickpocket-party-alarm` drove 37423 with gold and 5, a shape the game never makes).
+
 ## What SkyrimCoop does about it
 
 The party rule (`party-model.md`, Crime): one player's crime flags the whole party, and a hostile NPC attacks whoever is
@@ -194,6 +260,9 @@ near it.
 | ID | Name (ours) | What |
 |---|---|---|
 | 37422 | Actor::StealAlarm | the theft judgment above |
+| 37423 | Actor__PickpocketAlarm | a caught pickpocket's alarm; the player's names no item |
+| 40654, 26379 | PlayerCharacter::AttemptPickpocket, AIFormulas::ComputePickpocketSuccess | the pickpocket roll |
+| 51141 | ContainerMenu__TransferItem | a container menu's take or place; pickpocket first in mode 2 |
 | 40533 | PlayerCharacter::PickUpObject | the player's pickup: a created item's alarm names its owner actor |
 | 37521 | Actor::PickUpObject | an NPC's pickup: StealAlarm with the item, then a created one is freed |
 | 20210 | TESObjectREFR::IsAnOwner | an actor reference with no ownership reads as anyone's |
@@ -202,7 +271,12 @@ near it.
 | 41335 | ProcessLists__FindStolenOwnerActor | owner actor in high process |
 | 41349 | ProcessLists__AddPlayerCrime | keeps only the player's crimes |
 | 42502 | Crime__ctor | crime record, criminal +0x0C, faction +0x60, bounty +0x58 |
-| 37679 | Character__ReportCrimeAddBounty | writes the bounty (ModCrimeGold 0xB6), HUD line |
+| 37679 | Character__ReportCrimeAddBounty | writes the bounty (ModCrimeGold 0xB6), HUD line; hooked: `CrimeReport` |
+| 378208 | gGameSetting_sAddCrimeGold | the HUD line's "bounty added to" |
+| 40660 | PlayerCharacter::SetEscaping | an escape's bounty, the same HUD line |
+| 41354 | KnownCrime (coop_RealKnownCrime) | a player crime this witness knows (`CriminalInterest`'s Witness) |
+| 42505, 42506 | Crime__HasWitness, Crime__AddWitness | the crime's witness array |
+| 42503, 41350, 37675 | Crime__Release, ProcessLists__ExpireOldCrimes, Actor__ForgivePlayerCrimes | crimes leave victims' lists, angry cleared |
 | 37554 | Actor__StartAlarm | witness's alarm or assault on the criminal |
 | 39651 | AIProcess__UpdateAlarmPackage | a running alarm assaults its target |
 | 39631, 39557 | AIProcess__ProcessPendingCrime, AIProcess__SetPendingCrime | a witness's deferred judgment |

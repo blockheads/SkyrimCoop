@@ -22,6 +22,13 @@ std::string HandleCommand(Harness& aHarness, const std::string& acRequest)
     try
     {
         const std::string cName = cRequest.value("cmd", "");
+        // Any command with "at" waits for that moment on this game's clock (Scheduled).
+        if (cName == "clock")
+            return nlohmann::json{{"ok", true}, {"now_ms", Scheduled::NowMs()}, {"frame", aHarness.Schedule.Frame}}.dump();
+        if (cName == "scheduled")
+            return aHarness.Schedule.Take(cRequest.value("id", 0u)).dump();
+        if (cRequest.contains("at"))
+            return nlohmann::json{{"ok", true}, {"queued", aHarness.Schedule.Queue(cRequest, cRequest["at"].get<double>())}}.dump();
         for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
             for (const Command& cCommand : cCommands)
             {

@@ -29,7 +29,9 @@
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Structs/SystemQuestState.h>
+#include <Structs/GraphOps.h>
 
+#include <bit>
 #include <numbers>
 #include <limits>
 #include <array>
@@ -90,6 +92,34 @@ TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]
     CHECK(static_cast<const NotifyActivate&>(*received) == notice);
 }
 
+TEST_CASE("A caught pickpocket names only its victim", "[encoding.crime]")
+{
+    // AttemptPickpocket (40654) raises PickpocketAlarm (37423) with no item and count 0.
+    CrimeRequest request;
+    request.Sequence = 7;
+    request.Action = CrimeAction::Pickpocket;
+    request.TargetActor = 42;
+    CHECK(request.IsValid());
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    const auto& received = static_cast<const CrimeRequest&>(*decoded);
+    CHECK(received.IsValid());
+    CHECK(received.Action == CrimeAction::Pickpocket);
+    CHECK(received.TargetActor == 42);
+    CHECK(!received.Item);
+    CHECK(received.Count == 0);
+    CrimeRequest nobody = request;
+    nobody.TargetActor = 0;
+    CHECK(!nobody.IsValid());
+    CrimeRequest theft = request;
+    theft.Action = CrimeAction::Theft;
+    CHECK(!theft.IsValid()); // a theft still names what it took
+}
+
 TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encoding.crime]")
 {
     CrimeRequest request;
@@ -137,6 +167,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     NotifyCrimeState state;
     state.Gold = {{GameId(0, 0x28170), 1000, 25, 75, 3000, true}, {GameId(0xFE, 0x100812), 0, 50, 80, 0},
                   {GameId(0, 0x2816B), 0, 0, 0, 0, true}};
+    state.Reports = {{GameId(0, 0x267EA), 5}, {GameId(0, 0x28170), 40}};
     Buffer reply;
     Buffer::Writer replyWriter(&reply);
     state.Serialize(replyWriter);
@@ -145,6 +176,7 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     REQUIRE(notification);
     REQUIRE(notification->GetOpcode() == NotifyCrimeState::Opcode);
     CHECK(static_cast<const NotifyCrimeState&>(*notification).Gold == state.Gold);
+    CHECK(static_cast<const NotifyCrimeState&>(*notification).Reports == state.Reports);
 
     NotifyLockCrime caught;
     caught.Attempt = 81;
@@ -540,12 +572,13 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         sendAction.EventName = "test";
         sendAction.IdleId = 87964;
         sendAction.State2 = 8963;
+        sendAction.StateAfter1 = 6547 | 0x200;
+        sendAction.StateAfter2 = 8964;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
         sendAction.TargetActor = 0x1200003;
         sendAction.Type = 4;
         sendAction.GraphState = std::string("graph\0state", 11);
-        sendAction.GraphCounters = "Every:1:3;";
 
         {
             Buffer buff(1000);
@@ -816,6 +849,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         greetingReader.ReadBits(trash, 8);
         recvOpened.DeserializeRaw(greetingReader);
         CHECK(recvOpened.Greeting == sendOpened.Greeting);
+
+        DialogueStartFailedRequest sendFailed, recvFailed;
+        sendFailed.NpcId = 0x22;
+        sendFailed.NothingToSay = true;
+        Buffer failedBuffer(100);
+        Buffer::Writer failedWriter(&failedBuffer);
+        sendFailed.Serialize(failedWriter);
+        Buffer::Reader failedReader(&failedBuffer);
+        failedReader.ReadBits(trash, 8);
+        recvFailed.DeserializeRaw(failedReader);
+        CHECK((recvFailed.NpcId == 0x22 && recvFailed.NothingToSay));
     }
 
     SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")
@@ -1017,6 +1061,8 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendAction.EventName = "test";
         sendAction.IdleId = 87964;
         sendAction.State2 = 8963;
+        sendAction.StateAfter1 = 6547 | 0x200;
+        sendAction.StateAfter2 = 8964;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
         sendAction.TargetActor = 0x1200003;
@@ -1249,6 +1295,8 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Knocked = true;
         move.OnGround = true;
         move.CapsuleCollides = false;
+        move.BodiesLayer = 33;
+        move.GraphsStepPhysics = false;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);
@@ -1299,7 +1347,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK(std::abs(received.Direction - move.Direction) < 0.001f);
         CHECK(received.Position == move.Position);
         INFO(writer.Size() << " bytes");
-        CHECK(writer.Size() <= 64);
+        CHECK(writer.Size() <= 65); // with the bodies layer and GraphsStepPhysics (a byte)
     }
 }
 
@@ -1876,6 +1924,21 @@ TEST_CASE("Party travel preserves queued destinations and native travel hours", 
     travel.Destination.Position = {30.f, -40.f, 50.f};
     travel.Destination.Heading = 2.1f;
     roundTrip(travel);
+    PartySummonRequest summon;
+    summon.Destination = travel.Destination;
+    roundTrip(summon);
+
+    NotifyPartySummon notify;
+    notify.Destination = travel.Destination;
+    notify.Username = "Lydia";
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    notify.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(*CastUnique<NotifyPartySummon>(std::move(decoded)) == notify);
+    CHECK(DeliveryOf(summon) == Delivery::kReliableNow);
 }
 
 TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
@@ -2044,6 +2107,7 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     sent.Topic = GameId(0, 0x1F4E2);
     sent.Info = GameId(0, 0x803);
     sent.PlayerId = 2;
+    sent.Text = "Tell me about him.";
     Buffer buffer;
     Buffer::Writer writer(&buffer);
     sent.Serialize(writer);
@@ -2051,12 +2115,14 @@ TEST_CASE("A pick names who said it; the highlight goes to the others", "[encodi
     moved.Conversation = 3;
     moved.Step = 4;
     moved.Index = 2;
+    moved.PlayerId = 9;
+    moved.Seq = 300;
     moved.Serialize(writer);
     Buffer::Reader reader(&buffer);
     auto decoded = NotifyMessageFactory{}.Extract(reader);
     REQUIRE(decoded);
     const auto& cPicked = static_cast<const NotifyDialoguePicked&>(*decoded);
-    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info));
+    CHECK((cPicked.PlayerId == 2 && cPicked.Info == sent.Info && cPicked.Text == sent.Text));
     auto decodedMove = RequestMessageFactory{}.Extract(reader);
     REQUIRE(decodedMove);
     REQUIRE(decodedMove->GetOpcode() == kDialogueHighlightRequest);
@@ -2121,4 +2187,122 @@ TEST_CASE("A guest sends movement unreliably and movement with actions or a tele
     CHECK(DeliveryOf(BodyFramesRequest{}) == Delivery::kReliable);
     CHECK(DeliveryOf(BodyReleaseRequest{}) == Delivery::kReliable);
     CHECK(DeliveryOf(PartyTravelRequest{}) == Delivery::kReliableNow);
+}
+
+namespace
+{
+GraphOps GraphOpsBatch(uint64_t aFirstTick, uint32_t aActor, uint32_t aFirstUpdate, std::vector<GraphOp> aOps, size_t aFrames)
+{
+    GraphOps ops;
+    for (size_t i = 0; i < aFrames; ++i)
+        ops.Frames.push_back({aFirstTick + i, 0.0166f + 0.0001f * static_cast<float>(i)});
+    ops.Runs.push_back({aActor, aFirstUpdate, std::move(aOps)});
+    return ops;
+}
+} // namespace
+
+TEST_CASE("Graph ops round trip exactly", "[encoding.graph_ops]")
+{
+    const float cOdd = std::bit_cast<float>(0x7FC00001u); // a NaN's payload survives: values go as bits
+    GraphOps ops = GraphOpsBatch(1000, 7, 0,
+                                 {{.Frame = 0, .Seed = GraphSeed{11, 12}, .Changed = {{0, 0x42A343EB}, {40, std::bit_cast<uint32_t>(cOdd)}}},
+                                  {.Event = true, .EventId = 513, .Changed = {{48, 1}}},
+                                  {.Event = true, .EventId = 77, .ClipSet = 4}, // a clip load: an instant interaction's set
+                                  {.Event = true, .EventId = 78, .ClipSet = 47}, // a movement idle's
+                                  {.Frame = 1},
+                                  {.Generate = true}, // its generate pass, with the update
+                                  {.Frame = 2, .Changed = {{0, 0x42A343EC}}, .Picks = {{31, -1}, {40, 3}}}, // its nodes' picks
+                                  {.Generate = true},
+                                  {.Frame = 3, .Picks = {{31, 2}}}, // a pick alone is no empty update
+                                  {.Generate = true},
+                                  {.Frame = 4},
+                                  {.Event = true, .EventId = 6},
+                                  {.Generate = true}, // after something else: an op of its own
+                                  {.Frame = 5}}, // a skipped frame
+                                 6);
+    ops.Runs.push_back({9, 40, {{.Frame = 0, .Changed = {{0, 0x42A343EC}, {700, 9}}}, {.Frame = 1}}});
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    ops.Serialize(writer);
+    Wire::Buffer::Reader reader(&buffer);
+    GraphOps read;
+    REQUIRE(read.Deserialize(reader));
+    CHECK(read == ops);
+}
+
+TEST_CASE("An update that changes nothing costs a bit", "[encoding.graph_ops]")
+{
+    // With its generate pass after it, as every frame a graph updates in has.
+    std::vector<GraphOp> idle{{.Frame = 0}, {.Generate = true}};
+    for (uint32_t i = 1; i < 60; ++i)
+    {
+        idle.push_back({.Frame = i});
+        idle.push_back({.Generate = true});
+    }
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    GraphOps::WriteRun(writer, {7, 0, idle});
+    CHECK(writer.Size() <= 3 + 3 + 8); // id, first update and count; the first op; then 59 bits
+    Wire::Buffer::Reader reader(&buffer);
+    GraphOpsRun read;
+    REQUIRE(GraphOps::ReadRun(reader, read, 60));
+    CHECK(read.Ops == idle);
+}
+
+TEST_CASE("Graph ops reject truncated and impossible input", "[encoding.graph_ops]")
+{
+    const GraphOps cOps = GraphOpsBatch(50, 3, 0, {{.Frame = 0, .Changed = {{2, 5}, {9, 0xFFFFFFFF}}}, {.Event = true, .EventId = 4}, {.Frame = 1}}, 2);
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    cOps.Serialize(writer);
+    const size_t cBytes = writer.Size();
+    for (size_t size = 0; size + 1 < cBytes; ++size)
+    {
+        Wire::Buffer::Reader reader(std::span<const uint8_t>(buffer.GetData(), size));
+        GraphOps read;
+        CHECK_FALSE(read.Deserialize(reader));
+    }
+    // An update in a frame the batch does not have.
+    Wire::Buffer bad;
+    Wire::Buffer::Writer badWriter(&bad);
+    GraphOpsBatch(50, 3, 0, {{.Frame = 3}}, 2).Serialize(badWriter);
+    Wire::Buffer::Reader badReader(&bad);
+    GraphOps read;
+    CHECK_FALSE(read.Deserialize(badReader));
+}
+
+TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
+{
+    GraphOpsRequest ops;
+    ops.Ops = GraphOpsBatch(70, 4, 12, {{.Frame = 0, .Changed = {{3, 0x3F800000}}}, {.Event = true, .EventId = 9}, {.Frame = 1}}, 2);
+    NotifyGraphSync sync;
+    sync.Id = 4;
+    GraphSyncPointRequest point;
+    point.Id = 4;
+    point.Update = 12;
+    point.Tick = 123456;
+    point.State = std::string("\0\1state", 7);
+    point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
+    point.Seed = {5, 6};
+    point.ClipSets = {{3, 513}, {4, 7}, {47, 65535}};
+    point.ActiveNodesChanged = true;
+    point.Project = 0xC0FFEE;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    ops.Serialize(writer);
+    point.Serialize(writer);
+    sync.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decodedOps = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedOps);
+    REQUIRE(decodedOps->GetOpcode() == kGraphOpsRequest);
+    CHECK(static_cast<const GraphOpsRequest&>(*decodedOps) == ops);
+    auto decodedPoint = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decodedPoint);
+    REQUIRE(decodedPoint->GetOpcode() == kGraphSyncPointRequest);
+    CHECK(static_cast<const GraphSyncPointRequest&>(*decodedPoint) == point);
+    auto decodedSync = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decodedSync);
+    REQUIRE(decodedSync->GetOpcode() == kNotifyGraphSync);
+    CHECK(static_cast<const NotifyGraphSync&>(*decodedSync) == sync);
 }

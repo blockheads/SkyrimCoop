@@ -3,6 +3,7 @@
 #include "Party.h"
 #include "Fixtures.h"
 #include <Games/Animation/ReplayState.h>
+#include <Systems/InterpolationSystem.h>
 
 #include <Events/SessionNoticeEvent.h>
 #include <Events/MeleeStaggerEvent.h>
@@ -320,6 +321,44 @@ SCENARIO("Two players' kill moves cross: the first swing wins, on both games", "
     party.Until([&] { return !host.IsPlayerAlive() || !guest.IsPlayerAlive(); }, "a blow lands");
     CHECK(winner.IsPlayerAlive());
     CHECK_FALSE(loser.IsPlayerAlive());
+}
+
+SCENARIO("A kill move starts on its victim's game at playback, not behind a plain action its copy's graph clock holds back",
+         "[combat][friendly-fire][kill-move]")
+{
+    // Skyrim (duo, kill-moves-cross, 2026-11-09): the host's pair played on the guest 330 ms after its swing. Its
+    // moveStart, just before, waited on the copy's graph clock (ActionDue), and the pair waited behind it: the guest's
+    // player died of the forwarded hit first, and the pair was refused.
+    Party party(1, SmokeWorld);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return CopyOfPlayer(party, party.Host(), party.Guest()) && CopyOfPlayer(party, party.Guest(), party.Host()); },
+                "both games have the other's player");
+    const uint32_t cCopy = CopyOfPlayer(party, party.Guest(), party.Host());
+    CopyCatchesUp(party, party.Host(), party.Guest(), 0x1000); // anchors its next action
+    // Its graph's clock falls behind its owner's ticks.
+    const uint64_t cFrom = party.Guest().GetTick();
+    guest.Actors.at(cCopy).GraphUpdating = false;
+    party.Until([&] { return party.Guest().GetTick() >= cFrom + 200; }, "200 ms its graph does not step in");
+    guest.Actors.at(cCopy).GraphUpdating = true;
+
+    ActionEvent move;
+    move.ActionId = 0x959F8;
+    move.IdleId = 0x959FA;
+    move.EventName = "moveStart";
+    uint64_t swung = 0;
+    party.As(party.Host(), [&] {
+        REQUIRE(host.PerformAnimation(FakeEngine::kPlayer, move));
+        swung = party.Host().GetTick();
+    });
+    StartKillMove(party, party.Host(), party.Guest(), "KillMoveI");
+    party.Until([&] { return guest.Actors.at(FakeEngine::kPlayer).InKillMove; }, "the pair starts on the victim's game");
+    uint64_t shown = 0;
+    for (auto&& [entity, form, animation] : party.Guest().view<FormIdComponent, RemoteAnimationComponent>().each())
+        if (form.Id == cCopy)
+            shown = InterpolationSystem::PlaybackTick(party.Guest(), entity);
+    INFO("the pair started showing its owner " << int64_t(shown) - int64_t(swung) << " ms after the swing");
+    CHECK(shown < swung + 100);
 }
 
 SCENARIO("Two players' kill moves on the same tick: both games pick the same winner", "[combat][friendly-fire][kill-move]")

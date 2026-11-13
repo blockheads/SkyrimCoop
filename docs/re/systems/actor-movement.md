@@ -182,8 +182,8 @@ into furniture BGSProcedureSit/Sleep -> AIProcess::SetSitSleepState (39912)
                leaving: SetSitSleepState clears 0x8000; Actor::Move clears it at sit state 0
 ```
 
-A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its owner's replayed actions, and its
-capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
+A copy runs no AI, so it never runs `SetSitSleepState`: its sit state comes from its spawn's graph state (both actor state words) and its
+owner's replayed actions, and its capsule kept colliding. In its chair or against its wall, physics pushed the capsule out each step. `HookSetPosition`
 lets the write-back through while a copy is stepped (`HasCopyGoal`), so the copy moved there, and the next frame pulled
 it back to its goal: the shake. The push depends on the furniture's shape, so it repeated every few frames.
 
@@ -196,6 +196,11 @@ A copy whose owner's capsule collides with nothing is placed, not stepped (`Copy
 `Actor::Move` clears `0x8000` before its step (`0x14068990A`, then 37006), so a step would turn the copy's collision back
 on. The engine does not step such an owner either: in furniture `Move` takes its no-step branch, far off it moves on the
 navmesh.
+
+The capsule is not all 40063 does: it also puts the actor's own 3D's bodies, keyframed, on layer 33 in the world, and the
+crosshair takes a seated actor only through them, and it detaches the actor's graphs from the physics world first. Since
+2026-11-09 a copy's bodies and graphs mirror its owner's as its capsule does (`Movement::BodiesLayer`, `GraphsStepPhysics`;
+`dialogue.md`, "The crosshair on a seated actor").
 
 So an NPC moving far from the host's player (`MoveOnNavmeshUnseen`, past `fVisibleNavmeshMoveDist` 4096 or
 `fNotVisibleNavmeshMoveDist` 2048), its collision off, has a copy the guest passes through, as the owner would.

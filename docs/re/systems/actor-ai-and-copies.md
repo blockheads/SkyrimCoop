@@ -55,8 +55,9 @@ running.
    to sheathe) and then the package procedures (heading, travel, `MoveRefToNewSpace`).
 5. Dead or down: essential recovery (`SetLifeState(0)`), respawn queueing.
 6. Last, for an actor below high process: `Character::UpdateCellAttachment` (37352, our name). In an
-   exterior it loads or unloads the actor's 3D to match whether its cell is attached, or queues a
-   move to the exterior cell of the same worldspace it stands in; in an interior it does nothing.
+   exterior it inits or detaches the actor's Havok to match whether its cell is attached (not its 3D:
+   "A guest's own NPCs run" below), or queues a move to the exterior cell of the same worldspace it
+   stands in; in an interior it does nothing.
    That is world upkeep, not a decision, and its only other caller is `Actor::UpdateNonRenderSafe`
    (37360), which runs for high actors only.
 
@@ -210,6 +211,81 @@ integration, since the sync positions copies.
 
 `ProcessLists::UpdateHighActor` runs on the job threads, several actors at once, so the hook must not
 touch shared state without a lock (a debugging map once hung the game there).
+
+### A guest's own NPCs run (read 2026-11-09)
+
+The cut is for copies only, so on a guest every NPC that is not a copy runs its full AI, at every process level:
+
+```
+Character::UpdateAI 37347 callers (xrefs, 1.7.104)
+  ProcessLists::UpdateHighActor 41369          high (loaded, cell attached)
+  UpdateMiddleHighActorsAI 41305               loaded, not attached   time-sliced,
+  UpdateMiddleLowActorsAI 41304                                       kProcessMe-gated
+  UpdateLowActorsAI 41302                      persistent, out of the loaded area
+  ProcessLists::CatchUpHighActorsAI 41405      high actors, hours missed; fast travel's 40445
+  TESObjectREFR::Enable 19800, UpdatePackageAndProcessTimed, UpdateDeathReload
+below high: packages run (Virtual Path Follower moves it, actor-movement.md)
+  then UpdateCellAttachment 37352: Havok and its cell follow where it stands
+```
+
+So a persistent NPC the host has not loaded walks its schedule on the guest's own clock and shows up there with its
+own AI (Aela the Huntress 1A697 and Ria 1A6D8 walking through Whiterun's gate on the guest only, 2026-11-09, during
+`copies_follow_owners_graphs_in_town` at timescale 20). Nothing marks it: the host never spawned it, so it is no copy
+and has no `LocalComponent`; the guest's actor discovery lists only its player and deletes only temporary NPCs.
+
+`UpdateCellAttachment` (37352) does not load 3D, whatever the older note said: its vfuncs are `InitHavok` 0x66 and
+`DetachHavok` 0x65 (Character's vtable), queued as tasks 54 and the detach, and out of its cell's bounds it queues
+task 84 (`QueueUpdateParentCell`, our name). The 3D comes from the model queue:
+
+```
+TESQueuedHandles::QueueReference 13057 (ours)  cell attach 19280/19411, Enable, process-level changes,
+  a QueuedReference; its cell's queuedRefCount +0x170 (+ critical +0x16C) up   (19151, 19155)
+QueuedReference::BackgroundLoad3D 13019 (ours)   ready, cell loaded, no 3D -> vfunc 0x6A Load3D(true)
+  Actor::Load3D 37177 -> TESObjectREFR::Load3D 19727: first test, deleted or disabled -> null
+QueuedReference::Finish 13022 (ours)             a model: Set3D; null: no attach
+  either way its cell's counts down (19152, 19156) -> TESCellFullyLoadedEvent (19146) once both are 0
+```
+
+The only writers of the two counts are 19151/19152/19155/19156 (byte scan of `.text`). So a null from 19727 for an
+enabled actor is the disabled path: the cell still counts it loaded, nothing re-queues it (outside `UpdateAI`, only
+`Actor::UpdateAnimation` queues, and only for an actor with 3D), and `Actor::Load3D`'s tail runs as for a disabled one.
+Re-queuing it later is `QueueReference` again (as `Enable` does); it returns at once for a reference already queued.
+
+### Held on a guest (built 2026-11-09)
+
+The fix (copy-contract.md, "A guest's own NPCs") cuts both funnels for an actor `GuestNpcs::Held` names:
+`HookUpdateAI` returns before `RealUpdateAI` (no copy upkeep either: a held NPC is not put in deferred kill), and
+`HookLoad3D` on 19727 returns null, the disabled path above.
+
+The refused job ends in `QueuedReference::Finish` (13022, vtable slot 12 of every queued kind, main thread), and its
+handle leaves the queued map last (`TESQueuedHandles::RemoveHandle` 13067). Until then a `QueueReference` of the
+reference only changes its priority. So `HookFinishLoad3D` is where the job really ends: it raises `NpcHeldEvent` (for
+the `TESObjectLoadedEvent` that never comes, so a host spawn waiting on the load goes on) and queues the 3D again if the
+NPC stopped being held while the job was out (found by the PR 45 review). The byte `IsQueued` (13060) reads, ref
++0x9A, is not cleared there, so it is not the test for a job still out.
+
+Once it is a copy or claimed, `Actor::ApplyHeld3D` does what `Enable` (19800) does to queue a load:
+
+```
+TES::IsCellLoaded 13308 (TES, parentCell, false)  cell state 3-7 (+0x44)
+no 3D (Enable: vfunc 0x70), not deleted (0x20)
+TESQueuedHandles::QueueReference 13057 (*400332, ref,
+    TES::GetCellLoadPriority 13321 (TES, parentCell, false), false)
+  priority 1 within a cell of the grid's center, else 3; 5 with no cell
+  a job still out (its handle in the queued map): only the priority changes
+```
+
+`Refused3D` is set before the second look at the held rule on the loader thread, and read after the copy flag on the
+main thread, so one of the two always sees the other: either the load goes on, or `SetActorCopy` queues it. It clears
+only when a `Load3D` passes.
+
+NPCs that already have 3D when holding starts (the host's save loads before the guest connects, join-flow.md; a
+reconnect) are reloaded: `Reload3D` disables and enables the reference (the base change's way, no form-flags record),
+and Enable's queued load is refused.
+
+A background `Load3D` that passed before holding started keeps its model in the job (+0x2C8) until `Finish` attaches it
+(19731), so the scan at the start sees no 3D. `HookFinishLoad3D` catches that too: a held NPC its job just gave 3D is
+reloaded the same way (found by the PR 45 review's second round).
 
 ### What the AI used to repair
 
@@ -401,7 +477,9 @@ This is skymp's way (`skymp5-client` `formView.ts`: `startDeferredKill()` on eve
 `endDeferredKill()` then `kill()` on the server's death). In deferred kill `HandleHealthDamage`'s
 bleedout/kill check and `KillImpl` only mark a pending kill; `Actor::Kill` and `KillWithDeathAction`
 end it first (`EndDeferredKill` 38618 queues the pending kill on the task queue, so the kill made
-right after wins). A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
+right after wins). The end applies only when its argument equals the flag the start set
+(`coop_AIProcess_EndDeferredKill`, middle/high `+0x332`), so the engine's own unscripted ends (a mount's 37462) leave a
+copy's in place. A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
 deferral started with `false`, so a kill move on a copy does not kill it either. Replaced a 0.01
 health floor and a map undoing it after the death. Measured: the copy shows -2.04 while alive and
 dies with its owner's `DeathAnimation` 0.36 s later; kill-credit, `death-host-npc`, `health-host-npc`
@@ -729,6 +807,18 @@ meh321 where they have one, ours otherwise.
   (37552) sets the delay to 1.0, the engine's own way to hold the pick back, and moves the dialogue slot to slot 0;
   `ClearHeadtrackTarget` (39756) with its third argument moves any cleared slot to slot 0.
   `Actor::KillImpl` clears all six (`ActorProcess::ClearAllHeadtrackSlots` 39477).
+
+  **A look at this game's player needs detection (read in IDA, measured 2026-11-10).** When the target is this game's
+  player (handle 403520), ProcessTracking asks the tracker's fresh detection state of that player
+  (`Actor__GetFreshDetectionStateOf` 37758, priority 3). With a state of level 0 or less, and the tracker not talking
+  to the player, not greeting, its package not type 2, it clears slot 0 (`coop_AIProcess_ClearDefaultHeadtrackSlot` 39467) and reads the target again.
+  No state at all clears nothing. A player's copy holds an unseen state of this game's player (-1000,
+  `stealth.md`, Our hook), so its slot 0 on that player was cleared every frame: `guest-rides-host-horse` failed with
+  `owner ['session 1'] vs host copy []` once the guest's player picked the host's as its ambient target (logged: the
+  owner's slot pushed each frame, the copy's raw slot 0 again before the next push). A copy's look is its owner's,
+  judged on its owner's game, so inside a copy's ProcessTracking 37758 answers no state
+  (`DetectionRules::HeadTrackAsksDetection`, `AiStateEvents`). GameTests `[stealth][headtrack]`; duo 36 of 36 after,
+  the copy holding its owner's target through each ride.
 
   Measured (a wolf killed on its owner, slots sampled on both games, 20/s): at dying, slot 1 becomes each game's own
   player; about 2 s later it moves to slot 0 on both; the owner's clears at life state 2 (2.47 s). The copy reached life

@@ -154,8 +154,15 @@ class PoseVisibility(unittest.TestCase):
         worlds["client"]["200"]["animation"]["idle"] = 0
         self.assertEqual([key.rsplit(" ", 1)[-1] for key, _ in compare_actors(worlds)], ["animation.idle"])
 
-    def test_player_body_checks_keep_their_existing_scope(self):
-        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds(False, False, player=True))))
+    def test_a_players_copy_not_drawn_is_a_stale_observation(self):
+        # Skyrim (duo, teleport-keeps-copies, 2026-11-10): the guest's player's copy read head 81 for 3.7 s after a
+        # landing, culled on the host, while its graph matched its owner's on every update (524 compared).
+        self.assertEqual(compare_actors(self.worlds(copy_visible=False, player=True)), [])
+
+    def test_a_players_body_is_checked_whenever_its_copy_is_drawn(self):
+        # Its own game reads its body as it stands, in first person too: only the copy's side can be stale.
+        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds(False, True, player=True))))
+        self.assertTrue(any("pose.head" in key for key, _ in compare_actors(self.worlds(player=True))))
 
 
 class Smoothness(unittest.TestCase):

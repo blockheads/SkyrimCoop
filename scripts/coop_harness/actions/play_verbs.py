@@ -645,6 +645,9 @@ class PlayerVerbs:
     def talk(ctx, instance, target, say=()):
         """The player starts a conversation with `target` (or goes on with the open one) and picks each line of `say`
         (text or index), waiting for each response; returns what was said and what is offered next."""
+        if target in getattr(ctx, "FROZEN_HANDLES", ()):
+            # The freeze stops the engine updating the actor (kProcessMe): its lines never end, a pick waits forever.
+            raise ctx.failure(f"{target} is staged frozen: stage a speaker with frozen: false")
         if ctx.talking_to(instance, ctx.resolve(target, instance)):
             options = [option.get("text") for option in ctx.dialogue(instance).get("options") or []]
         else:
@@ -696,6 +699,40 @@ class PlayerVerbs:
         held = ctx.container_items(instance, ref)
         ctx.activate_ref(instance, ref, target)
         ctx.take_from_open_container(instance)
+        return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
+
+    @goal
+    def pickpocket(ctx, instance, target, item, caught=False):
+        """The player sneaks up to `target`, opens its pockets (Activate, real input) and takes `item` (its name in the
+        list). The chance is pinned for the try (fPickPocketMin/MaxChance, AIFormulas 26379): caught, or not."""
+        from ..common import ACTIVATE_KEY, ITEM_LISTS, TAB_KEY
+        ctx.can_play(instance)
+        ref = ctx.resolve(target, instance)
+        who = f"[{instance or 'host'}]"
+        chance = 0 if caught else 100
+        held = ctx.container_items(instance, ref)
+        try:
+            for setting in ("fPickPocketMinChance", "fPickPocketMaxChance"):
+                ctx.console_on(instance, f"setgs {setting} {chance}")
+            ctx.sneak(instance, True)
+            ctx.reach(instance, target)
+            ctx.activate_ref(instance, ref, target)
+            ctx.wait_for(f"{who} {target}'s pockets show their list",
+                         lambda: ctx.menu_var(instance, "ContainerMenu", ITEM_LISTS + ".currentState") == 2, 5)
+            ctx.select_entry(instance, "ContainerMenu", ITEM_LISTS + ".ItemsList", item)
+            ctx.tap_key(instance, ACTIVATE_KEY)
+            if caught:  # AttemptPickpocket (40654) fails: the menu closes on the alarm
+                ctx.wait_for(f"{who} the caught try closes the menu", lambda: "ContainerMenu" not in ctx.menus(instance), 5)
+            else:
+                ctx.wait_for(f"{who} the take leaves {target}'s pockets",
+                             lambda: sum(ctx.container_items(instance, ref).values()) < sum(held.values()), 5)
+        finally:
+            if "ContainerMenu" in ctx.menus(instance):
+                ctx.tap_key(instance, TAB_KEY)
+                ctx.wait_for(f"{who} the menu closes", lambda: "ContainerMenu" not in ctx.menus(instance), 5)
+            ctx.console_on(instance, "setgs fPickPocketMinChance 0")
+            ctx.console_on(instance, "setgs fPickPocketMaxChance 90")
+            ctx.sneak(instance, False)
         return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
 
     @goal

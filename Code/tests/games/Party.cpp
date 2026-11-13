@@ -117,8 +117,9 @@ std::unique_ptr<World> Party::NewGame(const char* acpName, const WorldPlugins& a
     auto pGame = std::make_unique<World>();
     Engine(*pGame).Name = acpName;
     pGame->ctx().at<FakeSteam&>().Name = acpName;
+    // As that game: its engine's loads raise their events on its runner.
     if (acPlugins)
-        acPlugins(Engine(*pGame));
+        As(*pGame, [&] { acPlugins(Engine(*pGame)); });
     return pGame;
 }
 } // namespace GameTest

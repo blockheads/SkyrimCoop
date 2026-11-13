@@ -1,0 +1,483 @@
+time	op	id	rva	item
+2026-11-07T22:20:17Z	read	39256	0x6f0a20	{"name": "AIProcess::SetupSpecialIdle"}
+2026-11-07T22:20:24Z	read	39257	0x6f0e30	{"name": "AIProcess::StopCurrentIdle"}
+2026-11-07T22:20:25Z	read	39625	0x703360	{"name": "sub_140703360"}
+2026-11-07T22:20:36Z	read	41557	0x78db80	{"name": "TESActionData::Func5_41557"}
+2026-11-07T22:20:41Z	read	39704	0x71bdf0	{"name": "sub_14071BDF0"}
+2026-11-07T22:20:50Z	read		0x71be1d	{"name": "sub_14071BDF0"}
+2026-11-07T22:21:04Z	read	39762	0x71dec0	{"name": "sub_14071DEC0"}
+2026-11-07T22:21:09Z	name	39625	0x703360	{"addr": "0x140703360", "name": "AIProcess::QueryActionAndLoadClips"}
+2026-11-07T22:21:09Z	name	39704	0x71bdf0	{"addr": "0x14071BDF0", "name": "RunActionAnimationLoadedCallback::ctor"}
+2026-11-07T22:21:09Z	name	39762	0x71dec0	{"addr": "0x14071DEC0", "name": "RunActionAnimationLoadedCallback::Run"}
+2026-11-07T22:21:12Z	comment	39625	0x703360	{"addr": "0x140703360", "comment": "39625: an AI action/idle as a query (data+0x58=1) through PerformAction; on success cancels any pending clip load, loads the event's clips and performs it later from RunActionAnimationLoadedCallback::Run (no loader: performs at once)."}
+2026-11-07T22:21:12Z	comment	39762	0x71dec0	{"addr": "0x14071DEC0", "comment": "Clips in: rebuilds the TESActionData (input 2, action default object at +72, idle at +56) and performs it through PerformAction 38949. Refused: sets the setup flag (+80) back."}
+2026-11-07T22:21:12Z	comment	39257	0x6f0e30	{"addr": "0x1406f0e30", "comment": "39257 StopCurrentIdle(process, actor, force): force tries ActionIdleStopInstant (109), else ActionIdleStop (79), or the furniture/sit stops (97/99/100); all through PerformAction 38949, so an owner's idle stop is a sent action."}
+2026-11-07T22:24:49Z	read	63591	0xbcf690	{"name": "BShkbAnimationGraph::SendEvent"}
+2026-11-07T22:24:58Z	comment	63591	0xbcf690	{"addr": "0x140bcf690", "comment": "63591 SendEvent(graph, BSFixedString* event): the graph's event id from its name table, then the root behaviour's handleEvent (+48); returns whether a node took it. Every input event of a graph passes here (NotifyAllGraphs 63362, 63372)."}
+2026-11-07T22:57:47Z	read	59334	0xaf2340	{"name": "hkbStateMachine::sub_59334"}
+2026-11-07T22:57:50Z	read	59335	0xaf2690	{"name": "hkbStateMachine::sub_59335"}
+2026-11-07T22:58:05Z	read	59405	0xaf8d30	{"name": "hkbStateMachine::sub_59405"}
+2026-11-07T22:58:56Z	read	59329	0xaf1980	{"name": "sub_140AF1980"}
+2026-11-07T22:59:00Z	read		0xad022d	{"name": "hkbBehaviorGraph::sub_58380"}
+2026-11-07T22:59:08Z	read		0xaf7339	{"name": "hkbStateMachine::sub_59383"}
+2026-11-07T22:59:13Z	read	59412	0xaf95c0	{"name": "sub_140AF95C0"}
+2026-11-07T22:59:25Z	name	59334	0xaf2340	{"addr": "0x140af2340", "name": "hkbStateMachine::Activate"}
+2026-11-07T22:59:25Z	name	59335	0xaf2690	{"addr": "0x140af2690", "name": "hkbStateMachine::Update"}
+2026-11-07T22:59:25Z	name	59405	0xaf8d30	{"addr": "0x140af8d30", "name": "hkbStateMachine::ChooseStartStateId"}
+2026-11-07T22:59:25Z	name		0xaf7190	{"addr": "0x140af7190", "name": "hkbStateMachine::StartTransition"}
+2026-11-07T22:59:25Z	name		0xad01a0	{"addr": "0x140AD01A0", "name": "hkbBehaviorGraph::StartNestedStateTransition"}
+2026-11-07T22:59:25Z	name	59329	0xaf1980	{"addr": "0x140AF1980", "name": "hkbStateMachine::ctor"}
+2026-11-07T22:59:25Z	name	59412	0xaf95c0	{"addr": "0x140AF95C0", "name": "hkbStateMachine::ctorFinish"}
+2026-11-07T22:59:31Z	comment	59334	0xaf2340	{"addr": "0x140af2340", "comment": "59334 vfunc 4: on activation (+0x88 isActive false) picks the start state (ChooseStartStateId 59405), enters it (59390, 59399), sets isActive."}
+2026-11-07T22:59:31Z	comment	59405	0xaf8d30	{"addr": "0x140af8d30", "comment": "59405: a pending nextStartStateIndexOverride (+0xFC, an index; -1 none) wins and is cleared; else startStateMode (+0x86): 0 startStateId (+0x68), 1 sync variable (+0x7C), 2 random (59406), 3 chooser (+0x60)."}
+2026-11-07T22:59:31Z	comment		0xaf7190	{"addr": "0x140af7190", "comment": "59383: starts a transition; one flagged 0x2000 (toNestedStateId valid) writes the destination state's nested machine's +0xFC override, consumed only when that machine next activates (59405)."}
+2026-11-07T22:59:31Z	comment	59329	0xaf1980	{"addr": "0x140AF1980", "comment": "59329 hkbStateMachine ctor: +0xFC nextStartStateIndexOverride = -1."}
+2026-11-07T22:59:31Z	comment	59412	0xaf95c0	{"addr": "0x140AF95C0", "comment": "59412 packfile finish ctor: +0xFC = -1 when finishing."}
+2026-11-07T22:59:31Z	comment		0x71be1d	{"addr": "0x14071be1d", "comment": "RunActionAnimationLoadedCallback vtable: [0] dtor 0x14071D220, [1] Run 0x14071DEC0."}
+2026-11-07T22:59:53Z	comment		0xaf7190	{"addr": "0x140af7190", "comment": ""}
+2026-11-07T22:59:53Z	comment	59383	0xaf71c0	{"addr": "0x140af71c0", "comment": "59383: starts a transition; one flagged 0x2000 (toNestedStateId valid) writes the destination state's nested machine's +0xFC override, consumed only when that machine next activates (59405)."}
+2026-11-07T22:59:53Z	comment	58380	0xad01b0	{"addr": "0x140ad01b0", "comment": "58380: a wildcard transition into a nested state: writes +0xFC on each machine up the parent chain to the target, then starts the transition in the outer machine (59373)."}
+2026-11-07T23:00:05Z	name		0xaf7190	{"addr": "0x140af7190", "name": ""}
+2026-11-07T23:00:05Z	name		0xad01a0	{"addr": "0x140AD01A0", "name": ""}
+2026-11-07T23:00:09Z	name	59383	0xaf71c0	{"addr": "0x140af71c0", "name": "hkbStateMachine::StartTransition"}
+2026-11-07T23:00:09Z	name	58380	0xad01b0	{"addr": "0x140ad01b0", "name": "hkbBehaviorGraph::StartNestedStateTransition"}
+2026-11-07T23:00:53Z	read	63602	0xbd1690	{"name": "BShkbAnimationGraph::LoadState"}
+2026-11-07T23:02:23Z	read	58359	0xace3b0	{"name": "hkbBehaviorGraph::GetNodeClone"}
+2026-11-07T23:02:23Z	read		0xb01070	{"name": "hkbExpressionCondition::sub_59511"}
+2026-11-07T23:02:29Z	read	57195	0xaa6960	{"name": "hkPointerMap_GetWithDefault"}
+2026-11-07T23:05:19Z	read	58360	0xace3f0	{"name": "hkbBehaviorGraph::sub_58360"}
+2026-11-07T23:05:28Z	name	58360	0xace3f0	{"addr": "0x140ace3f0", "name": "hkbBehaviorGraph::GetOrCreateNodeClone"}
+2026-11-07T23:05:30Z	comment	58360	0xace3f0	{"addr": "0x140ace3f0", "comment": "58360: the template's clone for this character (map +0xE0, reverse +0xE8), cloned (vfunc +96) and inserted if missing: writes through it reach a machine that is not active yet."}
+2026-11-07T23:14:27Z	read	59341	0xaf3220	{"name": "hkbStateMachine::sub_59341"}
+2026-11-07T23:14:31Z	read		0xaf1c14	{"name": "hkbStateMachine::sub_59330"}
+2026-11-07T23:14:50Z	read		0xaf3780	{"name": "hkbStateMachine::sub_59348"}
+2026-11-07T23:14:50Z	read		0xaf9351	{"name": "hkbStateMachine::sub_59407"}
+2026-11-07T23:17:56Z	read	59390	0xaf7e60	{"name": "hkbStateMachine::sub_59390"}
+2026-11-07T23:21:04Z	read	59337	0xaf2950	{"name": "hkbStateMachine::sub_59337"}
+2026-11-07T23:24:03Z	read	63450	0xbc49c0	{"name": "sub_140BC49C0"}
+2026-11-07T23:26:41Z	read		0xacc5d0	{"name": "hkbBehaviorGraph::sub_58336"}
+2026-11-07T23:52:41Z	read	59409	0xaf94f0	{"name": "hkbStateMachine::sub_59409"}
+2026-11-08T00:07:54Z	read		0x2253a0	{"name": "InitializeBoneNames"}
+2026-11-08T00:49:35Z	read	58522	0xadba30	{"name": "hkbGenerator::sub_58522"}
+2026-11-08T00:49:48Z	name	59467	0xaff450	{"addr": "0x140aff450", "name": "hkbVariableBindingSet::CopyVariablesToMembers"}
+2026-11-08T00:49:48Z	name	58522	0xadba30	{"addr": "0x140adba30", "name": "hkbBindable::CopyVariablesToMembers"}
+2026-11-08T00:49:48Z	name	59330	0xaf1b10	{"addr": "0x140af1b10", "name": "hkbStateMachine::CloneCtor"}
+2026-11-08T00:49:48Z	name	59341	0xaf3220	{"addr": "0x140af3220", "name": "hkbStateMachine::CloneNode"}
+2026-11-08T00:49:48Z	name	60010	0xb1e0b0	{"addr": "0x140b1e0b0", "name": "hkbStateMachine::SetInternalState"}
+2026-11-08T00:49:53Z	comment	59467	0xaff450	{"addr": "0x140aff450", "comment": "59467: writes each input binding's graph variable into its node member (the variable tables of the root and sub-behaviour), e.g. StandingBehavior.startStateId <- iSyncTurnState before activation. Measured: a write watchpoint on a new clone's +0x68 hit at RVA B1F4BF under this call (2026-11-07)."}
+2026-11-08T00:49:53Z	comment	58522	0xadba30	{"addr": "0x140adba30", "name": "", "comment": "58522: caches bindables once (+0x28), then for the node's binding set (+0x10) and each cached bindable runs 59467 (only those with output bindings when the flag a3 is set)."}
+2026-11-08T00:49:53Z	comment	59330	0xaf1b10	{"addr": "0x140af1b10", "comment": "59330 hkbStateMachine clone ctor (node, template, graph): copies +0x48..+0x87 from the template (memcpy +0x68 0x20: startStateId..selfTransitionMode), resets +0xFC override to -1 and isActive +0x88 to 0, clones the states (generators via 58361)."}
+2026-11-08T00:49:53Z	comment	59341	0xaf3220	{"addr": "0x140af3220", "comment": "59341 vfunc +0x60: allocates 0x108 and runs the clone ctor 59330 from this template; called by GetOrCreateNodeClone 58360."}
+2026-11-08T00:49:53Z	comment	60010	0xb1e0b0	{"addr": "0x140b1e0b0", "comment": "60010 vfunc 16 setInternalState: restores transitions, timeInState, current state (59409 writes +0x80), +0xF8/+0xFC and the changed/echo bytes; never +0x68."}
+2026-11-08T02:45:47Z	read	59399	0xaf8b20	{"name": "hkbStateMachine::sub_59399"}
+2026-11-08T02:45:58Z	read		0xaf4793	{"name": "hkbStateMachine::sub_59369"}
+2026-11-08T02:46:17Z	read	58365	0xace690	{"name": "hkbBehaviorGraph::sub_58365"}
+2026-11-08T02:46:18Z	read	59387	0xaf7c00	{"name": "hkbStateMachine::sub_59387"}
+2026-11-08T02:46:18Z	read	59386	0xaf7a90	{"name": "sub_140AF7A90"}
+2026-11-08T02:46:37Z	read	65179	0xc40d00	{"name": "BShkbUtils::SaveDataRestoreFunctor::sub_65179"}
+2026-11-08T02:47:25Z	read	59349	0xaf3790	{"name": "hkbStateMachine::sub_59349"}
+2026-11-08T02:47:58Z	name	59369	0xaf4600	{"addr": "0x140af4600", "name": "hkbStateMachine::GoToState"}
+2026-11-08T02:47:58Z	name	59390	0xaf7e60	{"addr": "0x140af7e60", "name": "hkbStateMachine::SetActiveState"}
+2026-11-08T02:47:58Z	name	59387	0xaf7c00	{"addr": "0x140af7c00", "name": "hkbStateMachine::UpdateStartStateReselect"}
+2026-11-08T02:47:58Z	name	59349	0xaf3790	{"addr": "0x140af3790", "name": "hkbStateMachine::RequestStartStateReselect"}
+2026-11-08T02:47:58Z	name	58365	0xace690	{"addr": "0x140ace690", "name": "hkbBehaviorGraph::SetStateOfStateMachine"}
+2026-11-08T02:47:58Z	name	59399	0xaf8b20	{"addr": "0x140af8b20", "name": "hkbStateMachine::WriteSyncVariable"}
+2026-11-08T02:47:59Z	comment	59369	0xaf4600	{"addr": "0x140af4600", "comment": "59369 GoToState(sm, stateId, ctx, force, jumpIfNoTransition, a6): not active or force -> clear transitions (59384), +0x100 stateChanged=1, graph+0x12E activeNodesChanged=1, SetActiveState 59390, WriteSyncVariable 59399; else a transition to stateId if one exists (59377/59381/59382), or the jump when jumpIfNoTransition."}
+2026-11-08T02:47:59Z	comment	59390	0xaf7e60	{"addr": "0x140af7e60", "comment": "59390 SetActiveState(sm, stateId, setPrevious, ctx, sendEvents): exits the current state when active (59411), writes +0x80 currentStateId (59409), zeroes timeInState +0xF0, enters the state (59410). Called by Activate, GoToState, StartTransition."}
+2026-11-08T02:47:59Z	comment	59387	0xaf7c00	{"addr": "0x140af7c00", "comment": "59387, in Update: when +0x101 (RequestStartStateReselect 59349) is set, chooses the start state again (ChooseStartStateId 59405) and if it differs, GoToState(.., 0, selfTransitionMode(+0x87)==2, 0): a transition if any, else a jump only in FORCE mode. Then starts a pending transition."}
+2026-11-08T02:47:59Z	comment	59349	0xaf3790	{"addr": "0x140af3790", "comment": "59349 vfunc: sets +0x101, the start state is chosen again at the next Update (59387)."}
+2026-11-08T02:47:59Z	comment	58365	0xace690	{"addr": "0x140ace690", "comment": "58365 SetStateOfStateMachine(graph, ?, smTemplate, stateId, ctx, force, jump, a6): GoToState on the clone, then updateActiveNodes if graph+0x12E. The graph state restore (SaveDataRestoreFunctor 65179) calls it with 1,1,1."}
+2026-11-08T02:47:59Z	comment	58329	0xacbc60	{"addr": "0x140acbc60", "comment": "58329: calls updateActiveNodes when graph+0x12E (activeNodesChanged) is set, so a GoToState inside a node's update takes effect in the same graph update."}
+2026-11-08T03:23:22Z	read	59383	0xaf71c0	{"name": "hkbStateMachine::StartTransition"}
+2026-11-08T03:23:57Z	read	59237	0xae7110	{"name": "hkbBehaviorReferenceGenerator::sub_59237"}
+2026-11-08T03:23:57Z	read	59238	0xae71c0	{"name": "hkbBehaviorReferenceGenerator::sub_59238"}
+2026-11-08T03:24:48Z	comment		0xaf76e9	{"addr": "0x140af76e9", "comment": "A transition with a blend generator enters its destination now (SetActiveState 59390), unless its flag 0x10 defers that to the transition's end (59384). Without one: clears transitions and enters at once (0x140af73ea). Each state change reaches 59390 once."}
+2026-11-08T03:24:48Z	comment	59237	0xae7110	{"addr": "0x140ae7110", "comment": "59237 getActiveChildren: the reference generator's one child is its behaviour graph (+0x50); a nested behaviour is a node of its own, with its own clone maps (CollectMachines walks them)."}
+2026-11-08T03:26:21Z	name	59337	0xaf2950	{"addr": "0x140af2950", "name": "hkbStateMachine::Deactivate"}
+2026-11-08T03:26:22Z	comment	59337	0xaf2950	{"addr": "0x140af2950", "comment": "59337 vfunc deactivate(sm, ctx): when active (+0x88), ends its transitions (59384), exits the current state (59411), clears isActive."}
+2026-11-08T04:11:53Z	comment		0xaf75b7	{"addr": "0x140af75b7", "comment": "Active transitions: hkArray at +0xB0 (data), +0xB8 count, 40-byte entries: +0 effect, +0x10 transition info, +0x1C fromStateId (the current state at the start), +0x20 toStateId, +0x24 flag. A count > 0 means a transition is running; with flag 0x10 the current state (+0x80) stays the source until it ends."}
+2026-11-08T07:00:57Z	read		0x789954	{"name": "RunOneActorAnimationUpdateJob"}
+2026-11-08T07:01:02Z	comment		0x789954	{"addr": "0x140789954", "comment": "A graph's step: the frame's seconds (Misc::seconds) x VATS global time multiplier, the same for owner and copy; not a copy's playback (SkyrimCoop copy-idle-graph: CopyVariables::GraphClock)"}
+2026-11-08T09:16:11Z	read		0x6f0f8c	{"name": "AIProcess::StopCurrentIdle"}
+2026-11-08T09:16:31Z	read	11437	0x1544f0	{"name": "FixedStrings::GetSingleton"}
+2026-11-08T09:17:42Z	read		0x6e27e1	{"name": "coop_ApplyAnimationVariables"}
+2026-11-08T09:18:37Z	read	38949	0x6dfbc0	{"name": "coop_RealPerformAction"}
+2026-11-08T09:19:29Z	comment		0x6dfdae	{"addr": "0x1406dfdae", "comment": "Refused (not started) and not a query: 39004 still runs with started 0, so an action the graph refused still writes its graph variables (TurnStop: iSyncTurnState 1). SkyrimCoop copy-idle-graph"}
+2026-11-08T09:19:29Z	comment		0x6e26d7	{"addr": "0x1406e26d7", "comment": "Past the started-only branch: runs for refused actions too. By the action's default object: MoveStart 97 / MoveStop 98 -> iSyncIdleLocomotion (FixedStrings +0x310) 1/0; TurnRight 99 / TurnStop 101 / TurnLeft 100 -> iSyncTurnState (+0x318) 0/1/2; MoveForward 102 / MoveBackward 103 -> +0x558 0/1; MoveRight 105 / MoveLeft 104 -> +0x560 0/1"}
+2026-11-08T09:19:29Z	comment		0x6e2917	{"addr": "0x1406e2917", "comment": "The action's graph variable write (SetGraphVariableInt): the only writer of iSyncTurnState / iSyncIdleLocomotion in the executable; the behaviour files only read them (startStateId bindings)"}
+2026-11-08T09:19:29Z	comment		0x2253ac	{"addr": "0x1402253ac", "comment": "FixedStrings +0x310 iSyncIdleLocomotion, +0x318 iSyncTurnState (the string loaded after each lea rcx)"}
+2026-11-08T09:19:30Z	name	39004	0x6e2250	{"addr": "0x1406e2250", "name": "coop_ApplyActionGraphEffects"}
+2026-11-08T18:01:22Z	comment		0x6dfff9	{"addr": "0x1406dfff9", "comment": "ForceAction's path (copies' replays): 39004's graph writes run whether or not the event started, as in 38949"}
+2026-11-08T18:36:12Z	read		0x2fdeee	{"name": "TESObjectREFR::sub_20123"}
+2026-11-08T18:38:35Z	read		0xbcf240	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-08T18:38:43Z	read		0xbcf060	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-08T18:39:34Z	name	63587	0xbcedb0	{"addr": "0x140bcedb0", "name": "coop_BShkbAnimationGraph_UpdateInterpolated"}
+2026-11-08T18:39:34Z	name	63358	0xbc0680	{"addr": "0x140bc0680", "name": "coop_BSAnimationGraphManager_Update"}
+2026-11-08T18:39:34Z	name	63564	0xbcae00	{"addr": "0x140bcae00", "name": "coop_BShkbAnimationGraph_HasRagdoll"}
+2026-11-08T18:39:38Z	comment		0xbcee39	{"addr": "0x140bcee39", "comment": "dt = BSAnimationUpdateData.deltaTime; +0x1E8/+0x1EC: countdowns to the graph's next step, each less dt per frame"}
+2026-11-08T18:39:38Z	comment		0xbcf073	{"addr": "0x140bcf073", "comment": "Far (camera distance, x (80/fov)^2, past fAnimInterpNearDist 400): interval fAnimInterpMinTime 0.08 .. fAnimInterpMaxTime 0.25 up to fAnimInterpFarDist 800, cut by 63864. If interval + countdown > (1 + fAnimInterpSlop) * dt: countdown = that, and the graph steps the whole interval now"}
+2026-11-08T18:39:38Z	comment		0xbcf099	{"addr": "0x140bcf099", "comment": "step = interval: a far graph runs in chunks ahead of the clock; an event mid-chunk starts its clip at 0 until the next chunk (an owner's late canned turn, SkyrimCoop animation-replay-recovery.md)"}
+2026-11-08T18:39:38Z	comment		0xbcf0b6	{"addr": "0x140bcf0b6", "comment": "Near, forced (BSAnimationUpdateData +0x2A: kForceAnimGraphUpdate, set on copies) or interval too short: step = min(-countdown, dt), the frame's dt; countdowns reset"}
+2026-11-08T18:39:38Z	comment		0xbcf289	{"addr": "0x140bcf289", "comment": "hkbBehaviorGraph update (vtable +0x28) with the step (xmm2); skipped on frames between a far graph's chunks (+0x245 cleared)"}
+2026-11-08T18:39:38Z	comment		0xbcef46	{"addr": "0x140bcef46", "comment": "+0x2C visible (Actor::ModifyAnimationUpdateData 38054)"}
+2026-11-08T18:40:03Z	read		0x6237a0	{"name": "BGSSaveLoadManager::sub_35743"}
+2026-11-08T18:40:07Z	read	37988	0x6b13d0	{"name": "PlayerCharacter::sub_37988"}
+2026-11-08T18:40:24Z	name	37988	0x6b13d0	{"addr": "0x1406b13d0", "name": "coop_Actor_AnimInterpAllowed"}
+2026-11-08T18:40:25Z	comment	37988	0x6b13d0	{"addr": "0x1406b13d0", "comment": "BSAnimationUpdateData +0x2B: a far graph may step in chunks (63587) when bAnimInterpEnable, actor +200 & 0x3C000 clear, and its graph's bIsSynced, bSpeedSynced and bDisableInterp are all false"}
+2026-11-08T19:58:45Z	read		0xbcf5a0	{"name": "BShkbAnimationGraph::sub_63590"}
+2026-11-08T19:59:11Z	read		0x6e2900	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-08T19:59:18Z	read	32932	0x5554f0	{"name": "sub_1405554F0"}
+2026-11-08T20:00:53Z	name	32932	0x5554f0	{"addr": "0x1405554F0", "name": "coop_IAnimationGraphManagerHolder_SetVariableAllGraphs"}
+2026-11-08T20:00:57Z	comment		0xbcf5a0	{"addr": "0x140bcf5a0", "comment": "Each graph update (63358, before 63587): every bound channel's value (+0x18, BSAnimationGraphChannel) written into the graph variable of its name (Speed, Direction, TurnDelta, iWantBlock, ... ActorSpeedChannel etc.), computed from this game's actor"}
+2026-11-08T20:00:57Z	comment		0xbc0743	{"addr": "0x140bc0743", "comment": "BSAnimationGraphManager +0x10 boundChannels: each polls its source (PollChannelUpdateImpl, vtable +8) from the actor, once per update"}
+2026-11-08T20:00:57Z	comment	32932	0x5554f0	{"addr": "0x1405554F0", "comment": "Holder's SetGraphVariable: writes at once into every graph of the manager (BShkbAnimationGraph::SetGraphVariable*, under the manager's lock); not queued to the next update"}
+2026-11-08T20:00:57Z	comment		0xbcf7c8	{"addr": "0x140bcf7c8", "comment": "handleEvent at once (root behaviour vtable +0x30): an input event acts between two updates, as it is sent, reading the variables as they stand then"}
+2026-11-08T20:01:02Z	name	63590	0xbcf570	{"addr": "0x140bcf570", "name": "coop_BShkbAnimationGraph_ApplyChannels"}
+2026-11-08T20:01:03Z	comment	63590	0xbcf570	{"addr": "0x140bcf570", "comment": "63590, each graph update (63358, before 63587): every bound channel's value (+0x18) written into the graph variable of its name (Speed, Direction, TurnDelta, iWantBlock, ...: ActorSpeedChannel etc.), computed from this game's actor"}
+2026-11-08T20:30:25Z	read		0x6b2a90	{"name": "Character::sub_38001"}
+2026-11-08T20:30:29Z	read	37999	0x6b2320	{"name": "j_Character::sub_37999"}
+2026-11-08T20:30:44Z	name	38019	0x6b5240	{"addr": "0x1406b5240", "name": "coop_Character_ApplyGraphMovementType"}
+2026-11-08T20:30:45Z	comment	38019	0x6b5240	{"addr": "0x1406b5240", "comment": "BSAnimationUpdateData's functor (38054 sets it), called after each behaviour update in 63587: the graph's movement type to the actor's movement controller when it changed (MovementMessageMovementTypeChange). An output of the graph, not an input"}
+2026-11-08T20:30:46Z	read		0xbd2dc0	{"name": "BShkbAnimationGraph::LoadState"}
+2026-11-08T20:31:04Z	comment		0xbd2df8	{"addr": "0x140bd2df8", "comment": "After loading: one 63587 call with its own BSAnimationUpdateData, deltaTime 0, force (+0x2A) set: the loaded nodes activate in a zero-step update. The engine itself calls 63587 with a chosen step"}
+2026-11-08T22:30:29Z	name	58372	0xaceb70	{"addr": "0x140aceb70", "name": "coop_hkbBehaviorGraph_getInternalState"}
+2026-11-08T22:30:29Z	name	59326	0xaf0850	{"addr": "0x140af0850", "name": "coop_hkbBehaviorGraph_ActivateNode"}
+2026-11-08T22:30:29Z	name	59317	0xaef720	{"addr": "0x140aef720", "name": "coop_hkbBehaviorGraph_ActivateNodes"}
+2026-11-08T22:30:35Z	comment	58372	0xaceb70	{"addr": "0x140aceb70", "comment": "58372, Havok's hkbBehaviorGraph::getInternalState(hkbBehaviorGraphInternalState&): each active node (+0x98 infos, 0x90 apiece) not skipped by slot 19: createInternalState (slot 13), getInternalState (14), getInternalStateUser (15) into an hkbNodeInternalStateInfo (node id, 0x50 bytes of node info); then the variable value set. Never called by code (only unwind data): Skyrim's SaveState (65148) keeps state machines, variables and clips only, no modifier memory"}
+2026-11-08T22:30:35Z	comment	59326	0xaf0850	{"addr": "0x140af0850", "comment": "59326 activate one node (profiler: activateAndSyncVars). With a map of node id -> hkbNodeInternalStateInfo (last argument), it calls the node's setInternalState (slot 16, +0x80) and setInternalStateUser (slot 17) with the stored state: Havok's restore. Its only entry, coop_hkbBehaviorGraph_ActivateNodes, passes no map"}
+2026-11-08T22:30:35Z	comment	59317	0xaef720	{"addr": "0x140aef720", "comment": "Activates nodes through 59326 with no internal state map: every caller (12, behaviour graph and character code). Skyrim never restores node internal states"}
+2026-11-08T22:30:35Z	comment	59728	0xb0a3e0	{"addr": "0x140b0a3e0", "comment": "59728 slot 13 createInternalState: an hkbEventsFromRangeModifierInternalState (wasActiveInPreviousFrame, hkArray<bool> at +0x10)"}
+2026-11-08T22:30:35Z	comment	59729	0xb0a430	{"addr": "0x140b0a430", "comment": "59729 slot 14 getInternalState: the node's wasActiveInPreviousFrame (+0x60) into the state"}
+2026-11-08T22:30:35Z	comment	59730	0xb0a4e0	{"addr": "0x140b0a4e0", "comment": "59730 slot 16 setInternalState: the state's array back into the node (+0x60): which range each was in last frame, what its next range events depend on"}
+2026-11-08T22:44:14Z	read	59724	0xb0a030	{"name": "hkbEventsFromRangeModifier::Func4_59724"}
+2026-11-08T22:44:14Z	read	59725	0xb0a110	{"name": "hkbEventsFromRangeModifier::Func5_59725"}
+2026-11-08T22:44:41Z	comment	59724	0xb0a030	{"addr": "0x140b0a030", "comment": "59724 slot 4 activate: wasActiveInPreviousFrame sized to the ranges and cleared: a range modifier starts each activation with no memory"}
+2026-11-08T22:44:41Z	comment	59725	0xb0a110	{"addr": "0x140b0a110", "comment": "59725 slot 5 modify: per range, inputValue (+0x50, bound: TurnDelta) inside it -> its event (mode 1 every update, mode 0 on entering), first range only; wasActiveInPreviousFrame (+0x60) set. Deterministic given inputValue as it runs"}
+2026-11-08T22:53:42Z	read	59727	0xb0a390	{"name": "hkbEventsFromRangeModifier::Func12_59727"}
+2026-11-08T22:53:49Z	read	59723	0xb09fc0	{"name": "sub_140B09FC0"}
+2026-11-08T22:54:13Z	name	59723	0xb09fc0	{"addr": "0x140B09FC0", "name": "coop_hkbEventsFromRangeModifier_CopyForClone"}
+2026-11-08T22:54:16Z	comment	59723	0xb09fc0	{"addr": "0x140B09FC0", "comment": "59723, the clone's copy constructor (cloneNode 59727): copies enable (+0x48) and eventRanges (+0x58), resets wasActiveInPreviousFrame, but never inputValue (+0x50) or lowerBound (+0x54). inputValue is bound and overwritten each modify; an unbound lowerBound keeps the allocation's bytes, so each game's clone has its own (duo: NaN on an owner, 0 on its copy), and its range events differ (SkyrimCoop graph-input-replay.md)"}
+2026-11-08T22:54:16Z	comment	59727	0xb0a390	{"addr": "0x140b0a390", "comment": "59727 slot 12 cloneNode: 0x70 bytes from the Havok router, then 59723"}
+2026-11-08T22:54:16Z	comment	63450	0xbc49c0	{"addr": "0x140bc49c0", "comment": "63450: not on the graph replay path (read while following the graph manager)"}
+2026-11-08T22:54:16Z	comment	59386	0xaf7a90	{"addr": "0x140af7a90", "comment": "59386: not on the graph replay path (read with the state machine's transition functions)"}
+2026-11-09T06:32:54Z	read		0xae5e40	{"name": "sub_140AE5E20"}
+2026-11-09T07:34:34Z	read		0xcfb8c	{"name": "sub_1400CFB70"}
+2026-11-09T07:34:34Z	read	57620	0xab1660	{"name": "sub_140AB1660"}
+2026-11-09T07:34:45Z	name	57620	0xab1660	{"addr": "0x140AB1660", "name": "coop_hkClass_ctor"}
+2026-11-09T07:34:45Z	name	8268	0xcfb70	{"addr": "0x1400CFB70", "name": "coop_init_hkbEventsFromRangeModifierInternalStateClass"}
+2026-11-09T07:34:46Z	comment	57620	0xab1660	{"addr": "0x140AB1660", "comment": "hkClass ctor (Havok 2010): name +0, parent +8, objectSize +0x10, numImplementedInterfaces +0x14, declaredEnums +0x18, numEnums +0x20, declaredMembers +0x28, numMembers +0x30, defaults +0x38, attributes +0x40, flags +0x48, describedVersion +0x4C. The graph input stream's node memory serializer walks members by this (NodeMemory)."}
+2026-11-09T07:34:46Z	comment	8268	0xcfb70	{"addr": "0x1400CFB70", "comment": "Static init of hkbEventsFromRangeModifierInternalState's hkClass: objectSize 32, one member wasActiveInPreviousFrame (hkArray<hkBool>, offset 0x10)."}
+2026-11-09T07:34:46Z	comment		0xae5e40	{"addr": "0x140AE5E40", "comment": "not on the path: hkbCharacterStringData's static array init, reached by a wrong address while looking for 63591."}
+2026-11-09T07:42:32Z	read		0xb2ed70	{"name": "sub_140B2ED10"}
+2026-11-09T07:42:49Z	name	60152	0xb2ed10	{"addr": "0x140B2ED10", "name": "coop_hkBuiltinTypeRegistry_Init"}
+2026-11-09T07:42:49Z	data			{"old": "off_141A877F0", "new": "hkBuiltinTypeRegistry_StaticLinkedClasses"}
+2026-11-09T07:42:49Z	data			{"old": "off_141A866C0", "new": "hkBuiltinTypeRegistry_StaticLinkedTypeInfos"}
+2026-11-09T07:42:51Z	comment	239939	0x1a877f0	{"addr": "0x141A877F0", "comment": "hkBuiltinTypeRegistry::StaticLinkedClasses (ID 239939): 594 const hkClass*, null-terminated, names filled by each class's static init. The graph input stream finds a node's internal state class here by name (<node class>InternalState): an internal state object's getClassType (vtable 1) returns 0."}
+2026-11-09T07:42:51Z	comment	60152	0xb2ed10	{"addr": "0x140B2ED10", "comment": "hkBuiltinTypeRegistry setup: registers StaticLinkedTypeInfos and StaticLinkedClasses (sub_140BFE4F0)."}
+2026-11-09T08:27:09Z	read		0xbd0800	{"name": ""}
+2026-11-09T08:27:47Z	read	65149	0xc3f3d0	{"name": "hkbCharacter::sub_65149"}
+2026-11-09T08:29:27Z	name	58315	0xacae30	{"addr": "0x140ACAE30", "name": "coop_hkbContext_ctor"}
+2026-11-09T08:29:30Z	comment	58315	0xacae30	{"addr": "0x140ACAE30", "comment": "hkbContext ctor (ID 58315): (ctx, character, world, +0x40, +0x48), the rest zeroed. 63587 and 63591 build theirs with it (graph+0xC0 character, hkWorldM GetWorld)."}
+2026-11-09T08:29:30Z	comment		0xbcee2c	{"addr": "0x140bcee2c", "comment": "63587 updates the behaviour graph only while its active byte (+0x12C) is set: a deactivated graph takes no update, LoadState's zero-step one included."}
+2026-11-09T08:29:30Z	comment		0xbd2db8	{"addr": "0x140bd2db8", "comment": "LoadState: after hkbCharacter 65149 restores the saved machines (SaveDataRestoreFunctor), sets behaviour +0x12E and runs a zero-step forced 63587. The save leaves out machines at their start state (65148), so a graph not fresh keeps its own state in those: the graph input stream deactivates and activates a copy's graph before loading (GraphStreamHooks)."}
+2026-11-09T14:55:56Z	read	58372	0xaceb70	{"name": "sub_140ACEB70"}
+2026-11-09T14:56:28Z	read	58373	0xacedd0	{"name": "hkbBehaviorGraph::sub_58373"}
+2026-11-09T14:56:48Z	read	60079	0xb29f40	{"name": "hkbBehaviorGraph::updateActiveNodes"}
+2026-11-09T14:57:08Z	type	60079	0xb29f40	{"addr": "0x140b29f40", "kind": "function", "signature": "void __fastcall hkbBehaviorGraph_updateActiveNodes(__int64 graph, __int64 *context, __int64 restoreMap)"}
+2026-11-09T14:57:08Z	read		0xb2a3e0	{"name": "hkbBehaviorGraph::updateActiveNodes"}
+2026-11-09T14:57:17Z	read	59326	0xaf0850	{"name": "sub_140AF0850"}
+2026-11-09T15:00:56Z	read	59538	0xb02ec0	{"name": "hkbBlenderGenerator::sub_59538"}
+2026-11-09T15:00:57Z	read	58331	0xacc340	{"name": "hkbBehaviorGraph::sub_58331"}
+2026-11-09T15:00:57Z	read	58328	0xacbb50	{"name": "hkbBehaviorGraph::sub_58328"}
+2026-11-09T15:01:08Z	read	58542	0xadc1a0	{"name": "sub_140ADC1A0"}
+2026-11-09T15:01:26Z	name	58372	0xaceb70	{"addr": "0x140aceb70", "name": "coop_hkbBehaviorGraph_getInternalState"}
+2026-11-09T15:01:26Z	name	58373	0xacedd0	{"addr": "0x140acedd0", "name": "coop_hkbBehaviorGraph_setInternalState"}
+2026-11-09T15:01:26Z	name	59326	0xaf0850	{"addr": "0x140af0850", "name": "coop_hkbBehaviorGraph_ActivateNode"}
+2026-11-09T15:01:26Z	name	59318	0xaef790	{"addr": "0x140aef790", "name": "coop_hkbBehaviorGraph_ActivateNodes"}
+2026-11-09T15:01:26Z	name	59342	0xaf3280	{"addr": "0x140af3280", "name": "coop_hkbStateMachine_getInternalStateUser"}
+2026-11-09T15:01:26Z	name	59343	0xaf3440	{"addr": "0x140af3440", "name": "coop_hkbStateMachine_setInternalStateUser"}
+2026-11-09T15:01:26Z	name	60009	0xb1dd30	{"addr": "0x140b1dd30", "name": "coop_hkbStateMachine_getInternalState"}
+2026-11-09T15:01:26Z	name	59489	0xb00210	{"addr": "0x140b00210", "name": "coop_hkbTransitionEffect_isTransitionEffect"}
+2026-11-09T15:01:26Z	name	58542	0xadc1a0	{"addr": "0x140adc1a0", "name": "coop_hkbVariableValueSet_copyFrom"}
+2026-11-09T15:01:26Z	name	58331	0xacc340	{"addr": "0x140acc340", "name": "coop_hkbBehaviorGraph_deactivate"}
+2026-11-09T15:01:26Z	name	58328	0xacbb50	{"addr": "0x140acbb50", "name": "coop_hkbBehaviorGraph_activate"}
+2026-11-09T15:01:26Z	name	59538	0xb02ec0	{"addr": "0x140b02ec0", "name": "coop_hkbBlenderGenerator_createInternalState"}
+2026-11-09T15:01:43Z	comment	58373	0xacedd0	{"addr": "0x140acedd0", "comment": "58373 hkbBehaviorGraph::setInternalState(context, const hkbBehaviorGraphInternalState&): Havok's whole-graph restore. Map node id (info +0x70) -> hkbNodeInternalStateInfo; variables copied from state +0x20 (58542) if the data has any; fresh active-node arrays (+0x98/+0xA0/+0xA8, not freed: deactivate 58331 first); +0x12C active; updateActiveNodes(context, map) activates the tree, each node given its stored state (59326). Never called by the game; the graph input stream's sync point uses it."}
+2026-11-09T15:01:43Z	comment	58372	0xaceb70	{"addr": "0x140aceb70", "comment": "58372 hkbBehaviorGraph::getInternalState: per active node (+0x98, 0x90 each) not a transition effect (slot 19): createInternalState 13, getInternalState 14, getInternalStateUser 15 (graph, state) into an hkbNodeInternalStateInfo (0x78: syncInfo +0x10 0x50 bytes from the node info, name +0x60, state +0x68, nodeId +0x70, byte +0x72 from node info +0x88); then a copy of the variable value set at state +0x20."}
+2026-11-09T15:01:43Z	comment	59326	0xaf0850	{"addr": "0x140af0850", "comment": "59326 activate one node and its active children, recursively (Havok's activateNodeRecursive). A node not active before: CopyVariablesToMembers, Activate (slot 4), then with a restore map (last arg) and an entry for its id: setInternalState (16) and setInternalStateUser (17, context, state, map); the entry's sync info and byte go to its node info. Its active children (getChildren slot 9, FLAG_ACTIVE_ONLY) are read after that, so a restored state machine or blender activates the children its restored state names."}
+2026-11-09T15:01:43Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59319 updateActiveNodes' walk from the root generator: 59326 with no 'already active' override, then marks nodes whose parents need sync."}
+2026-11-09T15:01:43Z	comment	59342	0xaf3280	{"addr": "0x140af3280", "comment": "59342 hkbStateMachine::getInternalStateUser (slot 15): each running transition's effect (if active in the graph): its internal state and node info into a new hkbNodeInternalStateInfo, stored at state.activeTransitions[i].transitionEffectInternalStateInfo (+8)."}
+2026-11-09T15:01:43Z	comment	59343	0xaf3440	{"addr": "0x140af3440", "comment": "59343 hkbStateMachine::setInternalStateUser (slot 17, context, state, restoreMap): for each restored transition, clones the effect named by transitionInfoReferenceForTE (+0x16), gives it a new node id (58370), puts its stored info in the restore map under that id, sets its from/to generators (slots 29/30). The walk then activates and restores the effect."}
+2026-11-09T15:01:43Z	comment	60009	0xb1dd30	{"addr": "0x140b1dd30", "comment": "60009 hkbStateMachine::getInternalState (slot 14): activeTransitions (+0xB0), transitionFlags (+0xC0), wildcardTransitionFlags (+0xD0), delayedTransitions (+0xE0), timeInState +0xF0, lastLocalTime +0xF4, currentStateId +0x80, previousStateId +0xF8, nextStartStateIndexOverride +0xFC, changed +0x100, echo +0x101."}
+2026-11-09T15:01:43Z	comment	59489	0xb00210	{"addr": "0x140b00210", "comment": "59489 hkbTransitionEffect vfunc 19: true. getInternalState (58372) skips nodes answering true: a transition effect's state travels in its state machine's (59342)."}
+2026-11-09T15:01:43Z	comment	58542	0xadc1a0	{"addr": "0x140adc1a0", "comment": "58542 hkbVariableValueSet copyFrom: words (+0x10), quads (+0x20) copied; variants (+0x30) resized but set null, not copied. Copying a set onto itself changes nothing."}
+2026-11-09T15:01:43Z	comment	58331	0xacc340	{"addr": "0x140acc340", "comment": "58331 hkbBehaviorGraph::deactivate (slot 7): each active node deactivated (slot 7) and its clone released; 58385 frees the active-node arrays; variable set +0xD8 released unless +0x48 (variable mode: keep when inactive); +0x12C cleared."}
+2026-11-09T15:01:43Z	comment	58328	0xacbb50	{"addr": "0x140acbb50", "comment": "58328 hkbBehaviorGraph::activate (slot 4): variables from the data (58346), fresh active-node arrays, +0x12C, updateActiveNodes with no restore map. setInternalState (58373) is the same with a map."}
+2026-11-09T15:01:54Z	read	58370	0xacead0	{"name": "hkbBehaviorGraph::sub_58370"}
+2026-11-09T15:02:17Z	read	58332	0xacc490	{"name": "hkbBehaviorGraph::sub_58332"}
+2026-11-09T15:02:55Z	read	58340	0xaccb40	{"name": "hkbBehaviorGraph::sub_58340"}
+2026-11-09T15:02:59Z	read	58369	0xace8e0	{"name": "sub_140ACE8E0"}
+2026-11-09T15:03:13Z	name	58369	0xace8e0	{"addr": "0x140ace8e0", "name": "coop_hkbBehaviorGraph_setNodeIds"}
+2026-11-09T15:03:13Z	name	58370	0xacead0	{"addr": "0x140acead0", "name": "coop_hkbBehaviorGraph_getUniqueNodeId"}
+2026-11-09T15:03:13Z	name	58340	0xaccb40	{"addr": "0x140accb40", "name": "coop_hkbBehaviorGraph_cloneForCharacter"}
+2026-11-09T15:03:17Z	comment	58369	0xace8e0	{"addr": "0x140ace8e0", "comment": "58369 hkbBehaviorGraph::setNodeIds: walks every node from the root generator (sub_140AEF720, flags 0: nested behaviours included) and numbers them 0..n-1 in walk order (node +0x40); state machines into GlobalTransitionData (+0xB0) +0x50 (id -> template); +0x128/+0x12A = n. The same behaviour files give the same ids on every game: setInternalState's map (58373) is keyed by them."}
+2026-11-09T15:03:17Z	comment	58370	0xacead0	{"addr": "0x140acead0", "comment": "58370 a new node id: from the free pool (+0x50, size +0x58) or the counter +0x12A. Only transition-effect clones take one (StartTransition, setInternalStateUser 59343): their ids are each game's own."}
+2026-11-09T15:03:17Z	comment	58340	0xaccb40	{"addr": "0x140accb40", "comment": "58340 the character's graph from the template: shares the template's nodes, ids and next id (+0x128/+0x12A); fresh clone maps (+0xE0/+0xE8)."}
+2026-11-09T15:03:17Z	read	59317	0xaef720	{"name": "sub_140AEF720"}
+2026-11-09T15:03:28Z	name	59317	0xaef720	{"addr": "0x140aef720", "name": "coop_hkbBehaviorGraph_CollectNodes"}
+2026-11-09T15:03:30Z	comment	59317	0xaef720	{"addr": "0x140aef720", "comment": "Every node under a root generator (rootGenerator, behaviourGraph, getChildren flags, hkArray<NodeInfo 0x90>* out, context or null): 59319's walk with no context, so nothing is cloned or activated; NodeInfo +0x50 the template. setNodeIds (58369) numbers its output; the graph input stream finds a copy's templates by id with it."}
+2026-11-09T15:03:30Z	read	8268	0xcfb70	{"name": "coop_init_hkbEventsFromRangeModifierInternalStateClass"}
+2026-11-09T15:05:30Z	read	59350	0xaf37a0	{"name": "sub_140AF37A0"}
+2026-11-09T15:05:31Z	read	60008	0xb1dcb0	{"name": "hkbStateMachine::sub_60008"}
+2026-11-09T15:05:31Z	read	59970	0xb1c490	{"name": "hkbBlendingTransitionEffect::sub_59970"}
+2026-11-09T15:05:38Z	name	59350	0xaf37a0	{"addr": "0x140af37a0", "name": "coop_hkbStateMachine_ActiveTransitionInfo_dtor"}
+2026-11-09T15:05:38Z	name	60008	0xb1dcb0	{"addr": "0x140b1dcb0", "name": "coop_hkbStateMachine_createInternalState"}
+2026-11-09T15:05:38Z	name	59970	0xb1c490	{"addr": "0x140b1c490", "name": "coop_hkbBlendingTransitionEffect_createInternalState"}
+2026-11-09T15:05:40Z	comment	59350	0xaf37a0	{"addr": "0x140af37a0", "comment": "59350 ActiveTransitionInfo dtor: releases transitionEffectInternalStateInfo (+8). A state machine's internal state owns its transitions' effect infos: the graph input stream nulls the ones it made itself before releasing the state."}
+2026-11-09T15:05:40Z	comment	60008	0xb1dcb0	{"addr": "0x140b1dcb0", "comment": "60008 createInternalState: a new hkbStateMachineInternalState (0x68, Havok heap, memSizeAndFlags 0xFFFF, refcount 1, empty arrays). Reads nothing of the node."}
+2026-11-09T15:05:40Z	read	60152	0xb2ed10	{"name": "coop_hkBuiltinTypeRegistry_Init"}
+2026-11-09T15:05:45Z	read	57048	0xaa36f0	{"name": "sub_140AA36F0"}
+2026-11-09T15:05:49Z	name	57048	0xaa36f0	{"addr": "0x140aa36f0", "name": "coop_hkArrayUtil_reserve"}
+2026-11-09T15:05:51Z	comment	57048	0xaa36f0	{"addr": "0x140aa36f0", "comment": "57048 hkArrayUtil::_reserve(allocator, hkArray*, count, elementSize): capacity to count (a DONT_DEALLOCATE array, capacityAndFlags < 0, is copied to a new block; else reallocated); the size is the caller's. The graph input stream sizes a new internal state's arrays with it and hkContainerAllocators::singleton."}
+2026-11-09T15:06:03Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59318 updateActiveNodes' walk from the root generator (rootGenerator, graph, getChildren flags, new NodeInfo array, template->index map, children indices, old NodeInfo array, old template->index map, context, flag, restoreMap): 59326 per node, then marks nodes whose parents need sync."}
+2026-11-09T15:06:03Z	comment	60079	0xb29f40	{"addr": "0x140b29f40", "comment": "60079 hkbBehaviorGraph::updateActiveNodes(graph, context, restoreMap): a third argument the decompiler hid (r8 kept in r15): the restore map, passed to the walk (59318). Old active nodes no longer active are deactivated (slot 7) and their clones released (58363). activate (58328) passes null; setInternalState (58373) its map."}
+2026-11-09T15:09:42Z	read	65164	0xc40020	{"name": "sub_140C40020"}
+2026-11-09T15:11:25Z	comment	65164	0xc40020	{"addr": "0x140c40020", "comment": "65164 SaveDataRestoreFunctor's state machine restore (slot 6, walker flag byte 5): ends every running transition (59384) first, then goes to the saved state (65179) and restarts each saved transition (StartTransition / 59373 / StartNestedStateTransition), only a blending effect's times restored. A machine missing from the save goes to its start state. So it cannot follow Havok's setInternalState (58373): it would replace the exact restored transitions."}
+2026-11-09T15:11:25Z	comment	65237	0xc436b0	{"addr": "0x140c436b0", "comment": "Skyrim's graph walker under 65232 (flags block, character, functor): per node class a functor slot (clip 40, gamebryo sequence 24, synchronized clip 16, state machine 48, pose matching, blender children by weight). LoadState's SaveDataRestoreFunctor (65149) restores through it."}
+2026-11-09T15:11:25Z	comment	65160	0xc3f510	{"addr": "0x140c3f510", "comment": "65160 SaveDataRestoreFunctor slot 3: a node with save data under its name calls its own restore (vfunc 26): the BS modifiers' runtime members (timer, tweener, look-at, limb IK, pass-by trigger). Havok reflection flags those members SERIALIZE_IGNORED (0x400): the graph input stream carries them by reflection instead."}
+2026-11-09T15:23:28Z	read	58398	0xad1e90	{"name": "hkbNodeInternalStateInfo::dtor"}
+2026-11-09T15:27:35Z	read	43621	0x7da170	{"name": "coop_LoadEventClips"}
+2026-11-09T15:31:39Z	read		0xaf0b20	{"name": "coop_hkbBehaviorGraph_ActivateNode"}
+2026-11-09T15:43:39Z	read	59402	0xaf8c70	{"name": "hkbStateMachine::sub_59402"}
+2026-11-09T15:46:00Z	read	58384	0xad11d0	{"name": "hkbBehaviorGraph::sub_58384"}
+2026-11-09T15:48:55Z	read	58386	0xad1660	{"name": "hkbBehaviorGraph::sub_58386"}
+2026-11-09T15:49:15Z	read	59348	0xaf3740	{"name": "hkbStateMachine::sub_59348"}
+2026-11-09T15:52:38Z	read		0xaca8b0	{"name": "hkbRagdollDriver::sub_58311"}
+2026-11-09T15:52:47Z	read	58315	0xacae30	{"name": "coop_hkbContext_ctor"}
+2026-11-09T15:57:53Z	read	59319	0xaef940	{"name": "hkbGenerator::sub_59319"}
+2026-11-09T15:59:21Z	name	59319	0xaef940	{"addr": "0x140aef940", "name": "coop_hkbBehaviorGraph_CollectActiveNodesLeafFirst"}
+2026-11-09T15:59:21Z	name	59327	0xaf10b0	{"addr": "0x140af10b0", "name": "coop_hkbBehaviorGraph_ActivateNodeLeafFirst"}
+2026-11-09T15:59:26Z	comment	59319	0xaef940	{"addr": "0x140aef940", "comment": "59319 the walk updateActiveNodes (60079) really calls: the same 9 leading arguments as 59318 (root, graph, flags, new list, new map, children, old list, old map, context), but it never reads the 10th and 11th (flag, restore map) and recurses with 59327. So Skyrim's setInternalState (58373) restores the variables only and activates every node fresh. The graph input stream hands this walk to 59318 with the map while its restore runs (GraphInternalState.cpp)."}
+2026-11-09T15:59:26Z	comment	59327	0xaf10b0	{"addr": "0x140af10b0", "comment": "59327 59326's optimized twin (collectActiveNodesLeafFirst): reuses a previously active node's clone, deactivates and reactivates it only when forced, activates a new one (CopyVariablesToMembers, Activate), then its active children, and fills the same node info fields; no restore map, so no setInternalState."}
+2026-11-09T15:59:26Z	comment	59326	0xaf0850	{"addr": "0x140af0850", "comment": "59326 activate one node and its active children, recursively (Havok's activateNodeRecursive). A node not active before: CopyVariablesToMembers, Activate (slot 4), then with a restore map (last arg) and an entry for its id: setInternalState (16) and setInternalStateUser (17, context, state, map); the entry's sync info and byte go to its node info. Its active children (getChildren slot 9, FLAG_ACTIVE_ONLY) are read after that, so a restored state machine or blender activates the children its restored state names. Reached only through 59318 (CollectNodes 59317 with no context): Skyrim's updateActiveNodes walks with 59319/59327 instead."}
+2026-11-09T15:59:33Z	comment	60079	0xb29f40	{"addr": "0x140b29f40", "comment": "60079 hkbBehaviorGraph::updateActiveNodes(graph, context, restoreMap): a third argument the decompiler hid (r8 kept in r15), passed as the walk's 11th; but its walk, 59319, ignores it. Old active nodes no longer active are deactivated (slot 7) and their clones released (58363). activate (58328) passes null; setInternalState (58373) its map."}
+2026-11-09T15:59:33Z	comment	59318	0xaef790	{"addr": "0x140aef790", "comment": "59318 Havok's activate walk with a restore map (root, graph, flags, new list, new map, children, old list, old map, context, flag, restoreMap): 59326 per node, then marks nodes whose parents need sync. The game calls it only from CollectNodes (59317, no context); updateActiveNodes uses 59319."}
+2026-11-09T16:04:10Z	read	59410	0xaf9520	{"name": "hkbStateMachine::sub_59410"}
+2026-11-09T16:04:23Z	read	59365	0xaf3f80	{"name": "hkbStateMachine::StateInfo::sub_59365"}
+2026-11-09T16:04:35Z	read	58323	0xacb130	{"name": "sub_140ACB130"}
+2026-11-09T16:04:54Z	name	58323	0xacb130	{"addr": "0x140acb130", "name": "coop_hkbEventQueue_reserve"}
+2026-11-09T16:04:57Z	comment	58323	0xacb130	{"addr": "0x140acb130", "comment": "58323 hkbEventQueue (hkQueue<hkbEvent>) reserve: data +0 (24-byte events: id, payload, sender), capacity +8, head +0xC, tail +0x10, count +0x14; Havok's thread heap. The queue's +0x18 (symbol id map) and +0x20 (ids already internal) are swapped per behaviour by the walks."}
+2026-11-09T16:04:57Z	comment	59365	0xaf3f80	{"addr": "0x140af3f80", "comment": "59365 StateInfo enter: each enterNotifyEvent onto context.eventQueue (+0x18), or the character's (hkbCharacter +0x80) when the context has none, mapped by the queue's symbol map; then the state's listeners (slot 3). A restore's activations (start states entered before their states are set) queue events the owner never had: the graph input stream empties the queue after its restore."}
+2026-11-09T16:11:50Z	read	40055	0x72a2c0	{"name": "coop_KeepSet"}
+2026-11-09T16:21:28Z	read	58344	0xacd4b0	{"name": "hkbBehaviorGraph::sub_58344"}
+2026-11-09T16:21:46Z	read		0xbcf930	{"name": "BShkbAnimationGraph::sub_63592"}
+2026-11-09T16:21:53Z	read	63804	0xbdc730	{"name": "sub_140BDC730"}
+2026-11-09T16:22:16Z	comment	63804	0xbdc730	{"addr": "0x140bdc730", "comment": "63804 hkbEventQueue enqueue (24-byte event at tail). Called by LoadState (63602): Skyrim's graph save keeps queued events."}
+2026-11-09T16:22:16Z	comment		0xbcf930	{"addr": "0x140bcf930", "comment": "63592 BShkbAnimationGraph: takes the named event out of the character's queue (graph +0x140, hkbCharacter +0x80) and says whether it was there; requeues the others. Not an input path."}
+2026-11-09T16:22:16Z	comment	58344	0xacd4b0	{"addr": "0x140acd4b0", "comment": "58344 hkbBehaviorGraph handleEvents(graph, context, queue): the events queued now (count at entry), each through HandleEventOnActiveNodes (58377) with the queue's symbol mapping."}
+2026-11-09T16:22:16Z	read		0xbccd30	{"name": "BShkbAnimationGraph::sub_63581"}
+2026-11-09T16:42:54Z	read	39291	0x6f2770	{"name": "sub_1406F2770"}
+2026-11-09T16:43:43Z	read	39688	0x71a730	{"name": "sub_14071A730"}
+2026-11-09T16:43:43Z	read	39731	0x71cb30	{"name": "sub_14071CB30"}
+2026-11-09T16:43:56Z	read	39258	0x6f1190	{"name": "coop_CancelLoad"}
+2026-11-09T16:44:00Z	read	39689	0x71a780	{"name": "sub_14071A780"}
+2026-11-09T16:44:01Z	read		0x678bc0	{"name": "Character::sub_37324"}
+2026-11-09T16:44:12Z	name	39291	0x6f2770	{"addr": "0x1406f2770", "name": "coop_AIProcess_LoadInstantInteractionClips"}
+2026-11-09T16:44:12Z	name	39688	0x71a730	{"addr": "0x14071a730", "name": "coop_InstantInteractionCallback_ctor"}
+2026-11-09T16:44:12Z	name	39731	0x71cb30	{"addr": "0x14071cb30", "name": "coop_AssignMiddleCallback"}
+2026-11-09T16:44:12Z	name	39689	0x71a780	{"addr": "0x14071a780", "name": "coop_InstantInteractionCallback_Loaded"}
+2026-11-09T16:44:17Z	comment	39291	0x6f2770	{"addr": "0x1406f2770", "comment": "39291 an instant interaction's clips (Character 37325, from 37324: an NPC entering furniture or an idle marker at once, the ...EnterInstant idles): unless one is pending (middle +0x230), assigns an InstantInteractionCallback there (39731) and loads the event's clips into set 4 (coop_LoadEventClips 43621: event, actor, 4, 5, callback, lock, 1), its load at sets (middle +0x1B8) +0x80. Set 3 is the action's (39625: high +0x430, sets +0x60)."}
+2026-11-09T16:44:17Z	comment	39689	0x71a780	{"addr": "0x14071a780", "comment": "39689 InstantInteractionCallback::Loaded(kind, set): if the interaction still applies (0x1406F2910) keeps the set under its kind (40055), else releases it."}
+2026-11-09T16:44:17Z	comment	39731	0x71cb30	{"addr": "0x14071cb30", "comment": "39731 a refcounted callback pointer assign (the middle process's instant interaction slot +0x230); 39732 is the high process's (+0x430)."}
+2026-11-09T16:44:17Z	comment	39688	0x71a730	{"addr": "0x14071a730", "comment": "39688 InstantInteractionCallback ctor (32 bytes: vtable, count +8, actor +0x10, event +0x18)."}
+2026-11-09T16:44:17Z	comment	39258	0x6f1190	{"addr": "0x1406f1190", "comment": "39258 cancels the pending action-set load (sets +0x60) and its callback (high +0x430) only: set 4's is separate."}
+2026-11-09T17:00:33Z	comment		0x7959fb	{"addr": "0x1407959fb", "comment": "IMovementSelectIdle 41694: a movement idle's clips (turn-to-walk and the like) through coop_LoadEventClips (43621) with kind 47, the selector itself as callback (+0x18) and lock (+0x70), its load at +0x78: not a process set (KeepSet has no slot 47). A copy runs no movement AI: the graph input stream holds such a set for it (ActionClips)."}
+2026-11-09T17:23:37Z	read	43619	0x7d9dc0	{"name": "sub_1407D9DC0"}
+2026-11-09T17:23:37Z	read	43623	0x7da400	{"name": "sub_1407DA400"}
+2026-11-09T17:23:49Z	read	43624	0x7da500	{"name": "sub_1407DA500"}
+2026-11-09T17:23:49Z	read	43622	0x7da2b0	{"name": "sub_1407DA2B0"}
+2026-11-09T17:24:35Z	name	43622	0x7da2b0	{"addr": "0x1407da2b0", "name": "coop_LoadEventClipsQueued"}
+2026-11-09T17:24:35Z	name	43624	0x7da500	{"addr": "0x1407da500", "name": "coop_LoadEventClipsForManager"}
+2026-11-09T17:24:35Z	name	43623	0x7da400	{"addr": "0x1407da400", "name": "coop_LoadEventClipsByHolder"}
+2026-11-09T17:24:35Z	name	43619	0x7d9dc0	{"addr": "0x1407d9dc0", "name": "coop_LoadPlayerEventClips"}
+2026-11-09T17:24:38Z	comment	43622	0x7da2b0	{"addr": "0x1407da2b0", "comment": "43622 as coop_LoadEventClips (43621: event, actor, kind, flags, callback, lock, ...) through the prioritized queue (63969, priority -2); called from 0x140725400."}
+2026-11-09T17:24:38Z	comment	43624	0x7da500	{"addr": "0x1407da500", "comment": "43624 an event's clips for a graph manager (event, BSAnimationGraphManager, kind, flags, callback, lock, ...), no actor: AIProcess::FinishLoadGame reloads a process's sets with it as a save loads. The graph input stream keys an owner's held sets by its graph manager for it."}
+2026-11-09T17:24:38Z	comment	43623	0x7da400	{"addr": "0x1407da400", "comment": "43623 coop_LoadEventClips' variant taking the manager first; no code caller (a table entry)."}
+2026-11-09T17:24:38Z	comment	43619	0x7d9dc0	{"addr": "0x1407d9dc0", "comment": "43619 the player's clip loads (PlayerCharacter 39778): not an NPC's."}
+2026-11-09T18:42:48Z	read	58330	0xacc300	{"name": "hkbBehaviorGraph::handleEvent"}
+2026-11-09T18:42:54Z	read		0xbcf6e0	{"name": "BShkbAnimationGraph::SendEvent"}
+2026-11-09T19:04:26Z	comment		0xbcf289	{"addr": "0x140bcf289", "comment": "The behaviour graph's update (vfunc 5, 58329: graph, context, step in xmm2), run only when +0x245/+0x246 are set. Its step (xmm9): the frame's dt when forced (update data +0x2A) or near; a far graph's whole interval at once when its countdown runs out (+0x1E8/+0x1EC), else part of a frame or 0. The graph input stream records an owner's real steps here (58329), so owners keep the engine's own stepping."}
+2026-11-09T19:04:26Z	comment		0xbcf1c8	{"addr": "0x140bcf1c8", "comment": "Forced (update data +0x2A, kForceAnimGraphUpdate): LOD +0x240 at its maximum; otherwise 63575 by camera distance and visibility. With interpolation skipped, a forced actor's graph also steps every frame. Measured 2026-11-09: owners forced every frame (an earlier step of the graph stream) hovered after a drop (a restrained wolf 72 units up; unforced it lands)."}
+2026-11-09T19:12:41Z	read		0xbcf25e	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:19:47Z	read	63587	0xbcedb0	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:20:39Z	read		0xbcf08b	{"name": "BShkbAnimationGraph::sub_63587"}
+2026-11-09T19:28:00Z	read	63583	0xbccea0	{"name": "BShkbAnimationGraph::sub_63583"}
+2026-11-09T19:28:12Z	read	38019	0x6b5240	{"name": "Character::sub_38019"}
+2026-11-09T19:28:20Z	read	63566	0xbcb0f0	{"name": "BShkbAnimationGraph::sub_63566"}
+2026-11-09T19:28:25Z	read		0xbcc9a0	{"name": "BShkbAnimationGraph::sub_63581"}
+2026-11-09T19:30:58Z	read	60016	0xb1ecb0	{"name": "sub_140B1ECB0"}
+2026-11-09T19:31:21Z	name	60016	0xb1ecb0	{"addr": "0x140b1ecb0", "name": "coop_hkbVariableBindingSet_CopyBinding"}
+2026-11-09T19:31:24Z	comment	60016	0xb1ecb0	{"addr": "0x140b1ecb0", "comment": "ID 60016, from hkbVariableBindingSet::CopyVariablesToMembers (59467): one binding (a2: +0x1C variable index, +0x21 bit: a character property, else a variable; +0x24 bit 1 output) between its node member and its value. The set is the context's variables (+0) or character properties (+8), the index mapped through the symbol id maps (+0x10/+0x18 or +0x20/+0x28). Kinds 6-8 (vector4, quaternion): the 32-bit value is an index into the set's quad pool (+0x20, 16 bytes each); a wrong value there reads far outside it (a copy's crash in a restore, 2026-11-09)."}
+2026-11-09T19:31:24Z	comment		0xb1f0c6	{"addr": "0x140b1f0c6", "comment": "Vector/quaternion binding into the member: quads[value of the variable] (value = an index into the quad pool, not the vector)."}
+2026-11-09T19:33:59Z	read	63573	0xbcbf70	{"name": "BShkbAnimationGraph::sub_63573"}
+2026-11-09T19:34:23Z	read	63582	0xbccd60	{"name": "BShkbAnimationGraph::sub_63582"}
+2026-11-09T19:34:27Z	read	63589	0xbcf480	{"name": "BShkbAnimationGraph::sub_63589"}
+2026-11-09T19:34:27Z	read	63568	0xbcb290	{"name": "BShkbAnimationGraph::sub_63568"}
+2026-11-09T19:35:13Z	read	63358	0xbc0680	{"name": "BSAnimationGraphManager::Update"}
+2026-11-09T19:35:48Z	name	63589	0xbcf480	{"addr": "0x140bcf480", "name": "coop_BShkbAnimationGraph_GenerateOrInterpolate"}
+2026-11-09T19:35:48Z	name	63568	0xbcb290	{"addr": "0x140bcb290", "name": "coop_BShkbAnimationGraph_Generate"}
+2026-11-09T19:35:53Z	comment	63589	0xbcf480	{"addr": "0x140bcf480", "comment": "63589, per graph after the manager's updates (63358, inline or in a queued job sub_140BC0A40): when its behaviour graph updated this frame (+0x246, set by 63587) it runs the generate pass (63568); otherwise only the buffered poses' interpolation (63581) and the pose out. So a graph generates once after each frame it updated in, never between: a far graph only after its chunks. Modifiers do their work in generate (modify), so their state (a damping modifier's TurnDeltaDamped) moves once per generate."}
+2026-11-09T19:35:53Z	comment	63568	0xbcb290	{"addr": "0x140bcb290", "comment": "63568 the generate pass: pose buffer +0x220 cleared to the LOD (+0x240) bones, then hkbBehaviorGraph::generate (58343; or the same through the behaviour job queue when a2 and the queue are set), post-processors (63573), the pose out (63581). Only 63589 calls it. The graph input stream records an owner's generate passes here and replays them in place on its copies."}
+2026-11-09T19:35:53Z	comment		0xbcf4f0	{"addr": "0x140bcf4f0", "comment": "+0x246: the behaviour graph updated this frame (63587 sets 0x245/0x246 at its start, clears 0x246 when a far graph's countdown has not run out). Read only here and in 63587."}
+2026-11-09T19:35:54Z	comment		0xbc0999	{"addr": "0x140bc0999", "comment": "Each graph's generate or interpolation (63589) after every graph's update (63587) and event dispatch (63588), here or in a queued job."}
+2026-11-09T19:50:31Z	read	59522	0xb01990	{"name": "hkbBlenderGenerator::sub_59522"}
+2026-11-09T19:50:32Z	read	59524	0xb01b90	{"name": "hkbBlenderGenerator::sub_59524"}
+2026-11-09T19:50:32Z	read	59540	0xb030b0	{"name": "hkbBlenderGenerator::sub_59540"}
+2026-11-09T19:50:59Z	comment	59540	0xb030b0	{"addr": "0x140b030b0", "comment": "59540 hkbBlenderGenerator::setInternalState: childrenInternalStates (+0x70), sortedChildren (+0x80), endIntervalWeight +0x90, numActiveChildren +0x94, begin/endIntervalIndex +0x98/+0x9A, initSync +0x9C, doSubtractiveBlend +0x9D. The active children (59524: numActiveChildren with flag 1) come back with it."}
+2026-11-09T19:50:59Z	comment	59522	0xb01990	{"addr": "0x140b01990", "comment": "59522 hkbBlenderGenerator::update: only its sync time (+0x44 of its NodeInfo) advances by the step; the children it blends are chosen in generate (sorted, numActiveChildren)."}
+2026-11-09T19:56:48Z	comment		0xacbd28	{"addr": "0x140acbd28", "comment": "+0x12E (Havok's stateOrTransitionChanged): set by GoToState, StartTransition, a blender's update/activate when its active children change (59521/59522), binding copies, selectors; cleared by updateActiveNodes (60079). The update re-walks the active nodes only while it is set. Not node state: Havok's restore (58373) leaves it cleared, so a copy's restore takes its owner's from the sync point (Skyrim's LoadState sets it, 0x140bd2db8)."}
+2026-11-09T19:56:48Z	comment		0xb2a2d4	{"addr": "0x140b2a2d4", "comment": "updateActiveNodes clears stateOrTransitionChanged (+0x12E)."}
+2026-11-09T20:10:30Z	read	63569	0xbcb640	{"name": "BShkbAnimationGraph::sub_63569"}
+2026-11-09T20:10:30Z	read	63575	0xbcc2c0	{"name": "BShkbAnimationGraph::sub_63575"}
+2026-11-09T20:18:30Z	comment		0xbcef2f	{"addr": "0x140bcef2f", "comment": "Interpolation not allowed (update data +0x2B, from 37988): straight to the every-frame step, like forced, but the LOD stays 63575's (camera distance, visibility). The graph input stream clears +0x2B for owners it records: they step every frame as their copies replay them. Measured 2026-11-09: with this a restrained wolf lands and host-kill-move passes; with `force` (+0x2A, full LOD off camera, or the actor's kForceAnimGraphUpdate) it hovered 72 units up. Which of force's effects holds it up is not read yet."}
+2026-11-09T20:23:19Z	read	32803	0x54fac0	{"name": "BGSSynchronizedAnimationManager::StartPair"}
+2026-11-09T20:41:19Z	read	58329	0xacbc60	{"name": "hkbBehaviorGraph::sub_58329"}
+2026-11-09T20:41:59Z	read	63132	0xbb3c80	{"name": "BSCyclicBlendTransitionGenerator::sub_63132"}
+2026-11-09T20:42:00Z	read	63130	0xbb3b60	{"name": "BSCyclicBlendTransitionGenerator::sub_63130"}
+2026-11-09T20:42:21Z	comment	63132	0xbb3c80	{"addr": "0x140bb3c80", "comment": "63132 BSCyclicBlendTransitionGenerator::update. Mode +0xA8: 0 following, 1 frozen (EventToFreezeBlendValue), 2 cross-blending, 3 cross-blend asked. Not frozen: writes its fBlendParameter (+0x78, bound to Direction) into its blender's clone's blendParameter (+0x4C). Frozen: the blender keeps the value of the freeze, a plain member no internal state carries (hkbBlenderGeneratorInternalState has none): a copy restored then read a fresh one and blended WalkForwardLeft where its owner had Right (duo, Whiterun 37081, 2026-11-09). The sync point carries each active node's plain members for it. Mode 2 runs a transition effect it created in activate (+0xA0) over a second blender (+0x90): pointers, not restored."}
+2026-11-09T20:42:21Z	comment	63130	0xbb3b60	{"addr": "0x140bb3b60", "comment": "63130 BSCyclicBlendTransitionGenerator::activate: mode 0, its blender's clone (+0x50 template) gets blendParameter = fBlendParameter; a transition blender clone (+0x90) and a blending transition effect (+0xA0) are made for cross-blends."}
+2026-11-09T21:18:40Z	read	58429	0xad4280	{"name": "hkbFootIkDriver::sub_58429"}
+2026-11-09T21:18:40Z	read	58427	0xad41c0	{"name": "hkbFootIkDriver::sub_58427"}
+2026-11-09T21:29:20Z	comment		0xbcf31a	{"addr": "0x140bcf31a", "comment": "+0x249: foot IK on for this graph's next pose (63581 runs hkbFootIkDriver 58423 when set, resets the driver 58427 otherwise; nothing else reads it). = update data +0x2E (not in a pair, not mounted) && 63575's answer (its LOD table's byte; 0 off camera). Forced (+0x2A), 63575 is not asked and its answer stays 1: foot IK runs for an actor the engine would not solve it for. Measured 2026-11-09 (duo, host-kill-move's restrained wolf dropped 72 units): forced by the hook alone it hangs 45-72 units up and drifts; forced with +0x249 cleared after the update it lands; unforced with interpolation off it lands. How the solved pose holds the actor up is not read (58423's output is used for the pose only, 63569's transform delta takes the pose's world-from-model from before it)."}
+2026-11-09T21:29:20Z	comment	63569	0xbcb640	{"addr": "0x140bcb640", "comment": "63569: the pose's world-from-model against the last one (+0x148) as a transform delta event to the graph's holder (+0x10 event source): root motion. Called from 63581 when the LOD is not 0 and the actor is not ragdolled."}
+2026-11-10T04:30:30Z	comment		0x54fcf4	{"addr": "0x14054fcf4", "comment": "The target's half: its own TESActionData (event = the pair's target event), played through its graph (63591) with both actors already in the instance (IsInInstance true). coop: a replayed pair names no target event when the partner is a copy (PlayReplayedAction), so no instance is made there and that copy's half comes as its owner's action. The graph input stream records nothing of an owner in an instance (GraphStreams::PauseWhile): the synchronized clip waits at the mark on the instance (~150 ms on the host, 2026-11-09), which a copy outside one skips."}
+2026-11-10T06:21:01Z	read		0xbc0c30	{"name": "sub_140BC0BF0"}
+2026-11-10T06:21:10Z	comment		0xbc0c30	{"addr": "0x140bc0c30", "comment": "Not on the path: looked at by a wrong address while reading NotifyAllGraphs (63362) for the graph input stream's phase 4."}
+2026-11-10T06:21:10Z	comment		0xcfb8c	{"addr": "0x1400cfb8c", "comment": "Not on the path (graph input stream, phase 4): reached while reading callers; nothing recorded."}
+2026-11-10T06:21:10Z	comment		0xb2ed70	{"addr": "0x140b2ed70", "comment": "Not on the path (graph input stream, phase 4): reached while reading callers; nothing recorded."}
+2026-11-10T06:21:10Z	comment		0xbc0805	{"addr": "0x140bc0805", "comment": "One 63587 per graph of the manager: the player's manager holds two (index 0 third person, 1 first person), both under holder 0x14. coop's graph input stream records and replays only index 0 (GraphStreamHooks CopiesHave): a player's copy has no first-person graph."}
+2026-11-10T07:19:25Z	read	59960	0xb1bab0	{"name": "sub_140B1BAB0"}
+2026-11-10T08:13:17Z	comment		0xacbb69	{"addr": "0x140acbb69", "comment": "Root graph only (context's behaviour null). The engine runs this on a graph in place: a player's copy kept through a teleport stood in its start state with default variables, same BShkbAnimationGraph (duo teleport-keeps-copies, 2026-11-10; which caller re-attaches the cell is not read). coop hooks it: the graph input stream starts over for that actor (GraphStreams::GraphReset)."}
+2026-11-10T15:18:16Z	read		0xbced53	{"name": "BShkbAnimationGraph::sub_63586"}
+2026-11-10T15:18:21Z	read		0xbc04f9	{"name": "BSAnimationGraphManager::sub_63356"}
+2026-11-10T15:18:26Z	read	32883	0x5532c0	{"name": "sub_1405532C0"}
+2026-11-10T15:18:26Z	read		0x1a7c35	{"name": "TES::sub_13381"}
+2026-11-10T15:18:44Z	read		0x1a7885	{"name": "TES::sub_13380"}
+2026-11-10T15:18:48Z	read		0x553aae	{"name": "IAnimationGraphManagerHolder::sub_32893"}
+2026-11-10T15:24:05Z	read	42881	0x7ced60	{"name": "MountDismountEndHandler::Handle"}
+2026-11-10T15:24:11Z	read	37462	0x686420	{"name": "sub_140686420"}
+2026-11-10T15:24:16Z	name	37462	0x686420	{"addr": "0x140686420", "name": "coop_Actor_SetGettingOnOffMount"}
+2026-11-10T15:24:16Z	name	32883	0x5532c0	{"addr": "0x1405532C0", "name": "coop_IAnimationGraphManagerHolder_ReactivateGraphs"}
+2026-11-10T15:24:20Z	comment	37462	0x686420	{"addr": "0x140686420", "comment": "37462 (actor, on): sets or clears flags2 bit 3 (GETTING_ON_OFF_MOUNT, +0x204) and with it a deferred kill (StartDeferredKill / EndDeferredKill): an actor getting on or off a mount cannot die mid-clip. Cleared for rider and mount by MountDismountEndHandler 42881."}
+2026-11-10T15:24:20Z	comment	32883	0x5532c0	{"addr": "0x1405532C0", "comment": "32883 holder: with its graph manager, vfunc 7 on each graph then BSAnimationGraphManager 63356, which activates every graph's behaviour (63586 -> hkbBehaviorGraph::activate 58328). Callers: TES 13381 (a save load's list of refs, read by 13380), FinishLoadGame, Revert. Not on a teleport's path."}
+2026-11-10T15:24:20Z	comment		0xbcecd0	{"addr": "0x140bcecd0", "comment": "63586: activates this graph's behaviour graph (vfunc 4, 58328) with a fresh context, +0x244 set around it. Only from BSAnimationGraphManager 63356: a graph just created (32893) or a save load (32883)."}
+2026-11-10T15:24:20Z	comment	59960	0xb1bab0	{"addr": "0x140b1bab0", "comment": "59960: seen once in a guest crash stack (hkbBlendingTransitionEffect with null generators, 2026-11-10); not on the dismount or teleport path, unread beyond that."}
+2026-11-10T15:24:25Z	read	37906	0x6ac260	{"name": "Actor::Dismount"}
+2026-11-10T15:27:57Z	read	42868	0x7ce2f0	{"name": "PairedStopHandler::Handle"}
+2026-11-10T15:28:08Z	read		0x7cd211	{"name": "ChairFurnitureExitHandler::Handle"}
+2026-11-10T15:28:20Z	comment	42868	0x7ce2f0	{"addr": "0x1407ce2f0", "comment": "42868 PairedStopHandler: sit state 2 (waiting for the sit animation) becomes 3 (sitting) through SetSitSleepState: the end of getting on a mount, with MountDismountEndHandler 42881 clearing GETTING_ON_OFF_MOUNT in the same update (duo, 2026-11-10)."}
+2026-11-10T15:28:20Z	comment	37906	0x6ac260	{"addr": "0x1406ac260", "comment": "37906 Actor::Dismount: only for an actor on a mount and not already getting on or off (flags2 bit 3). Builds the dismount package (type 42), sets bit 3 on rider and mount with a deferred kill each (37462 inline). The copy of a rider never runs this: it plays HorseExit alone, so its bit 3 stays clear while it gets off."}
+2026-11-10T15:28:26Z	comment		0x7cd211	{"addr": "0x1407cd211", "comment": "42835 ChairFurnitureExitHandler: an actor whose sit state is 1..4 (wants to sit .. wants to stand) gets sit state 0 through AIProcess::SetSitSleepState, which ends its furniture or mount interaction. A dismount ends here too, at the HorseExit clip's own event: on a copy this is the only thing that unlinks the rider (no Actor::Dismount 37906, no package). A sync point loaded before the clip's end leaves the copy riding with sit state 4 (duo, 2026-11-10)."}
+2026-11-10T15:50:31Z	read	39255	0x6f0800	{"name": "sub_1406F0800"}
+2026-11-10T19:25:45Z	read	63133	0xbb3da0	{"name": "BSCyclicBlendTransitionGenerator::sub_63133"}
+2026-11-10T19:25:46Z	read	63136	0xbb40f0	{"name": "BSCyclicBlendTransitionGenerator::sub_63136"}
+2026-11-10T19:25:50Z	read	63137	0xbb41c0	{"name": "BSCyclicBlendTransitionGenerator::sub_63137"}
+2026-11-10T19:25:51Z	read		0xaf1790	{"name": "coop_hkbBehaviorGraph_ActivateNodeLeafFirst"}
+2026-11-10T19:25:54Z	read	63140	0xbb4400	{"name": "BSCyclicBlendTransitionGenerator::sub_63140"}
+2026-11-10T19:31:41Z	comment	59960	0xb1bab0	{"addr": "0x140b1bab0", "comment": "59960 hkbBlendingTransitionEffect's sync info for its parent (a1 effect, a2 context, a3 the node asking): reads its fromGenerator (+0x60) and toGenerator (+0x68) unchecked. Called by BSCyclicBlendTransitionGenerator's updateSync (63140) in mode 2. Guest crash 2026-11-10 (+0x95, both null): a copy restored from a sync point taken while its owner cross-blended got mode 2 (a plain member) on a new clone whose effect 63133 never linked. Fix: no sync point while a cyclic generator is in mode 2 or 3 (GraphInternalState::Take)."}
+2026-11-10T19:31:41Z	comment	63140	0xbb4400	{"addr": "0x140bb4400", "comment": "63140 BSCyclicBlendTransitionGenerator updateSync (slot 25, called by the active-node walk 59327+0x716): mode 2 with an effect (+0xA0) -> the effect's 59960 (needs its from/to generators); otherwise copies its blender clone's sync info."}
+2026-11-10T19:31:41Z	comment	63133	0xbb3da0	{"addr": "0x140bb3da0", "comment": "63133 BSCyclicBlendTransitionGenerator handleEvent (slot 6). Mode 0 + freeze event (+0x58): mode 1. Mode not 0 + cross-blend event (+0x68): the second blender's clone (+0x90) gets the first's blendParameter; then mode 3, effect duration = fBlendDuration (+0x7C), effect slot 30 (blender +0x50) and slot 29 (second blender +0x90) link its generators, its times reset. Already mode 2: the effect's times reversed. The only place the effect's generators are set."}
+2026-11-10T19:31:41Z	comment	63136	0xbb40f0	{"addr": "0x140bb40f0", "comment": "63136 BSCyclicBlendTransitionGenerator getChildren: its blender (+0x50), and in mode 2 its second blender (+0x90, a template cloned from the first in activate 63130, so its clone has the same node id)."}
+2026-11-10T19:31:41Z	comment	63131	0xbb3c20	{"addr": "0x140bb3c20", "comment": "63131 BSCyclicBlendTransitionGenerator deactivate: mode -1, releases its second blender (+0x90) and its effect (+0xA0); activate (63130) makes new ones."}
+2026-11-10T19:31:43Z	name	59960	0xb1bab0	{"addr": "0x140b1bab0", "name": "coop_hkbBlendingTransitionEffect_UpdateSyncFor"}
+2026-11-10T19:31:43Z	name	63140	0xbb4400	{"addr": "0x140bb4400", "name": "coop_BSCyclicBlendTransitionGenerator_UpdateSync"}
+2026-11-10T19:31:43Z	name	63133	0xbb3da0	{"addr": "0x140bb3da0", "name": "coop_BSCyclicBlendTransitionGenerator_HandleEvent"}
+2026-11-10T19:31:43Z	name	63136	0xbb40f0	{"addr": "0x140bb40f0", "name": "coop_BSCyclicBlendTransitionGenerator_GetChildren"}
+2026-11-10T19:54:45Z	data			{"old": "gBarterMenu_TargetRefHandle", "new": "coop_g_playerRefHandle"}
+2026-11-10T19:54:49Z	comment		0x6b41bf	{"addr": "0x1406b41bf", "comment": "ProcessTracking, target == this game's player (handle 403520): the tracker's fresh detection state of the player (37758, priority 3); with a state of level <= 0, not talking to the PC, running package not type 2 and not greeting, sub_1406FE770 clears its default slot (slot 0, +0x140) and the target is read again. No state (null): nothing cleared. A player's copy holds an 'unseen' state of this game's player (-1000, our 42704 hook, 2026-11-08), so its slot 0 on that player was cleared every frame: guest-rides-host-horse, owner ['session 1'] vs copy [] (measured 2026-11-10: seen0 14, raw0 0 before each push)."}
+2026-11-10T19:54:49Z	comment	39467	0x6fe770	{"addr": "0x1406fe770", "comment": "Clears the default headtrack slot (HighProcessData +0x140, slot 0) and its flag +0x158, then refreshes the look position. From ProcessTracking when the tracker does not detect this game's player."}
+2026-11-10T19:54:49Z	comment	403520	0x3230774	{"addr": "0x143230774", "comment": "403520: this game's player's ref handle (112 readers: escort, follow, dialogue procedures, ProcessTracking). Was misnamed gBarterMenu_TargetRefHandle."}
+2026-11-10T20:29:46Z	name	39467	0x6fe770	{"addr": "0x1406fe770", "name": "coop_AIProcess_ClearDefaultHeadtrackSlot"}
+2026-11-10T22:20:58Z	read	38616	0x6cc910	{"name": "Character::StartDeferredKill"}
+2026-11-10T22:20:59Z	read	38618	0x6cc950	{"name": "Actor::EndDeferredKill"}
+2026-11-10T22:20:59Z	read	40033	0x7285a0	{"name": "ActorProcess::StartDeferredKill"}
+2026-11-10T22:21:02Z	read	40036	0x728620	{"name": "sub_140728620"}
+2026-11-10T22:21:02Z	read	38619	0x6cc970	{"name": "Character::sub_38619"}
+2026-11-10T22:21:11Z	comment	40036	0x728620	{"addr": "0x140728620", "comment": "(process, scripted, actor): EndDeferredKill's body. Ends the deferral only when `scripted` equals the flag byte middleHigh+0x332 (818) StartDeferredKill ORed in; then state +0x2F8 (760) = 0, a held kill (state > 1) is queued with this game's player as killer, flag = 0. So the engine's own unscripted ends (mount 37462, KillActor 42838) leave a scripted deferral (papyrus, our copies') in place."}
+2026-11-10T22:21:11Z	comment	40033	0x7285a0	{"addr": "0x1407285a0", "comment": "40033 (process, scripted): state middleHigh+0x2F8 = 1 if 0, flag +0x332 |= scripted, timer +0x2D4 reset. Safe every frame. Our copies call it with scripted = 1 each update (UpdateCopyAI)."}
+2026-11-10T22:21:15Z	name	40036	0x728620	{"addr": "0x140728620", "name": "coop_AIProcess_EndDeferredKill"}
+2026-11-11T08:58:50Z	read	37279	0x675930	{"name": "Actor::DrawWeaponMagicHands"}
+2026-11-11T08:59:00Z	read	38979	0x6e13c0	{"name": "ActorState::Func21_38979"}
+2026-11-11T08:59:05Z	read	42824	0x7ccac0	{"name": "RightHandWeaponDrawHandler::Process_Origin"}
+2026-11-11T08:59:22Z	read	42825	0x7ccc20	{"name": "RightHandWeaponSheatheHandler::Process_Origin"}
+2026-11-11T09:00:09Z	read		0x669eb0	{"name": "BSTaskPool_HandleTask"}
+2026-11-11T09:00:14Z	read	37169	0x66fca0	{"name": "Character::sub_37169"}
+2026-11-11T09:00:15Z	read	37168	0x66fc60	{"name": "PlayerCharacter::sub_37168"}
+2026-11-11T09:00:20Z	name	37169	0x66fca0	{"addr": "0x14066fca0", "name": "Actor::WeaponSheathed_37169"}
+2026-11-11T09:00:20Z	name	37168	0x66fc60	{"addr": "0x14066fc60", "name": "Actor::GetEquippedWeaponInHand_37168"}
+2026-11-11T09:00:25Z	comment	37279	0x675930	{"addr": "0x140675930", "comment": "SkyrimCoop: draw (a2): runs ActionDraw; weapon state = 1 (wants to draw) when the action is refused, 2 (drawing) when taken. Nothing here reaches 3: only the graph's weaponDraw event (RightHandWeaponDrawHandler 42824) does. Sheathe: ActionSheath, 4 refused / 5 taken; weaponSheathe (42825 -> 37169) sets 0. A copy on its owner's graph stream refuses its own events (63591 hook), so a forced draw leaves it at 1."}
+2026-11-11T09:00:25Z	comment	42824	0x7ccac0	{"addr": "0x1407ccac0", "comment": "SkyrimCoop: the weaponDraw event's result: both hands' weapons attached to the hand nodes (Actor vfunc 0xB4, a3=1), ActorState vfunc 21 (38979) -> weapon state 3, the process's hand state (sub_140728500), third-person camera for the camera's actor. a1 (the handler) is unused."}
+2026-11-11T09:00:25Z	comment	37169	0x66fca0	{"addr": "0x14066fca0", "comment": "SkyrimCoop: the weaponSheathe event's result (RightHandWeaponSheatheHandler 42825 calls only this): both hands' weapons back to their sheath nodes (vfunc 0xB4, a3=0), ActorState vfunc 21 false -> weapon state 0, the process's hand state."}
+2026-11-11T17:19:46Z	read	63091	0xbb2370	{"name": "BSRagdollContactListenerModifier::Modify"}
+2026-11-11T17:19:47Z	read	63050	0xbb0c80	{"name": "BSSynchronizedClipGenerator::Update"}
+2026-11-11T17:20:27Z	comment		0xbb0cf2	{"addr": "0x140bb0cf2", "comment": "Outside read 1 of 2: the scene (+0x70) answers 'all at mark' (+0x12C) and 'all in scene' (+0x12B) each update. The inner clip advances only while +0x12C is set. Reflected as bAllCharactersAtMarks / bAllCharactersInScene."}
+2026-11-11T17:20:27Z	comment		0xbb0e10	{"addr": "0x140bb0e10", "comment": "Outside read 2 of 2: the character's world transform (context +0x88) against its mark, into doneReorientingSupportChar (+0x12A), which the scene reads back (32794)."}
+2026-11-11T17:20:27Z	comment		0xbb2433	{"addr": "0x140bb2433", "comment": "A node's own event goes straight into the graph's hkbEventQueue (context +0x18, else character +0x80), never through BShkbAnimationGraph::SendEvent 63591. The trigger (+0x70) was set by the physics contact callback 63092."}
+2026-11-11T17:23:53Z	read	63060	0xbb1750	{"name": "BSSynchronizedClipGenerator::RemapClipEvents"}
+2026-11-11T17:24:01Z	read	59576	0xb048a0	{"name": "hkbPoseMatchingGenerator::sub_59576"}
+2026-11-11T17:24:01Z	read	59581	0xb04b80	{"name": "hkbPoseMatchingGenerator::sub_59581"}
+2026-11-11T17:24:02Z	read	59578	0xb04910	{"name": "hkbPoseMatchingGenerator::sub_59578"}
+2026-11-11T17:24:12Z	read	59583	0xb04d20	{"name": "hkbPoseMatchingGenerator::sub_59583"}
+2026-11-11T17:24:19Z	name	59583	0xb04d20	{"addr": "0x140b04d20", "name": "hkbPoseMatchingGenerator::MatchRagdollPose_59583"}
+2026-11-11T17:24:19Z	name	59576	0xb048a0	{"addr": "0x140b048a0", "name": "hkbPoseMatchingGenerator::Update_59576"}
+2026-11-11T17:24:23Z	comment	59583	0xb04d20	{"addr": "0x140b04d20", "comment": "The node's only outside read. While mode (+0xD0) is 0 (matching), it has its pose utility (+0xE8) and the character a ragdoll: reads the ragdoll's pose (64153), finds the closest candidate (sub_140BF54A0, error to +0xE0) into bestMatch (+0xD8) and timeSinceBetterMatch (+0xDC), and moves currentMatch (+0xD4) to it once it held long enough and the ragdoll bone (+0xCE) moves faster than +0xB4. In play mode it reads nothing. Then, always: each child's weight (+0x40) steps towards 1 for currentMatch and 0 for the rest, by step * blendSpeed (+0xB0): the graph's result depends only on currentMatch."}
+2026-11-11T17:24:23Z	comment	59576	0xb048a0	{"addr": "0x140b048a0", "comment": "vtable 5: MatchRagdollPose (59583), then hkbBlenderGenerator's update (59522)."}
+2026-11-11T17:42:09Z	read	39896	0x723b60	{"name": "ActorProcess::UpdateKnockState"}
+2026-11-11T17:42:10Z	read	40150	0x735c20	{"name": "coop_beginGetUp"}
+2026-11-11T17:42:35Z	read	38085	0x6b7c40	{"name": "sub_1406B7C40"}
+2026-11-11T17:58:38Z	read	42880	0x7cec80	{"name": "GetUpEndHandler::Handle"}
+2026-11-11T17:58:38Z	read	42879	0x7cead0	{"name": "GetUpStartHandler::Handle"}
+2026-11-11T17:59:13Z	read	36918	0x668310	{"name": "sub_140668310"}
+2026-11-11T17:59:22Z	comment	36918	0x668310	{"addr": "0x140668310", "comment": "Queues task 14 for the actor (from GetUpEndHandler 42880 when iGetUpType is 1 or 2). What the task does is not read yet: expected to end the get-up (knock state 6 to 0)."}
+2026-11-11T17:59:22Z	comment	38085	0x6b7c40	{"addr": "0x1406B7C40", "comment": "Asks every graph of the holder's manager one question through a functor (a2: result byte). In UpdateKnockState 39896: whether the graph has its ragdoll (the hkbRagdollDriver's instance), each game's own, not a graph variable."}
+2026-11-11T17:59:22Z	comment	42880	0x7cec80	{"addr": "0x1407cec80", "comment": "GetUpEnd: reads iGetUpType; queues the ragdoll's removal from the world; type 1 or 2 queues task 14 (36918), type 0 the standing branch (38820, motion type). On a copy on its owner's stream the variable is its owner's."}
+2026-11-11T17:59:22Z	comment	42879	0x7cead0	{"addr": "0x1407cead0", "comment": "GetUpStart: reads iGetUpType; character controller back at the actor's position; type 1 or 2 sets knock state 6, type 0 sets flags2 0x10."}
+2026-11-11T17:59:22Z	comment	40150	0x735c20	{"addr": "0x140735c20", "comment": "BeginGetUp(actor, perform): ragdoll constraints rigid (UpdateRigidConstraints), the graphs' ragdoll flag cleared; with perform: iGetUpType 1, or 2 by a cast under the actor, then ActionGetUp (TESActionData 41557). Always: knock state 5."}
+2026-11-11T17:59:22Z	comment		0x723d44	{"addr": "0x140723d44", "comment": "Knock state 5, once the graph no longer has its ragdoll: the actor's heading from its own ragdoll's bones (SetHeading), then knock state 6. On a copy that heading is its own body's, not its owner's."}
+2026-11-11T18:08:08Z	read	39897	0x723ff0	{"name": "sub_140723FF0"}
+2026-11-11T18:08:32Z	name	39897	0x723ff0	{"addr": "0x140723FF0", "name": "AIProcess::EndKnock_39897"}
+2026-11-11T18:08:32Z	name	36918	0x668310	{"addr": "0x140668310", "name": "TaskQueueInterface::QueueEndKnock_36918"}
+2026-11-11T18:08:35Z	comment	39897	0x723ff0	{"addr": "0x140723FF0", "comment": "Ends a knockdown (process, actor): for a knocked actor, its 3D back to its animated motion type or its constraints rigid and the graphs' ragdoll flag cleared, then knock state 0 (flags1 &= ~0xE000000) and the camera's bleedout left for the player. Run as task 14, queued by GetUpEndHandler (42880) when iGetUpType is 1 or 2."}
+2026-11-11T18:08:35Z	comment	36918	0x668310	{"addr": "0x140668310", "comment": "Queues task 14 for the actor: AIProcess::EndKnock (39897)."}
+2026-11-11T19:46:29Z	read	59766	0xb10090	{"name": "hkbGetUpModifier::Func23_59766"}
+2026-11-11T19:51:18Z	name	59766	0xb10090	{"addr": "0x140b10090", "name": "hkbGetUpModifier::Modify_59766"}
+2026-11-11T19:51:18Z	name	58291	0xac6fb0	{"addr": "0x140ac6fb0", "name": "hkbRagdollDriver::DriveToPose_58291"}
+2026-11-11T19:51:23Z	comment	59766	0xb10090	{"addr": "0x140b10090", "comment": "hkbGetUpModifier::modify (vtable 0x1419e0830 slot 23). First modify after activation (+0x78 initNextModify): reads the ragdoll's world pose (64153) and the animation's pose mapped to the ragdoll skeleton, and from three bones (+0x68 root, +0x6A other, +0x6C another) writes the output's worldFromModel track so the clip starts where the ragdoll lies. Every modify after: turns worldFromModel's up to the ground normal (+0x50) over +0x60/+0x64 seconds. Pose only: no state another node reads. docs/re/systems/physics.md, Getting up."}
+2026-11-11T19:51:23Z	comment	58291	0xac6fb0	{"addr": "0x140ac6fb0", "comment": "hkbRagdollDriver::driveToPose (ragdoll, deltaTime, context, output). Reads the output's powered ragdoll controls (track 6, sets +0xC7) and rigid body controls (track 4, sets +0xC8) and drives the ragdoll's dynamic bodies toward the output's pose. The bodies stay simulated: gravity and contacts with the world still move them, so the pose shown while getting up (knock states 5, 6) is each game's own physics (duo 2026-11-11: a head held under a table edge on one game only). Our hook steers a copy's bodies after it."}
+2026-11-11T19:56:45Z	comment		0x723d44	{"addr": "0x140723d44", "comment": "Knock state 5, once the graph no longer has its ragdoll: the actor's heading from its own ragdoll's bones (SetHeading), then knock state 6. Measured on a copy (duo 2026-11-11, body trace): its heading equals its owner's through the whole get-up (its ragdoll is steered to its owner's, and its movement places it), so this is not where a copy's get-up differs."}
+2026-11-11T20:10:08Z	read		0x723740	{"name": "AIProcess::KnockParalyze"}
+2026-11-11T20:10:15Z	read	39895	0x7237c0	{"name": "AIProcess::KnockExplosion"}
+2026-11-11T20:10:18Z	read	40151	0x7360d0	{"name": "sub_1407360D0"}
+2026-11-11T20:10:36Z	name	40151	0x7360d0	{"addr": "0x1407360D0", "name": "coop_Actor_PlayRagdollAction"}
+2026-11-11T20:10:39Z	comment	40151	0x7360d0	{"addr": "0x1407360D0", "comment": "Plays the default object ActionRagdoll (index 107, DefaultObjectManager +0x378) on the actor through TESActionData (41557): the graph's \"Ragdoll\" input. Called at the end of KnockExplosion (39895) and KnockParalyze (39894), in the same call that sets the knock state (2 or 3) and puts the graph in the physics world: an owner's body is knocked and its graph told in one step. A copy was knocked only when its owner's first body frame played, 40-70 ms after its graph took the streamed Ragdoll input (duo 2026-11-11: its skeleton drooped 25 units, then snapped onto its owner's path)."}
+2026-11-11T21:33:43Z	read	63048	0xbb0910	{"name": "BSSynchronizedClipGenerator::Activate"}
+2026-11-11T21:46:09Z	name	63067	0xbb1b30	{"addr": "0x140bb1b30", "name": "hkbDefaultSynchronizedScene::AllInScene_63067"}
+2026-11-11T21:46:09Z	name	63066	0xbb1b20	{"addr": "0x140bb1b20", "name": "hkbDefaultSynchronizedScene::AllAtMarks_63066"}
+2026-11-11T21:46:12Z	comment	63066	0xbb1b20	{"addr": "0x140bb1b20", "comment": "The default scene's answer to 'every actor at its mark' (vtable 0x141a02da0 slot 4, +0x20): always 1. BSSynchronizedClipGenerator::Activate (63048) gives a generator this scene when it has none (+0x70 null), so a clip outside a pair's instance (BGSSynchronizedAnimationInstance) runs at once; inside one the instance's answer holds the inner clip until its actors reached their marks (about 150 ms measured). Slot 3 (+0x18, 63067) is 'all in scene', also always 1. Update (63050) asks both each update."}
+2026-11-11T21:46:12Z	comment		0xbb0a61	{"addr": "0x140bb0a61", "comment": "No scene (+0x70 null): a new hkbDefaultSynchronizedScene, whose answers are always yes. A copy with no pair instance on its game gets this one."}
+2026-11-11T21:55:55Z	read		0x6e241b	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-11T21:55:58Z	read		0x6e23c0	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-11T21:56:07Z	read	38613	0x6cc740	{"name": "Character::EnterKillMove"}
+2026-11-11T21:56:17Z	comment		0x6e23d9	{"addr": "0x1406e23d9", "comment": "An action whose event starts with \"pa_Kill\" (strnicmp, 7): attack state 1 in ActorState flags1, and with an actor target EnterKillMove (38613) on the actor (no killer) and on its target (killer: the actor). So the kill move flag (Actor +0x204, 0x4000) comes from playing the action, not from the graph's KillMoveStart event: a copy that takes a pair from its owner's stream, its actions bookkeeping only, needs this done for it (AnimationSystem)."}
+2026-11-11T21:56:17Z	comment	38613	0x6cc740	{"addr": "0x1406cc740", "comment": "Character::EnterKillMove(actor, killer): for a living or dying actor: StartDeferredKill, the kill move flag (+0x204 |= 0x4000), the killer's handle at +0x108 (none: invalid), the player's camera to third person. Called twice from 39004 for a \"pa_Kill\" action with an actor target (attacker, then victim with its killer). Earlier note 'from the KillMoveStart handler' was wrong (2026-11-11)."}
+2026-11-12T16:54:27Z	read	39004	0x6e2250	{"name": "coop_ApplyActionGraphEffects"}
+2026-11-12T16:55:46Z	comment	39004	0x6e2250	{"addr": "0x1406e2250", "comment": "39004, read again 2026-11-12 for mounts: nothing here is a mount's. Beside the graph an action writes only actor state (attack state by event name, sneaking, sprint, the kill move for pa_Kill) and graph variables. A rider's link to its mount is MountInteraction's (40345 / 41532, PutOnMount) and its sit state its clip's event handlers' (42868, 42881, 42835)."}
+2026-11-12T16:55:46Z	comment		0x6aaa7f	{"addr": "0x1406aaa7f", "comment": "KillImpl's graph part: ragdollInstant (a5) -> Character::sub_37186 (the instant ragdoll); else PerformAction of ActionDeath (default object +792), and if refused ActionDeathWait (+784). The result gates nothing after it: life state, death items, drops, the death force all follow either way. A copy on its owner's stream can run this unforced: its graph drops the action's event (63591 hook) and takes its owner's from the stream."}
+2026-11-12T17:43:59Z	read	37186	0x671dc0	{"name": "Character::sub_37186"}
+2026-11-12T18:30:05Z	read	36479	0x64f6f0	{"name": "sub_14064F6F0"}
+2026-11-12T18:31:48Z	name	36479	0x64f6f0	{"addr": "0x14064f6f0", "name": "coop_GarbageCollector_DeleteNextForm"}
+2026-11-12T18:31:50Z	comment	36479	0x64f6f0	{"addr": "0x14064f6f0", "comment": "36479 (ours): the garbage collector's job (36468, Job_Garbage 39077) takes the last entry of its array at +0x20 (count +0x30), has TESDataHandler forget it (sub_1401B6EA0) and calls its deleting destructor (vtable 0, flag 1). A guest crashed here 2026-11-12 with RIP 0: the entry's vtable slot was null, an object already destroyed or never a form. A temporary 'Wilderness' cell FF000A70 was on the stack (docs/re/crashes/2026-11-12-guest-gc-deletes-null-vtable.md)."}
+2026-11-12T19:56:41Z	read		0x6d62c0	{"name": "Character::sub_38754"}
+2026-11-12T20:19:35Z	read		0xbca900	{"name": "BShkbAnimationGraph::UpdateRagdollPrePhysics"}
+2026-11-12T20:19:45Z	read	63551	0xbc9810	{"name": "sub_140BC9810"}
+2026-11-12T20:20:08Z	comment	63551	0xbc9810	{"addr": "0x140bc9810", "comment": "A graph manager's physics pre-step (vtable): UpdateRagdollPrePhysics 63562 for each of its graphs, every physics step whether or not the graph updated that frame. So a copy on its owner's stream drives its ragdoll (58291, our CopyRagdollPhysics hook) even while no op is due (read 2026-11-12)."}

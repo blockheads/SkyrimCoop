@@ -82,6 +82,13 @@ plays an idle its owner cancelled. What cancels it on the owner is not read.
 
 Ruled out, measured: the graph recovery as a cause. Only 2 of 53 lasting reports start at a recovery.
 
+Read and measured 2026-11-07, the wolf's turning copy: a state machine's start state bound to a synced variable
+(`StandingBehavior` <- `iSyncTurnState`), read at a clip's end while the copy's variable is a movement snapshot behind.
+The writer, read 2026-11-08: the owner's refused `TurnStop`, whose graph writes (39004) run even when its event is
+refused, and which we did not send. Fixed, with the same race in a transition's condition (the wolf staying in its canned
+turn), by sending a refused action's writes as variables only (animation-replay-recovery.md, "A refused action still writes its graph variables").
+Whether Sigrid's dropped pick-up has this cause is not shown.
+
 Camilla's `Behavior02=MT_Idle.HKX` is the same shape in the log and was not sampled live: inferred a wrong check.
 
 ### B. A copy's hands

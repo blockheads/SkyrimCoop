@@ -2501,6 +2501,99 @@ class ActiveStatesTests(unittest.TestCase):
         self.assertIn("no run", ctx.graph_watch_stop(watch))
 
 
+class GraphExpectTests(unittest.TestCase):
+    """expect's "graph" check: owner and copy read live; a watch that read too little fails, never passes."""
+
+    def run_expect(self, games, value=None, field=None, seconds=0.6, within=1.0):
+        from coop_harness.actions.repro import ReproActions
+        from coop_harness.observations import Observations
+
+        class Ctx(ReproActions, Observations):
+            REPRO_HANDLES = {"wolf": {"host": 1, "guest": 2}}
+            def failure(self, message):
+                return AssertionError(message)
+        ctx = Ctx()
+        ctx.game = lambda name="": games[name]
+        return ctx.expect("wolf", "graph", within=within, seconds=seconds, value=value, field=field)
+
+    def games(self, owner_present=True, fail_after=None, replies=None):
+        """replies(game name, call number): the rpc's reply, as Game.rpc gives it (None for a lost connection)."""
+        state = ActiveStatesTests.saved((("m", "a"),))
+        role = lambda name: {"role": name, "player": False, "mod": {"session_id": 1}, "placement": {"has_3d": True}, "state": {}}
+
+        class Game:
+            def __init__(self, name):
+                self.name, self.calls, self.rpc_connections = name, 0, {}
+            def read_status(self):
+                if not self.name:
+                    return {"world": {"1": role("own")} if owner_present else {}}
+                return {"world": {"2": role("copy")}}
+            def rpc(self, request, timeout=3.0):
+                self.calls += 1
+                if fail_after is not None and self.calls > fail_after:
+                    raise OSError("the game went away")
+                return replies(self.name, self.calls) if replies else {"state": state}
+            def close(self):
+                pass
+        return {"": Game(""), "client": Game("client")}
+
+    def test_agreeing_graphs_read_throughout_pass(self):
+        self.assertGreater(self.run_expect(self.games())["samples"], 0)
+
+    def test_a_pair_never_read_fails(self):
+        with self.assertRaisesRegex(AssertionError, "read 0 times"):
+            self.run_expect(self.games(owner_present=False))
+
+    def test_a_watch_that_dies_fails(self):
+        with self.assertRaisesRegex(AssertionError, "graph watch stopped"):
+            self.run_expect(self.games(fail_after=1))
+
+    def test_a_quiet_owner_fails_when_changes_are_asked_for(self):
+        """120 uneventful seconds prove nothing about following: `value` asks for that many owner graph changes."""
+        with self.assertRaisesRegex(AssertionError, "changed 0 times, fewer than 3"):
+            self.run_expect(self.games(), value=3)
+
+    def test_replies_that_are_no_reading_never_pass(self):
+        """Game.rpc gives None on a lost connection; an error reply or broken bytes are no reading either."""
+        for reply in (None, {"ok": False, "error": "no graph"}, {"state": "zz"}, {"state": bytes(8).hex()}):
+            with self.subTest(reply=reply), self.assertRaisesRegex(AssertionError, "both read 0 times"):
+                self.run_expect(self.games(replies=lambda name, call, reply=reply: reply))
+
+    def test_missing_readings_are_no_owner_changes(self):
+        """Codex on PR #38: one unchanged graph between missing replies counted 7 changes and passed value=3."""
+        state = ActiveStatesTests.saved((("m", "a"),))
+        replies = lambda name, call: {"state": state} if call % 2 else None
+        with self.assertRaisesRegex(AssertionError, "changed 0 times|read .* times"):
+            self.run_expect(self.games(replies=replies), value=3, seconds=1.5, within=2.0)
+
+    def test_a_gap_in_readings_as_long_as_a_run_fails(self):
+        state = ActiveStatesTests.saved((("m", "a"),))
+        replies = lambda name, call: None if 3 <= call <= 8 else {"state": state}
+        with self.assertRaisesRegex(AssertionError, "without a reading of both"):
+            self.run_expect(self.games(replies=replies), seconds=3.0, within=1.0)
+
+    def test_missing_readings_never_end_a_run_apart(self):
+        """Codex on PR #38: a copy apart all along, with every third reply missing, passed: each gap ended the run."""
+        turn, idle = ActiveStatesTests.saved((("m", "CannedTurnState"),)), ActiveStatesTests.saved((("m", "Idle"),))
+        wrong = ActiveStatesTests.saved((("m", "LoopingTurnRight"),))
+
+        def replies(name, call):
+            if call % 3 == 0:
+                return None
+            return {"state": (turn if call % 2 else idle) if not name else wrong}
+        with self.assertRaisesRegex(AssertionError, "apart for 1 s or more"):
+            self.run_expect(self.games(replies=replies), field="CannedTurnState", value=1, seconds=3.2, within=1.0)
+
+    def test_the_owner_must_enter_the_named_state(self):
+        """A wolf scenario passes only on the canned turn it is about, not on any three changes."""
+        idle, turn = ActiveStatesTests.saved((("m", "Idle"),)), ActiveStatesTests.saved((("m", "CannedTurnState"),))
+        with self.assertRaisesRegex(AssertionError, "entered CannedTurnState 0 times"):
+            self.run_expect(self.games(replies=lambda name, call: {"state": idle}), field="CannedTurnState")
+        result = self.run_expect(self.games(replies=lambda name, call: {"state": turn if call % 3 == 0 else idle}),
+                                 field="CannedTurnState", value=1, seconds=1.5, within=2.0)
+        self.assertGreaterEqual(result["entered"], 1)
+
+
 class UiAssetsTests(unittest.TestCase):
     """The folder the games load their panels from: the duo's user must be able to read it."""
 
@@ -2618,6 +2711,50 @@ class ProfileBudgetTests(unittest.TestCase):
         self.assertEqual(str(windows_path("Z:\\a\\b.txt")), "/a/b.txt")
         self.assertIsNone(windows_path("C:\\windows\\ntdll.dll"))
         self.assertEqual(str(windows_path("C:\\windows\\ntdll.dll", "/p/drive_c")), "/p/drive_c/windows/ntdll.dll")
+
+
+
+class BountyMessage(unittest.TestCase):
+    """expect_bounty_message counts only lines shown after the mark (docs/re/systems/crime.md, "Every player hears the bounty")."""
+
+    def run_expect(self, host, guest):
+        session = Session()
+        self.addCleanup(session.close)
+        replies = {"": host, "client": guest}
+        session.player_command = lambda instance, command: dict(replies[instance], ok=True)
+        return session.expect_bounty_message(mark={"host": 3, "guest": 3}, seconds=0.2)
+
+    def test_a_stale_identical_guest_line_does_not_count(self):
+        line = "5 bounty added to Whiterun"
+        with self.assertRaises(TestFailure):
+            self.run_expect({"messages": ["a", line, "b", line], "shown": 4},
+                            {"messages": [line, "x", "y"], "shown": 3})
+
+    def test_a_new_guest_line_counts(self):
+        line = "5 bounty added to Whiterun"
+        self.assertEqual(self.run_expect({"messages": ["a", "b", "c", line], "shown": 4},
+                                         {"messages": ["x", "y", "z", line], "shown": 4}), {"line": line})
+
+    def test_a_host_line_before_the_mark_is_not_the_report(self):
+        with self.assertRaises(TestFailure):
+            self.run_expect({"messages": ["5 bounty added to Whiterun", "b", "c"], "shown": 3},
+                            {"messages": ["5 bounty added to Whiterun"], "shown": 4})
+
+
+class UndrawnBodies(unittest.TestCase):
+    """A copy's skeleton is its last drawn pose while its 3D is culled: nobody sees it."""
+
+    LYING = {"player": True, "pose": {"floor_gap": 0.0, "pelvis": 9.0, "head": 16.0}, "state": {}, "placement": {}}
+
+    def test_a_drawn_body_lying_while_it_should_stand_is_a_problem(self):
+        from coop_harness.comparisons import body_problems
+        self.assertEqual(len(body_problems(self.LYING)), 1)
+
+    def test_an_undrawn_bodys_skeleton_is_not_judged_but_its_feet_are(self):
+        from coop_harness.comparisons import body_problems
+        self.assertEqual(body_problems(self.LYING, bones=False), [])
+        sunk = dict(self.LYING, pose={"floor_gap": -30.0, "pelvis": 41.0, "head": 94.0})
+        self.assertEqual(len(body_problems(sunk, bones=False)), 1)
 
 
 if __name__ == "__main__":

@@ -61,6 +61,8 @@ struct BodyService
     [[nodiscard]] bool HeldElsewhere(uint32_t aFormId) const noexcept { return aFormId && m_heldElsewhere.contains(aFormId); }
     // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
     void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
+    // A copy goes down with its owner's ragdoll action, before its owner's first body frame.
+    void KnockDown(uint32_t aCopyFormId) noexcept;
 
 private:
     void OnFrames(const NotifyBodyFrames& acMessage) noexcept;

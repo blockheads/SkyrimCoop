@@ -21,6 +21,8 @@ struct InterpolationComponent
         bool Lying{}; // its owner lying in its ragdoll (Movement::Lying)
         bool OnGround{}; // its owner's controller on the ground (Movement::OnGround)
         bool CapsuleCollides{true}; // its owner's capsule collides (Movement::CapsuleCollides)
+        uint8_t BodiesLayer{};      // its owner's bodies' layer in the world, 0 out of it (Movement::BodiesLayer)
+        bool GraphsStepPhysics{true}; // its owner's graphs step with the physics world (Movement::GraphsStepPhysics)
 
         TimePoint() = default;
         TimePoint(const TimePoint&) = default;

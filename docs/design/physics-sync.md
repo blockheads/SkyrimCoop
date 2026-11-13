@@ -601,7 +601,11 @@ the copy stays on its ragdoll, never rises before it falls, never snaps.
 
 After 3 and 5: four of five knockdown-smoke runs with no copy-only snap (before: one or two in every run).
 
-Open (2026-10-26): the copy gets up on its own engine's timing and way (now and then 1.6 s early or 7 s late, or a
+Since 2026-11-11 the copy's get-up is its owner's: its clip by the graph stream's pick, and its ragdoll's bodies by
+its owner's frames until it stands (they stay simulated while getting up: re/systems/physics.md, Getting up). GameTests
+"A host NPC gets up from a knockdown" (the fake's `Rising`, a body its room holds: `Caught`).
+
+Open before that (2026-10-26): the copy gets up on its own engine's timing and way (now and then 1.6 s early or 7 s late, or a
 different get-up facing 40-110 degrees away for up to 2 s): its get-up follows its own knock update, not its owner's.
 Skyrim pops a getting-up skeleton onto its reference for one frame at knock state 6 (owners too, up to 80 units);
 a copy getting up apart from its owner shows it at another time, and knockdown-smoke counts it as the copy's own.

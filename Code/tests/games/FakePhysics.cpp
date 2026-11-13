@@ -58,9 +58,35 @@ float FakeEngine::HeadingOf(const glm::quat& acRotation) noexcept
     return cHeading < 0.f ? cHeading + 6.28318531f : cHeading;
 }
 
+glm::vec3 FakeEngine::StandingPose(uint32_t aFormId, uint8_t aIndex) const
+{
+    const auto& cActor = Actors.at(aFormId);
+    return {cActor.Position[0], cActor.Position[1], cActor.Position[2] + 40.f + 20.f * aIndex};
+}
+
+uint8_t FakeEngine::KnockStateOf(uint32_t aFormId) const
+{
+    const auto& cActor = Actors.at(aFormId);
+    return cActor.KnockedDown ? 1 : cActor.Rising ? 6 : 0;
+}
+
+void FakeEngine::StandUp(uint32_t aFormId)
+{
+    auto& actor = Actors.at(aFormId);
+    actor.KnockedDown = false;
+    for (auto& [cKey, body] : Bodies)
+        if (body.RagdollOf == aFormId && !body.OutOfWorld)
+        {
+            actor.Rising = kRisingFrames;
+            body.Awake = true;
+            body.Held = false;
+        }
+}
+
 void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
 {
     Body& body = Bodies.at(acKey);
+    body.OutOfWorld = false;
     // Its 3D where it was (it rested there): the engine moves it from the body as it flies.
     body.NodePosition = body.Flight.Body.Position;
     body.NodeRotation = body.Flight.Body.Rotation;
@@ -90,6 +116,17 @@ bool FakeEngine::Push(const BodyPush& acPush) noexcept
     return true;
 }
 
+bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
+{
+    const auto it = Actors.find(aCopyFormId);
+    if (it == Actors.end() || it->second.Dead)
+        return false;
+    // Queued, as KnockExplosion on the task queue.
+    if (!it->second.KnockedDown && !it->second.KnockIn)
+        it->second.KnockIn = 2;
+    return true;
+}
+
 bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
@@ -101,9 +138,11 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     if (acFrame.Key.Actor && !IsActorDead(aCopyFormId))
     {
         auto& copy = Actors.at(aCopyFormId);
-        if (!acFrame.Knocked || !copy.KnockedDown)
+        // While its bodies are simulated its ragdoll is its owner's; standing, a lying owner's frame knocks it down
+        // (BodyBridge::Find).
+        if (const uint8_t cKnock = KnockStateOf(aCopyFormId); !KnockReplay::BodiesSimulated(cKnock))
         {
-            if (acFrame.Knocked && !copy.KnockIn)
+            if (acFrame.Knocked && !copy.KnockIn && cKnock == 0)
                 copy.KnockIn = 2;
             return true;
         }
@@ -179,11 +218,11 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         return false;
     if (acPose.Key.Actor)
     {
-        if (IsActorDead(aCopyFormId) || Actors.at(aCopyFormId).KnockedDown)
+        if (IsActorDead(aCopyFormId) || KnockReplay::BodiesSimulated(KnockStateOf(aCopyFormId)))
         {
             ++it->second.Rests;
             m_pendingRagdolls.Put(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
-                                               .Knocked = acPose.Knocked}, true);
+                                               .Knocked = acPose.Knocked}, true, true);
         }
         return true;
     }
@@ -277,8 +316,10 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
     const auto cActor = Actors.find(aFormId);
     IBodyReads::Reference reference{.Actor = cActor != Actors.end(),
                         .Dead = cActor != Actors.end() && IsActorDead(aFormId),
-                        .Up = cActor != Actors.end() && !IsActorDead(aFormId) && !cActor->second.KnockedDown,
+                        .Up = cActor != Actors.end() && !IsActorDead(aFormId) && !KnockReplay::BodiesSimulated(KnockStateOf(aFormId)),
+                        .Rising = cActor != Actors.end() && cActor->second.Rising != 0,
                         .Player = aFormId == kPlayer};
+    const bool cRising = reference.Rising;
     bool any = reference.Actor;
     for (auto& [cKey, body] : Bodies)
     {
@@ -287,25 +328,25 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
         any = true;
         if (!reference.Actor && cKey.Index == 0)
             reference.Position = body.NodePosition;
-        if (!aBodies)
+        if (!aBodies || body.OutOfWorld)
             continue;
-        // This game's player's hold keeps it in its hands (the grab's spring), not falling.
-        if (body.Awake && !body.Held && Grabbed != cKey)
+        // This game's player's hold keeps it in its hands (the grab's spring), not falling. Getting up, its frame moved it.
+        if (body.Awake && !body.Held && Grabbed != cKey && !cRising)
             StepBody(body, PhysicsTick, FrameMs > 0.0);
         // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
         // 37996).
-        if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && body.Awake)
+        if (body.RagdollOf && cKey.Index == 0 && cActor != Actors.end() && body.Awake && !cRising)
         {
             std::copy_n(&body.Flight.Body.Position.x, 3, cActor->second.Position);
             cActor->second.Rotation[2] = HeadingOf(body.Flight.Body.Rotation);
         }
-        if (body.Flight.Resting)
+        if (body.Flight.Resting && !cRising)
             body.Awake = false;
         if (reference.Bodies.size() <= cKey.Index)
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = body.Awake && !body.Flight.Resting};
+                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting)};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);
@@ -339,6 +380,15 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const
     {
         if (!body.Awake || (acWhich && !acWhich(cKey)))
             continue;
+        const auto cOf = Actors.find(body.RagdollOf);
+        // Getting up: its frame moved it (Frame), and it neither pins its actor nor rests.
+        if (body.RagdollOf && cOf != Actors.end() && cOf->second.Rising)
+        {
+            BodyFrame frame = body.Flight.Body;
+            frame.Key = cKey;
+            bodies.Awake.push_back(frame);
+            continue;
+        }
         StepBody(body, aTick, FrameMs > 0.0);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;

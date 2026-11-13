@@ -15,13 +15,17 @@ struct AnimationClipSet
 };
 static_assert(offsetof(AnimationClipSet, size) == 0x10);
 
-// A process's clip sets, 0x20 apiece (39625, 40055): the action's is the fourth.
+// A process's clip sets, 0x20 apiece, each a load under way then the set kept (40055): 3 the action's (39625), 4 an
+// instant interaction's (39291).
 struct AnimationSets
 {
     uint8_t pad0[0x60];
     void* actionLoad; // 60, the action's load under way
+    uint8_t pad68[0x80 - 0x68];
+    void* instantLoad; // 80, an instant interaction's load under way
 };
 static_assert(offsetof(AnimationSets, actionLoad) == 0x60);
+static_assert(offsetof(AnimationSets, instantLoad) == 0x80);
 
 struct MiddleProcess
 {
@@ -43,7 +47,9 @@ struct MiddleProcess
     BSPointerHandle<TESObjectREFR> commandingActor;
     uint8_t pad21C[0x220 - 0x21C];
     InventoryEntry* leftEquippedObject;
-    uint8_t pad228[0x250 - 0x228];
+    uint8_t pad228[0x230 - 0x228];
+    void* instantClipsLoaded; // 230, the callback of an instant interaction's load under way (39291, assigned by 39731)
+    uint8_t pad238[0x250 - 0x238];
     struct bhkCharacterController* charController; // 250, NiPointer (CommonLib MiddleHighProcessData)
     uint8_t pad258[0x260 - 0x258];
     InventoryEntry* rightEquippedObject;
@@ -58,5 +64,6 @@ static_assert(offsetof(MiddleProcess, animationSets) == 0x1B8);
 static_assert(offsetof(MiddleProcess, animationLock) == 0x1E8);
 static_assert(offsetof(MiddleProcess, occupiedFurniture) == 0x208);
 static_assert(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
+static_assert(offsetof(MiddleProcess, instantClipsLoaded) == 0x230);
 static_assert(offsetof(MiddleProcess, charController) == 0x250);
 static_assert(offsetof(MiddleProcess, rightEquippedObject) == 0x260);

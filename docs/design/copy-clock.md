@@ -151,7 +151,7 @@ What the baseline showed and what changed:
   back where its guess overshot" (up to 23 units in a frame before).
 - **Smaller snapshots.** The graph variables were diffed against nothing, so every integer and float went each time;
   now against zeros of their sizes (only those set travel; the reader already fills zeros), and `Direction` in 16 bits.
-  A walking humanoid's snapshot is 64 bytes (TPTests), a standing one 50 on the duo.
+  A walking humanoid's snapshot is 65 bytes (TPTests), a standing one 50 on the duo.
 - **What still costs:** a moving player's snapshots average 525 to 750 bytes (17 to 20 KB/s; 7.9 KB/s on the wire after
   Snappy), not for movement: each accepted action carries its whole graph state (12 to 15 KB raw, `red-flags.md`, 3).
   A 15-wolf fight: 76 KB/s on the wire to each guest (`wire_cost`). Parked with a plan: `docs/ideas.md`, "Graph state

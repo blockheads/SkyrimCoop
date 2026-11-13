@@ -7,6 +7,7 @@
 
 #include <Games/References.h>
 #include <Games/KnockReplay.h>
+#include <Services/BodyService.h>
 #include <Games/Animation/ReplayGraph.h>
 #include <Games/Animation/ReplayState.h>
 #include <Camera/VATS.h>
@@ -69,7 +70,21 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         }
     }
 
-    // A fresh copy starts in its owner's graph state; the queue waits for it.
+    // A fresh copy starts in its owner's graph state; the queue waits for it. On the stream, its sync point is newer:
+    // it takes that state's actor state alone (a sit state its owner's procedure set, with no action), and its
+    // spawn action is taken as below.
+    if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity); pSpawn && aWorld.GetGraphStreams().OnStream(apActor->formID))
+    {
+        if (apActor->LoadGraphStateFlags(pSpawn->State) && !actions.empty())
+        {
+            ActionEvent spawnAction = actions.front();
+            TargetFromNetwork(spawnAction);
+            aAnimationComponent.LastRanAction = spawnAction;
+            apActor->GetExtension()->LatestAnimation.Write(spawnAction);
+            actions.pop_front();
+        }
+        aWorld.remove<SpawnGraphStateComponent>(aEntity);
+    }
     if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
     {
         if (aWorld.all_of<WaitingFor3D>(aEntity) || !EngineVirtual(apActor->animationGraphHolder).IsReady())
@@ -95,17 +110,68 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         aWorld.remove<SpawnGraphStateComponent>(aEntity);
     }
 
+    // On its owner's graph input stream (graph-input-stream.md): its graph's inputs are the stream's, so its actions
+    // are bookkeeping only. Its death too: the kill beside the graph is done here, its death's clip is its stream's.
+    auto& streams = aWorld.GetGraphStreams();
+    streams.SetPlayback(apActor->formID, aTick);
+    if (streams.OnStream(apActor->formID))
+    {
+        while (!actions.empty() && actions.front().Tick <= aTick)
+        {
+            ActionEvent action = actions.front();
+            if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying && !apActor->IsDead())
+            {
+                spdlog::debug("Copy {:X} dies on its owner's stream at its death action {:X} '{}'", apActor->formID, action.ActionId, action.EventName);
+                apActor->KillBesideGraph(action);
+            }
+            TargetFromNetwork(action);
+            // Its owner's pair: with its partner this game's own, or not here, its half is its own body's, by this
+            // action, until a point from after the pair. Two copies each stay on their own stream.
+            if (!action.TargetEventName.empty())
+            {
+                auto* pPartner = Cast<Actor>(TESForm::GetById(action.TargetId));
+                if (!ReplayState::PairOnStream(pPartner && pPartner->GetExtension()->IsCopy()))
+                {
+                    streams.HoldUntilPoint(apActor->formID, action.Tick);
+                    return;
+                }
+                // What playing the action does beside the graph (39004): both in the kill move, the victim's killer.
+                if (ReplayState::EntersKillMove(action.EventName))
+                {
+                    apActor->EnterKillMove(nullptr);
+                    pPartner->EnterKillMove(apActor);
+                }
+            }
+            actions.pop_front();
+            // Its owner's get-up: its own body is prepared and queued to rise (BeginGetUp 40150, knock state 5); the
+            // get-up itself is its graph's, from the stream.
+            const auto* pGetUp = DefaultObjectManager::GetObject(DefaultObjectManager::kActionGetUp);
+            if (KnockReplay::StandsUp(apActor->actorState.GetKnockState(), pGetUp && action.ActionId == pGetUp->formID))
+            {
+                PrepareCopyGetUp(*apActor);
+                apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (5u << 25);
+            }
+            // Its owner's knock: its own body goes down in the same step as its graph's Ragdoll input (39895).
+            const auto* pRagdoll = DefaultObjectManager::GetObject(DefaultObjectManager::kActionRagdoll);
+            if (!apActor->IsDead() && KnockReplay::GoesDown(apActor->actorState.GetKnockState(), pRagdoll && action.ActionId == pRagdoll->formID))
+            {
+                spdlog::debug("Copy {:X}: down with its owner's ragdoll action", apActor->formID);
+                aWorld.ctx().at<BodyService>().KnockDown(apActor->formID);
+            }
+            // Its owner's actor state once it took the action (the action toggles sneaking), its own ragdoll and
+            // weapon transition kept as a replayed action keeps them.
+            apActor->actorState.flags1 = ReplayState::Flags1(action.StateAfter1, apActor->actorState.flags1);
+            apActor->actorState.flags2 = ReplayState::Flags2(action.StateAfter2, apActor->actorState.flags2);
+            aAnimationComponent.LastRanAction = action;
+            apActor->GetExtension()->LatestAnimation.Write(action);
+        }
+        return;
+    }
+
     // The staged step's outcome (RunReplayStep, in the copy's animation job).
     using ReplayStep = ActorExtension::ReplayStep;
     auto& step = apActor->GetExtension()->Replay;
     uint8_t phase = step.Phase.load(std::memory_order_acquire);
-
-    GraphRandom::Track(aAnimationComponent.Random, apActor->GetGraphRandom(), aTick);
-    if (aAnimationComponent.CounterUpdates && (apActor->SetGraphCounters(aAnimationComponent.GraphCounters) || !--aAnimationComponent.CounterUpdates))
-        aAnimationComponent.CounterUpdates = 0;
-    // After the actions before it: played later, they would undo what it loaded.
-    if (phase == ReplayStep::kIdle && aAnimationComponent.GraphPoint && (actions.empty() || actions.front().Tick > aAnimationComponent.GraphPoint->Tick))
-        RunGraphPoint(apActor, aAnimationComponent, aTick);
 
     if (phase == ReplayStep::kTaken || phase == ReplayStep::kRefused)
     {
@@ -148,6 +214,11 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.Phase.store(PlayReplayedAction(apActor, step) ? ReplayStep::kTaken : ReplayStep::kRefused, std::memory_order_release);
         return;
     }
+
+    // Held for its owner's pair: once that action has played here, it may ask for its sync point.
+    if (streams.Held(apActor->formID) &&
+        std::ranges::none_of(actions, [&](const ActionEvent& acAction) { return !acAction.TargetEventName.empty() && acAction.Tick <= aTick; }))
+        streams.PairPlayed(apActor->formID);
 
     const auto it = std::begin(actions);
     if (it != std::end(actions) && it->Tick <= aTick)
@@ -192,10 +263,6 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             aAnimationComponent.Variables = first.Variables;
             aAnimationComponent.VariablesTick = first.Tick;
         }
-
-        // An action carries its own seed: an older sync point has nothing to add.
-        if (aAnimationComponent.GraphPoint && aAnimationComponent.GraphPoint->Tick < first.Tick)
-            aAnimationComponent.GraphPoint.reset();
 
         step.Action = first;
         step.Variables = aAnimationComponent.Variables;
@@ -277,7 +344,7 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     // Historical action flags keep the copy's current ragdoll and weapon transition.
     const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
-    apActor->actorState.flags1 = (cAction.State1 & ~ActorState::kKnockMask) | (cPreviousFlags1 & ActorState::kKnockMask);
+    apActor->actorState.flags1 = ReplayState::Flags1(cAction.State1, cPreviousFlags1);
     apActor->actorState.flags2 = ReplayState::Flags2(cAction.State2, cPreviousFlags2);
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
@@ -321,30 +388,6 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
         apActor->actorState.flags2 = cPreviousFlags2;
     }
     return cTaken;
-}
-
-void AnimationSystem::RunGraphPoint(Actor* apActor, RemoteAnimationComponent& aAnimationComponent, uint64_t aTick) noexcept
-{
-    const auto& cPoint = *aAnimationComponent.GraphPoint;
-    const uint32_t cSeed = cPoint.Variables.GraphRandom;
-    const auto cVerdict = GraphRandom::Judge(aAnimationComponent.Random, cSeed, cPoint.Tick, aTick);
-    if (cVerdict == GraphRandom::Point::kWait)
-        return;
-    if (cVerdict == GraphRandom::Point::kLoad && !apActor->IsDead())
-    {
-        const uint32_t cFlags1 = apActor->actorState.flags1;
-        if (apActor->LoadGraphPoint(cSeed, cPoint.GraphState))
-        {
-            COUNT("copy graph point loads", 1);
-            spdlog::debug("Copy {:X} fell in with its owner's graph at a sync point", apActor->formID);
-            GraphRandom::Track(aAnimationComponent.Random, cSeed, aTick);
-            aAnimationComponent.GraphCounters = GraphRandom::Unpack(cPoint.GraphCounters);
-            aAnimationComponent.CounterUpdates = 30;
-        }
-        // The saved state carries the owner's knock flags; our body owns its own ragdoll.
-        apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (cFlags1 & ActorState::kKnockMask);
-    }
-    aAnimationComponent.GraphPoint.reset();
 }
 
 void AnimationSystem::RunReplayStep(Actor* apActor) noexcept
@@ -397,7 +440,10 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     movement.Rotation.x = pActor->rotation.x;
     movement.Rotation.y = pActor->rotation.z;
 
-    pActor->SaveAnimationVariables(movement.Variables);
+    // A streamed owner's graph variables go in its stream (graph-input-stream.md).
+    const bool cStreamed = aWorld.GetGraphStreams().Streaming(pActor->formID);
+    if (!cStreamed)
+        pActor->SaveAnimationVariables(movement.Variables);
 
     if (pActor->currentProcess && pActor->currentProcess->middleProcess)
     {
@@ -414,26 +460,7 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     if (latestAction)
         localComponent.CurrentAction = std::move(*latestAction);
 
-    const uint64_t cNow = aWorld.GetFrameTick();
-    if (!animationComponent.Actions.empty())
-        animationComponent.Random.ActionAt = cNow;
     animationComponent.Actions.clear();
-
-    // A pick no action made. Not a player's, a dying actor's or one in a pair: their copies have bodies of their own.
-    const bool cPaired = !pActor->GetExtension()->LatestAnimation.Read().TargetEventName.empty();
-    if (pActor != PlayerCharacter::Get() && !cPaired && ActorState::LifeStateOf(pActor->actorState.flags1) == ActorState::kLifeAlive &&
-        GraphRandom::Picked(animationComponent.Random, pActor->GetGraphRandom(), cNow))
-    {
-        ActionEvent point;
-        point.Tick = cNow;
-        point.ActorId = pActor->formID;
-        std::vector<GraphRandom::Counter> counters;
-        pActor->SaveGraphPoint(point.Variables.GraphRandom, point.GraphState, counters);
-        animationComponent.Random.Seed = point.Variables.GraphRandom;
-        point.GraphCounters = GraphRandom::Pack(counters);
-        if (!point.GraphState.empty())
-            update.ActionEvents.push_back(std::move(point));
-    }
 }
 
 bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, const ActionEvent& aLastProcessedAction, std::string* apData)

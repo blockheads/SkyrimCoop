@@ -21,6 +21,8 @@ public:
     // Put at the frame and held keyframed, moving so. A copy's ragdoll body (aCopyFormId) is taken only once its own
     // ragdoll simulates it, and kept (true while it waits), steered onto the frame instead. False: that body is not here.
     virtual bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept = 0;
+    // A living copy standing goes down now, on its own ragdoll (its owner's frames then steer it). False: not here.
+    virtual bool KnockDown(uint32_t aCopyFormId) noexcept = 0;
     // A reference's body's form id in this game, 0 for an actor's or one not here.
     [[nodiscard]] virtual uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept = 0;
     // Put at its rest, still: a reference's simulated again, asleep, so this game's player can push and grab it; a

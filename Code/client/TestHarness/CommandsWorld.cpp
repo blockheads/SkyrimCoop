@@ -1,4 +1,5 @@
 #include "HudMessages.h"
+#include "GraphStreamCheck.h"
 #include <map>
 #include <mutex>
 #include "Commands.h"
@@ -195,7 +196,7 @@ nlohmann::json IdleConditions(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"idles", idles}, {"conditions", conditions}};
 }
 
-// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
+// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...], "ints": [...]}: starts recording these actors'
 // animations (AnimationTrace), or adds them; {"cmd": "anim_trace"} alone takes what was recorded so far, and
 // {"cmd": "anim_trace", "stop": true} stops and takes the rest.
 // {"cmd": "body_trace", "refs": [id, ...]}: starts recording these references' physics each frame (BodyTrace), or
@@ -233,7 +234,7 @@ nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
         return {{"ok", true}, {"entries", aHarness.Trace.Stop()}};
     if (acRequest.contains("actors"))
         aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}),
-                             acRequest.value("floats", std::vector<std::string>{}));
+                             acRequest.value("floats", std::vector<std::string>{}), acRequest.value("ints", std::vector<std::string>{}));
     return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 
@@ -265,6 +266,25 @@ nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
     if (cState.empty())
         return Error("no graph state");
     return {{"ok", true}, {"state", ToHex(cState)}, {"micros", micros}};
+}
+
+// {"cmd": "graph_machines", "actor": id, "name": "Standing"}: the actor's state machine clones whose name holds `name`,
+// active or not, with the state each holds and the one its next activation enters.
+nlohmann::json GraphMachines(Harness&, const nlohmann::json& acRequest)
+{
+    nlohmann::json machines = nlohmann::json::array();
+    for (const auto& cMachine : EngineCalls::GetGraphMachines(acRequest.value("actor", 0u), acRequest.value("name", std::string{})))
+        machines.push_back({{"behaviour", cMachine.Behaviour}, {"name", cMachine.Name}, {"active", cMachine.Active},
+                            {"state", cMachine.State}, {"start_override", cMachine.StartOverride},
+                            {"clone", std::format("{:X}", cMachine.Clone)}, {"template_active", cMachine.TemplateActive},
+                            {"template_state", cMachine.TemplateState}, {"template_start", cMachine.TemplateStart}});
+    return {{"ok", true}, {"machines", machines}};
+}
+
+// {"cmd": "graph_stream", ...}: the graph input stream's live check (GraphStreamCheck.h).
+nlohmann::json GraphStreamCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return GraphStreamCheck::Command(acRequest);
 }
 
 // {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor or object now.
@@ -716,14 +736,14 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     return result;
 }
 
-// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), its
+// {"cmd": "controller", "actor": id}: the actor's character controller: flags, filter, state (0 ground, 2 air), size, its
 // capsule's position, velocity and last step's velocity, and the actor's position, in game units.
 nlohmann::json Controller(Harness&, const nlohmann::json& acRequest)
 {
     const auto cRead = EngineCalls::GetController(acRequest.value("actor", 0u));
     if (!cRead)
         return Error("no actor or controller");
-    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State},
+    return {{"ok", true}, {"flags", cRead->Flags}, {"filter", cRead->Filter}, {"state", cRead->State}, {"size", cRead->Size},
             {"position", cRead->Position}, {"velocity", cRead->Velocity}, {"step_velocity", cRead->StepVelocity},
             {"actor_position", cRead->ActorPosition}};
 }
@@ -812,10 +832,13 @@ nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
     return Error("no such menu open, or no number, boolean or string there");
 }
 
-// {"cmd": "hud_messages"}: the HUD's latest notifications here, the newest last (TestHarness::HudMessages).
+// {"cmd": "hud_messages"}: the HUD's latest notifications here, the newest last, and how many it showed in all
+// (TestHarness::HudMessages).
 nlohmann::json HudMessagesShown(Harness&, const nlohmann::json&)
 {
-    return {{"ok", true}, {"messages", HudMessages::Recent()}};
+    uint64_t shown{};
+    auto messages = HudMessages::Recent(shown);
+    return {{"ok", true}, {"messages", std::move(messages)}, {"shown", shown}};
 }
 
 // {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
@@ -828,7 +851,7 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, whether it is a copy here and
-// still loading (kStillLoading: a spawn for it waits).
+// still loading (kStillLoading: a spawn for it waits), its running package and process level (-1: no process).
 nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
 {
     auto& actors = World::Get().GetActorBridge();
@@ -837,6 +860,7 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
         return Error("no such actor");
     float position[3]{};
     actors.GetActorPosition(cActor, position[0], position[1], position[2]);
+    const auto cLevel = EngineCalls::GetProcessLevel(cActor);
     return {{"ok", true},
             {"cell", actors.GetActorParentCellFormId(cActor)},
             {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
@@ -845,7 +869,9 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"disabled", actors.IsActorDisabled(cActor)},
             {"deleted", actors.IsActorDeleted(cActor)},
             {"still_loading", actors.IsActorStillLoading(cActor)},
-            {"copy", actors.IsActorCopy(cActor)}};
+            {"copy", actors.IsActorCopy(cActor)},
+            {"package", actors.GetActorAiFields(cActor).PackageId},
+            {"process_level", cLevel ? int(*cLevel) : -1}};
 }
 
 // {"cmd": "is_current_package", "actor": id, "package": id}: the condition GetIsCurrentPackage on the actor here.
@@ -938,6 +964,13 @@ nlohmann::json Dialogue(Harness&, const nlohmann::json&)
             {"skip_head", cState.SkipHead},
             {"current_info", cState.CurrentInfo},
             {"last_info", cState.LastInfo},
+            {"root_info", cState.RootInfo},
+            {"flags", [&] {
+                 nlohmann::json flags = nlohmann::json::object();
+                 for (const auto& [cpName, cSet] : cState.Flags)
+                     flags[cpName] = cSet;
+                 return flags;
+             }()},
             {"options", options},
             {"swf", {{"allow_progress", cState.AllowProgress}, {"state", cState.SwfState}, {"selected", cState.Selected},
                      {"cursor", cState.CursorTopic}, {"cursor_index", cState.CursorIndex}}}};
@@ -1209,6 +1242,8 @@ constexpr Command cCommands[] = {
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},
+    {"graph_machines", true, &GraphMachines},
+    {"graph_stream", true, &GraphStreamCommand},
     {"graph_writers", true, &GraphWriters},
 };
 } // namespace

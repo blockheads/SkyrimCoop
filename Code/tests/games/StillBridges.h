@@ -17,6 +17,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     bool IsOnGround(uint32_t) const noexcept override { return true; }
     bool CapsuleCollides(uint32_t) const noexcept override { return true; }
     void SetCapsuleCollision(uint32_t, bool) noexcept override {}
+    uint8_t BodiesLayer(uint32_t) const noexcept override { return 0; }
+    bool GraphsStepPhysics(uint32_t) const noexcept override { return true; }
+    void SetCopyPhysics(uint32_t, uint8_t, bool) noexcept override {}
     void StaggerActor(uint32_t, float, uint32_t) noexcept override {}
     std::string Name;
     uint16_t Level = 1;
@@ -658,6 +661,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override
     {
     }
+    void ShowActorWeaponDrawn(uint32_t aFormId, bool aDrawn) noexcept override
+    {
+    }
     WeaponState GetWeaponState(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -706,6 +712,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override
+    {
+    }
+    void SetActorNotOnStealthMeter(uint32_t aFormId, bool aNotShown) noexcept override
     {
     }
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override
@@ -803,8 +812,13 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override
     {
     }
-    void ActorUpdateFaceGen(uint32_t aFormId) noexcept override
+    bool IsActorFacePainted(uint32_t aFormId) const noexcept override
     {
+        return {};
+    }
+    bool PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept override
+    {
+        return {};
     }
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override
     {

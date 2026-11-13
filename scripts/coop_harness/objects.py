@@ -2,6 +2,7 @@
 import bisect
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -43,10 +44,13 @@ class AnimTrace:
     Leaves build/coop-test/traces/<time>-<name>/: timeline.txt (host left, client right), trace.json,
     host.mp4 / client.mp4, and strip-*.png (both screens side by side) at moments asked for with mark()."""
 
-    def __init__(self, ctx, name, actors, bools=("bIsSynced",), video=True, floats=()):
+    def __init__(self, ctx, name, actors, bools=("bIsSynced",), video=True, floats=(), ints=()):
         _game = ctx.host
         self.session = ctx
+        # COOP_TRACE_VIDEO=1 records both screens for every trace, also those that ask for none (a demo's recording).
+        video = video or os.environ.get("COOP_TRACE_VIDEO") == "1"
         self.name, self.actors, self.bools, self.video, self.floats = name, actors, list(bools), video, list(floats)
+        self.ints = list(ints)
         self.entries, self.marks, self.captures = [], [], {}
 
     def __enter__(self):
@@ -66,7 +70,8 @@ class AnimTrace:
         self.start = time.time()
         opened = ctx.__dict__.setdefault("OPEN_TRACES", [])
         for game, ids in self.actors.items():  # what was recorded before this start goes to the traces already open
-            if self._pull(game, {"cmd": "anim_trace", "actors": list(ids), "bools": self.bools, "floats": self.floats}) is None:
+            if self._pull(game, {"cmd": "anim_trace", "actors": list(ids), "bools": self.bools, "floats": self.floats,
+                                    "ints": self.ints}) is None:
                 self.__exit__(None, None, None)  # the captures and any game already recording
                 raise ctx.failure(f"[{game or 'host'}] the animation trace did not start")
         opened.append(self)
@@ -229,6 +234,8 @@ class AnimTrace:
                 continue
             if kind == "graph":
                 text = f"{entry['event']}" + (f" ({entry['payload']})" if entry.get("payload") else "")
+            elif kind == "input":
+                text = f"INPUT {entry['event']}" + ("" if entry.get("taken") else " (not taken)") + f" from {','.join(entry.get('from', [])[:4])}"
             elif kind == "action":
                 text = f"ACTION {entry['event']} {entry['action']:X}" + (f" idle {entry['idle']:X}" if entry.get("idle") else "") \
                        + (f" -> {self.who(entry['game'], entry['target'])}" if entry.get("target") else "")
@@ -544,6 +551,8 @@ class RagdollTrace:
         rest = next((f["t"] / 1e6 - t0 for i, f in enumerate(frames) if not any(awake[i:])), None)
         stray = 0.0
         for f in frames:
+            if not self.drawn(f):
+                continue
             for b in f["bodies"]:
                 if b and b.get("bone") and b.get("motion") in DYNAMIC_MOTIONS:
                     stray = max(stray, math.dist(b["bone"], b["position"]))
@@ -594,6 +603,11 @@ class RagdollTrace:
             o = owner_at(f["t"] - delay)
             (cf, cl), (of, ol) = facing(f), facing(o)
             turn = abs((cf - of + 180) % 360 - 180)
+            # Its delay is not one number (150 to 310 ms through a knockdown): the owner facing so at any of them counts.
+            if turn > self.SPIN and cl > self.LEVEL and ol > self.LEVEL:
+                near = own[bisect.bisect_left(times, f["t"] - self.DELAY_RANGE[1]):bisect.bisect_right(times, f["t"] - self.DELAY_RANGE[0])]
+                turns = [abs((cf - facing(n)[0] + 180) % 360 - 180) for n in near if facing(n)[1] > self.LEVEL]
+                turn = min(turns + [turn])
             if turn > self.SPIN and cl > self.LEVEL and ol > self.LEVEL:
                 t = (f["t"] - t0) / 1e6
                 if spins and t - spins[-1]["end"] < 0.1:
@@ -608,6 +622,9 @@ class RagdollTrace:
 
     SNAP = 12.0          # units a bone jumps in one frame, to come back within SNAP_FRAMES (half way at least)
     SNAP_FRAMES = 4
+    REST_AFTER = 2.0     # seconds after its owner's ragdoll fell asleep by which a copy's must have
+    SNAP_TRAIN = 200_000 # microseconds a train of snaps lasts (a get-up's limb shake)
+    SNAP_SHARE = 0.75    # of a copy's jump: its owner's bones jumping that far then makes it the owner's
 
     def snaps(self, game, actor):
         """Its skeleton's snaps: a frame where its bones jump and come back within a few frames (what a person sees as
@@ -642,7 +659,19 @@ class RagdollTrace:
         c = self.compare(owner_game, owner, copy_game, copy)
         delay = (c["delay"] if c else 300) * 1000
         owners = [s["wall"] for s in self.snaps(owner_game, owner)]
-        return [s for s in self.snaps(copy_game, copy) if not any(abs(s["wall"] - delay - w) < 60_000 for w in owners)]
+        # A getting-up owner's forearm and hand shake for some 150 ms (a bone back and forth 8-12 units a frame on the
+        # host's own Lydia, its copy's 6-12, 2026-11-11: either side of SNAP), and its copy's do after it. A copy's
+        # snap is its owner's when the owner's bones jumped nearly as far in a frame around then, at any of its delays.
+        lo, hi = self.DELAY_RANGE
+        frames = [f for f in self.frames(owner_game, owner) if f["bodies"] and any(f["bodies"])]
+        jumps = [(now["t"], max((math.dist(x["bone"], y["bone"]) for x, y in zip(now["bodies"], before["bodies"])
+                                 if x and y and x.get("bone") and y.get("bone")), default=0.0))
+                 for before, now in zip(frames, frames[1:])]
+        def owners_jump(wall):
+            return max((j for t, j in jumps if lo - self.SNAP_TRAIN <= wall - t <= hi + self.SNAP_TRAIN), default=0.0)
+        return [s for s in self.snaps(copy_game, copy)
+                if not any(abs(s["wall"] - delay - w) < 60_000 for w in owners)
+                and owners_jump(s["wall"]) < self.SNAP_SHARE * s["jump"]]
 
     def snaps_report(self, owner_game, owner, copy_game, copy):
         ctx = self.session
@@ -702,6 +731,47 @@ class RagdollTrace:
         if problems:
             raise ctx.failure("bodies did not move as bodies do: " + " | ".join(problems) + f" (samples: {self.folder.name})")
 
+    @staticmethod
+    def drawn(frame):
+        """Its 3D was drawn that frame (NiAVObject kNotVisible, 1 << 20, is the last frame's culling). Skyrim leaves a
+        culled actor's skeleton where it was while its ragdoll's bodies move on: nobody sees those bones
+        (knockdown-front-and-back, 2026-11-11: a copy pushed out of the guest's view, its head node still for 3 s)."""
+        return not frame.get("flags_3d", 0) & (1 << 20)
+
+    def beyond_owner(self, owner_game, owner, copy_game, copy):
+        """What the copy's bodies do that its owner's do not, as text, or None: a getting-up owner's own bones shake and
+        flicker in Skyrim (2026-11-11: 8 to 55 flickers a run on the host's own Lydia, its copy's count within one or
+        two), so the copy is held to its owner's, with a margin."""
+        own, cop = self.measure(owner_game, owner), self.measure(copy_game, copy)
+        if not cop:
+            return None
+        flickers = lambda m: sum(len(v["flickers"]) for v in m["series"].values()) if m else 0
+        shake = lambda m: max((v["worst"] for v in m["series"].values()), default=0) if m else 0
+        stray = lambda m: m["stray"] if m else 0.0
+        found = []
+        # A still owner's copy may not flicker at all; a flickering owner's by half as much again.
+        if flickers(cop) > flickers(own) + (max(2, flickers(own) // 2) if flickers(own) else 0):
+            found.append(f"{flickers(cop)} flickers, its owner {flickers(own)}")
+        if shake(cop) > max(self.MAX_SHAKE, shake(own) + 3):
+            found.append(f"a series turned back {shake(cop)} times within a second, its owner's {shake(own)}")
+        if stray(cop) > max(self.MAX_STRAY, stray(own) + 5):
+            found.append(f"a bone {stray(cop):.0f} units off its body, its owner's {stray(own):.0f}")
+        # Its owner's ragdoll asleep for REST_AFTER seconds and still traced, the copy's never was.
+        if own and own["rest"] is not None and cop["rest"] is None and own["seconds"] - own["rest"] > self.REST_AFTER:
+            found.append(f"NEVER came to rest, its owner's did {own['seconds'] - own['rest']:.1f} s before the trace's end")
+        return "; ".join(found) or None
+
+    def check_as_owner(self, owner_game, owner, copy_game, copy):
+        ctx = self.session
+        _game = ctx.host
+        found = self.beyond_owner(owner_game, owner, copy_game, copy)
+        if found:
+            raise ctx.failure(f"the copy's bodies did not move as its owner's: {found} | "
+                              f"{self.describe(copy_game, copy, 'the copy')} (samples: {self.folder.name})")
+
+    # A copy shows its owner this long ago: its playback delay (measured 150 to 310 ms through a knockdown, 2026-11-11).
+    DELAY_RANGE = (100_000, 360_000)
+
     def check_copy_skeleton(self, owner_game, owner, copy_game, copy):
         """Compare visible bones; getting-up animation can depart from rigid bodies on the owner too."""
         ctx = self.session
@@ -711,13 +781,13 @@ class RagdollTrace:
         times = [f["t"] for f in own]
         worst, compared = 0.0, 0
         for frame in cop:
-            if not 1 <= frame["knock"] <= 6:
+            if not 1 <= frame["knock"] <= 6 or not self.drawn(frame):
                 continue
-            target = frame["t"] - 300_000
-            candidates = own[bisect.bisect_left(times, target - 60_000):bisect.bisect_right(times, target + 60_000)]
+            candidates = own[bisect.bisect_left(times, frame["t"] - self.DELAY_RANGE[1]):
+                             bisect.bisect_right(times, frame["t"] - self.DELAY_RANGE[0])]
             gaps = []
             for source in candidates:
-                if not 1 <= source["knock"] <= 6:
+                if not 1 <= source["knock"] <= 6 or not self.drawn(source):
                     continue
                 bones = [math.dist(a["bone"], b["bone"]) for a, b in zip(frame["bodies"], source["bodies"])
                          if a and b and a.get("bone") and b.get("bone")]
@@ -726,11 +796,10 @@ class RagdollTrace:
             if gaps:
                 worst = max(worst, min(gaps))
                 compared += 1
-        measured = self.measure(copy_game, copy)
-        jitter = measured and any(v["worst"] > self.MAX_SHAKE or v["flickers"] for v in measured["series"].values())
+        jitter = self.beyond_owner(owner_game, owner, copy_game, copy)
         if not compared or worst > self.MAX_STRAY or jitter:
             raise ctx.failure(f"the copy's visible skeleton differs from its owner by up to {worst:.1f} units; "
-                              f"{compared} frames compared; jitter={bool(jitter)} (samples: {self.folder.name})")
+                              f"{compared} frames compared; beyond its owner: {jitter or 'nothing'} (samples: {self.folder.name})")
 
 
 # What a brief trace leaves out besides TRACE_NOISE: steps, swings and idles that fire every few frames.
@@ -764,13 +833,15 @@ def trace_lines(entries, who=(), kinds=(), grep="", origin="", before=0.4, limit
             text = entry["event"] + (f" ({entry['payload']})" if entry.get("payload") else "")
         elif kind == "action":
             text = f"{entry['event']} {entry.get('action', 0):X}" + (f" -> {entry['target']:X}" if entry.get("target") else "")
+        elif kind == "input":  # an event sent into the graph, and the engine frames that sent it
+            text = entry["event"] + ("" if entry.get("taken") else " (not taken)") + f" from {','.join(entry.get('from', [])[:4])}"
         elif kind == "log":
             text = entry["text"]
         elif kind == "clips":
             text = " ".join(entry.get("clips") or [])
         else:
             text = " ".join(f"{k}={v}" for k, v in entry.items() if k not in ("t", "f", "kind", "game", "who", "time", "actor"))
-        if kind not in ("graph", "action", "log") and not everything:  # samples: shown when they change, kept short
+        if kind not in ("graph", "action", "log", "input") and not everything:  # samples: shown when they change, kept short
             key = (entry["game"], entry.get("who"), kind, "text")
             if last.get(key) == text:
                 continue

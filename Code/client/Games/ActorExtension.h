@@ -43,6 +43,11 @@ struct ActorExtension
     // reads them; an owner's last sent (AiStateEvents' ProcessTracking hook).
     std::array<std::atomic<uint32_t>, 6> HeadTrack{};
 
+    // The guest session this game claimed it in (GuestNpcs::Held), and its 3D refused while held (HookLoad3D), loaded
+    // once it is not (Actor::ApplyHeld3D).
+    std::atomic<uint32_t> ClaimedIn{0};
+    std::atomic<bool> Refused3D{false};
+
     // A copy's owner's place, stepped to in its movement job (HookApplyMovement; set by SkyrimBridge).
     float CopyGoal[3]{};
     bool HasCopyGoal = false;

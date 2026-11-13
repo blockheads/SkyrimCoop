@@ -197,8 +197,16 @@ nlohmann::json ForgetRecord(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "set_character", "id": n}: the engine's current character, as loading that character's own save sets it.
+nlohmann::json SetCharacter(Harness&, const nlohmann::json& acRequest)
+{
+    World::Get().ctx().at<IJoinBridge&>().SetCharacter(acRequest.value("id", 0u));
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
     {"forget_record", false, &ForgetRecord},
+    {"set_character", false, &SetCharacter},
     {"join_world", false, &JoinWorld},
     {"player_record", false, &PlayerRecordOf},
     {"records", false, &Records},

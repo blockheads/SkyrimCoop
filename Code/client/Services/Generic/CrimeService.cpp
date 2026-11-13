@@ -120,6 +120,8 @@ void CrimeService::OnState(const NotifyCrimeState& aState) noexcept
     m_gold = aState.Gold;
     m_hasState = true;
     m_bridge.ApplyGold(m_gold);
+    for (const auto& report : aState.Reports)
+        m_bridge.ShowReport(report);
 }
 
 void CrimeService::OnDisconnected(const DisconnectedEvent&) noexcept
