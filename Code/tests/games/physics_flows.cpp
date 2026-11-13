@@ -73,22 +73,26 @@ SCENARIO("The host's player knocks a bucket off a table: the guest's flies with 
 
 SCENARIO("The bottles on Orgnar's bar wake without moving: the guest's player can still grab one", "[physics][woken-still]")
 {
-    // Playtest 2026-11-13: the host's frames of a still bottle keyframed the guest's; the grab refuses that (40555).
+    // Playtest 2026-11-13: each wake sent the guest frames, keyframing its bottle; the grab refuses that (40555).
     Party party(1, Plugins);
     auto& hostPlate = BodyOf(party, party.Host(), kPlate);
     auto& guestPlate = BodyOf(party, party.Guest(), kPlate);
-    party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kPlate, 1000); });
     size_t refused = 0;
-    party.Until([&] {
-        refused += hostPlate.Awake && !Party::Engine(party.Guest()).TryGrab(kPlate);
-        Party::Engine(party.Guest()).Grabbed.reset();
-        return !hostPlate.Awake;
-    }, "the host's plate sleeps again", [&] { return std::format("{} drives on the guest's", guestPlate.Drives); });
-    THEN("the guest's plate stayed its own, grabbable all along")
+    for (int wake = 0; wake < 3; ++wake)
+    {
+        party.As(party.Host(), [&] { Party::Engine(party.Host()).Wake(kPlate, 400); });
+        party.Until([&] {
+            refused += hostPlate.Awake && !Party::Engine(party.Guest()).TryGrab(kPlate);
+            Party::Engine(party.Guest()).Grabbed.reset();
+            return !hostPlate.Awake;
+        }, "the host's plate sleeps again", [&] { return std::format("{} drives on the guest's", guestPlate.Drives); });
+    }
+    THEN("the guest's plate stayed its own, grabbable all along; only the host's rests placed it")
     {
         CHECK(guestPlate.Drives == 0);
         CHECK_FALSE(guestPlate.Held);
         CHECK(refused == 0);
+        CHECK(glm::distance(guestPlate.Flight.Body.Position, hostPlate.Flight.Body.Position) < 0.01f);
     }
 }
 

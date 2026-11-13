@@ -7,13 +7,15 @@
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 // The host's physics objects (docs/design/physics-sync.md): each reference physics moves (the change funnel's havok
-// move) is read each update while any of its bodies is awake (its island active); once all sleep it rests. An actor's
+// move) is read each update while any of its bodies is awake (its island active) and one has left where it woke;
+// once all sleep it rests (woken and never moved: only the rest). An actor's
 // bodies are its ragdoll's, read while they are simulated (dead, knocked down), not while its animation drives them.
 // It reads through IBodyReads (the engine's BodyReads; the fake engine's in GameTests).
 class PhysicsBodies
@@ -34,7 +36,6 @@ public:
     {
         uint32_t FormId{};
         bool Actor{}; // its ragdoll's
-        bool Held{};  // this game's player holds it
         std::vector<BodyFrame> Read;
     };
     struct Update
@@ -65,6 +66,9 @@ private:
     {
         Pose At;          // where its physics took it
         bool Ragdoll{};   // an actor whose ragdoll physics simulated
+        // A reference's bodies where they woke: awake is not moving (physics.md, "Woken still").
+        std::vector<std::optional<BodyFrame>> Woke;
+        bool Moved{};
     };
 
     void QueueNode(uint32_t aFormId, uint8_t aIndex) noexcept;

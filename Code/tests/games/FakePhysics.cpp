@@ -76,6 +76,9 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
 void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
 {
     Body& body = Bodies.at(acKey);
+    // Its 3D where it rests, as Skyrim keeps a sleeping body's.
+    body.NodePosition = body.Flight.Body.Position;
+    body.NodeRotation = body.Flight.Body.Rotation;
     body.Flight.Resting = false;
     body.Awake = true;
     body.StillFor = aMs;

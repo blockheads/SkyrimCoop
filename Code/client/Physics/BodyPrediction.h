@@ -46,4 +46,7 @@ struct Velocities
 // the ground, sliding or rolling, goes on as it moves instead).
 [[nodiscard]] bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds,
                                float aGravity = kGravity) noexcept;
+// Whether a woken body has left where it woke (physics.md, "Woken still"): its pose past the send limits
+// (BodySendLimits: 2 units, 0.05 rad). Skyrim wakes islands it never moves, with velocity bursts that go nowhere.
+[[nodiscard]] bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept;
 } // namespace BodyPrediction

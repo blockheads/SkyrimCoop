@@ -24,7 +24,6 @@ struct HostBodies
 {
     std::vector<BodyFrame> Awake;
     std::vector<BodyPose> Rested;
-    std::vector<BodyKey> Held; // the host's player's hold: sent even when still
 };
 
 /**

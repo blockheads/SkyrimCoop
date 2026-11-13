@@ -1,4 +1,5 @@
 #include "Commands.h"
+#include "ActivateWatch.h"
 #include "Harness.h"
 
 namespace TestHarness
@@ -22,7 +23,7 @@ std::string HandleCommand(Harness& aHarness, const std::string& acRequest)
     try
     {
         const std::string cName = cRequest.value("cmd", "");
-        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
+        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), KnowledgeCommands(), CrimeCommands(), SessionCommands(), MemoryCommands(), ChangeLogCommands(), PlayerEventsCommands(), ActivateWatch::Commands(), QuestFragmentsCommands(), SamplerCommands(), ActionCommands()})
             for (const Command& cCommand : cCommands)
             {
                 if (cCommand.Name != cName)

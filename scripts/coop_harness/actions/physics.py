@@ -240,6 +240,26 @@ class PhysicsActions:
         return first_body(ctx.world_state(instance, [ref]).get(ref))
 
 
+    def who_wakes(ctx, instance, refs, seconds=30.0):
+        """Watches these references' bodies for `seconds` in that game (harness activate_watch: hkpEntity::Activate 60849,
+        markIslandActive 61525): how often each woke, and the callers that woke them, by call stack, most first."""
+        ids = [ctx.resolve(ref, instance) for ref in refs]
+        disabled = ctx.player_command(instance, {"cmd": "activate_watch", "refs": ids}).get("disabled_hooks", "")
+        events = []
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            time.sleep(1.0)
+            events += ctx.player_command(instance, {"cmd": "activate_watch"})["events"]
+        events += ctx.player_command(instance, {"cmd": "activate_watch", "stop": True})["events"]
+        woke = collections.Counter(f"{e['ref']:X}" for e in events if e["what"] == "woke")
+        callers = collections.Counter((e["what"], " < ".join(e["stack"])) for e in events if "stack" in e)
+        through = collections.Counter(f"{e['through']['ref']:X} (base {e['through']['base']:X}, motion {e['through']['motion']})"
+                                      for e in events if "through" in e)
+        return {"woke": dict(woke), "calls": sum(callers.values()), "through": dict(through),
+                "hooks_left_out": len(disabled.split(",")) if disabled else 0,
+                "callers": [{"what": what, "count": count, "stack": stack} for (what, stack), count in callers.most_common(8)]}
+
+
     def resting_clutter_on_both(ctx, refs, guest_refs):
         """A filter for clutter both games have, one body, in the physics world, at rest on the host."""
         def resting(ref):

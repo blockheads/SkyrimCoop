@@ -233,8 +233,6 @@ void HostService::MakeAuthority() noexcept
                 {
                     frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
                     bodies.Awake.push_back(frame);
-                    if (cAwake.Held)
-                        bodies.Held.push_back(frame.Key);
                 }
         for (const auto& cRested : cUpdate.Rested)
             if (const auto cKey = cOwner(cRested))

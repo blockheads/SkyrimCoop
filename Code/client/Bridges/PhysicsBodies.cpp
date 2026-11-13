@@ -67,7 +67,7 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         const bool cActor = cReference->Actor;
         // A living actor's ragdoll is its physics' only while it is knocked down; up again, its animation's.
         const bool cUp = cReference->Up;
-        Bodies awake{it->first, cActor, it->first == cHeld};
+        Bodies awake{it->first, cActor};
         Bodies all{it->first, cActor};
         for (size_t i = 0; i < cReference->Bodies.size(); ++i)
         {
@@ -88,8 +88,25 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             BodyFrame frame = FrameOf(cRead, static_cast<uint8_t>(i));
             frame.Knocked = cActor && !cReference->Dead;
             all.Read.push_back(frame);
+            // A reference's island is woken by actors near it without moving it (Orgnar's animated body, 78910).
+            if (!cActor && !it->second.Moved)
+            {
+                auto& woke = it->second.Woke;
+                if (woke.size() <= i)
+                    woke.resize(i + 1);
+                if (!woke[i])
+                    woke[i] = frame;
+                // Its node left behind: the engine moved the body off where its 3D stood.
+                it->second.Moved = it->first == cHeld || NodeLeftBehind(*cBody) || BodyPrediction::LeftRest(frame, *woke[i]);
+            }
             if (cRead.Active || it->first == cHeld)
                 awake.Read.push_back(frame);
+        }
+        // Woken, unmoved: no frames (a guest would play it keyframed); its rest still goes, settles included.
+        if (!cActor && !it->second.Moved && !awake.Read.empty())
+        {
+            ++it;
+            continue;
         }
         if (!awake.Read.empty())
         {

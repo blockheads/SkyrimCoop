@@ -213,35 +213,19 @@ SCENARIO("A body the guest guesses right sends again only to repair a lost frame
     CHECK(sends.Due({frame}, 1500).size() == 1);
 }
 
-SCENARIO("A body woken still stays the guest's to grab until it moves", "[physics][woken-still]")
+TEST_CASE("A woken body that never left where it woke is not moving", "[physics][woken-still]")
 {
-    // The Sleeping Giant's bar: its bottles wake without moving (measured, playtest 2026-11-13).
-    BodySends sends(BodySendLimits{.StillStaysPut = true});
-    BodyFrame bottle{.Key = {.Object = GameId(0, 1)}, .Position = {-1154.f, 22.f, 78.f}, .LinearVelocity = {0.5f, 0.f, 0.f}};
-    for (uint64_t tick = 1000; tick < 3000; tick += 16)
-        CHECK(sends.Due({bottle}, tick).empty());
-    THEN("once it moves, it is sent")
-    {
-        bottle.Position.x += 3.f;
-        CHECK(sends.Due({bottle}, 3000).size() == 1);
-    }
-    THEN("a knocked one is sent at once")
-    {
-        const BodyFrame cKnocked{.Key = {.Object = GameId(0, 2)}, .LinearVelocity = {200.f, 0.f, 0.f}};
-        CHECK(sends.Due({cKnocked}, 1016).size() == 1);
-    }
-    THEN("a player's hold goes even still: the other games keyframe it")
-    {
-        const BodyFrame cHeld{.Key = {.Object = GameId(0, 3)}};
-        CHECK(sends.Due({cHeld}, 1016, {cHeld.Key}).size() == 1);
-    }
-    THEN("a kept body the host's player then grabs goes at once, unmoved")
-        CHECK(sends.Due({bottle}, 3000, {bottle.Key}).size() == 1);
-    THEN("without the rule, the first frame goes as before")
-    {
-        BodySends plain;
-        CHECK(plain.Due({bottle}, 1000).size() == 1);
-    }
+    // The Sleeping Giant's bar: Orgnar's animated body wakes the bottles' island 15-18 times a minute (measured).
+    const BodyFrame cWoke{.Position = {-1154.f, 22.f, 78.f}};
+    BodyFrame now = cWoke;
+    now.LinearVelocity = {40.f, 0.f, 0.f}; // a contact's burst (a bottle tilted on the bar's edge, measured): going nowhere
+    now.Position.x += 0.5f;
+    CHECK_FALSE(BodyPrediction::LeftRest(now, cWoke));
+    now.Position.x += 2.f; // a knock covers this within a frame
+    CHECK(BodyPrediction::LeftRest(now, cWoke));
+    BodyFrame turned = cWoke;
+    turned.Rotation = glm::angleAxis(0.1f, glm::vec3(0.f, 0.f, 1.f));
+    CHECK(BodyPrediction::LeftRest(turned, cWoke));
 }
 
 SCENARIO("A guest's budget sends the most wrong first and the rest later", "[physics]")

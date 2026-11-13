@@ -152,20 +152,21 @@ Hz, the frames come 1-57 ms apart), as on the host; the guest plays by the clock
 
 ### Woken still (2026-11-13)
 
+Skyrim wakes islands it never moves: an actor's animated body sharing their island, a character's proxy touching
+them (`docs/re/systems/physics.md`, "Woken still: awake is not moving").
+
 ```
-host: a body wakes (its island active) but has not moved from where it rested
-  BodySends (the host's, StillStaysPut): its first frame is still (a refresh's worth of its motion inside the
-    limits)? -> kept: the guest's guess is that rest, no frame, no age refresh
-  it moves past the limits (2 units, 0.05 rad) -> sent as any wrong guess; a knock (moving) -> sent at once
-  the host's player holds it (HostBodies::Held, PhysicsBodies' hold) -> sent: every guest keyframes a hold
-guest: never driven, so dynamic: its player can grab it; the host's rest places it where it already is
+host PhysicsBodies: a reference wakes (havok move, island active)
+  each body's frame at the first read: where it woke (Moving::Woke)
+  until one leaves it (BodyPrediction::LeftRest: 2 units, 0.05 rad) or the host's player holds it:
+    no frames (a guest would play it keyframed, and the engine's grab refuses that)
+  then frames as before; asleep: its rest as always (settles of under 2 units included)
+guest: never driven, so dynamic: its player grabs it; the host's rest places it where it already is
 ```
 
-Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: every time the
-bottles woke on the host (measured; the cause not read), their frames keyframed the guest's, which the engine's grab refuses
-(`docs/re/systems/physics.md`, "Grabbing", "Woken still"). The guest's own sends (held frames, `GuestHands`) keep the
-first frame: a hold must reach the host at once. Tests: `ClientTests` "A body woken still stays the guest's to grab
-until it moves", `GameTests` "The bottles on Orgnar's bar wake without moving" (the fake's `Wake`), scenario
+Bug: the guest's held E on a bottle on Orgnar's bar picked it up (a theft) instead of grabbing it: each of Orgnar's
+wakes keyframed the guest's bottle. Tests: `ClientTests` "A woken body that never left where it woke is not moving",
+`GameTests` "The bottles on Orgnar's bar wake without moving" (the fake's `Wake`, woken three times), scenario
 `guest-grabs-orgnar-bottle`.
 
 ### Near each guest

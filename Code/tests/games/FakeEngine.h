@@ -389,7 +389,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
-    // Woken without moving (the Sleeping Giant's bar, measured): awake and still for aMs, then asleep where it was.
+    // An actor's animated body in its island wakes it, unmoved (Orgnar at his bar, 78910): awake for aMs, then asleep.
     void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
     // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).

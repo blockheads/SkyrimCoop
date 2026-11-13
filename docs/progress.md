@@ -49,12 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
-2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. The bar's bottles wake on the host every
-few seconds without moving (measured; what wakes them is not read), and every wake sent the guest a frame, which keyframed its bottle; the engine's grab
-refuses a keyframed body (`CreateMouseSprings` 40555), so the release picked it up instead, a theft. The host's send
-rule now keeps a body woken still where the guest has it (`physics-sync.md`, "Woken still"). A guest's seen theft is
-also no longer warned: the steal warning (37556) goes only to the host's player, so the guest saw neither warning nor
-bounty (`crime.md`). Scenario `guest-grabs-orgnar-bottle`; the MCP's `grab` verb takes handle names.
+2026-11-13: a guest's held E on a bottle on Orgnar's bar grabs it again. Skyrim wakes resting clutter it never
+moves: Orgnar's animated body shares the bar bottles' island and re-activates it on each animation update (78910 ->
+`hkpEntity::Activate`), and a character's proxy activates what it touches each step (62648); found with the new harness
+probe `activate_watch` (MCP verb `who_wakes`), the same with our physics hooks left out. The host's `PhysicsBodies`
+took "island active" for "moving", so each wake keyframed the guest's bottle and the engine's grab
+(`CreateMouseSprings` 40555) refused it: the release picked it up, a theft. Now a body sends frames only once it has
+left where it woke (`physics.md`, "Woken still: awake is not moving"); its rest still goes. A guest's seen theft is no
+longer warned: the steal warning (37556) goes only to the host's player, so the guest saw neither warning nor bounty
+(`crime.md`). Scenarios `guest-grabs-orgnar-bottle`, `guest-theft-at-bar-bounty`; MCP: `who_wakes`, `vanilla_start`'s
+`disable_hooks`, `set_warnings`, `expect_warnings`; `grab` takes handle names.
 
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes

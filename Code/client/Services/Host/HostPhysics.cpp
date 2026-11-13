@@ -67,7 +67,7 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
     {
         if (cGuest == cHost)
             continue;
-        BodySends& sends = m_sends.try_emplace(cGuest, BodySendLimits{.StillStaysPut = true}).first->second;
+        BodySends& sends = m_sends[cGuest];
         auto& sent = m_sentFrames[cGuest];
         std::vector<std::pair<BodyKey, uint32_t>> ended;
         for (const auto& cRest : bodies.Rested)
@@ -85,7 +85,7 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
                          }, 16));
         // Frames only of what is near its copy; rests go to every guest (below).
         const auto cPosition = m_game.ReadPlayerPosition ? m_game.ReadPlayerPosition(m_players.PlayerIdOf(cGuest)) : std::nullopt;
-        const auto cDue = sends.Due(BodyRelevance::Near(bodies.Awake, cPosition), aTick, bodies.Held);
+        const auto cDue = sends.Due(BodyRelevance::Near(bodies.Awake, cPosition), aTick);
         std::vector<BodyKey> started;
         for (const auto& cFrame : cDue)
             if (++sent[cFrame.Key] == 1)
