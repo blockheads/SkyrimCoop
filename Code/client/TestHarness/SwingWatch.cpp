@@ -1,5 +1,6 @@
 #include "SwingWatch.h"
 
+#include <HookSwitch.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <PlayerCharacter.h>
@@ -47,7 +48,10 @@ bool HookLinearCast(void* apCollector, void* apWorld, const float* acpOrigin, co
     return cHit;
 }
 
-Hooks::Initializer s_swingWatchHooks([]() { HOOK_ID(25931, &RealLinearCast, HookLinearCast); });
+Hooks::Initializer s_swingWatchHooks([]() {
+    const HookGate cGate(__FILE__);
+    HOOK_ID(25931, &RealLinearCast, HookLinearCast);
+});
 } // namespace
 
 Swing Last() noexcept
