@@ -132,6 +132,46 @@ write lock. `contactPointAddedCallback` (79131) fires for every new contact, the
 A copy is moved by SetPosition and pushes nothing (`guest-bump-moves-host`, measured 2026-10-24: its copy came within
 14 units of the host's ladle).
 
+## A swing's hit (read in IDA 2026-11-13)
+
+A melee swing's hit frame (`HitFrameHandler::Handle` 42828 -> 38603) calls
+`Actor::CalculateCurrentHitTargetForWeaponSwing` (38628, `0x1406CD850`). It shape-casts the swing
+(`hkpAllCdPointCollector`); an actor it meets is returned as the target. A dynamic body that is not an actor gets a
+knock in place (read in IDA):
+
+```text
+38628, the swing meets a body (collector's first hit; its reference may be none)
+  impulse = swing direction x min(cap 0x1420A6668, weapon weight + 3) x 0x1420A6650
+            scaled down by mass / 0x1420A6680 for a lighter body (hkpMotion::getMass 60959)
+            x 0x1420A6698 for layers 8, 32, 33; x 0.0142875 to Havok units
+  world write lock -> hkpEntity::Activate -> motion's applyPointImpulse (vfunc 0x14, call at +0x6BE)
+                      (impulse, the hit's contact point)
+  TESHitEvent for the reference (ScriptEventSourceHolder+0x5D8)
+```
+
+Where the swing reaches (read in IDA 2026-11-13): 38628 gets its start and look from `GetEyeVector` (Actor vfunc
+0xC2, no camera offset). `Actor::GetEyeVector` (37479) looks along the heading only (z 0); `PlayerCharacter`'s
+(40505) starts at the first-person camera node and looks along heading and pitch. `LinearCastFrom` (25931) sweeps the
+shared collector's sphere (`GetAllCdPointCollector` 25925 -> 25930: radius `fHitCasterSizeSmall`, 12) from there for
+the reach (`fObjectHitWeaponReach` 150; anim types 5-6 `fObjectHitTwoHandReach` 112; hand to hand
+`fObjectHitH2HReach` 64; no weapon `iActivatePickLength`), ignoring the swinger's group (25932). The hits are sorted
+nearest first (60336) and the swing takes the first: for an object flat on a floor or table that is often the surface
+under it. The harness's `swing_cast`, `aim_swing` and `last_swing` read this same cast (below).
+
+It runs only in the swinger's own game: the host's copy of a guest's swing hits nothing
+(`guest-swing-moves-host`, measured 2026-11-13: the guest's bucket woke, the host's never did). So before the
+fix the guest's own physics moved it alone, `GuestHands` asked the host's pose a second later and the bucket
+snapped back. `PlayerHands` now replaces the `call [rax+0A0h]` at +0x6BE with a call to its own (which calls
+the motion's) and wraps 38628 to know whose swing it is: the player's hits go to the host as pushes
+(`BodyPushRequest`), applied alike there.
+
+A hit on a body the host's frames move (keyframed on the guest: knocked, rolling, or woken) moves nothing in either
+game: a keyframed motion's inverse mass is 0, so `getMass` (60959) reads 0 and 38628 scales the impulse to 0
+(read in IDA; measured on the duo with `last_swing`: the swing met the ladle with the line-up's look, no hit recorded,
+the ladle stayed at 0.0 units/s). The host kept a ladle awake (0.0-0.09 units/s) with the guest's copy beside it, so
+the guest's stayed keyframed and unhittable: the copy's own step woke it each frame (fixed 2026-11-13, below, "Woken
+still"). A swing at a body really moving on the host's frames stays a miss (`docs/bugs.md`).
+
 ## Rays
 
 `bhkWorld::PickObject` (vtable 0x33, 77860; checked 2026-10-24): a `bhkPickData` (CommonLib-NG, 0xD0) with `from` and
@@ -240,6 +280,11 @@ keyframed its bottle (`BodyService: follows the owner's ...`) until the rest, an
 where it woke (`BodyPrediction::LeftRest`: 2 units, 0.05 rad); its rest still goes (`docs/design/physics-sync.md`,
 "Woken still"). Measured on the duo: before, two held-E grabs of 33288 and 33287 timed out after 3 s and the
 release picked them up; after, each took in 0.22 s (`guest-grabs-orgnar-bottle`).
+
+A copy standing still did the same through its own body until 2026-11-13: our step gave it a new velocity each
+frame, which woke its island (`hkpCharacterRigidBody::setLinearVelocity` 62456). A body that had moved and stopped
+beside a guest's copy then never slept, so the host never sent its rest and the guest kept it keyframed (see
+`actor-movement.md`, "Copies step": a still copy now steps by nothing).
 
 ## What stops a held body (2026-11-01)
 
