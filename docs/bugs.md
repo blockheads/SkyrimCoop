@@ -37,13 +37,10 @@ other section needs the duo.
 
 **Copy-desync follow-ups**
 
-- [A copy's interaction idle](#a-copys-interaction-idle): small
 - [A seated owner's copy keeps an old action](#a-seated-owners-copy-keeps-an-old-action): small
 - [After a guest rejoins](#after-a-guest-rejoins): small
 - [A copy's graph after a turn or a pick](#a-copys-graph-after-a-turn-or-a-pick): small
 - [Headtracking on copies](#headtracking-on-copies): medium
-- [Players' idle variants](#players-idle-variants): small
-- [A guest arriving mid-loop](#a-guest-arriving-mid-loop): small
 - [Animation mods' random picks](#animation-mods-random-picks): small
 - [Creature copies wobble](#creature-copies-wobble): small
 - [A copy without its weapon](#a-copy-without-its-weapon): medium
@@ -62,7 +59,7 @@ other section needs the duo.
 - [Revive leaves the body wrong](#revive-leaves-the-body-wrong): medium
 - [Copy ragdolls at rest](#copy-ragdolls-at-rest): medium
 - [A rider after a spectated kill move](#a-rider-after-a-spectated-kill-move): medium
-- [Get-up](#get-up): medium
+- [Get-up](#get-up): medium (one-offs)
 - [A wolf's slow rest](#a-wolfs-slow-rest): small
 
 **Physics**
@@ -130,10 +127,9 @@ other section needs the duo.
 
 - [A spawn's inventory over a newer equip](#a-spawns-inventory-over-a-newer-equip): small
 - [An action sent before its copy exists](#an-action-sent-before-its-copy-exists): small
-- [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small
+- [The green flash scenarios' grab](#the-green-flash-scenarios-grab): small (the wine's sweep)
 - [The guest's highlight with a still mouse](#the-guests-highlight-with-a-still-mouse): small
 - [A refused join shows nothing](#a-refused-join-shows-nothing): small
-- [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
 - [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
@@ -143,7 +139,6 @@ other section needs the duo.
 
 **Test tools**
 
-- [An old crash reported as new](#an-old-crash-reported-as-new): small, no duo
 - [A character's base bytes after joining, once](#a-characters-base-bytes-after-joining-once): small
 - [A scenario stages its speaker frozen](#a-scenario-stages-its-speaker-frozen): small
 
@@ -194,24 +189,6 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
   wears iron armor again` times out, on dev's plugin 3 runs in 4 and on the graph input stream's 2 in 3 and 2 in 4
   (with and without players on the stream). The first run of a session passes more often than the next ones. Not
   read.
-
-### A copy's interaction idle
-
-A copy plays an idle its owner cancelled.
-
-Agent task: find what cancels the idle on the owner within about 60 ms (unread), and why the copy's graph takes the
-action and keeps it. Then either stop the copy the same way or do not send a cancelled action.
-
-Size: small. Needs: IDA, then the duo (Riverwood), then GameTests.
-
-- **Sigrid `13483`, measured** (trace `20261106-093521-mcp-sigrid`, t=41): the owner takes `IdlePickup_Ground` and drops
-  it within about 60 ms, with no `PickUp` event; her copy plays the whole clip (`PickUp` at 42.7, `IdleStop` at 44.2). Where
-  the owner's clip plays (t=52), the games agree. The live runs were 3.9 to 8 s.
-- The fixed live check, 2026-11-06, Riverwood: no pick-up seen in 350 s of `graph_watch` on her (110 s, then 240 s; 3867
-  samples, six actors in the first), so it is not every pick-up. It did report her once in another shape, 8.9 s: her owner in
-  `MT_Standing_State` with `MT_Idle.HKX`, her copy in `MT_LocomotionType_State`. Same actor, not shown to be the same
-  cause. `actors-walk-after-arrival`'s 12 s in Riverwood is too short: watch her by `ids`.
-- Loading the owner's snapshot (tried and reverted) put the copy in it, and it left at once.
 
 ### A copy's graph after a turn or a pick
 
@@ -278,37 +255,6 @@ Settled by the check, recorded so they are not filed again:
   no head is inferred, not measured.
 - Live actors agree: a hunting wolf, 680 samples on both games, every one the same; a combat slot switch reached the copy in
   70 ms.
-
-### Players' idle variants
-
-Sync points cover NPCs only.
-
-Agent task: Give a player's copy the same graph sync points NPCs have.
-
-Size: small. Needs: duo, then GameTests. Cause read in code (2026-11-05): separate from the replay and headtracking
-sections.
-
-- **Players' idle variants can differ between games** (2026-11-04). Sync points (animation-replay-recovery.md, "A
-  graph's random picks") are sent for NPCs only: a player's own character on the other game still makes its own random
-  picks for gestures and idle variants no action starts.
-  - Start: `AnimationSystem::Serialize` skips the player; a player's copy needs the same sync point, and a check that
-    the player's first-person graph is not the one read.
-  - Test: an `npc-counter-matches`-style scenario on a player's copy.
-
-### A guest arriving mid-loop
-
-Test only: the stream's sync point should already cover it (GameTests "A copy arriving mid-loop is in its owner's loop
-from its sync point").
-
-Agent task: Write the scenario where a guest's copy spawns while its owner is mid-loop.
-
-Size: small. Needs: duo. A test gap, not part of the replay section (2026-11-05).
-
-- **A guest walking in on an NPC mid-loop is untested** (2026-11-04). `npc-counter-copy-falls-back-in` forces the copy
-  out of step by loading the host's graph into it: the party tether brings the guest along, so a real late arrival
-  cannot be staged. Sync points should cover it, unproven.
-  - Test: a scenario where the guest's copy spawns while the owner is mid-loop (a guest joining or crossing a cell
-    boundary later).
 
 ### Animation mods' random picks
 
@@ -385,10 +331,11 @@ Size: medium. Needs: duo.
 ### A strafing copy catches for a frame
 
 `copy-strafes-with-host` fails on dev's plugin as often as on the graph input stream's (2026-11-09: dev 17 runs in 27,
-the branch 30 in 44; back to back on a quiet machine dev 12 in 12, the branch 9 in 12). Two things trip its stutter
-check, neither a copy out of step with its owner.
+the branch 30 in 44; back to back on a quiet machine dev 12 in 12, the branch 9 in 12). The check now divides by each
+frame's recorded length (PR #48, `smoothness.frame_speeds`; a long frame no longer reads as a stutter), and after #48
+it still fails some runs (`copy-strafes-with-host` 3 of 5, copy-clock.md).
 
-Agent task: read why the copy's capsule catches where its owner's does not, and make the check count real time.
+Agent task: read why the copy's capsule catches where its owner's does not.
 
 Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
 
@@ -397,11 +344,6 @@ Size: small. Needs: duo, IDA (the copy's step, `StepCopy` under 37356).
   sideways and back (root x -398.0, -400.3, -397.7 at y 1800-1804 in `QASmoke`, the same place in every run, 4-7 frames
   after it starts): its capsule meets something its owner's passes. Not read: what is there, and why a stepped copy
   (`CopyMove::Step`) loses the frame.
-- **A long frame reads as a stutter.** The check takes each frame's move at 60 frames a second
-  (`movement.py` `frame_speeds`), so a 25 ms frame of either game shows a move half again as long. Runs with other
-  load on the machine had 100-200 such frames of 600 and failed most often. The trace stamps each frame (`t`, in the
-  plugin): judging only frames whose neighbours ran evenly drops those and leaves the shape above.
-
 ### Crossed kill moves: a short winner's blow lands first
 
 `kill-moves-cross` fails its end comparison when the first swing is `pa_KillMoveShortD` and the loser's clip does not
@@ -506,6 +448,10 @@ Size: small. Needs: duo.
   (`docs/re/systems/kill-moves.md`).
 - **The guest's copy of a follower once played another action** (2026-10-29, v1-gate). `save-load-gate`'s desync
   check after the door round's fight: Lydia's `animation.action` on the host 522467 vs the client's copy 297. Once.
+- **The guest's player's copy still swimming after a mounted trip** (2026-11-13, dev `32c1b38f`,
+  `party-travel-mounted-guest` 1 of 2): its end comparison read the guest's player at `swimStop`, state1 32768, and the
+  host's copy at `SwimStart`, 33792. The same shape as `dive-host-player`'s of 2026-10-21 (a copy swept through
+  water across a teleport home, fixed then). Not read.
 
 ### Remaining validation
 
@@ -559,35 +505,10 @@ Agent task: Make a dead copy's ragdoll sleep with its owner's and check its pose
 
 Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
 
-- **A dead copy's ragdoll never sleeps** (2026-11-05, every `kill-move-kills-guest` run on PR #16). Once its owner's
-  ragdoll is at rest (all 18 bodies asleep, about 3-8 s after death), the copy's 18 bodies stay awake, moving about
-  0.2-0.5 units a frame, until the trace ends. Not visible, and under `RagdollTrace`'s limits, so the scenario passes.
-  Copy and owner lie within 8 units. Cause not found: candidates are the owner's rest arriving as frames the copy keeps
-  steering towards (`BodyBridge::Rest` queues a frame for an actor's bodies, never puts them to sleep), or steering
-  velocities never reaching zero (`BodyPrediction::Steer`).
-  - Found 2026-11-11: two causes. (1) Ours, fixed: its owner's rest was steered to on every physics step with no end,
-    and a steered body never sleeps (all 18 bodies awake at 3-8 units/s within 0.8 units of their rests, 14 of 14 saved
-    runs). (2) Also ours, found by counting what `CopyRagdollPhysics` did each second: left alone once within half a
-    unit, about three of a ragdoll's bodies never got that close while the others were on their way (their joints hold
-    them off), so 190 steers a second went on for good and woke the whole ragdoll every half second. Now every body is
-    steered toward the rest for 30 physics steps, all are put exactly there in one step (the owner's poses fit its
-    joints together), and then left (`BodyPrediction::StepToRest`). Two guesses on the way were wrong and are not in
-    the code: the forced graph updates of a dead copy, and a margin for staying at rest.
-  - After (duo, four runs each): the copy came to rest in every `kill-move-kills-guest` run; `ragdoll-lies-as-host`
-    3 of 4 (it failed every run, on dev too) and `death-spectate-guest` 3 of 4. Those two scenarios now compare the
-    copy's shake and rest with its owner's (`RagdollTrace.check_as_owner`): the remaining failures were the owner's
-    own (a wolf blown 500 units by a second fireball, a body's few flickers as it falls).
-  - Test: a `RagdollTrace` check that a copy sleeps within a second of its owner (`kill-move-kills-guest`).
 - **Dead guest's copy can have a displaced pose.** The original report was a 16-unit body offset with three bones
   displaced up to 17 units. The reduced build passes one complete guest death/revive and one kill-move scenario
   (`build/check/evidence-audit/native-physics.log`). Consecutive verification is incomplete.
   - Start: repeat `death-spectate-guest` and compare the owner/copy `RagdollTrace` if alignment fails.
-- **A lying copy's bones are off its owner's** (`ragdoll-lies-as-host`, 2026-11-11: fails every run on dev's plugin and
-  on `agent/copy-idle-graph`). One to three bones each run (12, 20, 21). The message prints both positions rounded to a
-  unit, and they print the same ("bone 12 at (-952, 2034, 6982) vs (-952, 2034, 6982)"), so what differs, a fraction of a
-  unit or the bone's turn, cannot be read from it.
-  - Start: make the message print the difference it failed on and its limit; then the bone's trace on both games.
-
 ### A rider after a spectated kill move
 
 Severity: medium. Found 2026-11-11 while testing kill moves on the stream; not that work's.
@@ -602,76 +523,24 @@ Severity: medium. Found 2026-11-11 while testing kill moves on the stream; not t
 
 ### Get-up
 
-The handoff from lying to standing, knock states 5 and 6.
+The handoff from lying to standing, knock states 5 and 6. The every-run timing, facing, turn and snap differences are
+fixed (PR #38: the copy takes its owner's get-up on the stream, goes down with its owner's ragdoll action, and its
+owner's frames carry the pose only while it gets up; physics.md, Knockdown and Getting up). After, the four knockdown
+scenarios passed 23 of 24, and `knockdown-*` passed in the full runs of 2026-11-11 evening and 2026-11-12
+(progress.md, "Graph stream: the final review and a second full run"). Left: one-offs, each seen once.
 
-Agent task: Compare owner and copy through a get-up in `knockdown-front-and-back` and `knockdown-lies-as-host` and fix
-the timing, facing and bone snap.
+Agent task: Rerun the knockdown scenarios `--repeat` and read the first of these that comes back.
 
 Size: medium. Needs: duo, then GameTests.
 
-- **Brief get-up timing or facing differences.** Basic owner timing, get-up preparation/action and iGetUpType
-  synchronization remain. All six regular physics/death/revival scenarios pass once in the reduced build
-  (`build/check/evidence-audit/native-physics.log`); this does not establish that the historical intermittent
-  timing/facing differences are gone.
-  - Start: compare native owner/copy action timing and get-up choice in `knockdown-front-and-back`. Earlier failed
-    experiments and traces are retained; implementation-only cache tests did not establish native fidelity.
-- **Occasional ragdoll bone jitter or get-up snap.** The reduced build passes regular lying, knockdown smoke and
-  kill-move checks. The added front/back check still catches jitter, with about 11 units of visible owner/copy
-  bone difference (`build/check/evidence-audit/native-gameplay.log`). The final smoke also catches a 13-unit
-  skeleton snap for one frame at knock state 5->6 (`build/check/evidence-audit/shadow-native.log`).
-  - Start: inspect the native knock-state 5/6 handoff and per-bone trace. Compare visible owner/copy poses as well
-    as body alignment; the owner's own get-up bones can also leave its physics bodies.
-  - 2026-10-28, adaptive playback ([copy-clock.md](design/copy-clock.md)): `knockdown-lies-as-host` fails most runs on
-    the client's copy (a bone turning back 3-5 times in a second, 1-16 flickers, a bone up to 21 units off its body).
-    It is not the new clock: 1 of 4 passed on it, 0 of 4 on a build with the old fixed 300 ms and 10/s timing
-    (scenario samples under `build/coop-test/runs/`, 2026-10-28 22:1x).
-- **The copy turns away at its get-up** (2026-11-02, `knockdown-lies-as-host`): for about 0.3 s, 1 in 2 runs, and failing
-  the same with the old copy placement (progress.md's Next until 2026-11-05; `red-flags.md` counted about 5 in 7).
-- **With get-ups on the stream (later on 2026-11-11, graph-input-stream.md, "A node's pick"):**
-  `knockdown-lies-as-host` 4 of 7 and `knockdown-smoke` 4 of 7, `knockdown-front-and-back` still 0 of 3. The copy's
-  graph now plays its owner's get-up; its body still turns 49-50 degrees away for 0.6-0.7 s in 2 of 7 runs, at knock
-  state 6: the knock update (39896, state 5) sets a copy's heading from its own ragdoll's bones. Start there. Once
-  the host's own Lydia stood 172 units above the floor at the end (not looked into). What is below was measured
-  before that.
-- **The fall's start is fixed, and the checks compare with the owner (2026-11-11, evening).** The fall was never
-  late (the copy follows its owner's path within 1 unit, 250-290 ms behind): its graph took the streamed Ragdoll
-  input 40-70 ms before its owner's first body frame knocked its body down, so it drooped 25 units and snapped back.
-  A streamed copy now goes down with its owner's ragdoll action (`KnockReplay::GoesDown`, physics.md, Knockdown).
-  Three checks failed on Skyrim's own behaviour and were corrected (`RagdollTrace`): a fixed 300 ms delay (measured
-  150-310 ms: `DELAY_RANGE`), the copy's flickers counted alone (the host's own Lydia flickers 8-55 times a run:
-  `beyond_owner`), and bones of an actor not drawn (front-and-back's third push sends her out of the guest's view,
-  where Skyrim leaves the skeleton still: `drawn`). Replayed over the morning's samples they still fail the two bad
-  get-ups. After, five runs each: `knockdown-lies-as-host` 5 of 5, `knockdown-front-and-back` 5 of 5,
-  `guest-knockdown-lies-on-host` 5 of 5, `knockdown-smoke` 4 of 5.
-  - The limb snap (smoke, 3 of 14 runs) was two things. Mostly Skyrim's own: a getting-up owner's forearm and hand
-    go back and forth 8-12 units a frame for some 150 ms, its copy's 6-12 a moment later, either side of the 12 unit
-    threshold; `copy_snaps` now pairs a copy's snap with its owner's bone jumps by size (`SNAP_SHARE`). Once the
-    copy's hand shook 8-14 units where its owner's shook 4-6: between frames a body is guessed onward at its last
-    velocity, which overshoots a limb reversing every step. A getting-up owner's frames now carry the pose only
-    (`PhysicsBodies`). After: 23 of 24 runs of the four knockdown scenarios, smoke 6 of 6.
-  - Open (2026-11-11, with kill moves between two copies on the stream): `kill-moves-cross` once in 12 runs ended with
-    the host's player's copy naming `KillMoveD` as its last action where its owner names `pa_KillMoveShortD`. Not
-    looked into; whether it predates that work is not known.
-  - Open: `knockdown-lies-as-host` once with a bone 29 units off its body against its owner's 19 (the margin is 25,
-    or its owner's plus 5).
-  - Open: once `knockdown-front-and-back` ended "the copy never lay as the host's body", every bone about 23 units
-    lower on the copy, after its third push off the ledge (6927 against 6950). Not looked into.
-  - Open, not explained: once smoke's end comparison read the copy 66 units above its owner (`pose.floor_gap`), while
-    the frame samples just before show both at the same height. A guess, unverified: the floor ray at a ledge.
-- **The get-up's own turn is fixed (2026-11-11, later):** it was the head held by the room during the physics-driven
-  get-up, on one game only; the owner's ragdoll frames now go on until it stands (physics.md, Getting up). 4 runs of
-  each scenario after: `guest-knockdown-lies-on-host` 4 of 4, `knockdown-smoke` 3 of 4 (one copy-only snap),
-  `knockdown-lies-as-host` 2 of 4, `knockdown-front-and-back` 0 of 4. What fails now is the fall, not the get-up:
-  the copy 25-50 units and up to 50 degrees off in the first second after the knock (it starts falling a moment
-  late), once bone jitter while lying, and 34-71 ms turns 1 s into a get-up in smoke.
-- **All three get-up scenarios fail every run on both builds** (2026-11-11, dev's plugin and `agent/copy-idle-graph`,
-  one run each alone plus the full run):
-  - `knockdown-lies-as-host`: the copy turned away from its owner's facing once, 40-51 degrees for 0.5-0.8 s, at knock
-    state 6 on both, 280-290 ms behind; they got up within 0.05 s of each other. In the full run instead: a bone
-    turning back 4 times in a second, 10 flickers, a bone up to 12 units off its body.
-  - `knockdown-smoke`: 1-3 snaps on the copy that its owner does not have.
-  - `knockdown-front-and-back`: the copy's visible skeleton up to 26-44 units from its owner's over about 440 frames.
-  - Samples: `build/coop-test/runs/20261111-*-knockdown-*`.
+- `kill-moves-cross` once in 12 runs (2026-11-11) ended with the host's player's copy naming `KillMoveD` as its last
+  action where its owner names `pa_KillMoveShortD`. Not looked into; whether it predates the stream is not known.
+- `knockdown-lies-as-host` once with a bone 29 units off its body against its owner's 19 (the margin is 25, or its
+  owner's plus 5).
+- Once `knockdown-front-and-back` ended "the copy never lay as the host's body", every bone about 23 units lower on
+  the copy, after its third push off the ledge (6927 against 6950). Not looked into.
+- Not explained: once smoke's end comparison read the copy 66 units above its owner (`pose.floor_gap`), while the
+  frame samples just before show both at the same height. A guess, unverified: the floor ray at a ledge.
 
 ### A wolf's slow rest
 
@@ -768,12 +637,6 @@ the frame it ends.
 
 Size: medium. Needs: duo.
 
-- **Lydia's greeting can remain queued on the guest before any pick** (2026-11-01, Linux/Wine audio off).
-  `dialogue-pick-reaches-host` fails at its existing voice-end precondition on a fresh duo as well as after Onmund.
-  Capture: callback 3 / sound 162 / seconds -1, subtitle "Hey, slug-breath!"; the host's greeting has ended.
-  Cause and regression status unknown; still open. [Evidence and limits](../playtests/2026-11-01-dialogue-fixes.md#remaining-voice-failure-and-limits).
-  The duo had no audio driver then (voice lines queued, never started; a silent device since 2026-11-03,
-  progress.md): rerun before deleting.
 - **A guest's dialogue press in the frame its greeting ends is lost** (2026-10-29, v1 triage). The guest's engine shows
   its list again as its copy's greeting ends; the menu already shows the party's list, so that show is skipped
   (`DialogueBridge` `HookShowList`; running it instead resets the 750 ms pick delay, worse). A press in that same frame
@@ -1458,18 +1321,18 @@ Size: small. Needs: GameTests.
 
 ### The green flash scenarios' grab
 
-Stands alone: the scenarios stop before their point.
+Stands alone: the scenario stops before its point.
 
-Agent task: Find why the grab in `green-flash-ivarstead-handoff` and `-wine` no longer takes the reported object.
+Agent task: Find why `green-flash-ivarstead-wine`'s sideways sweep drops the bottle.
 
 Size: small. Needs: the duo.
 
-- **A player's grab of the staged object never registers** (2026-11-11, every run on both builds). Both scenarios time
-  out after 4 s on "grabs the reported object", on the guest's game or the host's (`-wine` once on "the mouse sweep
-  dropped the prop before the contact probe completed"). So nothing currently shows the S2 green-flash fix holding.
-  The other green-flash scenarios (`green-flash-observer-of-guest-fast` and its neighbours) pass.
-  - Start: whether the grab is refused by the engine or the scenario aims at the wrong reference: the game's grab
-    readout at the timeout (`at-failure.json`), then the scenario's staging in Ivarstead.
+- **The sweep drops the prop** (`green-flash-ivarstead-wine`, 1 of 2 on 2026-11-13; once on 2026-11-11 too, "before
+  the contact probe completed"): "the sideways sweep dropped the prop". The grab itself takes now: it timed out every
+  run on 2026-11-11, and on dev (`32c1b38f`, after #52/#53/#56 changed which bodies the host keyframes, which
+  `CreateMouseSprings` 40555 refuses) `-handoff`, `-wine` and `-guest` grabbed in 6 of 6 runs; `-handoff` and `-guest`
+  passed 2 of 2.
+  - Start: the hold's trace through the sweep (who drops it: the guest's own release, or the host's frames).
 
 ### The guest's highlight with a still mouse
 
@@ -1500,41 +1363,22 @@ Size: small. Needs: the duo.
   handshake changed under the stand-in (`Code/tests/peer/`) or the guest's handling of a refusal broke.
   - Start: the guest's log from the connect to the timeout; `coop_peer`'s output for the refusal it sent.
 
-### A player at a chest reads lower than its copy
-
-Stands alone: one end comparison.
-
-Agent task: Find what the guest's player is doing at the end of `chest-take-all` that its copy is not.
-
-Size: small. Needs: the duo.
-
-- **After taking all from a chest the guest's player stands 26-31 units lower than its copy on the host**
-  (`chest-take-all`, 2026-11-11, every run on both builds): `pose.head` 93-96 on the owner against 124 on the copy,
-  `pose.pelvis` 45 against 71; once the owner also read as kneeling (pelvis 26 above its feet). The copy's values are a
-  standing body's. So the owner is still bent or crouched when the comparison runs, and its copy never was or already
-  stood up. Not read: the action each holds at that moment.
-  - Start: `observe` both at the end: the owner's last action and sneak state against the copy's.
-
 ### A rider at a scenario's end
 
-Two things under one message: riders failing the standing check, and a copy standing while its owner rides.
+Riders failing the standing check. The copy that stood while its owner rode (dev's plugin, 2026-11-11,
+`party-travel-mounted-guest` 6 of 10) is gone with the graph input stream (PR #38; mounts on the stream, `f44fae74`):
+the dismount timed out in none of 9 runs on the branch and 2 of 2 on dev (`32c1b38f`, 2026-11-13).
 
-Agent task: Make the end comparison judge a rider as a rider, then find why a copy stands while its owner rides after
-the horse scenarios.
+Agent task: Make the end comparison judge a rider as a rider.
 
 Size: small. Needs: the duo.
 
 - **Owner and copy both read "lies or kneels while it should stand (pelvis 0 above its feet)"** at the end of
   `party-buys-horse-host` (the guest's player) and `party-buys-horse-guest` (the host's player), 2026-11-11, every run
   on both builds, and at the end of `party-travel-mounted-guest`. Both games agree, so this is the check's reading of a
-  mounted player, or the scenario leaving its rider up: which is not checked.
-- **The owner rides, its copy stands** (dev's plugin, 2026-11-11): `party-buys-horse-host` once and
-  `party-travel-mounted-guest` 6 of 10, the latter timing out after 15 s on "[client] its player got off, the horse a
-  copy again": owner `pose.head` 52, pelvis 0; the host's copy 123 and 70. On `agent/copy-idle-graph` the dismount
-  timed out in none of 9 runs. `party-buys-horse-guest` on dev instead stopped on "[client] {'cmd': 'dialogue'}
-  refused: no answer", once.
-  - Start: the first is the harness's (`body:` in the desync check: skip or judge a mounted actor); the second, the
-    guest's dismount on the host: which action the copy got.
+  mounted player, or the scenario leaving its rider up: which is not checked. Still both, 2026-11-13 on dev
+  (`32c1b38f`), 1 of 1 each.
+- Start: `body:` in the desync check (skip or judge a mounted actor).
 
 ### The host's roll for a guest's loot
 
@@ -1594,9 +1438,10 @@ Size: small. Needs: IDA, then the duo.
 - **Our code on the stack of an engine lock order inversion on the guest** (`late-join-client`, dev's plugin `cc3fec05`,
   once in one run, 2026-11-11; not seen in five runs of it on `agent/copy-idle-graph`). Thread 432 held `0x27f69db8` for
   write (taken at `SkyrimSE.exe+0x15a35e`) and asked for `0x281b7b58` for write (`+0x15a370`); thread 380 had held
-  `0x281b7b58` for write (`+0x159f37`) and asked for `0x27f69db8` for read (`+0x15a045`). Neither address is named in
-  the database yet.
-  - Start: the four addresses in IDA (`scripts/re/id.py`), then which of our calls ran under the first.
+  `0x281b7b58` for write (`+0x159f37`) and asked for `0x27f69db8` for read (`+0x15a045`). The first side,
+  `+0x15a35e > +0x15a370`, is the engine inventory's add (`InventoryChanges` 11591/11594) already in
+  `scripts/lock_order_known-1.7.104.txt` against other partners; the other thread's sites are not named yet.
+  - Start: `+0x159f37` and `+0x15a045` in IDA (`scripts/re/id.py`), then which of our calls ran under the first.
 
 ### Failures only deep in a long run
 
@@ -1615,7 +1460,8 @@ Each failed once in the 388-scenario run of 2026-11-11 and passed alone on dev's
 - **`dialogue-refused-pick-restores-list`:** "[client] its chat shows the host's refusal".
 - **`guest-changes-looks-in-session`:** "the vampire change replaced the existing copy".
 - **`furniture-host-player`:** the guest's player `pose.head` 99.6 against its copy's 124.1 afterwards: the same shape
-  as [the chest's](#a-player-at-a-chest-reads-lower-than-its-copy).
+  as `chest-take-all`'s, which passes 2 of 2 since
+  2026-11-13 (`d087d0f6` stopped the end check reading the bones of a copy not drawn).
 - **`host-kill-move`:** "[client] wolf's graph sends KillActor" timed out after 5 s.
 - **`dialogue-guest-barter-earns-speech` and `dialogue-guest-placed-barter-reopens`,** one after the other: "the
   merchant offers its barter line" timed out after 30 s.
@@ -1762,28 +1608,13 @@ Size: small. Needs: the duo.
 `scripts/check.sh` at a push, 2026-11-11 and 2026-11-12 on `agent/copy-idle-graph`: `check: FAILED (run GameTests)`, twice in
 about twelve runs, passing on the next run with nothing changed. `GameTests` run alone passed 10 of 10 after the second one
 (its assertion count differs run to run, 5627 to 5650: some flow is timing-dependent). Which case fails: not caught; the
-hook shows only the summary line.
+hook shows only the summary line. One more, from PR #48's push: `friendly_fire_flows` "Two players' kill moves cross"
+failed once under the 8 shards and passed 12 of 12 alone. `check.sh` already prints a failed shard's log
+(`build/check/GameTests/<n>.log`) but clears it on the next run.
 
 Agent task: make `check.sh` keep a failed target's output, then loop `GameTests` until it shows the case.
 
 Size: small. Needs: nothing but the fast suite.
-
-### An old crash reported as new
-
-Harness only: the game is right.
-
-Agent task: Make the MCP's crash check report only crashes of the running duo.
-
-Size: small. Needs: no duo.
-
-- **After a duo restart, an MCP verb fails on the last duo's crash** (2026-11-06, copy-lifecycle). A crash caused on
-  purpose at 10:47:55, read by hand, failed `both_go` a minute later on a freshly booted duo, with "client crashed" and
-  that crash's report. Moving the log aside cleared it; measured once.
-  - Read: `KNOWN_CRASHES` is filled when the `Session` is made (`session.py`), and in the MCP that is once per server.
-    Afterwards `check_for_crash` (`runtime.py`) adds to it when it reports a crash, and it runs only while a verb waits
-    (`wait_for`). `duo_stop` and `duo_start` do not touch the list. So a crash no check saw waits for the next verb that waits.
-  - Start: fill the list again when `duo_start` boots new games. A crash in the games a verb is using must still fail it.
-  - Test: a unit test over a directory of crash logs, if the check can be split from the games.
 
 ### A character's base bytes after joining, once
 
