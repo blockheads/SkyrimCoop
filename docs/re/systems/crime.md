@@ -183,9 +183,38 @@ spawn waits); inventory sync moves the item to the owner on the host.
 Measured on the duo (`guest-theft-warned`): Orgnar walked to the guest's copy, the guest's game gave the bottle back
 to Orgnar (both games: 0 on the guest, 1 on Orgnar), warnings 1, bounty 0, 7 s after the theft.
 
-In a scene the warning never runs (measured, not read): with Orgnar in his bar scene (`BCF05`, with Delphine) the type
-34 package was replaced before its first step, for the host's own theft as for the guest's, and the theft was reported
-(bounty 5, item kept). Which call replaces it was not read. The scenario stops the scene first (`stop_scene`).
+## The steal warning in a scene (2026-11-13)
+
+Read in IDA. Nothing on the warning's path checks the owner's scene: `StealAlarm` starts it (0x1406823b5) and
+`StartStealWarning` (37556) puts it as the current package. A package-action scene takes it back at its next update:
+
+```
+BGSScene::UpdatePhase (24126) -> BGSScene__UpdatePhaseAction (0x1403A97A0), per action of the phase:
+    skips an actor in dialogue with the player (MenuTopicManager +0x68); no check for an interrupt package
+    active, not done: BGSSceneActionPackage::UpdateAction (24246, vfunc 0x13):
+        actor's scene (vfunc 0x4A) is this one and its package is not the current one (+0x20):
+        StartAction (24244, vfunc 0x10):
+            first package whose conditions pass, not current:
+            actor +0x204 |= 1, EndInterruptPackage(actor, 0) unless talking to the player, put the scene's package
+EndInterruptPackage (37474), type 34 with the theft still on the owner's crime list:
+    ReportCrimeAddBounty (37679), AlertNearbyToCrime (39361): the theft reported, the item kept
+```
+
+`Actor__StartAlarm` (37554) and 40257 stop an interruptible scene (flags +0xA0 bit 0x10) before they start their
+package (0x14068fc77); the warning does not.
+
+Measured in vanilla (the stand-in, no plugin, Orgnar's bar scene `BCF05` playing, Orgnar detecting the player at 34,
+warnings 0): after the theft the Whiterun bounty was 5 and the player kept the bottle. With our plugin and no session
+(the engine's path, harness readouts), the bottle made Orgnar's: warnings 1, bounty 5, kept, the scene still playing
+and no scene stop (`scene_watch`). With the bar's own faction ownership the scene stopped at the theft, in vanilla
+and with no session; which call stopped it was not read. The party matches vanilla (`guest-theft-in-scene-reported`: the warning
+started for the guest's copy, bounty 5 in both games, the guest kept the bottle), so nothing changes:
+`guest-theft-warned` stops the scene to test the warning itself.
+
+The bar's bottles have no actor owner. `ProcessLists__FindStolenOwnerActor` (41335) takes the first high actor that
+is the owner NPC or in the owner faction, so StealAlarm asks Delphine or Orgnar by run; only that one's sight decides
+the warning (a guest's theft with Orgnar seeing it went unwarned once on the duo; Delphine asked first is inferred, not read). The scenario makes the bottle
+Orgnar's (`own`).
 
 ## The guest's thefts at Orgnar's bar (playtest 2026-11-13)
 
@@ -344,6 +373,8 @@ near it.
 | 37250, 37811 | Actor__IsFacingRef, Character::TurnBodyToPoint | the warning's facing |
 | 39333, 39255 | AIProcess__SayTopicTo (named from its callers, body not read), AIProcess__PlayDefaultAction (read) | the warning's line and its take animation |
 | 29811, 29855 | PackageLocation__SetReference, PackageTarget__SetReference (both read) | the warning's location and target |
+| 24246, 24244 | BGSSceneActionPackage::UpdateAction, StartAction (read) | a scene re-takes its actor, ending an interrupt package |
+| 24140 | BGSScene::sub_24140 | stops a scene (harness `scene_watch`) |
 | 16120 | coop_RealConfiscate | (items, from, to, owner filter, all stolen, show): the given-back and the fine's |
 | 39155 | ActorProcess::GetPackageThatIsRunning (read) | run-once package, else the current one (+0x20) |
 | 39361, 39695 | ActorProcess__AlertNearbyToCrime, ProcessLists__AlertCrimeResponders | guards respond |

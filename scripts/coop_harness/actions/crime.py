@@ -1,5 +1,6 @@
 """Crime verbs for repros (docs/re/systems/crime.md): ownership, the party's bounty, what a witness saw."""
 import math
+import time
 from ..comparisons import flatten
 from ..utilities import log
 
@@ -150,20 +151,49 @@ class CrimeActions:
                               f"{player} {wanted}") from None
         return {"target": wanted}
 
+    def scene_call(ctx, scene, function):
+        """Calls the host's Scene.`function` on `scene` (hex form id) and returns what it returned."""
+        started = ctx.player_command("", {"cmd": "papyrus_call", "class": "Scene", "function": function,
+                                          "self": int(scene, 16), "args": []})
+        result = lambda: ctx.player_command("", {"cmd": "papyrus_result", "id": started["id"]}) or {}
+        ctx.wait_for(f"Scene.{function} on {scene} returns", lambda: result().get("done"), 10)
+        return result().get("value")
+
     def stop_scene(ctx, scene):
         """Stops the host's scene `scene` (hex form id, Papyrus Scene.Stop) and waits until it is not playing: a scene
         replaces an actor's created package, the steal warning's too (crime.md)."""
-        form = int(scene, 16)
-        def call(function):
-            started = ctx.player_command("", {"cmd": "papyrus_call", "class": "Scene", "function": function,
-                                              "self": form, "args": []})
-            reply = ctx.wait_for(f"Scene.{function} on {scene} returns", lambda: (ctx.player_command(
-                "", {"cmd": "papyrus_result", "id": started["id"]}) or {}).get("done") and ctx.player_command(
-                "", {"cmd": "papyrus_result", "id": started["id"]}), 10)
-            return reply.get("value")
-        call("Stop")
-        ctx.wait_for(f"scene {scene} stopped", lambda: call("IsPlaying") is False, 10)
+        ctx.scene_call(scene, "Stop")
+        ctx.wait_for(f"scene {scene} stopped", lambda: ctx.scene_call(scene, "IsPlaying") is False, 10)
         return {"scene": scene, "playing": False}
+
+    def expect_scene(ctx, scene, playing=True):
+        """The host's scene `scene` (hex form id) is playing (or not) now."""
+        if (now := ctx.scene_call(scene, "IsPlaying")) is not playing:
+            raise ctx.failure(f"scene {scene} playing: {now}, expected {playing}")
+        return {"scene": scene, "playing": playing}
+
+    def watch_scene_stops(ctx, instance=""):
+        """Starts recording who stops scenes in that game (harness scene_watch: BGSScene's stop 24140, with stacks)."""
+        return ctx.player_command(instance, {"cmd": "scene_watch", "start": True})
+
+    def scene_stops(ctx, instance="", stop=False):
+        """The scene stops recorded since watch_scene_stops (or the last call): scene id and call stack each."""
+        return ctx.player_command(instance, {"cmd": "scene_watch", "stop": stop})["stops"]
+
+    def expect_kept(ctx, item, player="guest_player", seconds=5.0):
+        """`player`'s game still carries `item` (hex base) all through `seconds`: no warning took it back (a warning
+        ended by its owner's scene reports the theft instead, crime.md)."""
+        base = int(item, 16)
+        instance = "" if player == "host_player" else "client"
+        carried = lambda: ctx.item_count(instance, 0x14, base) or 0
+        deadline = time.monotonic() + seconds
+        while True:
+            if carried() < 1:
+                raise ctx.failure(f"{player} carries none of {item}: it was given back")
+            if time.monotonic() >= deadline:
+                return {"carried": carried()}
+            ctx.check_for_crash()
+            time.sleep(0.05)
 
     def expect_given_back(ctx, item, to, player="guest_player", bounty=0, seconds=30.0):
         """The steal warning ends as vanilla's does (procedure 40, crime.md): within `seconds` `player`'s game carries

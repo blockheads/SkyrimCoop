@@ -1,0 +1,37 @@
+time	op	id	rva	item
+2026-11-13T20:18:39Z	read	37556	0x690780	{"name": "Actor__StartStealWarning"}
+2026-11-13T20:18:39Z	read	37570	0x691590	{"name": "Actor::PutCreatedPackage"}
+2026-11-13T20:18:54Z	read	37401	0x67f7b0	{"name": "Actor::EvaluatePackage"}
+2026-11-13T20:19:04Z	read		0x3ac250	{"name": "BGSSceneActionPackage::Func16_24244"}
+2026-11-13T20:19:39Z	read	24246	0x3ac2e0	{"name": "BGSSceneActionPackage::Func19_24246"}
+2026-11-13T20:19:39Z	read	24247	0x3ac440	{"name": "BGSSceneActionPackage::Func18_24247"}
+2026-11-13T20:19:50Z	read	24126	0x3a7970	{"name": "BGSScene::UpdatePhase"}
+2026-11-13T20:19:53Z	read	24160	0x3a97a0	{"name": "sub_1403A97A0"}
+2026-11-13T20:20:03Z	name	24244	0x3abfc0	{"addr": "0x1403abfc0", "name": "BGSSceneActionPackage::StartAction"}
+2026-11-13T20:20:03Z	name	24246	0x3ac2e0	{"addr": "0x1403ac2e0", "name": "BGSSceneActionPackage::UpdateAction"}
+2026-11-13T20:20:03Z	name	24247	0x3ac440	{"addr": "0x1403ac440", "name": "BGSSceneActionPackage::EndAction"}
+2026-11-13T20:20:03Z	name	24160	0x3a97a0	{"addr": "0x1403A97A0", "name": "BGSScene__UpdatePhaseAction"}
+2026-11-13T20:20:11Z	comment	24244	0x3abfc0	{"addr": "0x1403abfc0", "comment": "BGSSceneActionPackage::StartAction (24244, vfunc 0x10, read 2026-11-13): action flags +0x14 |= 1 (active); for the alias's actor, the first of the action's packages (+0x28, count +0x38) whose conditions pass (29619): if not the process's current package (+0x20), set actor +0x204 bit 1, EndInterruptPackage(actor, 0) unless talking to the player (Character::IsTalkingToPC), then put it as the current package. Then EvaluatePackage(actor, 0, 0). Ending a type 34 steal warning here reports the warned theft (crime.md, The steal warning in a scene)."}
+2026-11-13T20:20:11Z	comment		0x3ac112	{"addr": "0x1403ac112", "comment": "ends any running interrupt package (a steal warning: theft reported, item kept) unless talking to the player"}
+2026-11-13T20:20:11Z	comment	24246	0x3ac2e0	{"addr": "0x1403ac2e0", "comment": "BGSSceneActionPackage::UpdateAction (24246, vfunc 0x13, read 2026-11-13): every phase update while the action is active. Its package running: end the action when the actor is dead/disabled or the procedure is done (54). Else, actor's current scene (vfunc 0x4A) is this scene and its package is not the current one (+0x20): StartAction again (vfunc 0x10), which ends an interrupt package. So a steal warning put on a scene actor is replaced on the next scene update."}
+2026-11-13T20:20:11Z	comment		0x3ac3fb	{"addr": "0x1403ac3fb", "comment": "re-start: StartAction 24244 (ends the steal warning)"}
+2026-11-13T20:20:11Z	comment	24247	0x3ac440	{"addr": "0x1403ac440", "comment": "BGSSceneActionPackage::EndAction (24247, vfunc 0x12, read 2026-11-13): clears active; if the actor still runs this package and the scene does not keep it (24148): clears +0x204 bit 1 and the current package, checks for a new one."}
+2026-11-13T20:20:11Z	comment	24160	0x3a97a0	{"addr": "0x1403A97A0", "comment": "BGSScene__UpdatePhaseAction (read 2026-11-13): per action of the running phase, from BGSScene::UpdatePhase 24126. Puts the alias's actor in the scene (vfunc 0x4B) if not; skips an actor in dialogue with the player (MenuTopicManager +0x68). Active (+0x14 bit 1) and past its end phase: vfunc 0x11, 0x12; not active and in its phases: StartAction (vfunc 0x10). Active and not done (bit 2): UpdateAction (vfunc 0x13). No check for a running interrupt package."}
+2026-11-13T20:28:23Z	read	40092	0x732460	{"name": "sub_140732460"}
+2026-11-13T20:28:24Z	read	40257	0x739f70	{"name": "sub_140739F70"}
+2026-11-13T20:30:17Z	read		0x68fc40	{"name": "Actor__StartAlarm"}
+2026-11-13T20:30:30Z	read		0x681e60	{"name": "Actor::StealAlarm"}
+2026-11-13T20:37:51Z	read	37474	0x687080	{"name": "Actor::EndInterruptPackage"}
+2026-11-13T20:38:02Z	comment		0x68fc77	{"addr": "0x14068fc77", "comment": "the alarmed actor in a scene (+0xE8 bit 3) whose scene flags +0xA0 has 0x10: stop that scene (24140) first (read 2026-11-13)"}
+2026-11-13T20:38:02Z	comment		0x687246	{"addr": "0x140687246", "comment": "a type 34 steal warning ended with its theft still listed (not given back): the theft is reported now (37679), guards alerted (39361). In a scene: BGSSceneActionPackage::StartAction 24244 ends it this way (crime.md)"}
+2026-11-13T20:38:02Z	comment		0x6823b5	{"addr": "0x1406823b5", "comment": "allowWarning and first theft today (criminal +0xE8 bit 0x8000 unset): warning package to g_thePlayer, no crime. Nothing here checks the owner's scene: an owner in a package-action scene loses it at the next scene update (24246 -> 24244 -> EndInterruptPackage 37474), so the theft is reported; vanilla too (measured 2026-11-13)"}
+2026-11-13T20:42:51Z	read	41335	0x77fe30	{"name": "ProcessLists__FindStolenOwnerActor"}
+2026-11-13T20:42:59Z	comment	41335	0x77fe30	{"addr": "0x14077fe30", "comment": "ProcessLists__FindStolenOwnerActor (41335, read 2026-11-13): walks the high actors (+0x30, count +0x40) in order and takes the FIRST alive one whose base (or leveled base) is the owner NPC (a4) or that is in the owner faction (a3, rank > -1), not in kill-move state 0x600000. Then (a6) skips it if it ignores the crime, else keeps it when highest detection of g_thePlayer (41408) + weight factor > 0. A faction-owned item (Orgnar's bar bottles: no actor owner) is warned by whichever member comes first, Delphine or Orgnar: only that one's sight decides the warning (crime.md)."}
+2026-11-13T20:46:37Z	read		0x6fb500	{"name": "sub_1406F9370"}
+2026-11-13T20:46:45Z	read	39695	0x71abb0	{"name": "ProcessLists__AlertCrimeResponders"}
+2026-11-13T20:46:53Z	read	39361	0x6f5820	{"name": "ActorProcess__AlertNearbyToCrime"}
+2026-11-13T20:47:03Z	read	24124	0x3a7630	{"name": "BGSScene::sub_24124"}
+2026-11-13T20:47:18Z	read	24162	0x3a9a00	{"name": "sub_1403A9A00"}
+2026-11-13T20:57:18Z	comment	40092	0x732460	{"addr": "0x140732460", "comment": "40092 (read in part 2026-11-13, not on the steal warning's path): a dialogue package's step; with the speaker's target not on a dialogue package (type 28) and the speaker's scene interruptible (+0xB5) and paused (+0xB2), stops that scene (24140)"}
+2026-11-13T20:57:18Z	comment	40257	0x739f70	{"addr": "0x140739F70", "comment": "40257 (read 2026-11-13, not on the steal warning's path): starts a created package on an actor unless dead, alarmed or in a scene that is not interruptible (flags +0xA0 bit 0x10); an interruptible scene is stopped (24140) first, like Actor__StartAlarm 37554. The steal warning (37556) has no such check."}
+2026-11-13T20:57:18Z	comment	39430	0x6f9370	{"addr": "0x1406F9370", "comment": "Not on the steal warning's path (opened by mistake 2026-11-13)."}

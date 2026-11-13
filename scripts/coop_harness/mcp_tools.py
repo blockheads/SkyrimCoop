@@ -17,7 +17,7 @@ from typing import Any
 
 import anyio
 
-from .common import LOG_LINE, ROOT, TEST_HOME, log_time
+from .common import LOG_LINE, ROOT, TEST_HOME, VANILLA_HARNESS, log_time
 from .errors import TestFailure
 from .objects import AnimTrace, trace_lines
 
@@ -129,6 +129,8 @@ def vanilla_start(cell: str = "QASmoke", wait: int = 90, plugin: bool = False, d
     in the background; then duo_wait. For comparing a repro with vanilla (press_to_motion vanilla=true). plugin=true boots
     one game with our plugin and no session instead: what the plugin costs alone (profile game="host"). disable_hooks (with
     plugin): SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h), or "all" for every gated file."""
+    if not plugin and not VANILLA_HARNESS.exists():  # without it the game boots with no console or traces to drive
+        return {"ok": False, "failure": f"no {VANILLA_HARNESS.name}: scripts/xmake-msvc.sh build -j8 SkyrimCoopVanillaHarness"}
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"vanilla stand-in in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:
