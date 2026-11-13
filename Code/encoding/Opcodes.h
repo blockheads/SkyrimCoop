@@ -153,7 +153,8 @@
     X(NotifyPartyItems)            \
     X(NotifyDialogueSkip) \
     X(NotifyPlayerName)            \
-    X(NotifyActorName)
+    X(NotifyActorName)             \
+    X(NotifyDialogueFace)
 
 #define COOP_OPCODE(aName) k##aName,
 

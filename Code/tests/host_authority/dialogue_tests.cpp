@@ -760,3 +760,41 @@ TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[HostA
     session.Receive(kOtherPeer, Close(cId));
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
+
+TEST_CASE("Dialogue: the NPC faces who started it, then each picker, and someone still in it when that player leaves",
+          "[HostAuthority][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    session.Receive(kPeer, Start(cNpc));
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+    session.Receive(kHost, opened);
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
+    REQUIRE(cOpen.size() == 1);
+    const uint32_t cId = cOpen[0]->Conversation;
+    session.Receive(kOtherPeer, Join(cId));
+
+    // Someone it does not face leaving turns nobody.
+    session.Receive(kOtherPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueFace>(kHost).empty());
+
+    // The asker leaving: it turns to the first player still in it.
+    session.Receive(kOtherPeer, Join(cId));
+    session.Receive(kPeer, Close(cId));
+    const auto cFaces = session.SentTo<NotifyDialogueFace>(kHost);
+    REQUIRE(cFaces.size() == 1);
+    CHECK((cFaces[0]->Conversation == cId && cFaces[0]->PlayerId == session.PlayerId(kOtherPeer)));
+}
+
+TEST_CASE("Dialogue: a picker who leaves turns the NPC to someone still in it", "[HostAuthority][Dialogue]")
+{
+    Talking talking;
+    talking.List(kHost, 1);
+    talking.Pick(kPeer, 1, 0xA);
+    talking.session.Receive(kOtherPeer, Join(talking.Id));
+    talking.session.Receive(kPeer, Close(talking.Id));
+    const auto cFaces = talking.session.SentTo<NotifyDialogueFace>(kHost);
+    REQUIRE(cFaces.size() == 1);
+    CHECK(cFaces[0]->PlayerId == talking.session.PlayerId(kOtherPeer));
+}

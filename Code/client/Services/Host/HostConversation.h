@@ -10,6 +10,7 @@
 
 struct World;
 struct NotifyDialogueStart;
+struct NotifyDialogueFace;
 
 /**
  * @brief The host's game in the party's conversation (docs/design/shared-dialogue.md): its engine runs every
@@ -44,6 +45,8 @@ struct HostConversation final : DialogueService::Role
 private:
     // A guest asked for a conversation: this game's engine runs it without its menu.
     void OnStart(const NotifyDialogueStart& acMessage) noexcept;
+    // The player the NPC faced left: it turns to this one.
+    void OnFace(const NotifyDialogueFace& acMessage) noexcept;
     // The list the engine built is the step's.
     void SendOptions() noexcept;
     // The last one it built is the step's again (its menu shows the party's list, not the engine's).

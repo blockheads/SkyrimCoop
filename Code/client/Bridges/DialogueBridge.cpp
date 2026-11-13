@@ -515,6 +515,14 @@ void DialogueBridge::End() noexcept
         pManager->shutMenu = true;
 }
 
+void DialogueBridge::FaceTalker() noexcept
+{
+    const MenuTopicManager* cpManager = Conversation();
+    Actor* pSpeaker = cpManager ? Cast<Actor>(TESObjectREFR::GetByHandle(cpManager->speaker)) : nullptr;
+    if (pSpeaker && pSpeaker->currentProcess)
+        HookSetDialogueHeadtrack(pSpeaker->currentProcess, PlayerCharacter::Get());
+}
+
 bool DialogueBridge::ClearOrphaned() noexcept
 {
     MenuTopicManager* pManager = MenuTopicManager::Get();

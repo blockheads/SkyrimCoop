@@ -53,7 +53,10 @@ So the host's game, running a guest's conversation with its own player (below, "
 the NPC's head to the host's player, and the copies took that slot from their owner (actor-ai-and-copies.md,
 Headtracking). **Hooked** (`HookSetDialogueHeadtrack`): for the conversation's speaker, the `LookAt` filter names the
 player talking instead: the guest who asked for it (`NotifyDialogueStart::PlayerId`), then each picker, so the slot holds
-that player's character and every game's copy looks at its own copy of that player. Measured (2026-11-13, Lydia in
+that player's character and every game's copy looks at its own copy of that player. When the player it faces leaves the
+conversation while others stay, the host's rules (`HostDialogue::Face`) send the host's game `NotifyDialogueFace` and it turns
+the NPC at once to the first player still in it (`DialogueBridge::FaceTalker` writes the slot through the hook, not waiting
+for the next line). Measured (2026-11-13, Lydia in
 QASmoke, the guest talking): the host's slot 4 held `session 1` (the host's player) before, `session 2` (the guest's)
 after, and her copy reads the same (`npc-looks-at-guest-talker`). Staged frozen (the harness's `freeze`: no AI), the
 owner's slot was set but her copy's slots stayed empty; the scenario stages her unfrozen. Not read why.

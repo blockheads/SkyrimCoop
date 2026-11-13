@@ -25,6 +25,11 @@ from ..common import (
 from ..comparisons import distance
 from ..utilities import log
 
+# Key names as xdotool's keysyms spell them, by any case.
+KEYSYMS = {name.lower(): name for name in ("Tab", "Escape", "Return", "BackSpace", "Shift_L", "Control_L", "Alt_L", "Up",
+                                           "Down", "Left", "Right", "Home", "End", "Delete", "Insert", "Page_Up", "Page_Down")}
+KEYSYMS.update({"esc": "Escape", "enter": "Return", "shift": "Shift_L", "ctrl": "Control_L", "alt": "Alt_L"})
+
 
 class InputActions:
     def actors_on(ctx, instance):
@@ -421,6 +426,7 @@ class InputActions:
     def hold_key(ctx, instance, key, seconds):
         """Holds a key in an instance's game for `seconds` (real XTEST input on the off-screen display:
         the game polls the keyboard once a frame, so a quick synthetic press can fall between two)."""
+        key = KEYSYMS.get(key.lower(), key)  # xdotool drops a misspelt keysym ("tab") without an error
         env, window = ctx.game_window(instance)
         for command in (["windowfocus", window], ["keydown", key]):
             subprocess.run(["xdotool", *command], env=env, check=True, stderr=subprocess.DEVNULL)

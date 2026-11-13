@@ -54,8 +54,9 @@ conversation with its own player, and the engine puts that player in the NPC's d
 with each line (`ActorProcess::SetDialogueHeadtrackSlot` 39465 from 37200 and 37541, read in IDA); the copy takes the
 owner's slots. Now the host's game names the player talking (the guest who started it, then each picker) where the
 engine writes the slot (`HookSetDialogueHeadtrack`, `HostConversation::LookAt`; `NotifyDialogueStart` carries the asker),
-so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md), "Who the speaker looks at"). GameTests
-`[headtrack]` (fails without it), HostAuthorityTests, the scenario `npc-looks-at-guest-talker`.
+so every game's NPC looks at that player ([dialogue.md](re/systems/dialogue.md), "Who the speaker looks at"). When the
+player it faces leaves while others stay, it turns to the first player still in it (`NotifyDialogueFace`, from the host's
+rules). GameTests `[headtrack]` (both fail without it), HostAuthorityTests, the scenario `npc-looks-at-guest-talker`.
 
 2026-11-08: from the playtest with the user's brother, a guest's crosshair never takes an NPC copy leaning on a counter
 (Lucan, sit state 3; the playtest's Orgnar): no name, no Talk prompt. Standing, it is taken; the host's crosshair takes

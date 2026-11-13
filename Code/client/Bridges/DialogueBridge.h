@@ -23,6 +23,7 @@ public:
     void CloseMenu() noexcept override;
     void SetMenuCloseEnds(bool aEnds) noexcept override;
     void End() noexcept override;
+    void FaceTalker() noexcept override;
     bool ClearOrphaned() noexcept override;
 
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices, bool aResuming = false) noexcept override;

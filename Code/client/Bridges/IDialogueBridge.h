@@ -82,6 +82,8 @@ public:
     virtual void SetMenuCloseEnds(bool aEnds) noexcept = 0;
     /// Ends the conversation (the speaker's next update), as the menu does when nothing is left to say.
     virtual void End() noexcept = 0;
+    /// The speaker turns to the player the LookAt filter names now, not at its next line.
+    virtual void FaceTalker() noexcept = 0;
     /// A conversation whose speaker is gone or has no process (deleted while talking: the engine's end then does
     /// nothing and no conversation starts again) is cleared, as ending one does. True: there was one.
     virtual bool ClearOrphaned() noexcept = 0;

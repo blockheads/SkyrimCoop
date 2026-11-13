@@ -1077,6 +1077,17 @@ class Scenes(unittest.TestCase):
         with self.assertRaisesRegex(TestFailure, "the same in both"):
             actions.expect(ctx, "lydia", "actor", field="ai.follow_target")
 
+    def test_a_held_key_is_spelt_as_xdotool_reads_it(self):
+        from unittest.mock import patch
+        from coop_harness.actions.input import InputActions
+        ctx = Mock()
+        ctx.game_window.return_value = ({}, "7")
+        with patch("subprocess.run") as run, patch("time.sleep"):
+            InputActions.hold_key(ctx, "client", "tab", 0.1)
+            InputActions.hold_key(ctx, "client", "r", 0.1)
+        sent = [call.args[0][1:] for call in run.call_args_list if call.args[0][1] in ("keydown", "keyup")]
+        self.assertEqual(sent, [["keydown", "Tab"], ["keyup", "Tab"], ["keydown", "r"], ["keyup", "r"]])
+
     def test_expect_actor_takes_a_handle_as_a_target_in_each_game(self):
         ctx, actions = self.expect_ctx()
         ctx.handles.return_value = {"guest_player": {"host": 0xFF000829, "guest": 0x14}}

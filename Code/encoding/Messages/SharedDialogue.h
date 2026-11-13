@@ -179,6 +179,19 @@ struct NotifyDialogueClosed final : NotifyMessage
     uint32_t Conversation{};
 };
 
+// To the host's game: the player the NPC faced left the conversation; it turns to this one.
+struct NotifyDialogueFace final : NotifyMessage
+{
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueFace;
+    NotifyDialogueFace() : NotifyMessage(Opcode) {}
+
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t Conversation{};
+    uint32_t PlayerId{};
+};
+
 // The conversation this game asked for will not start.
 struct NotifyDialogueRefused final : NotifyMessage
 {

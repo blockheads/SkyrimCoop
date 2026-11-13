@@ -808,6 +808,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         startReader.ReadBits(trash, 8);
         recvStart.DeserializeRaw(startReader);
         CHECK((recvStart.NpcId == 0x21 && recvStart.PlayerId == 3));
+
+        NotifyDialogueFace sendFace, recvFace;
+        sendFace.Conversation = 4;
+        sendFace.PlayerId = 5;
+        Buffer faceBuffer(100);
+        Buffer::Writer faceWriter(&faceBuffer);
+        sendFace.Serialize(faceWriter);
+        Buffer::Reader faceReader(&faceBuffer);
+        faceReader.ReadBits(trash, 8);
+        recvFace.DeserializeRaw(faceReader);
+        CHECK((recvFace.Conversation == 4 && recvFace.PlayerId == 5));
     }
 
     SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")

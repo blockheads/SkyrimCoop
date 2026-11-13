@@ -13,6 +13,7 @@ HostConversation::HostConversation(World& aWorld, entt::dispatcher& aDispatcher,
     , m_dialogue(aDialogue)
 {
     Listen<NotifyDialogueStart, &HostConversation::OnStart>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueFace, &HostConversation::OnFace>(m_connections, aDispatcher, this);
     m_dialogue.SetRole(this);
 }
 
@@ -86,6 +87,17 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
         spdlog::info("Dialogue: the engine did not start the conversation with {:X}", cFormId);
         m_dialogue.Transport().Send(failed);
     }
+}
+
+void HostConversation::OnFace(const NotifyDialogueFace& acMessage) noexcept
+{
+    auto& bridge = m_dialogue.Bridge();
+    if (acMessage.Conversation != m_dialogue.Conversation() || !bridge.GetSpeaker())
+        return;
+    const uint32_t cCharacter = CharacterOf(acMessage.PlayerId);
+    m_talkerSpeaker = bridge.GetSpeaker();
+    m_talker = cCharacter == 0x14 ? 0 : cCharacter;
+    bridge.FaceTalker();
 }
 
 void HostConversation::OnLineSkipped() noexcept

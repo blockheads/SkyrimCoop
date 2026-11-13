@@ -179,6 +179,11 @@ struct FakeDialogue final : IDialogueBridge
     {
         MenuCloseEnds = aEnds;
     }
+    void FaceTalker() noexcept override
+    {
+        if (Speaker)
+            LookAtTalker();
+    }
     void End() noexcept override
     {
         if (SpeakerLooks && Speaker)
