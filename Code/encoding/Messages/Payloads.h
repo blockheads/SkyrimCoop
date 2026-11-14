@@ -345,8 +345,8 @@ struct PlayerNativeResult
 };
 
 // Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong
-// without, at the host's tick (unreliable). From a guest: the bodies its player holds and its player's ragdoll
-// (unreliable), or the last of what it held as its player lets go (reliable).
+// without, at the host's tick (unreliable). From a guest: the bodies its player holds or moved until they rest there
+// and its player's ragdoll (unreliable), or the last of what it held as its player lets go (reliable).
 struct BodyFrames
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -356,7 +356,7 @@ struct BodyFrames
 
     uint64_t Tick{};
     std::vector<BodyFrame> Frames;
-    bool Held{}; // a player's hold, forwarded to the host's game: it steers them (its own physics meets its actors)
+    bool Held{}; // a player's hold: every other game keyframes it; else played steered
 };
 
 // Bodies that fell asleep on their owner's game, where they stay (reliable). Asked by a guest (BodyPoseRequest):

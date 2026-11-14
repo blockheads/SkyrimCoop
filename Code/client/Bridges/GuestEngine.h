@@ -11,6 +11,7 @@
 #include <Structs/GameId.h>
 #include <Structs/TimeModel.h>
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <optional>
@@ -100,11 +101,14 @@ public:
     // the engine's grab refuses it).
     [[nodiscard]] std::vector<BodyFrame> ReadHeld() const noexcept;
     // What this game's own physics moves: the host's references' bodies awake and simulated here, where they are
-    // (Moved); this game's player's ragdoll while it simulates (dead), its awake bodies read now (Ragdoll) or every
+    // (Moved, and as frames in Objects), those that came to rest here (ObjectsRested: Havok's sleep or still, as on
+    // the host); this game's player's ragdoll while it simulates (dead), its awake bodies read now (Ragdoll) or every
     // body once all sleep (RagdollRested), keyed by index alone.
     struct OwnBodies
     {
         std::vector<BodyPose> Moved;
+        std::vector<BodyFrame> Objects;
+        std::vector<BodyPose> ObjectsRested;
         std::vector<BodyFrame> Ragdoll;
         std::vector<BodyPose> RagdollRested;
     };
@@ -118,6 +122,11 @@ public:
     bool AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept;
     // The bodies of drops adopted since the last call: this game's own until the host's rest (GuestHands).
     [[nodiscard]] std::vector<BodyKey> TakeAdoptedDrops() noexcept;
+    // A drop adopted as acObject not yet taken (its body this game's own).
+    [[nodiscard]] bool Adopting(const GameId& acObject) const noexcept
+    {
+        return std::ranges::any_of(m_adopted, [&acObject](const BodyKey& acKey) { return acKey.Object == acObject; });
+    }
     // This game's player reached for a loose item the host decides (a twin, or its own drop): what to ask for.
     [[nodiscard]] std::optional<PickUpRequest> ReadPickUp(uint32_t aFormId) const noexcept;
     // The host granted it: this game's player picks up its twin, or gets the item when the twin is gone.

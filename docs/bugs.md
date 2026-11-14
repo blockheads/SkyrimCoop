@@ -67,7 +67,7 @@ other section needs the duo.
 **Physics**
 
 - [A long roll jumps](#a-long-roll-jumps): small
-- [A dropped sword](#a-dropped-sword): small
+- [A copy standing in a guest's rest](#a-copy-standing-in-a-guests-rest): small
 - [A chest lid's pose](#a-chest-lids-pose): small
 - [A late rest undoes a scripted move](#a-late-rest-undoes-a-scripted-move): small
 
@@ -604,22 +604,20 @@ Size: small. Needs: duo, then GameTests.
   - Start: the trace at the jump (the samples folder the failure names): a late frame's correction, or the host's
     own 3D (its node left behind) when the frame was read.
 
-### A dropped sword
+### A copy standing in a guest's rest
 
-Stands alone: still happens (2026-11-11).
+Stands alone: a guest's push ends with its body touching its player; the copy on the host is a little elsewhere.
 
-Agent task: Find who simulates a guest's dropped sword on the host and make its copy rest where the guest's does.
+Agent task: Find what the guest's copy does to a body at rest against it on the host and keep the guest's rest.
 
-Size: small. Needs: duo.
+Size: small. Needs: IDA, duo.
 
-- **The host's copy of a dropped sword rests elsewhere** (2026-11-02). The host's copy of a sword the guest dropped rests
-  44 to 67 units from the guest's (`guest-drops-item-stays`, 2 of 5). Filed under exclusive ownership, which it was
-  expected to be covered by; not rerun since holds became exclusive.
-  - Start: rerun it; delete this entry if it holds. Otherwise read who simulates the drop (`BodyBridge::Free`,
-    physics-sync.md, "Exclusive holds").
-  - Rerun 2026-11-11, so not fixed by exclusive holds: 79.5 and 14.7 units off, asleep on the host ("awake False"), in
-    2 of 4 runs on `agent/copy-idle-graph`; dev's plugin passed its one run.
-  - Test: `guest-drops-item-stays`, `--until-fail`.
+- **A pushed ladle moved 4 units on the host 2 s after the guest's rest** (2026-11-14, `moves_and_watches` push on
+  the fixed branch, 1 of 1). The guest's rest was placed on the host while the guest's copy stood against it; 2 s
+  later (`HostHands::kSilentMs`, the host's settling window) the host's own rest at 4.1 units went out and placed the
+  guest's. A copy is meant to collide (`actor-movement.md`, "Copies step"), so a copy's push is not simply dropped.
+  - Start: `who_wakes` on the ladle on the host after the push; which controller (the copy's rigid body or proxy,
+    79133) gives it the impulse, then whether the copy's contact can leave a body the mover's game put down.
 
 ### A chest lid's pose
 
@@ -1230,7 +1228,6 @@ Where each of the other 46 went:
   - [References a guest's script creates](#references-a-guests-script-creates): `vampirism-is-each-players`.
   - [Clutter flags after a vampire rejoin](#clutter-flags-after-a-vampire-rejoin): `host-enchantment-knowledge-control`,
     `late-join-gets-calendar`.
-  - [A dropped sword](#a-dropped-sword): `guest-drops-item-stays`.
   - [A chest lid's pose](#a-chest-lids-pose): `host-saves-with-guest-menu-open`.
 - **New entries in this section:** `host-quickloads-party`; `party-travel-mounted-guest`, `party-fast-travels`,
   `party-buys-house-guest`; `green-flash-ivarstead-handoff`, `-wine`; `dialogue-mouse-highlight-stays-shared`;

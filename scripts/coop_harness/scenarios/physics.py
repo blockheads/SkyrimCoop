@@ -49,9 +49,8 @@ def scenario_guest_cast_moves_host(ctx):
 
 def scenario_guest_bump_moves_host(ctx):
     """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player walks into a
-    ladle on the floor. Its character pushes the client's ladle, and the host pushes its own with the same impulse
-    (copies move by SetPosition and push nothing themselves); the client shows its own push until the host's ladle
-    rests, then lies where the host's lies."""
+    ladle on the floor. Its character pushes the client's ladle, which is the client's until it rests there
+    (physics-sync.md, "The mover's until its rest"): the host's follows its frames and lies where the client's lies."""
     refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
     target = ctx.pick_reference(refs, "MISC", 0, ctx.resting_clutter_on_both(refs, guest_refs))
     starts = ctx.where_now([target])
@@ -81,8 +80,8 @@ def scenario_guest_throw_lands_on_host(ctx):
     """Physics sync's step 6 (docs/design/physics-sync.md, "A guest's own actions"): the client's player grabs a
     ladle (Activate held past fZKeyDelay; it stays held after the release), carries it and drops it (Activate again).
     While it holds it, the ladle is the client's alone: the host's is keyframed on the client's hold (its grab refuses
-    it: physics-sync.md, "Exclusive holds"); dropped, it flies on from where the host has it, and the client's own fall
-    shows until the host's ladle rests, then lies as the host's."""
+    it: physics-sync.md, "Exclusive holds"); dropped, it is still the client's until it rests there ("The mover's until
+    its rest"): the host's follows its fall and lies where the client's lies."""
     refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
     target = ctx.pick_reference(refs, "MISC", 0, ctx.resting_clutter_on_both(refs, guest_refs))
     start = first_body(refs[target])["position"]

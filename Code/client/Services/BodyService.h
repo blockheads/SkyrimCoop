@@ -43,8 +43,10 @@ struct BodyService
         [[nodiscard]] virtual std::vector<BodyKey> Update(uint64_t aTick, const std::set<BodyKey>& acPlayed) noexcept = 0;
         // An owner's frame of that body: false while it is this game's own (the frame waits).
         [[nodiscard]] virtual bool TakesFrame(const BodyKey& acKey) noexcept = 0;
-        // Its rest is not placed while this game's player holds it.
-        [[nodiscard]] virtual bool KeepsRest(const BodyKey& acKey) const noexcept = 0;
+        // An owner's rest this game does not place (its own body, or its own rest come back).
+        [[nodiscard]] virtual bool KeepsRest(const BodyPose& acRest) const noexcept = 0;
+        // A body of that reference is this game's player's now (its move row is not the host's to apply).
+        [[nodiscard]] virtual bool Moves(const GameId& acObject) const noexcept = 0;
         // Its owner's rest placed here: the owner's again.
         virtual void OnRest(const BodyPose& acRest) noexcept = 0;
     };
@@ -54,6 +56,8 @@ struct BodyService
     NO_COPY_MOVE(BodyService);
 
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
+    // This game's player moves a body of that reference: where it goes is this game's (Keeper::Moves).
+    [[nodiscard]] bool MovedHere(const GameId& acObject) const noexcept { return m_pKeeper && m_pKeeper->Moves(acObject); }
     // This game's own physics has the body again (a guest let go of the host's): its playback ends.
     void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
     // A reference another game's player holds (its frames come as a hold): its holder's alone, so this game's player
