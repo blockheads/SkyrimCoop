@@ -97,3 +97,64 @@ SCENARIO("A host NPC's aim at a running guest's copy leads to where the guest wi
     THEN("the aim lands within a body's width of the guest, on average")
         CHECK(off / samples < 20.0);
 }
+
+SCENARIO("A host NPC's arrow at a running guest meets the guest on the guest's game", "[combat][copy-clock]")
+{
+    // The whole of Faendal's shot (combat-aim.md): the host's NPC aims at the copy (44396 over 47309) and launches,
+    // the launch goes over the line and the guest's game looses it again from the copy (CombatService), and there it
+    // hits only if it passes the guest where the guest is when it arrives.
+    constexpr uint32_t kDelayMs = 60;
+    constexpr float kSpeed = 300.f;       // a running strafe
+    constexpr float kArrowSpeed = 2655.f; // the hunting bow's iron arrows (the bow's aim, measured)
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = kDelayMs, .Seed = 9});
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t archer = 0;
+    party.As(party.Host(), [&] { archer = host.LoadNpc(kGuard, kSmoke, {0.f, 800.f, 0.f}); });
+    party.Until([&] { return PlayerCopy(host) != 0 && guest.CopiesOf(kGuard).size() == 1; }, "each game has the other's actors");
+    const uint32_t cCopy = PlayerCopy(host);
+    const uint32_t cArcherCopy = guest.CopiesOf(kGuard)[0];
+
+    float& running = guest.Actors.at(FakeEngine::kPlayer).Position[0];
+    const float cFrom = running;
+    const auto cStart = std::chrono::steady_clock::now();
+    const auto cGuestAt = [&](std::chrono::steady_clock::time_point aWhen) {
+        const auto& cPlayer = guest.Actors.at(FakeEngine::kPlayer);
+        return glm::vec3(cFrom + kSpeed * std::chrono::duration<float>(aWhen - cStart).count(), cPlayer.Position[1], cPlayer.Position[2]);
+    };
+    auto nextShot = cStart + std::chrono::milliseconds(1500); // the copy's clock learns the line first
+    while (std::chrono::steady_clock::now() - cStart < std::chrono::milliseconds(4500))
+    {
+        running = cGuestAt(std::chrono::steady_clock::now()).x;
+        party.Frame();
+        if (std::chrono::steady_clock::now() >= nextShot && nextShot < cStart + std::chrono::milliseconds(4000))
+        {
+            party.As(party.Host(), [&] { host.ShootsAt(archer, cCopy, kArrowSpeed); });
+            nextShot += std::chrono::milliseconds(250);
+        }
+    }
+
+    double off = 0.0;
+    size_t arrows = 0;
+    for (const auto& cShot : guest.Shots)
+    {
+        if (cShot.Shooter != cArcherCopy)
+            continue;
+        // Where the guest's body point is when the arrow, loosed here at cShot.At, reaches its distance.
+        auto arrival = cShot.At;
+        glm::vec3 body{};
+        for (int i = 0; i < 4; ++i)
+        {
+            body = cGuestAt(arrival) + glm::vec3(0.f, 0.f, FakeEngine::kFireNodeHeight);
+            arrival = cShot.At + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                                     std::chrono::duration<float>(glm::distance(body, cShot.Origin) / kArrowSpeed));
+        }
+        const glm::vec3 cPassed = cShot.Along(glm::distance(body, cShot.Origin));
+        off += glm::distance(glm::vec2(cPassed), glm::vec2(body));
+        ++arrows;
+    }
+    REQUIRE(arrows >= 8);
+    INFO(arrows << " arrows, copy delay " << party.Host().GetCopyClock().Delay() << " ms");
+    THEN("the arrows pass within a body's width of the guest, on average")
+        CHECK(off / arrows < 20.0);
+}

@@ -2810,6 +2810,31 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acO
     Shots.push_back({aShooter, aSpell, acOrigin});
 }
 
+void FakeEngine::ShootsAt(uint32_t aShooter, uint32_t aTarget, float aArrowSpeed)
+{
+    const auto& cShooter = Actors.at(aShooter);
+    const glm::vec3 cOrigin{cShooter.Position[0], cShooter.Position[1], cShooter.Position[2] + kFireNodeHeight};
+    // 44396: the time of flight to the predicted place, carried to the place at that time, a few rounds.
+    glm::vec3 aim{};
+    float flight = 0.f;
+    for (int i = 0; i < 4; ++i)
+    {
+        const auto cAt = PredictedPosition(aTarget, flight);
+        aim = {cAt[0], cAt[1], cAt[2] + kFireNodeHeight};
+        flight = glm::distance(aim, cOrigin) / aArrowSpeed;
+    }
+    // Fire: heading and pitch from the fire node to the aim point (0x14086B8B0).
+    const glm::vec3 cWay = aim - cOrigin;
+    ProjectileLaunchedEvent event{};
+    event.Origin = cOrigin;
+    event.ShooterID = aShooter;
+    event.ParentCellID = cShooter.Cell;
+    event.ZAngle = std::atan2(cWay.x, cWay.y);
+    event.XAngle = -std::asin(cWay.z / glm::length(cWay));
+    World::Get().GetRunner().Trigger(event);
+    Shots.push_back({aShooter, 0, cOrigin, event.ZAngle, event.XAngle});
+}
+
 void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
 {
     ActivateEvent event;

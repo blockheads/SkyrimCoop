@@ -982,11 +982,23 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    // This game's NPC looses an arrow at aTarget (TESObjectWEAP::Fire 18102): aimed at its predicted place at the
+    // arrow's time of flight (CombatProjectileAimController 44396 over PredictedPosition), chest high, then launched.
+    void ShootsAt(uint32_t aShooter, uint32_t aTarget, float aArrowSpeed);
+    static constexpr float kFireNodeHeight = 110.f; // the bow's fire node, and the target's body point, above the feet
     struct Shot
     {
         uint32_t Shooter = 0;
         uint32_t Spell = 0;
         glm::vec3 Origin{};
+        float ZAngle = 0.f; // heading, as Projectile::Launch takes it
+        float XAngle = 0.f; // pitch, down positive
+        std::chrono::steady_clock::time_point At = std::chrono::steady_clock::now(); // launched or relaunched here
+        // Where it is aDistance along its way.
+        [[nodiscard]] glm::vec3 Along(float aDistance) const noexcept
+        {
+            return Origin + aDistance * glm::vec3(std::sin(ZAngle) * std::cos(XAngle), std::cos(ZAngle) * std::cos(XAngle), -std::sin(XAngle));
+        }
     };
     std::vector<Shot> Shots;
     void LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId, float aOriginX, float aOriginY, float aOriginZ,
@@ -995,7 +1007,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                           float aPower, float aScale, bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
                           bool aDeferInit, bool aForceConeOfFire, bool aUnkBool1, bool aUnkBool2) noexcept override
     {
-        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
+        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}, aZAngle, aXAngle});
     }
     std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }

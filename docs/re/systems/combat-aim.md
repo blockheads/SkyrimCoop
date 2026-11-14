@@ -9,7 +9,7 @@ duo, 2026-11-14, for "Faendal's arrows keep missing the guest".
 CombatProjectileAimController::Update (44384, vfunc 8 of VTABLE 210081)
   held while flags 0x40 set and 0x400 clear; else
   UpdateAimSolution (44396):
-    offset = GetTargetLocation(target, kind 2/3/4) - target position     (0x140866D90, Actor 37771: a body point)
+    offset = GetTargetLocation(target, kind 2/3/4) - target position     (47282, 0x140866D90; Actor 37771: a body point)
     t = 0; repeat (converges, game setting count):
       t = time of flight to the point (distance / speed +0x50, or the arc solver with gravity) + launch delay +0x98
       point = Actor::GetPredictedPosition(target, t) + offset              (47309)
@@ -18,15 +18,15 @@ CombatProjectileAimController::Update (44384, vfunc 8 of VTABLE 210081)
 Actor::GetPredictedPosition (47309)
   t <= 0: the position
   the target's path follower if it answers (90724), else position + GetLinearVelocity (vfunc 0x86) * t
-  a guess more than 32 units off (dword_1420A1690): Actor__CheckPredictionOnNavmesh (0x14086A000) walks the
+  a guess more than 32 units off (dword_1420A1690): Actor__CheckPredictionOnNavmesh (47316, 0x14086A000) walks the
     navmesh toward it and may pull it onto the navmesh; no navmesh place found: the guess is the position
 
 TESObjectWEAP::Fire (18102), an NPC in combat (0x14028C8AE)
-  CombatController::GetAimPoint (0x1405629F0): the aim controller whose source (+0x10) is this weapon, its P
+  CombatController::GetAimPoint (418638, 0x1405629F0): the aim controller whose source (+0x10) is this weapon, its P
     (no aim: the shot is queued instead)
-  heading, pitch = VectorToHeadingPitch(P - fire node)                     (0x14086B8B0)
+  heading, pitch = VectorToHeadingPitch(P - fire node)                     (47340)
   -> LaunchData angles -> Projectile::Launch (44108); the projectile takes them as they are (Projectile ctor
-     0x1407F8A50: SetRotationZ/X/Y)
+     44100: SetRotationZ/X/Y)
 ```
 
 The combat controller is at `Actor+0x160` on 1.6.629 and later (CommonLib-NG's `0x158` plus 8); its aim controllers
@@ -60,7 +60,9 @@ Seen while staging, not the bug: a still guest at first went to combat state 2 (
 ## The fix
 
 `HookGetPredictedPosition` (47309, `CopyAiState.cpp`): for a copy and `t > 0`, the engine's own guess, then
-`+ GetLinearVelocity x lead`, with `lead = CopyLead::Ms(how far behind its owner the copy shows, CopyClock::Network())`,
+`+ GetLinearVelocity x lead`, with `lead = CopyLead::Ms(how far behind its owner the copy shows, its line)`, its line
+being that copy's own snapshots' lateness, smoothed (`CopyLine`): its owner's delay, not the game-wide worst
+(`CopyClock::Network`, which another guest's slow line and the playback margin raise; review of PR #59),
 set each frame by `CharacterService::RunRemoteUpdates` (`IActorBridge::SetCopyLead`, `ActorExtension::PredictionLeadMs`).
 So the guess lands where the owner will be when a hit reaches its game.
 
@@ -88,9 +90,10 @@ to where it stands".
 The alternative, the host judging its NPC's hits on a copy, would hit a guest that saw the arrow miss; this keeps the
 hit where the player sees it.
 
-Tests: GameTests "A host NPC's aim at a running guest's copy leads to where the guest will be" (the fake's
-`PredictedPosition` is 47309's position + velocity x t; mean 51 units off without the lead, 6 with it), ClientTests
-`[combat-aim]`, scenario `faendal-aim-leads-guest` (fails at spot B on the collapse above).
+Tests: GameTests "A host NPC's arrow at a running guest meets the guest on the guest's game" (the fake's bow aims as
+44396 over 47309 and launches with Fire's angles; the guest's game looses it again; mean 38.6 units off the guest
+without the lead, 1.2 with it), "A host NPC's aim at a running guest's copy leads to where the guest will be" (51
+against 6), ClientTests `[combat-aim]`, scenario `faendal-aim-leads-guest` (fails at spot B on the collapse above).
 
 Tools: harness `combat_targets` reads the target's `target_velocity` and the bow's `aims` (P, flags, speed, delay);
 MCP verbs `aim_watch` (P against the guest, hits per game), `provoke`, `expect_aim_leads`, `copy_lag`.

@@ -34,3 +34,8 @@ time	op	id	rva	item
 2026-11-14T08:48:11Z	comment		0x867c70	{"addr": "0x140867c70", "comment": "not on the aim path: a projectile's arc term (speed^2 / (gravity * scale)), read by mistake looking for 47309."}
 2026-11-14T08:48:34Z	read		0x74b65a	{"name": "sub_14074AFA0"}
 2026-11-14T08:48:41Z	comment	40515	0x74afa0	{"addr": "0x14074AFA0", "comment": "not read: opened by mistake looking for PlayerCharacter::sub_40517 (0x14074B6xx), a player-only caller of Pathing_DataCtor1 30635 (combat-aim.md, the open navmesh collapse)."}
+2026-11-14T09:01:55Z	read	44384	0x80b950	{"name": "CombatProjectileAimController::Update"}
+2026-11-14T09:01:55Z	read	44396	0x80c980	{"name": "CombatProjectileAimController::UpdateAimSolution"}
+2026-11-14T09:01:56Z	read	44100	0x7f8a50	{"name": "Projectile::Constructor"}
+2026-11-14T09:01:56Z	read	44108	0x7f9300	{"name": "Projectile::Launch"}
+2026-11-14T09:02:03Z	comment	44100	0x7f8a50	{"addr": "0x1407f8a50", "comment": "Projectile::Constructor (44100): position from LaunchData+0x8 and rotation from its angles (SetRotationZ/X/Y) as given; no re-aim here, so a relaunch with the shooter's angles flies the shooter's path. docs/re/systems/combat-aim.md."}
