@@ -281,7 +281,9 @@ under the world's write lock, then looks up the held reference at `+0x8D0`, send
 the handle invalid. **The grab data sits 8 bytes later on 1.6.1170 than CommonLib-NG's comments** (its SE layout):
 the springs (`BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>`) at `+0x8A0` (capacity), `+0x8A8` (data), `+0x8C8`
 (count); `grabbedObject` at `+0x8D0`, not `0x8C8` (`PlayerCharacter::grabbedObject`; `world_state`'s player status
-`grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion: vanilla has no
+`grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion (read on 1.7.104,
+2026-11-14: `DestroyMouseSprings` takes each spring off with its vfunc 0x150 and only `hkpEntity::Activate`s the body,
+velocities untouched, so it flies on at the hand's speed; physics-sync.md, "The mover's until its rest"): vanilla has no
 throw for a grabbed object (no `fZKey...Throw` setting; telekinesis has its own). The harness holds Activate as the
 `activate` button. `StartGrabObject` needs the body in a world (`bhkSerializable` vfunc 0x27 `GetWorld1`) and light
 enough (a keyframed body's mass reads 0); `PlayerCharacter::CreateMouseSprings` (40555, our name, `0x140752630`; read

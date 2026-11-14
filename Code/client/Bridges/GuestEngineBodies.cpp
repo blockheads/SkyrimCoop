@@ -111,12 +111,26 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cAwake.FormId));
         if (const auto cId = pObject ? HostIdOf(*pObject) : std::nullopt)
             for (const auto& cRead : cAwake.Read)
-                own.Moved.push_back({.Key = {.Object = *cId, .Index = cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
+            {
+                BodyFrame frame = cRead;
+                frame.Key = {.Object = *cId, .Index = cRead.Key.Index};
+                own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation, .Knocked = frame.Knocked});
+                own.Objects.push_back(frame);
+            }
     }
     for (const auto& cRested : cUpdate.Rested)
+    {
         if (cRested.Actor)
+        {
             for (const auto& cRead : cRested.Read)
                 own.RagdollRested.push_back({.Key = cRead.Key, .Position = cRead.Position, .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
+            continue;
+        }
+        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cRested.FormId));
+        if (const auto cId = pObject ? HostIdOf(*pObject) : std::nullopt)
+            for (const auto& cRead : cRested.Read)
+                own.ObjectsRested.push_back({.Key = {.Object = *cId, .Index = cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation});
+    }
     (void)m_moving.TakeRested();
     return own;
 }

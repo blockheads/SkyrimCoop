@@ -173,8 +173,8 @@ private:
     HostWeather m_weather;
     HostWorldState m_worldState;
     HostItems m_items;
-    HostPhysics m_physics;
     HostHands m_hands;
+    HostPhysics m_physics;
     HostTimeScale m_timeScale;
     HostDialogue m_dialogue;
     HostPlayerNatives m_playerNatives;

@@ -96,6 +96,18 @@ rules). Its body turns to that player too: the engine turns the body only to its
 (each fails without it), ClientTests, HostAuthorityTests, the scenarios `npc-looks-at-guest-talker`,
 `npc-turns-when-talker-leaves` and `npc-turns-body-to-guest-talker`.
 
+2026-11-14: what a player moves lands where that player's game puts it ([physics-sync.md](design/physics-sync.md),
+"The mover's until its rest"). A guest's let go, push, hit or drop was simulated twice: the guest's own physics showed
+it, the host re-ran the fall from the let go (`DestroyMouseSprings` 40557 only activates the body, read in IDA), and the
+host's rest was placed on the guest, the mover included: a ladle thrown on the duo jumped 10 units 8 s after the let go,
+a pushed one 13.6. Now the guest's game streams the body's free frames and sends its own rest; every other game, the
+host's too, steers after them and places that rest; the host sends none of its own meanwhile. The fake's flights take
+each game's friction (`FakeFlight::Friction`), so the two games' slides part as Skyrim's do. GameTests `[mover]`
+(3 flows, each failing before), HostAuthorityTests "a body a guest's player moved is that game's until it rests
+there", scenario `guest-throw-lands-where-thrown`; MCP verb `moves_and_watches` and `expect` kind `steady`. The
+host's move row of a guest's drop no longer puts its falling sword back in the air (`guest-drops-item-stays` 4 of 4;
+the `docs/bugs.md` entry "A dropped sword" is gone).
+
 2026-11-13: one rule for every copy, objects included: physically present, nudged toward its owner, placed only when
 far off ([physics-sync.md](design/physics-sync.md), "One rule"). A played object stays simulated with its mass
 (`BodyBridge::Drive` steers it, `BodyPrediction::Steer`); only a hold's frames keyframe it, the host's own player's hold

@@ -308,7 +308,8 @@ class PhysicsActions:
 
     def guest_own_lies_as_host(ctx, target, start, how, moved=5):
         """After the client's player moved `target` (`how`): the client's moved `moved` units off `start` by its own
-        physics (the host's frames of it wait), and once the host's rests it lies where the host's lies, simulated again."""
+        physics, which decides where it lands (physics-sync.md, "The mover's until its rest"): once the client's rests,
+        the host's lies there, and the client's stays where it stopped, simulated."""
         seen = []
         def own():
             body = ctx.body_of("client", target)
@@ -319,14 +320,77 @@ class PhysicsActions:
         except TestFailure as failure:
             changes = [s for i, s in enumerate(seen) if i == 0 or s != seen[i - 1]]
             raise ctx.failure(f"{failure}: the client's was " + "; then ".join(changes[-6:])) from None
-        ctx.wait_for(f"[host] {target:X} comes to rest", lambda: not ctx.body_of("", target)["awake"], 30)
-        rest = ctx.body_of("", target)
-        def lies_as_host():
-            body = ctx.body_of("client", target)
+        ctx.wait_for(f"[client] {target:X} comes to rest", lambda: not ctx.body_of("client", target)["awake"], 30)
+        rest = ctx.body_of("client", target)
+        def lies_as_client():
+            body = ctx.body_of("", target)
             return near(body["position"], rest["position"], 1.0) and same_turn(body["rotation"], rest["rotation"])
-        ctx.wait_for(f"[client] {target:X} lies where the host's does, at {show_value('position', rest['position'])}", lies_as_host, 5)
-        ctx.wait_for(f"[client] {target:X} is simulated again", lambda: ctx.body_of("client", target)["motion"] in DYNAMIC_MOTIONS, 2)
+        ctx.wait_for(f"[host] {target:X} lies where the client's does, at {show_value('position', rest['position'])}", lies_as_client, 5)
+        ctx.wait_for(f"[host] {target:X} is simulated again", lambda: ctx.body_of("", target)["motion"] in DYNAMIC_MOTIONS, 2)
+        if not near(ctx.body_of("client", target)["position"], rest["position"], 1.0):
+            raise ctx.failure(f"[client] {target:X} moved from where it rested: another game's rest placed it")
 
+
+    def moves_and_watches(ctx, instance, target=None, how="throw", name="moved"):
+        """`instance`'s player moves the loose `target` as a player would (`how`: "throw", grabbed, carried and let go
+        while walking; "push", walked into) and both games trace it each frame (body_trace) until it rests. Names it
+        `name` and keeps what the checks need: the mover's rest (expect at_rest_of) and its frames' snaps (expect
+        steady: physics-sync.md, "The mover's until its rest"). Returns both, failing only if it could not move it."""
+        other = "client" if instance == "" else ""
+        mover = instance or "host"
+        if target is None:  # loose clutter resting in both games (ids are the plugins': the same every run)
+            refs, guest_refs = ctx.world_state(""), ctx.world_state("client")
+            target = ctx.pick_reference(refs, "MISC", 0, ctx.resting_clutter_on_both(refs, guest_refs))
+        else:
+            target = ctx.resolve(target, instance)
+        starts = ctx.where_now([target])
+        ctx.place_before(instance, target, 90 if how == "throw" else 140)
+        ctx.face(instance, target)
+        ctx.wait_until_settled(target, instance or "", timeout=15)  # its copy reaches the other game after the teleport
+        me, at = ctx.my_position(instance), first_body(ctx.world_state(instance, [target])[target])["position"]
+        facing = math.degrees(math.atan2(at[0] - me[0], at[1] - me[1]))
+        with FlightTrace(ctx, f"{how}-{target:X}", [target]) as trace:
+            if how == "throw":
+                ctx.grab(instance, target)
+                ways = {facing + 180: "back", facing - 90: "strafe_left", facing + 90: "strafe_right"}
+                way = ways[ctx.clear_way(instance, list(ways), 250)]
+                ctx.press(instance, way)
+                try:
+                    ctx.wait_for(f"[{mover}] carries it off ({way})",
+                                 lambda: math.dist(ctx.my_position(instance)[:2], me[:2]) > 120, 6)
+                    ctx.tap(instance, "activate")  # let go while still walking: it flies on with the hand's motion
+                    ctx.wait_for(f"[{mover}] lets go of {target:X}", lambda: not ctx.local_player(instance).get("grabbed"), 3)
+                finally:
+                    ctx.release(instance, way)
+            else:
+                ctx.press(instance, "forward")
+                try:
+                    ctx.wait_for(f"[{mover}] pushes {target:X}", lambda: not near(ctx.body_of(instance, target)["position"], at, 10), 6)
+                    time.sleep(0.5)
+                finally:
+                    ctx.release(instance, "forward")
+            for game in ("", "client"):
+                ctx.wait_for(f"[{game or 'host'}] {target:X} comes to rest", lambda g=game: not ctx.body_of(g, target)["awake"], 30)
+            time.sleep(1.5)
+            trace.take()
+        path = trace.path(instance, target)
+        if len(path) < 3:
+            raise ctx.failure(f"[{mover}] no trace of {target:X}")
+        # A snap: one frame's step past what the steps either side of it would make (a fall bends, a snap jumps).
+        steps = [(t1, math.dist(p0, p1)) for (_, p0, *_), (t1, p1, *_) in zip(path, path[1:])]
+        snaps = [(round(t - path[0][0], 2), round(d, 1)) for (_, a), (t, d), (_, b) in zip(steps, steps[1:], steps[2:])
+                 if d > 4 and d > 3 * max(a, b, 0.5)]
+        rest = ctx.body_of(instance, target)["position"]
+        log(f"[{mover}] {target:X} ({how}): {len(path)} frames, snaps {snaps[:6]}, rests at "
+            f"{[round(x) for x in rest]}; {trace.report(target)}")
+        ctx.name_handle(name, {"host": target, "guest": target})
+        whose = "guest" if instance else "host"
+        if not hasattr(ctx, "REPRO_RESTS"):
+            ctx.REPRO_RESTS = {}
+        ctx.REPRO_RESTS[(name, whose)] = rest
+        ctx.REPRO_SNAPS = {**getattr(ctx, "REPRO_SNAPS", {}), (name, whose): snaps}
+        ctx.staged().append(("put_back", starts))
+        return {"object": f"{target:X}", "rest": [round(x, 1) for x in rest], "snaps": snaps[:6]}
 
     def where_now(ctx, ids):
         """The host's references' positions and rotations, to put back after (put_back)."""

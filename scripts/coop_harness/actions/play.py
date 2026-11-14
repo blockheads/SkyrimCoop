@@ -78,7 +78,7 @@ class PlayActions:
         me, at = ctx.my_position(instance), ctx.body_of(instance, target)["position"]
         return math.degrees(math.atan2(me[0] - at[0], me[1] - at[1])) % 360
 
-    def wait_until_settled(ctx, target, player, still=0.3):
+    def wait_until_settled(ctx, target, player, still=0.3, timeout=5):
         """Ready to act on `target`: asleep in both games, and `player`'s copy in the other game where its player
         stands, for `still` seconds (a teleport reaches the other game a moment later)."""
         other = "" if player == "client" else "client"
@@ -89,7 +89,7 @@ class PlayActions:
             return (all(b and not b["awake"] for b in bodies) and shown
                     and math.dist(shown[:2], ctx.my_position(player)[:2]) < 5)
         return ctx.wait_for(f"{target:X} is still in both games and {_name(player)}'s copy has arrived",
-                            ctx.comes_true_for(settled, still), 5)
+                            ctx.comes_true_for(settled, still), timeout)
 
     def comes_true_for(ctx, predicate, seconds):
         """A wait_for predicate: true once `predicate` has held for `seconds`."""

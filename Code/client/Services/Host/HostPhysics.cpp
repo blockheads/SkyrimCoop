@@ -2,6 +2,7 @@
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostHands.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -16,9 +17,10 @@ constexpr size_t kFramesPerPacket = 1024 / BodyFrame::kWireBytes;
 constexpr size_t kRestsPerMessage = 1024;
 } // namespace
 
-HostPhysics::HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostPhysics::HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, HostHands& aHands, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
+    , m_hands(aHands)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostPhysics::OnPoseAsked);
@@ -57,6 +59,11 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
     const ConnectionId_t cHost = m_players.Host();
     if (!cHost)
         return;
+    // What a guest's player holds or moved is its game's: its frames and rest go out from there (HostHands).
+    std::erase_if(bodies.Awake, [this](const BodyFrame& acFrame) { return !acFrame.Key.Actor && m_hands.MovedByGuest(acFrame.Key); });
+    std::erase_if(bodies.Rested, [this](const BodyPose& acRest) {
+        return !acRest.Key.Actor && !m_hands.HostRests(acRest);
+    });
     m_motions.Mark(bodies.Awake, aTick);
     for (const auto& cRest : bodies.Rested)
     {

@@ -5,12 +5,27 @@ namespace
 {
 const BodyKey kLadle{.Object = GameId(0, 0x0001A0F3)};
 
-BodyFramesRequest Held(uint64_t aTick, float aX)
+BodyFramesRequest Held(uint64_t aTick, float aX, bool aHeld = true)
 {
     BodyFramesRequest held;
     held.Tick = aTick;
+    held.Held = aHeld;
     held.Frames = {{.Key = kLadle, .Position = {aX, 0.f, 100.f}, .LinearVelocity = {50.f, 0.f, 0.f}}};
     return held;
+}
+
+// A guest's game moving the ladle it pushed or let go, not in its hands.
+BodyFramesRequest Moved(uint64_t aTick, float aX)
+{
+    return Held(aTick, aX, false);
+}
+
+BodyRestsRequest RestsAt(uint64_t aTick, float aX)
+{
+    BodyRestsRequest rests;
+    rests.Tick = aTick;
+    rests.Rests = {{.Key = kLadle, .Position = {aX, 0.f, 0.f}}};
+    return rests;
 }
 } // namespace
 
@@ -73,7 +88,7 @@ TEST_CASE("Physics: the host's player holds a body: each guest gets it as a hold
     }
 }
 
-TEST_CASE("Physics: a guest's player lets go, the host simulates it from there", "[HostAuthority][Physics]")
+TEST_CASE("Physics: a guest's player lets go, the host simulates it from there, still the guest's until its rest", "[HostAuthority][Physics]")
 {
     Session session;
     session.Receive(kPeer, Held(1000, 10.f));
@@ -90,11 +105,81 @@ TEST_CASE("Physics: a guest's player lets go, the host simulates it from there",
         session.Receive(kPeer, Held(1090, 14.f));
         CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
     }
-    THEN("anyone may hold it again")
+    THEN("every other game's hold of it ends with the let go")
+    {
+        for (const auto cGame : {kHost, kOtherPeer})
+        {
+            REQUIRE_FALSE(session.SentTo<NotifyBodyFrames>(cGame).empty());
+            CHECK_FALSE(session.SentTo<NotifyBodyFrames>(cGame).back()->Held);
+        }
+    }
+    THEN("nobody else takes it while it falls; anyone may once it rests in the guest's game")
     {
         session.Outbox.clear();
         session.Receive(kOtherPeer, Held(1200, 30.f));
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
+        session.Receive(kPeer, RestsAt(1300, 20.f));
+        session.Receive(kOtherPeer, Held(1400, 30.f));
         CHECK(session.SentTo<NotifyBodyFrames>(kHost).size() == 1);
+    }
+}
+
+TEST_CASE("Physics: a body a guest's player moved is that game's until it rests there", "[HostAuthority][Physics]")
+{
+    // physics-sync.md, "The mover's until its rest": the host's own fall of a guest's let go ladle rested 10 units
+    // from the guest's, and that rest snapped the guest's.
+    Session session;
+    session.Receive(kPeer, Moved(1000, 10.f));
+    THEN("its frames go to every other game, the host's too, as plain frames (played steered)")
+    {
+        for (const auto cGame : {kHost, kOtherPeer})
+        {
+            REQUIRE(session.SentTo<NotifyBodyFrames>(cGame).size() == 1);
+            CHECK_FALSE(session.SentTo<NotifyBodyFrames>(cGame).back()->Held);
+        }
+        CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
+    }
+    THEN("the host's own frames and rest of it are not sent meanwhile; the guest's rest goes to every other game")
+    {
+        session.Outbox.clear();
+        session.Moving.Awake = {{.Key = kLadle, .Position = {12.f, 0.f, 0.f}, .LinearVelocity = {300.f, 0.f, 0.f}}};
+        session.Frame(1100);
+        session.Moving.Rested = {{.Key = kLadle, .Position = {14.f, 0.f, 0.f}}};
+        session.Frame(1200);
+        CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
+        CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
+        session.Receive(kPeer, RestsAt(1300, 20.f));
+        for (const auto cGame : {kHost, kOtherPeer})
+        {
+            REQUIRE(session.SentTo<NotifyBodyRests>(cGame).size() == 1);
+            CHECK(session.SentTo<NotifyBodyRests>(cGame).back()->Rests[0].Position.x == 20.f);
+        }
+        CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
+        AND_THEN("the host's game at rest there sends nothing more; moved on from there, it is the host's again")
+        {
+            session.Moving.Rested = {{.Key = kLadle, .Position = {20.f, 0.f, 0.f}}};
+            session.Frame(1400);
+            CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
+            session.Moving.Rested = {{.Key = kLadle, .Position = {60.f, 0.f, 0.f}}};
+            session.Frame(1500);
+            CHECK(session.SentTo<NotifyBodyRests>(kPeer).size() == 1);
+        }
+    }
+    THEN("another guest's rest of it is not taken, nor a push")
+    {
+        session.Outbox.clear();
+        session.Receive(kOtherPeer, RestsAt(1300, 90.f));
+        CHECK(session.SentTo<NotifyBodyRests>(kHost).empty());
+    }
+    THEN("its game gone silent, it is the host's again where it is, not dropped")
+    {
+        session.Frame(1000);
+        session.Frame(1001 + HostHands::kSilentMs);
+        CHECK(session.Freed.empty());
+        session.Outbox.clear();
+        session.Moving.Rested = {{.Key = kLadle, .Position = {30.f, 0.f, 0.f}}};
+        session.Frame(1100 + HostHands::kSilentMs);
+        CHECK(session.SentTo<NotifyBodyRests>(kPeer).size() == 1);
     }
 }
 

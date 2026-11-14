@@ -92,7 +92,7 @@ void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
     for (const auto& cRest : acMessage.Rests)
     {
         Hold(cRest.Key, false);
-        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest.Key))
+        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
             (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
     }
     m_playback.Rest(acMessage.Tick, rests);
@@ -158,7 +158,7 @@ void BodyService::Apply() noexcept
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
-        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->first)) && m_bridge.Rest(it->second.second, 0))
+        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->second.second)) && m_bridge.Rest(it->second.second, 0))
         {
             if (m_pKeeper)
                 m_pKeeper->OnRest(it->second.second);
