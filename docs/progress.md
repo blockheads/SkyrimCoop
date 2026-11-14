@@ -31,23 +31,38 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
      the second, which drops it.
    - Fiedler's authority chain: bodies a held or thrown body knocks stay the host's.
 3. **From Fabien's playtest** (`playtests/2026-10-31-fabien.md`):
-   - **C2 freezes in our code:** Windows only. Needs a package with the PDB kept, and one trigger replayed on
-     Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
+   - **C2 freezes in our code:** Windows only. Packages keep the PDB (`scripts/package.sh`); left: one trigger replayed
+     on Windows (reconnect failure, then the main menu; a guest loading the host's save; party travel).
    - **C3 crash on quit:** fixed on Linux, verify on Windows.
    - **P1 performance:** parked; check in the same Windows session.
-   - **S3 a guest's "go to jail":** the jail choice by mouse is still to try (`guest-ivarstead-jail-mouse`; pay fine is
-     done; the freeze is C2).
+   - **S3 a guest's "go to jail":** both mouse choices fail in Skyrim since the full run of 2026-11-11
+     (`guest-ivarstead-jail-mouse`, `guest-ivarstead-fine-mouse`: bugs.md, "The older crime scenarios"); the freeze is
+     C2.
    - **S8 missed kill moves:** likely the engine's own room check at the mark (`docs/re/systems/kill-moves.md`); a `/bug` right after one would confirm it.
-   - **S6 remainder:** an NPC's detection reads higher in co-op (51 against 13 alone).
+   - **S6 remainder:** an NPC's detection reads higher in co-op (51 against 13 alone). Near bugs.md's "The guest's eye
+     is its own estimate".
    - Done: S1, S2, S4, S5, S7, S10, C3 on Linux. C1 avoided, since players can't loot each other. S6 matched
      vanilla, S9 didn't reproduce, P2 works as designed.
-4. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order, one section per agent. The two bugs
-   found 2026-11-02 are done or there: `actors-walk-after-arrival` passes since 2026-11-05 (News), `knockdown-lies-as-host`
-   is still open.
+4. **Open bugs:** everything in [bugs.md](bugs.md), in the user's priority order, one section per agent (audited
+   against dev 2026-11-13, News).
 5. **Red flags' leftovers:** the flags themselves are done (2026-11-02: 1, 2, 4, 5 fixed; 3 measured and left: news
    below, `docs/design/red-flags.md`). Left: its cleanup and explainer docs.
 
 ## News
+
+2026-11-13: bugs.md and progress.md audited against dev (`32c1b38f`): every entry checked against the merged PRs, the
+code and tests, and where neither settled it, a targeted duo rerun. Deleted as resolved, with where the evidence went:
+a dead copy's ragdoll never sleeping and a lying copy's bones (PR #38, `BodyPrediction::StepToRest`, ClientTests and
+GameTests rest checks, the 2026-11-12 full runs); Get-up's every-run timing, facing, turn and snap (PR #38; four
+one-offs left); Lydia's queued greeting (`dialogue-pick-reaches-host` passed all three full runs on the silent
+device); players' idle variants (players on the stream: PR #38); the strafe check's long frames (PR #48); an old crash
+reported as new (`1165bcb7`, `d7b13125`, `McpDuo.test_crash_history_resets_on_a_new_hold_only`); the green flash grab
+(6 of 6 grabs on dev; the wine's sweep drop stays); a copy standing while its owner rides (0 of 11 since the stream).
+Narrowed, not deleted: a copy's interaction idle (expected gone with the stream, a cancelled pick-up not yet caught),
+a guest arriving mid-loop (a native spawn mid-loop), the chest's pose (2 of 2 on dev, cause unknown). New: the guest's
+player's copy still swimming after a mounted trip (bugs.md, Copy one-offs). Loose ends lost the bullets already marked
+fixed, done or merged, and those since settled (network cost measured, EngineFixes answered in
+`engine-fixes-compatibility.md`, shared wait and sleep, save transfer at join, the `SetActorRotation` headings).
 
 2026-11-13: a steal warning lost to its owner's scene is vanilla's, and the party already matches it
 ([crime.md](re/systems/crime.md), "The steal warning in a scene"). Read in IDA: a package-action scene re-starts its
@@ -1823,21 +1838,6 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   where each went, twelve new entries, the rest as evidence on existing ones). `join-refused-shows-why` and `join-panel-shows-refusal` needed `coop_peer` built in the worktree.
 - **Graph stream: a fight's traffic a quarter of dev's (2026-11-10).** A streamed owner's actions no longer carry its
   whole graph state: ten wolves fighting 15-21 KB/s, dev 74 (`graph-input-stream.md`, Cost measured).
-- **`npc-clips-match` timed out before comparing clips (2026-11-04, fixed 2026-11-10).** The host's dialogue menu never
-  opened on Lucan, or his conversation never ended. The scenario's: activated while he sits down he opens no menu, and
-  leaning on his counter he gives no gesture, so the topic walk ended in his shop's barter menu. It now gets him
-  standing first and never asks for his shop (`graph-input-stream.md`, "`npc-clips-match` failed on
-  repeats").
-- **Sync points add network cost, not measured (2026-11-04).** Each action now carries the graph seed and each pick no
-  action made sends a graph snapshot (about 7 KB, one per actor per second at most). `scripts/net_check.sh` not run.
-- **A guest crashed once in `follower-trade-to-picker` (2026-10-29, party dialogue).** `Actor::UpdateInDialogue`
-  (37541) on a worker reached 39372, which dereferenced a null RCX; Lydia (`FF001E90`, the fixture's follower) was
-  already flagged deleted (the client prefix's `SKSE/crash-2026-10-29-09-52-36.log`). Not reproduced: the scenario passed
-  3 of 3 since. Lead (v1-engine-fixes' read, unconfirmed): the baseline between scenarios deletes the cell's NPCs
-  while queued dialogue work still holds her, so a fixture teardown race rather than play code. If it shows again,
-  check whether the baseline deletes an actor still in a conversation (and end the conversation first).
-  Since: the baseline ends conversations before deleting NPCs, and the play path (the host removing the NPC
-  mid-conversation) passes as `dialogue-npc-removed-mid-conversation`.
 
 - **Any added hook breaks `guest-brings-character-into-hosts-world` (found 2026-10-24, physics-sync).** With one more
   `HOOK_ID` (physics-sync's `PlayerHands` 79133, a `StartGrabObject` 40552 hook, or a test hook on 40557, which the
@@ -1845,15 +1845,6 @@ Mod-dependent Experience work is outside v1.0.0. Evidence:
   (`left behind`); with `SKYRIMCOOP_DISABLE_HOOKS=PlayerHands` it passes 3 of 3. So not the hooks' code: something
   in hook installation (order or count) the stacked players' arrival depends on. Not traced yet (no overlapping
   `HOOK_ID` targets). Until then the scenario fails in the physics-sync worktree.
-- **Fixed 2026-10-29: a save load left QASmoke's animated cover plates (`ACTI 1BA5A`) at another pose** (found
-  2026-10-24). The loaded graph's local bones matched but its world transforms were stale: `ApplyGraph` now updates the
-  3D after loading (NiAVObject::Update 70251), equal graph rows included
-  ([evidence](re/crashes/2026-10-29-lock-history-and-button-pose.md)).
-- **Fixed 2026-10-24: a player record's perks doubled on every join** (`JoinBridge::ApplyPlayer` added each kept perk
-  again; `ReadPlayer` now lists a perk once). `guest-joins-from-main-menu-as-kept-character` also waits for the perk it
-  adds before restarting (the record goes a few seconds after a change).
-- **The lock-order checker counted our main loop and VM update hooks as "ours"** on every main thread stack: they are
-  pass-through frames now (`LockOrder::IgnoreFrames`); our other pass-through hooks (AI jobs) still count.
 
 
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
@@ -1865,112 +1856,32 @@ Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 - A copy made while its owner rides (a late join, a rejoin) starts off the horse: the spawn carries no mount. Design:
   the host keeps each mount's rider (from `OnMount`, cleared by `OnDismount`) and sends `NotifyMount` after a
   newcomer's spawns; the newcomer links once both copies have loaded.
-- ~~Riverwood, seen in the duo's desync check: two of the host's placed NPCs (Rabbit 00105A25 sid 85, Fox 00105A35
-  sid 86) showed swapped on the guest (each copy the other's name and race).~~ Fixed (placed wildlife, "Test suite").
 - `host-rejoins` failed once on Lydia landing a jump just as the end-of-scenario comparison ran (the copy not yet
   replaying it); passed twice after.
 
-### Mods
-
-- **EngineFixes and our `FormAllocate` hook** (2026-10-22): upstream rehooked it when EngineFixes replaced
-  it, but only from its own launcher, so under SKSE the rehook never ran and is deleted. Whether
-  EngineFixes' allocator patch overwrites our hook (the heap history and form allocation) is untested.
-
 ### World state
 
-- **Done 2026-10-31: a bought horse is the party's on a guest's game.** An actor's ownership change is the one actor change the host sends as a row (`FormChangeRows::Form::kActor`; `HostEngine` live and in a cell's state, none as base id 0); `GuestEngine` applies it as a reference's owner. GameTests `[world][ownership]`, ClientTests `[FormChangeRows]`; `party-buys-horse-*` pass their ownership steps in Skyrim both ways; both still fail afterwards on the rider's body kneeling (open player body bug).
-- **Done 2026-10-20: a guest's story manager starts no quest.** `BGSStoryManager::ProcessEvent` (32372) is skipped while a guest, so its story events (arrivals, kills, script events) are handled with none started (`docs/re/systems/story-manager.md`, scenario `guest-story-starts-no-quest`). Still open: quests a guest's own scripts or console start (`EnsureQuestStarted`), with step 5. A guest's story events go to the host since 2026-10-27 (every type since 2026-10-28).
-- **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
 - **Step 5 after slice 1** (2026-10-21; superseded the same day by option 1, under "Tests and harness": a guest runs only its own player's and UI's scripts, so the world-script cases below are closed except what bypasses the gate). Of delayed natives only `Spell.Cast` carries the guest whose script called it (`GuestScripts`, `CastFunctor`); the others do not. Not measured: an engine-only hazard (no script) hitting a guest on both games now hurts it twice (the host's goes to its owner), and a host NPC's hostile spell on a guest now reaches it (the PvP rule covers players' casts only; an NPC's arrow hit the guest in `statue-fires-at-client`), no scenario of its own. The host's messages for a guest's action (`BlessingMessage.Show()` for the guest's prayer) show on the host's game: rule 5, not built. Enabled state (2026-10-21): a guest's own timers and loads can still enable or disable references on its game until step 5 covers them; a guest joining later gets no enabled states (save transfer at join will carry them); actors are left to their owner. Locks (2026-10-21): a guest's own world scripts (timers, loads) locking something are proposals too until step 5 covers them; a guest's lockpicking is not checked against the host's lock (it is taken as is).
-- **Done 2026-10-21: a guest's loads no longer set the host's locks.** `AddLockChange` runs on cell loads and from scripts, not only for a player's lockpick or key; a guest now proposes only its player's own (`ScopedPlayerLockOverride`: the lockpick menu's unlock 51968, the player's activations), `guest-loads-propose-no-locks`. The host still sends all of its own on each load (dozens, mostly the same state): the change funnel's per-form "last sent" cache would drop those.
-- **Done 2026-10-21: console lines on a reference run.** Found when the harness began failing on the console's errors (`docs/re/systems/console.md`): `ID.command` never ran for an id starting with a digit (`Script command "1A695.getav" not found.`), so `vilkas-counts-client-hits`' clean-up (`1A695.removefromfaction`, not a console command either: `setfactionrank … -1`) had never run. The harness now runs a `<hex id>.<command>` line with the reference as its target. The full suite was not run with the stricter console: other scenarios' silent no-ops may show.
-- **Done 2026-10-21: a copy no longer takes the engine's weapon pick when it loses an item.** An item leaving an NPC makes the engine equip the best weapon it carries; our removal hook let that through on copies (`ScopedEquipOverride`), so the guest's copy held a staff its owner only carried (`sword-box-asks-client`, 2 of 7). Now `ScopedItemRemovalOverride` allows the copy's unequip only (`docs/re/systems/actor-ai-and-copies.md`, "A copy's equipment"). The scenario carries the staff and fails at once without the fix.
-- **`form-state-round-trips` fails as the first scenario on a fresh duo** (2026-10-21, also with the main tree's DLL): the client's character base saves 59 bytes, the host's copy of it 54; after other scenarios it passes. Not looked into.
+- **The host sends all of its own locks on each load** (2026-10-21; a guest proposes only its player's own since then, `guest-loads-propose-no-locks`): dozens, mostly the same state. The change funnel's per-form "last sent" cache would drop those.
 - **Containers after slice 1** (2026-10-21, `docs/re/systems/guest-world-events.md`, "Containers"):
-  - Counts per base item: an enchanted, tempered or poisoned item taken from a container comes back plain in the other games' containers (the player's own inventory keeps it; actor inventory sync carries extra data).
   - A container's leveled contents roll per game (`InitLeveledItems` at first open, which sends no event): a rolled item the other games lack is taken there as a count of 0, and items only the guest rolled are not in the host's container until the guest takes them. Slice 2: the host's contents when a guest's cell loads.
   - A guest's quick second change to the same item can be undone for a moment: its first proposal's echo (the host's count) comes back after the second, then the second's. Converges; not seen in play.
   - A guest's own world scripts (timers, loads) changing containers are proposals too until step 5 covers them. Merchants' chests go the same way (shared stock), not tested.
 - **Quest walks skip what leads up to a stage** (2026-10-20): travel, fights and dialogue between stages are not played; a guest's actions moving a quest come with step 5, inside the same walks. Without a later save the walk takes stages in record order and stops at the first branch that ends the quest (`DA10` at 65).
 - **`coop_test.py stop` misses games from a deleted worktree** (2026-10-20): their prefix is under `.claude/worktrees/<name>/build/coop-test`, which `uses_prefix` does not match; they hold the shared game install and the next `duo` waits behind them. Killed by hand this time. Matching any checkout's test prefix would also stop another live session's games.
 
-- **A guest's wait or sleep passes no time** (2026-10-20): its `Calendar::Update` is off, so the menu counts down and nothing changes. Meanwhile the host's wait jumps everyone's clock while the others play on. A shared wait is in `docs/ideas.md`.
 - **A guest's Days Passed stat stays its own** (2026-10-20): the DaysPassed event fires only from `Calendar::Update` (`docs/re/systems/calendar.md`).
 
 ### Copies and actor sync
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
-- **Fixed 2026-10-31: a quest's gold reward reached no one.** Party items took the story's gold (Lucan's 400) back
-  as "[P] Gold"; gold is the purse's (`PartyItems::ArrivesAsParty` excludes `0xF`). `quest-gold-turn-in-host` 3/3
-  (was 1/3), GameTests `[purse]`, ClientTests `[PartyItems]`. `dialogue-host-in-background` walked the host into a
-  wall (checked placement had moved it off the asked bearing): it now walks straight away from the NPC, 3/3.
-- **Fixed 2026-11-04: a copy's graph makes its owner's random picks.** Gestures, idle variants and looped idles (Lucan's
-  crossed arms at his counter, which no action starts) were each game's own pick. Actions carry the graph's seed; a pick no
-  action made sends a sync point on the action path, ignored by a copy in step and loaded by any other
-  (animation-replay-recovery.md, "A graph's random picks"). `npc-counter-matches`, `npc-counter-copy-falls-back-in`,
-  `npc-clips-match` (now compares the games' clips), GameTests `[replay-picks]`, `[replay-points]`, ClientTests
-  `[graph-random]`. Open: mods' own picks (Open Animation Replacer's Random), and players send no sync points.
-- **Fixed 2026-11-04: copies skipped animations.** A copy's replay started clips before their files were in, so they ended
-  at once and the graph ran on: on every NPC, most visibly idles like crossed arms. A copy now loads an action's clips first,
-  as an owner's game does (`ActionClips`, `AnimationSystem` phase `kClips`; `animation-replay-recovery.md`). Scenario
-  `npc-clips-match`, GameTests `[replay-clips]`, harness trace `clips` (each graph's playing files, time, loaded).
-- **Done 2026-10-31: copies look where their owners do.** In dialogue an NPC's head turns to the talking player;
-  its copy's never did (copies run no AI, which sets the headtrack slots), so dialogue animations drifted. The owner's
-  six slots ride `ActorAiState::HeadTrack`, raised from an `Actor::ProcessTracking` (38009) hook and put into the
-  copy before the engine reads them. Scenario `dialogue-copy-looks-at-speaker`, GameTests `[headtrack]`, TPTests
-  `[encoding.ai_state]`; dialogue, voice, barter, combat and steady-state scenarios pass. Next lead for drift:
-  compare a copy's active graph states with the owner's snapshot after accepted actions too.
-- **Merged 2026-10-31 (v1-copy-desync): copy desyncs.** Copies get their owner's fortified pools (temporary
-  modifiers carried, `ActorPools`), a leveled NPC's resolved name (`NpcSnapshot`, `leveled-npc-copy-names.md`), a
-  worn-set repair in native slots (`EquipmentRepair`), and recover a refused replayed action from the owner's
-  resulting graph (`ActionEvent::GraphState`, `animation-replay-recovery.md`). Travel, quest writes and copy moves
-  run between frames (`MainLoopTasks::Scope`). Report: `docs/reports/2026-10-30-copy-desync.md`.
-- **Fixed 2026-10-27: a guest bringing a character stood on the host's spot.** Before reconnecting, it now waits
-  for checked placement beside the save's player position (floor, slope, headroom, room and clear path). Kept
-  characters retain their saved place. ClientTests geometry cases, GameTests including a blocked arrival, Skyrim
-  `guest-brings-character-into-hosts-world`; [small-bugs.md](design/small-bugs.md).
-- **Fixed 2026-10-27: a look change remade the copy.** The same actor and base now take FormState's appearance,
-  weight, runtime race/3D and fresh FaceGen tints. Rebuilds run between frames and invalidate the old graph's
-  variable descriptor (a humanoid layout on a werewolf graph caused a crash). Deferred/empty-tint and identity
-  regressions in GameTests; Skyrim RaceMenu, vampire and Beast Form transitions; `small-bugs.md`.
-- **Fixed 2026-10-27: a copy's base level stayed its spawn's.** `NotifyPlayerLevel` now writes the matching copy's
-  NPC base level and change flag `0x2`, alongside the roster update. Fresh copies use the latest roster level.
-  GameTests checks increases/decreases in both directions without replacing the actor; Skyrim `party-shows-levels`
-  reads each copy's actual base level; `small-bugs.md`.
-- **Fixed 2026-10-27: a resurrected NPC copy refused subsequent actions.** It resumes graph updates and speech,
-  then takes the default graph event once its new 3D accepts it (the first requests were refused). The owner's
-  native resurrection reset stays local so its dying-state action cannot become another death on the guest.
-  Fast regressions first, then `death-host-npc` drawing and swinging on the same copy, three consecutive passes;
-  `death.md` and `small-bugs.md`.
 - **Open 2026-10-24: a copy's base has no original race.** `TESNPC::Create` clears it (`TESNPC+0x1E8`, upstream's
   "forces facegen"); the owner's is kept. Only a beast form's return reads it, and a copy follows its owner's race.
   Scenarios compare the race section by its race only (`copy_base_differences`).
-- **Fixed 2026-10-27: an instant effect with FX Persist showed nothing on copies.** Zero-duration fire-and-forget
-  effects send the existing flash, and the receiver now accepts FX Persist flashes too (the earlier sender-only
-  experiment left that filter rejecting them). Constant abilities and concentration retain their normal policy.
-  Pure rules and a GameTests effect already gone before the frame; Skyrim `copy-flashes-instant-effects` shows
-  the shrine's `CureDiseaseEffect` glow and its fade on the copy. Gift of Charity still passes; `change-events.md`
-  and [small-bugs.md](design/small-bugs.md).
-- **Fixed 2026-10-23: a player's first items and equipment were lost under latency.** A change made before its
-  session id came back was dropped; queued now until the assignment (`InventoryService::RunPendingChanges`). Found
-  by tier 2's network conditions, new the same day (`COOP_NET`, `scripts/net_check.sh`: every flow through a relay
-  that delays, jitters and drops the guests' datagrams; all pass at 120 ms, 80 ms jitter, 10% loss).
-- **Fixed 2026-10-23: a guest brought to the party at its join had no player copies** (`guest-joins-elsewhere`,
-  the four-cell join). The copies made at the join were lost on the way, and the arrival sent the host's actors
-  only. Now its arrival by the party's travel sends the players' characters both ways
-  (`HostCharacters::SendPlayersMet`; tier 2 flow and spec, `BridgeTests`; `docs/design/testing.md`, tier 2 bug 7).
-  Skyrim's first run found its join-time arrival counted too, outdoors; only the `kTether` arrival counts now.
-- **Fixed 2026-10-23: the host's Take All reopened the guest's container menu** (`chest-take-all`). The host's lid
-  opening, arriving after the guest closed the chest, found the guest's player still recorded as the lid's
-  activator and opened its menu (`BGSOpenCloseForm`'s lid event, 14285). Applying the host's open state clears that
-  record first (`ReferenceStates::ApplyOpen`; `docs/re/systems/guest-world-events.md`). Only Skyrim shows it (no
-  lids in the fake): `chest-take-all` to confirm. The replay's `StealAlarm` on an owned chest returns before any
-  crime on the guest (measured).
-- **Done 2026-10-22: a host NPC leaving no longer leaves a ghost on the guest.** The removal carries where the host's actor went; the guest's reference follows it (moved, disabled or deleted) and stays a copy until the host spawns it again (`docs/design/copy-contract.md`, "When the owner's actor goes away"; `host-npc-leaves-copy-follows`). Still open: a guest's non-persistent references are made anew when it loads their cell, unflagged, so they run their own AI until the host's spawn arrives (not measured).
-- **Done 2026-10-22: a guest's player is in combat when the host's NPCs fight it** (`guest-player-in-hosts-combat`;
-  above, overnight slice 4). Not checked: combat music and the wait/save block on a guest.
+- **Not checked: combat music and the wait/save block on a guest** in the host's NPCs' fight (its player is in combat
+  since 2026-10-22, `guest-player-in-hosts-combat`).
 - **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the
@@ -1983,23 +1894,12 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   process actors (`docs/re/systems/actor-ai-and-copies.md`, "A copy is in deferred kill"), so a copy
   dropped to low process can die from its owner's 0 health before its owner's death action. Unseen at
   that distance; the death action is skipped for an already dead copy.
-- **Done 2026-10-22: a copy jumps with its owner.** A script's `MoveTo`, `SetPosition` or `SetAngle`
-  (`TESObjectREFR::MoveTo_Impl`, 56626, from the script functors only) and the console's `setpos`/`setangle`
-  (22053, 22054) on an actor raise `ReferenceJumpEvent`; the owner's next snapshot carries `Movement::Teleported`,
-  and the copy drops its earlier points and starts at the new place, as for another cell. `TESObjectREFR::SetPosition`
-  (19790) is not the signal: root motion, projectiles and flight call it every frame. Scenario
-  `copy-jumps-with-owner` (a host NPC moved 900 units with `setpos`: no read of its copy in between).
 - **Audits not done:** combat, detection, magic/magicka. Then one copy update in place of the
   scattered `IsCopy()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
   `HookIsFleeing`, `HookProcessResponse`, `HookUpdateDetectionState`, `HookIsHostileToActor`.
 - **Cast right after a jump landing** (first person, within ~250 ms): the copy's graph is still
   landing and refuses the cast (3 refusals in the last measurement). Not explained.
-- **Interpolation delay 300 ms → 200 ms** (2× the 100 ms snapshot interval, the usual rule; Source
-  uses 100 ms at 20/s). Tried 2026-10-13 and reverted: `health-host-npc` failed 2 of 4 runs (the
-  copy missed a fresh NPC's `JumpLand`, or had no action at all) and `death-host-npc` 1 of 4, against
-  0 of 4 each at 300 ms. Find why a freshly spawned NPC copy loses its first actions at 200 ms, then
-  retry. The delay is `RunRemoteUpdates` in `CharacterService.cpp`.
 - **Replay retries:** a copy a graph update behind gets 3 more updates to take an action (as the
   owner's input retries). Logged ("graph updates late"); 1 in 8 casts needed it. Watch the count.
 - **Graph state at spawn, not yet covered:** behaviour mods (Nemesis/Pandora, Open Animation Replacer)
@@ -2040,14 +1940,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   per creature the `IsAttacking`/`bAttached` kind. No harm traced, no scenario covers them. Fix as data
   when each gets a scenario: harness `graph_writers` lists a graph's outputs. Why not a generic runtime
   skip: `docs/design/graph-replication.md` ("Decision").
-- **Name-keyed graph variable sync (animation mods): parked.** Inputs and outputs are told apart (harness
-  `graph_writers`, `scripts/re/graph_compare.py`); the sync is not built. `docs/ideas.md`,
-  `docs/design/graph-replication.md`.
 - **`flames-client-hits-host-npc` failed once** (2026-10-12, with the since-reverted copy-side skip): Lydia's
   copy without any animation state after her spawn drop, "desync afterwards"; passed 4 of 4 alone and in
   the other full runs.
-- ~~**Leveled wildlife picks its own base on each game**~~ (host Rabbit is a Fox on the client, Deer an
-  Elk). Fixed (2026-10-23, "Test suite" above; `wildlife-takes-hosts-pick`).
 - **Console `disable`/`kill` on a wild wolf did nothing** on the host, no error logged. Not investigated.
 - **Trespass warning AI:** shared party bounty now judges guest crimes on the host and maintains
   guest-copy trespass state (2026-10-26); native warning-AI coverage remains open (`docs/design/shared-party-bounty.md`).
@@ -2076,23 +1971,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Start: `profile --route whiterun --stacks` on the playtest machine with a game on the desktop (the duo runs
     off-screen, so it cannot show a display stall), during a stall.
   - Test: `profile --budget p95=33,p99=70,stalls_per_min=6`, compared against the same run on vanilla.
-- **Done 2026-11-01 (C1, `playtests/2026-10-31-fabien.md`): players can't loot each other.** Taking a dead guest's
-  clothes crashed the host in `ContainerMenu`. Now `ContainerMenu::OpenMenu` (51140) refuses another player's copy
-  (`party-items.md`). GameTests "Players can't loot each other" passes. The duo scenario `host-cannot-loot-guest`
-  recreated it unfixed (the loot menu opened) and passes fixed. The duo's guest is unnamed and `ActivateRef` (19796)
-  activates nothing nameless, so the scenario names the guest in the race menu first and restarts it after. One
-  fixed run timed out waiting 8 s for the body to rest (passed on the next run; not masked). Found while writing it: in GameTests, the host's death doesn't
-  kill its copy on a guest's game (fake gap or real bug, unchecked).
-- **Merged 2026-10-31 (lock-mounted-departure): live lock-order overlaps.** The checker counts each inverted
-  ask that finds the lock held from the reverse order; a live overlap fails any scenario. The mounted-departure
-  family is engine order (`docs/re/crashes/2026-10-31-mounted-departure-lock-order.md`).
-- **Done 2026-10-21: the guest crash and deadlock blamed on hot reload and log rotation** (a crash in
-  `GuestWeather::OnUpdate` → `GuestEngine::HoldWeather` → `ModSystem::GetGameId` with a bad map,
-  `crash-2026-10-21-15-50-41.log`, and a deadlock as `host-rejoins` ended the session) were the guest services'
-  `UpdateEvent` handlers connected and dropped during the dispatcher's own dispatch (entt 3.10 iterates its
-  handlers in place): `GuestService` now forwards the update to them. Rotation works (`tp_client.1.log`,
-  `.2.log` in the game's `Data/SKSE/Plugins/logs`); a run folder's copy of the logs is taken at the duo's start,
-  so a live report is read from the game's own log.
+- **In GameTests the host's death doesn't kill its copy on a guest's game** (found 2026-11-01 writing C1's test,
+  `party-items.md`): a fake gap or a real bug, unchecked.
 
 - **Host crash freeing a behaviour graph in a guest's beast form** (2026-10-23): noted, not investigated (`docs/re/crashes/2026-10-23-guest-beast-form-graph-gc.md`).
 - **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
@@ -2124,8 +2004,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Migration
 
-- **Fixed 2026-10-20: the client's `GameDaysPassed` missed host time jumps** (measured 2026-10-19 after `party-fast-travels`: 0.4376 / 0.3866). `TimeModel` carries the whole days passed; a guest writes the host's calendar as `Calendar::Update` does, `rawDaysPassed` included (`docs/re/systems/calendar.md`). Its date is the host's too: `SyncPlayerCalendar` is no longer read. Scenarios `host-wait-reaches-guest` (the Wait menu across midnight), `late-join-gets-calendar`, `party-fast-travels`. Also fixed: a guest rejoining ran ahead by the time it was away (`CalendarService` counted the gap).
-- **Fixed 2026-10-20: set-time set nothing.** `SetGameTimeHours` was a stub, and only the compiled-out CEF overlay sent the command. Now `/settime <hours> <minutes>` in the RmlUi chat sends it; the host runs its clock on to that hour (the next day's if earlier) with `Calendar::Update`, as a wait does (`HostEngine::SetHour`). Scenario `guest-sets-time`.
 - **Tether gaps** (2026-10-14, `docs/design/host-authority-migration.md`, "Party tether"):
   - Ready for v1.0.0 testing, accepted by the user 2026-10-27. Remaining observed travel issues are open in `docs/bugs.md`; validation details and retained limits are in `docs/design/party-travel.md`.
   - Departure announcements built 2026-10-27 (`party-travel.md`): 40438 observes queuedTarget before loading, including coc's inline queue. Followers no longer wait for arrival. Actual load starts retain network/frame skew (21–40 ms locally); cached 8 ms loads can still finish before a follower starts.
@@ -2147,8 +2025,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on
     return. A far respawn's new copy is lost out of the host's grid and not sent again (respawn parked).
   - Menu/dialogue/dead/mounted follower cases and three-player fast flows added 2026-10-27; evidence and limitations: `docs/design/party-travel.md`.
-- **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are gone** (checked 2026-10-23); they were compiled out of the
-  Windows build: the RmlUi panels replace them (party, chat).
 - **Quests** need their own design before sync goes on.
 - **Build ids of uncommitted trees match each other.** `BuildCommit()` is `git describe --tags
   --always --dirty`, written on every xmake run (`Code/common/xmake.lua`; it was configure-time only
@@ -2161,40 +2037,16 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   session, the plugin's main-loop heartbeat stopped about 2 s later in every such boot (no crash log). The harness now
   keeps the box from queuing (`bFreebiesSeen`), so nothing hits it; not read in IDA
   ([message-boxes.md](re/systems/message-boxes.md), "The test games").
-- **Fixed 2026-11-02 (below): a duo booted from a late save never connects.** The guest loaded the save itself, a world
-  of its own, which it hosts (`SteamService::HostWorld`); `duo --save` now boots it to the main menu and it joins
-  with the host's world, making a character in the creator a late save's first join opens. Was:
-- **Open 2026-10-27: a duo booted from a late save never connects** (`duo --save LateAfterElderKnowledge`, twice):
-  both games load it, the client joins, and neither shows the other in 30 s; the client's log shows it creating a host
-  of its own ("port 10578 is in use, trying 10579"). The late-save scenarios (`--tag late-save`:
-  `elder-scroll-vision-reaches-party`, `greybeards-scene-casts-party`) wait on it. Logs: `coop-test/runs/20261027-185548-duo`.
 - **Open 2026-10-24: the race menu's Weight slider, driven by harness keys, moves but the base's weight does not.**
   `ChangeWeight` (`sub_1409524D0`) writes `TESNPC+0x1FC` only when the value differs from what the menu stored; with
   D presses the slider reached its top in one step and the weight stayed (50, or 75 once). Not understood;
   `guest-makes-character-then-joins` leaves the weight at its default and still compares it in every game.
-- `dive-host-player` failed 1 of 2 on a fresh duo (2026-10-21): the copy's animation event `SwimStart` vs the
-  owner's `swimStop`; once left the copy showing visual `77785`. Cause found 2026-10-22: the copy swept across the
-  teleport home through QASmoke's water (above, "Copies sweeping across a teleport"); fixed.
 - **Checked 2026-10-22: a copy that swam stops swimming with its owner.** `copy-leaves-water-with-owner`: the host
   swims in the river and is put on its bank; its copy on the client swims, then stops (2 of 2). Not covered: an
   owner walking out up a shore (the copy follows at its owner's pace there).
-- `late-join-client` failed once on a fresh duo (2026-10-21): the client's copy of the host's player kept the
-  baseline heading (4.71 vs the host's 2.55); passed 3 of 3 after.
-- `late-join-gets-cell-state` failed once on a fresh duo (2026-10-21): the same copy heading (the host's player
-  at 1.66 vs 4.73), then 4 of 4.
 - A placed iron ingot (`created_reaches_guest` with `5ACE4`, by hand) came to rest with changes `0x3` on the
   host and `0x2` on the guest (2026-10-21): a form-flags record (`0x1`) the guest's twin lacks. Not followed
   up; the scenario places the cell's ladle, which never showed it.
-- Scenario time (2026-10-21): the world check after each scenario and after its reset looks once before
-  sampling the idle animations (about 0.1 s instead of 1.3 s or more), so a trivial scenario takes 1 s, not
-  3.5. The long ones are game time: `late-join-gets-calendar`'s waits (the Wait menu passes about an hour a
-  second, 36 h in all, ~40 s; its 24 h wait found the demotion record gap) and `world-changes-reach-guest`'s
-  placed ladle rocking ~20 s before it rests.
-- Done 2026-10-21: `vilkas-counts-client-hits` failed on a lock-order report marked ours (twice, then passed:
-  a report fails only the first scenario to hit it in a game's life). Both stacks read (the live log keeps
-  them; the run folder's copy is taken at the duo's start): an engine inversion between a quest alias fill
-  adding a spell (the VM relays the magic event under the alias array's lock) and the Wait menu's autosave,
-  with only our pass-through hooks on the stack. In `scripts/lock_order_known.txt`.
 - **Guest scripts, option 1, built 2026-10-21** (`docs/research/guest-scripts-and-mods.md`): a guest runs only the
   scripts its own player or UI caused (and what they start). Open: the UI lane is untested (no SKSE script mod in
   the test install); fragments and stacks resumed from a save skip the gate (no `SendEvent`); a guest's player-alias
@@ -2204,43 +2056,13 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   (`quest-roles-match-host` now compares them by base); location aliases are synced (`QuestState::Locations`,
   25054/25067), no scenario (no console-started quest fills one in the test setup). A join loads every running
   quest's unloaded references at once: not measured on a late save.
-- **Created objects, 2026-10-21** (critters stressed them): a deleted one is found by sweeping the ones sent each
-  update (a script's `Delete()` often records nothing), an id reused in one update sends the old one's deletion
-  first; dynamic persistence (`0x400`) and a look-at form-flags record (`0x40000`) are each game's own (oracle).
-- Not done from the 2026-10-21 list: enchanted, tempered or poisoned items taken from containers still arrive plain
-  (counts per base item); the client sometimes misses one door `open` event in `world-changes-reach-guest` (2 of
-  ~10 runs, passes on rerun), not looked into.
-- Regression 2026-10-21 evening (55 world, session, script and quest scenarios, fresh duo, 434 s): 53 pass.
-  `form-state-round-trips` (the fresh-duo loose end above) and `late-join-gets-ring-pose` on a guest lock report,
-  `+0x15584d > +0x155859` against `+0x154dce > +0x154de0`: the engine's inventory functions 11594/11591 again
-  (see `lock_order_known.txt`), at other sites; its stacks were not in the log, so not added to the known list.
-  Seen again 2026-10-23 with its stacks (an outfit reset on the remove side): added.
-- **A guest whose game restarts keeps some of its own state at join** (2026-10-21, found in the phase 5 runs):
-  `join-refused-plugins-differ` restarts the client's game, and after it rejoins (a) put-back states the host's
-  cell answer leaves out (containers changed and refilled, `changes 0x20`; a door unlocked at level 50) and (b) a
-  quest its own game started before joining that the host has stopped (`CR03`: the host sends no stopped quest) stay
-  as the client's. Later scenarios then fail on the leftovers (`world-changes-reach-guest`, `quest-roles-match-host`).
-  Save transfer at join would cover both.
-- `difficulty-follows-host` failed 2 of 8 on the phase 5 build (2026-10-21), always after other scenarios: the
-  client's copy of the host's player kept the baseline heading after the two quick rejoins (the late-join facing
-  entries above). `HEAD` before phase 5 passed 6 of 6, the same orders included; not settled whether phase 5 makes
-  it likelier. Likely the spawn heading: `SetActorRotation` was a stub, so a copy kept its created heading until its
-  owner moved; implemented the same day, then 3 of 3 passed right after the scenarios that had tripped it.
+- The client sometimes misses one door `open` event in `world-changes-reach-guest` (2026-10-21, 2 of ~10 runs, passes
+  on rerun), not looked into.
 - **Decided for review 2026-10-22: a cast's hazards are each game's own**, as its projectiles are: sync never sent them
   (`HostEngine`'s `ReadCreate` takes plain references, a placed hazard is `PHZD`), each game's replayed cast makes
   its own, and the world check now skips them (`world_differences`). Undo the check's line to make the host's the only
-  one instead. The history:
-- `burning-shows-on-copy` fails its world check about half the time (2026-10-21, 3 of 6 after the `TiltedPhoques` steps;
-  it passed the run before them): each game's own fire hazard from the spell's impact (`HAZD` 3E075, a created
-  reference) is still there when the check looks, at a different spot in each game. Either hazards are each game's
-  own transient effect and the check should skip them like projectiles, or the host's should be the only one;
-  not decided. Seen again 2026-10-22, in `flames-client-hits-host-npc` too, as a hazard alive on one game only (the
-  host's or the client's, with and without the event changes): the two games' hazards end at different times.
-- **Done 2026-10-22: `party-stacks-on-arrival` failed every run** ("[client] came within 9 units of the other player: it
-  walked through it"). The game was right: the client walked off the spot and back into the host within half a
-  second, and a player leaves the stack only after half a second off it (the grace for a one-frame jump), so it was
-  stacked again. The scenario's walk off now waits for its game to take it off the stack (the `Stack: … walked off`
-  log line); 2 of 2.
+  one instead. Found as `burning-shows-on-copy` failing its world check about half the time (2026-10-21): each game's
+  fire hazard ending at a different time.
 
 - Rule 2 through `SetStage` has no scenario (2026-10-20): `vilkas-counts-client-hits` now claims rule 1 only (the trial's sword is given at stage 200, from dialogue). Candidate: Northwatch Keep's `MS09NonCombatTrigger1Script` (`OnTriggerEnter`: `Game.GetPlayer().SetFactionRank`, then MS09 stage 55, whose fragment ranks `Game.GetPlayer()` too); needs a faction readout and MS09 staged at 40. `statue-fires-at-client` checks the host's own hits now and fails with rule 2 off (`docs/re/systems/papyrus-guest-scripts.md`, "Rule 2 never ran").
 - The client's fire statue in Soljund's Sinkhole fired though `6AE8C.disable` ran on the client (2026-10-20): its script checks `FPStatueA.isEnabled()`. Not followed up; the scenario no longer disables it (step 5 stops the client's trigger).
@@ -2249,16 +2071,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - `Projectile::LaunchData` (`Games/Skyrim/Projectiles/Projectile.h`) names `+0x50` `fYAngle`; CommonLibSSE-NG has a pointer there (`unk50`) and `desiredTarget` at `+0x58`. Projectile sync sends it as `YAngle`. Not checked in IDA.
 - A failed `sword-box-asks-client` run leaves the secret door open on the client, so the next run fails at "not closed to begin with" until a fresh duo.
 - The lock-order checker reported two inversions on the guest during a beast form change (2026-10-20, `tp_client-client.log`: the guest's character's reference lock, `SkyrimSE.exe+0x16d4cb > +0x182241` against `+0x182315 > +0x17928d`, one marked ours). Not followed up.
-- Passes again (5 of 5 on 2026-10-20 evening, client-led trip included; cause not identified). Was: `party-fast-travels` failed at the client-led trip (2026-10-20): the client's console `fasttravel` runs and nothing happens, and the step "[client] arrived somewhere new" times out. The same on HEAD `30cd815f` without the step-3 changes; not followed up.
 - A release-mode client build (`-m release --test_harness=n`) fails to link: `/opt:ref: no such file or directory` (2026-10-19, seen while checking a player build; `-m dev --test_harness=n` links).
-- `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
-  players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,
-  so the panel could pick the dead one (order-dependent, seen before). Fixed 2026-10-13: a disconnect drops
-  every copy (`DropCopies`); the panel check passed in all 4 runs since. Its other failure, Lydia's `JumpLand` missed after the rejoin,
-  is the interpolation delay entry above.
-- `late-join-client` failed once with the host's player's and Lydia's copies both facing 270° (the
-  client's home heading) against 147° (2026-10-13, after the kill-move work; then 3 of 3): the desync
-  check likely ran before the rejoined client's first rotation update.
 - A stuck `LoadWaitSpinner` once kept the host from taking input (2026-10-13, a fresh game): the first
   `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
   the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.
