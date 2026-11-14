@@ -62,6 +62,17 @@ struct CombatRead
     float SinceAttacked{};
     uint32_t TargetPathState{};  // the target's path follower: 90724 answers from a path in 1-8 and 13
     uint32_t TargetPathPoints{};
+    std::array<float, 3> TargetVelocity{}; // Actor::GetLinearVelocity (vfunc 0x86), what 47309 leads with
+    struct Aim
+    {
+        uint32_t Weapon{};
+        std::array<float, 3> Point{}; // P, where TESObjectWEAP::Fire sends the next arrow
+        uint32_t Target{};
+        uint32_t Flags{};
+        float Speed{};
+        float Delay{};
+    };
+    std::vector<Aim> Aims; // the projectile aim controllers (bows)
 };
 std::optional<CombatRead> ReadCombat(uint32_t aActorId);
 

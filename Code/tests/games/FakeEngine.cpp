@@ -1813,6 +1813,17 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
     ++it->second.Movements;
+    // Its velocity over the last 50 ms or more: the fake's frames are unpaced.
+    const auto cNow = std::chrono::steady_clock::now();
+    const float cDt = it->second.MovedAt ? std::chrono::duration<float>(cNow - *it->second.MovedAt).count() : 0.f;
+    if (cDt >= 0.05f)
+        for (int i = 0; i < 3; ++i)
+            it->second.Velocity[i] = (aPosition[i] - it->second.MovedTo[i]) / cDt;
+    if (!it->second.MovedAt || cDt >= 0.05f)
+    {
+        it->second.MovedAt = cNow;
+        std::copy_n(aPosition, 3, it->second.MovedTo);
+    }
     const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);
     if (it->second.Stepped)
@@ -1836,6 +1847,16 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
             CellChanged(aFormId, cFrom);
         }
     return true;
+}
+
+std::array<float, 3> FakeEngine::PredictedPosition(uint32_t aFormId, float aSeconds) const
+{
+    const auto& cActor = Actors.at(aFormId);
+    if (aSeconds <= 0.f)
+        return {cActor.Position[0], cActor.Position[1], cActor.Position[2]};
+    const float cAhead = aSeconds + (cActor.Copy ? static_cast<float>(cActor.LeadMs) / 1000.f : 0.f);
+    return {cActor.Position[0] + cActor.Velocity[0] * cAhead, cActor.Position[1] + cActor.Velocity[1] * cAhead,
+            cActor.Position[2] + cActor.Velocity[2] * cAhead};
 }
 
 float FakeEngine::GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept

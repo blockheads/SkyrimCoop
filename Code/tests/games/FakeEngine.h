@@ -556,6 +556,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
+        float Velocity[3]{};    // a copy's, from its last two movements (Actor::GetLinearVelocity of its stepped body)
+        std::optional<std::chrono::steady_clock::time_point> MovedAt;
+        float MovedTo[3]{};
+        uint32_t LeadMs = 0;    // a copy's lead (SetCopyLead): GetPredictedPosition looks that much further ahead
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -894,6 +898,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (Actors.contains(aFormId))
             Actors.at(aFormId).Collides = aCollides;
     }
+    void SetCopyLead(uint32_t aFormId, uint32_t aLeadMs) noexcept override
+    {
+        if (Actors.contains(aFormId) && Actors.at(aFormId).Copy)
+            Actors.at(aFormId).LeadMs = aLeadMs;
+    }
+    // Where an NPC's aim or swing guesses aFormId will be in aSeconds (Actor::GetPredictedPosition 47309): its place
+    // plus its velocity times that, a copy's looking ahead by its lead (HookGetPredictedPosition).
+    std::array<float, 3> PredictedPosition(uint32_t aFormId, float aSeconds) const;
     uint8_t BodiesLayer(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? Actors.at(aFormId).BodiesLayer : 0; }
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).GraphsStepPhysics; }
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override

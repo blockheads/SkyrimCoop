@@ -58,3 +58,42 @@ SCENARIO("A guest's fire bolt flies on the host's game", "[combat]")
         "the host's copy of the guest launches the same bolt from the same place");
     THEN("the guest's own bolt is not sent back to it") CHECK(guest.Shots.size() == 1);
 }
+
+SCENARIO("A host NPC's aim at a running guest's copy leads to where the guest will be", "[combat][copy-clock]")
+{
+    // Faendal's arrows (docs/re/systems/combat-aim.md): the host's NPC aims at the copy's predicted place (47309), the
+    // arrow flies again on the guest's game, and hits there only if the guest is at that place when it arrives.
+    constexpr uint32_t kDelayMs = 60;
+    constexpr float kSpeed = 300.f;  // a running strafe
+    constexpr float kFlight = 0.3f;  // 800 units at the hunting bow's arrow speed
+    Party party(1, SmokeWorld, true, NetConditions{.DelayMs = kDelayMs, .Seed = 5});
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) != 0; }, "the host's game has the guest's copy");
+    const uint32_t cCopy = PlayerCopy(host);
+
+    float& running = guest.Actors.at(FakeEngine::kPlayer).Position[0];
+    const float cFrom = running;
+    const auto cStart = std::chrono::steady_clock::now();
+    const auto cRun = [&](std::chrono::milliseconds aFor, const std::function<void()>& acEachFrame) {
+        while (std::chrono::steady_clock::now() - cStart < aFor)
+        {
+            running = cFrom + kSpeed * std::chrono::duration<float>(std::chrono::steady_clock::now() - cStart).count();
+            party.Frame();
+            acEachFrame();
+        }
+    };
+    cRun(std::chrono::milliseconds(1500), [] {}); // the copy's clock learns the line
+
+    double off = 0.0;
+    size_t samples = 0;
+    cRun(std::chrono::milliseconds(3000), [&] {
+        // Where the guest's game has the guest when the arrow, sent over the line, lands there.
+        const float cThen = running + kSpeed * (kFlight + kDelayMs / 1000.f);
+        off += std::abs(host.PredictedPosition(cCopy, kFlight)[0] - cThen);
+        ++samples;
+    });
+    INFO("copy delay " << party.Host().GetCopyClock().Delay() << " ms, line " << party.Host().GetCopyClock().Network() << " ms");
+    THEN("the aim lands within a body's width of the guest, on average")
+        CHECK(off / samples < 20.0);
+}

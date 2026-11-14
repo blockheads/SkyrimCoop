@@ -2,6 +2,7 @@
 #include <Actor.h>
 #include <Combat/CombatBehavior.h>
 #include <AI/AITimer.h>
+#include <Combat/CombatAimController.h>
 #include <Combat/CombatController.h>
 #include <Combat/CombatInventory.h>
 #include <Combat/CombatGroup.h>
@@ -61,6 +62,9 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
         using TReach = float(Actor*, Actor*);
         POINTER_SKYRIMSE(TReach, s_reach, 47336);
         read.TargetReach = s_reach.Get()(pTarget, pActor);
+        NiPoint3 velocity{};
+        pTarget->GetLinearVelocity(velocity);
+        read.TargetVelocity = {velocity.x, velocity.y, velocity.z};
         if (auto* pMover = reinterpret_cast<MovementController*>(pTarget->movementDrivenControl))
         {
             POINTER_SKYRIMSE(void, s_pathFollowing, 412229); // IMovementQueryPathFollowing's type id
@@ -70,6 +74,16 @@ std::optional<CombatRead> ReadCombat(uint32_t aActorId)
                 read.TargetPathPoints = pFollowing->pPath ? pFollowing->pPath->pointCount : 0;
             }
         }
+    }
+    POINTER_SKYRIMSE(void, s_projectileAimVtable, 210081);
+    for (uint32_t i = 0; i < pController->aimControllers.length; ++i)
+    {
+        const auto* pAim = static_cast<const CombatProjectileAimController*>(pController->aimControllers[i]);
+        if (!pAim || pAim->pVtable != s_projectileAimVtable.Get())
+            continue;
+        read.Aims.push_back({pAim->pSource ? pAim->pSource->formID : 0,
+                             {pAim->aimPoint.x, pAim->aimPoint.y, pAim->aimPoint.z}, form(pAim->targetHandle), pAim->flags,
+                             pAim->projectileSpeed, pAim->launchDelay});
     }
     if (const auto* pInventory = pController->pInventory)
     {

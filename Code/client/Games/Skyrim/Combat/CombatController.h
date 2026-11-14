@@ -57,6 +57,7 @@ struct CombatController
 static_assert(offsetof(CombatController, attackerHandle) == 0x28);
 static_assert(offsetof(CombatController, targetHandle) == 0x2C);
 static_assert(offsetof(CombatController, startedCombat) == 0x35);
+static_assert(offsetof(CombatController, aimControllers) == 0x50);
 static_assert(offsetof(CombatController, targetSelectors) == 0xA0);
 static_assert(offsetof(CombatController, pActiveTargetSelector) == 0xB8);
 static_assert(offsetof(CombatController, handleCount) == 0xC8);

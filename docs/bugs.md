@@ -111,6 +111,7 @@ other section needs the duo.
 - [A guest's summon](#a-guests-summon): medium
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
+- [A copy's predicted place falls back to where it stands](#a-copys-predicted-place-falls-back-to-where-it-stands): small
 
 **Found by the playthrough flow**
 
@@ -967,6 +968,26 @@ Size: medium. Needs: duo, then a decision.
     the reverse. With none, this entry goes.
 
 ## Combat
+
+### A copy's predicted place falls back to where it stands
+
+Faendal's arrows (`docs/re/systems/combat-aim.md`).
+
+Size: small. Needs: duo, IDA, then GameTests.
+
+- **The engine's guess at a guest's copy collapses mid-stride** (2026-11-14, Riverwood, the guest strafing 750 units
+  from Faendal, 2 s each way). For about a second of each leg, `Actor::GetPredictedPosition` (47309) returned the copy's
+  own place: its guess past 32 units goes through `Actor__CheckPredictionOnNavmesh` (0x14086A000), and a walk blocked by
+  a navmesh edge (`CombatUtilities__WalkNavmeshToPoint` 0x14086D1B0) drops it. The host's own player strafing in the
+  same field never collapsed (guess always `|v| x 0.5` ahead). With the lead fix the guess is still the copy's owner's
+  place there, but no further: 97 units off (median) at that spot, 26 at another.
+  - Read: the walk starts at the actor's cached navmesh location (`AIProcess__GetCachedPathingLocation` 0x140703070,
+    middleHigh `+0x1A0`), refreshed on demand by walking from the last cached spot. Inferred, not measured: a normal
+    actor's own movement (`ActorMover`, `PlayerCharacter::sub_40517`) asks often, a copy's (no `ActorMover`) only when
+    an aim asks, so its walks cross long jumps and can stop at an edge.
+  - Start: a harness read of a copy's cached location against its place while it strafes; then the refresh a copy
+    lacks. Test: `faendal-aim-leads-guest` (its `expect_aim_leads` record shows the collapsed guesses), then a GameTests flow
+    once the fake has a navmesh edge.
 
 ### After the host dies
 

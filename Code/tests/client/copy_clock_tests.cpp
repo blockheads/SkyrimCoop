@@ -4,6 +4,7 @@
 
 #include <Services/CopyClock.h>
 #include <Systems/CopyCorrection.h>
+#include <Systems/CopyLead.h>
 
 #include <algorithm>
 #include <deque>
@@ -270,4 +271,13 @@ TEST_CASE("A late snapshot's correction is blended out, never jumped", "[copy-cl
     {
         CHECK(CopyCorrection{}.At(123).x == 0.f);
     }
+}
+
+TEST_CASE("A copy's predicted place looks ahead by its delay and the line's", "[copy-clock][combat-aim]")
+{
+    // Its owner is aBehind ahead of it now, and moves on while a hit travels back over the line (combat-aim.md).
+    CHECK(CopyLead::Ms(80, 60) == 140);
+    CHECK(CopyLead::Ms(0, 0) == 0);
+    // A stalled line guesses no further than half a second.
+    CHECK(CopyLead::Ms(900, 400) == CopyLead::kMaxMs);
 }

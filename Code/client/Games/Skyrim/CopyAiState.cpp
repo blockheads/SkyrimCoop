@@ -158,6 +158,26 @@ static uintptr_t HookUpdateCombatSearchState(Actor* apActor)
     return cResult;
 }
 
+using TGetPredictedPosition = uint64_t(TESObjectREFR*, float aSeconds, float* apOut);
+static TGetPredictedPosition* RealGetPredictedPosition = nullptr;
+
+// Actor::GetPredictedPosition (47309): an aim's or swing's guess at a target. A copy's is carried on by its velocity
+// for its lead (CopyLead), after the engine's own guess and its navmesh check (0x14086A000), which stay vanilla's.
+static uint64_t HookGetPredictedPosition(TESObjectREFR* apRef, float aSeconds, float* apOut)
+{
+    const uint64_t cResult = RealGetPredictedPosition(apRef, aSeconds, apOut);
+    auto* pActor = Cast<Actor>(apRef);
+    if (aSeconds <= 0.f || !pActor || !pActor->GetExtension()->IsCopy())
+        return cResult;
+    const float cLead = static_cast<float>(pActor->GetExtension()->PredictionLeadMs.load(std::memory_order_relaxed)) / 1000.f;
+    NiPoint3 velocity{};
+    pActor->GetLinearVelocity(velocity);
+    apOut[0] += velocity.x * cLead;
+    apOut[1] += velocity.y * cLead;
+    apOut[2] += velocity.z * cLead;
+    return cResult;
+}
+
 static Hooks::Initializer s_copyAiStateHooks(
     []()
     {
@@ -169,4 +189,5 @@ static Hooks::Initializer s_copyAiStateHooks(
         HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
         HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);
         HOOK_ID(41261, &RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);
+        HOOK_ID(47309, &RealGetPredictedPosition, HookGetPredictedPosition);
     });
