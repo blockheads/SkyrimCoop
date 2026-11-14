@@ -1,0 +1,41 @@
+time	op	id	rva	item
+2026-11-14T07:54:45Z	read		0x28c0e0	{"name": "sub_14028C040"}
+2026-11-14T07:54:51Z	read	18102	0x28c450	{"name": "TESObjectWEAP::Fire"}
+2026-11-14T07:55:14Z	read	418638	0x5629f0	{"name": "sub_1405629F0"}
+2026-11-14T07:57:21Z	read	47282	0x866d90	{"name": "sub_140866D90"}
+2026-11-14T07:57:25Z	read	47340	0x86b8b0	{"name": "sub_14086B8B0"}
+2026-11-14T07:57:29Z	read		0x867c70	{"name": "sub_140867C20"}
+2026-11-14T07:57:33Z	read	47309	0x869020	{"name": "Actor__GetPredictedPosition"}
+2026-11-14T07:57:40Z	name	44384	0x80b950	{"addr": "0x14080B950", "name": "CombatProjectileAimController::Update"}
+2026-11-14T07:57:40Z	name	44396	0x80c980	{"addr": "0x14080c980", "name": "CombatProjectileAimController::UpdateAimSolution"}
+2026-11-14T07:57:40Z	name	418638	0x5629f0	{"addr": "0x1405629F0", "name": "CombatController::GetAimPoint"}
+2026-11-14T07:57:40Z	name	47282	0x866d90	{"addr": "0x140866D90", "name": "CombatUtilities::GetTargetLocation"}
+2026-11-14T07:57:40Z	name	47340	0x86b8b0	{"addr": "0x14086B8B0", "name": "CombatUtilities::VectorToHeadingPitch"}
+2026-11-14T07:57:47Z	comment	44384	0x80b950	{"addr": "0x14080B950", "comment": "CombatProjectileAimController::Update (44384, vfunc 8). Held while flags 0x40 set and 0x400 clear (Fire clears 0x40 on read); else re-solves the aim point P (+0x18) via UpdateAimSolution."}
+2026-11-14T07:57:47Z	comment	44396	0x80c980	{"addr": "0x14080c980", "comment": "UpdateAimSolution (44396): aim point = target body point (GetTargetLocation 0x140866D90, kind 2/3/4) offset from position, carried to the target's predicted place (Actor::GetPredictedPosition 47309: path follower or position + GetLinearVelocity*t) at time of flight (dist/speed +0x50, or the arc solver with gravity) + launch delay +0x98; iterated to converge. Writes P (+0x18), flag 1, a random accuracy offset at +0x8C scaled by +0xA0. docs/re/systems/combat-aim.md."}
+2026-11-14T07:57:47Z	comment	418638	0x5629f0	{"addr": "0x1405629F0", "comment": "CombatController::GetAimPoint(controller, weapon/caster, out): walks aimControllers (+0x50, count +0x60, lock +0x68); for the one not updating (flag 2) whose source (+0x10) matches, copies P (+0x18) and clears flag 0x40 unless 0x400. False: no aim, TESObjectWEAP::Fire queues the shot instead."}
+2026-11-14T07:57:47Z	comment	47282	0x866d90	{"addr": "0x140866D90", "comment": "CombatUtilities::GetTargetLocation(out, ref, kind): an actor's body point (Actor 37771, kind default 3); other refs the bound box centre."}
+2026-11-14T07:57:47Z	comment	47340	0x86b8b0	{"addr": "0x14086B8B0", "comment": "Vector to heading (0x140EDBE70) and pitch (-asin(z/len)). TESObjectWEAP::Fire turns an NPC's aim point - fire node into the launch angles here."}
+2026-11-14T07:57:47Z	comment		0x28c8ae	{"addr": "0x14028c8ae", "comment": "NPC in combat: launch angles from CombatController::GetAimPoint (combatController Actor+0x160 on 1.6.629+) minus the fire node; these final angles go into LaunchData (ZAngle/XAngle) before Projectile::Launch 44108. docs/re/systems/combat-aim.md."}
+2026-11-14T07:57:48Z	comment		0x28c0e0	{"addr": "0x14028c0e0", "comment": "not on the aim path: lazily allocates a 48-byte helper at +0x1B8 (read while looking for TESObjectWEAP::Fire)."}
+2026-11-14T08:41:22Z	read	47316	0x86a000	{"name": "sub_14086A000"}
+2026-11-14T08:41:40Z	name	47316	0x86a000	{"addr": "0x14086A000", "name": "Actor__CheckPredictionOnNavmesh"}
+2026-11-14T08:41:42Z	comment	47316	0x86a000	{"addr": "0x14086A000", "comment": "Actor__CheckPredictionOnNavmesh (our name, from 47309): walks the navmesh from the actor's place (a2) toward the guess (a3), pulled back by the actor's radius (37443); may move the guess onto the navmesh; false when no navmesh place is found, and 47309 then returns the current position. True when the start has no navmesh. docs/re/systems/combat-aim.md."}
+2026-11-14T08:41:42Z	comment		0x86913e	{"addr": "0x14086913e", "comment": "Guess further than dword_1420A1690 (32.0 units) from the actor: checked on the navmesh (0x14086A000); a failed check collapses the guess to the current position."}
+2026-11-14T08:46:50Z	read		0x67f5d0	{"name": "Character::sub_37397"}
+2026-11-14T08:46:54Z	read	30635	0x4d71a0	{"name": "Pathing_DataCtor1"}
+2026-11-14T08:47:03Z	read	37824	0x6a68f0	{"name": "Character::sub_37824"}
+2026-11-14T08:47:08Z	read	39621	0x703070	{"name": "sub_140703070"}
+2026-11-14T08:47:54Z	read	47346	0x86d1b0	{"name": "sub_14086D1B0"}
+2026-11-14T08:48:08Z	name	39621	0x703070	{"addr": "0x140703070", "name": "AIProcess__GetCachedPathingLocation"}
+2026-11-14T08:48:08Z	name	47346	0x86d1b0	{"addr": "0x14086D1B0", "name": "CombatUtilities__WalkNavmeshToPoint"}
+2026-11-14T08:48:11Z	comment	39621	0x703070	{"addr": "0x140703070", "comment": "AIProcess__GetCachedPathingLocation (our name; via Character 37824 from Pathing_DataCtor1 30635): the actor's navmesh location cached at middleHigh+0x1A0, refreshed on demand when its x/y changed or z moved > 8: walked from the old location (0x1411B7080) or found afresh (Pathing_DataCtor2). Also from AIProcess::FinishLoadGame. Start of Actor__CheckPredictionOnNavmesh."}
+2026-11-14T08:48:11Z	comment	47346	0x86d1b0	{"addr": "0x14086D1B0", "comment": "CombatUtilities__WalkNavmeshToPoint (our name): walks the navmesh from a location toward a point (0x14086BBD0); blocked, the result is where the walk stopped on the edge (BSNavmesh 91132) and it returns false, and GetPredictedPosition (47309) then drops the guess to the actor's position. docs/re/systems/combat-aim.md."}
+2026-11-14T08:48:11Z	comment		0x867c70	{"addr": "0x140867c70", "comment": "not on the aim path: a projectile's arc term (speed^2 / (gravity * scale)), read by mistake looking for 47309."}
+2026-11-14T08:48:34Z	read		0x74b65a	{"name": "sub_14074AFA0"}
+2026-11-14T08:48:41Z	comment	40515	0x74afa0	{"addr": "0x14074AFA0", "comment": "not read: opened by mistake looking for PlayerCharacter::sub_40517 (0x14074B6xx), a player-only caller of Pathing_DataCtor1 30635 (combat-aim.md, the open navmesh collapse)."}
+2026-11-14T09:01:55Z	read	44384	0x80b950	{"name": "CombatProjectileAimController::Update"}
+2026-11-14T09:01:55Z	read	44396	0x80c980	{"name": "CombatProjectileAimController::UpdateAimSolution"}
+2026-11-14T09:01:56Z	read	44100	0x7f8a50	{"name": "Projectile::Constructor"}
+2026-11-14T09:01:56Z	read	44108	0x7f9300	{"name": "Projectile::Launch"}
+2026-11-14T09:02:03Z	comment	44100	0x7f8a50	{"addr": "0x1407f8a50", "comment": "Projectile::Constructor (44100): position from LaunchData+0x8 and rotation from its angles (SetRotationZ/X/Y) as given; no re-aim here, so a relaunch with the shooter's angles flies the shooter's path. docs/re/systems/combat-aim.md."}

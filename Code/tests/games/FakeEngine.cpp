@@ -1813,6 +1813,17 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         return true;
     it->second.Stepped = aMove == CopyMove::Step;
     ++it->second.Movements;
+    // Its velocity over the last 50 ms or more: the fake's frames are unpaced.
+    const auto cNow = std::chrono::steady_clock::now();
+    const float cDt = it->second.MovedAt ? std::chrono::duration<float>(cNow - *it->second.MovedAt).count() : 0.f;
+    if (cDt >= 0.05f)
+        for (int i = 0; i < 3; ++i)
+            it->second.Velocity[i] = (aPosition[i] - it->second.MovedTo[i]) / cDt;
+    if (!it->second.MovedAt || cDt >= 0.05f)
+    {
+        it->second.MovedAt = cNow;
+        std::copy_n(aPosition, 3, it->second.MovedTo);
+    }
     const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);
     if (it->second.Stepped)
@@ -1836,6 +1847,16 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
             CellChanged(aFormId, cFrom);
         }
     return true;
+}
+
+std::array<float, 3> FakeEngine::PredictedPosition(uint32_t aFormId, float aSeconds) const
+{
+    const auto& cActor = Actors.at(aFormId);
+    if (aSeconds <= 0.f)
+        return {cActor.Position[0], cActor.Position[1], cActor.Position[2]};
+    const float cAhead = aSeconds + (cActor.Copy ? static_cast<float>(cActor.LeadMs) / 1000.f : 0.f);
+    return {cActor.Position[0] + cActor.Velocity[0] * cAhead, cActor.Position[1] + cActor.Velocity[1] * cAhead,
+            cActor.Position[2] + cActor.Velocity[2] * cAhead};
 }
 
 float FakeEngine::GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept
@@ -2787,6 +2808,31 @@ void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acO
     event.ParentCellID = Actors.at(aShooter).Cell;
     World::Get().GetRunner().Trigger(event);
     Shots.push_back({aShooter, aSpell, acOrigin});
+}
+
+void FakeEngine::ShootsAt(uint32_t aShooter, uint32_t aTarget, float aArrowSpeed)
+{
+    const auto& cShooter = Actors.at(aShooter);
+    const glm::vec3 cOrigin{cShooter.Position[0], cShooter.Position[1], cShooter.Position[2] + kFireNodeHeight};
+    // 44396: the time of flight to the predicted place, carried to the place at that time, a few rounds.
+    glm::vec3 aim{};
+    float flight = 0.f;
+    for (int i = 0; i < 4; ++i)
+    {
+        const auto cAt = PredictedPosition(aTarget, flight);
+        aim = {cAt[0], cAt[1], cAt[2] + kFireNodeHeight};
+        flight = glm::distance(aim, cOrigin) / aArrowSpeed;
+    }
+    // Fire: heading and pitch from the fire node to the aim point (0x14086B8B0).
+    const glm::vec3 cWay = aim - cOrigin;
+    ProjectileLaunchedEvent event{};
+    event.Origin = cOrigin;
+    event.ShooterID = aShooter;
+    event.ParentCellID = cShooter.Cell;
+    event.ZAngle = std::atan2(cWay.x, cWay.y);
+    event.XAngle = -std::asin(cWay.z / glm::length(cWay));
+    World::Get().GetRunner().Trigger(event);
+    Shots.push_back({aShooter, 0, cOrigin, event.ZAngle, event.XAngle});
 }
 
 void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)

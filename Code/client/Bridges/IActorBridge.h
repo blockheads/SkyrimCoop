@@ -92,6 +92,8 @@ public:
     [[nodiscard]] virtual bool CapsuleCollides(uint32_t aFormId) const noexcept = 0;
     // A copy's capsule made to collide or not, as its owner's (CapsuleCollides).
     virtual void SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcept = 0;
+    // A copy's lead (CopyLead): the engine predicts its place that much further ahead, toward its owner's.
+    virtual void SetCopyLead(uint32_t aFormId, uint32_t aLeadMs) noexcept = 0;
     // The layer its own bodies are on in the physics world, 0 when out of it: the AI puts them there as it sits (40063),
     // and the crosshair takes a seated actor only by them (CrosshairPickData::Pick).
     [[nodiscard]] virtual uint8_t BodiesLayer(uint32_t aFormId) const noexcept = 0;

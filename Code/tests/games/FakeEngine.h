@@ -556,6 +556,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                                   // actor's there (33) as it sits or sleeps (40063), never a copy's (it runs no AI)
         bool GraphsStepPhysics = true; // its graphs step with the physics world; the AI detaches them in furniture (40063)
         uint32_t Movements = 0; // its owner's movement applied (ApplyRemoteMovement stepping or placing it)
+        float Velocity[3]{};    // a copy's, from its last two movements (Actor::GetLinearVelocity of its stepped body)
+        std::optional<std::chrono::steady_clock::time_point> MovedAt;
+        float MovedTo[3]{};
+        uint32_t LeadMs = 0;    // a copy's lead (SetCopyLead): GetPredictedPosition looks that much further ahead
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool NotOnStealthMeter = false; // boolFlags kDoNotShowOnStealthMeter: 41408 skips it for the player
         bool Initializing = false; // TESForm::kStillLoading: no 3D yet, FinishLoading ends it
@@ -894,6 +898,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         if (Actors.contains(aFormId))
             Actors.at(aFormId).Collides = aCollides;
     }
+    void SetCopyLead(uint32_t aFormId, uint32_t aLeadMs) noexcept override
+    {
+        if (Actors.contains(aFormId) && Actors.at(aFormId).Copy)
+            Actors.at(aFormId).LeadMs = aLeadMs;
+    }
+    // Where an NPC's aim or swing guesses aFormId will be in aSeconds (Actor::GetPredictedPosition 47309): its place
+    // plus its velocity times that, a copy's looking ahead by its lead (HookGetPredictedPosition).
+    std::array<float, 3> PredictedPosition(uint32_t aFormId, float aSeconds) const;
     uint8_t BodiesLayer(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? Actors.at(aFormId).BodiesLayer : 0; }
     bool GraphsStepPhysics(uint32_t aFormId) const noexcept override { return !Actors.contains(aFormId) || Actors.at(aFormId).GraphsStepPhysics; }
     void SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool aGraphsStep) noexcept override
@@ -970,11 +982,23 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    // This game's NPC looses an arrow at aTarget (TESObjectWEAP::Fire 18102): aimed at its predicted place at the
+    // arrow's time of flight (CombatProjectileAimController 44396 over PredictedPosition), chest high, then launched.
+    void ShootsAt(uint32_t aShooter, uint32_t aTarget, float aArrowSpeed);
+    static constexpr float kFireNodeHeight = 110.f; // the bow's fire node, and the target's body point, above the feet
     struct Shot
     {
         uint32_t Shooter = 0;
         uint32_t Spell = 0;
         glm::vec3 Origin{};
+        float ZAngle = 0.f; // heading, as Projectile::Launch takes it
+        float XAngle = 0.f; // pitch, down positive
+        std::chrono::steady_clock::time_point At = std::chrono::steady_clock::now(); // launched or relaunched here
+        // Where it is aDistance along its way.
+        [[nodiscard]] glm::vec3 Along(float aDistance) const noexcept
+        {
+            return Origin + aDistance * glm::vec3(std::sin(ZAngle) * std::cos(XAngle), std::cos(ZAngle) * std::cos(XAngle), -std::sin(XAngle));
+        }
     };
     std::vector<Shot> Shots;
     void LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId, float aOriginX, float aOriginY, float aOriginZ,
@@ -983,7 +1007,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
                           float aPower, float aScale, bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
                           bool aDeferInit, bool aForceConeOfFire, bool aUnkBool1, bool aUnkBool2) noexcept override
     {
-        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
+        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}, aZAngle, aXAngle});
     }
     std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }

@@ -154,7 +154,7 @@ struct TESObjectREFR : TESForm
     virtual void sub_83();
     virtual void SetBaseForm(TESForm* apForm);
     virtual void sub_85();
-    virtual void sub_86();
+    virtual void GetLinearVelocity(NiPoint3& aVelocity) const; // 86, game units per second
     virtual void sub_87();
     virtual void sub_88();
     virtual void DisableImpl();

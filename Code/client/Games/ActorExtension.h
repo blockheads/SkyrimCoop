@@ -50,6 +50,8 @@ struct ActorExtension
 
     // A copy's owner's place, stepped to in its movement job (HookApplyMovement; set by SkyrimBridge).
     float CopyGoal[3]{};
+    // A copy: Actor::GetPredictedPosition looks this much further ahead (CopyLead; read on the combat jobs' threads).
+    std::atomic<uint32_t> PredictionLeadMs{0};
     bool HasCopyGoal = false;
 
     // A copy's replayed action, applied at the start of its graph updates (AnimationSystem::RunReplayStep).
