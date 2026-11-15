@@ -385,6 +385,7 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
         if (!frame.Key.Actor)
         {
             own.Moved.push_back({.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation});
+            own.Objects.push_back(frame);
             continue;
         }
         frame.Key = {.Index = frame.Key.Index};
@@ -393,7 +394,10 @@ GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t) noexcept
     for (BodyPose& rest : bodies.Rested)
     {
         if (!rest.Key.Actor)
+        {
+            own.ObjectsRested.push_back(rest);
             continue;
+        }
         rest.Key = {.Index = rest.Key.Index};
         own.RagdollRested.push_back(rest);
     }

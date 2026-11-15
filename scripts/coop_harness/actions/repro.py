@@ -803,6 +803,10 @@ class ReproActions:
             ctx.LINE_DELAY = 0
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
+            if kind == "put_back":  # clutter a verb moved (moves_and_watches): back where it was
+                with contextlib.suppress(TestFailure):
+                    ctx.put_back(ref)
+                continue
             game = "client" if kind == "guest-object" else ""
             # An item a player picked up is gone already.
             if kind in ("object", "guest-object") and ref not in ctx.world_state(game, [ref]):
@@ -1000,7 +1004,8 @@ class ReproActions:
     def expect(ctx, name, check, within=5.0, game=None, value=None, of=None, field=None, seconds=0.0):
         """The correct behaviour, checked now: "same_place" (the two games within `within` units), "at" (that game's
         place within `within` of `value`), "at_rest_of" (that game's place within `within` of where the `of` game's body
-        rested, as wait_rest saw it), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
+        rested, as wait_rest saw it), "steady" (`game`'s body of `name` never jumped in a frame after its player moved
+        it, from moves_and_watches' trace), "stage" (quest `name` at stage value[0] in both games), "items" (container `name`
         holds the same in both games), "crosshair" (that game's player, or each, faces `name` in first person and the engine's
         crosshair takes it within `seconds`), "actor" (`field` of the snapshot equals `value` in `game` or both, within `seconds`;
         value "set": anything but nothing; no value: the two games equal), "faces" (actor `name`'s body faces handle `of`
@@ -1101,6 +1106,14 @@ class ReproActions:
                 raise ctx.failure(f"{name}: not at stage {value[0]:g} in both games: {stages}")
             return {"stages": stages}
         shown = ctx.observe_one(name)
+        if check == "steady":
+            game = "guest" if game in ("guest", "client") else "host"
+            snaps = getattr(ctx, "REPRO_SNAPS", {}).get((name, game))
+            if snaps is None:
+                raise ctx.failure(f"{name}: no trace of the {game}'s (moves_and_watches first)")
+            if snaps:
+                raise ctx.failure(f"{name}: the {game}'s jumps after its player moved it: {snaps} (s in, units)")
+            return {"snaps": 0}
         if check == "at_rest_of":
             game = "guest" if game in ("guest", "client") else "host"
             other = "guest" if of in ("guest", "client") else "host"

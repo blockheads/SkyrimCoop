@@ -1,6 +1,7 @@
 #include <Services/Guest/GuestWorldState.h>
 
 #include <Bridges/GuestEngine.h>
+#include <Services/BodyService.h>
 #include <Messages/WorldState.h>
 #include <Events/UpdateEvent.h>
 #include <Events/ContainerChangeEvent.h>
@@ -80,6 +81,13 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
             if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove && m_engine.RestsThere(cChange))
             {
                 spdlog::debug("GuestWorldState: {} placed by its body rest already", WorldStateLog::Describe(cChange));
+                continue;
+            }
+            // What this game's player moves (its drop included) lands where this game's physics puts it.
+            if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove &&
+                (m_engine.Adopting(cChange.Object) || m_world.ctx().at<BodyService>().MovedHere(cChange.Object)))
+            {
+                spdlog::info("GuestWorldState: {} left: this game's player moves it", WorldStateLog::Describe(cChange));
                 continue;
             }
             if (m_engine.ApplyObjectChange(cChange, message.Cell != GameId{}))

@@ -2,7 +2,7 @@
 import unittest
 
 from coop_harness import Session
-from coop_harness.objects import RagdollTrace
+from coop_harness.objects import FlightTrace, RagdollTrace
 from coop_harness.errors import TestFailure
 
 
@@ -104,3 +104,17 @@ class CopyAtRest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MoverSnaps(unittest.TestCase):
+    """moves_and_watches' `steady` check (physics-sync.md, "The mover's until its rest")."""
+
+    @staticmethod
+    def path(xs):
+        return [(i * 0.016, [x, 0.0, 0.0]) for i, x in enumerate(xs)]
+
+    def test_a_fast_slide_slowing_down_is_steady(self):
+        self.assertEqual(FlightTrace.snaps(self.path([0, 8, 15, 21, 26, 30, 33, 35, 36, 36, 36])), [])
+
+    def test_a_placed_rest_after_stopping_is_a_snap(self):
+        self.assertEqual(FlightTrace.snaps(self.path([0, 5, 9, 12, 12, 12, 22.1, 22.1, 22.1])), [(0.1, 10.1)])
