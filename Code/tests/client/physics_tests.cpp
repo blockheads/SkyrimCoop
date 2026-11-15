@@ -498,6 +498,16 @@ TEST_CASE("A copy's step is in its own frame: forward along its heading, right a
     CHECK(cNear(CopyStep::Local({0.f, 10.f, 0.f}, 1.57079633f), {-10.f, 0.f, 0.f}));
 }
 
+TEST_CASE("A copy on its owner's place steps by nothing, as a still NPC: its step would wake its island", "[physics][copy-step]")
+{
+    // Havok's step lands a hair short (0.04 units measured): a copy standing still must not chase it.
+    CHECK(CopyStep::Translation({0.04f, 0.f, 0.f}, 0.f) == glm::vec3(0.f));
+    CHECK(CopyStep::Translation({0.f, 0.3f, -0.3f}, 1.f) == glm::vec3(0.f));
+    // A slow walk's frame (about 80 units/s at 60 fps) still steps.
+    CHECK(glm::length(CopyStep::Translation({0.f, 1.3f, 0.f}, 0.f) - glm::vec3(0.f, 1.3f, 0.f)) < 1e-4f);
+    CHECK(glm::length(CopyStep::Translation({10.f, 0.f, 2.f}, 1.57079633f) - glm::vec3(0.f, 10.f, 2.f)) < 1e-4f);
+}
+
 TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[body-prediction][kill-move]")
 {
     CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));

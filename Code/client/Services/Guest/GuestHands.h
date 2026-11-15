@@ -16,8 +16,8 @@ struct World;
  * @brief This game's own bodies: its player's hand on the host's, its player's ragdoll, and this game's own physics
  * (docs/design/physics-sync.md, "A guest's own actions", "Owners"):
  *
- *   push, hold,   the body is this game's own until the host's rest: its own physics shows it, the pushes and the
- *   drop          held frames go to the host (then a let go), and the host's frames of it wait
+ *   push, hit,    the body is this game's own until the host's rest: its own physics shows it, the pushes and the
+ *   hold, drop    held frames go to the host (then a let go), and the host's frames of it wait
  *   ragdoll       its player's while it simulates (dead): its frames, then its rest, to the host for the others
  *   moved alone   a body this game's physics moved by itself (its copy of a blast, a bump of its own body) that the
  *                 host's frames never follow asks the host where it is, kOwnMs later
@@ -60,8 +60,8 @@ private:
         bool Seen{};     // awake this update
     };
 
-    // This game's player's pushes and let gos to the host; the bodies it newly owns into aOwned, the held ones' frames
-    // into aFrames.
+    // This game's player's pushes, hits and let gos to the host; the bodies it newly owns into aOwned, the held ones'
+    // frames into aFrames.
     void SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::vector<BodyFrame>& aFrames) noexcept;
     // This game's player's ragdoll: its awake bodies' frames into aFrames, its rest to the host.
     void SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept;

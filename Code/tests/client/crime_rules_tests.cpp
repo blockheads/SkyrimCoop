@@ -47,9 +47,10 @@ TEST_CASE("An NPC is hostile for a party crime for any grudge Skyrim keeps", "[C
     CHECK(PartyIsCriminalTo({.Witness = true}));
 }
 
-TEST_CASE("A guest's seen theft alarms at once: the steal warning would go to the host's player", "[CrimeRules]")
+TEST_CASE("A guest's steal warning names the guest's copy where the engine names its player", "[CrimeRules]")
 {
-    CHECK_FALSE(Warns(true, true));
-    CHECK_FALSE(Warns(false, true));
-    CHECK(Warns(true, false));
+    constexpr int cPlayer = 1, cCopy = 2, cOwner = 3;
+    CHECK(Warned(cPlayer, cPlayer, cCopy) == cCopy);
+    CHECK(Warned(cOwner, cPlayer, cCopy) == cOwner); // only the player's place
+    CHECK(Warned(cPlayer, cPlayer, 0) == cPlayer);   // the host's own theft
 }

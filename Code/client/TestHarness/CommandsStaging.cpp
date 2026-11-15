@@ -1,6 +1,7 @@
 #include "Commands.h"
 #include "ConsoleOutput.h"
 #include "EngineCalls.h"
+#include "SwingWatch.h"
 
 // Setting up a scenario: console lines, menus, the camera, where the player stands, a copy's drift.
 namespace TestHarness
@@ -105,6 +106,50 @@ nlohmann::json Face(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::FacePlayerToward(acRequest.value("target", 0u)) ? Ok() : Error("no such target");
 }
 
+GameSwingCast::Reach ReachOf(const nlohmann::json& acRequest) noexcept
+{
+    const std::string cReach = acRequest.value("reach", "weapon");
+    return cReach == "two_hand" ? GameSwingCast::Reach::kTwoHand : cReach == "h2h" ? GameSwingCast::Reach::kHandToHand : GameSwingCast::Reach::kWeapon;
+}
+
+nlohmann::json SwingCastJson(const GameSwingCast::Cast& acCast)
+{
+    nlohmann::json hits = nlohmann::json::array();
+    for (const auto& cHit : acCast.Hits)
+        hits.push_back({{"ref", cHit.Reference}, {"layer", cHit.Layer}, {"point", cHit.Point}});
+    return {{"ok", acCast.Cast}, {"eye", acCast.Eye}, {"direction", acCast.Direction}, {"reach", acCast.Reach}, {"radius", acCast.Radius}, {"hits", hits}};
+}
+
+// {"cmd": "swing_cast", "reach": "weapon" | "two_hand" | "h2h"}: what the player's melee swing would hit now, nearest
+// first (the engine's own cast: GameSwingCast); a swing takes the first.
+nlohmann::json SwingCast(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCast = EngineCalls::PlayerSwingCast(ReachOf(acRequest));
+    return cCast ? SwingCastJson(*cCast) : Error("no player");
+}
+
+// {"cmd": "aim_swing", "point": [x, y, z], "reach": ...}: the player's eye looks at the point (first person), then
+// swing_cast's answer. The eye follows the turn: aim again until the first hit is the one wanted.
+nlohmann::json AimSwing(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cPoint = acRequest.value("point", std::array<float, 3>{});
+    if (!EngineCalls::AimPlayerEyeAt(cPoint.data()))
+        return Error("no player");
+    const auto cCast = EngineCalls::PlayerSwingCast(ReachOf(acRequest));
+    return cCast ? SwingCastJson(*cCast) : Error("no player");
+}
+
+// {"cmd": "last_swing"}: the player's last melee swing as the engine cast it (TestHarness::SwingWatch): its count, eye,
+// direction, reach and hits, nearest first (the swing took the first).
+nlohmann::json LastSwing(Harness&, const nlohmann::json&)
+{
+    const auto cLast = SwingWatch::Last();
+    auto answer = SwingCastJson(cLast.Cast);
+    answer["ok"] = true;
+    answer["count"] = cLast.Count;
+    return answer;
+}
+
 // {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the reference (on the
 // bearing's side if given), facing it (a move, not a teleport). With "position": [x, y, z], it stands there (its
 // feet), facing the target if one is given: coop_test.py picks a spot it checked with rays.
@@ -131,7 +176,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
-    {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
+    {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"clear_map_marker", true, &ClearMapMarker},
 };
 } // namespace

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include <Hooks/FunctionHook.h>
+#include <Hooks/Memory.h>
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
 
@@ -41,6 +42,8 @@ std::atomic<bool> s_watching;
 std::atomic<const void*> s_playerController;
 std::mutex s_pushesLock; // a leaf lock
 std::vector<PlayerHands::Push> s_pushes;
+std::vector<PlayerHands::Push> s_hits;
+thread_local const void* s_swinger{}; // the actor whose swing 38628 runs now (38603 sends it to the main thread)
 
 const void* PlayerController() noexcept
 {
@@ -57,13 +60,12 @@ bool IsPlayers(const void* apListener) noexcept
            static_cast<const uint8_t*>(apListener) + 0x10 == s_playerController.load(std::memory_order_relaxed);
 }
 
-void Record(const hkpRigidBody& acBody, const glm::vec3& acImpulse, const glm::vec3& acPoint) noexcept
+void Record(std::vector<PlayerHands::Push>& aInto, const hkpRigidBody& acBody, const glm::vec3& acImpulse, const glm::vec3& acPoint) noexcept
 {
     const TESObjectREFR* pObject = ReferenceOf(acBody);
     if (!pObject)
         return;
-    std::scoped_lock _(s_pushesLock);
-    s_pushes.push_back({pObject->formID, &acBody, acImpulse * cHavokToGame, acPoint * cHavokToGame});
+    aInto.push_back({pObject->formID, &acBody, acImpulse * cHavokToGame, acPoint * cHavokToGame});
 }
 
 // bhkCharProxyController::objectInteractionCallback (79133, vfunc 5): the engine's scaling (by layer and mass) fills
@@ -78,12 +80,57 @@ void HookObjectInteraction(void* apThis, void* apProxy, const InteractionEvent* 
         return;
     const glm::vec3 cImpulse(apResult->objectImpulse[0], apResult->objectImpulse[1], apResult->objectImpulse[2]);
     if (cImpulse != glm::vec3(0.f))
-        Record(*apEvent->body, cImpulse, glm::vec3(apResult->impulsePosition[0], apResult->impulsePosition[1], apResult->impulsePosition[2]));
+    {
+        std::scoped_lock _(s_pushesLock);
+        Record(s_pushes, *apEvent->body, cImpulse, glm::vec3(apResult->impulsePosition[0], apResult->impulsePosition[1], apResult->impulsePosition[2]));
+    }
+}
+
+// Actor::CalculateCurrentHitTargetForWeaponSwing (38628): the swing's shape cast; a dynamic body it meets gets a point
+// impulse at +0x6BE (docs/re/systems/physics.md, "A swing's hit").
+using TWeaponSwing = void*(void*);
+TWeaponSwing* RealWeaponSwing = nullptr;
+
+void* HookWeaponSwing(void* apActor)
+{
+    const void* pOuter = std::exchange(s_swinger, apActor);
+    void* pTarget = RealWeaponSwing(apActor);
+    s_swinger = pOuter;
+    return pTarget;
+}
+
+// 38628's call of hkpMotion::applyPointImpulse (vfunc 0x14), under the world's write lock.
+using TApplyPointImpulse = void(hkpRigidBody::Motion*, const float*, const float*);
+constexpr ptrdiff_t cSwingImpulseCall = 0x6BE;
+
+void SwingImpulse(hkpRigidBody::Motion* apMotion, const float* apImpulse, const float* apPoint)
+{
+    reinterpret_cast<TApplyPointImpulse*>(apMotion->vtable[0x14])(apMotion, apImpulse, apPoint);
+    if (!s_watching.load(std::memory_order_relaxed) || !s_swinger || s_swinger != PlayerCharacter::Get())
+        return;
+    const auto* pBody = reinterpret_cast<const hkpRigidBody*>(reinterpret_cast<const uint8_t*>(apMotion) - offsetof(hkpRigidBody, motion));
+    const glm::vec3 cImpulse(apImpulse[0], apImpulse[1], apImpulse[2]);
+    if (cImpulse != glm::vec3(0.f))
+    {
+        std::scoped_lock _(s_pushesLock);
+        Record(s_hits, *pBody, cImpulse, glm::vec3(apPoint[0], apPoint[1], apPoint[2]));
+    }
 }
 
 Hooks::Initializer s_playerHandsHooks([] {
     const HookGate cGate(__FILE__);
     HOOK_ID(79133, &RealObjectInteraction, HookObjectInteraction);
+    // call qword ptr [rax+0A0h], 6 bytes: a call to ours and a nop.
+    VersionDbPtr<uint8_t> swing(38628);
+    uint8_t* pCall = swing.Get() + cSwingImpulseCall;
+    if (pCall[0] == 0xFF && pCall[1] == 0x90 && *reinterpret_cast<const int32_t*>(pCall + 2) == 0xA0)
+    {
+        Hooks::PutCall(pCall, &SwingImpulse);
+        Hooks::Nop(pCall + 5, 1);
+        HOOK_ID(38628, &RealWeaponSwing, HookWeaponSwing);
+    }
+    else
+        spdlog::error("PlayerHands: the weapon swing's impulse call is missing");
 });
 } // namespace
 
@@ -96,6 +143,12 @@ std::vector<Push> Take() noexcept
     return std::exchange(s_pushes, {});
 }
 
+std::vector<Push> TakeHits() noexcept
+{
+    std::scoped_lock _(s_pushesLock);
+    return std::exchange(s_hits, {});
+}
+
 void Watch(bool aOn) noexcept
 {
     s_watching.store(aOn, std::memory_order_relaxed);
@@ -103,6 +156,7 @@ void Watch(bool aOn) noexcept
     {
         std::scoped_lock _(s_pushesLock);
         s_pushes.clear();
+        s_hits.clear();
     }
 }
 } // namespace PlayerHands

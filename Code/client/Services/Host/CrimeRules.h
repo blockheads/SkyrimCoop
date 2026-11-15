@@ -42,9 +42,9 @@ template <class T> [[nodiscard]] constexpr T AlarmOwner(T aGiven, T aTargetOwner
 {
     return aGiven ? aGiven : aTargetOwner;
 }
-// A steal warning (StartStealWarning 37556) goes to the host's player alone: a guest's seen theft is never warned.
-[[nodiscard]] constexpr bool Warns(bool aAllowed, bool aByGuest) noexcept
+// The steal warning (37556, procedure 40) names g_thePlayer: for a guest's theft, its copy in that place.
+template <class T> [[nodiscard]] constexpr T Warned(T aPassed, T aPlayer, T aGuestCopy) noexcept
 {
-    return aAllowed && !aByGuest;
+    return aGuestCopy && aPassed == aPlayer ? aGuestCopy : aPassed;
 }
 } // namespace CrimeRules

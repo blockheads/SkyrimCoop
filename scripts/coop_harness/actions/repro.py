@@ -583,6 +583,130 @@ class ReproActions:
         ctx.REPRO_RESTS[(name, "guest" if instance else "host")] = position
         return {"position": position}
 
+    def line_up_swing(ctx, instance, ref, reach="weapon", lifts=tuple(range(-3, 19, 3))):
+        """That game's player aims its melee swing at `ref` so the engine's own swing cast meets it first (the cast
+        38628 sweeps: a 12-unit sphere from the eye, docs/re/systems/physics.md, "A swing's hit"). Tries aims from just
+        under the body to over it (the sphere meets the floor under a flat object first) and takes the middle of the
+        longest run that meets it first: the eye moves a little during the swing. Fails naming what each aim meets."""
+        centre = ctx.body_of(instance, ref)["position"]
+
+        def aim(lift):
+            point, eye = [centre[0], centre[1], centre[2] + lift], None
+            # The eye (the first-person camera node) moves as the player turns: aim until it stays.
+            for _ in range(5):
+                cast = ctx.player_command(instance, {"cmd": "aim_swing", "point": point, "reach": reach}) or {}
+                if not cast.get("ok"):
+                    raise ctx.failure(f"[{instance or 'host'}] no swing cast: {cast.get('error', 'no answer')}")
+                if eye is not None and math.dist(eye, cast["eye"]) < 0.5:
+                    break
+                eye = cast["eye"]
+            if math.dist(cast["eye"], centre) > cast["reach"]:
+                raise ctx.failure(f"[{instance or 'host'}] {ref:X} is {math.dist(cast['eye'], centre):.0f} units from the eye, "
+                                  f"past the swing's reach {cast['reach']:.0f}: stand closer")
+            return cast
+
+        casts = {lift: aim(lift) for lift in lifts}
+        firsts = {lift: (cast["hits"][0] if cast["hits"] else None) for lift, cast in casts.items()}
+        runs, run = [], []
+        for lift in lifts:
+            if firsts[lift] and firsts[lift]["ref"] == ref:
+                run.append(lift)
+            elif run:
+                runs.append(run)
+                run = []
+        if run:
+            runs.append(run)
+        if not runs:
+            tried = "; ".join(f"{lift:+}: " + (f"{hit['ref']:X} layer {hit['layer']}" if hit else "nothing") for lift, hit in firsts.items())
+            raise ctx.failure(f"[{instance or 'host'}] no aim puts {ref:X} first in the swing's cast ({tried})")
+        best = max(runs, key=len)
+        lift = best[len(best) // 2]
+        cast = aim(lift)
+        return {"lift": lift, "meets": best, "eye": cast["eye"], "direction": cast["direction"]}
+
+    def describe_bodies(ctx, refs, mine):
+        """Each game's body of the object (motion, awake, speed), how far apart the games show it, and how near the
+        other game's copy of the swinging player stands to it there."""
+        games = {"host": "", "guest": "client"}
+        bodies = {who: ctx.body_of(games[who], ref) for who, ref in refs.items()}
+        parts = [f"{who} motion {b['motion']} {'awake' if b['awake'] else 'asleep'} {math.hypot(*b['velocity']):.2f} units/s"
+                 for who, b in bodies.items()]
+        parts.append(f"{math.dist(bodies['host']['position'], bodies['guest']['position']):.2f} units apart")
+        other = "host" if mine == "guest" else "guest"
+        if (copy := ctx.other_player_position(games[other])) is not None:
+            parts.append(f"the {mine}'s copy {math.dist(copy[:2], bodies[other]['position'][:2]):.0f} units from the {other}'s")
+        return ", ".join(parts)
+
+    def describe_swing(ctx, instance, lined, swings_before, ref):
+        """The player's last real swing (the harness's last_swing: the engine's own cast) against its line-up."""
+        last = ctx.player_command(instance, {"cmd": "last_swing"})
+        if last["count"] == swings_before:
+            return f"the swing cast nothing (lined up at {lined['lift']:+} over {ref:X})"
+        first = last["hits"][0] if last["hits"] else None
+        met = "nothing" if not first else f"{first['ref']:X}" + (" (the target)" if first["ref"] == ref else f" layer {first['layer']}, not {ref:X}")
+        turn = math.degrees(math.acos(max(-1.0, min(1.0, sum(a * b for a, b in zip(lined["direction"], last["direction"]))))))
+        return (f"the swing's cast met {met} first; its eye {math.dist(lined['eye'], last['eye']):.1f} units and its look "
+                f"{turn:.1f} degrees from the line-up's (at {lined['lift']:+} over {ref:X}), reach {last['reach']:.0f}")
+
+    def swing_at(ctx, name, game="guest", moved=1.0, seconds=6, gap=50):
+        """That game's player swings its drawn weapon at the handle's object (placed `gap` before it first): the object
+        moves off where it rested in both games, by at least `moved` units, and the guest's comes to lie where the
+        host's rests. The swing is lined up first (line_up_swing): one swing, which must land."""
+        instance = "client" if game in ("guest", "client") else ""
+        mine = "guest" if instance else "host"
+        refs = {"host": ctx.resolve(name, "host"), "guest": ctx.resolve(name, "guest")}
+        games = {"host": "", "guest": "client"}
+        where = lambda who: ctx.body_of(games[who], refs[who])["position"]
+        ctx.draw(instance)
+        ctx.place_before(instance, refs[mine], gap)
+        # Still and agreeing for a second, by place (the host can keep a resting body awake, creeping under 0.1
+        # units/s). A placed object settling, or the host's rolling one played on the guest, would pass for a knock.
+        def still_for(second, agree):
+            seen = {"since": None, "at": None}
+            def check():
+                now = {who: where(who) for who in refs}
+                if (agree and math.dist(now["host"], now["guest"]) > 1) or seen["at"] is None \
+                        or any(math.dist(now[who], seen["at"][who]) > 0.5 for who in refs):
+                    seen["since"], seen["at"] = time.monotonic(), now
+                    return False
+                return time.monotonic() - seen["since"] >= second
+            return check
+        try:
+            ctx.wait_for(f"{name} lies still in both games before the swing", still_for(1.0, True), seconds * 3)
+            # Keyframed on the other game's frames it is massless: the swing's impulse would be 0 (38628).
+            ctx.wait_for(f"[{mine}] {name} is its own to hit (dynamic, not played on the host's frames)",
+                         lambda: ctx.body_of(games[mine], refs[mine])["motion"] not in (4, 5), seconds * 3)
+        except TestFailure as failure:
+            raise ctx.failure(f"{failure}: {ctx.describe_bodies(refs, mine)}") from None
+        starts = {who: where(who) for who in refs}
+        lined = ctx.line_up_swing(instance, refs[mine])
+        swings_before = ctx.player_command(instance, {"cmd": "last_swing"})["count"]
+        at_swing = ctx.describe_bodies(refs, mine)
+        ctx.attack(instance)
+        seen = {"woke": False, "speed": 0.0, "velocity": [0.0, 0.0, 0.0], "off": 0.0}
+        def knocked():
+            body = ctx.body_of(games[mine], refs[mine])
+            speed = math.hypot(*body["velocity"])
+            seen["woke"] |= body["awake"]
+            if speed > seen["speed"]:
+                seen["speed"], seen["velocity"] = speed, body["velocity"]
+            seen["off"] = max(seen["off"], math.dist(body["position"], starts[mine]))
+            return seen["off"] > moved
+        try:
+            ctx.wait_for(f"[{mine}] the swing knocks {name}", knocked, 2)
+        except TestFailure as failure:
+            body = (f"its body {'woke' if seen['woke'] else 'never woke'}, at most {seen['speed']:.1f} units/s "
+                    f"({', '.join(f'{v:.1f}' for v in seen['velocity'])}), at most {seen['off']:.2f} units off")
+            raise ctx.failure(f"{failure}: {ctx.describe_swing(instance, lined, swings_before, refs[mine])}; {body}; "
+                              f"at the swing {at_swing}") from None
+        other = "host" if mine == "guest" else "guest"
+        ctx.wait_for(f"[{other}] the swing knocks {name}", lambda: math.dist(where(other), starts[other]) > moved, seconds)
+        ctx.wait_for(f"{name} comes to lie at one place in both games", still_for(1.0, True), seconds * 3)
+        ends = {who: where(who) for who in refs}
+        if math.dist(ends["host"], starts["host"]) <= moved:
+            raise ctx.failure(f"[host] {name} lies back where it rested before the swing ({math.dist(ends['host'], starts['host']):.1f} units off)")
+        return {"moved": {who: round(math.dist(ends[who], starts[who]), 1) for who in refs}}
+
     def unstage(ctx):
         """Removes what stage made (objects, spawned NPCs) in both games and thaws the world."""
         with contextlib.suppress(TestFailure):

@@ -3,6 +3,7 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include <Physics/BodyPrediction.h>
+#include <Systems/CopyStep.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
@@ -97,6 +98,18 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Flight.Body.AngularVelocity = acSpin;
     body.Awake = true;
     body.Tick = 0;
+    // Woken still (Wake) no more: the knock moves it.
+    body.StillFor = body.StillUntil = 0;
+}
+
+void FakeEngine::Swing(const BodyKey& acKey, const glm::vec3& acImpulse)
+{
+    Body& body = Bodies.at(acKey);
+    // A keyframed body (played on the host's frames) has no mass: 38628 scales its impulse to 0, nothing moves.
+    if (body.Held)
+        return;
+    PlayerHits.push_back({acKey, acImpulse, body.Flight.Body.Position});
+    Knock(acKey, body.Flight.Body.LinearVelocity + acImpulse, body.Flight.Body.AngularVelocity);
 }
 
 void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
@@ -315,6 +328,26 @@ uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
 
 std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
 {
+    // A stepped copy's step sets its body's velocity, which wakes what shares its island (62456); a still one's is none
+    // (CopyStep::Translation), as a still NPC's (79201).
+    for (const auto& [cFormId, cActor] : Actors)
+    {
+        if (!cActor.Copy || !cActor.Stepped || cActor.Dead || cActor.Disabled || !cActor.Loaded)
+            continue;
+        const glm::vec3 cFeet(cActor.Position[0], cActor.Position[1], cActor.Position[2]);
+        const glm::vec3 cGoal(cActor.Goal[0], cActor.Goal[1], cActor.Goal[2]);
+        if (CopyStep::Translation(cGoal - cFeet, cActor.Rotation[2]) == glm::vec3(0.f))
+            continue;
+        for (auto& [cKey, body] : Bodies)
+        {
+            const glm::vec3& cAt = body.Flight.Body.Position;
+            if (cKey.Actor || body.Held || glm::length(glm::vec2(cAt.x - cFeet.x, cAt.y - cFeet.y)) >= kIslandReach ||
+                cAt.z < cFeet.z - kIslandReach || cAt.z >= cFeet.z + kCapsuleTop)
+                continue;
+            if (body.Flight.Resting)
+                Wake(cKey, kStepMs);
+        }
+    }
     std::vector<uint32_t> moved;
     for (const auto& [cKey, cBody] : Bodies)
         if (cBody.Awake && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())

@@ -1605,8 +1605,8 @@ __declspec(noinline) static void StepCopy(Actor* apThis, ActorExtension* apExten
         apThis->ForcePosition(cGoal);
         return;
     }
-    const glm::vec3 cLocal = CopyStep::Local({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
-                                              cGoal.z - apThis->position.z}, apThis->rotation.z);
+    const glm::vec3 cLocal = CopyStep::Translation({cGoal.x - apThis->position.x, cGoal.y - apThis->position.y,
+                                                    cGoal.z - apThis->position.z}, apThis->rotation.z);
     apThis->Move(aDelta, NiPoint3(cLocal));
 }
 

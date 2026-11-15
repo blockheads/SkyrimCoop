@@ -41,12 +41,18 @@ void NotifyCrimeConfiscation::SerializeRaw(Wire::Buffer::Writer& aWriter) const 
 {
     Serialization::WriteVarInt(aWriter, Id);
     Faction.Serialize(aWriter);
+    Owner.Serialize(aWriter);
+    To.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, ToActor);
 }
 
 void NotifyCrimeConfiscation::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     Faction.Deserialize(aReader);
+    Owner.Deserialize(aReader);
+    To.Deserialize(aReader);
+    ToActor = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
 }
 
 void NotifyLockCrime::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

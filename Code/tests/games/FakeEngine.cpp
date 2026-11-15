@@ -1816,7 +1816,11 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const float cHeight = it->second.Position[2];
     std::copy_n(aPosition, 3, it->second.Position);
     if (it->second.Stepped)
+    {
+        std::copy_n(aPosition, 3, it->second.Goal);
+        it->second.Position[0] -= kStepShort;
         it->second.Position[2] = std::min(cHeight, aPosition[2]);
+    }
     // Its capsule meets its furniture; the write-back after physics moves it where it was pushed (actor-movement.md).
     // Actor::Move clears the no-collision bit out of furniture (37507, 0x14068990A).
     if (it->second.Stepped && !it->second.InFurniture)

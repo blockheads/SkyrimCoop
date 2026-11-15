@@ -1,10 +1,10 @@
-"""The guest takes a bottle off Orgnar's bar while he sees it, warnings unspent: the party's bounty rises in both games. The steal warning (37556) would go to the host's player, so a guest's seen theft is not warned (docs/re/systems/crime.md).
+"""The guest takes a bottle off Orgnar's bar while he sees it, the party's two warnings spent: the party's bounty rises in both games (StealAlarm 37422 alarms at once; the warning itself: guest-theft-warned, docs/re/systems/crime.md).
 
 Recorded with the repro MCP (docs/design/repro-mcp.md)."""
 # hand-written: from the recording 20261113-092352-guest-theft-at-bar-bounty.jsonl, its probes and the too-slow tap (a grab) dropped
 NAME = 'guest-theft-at-bar-bounty'
 TAGS = ['crime', 'scene']
-DOC = "The guest takes a bottle off Orgnar's bar while he sees it, warnings unspent: the party's bounty rises in both games. The steal warning (37556) would go to the host's player, so a guest's seen theft is not warned (docs/re/systems/crime.md)."
+DOC = "The guest takes a bottle off Orgnar's bar while he sees it, the party's two warnings spent: the party's bounty rises in both games (StealAlarm 37422 alarms at once; the warning itself: guest-theft-warned, docs/re/systems/crime.md)."
 
 
 def run(ctx):
@@ -12,7 +12,7 @@ def run(ctx):
         ctx.name_players()
         ctx.scene(save=None, at='coc RiverwoodSleepingGiantInn', pin=True)
         ctx.report_crimes()
-        ctx.set_warnings(0)
+        ctx.set_warnings(2)
         ctx.name_handle('bottle', {'host': 0x33288, 'guest': 0x33288})
         ctx.stage({'players': {'guest': {'near': 'bottle', 'gap': 90}, 'host': {'near': 'bottle', 'gap': 700}}})
         ctx.turn_to(instance='client', face=ctx.resolve('bottle', 'guest'))
@@ -21,6 +21,6 @@ def run(ctx):
         before = ctx.bounty_total()
         ctx.hold_key('client', 'e', 0.05)  # a tap takes it; a hold past fZKeyDelay would grab
         ctx.expect_bounty(at_least=before + 1, seconds=10)
-        ctx.expect_warnings(0)
+        ctx.expect_warnings(2)
     finally:
         ctx.unstage()

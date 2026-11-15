@@ -1,5 +1,6 @@
 #include "EngineCalls.h"
 #include <Havok/Raycast.h>
+#include <Havok/SwingCast.h>
 
 #include <AI/AIProcess.h>
 #include <AI/Movement/Pathing.h>
@@ -2241,6 +2242,28 @@ std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept
         if (const auto cFrames = ReferenceBodies::ReadFrames(*pRef); !cFrames.empty())
             return std::array{cFrames[0].Position.x, cFrames[0].Position.y, cFrames[0].Position.z};
     return std::array{pRef->position.x, pRef->position.y, pRef->position.z};
+}
+
+std::optional<GameSwingCast::Cast> PlayerSwingCast(GameSwingCast::Reach aReach) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return std::nullopt;
+    return GameSwingCast::CastFor(*pPlayer, aReach);
+}
+
+bool AimPlayerEyeAt(const float acPoint[3]) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return false;
+    ForcePlayerFirstPerson();
+    NiPoint3 eye{}, direction{};
+    pPlayer->GetEyeVector(eye, direction, false);
+    // Skyrim angles: z the heading clockwise from north (+y), x the pitch (positive looks down).
+    const float cDx = acPoint[0] - eye.x, cDy = acPoint[1] - eye.y, cDz = eye.z - acPoint[2];
+    pPlayer->SetRotation(std::atan2(cDz, std::sqrt(cDx * cDx + cDy * cDy)), 0.f, std::atan2(cDx, cDy));
+    return true;
 }
 
 std::optional<std::array<float, 2>> PlayerAngles() noexcept

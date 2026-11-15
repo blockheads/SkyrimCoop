@@ -192,6 +192,9 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     NotifyCrimeConfiscation confiscation;
     confiscation.Id = 19;
     confiscation.Faction = GameId(0, 0x28170);
+    confiscation.Owner = GameId(0, 0x1347B);
+    confiscation.To = GameId(0, 0x1A6F4);
+    confiscation.ToActor = 7;
     Buffer fine;
     Buffer::Writer fineWriter(&fine);
     confiscation.Serialize(fineWriter);
@@ -201,6 +204,9 @@ TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encodi
     REQUIRE(due->GetOpcode() == NotifyCrimeConfiscation::Opcode);
     CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Id == confiscation.Id);
     CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Faction == confiscation.Faction);
+    CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Owner == confiscation.Owner);
+    CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).To == confiscation.To);
+    CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).ToActor == 7);
 }
 
 TEST_CASE("Crime requests initialize omitted IDs and reject invalid ownership stacks", "[encoding.crime]")

@@ -83,6 +83,14 @@ void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::ve
     std::erase_if(pushes.Pushes, [this](const BodyPush& acPush) { return m_holding.contains(acPush.Key); });
     for (const auto& cPush : pushes.Pushes)
         Own(cPush.Key, aTick, "pushes", aOwned);
+    // Its weapon's hits: pushes too (the host's copy of its swing hits nothing).
+    for (const auto& cHit : m_engine.TakeHits())
+    {
+        if (m_holding.contains(cHit.Key))
+            continue;
+        Own(cHit.Key, aTick, "hits", aOwned);
+        pushes.Pushes.push_back(cHit);
+    }
     if (!pushes.Pushes.empty())
         transport.Send(pushes);
 

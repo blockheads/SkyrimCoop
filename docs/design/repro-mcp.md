@@ -184,6 +184,27 @@ place, a staged NPC and a guest's gold came back, and `expect agree all` held af
 5. The guest's path to copies of host-spawned NPCs is refused (`go_to` runs straight): why is open.
 6. Checked actions (`checked-actions.md`, "Finishing it"): `move`/`push_toward` become tools.
 
+## Lining up a swing (2026-11-13)
+
+A melee swing at an object missed most tries: `face` aims a guessed eye at the reference's origin, while the engine
+sweeps a 12-unit sphere from the first-person eye and takes the nearest contact, often the floor under a flat object
+(`docs/re/systems/physics.md`, "A swing's hit").
+
+```
+swing_cast  (harness)  what the player's swing would meet now: the engine's own cast (GameSwingCast), nearest first
+aim_swing   (harness)  turn the player's eye at a point, then swing_cast
+last_swing  (harness)  the player's last real swing as the engine cast it (SwingWatch hooks 25931 from 38628)
+line_up_swing (verb)   aim from under the body to over it; the middle of the aims meeting it first, or fail naming
+                       what each met
+swing_at      (verb)   wait until still and agreeing, line up, one swing; a miss says what the real swing met, how far
+                       its eye and look moved, and each game's body (motion, awake, speed) at the swing
+```
+
+`guest-swing-moves-host` runs on them. What the readouts found: the line-up and the real swing agree (0.0 degrees); the
+misses left were swings at a body the host kept awake, keyframed on the guest, which gets a zero impulse
+(`docs/re/systems/physics.md`, "A swing's hit"). `who_wakes` showed the guest's own copy waking it every frame
+(fixed: `actor-movement.md`, "Copies step"); the scenario still waits until the guest's body is its own (dynamic).
+
 ## Context
 
 Today a repro means writing a Python scenario and rerunning it from the start for every change: 30–90 s per try, with

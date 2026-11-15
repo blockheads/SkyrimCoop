@@ -110,34 +110,85 @@ SCENARIO("A guest's theft is judged after the witnesses looked, and what follows
     CHECK(judged[1].first == CrimeAction::PayFine);
 }
 
-SCENARIO("A guest's seen theft adds bounty at once: the owner's warning would go to the host's player", "[crime][theft-warning]")
+SCENARIO("A guest's seen theft is warned: the owner takes it back from the guest's game, no bounty", "[crime][theft-warning]")
 {
-    // guest-theft-at-bar-bounty (2026-11-13): StartStealWarning (37556) warns g_thePlayer, never the guest.
-    Party party;
+    // guest-theft-warned (2026-11-13): StartStealWarning (37556) and its step (procedure 40) name g_thePlayer; the
+    // host's bridge puts the guest's copy in that place, and the given-back runs where the item's ownership is.
+    Party party(2, SmokeWorld);
+    auto& engine = Party::Engine(party.Host());
     auto& host = Crime(party.Host());
     auto& guest = Crime(party.Guest());
     host.SeenThefts = true;
+    uint32_t owner = 0;
+    party.As(party.Host(), [&] { owner = engine.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    party.Agree("the owner and the players' copies exist everywhere");
+    std::optional<uint32_t> guestSession;
+    party.As(party.Guest(), [&] { guestSession = Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
+    uint32_t thief{}, ownerSession{};
+    party.As(party.Host(), [&] {
+        thief = Utils::GetFormIdBySessionId(guestSession.value_or(0));
+        ownerSession = Utils::GetSessionIdByFormId(owner).value_or(0);
+    });
+    REQUIRE(thief);
+    REQUIRE(ownerSession);
     CrimeRequest theft;
     theft.Action = CrimeAction::Theft;
-    theft.Item = GameId(0, 0xF);
-    theft.Target = GameId(0, 0x1234);
+    theft.Item = GameId(0, 0x64B36);
+    theft.Target = GameId(0, 0x33288);
+    theft.Owner = GameId(0, 0x1347B);
     theft.Count = 1;
     theft.AllowWarning = true;
     guest.Actions.push_back(theft);
-    party.Until([&] { return !guest.Gold.empty() && guest.Gold == host.Gold; }, "the loose item's theft: bounty in both games");
-    CHECK(host.TheftWarnings == 0);
-    CrimeRequest chest;
-    chest.Action = CrimeAction::ContainerTheft;
-    chest.Target = GameId(0, 0x1235);
-    chest.AllowWarning = true;
-    CrimeItem line;
-    line.Item.BaseId = GameId(0, 0x64B36);
-    line.Item.Count = 1;
-    chest.Items.push_back(line);
-    guest.Actions.push_back(chest);
-    party.Until([&] { return host.Judged.size() == 2 && guest.Gold == host.Gold; }, "the container theft: bounty in both games");
-    CHECK(host.Gold.front().NonViolent == 10);
-    CHECK(host.TheftWarnings == 0);
+    party.Until([&] { return host.TheftWarnings == 1; }, "the guest's seen theft spends the party's warning");
+    REQUIRE(host.Warnings.size() == 1);
+    CHECK(host.Warnings.front().Thief == thief);
+    CHECK(host.Gold.empty());
+    party.As(party.Host(), [&] { host.EndWarnings(owner); });
+    party.Until([&] { return !guest.Confiscated.empty(); }, "the thief's game gives the item back");
+    uint32_t cOwnerHere{};
+    party.As(party.Guest(), [&] { cOwnerHere = Utils::GetFormIdBySessionId(ownerSession); });
+    REQUIRE(cOwnerHere);
+    CHECK(guest.Confiscated.front() == CrimeConfiscation{.Owner = GameId(0, 0x1347B), .ToActor = cOwnerHere});
+    CHECK(Crime(party.Guest(1)).Confiscated.empty());
+    CHECK(host.Confiscated.empty());
+    CHECK(guest.Gold.empty());
+}
+
+SCENARIO("A steal warning's given-back waits on the guest until the owner NPC is there", "[crime][theft-warning]")
+{
+    // CharacterService holds a spawn while the guest's reference is still loading: the notification can come first.
+    constexpr uint32_t kOrgnar = 0x1A6D8, kOrgnarBase = 0x1A6D7, kSinkhole = 0x9C5E1;
+    Party party(1, [](FakeEngine& aEngine) {
+        SmokeWorld(aEngine);
+        aEngine.PlaceNpc(kOrgnar, kOrgnarBase, kSinkhole, {-50.f, 20.f, 0.f});
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guestEngine = Party::Engine(party.Guest());
+    auto& guest = Crime(party.Guest());
+    guestEngine.Actors.at(kOrgnar).Cell = 0x31D2E;
+    guestEngine.Actors.at(kOrgnar).Initializing = true;
+    party.As(party.Host(), [&] { host.NpcWalks(kOrgnar, 0x31D2E, {40.f, 10.f, 0.f}); });
+    uint32_t session = 0;
+    party.Until([&] {
+        party.As(party.Host(), [&] { session = Utils::GetSessionIdByFormId(kOrgnar).value_or(0); });
+        return session != 0;
+    }, "the host names its NPC");
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    uint32_t here = 1;
+    party.As(party.Guest(), [&] { here = Utils::GetFormIdBySessionId(session); });
+    REQUIRE(here == 0); // the guest's spawn waits for its reference
+    NotifyCrimeConfiscation due;
+    due.Id = 1;
+    due.Owner = GameId(0, 0x1347B);
+    due.ToActor = session;
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(due); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(guest.Confiscated.empty());
+    party.As(party.Guest(), [&] { guestEngine.FinishLoading(kOrgnar); });
+    party.Until([&] { return !guest.Confiscated.empty(); }, "the given-back runs once the owner's copy is there");
+    CHECK(guest.Confiscated == std::vector<CrimeConfiscation>{{.Owner = GameId(0, 0x1347B), .ToActor = kOrgnar}});
 }
 
 SCENARIO("A reconnecting guest replaces stale bounty and receives its own lock decision", "[crime]")
@@ -173,7 +224,7 @@ SCENARIO("Confiscation runs once on the chooser's game with its own stolen-item 
     for (const auto& [id, actor] : engine.Actors)
         if (actor.Player && actor.Copy) { payer = id; break; }
     REQUIRE(payer);
-    host.Confiscations.push_back({payer, GameId(0, 0x28170)});
+    host.Confiscations.push_back({.Actor = payer, .Faction = GameId(0, 0x28170)});
     party.Until([&] { return Crime(party.Guest()).Confiscated.size() + Crime(party.Guest(1)).Confiscated.size() == 1; },
                 "only the payer's game confiscates its stolen stacks");
     CHECK(host.Confiscated.empty());
