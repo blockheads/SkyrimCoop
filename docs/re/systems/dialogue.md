@@ -484,3 +484,18 @@ graphs detached too: 18 bodies keyframed (motion 4) within 1.6 units of the host
 games' bodies left the world and both crosshairs still took him, now by his capsule. The harness `controller` readout shows the
 controller's `size`; with the fix both games' crosshairs took the leaning Lucan, both controllers at `size` 0. GameTests "A guest's crosshair takes an NPC copy seated in its furniture" (the fake's `BodiesLayer`, `GraphsStepPhysics`, `BodiesDriven`,
 `CrosshairTakes`), scenario `guest-crosshair-skips-leaning-npc`.
+
+## How the crosshair picks (1.7.104, 2026-11-14)
+
+Read in IDA for "can't pick up items near Orgnar" (bugs.md, "Picking up near Orgnar").
+
+| ID | Name (ours) | What |
+|---|---|---|
+| (no ID, 0x140409fd0) | `CrosshairPickData::Pick` | Scores each hit of the sphere cast by how far its contact point lies from the ray's centreline (the cast's units x 69.99), smallest first, kept after a line-of-sight ray. Clutter (layers 4/5, or 1 with shape type 10) also gets an exact ray against its shape, other references `NiPick` on their 3D. The exact pick stands, unless the sphere's best is the same reference nearer, there is no exact pick, or the sphere's best can go in a container and the exact pick cannot (an item beats an actor only once it is the sphere's best). Past `fActivatePickLength` only an actor whose race size (+0x128) is 3 stays picked |
+| 40548 | `PlayerCharacter::ActivatePickRef` | E released without a grab: the crosshair's reference (none: the grabbed one), then the perk Activate choice (below) or `TESObjectREFR::ActivateRef` (19796) with its count. Nothing activated: the refusal sound |
+| (no ID, 0x14076a7a0) | `PlayerCharacter__TryPerkActivateChoice` | Perk entry point 14 (Activate): when perks add choices (Vampire Feed, Cannibal), the ActivateChoiceMenu message box instead of the plain activation |
+
+So a held E that neither grabs nor takes had no crosshair reference: `ActivateHandler::ProcessButton` (42420) calls
+`ActivatePickRef` on every release that started no grab. Loose items under Orgnar's counter top lose the crosshair to
+him or a bar bottle because the camera's ray meets the counter first; measured the same with our plugin out of a
+session.

@@ -70,6 +70,7 @@ other section needs the duo.
 - [A dropped sword](#a-dropped-sword): small
 - [A chest lid's pose](#a-chest-lids-pose): small
 - [A late rest undoes a scripted move](#a-late-rest-undoes-a-scripted-move): small
+- [Picking up near Orgnar](#picking-up-near-orgnar): small, the user's answer first
 
 **Dialogue**
 
@@ -658,6 +659,33 @@ Size: small. Needs: GameTests, then duo.
   - Every Sleeping Giant scene flow (`guest-grabs-orgnar-bottle`, `object-rests-beside-orgnar`) passes its steps and
     fails the runner's end comparison on these weapons, with the host-only container change flags (`0x8000000`, "A
     town's end comparison finds ambient differences") and now and then one or two pieces of clutter turned differently.
+
+### Picking up near Orgnar
+
+Not reproduced: the user's report of 2026-11-14 ("can't pick up items near Orgnar"), no more detail.
+
+Agent task: Ask the user what was tried (which items, tap or hold, host or guest, what happened), or catch it with the
+crosshair named in the log; then the bug-fix flow.
+
+Size: small. Needs: the user's answer, then the duo (the Sleeping Giant).
+
+- **Measured 2026-11-14** (duo, `scene` at `RiverwoodSleepingGiantInn`, the guest at the bar, the host far and beside
+  it): the guest's tap takes Orgnar's bar items (`3133D`, `3327A`) and its hold grabs them (`33287`), the host beside
+  it or not. Each take is a party theft: Orgnar and Delphine fight the guest's copy, as for any witnessed theft.
+- **The user's own session** (the main checkout's `play --control guest`, 19:21-19:23, guest log
+  `tp_client-client.log`, `/bug` `2026-11-14-1923-c99` with no note): about 25 E presses on the bar's items. Five
+  taps took items, two holds grabbed; the holds 19:21:54-22:04 and 19:23:21-25 did nothing: no grab (no
+  `GuestHands ... holds`) and no activation (the report's breadcrumbs show no `HookActivate` between them), so the
+  crosshair held nothing in reach (`ActivatePickRef` 40548 activates only the crosshair's reference). At 19:23:20 the
+  guest's copy stood 275 units from `601D3`, the item it took at 19:23:26. The log does not name the crosshair, so
+  "out of reach" and "crosshair on something else" can't be told apart.
+- **Orgnar's shelf under the counter top** (gold `601DB`, plates `601D6`): the crosshair takes Orgnar or a bar bottle;
+  the camera's ray hits the counter (`6009B`) first. The same with our plugin out of a session (`vanilla_start
+  plugin`): the engine's pick (dialogue.md, "How the crosshair picks"), not ours.
+- Also seen: the host streams the bar's clutter (14 bodies) to the guest a few frames at a time, again and again,
+  through the user's session (`HostPhysics: ... gets the frames of 601D2 ...`), and `601D3` without a rest for 6 s
+  while the guest pressed at it. Not seen on a fresh scene (only `1060AD`, one frame every 2 s). A body the guest grabs
+  ignores the host's frames (`GuestHands::TakesFrame`), so this is not shown to block a grab.
 
 ## Dialogue
 

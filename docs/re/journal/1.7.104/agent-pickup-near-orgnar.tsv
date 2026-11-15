@@ -1,0 +1,10 @@
+time	op	id	rva	item
+2026-11-15T01:27:38Z	read	42420	0x7b2660	{"name": "ActivateHandler::ProcessButton"}
+2026-11-15T01:29:46Z	read	40548	0x751580	{"name": "PlayerCharacter::ActivatePickRef"}
+2026-11-15T01:29:52Z	comment	40548	0x751580	{"addr": "0x140751580", "comment": "PlayerCharacter::ActivatePickRef (40548): E released without a grab. Takes CrosshairPickData +4 (the crosshair ref handle; none -> a grabbed/held ref, owner set to the player), then if sub_14076A7A0 (handle check) fails calls TESObjectREFR::ActivateRef(ref, player, 0, 0, count, 0). Nothing activated -> the refusal menu sound. So a tap-E pick-up goes to whatever the crosshair took."}
+2026-11-15T01:29:55Z	read	19796	0x2f11b0	{"name": "TESObjectREFR::ActivateRef"}
+2026-11-15T01:36:25Z	read	26127	0x409fd0	{"name": "CrosshairPickData::Pick"}
+2026-11-15T01:47:41Z	read	41003	0x76a7a0	{"name": "sub_14076A7A0"}
+2026-11-15T01:47:48Z	name	41003	0x76a7a0	{"addr": "0x14076A7A0", "name": "PlayerCharacter__TryPerkActivateChoice"}
+2026-11-15T01:47:50Z	comment	41003	0x76a7a0	{"addr": "0x14076A7A0", "comment": "Perk entry point 14 (Activate) on the crosshair ref: when perks add activate choices (e.g. Vampire Feed, Cannibal), shows the ActivateChoiceMenu message box and returns true (ActivatePickRef then skips ActivateRef). False: plain activation goes on."}
+2026-11-15T01:47:50Z	comment	26127	0x409fd0	{"addr": "0x140409fd0", "comment": "CrosshairPickData::Pick: sphere cast (layer 44) along the camera ray; each hit's ref is scored by how far its contact point lies from the ray's centreline (x69.99 = units), smallest wins after a line-of-sight ray (v33). Clutter (layers 4/5, or 1 with shape type 10) also gets an exact ray against its shape (v142), others NiPick on their 3D. Final: the exact pick, unless the sphere candidate is the same ref nearer, or there is no exact pick, or the sphere candidate can go in a container and the exact pick cannot (items beat actors). Past fActivatePickLength only big-race actors stay picked."}

@@ -236,7 +236,7 @@ class InputActions:
             request["bearing"] = bearing  # its side of the target (0 north, 90 east): two players apart
         placed = ctx.player_command(instance, request)
         if bearing is not None and abs((placed.get("bearing", bearing) - bearing + 180) % 360 - 180) > 1:
-            log(f"[{instance or 'host'}] bearing {bearing:.0f} from {target:X} is blocked: stands at {placed['bearing']:.0f} instead")
+            log(f"[{instance or 'host'}] bearing {bearing:.0f} from {ctx.resolve(target, instance):X} is blocked: stands at {placed['bearing']:.0f} instead")
         ctx.wait_for(f"[{instance or 'host'}] stands on the ground", lambda: ctx.game_frame(instance) >= moved + 3
                  and ctx.local_player(instance).get("character_state") == ON_GROUND
                  and not ctx.graph_bools(instance, "bInJumpState")["bInJumpState"], 5)
