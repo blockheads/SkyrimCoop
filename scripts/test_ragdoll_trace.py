@@ -118,3 +118,23 @@ class MoverSnaps(unittest.TestCase):
 
     def test_a_placed_rest_after_stopping_is_a_snap(self):
         self.assertEqual(FlightTrace.snaps(self.path([0, 5, 9, 12, 12, 12, 22.1, 22.1, 22.1])), [(0.1, 10.1)])
+
+
+class HoldTraceReadout(unittest.TestCase):
+    """holds_into's numbers: the spring's gap while held, and when and how the body swept into moved per game."""
+
+    def test_gap_onset_and_turnbacks(self):
+        from coop_harness.objects import HoldTrace
+        frame = lambda i: 1.0 + i * 0.016
+        held = [{"t": frame(i) * 1e6, "id": 1, "position_3d": [i, 0, 0], "grab": {"gap": float(i % 5)}} for i in range(20)]
+        # Pushed from frame 10, pulled back once at frame 14 in the guest, from frame 16 on the host.
+        guest = [{"t": frame(i) * 1e6, "id": 2, "position_3d": [0 if i < 10 else (i - 10) * 2 if i < 14 else 4, 0, 0]}
+                 for i in range(13)] + [{"t": frame(13) * 1e6, "id": 2, "position_3d": [2, 0, 0]},
+                                        {"t": frame(14) * 1e6, "id": 2, "position_3d": [6, 0, 0]}]
+        host = [{"t": frame(i) * 1e6, "id": 2, "position_3d": [0 if i < 16 else (i - 15) * 2, 0, 0]} for i in range(20)]
+        out = HoldTrace.analyse({"client": held + guest, "": host}, "client", 1, 2, 1.0, frame(19))
+        self.assertEqual(out["gap"]["max"], 4.0)
+        self.assertAlmostEqual(out["into"]["client"]["onset"], 11 * 0.016, places=3)
+        self.assertAlmostEqual(out["into"][""]["onset"], 16 * 0.016, places=3)
+        self.assertEqual(out["into"]["client"]["turnbacks"], 2)
+        self.assertEqual(out["into"][""]["turnbacks"], 0)

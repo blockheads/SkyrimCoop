@@ -449,6 +449,53 @@ class FlightTrace:
             raise ctx.failure(f"[client] its playback of {self.report(ref)}")
 
 
+class HoldTrace:
+    """What a player's grab looks like in its own game and the other's (verb holds_into): from body_trace samples
+    ({game: [entry]}, entries with the harness's "grab" while the player holds it), the held body's gap to the
+    spring's target (PlayerCharacter::UpdateGrab 40556: the engine drops past 96), its jumps, and how the body it was
+    swept into moved in each game: when it started, how often it turned back, its jumps and where it ended."""
+
+    MOVED = 1.0  # units from its start: it has started moving
+
+    @staticmethod
+    def path(entries, ref):
+        return [(e["t"] / 1e6, e["position_3d"]) for e in entries if e["id"] == ref and not e.get("rendered")]
+
+    @staticmethod
+    def turnbacks(path, step=0.5):
+        """Frames whose move goes back on the one before (cosine below -0.5, both over `step` units)."""
+        moves = [[b - a for a, b in zip(p0, p1)] for (_, p0), (_, p1) in zip(path, path[1:])]
+        moves = [m for m in moves if math.hypot(*m) > step]
+        return sum(1 for a, b in zip(moves, moves[1:])
+                   if sum(x * y for x, y in zip(a, b)) / (math.hypot(*a) * math.hypot(*b)) < -0.5)
+
+    @classmethod
+    def analyse(cls, samples, mover, target, into, start, released):
+        """samples: {game: [entry]}; mover: the holder's game; start, released: wall-clock seconds of the grab and the
+        let go. Returns {"gap": {...}, "held": {game: {...}}, "into": {game: {...}}}, times from `start`."""
+        out = {"held": {}, "into": {}}
+        gaps = sorted(e["grab"]["gap"] for e in samples.get(mover, []) if e["id"] == target and e.get("grab"))
+        if gaps:
+            out["gap"] = {"frames": len(gaps), "p50": round(gaps[len(gaps) // 2], 1), "p90": round(gaps[int(len(gaps) * 0.9)], 1),
+                          "max": round(gaps[-1], 1)}
+        for game, entries in samples.items():
+            held = cls.path(entries, target)
+            if len(held) >= 3:
+                # Each list's times: from the trace's start while held, from the let go after.
+                out["held"][game] = {"snaps_held": FlightTrace.snaps([p for p in held if p[0] <= released]),
+                                     "snaps_after": FlightTrace.snaps([p for p in held if p[0] >= released])}
+            path = cls.path(entries, into)
+            if len(path) < 2:
+                continue
+            origin = path[0][1]
+            onset = next((t for t, p in path if math.dist(p, origin) > cls.MOVED), None)
+            out["into"][game] = {"onset": round(onset - start, 3) if onset else None,
+                                 "moved": round(max(math.dist(p, origin) for _, p in path), 1),
+                                 "ends": round(math.dist(path[-1][1], origin), 1),
+                                 "turnbacks": cls.turnbacks(path), "snaps": FlightTrace.snaps(path)[:6]}
+        return out
+
+
 class RagdollTrace:
     """Records actors' ragdolls frame by frame on their games (the harness's body_trace: each ragdoll body, and the
     skeleton's pelvis and head nodes, what a person sees) and says how each moved without a video: per series (a body,

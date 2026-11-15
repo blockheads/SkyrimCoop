@@ -1,0 +1,17 @@
+time	op	id	rva	item
+2026-11-15T01:29:45Z	read	40556	0x753580	{"name": "PlayerCharacter::sub_40556"}
+2026-11-15T01:30:22Z	read	62469	0xb99d80	{"name": "hkpMouseSpringAction::sub_62469"}
+2026-11-15T01:30:43Z	name	40556	0x753580	{"addr": "0x140753580", "name": "PlayerCharacter::UpdateGrab"}
+2026-11-15T01:30:43Z	name	62469	0xb99d80	{"addr": "0x140b99d80", "name": "hkpMouseSpringAction::setMousePosition"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v17", "new": "grabDistance"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v118", "new": "gapHk"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v47", "new": "gapUnits"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v113", "new": "pHeldRef"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v19", "new": "pHeldBody"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v114", "new": "eyePos"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v111", "new": "eyeDir"}
+2026-11-15T01:30:43Z	local	40556	0x753580	{"func_addr": "0x140753580", "old": "v122", "new": "targetHk"}
+2026-11-15T01:30:50Z	comment	40556	0x753580	{"addr": "0x140753580", "comment": "AddressLib ID 40556. PlayerCharacter::UpdateGrab (our name, read 2026-11-14 on 1.7.104), from PlayerCharacter::Update each frame while grabbedObject (+0x8D8 handle here) has springs. Eye pos/dir (vfunc 0x610); a ray along the look direction shortens the hold distance (+0x8E0) to the first other reference hit; gap = spring's body point (action+0x40 to world) minus its target (action+0x50); over 96 units (mode 1) DestroyMouseSprings. Else new target eye+dir*distance -> hkpMouseSpringAction::setMousePosition (62469) per spring. The body follows by Havok's spring (fZKeySpring* settings), not placed. docs/re/systems/physics.md Grabbing"}
+2026-11-15T01:30:50Z	comment		0x753a8c	{"addr": "0x140753a8c", "comment": "gap between the held point and the spring target, game units; > 96 drops the grab (player mode 1)"}
+2026-11-15T01:30:50Z	comment		0x753fc6	{"addr": "0x140753fc6", "comment": "spring target = eye + look * hold distance (game units * 0.0142875 to Havok)"}
+2026-11-15T01:30:50Z	comment	62469	0xb99d80	{"addr": "0x140b99d80", "comment": "AddressLib ID 62469. hkpMouseSpringAction::setMousePosition (our name, Havok's): writes m_mousePositionInWorld (+0x50); wakes the entity (+0x30, hkpEntity::Activate 60849) when it moved past epsilon."}

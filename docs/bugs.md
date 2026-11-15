@@ -66,6 +66,7 @@ other section needs the duo.
 
 **Physics**
 
+- [A guest's hold knocks late and hard](#a-guests-hold-knocks-late-and-hard): medium (waits on a design choice)
 - [A long roll jumps](#a-long-roll-jumps): small
 - [A copy standing in a guest's rest](#a-copy-standing-in-a-guests-rest): small
 - [A chest lid's pose](#a-chest-lids-pose): small
@@ -590,6 +591,21 @@ Size: small. Needs: duo.
   - Start: repeat `client-melee-kill-credit` and read the host's `BodyService` rest log for the wolf.
 
 ## Physics
+
+### A guest's hold knocks late and hard
+
+Stands alone: who simulates a host body a guest's held body touches ([physics-sync.md](design/physics-sync.md), "A
+guest's hold meets the host's bodies"; options there, the user's to choose).
+
+Agent task: Build the option the user picks, with `holds_into` as its scenario and a GameTests flow.
+
+Size: medium. Needs: a decision, then GameTests, duo.
+
+- **Playtest** (2026-11-14, the Sleeping Giant): moving held clutter into other clutter "feels laggy, everything
+  delayed". Measured (`holds_into`, bottle 33288 into 33287): the guest's 33287 moves ~240 ms after its push (the host
+  plays the hold 130 ms behind, the guest the host's 33287 110 ms behind), and the host's keyframed copy of the hold
+  shoved it off the bar (121 and 135 units, both guest runs that touched it) where a game without a session pushes
+  it 7 (2 of 2).
 
 ### A long roll jumps
 

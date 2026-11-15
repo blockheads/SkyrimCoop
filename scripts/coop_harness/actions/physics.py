@@ -1,5 +1,6 @@
 """Actions for the co-op harness."""
 import argparse
+import json
 import collections
 import contextlib
 import math
@@ -25,6 +26,7 @@ from ..common import (
     KEYFRAMED_MOTION,
     OBJECT_EVENTS,
     PLAYER_WEREWOLF_QUEST,
+    TRACES,
     WORLD_WINDOW,
 )
 from ..errors import TestFailure
@@ -38,7 +40,11 @@ from ..comparisons import (
     world_differences,
 )
 from ..utilities import log
-from ..objects import FlightTrace
+from ..objects import FlightTrace, HoldTrace
+
+
+def _who(game):
+    return game or "host" if game != "client" else "guest"
 
 
 class PhysicsActions:
@@ -388,6 +394,64 @@ class PhysicsActions:
         ctx.REPRO_RESTS[(name, whose)] = rest
         ctx.REPRO_SNAPS = {**getattr(ctx, "REPRO_SNAPS", {}), (name, whose): snaps}
         return {"object": f"{target:X}", "rest": [round(x, 1) for x in rest], "snaps": snaps[:6]}
+
+    def holds_into(ctx, instance, target, into, hold=1.5, rate=90, alone=False, name="held"):
+        """`instance`'s player grabs `target`, turns (mouse, `rate` degrees a second) to aim at `into` so the held
+        object is pressed into it for `hold` seconds, and lets go. Every game present traces both each frame
+        (body_trace, with the spring's target while held): returns the held body's gap to its spring target (the
+        hand-to-object lag; the engine drops past 96), its jumps held and after the let go, and when and how `into`
+        moved in each game (HoldTrace). alone=true: a game with no session (vanilla_start plugin=true), the same
+        numbers without co-op."""
+        mover = instance or ""
+        games = [mover] if alone else ["", "client"]
+        target, into = ctx.resolve(target, instance), ctx.resolve(into, instance)
+        if not alone:
+            ctx.staged().append(("put_back", ctx.where_now([target, into])))
+        # Beside the pair, so aiming from one to the other sweeps the held one into it: the side the player is on.
+        a, b = ctx.body_of(mover, target)["position"], ctx.body_of(mover, into)["position"]
+        me = ctx.my_position(instance)
+        side = (b[1] - a[1], -(b[0] - a[0]))
+        if side[0] * (me[0] - a[0]) + side[1] * (me[1] - a[1]) < 0:
+            side = (-side[0], -side[1])
+        ctx.place_before(instance, target, 90, bearing=math.degrees(math.atan2(side[0], side[1])) % 360)
+        ctx.face(instance, target)
+        # Still, not asleep: an animated neighbour keeps clutter awake where it lies (physics.md, "Woken still").
+        def still_in_all(refs):
+            last = {}
+            def still():
+                now = {(g, r): (ctx.body_of(g, r) or {}).get("position") for g in games for r in refs}
+                same = bool(last) and all(p and last.get(k) and math.dist(p, last[k]) < 0.5 for k, p in now.items())
+                last.update(now)
+                return same
+            return still
+        ctx.wait_for(f"{target:X} is still in every game", ctx.comes_true_for(still_in_all([target, into]), 0.5), 15)
+        samples = {g: [] for g in games}
+        for g in games:
+            if not (ctx.game(g).rpc({"cmd": "body_trace", "refs": [target, into]}) or {}).get("ok"):
+                raise ctx.failure(f"[{_who(g)}] the body trace did not start")
+        try:
+            start = time.time()
+            ctx.grab(instance, target)
+            ctx.turn_to(instance, face=into, rate=rate, seconds=10, name=f"aims {target:X} at {into:X}")
+            ctx.act(instance, {"name": f"presses {target:X} into {into:X} for {hold:g} s", "ready": ["takes_input"],
+                               "until": [{"for": hold}], "seconds": hold + 2})
+            released = time.time()
+            if ctx.local_player(instance).get("grabbed"):
+                ctx.tap(instance, "activate")
+                ctx.wait_for(f"[{_who(mover)}] lets go of {target:X}", lambda: not ctx.local_player(instance).get("grabbed"), 3)
+            ctx.wait_for(f"{target:X} and {into:X} still in every game for 1.5 s", ctx.comes_true_for(still_in_all([target, into]), 1.5), 30)
+        finally:
+            for g in games:
+                samples[g].extend((ctx.game(g).rpc({"cmd": "body_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        folder = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-holds-{target:X}-into-{into:X}"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "bodies.json").write_text(json.dumps({"samples": samples, "start": start, "released": released, "mover": mover}))
+        result = HoldTrace.analyse(samples, mover, target, into, start, released)
+        result = {"object": f"{target:X}", "swept_into": f"{into:X}", "released": round(released - start, 2), **result,
+                  "games": {g: _who(g) for g in games}, "trace": str(folder)}
+        log(f"[{_who(mover)}] holds {target:X} into {into:X}: {result}")
+        ctx.name_handle(name, {"host": target, "guest": target})
+        return result
 
     def where_now(ctx, ids):
         """The host's references' positions and rotations, to put back after (put_back)."""

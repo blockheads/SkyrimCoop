@@ -292,6 +292,20 @@ motion type (`hkpRigidBody+0x160`) is 4 (keyframed) or 5 (fixed): `DestroyMouseS
 grabs a resting body (dynamic, asleep), not one the host's frames still move (a hook freeing it first was removed,
 `docs/progress.md`, loose ends).
 
+**The hold each frame** (read in IDA on 1.7.104, 2026-11-14, named): `PlayerCharacter::Update` calls
+`PlayerCharacter::UpdateGrab` (40556, `0x140753580`) while the player has springs. It reads the eye's position and
+direction (PlayerCharacter vfunc 0x610), casts a ray along the look and shortens the hold distance (`+0x8D8`
+on 1.7.104, `PlayerCharacter::grabDistance`) to the first reference it meets other than the held one and the player,
+then takes the gap between the spring's held point (`hkpMouseSpringAction+0x40`, body space) and its target (`+0x50`,
+world): past 96 units the player's grab drops (`DestroyMouseSprings`). Otherwise the target becomes eye + look x
+distance, written by `hkpMouseSpringAction::setMousePosition` (62469, Havok's name), which wakes the body when the
+target moved. The body follows by Havok's spring (`fZKeySpringElasticity`, `fZKeySpringDamping`,
+`fZKeyObjectDamping`, `fZKeyMaxForce`) in the physics step: the hand-to-object lag is the spring's, nothing of the
+frame's. The harness reads target, held point and gap (`body_trace`'s `grab`, typed in `Havok/hkpMouseSpringAction.h`).
+Measured on the duo (MCP verb `holds_into`, the Sleeping Giant's bar bottles 33288 swept into 33287): the guest's own
+hold keeps 0.7 units off its target typically, 4.5 at p90 while turning at 90 degrees a second. The bottle it is swept
+into is the host's ([physics-sync.md](../../design/physics-sync.md), "A guest's hold meets the host's bodies").
+
 `ActivateHandler::ProcessButton` (42420, `0x1407b2660`; read 2026-11-13): a press marks an activation pending
 (`+0x18`); held past `fZKeyDelay:Controls` once, `StartGrabObject`; on release, a grab going (mode 1) lets go, else
 the pending activation runs (`ActivatePickRef`): a refused grab turns a held E into a pickup, and an owned item's

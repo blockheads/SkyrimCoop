@@ -50,6 +50,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-14: a guest's held clutter pushed into other clutter feels late (playtest, the Sleeping Giant). Measured with
+the new MCP verb `holds_into` (the harness's `body_trace` now reads the grab spring's target, `PlayerCharacter::UpdateGrab`
+40556 read in IDA): the guest's own hold matches a game without a session (0.7 units off the spring's target against
+0.6-0.9), and nothing snaps; the body it is pushed into is the host's, so it moves ~240 ms late on the guest and is
+knocked by the host's keyframed copy of the hold (121 units against vanilla's 7). Waiting on a design choice
+([physics-sync.md](design/physics-sync.md), "A guest's hold meets the host's bodies"; bugs.md).
+
 2026-11-14: Faendal's arrows missed a moving guest. The host aims its NPC at the guest's copy, which shows the guest
 as far behind as the copy's clock needs, and the arrow flies again on the guest's game a line's delay later, where the
 hit is judged: aimed 50-60 units behind a running guest on a 60 ms line. A copy's predicted place

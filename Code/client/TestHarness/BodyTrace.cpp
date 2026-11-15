@@ -4,12 +4,14 @@
 #include <Actor.h>
 #include <Havok/Ragdoll.h>
 #include <Havok/bhkCollision.h>
+#include <Havok/hkpMouseSpringAction.h>
 #include <Misc/BSFixedString.h>
 #include <NetImmerse/BSGeometry.h>
 #include <NetImmerse/BSLightingShaderMaterial.h>
 #include <NetImmerse/BSLightingShaderProperty.h>
 #include <NetImmerse/BSShaderProperty.h>
 #include <NetImmerse/NiNode.h>
+#include <PlayerCharacter.h>
 #include <RTTI.h>
 #include <TESObjectREFR.h>
 
@@ -86,6 +88,28 @@ nlohmann::json GeometryJson(NiAVObject& aRoot)
     }
     return entries;
 }
+
+// The player's grab of this reference (PlayerCharacter::UpdateGrab 40556): the spring's target, the held point in the
+// world and the gap the engine drops it at (96 units).
+nlohmann::json GrabJson(const TESObjectREFR& acObject)
+{
+    const auto* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->grabbedObject || TESObjectREFR::GetByHandle(pPlayer->grabbedObject) != &acObject)
+        return nullptr;
+    const bhkMouseSpringAction* pSpring = pPlayer->GrabSpring(0);
+    const hkpMouseSpringAction* pAction = pSpring ? pSpring->referencedObject : nullptr;
+    if (!pAction || !pAction->entity)
+        return nullptr;
+    const hkpRigidBody& cBody = *pAction->entity;
+    const auto& cR = cBody.rotations[1];
+    const glm::quat cRotation = glm::normalize(glm::quat(cR[3], cR[0], cR[1], cR[2]));
+    const auto& cL = pAction->positionInRbLocal;
+    const glm::vec3 cPoint = (glm::vec3(cBody.translation[0], cBody.translation[1], cBody.translation[2]) + cRotation * glm::vec3(cL[0], cL[1], cL[2])) * cHavokToGame;
+    const auto& cM = pAction->mousePositionInWorld;
+    const glm::vec3 cTarget = glm::vec3(cM[0], cM[1], cM[2]) * cHavokToGame;
+    return {{"target", {cTarget.x, cTarget.y, cTarget.z}}, {"point", {cPoint.x, cPoint.y, cPoint.z}},
+            {"gap", glm::distance(cPoint, cTarget)}, {"distance", pPlayer->grabDistance}};
+}
 } // namespace
 
 void BodyTrace::Poll()
@@ -121,6 +145,8 @@ void BodyTrace::Poll()
         nlohmann::json entry = {{"t", cNow}, {"id", cFormId}, {"position_3d", {cTranslate.x, cTranslate.y, cTranslate.z}}, {"bodies", bodies}};
         // Its 3D's flags (NiAVObject): kHidden 1, kNotVisible 1 << 20 (the last frame's culling: not drawn).
         entry["flags_3d"] = p3D->flags;
+        if (auto grab = GrabJson(*pObject); !grab.is_null())
+            entry["grab"] = std::move(grab);
         if (!pActor)
             entry["geometry"] = GeometryJson(*p3D);
         if (pActor)

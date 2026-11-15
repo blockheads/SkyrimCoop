@@ -192,9 +192,29 @@ struct PlayerCharacter : Actor
     GameArray<ObjectiveInstance> objectives;
     uint8_t pad5A0[0x648 - 0x5A0];
     PlayerTargetLocation queuedTarget;
-    uint8_t pad690[0x8D0 - 0x690];
+    uint8_t pad690[0x8A0 - 0x690];
+    // The grab's springs (BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>, read in PlayerCharacter::UpdateGrab 40556):
+    // capacity's top bit set keeps them inline.
+    uint32_t grabSpringCapacity;
+    uint8_t pad8A4[4];
+    union
+    {
+        struct bhkMouseSpringAction** pHeap;
+        struct bhkMouseSpringAction* inlined[4];
+    } grabSprings;
+    uint32_t grabSpringCount;
+    uint8_t pad8CC[4];
     uint32_t grabbedObject; // handle of what the player holds with Activate (DestroyMouseSprings 40557 clears it)
-    uint8_t pad8D4[0x8EC - 0x8D4];
+    uint8_t pad8D4[4];
+    float grabDistance; // the hold distance along the look, shortened to what a ray meets (UpdateGrab 40556)
+    uint8_t pad8DC[0x8EC - 0x8DC];
+
+    [[nodiscard]] bhkMouseSpringAction* GrabSpring(uint32_t aIndex) const noexcept
+    {
+        if (aIndex >= grabSpringCount)
+            return nullptr;
+        return (grabSpringCapacity & 0x80000000u) ? grabSprings.inlined[aIndex] : grabSprings.pHeap[aIndex];
+    }
     uint32_t sleepSeconds; // a Sleep/Wait Menu rest's remaining game seconds (WaitStep 40485 counts it down)
     NiNode* firstPerson3D; // CommonLibSSE PlayerCharacter::firstPerson3D (NiPointer), 1170's first-person model
     uint8_t pad8F8[0x92C - 0x8F8];
@@ -229,7 +249,11 @@ static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00 + SkyrimRuntime::Pl
 static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, flagsB0A) == 0xB0A + SkyrimRuntime::PlayerShift);
 static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);
+static_assert(offsetof(PlayerCharacter, grabSpringCapacity) == 0x8A0 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, grabSprings) == 0x8A8 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, grabSpringCount) == 0x8C8 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, grabbedObject) == 0x8D0 + SkyrimRuntime::PlayerShift);
+static_assert(offsetof(PlayerCharacter, grabDistance) == 0x8D8 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, sleepSeconds) == 0x8EC + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, firstPerson3D) == 0x8F0 + SkyrimRuntime::PlayerShift);
 static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C + SkyrimRuntime::PlayerShift);

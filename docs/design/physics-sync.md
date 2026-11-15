@@ -55,6 +55,49 @@ host (HostHands): the first mover keeps it (m_holds, Held or not)
 - Open: two guests moving one body at once: the first keeps it; the second shows its own until the first's rest
   or the host's answer to its refused rest places it.
 
+## A guest's hold meets the host's bodies (2026-11-14, measured; open: a design choice)
+
+Playtest: a guest grabbing clutter in the Sleeping Giant and moving it into other clutter "feels laggy, everything
+delayed". Measured with the MCP verb `holds_into` (the bar bottle 33288 held and swept into 33287, both games traced
+each frame, the spring's target read from the engine: physics.md, "Grabbing"):
+
+```text
+guest's hand -> its held bottle      its own physics: 0.7 units off the spring's target typically, 4.5 at p90
+  BodyFramesRequest{Held} -> host    host plays it keyframed, 130 ms behind the guest's (fitted)
+host's keyframed copy knocks 33287   the host's physics: 33287 is the host's
+  host's frames of 33287 -> guest    guest steers its 33287 onto them, 110 ms behind the host's (fitted)
+so on the guest's screen             its bottle presses into 33287, which barely gives (velocity set each frame
+                                     toward the host's frame, BodyBridge::Drive), then moves ~240 ms after the push
+```
+
+- **A game without a session** (`holds_into alone=true`, `vanilla_start plugin=true`, 2 runs): the hold keeps 0.6-0.9
+  units off its target, 2.9-4.3 at p90, as the guest's own; 33287 starts moving 0.42-0.49 s in and is pushed 7 units
+  aside (the spring's force is capped, `fZKeyMaxForce`: the held bottle slides past). In the session the host's copy of
+  the guest's bottle is keyframed (Exclusive holds), so it has no mass limit: it shoved 33287 off the bar (121 and 135
+  units in the two guest runs that touched it), and the guest's 33287 followed, turning back on itself 1 and 3 times
+  as the host's frames pulled it. So a guest's hold also knocks harder than vanilla, everywhere.
+- Not the guest's own hold: it follows the hand as the engine's spring does. Nor a snap:
+  0 jumps of either bottle at the grab, while held, at the let go or at the host's rest (the guest's 33287 ends
+  where the host's does). PR #58 removed the snaps at a guest's rest; the playtest predates it.
+- The cause is who simulates a body a guest's held body touches: the host (Exclusive holds, "Not built: Fiedler's
+  authority chain"). Each touch is a round trip plus two playback delays (`BodyService::kDelayMs` each way).
+
+Options (the user's to choose):
+
+1. **The mover's touches are the mover's** (Fiedler's authority chain): a host body the guest's held or own moving
+   body sets moving in the guest's game becomes the guest's own until it rests there, as its pushes and hits are
+   (`GuestHands::Own`); the host plays its frames, as for a let go. The guest's spring then pushes it, so the knock is
+   vanilla's too (the keyframed copy no longer decides it). Feels like vanilla to the mover; the host and
+   other guests see the result ~130 ms late, as they see the hold. Open: a chain through a stack, a body the host's
+   player or an NPC touches meanwhile (first mover keeps it, as holds).
+2. **The host keeps them, less delay**: play reference bodies with a shorter buffer or extrapolated. Still a round
+   trip, and the guest's hand still meets a body steered from elsewhere. The knock stays the keyframed copy's
+   unless the host's copy of a hold is steered with its mass again (Steered holds), which brings back the host's
+   player grabbing it out of the guest's hands unless the grab is refused another way.
+3. **The guest predicts, the host corrects**: the touched body simulated freely in the guest's game, blended to the
+   host's after. Two simulations part (the 10-80 unit rests of "The mover's until its rest"), so the corrections
+   come back as snaps.
+
 ## One rule (2026-11-13, built)
 
 Everything another game owns is a copy here, the same way for an NPC, a ragdoll and an object (memory
