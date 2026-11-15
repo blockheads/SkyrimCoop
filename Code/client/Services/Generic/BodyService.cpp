@@ -92,7 +92,7 @@ void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
     for (const auto& cRest : acMessage.Rests)
     {
         Hold(cRest.Key, false);
-        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
+        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest.Key))
             (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
     }
     m_playback.Rest(acMessage.Tick, rests);
@@ -150,15 +150,15 @@ void BodyService::Apply() noexcept
     m_copiesIndexed = true;
     // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
     const uint64_t cTick = m_world.GetFrameTick();
-    // What this game's player took is its own now: the owner's playback of it stops, its older frames too.
+    // What this game's player took is its own now: the owner's playback of it stops.
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
-            Forget(cKey, cTick);
+            Forget(cKey);
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
-        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->second.second)) && m_bridge.Rest(it->second.second, 0))
+        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->first)) && m_bridge.Rest(it->second.second, 0))
         {
             if (m_pKeeper)
                 m_pKeeper->OnRest(it->second.second);

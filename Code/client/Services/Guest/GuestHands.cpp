@@ -1,8 +1,5 @@
 #include <Services/Guest/GuestHands.h>
 
-#include <Bridges/PhysicsBodies.h>
-#include <Physics/BodyPrediction.h>
-
 #include <Components.h>
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
@@ -30,19 +27,15 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
     for (const BodyKey& cKey : m_engine.TakeAdoptedDrops())
         Own(cKey, aTick, "dropped", owned);
     SendHands(aTick, owned, frames);
-    SendOwn(aTick, own, frames);
     SendRagdoll(aTick, own, frames);
-    // Its frames, where the others' guess of them goes wrong (the host's send rule): holds apart, played keyframed.
+    // Its frames, where the others' guess of them goes wrong (the host's send rule).
     if (!frames.empty())
     {
-        BodyFramesRequest held, free;
-        held.Tick = free.Tick = aTick;
-        held.Held = true;
-        for (BodyFrame& frame : m_sends.Due(frames, aTick))
-            (m_holding.contains(frame.Key) ? held : free).Frames.push_back(std::move(frame));
-        for (const auto* pSent : {&held, &free})
-            if (!pSent->Frames.empty())
-                m_world.GetTransport().Send(*pSent);
+        BodyFramesRequest sent;
+        sent.Tick = aTick;
+        sent.Frames = m_sends.Due(frames, aTick);
+        if (!sent.Frames.empty())
+            m_world.GetTransport().Send(sent);
     }
     TrackMoved(aTick, acPlayed, own.Moved);
     AskHost(aTick);
@@ -51,29 +44,19 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
 
 bool GuestHands::TakesFrame(const BodyKey& acKey) noexcept
 {
-    // This game's player's: its own flight decides until it rests here.
-    if (m_own.contains(acKey))
+    // This game's player's: its own flight shows until the host's rest.
+    if (const auto it = m_own.find(acKey); it != m_own.end())
+    {
+        it->second.HostMoved = true;
         return false;
+    }
     // Moved alone, and now the host's frames follow it: nothing to ask.
     m_moved.erase(acKey);
     return true;
 }
 
-bool GuestHands::KeepsRest(const BodyPose& acRest) const noexcept
-{
-    if (m_own.contains(acRest.Key))
-        return true;
-    const auto it = m_ownRests.find(acRest.Key);
-    if (it == m_ownRests.end())
-        return false;
-    const auto cApart = BodyPrediction::Between({.Position = acRest.Position, .Rotation = acRest.Rotation},
-                                                {.Position = it->second.Position, .Rotation = it->second.Rotation});
-    return cApart.Distance <= PhysicsBodies::kSameRest && cApart.Angle <= PhysicsBodies::kSameRestAngle;
-}
-
 void GuestHands::OnRest(const BodyPose& acRest) noexcept
 {
-    m_ownRests.erase(acRest.Key);
     m_own.erase(acRest.Key);
     m_moved.erase(acRest.Key);
     if (!acRest.Key.Actor)
@@ -83,7 +66,6 @@ void GuestHands::OnRest(const BodyPose& acRest) noexcept
 void GuestHands::Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, std::vector<BodyKey>& aOwned) noexcept
 {
     m_moved.erase(acKey);
-    m_ownRests.erase(acKey);
     const auto [it, cNew] = m_own.try_emplace(acKey);
     it->second.Touched = aTick;
     if (!cNew)
@@ -134,54 +116,9 @@ void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::ve
     for (const auto& cFrame : cHeld)
     {
         Own(cFrame.Key, aTick, "holds", aOwned);
-        auto& own = m_own.at(cFrame.Key);
-        own.Moving = true;
-        own.Last = BodyPose{.Key = cFrame.Key, .Position = cFrame.Position, .Rotation = cFrame.Rotation};
         m_holding[cFrame.Key] = cFrame;
         aFrames.push_back(cFrame);
     }
-}
-
-void GuestHands::SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept
-{
-    std::vector<BodyFrame> free;
-    for (const BodyFrame& cFrame : aOwn.Objects)
-        if (const auto it = m_own.find(cFrame.Key); it != m_own.end())
-        {
-            it->second.Moving = true;
-            it->second.Seen = aTick;
-            it->second.Last = BodyPose{.Key = cFrame.Key, .Position = cFrame.Position, .Rotation = cFrame.Rotation};
-            if (!m_holding.contains(cFrame.Key))
-                free.push_back(cFrame);
-        }
-    // Free fall marked, so the others' guess (and the send rule) curves as it falls.
-    m_motions.Mark(free, aTick);
-    aFrames.insert(aFrames.end(), free.begin(), free.end());
-    BodyRestsRequest rests;
-    rests.Tick = aTick;
-    for (const BodyPose& cRest : aOwn.ObjectsRested)
-    {
-        const auto it = m_own.find(cRest.Key);
-        if (it == m_own.end() || m_holding.contains(cRest.Key) || !it->second.Moving)
-            continue;
-        spdlog::info("GuestHands: the host's {} rests where this game's player put it, at ({:.0f}, {:.0f}, {:.0f})",
-                     WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x, cRest.Position.y, cRest.Position.z);
-        m_own.erase(it);
-        Rested(cRest, aTick, rests);
-    }
-    if (!rests.Rests.empty())
-        m_world.GetTransport().Send(rests);
-}
-
-void GuestHands::Rested(const BodyPose& acRest, uint64_t aTick, BodyRestsRequest& aRests) noexcept
-{
-    // The host's frames and rests from before this rest come late: not played.
-    m_world.ctx().at<BodyService>().Forget(acRest.Key, aTick);
-    m_sends.Forget(acRest.Key);
-    m_motions.Forget(acRest.Key);
-    m_hostRests[acRest.Key] = acRest;
-    m_ownRests[acRest.Key] = acRest;
-    aRests.Rests.push_back(acRest);
 }
 
 uint32_t GuestHands::PlayerId() const noexcept
@@ -244,24 +181,17 @@ void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, c
 void GuestHands::AskHost(uint64_t aTick) noexcept
 {
     BodyPoseRequest asked;
-    BodyRestsRequest rests;
-    rests.Tick = aTick;
     for (auto it = m_own.begin(); it != m_own.end();)
     {
-        if (m_holding.contains(it->first) || aTick - std::max(it->second.Touched, it->second.Seen) < kOwnMs)
+        if (m_holding.contains(it->first) || it->second.HostMoved || aTick - it->second.Touched < kOwnMs)
         {
             ++it;
             continue;
         }
-        // Not awake here since: where it was last is its rest (a let go that never fell); never moved, the host's.
-        if (it->second.Moving && it->second.Last)
-            Rested(*it->second.Last, aTick, rests);
-        else
-            spdlog::info("GuestHands: this game's player touched the host's {}, which never moved here", WorldStateLog::DescribeBody(it->first));
+        spdlog::warn("GuestHands: the host did not move its {} after this game's player did", WorldStateLog::DescribeBody(it->first));
+        asked.Rests.push_back({.Key = it->first});
         it = m_own.erase(it);
     }
-    if (!rests.Rests.empty())
-        m_world.GetTransport().Send(rests);
     for (auto it = m_moved.begin(); it != m_moved.end();)
     {
         if (!it->second.Far || aTick - it->second.Since < kOwnMs)

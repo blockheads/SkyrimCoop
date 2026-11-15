@@ -17,7 +17,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     bool IsOnGround(uint32_t) const noexcept override { return true; }
     bool CapsuleCollides(uint32_t) const noexcept override { return true; }
     void SetCapsuleCollision(uint32_t, bool) noexcept override {}
-    void SetCopyLead(uint32_t, uint32_t) noexcept override {}
     uint8_t BodiesLayer(uint32_t) const noexcept override { return 0; }
     bool GraphsStepPhysics(uint32_t) const noexcept override { return true; }
     void SetCopyPhysics(uint32_t, uint8_t, bool) noexcept override {}

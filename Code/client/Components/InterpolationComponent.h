@@ -4,7 +4,6 @@
 #include <Structs/AnimationVariables.h>
 #include <Systems/CopyCorrection.h>
 #include <Systems/CopyEase.h>
-#include <Systems/CopyLead.h>
 
 #include <optional>
 #include <utility>
@@ -36,5 +35,4 @@ struct InterpolationComponent
     CopyCorrection Correction;
     std::optional<std::pair<TimePoint, TimePoint>> Guess; // the snapshots it was carried on from, past the newest
     CopyPlayback Playback; // its owner's time shown now: movement, actions and ragdoll alike
-    CopyLine Line;         // the delay to its owner's game, for its lead (CopyLead)
 };

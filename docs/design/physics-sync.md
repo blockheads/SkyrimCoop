@@ -6,55 +6,6 @@ holds what it grabs; only the host's loaded cells; frames sent on prediction err
 (`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
 objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
 
-## The mover's until its rest (2026-11-14, built)
-
-What a player moves lands where that player's game puts it. Until now a guest's let go, push, hit or drop was
-simulated twice: the guest's own physics showed it, the host re-ran it (a let go from the release frame, a push from
-the impulse), and the host's rest went to every guest, the mover included, which placed it. The two games' falls part (measured on the
-duo: a thrown ladle rested 10 units apart, a pushed one 13.6, the dropped sword of `docs/bugs.md` 15 to 80; why, inferred
-and not read: contacts, the copies' capsules a moment behind, Havok's steps), and the mover's body jumped to the
-host's rest. The let go itself adds nothing: `PlayerCharacter::DestroyMouseSprings` (40557, read in IDA 2026-11-14)
-takes the spring off and only activates the body, leaving its velocities as they were (that they are the hand's is
-inferred from the spring holding it), and the host frees its body at the release frame with those velocities.
-
-```text
-guest game (GuestHands): its player pushes, hits, holds, lets go of or drops a body -> its own (m_own)
-  held:      frames as BodyFramesRequest{Held}            (as before: keyframed everywhere else)
-  let go:    BodyReleaseRequest                           host frees it there, every other game's hold ends
-  moving:    its awake frames, the send rule's, free fall marked (BodyMotions), as BodyFramesRequest{!Held}
-  rests here (PhysicsBodies: Havok's sleep or 300 ms still, as on the host): BodyRestsRequest, its own no more
-  taken and rested: the host's frames and rests older than that tick are dropped (BodyPlayback's cutoff)
-  not awake for kOwnMs: its last pose as its rest; never moved here: the host's again, nothing sent
-  meanwhile the host's frames and rests of it are not taken (TakesFrame, KeepsRest), nor its own rest come back,
-  nor the host's move rows of it (GuestWorldState: BodyService::MovedHere, a drop adopted this frame included)
-
-host (HostHands): the first mover keeps it (m_holds, Held or not)
-  free frames -> every other game, the host's too: played steered, mass kept ("One rule")
-  its rest    -> every other game: placed, asleep
-  pushes on it skipped; HostPhysics sends none of the host's own frames or rests of it,
-  nor the host's rest at the mover's rest after (HostRests); one moved on from there is the host's again
-  mover silent kSilentMs or gone: the host's again where it is (a hold: dropped where it was, as before)
-  a rest refused with no claim left (a second mover, the first already rested): the sender gets the host's pose
-```
-
-- Tests: GameTests `[mover]`, each failing before: a bump, a sword hit and a carried let go, the host's table holding
-  harder than the guest's (`FakeFlight::Friction`, each game's own); the guest's body is never placed by another
-  game and the host's lies where the guest's stopped. HostAuthorityTests "a body a guest's player moved is that game's
-  until it rests there" and the let go case (nobody else takes it while it falls).
-- Scenario `guest-throw-lands-where-thrown` (MCP verb `moves_and_watches`: the mover's body traced each frame;
-  `expect` `steady`: no frame's step three times its neighbours' and over 4 units; `at_rest_of`: the host's at the
-  guest's rest). The guest's own scenarios (`guest-bump-moves-host`, `guest-throw-lands-on-host`) now wait for the
-  guest's rest and check the host's there.
-- The host's row of a guest's drop (`create` then `move` to where it was dropped) put the guest's falling sword back
-  in the air, asleep: it never fell there, the guest handed it back, and the host's fall won
-  (`guest-drops-item-stays`, 235 units). GameTests "A guest's player moves the bucket: the host's move row of it does
-  not put the guest's back".
-- Review (2026-11-14): a host frame from before the takeover can land after the guest's rest (unreliable channel):
-  GameTests "A host frame from before the guest's push comes after its rest"; a second mover's rest after the first's
-  rested: HostAuthorityTests "a second mover's rest after the first's rested gets the host's pose back".
-- Open: two guests moving one body at once: the first keeps it; the second shows its own until the first's rest
-  or the host's answer to its refused rest places it.
-
 ## One rule (2026-11-13, built)
 
 Everything another game owns is a copy here, the same way for an NPC, a ragdoll and an object (memory

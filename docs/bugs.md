@@ -67,7 +67,7 @@ other section needs the duo.
 **Physics**
 
 - [A long roll jumps](#a-long-roll-jumps): small
-- [A copy standing in a guest's rest](#a-copy-standing-in-a-guests-rest): small
+- [A dropped sword](#a-dropped-sword): small
 - [A chest lid's pose](#a-chest-lids-pose): small
 - [A late rest undoes a scripted move](#a-late-rest-undoes-a-scripted-move): small
 
@@ -111,7 +111,6 @@ other section needs the duo.
 - [A guest's summon](#a-guests-summon): medium
 - [A mod's rename at run time](#a-mods-rename-at-run-time): small
 - [The baseline after a death](#the-baseline-after-a-death): small
-- [A copy's predicted place falls back to where it stands](#a-copys-predicted-place-falls-back-to-where-it-stands): small
 
 **Found by the playthrough flow**
 
@@ -605,20 +604,22 @@ Size: small. Needs: duo, then GameTests.
   - Start: the trace at the jump (the samples folder the failure names): a late frame's correction, or the host's
     own 3D (its node left behind) when the frame was read.
 
-### A copy standing in a guest's rest
+### A dropped sword
 
-Stands alone: a guest's push ends with its body touching its player; the copy on the host is a little elsewhere.
+Stands alone: still happens (2026-11-11).
 
-Agent task: Find what the guest's copy does to a body at rest against it on the host and keep the guest's rest.
+Agent task: Find who simulates a guest's dropped sword on the host and make its copy rest where the guest's does.
 
-Size: small. Needs: IDA, duo.
+Size: small. Needs: duo.
 
-- **A pushed ladle moved 4 units on the host 2 s after the guest's rest** (2026-11-14, `moves_and_watches` push on
-  the fixed branch, 1 of 1). The guest's rest was placed on the host while the guest's copy stood against it; 2 s
-  later (`HostHands::kSilentMs`, the host's settling window) the host's own rest at 4.1 units went out and placed the
-  guest's. A copy is meant to collide (`actor-movement.md`, "Copies step"), so a copy's push is not simply dropped.
-  - Start: `who_wakes` on the ladle on the host after the push; which controller (the copy's rigid body or proxy,
-    79133) gives it the impulse, then whether the copy's contact can leave a body the mover's game put down.
+- **The host's copy of a dropped sword rests elsewhere** (2026-11-02). The host's copy of a sword the guest dropped rests
+  44 to 67 units from the guest's (`guest-drops-item-stays`, 2 of 5). Filed under exclusive ownership, which it was
+  expected to be covered by; not rerun since holds became exclusive.
+  - Start: rerun it; delete this entry if it holds. Otherwise read who simulates the drop (`BodyBridge::Free`,
+    physics-sync.md, "Exclusive holds").
+  - Rerun 2026-11-11, so not fixed by exclusive holds: 79.5 and 14.7 units off, asleep on the host ("awake False"), in
+    2 of 4 runs on `agent/copy-idle-graph`; dev's plugin passed its one run.
+  - Test: `guest-drops-item-stays`, `--until-fail`.
 
 ### A chest lid's pose
 
@@ -967,26 +968,6 @@ Size: medium. Needs: duo, then a decision.
 
 ## Combat
 
-### A copy's predicted place falls back to where it stands
-
-Faendal's arrows (`docs/re/systems/combat-aim.md`).
-
-Size: small. Needs: duo, IDA, then GameTests.
-
-- **The engine's guess at a guest's copy collapses mid-stride** (2026-11-14, Riverwood, the guest strafing 750 units
-  from Faendal, 2 s each way). For about a second of each leg, `Actor::GetPredictedPosition` (47309) returned the copy's
-  own place: its guess past 32 units goes through `Actor__CheckPredictionOnNavmesh` (47316), and a walk blocked by
-  a navmesh edge (`CombatUtilities__WalkNavmeshToPoint` 47346) drops it. The host's own player strafing in the
-  same field never collapsed (guess always `|v| x 0.5` ahead). With the lead fix the guess is still the copy's owner's
-  place there, but no further: 97 units off (median) at that spot, 26 at another.
-  - Read: the walk starts at the actor's cached navmesh location (`AIProcess__GetCachedPathingLocation` 39621,
-    middleHigh `+0x1A0`), refreshed on demand by walking from the last cached spot. Inferred, not measured: a normal
-    actor's own movement (`ActorMover`, `PlayerCharacter::sub_40517`) asks often, a copy's (no `ActorMover`) only when
-    an aim asks, so its walks cross long jumps and can stop at an edge.
-  - Start: a harness read of a copy's cached location against its place while it strafes; then the refresh a copy
-    lacks. Test: `faendal-aim-leads-guest` (its `expect_aim_leads` record shows the collapsed guesses), then a GameTests flow
-    once the fake has a navmesh edge.
-
 ### After the host dies
 
 The NPCs' target.
@@ -1249,6 +1230,7 @@ Where each of the other 46 went:
   - [References a guest's script creates](#references-a-guests-script-creates): `vampirism-is-each-players`.
   - [Clutter flags after a vampire rejoin](#clutter-flags-after-a-vampire-rejoin): `host-enchantment-knowledge-control`,
     `late-join-gets-calendar`.
+  - [A dropped sword](#a-dropped-sword): `guest-drops-item-stays`.
   - [A chest lid's pose](#a-chest-lids-pose): `host-saves-with-guest-menu-open`.
 - **New entries in this section:** `host-quickloads-party`; `party-travel-mounted-guest`, `party-fast-travels`,
   `party-buys-house-guest`; `green-flash-ivarstead-handoff`, `-wine`; `dialogue-mouse-highlight-stays-shared`;
