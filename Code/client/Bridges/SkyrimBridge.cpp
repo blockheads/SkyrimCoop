@@ -351,6 +351,12 @@ void SkyrimBridge::SetCapsuleCollision(uint32_t aFormId, bool aCollides) noexcep
         pActor->SetCapsuleCollision(aCollides);
 }
 
+void SkyrimBridge::SetCopyLead(uint32_t aFormId, uint32_t aLeadMs) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        pActor->GetExtension()->PredictionLeadMs.store(aLeadMs, std::memory_order_relaxed);
+}
+
 uint8_t SkyrimBridge::BodiesLayer(uint32_t aFormId) const noexcept
 {
     const Actor* pActor = GetActor(aFormId);

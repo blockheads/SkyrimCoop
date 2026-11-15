@@ -2,6 +2,7 @@
 import argparse
 import collections
 import contextlib
+import json
 import math
 import os
 import re
@@ -20,6 +21,7 @@ from ..common import (
     MELEE_GAP,
     POSITION_TOLERANCE,
     SPELL_GAP,
+    TEST_HOME,
     UNRELENTING_FORCE,
     UNRELENTING_FORCE_THREE,
     UNRELENTING_FORCE_WORDS,
@@ -124,6 +126,164 @@ class CombatActions:
                                          round(c.get("raw_light", 0)), c.get("line_of_sight")) for c in read.get("candidates", [])]})
             time.sleep(every)
         return rows
+
+    def aim_watch(ctx, npc, seconds=10.0, every=0.1, strafe=0.0, player="client"):
+        """The host's archer `npc` aiming at its target, over time (docs/re/systems/combat-aim.md): its bow's aim point P
+        (what TESObjectWEAP::Fire shoots at), the target's place and velocity as the host's engine reads them, and the
+        guest's own player where the guest's game has it. Then the hits each game saw from `npc` (engine hit events).
+        strafe: the player strafes left and right by input, `strafe` seconds each way, all through the watch.
+        player: the target, "client" (the guest, a copy on the host) or "" (the host's own player, vanilla's case)."""
+        actor = ctx.resolve(npc, "host")
+        copy = ctx.client_on_host() if player == "client" else 0x14
+        since = {game: ctx.engine_events(game, 0)[1] for game in ("", "client")}
+        rows = []
+        end = time.monotonic() + seconds
+        held, turned = None, 0.0
+        while time.monotonic() < end:
+            if strafe and time.monotonic() - turned >= strafe:
+                if held:
+                    ctx.release(player, held)
+                held = "strafe_right" if held == "strafe_left" else "strafe_left"
+                ctx.press(player, held)
+                turned = time.monotonic()
+            read = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
+            guest = ((ctx.player_snapshot(player).get("placement") or {}).get("position")) or [0, 0, 0]
+            on_host = ((ctx.actor_snapshot("", copy).get("placement") or {}).get("position")) or [0, 0, 0]
+            aim = next(iter(read.get("aims") or []), {})
+            at = read.get("target_position") or [0, 0, 0]
+            point = aim.get("point") or [0, 0, 0]
+            rows.append({"t": round(seconds - (end - time.monotonic()), 2), "target": f"{read.get('controller_target', 0):X}",
+                         "aim": [round(v) for v in point], "aim_flags": aim.get("flags"),
+                         "aim_to_guest_xy": round(math.dist(point[:2], guest[:2])) if aim else None,
+                         "target_velocity": [round(v) for v in read.get("target_velocity") or [0, 0, 0]],
+                         "predicted_to_target_xy": round(math.dist((read.get("target_predicted") or at)[:2], at[:2])),
+                         "copy_to_guest_xy": round(math.dist(on_host[:2], guest[:2])),
+                         "target_at": [round(v) for v in at], "guest": [round(v) for v in guest]})
+            time.sleep(every)
+        if held:
+            ctx.release(player, held)
+        hits = {}
+        for game in ("", "client"):
+            events, _ = ctx.engine_events(game, since[game])
+            hits[game or "host"] = [e for e in events if e.get("kind") == "hit"]
+        return {"copy": f"{copy:X}", "rows": rows, "hits": hits}
+
+    def provoke(ctx, npc, seconds=10.0):
+        """The guest's player hits the host's `npc` once (fight, one swing) and the NPC fights the guest's copy back."""
+        copy = ctx.client_on_host()
+        actor = ctx.resolve(npc, "host")
+        fights = lambda: ctx.player_command("", {"cmd": "combat_targets", "actor": actor}).get("controller_target") == copy
+        for _ in range(3):  # a swing can miss a walking NPC
+            with contextlib.suppress(TestFailure):  # fight wants it dead; one hit is the point
+                ctx.fight("client", npc, hits=1)
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"{npc} fights the guest's copy", fights, seconds / 3)
+                return
+        raise ctx.failure(f"{npc} never fought the guest's copy after three swings")
+
+    def copy_lag(ctx, seconds=6.0, strafe=1.5):
+        """How far the host's copy of the guest trails the guest while it strafes: live places in both games, and the
+        lag that best lines the copy's track up with the guest's (ms)."""
+        copy = ctx.client_on_host()
+        track = []
+        held, turned = None, 0.0
+        start = time.monotonic()
+        try:
+            while time.monotonic() - start < seconds:
+                if time.monotonic() - turned >= strafe:
+                    if held:
+                        ctx.release("client", held)
+                    held = "strafe_right" if held == "strafe_left" else "strafe_left"
+                    ctx.press("client", held)
+                    turned = time.monotonic()
+                t0 = time.monotonic() - start
+                guest = ctx.player_command("client", {"cmd": "actor_place", "actor": 0x14}).get("position")
+                t1 = time.monotonic() - start
+                on_host = ctx.player_command("", {"cmd": "actor_place", "actor": copy}).get("position")
+                t2 = time.monotonic() - start
+                track.append((t0, guest, t2, on_host, t1 - t0, t2 - t1))
+        finally:
+            if held:
+                ctx.release("client", held)
+        def guest_at(when):
+            pair = next(((a, b) for a, b in zip(track, track[1:]) if a[0] <= when <= b[0]), None)
+            if not pair:
+                return None
+            f = (when - pair[0][0]) / (pair[1][0] - pair[0][0])
+            return [pair[0][1][i] + (pair[1][1][i] - pair[0][1][i]) * f for i in range(2)]
+        best = None
+        for lag in range(0, 400, 10):
+            offs = [math.dist(g[:2], c[:2]) for _, _, t, c, _, _ in track if (g := guest_at(t - lag / 1000.0))]
+            if offs and (best is None or sum(offs) / len(offs) < best[1]):
+                best = (lag, sum(offs) / len(offs))
+        return {"lag_ms": best and best[0], "mean_off_at_lag": best and round(best[1], 1), "samples": len(track),
+                "read_ms": round(1000 * sum(r[4] + r[5] for r in track) / max(1, 2 * len(track)))}
+
+    def expect_aim_leads(ctx, npc, seconds=16.0, strafe=2.0, delay_ms=60, within=35.0):
+        """The host's `npc` fights the guest's copy while the guest strafes (by input, `strafe` s each way) over a line
+        of `delay_ms` each way (set it first: line_delay). Its guess at the copy's place 0.5 s ahead (47309, what an
+        arrow is aimed at) must be within `within` units, median, of where the guest's game has the guest 0.5 s plus
+        the line later, when the arrow flown again there arrives (docs/re/systems/combat-aim.md). Only guesses whose
+        window holds no turn of the strafe count: nothing predicts a turn."""
+        actor = ctx.resolve(npc, "host")
+        copy = ctx.client_on_host()
+        guesses, samples, turns, lags = [], [], [], []
+        held, turned = None, 0.0
+        start = time.monotonic()
+        try:
+            while time.monotonic() - start < seconds:
+                if time.monotonic() - turned >= strafe:
+                    if held:
+                        ctx.release("client", held)
+                    held = "strafe_right" if held == "strafe_left" else "strafe_left"
+                    ctx.press("client", held)
+                    turned = time.monotonic()
+                    turns.append(turned - start)
+                    status = ctx.game("").read_status() or {}
+                    lags.append(((status.get("actors") or {}).get(str(copy), {}).get("behind_ms"),
+                                 (status.get("copy_clock") or {}).get("network_ms")))
+                # Each read stamped at its own round trip's middle: one takes 100-200 ms.
+                t0 = time.monotonic()
+                read = ctx.player_command("", {"cmd": "combat_targets", "actor": actor})
+                t1 = time.monotonic()
+                guest = ctx.player_command("client", {"cmd": "actor_place", "actor": 0x14}).get("position")
+                t2 = time.monotonic()
+                if read.get("controller_target") == copy and guest:
+                    guesses.append(((t0 + t1) / 2 - start, read["target_predicted"]))
+                    samples.append(((t1 + t2) / 2 - start, guest))
+                time.sleep(0.05)
+        finally:
+            if held:
+                ctx.release("client", held)
+        ahead = 0.5 + delay_ms / 1000.0
+        offs, along = [], []
+        for at, predicted in guesses:
+            if any(at - 0.6 <= turn <= at + ahead + 0.1 for turn in turns):
+                continue
+            when = at + ahead  # the guest's place then, between the samples around it
+            pair = next(((a, b) for a, b in zip(samples, samples[1:]) if a[0] <= when <= b[0]), None)
+            if pair:
+                (t0, g0), (t1, g1) = pair
+                f = (when - t0) / (t1 - t0) if t1 > t0 else 0.0
+                then = [g0[i] + (g1[i] - g0[i]) * f for i in range(2)]
+                offs.append(math.dist(predicted[:2], then))
+                way = [g1[i] - g0[i] for i in range(2)]  # + ahead of the guest along its way, - behind
+                norm = math.hypot(*way)
+                if norm > 1e-3:
+                    along.append(sum((predicted[i] - then[i]) * way[i] / norm for i in range(2)))
+        record = TEST_HOME / "mcp" / f"aim-leads-{time.strftime('%Y%m%d-%H%M%S')}.json"
+        with contextlib.suppress(OSError):
+            record.write_text(json.dumps({"guesses": guesses, "samples": samples, "turns": turns, "lags": lags}))
+        if len(offs) < 10:
+            raise ctx.failure(f"{npc} fought the guest's copy in only {len(offs)} samples of {seconds:g} s")
+        median = sorted(offs)[len(offs) // 2]
+        if median > within:
+            raise ctx.failure(f"{npc}'s guess at the guest's copy lands {median:.0f} units (median of {len(offs)}) off "
+                              f"where the guest is when the arrow arrives; within {within:g} expected "
+                              f"(quartiles {sorted(offs)[len(offs) // 4]:.0f}, {sorted(offs)[3 * len(offs) // 4]:.0f}; "
+                              f"along its way {sorted(along)[len(along) // 2] if along else 0:+.0f}; copy behind, line ms: {lags}; {record})")
+        return {"median": round(median), "samples": len(offs), "quartiles": [round(sorted(offs)[len(offs) // 4]), round(sorted(offs)[3 * len(offs) // 4])],
+                "behind_line_ms": lags, "along": round(sorted(along)[len(along) // 2]) if along else 0, "record": str(record)}
 
     def host_death_watch(ctx, npc=0x13486, seconds=20.0, guest_offset=-80, dies="host"):
         """The half-stop's setup: the NPC fights both players, the host dies, the guest stands still; then combat_watch.

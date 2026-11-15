@@ -50,6 +50,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-14: Faendal's arrows missed a moving guest. The host aims its NPC at the guest's copy, which shows the guest
+as far behind as the copy's clock needs, and the arrow flies again on the guest's game a line's delay later, where the
+hit is judged: aimed 50-60 units behind a running guest on a 60 ms line. A copy's predicted place
+(`Actor::GetPredictedPosition` 47309, what aims and swings lead with) now looks ahead by the copy's delay plus the
+line's (`CopyLead`, `HookGetPredictedPosition`). Engine path and measurements: `docs/re/systems/combat-aim.md`.
+Still open: in some spots the engine's navmesh check drops its guess at a copy to where the copy stands (bugs.md, "A
+copy's predicted place falls back to where it stands").
+
 2026-11-13: bugs.md and progress.md audited against dev (`32c1b38f`): every entry checked against the merged PRs, the
 code and tests, and where neither settled it, a targeted duo rerun. Deleted as resolved, with where the evidence went:
 a dead copy's ragdoll never sleeping and a lying copy's bones (PR #38, `BodyPrediction::StepToRest`, ClientTests and

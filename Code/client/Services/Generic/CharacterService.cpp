@@ -53,6 +53,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 
+#include <Systems/CopyLead.h>
 #include <Systems/CopyStep.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
@@ -680,6 +681,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
             place.WorldSpaceId = movement.WorldSpaceId;
         }
         interpolationComponent.Playback.OnPoint(point.Tick);
+        interpolationComponent.Line.OnSnapshot(acMessage.Tick, m_transport.GetTick());
         if (teleported)
         {
             InterpolationSystem::Restart(interpolationComponent, movement.Position);
@@ -1746,6 +1748,9 @@ void CharacterService::RunRemoteUpdates() noexcept
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
             // Its capsule collides as its owner's: in furniture it does not, else physics pushes it out (actor-movement.md).
             m_actorBridge.SetCapsuleCollision(pFormIdComponent->Id, cOwnerCollides);
+            // Aims and swings at it meet its owner, ahead by the copy's delay and the line's (combat-aim.md).
+            m_actorBridge.SetCopyLead(pFormIdComponent->Id, static_cast<uint32_t>(CopyLead::Ms(
+                currentTick > tick ? currentTick - tick : 0, interpolationComponent.Line.Ms())));
             // Its bodies and graphs as its owner's: seated, its bodies take the crosshair (re/systems/dialogue.md).
             if (!cOwnerLies)
             {
