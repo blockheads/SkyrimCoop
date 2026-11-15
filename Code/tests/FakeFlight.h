@@ -17,8 +17,7 @@ struct FakeFlight
 
     static constexpr float kRestitution = 0.5f;
     static constexpr float kFriction = 400.f; // units/s² while it slides
-    // This game's own: two games never simulate one fall alike (the duo's let go ladle rested 10 units apart, a dropped
-    // sword 15 to 80: physics-sync.md, "The mover's until its rest"), so a test may set each game's apart.
+    // Each game's own: two games never simulate one fall alike (physics-sync.md, "The mover's until its rest").
     float Friction = kFriction;
 
     // One physics step of aSeconds.

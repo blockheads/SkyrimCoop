@@ -298,3 +298,18 @@ TEST_CASE("Physics: a reliable release survives lost held frames and rejects old
         CHECK(session.Freed.empty());
     }
 }
+
+TEST_CASE("Physics: a second mover's rest after the first's rested gets the host's pose back", "[HostAuthority][Physics]")
+{
+    // Two guests pushed one body: the first's claim won and its rest was placed; the second's own rest is refused.
+    Session session;
+    session.Receive(kPeer, Moved(1000, 10.f));
+    session.Receive(kOtherPeer, Moved(1010, 40.f));
+    session.Receive(kPeer, RestsAt(1100, 20.f));
+    session.Bodies = {{.Key = kLadle, .Position = {20.f, 0.f, 0.f}}};
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, RestsAt(1200, 45.f));
+    CHECK(session.SentTo<NotifyBodyRests>(kHost).empty());
+    REQUIRE(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).back()->Rests[0].Position.x == 20.f);
+}

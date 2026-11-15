@@ -1162,3 +1162,31 @@ SCENARIO("A guest's player moves the bucket: the host's move row of it does not 
         CHECK(guestBucket.Flight.Body.Position.z == kTable);
     }
 }
+
+SCENARIO("A host frame from before the guest's push comes after its rest: the guest's stays where it stopped", "[physics][mover]")
+{
+    // Host frames ride the unreliable channel: one sent before the guest took the body may land after its rest.
+    Party party(1, Plugins);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    guestBucket.Flight.Floor = kTable;
+    const uint64_t cBefore = party.Guest().GetFrameTick();
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    party.Until([&] { return party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object); }, "the bucket is the guest's");
+    party.Until([&] { return !guestBucket.Awake && !party.Guest().ctx().at<BodyService>().MovedHere(kBucket.Object); }, "the guest's bucket rests");
+    const glm::vec3 cRest = guestBucket.Flight.Body.Position;
+    NotifyBodyFrames late;
+    late.Tick = cBefore;
+    late.Frames = {{.Key = kBucket, .Position = {100.f, 200.f, kTable}, .LinearVelocity = {50.f, 0.f, 0.f}}};
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(late); });
+    for (int i = 0; i < 30; ++i)
+        party.Frame();
+    THEN("the late frame is not played")
+    {
+        CHECK(guestBucket.Drives == 0);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, cRest) < 0.01f);
+    }
+}

@@ -29,9 +29,7 @@ struct World;
  */
 struct GuestHands final : BodyService::Keeper
 {
-    // A body this game moved alone this long ago whose move the host never followed asks the host where it is (the
-    // host's first frame comes back within a round trip); one its player touched that never moved here is the host's
-    // again.
+    // Moved alone this long without the host's frames: the host is asked; touched and still here: the host's again.
     static constexpr uint64_t kOwnMs = 1000;
 
     GuestHands(World& aWorld, GuestEngine& aEngine) noexcept;
@@ -77,7 +75,7 @@ private:
     // Its own bodies not held: their frames into aFrames while they move here, their rests to the host.
     void SendOwn(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept;
     // An own body's rest into aRests: the host's to place everywhere else.
-    void Rested(const BodyPose& acRest, BodyRestsRequest& aRests) noexcept;
+    void Rested(const BodyPose& acRest, uint64_t aTick, BodyRestsRequest& aRests) noexcept;
     // This game's player's ragdoll: its awake bodies' frames into aFrames, its rest to the host.
     void SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept;
     // This game's player's session id (its LocalComponent), 0 before it has one.
@@ -92,7 +90,7 @@ private:
     std::map<BodyKey, Owned> m_own;          // this game's player's, until its rest here
     std::map<BodyKey, BodyFrame> m_holding;  // in this game's player's hands: its last frame
     BodySends m_sends;                       // the own and ragdoll frames the others would guess wrong
-    BodyMotions m_motions;                   // the ragdoll's free fall
+    BodyMotions m_motions;                   // the ragdoll's and own bodies' free fall
     uint32_t m_ragdollFrames{};              // the ragdoll's frames read since it woke (logged)
     std::map<BodyKey, Moved> m_moved;        // moved by this game's physics alone
     std::map<BodyKey, BodyPose> m_hostRests; // where the host's rests put them

@@ -97,13 +97,20 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
 {
     NotifyBodyRests rests;
     rests.Tick = acMessage.Tick;
+    std::vector<BodyKey> refused;
     for (const auto& cRest : acMessage.Rests)
         if (!cRest.Key.Actor)
         {
             // What its player moved, at rest in its game: where it lies in every game.
             const auto it = m_holds.find(cRest.Key);
             if (it == m_holds.end() || it->second.Holder != aSender || it->second.Held || acMessage.Tick < it->second.Tick)
+            {
+                // No claim left (another mover's won and rested): the sender gets where the host has it. A winner
+                // still moving it sends its rest later.
+                if (it == m_holds.end())
+                    refused.push_back(cRest.Key);
                 continue;
+            }
             spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f})", aSender, WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x,
                          cRest.Position.y, cRest.Position.z);
             m_holds.erase(it);
@@ -121,6 +128,17 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
         }
     if (!rests.Rests.empty())
         m_players.SendToOthers(rests, aSender, Net::kReliable);
+    if (!refused.empty() && m_game.ReadBodies)
+    {
+        NotifyBodyRests answer;
+        answer.Tick = m_tick;
+        answer.Rests = m_game.ReadBodies(refused);
+        if (!answer.Rests.empty())
+        {
+            spdlog::info("HostHands: {:x}'s rest of {} refused: it gets the host's", aSender, WorldStateLog::DescribeBody(refused[0]));
+            m_players.SendTo(aSender, answer);
+        }
+    }
 }
 
 void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t aSender) noexcept

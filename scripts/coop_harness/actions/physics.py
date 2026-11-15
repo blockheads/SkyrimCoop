@@ -344,6 +344,7 @@ class PhysicsActions:
         else:
             target = ctx.resolve(target, instance)
         starts = ctx.where_now([target])
+        ctx.staged().append(("put_back", starts))  # unstage puts it back, however the moves below end
         ctx.place_before(instance, target, 90 if how == "throw" else 140)
         ctx.face(instance, target)
         ctx.wait_until_settled(target, instance or "", timeout=15)  # its copy reaches the other game after the teleport
@@ -366,20 +367,17 @@ class PhysicsActions:
                 ctx.press(instance, "forward")
                 try:
                     ctx.wait_for(f"[{mover}] pushes {target:X}", lambda: not near(ctx.body_of(instance, target)["position"], at, 10), 6)
-                    time.sleep(0.5)
+                    ctx.wait_for(f"[{mover}] pushes {target:X} on", lambda: not near(ctx.body_of(instance, target)["position"], at, 40), 3)
                 finally:
                     ctx.release(instance, "forward")
-            for game in ("", "client"):
-                ctx.wait_for(f"[{game or 'host'}] {target:X} comes to rest", lambda g=game: not ctx.body_of(g, target)["awake"], 30)
-            time.sleep(1.5)
+            # At rest in both games and staying so: a late rest that moves it lands in the trace.
+            asleep = lambda: all(not ctx.body_of(g, target)["awake"] for g in ("", "client"))
+            ctx.wait_for(f"{target:X} rests in both games for 1.5 s", ctx.comes_true_for(asleep, 1.5), 30)
             trace.take()
         path = trace.path(instance, target)
         if len(path) < 3:
             raise ctx.failure(f"[{mover}] no trace of {target:X}")
-        # A snap: one frame's step past what the steps either side of it would make (a fall bends, a snap jumps).
-        steps = [(t1, math.dist(p0, p1)) for (_, p0, *_), (t1, p1, *_) in zip(path, path[1:])]
-        snaps = [(round(t - path[0][0], 2), round(d, 1)) for (_, a), (t, d), (_, b) in zip(steps, steps[1:], steps[2:])
-                 if d > 4 and d > 3 * max(a, b, 0.5)]
+        snaps = FlightTrace.snaps(path)
         rest = ctx.body_of(instance, target)["position"]
         log(f"[{mover}] {target:X} ({how}): {len(path)} frames, snaps {snaps[:6]}, rests at "
             f"{[round(x) for x in rest]}; {trace.report(target)}")
@@ -389,7 +387,6 @@ class PhysicsActions:
             ctx.REPRO_RESTS = {}
         ctx.REPRO_RESTS[(name, whose)] = rest
         ctx.REPRO_SNAPS = {**getattr(ctx, "REPRO_SNAPS", {}), (name, whose): snaps}
-        ctx.staged().append(("put_back", starts))
         return {"object": f"{target:X}", "rest": [round(x, 1) for x in rest], "snaps": snaps[:6]}
 
     def where_now(ctx, ids):

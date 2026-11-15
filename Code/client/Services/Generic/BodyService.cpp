@@ -150,10 +150,10 @@ void BodyService::Apply() noexcept
     m_copiesIndexed = true;
     // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
     const uint64_t cTick = m_world.GetFrameTick();
-    // What this game's player took is its own now: the owner's playback of it stops.
+    // What this game's player took is its own now: the owner's playback of it stops, its older frames too.
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
-            Forget(cKey);
+            Forget(cKey, cTick);
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
