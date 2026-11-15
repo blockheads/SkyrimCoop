@@ -40,11 +40,6 @@ Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const
     return velocities;
 }
 
-float SteerSeconds(float aLastFrameSeconds) noexcept
-{
-    return std::clamp(1.5f * aLastFrameSeconds, kSteerSeconds, 0.5f);
-}
-
 bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds, float aGravity) noexcept
 {
     if (aSeconds <= 0.f)
@@ -61,18 +56,5 @@ bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept
     constexpr float cAngle = 0.05f;
     const auto cApart = Between(acNow, acWoke);
     return cApart.Distance >= cDistance || cApart.Angle >= cAngle;
-}
-
-bool Still::Read(const BodyFrame& acNow, uint64_t aTick) noexcept
-{
-    const auto cApart = Started ? Between(acNow, Anchor) : Error{kDistance, kAngle};
-    if (cApart.Distance >= kDistance || cApart.Angle >= kAngle)
-    {
-        Anchor = acNow;
-        Since = aTick;
-        Started = true;
-        return false;
-    }
-    return aTick - Since >= kMs;
 }
 } // namespace BodyPrediction

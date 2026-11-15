@@ -22,7 +22,7 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
 {
     std::vector<BodyKey> owned;
     std::vector<BodyFrame> frames;
-    auto own = m_engine.TakeOwnBodies(aTick);
+    auto own = m_engine.TakeOwnBodies();
     // Its player's drop falls as this game's physics drops it until the host's rest.
     for (const BodyKey& cKey : m_engine.TakeAdoptedDrops())
         Own(cKey, aTick, "dropped", owned);
@@ -83,14 +83,6 @@ void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::ve
     std::erase_if(pushes.Pushes, [this](const BodyPush& acPush) { return m_holding.contains(acPush.Key); });
     for (const auto& cPush : pushes.Pushes)
         Own(cPush.Key, aTick, "pushes", aOwned);
-    // Its weapon's hits: pushes too (the host's copy of its swing hits nothing).
-    for (const auto& cHit : m_engine.TakeHits())
-    {
-        if (m_holding.contains(cHit.Key))
-            continue;
-        Own(cHit.Key, aTick, "hits", aOwned);
-        pushes.Pushes.push_back(cHit);
-    }
     if (!pushes.Pushes.empty())
         transport.Send(pushes);
 

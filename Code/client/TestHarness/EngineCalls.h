@@ -5,7 +5,6 @@
 #include <functional>
 
 #include <Havok/Raycast.h>
-#include <Havok/SwingCast.h>
 
 #include <Diagnostics/EngineReads.h>
 #include <Structs/Inventory.h>
@@ -311,8 +310,6 @@ struct Placement
 Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
 // Moves the player to that spot (its feet), facing the reference.
 bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept;
-// A reference's first body woken, moving at that velocity (game units/s; 78089). False: no dynamic body.
-bool SetBodyVelocity(uint32_t aFormId, const float acVelocity[3]) noexcept;
 
 // A ray through the player's cell's physics world (bhkWorld::PickObject), as a collision layer sees it (30, the
 // character controller's: what stops a player walking). Game units.
@@ -707,11 +704,6 @@ std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept;
 // The player's heading and pitch in degrees (z clockwise from north, x positive looking down): in first person, where
 // its camera looks.
 std::optional<std::array<float, 2>> PlayerAngles() noexcept;
-
-// What the player's melee swing would hit now (the engine's own cast, 38628's: GameSwingCast); none without a player.
-std::optional<GameSwingCast::Cast> PlayerSwingCast(GameSwingCast::Reach aReach) noexcept;
-// Turns the player so its eye (GetEyeVector's origin, where a swing starts) looks at that point, in first person.
-bool AimPlayerEyeAt(const float acPoint[3]) noexcept;
 
 // Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
 bool IsInRagdollState(uint32_t aFormId) noexcept;

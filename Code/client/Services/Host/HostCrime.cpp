@@ -46,9 +46,6 @@ void HostCrime::Update() noexcept
             NotifyCrimeConfiscation message;
             message.Id = ++m_confiscationId;
             message.Faction = due.Faction;
-            message.Owner = due.Owner;
-            message.To = due.To;
-            message.ToActor = due.ToActor;
             m_network.Send(owner, message);
         }
     if (!m_game.ReadCrimeGold)

@@ -6,7 +6,7 @@
 
 #include <RTTI.h>
 
-HostBodies HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept
+HostBodies HostEngine::TakeBodies(const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept
 {
     HostBodies bodies;
     const auto cOwner = [&](const PhysicsBodies::Bodies& acBodies) -> std::optional<BodyKey> {
@@ -18,14 +18,12 @@ HostBodies HostEngine::TakeBodies(uint64_t aTick, const std::function<uint32_t(u
         const auto cId = IsShared(acBodies.FormId) ? ToSessionOrCreated(acBodies.FormId) : std::nullopt;
         return cId ? std::optional<BodyKey>(BodyKey{.Object = *cId}) : std::nullopt;
     };
-    const auto cUpdate = m_bodies.Take(aTick);
+    const auto cUpdate = m_bodies.Take();
     for (const auto& cAwake : cUpdate.Awake)
         if (const auto cKey = cOwner(cAwake))
             for (BodyFrame frame : cAwake.Read)
             {
                 frame.Key = {cKey->Object, cKey->Actor, frame.Key.Index};
-                if (cAwake.Held)
-                    bodies.Held.push_back(frame.Key);
                 bodies.Awake.push_back(frame);
             }
     for (const auto& cRested : cUpdate.Rested)

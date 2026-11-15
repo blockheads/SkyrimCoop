@@ -3,7 +3,6 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 #include <Physics/BodyPrediction.h>
-#include <Systems/CopyStep.h>
 #include "FakeDialogue.h"
 #include <Events/PlayerTravelQueuedEvent.h>
 #include <Events/StoryEvents.h>
@@ -98,18 +97,6 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Flight.Body.AngularVelocity = acSpin;
     body.Awake = true;
     body.Tick = 0;
-    // Woken still (Wake) no more: the knock moves it.
-    body.StillFor = body.StillUntil = 0;
-}
-
-void FakeEngine::Swing(const BodyKey& acKey, const glm::vec3& acImpulse)
-{
-    Body& body = Bodies.at(acKey);
-    // A keyframed body (played on the host's frames) has no mass: 38628 scales its impulse to 0, nothing moves.
-    if (body.Held)
-        return;
-    PlayerHits.push_back({acKey, acImpulse, body.Flight.Body.Position});
-    Knock(acKey, body.Flight.Body.LinearVelocity + acImpulse, body.Flight.Body.AngularVelocity);
 }
 
 void FakeEngine::Wake(const BodyKey& acKey, uint64_t aMs)
@@ -152,7 +139,7 @@ bool FakeEngine::KnockDown(uint32_t aCopyFormId) noexcept
     return true;
 }
 
-bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHeld) noexcept
+bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
     // An actor's body needs its copy here (BodyBridge::Find): none yet, or gone, is not loaded here.
@@ -180,14 +167,10 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId, bool aHel
         return true;
     }
     Body& body = it->second;
-    // Held in another game: keyframed (massless); else simulated, steered onto the frame (BodyBridge::Drive).
-    body.Held = aHeld;
-    body.Awake = !aHeld;
-    body.Flight.Resting = aHeld;
+    body.Held = true;
+    body.Awake = false;
     body.Flight.Body.Position = acFrame.Position;
     body.Flight.Body.Rotation = acFrame.Rotation;
-    body.Flight.Body.LinearVelocity = aHeld ? glm::vec3{} : acFrame.LinearVelocity;
-    body.Flight.Body.AngularVelocity = aHeld ? glm::vec3{} : acFrame.AngularVelocity;
     body.SceneWritesDuringJobs += !AtMainLoop;
     body.NodePosition = acFrame.Position;
     body.NodeRotation = acFrame.Rotation;
@@ -263,13 +246,8 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         body.NodePosition = acPose.Position;
         body.NodeRotation = acPose.Rotation;
     }
-    // A reference's body is simulated again at its rest, asleep (BodyBridge::SettleFound); a ragdoll's stays held.
+    // A reference's body is simulated again at its rest; a ragdoll's stays held.
     body.Held = body.RagdollOf != 0;
-    if (!body.RagdollOf)
-    {
-        body.Awake = false;
-        body.Flight.Resting = true;
-    }
     body.Flight.Body.Position = acPose.Position;
     body.Flight.Body.Rotation = acPose.Rotation;
     body.Flight.Body.LinearVelocity = {};
@@ -337,26 +315,6 @@ uint32_t FakeEngine::ReferenceOf(const BodyKey& acKey) noexcept
 
 std::vector<uint32_t> FakeEngine::TakeMovedReferences() noexcept
 {
-    // A stepped copy's step sets its body's velocity, which wakes what shares its island (62456); a still one's is none
-    // (CopyStep::Translation), as a still NPC's (79201).
-    for (const auto& [cFormId, cActor] : Actors)
-    {
-        if (!cActor.Copy || !cActor.Stepped || cActor.Dead || cActor.Disabled || !cActor.Loaded)
-            continue;
-        const glm::vec3 cFeet(cActor.Position[0], cActor.Position[1], cActor.Position[2]);
-        const glm::vec3 cGoal(cActor.Goal[0], cActor.Goal[1], cActor.Goal[2]);
-        if (CopyStep::Translation(cGoal - cFeet, cActor.Rotation[2]) == glm::vec3(0.f))
-            continue;
-        for (auto& [cKey, body] : Bodies)
-        {
-            const glm::vec3& cAt = body.Flight.Body.Position;
-            if (cKey.Actor || body.Held || glm::length(glm::vec2(cAt.x - cFeet.x, cAt.y - cFeet.y)) >= kIslandReach ||
-                cAt.z < cFeet.z - kIslandReach || cAt.z >= cFeet.z + kCapsuleTop)
-                continue;
-            if (body.Flight.Resting)
-                Wake(cKey, kStepMs);
-        }
-    }
     std::vector<uint32_t> moved;
     for (const auto& [cKey, cBody] : Bodies)
         if (cBody.Awake && !cBody.Held && std::ranges::find(moved, ReferenceOf(cKey)) == moved.end())
@@ -404,13 +362,13 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             std::copy_n(&body.Flight.Body.Position.x, 3, cActor->second.Position);
             cActor->second.Rotation[2] = HeadingOf(body.Flight.Body.Rotation);
         }
-        if (body.Flight.Resting && !cRising && !body.KeptAwake)
+        if (body.Flight.Resting && !cRising)
             body.Awake = false;
         if (reference.Bodies.size() <= cKey.Index)
             reference.Bodies.resize(cKey.Index + 1);
         BodyRead read{.Position = body.Flight.Body.Position, .Rotation = body.Flight.Body.Rotation,
                       .LinearVelocity = body.Flight.Body.LinearVelocity, .AngularVelocity = body.Flight.Body.AngularVelocity,
-                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting || body.KeptAwake)};
+                      .Dynamic = !body.Held, .Active = body.Awake && (cRising || !body.Flight.Resting)};
         reference.Bodies[cKey.Index] = IBodyReads::Body{.Read = read};
         if (!reference.Actor)
             reference.Bodies[cKey.Index]->Node = std::pair(body.NodePosition, body.NodeRotation);

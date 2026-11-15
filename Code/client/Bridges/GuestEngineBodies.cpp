@@ -62,10 +62,10 @@ std::optional<GameId> GuestEngine::HostIdOf(const TESObjectREFR& acObject) const
     return std::nullopt;
 }
 
-std::vector<BodyPush> GuestEngine::Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept
+std::vector<BodyPush> GuestEngine::TakePushes() noexcept
 {
     std::vector<BodyPush> pushes;
-    for (const auto& cPush : acPushes)
+    for (const auto& cPush : PlayerHands::Take())
     {
         if (cPush.Impulse == glm::vec3(0.f))
             continue;
@@ -87,20 +87,10 @@ std::vector<BodyPush> GuestEngine::Keyed(const std::vector<PlayerHands::Push>& a
     return pushes;
 }
 
-std::vector<BodyPush> GuestEngine::TakePushes() noexcept
-{
-    return Keyed(PlayerHands::Take());
-}
-
-std::vector<BodyPush> GuestEngine::TakeHits() noexcept
-{
-    return Keyed(PlayerHands::TakeHits());
-}
-
-GuestEngine::OwnBodies GuestEngine::TakeOwnBodies(uint64_t aTick) noexcept
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
 {
     OwnBodies own;
-    const auto cUpdate = m_moving.Take(aTick);
+    const auto cUpdate = m_moving.Take();
     for (const auto& cAwake : cUpdate.Awake)
     {
         if (cAwake.Actor)

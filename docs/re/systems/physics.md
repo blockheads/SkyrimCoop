@@ -132,94 +132,6 @@ write lock. `contactPointAddedCallback` (79131) fires for every new contact, the
 A copy is moved by SetPosition and pushes nothing (`guest-bump-moves-host`, measured 2026-10-24: its copy came within
 14 units of the host's ladle).
 
-## A swing's hit (read in IDA 2026-11-13)
-
-A melee swing's hit frame (`HitFrameHandler::Handle` 42828 -> 38603) calls
-`Actor::CalculateCurrentHitTargetForWeaponSwing` (38628, `0x1406CD850`). It shape-casts the swing
-(`hkpAllCdPointCollector`); an actor it meets is returned as the target. A dynamic body that is not an actor gets a
-knock in place (read in IDA):
-
-```text
-38628, the swing meets a body (collector's first hit; its reference may be none)
-  impulse = swing direction x min(cap 0x1420A6668, weapon weight + 3) x 0x1420A6650
-            scaled down by mass / 0x1420A6680 for a lighter body (hkpMotion::getMass 60959)
-            x 0x1420A6698 for layers 8, 32, 33; x 0.0142875 to Havok units
-  world write lock -> hkpEntity::Activate -> motion's applyPointImpulse (vfunc 0x14, call at +0x6BE)
-                      (impulse, the hit's contact point)
-  TESHitEvent for the reference (ScriptEventSourceHolder+0x5D8)
-```
-
-Where the swing reaches (read in IDA 2026-11-13): 38628 gets its start and look from `GetEyeVector` (Actor vfunc
-0xC2, no camera offset). `Actor::GetEyeVector` (37479) looks along the heading only (z 0); `PlayerCharacter`'s
-(40505) starts at the first-person camera node and looks along heading and pitch. `LinearCastFrom` (25931) sweeps the
-shared collector's sphere (`GetAllCdPointCollector` 25925 -> 25930: radius `fHitCasterSizeSmall`, 12) from there for
-the reach (`fObjectHitWeaponReach` 150; anim types 5-6 `fObjectHitTwoHandReach` 112; hand to hand
-`fObjectHitH2HReach` 64; no weapon `iActivatePickLength`), ignoring the swinger's group (25932). The hits are sorted
-nearest first (60336) and the swing takes the first: for an object flat on a floor or table that is often the surface
-under it. The harness's `swing_cast`, `aim_swing` and `last_swing` read this same cast (below).
-
-It runs only in the swinger's own game: the host's copy of a guest's swing hits nothing
-(`guest-swing-moves-host`, measured 2026-11-13: the guest's bucket woke, the host's never did). So before the
-fix the guest's own physics moved it alone, `GuestHands` asked the host's pose a second later and the bucket
-snapped back. `PlayerHands` now replaces the `call [rax+0A0h]` at +0x6BE with a call to its own (which calls
-the motion's) and wraps 38628 to know whose swing it is: the player's hits go to the host as pushes
-(`BodyPushRequest`), applied alike there.
-
-A hit on a body the host's frames move (keyframed on the guest: knocked, rolling, or woken) moves nothing in either
-game: a keyframed motion's inverse mass is 0, so `getMass` (60959) reads 0 and 38628 scales the impulse to 0
-(read in IDA; measured on the duo with `last_swing`: the swing met the ladle with the line-up's look, no hit recorded,
-the ladle stayed at 0.0 units/s). The host kept a ladle awake (0.0-0.09 units/s) with the guest's copy beside it, so
-the guest's stayed keyframed and unhittable: the copy's own step woke it each frame (fixed 2026-11-13, below, "Woken
-still"). A body really moving on the host's frames is no longer keyframed on the guest, so the swing knocks it
-(2026-11-13, `docs/design/physics-sync.md`, "One rule").
-
-## Every hand skips a keyframed body (read in IDA 2026-11-13)
-
-Each way a player moves a body ignores one keyframed (motion type 4), so a body played keyframed is out of reach:
-
-- walking into it: the character proxy gives it no interaction (79133, "A player's push");
-- a swing: 38628 scales the impulse by `getMass` (60959), 0 for a keyframed motion ("A swing's hit");
-- a shout: `ConeProjectile::ProcessHits` (43802, our name) pushes a hit body only when `hkpMotion::IsDynamicType`
-  (78109, our name, read: motion types 1-3 and 6) or its layer is 20, through `bhkRigidBody::SetLinearImpulse`
-  (78091) and a random angular impulse;
-- an explosion: `Explosion::ApplyHavokImpulses` (43850, our name) runs once over the bodies its phantom
-  (`Explosion+0xC0`) overlaps, with the same gate, then `Explosion::ApplyImpulseToBody` (43854): linear impulse from
-  the blast's centre, scaled by mass, and a random angular one (`GetRandomNumber` three times), so two games' blasts
-  never match;
-- a grab: `CreateMouseSprings` (40555) refuses types 4 and 5 ("Grabbing").
-
-Each knows its cause where it pushes: an explosion its `actorOwner` (`+0xF8`) and `actorCause` (`+0x108`,
-`GetActorCause` 43846), a shout its projectile's shooter, a swing its swinger.
-
-Contacts: the engine adds contact listeners only through `bhkWorldObject::AddContactListener` (77843, our name), which
-calls `hkpWorld::addContactListener` (61383: the array at `hkpWorld+0x258`); Precision registers its own the same way
-after `requireCollisionCallbackUtil` (61437) and hears every contact point with both bodies.
-
-Sleep (read in IDA 2026-11-13 unless marked):
-
-- `FOIslandActivationListener::islandDeactivatedCallback` (25850) is the engine's work when Havok deactivates an
-  island. Per body it calls `PopTemporaryMass`, does the 3D's bookkeeping through the task queue, sets references
-  flagged in their extra data to fixed (`NiAVObject::SetMotionType` 77866, 5), and keyframes large debris (layer 20;
-  78077, 4).
-- `hkpEntity::deactivate` (60850) clears the island's marks. It calls `moveIslandBetweenActiveLists` (61513, our
-  name), which moves the island between the world's active (`+0x40`) and inactive (`+0x50`) arrays through 61511
-  (island bookkeeping), then `markIslandInactive` (61523, our name, the mirror of `markIslandActive` 61525). That
-  clears the activation bits and queues the island on the world's list at `+0x60`. Last, it resets each body's sleep
-  reference (`+0x25C`, `+0x26C`; Havok's per-body deactivation reference, inferred from its motion layout).
-- None of these calls the island listeners (world `+0x1F8`). They run where the world drains `+0x60`, not found yet
-  (IDA's byte search returned nothing).
-
-Havok sleeps an island only when all its bodies are quiet, which is why one animated body keeps its neighbours awake
-("Woken still"). Since a reference's rest now comes from its own stillness, the two games differ here:
-
-- On the host, 25850's work waits for Havok's island sleep, as in a game without co-op: beside a leaning Orgnar,
-  never.
-- On a guest, placing the host's rest calls 60850 (`BodyBridge::SettleFound`), as before this change. That queues the
-  island inactive at once. Whether 25850 then runs for it is not read.
-- Seen on the duo: the guest's object stays dynamic and its pose matches (`object-rests-beside-orgnar`). A reference
-  that 25850 makes fixed on sleep could still end up fixed on the guest and dynamic on the host; that is not
-  measured.
-
 ## Rays
 
 `bhkWorld::PickObject` (vtable 0x33, 77860; checked 2026-10-24): a `bhkPickData` (CommonLib-NG, 0xD0) with `from` and
@@ -235,10 +147,6 @@ The engine records a reference's havok move (change flag 0x4, `TESForm::AddChang
 (`PhysicsBodies` watches the change funnel for it). Each update the host reads those references' bodies; a body is
 awake while its island's `activeMark` is set, and a reference rests when none of its dynamic bodies is awake (Havok
 deactivates an island after `kNumInactiveFramesToDeactivate` quiet frames and zeroes its velocities).
-
-Since 2026-11-13 a reference's body also rests once it keeps one pose for 300 ms (`BodyPrediction::Still`): its
-island can stay active for good beside an animated body ("Woken still"), measured with a cheese wheel on Orgnar's bar
-(`object-rests-beside-orgnar`: the host's body awake, no island sleep in 6 of 7 drops).
 
 Havok's own listeners (island activation, post simulation) would say the same per island; they need an object with
 Havok's vtable registered on each world as the player changes worlds. Not needed while the funnel's event and the
@@ -332,11 +240,6 @@ keyframed its bottle (`BodyService: follows the owner's ...`) until the rest, an
 where it woke (`BodyPrediction::LeftRest`: 2 units, 0.05 rad); its rest still goes (`docs/design/physics-sync.md`,
 "Woken still"). Measured on the duo: before, two held-E grabs of 33288 and 33287 timed out after 3 s and the
 release picked them up; after, each took in 0.22 s (`guest-grabs-orgnar-bottle`).
-
-A copy standing still did the same through its own body until 2026-11-13: our step gave it a new velocity each
-frame, which woke its island (`hkpCharacterRigidBody::setLinearVelocity` 62456). A body that had moved and stopped
-beside a guest's copy then never slept, so the host never sent its rest and the guest kept it keyframed (see
-`actor-movement.md`, "Copies step": a still copy now steps by nothing).
 
 ## What stops a held body (2026-11-01)
 

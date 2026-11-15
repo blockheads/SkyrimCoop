@@ -18,11 +18,6 @@
 #include <unordered_set>
 #include <NoCopyMove.h>
 
-namespace PlayerHands
-{
-struct Push;
-}
-
 struct OwnStoryEvent;
 struct TESObjectREFR;
 struct TESQuest;
@@ -93,8 +88,6 @@ public:
     // This game's player's pushes of the host's references' bodies since the last call (its character's,
     // PlayerHands), one per body.
     [[nodiscard]] std::vector<BodyPush> TakePushes() noexcept;
-    // Its weapon swings' hits on the host's references' bodies since the last call (PlayerHands::TakeHits), one per body.
-    [[nodiscard]] std::vector<BodyPush> TakeHits() noexcept;
     // The host's reference this game's player holds (Activate held: PlayerCharacter::grabbedObject): its dynamic
     // bodies read now; none while it holds nothing of the host's (a body the host's frames still move is keyframed, so
     // the engine's grab refuses it).
@@ -108,7 +101,7 @@ public:
         std::vector<BodyFrame> Ragdoll;
         std::vector<BodyPose> RagdollRested;
     };
-    [[nodiscard]] OwnBodies TakeOwnBodies(uint64_t aTick) noexcept;
+    [[nodiscard]] OwnBodies TakeOwnBodies() noexcept;
 
     // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
     // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.
@@ -138,8 +131,6 @@ private:
 
     // The host's id of this game's reference (a created one's through m_created).
     [[nodiscard]] std::optional<GameId> HostIdOf(const TESObjectREFR& acObject) const noexcept;
-    // The player's pushes or hits on the host's references' bodies, keyed, one per body (impulses summed).
-    [[nodiscard]] std::vector<BodyPush> Keyed(const std::vector<PlayerHands::Push>& acPushes) const noexcept;
     IBodyBridge& m_bodyBridge; // the session's bodies here
     std::vector<std::pair<BodyKey, uint32_t>> m_placed; // held at a move row's rest: updates since
     BodyReads m_reads;

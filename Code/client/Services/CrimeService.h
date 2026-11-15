@@ -44,7 +44,6 @@ struct CrimeService
     void OnState(const NotifyCrimeState&) noexcept;
     void OnLockCrime(const NotifyLockCrime&) noexcept;
     void OnConfiscation(const NotifyCrimeConfiscation&) noexcept;
-    void ApplyConfiscations() noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnLoaded(const GameLoadedEvent&) noexcept;
     World& m_world;
@@ -55,6 +54,5 @@ struct CrimeService
     bool m_hasState{};
     std::vector<CrimeGold> m_gold;
     std::vector<HeldCrime> m_held;
-    std::vector<CrimeConfiscation> m_confiscations; // ToActor a session id: waits until that actor is here
     std::vector<entt::scoped_connection> m_connections;
 };

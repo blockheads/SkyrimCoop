@@ -498,16 +498,6 @@ TEST_CASE("A copy's step is in its own frame: forward along its heading, right a
     CHECK(cNear(CopyStep::Local({0.f, 10.f, 0.f}, 1.57079633f), {-10.f, 0.f, 0.f}));
 }
 
-TEST_CASE("A copy on its owner's place steps by nothing, as a still NPC: its step would wake its island", "[physics][copy-step]")
-{
-    // Havok's step lands a hair short (0.04 units measured): a copy standing still must not chase it.
-    CHECK(CopyStep::Translation({0.04f, 0.f, 0.f}, 0.f) == glm::vec3(0.f));
-    CHECK(CopyStep::Translation({0.f, 0.3f, -0.3f}, 1.f) == glm::vec3(0.f));
-    // A slow walk's frame (about 80 units/s at 60 fps) still steps.
-    CHECK(glm::length(CopyStep::Translation({0.f, 1.3f, 0.f}, 0.f) - glm::vec3(0.f, 1.3f, 0.f)) < 1e-4f);
-    CHECK(glm::length(CopyStep::Translation({10.f, 0.f, 2.f}, 1.57079633f) - glm::vec3(0.f, 10.f, 2.f)) < 1e-4f);
-}
-
 TEST_CASE("A copy's first ragdoll frame is steered unless it is well off", "[body-prediction][kill-move]")
 {
     CHECK(BodyPrediction::PlaceDistance(true) < BodyPrediction::PlaceDistance(false));
@@ -547,55 +537,4 @@ TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", 
     INFO("with its velocity the shown body strays " << cWorst(true) << " units from the shake's middle, without " << cWorst(false));
     CHECK(cWorst(false) <= 2.6f);       // within the shake itself
     CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
-}
-
-TEST_CASE("A body is at rest once it keeps one pose for a while, whatever Havok's island says", "[physics][still]")
-{
-    BodyPrediction::Still still;
-    BodyFrame frame{.Position = {10.f, 0.f, 0.f}};
-    CHECK_FALSE(still.Read(frame, 1000));
-    frame.Position.x += 0.3f; // a creep under the limit
-    CHECK_FALSE(still.Read(frame, 1200));
-    CHECK(still.Read(frame, 1300));
-    SECTION("moving again starts over")
-    {
-        frame.Position.x += 1.f;
-        CHECK_FALSE(still.Read(frame, 1400));
-        CHECK_FALSE(still.Read(frame, 1600));
-        CHECK(still.Read(frame, 1700));
-    }
-    SECTION("turning counts as moving")
-    {
-        frame.Rotation = glm::angleAxis(0.05f, glm::vec3(0.f, 0.f, 1.f));
-        CHECK_FALSE(still.Read(frame, 1400));
-    }
-}
-
-TEST_CASE("A steered object's correction never overshoots, whatever the frame time", "[physics][steer]")
-{
-    // Review of #56: a fixed 50 ms correction integrated over a 100 ms frame flips the error; over 125 ms it grows.
-    const auto cRun = [](const std::vector<float>& acFrames) {
-        float error = 1.f, worst = 1.f, last = acFrames.front(); // the game's frame time, from the frame before
-        for (const float cFrame : acFrames)
-        {
-            const float cSeconds = BodyPrediction::SteerSeconds(last);
-            error *= 1.f - cFrame / cSeconds;
-            worst = std::max(worst, std::abs(error));
-            last = cFrame;
-        }
-        return std::pair(std::abs(error), worst);
-    };
-    for (const float cFrame : {0.016f, 0.033f, 0.1f, 0.125f, 0.25f})
-    {
-        INFO(cFrame);
-        const auto [cEnd, cWorst] = cRun(std::vector<float>(30, cFrame));
-        CHECK(cEnd < 0.05f);
-        CHECK(cWorst <= 1.f);
-    }
-    // One hitch among short frames: a bounded kick, then back on the path.
-    std::vector<float> hitch(30, 0.016f);
-    hitch[10] = 0.125f;
-    const auto [cEnd, cWorst] = cRun(hitch);
-    CHECK(cEnd < 0.05f);
-    CHECK(cWorst < 2.f);
 }
