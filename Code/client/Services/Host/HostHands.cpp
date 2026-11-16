@@ -69,7 +69,10 @@ bool HostHands::TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_
     }
     const auto [it, cNew] = m_holds.try_emplace(acFrame.Key, Hold{.Holder = aSender});
     if (it->second.Holder != aSender)
+    {
+        m_defeated[acFrame.Key][aSender] = m_tick;
         return false;
+    }
     if (!cNew && aTick < it->second.Tick)
         return false;
     if (cNew || it->second.Held != aHeld)
@@ -94,8 +97,17 @@ void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSende
             const auto it = m_holds.find(cRest.Key);
             if (it == m_holds.end() || it->second.Holder != aSender || it->second.Held || acMessage.Tick < it->second.Tick)
             {
-                // No claim left (another mover's won and rested): the sender gets where the host has it. A winner
-                // still moving it sends its rest later.
+                // A first mover whose (unreliable) frames never came, or came late: its rest is taken.
+                if (it == m_holds.end() && !Defeated(cRest.Key, aSender))
+                {
+                    spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f}), no frame of it heard", aSender,
+                                 WorldStateLog::DescribeBody(cRest.Key), cRest.Position.x, cRest.Position.y, cRest.Position.z);
+                    m_guestRests[cRest.Key] = {cRest, m_tick, aSender};
+                    rests.Rests.push_back(cRest);
+                    continue;
+                }
+                // Another mover's won and rested: the sender gets where the host has it. A winner still moving it
+                // sends its rest later.
                 if (it == m_holds.end())
                     refused.push_back(cRest.Key);
                 continue;
@@ -172,6 +184,16 @@ bool HostHands::HostRests(const BodyPose& acRest) noexcept
     return cApart.Distance > cLimits.Distance || cApart.Angle > cLimits.Angle;
 }
 
+bool HostHands::Defeated(const BodyKey& acKey, ConnectionId_t aSender) noexcept
+{
+    if (m_taken.contains(acKey))
+        return true;
+    if (const auto it = m_guestRests.find(acKey); it != m_guestRests.end() && it->second.Mover != aSender)
+        return true;
+    const auto it = m_defeated.find(acKey);
+    return it != m_defeated.end() && it->second.erase(aSender);
+}
+
 void HostHands::OnHostPlaced(const GameId& acObject, const glm::vec3& acWhere) noexcept
 {
     const auto cTell = [&](const BodyKey& acKey, ConnectionId_t aMover, const glm::quat& acRotation) {
@@ -233,6 +255,9 @@ void HostHands::Update(uint64_t aTick) noexcept
     m_tick = aTick;
     std::erase_if(m_guestRests, [aTick](const auto& acRest) { return aTick - acRest.second.At > kSilentMs; });
     std::erase_if(m_taken, [aTick](const auto& acTaken) { return aTick - acTaken.second.At > kSilentMs; });
+    for (auto& [cKey, defeated] : m_defeated)
+        std::erase_if(defeated, [aTick](const auto& acMover) { return aTick - acMover.second > kDefeatedMs; });
+    std::erase_if(m_defeated, [](const auto& acDefeated) { return acDefeated.second.empty(); });
     // A holder gone silent (its game stalled, or a lost let go): it falls where it was last held. A mover's free body
     // goes back to the host's physics where it is.
     std::vector<BodyFrame> dropped;

@@ -166,10 +166,16 @@ void BodyService::Apply() noexcept
             Forget(cKey, cTick);
             m_bridge.SetMoving(cKey, true); // this game's now: it meets what other games move
         }
+    m_restsTried.clear();
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
+        if (m_restsTried.contains(it->first))
+        {
+            ++it;
+            continue;
+        }
         if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->second.second)) && m_bridge.Rest(it->second.second, 0))
         {
             if (m_pKeeper)
@@ -221,6 +227,8 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
             m_ragdollRests.erase(cKey);
         // A held body too: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
         const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy, m_held.contains(cKey));
+        if (cPose.Rest)
+            m_restsTried.insert(cKey);
         if (cPose.Rest && !cKey.Actor && !cDone)
         {
             m_pendingRests[cKey] = {cPose.Tick, cAt};

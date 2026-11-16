@@ -152,11 +152,8 @@ bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::qu
 // Moving so, simulated as it is: woken, its velocities set (78089, 78090 take the world's write lock). A copy's ragdoll
 // body is steered so each update, which its ragdoll driver keeps (Find in BodyBridge).
 bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
-// A dynamic body put to sleep where it is, its contacts kept (hkpEntity::deactivate 60850), when it is alone in its
-// simulation island: the call sleeps the whole island, and in a pile that froze the mover's own body in the air.
-// The engine's deactivate sleeps its whole island (60850, 61523): among others only when every body in it is dynamic,
-// still (BodyPrediction::StillToSleep) and not one acKeepsAwake names (this game moves, plays or holds it). Whether it
-// sleeps now.
+// Puts a dynamic body to sleep with its whole island (60850, 61523) when the rest of it is still and none is one
+// acKeepsAwake names; whether it sleeps now (docs/re/systems/physics.md, "A pile sleeps together").
 bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept;
 // Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where
 // placing it each frame (60898) starts its contacts over every frame.

@@ -254,7 +254,8 @@ TEST_CASE("Physics: a guest's own ragdoll goes to every other game; another's ra
                    {.Key = kLadle, .Position = {1.f, 0.f, 10.f}}};
     session.Receive(kPeer, rests);
     REQUIRE(session.SentTo<NotifyBodyRests>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == std::vector<BodyPose>{rests.Rests[0]});
+    // Its own ragdoll's, and the ladle's (a first mover's, its frames unheard); not another's ragdoll.
+    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == std::vector<BodyPose>{rests.Rests[0], rests.Rests[2]});
     CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
     CHECK(session.Freed.empty());
@@ -282,6 +283,28 @@ TEST_CASE("Physics: a reliable release survives lost held frames and rejects old
         session.Receive(kPeer, Held(1200, 25.f));
         session.Receive(kPeer, released);
         CHECK(session.Freed.empty());
+    }
+}
+
+TEST_CASE("Physics: a guest's rest whose frames never reached the host is taken", "[HostAuthority][Physics]")
+{
+    // Codex review of #61: a push's claim is its unreliable frames; lost or late, the reliable rest was refused and
+    // the guest's object snapped back to the host's pose.
+    Session session;
+    session.Bodies = {{.Key = kLadle, .Position = {5.f, 0.f, 0.f}}};
+    SECTION("no frame at all")
+    {
+        session.Receive(kPeer, RestsAt(1100, 20.f));
+        REQUIRE(session.SentTo<NotifyBodyRests>(kHost).size() == 1);
+        CHECK(session.SentTo<NotifyBodyRests>(kHost).back()->Rests[0].Position.x == 20.f);
+        CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
+    }
+    SECTION("its frames after its rest")
+    {
+        session.Receive(kPeer, RestsAt(1100, 20.f));
+        session.Outbox.clear();
+        session.Receive(kPeer, Moved(1050, 15.f));
+        CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
     }
 }
 

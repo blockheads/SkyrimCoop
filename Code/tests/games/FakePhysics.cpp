@@ -294,8 +294,9 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
             return false;
         }
         body.Rested = acPose;
-        if (cPlacement != BodyPrediction::RestPlacement::kLeave)
-            body.Contacts = cPlacement != BodyPrediction::RestPlacement::kHold;
+        // Put or held there, it has no contact points until a physics step (TakeBodies, ReadReference) makes them.
+        if (cPlacement == BodyPrediction::RestPlacement::kPlace || cPlacement == BodyPrediction::RestPlacement::kHold)
+            body.Contacts = false;
         // Put there awake for a step (read awake by this game's physics), asked again the next frame.
         if (cPlacement == BodyPrediction::RestPlacement::kPlace && cSimulated)
         {
@@ -452,6 +453,7 @@ std::optional<IBodyReads::Reference> FakeEngine::ReadReference(uint32_t aFormId,
             continue;
         // At an owner's rest awake for its step: read awake once, where this game's world pushed it.
         const bool cRestStep = std::exchange(body.RestStep, false);
+        body.Contacts |= cRestStep;
         // This game's player's hold keeps it in its hands (the grab's spring), not falling. Getting up, its frame moved it.
         if (!cRestStep && body.Awake && !body.Held && Grabbed != cKey && !cRising)
             StepBody(body, PhysicsTick, FrameMs > 0.0);
@@ -511,6 +513,7 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const
             bodies.Awake.push_back(frame);
             continue;
         }
+        body.Contacts |= std::exchange(body.RestStep, false);
         StepBody(body, aTick, FrameMs > 0.0);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;

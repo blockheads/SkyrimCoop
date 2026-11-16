@@ -85,6 +85,11 @@ who simulates what (one game per object, always)
   from both walkers after it.
 - **The host's own placement drops a guest's rest** (`HostHands::OnHostPlaced`): a rest the host's game was still
   putting (waiting for its pile to sleep) put the object back after the console placed it.
+- **A rest is asked again only after a physics step** (`BodyService::m_restsTried`): put awake in one frame, it was
+  asked again in the same main-loop pass and slept with no collide step between, so without its contacts.
+- **A guest's rest whose frames never came is taken** (`HostHands::Defeated`): a push's claim is its unreliable frames;
+  lost or late, the reliable rest was refused and the guest's object snapped back. Refused only for a mover another
+  claim defeated (remembered `kDefeatedMs`), or a body the host's game took back.
 - **A let go does not skip ahead** (`BodyBridge::Free`): the holder's frames show 100 ms behind and its let go came at
   once, so the held object jumped up to 16 units to where it was let go.
 - **Every moved body is asked about together** (`GuestHands::AskHost`): asked one at a time, each of the host's rests

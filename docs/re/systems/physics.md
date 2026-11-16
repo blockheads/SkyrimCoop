@@ -463,11 +463,11 @@ islandDeactivatedCallback (25850), each body
 - `hkpRigidBody::setPositionAndRotation` (60898) is a teleport: the motion is set, then
   `hkpEntity_updateMovedBodyInfo` (60918) updates the broadphase, redoes the body's collision agents and activates
   it. Nothing is swept and its contacts start over: a body placed every frame never keeps a contact.
-- The character push has no player test: `bhkCharacterController::ScaleObjectImpulse` (our name, `0x1410671B0`, from
+- The character push has no player test: `bhkCharacterController::ScaleObjectImpulse` (our name, 78304, from
   79133) runs for every controller that steps, so a stepping copy pushes the bodies it walks into. It zeroes the
-  impulse for a body with no mass (keyframed) or at `fCharacterPushMassLimit` (`0x1420D1978`) and above, scales by
+  impulse for a body with no mass (keyframed) or at `fCharacterPushMassLimit` (389158) and above, scales by
   layer (14 x0.1; 10 x3 when under half the limit, else x0.1; others x2) and caps impulse/mass at 1000.
-- A temporary mass is telekinesis only: `TelekinesisEffect::LaunchGrabbed` (our name, `0x1405E6120`) is
+- A temporary mass is telekinesis only: `TelekinesisEffect::LaunchGrabbed` (our name, 35052) is
   `PushTemporaryMass`'s one caller. The player's hand grab changes no mass.
 
 ## The collision filter (read in IDA on 1.7.104, 2026-11-15)
@@ -488,7 +488,7 @@ different groups                              the layer matrix (+464, 64 bits pe
 ```
 
 - A body's group is written by `NiAVObject::SetCollisionLayerAndGroup` (77999, CommonLibSSE-NG): its walk
-  (`0x1410547E0`) sets layer and group in each rigid body's filter info when nonzero (it cannot clear a group), then
+  (78011) sets layer and group in each rigid body's filter info when nonzero (it cannot clear a group), then
   calls `bhkWorldObject::UpdateCollisionFilter` (77794, our name; `bhkWorld` 77925 inside, PLANCK's
   `UpdateCollisionFilterOnWorldObject`), which makes the world re-evaluate that body's collisions.
 - So a group of our own on the bodies another game moves, and a rule for it in the hook we already have, is how a
@@ -498,15 +498,16 @@ different groups                              the layer matrix (+464, 64 bits pe
 
 ## A rest needs its contacts (read in IDA on 1.7.104, 2026-11-15)
 
-`hkpRigidBody::setMotionType` (60908) runs `hkpWorldOperationUtil::setRigidBodyMotionType` (61518, `0x140b60eb0`).
+`hkpRigidBody::setMotionType` (60908) runs `hkpWorldOperationUtil::setRigidBodyMotionType` (61518).
 Only a change to or from fixed takes the body out of its island and adds it again with the activation asked.
 Keyframed to dynamic takes the short branch: the motion object is swapped (61519) and the entity's collision filter is
 updated (`hkpWorld::updateCollisionFilterOnEntity`, 61321), which makes the agents its new quality type needs: a keyframed body has none with fixed
 geometry. Those agents hold no contact points until a collide step runs on the body.
 
 So a body keyframed, put at a pose, set dynamic and deactivated at once (60850) sleeps on a floor Havok has no
-contact with. A character's push has a downward part (the capsule's round end on the object's top edge), which the
-floor's contact normally cancels. Without it the body sinks for one step and the next throws it up.
+contact with (read). Inferred, not read in the contact solver: a character's push has a downward part (the capsule's
+round end on the object's top edge), which the floor's contact normally cancels; without it the body sinks for one
+step and the next throws it up. Measured: the velocities below.
 
 Seen in the duo (`push_mixed`, the guest walking into a cheese wheel the host's rest had placed): the wheel left at
 (366, -44, 100) units/s and rose 30 units in 10 of 13 pushes, once after a first frame at -250 down. Vanilla's and

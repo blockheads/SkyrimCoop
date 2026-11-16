@@ -45,9 +45,7 @@ struct Velocities
 // it over, or the gap overshoots (clamped to kSteerSeconds..0.5 s).
 [[nodiscard]] float SteerSeconds(float aLastFrameSeconds) noexcept;
 // The same for a played reference body: the slower its frame moves, the longer its gap is given (half a second at 10
-// units/s and under). Steered stiffly, a slow one shook (0.1 to 0.7 units back and forth against what it lay on); left
-// alone inside a dead zone, it went its own way and was pulled back at the zone's edge (a rolling apple, 46 turn-backs
-// of 0.1 units, duo 2026-11-15).
+// units/s and under; docs/design/physics-sync.md, "A slow frame is steered softly").
 [[nodiscard]] float SteerSeconds(const BodyFrame& acTarget, float aLastFrameSeconds) noexcept;
 
 // A copy's ragdoll at its owner's rest (docs/re/systems/physics.md, A copy at its owner's rest). Steered there on every
@@ -68,10 +66,8 @@ constexpr RestStep StepToRest(uint16_t aSteps) noexcept
     return aSteps < kRestSettleSteps ? RestStep::kSteer : aSteps == kRestSettleSteps ? RestStep::kPlace : RestStep::kLeave;
 }
 
-// How an owner's rest is put on this game's simulated body (docs/re/systems/physics.md, "A rest needs its contacts").
-// Set dynamic and put to sleep at once, Havok has no contact points for it: a character's first push drove it into
-// the floor and it bounced up (the guest's cheese wheel, 10 of 13 pushes, duo 2026-11-15). Left awake to settle, this
-// game's physics moved it and both games took it for their own (a pile shook in both, 82 turns).
+// How an owner's rest is put on this game's simulated body: awake for a physics step, then asleep (61518, 61321;
+// docs/re/systems/physics.md, "A rest needs its contacts").
 enum class RestPlacement
 {
     kLeave, // there already, asleep

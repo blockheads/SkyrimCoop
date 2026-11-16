@@ -33,6 +33,8 @@ struct HostHands
 
     // A holder whose frames stop this long (its game stalled, or a lost let go) drops what it held where it was.
     static constexpr uint64_t kSilentMs = 2000;
+    // How long a defeated mover's claim is remembered: its own rest of it, until then, gets the host's pose.
+    static constexpr uint64_t kDefeatedMs = 10000;
 
     HostHands(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept;
 
@@ -61,6 +63,8 @@ private:
     // A held or moved body's frame taken from its mover (the first keeps it).
     [[nodiscard]] bool TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_t aSender, bool aHeld) noexcept;
     // An actor's ragdoll body the sender's game owns.
+    // Whether a rest with no claim heard is a defeated mover's (or the host's game took the body back).
+    [[nodiscard]] bool Defeated(const BodyKey& acKey, ConnectionId_t aSender) noexcept;
     [[nodiscard]] bool OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const noexcept;
     // Simulated again where the holder left it.
     void Free(const BodyFrame& acFrame, uint64_t aReleasedAt = 0) noexcept;
@@ -91,6 +95,7 @@ private:
         uint64_t At{};
     };
     std::map<BodyKey, Taken> m_taken;       // placed by the host's game while a guest moved it
+    std::map<BodyKey, std::map<ConnectionId_t, uint64_t>> m_defeated; // movers whose claim another held, and when
     std::map<BodyKey, uint64_t> m_released; // let go at that tick: older frames of it come late
     std::map<BodyKey, uint32_t> m_ragdolls; // a guest's ragdoll bodies moving: frames forwarded (logged)
     uint64_t m_tick{};

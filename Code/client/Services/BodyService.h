@@ -106,6 +106,7 @@ private:
     std::unordered_map<uint32_t, entt::entity> m_copyIndex;
     bool m_copiesIndexed{};
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
+    std::set<BodyKey> m_restsTried; // rests put this frame: asked again only after a physics step (their contacts)
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)
