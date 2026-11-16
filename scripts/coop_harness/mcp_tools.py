@@ -94,12 +94,13 @@ def forget_old_crashes():
 
 
 @tool
-def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
+def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hooks: str = "") -> dict:
     """Holds the shared duo (coop_harness/duo_lock.py) and boots both games in the background; then call duo_wait.
     Waits up to `wait` seconds in the queue; if still busy, fails keeping this session's place: call again within 5
     minutes or the place lapses (duo_stop gives it up). This server holds the duo until duo_stop or until it exits,
     or for 15 minutes once someone waits: the first in line then stops the games and takes it (call duo_start to queue
-    again). Hold it only while driving the games, never while reading code or IDA."""
+    again). Hold it only while driving the games, never while reading code or IDA. disable_hooks: both games boot with
+    SKYRIMCOOP_DISABLE_HOOKS, the hook files left out (HookSwitch.h): what one hook changes in a session."""
     held = (lock := session.duo_lock(OWNER)) is not None and lock.role in ("holder", "joined")
     session.duo_claim(OWNER, f"repro session in {cell}", wait_seconds=wait, keep_place=True, capped=True)
     if not held:  # a new hold: crash logs from before it are other runs'; a repeated call keeps this run's
@@ -113,8 +114,11 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90) -> dict:
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "duo", "--keep-running", "--cell", cell]
     if save:
         command += ["--save", save]
-    duo["process"] = subprocess.Popen(command, cwd=ROOT, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
-    return {"ok": True, "booting": True, "log": str(duo["log"])}
+    env = dict(os.environ)
+    if disable_hooks:
+        env["SKYRIMCOOP_DISABLE_HOOKS"] = disable_hooks
+    duo["process"] = subprocess.Popen(command, cwd=ROOT, env=env, stdout=duo["log"].open("w"), stderr=subprocess.STDOUT)
+    return {"ok": True, "booting": True, "log": str(duo["log"]), "disabled_hooks": disable_hooks}
 
 
 def gated_hook_files() -> str:
@@ -276,7 +280,8 @@ def expect(name: str, check: str = "same_place", within: float = 5.0, game: str 
            field: str = "", seconds: float = 0.0) -> dict:
     """The correct behaviour, checked now and recorded; a failing expect is the bug, and the exported scenario keeps it.
     "stage" (quest `name` at value [n] in both games), "same_place" (both games within `within` units), "at" (within
-    `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest), "items" (container
+    `within` of value [x, y, z]), "at_rest_of" (where the `of` game's body rested, from wait_rest or moves_and_watches), "steady" (`game`'s
+    body never jumped in a frame after its player moved it, moves_and_watches' trace), "items" (container
     `name` holds the same in both games), "crosshair" (`game`'s player, or each, faces `name` and the engine's crosshair
     takes it, as for its name and Activate prompt), "bounty" (crime faction `name`, hex: at least value [n] on the host
     and the same on the guest), "actor" (`field` such as ai.follow_target equals `value` in `game` or both, within

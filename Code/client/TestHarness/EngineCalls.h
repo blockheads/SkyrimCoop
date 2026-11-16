@@ -311,6 +311,8 @@ struct Placement
 Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
 // Moves the player to that spot (its feet), facing the reference.
 bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept;
+// A reference's first body woken, moving at that velocity (game units/s; 78089). False: no dynamic body.
+bool SetBodyVelocity(uint32_t aFormId, const float acVelocity[3]) noexcept;
 
 // A ray through the player's cell's physics world (bhkWorld::PickObject), as a collision layer sees it (30, the
 // character controller's: what stops a player walking). Game units.
@@ -702,6 +704,9 @@ std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
 // Where a reference is now: its first dynamic body for an object that has one (a held or flying bucket), else its own
 // position; 0x14 the player. None if there is no such reference.
 std::optional<std::array<float, 3>> ReferencePlace(uint32_t aFormId) noexcept;
+// A reference's bodies woken where they are, still (bhkRigidBody::SetLinearVelocity 78089 activates): one the console
+// moved sleeps in the air until something touches it, and falls from this.
+bool WakeBodies(uint32_t aFormId) noexcept;
 // The player's heading and pitch in degrees (z clockwise from north, x positive looking down): in first person, where
 // its camera looks.
 std::optional<std::array<float, 2>> PlayerAngles() noexcept;

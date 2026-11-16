@@ -24,6 +24,7 @@ struct HostBodies
 {
     std::vector<BodyFrame> Awake;
     std::vector<BodyPose> Rested;
+    std::vector<BodyKey> Held; // the host's player holds them: sent as a hold (physics-sync.md, "Exclusive holds")
 };
 
 /**
@@ -72,20 +73,25 @@ struct HostGame
     std::function<std::vector<QuestState>()> TakeQuestChanges;
     // The host's world objects' changes since the last call (references' state, scripts' events, containers' items), in order.
     std::function<std::vector<ObjectChange>()> TakeObjectChanges;
+    // The references the host's game itself placed since the last call (a script's or the console's move, not physics).
+    // Each with where it was put.
+    std::function<std::vector<std::pair<GameId, glm::vec3>>()> TakePlaced;
     // The state of a cell's references the host's game changed, or aChanged names (a guest's own changes); none
     // while that cell is not loaded here.
     std::function<std::optional<std::vector<ObjectChange>>(const GameId& acCell, const std::vector<ChangedReference>& acChanged)>
         ReadCellState;
     // Everything a created container of the host's holds (kContents, its roll made now); none for no container.
     std::function<std::optional<ObjectChange>(const GameId& acObject)> ReadContents;
-    // The host's world's physics bodies: awake ones read now, and those that fell asleep since the last call.
-    std::function<HostBodies()> TakeBodies;
+    // The host's world's physics bodies at aTick (the frame clock): awake ones read now, and those that came to rest.
+    std::function<HostBodies(uint64_t aTick)> TakeBodies;
     // Where the host's game shows a guest's character (its copy), by player id; none without one.
     std::function<std::optional<glm::vec3>(uint32_t aPlayerId)> ReadPlayerPosition;
-    // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; let go (its holder's
-    // frames the host's game played, BodyService), simulated again from that frame. False: no such body here.
-    std::function<bool(const BodyPush& acPush)> PushBody;
+    // A guest let go of the host's body (its holder's frames the host's game played, BodyService): simulated again
+    // from that frame. False: no such body here.
     std::function<bool(const BodyFrame& acFrame, uint64_t aReleasedAt)> FreeBody;
+    // A guest's own physics moved those: the ones awake here send their frames from now, though they never left
+    // where they woke (one leaning on a character stands here and fell there).
+    std::function<void(const std::vector<BodyKey>& acKeys)> FollowBodies;
     // The host's bodies where they are now; none for one not here.
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).

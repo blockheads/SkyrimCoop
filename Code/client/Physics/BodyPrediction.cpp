@@ -40,6 +40,22 @@ Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const
     return velocities;
 }
 
+float SteerSeconds(float aLastFrameSeconds) noexcept
+{
+    return std::clamp(1.5f * aLastFrameSeconds, kSteerSeconds, 0.5f);
+}
+
+float SteerSeconds(const BodyFrame& acTarget, float aLastFrameSeconds) noexcept
+{
+    constexpr float cSlowest = 0.5f, cSlow = 10.f, cReach = 50.f; // a spin counts as its speed 50 units out
+    const float cPace = std::max(glm::length(acTarget.LinearVelocity), glm::length(acTarget.AngularVelocity) * cReach);
+    // Never as stiff as a ragdoll's: knocked from rest it starts about 10 units behind its owner's, and made up in 50 ms
+    // it ran 10 to 15% faster than the owner's ever did.
+    constexpr float cStiffest = 0.15f;
+    const float cStiff = std::max(SteerSeconds(aLastFrameSeconds), cStiffest);
+    return cPace <= cSlow ? cSlowest : std::clamp(cSlowest * cSlow / cPace, cStiff, cSlowest);
+}
+
 bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds, float aGravity) noexcept
 {
     if (aSeconds <= 0.f)
@@ -56,5 +72,18 @@ bool LeftRest(const BodyFrame& acNow, const BodyFrame& acWoke) noexcept
     constexpr float cAngle = 0.05f;
     const auto cApart = Between(acNow, acWoke);
     return cApart.Distance >= cDistance || cApart.Angle >= cAngle;
+}
+
+bool Still::Read(const BodyFrame& acNow, uint64_t aTick) noexcept
+{
+    const auto cApart = Started ? Between(acNow, Anchor) : Error{kDistance, kAngle};
+    if (cApart.Distance >= kDistance || cApart.Angle >= kAngle)
+    {
+        Anchor = acNow;
+        Since = aTick;
+        Started = true;
+        return false;
+    }
+    return aTick - Since >= kMs;
 }
 } // namespace BodyPrediction

@@ -1,3 +1,4 @@
+#include <Bridges/PlacedByGame.h>
 #include <Bridges/HostEngine.h>
 #include <Papyrus/SystemQuests.h>
 #include <MainLoopTasks.h>
@@ -211,6 +212,8 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
         return;
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     s_log.Changed(acForm.formID, cFlags, pSaveLoad && !pSaveLoad->HasChange(acForm, cFlags));
+    if (cForm == FormChangeRows::Form::kReference && (cFlags & TESObjectREFR::CHANGE_REFR_MOVE))
+        PlacedByGame::Mark(acForm.formID);
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
@@ -267,9 +270,11 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
 HostEngine::~HostEngine() noexcept
 {
     m_bodyBridge.SetReferences({});
+    m_bodyBridge.ForgetAll();
     ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);
     s_log.Take();
+    PlacedByGame::ClearAll();
     FollowerTargets::Stop();
     ContainerEvents::Stop();
     AiStateEvents::Stop();
@@ -511,6 +516,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     // Then the states, each as it is now.
     for (const auto& [cFormId, cFlags] : changed)
     {
+        PlacedByGame::Clear(cFormId); // read below, where the game put it
         if (const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(cFormId)))
         {
             if (const auto cId = ToSession(cFormId))
@@ -529,6 +535,10 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         const GameId& id = *cId;
         // A physics move goes out once it rests (m_bodies), its flight as body frames (HostPhysics). A graph's live changes
         // are the animations scripts play (relayed as events); its state goes with a cell's.
+        if (cFlags & TESObjectREFR::CHANGE_REFR_MOVE)
+        {
+            m_placed.emplace_back(id, glm::vec3(pObject->position.x, pObject->position.y, pObject->position.z));
+        }
         constexpr uint32_t cNotLive = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE | TESObjectREFR::CHANGE_REFR_ANIMATION;
         ReferenceStates::Read(*pObject, id, cFlags & ~cNotLive, changes);
     }

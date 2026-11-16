@@ -1,6 +1,7 @@
 #include <Havok/bhkCollision.h>
 
 #include <BSCore/BSSpinLock.h>
+#include <Physics/BodyPrediction.h>
 #include <NetImmerse/NiAVObject.h>
 #include <NetImmerse/NiNode.h>
 #include <RTTI.h>
@@ -182,6 +183,62 @@ bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const g
     return true;
 }
 
+bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept
+{
+    if (!aBody.referencedObject || !WorldOf(*aBody.referencedObject) || !Keyframe(aBody))
+        return false;
+    SetVelocities(aBody, acLinearVelocity, acAngularVelocity);
+    return true;
+}
+
+bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept
+{
+    hkpRigidBody* pBody = aBody.referencedObject;
+    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
+    if (!pWorld || !pBody->IsDynamic())
+        return false;
+    using TDeactivate = void(hkpRigidBody*);
+    POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
+    BSWriteLockGuard _(pWorld->worldLock);
+    if (!pBody->simulationIsland || !pBody->simulationIsland->IsActive())
+        return true;
+    const hkpSimulationIsland* pIsland = pBody->simulationIsland;
+    const auto cVector = [](const float(&acValues)[4]) { return glm::vec3(acValues[0], acValues[1], acValues[2]); };
+    for (int32_t i = 0; i < pIsland->entityCount; ++i)
+    {
+        const hkpRigidBody* pOther = pIsland->entities[i];
+        if (!pOther || pOther == pBody)
+            continue;
+        if (acKeepsAwake(pOther->userData) ||
+            !BodyPrediction::StillToSleep(pOther->IsDynamic(), glm::length(cVector(pOther->linearVelocity)) * cHavokToGame,
+                                          glm::length(cVector(pOther->angularVelocity))))
+            return false;
+    }
+    s_deactivate(pBody);
+    return true;
+}
+
+std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept
+{
+    hkpRigidBody* pBody = aBody.referencedObject;
+    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
+    if (!pWorld)
+        return std::nullopt;
+    const uint32_t cFilter = pBody->CollisionFilterInfo();
+    const auto cWas = static_cast<uint16_t>(cFilter >> 16);
+    if (cWas == aGroup)
+        return cWas;
+    const uint32_t cNew = (cFilter & 0xFFFF) | (static_cast<uint32_t>(aGroup) << 16);
+    {
+        BSWriteLockGuard _(pWorld->worldLock);
+        std::memcpy(pBody->collidable + 0x2C, &cNew, sizeof(cNew));
+    }
+    using TUpdateCollisionFilter = void(bhkWorldObject*);
+    POINTER_SKYRIMSE(TUpdateCollisionFilter, s_updateCollisionFilter, 77794);
+    s_updateCollisionFilter(&aBody);
+    return cWas;
+}
+
 bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion, const glm::vec3& acLinearVelocity,
               const glm::vec3& acAngularVelocity, bool aAsleep) noexcept
 {
@@ -209,25 +266,6 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
     if (!pBody->IsDynamic())
         return false;
     SetVelocities(*pWorldObject, acLinearVelocity, acAngularVelocity);
-    return true;
-}
-
-bool PushBody(bhkWorldObject& aBody, const glm::vec3& acImpulse, const glm::vec3& acPoint) noexcept
-{
-    hkpRigidBody* pBody = aBody.referencedObject;
-    bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
-    if (!pWorld || !pBody->IsDynamic() || !pBody->motion.vtable)
-        return false;
-    using TActivate = void(hkpRigidBody*);
-    POINTER_SKYRIMSE(TActivate, s_activate, 60849);
-    constexpr size_t cApplyPointImpulse = 0x14;
-    using TApplyPointImpulse = void(hkpRigidBody::Motion*, const HavokVector*, const HavokVector*);
-    // Mass x Havok units/s: the impulse scales as the velocity.
-    const HavokVector cImpulse = ToHavok(acImpulse);
-    const HavokVector cPoint = ToHavok(acPoint);
-    BSWriteLockGuard _(pWorld->worldLock);
-    s_activate(pBody);
-    reinterpret_cast<TApplyPointImpulse*>(pBody->motion.vtable[cApplyPointImpulse])(&pBody->motion, &cImpulse, &cPoint);
     return true;
 }
 

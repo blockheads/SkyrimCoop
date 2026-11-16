@@ -4,6 +4,7 @@
 
 #include <Actor.h>
 #include <AI/AIProcess.h>
+#include <Physics/BodyGroups.h>
 #include <Havok/bhkCharacterController.h>
 #include <HookSwitch.h>
 #include <Misc/MiddleProcess.h>
@@ -39,6 +40,13 @@ TCompareFilterInfo* RealCompareFilterInfo = nullptr;
 
 bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
 {
+    // A loose object another game moves, or this one (BodyGroups).
+    switch (BodyGroups::Decide(aFilterA, aFilterB))
+    {
+    case BodyGroups::Meet::kCollide: return true;
+    case BodyGroups::Meet::kPass: return false;
+    case BodyGroups::Meet::kEngine: break;
+    }
     // Two different stacked actors pass through each other; anything else collides as the engine says.
     const uint32_t cGroupA = aFilterA >> 16;
     const uint32_t cGroupB = aFilterB >> 16;

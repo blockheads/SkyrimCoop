@@ -36,7 +36,6 @@ struct CallEnded;
 struct PlayerNativeResult;
 struct BodyFrames;
 struct BodyRests;
-struct BodyPushes;
 struct PartyGold;
 struct PartyItem;
 struct PartyItems;
@@ -96,7 +95,6 @@ using PlayerNativeResultRequest = Relayed<Payloads::PlayerNativeResult, kPlayerN
 using NotifyPlayerNativeResult = Relayed<Payloads::PlayerNativeResult, kNotifyPlayerNativeResult>;
 using NotifyBodyFrames = Relayed<Payloads::BodyFrames, kNotifyBodyFrames>;
 using NotifyBodyRests = Relayed<Payloads::BodyRests, kNotifyBodyRests>;
-using BodyPushRequest = Relayed<Payloads::BodyPushes, kBodyPushRequest>;
 using BodyFramesRequest = Relayed<Payloads::BodyFrames, kBodyFramesRequest>;
 using BodyReleaseRequest = Relayed<Payloads::BodyFrames, kBodyReleaseRequest>;
 using BodyPoseRequest = Relayed<Payloads::BodyRests, kBodyPoseRequest>;

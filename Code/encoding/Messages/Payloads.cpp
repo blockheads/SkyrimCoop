@@ -487,6 +487,7 @@ void Payloads::BodyRests::SerializePayload(Wire::Buffer::Writer& aWriter) const 
     Serialization::WriteVarInt(aWriter, Rests.size());
     for (const auto& cRest : Rests)
         cRest.Serialize(aWriter);
+    Serialization::WriteBool(aWriter, Placed);
 }
 
 void Payloads::BodyRests::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
@@ -498,23 +499,7 @@ void Payloads::BodyRests::DeserializePayload(Wire::Buffer::Reader& aReader) noex
     Rests.resize(cCount);
     for (auto& rest : Rests)
         rest.Deserialize(aReader);
-}
-
-void Payloads::BodyPushes::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, Pushes.size());
-    for (const auto& cPush : Pushes)
-        cPush.Serialize(aWriter);
-}
-
-void Payloads::BodyPushes::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxBodies)
-        return;
-    Pushes.resize(cCount);
-    for (auto& push : Pushes)
-        push.Deserialize(aReader);
+    Placed = Serialization::ReadBool(aReader);
 }
 
 void Payloads::PartyGold::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

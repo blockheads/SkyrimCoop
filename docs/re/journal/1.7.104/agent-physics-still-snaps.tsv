@@ -1,0 +1,11 @@
+time	op	id	rva	item
+2026-11-14T07:52:58Z	read	40557	0x754110	{"name": "PlayerCharacter::DestroyMouseSprings"}
+2026-11-14T07:53:11Z	local	40557	0x754110	{"func_addr": "0x140754110", "old": "v5", "new": "springIndex"}
+2026-11-14T07:53:11Z	local	40557	0x754110	{"func_addr": "0x140754110", "old": "v6", "new": "pSpringsInline"}
+2026-11-14T07:53:11Z	local	40557	0x754110	{"func_addr": "0x140754110", "old": "v14", "new": "pReleasedBody"}
+2026-11-14T07:53:11Z	local	40557	0x754110	{"func_addr": "0x140754110", "old": "v20", "new": "pGrabbedRef"}
+2026-11-14T07:53:11Z	local	40557	0x754110	{"func_addr": "0x140754110", "old": "v29", "new": "worldLock"}
+2026-11-14T07:53:12Z	comment		0x7541af	{"addr": "0x1407541af", "comment": "spring action vfunc 0x150: takes the spring off its body (the grab ends)"}
+2026-11-14T07:53:12Z	comment		0x75420e	{"addr": "0x14075420e", "comment": "the released body only activated: its linear/angular velocity is left as the spring had it, so a let go flies on with the hand's motion (no throw impulse). Read 2026-11-14, physics-still-snaps"}
+2026-11-14T07:53:12Z	comment		0x754346	{"addr": "0x140754346", "comment": "PlayerCharacter::grabbedObject (+0x8D0) invalid after the script event"}
+2026-11-14T07:53:12Z	read	60850	0xb4b0c0	{"name": "hkpEntity::deactivate"}

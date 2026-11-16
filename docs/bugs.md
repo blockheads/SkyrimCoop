@@ -71,6 +71,7 @@ other section needs the duo.
 - [A dropped sword](#a-dropped-sword): small
 - [A chest lid's pose](#a-chest-lids-pose): small
 - [A guest's swing at a moving object](#a-guests-swing-at-a-moving-object): small
+- [Physics against vanilla](#physics-against-vanilla): medium
 
 **Dialogue**
 
@@ -753,6 +754,48 @@ Size: small. Needs: GameTests, then duo.
     to scale by its own body's mass.
   - Test: GameTests "A guest's player hits the bucket the host's knock still moves" (states today's nothing), then a
     scenario swinging at a rolling object (`swing_at` after a knock).
+
+### Physics against vanilla
+
+What the vanilla baseline still fails on (2026-11-15, `docs/design/physics-sync.md`, "One simulator per pile").
+
+Agent task: rerun the eight `*-like-vanilla` scenarios (`collision_suite`), then trace whichever item below still shows.
+
+Size: medium. Needs: the duo, then GameTests.
+
+- **A body the guest's physics will not keep at the host's rest** (a ladle leaning, a pot in a pile): after two asks
+  that both answer the rest it already had (`GuestHands::kAsksAtMost`), the guest leaves it where it lies, so the two
+  games can disagree by a few units on that one object (3.1 units in one round). Before the cap it was put back and
+  fell again every 1.2 s for good. Not traced: why that body does not stay where the host's lies.
+- **A body that creeps off its rest on the guest is put back in one frame** (a wine bottle drifted 11 units at 4
+  units/s, was asked about, and the host's answer placed it back at once). A glide back on a second delivery of the
+  same rest was tried and reverted: the host resends rests every couple of seconds, so it restarted the glide each
+  time and the objects never slept (a wheel shook 233 times).
+- **A guest standing in objects the host's game then places** (staging: items spawned at the players' feet, then set
+  on the lane by the console). The host takes each back (`HostHands::OnHostPlaced`), yet seconds later the guest's
+  log had its player pushing one from 184 units away. Not traced. The trials place the players before making
+  objects, so they no longer stand among them.
+- **Shaking in a pile on the guest while the host carries into it, in some rounds** (turns over vanilla's highest).
+- **A snap of 6 to 13 units now and then in a pile, on the guest** (2026-11-16): the host's answer to an ask is held
+  at once. Tried and reverted: gliding back before the hold (16 to 19 s of motion), putting the whole island to sleep
+  when all of it is still (the guest's own carry jumped 75 units), gliding onto the answer (the host's carry left
+  rests 8 and 16 units apart), a third ask (no change), and the guest's pose taken as the rest after two asks (the
+  games then chattered: the host re-sent a pile's rests every 0.3 s and the carry never settled).
+- **Pile rests 2 to 15 units apart on the two games now and then** (tavern, carry): asked twice, the guest leaves a
+  body where its physics put it (`GuestHands::kAsksAtMost`). One case (2026-11-16): a body the guest's player pushed
+  up onto another rested there, its rest went out, then it slid down in the guest's game and was taken for the host's.
+  Claiming its own rest moving again within 3 s as its own ("settles") made the suite worse (4 of 8: piles never
+  settled, staging timed out); reverted.
+- **Staging times out now and then** (`stage_objects`, "[host] ... rests on the lane"): a staged object rests, then
+  moves again with nobody near, past the 20 s wait. Seen before and after the pile changes; not traced.
+- **The guest crashed once in the HUD** (`FloatingQuestMarker::Update` 51676 into `GFxValue::GetDisplayInfo`, read
+  of 0xFFFFFFFFFFFFFFFF, 2026-11-15 18:54, log in `build/coop-test/kept/`), during a carry trial; not traced,
+  maybe not physics. The host crashed the same way at 20:48 (HUD compass update 51668 into GFx 83250/87834, same
+  bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
+- **The guest's game hung once in the graphics present call** (d3d11/dxgi under `Present`, HangWatchdog, 2026-11-15
+  19:57); not ours as far as the stack shows.
+- **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
+  object's 3D), on the first call after staging; not seen again.
 
 ## Dialogue
 

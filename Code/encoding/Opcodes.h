@@ -51,7 +51,6 @@
     X(EffectFlashRequest)           \
     X(DismountRequest)              \
     X(PlayerRecordRequest)          \
-    X(BodyPushRequest)              \
     X(BodyFramesRequest)            \
     X(BodyReleaseRequest)           \
     X(BodyPoseRequest)              \

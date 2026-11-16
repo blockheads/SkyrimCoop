@@ -17,6 +17,8 @@ struct FakeFlight
 
     static constexpr float kRestitution = 0.5f;
     static constexpr float kFriction = 400.f; // units/s² while it slides
+    // Each game's own: two games never simulate one fall alike (physics-sync.md, "The mover's until its rest").
+    float Friction = kFriction;
 
     // One physics step of aSeconds.
     void Step(float aSeconds)
@@ -29,7 +31,7 @@ struct FakeFlight
         {
             v.z = 0.f;
             const float cSpeed = glm::length(glm::vec2(v.x, v.y));
-            const float cSlower = std::max(0.f, cSpeed - kFriction * aSeconds);
+            const float cSlower = std::max(0.f, cSpeed - Friction * aSeconds);
             if (cSlower <= 0.f)
             {
                 v = {};

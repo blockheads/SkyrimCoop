@@ -7,7 +7,11 @@
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 
+#include <RTTI.h>
+
+#include <algorithm>
 #include <atomic>
+#include <shared_mutex>
 #include <mutex>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Memory.h>
@@ -45,12 +49,27 @@ std::vector<PlayerHands::Push> s_pushes;
 std::vector<PlayerHands::Push> s_hits;
 thread_local const void* s_swinger{}; // the actor whose swing 38628 runs now (38603 sends it to the main thread)
 
-const void* PlayerController() noexcept
+const void* ControllerOf(const Actor* apActor) noexcept
 {
-    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    const AIProcess* pProcess = pPlayer ? pPlayer->currentProcess : nullptr;
+    const AIProcess* pProcess = apActor ? apActor->currentProcess : nullptr;
     const MiddleProcess* pMiddle = pProcess ? pProcess->middleProcess : nullptr;
     return pMiddle ? pMiddle->charController : nullptr;
+}
+
+const void* PlayerController() noexcept
+{
+    return ControllerOf(PlayerCharacter::Get());
+}
+
+// The copies' character controllers, sorted; set each update on the main thread, read on Havok's.
+std::shared_mutex s_copiesLock; // a leaf lock
+std::vector<const void*> s_copyControllers;
+
+bool IsCopys(const void* apListener) noexcept
+{
+    const void* pController = static_cast<const uint8_t*>(apListener) + 0x10;
+    std::shared_lock _(s_copiesLock);
+    return std::binary_search(s_copyControllers.begin(), s_copyControllers.end(), pController);
 }
 
 // The listener (bhkCharProxyController's hkpCharacterProxyListener) is 0x10 before its bhkCharacterController.
@@ -76,6 +95,12 @@ TObjectInteraction* RealObjectInteraction = nullptr;
 void HookObjectInteraction(void* apThis, void* apProxy, const InteractionEvent* apEvent, InteractionResult* apResult)
 {
     RealObjectInteraction(apThis, apProxy, apEvent, apResult);
+    if (IsCopys(apThis))
+    {
+        // As the engine zeroes it for a body too heavy to push (ScaleObjectImpulse).
+        apResult->objectImpulse[0] = apResult->objectImpulse[1] = apResult->objectImpulse[2] = apResult->objectImpulse[3] = 0.f;
+        return;
+    }
     if (!IsPlayers(apThis) || !apEvent->body)
         return;
     const glm::vec3 cImpulse(apResult->objectImpulse[0], apResult->objectImpulse[1], apResult->objectImpulse[2]);
@@ -147,6 +172,17 @@ std::vector<Push> TakeHits() noexcept
 {
     std::scoped_lock _(s_pushesLock);
     return std::exchange(s_hits, {});
+}
+
+void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept
+{
+    std::vector<const void*> controllers;
+    for (const uint32_t cFormId : acCopyFormIds)
+        if (const void* pController = ControllerOf(Cast<Actor>(TESForm::GetById(cFormId))))
+            controllers.push_back(pController);
+    std::sort(controllers.begin(), controllers.end());
+    std::unique_lock _(s_copiesLock);
+    s_copyControllers = std::move(controllers);
 }
 
 void Watch(bool aOn) noexcept

@@ -2,6 +2,7 @@
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostHands.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -16,9 +17,10 @@ constexpr size_t kFramesPerPacket = 1024 / BodyFrame::kWireBytes;
 constexpr size_t kRestsPerMessage = 1024;
 } // namespace
 
-HostPhysics::HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostPhysics::HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, HostHands& aHands, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
+    , m_hands(aHands)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostPhysics::OnPoseAsked);
@@ -34,6 +36,8 @@ void HostPhysics::OnPoseAsked(const BodyPoseRequest& acMessage, ConnectionId_t a
     NotifyBodyRests rests;
     rests.Tick = m_lastTick;
     rests.Rests = m_game.ReadBodies(keys);
+    if (m_game.FollowBodies)
+        m_game.FollowBodies(keys);
     spdlog::info("HostPhysics: {:x} moved {} by itself, gets the host's {}", aSender, WorldStateLog::List(acMessage.Rests, [](const BodyPose& acPose) {
                      return WorldStateLog::DescribeBody(acPose.Key);
                  }, 8), WorldStateLog::List(rests.Rests, [](const BodyPose& acPose) {
@@ -53,10 +57,15 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
 {
     if (!m_game.TakeBodies)
         return;
-    HostBodies bodies = m_game.TakeBodies();
+    HostBodies bodies = m_game.TakeBodies(aTick);
     const ConnectionId_t cHost = m_players.Host();
     if (!cHost)
         return;
+    // What a guest's player holds or moved is its game's: its frames and rest go out from there (HostHands).
+    std::erase_if(bodies.Awake, [this](const BodyFrame& acFrame) { return !acFrame.Key.Actor && m_hands.MovedByGuest(acFrame.Key); });
+    std::erase_if(bodies.Rested, [this](const BodyPose& acRest) {
+        return !acRest.Key.Actor && !m_hands.HostRests(acRest);
+    });
     m_motions.Mark(bodies.Awake, aTick);
     for (const auto& cRest : bodies.Rested)
     {
@@ -95,13 +104,19 @@ void HostPhysics::SendBodies(uint64_t aTick) noexcept
                          WorldStateLog::List(started, [](const BodyKey& acKey) { return WorldStateLog::DescribeBody(acKey); }, 16),
                          cPosition ? std::format("near its copy at ({:.0f}, {:.0f}, {:.0f})", cPosition->x, cPosition->y, cPosition->z)
                                    : std::string("no copy shown: all"));
-        for (size_t first = 0; first < cDue.size(); first += kFramesPerPacket)
-        {
-            NotifyBodyFrames frames;
-            frames.Tick = aTick;
-            frames.Frames.assign(cDue.begin() + first, cDue.begin() + std::min(cDue.size(), first + kFramesPerPacket));
-            m_network.Send(cGuest, frames, Net::kUnreliable);
-        }
+        // What the host's player holds goes as a hold: the guest keeps it keyframed, so its grab refuses it.
+        std::vector<BodyFrame> held, free;
+        for (const auto& cFrame : cDue)
+            (std::ranges::find(bodies.Held, cFrame.Key) != bodies.Held.end() ? held : free).push_back(cFrame);
+        for (const auto* pFrames : {&free, &held})
+            for (size_t first = 0; first < pFrames->size(); first += kFramesPerPacket)
+            {
+                NotifyBodyFrames frames;
+                frames.Tick = aTick;
+                frames.Held = pFrames == &held;
+                frames.Frames.assign(pFrames->begin() + first, pFrames->begin() + std::min(pFrames->size(), first + kFramesPerPacket));
+                m_network.Send(cGuest, frames, Net::kUnreliable);
+            }
     }
 
     if (bodies.Rested.empty())

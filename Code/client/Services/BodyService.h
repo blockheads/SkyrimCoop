@@ -43,8 +43,12 @@ struct BodyService
         [[nodiscard]] virtual std::vector<BodyKey> Update(uint64_t aTick, const std::set<BodyKey>& acPlayed) noexcept = 0;
         // An owner's frame of that body: false while it is this game's own (the frame waits).
         [[nodiscard]] virtual bool TakesFrame(const BodyKey& acKey) noexcept = 0;
-        // Its rest is not placed while this game's player holds it.
-        [[nodiscard]] virtual bool KeepsRest(const BodyKey& acKey) const noexcept = 0;
+        // An owner's rest this game does not place (its own body, or its own rest come back).
+        [[nodiscard]] virtual bool KeepsRest(const BodyPose& acRest) const noexcept = 0;
+        // A body of that reference is this game's player's now (its move row is not the host's to apply).
+        [[nodiscard]] virtual bool Moves(const GameId& acObject) const noexcept = 0;
+        // The host's game placed that body itself: no longer this game's own, the host's pose is taken.
+        virtual void GiveBack(const BodyKey& acKey) noexcept = 0;
         // Its owner's rest placed here: the owner's again.
         virtual void OnRest(const BodyPose& acRest) noexcept = 0;
     };
@@ -54,6 +58,15 @@ struct BodyService
     NO_COPY_MOVE(BodyService);
 
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
+    // This game's player moves a body of that reference: where it goes is this game's (Keeper::Moves).
+    [[nodiscard]] bool MovedHere(const GameId& acObject) const noexcept { return m_pKeeper && m_pKeeper->Moves(acObject); }
+    // The owner's rest of this reference's body is on its way here (played behind the frame clock, or waiting on its
+    // body): it puts the body there, a step awake; the move row would keyframe it there at once (a 6 unit snap).
+    [[nodiscard]] bool RestComing(const GameId& acObject) const noexcept
+    {
+        return m_playback.RestComing(acObject) ||
+               std::ranges::any_of(m_pendingRests, [&](const auto& acRest) { return acRest.first.Object == acObject; });
+    }
     // This game's own physics has the body again (a guest let go of the host's): its playback ends.
     void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
     // A reference another game's player holds (its frames come as a hold): its holder's alone, so this game's player
@@ -93,6 +106,7 @@ private:
     std::unordered_map<uint32_t, entt::entity> m_copyIndex;
     bool m_copiesIndexed{};
     std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
+    std::set<BodyKey> m_restsTried; // rests put this frame: asked again only after a physics step (their contacts)
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::map<BodyKey, uint32_t> m_held; // held in another game: its form id here
     std::set<BodyKey> m_missing;   // not in this game (logged once)

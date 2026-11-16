@@ -213,9 +213,10 @@ struct Session
     std::map<uint32_t, ObjectChange> CreatedContents;             // the created containers' contents, by created base id
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
-    std::vector<BodyPush> Pushed;   // guests' pushes the host's game took
     std::vector<BodyFrame> Freed;   // and let go
     std::vector<BodyPose> Bodies;   // the host's bodies where they are
+    std::vector<BodyKey> Followed;  // bodies a guest asked about: sent from now though unmoved (HostGame::FollowBodies)
+    std::vector<std::pair<GameId, glm::vec3>> Placed;     // references the host's game itself moved (a script, the console)
     HostBodies Moving;              // the host's physics this update, taken by the next frame
     std::map<uint32_t, glm::vec3> PlayerPositions; // where the host's game shows each guest's character, by player id
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
@@ -287,6 +288,7 @@ private:
         game.ReadQuests = [this] { ++QuestReads; return Quests; };
         game.TakeQuestChanges = [this] { return std::exchange(QuestChanges, {}); };
         game.TakeObjectChanges = [this] { return std::exchange(ObjectChanges, {}); };
+        game.TakePlaced = [this] { return std::exchange(Placed, {}); };
         game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) -> std::optional<std::vector<ObjectChange>> {
             GuestChanged = acChanged;
             const auto it = LoadedCells.find(acCell.BaseId);
@@ -326,13 +328,13 @@ private:
             Loose.erase(it);
             return item;
         };
-        game.PushBody = [this](const BodyPush& acPush) { Pushed.push_back(acPush); return true; };
         game.FreeBody = [this](const BodyFrame& acFrame, uint64_t) { Freed.push_back(acFrame); return true; };
-        game.TakeBodies = [this] { return std::exchange(Moving, {}); };
+        game.TakeBodies = [this](uint64_t) { return std::exchange(Moving, {}); };
         game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
             const auto it = PlayerPositions.find(aPlayerId);
             return it != PlayerPositions.end() ? std::optional(it->second) : std::nullopt;
         };
+        game.FollowBodies = [this](const std::vector<BodyKey>& acKeys) { Followed.insert(Followed.end(), acKeys.begin(), acKeys.end()); };
         game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
             std::vector<BodyPose> poses;
             for (const auto& cBody : Bodies)
