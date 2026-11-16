@@ -76,9 +76,13 @@ public:
     // Since the last call: each reference the game created, the state of each one the funnel saw change, the
     // physics objects that came to rest, the records that lost rows, then the scripts' events in order.
     [[nodiscard]] std::vector<ObjectChange> TakeObjectChanges() noexcept;
+    // HostGame::FollowBodies.
+    void FollowBodies(const std::vector<BodyKey>& acKeys) noexcept;
+    // The references TakeObjectChanges saw the game itself move (CHANGE_REFR_MOVE: a script, the console) since the last call.
+    [[nodiscard]] std::vector<std::pair<GameId, glm::vec3>> TakePlaced() noexcept { return std::exchange(m_placed, {}); }
     // The physics bodies physics moves: the awake ones read now, and those that fell asleep (HostGame::TakeBodies); an
     // actor's ragdoll by its session id (aSessionOf: 0 for an actor the guests do not have).
-    [[nodiscard]] HostBodies TakeBodies(const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept;
+    [[nodiscard]] HostBodies TakeBodies(uint64_t aTick, const std::function<uint32_t(uint32_t aFormId)>& aSessionOf) noexcept;
     // A created container's contents (HostGame::ReadContents), its leveled entries rolled first.
     [[nodiscard]] std::optional<ObjectChange> ReadContents(const GameId& acObject) const noexcept;
     // Every row of each reference in the cell that this game, or a guest's (acChanged), holds changes for, then each
@@ -97,6 +101,7 @@ private:
     IBodyBridge& m_bodyBridge;
     BodyReads m_reads;
     PhysicsBodies m_bodies{m_reads};
+    std::vector<std::pair<GameId, glm::vec3>> m_placed;
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
     std::unordered_map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base
 };

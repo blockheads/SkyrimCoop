@@ -42,6 +42,14 @@ public:
     void StartFrom(const BodyPose& acShown) noexcept;
     [[nodiscard]] bool Has(const BodyKey& acKey) const noexcept { return m_tracks.contains(acKey); }
     void Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) noexcept;
+    // A reference's body has a rest queued, not shown yet: that rest places it, not its move row.
+    [[nodiscard]] bool RestComing(const GameId& acObject) const noexcept
+    {
+        for (const auto& [cKey, cTrack] : m_tracks)
+            if (!cKey.Actor && cKey.Object == acObject && cTrack.Rest)
+                return true;
+        return false;
+    }
     // The pose each body shows at aTick (the host's time, behind it): the moving ones each update, a rest once.
     [[nodiscard]] std::vector<Pose> At(uint64_t aTick, float aGravity = BodyPrediction::kGravity) noexcept;
     // The same, each body at its own time (a copy's ragdoll at its copy's); 0 shows nothing for it yet.

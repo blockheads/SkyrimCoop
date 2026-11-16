@@ -10,6 +10,7 @@
 
 struct HostAuthority;
 struct HostGame;
+struct HostHands;
 struct HostNetwork;
 struct HostPlayers;
 
@@ -20,13 +21,14 @@ struct HostPlayers;
  *                 its budget (unreliable); everyone the bodies that fell asleep, where they rest (reliable)
  *   asked         a guest whose own physics moved a body the host's did not gets the host's pose back
  *
- * A guest's player's hand on the bodies is HostHands'.
+ * A guest's player's hand on the bodies is HostHands': what a guest holds or moved is that game's, so the host's own
+ * frames and rests of it are not sent (physics-sync.md, "The mover's until its rest").
  */
 struct HostPhysics
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, HostHands& aHands, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostPhysics);
 
@@ -39,6 +41,7 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
+    HostHands& m_hands;
     const HostGame& m_game;
     BodyMotions m_motions;
     std::map<ConnectionId_t, BodySends> m_sends; // each guest's: what it got, its budget

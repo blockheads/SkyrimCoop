@@ -398,6 +398,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         size_t SceneWritesDuringJobs = 0; // manual 3D writes outside the between-frames main-loop drain
         size_t Replaced = 0;
         size_t Rests = 0;     // rests of the host's placed
+        // Havok's contact points for it: none once an owner's rest is set dynamic and put to sleep at once
+        // (physics.md, "A rest needs its contacts"); a capsule's first push then throws it up (Thrown).
+        bool Contacts = true;
+        std::optional<BodyPose> Rested; // the owner's rest it was last put at
+        std::optional<BodyPose> Placing; // an owner's rest being put here, not done (BodyBridge's Rested, not Done)
+        uint16_t GlideFrames = 0;        // frames it has glided onto Placing (BodyPrediction::GlidesToRest)
+        bool RestStep = false;  // awake at or onto its rest this frame: read awake, not stepped (BodyBridge::Rest)
+        size_t Thrown = 0;
         size_t MoveRows = 0;  // world state move rows written into its 3D (GuestEngine::PlaceAtHostRest)
         uint64_t Tick = 0;    // the host's: where its flight is
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
@@ -407,6 +415,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         bool OutOfWorld = false; // its actor stood up: not in the physics world, not read, until its next knock
         uint64_t StillFor = 0;  // woken without a push: awake, unmoved, this long (Wake)
         uint64_t StillUntil = 0;
+        // An animated body shares its island (Orgnar's, 78910): Havok never sleeps it, stopped or not (physics.md,
+        // "Woken still").
+        bool KeptAwake = false;
     };
     // How long an actor takes to get up (knock states 5 and 6), and how fast its get-up moves its ragdoll's bodies.
     static constexpr uint32_t kRisingFrames = 60;
@@ -425,6 +436,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // This game's player's weapon hits it (38628's applyPointImpulse): its own physics knocks it and the hit is
     // recorded (PlayerHits); a keyframed one (Held) gets a zero impulse, nothing. Every body has a mass of 1.
     void Swing(const BodyKey& acKey, const glm::vec3& acImpulse);
+    // This game itself puts it there (a script's SetPosition, the console's setpos): asleep at that spot, its move
+    // recorded (the host's: Recorded's row and Placed).
+    void PlaceByGame(const BodyKey& acKey, const glm::vec3& acPosition);
+    std::vector<std::pair<GameId, glm::vec3>> Placed;
     // An actor's animated body in its island wakes it, unmoved (Orgnar at his bar, 78910): awake for aMs, then asleep.
     void Wake(const BodyKey& acKey, uint64_t aMs);
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
@@ -452,8 +467,49 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
     void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
     std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
-    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0, bool aHeld = false) noexcept override;
     bool KnockDown(uint32_t aCopyFormId) noexcept override;
+    // What a body meets here (Physics/BodyGroups.h): played while another game's frames drive it, moving while this
+    // game says so.
+    std::map<BodyKey, BodyClass> Classes;
+    void SetMoving(const BodyKey& acKey, bool aMoving) noexcept override
+    {
+        if (const auto it = Classes.find(acKey); it != Classes.end() && it->second == BodyClass::kPlayed)
+            return;
+        // As BodyBridge::SetMoving: its owner's rest being put here wakes it, which is not this game moving it.
+        if (const auto cBody = Bodies.find(acKey); aMoving && cBody != Bodies.end())
+        {
+            if (cBody->second.Placing)
+                return;
+            cBody->second.Rested.reset();
+        }
+        if (aMoving) Classes[acKey] = BodyClass::kMoving; else Classes.erase(acKey);
+    }
+    void Forget(const BodyKey& acKey) noexcept override { Classes.erase(acKey); }
+    void ForgetAll() noexcept override { Classes.clear(); }
+    // Body acKey runs into acInto in this game: knocked at that velocity, unless acKey is played and nobody moves
+    // acInto (its owner's game never hit that one).
+    void Collide(const BodyKey& acKey, const BodyKey& acInto, const glm::vec3& acVelocity)
+    {
+        const auto cClass = [&](const BodyKey& acBody) { const auto it = Classes.find(acBody); return it != Classes.end() ? it->second : BodyClass::kNone; };
+        if (cClass(acKey) == BodyClass::kPlayed && cClass(acInto) != BodyClass::kMoving)
+            return;
+        Knock(acInto, acVelocity);
+    }
+    void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept override { CopiesPushNothing = acCopyFormIds; }
+    std::vector<uint32_t> CopiesPushNothing; // the copies whose capsules this game told the engine push nothing
+    // A character's capsule walks into the body in this game (79133): knocked at that velocity, unless it is a
+    // copy's the game named (SetCopies).
+    void Bump(uint32_t aActorFormId, const BodyKey& acKey, const glm::vec3& acVelocity)
+    {
+        if (std::ranges::find(CopiesPushNothing, aActorFormId) != CopiesPushNothing.end())
+            return;
+        // No floor under the push's downward part for one step: it sinks and bounces up.
+        Body& body = Bodies.at(acKey);
+        const bool cThrown = !std::exchange(body.Contacts, true);
+        body.Thrown += cThrown;
+        Knock(acKey, cThrown ? acVelocity * 0.75f + glm::vec3(0.f, 0.f, glm::length(acVelocity) * 0.25f) : acVelocity);
+    }
     bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
     // An actor's character controller keeps simulated bodies out of its capsule as it integrates (its proxy's
     // object interactions); a keyframed body passes through, and so does a placed copy's capsule (a warp steps
@@ -474,7 +530,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void HoldTo(const BodyKey& acKey, const glm::vec3& acTo) noexcept;
     bool Free(const BodyFrame& acFrame) noexcept override;
     [[nodiscard]] uint32_t ReferenceFormId(const BodyKey& acKey) const noexcept override { return acKey.Actor ? 0 : ReferenceOf(acKey); }
-    bool Push(const BodyPush& acPush) noexcept override;
     bool KeepMotion(const BodyKey&) noexcept override { return false; }
     bool Settle(const BodyKey&) noexcept override { return false; }
 

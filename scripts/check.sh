@@ -123,6 +123,7 @@ step "check Skyrim runtimes" python3 -m unittest discover -s scripts -p test_sky
 step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
 step "check late-save baseline" python3 -m unittest discover -s scripts -p test_late_baseline.py
 step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py
+step "check collision metrics" python3 -m unittest discover -s scripts -p test_collision_metrics.py
 step "check gate configure" python3 -m unittest discover -s scripts -p test_check.py
 step "check repro MCP" python3 -m unittest discover -s scripts -p test_coop_mcp.py
 step "check scenario origins" python3 scripts/check_scenarios.py

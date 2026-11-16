@@ -6,7 +6,9 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
+#include <cstddef>
 #include <cstring>
+#include <functional>
 #include <vector>
 
 // A 3D node's physics, as far as reading and moving its bodies (CommonLibSSE-NG bhkNiCollisionObject, bhkWorldObject,
@@ -15,9 +17,15 @@ struct hkpSimulationIsland
 {
     uint8_t pad0[0x32];
     uint8_t marks; // 32: isInActiveIslandsArray (bits 0-1), activeMark (bits 2-3)
+    uint8_t pad33[0x60 - 0x33];
+    struct hkpRigidBody** entities; // 60: hkInplaceArray<hkpEntity*, 1> m_entities' data (CommonLibSSE-NG)
+    int32_t entityCount; // 68: its entities' count (61518 tests it against 2)
 
     [[nodiscard]] bool IsActive() const noexcept { return (marks >> 2) & 3; }
 };
+static_assert(offsetof(hkpSimulationIsland, marks) == 0x32);
+static_assert(offsetof(hkpSimulationIsland, entities) == 0x60);
+static_assert(offsetof(hkpSimulationIsland, entityCount) == 0x68);
 
 struct ahkpWorld;
 
@@ -144,15 +152,24 @@ bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::qu
 // Moving so, simulated as it is: woken, its velocities set (78089, 78090 take the world's write lock). A copy's ragdoll
 // body is steered so each update, which its ragdoll driver keeps (Find in BodyBridge).
 bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
+// A dynamic body put to sleep where it is, its contacts kept (hkpEntity::deactivate 60850), when it is alone in its
+// simulation island: the call sleeps the whole island, and in a pile that froze the mover's own body in the air.
+// The engine's deactivate sleeps its whole island (60850, 61523): among others only when every body in it is dynamic,
+// still (BodyPrediction::StillToSleep) and not one acKeepsAwake names (this game moves, plays or holds it). Whether it
+// sleeps now.
+bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept;
+// Keyframed and moving so: Havok carries it over the next step (swept, pushing what it meets at that speed), where
+// placing it each frame (60898) starts its contacts over every frame.
+bool SteerKeyframed(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
+// Its collision group (filter info's high 16 bits) set, and its world told (bhkWorldObject::UpdateCollisionFilter
+// 77794); the group it had, none if it is not in a world.
+std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept;
 // Simulated again as aMotion (the type it had before it was keyframed), moving so: through its collision object
 // (bhkCollisionObject::SetMotionType 78182, vfunc 0x2E), which sets kSetLocal back for a dynamic body, then 78089,
 // 78090; aAsleep: still, never woken (hkpRigidBody::setMotionType 60908 not activating; hkpEntity::deactivate 60850)
 // until something touches it.
 bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion, const glm::vec3& acLinearVelocity = {},
               const glm::vec3& acAngularVelocity = {}, bool aAsleep = false) noexcept;
-// A dynamic body woken and pushed at that point (hkpEntity::activate 60849, its motion's applyPointImpulse), in the
-// game's units (mass x units/s); under its world's write lock.
-bool PushBody(bhkWorldObject& aBody, const glm::vec3& acImpulse, const glm::vec3& acPoint) noexcept;
 
 // What a contact listener hears (hkpContactPointEvent; contactPointCallback 63092).
 struct hkpContactPointEvent

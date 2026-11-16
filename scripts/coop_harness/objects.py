@@ -371,6 +371,16 @@ class FlightTrace:
                 for e in self.samples[game] if e["id"] == ref and not e.get("rendered")]
 
     @staticmethod
+    def snaps(path):
+        """[(seconds in, units)] of the path's frames that jump: a step over 4 units and 3 times the steps either side
+        (a fall bends, a placement jumps)."""
+        if len(path) < 3:
+            return []
+        steps = [(t1, math.dist(p0, p1)) for (_, p0, *_), (t1, p1, *_) in zip(path, path[1:])]
+        return [(round(t - path[0][0], 2), round(d, 1)) for (_, a), (t, d), (_, b) in zip(steps, steps[1:], steps[2:])
+                if d > 4 and d > 3 * max(a, b, 0.5)]
+
+    @staticmethod
     def at(path, when):
         """The path's position at a time, between its samples."""
         for (t0, p0, *_), (t1, p1, *_) in zip(path, path[1:]):

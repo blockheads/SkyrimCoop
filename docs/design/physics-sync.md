@@ -1,10 +1,218 @@
 # Physics sync
 
-Status: **steps 1 to 6 built 2026-10-24; owners (every game streams its own bodies) built 2026-10-26** (below, "As built" and "A guest's hand, as built"): objects and ragdolls
+Status: **held to a vanilla baseline since 2026-11-15 ("One simulator per pile"); steps 1 to 6 built 2026-10-24; owners (every game streams its own bodies) built 2026-10-26** (below, "As built" and "A guest's hand, as built"): objects and ragdolls
 from the host, live; a guest's bumps, casts, grabs and drops reach the host. Design approved 2026-10-24 (the guest
 holds what it grabs; only the host's loaded cells; frames sent on prediction error, not at a rate). v1.0.0 feature 5
 (`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
 objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
+
+## One simulator per pile, held to vanilla (2026-11-15, built)
+
+The reverted #56 ("One rule") and #58 ("The mover's until its rest") are back, measured this time against a game
+with no session. What they left was four more places where two games simulated one object.
+
+```text
+the vanilla baseline (scripts/coop_harness/actions/collisions.py, baselines/collisions.json)
+  one game, no session: 40 rounds of each trial on one lane in QASmoke, one trial's objects there at a time
+    20 with our physics hooks off (HavokStepFix too: plain vanilla)
+    20 with the plugin as it ships (our frame-step fix on): "session idle"
+  trials
+    push_line        a ladle walked into, which runs into a second
+    push_mixed       a cheese wheel into a cabbage and a bucket
+    tavern           16 items in a grid (bottles standing, food, pots), walked through
+    carry_into_pile  a bucket grabbed, carried into 12 items, let go
+  per object (a pile as one)
+    moved, path, seconds
+    peak    its fastest five frames, by its 3D (one step's impulse is caught or not by where the frame falls)
+    jump    a frame's move beyond its speed and beyond twice the steps around it (a teleport)
+    turns   frames that turn back on the one before (a shake)
+  the duo, three rounds a scenario
+    every round, both games: no jump or turns beyond the trial's highest in those 40
+    the middle round, both games: moved, path, seconds and peak inside the 40 rounds' range
+    every round: both games rest each object within 2 units
+  why three rounds: one vanilla round is outside another 20 rounds' ranges 1 time in 5 (Havok is not repeatable)
+  scenarios: host-/guest- push-like-vanilla, push-mixed-, tavern-, carries-into-pile-like-vanilla
+
+who simulates what (one game per object, always)
+  a player's character walks into it, hits it, holds or drops it    that player's game (the mover)
+  what the mover's objects knock (within 100 units, GuestHands::OwnKnocked)   the mover's too
+  a copy's capsule                                                   pushes nothing (79133's impulse zeroed)
+  everything else                                                    the host
+  the host's game places it itself (a script, the console)          the host's again, at once (HostHands::OnHostPlaced)
+```
+
+- **No relayed push.** `BodyPushRequest` is gone: the host gave its body the guest's impulse and then followed the
+  guest's frames too (a sweet roll flew 133 units off at 535 units/s and was put back in one frame).
+- **Copies push nothing.** The character push has no player test (`ScaleObjectImpulse`, `docs/re/systems/physics.md`), so
+  a guest's copy shoved the host's pile while its player shoved the guest's. `PlayerHands::SetCopies`, each update.
+- **The pile is the mover's.** Only what the player touched was the guest's; what its held bucket hit was simulated by
+  both games, the host's result steered the guest's pile against the bucket, and the jam dropped the hold after 1.4 s.
+- **The host's game placing wins.** A funnel move (`CHANGE_REFR_MOVE`) of a reference a guest moves: nothing steers it
+  from that moment (`Bridges/PlacedByGame`), the host reads where it was put, stops following, and the mover gets that
+  place with `NotifyBodyRests::Placed` and gives the object back (`GuestHands::GiveBack`).
+- **A hold on another game is carried by velocity** (`SteerKeyframed`), not put at the frame each step: placing
+  (60898) starts its contacts over every frame.
+- **What a body meets depends on who simulates it** (`Physics/BodyGroups.h`, in the filter hook 78553): each
+  reference body another game moves is in our "played" collision group, each one this game moves in "moving"
+  (`IBodyBridge::SetMoving`, set by `BodyBridge::Drive`, the host's `TakeBodies`, a guest's `Own`; given back at its
+  rest). A played body meets the world, characters and moving bodies; not other played bodies (their owner's game
+  settled those), and not a loose object nobody moves: its owner's game never hit that one. Before, the other game
+  moved such a neighbour by itself and the first game followed it (a resting bucket jumped 26 units).
+- **A body a guest asks about is followed from then** (`HostGame::FollowBodies`, `PhysicsBodies::Follow`): one
+  leaning on the host's player stands there awake and unmoved (no frames), and falls in the guest's game, where a
+  copy pushes nothing; put back at the host's pose it fell again, and the guest asked once a second for good.
+- **A slow frame is steered softly** (`BodyPrediction::SteerSeconds`): a played body's gap to its frame is closed
+  over half a second at 10 units/s and under, over 150 ms when fast. Steered stiffly a slow one shook against what
+  it lay on; left alone in a dead zone it went its own way and was pulled back at the zone's edge (a rolling apple,
+  46 turn-backs); stiff when fast, a body knocked from rest ran 10 to 15% faster than its owner's while it caught up.
+- **A rest gets its contacts** (`BodyPrediction::PlaceRest`, `docs/re/systems/physics.md`, "A rest needs its
+  contacts"): put at its rest awake for one physics step, then asleep (only when alone in its island: the engine's
+  deactivate sleeps the whole island, and froze the mover's own bucket in the air). Set dynamic and asleep at once,
+  Havok had no floor contact for it and the guest's first push threw a cheese wheel 30 units up (10 of 13 pushes).
+- **A rest is glided to** (`BodyPrediction::GlidesToRest`): a body up to 64 units off its owner's rest is steered
+  there for half a second at most, then put. The move row of a body whose rest is on its way is left to that rest
+  (`BodyService::RestComing`): the row came first and keyframed it there in one frame.
+- **A rest being put is not this game's move** (`BodyBridge::SetMoving`, `Rested::Done`): the glide onto a guest's
+  rest moved the host's body, so the host's own reads (`PhysicsBodies`) took it as moved until it rested, and each
+  read began the rest again (`SetMoving` erased it). It never slept: the host's ladle hopped at its rest for 15 s and
+  the host streamed it to the guest (350 frames), whose copy crept after it (192 turns, 2 rounds in 6).
+- **A rest in a pile is done when the pile sleeps** (`BodyPrediction::RestSlept`, `StillToSleep`, `SleepBody`): the
+  engine's deactivate sleeps a whole island (`docs/re/systems/physics.md`, "A pile sleeps together"), so a rest among
+  others sleeps it only when every body in it is still and not one this game moves, plays or holds, else waits for
+  Havok, and stays the owner's rest until then (2 s at most; one pushed off meanwhile is held there at once, half a unit off, not 12
+  later). Done at once, it lay awake among them, the host took their nudges for its own moves and streamed them to
+  the guest, whose pile shook, asked and snapped (jumps of 15 units, rests 3 to 10 units apart). The tavern passed
+  from both walkers after it.
+- **The host's own placement drops a guest's rest** (`HostHands::OnHostPlaced`): a rest the host's game was still
+  putting (waiting for its pile to sleep) put the object back after the console placed it.
+- **A let go does not skip ahead** (`BodyBridge::Free`): the holder's frames show 100 ms behind and its let go came at
+  once, so the held object jumped up to 16 units to where it was let go.
+- **Every moved body is asked about together** (`GuestHands::AskHost`): asked one at a time, each of the host's rests
+  landed among neighbours still off theirs and was moved again, every second for good.
+
+Results (duo, 2026-11-16, each trial 3 rounds against 40 vanilla rounds): full runs on the final build (the pile
+sleeps as one) passed 6, 7, 3 and 5 of the 8 trials; in the 7 every trial that ran matched vanilla, and the eighth
+timed out in staging. Pushes and carries pass in nearly every run; the misses are pile rests apart, a snap, staging.
+The suite is noisy at 3 rounds. Vanilla judged by its other sample's ranges (3 rounds drawn from one sample of 20,
+`compare` against the other's `envelope`, 2026-11-16) passes carry 0.56 to 0.83, push_line 0.90 to 0.99, push_mixed
+0.96 to 0.98, tavern 0.75 to 1.00 of the time: all 8 in one run about 0.3, about 7 of 8 on average, without the
+rests-apart check co-op adds. The last: every push, carry and the host's tavern as vanilla; one tavern
+object in one round rested 3.9 units apart. The misses seen: a pile rest 2 to 8 units apart, a snap of 6 to 13
+units, a push round's rest 2.1 apart (the limit is 2), a staging timeout. Both push trials and the tavern pass in most runs from either walker; the misses are
+intermittent: a pile rest sliding off and snapped back on the guest during the host's carry, pile rests left a few
+units apart, carry seconds a tenth over vanilla's highest, and staging timeouts. A ladle hopping at its rest in the
+host's game after a guest's push is fixed (below).
+
+Open (`docs/bugs.md`, "Physics against vanilla"):
+
+- The mover's own objects peak slower than vanilla in some runs; with the plugin on and no session they do not.
+- The harness's `world_state` crashed the host once reading an object's 3D (EngineCalls.cpp, ReadPose).
+- A guest pile rest sliding off and snapped back; pile rests left a few units apart after two asks.
+
+Tests: GameTests `[mover]` "The host's game places the bucket a guest's push still moves", "A guest's copy walks into
+the bucket in the host's game", "A guest's player bumps the bucket into the plate", "...the host's is never faster
+than the guest's push made it"; HostAuthorityTests "the host's game placing a body a guest moves takes it back";
+ClientTests "A played body's gap is closed slowly while its frame moves slowly, stiffly when fast", "A rest is put awake for one step so its contacts form...", "A body off its rest glides onto it..."; GameTests "The host puts the guest's rest of the bucket in place...", "The host's rest of the bucket has its contacts", "...asked about all of them at once", "...asked twice, then left where it lies"; `scripts/test_collision_metrics.py`.
+
+## The mover's until its rest (2026-11-14, built)
+
+What a player moves lands where that player's game puts it. Until now a guest's let go, push, hit or drop was
+simulated twice: the guest's own physics showed it, the host re-ran it (a let go from the release frame, a push from
+the impulse), and the host's rest went to every guest, the mover included, which placed it. The two games' falls part (measured on the
+duo: a thrown ladle rested 10 units apart, a pushed one 13.6, the dropped sword of `docs/bugs.md` 15 to 80; why, inferred
+and not read: contacts, the copies' capsules a moment behind, Havok's steps), and the mover's body jumped to the
+host's rest. The let go itself adds nothing: `PlayerCharacter::DestroyMouseSprings` (40557, read in IDA 2026-11-14)
+takes the spring off and only activates the body, leaving its velocities as they were (that they are the hand's is
+inferred from the spring holding it), and the host frees its body at the release frame with those velocities.
+
+```text
+guest game (GuestHands): its player pushes, hits, holds, lets go of or drops a body -> its own (m_own)
+  held:      frames as BodyFramesRequest{Held}            (as before: keyframed everywhere else)
+  let go:    BodyReleaseRequest                           host frees it there, every other game's hold ends
+  moving:    its awake frames, the send rule's, free fall marked (BodyMotions), as BodyFramesRequest{!Held}
+  rests here (PhysicsBodies: Havok's sleep or 300 ms still, as on the host): BodyRestsRequest, its own no more
+  taken and rested: the host's frames and rests older than that tick are dropped (BodyPlayback's cutoff)
+  not awake for kOwnMs: its last pose as its rest; never moved here: the host's again, nothing sent
+  meanwhile the host's frames and rests of it are not taken (TakesFrame, KeepsRest), nor its own rest come back,
+  nor the host's move rows of it (GuestWorldState: BodyService::MovedHere, a drop adopted this frame included)
+
+host (HostHands): the first mover keeps it (m_holds, Held or not)
+  free frames -> every other game, the host's too: played steered, mass kept ("One rule")
+  its rest    -> every other game: placed, asleep
+  pushes on it skipped; HostPhysics sends none of the host's own frames or rests of it,
+  nor the host's rest at the mover's rest after (HostRests); one moved on from there is the host's again
+  mover silent kSilentMs or gone: the host's again where it is (a hold: dropped where it was, as before)
+  a rest refused with no claim left (a second mover, the first already rested): the sender gets the host's pose
+```
+
+- Tests: GameTests `[mover]`, each failing before: a bump, a sword hit and a carried let go, the host's table holding
+  harder than the guest's (`FakeFlight::Friction`, each game's own); the guest's body is never placed by another
+  game and the host's lies where the guest's stopped. HostAuthorityTests "a body a guest's player moved is that game's
+  until it rests there" and the let go case (nobody else takes it while it falls).
+- Scenario `guest-throw-lands-where-thrown` (MCP verb `moves_and_watches`: the mover's body traced each frame;
+  `expect` `steady`: no frame's step three times its neighbours' and over 4 units; `at_rest_of`: the host's at the
+  guest's rest). The guest's own scenarios (`guest-bump-moves-host`, `guest-throw-lands-on-host`) now wait for the
+  guest's rest and check the host's there.
+- The host's row of a guest's drop (`create` then `move` to where it was dropped) put the guest's falling sword back
+  in the air, asleep: it never fell there, the guest handed it back, and the host's fall won
+  (`guest-drops-item-stays`, 235 units). GameTests "A guest's player moves the bucket: the host's move row of it does
+  not put the guest's back".
+- Review (2026-11-14): a host frame from before the takeover can land after the guest's rest (unreliable channel):
+  GameTests "A host frame from before the guest's push comes after its rest"; a second mover's rest after the first's
+  rested: HostAuthorityTests "a second mover's rest after the first's rested gets the host's pose back".
+- Open: two guests moving one body at once: the first keeps it; the second shows its own until the first's rest
+  or the host's answer to its refused rest places it.
+
+## One rule (2026-11-13, built)
+
+Everything another game owns is a copy here, the same way for an NPC, a ragdoll and an object (memory
+`sync-model-decisions`): physically present, nudged toward its owner's place each frame, placed only when far off, and
+deciding nothing itself. NPC copies already worked so ("Copies step", `actor-movement.md`); objects were keyframed
+puppets, and every way a player moves a body skips a keyframed one: walk-in, swing, shout, explosion, grab
+(`docs/re/systems/physics.md`, "Every hand skips a keyframed body"). Each bug of the old playback sat at a switch into
+or out of that mode.
+
+```text
+a reference's body another game moves (BodyService -> IBodyBridge::Drive)
+  not held there: kept simulated, its mass kept
+    velocities set to reach the frame over 1.5 frames, at least 50 ms (BodyPrediction::Steer, SteerSeconds): once a
+    frame, a fixed 50 ms overshot on 100 ms frames and diverged past them
+    64+ units off (BodyBridge::kPlaceFar): put there (SetPositionAndRotation 78082, motion kept)
+    keyframed for a hold that ended: its own motion back first (FreeBody 78182)
+  held there (a hold's frames, NotifyBodyFrames::Held): keyframed as before, so this game's grab refuses it
+the owner's rest: placed and put to sleep (60850), an awake played body included
+the host's own player's hold: sent as a hold too (HostBodies::Held), every guest keyframes it
+```
+
+- A guest's swing, shout, blast or walk-in on a played body now moves it in its own game at once; the host's result
+  follows (its copies replay those actions; a swing goes as a push, "A swing's hit").
+- Measured on the duo against the keyframed playback (`physics-push-reaches-guest`, `guest-cast-moves-host`): both
+  follow the host within 0.1-0.5 units typically and flicker 0 times; a 22 s, 118-unit roll was 5.4 units off at
+  worst. A guest's swing at a ladle the host's frames moved: keyframed, nothing moved (2 of 2); nudged, knocked
+  (MCP verb `swing_at_moving`, the ladle slid by the harness's `body_velocity`). No scenario keeps it: the slid ladle
+  sometimes stops before the swing lands (4 of 5 passed); GameTests keeps the case.
+- Tests: GameTests "A guest's player hits the bucket the host's knock still moves: it keeps its mass, so both games
+  are knocked" (the fake's `Drive` keyframes only a hold), HostAuthorityTests "the host's player holds a body: each
+  guest gets it as a hold".
+- **Rest from a body's own motion** (step 3): a reference's body rests once Havok sleeps it or it keeps one pose
+  (0.5 units, 0.01 rad) for 300 ms (`BodyPrediction::Still`, in `PhysicsBodies::Take`, on both games); its rest goes
+  out when all its bodies rest. Havok sleeps an island only when all of it is quiet, so a body beside an animated
+  one (Orgnar leaning on his bar, 78910) or a character never got a rest. A rest within 0.05 units and 0.002 rad
+  of the last one sent (a body Orgnar keeps waking where it lies) goes again only after 2 s
+  (`PhysicsBodies::kRestAgainMs`): the guest's own Orgnar wobbles its copy too, and the rest puts it back. With the
+  still limits as the "same" test, a slow settle's last tilt never went out and the inn's clutter ended turned
+  differently on the guest (ClientTests "A body still for a while rests though its island stays awake"). Ragdolls keep the island rule (their own lying and
+  get-up rules). Scenario `object-rests-beside-orgnar` (a cheese wheel dropped on the bar; the old rule: 6 of 7
+  without a rest, keyframed on the guest; now 5 of 5), GameTests "A knocked bucket stops where an animated body keeps
+  its island awake" (the fake's `KeptAwake`), ClientTests "A body is at rest once it keeps one pose".
+- A body this game's player holds counts as moving, so a body held still in the air does not rest the moment it is
+  let go (GameTests "The host's player holds a bucket still in the air and lets go").
+- **Kept: the guest's "moved by itself, ask the host"** (step 4 of the plan, dropped). The nudge corrects only a body
+  the host sends frames of; one the host never moves (a guest's own blast's push the host's copy missed) gets no
+  frames, so the guest asks for the host's pose (GameTests "A guest's own blast throws a bucket the host's does not").
+  It fires less now: the host replays the guest's casts, shouts and walk-ins through its copy.
+
+The keyframed playback below ("How a guest applies it", "As built") is replaced for objects not held.
 
 ## Owners (2026-10-26, built)
 
@@ -199,8 +407,8 @@ guest game: a reference's body at rest is dynamic, asleep (the host's frames hol
        the motion's applyPointImpulse)
   its player's weapon hits one (Actor::CalculateCurrentHitTargetForWeaponSwing 38628's applyPointImpulse, patched:
     PlayerHands; built 2026-11-13) -> a push like the above: the host's copy of the swing hits nothing
-    (docs/re/systems/physics.md, "A swing's hit"); before, the guest's knock snapped back to the host's pose. A body
-    the host's frames move is keyframed here, massless: the swing's impulse is 0 and nothing moves (docs/bugs.md)
+    (docs/re/systems/physics.md, "A swing's hit"); before, the guest's knock snapped back to the host's pose. Since
+    2026-11-13 a body the host's frames move keeps its mass here ("One rule"), so the swing knocks it too
   its player grabs one (Activate held: StartGrabObject 40552; a body the host's frames still move is keyframed, which
     the engine's grab refuses)
     -> each update its frames (BodySends' rule) as BodyFramesRequest: the host steers its body after them, 100 ms

@@ -31,6 +31,7 @@ void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
     m_pendingRests.erase(acKey);
     m_following.erase(acKey);
     Hold(acKey, false);
+    m_bridge.Forget(acKey);
 }
 
 void BodyService::Hold(const BodyKey& acKey, bool aHeld) noexcept
@@ -92,7 +93,9 @@ void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
     for (const auto& cRest : acMessage.Rests)
     {
         Hold(cRest.Key, false);
-        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest.Key))
+        if (acMessage.Placed && m_pKeeper)
+            m_pKeeper->GiveBack(cRest.Key);
+        if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest))
             (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
     }
     m_playback.Rest(acMessage.Tick, rests);
@@ -109,6 +112,7 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_ragdollRests.clear();
     m_pendingRests.clear();
     m_missing.clear();
+    m_bridge.ForgetAll();
 }
 
 entt::entity BodyService::CopyEntity(uint32_t aSessionId) const noexcept
@@ -148,17 +152,25 @@ void BodyService::Apply() noexcept
     for (const auto cEntity : m_world.view<RemoteComponent>())
         m_copyIndex.try_emplace(m_world.get<RemoteComponent>(cEntity).Id, cEntity);
     m_copiesIndexed = true;
+    std::vector<uint32_t> copies;
+    for (const auto& [cId, cEntity] : m_copyIndex)
+        if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && pFormId->Id)
+            copies.push_back(pFormId->Id);
+    m_bridge.SetCopies(copies);
     // The frame clock, steady by the engine's frames: the session's time as read lags unevenly (S10, copy-clock.md).
     const uint64_t cTick = m_world.GetFrameTick();
-    // What this game's player took is its own now: the owner's playback of it stops.
+    // What this game's player took is its own now: the owner's playback of it stops, its older frames too.
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
-            Forget(cKey);
+        {
+            Forget(cKey, cTick);
+            m_bridge.SetMoving(cKey, true); // this game's now: it meets what other games move
+        }
     Show(m_playback, [cAt = PlaybackTick(cTick)](const BodyKey&) { return cAt; });
     Show(m_ragdolls, [this](const BodyKey& acKey) { return CopyTickOf(acKey.Actor); });
     for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
     {
-        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->first)) && m_bridge.Rest(it->second.second, 0))
+        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->second.second)) && m_bridge.Rest(it->second.second, 0))
         {
             if (m_pKeeper)
                 m_pKeeper->OnRest(it->second.second);
@@ -208,7 +220,7 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
         else
             m_ragdollRests.erase(cKey);
         // A held body too: its holder's alone, so keyframed here (this game's grab refuses it), as its holder shows it.
-        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy);
+        const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy, m_held.contains(cKey));
         if (cPose.Rest && !cKey.Actor && !cDone)
         {
             m_pendingRests[cKey] = {cPose.Tick, cAt};
@@ -239,6 +251,7 @@ void BodyService::Show(BodyPlayback& aPlayback, const BodyPlayback::TickOf& acTi
     for (const auto& cLost : aPlayback.TakeLost())
     {
         m_following.erase(cLost.Key);
+        m_bridge.Forget(cLost.Key);
         spdlog::warn("BodyService: lost {}: no frame for {} ms and no rest, after {} frames", WorldStateLog::DescribeBody(cLost.Key),
                      BodyPlayback::kLostMs, cLost.Frames);
     }

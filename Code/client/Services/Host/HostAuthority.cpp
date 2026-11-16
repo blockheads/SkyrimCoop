@@ -119,8 +119,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_characters, m_purse, m_partyItems, m_game)
-    , m_physics(*this, aNetwork, m_players, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
+    , m_physics(*this, aNetwork, m_players, m_hands, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
@@ -226,6 +226,9 @@ void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) n
     m_worldState.Update(aTick);
     m_items.Update();
     m_hands.Update(aTick);
+    if (m_game.TakePlaced)
+        for (const auto& [cObject, cWhere] : m_game.TakePlaced())
+            m_hands.OnHostPlaced(cObject, cWhere);
     m_physics.Update(aFrameTick ? aFrameTick : aTick);
 }
 

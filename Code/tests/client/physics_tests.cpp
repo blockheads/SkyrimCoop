@@ -8,6 +8,7 @@
 
 #include "../FakeFlight.h"
 
+#include <Physics/BodyGroups.h>
 #include <Physics/BodyPlayback.h>
 #include <Physics/RagdollPending.h>
 #include <Physics/BodyRelevance.h>
@@ -547,4 +548,146 @@ TEST_CASE("A getting-up limb's shake is not guessed onward between its frames", 
     INFO("with its velocity the shown body strays " << cWorst(true) << " units from the shake's middle, without " << cWorst(false));
     CHECK(cWorst(false) <= 2.6f);       // within the shake itself
     CHECK(cWorst(true) > 2.f * 2.6f);   // guessed onward: twice the shake and more
+}
+
+TEST_CASE("A body is at rest once it keeps one pose for a while, whatever Havok's island says", "[physics][still]")
+{
+    BodyPrediction::Still still;
+    BodyFrame frame{.Position = {10.f, 0.f, 0.f}};
+    CHECK_FALSE(still.Read(frame, 1000));
+    frame.Position.x += 0.3f; // a creep under the limit
+    CHECK_FALSE(still.Read(frame, 1200));
+    CHECK(still.Read(frame, 1300));
+    SECTION("moving again starts over")
+    {
+        frame.Position.x += 1.f;
+        CHECK_FALSE(still.Read(frame, 1400));
+        CHECK_FALSE(still.Read(frame, 1600));
+        CHECK(still.Read(frame, 1700));
+    }
+    SECTION("turning counts as moving")
+    {
+        frame.Rotation = glm::angleAxis(0.05f, glm::vec3(0.f, 0.f, 1.f));
+        CHECK_FALSE(still.Read(frame, 1400));
+    }
+}
+
+TEST_CASE("A steered object's correction never overshoots, whatever the frame time", "[physics][steer]")
+{
+    // Review of #56: a fixed 50 ms correction integrated over a 100 ms frame flips the error; over 125 ms it grows.
+    const auto cRun = [](const std::vector<float>& acFrames) {
+        float error = 1.f, worst = 1.f, last = acFrames.front(); // the game's frame time, from the frame before
+        for (const float cFrame : acFrames)
+        {
+            const float cSeconds = BodyPrediction::SteerSeconds(last);
+            error *= 1.f - cFrame / cSeconds;
+            worst = std::max(worst, std::abs(error));
+            last = cFrame;
+        }
+        return std::pair(std::abs(error), worst);
+    };
+    for (const float cFrame : {0.016f, 0.033f, 0.1f, 0.125f, 0.25f})
+    {
+        INFO(cFrame);
+        const auto [cEnd, cWorst] = cRun(std::vector<float>(30, cFrame));
+        CHECK(cEnd < 0.05f);
+        CHECK(cWorst <= 1.f);
+    }
+    // One hitch among short frames: a bounded kick, then back on the path.
+    std::vector<float> hitch(30, 0.016f);
+    hitch[10] = 0.125f;
+    const auto [cEnd, cWorst] = cRun(hitch);
+    CHECK(cEnd < 0.05f);
+    CHECK(cWorst < 2.f);
+}
+
+TEST_CASE("A played body's gap is closed slowly while its frame moves slowly, stiffly when fast", "[physics]")
+{
+    BodyFrame frame{.Position = {100.f, 0.f, 0.f}, .Rotation = {1.f, 0.f, 0.f, 0.f}, .LinearVelocity = {3.f, 0.f, 0.f}};
+    const float cFrame = 1.f / 60.f;
+    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.5f));
+    // One unit off a slow frame is taken back at 2 units/s on top of the frame's own 3: no turn-back.
+    CHECK(BodyPrediction::Steer({101.f, 0.f, 0.f}, frame.Rotation, frame, BodyPrediction::SteerSeconds(frame, cFrame)).Linear.x == Approx(1.f));
+    frame.LinearVelocity = {20.f, 0.f, 0.f};
+    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.25f));
+    // Fast, its gap still takes 150 ms: a body knocked from rest starts behind, and must not outrun its owner's.
+    frame.LinearVelocity = {400.f, 0.f, 0.f};
+    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.15f));
+    // A slow slide that spins fast is not slow.
+    frame.LinearVelocity = {3.f, 0.f, 0.f};
+    frame.AngularVelocity = {0.f, 0.f, 4.f};
+    CHECK(BodyPrediction::SteerSeconds(frame, cFrame) == Approx(0.15f));
+}
+
+TEST_CASE("A rest is put awake for one step so its contacts form, then put to sleep; one that left is held", "[physics]")
+{
+    using BodyPrediction::PlaceRest;
+    using BodyPrediction::RestPlacement;
+    // Asleep where the rest is: nothing to do.
+    CHECK(PlaceRest(true, false, false) == RestPlacement::kLeave);
+    CHECK(PlaceRest(true, false, true) == RestPlacement::kLeave);
+    // Its rest first heard of, wherever the body is: there awake, for a step.
+    CHECK(PlaceRest(false, true, false) == RestPlacement::kPlace);
+    CHECK(PlaceRest(false, false, false) == RestPlacement::kPlace);
+    CHECK(PlaceRest(true, true, false) == RestPlacement::kPlace);
+    // The frame after: still there, it sleeps with its contacts; gone, this game's physics will not keep it there.
+    CHECK(PlaceRest(true, true, true) == RestPlacement::kSleep);
+    CHECK(PlaceRest(false, true, true) == RestPlacement::kHold);
+    CHECK(PlaceRest(false, false, true) == RestPlacement::kHold);
+}
+
+TEST_CASE("A body off its rest glides onto it for half a second at most; far off it is put there", "[physics]")
+{
+    CHECK(BodyPrediction::GlidesToRest(9.f, 0.f, 64.f));
+    CHECK(BodyPrediction::GlidesToRest(9.f, 0.4f, 64.f));
+    CHECK_FALSE(BodyPrediction::GlidesToRest(9.f, 0.5f, 64.f));
+    CHECK_FALSE(BodyPrediction::GlidesToRest(100.f, 0.f, 64.f));
+}
+
+TEST_CASE("An island is put to sleep only when every body in it is dynamic and still", "[physics]")
+{
+    CHECK(BodyPrediction::StillToSleep(true, 0.f, 0.f));
+    CHECK(BodyPrediction::StillToSleep(true, 1.9f, 0.05f));
+    CHECK_FALSE(BodyPrediction::StillToSleep(false, 0.f, 0.f)); // keyframed
+    CHECK_FALSE(BodyPrediction::StillToSleep(true, 40.f, 0.f)); // falling
+    CHECK_FALSE(BodyPrediction::StillToSleep(true, 0.f, 1.f));  // rolling in place
+}
+
+TEST_CASE("A rest among others is done once their island sleeps, two seconds at most", "[physics]")
+{
+    CHECK(BodyPrediction::RestSlept(true, 0.f));
+    CHECK_FALSE(BodyPrediction::RestSlept(false, 0.f));
+    CHECK_FALSE(BodyPrediction::RestSlept(false, 1.9f));
+    CHECK(BodyPrediction::RestSlept(false, 2.f));
+}
+
+TEST_CASE("A rest queued for a reference's body is known before it shows", "[physics]")
+{
+    BodyPlayback playback;
+    const BodyKey cKey{.Object = GameId(0, 0x1234)};
+    CHECK_FALSE(playback.RestComing(cKey.Object));
+    playback.Rest(1000, {BodyPose{.Key = cKey, .Position = {1.f, 2.f, 3.f}}});
+    CHECK(playback.RestComing(cKey.Object));
+    CHECK_FALSE(playback.RestComing(GameId(0, 0x9999)));
+    // Shown: the row may place it again from here on.
+    CHECK(playback.At(1000).size() == 1);
+    CHECK_FALSE(playback.RestComing(cKey.Object));
+}
+
+TEST_CASE("What a body meets: a played one passes loose objects nobody moves, and other played ones", "[physics]")
+{
+    using BodyGroups::Decide;
+    using BodyGroups::Meet;
+    const auto cInfo = [](uint32_t aLayer, uint32_t aGroup) { return aLayer | (aGroup << 16); };
+    const uint32_t cPlayed = cInfo(4, BodyGroups::kPlayed), cMoving = cInfo(4, BodyGroups::kMoving), cResting = cInfo(4, 0);
+    CHECK(Decide(cPlayed, cResting) == Meet::kPass);
+    CHECK(Decide(cResting, cPlayed) == Meet::kPass);
+    CHECK(Decide(cPlayed, cPlayed) == Meet::kPass);
+    CHECK(Decide(cPlayed, cMoving) == Meet::kCollide);
+    CHECK(Decide(cMoving, cMoving) == Meet::kCollide); // one group: the engine would keep them apart
+    CHECK(Decide(cMoving, cResting) == Meet::kEngine);
+    CHECK(Decide(cResting, cResting) == Meet::kEngine);
+    // The world (static, layer 1) and a character's capsule (layer 30, its own group) are the engine's to say.
+    CHECK(Decide(cPlayed, cInfo(1, 0)) == Meet::kEngine);
+    CHECK(Decide(cPlayed, cInfo(30, 7)) == Meet::kEngine);
 }

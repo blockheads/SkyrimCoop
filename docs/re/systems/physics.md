@@ -170,7 +170,55 @@ game: a keyframed motion's inverse mass is 0, so `getMass` (60959) reads 0 and 3
 (read in IDA; measured on the duo with `last_swing`: the swing met the ladle with the line-up's look, no hit recorded,
 the ladle stayed at 0.0 units/s). The host kept a ladle awake (0.0-0.09 units/s) with the guest's copy beside it, so
 the guest's stayed keyframed and unhittable: the copy's own step woke it each frame (fixed 2026-11-13, below, "Woken
-still"). A swing at a body really moving on the host's frames stays a miss (`docs/bugs.md`).
+still"). A body really moving on the host's frames is no longer keyframed on the guest, so the swing knocks it
+(2026-11-13, `docs/design/physics-sync.md`, "One rule").
+
+## Every hand skips a keyframed body (read in IDA 2026-11-13)
+
+Each way a player moves a body ignores one keyframed (motion type 4), so a body played keyframed is out of reach:
+
+- walking into it: the character proxy gives it no interaction (79133, "A player's push");
+- a swing: 38628 scales the impulse by `getMass` (60959), 0 for a keyframed motion ("A swing's hit");
+- a shout: `ConeProjectile::ProcessHits` (43802, our name) pushes a hit body only when `hkpMotion::IsDynamicType`
+  (78109, our name, read: motion types 1-3 and 6) or its layer is 20, through `bhkRigidBody::SetLinearImpulse`
+  (78091) and a random angular impulse;
+- an explosion: `Explosion::ApplyHavokImpulses` (43850, our name) runs once over the bodies its phantom
+  (`Explosion+0xC0`) overlaps, with the same gate, then `Explosion::ApplyImpulseToBody` (43854): linear impulse from
+  the blast's centre, scaled by mass, and a random angular one (`GetRandomNumber` three times), so two games' blasts
+  never match;
+- a grab: `CreateMouseSprings` (40555) refuses types 4 and 5 ("Grabbing").
+
+Each knows its cause where it pushes: an explosion its `actorOwner` (`+0xF8`) and `actorCause` (`+0x108`,
+`GetActorCause` 43846), a shout its projectile's shooter, a swing its swinger.
+
+Contacts: the engine adds contact listeners only through `bhkWorldObject::AddContactListener` (77843, our name), which
+calls `hkpWorld::addContactListener` (61383: the array at `hkpWorld+0x258`); Precision registers its own the same way
+after `requireCollisionCallbackUtil` (61437) and hears every contact point with both bodies.
+
+Sleep (read in IDA 2026-11-13 unless marked):
+
+- `FOIslandActivationListener::islandDeactivatedCallback` (25850) is the engine's work when Havok deactivates an
+  island. Per body it calls `PopTemporaryMass`, does the 3D's bookkeeping through the task queue, sets references
+  flagged in their extra data to fixed (`NiAVObject::SetMotionType` 77866, 5), and keyframes large debris (layer 20;
+  78077, 4).
+- `hkpEntity::deactivate` (60850) clears the island's marks. It calls `moveIslandBetweenActiveLists` (61513, our
+  name), which moves the island between the world's active (`+0x40`) and inactive (`+0x50`) arrays through 61511
+  (island bookkeeping), then `markIslandInactive` (61523, our name, the mirror of `markIslandActive` 61525). That
+  clears the activation bits and queues the island on the world's list at `+0x60`. Last, it resets each body's sleep
+  reference (`+0x25C`, `+0x26C`; Havok's per-body deactivation reference, inferred from its motion layout).
+- None of these calls the island listeners (world `+0x1F8`). They run where the world drains `+0x60`, not found yet
+  (IDA's byte search returned nothing).
+
+Havok sleeps an island only when all its bodies are quiet, which is why one animated body keeps its neighbours awake
+("Woken still"). Since a reference's rest now comes from its own stillness, the two games differ here:
+
+- On the host, 25850's work waits for Havok's island sleep, as in a game without co-op: beside a leaning Orgnar,
+  never.
+- On a guest, placing the host's rest calls 60850 (`BodyBridge::SettleFound`), as before this change. That queues the
+  island inactive at once. Whether 25850 then runs for it is not read.
+- Seen on the duo: the guest's object stays dynamic and its pose matches (`object-rests-beside-orgnar`). A reference
+  that 25850 makes fixed on sleep could still end up fixed on the guest and dynamic on the host; that is not
+  measured.
 
 ## Rays
 
@@ -187,6 +235,10 @@ The engine records a reference's havok move (change flag 0x4, `TESForm::AddChang
 (`PhysicsBodies` watches the change funnel for it). Each update the host reads those references' bodies; a body is
 awake while its island's `activeMark` is set, and a reference rests when none of its dynamic bodies is awake (Havok
 deactivates an island after `kNumInactiveFramesToDeactivate` quiet frames and zeroes its velocities).
+
+Since 2026-11-13 a reference's body also rests once it keeps one pose for 300 ms (`BodyPrediction::Still`): its
+island can stay active for good beside an animated body ("Woken still"), measured with a cheese wheel on Orgnar's bar
+(`object-rests-beside-orgnar`: the host's body awake, no island sleep in 6 of 7 drops).
 
 Havok's own listeners (island activation, post simulation) would say the same per island; they need an object with
 Havok's vtable registered on each world as the player changes worlds. Not needed while the funnel's event and the
@@ -229,7 +281,9 @@ under the world's write lock, then looks up the held reference at `+0x8D0`, send
 the handle invalid. **The grab data sits 8 bytes later on 1.6.1170 than CommonLib-NG's comments** (its SE layout):
 the springs (`BSTSmallArray<hkRefPtr<bhkMouseSpringAction>, 4>`) at `+0x8A0` (capacity), `+0x8A8` (data), `+0x8C8`
 (count); `grabbedObject` at `+0x8D0`, not `0x8C8` (`PlayerCharacter::grabbedObject`; `world_state`'s player status
-`grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion: vanilla has no
+`grabbed`). Holding Activate past `fZKeyDelay:Controls` grabs; letting go drops it with its motion (read on 1.7.104,
+2026-11-14: `DestroyMouseSprings` takes each spring off with its vfunc 0x150 and only `hkpEntity::Activate`s the body,
+velocities untouched, so it flies on as the spring left it (the hand's speed: inferred); physics-sync.md, "The mover's until its rest"): vanilla has no
 throw for a grabbed object (no `fZKey...Throw` setting; telekinesis has its own). The harness holds Activate as the
 `activate` button. `StartGrabObject` needs the body in a world (`bhkSerializable` vfunc 0x27 `GetWorld1`) and light
 enough (a keyframed body's mass reads 0); `PlayerCharacter::CreateMouseSprings` (40555, our name, `0x140752630`; read
@@ -384,3 +438,101 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   `fPlayerDeathReloadTime` down while dying or dead. `Actor::Resurrect` (37321) dispels every effect (abilities too)
   and leaves the player's skeleton in the death ragdoll and its camera in the bleedout state (11); the revive there
   puts all of them back.
+
+## The engine's own wake and rest events (read in IDA on 1.7.104, 2026-11-15)
+
+`FOIslandActivationListener` is the engine's `hkpIslandActivationListener`; both callbacks get the island.
+
+```text
+islandActivatedCallback (25849), each body not keyframed, fixed or character
+  hkpRigidBody::OnActivated (25857, our name; also from entityAdded and entitySetMotionType)
+    the reference's havok move (AddChange 0x4; an actor's only in its ragdoll state)
+    its 3D moved under the cell's DynamicNode (cell 3D's child 4; an actor's child 0), direct or by the task queue
+islandDeactivatedCallback (25850), each body
+    the telekinesis listener and a temporary mass taken off (26026, PopTemporaryMass 26024)
+    its 3D taken back out of the DynamicNode, one node update queued
+    a layer-20 body goes keyframed, its node written from the body once (78382)
+```
+
+- These are the wake and rest events `PhysicsBodies` now infers from the change funnel and each island's mark.
+- Why a node can be left behind (inferred from the code, not measured): a dynamic body's node is written only inside
+  its own `NiAVObject::Update` (`bhkNiCollisionObject::UpdateWorldData` 78378), so only while something updates it
+  each frame, which is what the DynamicNode is for. 78378 also obeys a thread-local mode (TLS+2536): 3 no sync,
+  2 no node to body, 1 no body to node. A body woken by a path that skips 25857, or whose move to the DynamicNode
+  waits in the task queue, flies with its node standing.
+- `hkpRigidBody::setPositionAndRotation` (60898) is a teleport: the motion is set, then
+  `hkpEntity_updateMovedBodyInfo` (60918) updates the broadphase, redoes the body's collision agents and activates
+  it. Nothing is swept and its contacts start over: a body placed every frame never keeps a contact.
+- The character push has no player test: `bhkCharacterController::ScaleObjectImpulse` (our name, `0x1410671B0`, from
+  79133) runs for every controller that steps, so a stepping copy pushes the bodies it walks into. It zeroes the
+  impulse for a body with no mass (keyframed) or at `fCharacterPushMassLimit` (`0x1420D1978`) and above, scales by
+  layer (14 x0.1; 10 x3 when under half the limit, else x0.1; others x2) and caps impulse/mass at 1000.
+- A temporary mass is telekinesis only: `TelekinesisEffect::LaunchGrabbed` (our name, `0x1405E6120`) is
+  `PushTemporaryMass`'s one caller. The player's hand grab changes no mass.
+
+## The collision filter (read in IDA on 1.7.104, 2026-11-15)
+
+`bhkCollisionFilter::CompareFilterInfo` (78553, Precision's name; we hook it in `PlayerCollision.cpp`) decides
+whether two bodies' filter infos collide; every Havok collision and query asks it.
+
+```text
+filter info (hkpRigidBody+0x4C, its collidable's +0x2C)
+  bits 0-6 layer    bits 8-12 part    0x4000 no collision at all    0x8000 biped part    bits 16-31 group
+
+either has 0x4000 (and a's layer is not 44)   no collision
+either group is 0                             collide (the layer matrix is not asked)
+same nonzero group                            only biped parts that are not neighbours, or layers 8/32/33 by the
+                                              part matrix (+80); anything else: no collision
+different groups                              the layer matrix (+464, 64 bits per layer); a layer-30 capsule with
+                                              0x8000 meets only the layers in the mask at +976
+```
+
+- A body's group is written by `NiAVObject::SetCollisionLayerAndGroup` (77999, CommonLibSSE-NG): its walk
+  (`0x1410547E0`) sets layer and group in each rigid body's filter info when nonzero (it cannot clear a group), then
+  calls `bhkWorldObject::UpdateCollisionFilter` (77794, our name; `bhkWorld` 77925 inside, PLANCK's
+  `UpdateCollisionFilterOnWorldObject`), which makes the world re-evaluate that body's collisions.
+- So a group of our own on the bodies another game moves, and a rule for it in the hook we already have, is how a
+  played object can meet the world and not other objects (HIGGS puts a held object in the player's group the same
+  way). Built 2026-11-15: `Physics/BodyGroups.h`, `SetBodyGroup` (the filter info written under the world's write
+  lock, then 77794), `docs/design/physics-sync.md`, "One simulator per pile".
+
+## A rest needs its contacts (read in IDA on 1.7.104, 2026-11-15)
+
+`hkpRigidBody::setMotionType` (60908) runs `hkpWorldOperationUtil::setRigidBodyMotionType` (61518, `0x140b60eb0`).
+Only a change to or from fixed takes the body out of its island and adds it again with the activation asked.
+Keyframed to dynamic takes the short branch: the motion object is swapped (61519) and the entity's collision filter is
+updated (`hkpWorld::updateCollisionFilterOnEntity`, 61321), which makes the agents its new quality type needs: a keyframed body has none with fixed
+geometry. Those agents hold no contact points until a collide step runs on the body.
+
+So a body keyframed, put at a pose, set dynamic and deactivated at once (60850) sleeps on a floor Havok has no
+contact with. A character's push has a downward part (the capsule's round end on the object's top edge), which the
+floor's contact normally cancels. Without it the body sinks for one step and the next throws it up.
+
+Seen in the duo (`push_mixed`, the guest walking into a cheese wheel the host's rest had placed): the wheel left at
+(366, -44, 100) units/s and rose 30 units in 10 of 13 pushes, once after a first frame at -250 down. Vanilla's and
+the host's own left at (508, -67, -7) and rose 1 to 3, in 40 of 40. Ruled out by switching each off: `HavokStepFix`,
+the collision classes. The two players' controllers read the same; the wheel's pose matched in both games to 0.05
+degrees.
+
+With rests left awake the guest's wheel left at (509, -67, -2) in 6 of 6. Left awake to settle, though, the game
+that placed the rest simulates it, reports it moving, and both games take a pile for their own: it shook in both (82
+turn-backs on a kettle), and with no fallback at all a pile never settled.
+
+So `BodyBridge::Rest` (`BodyPrediction::PlaceRest`) puts a simulated body at its rest awake and still for one
+physics step, which is the collide step that finds its contacts, and puts it to sleep the next frame
+(`SleepBody`, `hkpEntity::deactivate` 60850, which keeps the agents). The keyframe round trip is left for a body a
+hold keyframed, and for one that left its rest within that step: that one does not stay there by itself and is held
+asleep as before.
+
+## A pile sleeps together (read in IDA on 1.7.104, 2026-11-16)
+
+`hkpEntity::deactivate` (60850) acts on the body's island, not the body: a split check pending on the island splits
+it first (61513), so only bodies touching it stay together; then every entity in the island gets its motion's
+deactivation counters (+0x25C, +0x26C) set and the island is marked inactive (`markIslandInactive`, 61523: clears
+its active mark, queues it on the world's dirty island list). There is no sleeping one body among others.
+
+So a rest put into a pile (`SleepBody`) sleeps the pile only when every body in it is dynamic, nearly still and not
+one this game moves, plays or holds; otherwise it waits for Havok (`BodyPrediction::RestSlept`, 2 s at most).
+Sleeping the island regardless froze the guest's own carried object, still for a moment in its hands against the
+pile (it jumped 75 units).
+

@@ -27,4 +27,7 @@ struct Push
 [[nodiscard]] std::vector<Push> TakeHits() noexcept;
 // Off: nothing is recorded.
 void Watch(bool aOn) noexcept;
+// Main thread, each update: the copies in this game. A copy's capsule pushes no object (its impulse is zeroed in
+// 79133): what its owner's character walks into is moved by its owner's game.
+void SetCopies(const std::vector<uint32_t>& acCopyFormIds) noexcept;
 } // namespace PlayerHands

@@ -172,8 +172,9 @@ void HostService::MakeAuthority() noexcept
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeQuestChanges = [this] { return m_pEngine->TakeQuestChanges(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
-    game.TakeBodies = [this] {
-        return m_pEngine->TakeBodies([this](uint32_t aFormId) -> uint32_t {
+    game.TakePlaced = [this] { return m_pEngine->TakePlaced(); };
+    game.TakeBodies = [this](uint64_t aTick) {
+        return m_pEngine->TakeBodies(aTick, [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
                 if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
                     return m_world.get<LocalComponent>(cEntity).Id;
@@ -194,12 +195,12 @@ void HostService::MakeAuthority() noexcept
         }
         return std::nullopt;
     };
-    game.PushBody = [this](const BodyPush& acPush) { return m_world.ctx().at<IBodyBridge&>().Push(acPush); };
     game.FreeBody = [this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
         // The holder's frames this game played end here (BodyService); its own physics has the body again.
         m_world.ctx().at<BodyService>().Forget(acFrame.Key, aReleasedAt);
         return m_world.ctx().at<IBodyBridge&>().Free(acFrame);
     };
+    game.FollowBodies = [this](const std::vector<BodyKey>& acKeys) { m_pEngine->FollowBodies(acKeys); };
     game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
         std::vector<BodyPose> poses;
         for (const BodyKey& cKey : acKeys)

@@ -1596,13 +1596,12 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
         rests.Tick = 42;
         rests.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
         CHECK(roundTrip(rests) == rests);
+        rests.Placed = true;
+        CHECK(roundTrip(rests).Placed);
     }
 
-    SECTION("A guest's push, hold and release go to the host")
+    SECTION("A guest's hold and release go to the host")
     {
-        BodyPushRequest pushes;
-        pushes.Pushes = {{.Key = frame.Key, .Impulse = {-3.5f, 120.25f, 0.5f}, .Point = frame.Position}};
-        CHECK(roundTrip(pushes, RequestMessageFactory{}) == pushes);
         BodyFramesRequest held;
         held.Tick = 77;
         held.Frames = {frame};
