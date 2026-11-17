@@ -1,0 +1,6 @@
+time	op	id	rva	item
+2026-11-17T00:40:06Z	read	11737	0x165460	{"name": "sub_140165460"}
+2026-11-17T00:40:07Z	read		0x187a10	{"name": "ExtraAliasInstanceArray::sub_12721"}
+2026-11-17T00:40:07Z	read		0x172a20	{"name": "ExtraDataList__RemoveAliasInstance"}
+2026-11-17T00:40:32Z	name	11737	0x165460	{"addr": "0x140165460", "name": "ExtraDataList::HasRunOncePack"}
+2026-11-17T00:40:34Z	comment	11737	0x165460	{"addr": "0x140165460", "comment": "ExtraDataList::HasRunOncePack(list, package): under the list's lock (+0x18, read) looks for the package in ExtraRunOncePacks (type 0x1B) and returns whether it is there. Reached from 12721's package walk (array lock held, read): array > list, against 12047's list > array (party-buys-house-guest's lock report, 2026-11-16)."}
