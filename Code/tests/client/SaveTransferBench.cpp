@@ -2,7 +2,6 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <snappy.h>
 
 namespace
 {
@@ -15,8 +14,14 @@ std::optional<std::string> Read(const char* acpPath)
     file.seekg(0);
     return file.read(bytes.data(), bytes.size()) ? std::optional(std::move(bytes)) : std::nullopt;
 }
+
+double Since(std::chrono::steady_clock::time_point aStart)
+{
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - aStart).count();
+}
 } // namespace
 
+// What a guest holding OLD receives for NEW, and the time each step takes.
 int main(int aCount, char** apArguments)
 {
     if (aCount != 5)
@@ -28,33 +33,24 @@ int main(int aCount, char** apArguments)
     auto game = Read(apArguments[3]), skse = Read(apArguments[4]);
     if (!oldGame || !oldSKSE || !game || !skse)
         return 1;
-    const auto cStart = std::chrono::steady_clock::now();
-    SaveTransfer::Cache cache;
-    cache.Load({*oldGame, *oldSKSE});
-    const auto cPacked = SaveTransfer::Pack({*game, *skse});
-    auto chunks = SaveTransfer::Split(cPacked);
-    uint64_t cold = 0, warm = 0, reused = 0, hits = 0;
-    SaveTransfer::Assembly assembly;
-    for (auto& chunk : chunks)
-    {
-        cold += chunk.Data.size();
-        if (cache.Find(chunk.Hash))
-        {
-            reused += chunk.RawSize;
-            ++hits;
-            chunk.Data.clear();
-        }
-        warm += chunk.Data.size();
-        if (!assembly.Add(chunk, &cache))
-            return 1;
-    }
-    if (!assembly.Complete() || assembly.Data() != cPacked)
+    auto start = std::chrono::steady_clock::now();
+    const auto cpOld = SaveTransfer::MakeImage({*oldGame, *oldSKSE});
+    const auto cpNew = SaveTransfer::MakeImage({*game, *skse});
+    if (!cpOld || !cpNew)
         return 1;
-    const double cMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cStart).count();
-    std::string whole;
-    snappy::Compress(cPacked.data(), cPacked.size(), &whole);
-    std::cout << "raw_bytes=" << cPacked.size() << " legacy_whole_compressed=" << whole.size()
-              << " cold_payload=" << cold << " warm_payload=" << warm << " reused_raw=" << reused
-              << " cached_blocks=" << hits << "/" << chunks.size() << " cpu_ms=" << cMs
-              << " hash_advertisement_bytes=" << cache.Hashes().size() * 33 << "\n";
+    const double cImageMs = Since(start) / 2;
+    start = std::chrono::steady_clock::now();
+    const auto cAlone = SaveTransfer::Encode(cpNew->Data);
+    const double cAloneMs = Since(start);
+    start = std::chrono::steady_clock::now();
+    const auto cDelta = SaveTransfer::Encode(cpNew->Data, cpOld->Data);
+    const double cDeltaMs = Since(start);
+    start = std::chrono::steady_clock::now();
+    const auto cDecoded = SaveTransfer::Decode(cDelta, cpOld->Data, static_cast<uint32_t>(cpNew->Data.size()));
+    const double cDecodeMs = Since(start);
+    if (!cDecoded || SaveTransfer::Digest(*cDecoded) != cpNew->Id || SaveTransfer::Decode(cAlone, {}, static_cast<uint32_t>(cpNew->Data.size())) != cpNew->Data)
+        return 1;
+    std::cout << "files=" << game->size() + skse->size() << " image=" << cpNew->Data.size() << " alone=" << cAlone.size()
+              << " against_old=" << cDelta.size() << " image_ms=" << cImageMs << " alone_ms=" << cAloneMs
+              << " against_old_ms=" << cDeltaMs << " decode_ms=" << cDecodeMs << "\n";
 }

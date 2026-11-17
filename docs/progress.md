@@ -49,6 +49,24 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-16: save sync. A guest waited 5-10 s at a host load where the host waited none: the save (3 MB) travelling,
+not its load. A save now travels as its difference from one the guest holds (its body decompressed first: the
+engine's LZ4 hid what two saves share), and every save the host makes goes ahead to the guests as it is written, so
+a load of it sends only its id and both games start loading at once ([join-flow.md](design/join-flow.md#save-sync-2026-11-16)).
+On that session's saves: 3.05 MB before, 0.16-1.07 MB against a held save, 1.55 MB whole (a first join). The block
+reuse of 2026-11-03 is removed (3-23% of blocks matched). Engine facts read in IDA
+([save-game.md](re/systems/save-game.md), "The file's compression"): a type 0 save with a raw body loads (109334), and
+a quicksave's file is written by the save thread after `Save_Impl` returned (109353 hooked, `SaveWrittenEvent`).
+ClientTests `[save-transfer]`, HostAuthorityTests `[save]`, GameTests `[save-sync]` (a quicksave held then loaded with
+nothing sent, a save never sent, a store that lost one, a newer save replacing one on its way, a rejoin); the fake
+engine learned the save thread's late write. In Skyrim (QASmoke, one machine): `guest-reuses-world-cache`
+passes (a first join 1.41 MB for a 7.8 MB image, the next 0.18 MB against the held one: the engine loads the type 0
+file); `host-quickloads-party` and `death-wipe-checkpoint` pass; in all four load scenarios the guest held the save
+within a second of its writing and the load sent 0 bytes (the guest back in 0.9-1.3 s, the reload's 200 ms update
+stall on the host gone). `host-loads-party` and `host-menu-loads-party` then fail on the open bow bug
+([bugs.md](bugs.md), "A fresh copy loses what its owner equipped right after spawning"), as on dev. Not measured: a
+real line (the playtest's 5-10 s); a save ahead costs the host's upload 0.05-1 MB a save.
+
 2026-11-16: a party wipe no longer loads a save by itself: everyone stays down, the screen tells the host to load a
 save and the guests that the host chooses, and the dead host loads one from the pause menu or quickloads (a host load,
 `host-loads.md`). The engine allows it: `MenuOpenHandler::ProcessButton` (52249) opens the Journal while the player is

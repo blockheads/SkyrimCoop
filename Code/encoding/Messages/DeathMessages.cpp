@@ -80,13 +80,15 @@ void NotifyPlayerRespawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Heading = Serialization::ReadFloat(aReader);
 }
 
-void NotifyPartyReload::SerializeRaw(Wire::Buffer::Writer&) const noexcept
+void NotifyPartyReload::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
+    Serialization::WriteString(aWriter, Save);
 }
 
 void NotifyPartyReload::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
+    Save = Serialization::ReadString(aReader);
 }
 
 void NotifyPlayerPerished::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

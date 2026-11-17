@@ -77,7 +77,8 @@
     X(PartySummonRequest)          \
     X(GraphOpsRequest)             \
     X(GraphSyncRequest)            \
-    X(GraphSyncPointRequest)
+    X(GraphSyncPointRequest)        \
+    X(SaveHeldRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

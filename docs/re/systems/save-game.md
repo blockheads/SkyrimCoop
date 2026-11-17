@@ -147,3 +147,32 @@ stays separate; a frozen VM call still counts as a VM tick for that frame.
 `save-does-not-update-frozen-world` exercises this actual engine boundary and fails before the
 guard. The fake engine's save bridge does not simulate Skyrim's VM drain. See the
 [crash investigation](../crashes/2026-10-29-save-vm-reentry.md) for IDA evidence and red/green results.
+
+## The file's compression, and when a save reaches disk (2026-11-16)
+
+IDA 1.7.104, read for save sync (`docs/design/join-flow.md`, the world). Format names from UESP's "Save File Format".
+
+- **Layout.** `TESV_SAVEGAME`, u32 header size, the header (its last u16 is `compressionType`), the screenshot
+  (width × height × 4 from version 10, raw), then the body. `BGSSaveLoadFile__WriteHeader` (35672) writes all of it up
+  to the body and returns the body's offset (`file+0xBC4`); `BGSSaveLoadFile__ReadHeader` (35673) reads it back and
+  copies the type to `file+0xBC8` (`BGSSaveLoadFileEntry__GetCompressionType` 35542, entry `+0x66`).
+- **Saving.** `Save_Impl` (35727) sets `file+0xBC8` from the setting `uiCompression:SaveGame`
+  (`g_uiCompression_SaveGame`, 0 none, 1 zlib, 2 LZ4). `BGSSaveLoadFile__CompressBody` (109333) then replaces the raw
+  body with u32 uncompressed length, u32 compressed length and the compressed bytes; for type 0 it returns and the
+  body stays raw, with no length fields.
+- **Loading.** `BGSSaveLoadFile__DecompressBody` (109334), called by the load (442580) after the header and
+  screenshot: type 0 returns true at once and the body is read as it lies; 1 and 2 read the two lengths and decode;
+  any other type fails the load. **So a file with type 0 and a raw body is a valid save**: what a guest writes
+  from a synced save. The file location table's offsets already count as if the body were raw.
+- **When the `.ess` is on disk.** Device 2 compresses and writes inside `Save_Impl` (35675, 109333, the save-data
+  utility's vfunc `0x68`, `BSWin32SaveDataSystemUtility__WriteSaveFile` 109353). The file is made by
+  `BGSSaveLoadManager__CreateSaveFile` (35724) as `<name>.ess.tmp`; 109353 writes it, then sends its event
+  (`BSWin32SaveDataSystemUtility__SendEvent`) to `BGSSaveLoadManager__OnSaveDataEvent` (35773), which moves the old
+  file to `.bak` and renames the `.tmp` into place, all before 109353 returns. Devices 3, 4 and 5 queue a `bgs::saveload::SaveOperationRequest` (id `0x40000001`, 35791)
+  and the save thread runs the same three calls later in `BGSSaveLoadManager__Thread__RunRequest` (35794). SKSE's
+  `.skse` is written inside `Save_Impl` in every case. A quicksave or autosave is therefore not readable when
+  `Save_Impl` returns: 35794 is where it becomes so.
+- **Measured, six saves of one session (2026-11-16, ~3.0 MB files, 7.9-8.4 MB raw bodies):** the LZ4 files share
+  3-23% of 16 KiB content-defined blocks; the raw bodies, with the earlier save as a zstd prefix (level 9, long
+  window), differ by 0.2 MB in one place and 1.1 MB after a move from an inn to the city. A raw body alone is 1.55 MB
+  in zstd against 2.8 MB in the engine's LZ4.

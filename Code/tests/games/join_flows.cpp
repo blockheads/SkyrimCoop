@@ -3,6 +3,7 @@
 // own brings its character into the host's save, a friend the host's save knows joins from the main menu as that
 // character (JoinService, HostSaveTransfer).
 #include "Party.h"
+#include <Services/SaveStore.h>
 #include "Fixtures.h"
 
 #include <Events/MenuEvent.h>
@@ -705,7 +706,7 @@ SCENARIO("Character startup has a deadline before the customization menu opens",
     CHECK(Party::Engine(guest).Loaded.empty());
 }
 
-SCENARIO("Repeated world joins reuse the save on disk and keep the host's current state", "[join][save-cache]")
+SCENARIO("A game joining again gets the host's current world as its difference from the one it holds", "[join][save-sync]")
 {
     Party party(1, [](FakeEngine& aEngine) {
         SmokeWorld(aEngine);
@@ -716,42 +717,58 @@ SCENARIO("Repeated world joins reuse the save on disk and keep the host's curren
     Plays(host, HostsCharacter());
     Plays(guest, LydiasCharacter());
     auto& guestEngine = Party::Engine(guest);
-    guestEngine.SavedFiles.clear();
     JoinsWithWorld(party, host, guest, "the first join receives a whole save");
     CHECK(Join(guest).GetMetrics().Outcome == "joined");
-    CHECK(Join(guest).GetMetrics().CachedChunks == 0);
+    CHECK(Join(guest).GetMetrics().HeldSaves == 0);
+    CHECK_FALSE(Join(guest).GetMetrics().AgainstHeld);
     CHECK(Join(guest).GetMetrics().PayloadBytes > 0);
     REQUIRE(guestEngine.ReadSave(JoinService::kJoinSave));
+    REQUIRE(guestEngine.HeldSaveFiles.size() == 1);
     const auto cKey = KeyOf(guest);
     party.Until([&] { return Records(host).Find(cKey) != nullptr; }, "the host keeps this guest before it leaves");
 
-    // The first arrival adds this guest's character to the host's next save.
     ToMainMenu(party, guest);
-    JoinsWithWorld(party, host, guest, "the second join refreshes the host's saved character record");
-    ToMainMenu(party, guest);
-    JoinsWithWorld(party, host, guest, "an unchanged host save reuses matching disk blocks");
+    JoinsWithWorld(party, host, guest, "the second join comes against the first one's save");
     const auto metrics = Join(guest).GetMetrics();
     CHECK(metrics.Outcome == "joined");
-    CHECK(metrics.AdvertisedBlocks > 0);
-    CHECK(metrics.CachedChunks > 0);
-    CHECK(metrics.ReusedBytes > 0);
-    CHECK(metrics.TotalMs >= metrics.CacheMs);
+    CHECK(metrics.HeldSaves == 1);
+    CHECK(metrics.AgainstHeld);
+    CHECK(metrics.Chunks > 0);
+    CHECK(metrics.WorldBytes > 0);
     CHECK(metrics.TransferMs >= 0);
     CHECK(metrics.DecodeMs >= 0);
-
-    SECTION("corrupted cached files fall back to a fresh current world")
+    // Each world held is the one loaded: the newest first, and never more than the store keeps.
+    REQUIRE(guestEngine.HeldSaveFiles.size() == 2);
+    const auto cLoaded = SaveTransfer::Unpack(guestEngine.HeldSaveFiles.front().second);
+    REQUIRE(cLoaded);
+    CHECK(*cLoaded == *guestEngine.ReadSave(JoinService::kJoinSave));
+    auto& hostEngine = Party::Engine(host);
+    for (int i = 0; i < 3; ++i)
     {
-        guestEngine.SavedFiles[JoinService::kJoinSave] = {"damaged disk save", "bad SKSE"};
+        ToMainMenu(party, guest);
+        // Each of the host's saves differs, as Skyrim's do.
+        hostEngine.References[0x2000].Locked = !hostEngine.References[0x2000].Locked;
+        JoinsWithWorld(party, host, guest, "another join");
+    }
+    CHECK(guestEngine.HeldSaveFiles.size() == SaveStore::kKept);
+
+    bool damaged = false;
+    SECTION("a held save damaged on disk is dropped, and the world comes whole or against another")
+    {
+        damaged = true;
+        for (auto& [id, data] : guestEngine.HeldSaveFiles)
+            data = "damaged disk save";
     }
     SECTION("the host's world changes while the guest is away") {}
     ToMainMenu(party, guest);
-    auto& hostEngine = Party::Engine(host);
     REQUIRE_FALSE(hostEngine.References.empty());
     const auto cObject = hostEngine.References.begin()->first;
     hostEngine.References[cObject].Locked = !hostEngine.References[cObject].Locked;
     const bool cLocked = hostEngine.References[cObject].Locked;
-    JoinsWithWorld(party, host, guest, "changed data replaces the cached world");
+    JoinsWithWorld(party, host, guest, "the host's current world is the one loaded");
     CHECK(guestEngine.References[cObject].Locked == cLocked);
     CHECK(Join(guest).GetMetrics().Outcome == "joined");
     CHECK(Join(guest).GetMetrics().PayloadBytes > 0);
+    CHECK(Join(guest).GetMetrics().AgainstHeld == !damaged);
+    CHECK(guestEngine.HeldSaveFiles.size() == (damaged ? 1 : SaveStore::kKept));
 }

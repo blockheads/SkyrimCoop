@@ -13,9 +13,9 @@ void AuthenticationRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const no
     Serialization::WriteString(aWriter, PlayerKey);
     Serialization::WriteBool(aWriter, WantsWorld);
     Serialization::WriteBool(aWriter, HasCharacter);
-    Serialization::WriteVarInt(aWriter, CachedSaveBlocks.size());
-    for (const auto& hash : CachedSaveBlocks)
-        Serialization::WriteString(aWriter, hash);
+    Serialization::WriteVarInt(aWriter, HeldSaves.size());
+    for (const auto& save : HeldSaves)
+        Serialization::WriteString(aWriter, save);
 }
 
 void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -33,18 +33,18 @@ void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     PlayerKey = Serialization::ReadString(aReader);
     WantsWorld = Serialization::ReadBool(aReader);
     HasCharacter = Serialization::ReadBool(aReader);
-    CachedSaveBlocks.clear();
+    HeldSaves.clear();
     const auto cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > 16384)
+    if (cCount > 16)
         return;
     for (uint64_t i = 0; i < cCount; ++i)
     {
-        auto hash = Serialization::ReadString(aReader);
-        if (hash.size() != 32)
+        auto save = Serialization::ReadString(aReader);
+        if (save.size() != 32)
         {
-            CachedSaveBlocks.clear();
+            HeldSaves.clear();
             return;
         }
-        CachedSaveBlocks.push_back(std::move(hash));
+        HeldSaves.push_back(std::move(save));
     }
 }

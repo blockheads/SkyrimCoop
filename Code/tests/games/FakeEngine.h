@@ -133,6 +133,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::string PlayerId() noexcept override;
     // As JoinBridge: a save or a load is made on the next main loop frame (RunMainLoop), never inside our update.
     std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
+    SaveFiles MakeSave();
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
@@ -143,6 +144,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // SkyrimCoopWipe), the engine's own saves are named with it.
     uint32_t CharacterId = 0;
     std::map<std::string, SaveFiles> SavedFiles;
+    // As JoinBridge's worker thread, but in step: the work runs at once and what it returns right after, or with
+    // DefersWork both wait for the next FinishWork (JoinService's update), as work still running would.
+    bool DefersWork = false;
+    std::vector<std::function<std::function<void()>()>> QueuedWork;
+    void OffThread(std::function<std::function<void()>()> aWork) noexcept override;
+    void FinishWork() noexcept override;
+    // The save sync store's files, the newest first.
+    std::vector<std::pair<std::string, std::string>> HeldSaveFiles;
+    std::vector<std::string> HeldSaves() noexcept override;
+    std::optional<std::string> ReadHeldSave(const std::string& acId) noexcept override;
+    bool WriteHeldSave(const std::string& acId, const std::string& acData) noexcept override;
+    void DropHeldSave(const std::string& acId) noexcept override;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
     PlayerKnowledge Knowledge; // native ingredient/enchantment forms, separate from the actor's state
@@ -163,6 +176,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool PlayerLoads(const std::string& acName);
     // The engine's own autosave (a load door, fast travel, waiting), through the same hook.
     bool Autosaves(const std::string& acName);
+    // A quicksave or autosave with its file: made now, written by the save thread after Save_Impl returned (35794),
+    // here on the next main loop frame. SaveWrittenEvent follows every written file, a menu save's at once.
+    bool Quicksaves(const std::string& acName);
+    std::vector<std::pair<std::string, SaveFiles>> SaveThread; // made, not yet written
+    std::string SavePadding;                                   // more bytes in each save's game file (a real one has megabytes)
     std::vector<std::string> Saves;
     std::optional<std::string> PendingSave;            // asked for, made by the next main loop frame
     std::optional<std::optional<SaveFiles>> MadeSave;  // made (or refused), for the next SaveNow

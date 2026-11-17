@@ -524,9 +524,9 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
                 ShowSystemLine(std::format("{} ({}): {} KiB in 10 s.", cMessage["name"].get<std::string>(),
                     cMessage["way"].get<std::string>(), cMessage["bytes"].get<uint64_t>() / 1024));
         const auto& cJoin = m_world.ctx().at<JoinService>().GetMetrics();
-        if (cJoin.Chunks)
-            ShowSystemLine(std::format("Last world join: {:.1f} s total, {:.1f} s transfer, {:.1f} s load; {} KiB reused.",
-                cJoin.TotalMs / 1000, cJoin.TransferMs / 1000, cJoin.LoadMs / 1000, cJoin.ReusedBytes / 1024));
+        if (cJoin.Chunks || cJoin.FromStore)
+            ShowSystemLine(std::format("Last world join: {:.1f} s total, {:.1f} s transfer, {:.1f} s load; {} KiB came for a {} KiB save.",
+                cJoin.TotalMs / 1000, cJoin.TransferMs / 1000, cJoin.LoadMs / 1000, cJoin.PayloadBytes / 1024, cJoin.WorldBytes / 1024));
         return;
     }
     if (acLine == "/export")

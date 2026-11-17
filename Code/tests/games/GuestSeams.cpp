@@ -18,6 +18,7 @@
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
+#include <Services/Guest/GuestSaves.h>
 #include <Services/Guest/GuestScene.h>
 #include <Services/Guest/GuestCopies.h>
 #include <Services/Guest/GuestHands.h>
@@ -422,6 +423,7 @@ struct GuestSeam::Guest
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
+          Saves(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
           Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine),
           Scene(aWorld, aWorld.GetDispatcher(), Engine),
@@ -435,6 +437,7 @@ struct GuestSeam::Guest
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
+    GuestSaves Saves;
     GuestHands Hands;
     GuestWait Wait;
     GuestScene Scene;

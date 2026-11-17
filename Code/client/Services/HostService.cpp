@@ -14,6 +14,8 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
+#include <Events/SaveWrittenEvent.h>
+#include <Services/SaveLibrary.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
@@ -50,6 +52,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
+    Listen<SaveWrittenEvent, &HostService::OnSaveWritten>(m_connections, m_dispatcher, this);
     Listen<ActorRenamedEvent, &HostService::OnActorRenamed>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
     Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
@@ -239,13 +242,7 @@ void HostService::MakeAuthority() noexcept
         const auto* pRecords = cRecords();
         return pRecords && pRecords->Find(acKey) != nullptr;
     };
-    game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
-        PROFILE_ZONE("Host save preparation");
-        auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
-        if (!files)
-            return std::nullopt;
-        return SaveTransfer::Split(SaveTransfer::Pack(*files));
-    };
+    BindSaves(game);
     game.StorePlace = [cRecords](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
                                  const std::array<float, 3>& acPosition) {
         if (auto* pRecords = cRecords())
@@ -274,6 +271,7 @@ void HostService::StopHosting() noexcept
     m_pNetwork.reset();
     m_pAuthority.reset();
     m_pEngine.reset();
+    m_pSaves.reset();
     spdlog::info("HostService: session stopped");
 }
 

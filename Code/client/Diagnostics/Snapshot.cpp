@@ -397,11 +397,11 @@ nlohmann::json GameStatus()
     nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message},
                                  {"details", cJoin.Details}, {"progress", cJoin.Progress}, {"joining", world.ctx().at<JoinService>().IsJoining()}};
     const auto& cTiming = world.ctx().at<JoinService>().GetMetrics();
-    join["timings"] = {{"outcome", cTiming.Outcome}, {"total_ms", cTiming.TotalMs}, {"cache_ms", cTiming.CacheMs}, {"check_ms", cTiming.CheckMs}, {"creation_ms", cTiming.CreationMs},
+    join["timings"] = {{"outcome", cTiming.Outcome}, {"total_ms", cTiming.TotalMs}, {"check_ms", cTiming.CheckMs}, {"creation_ms", cTiming.CreationMs},
         {"wait_for_world_ms", cTiming.WaitForWorldMs}, {"transfer_ms", cTiming.TransferMs}, {"decode_ms", cTiming.DecodeMs},
         {"write_ms", cTiming.WriteMs}, {"load_ms", cTiming.LoadMs}, {"apply_character_ms", cTiming.ApplyMs},
-        {"world_bytes", cTiming.WorldBytes}, {"payload_bytes", cTiming.PayloadBytes}, {"reused_bytes", cTiming.ReusedBytes},
-        {"blocks", cTiming.Chunks}, {"cached_blocks", cTiming.CachedChunks}, {"advertised_blocks", cTiming.AdvertisedBlocks}};
+        {"world_bytes", cTiming.WorldBytes}, {"payload_bytes", cTiming.PayloadBytes}, {"pieces", cTiming.Chunks},
+        {"held_saves", cTiming.HeldSaves}, {"against_held", cTiming.AgainstHeld}, {"from_store", cTiming.FromStore}};
     nlohmann::json cursor = nullptr;
     if (const auto cCursor = EngineReads::GetMenuCursor())
         cursor = {cCursor->first, cCursor->second};
