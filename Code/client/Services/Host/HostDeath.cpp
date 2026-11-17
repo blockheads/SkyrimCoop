@@ -2,7 +2,6 @@
 
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostCharacters.h>
-#include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -11,12 +10,10 @@
 #include <algorithm>
 #include <cmath>
 
-HostDeath::HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-                     const HostGame& acGame) noexcept
+HostDeath::HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept
     : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
-    , m_game(acGame)
 {
     aAuthority.On(*this, &HostDeath::OnDeath);
     aAuthority.Watch(*this, &HostDeath::OnAiState);
@@ -116,8 +113,6 @@ void HostDeath::Reconsider() noexcept
         m_wiped = true;
         m_recoveryAt.reset();
         Broadcast();
-        if (m_game.PartyWipe)
-            m_game.PartyWipe();
         return;
     }
 

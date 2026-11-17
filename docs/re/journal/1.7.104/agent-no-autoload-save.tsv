@@ -1,0 +1,11 @@
+time	op	id	rva	item
+2026-11-17T03:46:19Z	read	52251	0x961dd0	{"name": "QuickSaveLoadHandler::ProcessButton"}
+2026-11-17T03:46:22Z	read	35736	0x623310	{"name": "sub_140623310"}
+2026-11-17T03:47:26Z	read	52249	0x961580	{"name": "MenuOpenHandler::ProcessButton"}
+2026-11-17T03:47:37Z	name	35736	0x623310	{"addr": "0x140623310", "name": "BGSSaveLoadManager::CanLoadGame"}
+2026-11-17T03:47:37Z	local	52249	0x961580	{"func_addr": "0x140961580", "old": "v6", "new": "playerDyingOrDead"}
+2026-11-17T03:47:37Z	local	52249	0x961580	{"func_addr": "0x140961580", "old": "v5", "new": "menuModeCount"}
+2026-11-17T03:47:41Z	comment	35736	0x623310	{"addr": "0x140623310", "comment": "BGSSaveLoadManager::CanLoadGame (35736): false while the player's Actor +0x1F0 handle (Actor::someRefrHandle) names a live reference, while UI +0x170 (a save/load-disabled count) is nonzero, or when 82076 says so. No life-state check: a dying or dead player can load (quickload, QuickSaveLoadHandler::ProcessButton 52251). Read 2026-11-16 (SkyrimCoop: host chooses a save after a party wipe)."}
+2026-11-17T03:47:41Z	comment	52249	0x961580	{"addr": "0x140961580", "comment": "MenuOpenHandler::ProcessButton (52249): playerDyingOrDead = ActorState1 lifeState (Actor +0xC8 bits 21-24) is 1 or 2. It gates the Tween menu, Wait, Map, Inventory/Magic/Skills shortcuts, but not Journal/Pause (UserEvents +96/+128): a dead player still opens the Journal menu (System -> Load). Read 2026-11-16."}
+2026-11-17T03:47:41Z	comment		0x96165c	{"addr": "0x14096165c", "comment": "lifeState (ActorState1 bits 21-24) dying (1) or dead (2)"}
+2026-11-17T03:47:41Z	comment		0x9618be	{"addr": "0x1409618be", "comment": "Journal/Pause: opened even while dying or dead (no playerDyingOrDead check)"}

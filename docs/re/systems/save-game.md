@@ -34,7 +34,7 @@ checkForMods)`), as CommonLibSSE-NG's `Load(name)`: `Load_Impl(name, -1, 0, true
 (`LoadGameEvents`), after SKSE's co-save load.
 
 `SaveLoadManager.cpp` hooks this entry and quickload requests (35769) for [host loads](../../design/host-loads.md): a guest's own load is refused in
-chat; a host's selected save goes through the party wipe's transfer and rejoin. The bridge's internal `Load` calls
+chat; a host's selected save goes through the party's transfer and rejoin (also how a wipe ends: the host chooses). The bridge's internal `Load` calls
 the original trampoline so authorized party and join loads pass. The five-argument signature was checked against
 CommonLibSSE-NG and the 1.6.1170 disassembly at `0x140610480`.
 
@@ -60,12 +60,23 @@ IDA 1.7.104. The engine keeps no character id inside a save: **the id is in the 
   `currentCharacterID` and `displayCharacterID` (`+0xD8`, copied to `BSWin32SaveDataSystemUtility+0x64`) to
   `{that id, modded}`: `SetCurrentCharacter` (35751) inlined; `SetDisplayCharacter` (35752) is the display half
   (the console's `SetDisplayPlayerID`). The catalogue's entries (`characterID` `+0x6C`) come from the same parse.
-- So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: `PreviousGameplaySave` then took the newest id-0 save
-  (another character's, 2026-11-08), and saves made afterwards are named and filed under 0.
+- So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: saves made afterwards are named and filed under 0
+  (and the wipe's old automatic pick of the newest save, removed 2026-11-16, took another character's, 2026-11-08).
 
 Ours: `SaveNames::CharacterId` is the same parse; after the party's scratch load the host calls `SetCurrentCharacter`
 (35751) with the checkpoint's id (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`), keeping the load's modded
 flag. A guest's join load still leaves its id 0 (it makes no saves in a session).
+
+## Loading while dead (2026-11-16)
+
+IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.md`).
+
+- `MenuOpenHandler::ProcessButton` (52249): `playerDyingOrDead` is ActorState1's life state (Actor `+0xC8` bits
+  21-24) dying (1) or dead (2). It gates the Tween menu, Wait, Map and the inventory/magic/skills shortcuts, not the
+  Journal/Pause buttons (UserEvents `+96`/`+128`): a dead player opens the Journal and its System -> Load.
+- `QuickSaveLoadHandler::ProcessButton` (52251) queues quickload (`0xD0000000`) once `BGSSaveLoadManager::CanLoadGame`
+  (35736) allows it: false while the player's `Actor::someRefrHandle` (`+0x1F0`) names a live reference, a
+  UI `+0x170` count is nonzero, or 82076 says so. No life-state check. Quicksave's gate is 35734 (not read further).
 
 ## Where a save or load can run (2026-10-24)
 

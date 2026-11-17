@@ -14,6 +14,7 @@
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifySettingsChange.h>
+#include <Services/HostService.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <Services/TravelService.h>
@@ -91,7 +92,7 @@ void DeathService::OnConnected(const ConnectedEvent& acEvent) noexcept
 
 void DeathService::OnSettings(const NotifySettingsChange&) noexcept
 {
-    // In a session a dead player waits for the party's respawn or wipe instead of loading the last save.
+    // In a session a dead player waits for the party's respawn or the host's load instead of loading the last save.
     m_playerBridge.HoldPlayerDeathReload(true);
 }
 
@@ -264,7 +265,7 @@ std::string DeathService::Status() const noexcept
     if (!m_party.Error.empty())
         return m_party.Error;
     if (m_party.Wiped)
-        return "The party has fallen. Loading the previous save...";
+        return m_world.GetHostService().IsHosting() ? kWipedHost : kWipedGuest;
     if (m_dying)
         return "You have fallen.";
     if (!m_spectating)
