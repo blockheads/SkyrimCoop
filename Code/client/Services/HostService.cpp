@@ -32,6 +32,8 @@
 #include <Components.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
+#include <Bridges/IDevToolsBridge.h>
+#include <Services/DevCommands.h>
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/Relayed.h>
@@ -166,6 +168,11 @@ void HostService::MakeAuthority() noexcept
     game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
+    game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
+    game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.ConsoleNameOf = [this](uint32_t aSessionId) {
+        return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
+    };
     game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };

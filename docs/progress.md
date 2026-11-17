@@ -75,6 +75,14 @@ reload (`HostGame::PartyWipe`, `PreviousSave`, `PreviousGameplaySave`) and the s
 joins go on). GameTests "A party wipe loads nothing until the host loads the save it chooses"; scenario
 `death-wipe-host-loads` (replaces `death-wipe-checkpoint` and `death-wipe-twice-keeps-character`).
 
+2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
+`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
+game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
+runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
+(the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions
+([dev-commands.md](re/systems/dev-commands.md)). Tests: ClientTests `[dev-commands]`, HostAuthorityTests `[DevTools]`,
+GameTests `[dev-commands]`; checked by hand in Skyrim.
+
 2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
 is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
 starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the

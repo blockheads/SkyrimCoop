@@ -8,7 +8,7 @@ target("HostAuthorityTests")
     -- Conversation and aggro bind the host's game; GameTests covers their engine reads.
     add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp|HostAggro.cpp", "../../client/Physics/*.cpp", "../../client/RecipeBook.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
-              "../../client/Services/Generic/PartyOptionText.cpp")
+              "../../client/Services/Generic/PartyOptionText.cpp", "../../client/Services/DevCommands.cpp")
     add_includedirs(".", "../../client")
     add_deps("SkyrimEncoding", "Network", "CommonLib")
     add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv")

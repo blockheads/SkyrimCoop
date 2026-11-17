@@ -128,6 +128,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_story(*this, m_players, m_characters, m_game)
     , m_death(*this, aNetwork, m_players, m_characters)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
+    , m_devTools(*this, m_players, m_characters, m_game)
 {
     using enum Delivery;
 
