@@ -6,6 +6,7 @@
 #include <Events/ActorDamagedEvent.h>
 #include <Forms/ActorValueInfo.h>
 #include <Forms/BGSEncounterZone.h>
+#include <Games/ActorUpkeep.h>
 #include <Games/ActorExtension.h>
 #include <Havok/Raycast.h>
 #include <HookSwitch.h>
@@ -18,10 +19,88 @@
 #include <cmath>
 #include <memory>
 
+namespace
+{
+// Who is angry with which guest's copy: actor << 32 | copy. Read lock-free from the AI threads' reaction hooks
+// (IsPartyEnemy); only the main thread writes.
+constexpr size_t cAngerSlots = 32;
+std::atomic<uint64_t> s_angerKeys[cAngerSlots]{};
+bool s_angerFought[cAngerSlots]{}; // main thread only: has fought them since getting angry
+std::atomic<size_t> s_angerCount{0};
+
+uint64_t AngerKey(const Actor* apActor, const Actor* apOther) noexcept
+{
+    return (uint64_t(apActor->formID) << 32) | apOther->formID;
+}
+} // namespace
+
+void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept
+{
+    const uint64_t cKey = AngerKey(apActor, apRemotePlayer);
+    size_t free = cAngerSlots;
+    for (size_t i = 0; i < cAngerSlots; ++i)
+    {
+        const uint64_t cSlot = s_angerKeys[i].load(std::memory_order_relaxed);
+        if (cSlot == cKey)
+            return;
+        if (cSlot == 0 && free == cAngerSlots)
+            free = i;
+    }
+    if (free == cAngerSlots)
+        return;
+    s_angerFought[free] = false;
+    s_angerKeys[free].store(cKey, std::memory_order_release);
+    s_angerCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void UpdateRemotePlayerAnger() noexcept
+{
+    if (s_angerCount.load(std::memory_order_relaxed) == 0)
+        return;
+
+    for (size_t i = 0; i < cAngerSlots; ++i)
+    {
+        const uint64_t cKey = s_angerKeys[i].load(std::memory_order_relaxed);
+        if (!cKey)
+            continue;
+        auto* pActor = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey >> 32)));
+        auto* pRemotePlayer = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey)));
+        bool resolved = !pActor || !pRemotePlayer || pActor->IsDead() || !pActor->GetNiNode();
+        // Skyrim decides when the fight is over (yield, flee, death, distance...): once the actor
+        // has fought them and is out of combat, the anger is resolved, like the engine's own
+        // "angry with player" for its player.
+        if (!resolved)
+        {
+            Actor* pTarget = pActor->GetCombatTarget();
+            s_angerFought[i] = PartyThreat::AngerFought(s_angerFought[i], pTarget && pTarget->GetExtension()->IsPlayer());
+            if (s_angerFought[i] && !pActor->IsInCombat())
+                resolved = true;
+        }
+        if (resolved)
+        {
+            spdlog::info("Anger of {:X} at remote player {:X} resolved", static_cast<uint32_t>(cKey >> 32), static_cast<uint32_t>(cKey));
+            s_angerKeys[i].store(0, std::memory_order_release);
+            s_angerCount.fetch_sub(1, std::memory_order_relaxed);
+        }
+    }
+}
+
 namespace PartyAggroNative
 {
 namespace
 {
+// Angry with one player's copy: every player's body is its enemy (PartyThreat::AngerCovers).
+bool IsAngryWithParty(Actor* apActor, Actor* apOther) noexcept
+{
+    if (!apActor || !apOther || s_angerCount.load(std::memory_order_relaxed) == 0)
+        return false;
+    const bool cOtherIsPlayer = apOther->GetExtension()->IsPlayer();
+    for (const auto& cSlot : s_angerKeys)
+        if (PartyThreat::AngerCovers(cSlot.load(std::memory_order_acquire), apActor->formID, cOtherIsPlayer))
+            return true;
+    return false;
+}
+
 std::atomic<std::shared_ptr<const PartyThreat::State>> s_state;
 std::atomic<bool> s_active{false};
 
@@ -127,8 +206,10 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(47191, &RealSelect, Select);
 });
 } // namespace
-bool IsPartyFoe(Actor* apActor, Actor* apTarget) noexcept
+bool IsPartyEnemy(Actor* apActor, Actor* apTarget) noexcept
 {
+    if (IsAngryWithParty(apActor, apTarget))
+        return true;
     if (!apActor || !apTarget || !s_active.load(std::memory_order_acquire) || !apTarget->GetExtension()->IsPlayer() ||
         apActor->GetExtension()->IsCopy() || apActor->GetExtension()->IsPlayer())
         return false;

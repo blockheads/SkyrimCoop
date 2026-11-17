@@ -53,7 +53,7 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 guest, and never turned on the host). The execution's interrupt trigger runs `PlatformGuard.StartCombat(Game.GetPlayer())`,
 the guest's copy for a guest's trigger: no crime, so nothing the party shares, and `HostAggro` counted only damage and
 crime fights. Now every NPC whose combat target is a player is a party fight (`PartyThreat::State::PartyFights`, nearest
-player first) and every player's body is its enemy in the reaction hooks (`PartyAggroNative::IsPartyFoe`), so its
+player first) and every player's body is its enemy in the reaction hooks (`PartyAggroNative::IsPartyEnemy`), so its
 combat group can take them ([combat-targets.md](re/systems/combat-targets.md), A fight with one player is the party's).
 A guest's friendly-hit anger is the party's as well (`PartyThreat::AngerCovers`; scenario `guest-angers-ally-party-enemy`;
 MCP: `fight(until_dead=False)`, verb `expect_enemy`, a new duo forgets the last games' scene and staging).

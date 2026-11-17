@@ -213,9 +213,9 @@ The party rule (`party-model.md`, Crime): an NPC whose combat target is a player
 
 - `HostAggro` counts every such NPC (`PartyThreat::State::PartyFights`), so `PartyThreat` gives the nearest player
   it sees, first pick at once.
-- `PartyAggroNative::IsPartyFoe`: the four reaction hooks (`IsHostileToActor` 37537, `GetFactionReaction` 37666,
-  `ShouldAttack` 37534, `ComputeReaction` 37667, the friendly-hit anger's hooks in `Actor.cpp`) answer "enemy" for every
-  player's body. Then 39747 and 44704 let the detection listener add the host (above). When the NPC leaves combat it
+- `PartyAggroNative::IsPartyEnemy`: the four reaction hooks in `Actor.cpp` (`IsHostileToActor` 37537,
+  `GetFactionReaction` 37666, `ShouldAttack` 37534, `ComputeReaction` 37667) answer "enemy" for every player's body,
+  for an NPC fighting a player or angry with one (the anger below, kept in `PartyAggro.cpp`). Then 39747 and 44704 let the detection listener add the host (above). When the NPC leaves combat it
   is no foe again.
 - A guest's friendly-hit anger (`SkyrimBridge::ReactToAttack`: past the engine's friendly hits, `MarkAngryWithRemotePlayer`)
   is the party's too (2026-11-17, `PartyThreat::AngerCovers`): the angry NPC reads every player's body as an enemy,
