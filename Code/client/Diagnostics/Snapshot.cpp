@@ -296,7 +296,9 @@ nlohmann::json ActorSnapshot(uint32_t aFormId)
                    {"deferred_kill", EngineReads::GetKillState(aFormId).Deferred},
                    {"kill_queued", EngineReads::GetKillState(aFormId).Queued},
                    {"casting", CastingSpells(aFormId)},
-                   {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
+                   {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}},
+                   // The props its graph shows (ANIO, drawn): a copy holds its owner's (Alvor's hammer).
+                   {"anim_objects", EngineReads::GetAnimObjects(aFormId)}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
                     {"stamina", actors.GetActorValue(aFormId, 26)},
                     {"max_health", actors.GetActorPermanentValue(aFormId, 24)},

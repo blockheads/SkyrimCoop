@@ -2312,6 +2312,7 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     point.Words = {1, 0xFFFFFFFF, 0x42A343EB};
     point.Seed = {5, 6};
     point.ClipSets = {{3, 513}, {4, 7}, {47, 65535}};
+    point.AnimObjects = {{0x000727A7, true}, {0x00064101, false}}; // Hilde's dagger drawn, Embry's lean loaded
     point.ActiveNodesChanged = true;
     point.Project = 0xC0FFEE;
     Buffer buffer;

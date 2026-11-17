@@ -652,6 +652,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         ActionEvent LatestAnimation;
         std::string GraphState;
         std::set<std::string> LoadedClips; // the event whose clip files its process holds: one action set (KeepSet 40055)
+        std::vector<std::pair<uint32_t, bool>> AnimObjects; // its props (AnimationObjects 400328): ANIO, drawn
         AnimationVariables GraphVariables; // an owner's to send; a copy's as last loaded (ApplyRemoteMovement)
         uint32_t GraphRandom = 0;          // its graph's generator: each game's graph runs its own (hkbBehaviorGraph +0x78)
         uint32_t LyingPose = 0;            // the get-up candidate its own ragdoll lies closest to (FakeGraphRules::Match)
@@ -737,6 +738,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // Skyrim: an event's clip started before its file is in lasts 0.01333 s, so the graph runs on to what follows it.
     std::map<std::string, std::string> SkippedClips; // a state to the state it runs on to
     std::map<std::string, std::string> ClipFiles;    // an event to its clip's state: it needs a file loaded first
+    // A state whose clip fires AnimObjLoad/AnimObjDraw as it starts (42888/42889): entering it holds these props.
+    std::map<std::string, std::vector<std::pair<uint32_t, bool>>> StateProps;
     // Events with clip files a process loads into another set (IMovementSelectIdle's): loaded into the action set
     // anyway (ActionClips::Request), they replace what it held (KeepSet 40055).
     std::set<std::string> OtherSetClips;
@@ -771,6 +774,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void GenerateGraph(Actor& aActor) const;
     bool TakeGraphEvent(Actor& aActor, const std::string& acEvent);
     void EnterClip(Actor& aActor) const;
+    static void HoldAnimObjects(Actor& aActor, std::span<const std::pair<uint32_t, bool>> aProps);
     void ReplayStream(uint32_t aFormId, Actor& aActor); // a copy on the stream: its owner's ops instead (GraphStream.h)
     bool m_replaying = false; // inside ReplayStream: a copy's graph takes its owner's inputs
     // Its 3D reloaded: a new graph in aState, its clip and variables reset (Skyrim: a new BShkbAnimationGraph).

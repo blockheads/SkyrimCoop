@@ -128,7 +128,7 @@ Entry: [Headtracking on copies](bugs.md#headtracking-on-copies). Step 1 done 202
 - Kill-move scenarios (`host-kill-move`, `client-kill-move`, `spectator-watches-kill-move`) waited on step 1: all three
   passed both runs after it. Measured.
 - `save-load-gate` stopped on a wolf's `head_track` on 2026-11-06, before this fix; on PR #28's build it gets
-  past the check and fails later. Either keeps it from answering [Sigurd's registration](bugs.md#sigurds-registration).
+  past the check and fails later.
 
 ### D. Copy lifecycle
 
@@ -140,8 +140,6 @@ NPC crash. Decided the same day (the user): a copy with no owner goes too, as on
 - The crash's cause is read and measured: a placed reference marked deleted keeps its handle with no process.
 - The rabbits in past failed runs were placed references, not temporary (`at-failure.json`, base `6DC9D`); which one
   was left with no owner was not recorded.
-
-Open: [Sigurd's registration](bugs.md#sigurds-registration), not reproduced and not shown to share this.
 
 The rest of the town entry (fish `10C3BA`, player heights, the inn's containers) is not lifecycle: it stays there.
 
@@ -186,29 +184,17 @@ Entries: [The AI/quest lock pair](bugs.md#the-aiquest-lock-pair), and PR #25's r
 
 Both turn on `ExtraAliasInstanceArray` (12718-12721). Same lock, different partner: inferred. One rerun answers both.
 
-### H. Graph picks
-
-Entries: [Players' idle variants](bugs.md#players-idle-variants), [A guest arriving mid-loop](bugs.md#a-guest-arriving-mid-loop).
-
-One mechanism, `GraphRandom` sync points (read). Mid-loop is a test of it, players an extension of it. The crab's live
-mandible difference above is a pick too: creatures' idle picks may not be covered. Measured once.
-
 ## Only the word is shared
 
-- **Ragdolls.** Copy ragdolls at rest is `BodyService` steering (read in the entry); get-up is the owner/copy knock
-  handoff; a wolf's slow rest is the host's own body. None runs through Revive.
-- **Dialogue.** The queued greeting predates the silent device (PR #6) and may be gone: rerun. The lost press is a
-  frame window in the menu (`HookShowList`), the overlap is `ShowPicked`. Separate functions, separate tasks.
+- **Ragdolls.** Copy ragdolls at rest is `BodyService` steering (read in the entry). It does not run through Revive.
+- **Dialogue.** The overlap is `ShowPicked`; the queued greeting and the lost press were closed 2026-11-16 (their
+  scenarios passed every run).
 - **Vampirism.** Clutter flags and the marker share a scenario family, not a path: inferred, nobody has read the clutter's.
-- **Trade markers and Lydia's one-off action.** Both compare the latest action at one instant, and a copy follows 150 to
-  300 ms behind. Belethor's copy on `CyclicFreeze` is action 0x13002, an idle Sigrid's copy also showed just before the
-  owner's next action. Possibly lag caught by the check: inferred. Rerun before any work.
 
 ## Standalone
 
-No link found, each stays one task: creature wobble, Open Animation Replacer's picks, long roll, dropped sword, chest
-lid, the werewolf, crafting station exit, follower stops following, scratch save, quest
-start/stop events, older crime scenarios, a mod's rename, the baseline after a death, Greybeards validation, an old crash reported as new.
+No link found, each stays one task: creature wobble, Open Animation Replacer's picks, chest lid, the werewolf, crafting
+station exit, follower stops following, scratch save, quest start/stop events, older crime scenarios, a mod's rename.
 
 [After the host dies](bugs.md#after-the-host-dies) waits for PR #25, which refuses copies' combat trees and finds the
 half-stop is the engine's detection.

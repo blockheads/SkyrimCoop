@@ -17,6 +17,7 @@ from ..common import BOOT_FILE, GAME, ROOT, TEST_HOME, WINDOWS
 from ..comparisons import flatten
 from ..duo_lock import IDLE_MINUTES
 from ..errors import TestFailure
+from ..utilities import log
 
 RECORDINGS = TEST_HOME / "mcp"
 SCENE_RADIUS = 4000.0  # units around the host player a scene names and looks at
@@ -1016,7 +1017,7 @@ class ReproActions:
         (the graph input stream's live check for `seconds`: every streamed copy's graph states equal its owner's at each
         update; with `name`, its copy compared on at least `value` updates, by default 9 in 10 of its owner's and 4 a
         second; without, at least `value` copies, default 1, compared that far), "guest_npcs" (the guest shows no NPC of its own, all
-        through `seconds`)."""
+        through `seconds`), "props" (every copy holds its owner's props within `seconds`, at least `value` owners holding one)."""
         if check == "faces":
             return ctx.expect_faces(name, of, game, within, seconds)
         if check == "items":
@@ -1090,6 +1091,8 @@ class ReproActions:
             return {"agree": True}
         if check == "guest_npcs":
             return ctx.expect_no_guest_npcs(seconds)
+        if check == "props":
+            return ctx.expect_props(value or 1, seconds or 10.0)
         if check == "agree":
             ids = [f"{ref:08X}" for ref in ctx.handles().get(name, {}).values()]
             problems = [p for p in ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())) if name == "all" or any(ref in p for ref in ids)]
@@ -1243,6 +1246,41 @@ class ReproActions:
             if time.monotonic() >= ended:
                 return {"guest_npcs": 0, "loaded": len(world)}
             time.sleep(min(0.5, max(0.0, ended - time.monotonic())))
+
+    def expect_props(ctx, least=1, seconds=10.0):
+        """Every copy with 3D holds its owner's props (state.anim_objects, ANIO and drawn) within `seconds`, at least
+        `least` owners holding one compared (docs/re/systems/animation-objects.md)."""
+        ended = time.monotonic() + seconds
+        while True:
+            props_apart, compared = props_differences(ctx.game("").read_status(), ctx.game("client").read_status())
+            if not props_apart and compared >= least:
+                log(f"copies hold their owners' props: {compared} owners holding one compared")
+                return {"compared": compared}
+            if time.monotonic() >= ended:
+                if props_apart:
+                    raise ctx.failure("copies hold other props than their owners (owner, copy): " +
+                                      " | ".join(f"{who} {held}" for who, held in sorted(props_apart.items())))
+                raise ctx.failure(f"{compared} owners holding props compared, {least} needed: nothing was shown")
+            time.sleep(0.5)
+
+
+def props_differences(host_status, guest_status):
+    """({name: (owner's props, copy's)} for each host-owned actor whose guest copy (with 3D) holds others, owners holding
+    props compared): state.anim_objects of the two games' snapshots, matched by session id."""
+    host = (host_status or {}).get("world") or {}
+    guest = (guest_status or {}).get("world") or {}
+    copies = {(row.get("mod") or {}).get("session_id"): row for row in guest.values() if row.get("role") == "copy"}
+    apart, compared = {}, 0
+    for form_id, own in host.items():
+        copy = copies.get((own.get("mod") or {}).get("session_id")) if own.get("role") == "own" else None
+        if not copy or not (copy.get("placement") or {}).get("has_3d"):
+            continue
+        held = sorted(map(tuple, (own.get("state") or {}).get("anim_objects") or []))
+        shown = sorted(map(tuple, (copy.get("state") or {}).get("anim_objects") or []))
+        compared += bool(held)
+        if held != shown:
+            apart[f"{(own.get('identity') or {}).get('name') or '?'} {int(form_id):08X}"] = (held, shown)
+    return apart, compared
 
 
 def facing_off(here, heading, there):

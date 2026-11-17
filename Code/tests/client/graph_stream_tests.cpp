@@ -1,4 +1,5 @@
 #include <Games/Animation/GraphStream.h>
+#include <Games/Skyrim/AnimationObjects.h>
 
 #include <catch2/catch.hpp>
 
@@ -40,6 +41,13 @@ struct ToyGraph final : IGraphTarget
     {
         State = State * 31 + aEventId + Vars[0];
         Calls.push_back("event " + std::to_string(aEventId));
+    }
+    std::vector<std::pair<uint32_t, bool>> Held;
+    void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override
+    {
+        Held.assign(aObjects.begin(), aObjects.end());
+        if (!aObjects.empty())
+            Calls.push_back("hold");
     }
     std::shared_ptr<std::atomic<bool>> Clips; // a load's files loading
     std::vector<std::pair<uint8_t, uint16_t>> Asked;
@@ -450,6 +458,25 @@ TEST_CASE("A sync point loads every clip set its owner's process held before it 
     CHECK(copy.State == owner.State);
 }
 
+TEST_CASE("A sync point's props are held as it loads", "[graph-stream]")
+{
+    GraphRecorder recorder;
+    ToyGraph owner, copy;
+    OwnerUpdate(recorder, owner, 1, 0.016f);
+    auto point = Point(owner, recorder.Updates());
+    point.AnimObjects = {{0x727A7, true}}; // its idle's AnimObjDraw came before the point
+    OwnerUpdate(recorder, owner, 2, 0.016f);
+    const GraphOps cOps = Batch(recorder);
+    GraphReplayer replayer;
+    replayer.Feed(cOps.Runs[0], cOps.Frames);
+    replayer.Load(point);
+    CHECK(replayer.Run(10, copy) == 1);
+    REQUIRE(copy.Calls.size() >= 2);
+    CHECK(copy.Calls[0] == "load");
+    CHECK(copy.Calls[1] == "hold");
+    CHECK(copy.Held == std::vector<std::pair<uint32_t, bool>>{{0x727A7, true}});
+}
+
 TEST_CASE("A copy's stream starts again when its graph is replaced", "[graph-stream]")
 {
     GraphStreams streams;
@@ -719,3 +746,12 @@ TEST_CASE("A node's pick is sent once, and again after a sync point", "[graph-st
     CHECK(ops->Runs[0].Ops[2].Picks.empty());
 }
 
+
+TEST_CASE("A prop is drawn when visible, or its attached model is not hidden", "[graph-stream][props]")
+{
+    using AnimationObjects::IsDrawn;
+    CHECK_FALSE(IsDrawn(false, false, 0)); // loaded, not drawn
+    CHECK(IsDrawn(true, false, 0));        // drawn while its model loads (43572 sets +0x20)
+    CHECK(IsDrawn(false, true, 0));        // drawn after its model attached (43572 clears kHidden only)
+    CHECK_FALSE(IsDrawn(false, true, 1));  // attached, still hidden
+}

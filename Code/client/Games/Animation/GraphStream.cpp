@@ -201,6 +201,7 @@ size_t GraphReplayer::Run(uint64_t aPlaybackTick, IGraphTarget& aTarget)
             return 0;
         }
         aTarget.WriteWords(cPoint.Words);
+        aTarget.HoldAnimObjects(cPoint.AnimObjects);
         m_words = aTarget.Words();
         // Its point is its owner's graph as update cPoint.Update began: what came before, the events and loads just
         // before that update too, is in it.

@@ -1653,3 +1653,37 @@ TEST_CASE("A copy keeps its owner's idle's clip files through a turn its owner's
     CHECK(guest.Actors.at(cCopy).LoadedClips.contains("IdleCounter"));
     CHECK(FirstGraphDifference(cOwner.Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
 }
+
+TEST_CASE("A copy starting mid-idle holds the props its owner's idle drew before its sync point", "[animation][replay-start][props]")
+{
+    // Skyrim (duo, Riverwood, 2026-11-16): Alvor at his forge with no hammer on the guest; the idle's first clip draws
+    // it (42888/42889), a later sync point skips that (docs/re/systems/animation-objects.md).
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    constexpr uint32_t cHammer = 0x000727A7;
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{.Clips = {{.State = "AnvilEnter", .Ms = 300, .Starts = {"AnvilLoop"}},
+                                                 {.State = "AnvilLoop", .Ms = 600, .Starts = {"AnvilLoop"}}}};
+        engine->GraphTransitions = {{{"Standing", "IdleAnvilEnter"}, "AnvilEnter"}};
+        engine->StateProps = {{"AnvilEnter", {{cHammer, true}}}};
+    }
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x13482, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+        ActionEvent enter;
+        enter.ActionId = 0x13004;
+        enter.EventName = "IdleAnvilEnter";
+        REQUIRE(host.PerformAnimation(npc, enter));
+    });
+    const auto& cOwner = host.Actors.at(npc);
+    party.Until([&] { return cOwner.GraphState == "AnvilLoop"; }, "the owner hammers in its loop");
+    REQUIRE(cOwner.AnimObjects == std::vector<std::pair<uint32_t, bool>>{{cHammer, true}});
+    party.Until([&] { return guest.CopiesOf(0x13482).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x13482).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy) && SyncPoints(guest.Actors.at(cCopy)) >= 1; },
+                "the copy starts on its owner's stream");
+    CHECK(guest.Actors.at(cCopy).AnimObjects == cOwner.AnimObjects);
+}
