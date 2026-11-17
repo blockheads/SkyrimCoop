@@ -15,6 +15,7 @@
 #include <Followers/State.h>
 #include <functional>
 #include <optional>
+#include <string>
 
 struct ContainerTransferRequest;
 
@@ -61,6 +62,11 @@ struct HostGame
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;
     std::function<void(float aHours)> AdvanceTime;
+    // Dev commands (docs/design/dev-commands.md): a console line run in the host's game; a session's character as the
+    // console names it ("player", or its copy's reference id), none when not loaded; the hostile actors killed.
+    std::function<void(const std::string& acLine)> RunConsole;
+    std::function<std::optional<std::string>(uint32_t aSessionId)> ConsoleNameOf;
+    std::function<uint32_t()> KillHostiles;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.

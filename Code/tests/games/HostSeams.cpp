@@ -5,6 +5,8 @@
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
+#include <Bridges/IDevToolsBridge.h>
+#include <Services/DevCommands.h>
 #include <Services/CrimeService.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Games/Overrides.h>
@@ -131,6 +133,11 @@ void HostService::MakeAuthority() noexcept
             time.m_timeModel.TimeScale = cScale;
             engine.Calendar = time.m_timeModel;
         });
+    };
+    game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
+    game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.ConsoleNameOf = [](uint32_t aSessionId) {
+        return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), FakeEngine::kPlayer);
     };
     game.ReadTime = [&engine] { return engine.Calendar; };
     game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };

@@ -9,7 +9,8 @@ target("GameTests")
     add_files("*.cpp", "../../client/Services/Generic/FollowerService.cpp", "../../client/RecipeBook.cpp", "../../client/ItemIds.cpp",
               "../../client/Services/CopyClock.cpp", "../../client/Games/Animation/GraphStream.cpp", "../../client/Games/Animation/GraphState.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Counters.cpp", "../../client/Diagnostics/ReportPaths.cpp",
-              "../../client/Services/Generic/BugReportService.cpp",
+              "../../client/Services/Generic/BugReportService.cpp", "../../client/Services/Generic/DevToolsService.cpp",
+              "../../client/Services/DevCommands.cpp",
               "../../client/Services/Generic/PartyOptionText.cpp")
     add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp",
               "../../client/Bridges/PhysicsBodies.cpp")

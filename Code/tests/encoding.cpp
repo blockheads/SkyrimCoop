@@ -2126,6 +2126,37 @@ TEST_CASE("A bug report goes to the host and from it to every game", "[encoding.
     }
 }
 
+TEST_CASE("A dev command goes to the host and from it to every game", "[encoding.dev_command]")
+{
+    Payloads::DevCommand command;
+    command.Line = "/spawn wolf 3";
+    command.By = "Lydia";
+    {
+        DevCommandRequest sent;
+        sent.Line = command.Line;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kDevCommandRequest);
+        CHECK(static_cast<const DevCommandRequest&>(*decoded) == sent);
+    }
+    {
+        NotifyDevCommand sent;
+        static_cast<Payloads::DevCommand&>(sent) = command;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kNotifyDevCommand);
+        CHECK(static_cast<const NotifyDevCommand&>(*decoded) == sent);
+    }
+}
+
 TEST_CASE("A pick names who said it; the highlight goes to the others", "[encoding.dialogue]")
 {
     NotifyDialoguePicked sent;

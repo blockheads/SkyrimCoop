@@ -11,6 +11,8 @@
 #include <Components/PlayerComponent.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Events/SetTimeCommandEvent.h>
+#include <Services/DevCommands.h>
+#include <Services/DevToolsService.h>
 #include <Events/PartySummonCommandEvent.h>
 #include <Games/Skyrim/Interface/MenuCursor.h>
 #include <Games/Skyrim/Interface/UI.h>
@@ -534,6 +536,14 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
         m_world.ctx().at<BugReportService>().Export();
         return;
     }
+    if (DevCommands::IsDevCommand(acLine))
+    {
+        if (acLine == "/dev")
+            ShowSystemLine(DevCommands::Help());
+        else
+            m_world.ctx().at<DevToolsService>().Run(acLine);
+        return;
+    }
     if (acLine == "/tpa" || acLine == "/teleportall")
     {
         m_world.GetDispatcher().trigger(PartySummonCommandEvent{});
@@ -551,7 +561,7 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
     }
-    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>, /tpa (everyone to you)");
+    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>, /tpa (everyone to you), /dev (dev commands)");
 }
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept

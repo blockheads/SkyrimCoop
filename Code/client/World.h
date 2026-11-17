@@ -6,6 +6,7 @@
 #include <Bridges/IBodyBridge.h>
 #include <Bridges/ICrimeBridge.h>
 #include <Bridges/IBugReportBridge.h>
+#include <Bridges/IDevToolsBridge.h>
 #include <Bridges/ISteamBridge.h>
 
 #include <memory>
@@ -98,6 +99,7 @@ private:
     std::unique_ptr<IBodyBridge> m_pBodyBridge;
     std::unique_ptr<ICrimeBridge> m_pCrimeBridge;
     std::unique_ptr<IBugReportBridge> m_pBugReportBridge;
+    std::unique_ptr<IDevToolsBridge> m_pDevToolsBridge;
     RecipeBook m_recipes;
     FrameClock m_frameClock;
     CopyClock m_copyClock;

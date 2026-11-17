@@ -1,0 +1,18 @@
+time	op	id	rva	item
+2026-11-17T03:51:13Z	read	38559	0x6c9200	{"name": "Actor::sub_38559"}
+2026-11-17T04:05:19Z	read	21744	0x33e920	{"name": "GameFunc::native::ShouldAttackKill"}
+2026-11-17T04:05:20Z	read	21743	0x33e840	{"name": "GameFunc::native::IsLastHostileActor"}
+2026-11-17T04:05:34Z	comment	21744	0x33e920	{"addr": "0x14033e920", "comment": "[re]\nAddressLib ID 21744\nCondition ShouldAttackKill (opcode 0x12A6, index 678): 1.0 when subject and target are actors and Actor::WouldAttackKill (38559) says the attacker's current weapon hit would be fatal. The kill-move root idles (KillMoveFrontSideRoot 24CD4, BackSideRoot E8458) need it == 1. No random roll: kill move odds are not data (KillMoveRandom GLOB 5159D is read by nothing)."}
+2026-11-17T04:05:34Z	comment	21743	0x33e840	{"addr": "0x14033e840", "comment": "[re]\nAddressLib ID 21743\nCondition IsLastHostileActor (opcode 0x12A2, index 674): 1.0 when ProcessLists::AreHostileActorsNear finds none, or exactly one and it is the subject. The kill-move root idles need it == 1: vanilla kill moves only finish the last enemy."}
+2026-11-17T04:05:34Z	comment	38559	0x6c9200	{"addr": "0x1406c9200", "comment": "[re]\nAddressLib ID 38559\nSkyrimCoop: call as s_shouldAttackKill (Code/client/TestHarness/EngineCalls.cpp)\nWouldAttackKill(attacker, target): false if the target is (vfunc 0x4C8) or attacker can't (37229); builds a HitData for the attacker's current weapon (flag 0x2000: a probe) and returns its fatal flag (0x20); not for an AI attacker out of combat."}
+2026-11-17T04:05:34Z	name	38559	0x6c9200	{"addr": "0x1406c9200", "name": "Actor::WouldAttackKill"}
+2026-11-17T04:05:48Z	read		0x10c7ef6	{"name": "bhkCharacterStateInAir::sub_80098"}
+2026-11-17T04:05:59Z	comment		0x10c7cd0	{"addr": "0x1410c7cd0", "comment": "[re]\nAddressLib ID 80098\nbhkCharacterStateInAir step: while falling (z speed at or below the controller's max fall speed +0x240) the gravity mult is the INI fInAirFallingCharGravityMult:Havok (read live each step, 0x1420D2558), rising it is 1.0; velocity += world gravity (bhkWorld 77838) * mult * controller gravity scale (+0x248) * step dt."}
+2026-11-17T04:06:00Z	data			{"old": "dword_1420D2558", "new": "g_fInAirFallingCharGravityMult"}
+2026-11-17T04:06:14Z	comment	80098	0x10c7cc0	{"addr": "0x1410c7cc0", "comment": "[re]\nAddressLib ID 80098\nbhkCharacterStateInAir step: while falling (z speed at or below the controller's +0x240) the gravity mult is the INI fInAirFallingCharGravityMult:Havok (read live each step, g_fInAirFallingCharGravityMult), rising it is 1.0; velocity += world gravity (bhkWorld 77838) * mult * controller gravity scale (+0x248) * step dt. So a console setini of it takes effect on the next fall."}
+2026-11-17T04:06:14Z	name	80098	0x10c7cc0	{"addr": "0x1410c7cc0", "name": "bhkCharacterStateInAir::Simulate"}
+2026-11-17T04:06:28Z	comment	374818	0x20a8960	{"addr": "0x1420a8960", "comment": "GMST fJumpHeightMin value (76): read at each jump by Actor::Jump and JumpAnimEventHandler::Handle, so a console setgs takes effect on the next jump."}
+2026-11-17T04:07:38Z	read	441586	0x34f780	{"name": "sub_14034F780"}
+2026-11-17T04:09:49Z	read	173942	0x17b50f0	{"name": "sub_1417B50F0"}
+2026-11-17T04:33:50Z	name	441586	0x34f780	{"addr": "0x14034f780", "name": "ConsoleFunc::KillAllActors"}
+2026-11-17T04:33:51Z	comment	441586	0x34f780	{"addr": "0x14034f780", "comment": "Console command killall (AddressLib ID 441586): queues Actor::QueueKill for every actor in ProcessLists' high actor handles (+0x30, count +0x40), players' copies and followers included; prints \"KillAllActors: Found %i Actors\" in console mode."}

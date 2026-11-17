@@ -1,4 +1,5 @@
 #include "EngineCalls.h"
+#include <Interface/ConsoleLines.h>
 #include <Havok/Raycast.h>
 #include <Havok/SwingCast.h>
 
@@ -149,9 +150,7 @@ void SetUITaskQueue(void (*apAddUITask)(void*)) noexcept
 
 void ExecuteConsoleCommand(const char* acpLine) noexcept
 {
-    using TExecuteCommand = void(const char*);
-    POINTER_SKYRIMSE(TExecuteCommand, s_executeCommand, 442672); // Console::ExecuteCommand
-    s_executeCommand.Get()(acpLine);
+    ConsoleLines::Execute(acpLine);
 }
 
 void RunConsoleCommand(const std::string& acLine) noexcept
