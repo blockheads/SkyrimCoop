@@ -34,6 +34,8 @@
 #include <Services/CutsceneService.h>
 #include <Services/SystemQuestService.h>
 #include <Services/BugReportService.h>
+#include <Services/DevToolsService.h>
+#include "FakeDevTools.h"
 #include <Services/DialogueService.h>
 #include <Services/HostService.h>
 #include <Services/InventoryService.h>
@@ -88,7 +90,8 @@ World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
       m_pSteamBridge(std::make_unique<FakeSteam>()),
       m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
-      m_pCrimeBridge(std::make_unique<FakeCrime>(ctx().at<FakeEngine&>())), m_pBugReportBridge(std::make_unique<FakeBugReports>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pCrimeBridge(std::make_unique<FakeCrime>(ctx().at<FakeEngine&>())), m_pBugReportBridge(std::make_unique<FakeBugReports>()),
+      m_pDevToolsBridge(std::make_unique<FakeDevTools>(ctx().at<FakeEngine&>())), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
@@ -115,6 +118,9 @@ World::World()
     ctx().emplace<SystemQuestService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeBugReports&>(static_cast<FakeBugReports&>(*m_pBugReportBridge));
     ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
+    ctx().emplace<IDevToolsBridge&>(*m_pDevToolsBridge);
+    ctx().emplace<FakeDevTools&>(static_cast<FakeDevTools&>(*m_pDevToolsBridge));
+    ctx().emplace<DevToolsService>(*this, m_dispatcher, m_transport, *m_pDevToolsBridge);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
     // An NPC's AI sets its slot; a copy runs none (Skyrim: the copy's slots stayed empty).
     static_cast<FakeDialogue&>(*m_pDialogueBridge).SpeakerLooks = [](uint32_t aSpeaker, uint32_t aTarget) {
@@ -170,6 +176,7 @@ World::~World()
     ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
     ctx().erase<DialogueService>();
+    ctx().erase<DevToolsService>();
     ctx().erase<BugReportService>();
     ctx().erase<SystemQuestService>();
     ctx().erase<CutsceneService>();

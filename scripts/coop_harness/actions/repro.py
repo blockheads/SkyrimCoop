@@ -483,9 +483,6 @@ class ReproActions:
         """Sets up a scene: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen}],
         objects: [{name, base | ref, by}], items: [{who, item, count, equip}]}. Returns the handles."""
         ctx.name_players()
-        if not hasattr(ctx, "REPRO_SCENE"):
-            ctx.REPRO_SCENE = []
-        ctx.REPRO_SCENE.append(spec)
         for index, npc in enumerate(spec.get("npcs", [])):
             spot = ctx.scene_spot(index)
             if "ref" in npc:
@@ -514,6 +511,9 @@ class ReproActions:
                 ctx.name_handle(thing["name"], {"host": ref, "guest": ref})
                 continue
             ctx.name_handle(thing["name"], ctx.place_object(thing["base"]))
+        if not hasattr(ctx, "REPRO_SCENE"):
+            ctx.REPRO_SCENE = []
+        ctx.REPRO_SCENE.append(spec)  # staged: a recording started later starts from it (a refused spec is not)
         return ctx.handles()
 
     def scene_spot(ctx, index=0, gap=250.0):
@@ -868,7 +868,7 @@ class ReproActions:
 
     def forget_scene(ctx):
         """Back at the blank baseline: a recording starts from there, and nothing is known to differ."""
-        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN = None, set(), {}
+        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN, ctx.REPRO_SCENE = None, set(), {}, []
         ctx.SCENE_KNOWN_WORLD = set()
 
     def worlds(ctx):
@@ -1347,7 +1347,7 @@ def _line(tool, args):
         case "pickpocket":
             return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
-            return f"ctx.fight({game}, {args['target']!r})"
+            return f"ctx.fight({game}, {args['target']!r}, {args.get('hits', 30)!r}, {args.get('until_dead', True)!r})"
         case "world_freeze":
             return f"ctx.freeze_world({args.get('frozen', True)!r})"
         case "step":

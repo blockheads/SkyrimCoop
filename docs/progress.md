@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-17: a fight with one player is the party's (Solitude playtest, 2026-11-16: the platform guards killed Josh, a
+guest, and never turned on the host). The execution's interrupt trigger runs `PlatformGuard.StartCombat(Game.GetPlayer())`,
+the guest's copy for a guest's trigger: no crime, so nothing the party shares, and `HostAggro` counted only damage and
+crime fights. Now every NPC whose combat target is a player is a party fight (`PartyThreat::State::PartyFights`, nearest
+player first) and every player's body is its enemy in the reaction hooks (`PartyAggroNative::IsPartyEnemy`), so its
+combat group can take them ([combat-targets.md](re/systems/combat-targets.md), A fight with one player is the party's).
+A guest's friendly-hit anger is the party's as well (`PartyThreat::AngerCovers`; scenario `guest-angers-ally-party-enemy`;
+MCP: `fight(until_dead=False)`, verb `expect_enemy`, a new duo forgets the last games' scene and staging).
+Tests: GameTests "A guard a script set on the guest turns on the host beside it" (the fake's group takes only targets
+its members can attack, `CombatFriendly`), ClientTests `[party-aggro]`, scenario `guest-trips-platform-guard` (its steps
+pass; its end comparison finds the town's scattering crowd apart, bugs.md "End comparisons in towns").
+
 2026-11-16: save sync. A guest waited 5-10 s at a host load where the host waited none: the save (3 MB) travelling,
 not its load. A save now travels as its difference from one the guest holds (its body decompressed first: the
 engine's LZ4 hid what two saves share), and every save the host makes goes ahead to the guests as it is written, so
@@ -75,6 +87,14 @@ reload (`HostGame::PartyWipe`, `PreviousSave`, `PreviousGameplaySave`) and the s
 joins go on). GameTests "A party wipe loads nothing until the host loads the save it chooses"; scenario
 `death-wipe-host-loads` (replaces `death-wipe-checkpoint` and `death-wipe-twice-keeps-character`).
 
+2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
+`/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
+game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
+runs console lines on its own player ([dev-commands.md](design/dev-commands.md)). Kill moves have no chance in vanilla
+(the root idles need a fatal swing on the last enemy, 21744/21743): `/killmove` hooks those two conditions
+([dev-commands.md](re/systems/dev-commands.md)). Tests: ClientTests `[dev-commands]`, HostAuthorityTests `[DevTools]`,
+GameTests `[dev-commands]`; checked by hand in Skyrim.
+
 2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
 is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
 starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the
@@ -99,6 +119,28 @@ destination), where the item's ownership is. Also found: our `Confiscate` hook (
 scene) drops the warning before its first step, for both players, and the theft is reported. Scenario
 `guest-theft-warned` (MCP: `stop_scene`, `expect_given_back`, `expect_warnings` waits); GameTests "A guest's seen theft
 is warned", ClientTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
+
+2026-11-16: dialogue polish, the mouse and joins. The mouse moved everyone's option: on PC the dialogue menu has a cursor
+and a hover selects (vanilla, `DialogueMenu` flags read in IDA, 82310), and every highlight change was sent to the party.
+Worse, a still cursor undid other players' moves: the party's highlight recentres a menu without the list's animation,
+the row sliding under the resting cursor rolls over and was sent back (`dialogue-resting-cursor-keeps-party-highlight`,
+2 of 2). Now a hover is its own menu's (a change within two frames of `MenuCursor` moving), W, S and the wheel move the
+party's (`DialogueMenuPolicy::OnHighlightMoved`), and the bridge holds the rows' rollover (`bListAnimating`) from its
+recentring until the cursor moves; checked on the duo.
+A guest joining mid-line heard the NPC's line twice (`ReplayGreeting` on a join; `SpeakSound` 37542 stops nothing): the
+replay is now only for a menu its own ask opened. Checked and fine on the duo: a join keeping members' highlight, the host
+joining a guest's conversation, a join in the frame of a pick. A guest asking an NPC again
+right after a conversation closed lost the greeting's choices (8 of 8; one player alone never): the host's hidden start
+checks "anything left to say?" with `FirstOption` (35267), a cursor that left the engine's picked option on option 0, and
+the build after the NPC's last line listed that option's choices; `MenuTopicManager::HasOptions` now leaves it as it
+was (6 of 6 kept; [dialogue.md](re/systems/dialogue.md), "A start during the NPC's last line"). GameTests
+"A player's mouse moves only its own menu's highlight...", "A list sliding under a still cursor...", "A hover kept
+through a list refresh...", "A player joining while the NPC answers hears its line once", "A guest's ask run without the
+host's menu keeps the greeting's choices..." (each fails with its fix taken out); ClientTests `OnHighlightMoved`,
+`OnFirstHighlight`, `RolloverHold`, `AskKeepingPicked`; scenarios `dialogue-resting-cursor-keeps-party-highlight`,
+`dialogue-guest-joins-mid-line`, `dialogue-guest-reasks-after-close` (MCP: `guest_replays_mark`, `expect_no_line_replayed`,
+`talk_again_as_menu_closes`, `reask_after_close`, `expect_reask_keeps_choices`; harness `dialogue`: `picked`, `last_selected`,
+`last_speaker`).
 
 2026-11-13: an NPC talking with a guest looked at the host's player, on every game. The host's game runs a guest's
 conversation with its own player, and the engine puts that player in the NPC's dialogue headtrack slot at the start and
@@ -2063,6 +2105,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Open 2026-11-17: the graph stream check crashed a guest.** `guest-trips-platform-guard`'s first run: the guest's
+  game died 48 s in, in `GraphStreamCheck.cpp`'s `HookHandleEvent` (line 113), formatting the platform guard's copy's
+  event sender name: the sender read at event +0x10 named a pointer to `0x40C000003F800000` (two floats, not a node).
+  Once in four runs; crash log in the guest prefix's `SKSE/crash-2026-11-17-07-32-59.log`. Not read in IDA: what an
+  event's +0x10 holds when it does not come from a node.
 - **Open 2026-11-07: the main loop stops under the Anniversary Edition box.** With the box (52156) open outside a
   session, the plugin's main-loop heartbeat stopped about 2 s later in every such boot (no crash log). The harness now
   keeps the box from queuing (`bFreebiesSeen`), so nothing hits it; not read in IDA

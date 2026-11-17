@@ -42,6 +42,7 @@ struct PartyItems;
 struct SystemQuests;
 struct Recipes;
 struct BugReport;
+struct DevCommand;
 struct DialogueHighlight;
 struct DialogueSkip;
 } // namespace Payloads
@@ -127,3 +128,5 @@ using GraphSyncRequest = Relayed<Payloads::GraphSync, kGraphSyncRequest>;
 using NotifyGraphSync = Relayed<Payloads::GraphSync, kNotifyGraphSync>;
 using GraphSyncPointRequest = Relayed<Payloads::GraphSyncPoint, kGraphSyncPointRequest>;
 using NotifyGraphSyncPoint = Relayed<Payloads::GraphSyncPoint, kNotifyGraphSyncPoint>;
+using DevCommandRequest = Relayed<Payloads::DevCommand, kDevCommandRequest>;
+using NotifyDevCommand = Relayed<Payloads::DevCommand, kNotifyDevCommand>;

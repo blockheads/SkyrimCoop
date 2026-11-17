@@ -5,6 +5,7 @@
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
+#include <Services/Host/HostDevTools.h>
 #include <Services/Host/HostDeath.h>
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
@@ -186,6 +187,7 @@ private:
     HostStory m_story;
     HostDeath m_death;
     HostFollowers m_followers;
+    HostDevTools m_devTools;
     bool m_reloading{};
 };
 

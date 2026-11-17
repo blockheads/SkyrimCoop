@@ -32,6 +32,8 @@
 #include <Components.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
+#include <Bridges/IDevToolsBridge.h>
+#include <Services/DevCommands.h>
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/Relayed.h>
@@ -141,8 +143,7 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
-        [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); },
-        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
+        [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
     HostGame game;
     game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
     game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };
@@ -167,6 +168,11 @@ void HostService::MakeAuthority() noexcept
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
+    game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
+    game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.ConsoleNameOf = [this](uint32_t aSessionId) {
+        return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId());
+    };
     game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };

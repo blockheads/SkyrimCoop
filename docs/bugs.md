@@ -53,6 +53,7 @@ every other section needs the duo.
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
+- [A frozen NPC a guest's kill move missed](#a-frozen-npc-a-guests-kill-move-missed): small
 
 **Ragdolls and death poses**
 
@@ -363,6 +364,10 @@ Size: medium. Needs: duo.
     only), loose food and a door, 45-52 references.
   - `copy_holds_furniture_prop` (Riverwood, 2026-11-16) passes its steps and ends with the fish (`10C3BA`, `10B035`), the
     containers (`0x8000000`) and Riverwood's mill log, 47 references.
+  - `guest-trips-platform-guard` (Solitude, 2026-11-17, three runs) passes its steps and ends with townsfolk scattering
+    from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
+    apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
+    run or hold a stale point.
 
 ### A strafing copy catches for a frame
 
@@ -1457,6 +1462,23 @@ Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset
 load, `SeeGraph`), in the scenario that shows it.
 
 Size: medium. Needs: the duo, GameTests.
+
+## Found with the dev commands (2026-11-16)
+
+### A frozen NPC a guest's kill move missed
+
+The duo, QASmoke, by hand: two wolves staged frozen (`stage`), the guest in daedric gear hits one (`fight`). The guest's
+idle tree picks `pa_KillMove1HMWolfB` on the fatal swing, its engine refuses the pair ("refused by the engine, not
+sent"), and from then on the host refuses every forwarded hit on that wolf ("Forwarded hit on FF00087F by FF000838 not
+applied (gone, or held by a kill move)") for over 50 s; the host's copy of the guest logs "paired action 13005
+'pa_KillMove1HMWolfB' not played, FF00087F was in a kill move". The same at vanilla odds (`/killmove default`) with a
+third wolf. `kill_move_check` on the host: `in_kill_move` false. Unread: what holds the host's wolf (its kill move flag
+or a recorded killer, 38613/38614), and whether an unfrozen NPC does it too.
+
+Agent task: read what `IsHeldByKillMove` answers for the host's wolf after the guest's refused pair, then a GameTests
+flow for it.
+
+Size: small. Needs: the duo (two frozen wolves, the guest's fatal swing), then GameTests.
 
 ## Found by the full run of 2026-11-16
 

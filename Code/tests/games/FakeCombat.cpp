@@ -21,6 +21,14 @@ void FakeEngine::RunNativeCombat() noexcept
             auto& ai = it->second.Ai;
             uint32_t cNative = CombatProposals.contains(cActor) ? CombatProposals.at(cActor) : ai.CombatTargetId;
             auto candidates = cCandidates;
+            // ReactToDetection (39765) -> 39747 -> assault 39359 -> StartCombat 38561 -> AddTarget 44704: a friend
+            // joins the group once the NPC's reaction makes it an enemy, and stays.
+            std::erase_if(CombatFriendly, [&](uint64_t aKey) {
+                return uint32_t(aKey >> 32) == cActor && PartyThreats.IsPartyFoe(cActor, uint32_t(aKey));
+            });
+            std::erase_if(candidates, [&](const PartyThreat::Candidate& acCandidate) {
+                return CombatFriendly.contains(PartyThreat::State::Key(cActor, acCandidate.ActorId));
+            });
             // 47191: a dead cached target fails its check, so 47195 picks again at once; the party rule skips the dead.
             for (auto& candidate : candidates)
                 if (Actors.contains(candidate.ActorId) && IsActorDead(candidate.ActorId))

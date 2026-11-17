@@ -78,7 +78,8 @@
     X(GraphOpsRequest)             \
     X(GraphSyncRequest)            \
     X(GraphSyncPointRequest)        \
-    X(SaveHeldRequest)
+    X(SaveHeldRequest)              \
+    X(DevCommandRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -163,6 +164,7 @@
     X(NotifyGraphSync)             \
     X(NotifyGraphSyncPoint) \
     X(NotifyDialogueFace)          \
+    X(NotifyDevCommand) \
     X(NotifyMountRefused)
 
 #define COOP_OPCODE(aName) k##aName,
