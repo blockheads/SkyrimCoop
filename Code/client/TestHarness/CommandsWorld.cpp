@@ -965,6 +965,9 @@ nlohmann::json Dialogue(Harness&, const nlohmann::json&)
             {"current_info", cState.CurrentInfo},
             {"last_info", cState.LastInfo},
             {"root_info", cState.RootInfo},
+            {"picked", {{"info", cState.PickedInfo}, {"choices", cState.PickedChoices}}},
+            {"last_selected", {{"info", cState.LastSelectedInfo}, {"choices", cState.LastSelectedChoices}}},
+            {"last_speaker", cState.LastSpeaker},
             {"flags", [&] {
                  nlohmann::json flags = nlohmann::json::object();
                  for (const auto& [cpName, cSet] : cState.Flags)

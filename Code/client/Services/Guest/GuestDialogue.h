@@ -38,7 +38,8 @@ private:
     // The owner's lines relayed to copies: the last one of each kind, to say again once the menu is open.
     void OnLine(const NotifyDialogue& acMessage) noexcept;
     void OnSubtitle(const NotifySubtitle& acMessage) noexcept;
-    // A menu opening on the copy silences it: the host's greeting, relayed just before, plays again.
+    // A menu this game's ask opened (or the NPC's greeting to the party) silences the copy: the host's greeting,
+    // relayed just before, plays again. A menu joining mid-line leaves the copy's line playing.
     void ReplayGreeting() noexcept;
 
     World& m_world;
@@ -47,6 +48,7 @@ private:
     uint32_t m_asked{}; // the NPC this guest asked the host to talk to (session id), until it opens
     uint32_t m_greeting{};
     bool m_menuOpen{};
+    bool m_replayGreeting{}; // the opening menu is this game's own start
     struct HeardLine
     {
         uint32_t SessionId{};

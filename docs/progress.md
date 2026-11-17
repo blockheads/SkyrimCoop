@@ -108,6 +108,28 @@ scene) drops the warning before its first step, for both players, and the theft 
 `guest-theft-warned` (MCP: `stop_scene`, `expect_given_back`, `expect_warnings` waits); GameTests "A guest's seen theft
 is warned", ClientTests `[CrimeRules]`, encoding round trip. `guest-theft-at-bar-bounty` now spends the warnings first.
 
+2026-11-16: dialogue polish, the mouse and joins. The mouse moved everyone's option: on PC the dialogue menu has a cursor
+and a hover selects (vanilla, `DialogueMenu` flags read in IDA, 82310), and every highlight change was sent to the party.
+Worse, a still cursor undid other players' moves: the party's highlight recentres a menu without the list's animation,
+the row sliding under the resting cursor rolls over and was sent back (`dialogue-resting-cursor-keeps-party-highlight`,
+2 of 2). Now a hover is its own menu's (a change within two frames of `MenuCursor` moving), W, S and the wheel move the
+party's (`DialogueMenuPolicy::OnHighlightMoved`), and the bridge holds the rows' rollover (`bListAnimating`) from its
+recentring until the cursor moves; checked on the duo.
+A guest joining mid-line heard the NPC's line twice (`ReplayGreeting` on a join; `SpeakSound` 37542 stops nothing): the
+replay is now only for a menu its own ask opened. Checked and fine on the duo: a join keeping members' highlight, the host
+joining a guest's conversation, a join in the frame of a pick. A guest asking an NPC again
+right after a conversation closed lost the greeting's choices (8 of 8; one player alone never): the host's hidden start
+checks "anything left to say?" with `FirstOption` (35267), a cursor that left the engine's picked option on option 0, and
+the build after the NPC's last line listed that option's choices; `MenuTopicManager::HasOptions` now leaves it as it
+was (6 of 6 kept; [dialogue.md](re/systems/dialogue.md), "A start during the NPC's last line"). GameTests
+"A player's mouse moves only its own menu's highlight...", "A list sliding under a still cursor...", "A hover kept
+through a list refresh...", "A player joining while the NPC answers hears its line once", "A guest's ask run without the
+host's menu keeps the greeting's choices..." (each fails with its fix taken out); ClientTests `OnHighlightMoved`,
+`OnFirstHighlight`, `RolloverHold`, `AskKeepingPicked`; scenarios `dialogue-resting-cursor-keeps-party-highlight`,
+`dialogue-guest-joins-mid-line`, `dialogue-guest-reasks-after-close` (MCP: `guest_replays_mark`, `expect_no_line_replayed`,
+`talk_again_as_menu_closes`, `reask_after_close`, `expect_reask_keeps_choices`; harness `dialogue`: `picked`, `last_selected`,
+`last_speaker`).
+
 2026-11-13: an NPC talking with a guest looked at the host's player, on every game. The host's game runs a guest's
 conversation with its own player, and the engine puts that player in the NPC's dialogue headtrack slot at the start and
 with each line (`ActorProcess::SetDialogueHeadtrackSlot` 39465 from 37200 and 37541, read in IDA); the copy takes the

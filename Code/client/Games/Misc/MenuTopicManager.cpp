@@ -2,6 +2,7 @@
 
 #include <Forms/TESTopic.h>
 #include <Games/Memory.h>
+#include <Services/DialogueMenuPolicy.h>
 #include <TESObjectREFR.h>
 #include <VersionDb.h>
 
@@ -49,7 +50,8 @@ bool MenuTopicManager::HasOptions() noexcept
     using TFirstOption = bool(MenuTopicManager*, bool aSkipHidden);
     POINTER_SKYRIMSE(TFirstOption, s_firstOption, 35267);
     ListLock lock(criticalSection);
-    return (s_firstOption.Get())(this, false);
+    // 35267 moves selectedResponseNode, where the next build takes choices from: asked here, it moves nothing.
+    return DialogueMenuPolicy::AskKeepingPicked(selectedResponseNode, [this] { return (s_firstOption.Get())(this, false); });
 }
 
 void MenuTopicManager::Pick(uint32_t aIndex) noexcept
