@@ -230,6 +230,11 @@ struct Session
     std::vector<Sent> Outbox;
     // The host's game's recipes (HostService gives its World's).
     RecipeBook Recipes;
+    // The host's saves: the one its game makes for a joining game (none: not made yet), the images it still has, and
+    // how many bytes each encodes to.
+    std::optional<std::string> WorldSave;
+    std::vector<std::string> SaveImages;
+    size_t SaveBytes = 100;
 
 private:
     void Capture(ConnectionId_t aTo, const void* apData, uint32_t aSize)
@@ -242,6 +247,20 @@ private:
     HostGame Game()
     {
         HostGame game;
+        game.SaveWorld = [this] { return WorldSave; };
+        // As SaveLibrary::Encode: against the first held image it still has, else whole.
+        game.EncodeSave = [this](const std::string& acSave, const std::vector<std::string>& acHeld) {
+            auto pStream = std::make_shared<SaveTransfer::Stream>();
+            if (std::ranges::find(SaveImages, acSave) == SaveImages.end())
+                return pStream;
+            pStream->Save = acSave;
+            for (const auto& cHeld : acHeld)
+                if (pStream->Base.empty() && cHeld != acSave && std::ranges::find(SaveImages, cHeld) != SaveImages.end())
+                    pStream->Base = cHeld;
+            pStream->Size = 1000;
+            pStream->Data.assign(SaveBytes, 'd');
+            return pStream;
+        };
         game.ReadFollowers = [this] { return Followers; };
         game.TakeFollowerOrders = [this] { return std::exchange(FollowerOrders, {}); };
         game.FollowerAnchors = [this]() -> Followers::Anchors& { return FollowerBindings; };

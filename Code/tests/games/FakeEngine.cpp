@@ -5,6 +5,7 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include <Events/SaveWrittenEvent.h>
 
 #include <Games/Animation/GraphState.h>
 #include <Games/Animation/GraphStream.h>
@@ -2473,9 +2474,48 @@ std::string FakeEngine::PlayerId() noexcept
     return std::format("id:{:016x}", std::hash<std::string>{}(Name));
 }
 
+IJoinBridge::SaveFiles FakeEngine::MakeSave()
+{
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    // The save holds where its player stands.
+    PlayerRecord player = ReadPlayer();
+    player.Knowledge = Knowledge;
+    const Actor& cPlayer = Actors.at(kPlayer);
+    player.Cell = GameId(0, cPlayer.Cell);
+    player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+    player.Serialize(writer);
+    Serialization::WriteVarInt(writer, References.size());
+    for (const auto& [id, r] : References)
+    {
+        Serialization::WriteVarInt(writer, id);
+        Serialization::WriteBool(writer, r.Locked);
+    }
+    // The words' flags (the world's), the player's own factions (its base's, kept with the save).
+    for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
+    {
+        Serialization::WriteVarInt(writer, pWords->size());
+        for (const uint32_t cWord : *pWords)
+            Serialization::WriteVarInt(writer, cWord);
+    }
+    const auto& cFactions = Factions[kPlayer];
+    Serialization::WriteVarInt(writer, cFactions.size());
+    for (const auto& [cFaction, cRank] : cFactions)
+    {
+        Serialization::WriteVarInt(writer, cFaction);
+        Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
+    }
+    return SaveFiles{std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size()) + SavePadding, World::Get().ctx().at<SaveService>().WriteCoSave()};
+}
+
 void FakeEngine::RunMainLoop() noexcept
 {
     RunNativeCombat();
+    for (auto& [name, files] : std::exchange(SaveThread, {}))
+    {
+        SavedFiles[name] = std::move(files);
+        World::Get().GetRunner().Trigger(SaveWrittenEvent{name});
+    }
     if (const auto cName = std::exchange(PendingSave, std::nullopt))
     {
         if (RefusesSaves || !World::Get().ctx().at<SaveService>().OnSaveRequested())
@@ -2483,37 +2523,10 @@ void FakeEngine::RunMainLoop() noexcept
         else
         {
             Saves.push_back(*cName);
-            Wire::Buffer buffer;
-            Wire::Buffer::Writer writer(&buffer);
-            // The save holds where its player stands.
-            PlayerRecord player = ReadPlayer();
-            player.Knowledge = Knowledge;
-            const Actor& cPlayer = Actors.at(kPlayer);
-            player.Cell = GameId(0, cPlayer.Cell);
-            player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
-            player.Serialize(writer);
-            Serialization::WriteVarInt(writer, References.size());
-            for (const auto& [id, r] : References)
-            {
-                Serialization::WriteVarInt(writer, id);
-                Serialization::WriteBool(writer, r.Locked);
-            }
-            // The words' flags (the world's), the player's own factions (its base's, kept with the save).
-            for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
-            {
-                Serialization::WriteVarInt(writer, pWords->size());
-                for (const uint32_t cWord : *pWords)
-                    Serialization::WriteVarInt(writer, cWord);
-            }
-            const auto& cFactions = Factions[kPlayer];
-            Serialization::WriteVarInt(writer, cFactions.size());
-            for (const auto& [cFaction, cRank] : cFactions)
-            {
-                Serialization::WriteVarInt(writer, cFaction);
-                Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
-            }
-            MadeSave = SaveFiles{{reinterpret_cast<const char*>(buffer.GetData()), writer.Size()}, World::Get().ctx().at<SaveService>().WriteCoSave()};
+            MadeSave = MakeSave();
             SavedFiles[*cName] = **MadeSave;
+            // A menu or console save's file is written inside Save_Impl.
+            World::Get().GetRunner().Trigger(SaveWrittenEvent{*cName});
         }
     }
     const auto cLoad = std::exchange(PendingLoad, std::nullopt);
@@ -2589,6 +2602,56 @@ bool FakeEngine::Autosaves(const std::string& acName)
         return false;
     Saves.push_back(acName);
     return true;
+}
+
+bool FakeEngine::Quicksaves(const std::string& acName)
+{
+    if (!World::Get().ctx().at<SaveService>().OnSaveRequested())
+        return false;
+    Saves.push_back(acName);
+    SaveThread.emplace_back(acName, MakeSave());
+    return true;
+}
+
+void FakeEngine::OffThread(std::function<std::function<void()>()> aWork) noexcept
+{
+    if (DefersWork)
+        return QueuedWork.push_back(std::move(aWork));
+    if (const auto cDone = aWork())
+        cDone();
+}
+
+void FakeEngine::FinishWork() noexcept
+{
+    for (const auto& cWork : std::exchange(QueuedWork, {}))
+        if (const auto cDone = cWork())
+            cDone();
+}
+
+std::vector<std::string> FakeEngine::HeldSaves() noexcept
+{
+    std::vector<std::string> ids;
+    for (const auto& [cId, cData] : HeldSaveFiles)
+        ids.push_back(cId);
+    return ids;
+}
+
+std::optional<std::string> FakeEngine::ReadHeldSave(const std::string& acId) noexcept
+{
+    const auto it = std::ranges::find(HeldSaveFiles, acId, [](const auto& acFile) { return acFile.first; });
+    return it != HeldSaveFiles.end() ? std::optional(it->second) : std::nullopt;
+}
+
+bool FakeEngine::WriteHeldSave(const std::string& acId, const std::string& acData) noexcept
+{
+    DropHeldSave(acId);
+    HeldSaveFiles.emplace(HeldSaveFiles.begin(), acId, acData);
+    return true;
+}
+
+void FakeEngine::DropHeldSave(const std::string& acId) noexcept
+{
+    std::erase_if(HeldSaveFiles, [&](const auto& acFile) { return acFile.first == acId; });
 }
 
 // As Save_Impl's hook: SaveService decides first.
@@ -2853,14 +2916,6 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
 {
     Globals.at(BeastPerkGlobals[aVampire ? 1 : 0]) += static_cast<float>(aDelta);
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
-}
-
-std::optional<std::string> FakeEngine::PreviousSave() noexcept
-{
-    for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
-        if (!i->starts_with("SkyrimCoop") && SaveNames::CharacterId(*i) == CharacterId && SavedFiles.contains(*i))
-            return *i;
-    return std::nullopt;
 }
 
 std::optional<IJoinBridge::SaveFiles> FakeEngine::ReadSave(const std::string& acName) noexcept

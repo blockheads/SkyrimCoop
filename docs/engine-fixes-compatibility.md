@@ -40,7 +40,7 @@ export COOP_DISPLAY=:99
 export COOP_CLIENT_USER=
 export WINEDLLOVERRIDES=d3dx9_42=n,b
 python3 scripts/coop_test.py duo --keep-running
-python3 scripts/coop_test.py scenario late-join-client host-loads-party host-beast-form-stays-host death-wipe-checkpoint fus-ro-dah-host-hits-guest fus-ro-dah-guest-hits-host
+python3 scripts/coop_test.py scenario late-join-client host-loads-party host-beast-form-stays-host death-wipe-host-loads fus-ro-dah-host-hits-guest fus-ro-dah-guest-hits-host
 python3 scripts/coop_test.py stop
 ```
 

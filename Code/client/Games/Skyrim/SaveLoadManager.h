@@ -22,6 +22,24 @@ static_assert(offsetof(GameplaySaveEntry, fileTime) == 0x50);
 static_assert(offsetof(GameplaySaveEntry, characterId) == 0x6C);
 static_assert(sizeof(GameplaySaveEntry) == 0x78);
 
+// A save's file while the engine writes or reads it (IDA 1.7.104, no CommonLibSSE-NG type;
+// docs/re/systems/save-game.md, "The file's compression").
+struct BGSSaveLoadFile
+{
+    uint8_t pad000[0xBB0];
+    const char* fileName; // the save's name: no folder, no extension
+    uint8_t padBB8[0x8];
+    uint32_t uncompressedLength;
+    uint32_t bodyOffset; // where the body starts: after the header and the screenshot
+    uint16_t compressionType; // 0 none, 1 zlib, 2 LZ4
+    bool bodyDecoded;
+};
+static_assert(offsetof(BGSSaveLoadFile, fileName) == 0xBB0);
+static_assert(offsetof(BGSSaveLoadFile, uncompressedLength) == 0xBC0);
+static_assert(offsetof(BGSSaveLoadFile, bodyOffset) == 0xBC4);
+static_assert(offsetof(BGSSaveLoadFile, compressionType) == 0xBC8);
+static_assert(offsetof(BGSSaveLoadFile, bodyDecoded) == 0xBCA);
+
 struct BGSSaveLoadManager
 {
     uint8_t pad00[0xD0];
@@ -39,7 +57,6 @@ struct BGSSaveLoadManager
     static_assert(offsetof(SaveEntry, lastQuicksave) == 0x40);
     static_assert(sizeof(SaveEntry) == 0x48);
     [[nodiscard]] std::string QuickSaveName() noexcept;
-    [[nodiscard]] std::optional<std::string> PreviousGameplaySave() noexcept;
     // SetCurrentCharacter (35751): current and display character, as a load sets them; the modded flag kept.
     void SetCurrentCharacter(uint32_t aCharacterId) noexcept;
     static BGSSaveLoadManager* Get() noexcept;

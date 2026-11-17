@@ -35,15 +35,16 @@ target("GameTests")
               "../../client/Services/Generic/DialogueService.cpp", "../../client/Services/Guest/GuestDialogue.cpp",
               "../../client/Services/Generic/SteamService.cpp", "../../client/Services/Generic/SaveService.cpp",
               "../../client/Services/CharacterRecords.cpp",
-              "../../client/Services/SaveTransfer.cpp", "../../client/Services/Generic/JoinService.cpp",
-              "../../client/Services/Guest/GuestRecord.cpp")
+              "../../client/Services/SaveTransfer.cpp", "../../client/Services/SaveLibrary.cpp", "../../client/Services/SaveStore.cpp",
+              "../../client/Services/Generic/JoinService.cpp",
+              "../../client/Services/Guest/GuestRecord.cpp", "../../client/Services/Guest/GuestSaves.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp", "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/StoryGifts.cpp",
               "../../client/Services/ContainerTransfers.cpp", "../../client/Games/Skyrim/Misc/StoryEventRules.cpp")
     add_includedirs(".", "../../client", "../../client/Games/Skyrim")
     -- The shared specs, which coop_test.py runs in Skyrim too.
     add_defines("COOP_SPECS_DIR=\"$(projectdir)/Code/tests/specs\"")
     add_deps("SkyrimEncoding", "Network", "CommonLib")
-    add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv", "nlohmann_json")
+    add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv", "nlohmann_json", "zstd", "lz4", "zlib")
     add_syslinks("pthread")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()

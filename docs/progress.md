@@ -49,6 +49,32 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-16: save sync. A guest waited 5-10 s at a host load where the host waited none: the save (3 MB) travelling,
+not its load. A save now travels as its difference from one the guest holds (its body decompressed first: the
+engine's LZ4 hid what two saves share), and every save the host makes goes ahead to the guests as it is written, so
+a load of it sends only its id and both games start loading at once ([join-flow.md](design/join-flow.md#save-sync-2026-11-16)).
+On that session's saves: 3.05 MB before, 0.16-1.07 MB against a held save, 1.55 MB whole (a first join). The block
+reuse of 2026-11-03 is removed (3-23% of blocks matched). Engine facts read in IDA
+([save-game.md](re/systems/save-game.md), "The file's compression"): a type 0 save with a raw body loads (109334), and
+a quicksave's file is written by the save thread after `Save_Impl` returned (109353 hooked, `SaveWrittenEvent`).
+ClientTests `[save-transfer]`, HostAuthorityTests `[save]`, GameTests `[save-sync]` (a quicksave held then loaded with
+nothing sent, a save never sent, a store that lost one, a newer save replacing one on its way, a rejoin); the fake
+engine learned the save thread's late write. In Skyrim (QASmoke, one machine): `guest-reuses-world-cache`
+passes (a first join 1.41 MB for a 7.8 MB image, the next 0.18 MB against the held one: the engine loads the type 0
+file); `host-quickloads-party` and `death-wipe-checkpoint` pass; in all four load scenarios the guest held the save
+within a second of its writing and the load sent 0 bytes (the guest back in 0.9-1.3 s, the reload's 200 ms update
+stall on the host gone). `host-loads-party` and `host-menu-loads-party` then fail on the open bow bug
+([bugs.md](bugs.md), "A fresh copy loses what its owner equipped right after spawning"), as on dev. Not measured: a
+real line (the playtest's 5-10 s); a save ahead costs the host's upload 0.05-1 MB a save.
+
+2026-11-16: a party wipe no longer loads a save by itself: everyone stays down, the screen tells the host to load a
+save and the guests that the host chooses, and the dead host loads one from the pause menu or quickloads (a host load,
+`host-loads.md`). The engine allows it: `MenuOpenHandler::ProcessButton` (52249) opens the Journal while the player is
+dead and `CanLoadGame` (35736) checks no life state (read in IDA; death.md, "Wipe"). Removed the wipe's automatic
+reload (`HostGame::PartyWipe`, `PreviousSave`, `PreviousGameplaySave`) and the session freeze while wiped (chat and
+joins go on). GameTests "A party wipe loads nothing until the host loads the save it chooses"; scenario
+`death-wipe-host-loads` (replaces `death-wipe-checkpoint` and `death-wipe-twice-keeps-character`).
+
 2026-11-16: dev chat commands for playtests (`/dev` lists them): `/heal`, `/god`, `/speed`, `/gravity`, `/shouts`,
 `/gear`, `/lootbox`, `/killmove`, `/reset` on every game's own player; `/spawn`, `/killall`, `/weather` in the host's
 game at the typer's character. Anyone types them; the host runs world commands and sends the line to every game, which
@@ -1309,7 +1335,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Casting | works: copies replay in step with their graph and cast for free | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
 | Health | works | `health-*` |
 | NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
-| A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26); after a wipe each guest stands where it stood at the checkpoint; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-checkpoint`, GameTests `[death]` |
+| A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26); after a wipe the dead host loads a save it chooses (nothing loads by itself, 2026-11-16) and each guest stands where it stood in it; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-host-loads`, GameTests `[death]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Friendly fire (`docs/design/friendly-fire.md`) | built 2026-10-26: a player's sword or spell on another player is applied by the victim's game; a kill is a real death named in every chat; not a crime; kill moves on players work (a copy's ragdoll steered, and kept on it by the engine as its owner; a copy getting up on its own timing: open) | `friendly-fire-*`, `spectator-watches-kill-move`, `kill-move-kills-guest` (fails on the open jitter), GameTests `[friendly-fire]` |
 | Kill moves | works, both ways, with kill credit; players moving and crossed kill moves fixed; crossed, the first swing wins; a copy holds its pose until its owner's death (2026-11-05, `docs/re/systems/kill-moves.md`) | `host-kill-move`, `client-kill-move`, `kill-move-runs-full-length`, `kill-moves-cross` |
