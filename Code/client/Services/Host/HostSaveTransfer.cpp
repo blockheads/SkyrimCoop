@@ -16,15 +16,21 @@ HostSaveTransfer::HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame
 
 void HostSaveTransfer::SetHeld(ConnectionId_t aConnection, std::vector<std::string> aSaves) noexcept
 {
-    m_held[aConnection] = std::move(aSaves);
+    // The same as before: what was sent stands.
+    auto& held = m_held[aConnection];
+    const bool cChanged = held != aSaves;
+    held = std::move(aSaves);
     const auto it = m_receivers.find(aConnection);
     // It holds the save on its way ahead: no more of it.
     if (it != m_receivers.end() && it->second.Ahead && Holds(aConnection, it->second.Save))
         m_receivers.erase(it);
-    // Told to load a save it was thought to hold and does not: it comes after all.
-    else if (it == m_receivers.end() && m_told.contains(aConnection) && !Holds(aConnection, m_checkpoint))
-        m_receivers[aConnection] = {.Save = m_checkpoint};
-    m_told.erase(aConnection);
+    // Sent a save to load it cannot use (its base gone, or told it held one it lost): against what it holds now.
+    else if (const auto cMeant = m_recipients.find(aConnection); cChanged && cMeant != m_recipients.end() &&
+             !Holds(aConnection, cMeant->second) && (it == m_receivers.end() || it->second.Ahead))
+    {
+        spdlog::info("HostSaveTransfer: {:x} lacks the save it was sent: sending it again", aConnection);
+        m_receivers[aConnection] = {.Save = cMeant->second};
+    }
 }
 
 void HostSaveTransfer::Want(ConnectionId_t aConnection) noexcept
@@ -40,7 +46,7 @@ bool HostSaveTransfer::Holds(ConnectionId_t aConnection, const std::string& acSa
 
 bool HostSaveTransfer::Empty() const noexcept
 {
-    return std::ranges::all_of(m_receivers, [](const auto& acReceiver) { return acReceiver.second.Ahead; });
+    return m_recipients.empty() && std::ranges::all_of(m_receivers, [](const auto& acReceiver) { return acReceiver.second.Ahead; });
 }
 
 bool HostSaveTransfer::IsSending(ConnectionId_t aConnection) const noexcept
@@ -53,7 +59,7 @@ void HostSaveTransfer::OnDisconnected(ConnectionId_t aConnection) noexcept
 {
     m_receivers.erase(aConnection);
     m_held.erase(aConnection);
-    m_told.erase(aConnection);
+    m_recipients.erase(aConnection);
 }
 
 void HostSaveTransfer::Refuse(ConnectionId_t aConnection) noexcept
@@ -78,20 +84,23 @@ void HostSaveTransfer::Offer(const std::string& acSave, const std::vector<Connec
 void HostSaveTransfer::Checkpoint(const std::string& acSave, const std::vector<ConnectionId_t>& acGuests) noexcept
 {
     std::vector<ConnectionId_t> games = acGuests;
+    // Games still joining: their save in flight, or all sent and not yet loading.
     for (const auto& [cConnection, cReceiver] : m_receivers)
         if (!cReceiver.Ahead && std::ranges::find(games, cConnection) == games.end())
             games.push_back(cConnection);
+    for (const auto& [cConnection, cSave] : m_recipients)
+        if (std::ranges::find(games, cConnection) == games.end())
+            games.push_back(cConnection);
     NotifyPartyReload reload;
-    reload.Save = m_checkpoint = acSave;
-    m_told.clear();
+    reload.Save = acSave;
     for (const ConnectionId_t cGame : games)
     {
         m_network.Send(cGame, reload);
+        m_recipients[cGame] = acSave;
         if (Holds(cGame, acSave))
         {
             spdlog::info("HostSaveTransfer: {:x} holds the save: nothing to send", cGame);
             m_receivers.erase(cGame);
-            m_told.insert(cGame);
         }
         else
             m_receivers[cGame] = {.Save = acSave};
@@ -156,6 +165,8 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
             }
             if (receiver.Next >= cData.size())
             {
+                if (!receiver.Ahead)
+                    m_recipients[cConnection] = receiver.Save;
                 spdlog::info("HostSaveTransfer: {:x} save queued{}: {} bytes for an image of {}, {}", cConnection,
                              receiver.Ahead ? " ahead" : "", cData.size(), receiver.Data->Size,
                              receiver.Data->Base.empty() ? "whole" : "against a save it holds");

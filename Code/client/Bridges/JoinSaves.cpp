@@ -92,7 +92,11 @@ struct JoinBridge::Worker
 };
 
 JoinBridge::JoinBridge() noexcept = default;
-JoinBridge::~JoinBridge() noexcept = default;
+// Its work uses the bridge's members: joined first, while they live.
+JoinBridge::~JoinBridge() noexcept
+{
+    m_pWorker.reset();
+}
 
 void JoinBridge::OffThread(std::function<std::function<void()>()> aWork) noexcept
 {

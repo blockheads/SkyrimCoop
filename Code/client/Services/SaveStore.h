@@ -13,6 +13,8 @@ namespace SaveStore
 {
 constexpr size_t kKept = 3;
 
+// Reads every held save, dropping those that no longer match their ids: what the host is told is what can be used.
+void Check(IJoinBridge& aBridge) noexcept;
 // The image held under acId; one that no longer matches its id is dropped.
 [[nodiscard]] std::optional<std::string> Read(IJoinBridge& aBridge, const std::string& acId) noexcept;
 // The stream's image: decoded against the held save it names and checked against its id.

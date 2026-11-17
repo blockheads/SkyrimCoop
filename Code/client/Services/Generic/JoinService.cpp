@@ -96,9 +96,7 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
     }
     spdlog::info("JoinService: joining {} as {}, {}", acEndpoint, PlayerKey(),
                  m_brought ? std::format("bringing {} (level {})", m_brought->Name, m_brought->Level) : "from the main menu");
-    // What the host is told this game holds is what it can read: a damaged file is dropped here.
-    for (const auto& cSave : HeldSaves())
-        (void)SaveStore::Read(m_bridge, cSave);
+    SaveStore::Check(m_bridge);
     m_metrics.HeldSaves = HeldSaves().size();
     m_endpoint = acEndpoint;
     m_save = {};
@@ -308,6 +306,17 @@ void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
     m_metrics.DecodeMs = Since(cDecodeStart);
     spdlog::info("JoinService: the host's save is here ({} bytes for an image of {}, {})", cStream.Data.size(), cStream.Size,
                  cStream.Base.empty() ? "whole" : "against a held save");
+    if (!cImage && !cStream.Base.empty() && !SaveStore::Read(m_bridge, cStream.Base))
+    {
+        // Its base went from the store meanwhile: the host sends it against what is held now.
+        spdlog::warn("JoinService: the save came against a held save that is gone: asking again");
+        m_metrics.Chunks = 0;
+        m_metrics.PayloadBytes = 0;
+        SaveHeldRequest held;
+        held.Saves = HeldSaves();
+        m_world.GetTransport().Send(held);
+        return;
+    }
     if (!cImage)
         return Fail("transfer_failed");
     SaveStore::Keep(m_bridge, cStream.Save, *cImage);
@@ -485,6 +494,7 @@ void JoinService::OnPartyReload(const NotifyPartyReload& acReload) noexcept
     if (!m_brought)
         m_brought = m_joinedCharacter;
     m_save = {};
+    SaveStore::Check(m_bridge);
     m_metrics.HeldSaves = HeldSaves().size();
     To(Step::kReceiving, JoinStatus::State::kReceivingWorld);
     // A save the host sent ahead: nothing has to come.

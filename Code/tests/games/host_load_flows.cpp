@@ -371,3 +371,40 @@ SCENARIO("A newer save replaces the one still on its way to a guest", "[save-syn
     CHECK_FALSE(guest.ctx().at<JoinService>().GetMetrics().FromStore);
     CHECK(guest.ctx().at<JoinService>().GetMetrics().AgainstHeld);
 }
+
+SCENARIO("A guest whose held save is damaged still loads a save it was never sent", "[load][save-sync]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = party.Guest();
+    auto& guestEngine = Party::Engine(guest);
+    party.Agree("the party is together");
+    Quicksave(party, "Quicksave0");
+    party.As(party.Host(), [&] {
+        host.SetLock(0xECA, false, 0);
+        host.SavedFiles["OldSave"] = host.MakeSave();
+        host.Saves.push_back("OldSave");
+        host.SetLock(0xECA, true, 0);
+    });
+    REQUIRE(guestEngine.HeldSaveFiles.size() == 1);
+
+    SECTION("damaged before the load") { guestEngine.HeldSaveFiles.front().second = "damaged"; }
+    SECTION("damaged while the save is on its way against it")
+    {
+        // The host still encodes against the base it was told of; the guest loses it after the reload began.
+        guestEngine.DefersWork = true;
+    }
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("OldSave")); });
+    if (guestEngine.DefersWork)
+    {
+        party.Until([&] { return guest.ctx().at<JoinService>().IsJoining(); }, "the guest is told of the load");
+        guestEngine.HeldSaveFiles.front().second = "damaged";
+    }
+    Reloads(party, 1, "the party loads the old save, the guest's sent whole");
+    const auto& cMetrics = guest.ctx().at<JoinService>().GetMetrics();
+    CHECK(cMetrics.Outcome == "joined");
+    CHECK_FALSE(cMetrics.FromStore);
+    CHECK_FALSE(cMetrics.AgainstHeld);
+    CHECK_FALSE(guestEngine.References.at(0xECA).Locked);
+    CHECK(Holds(guest, ImageOf(party, "OldSave")));
+}

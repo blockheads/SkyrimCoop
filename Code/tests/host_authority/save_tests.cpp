@@ -150,3 +150,55 @@ TEST_CASE("A joining game gets the host's next save against one it holds", "[sav
         CHECK(cResponses.back()->Type == AuthenticationResponse::ResponseType::kTransferFailed);
     }
 }
+
+TEST_CASE("A game still joining when the host loads says it lost the save, and gets it", "[save][join]")
+{
+    Session session;
+    session.SaveImages = {kOld, kNew};
+    session.WorldSave = kOld;
+    auto join = JoinRequest("Serana");
+    join.PlayerKey = "id:0123456789abcdef";
+    join.WantsWorld = true;
+    join.HasCharacter = true;
+    join.HeldSaves = {kNew};
+    session.Receive(4, join);
+    session.Frame(16);
+    REQUIRE(session.SentTo<NotifySaveChunk>(4).size() == 1);
+
+    // Told to load kNew from its store; it is gone there.
+    session.Authority().SendCheckpoint(kNew);
+    const auto cReloads = session.SentTo<NotifyPartyReload>(4);
+    REQUIRE(cReloads.size() == 1);
+    session.Frame(32);
+    REQUIRE(session.SentTo<NotifySaveChunk>(4).size() == 1);
+    session.Receive(4, Held({}));
+    session.Frame(48);
+    const auto cPieces = session.SentTo<NotifySaveChunk>(4);
+    REQUIRE(cPieces.size() == 2);
+    CHECK(cPieces[1]->Save == kNew);
+    CHECK(cPieces[1]->Base.empty());
+
+    // The host loads only once that game left to load it.
+    session.Leave(kPeer);
+    session.Leave(kOtherPeer);
+    CHECK_FALSE(session.Authority().CheckpointDelivered());
+    session.Leave(4);
+    CHECK(session.Authority().CheckpointDelivered());
+}
+
+TEST_CASE("A game sent a save against a base it lost meanwhile gets it against what it holds", "[save]")
+{
+    Session session;
+    session.SaveImages = {kOld, kNew};
+    session.Receive(kPeer, Held({kOld}));
+    session.Authority().SendCheckpoint(kNew);
+    session.Frame(16);
+    REQUIRE(session.SentTo<NotifySaveChunk>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifySaveChunk>(kPeer)[0]->Base == kOld);
+
+    session.Receive(kPeer, Held({}));
+    session.Frame(32);
+    const auto cPieces = session.SentTo<NotifySaveChunk>(kPeer);
+    REQUIRE(cPieces.size() == 2);
+    CHECK(cPieces[1]->Base.empty());
+}

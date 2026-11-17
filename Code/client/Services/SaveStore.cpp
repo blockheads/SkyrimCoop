@@ -16,6 +16,12 @@ std::optional<std::string> Read(IJoinBridge& aBridge, const std::string& acId) n
     return image;
 }
 
+void Check(IJoinBridge& aBridge) noexcept
+{
+    for (const auto& cSave : aBridge.HeldSaves())
+        (void)Read(aBridge, cSave);
+}
+
 std::optional<std::string> Decode(IJoinBridge& aBridge, const SaveTransfer::Stream& acStream) noexcept
 {
     std::optional<std::string> base;

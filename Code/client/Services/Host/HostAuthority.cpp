@@ -260,11 +260,12 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    // Until the host's game loads the save, only what a guest holds of it is heard.
-    if ((m_reloading || m_death.Wiped()) && !(cOpcode == kSaveHeldRequest && m_players.IsPlayer(aSender)))
+    // What a game holds is heard from any game a save was meant for, a joining one too, and during a reload.
+    const bool cHeld = cOpcode == kSaveHeldRequest && (m_players.IsPlayer(aSender) || m_transfer.IsRecipient(aSender));
+    if ((m_reloading || m_death.Wiped()) && !cHeld)
         return false;
     // A game that is not a player may only ask to join; anything else from it is dropped.
-    if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
+    if (cOpcode != kAuthenticationRequest && !cHeld && !m_players.IsPlayer(aSender))
         return false;
 
     if (cOpcode >= m_rules.size() || !m_rules[cOpcode])

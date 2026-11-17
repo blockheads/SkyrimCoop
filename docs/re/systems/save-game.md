@@ -154,7 +154,10 @@ IDA 1.7.104, read for save sync (`docs/design/join-flow.md`, the world). Format 
   any other type fails the load. **So a file with type 0 and a raw body is a valid save**: what a guest writes
   from a synced save. The file location table's offsets already count as if the body were raw.
 - **When the `.ess` is on disk.** Device 2 compresses and writes inside `Save_Impl` (35675, 109333, the save-data
-  utility's vfunc `0x68`). Devices 3, 4 and 5 queue a `bgs::saveload::SaveOperationRequest` (id `0x40000001`, 35791)
+  utility's vfunc `0x68`, `BSWin32SaveDataSystemUtility__WriteSaveFile` 109353). The file is made by
+  `BGSSaveLoadManager__CreateSaveFile` (35724) as `<name>.ess.tmp`; 109353 writes it, then sends its event
+  (`BSWin32SaveDataSystemUtility__SendEvent`) to `BGSSaveLoadManager__OnSaveDataEvent` (35773), which moves the old
+  file to `.bak` and renames the `.tmp` into place, all before 109353 returns. Devices 3, 4 and 5 queue a `bgs::saveload::SaveOperationRequest` (id `0x40000001`, 35791)
   and the save thread runs the same three calls later in `BGSSaveLoadManager__Thread__RunRequest` (35794). SKSE's
   `.skse` is written inside `Save_Impl` in every case. A quicksave or autosave is therefore not readable when
   `Save_Impl` returns: 35794 is where it becomes so.

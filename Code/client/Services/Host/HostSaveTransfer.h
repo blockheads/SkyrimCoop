@@ -7,7 +7,6 @@
 
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -47,8 +46,10 @@ struct HostSaveTransfer
     void Checkpoint(const std::string& acSave, const std::vector<ConnectionId_t>& acGuests) noexcept;
     // Every frame (the session's tick, in milliseconds).
     void Update(uint64_t aTick) noexcept;
-    // No game waits on a save (those sent ahead do not count).
+    // No game waits on a save, and every game sent one to load has left to load it (those sent ahead do not count).
     [[nodiscard]] bool Empty() const noexcept;
+    // A game that passed the gate and was sent (or told) a save to load, still connected: it may say what it holds.
+    [[nodiscard]] bool IsRecipient(ConnectionId_t aConnection) const noexcept { return m_recipients.contains(aConnection); }
     void OnDisconnected(ConnectionId_t aConnection) noexcept;
     [[nodiscard]] bool IsSending(ConnectionId_t aConnection) const noexcept;
 
@@ -69,6 +70,7 @@ private:
     const HostGame& m_game;
     std::map<ConnectionId_t, Receiver> m_receivers;
     std::map<ConnectionId_t, std::vector<std::string>> m_held;
-    std::string m_checkpoint;        // the save a host load or wipe goes back to
-    std::set<ConnectionId_t> m_told; // told to load it from their store, nothing sent
+    // The save each game was sent or told to load, until it disconnects: one that says it lost the save's base, or
+    // the save itself, gets it again.
+    std::map<ConnectionId_t, std::string> m_recipients;
 };
