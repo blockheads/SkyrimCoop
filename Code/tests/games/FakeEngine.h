@@ -68,6 +68,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::vector<PartyThreat::Candidate>> CombatCandidates;
     std::map<uint32_t, uint32_t> CombatProposals; // Periodic native recalculation (47191/47195).
     std::map<uint64_t, PartyThreat::Perception> CombatPerception;
+    // Pairs (State::Key) the NPC's own reaction calls no enemy: CombatGroup::AddTarget (44704) takes such a
+    // target only when every member CanAttackActor (37532) it, which the party-foe hooks answer (PartyAggro.cpp).
+    std::set<uint64_t> CombatFriendly;
     uint32_t CombatSelectionsPerFrame{1};
     void RunNativeCombat() noexcept;
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;

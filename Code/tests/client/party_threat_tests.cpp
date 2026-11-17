@@ -163,13 +163,26 @@ TEST_CASE("An eligible live target survives selection before the next host snaps
     CHECK(state.Resolve(500, 99, 123, targets) == 123);
 }
 
-TEST_CASE("In a crime fight a seen player is fair game without a hit", "[party-aggro][crime]")
+TEST_CASE("In a party fight a seen player is fair game without a hit", "[party-aggro]")
 {
     auto state = Fight(14);
     PartyThreat::Perception seen{.Known = true, .Lost = false, .Detection = 100, .Stealth = 40};
     CHECK_FALSE(state.CanTarget(500, 99, 14, seen)); // an ordinary fight: the guest must have hit it
-    state.CrimeFights.insert(500);
+    state.PartyFights.insert(500);
     CHECK(state.CanTarget(500, 99, 14, seen));
     seen.Lost = true;
     CHECK_FALSE(state.CanTarget(500, 99, 14, seen)); // still only one it sees
+}
+
+TEST_CASE("An NPC fighting one player is every player's foe, and no one else's", "[party-aggro]")
+{
+    auto state = Fight(99);
+    CHECK_FALSE(state.IsPartyFoe(500, 14)); // not yet a party fight
+    state.PartyFights.insert(500);
+    CHECK(state.IsPartyFoe(500, 14)); // the host, though it fights the guest's copy
+    CHECK(state.IsPartyFoe(500, 99));
+    CHECK_FALSE(state.IsPartyFoe(500, 600)); // an NPC beside them keeps its reaction
+    CHECK_FALSE(state.IsPartyFoe(501, 14));
+    state.Active = false;
+    CHECK_FALSE(state.IsPartyFoe(500, 14));
 }

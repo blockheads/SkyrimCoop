@@ -1,0 +1,27 @@
+time	op	id	rva	item
+2026-11-17T04:55:17Z	read	54768	0xa03090	{"name": "papyrus::Actor::StartCombat"}
+2026-11-17T04:55:18Z	read	38561	0x6c93b0	{"name": "Actor::StartCombat"}
+2026-11-17T04:55:29Z	read	46873	0x852060	{"name": "NiTPrimitiveArray_CombatGroup__::sub_46873"}
+2026-11-17T04:55:33Z	read	44704	0x818870	{"name": "sub_140818870"}
+2026-11-17T04:55:36Z	read	44722	0x8198e0	{"name": "sub_1408198E0"}
+2026-11-17T04:55:36Z	read	44708	0x818d90	{"name": "sub_140818D90"}
+2026-11-17T04:56:26Z	read		0x68ca2e	{"name": "Actor::IsHostileToActor"}
+2026-11-17T04:56:27Z	read		0x68c0ea	{"name": "Actor::CanAttackActor"}
+2026-11-17T13:22:54Z	name	44704	0x818870	{"addr": "0x140818870", "name": "CombatGroup__AddTarget"}
+2026-11-17T13:22:54Z	name	44708	0x818d90	{"addr": "0x140818D90", "name": "CombatGroup__EveryMemberCanAttack"}
+2026-11-17T13:22:54Z	name	44722	0x8198e0	{"addr": "0x1408198E0", "name": "CombatGroup__MergeFrom"}
+2026-11-17T13:22:54Z	name	46873	0x852060	{"addr": "0x140852060", "name": "CombatManager__StartCombatGroup"}
+2026-11-17T13:23:02Z	comment	44704	0x818870	{"addr": "0x140818870", "comment": "CombatGroup::AddTarget(group, actor): already a target -> true; refused unless every member CanAttackActor (37532) it (0x140818D90); else a new CombatTarget (0xA8, detect -1000) and each member asked for detection of it. No crime or player test: a copy is an ordinary target."}
+2026-11-17T13:23:02Z	comment	44708	0x818d90	{"addr": "0x140818D90", "comment": "True when every member of the group (+0x20, count +0x30) CanAttackActor (37532) the actor: the hostility gate of AddTarget."}
+2026-11-17T13:23:02Z	comment	44722	0x8198e0	{"addr": "0x1408198E0", "comment": "Merges group a2 into a1: each side's targets must be attackable by the other's members (0x140818D90), then a2's members and targets join a1 (AddTarget), detection state kept at its best."}
+2026-11-17T13:23:02Z	comment	46873	0x852060	{"addr": "0x140852060", "comment": "CombatManager 46873, from Actor::StartCombat (38561) with a target: CanAttackActor first, then a new group with the actor and AddTarget(target). A script's StartCombat (papyrus 54768 -> BSTaskPool) lands here: the target, a guest's copy for a guest's trigger, is the only one."}
+2026-11-17T13:23:02Z	comment	54768	0xa03090	{"addr": "0x140a03090", "comment": "papyrus Actor.StartCombat (54768): queues Actor::StartCombat (38561) via the task pool; no crime, no faction change. SolitudeOpening stage 29 (Fragment_16) calls it on the PlatformGuard with Game.GetPlayer(): a guest's trigger makes that its copy."}
+2026-11-17T13:23:02Z	comment		0x68ca2e	{"addr": "0x14068ca2e", "comment": "Actor::IsHostileToActor 37537: a combat target, or ShouldAttack (37534) at own aggression, or an aggressive faction reaction <= 1 (37666). SkyrimCoop hooks it (anger with a guest's copy, party foes)."}
+2026-11-17T13:23:02Z	comment		0x68c0ea	{"addr": "0x14068c0ea", "comment": "Actor::CanAttackActor 37532: teammates/player-side always; else ShouldAttack (37534) mode 1. The gate of every combat group target add (0x140818D90)."}
+2026-11-17T13:23:16Z	name	33228	0x560fc0	{"addr": "0x140560FC0", "name": "CombatController__AddTarget"}
+2026-11-17T13:23:16Z	name	46900	0x854300	{"addr": "0x140854300", "name": "CombatManager__SplitPlayerGroupFor"}
+2026-11-17T13:23:16Z	name	33245	0x562480	{"addr": "0x140562480", "name": "CombatController__EnsureGroup"}
+2026-11-17T13:23:18Z	comment	33228	0x560fc0	{"addr": "0x140560FC0", "comment": "CombatController AddTarget: Actor::StartCombat (38561) on an actor already in combat adds the new target to its group (CombatGroup__AddTarget, every member must CanAttackActor it). A g_thePlayer target in the player's own group splits it first (0x140854300)."}
+2026-11-17T13:23:18Z	comment	46900	0x854300	{"addr": "0x140854300", "comment": "The player's group fighting one of its members: splits the player and teammates off, then AddTarget. Not on the coop path."}
+2026-11-17T13:23:18Z	comment	33245	0x562480	{"addr": "0x140562480", "comment": "Controller with no usable group: a new group for the attacker, AddTarget of its target. Read only for callers of AddTarget."}
+2026-11-17T13:23:33Z	comment	39652	0x711cc0	{"addr": "0x140711CC0", "comment": "An ambush/guard-position package procedure: starts combat on g_thePlayer when ShouldAttackAtOwnAggression and detected within range, or on the package's target. Read looking for how a fight gains new targets: not the general path."}

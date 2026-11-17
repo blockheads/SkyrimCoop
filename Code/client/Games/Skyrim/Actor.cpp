@@ -33,6 +33,7 @@
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
 #include <Combat/HitOwnership.h>
+#include <Combat/PartyAggro.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -1852,7 +1853,7 @@ void RefreshHangLockWatch() noexcept
 
 bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return true;
     return RealIsHostileToActor(apThis, apOther);
 }
@@ -1860,7 +1861,7 @@ bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 // The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
 // GetFactionReaction (37666) returns the value cached in the actor's knowledge of the other, else
 // computes it (37667); the cache is refreshed from 37667. An angry actor sees the remote player as
-// an enemy in both.
+// an enemy in both, and an NPC fighting one player sees every player so (PartyAggroNative::IsPartyFoe).
 constexpr int32_t cReactionEnemy = 1;
 
 using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
@@ -1868,7 +1869,7 @@ static TGetFactionReaction* RealGetFactionReaction = nullptr;
 
 int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return cReactionEnemy;
     return RealGetFactionReaction(apThis, apOther);
 }
@@ -1881,7 +1882,7 @@ static TShouldAttack* RealShouldAttack = nullptr;
 
 bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return true;
     return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }
@@ -1891,7 +1892,7 @@ static TComputeReaction* RealComputeReaction = nullptr;
 
 int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return cReactionEnemy;
     return RealComputeReaction(apThis, apOther, aUnk);
 }

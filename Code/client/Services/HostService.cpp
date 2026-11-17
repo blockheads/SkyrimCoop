@@ -138,8 +138,7 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, m_world.ctx().at<IActorBridge&>(),
-        [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); },
-        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
+        [this](const auto& acState) { m_pEngine->SetPartyThreats(acState); });
     HostGame game;
     game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
     game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };

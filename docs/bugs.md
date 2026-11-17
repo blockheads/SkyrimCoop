@@ -363,6 +363,10 @@ Size: medium. Needs: duo.
     only), loose food and a door, 45-52 references.
   - `copy_holds_furniture_prop` (Riverwood, 2026-11-16) passes its steps and ends with the fish (`10C3BA`, `10B035`), the
     containers (`0x8000000`) and Riverwood's mill log, 47 references.
+  - `guest-trips-platform-guard` (Solitude, 2026-11-17, three runs) passes its steps and ends with townsfolk scattering
+    from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
+    apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
+    run or hold a stale point.
 
 ### A strafing copy catches for a frame
 

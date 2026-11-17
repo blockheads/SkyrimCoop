@@ -45,13 +45,15 @@ struct State
     std::vector<uint32_t> Players;
     std::unordered_map<uint64_t, Damage> DamageByPair;
     std::unordered_map<uint32_t, Combat> Combats;
-    std::unordered_set<uint32_t> CrimeFights; // NPCs hostile for a party crime: every seen player is fair game
+    std::unordered_set<uint32_t> PartyFights; // NPCs fighting a player, for any reason: every player is their foe
 
     static uint64_t Key(uint32_t aVictim, uint32_t aAttacker) noexcept
     {
         return uint64_t(aVictim) << 32 | aAttacker;
     }
     bool IsPlayer(uint32_t aActor) const noexcept;
+    // An NPC in a party fight sees every player as an enemy (combat-targets.md, A fight with one player is the party's).
+    bool IsPartyFoe(uint32_t aActor, uint32_t aTarget) const noexcept;
     void Hit(uint32_t aVictim, uint32_t aAttacker, float aDamage) noexcept;
     double DamageOf(uint32_t aVictim, uint32_t aAttacker) const noexcept;
     bool RecentlyHit(uint32_t aVictim, uint32_t aAttacker) const noexcept;

@@ -49,6 +49,16 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-17: a fight with one player is the party's (Solitude playtest, 2026-11-16: the platform guards killed Josh, a
+guest, and never turned on the host). The execution's interrupt trigger runs `PlatformGuard.StartCombat(Game.GetPlayer())`,
+the guest's copy for a guest's trigger: no crime, so nothing the party shares, and `HostAggro` counted only damage and
+crime fights. Now every NPC whose combat target is a player is a party fight (`PartyThreat::State::PartyFights`, nearest
+player first) and every player's body is its enemy in the reaction hooks (`PartyAggroNative::IsPartyFoe`), so its
+combat group can take them ([combat-targets.md](re/systems/combat-targets.md), A fight with one player is the party's).
+Tests: GameTests "A guard a script set on the guest turns on the host beside it" (the fake's group takes only targets
+its members can attack, `CombatFriendly`), ClientTests `[party-aggro]`, scenario `guest-trips-platform-guard` (its steps
+pass; its end comparison finds the town's scattering crowd apart, bugs.md "End comparisons in towns").
+
 2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
 is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
 starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the
@@ -2023,6 +2033,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Open 2026-11-17: the graph stream check crashed a guest.** `guest-trips-platform-guard`'s first run: the guest's
+  game died 48 s in, in `GraphStreamCheck.cpp`'s `HookHandleEvent` (line 113), formatting the platform guard's copy's
+  event sender name: the sender read at event +0x10 named a pointer to `0x40C000003F800000` (two floats, not a node).
+  Once in four runs; crash log in the guest prefix's `SKSE/crash-2026-11-17-07-32-59.log`. Not read in IDA: what an
+  event's +0x10 holds when it does not come from a node.
 - **Open 2026-11-07: the main loop stops under the Anniversary Edition box.** With the box (52156) open outside a
   session, the plugin's main-loop heartbeat stopped about 2 s later in every such boot (no crash log). The harness now
   keeps the box from queuing (`bFreebiesSeen`), so nothing hits it; not read in IDA

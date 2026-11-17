@@ -127,6 +127,14 @@ Hooks::Initializer s_hooks([] {
     HOOK_ID(47191, &RealSelect, Select);
 });
 } // namespace
+bool IsPartyFoe(Actor* apActor, Actor* apTarget) noexcept
+{
+    if (!apActor || !apTarget || !s_active.load(std::memory_order_acquire) || !apTarget->GetExtension()->IsPlayer() ||
+        apActor->GetExtension()->IsCopy() || apActor->GetExtension()->IsPlayer())
+        return false;
+    const auto cState = s_state.load(std::memory_order_acquire);
+    return cState && cState->IsPartyFoe(apActor->formID, apTarget->formID);
+}
 void Publish(const PartyThreat::State& acState) noexcept
 {
     if (!acState.Active)

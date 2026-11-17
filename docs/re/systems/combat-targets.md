@@ -176,6 +176,42 @@ away first. Guest dies: the host's player is fought on, never searched for. Whil
 line of sight false and detection about -6, the host's 42 with line of sight. Why the line of sight to a copy fails is
 the open step 0 (bugs.md, "A still guest unseen up close").
 
+## A fight with one player is the party's (2026-11-17)
+
+Read in IDA (1.7.104) for the Solitude playtest (2026-11-16): Josh, a guest, stepped onto the execution platform; the
+guards killed him and the host was never their target.
+
+```
+OpeningSceneInterruptTrigger (DAB6C) -> SolitudeOpening (B2FD9) stage 29, Fragment_16:
+    PlatformGuard.StartCombat(Game.GetPlayer())     a guest's trigger: Game.GetPlayer() is its copy (party-model.md)
+papyrus Actor.StartCombat (54768) -> BSTaskPool -> Actor::StartCombat (38561)
+    no crime, no faction change: only a combat group
+CombatManager__StartCombatGroup (46873, 0x140852060): CanAttackActor (37532), a group, AddTarget(target)
+CombatGroup__AddTarget (44704, 0x140818870): refused unless every member CanAttackActor it
+    (CombatGroup__EveryMemberCanAttack 44708); CanAttackActor -> ShouldAttack (37534) -> the reaction (37667)
+a later StartCombat on an actor in combat: CombatController__AddTarget (33228) -> the same AddTarget
+```
+
+So the guard's group held the guest's copy only. To a Solitude guard the host's player is a friend, so it could not
+become a target, and `HostAggro` counted a fight as the party's only for damage or a crime (`crime.md`): the guard kept
+Skyrim's pick, the copy. Every hostility the engine keeps for "the player" (crime, `kAngryWithPlayer`, faction enemy)
+lives on the host's player and reached copies through `CrimeBridge`; hostility aimed at a copy (a script's
+`StartCombat`, a friendly hit's anger) never reached the other players.
+
+The party rule (`party-model.md`, Crime): an NPC whose combat target is a player is fighting the party.
+
+- `HostAggro` counts every such NPC (`PartyThreat::State::PartyFights`), so `PartyThreat` gives the nearest player
+  it sees, first pick at once.
+- `PartyAggroNative::IsPartyFoe`: the four reaction hooks (`IsHostileToActor` 37537, `GetFactionReaction` 37666,
+  `ShouldAttack` 37534, `ComputeReaction` 37667, the friendly-hit anger's hooks in `Actor.cpp`) answer "enemy" for every
+  player's body, so `CanAttackActor` lets AddTarget take them. When the NPC leaves combat it is no foe again.
+
+Measured on the duo (`guest-trips-platform-guard`): before, the guard's candidates were the guest's copy only, the host
+beside it; after, `Party aggro: NPC 0002E1D1 switches from FF000833 to 00000014` once the guest walked off, and Captain
+Aldis (`41FB9`) went from the host to the guest's copy when the guest was the nearer one. Not read: which engine call
+adds a newly hostile player to a running group (a detection pass's StartCombat is the likely one; `39652`, an
+ambush package's, is not it).
+
 ## The real player's chase, for comparison
 
 Vanilla (the stand-in, no plugin, same inn, god mode): Delphine followed a teleporting player within a second before her

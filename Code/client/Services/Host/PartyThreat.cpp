@@ -8,6 +8,10 @@ bool State::IsPlayer(uint32_t aActor) const noexcept
 {
     return std::find(Players.begin(), Players.end(), aActor) != Players.end();
 }
+bool State::IsPartyFoe(uint32_t aActor, uint32_t aTarget) const noexcept
+{
+    return Active && PartyFights.contains(aActor) && IsPlayer(aTarget);
+}
 void State::Hit(uint32_t aVictim, uint32_t aAttacker, float aDamage) noexcept
 {
     if (!Active || !IsPlayer(aAttacker) || !aVictim || IsPlayer(aVictim) || !std::isfinite(aDamage) || aDamage <= 0 ||
@@ -37,8 +41,8 @@ bool State::CanTarget(uint32_t aVictim, uint32_t aPlayer, uint32_t aCurrent,
     if (!acPerception.Lost &&
         ((acPerception.Detection > 0 && acPerception.Stealth <= 0) || (aPlayer == aCurrent && acPerception.Known)))
         return true;
-    // A party crime flags the whole party: a player the NPC sees is as guilty as the one it saw steal.
-    if (CrimeFights.contains(aVictim) && !acPerception.Lost && acPerception.Known && acPerception.Detection > 0)
+    // A fight with one player is the party's: a player the NPC sees is as much its foe as the one it fights.
+    if (PartyFights.contains(aVictim) && !acPerception.Lost && acPerception.Known && acPerception.Detection > 0)
         return true;
     return (acPerception.LineOfSight || acPerception.ClearPath) &&
            (aPlayer == aCurrent || RecentlyHit(aVictim, aPlayer));
