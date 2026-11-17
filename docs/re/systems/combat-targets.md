@@ -182,18 +182,29 @@ Read in IDA (1.7.104) for the Solitude playtest (2026-11-16): Josh, a guest, ste
 guards killed him and the host was never their target.
 
 ```
-OpeningSceneInterruptTrigger (DAB6C) -> SolitudeOpening (B2FD9) stage 29, Fragment_16:
-    PlatformGuard.StartCombat(Game.GetPlayer())     a guest's trigger: Game.GetPlayer() is its copy (party-model.md)
-papyrus Actor.StartCombat (54768) -> BSTaskPool -> Actor::StartCombat (38561)
-    no crime, no faction change: only a combat group
-CombatManager__StartCombatGroup (46873, 0x140852060): CanAttackActor (37532), a group, AddTarget(target)
-CombatGroup__AddTarget (44704, 0x140818870): refused unless every member CanAttackActor it
-    (CombatGroup__EveryMemberCanAttack 44708); CanAttackActor -> ShouldAttack (37534) -> the reaction (37667)
-a later StartCombat on an actor in combat: CombatController__AddTarget (33228) -> the same AddTarget
+OpeningSceneInterruptTrigger (DAB6C) -> SolitudeOpening (B2FD9) stage 29, Fragment_16 (vanilla Papyrus source):
+    PlatformGuard.StartCombat(Game.GetPlayer())     inferred: a guest's trigger makes that its copy (party-model.md)
+papyrus Actor.StartCombat (54768) -> BSTaskPool -> Actor::StartCombat (38561)            read: no crime, no faction
+CombatManager__StartCombatGroup (46873): CanAttackActor (37532), a group, AddTarget(target)  read
+CombatGroup__AddTarget (44704): refused unless every member CanAttackActor it (44708)        read
+    CanAttackActor -> ShouldAttack (37534) -> the reaction (cached 37666, computed 37667)
 ```
 
-So the guard's group held the guest's copy only. To a Solitude guard the host's player is a friend, so it could not
-become a target, and `HostAggro` counted a fight as the party's only for damage or a crime (`crime.md`): the guard kept
+How a fight already running takes another target (read in IDA): the NPC's detection listener.
+
+```
+StandardDetectionListener__ReactToDetection (39765): the detecting NPC reacts to a detected actor
+  Character__ShouldAssaultDetected (39747): not a player teammate, target alive, not already its combat
+      target, ShouldAttackAtOwnAggression (37534)
+  -> assault (39359): a guard with an alarm package on the real player and no hostile crime faction raises
+     the alarm instead; else AIProcess__StartAssault (40079) -> Actor::StartCombat (38561)
+     -> CombatController__AddTarget (33228) -> CombatGroup__AddTarget (44704)
+     a real-player target also sets kAngryWithPlayer on the NPC (37463)
+  (Character__ShouldJoinAllysCombat 39753 -> 46878: an NPC joining an ally's fight)
+```
+
+So the guard's group held the guest's copy only. To a Solitude guard the host's player is a friend: 39747 and 44704
+both said no. `HostAggro` counted a fight as the party's only for damage or a crime (`crime.md`), so the guard kept
 Skyrim's pick, the copy. Every hostility the engine keeps for "the player" (crime, `kAngryWithPlayer`, faction enemy)
 lives on the host's player and reached copies through `CrimeBridge`; hostility aimed at a copy (a script's
 `StartCombat`, a friendly hit's anger) never reached the other players.
@@ -204,13 +215,16 @@ The party rule (`party-model.md`, Crime): an NPC whose combat target is a player
   it sees, first pick at once.
 - `PartyAggroNative::IsPartyFoe`: the four reaction hooks (`IsHostileToActor` 37537, `GetFactionReaction` 37666,
   `ShouldAttack` 37534, `ComputeReaction` 37667, the friendly-hit anger's hooks in `Actor.cpp`) answer "enemy" for every
-  player's body, so `CanAttackActor` lets AddTarget take them. When the NPC leaves combat it is no foe again.
+  player's body. Then 39747 and 44704 let the detection listener add the host (above). When the NPC leaves combat it
+  is no foe again.
+- Read, not measured: the host's admission through 39359 sets `kAngryWithPlayer` on the NPC, which `CrimeBridge` reads
+  as a party grudge (`crime.md`, Who an NPC fights for a party crime). Whether vanilla clears it when the fight ends
+  was not read.
 
 Measured on the duo (`guest-trips-platform-guard`): before, the guard's candidates were the guest's copy only, the host
 beside it; after, `Party aggro: NPC 0002E1D1 switches from FF000833 to 00000014` once the guest walked off, and Captain
-Aldis (`41FB9`) went from the host to the guest's copy when the guest was the nearer one. Not read: which engine call
-adds a newly hostile player to a running group (a detection pass's StartCombat is the likely one; `39652`, an
-ambush package's, is not it).
+Aldis (`41FB9`) went from the host to the guest's copy when the guest was the nearer one. That the host entered through
+39765 was read, not traced in that run.
 
 ## The real player's chase, for comparison
 

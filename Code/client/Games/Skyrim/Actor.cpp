@@ -1858,10 +1858,8 @@ bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
     return RealIsHostileToActor(apThis, apOther);
 }
 
-// The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
-// GetFactionReaction (37666) returns the value cached in the actor's knowledge of the other, else
-// computes it (37667); the cache is refreshed from 37667. An angry actor sees the remote player as
-// an enemy in both, and an NPC fighting one player sees every player so (PartyAggroNative::IsPartyFoe).
+// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): enemy for an angry
+// actor's remote player and a party foe's players (combat-targets.md, A fight with one player is the party's).
 constexpr int32_t cReactionEnemy = 1;
 
 using TGetFactionReaction = int32_t(Actor*, Actor* apOther);

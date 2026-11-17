@@ -156,6 +156,8 @@ SCENARIO("A guard a script set on the guest turns on the host beside it", "[part
     });
     party.Until([&] { return host.PartyThreats.IsPartyFoe(guard, FakeEngine::kPlayer); },
                 "the guard fighting the guest is the whole party's foe");
+    party.Until([&] { return !host.CombatFriendly.contains(PartyThreat::State::Key(guard, FakeEngine::kPlayer)); },
+                "the host joins the guard's combat group");
     party.Until([&] { return host.Actors.at(guard).Ai.CombatTargetId == FakeEngine::kPlayer; },
                 "the guard turns from the far guest to the host beside it");
 }
