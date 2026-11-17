@@ -528,7 +528,15 @@ class PlayerVerbs:
         on = lambda: ctx.player_command(instance, {"cmd": "camera"}).get("crosshair") or 0
         with contextlib.suppress(TestFailure):
             ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}", lambda: on() == ref, 2)
-        if on() != ref and (ctx.actor_row(instance, ref).get("state") or {}).get("dead"):  # a corpse lies below an actor's chest
+        row = ctx.actor_row(instance, ref)
+        if on() != ref and row and not (row.get("state") or {}).get("dead"):
+            # A standing actor's root is on the ground: from close by, a ray at it can pass under a horse's belly.
+            x, y, z = ctx.place_of(instance, ref)
+            ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": [x, y, z + 100], "rate": 180},
+                               "until": ["aimed"], "seconds": 3})
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
+        if on() != ref and (row.get("state") or {}).get("dead"):  # a corpse lies below an actor's chest
             body = (ctx.body_of(instance, ref) or {}).get("position") or ctx.place_of(instance, ref)
             ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": list(body), "rate": 180},
                                "until": ["aimed"], "seconds": 3})

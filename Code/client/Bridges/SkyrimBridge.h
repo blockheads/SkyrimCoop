@@ -131,6 +131,7 @@ public:
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept override;
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;
     void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
+    void ActorEndRide(uint32_t aRiderFormId) noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
@@ -249,6 +250,7 @@ public:
     std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerMounted() const noexcept override;
+    void PlayerStopRiding() noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;
     void SetSpectatorTarget(uint32_t aFormId) noexcept override;

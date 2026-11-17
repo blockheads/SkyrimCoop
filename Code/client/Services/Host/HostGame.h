@@ -60,6 +60,8 @@ struct HostGame
     // The host's copy of another player's character (position, items, hands, action) into the spawn, its values left
     // as its owner sent them; false when it has no copy.
     std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
+    // A spawn of the host's copy of an NPC another game owns now (a horse a guest rides), as its engine shows it.
+    std::function<std::optional<NotifyCharacterSpawn>(uint32_t aSessionId)> CopySpawn;
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;

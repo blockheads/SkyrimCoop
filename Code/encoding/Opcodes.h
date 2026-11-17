@@ -164,7 +164,8 @@
     X(NotifyGraphSync)             \
     X(NotifyGraphSyncPoint) \
     X(NotifyDialogueFace)          \
-    X(NotifyDevCommand)
+    X(NotifyDevCommand) \
+    X(NotifyMountRefused)
 
 #define COOP_OPCODE(aName) k##aName,
 

@@ -373,6 +373,11 @@ private:
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();
+        game.CopySpawn = [](uint32_t aSessionId) {
+            NotifyCharacterSpawn spawn;
+            spawn.SessionId = aSessionId;
+            return std::optional{spawn};
+        };
         game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
             const auto it = Copies.find(aSessionId);
             if (it == Copies.end())

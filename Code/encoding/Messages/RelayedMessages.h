@@ -76,6 +76,8 @@ using NotifyPlayerName = Relayed<Payloads::PlayerName, kNotifyPlayerName>;
 using NotifyActorName = Relayed<Payloads::ActorName, kNotifyActorName>;
 using MountRequest = Relayed<Payloads::Mount, kMountRequest>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;
+// To a game whose player got on a horse another player already rides: its player gets off.
+using NotifyMountRefused = Relayed<Payloads::Mount, kNotifyMountRefused>;
 using DismountRequest = Relayed<Payloads::Dismount, kDismountRequest>;
 using NotifyDismount = Relayed<Payloads::Dismount, kNotifyDismount>;
 using AiStateRequest = Relayed<Payloads::AiState, kAiStateRequest>;
