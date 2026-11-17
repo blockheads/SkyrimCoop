@@ -306,6 +306,47 @@ SCENARIO("A list sliding under a still cursor never moves the party's highlight"
     CHECK(guestTalk.Highlight == 0u);
 }
 
+// A player joining resends every menu the party's list for the step: a menu that kept its player's hover tells nobody.
+SCENARIO("A hover kept through a list refresh stays its own menu's", "[dialogue][dialogue-race]")
+{
+    Party party(2, SmokeWorld);
+    const uint32_t npc = EveryoneTalks(party, {&party.Guest(), &party.Host()});
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    party.As(party.Host(), [&] { hostTalk.PlayerHovers(2); });
+    Settle(party);
+    REQUIRE(guestTalk.Highlight == 0u);
+
+    auto& joiner = Talk(party.Guest(1));
+    party.As(party.Guest(1), [&] { joiner.PlayerTalksTo(Party::Engine(party.Guest(1)).CopiesOf(kNpc)[0]); });
+    party.Until([&] { return joiner.ListShown && party.Guest(1).ctx().at<DialogueService>().Joined(); }, "a second guest joins");
+    Settle(party);
+    INFO("highlights host, guest, joiner: " << Highlights({&hostTalk, &guestTalk, &joiner}));
+    CHECK(hostTalk.Highlight == 2u);
+    CHECK(guestTalk.Highlight == 0u);
+    CHECK(joiner.Highlight == 0u);
+    (void)npc;
+}
+
+// A guest asks while the NPC still voices a line of the conversation just closed (dialogue-guest-reasks-after-close): the
+// host's game shows the list at once, without its menu, and builds again when that line ends. Its greeting's choices stay.
+SCENARIO("A guest's ask run without the host's menu keeps the greeting's choices when the NPC's line ends", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
+        pTalk->After = {{kFirst.Topic, {kFourth}}};
+    EveryoneTalks(party, {&party.Guest()});
+    REQUIRE_FALSE(hostTalk.MenuOpen);
+    REQUIRE(guestTalk.Options.size() == 4);
+
+    party.As(party.Host(), [&] { hostTalk.LineEnds(); });
+    Settle(party);
+    CHECK(hostTalk.Options.size() == 4);
+    CHECK(guestTalk.Options.size() == 4);
+}
+
 // A player joins a conversation whose highlight another moved (dialogue-joiner-gets-highlight): its menu shows it there.
 SCENARIO("A player joining a conversation sees the party's highlight", "[dialogue][dialogue-race]")
 {

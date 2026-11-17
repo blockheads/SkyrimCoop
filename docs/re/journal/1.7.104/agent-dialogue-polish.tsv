@@ -53,3 +53,14 @@ time	op	id	rva	item
 2026-11-17T13:46:55Z	name	35268	0x5ee6a0	{"addr": "0x1405ee6a0", "name": "MenuTopicManager::NextOption"}
 2026-11-17T13:46:55Z	name	35269	0x5ee6d0	{"addr": "0x1405ee6d0", "name": "MenuTopicManager::SelectDialogue"}
 2026-11-17T13:46:55Z	name	35275	0x5eec80	{"addr": "0x1405eec80", "name": "MenuTopicManager::ClearList"}
+2026-11-17T14:04:25Z	read	37542	0x68d490	{"name": "Actor::SpeakSound"}
+2026-11-17T14:04:26Z	read	35282	0x5ef4c0	{"name": "MenuTopicManager::sub_35282"}
+2026-11-17T14:04:27Z	read	35283	0x5efb90	{"name": "MenuTopicManager::SaySelected"}
+2026-11-17T14:04:27Z	read	35285	0x5efe90	{"name": "MenuTopicManager::sub_35285"}
+2026-11-17T14:04:38Z	read	82310	0x116ef00	{"name": "UnkData1::InitMovie_internal"}
+2026-11-17T14:04:39Z	name	82310	0x116ef00	{"addr": "0x14116ef00", "name": "IMenu::RefreshPlatform"}
+2026-11-17T14:04:39Z	name	35282	0x5ef4c0	{"addr": "0x1405ef4c0", "name": "MenuTopicManager::StartDialogue"}
+2026-11-17T14:04:39Z	name	35285	0x5efe90	{"addr": "0x1405efe90", "name": "MenuTopicManager::Advance"}
+2026-11-17T14:04:45Z	comment	82097	0x116bbf0	{"addr": "0x14116bbf0", "comment": "82097 UI::UpdateCursorMenu: shows the Cursor Menu (kShow) when the topmost menu (depth < 11, not flag 0x10000) has kUsesCursor (0x4), else hides it (3). Correction (2026-11-17): the Dialogue Menu's constructor lacks 0x4, but IMenu::RefreshPlatform (82310) sets it on keyboard and mouse (kUpdateUsesCursor 0x400), so on PC the cursor shows in dialogue (measured: Cursor Menu open on the duo)."}
+2026-11-17T14:04:45Z	comment	82310	0x116ef00	{"addr": "0x14116ef00", "comment": "82310 IMenu::RefreshPlatform (SKSE InitMovie_internal): _root.SetPlatform(gamepad?, false). A menu with kUpdateUsesCursor (0x400, the Dialogue Menu's) gets kUsesCursor (0x4) on keyboard/mouse and the Cursor Menu shown; on a gamepad (or input context 15) 0x4 cleared and the cursor hidden. So on PC the dialogue menu shows the cursor and hovering an option selects it (BSScrollingList onRollOver). Read 2026-11-16 (dialogue-polish)."}
+2026-11-17T14:04:45Z	comment	35285	0x5efe90	{"addr": "0x1405efe90", "comment": "35285 Advance, under the critical section: copies the picked option into lastSelectedDialogue (+0x38) when a new pick is pending; says its next response through the speaker (vfunc 0x260, UpdateInDialogue 37541) and sets currentTopicInfo, or with none left builds the list (35287), shows it (52857, choices slide in) and sends voice ready (52858): the SWF then takes no pick for 750 ms. forceGoodbye or an end info -> shutMenu. Clears advanceInProgress (+0xB8), advanceRequested (+0xB5/+0xB6) and sets canSkip (+0xBA). Read 2026-11-09. Re-read 2026-11-17 (dialogue-polish): the last list build (LABEL_69) takes its source from selectedResponseNode (+0x18) as BuildList does; an info with flag 0x40 builds, points +0x18 at the first option and says it (SaySelected)."}

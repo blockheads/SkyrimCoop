@@ -133,6 +133,7 @@ private:
     // Where the cursor was last frame, and the frames since it last moved (a hover is this menu's own).
     std::optional<std::pair<float, float>> m_cursor;
     uint32_t m_framesSinceCursorMoved = UINT32_MAX;
+    bool m_hovered{}; // the menu's highlight is this player's hover, until the party's moves it
     std::optional<std::pair<uint32_t, uint32_t>> m_pendingHighlight;
     uint32_t m_highlightSeq = 0; // this menu's moves sent
     // The step's pick while the NPC answers it: a menu joining before the next list shows it.

@@ -201,6 +201,7 @@ class TogetherActions:
             ctx.talk(game, name, [])
         for game in players:
             ctx.wait_for(f"[{game or 'host'}] its menu takes a pick", lambda g=game: ctx.menu_takes_pick(g), 40)
+        greeting = [text for _, _, text in ctx.options_shown(asker)]
         ctx.close_dialogues()
         if after:
             time.sleep(after)  # the line's length on the duo's silent device: no game state marks its end
@@ -215,15 +216,19 @@ class TogetherActions:
         lines, _ = ctx.log_trail('', mark)
         builds = [m[1] for row in lines if (m := re.search(r"Dialogue: step \d+ of conversation \d+: (\d+) options", row["text"]))]
         ctx.close_dialogues()
-        return {"asker_lists": [len(shown) for shown in lists], "host_builds": [int(b) for b in builds]}
+        return {"asker_lists": [len(shown) for shown in lists], "host_builds": [int(b) for b in builds],
+                "greeting": greeting, "shown": lists}
 
     def expect_reask_keeps_choices(ctx, name):
         """reask_after_close at once: the guest's menu keeps the greeting's choices, never rebuilt as one option's (a
         hidden start's 'anything left?' check left the engine's cursor on the first option, 35267)."""
         result = ctx.reask_after_close(name)
-        if len(result["asker_lists"]) != 1 or len(set(result["host_builds"])) != 1:
-            raise ctx.failure(f"the guest's list changed after its greeting: shown {result['asker_lists']} options, "
-                              f"the host built {result['host_builds']}")
+        greeting = result["greeting"]
+        if not greeting or any(shown != greeting for shown in result["shown"]) or not result["shown"]:
+            raise ctx.failure(f"the guest's menu showed {result['shown']}, not the greeting's choices {greeting}")
+        # Two builds: at the start, and when the NPC's last line ends (the one that lost the choices).
+        if len(result["host_builds"]) < 2 or any(count != len(greeting) for count in result["host_builds"]):
+            raise ctx.failure(f"the host built {result['host_builds']} options, not the greeting's {len(greeting)} each time")
         return result
 
     def guest_replays_mark(ctx):

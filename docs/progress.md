@@ -88,8 +88,10 @@ right after a conversation closed lost the greeting's choices (8 of 8; one playe
 checks "anything left to say?" with `FirstOption` (35267), a cursor that left the engine's picked option on option 0, and
 the build after the NPC's last line listed that option's choices; `MenuTopicManager::HasOptions` now leaves it as it
 was (6 of 6 kept; [dialogue.md](re/systems/dialogue.md), "A start during the NPC's last line"). GameTests
-"A player's mouse moves only its own menu's highlight...", "A list sliding under a still cursor...", "A player joining
-while the NPC answers hears its line once"; ClientTests `OnHighlightMoved`; scenarios `dialogue-resting-cursor-keeps-party-highlight`,
+"A player's mouse moves only its own menu's highlight...", "A list sliding under a still cursor...", "A hover kept
+through a list refresh...", "A player joining while the NPC answers hears its line once", "A guest's ask run without the
+host's menu keeps the greeting's choices..." (each fails with its fix taken out); ClientTests `OnHighlightMoved`,
+`OnFirstHighlight`, `RolloverHold`, `AskKeepingPicked`; scenarios `dialogue-resting-cursor-keeps-party-highlight`,
 `dialogue-guest-joins-mid-line`, `dialogue-guest-reasks-after-close` (MCP: `guest_replays_mark`, `expect_no_line_replayed`,
 `talk_again_as_menu_closes`, `reask_after_close`, `expect_reask_keeps_choices`; harness `dialogue`: `picked`, `last_selected`,
 `last_speaker`).

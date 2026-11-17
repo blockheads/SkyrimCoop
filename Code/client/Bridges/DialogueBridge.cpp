@@ -666,9 +666,8 @@ GFxValue Boolean(bool aValue) noexcept
     return value;
 }
 
-// The list's rows ignore a rollover while it animates (BSScrollingList.as, bListAnimating): held from SetHighlight's
-// recentring until the cursor moves, so a row sliding under a resting cursor does not take the highlight.
-std::optional<std::pair<float, float>> s_rolloverHeldAt;
+// The list's rows ignore a rollover while it animates (BSScrollingList.as, bListAnimating): held as RolloverHold says.
+DialogueMenuPolicy::RolloverHold s_rolloverHold;
 
 std::optional<std::pair<float, float>> CursorAt() noexcept
 {
@@ -680,9 +679,8 @@ std::optional<std::pair<float, float>> CursorAt() noexcept
 std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
 {
     GFxMovie* pMovie = DialogueMovie();
-    if (pMovie && s_rolloverHeldAt && s_rolloverHeldAt != CursorAt())
+    if (pMovie && s_rolloverHold.Release(CursorAt()))
     {
-        s_rolloverHeldAt.reset();
         pMovie->SetVariable("_root.DialogueMenu_mc.TopicList.bListAnimating", Boolean(false), 0);
     }
     // Only while the list shows: the SWF keeps its last highlight while a line plays.
@@ -730,7 +728,7 @@ void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept
     // As the keys do: scroll to the entry, select its position first (UpdateList draws with it), then recenter; the
     // keys' animation holds rollovers, so does this.
     pMovie->SetVariable("_root.DialogueMenu_mc.TopicList.bListAnimating", Boolean(true), 0);
-    s_rolloverHeldAt = CursorAt();
+    s_rolloverHold.Recentred(CursorAt());
     const GFxValue cIndex = Number(aIndex);
     pMovie->Invoke("_root.DialogueMenu_mc.TopicList.SetSelectedTopic", nullptr, &cIndex, 1);
     const auto cPosition = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.iScrollPosition");

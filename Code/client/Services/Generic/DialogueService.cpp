@@ -172,10 +172,11 @@ void DialogueService::SyncHighlight() noexcept
     {
         const bool cFirst = !m_highlight;
         m_highlight = cHighlight;
-        // A new list's first highlight (the menu's fill, 51515) moved nobody's: told only when it is not the top. A
-        // hover is this menu's alone.
-        const bool cSend = cFirst ? *cHighlight != 0
-                                  : DialogueMenuPolicy::OnHighlightMoved(m_framesSinceCursorMoved) == DialogueMenuPolicy::HighlightMove::Send;
+        // A hover is this menu's alone; a new list's first highlight (the menu's fill, 51515) is told when not the top.
+        const auto cMove = cFirst ? DialogueMenuPolicy::OnFirstHighlight(*cHighlight, m_framesSinceCursorMoved, m_hovered)
+                                  : DialogueMenuPolicy::OnHighlightMoved(m_framesSinceCursorMoved);
+        const bool cSend = cMove == DialogueMenuPolicy::HighlightMove::Send;
+        m_hovered = !cSend && (m_hovered || m_framesSinceCursorMoved <= DialogueMenuPolicy::kHoverFrames);
         spdlog::debug("Dialogue: the highlight moved to {} ({} frames since the cursor moved): {}", *cHighlight,
                       m_framesSinceCursorMoved, cSend ? "the party's" : "this menu's");
         if (cSend)
@@ -197,6 +198,7 @@ void DialogueService::SyncHighlight() noexcept
     m_pendingHighlight.reset();
     m_bridge.SetHighlight(cIndex);
     m_highlight = cIndex;
+    m_hovered = false;
 }
 
 void DialogueService::SendHighlight(uint32_t aIndex) noexcept
@@ -317,6 +319,7 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_shownStep = 0;
     m_highlight.reset();
     m_pendingHighlight.reset();
+    m_hovered = false;
     m_pickedText.clear();
     m_pickedShownStep = 0;
 }
@@ -333,6 +336,7 @@ void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     m_shownStep = 0;
     m_highlight.reset();
     m_pendingHighlight.reset();
+    m_hovered = false;
     m_pickedText.clear();
     m_pickedShownStep = 0;
     if (m_pRole)
@@ -384,6 +388,7 @@ void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
     if (acMessage.Conversation != m_conversation)
         return;
     m_step = acMessage.Step;
+    m_hovered = false;
     const uint32_t cTopic = ToGame(acMessage.Topic), cInfo = ToGame(acMessage.Info);
     const auto cPicked = std::ranges::find_if(m_list, [&](const IDialogueBridge::Option& acListed) {
         return acListed.Topic == cTopic && acListed.Info == cInfo;

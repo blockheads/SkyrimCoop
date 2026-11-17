@@ -307,8 +307,11 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-resting-
   recentring until the cursor moves, it does (measured).
 - **`bMouseDrivenNav` does not tell a hover from W and S in the game's SWF** (measured: it read true after W presses,
   unlike the `skyrimui` source). What does: a hover moves `MenuCursor`, W, S and the wheel do not. Rule
-  (`DialogueMenuPolicy::OnHighlightMoved`): a change within two frames of the cursor moving is this menu's own; any
-  other is the party's, sent to every menu.
+  (`DialogueMenuPolicy::OnHighlightMoved`, a heuristic, not an engine guarantee): a change within two frames of the
+  cursor moving is this menu's own; any other is the party's, sent to every menu. A hover a same-step list refresh
+  keeps (a player joining resends the list) stays the menu's own (`OnFirstHighlight`).
+- The hold is `DialogueMenuPolicy::RolloverHold`, shared with the fake engine, whose `SetHighlight` queues the measured
+  rollover a frame later: GameTests "A list sliding under a still cursor..." fails without the hold.
 - **`Actor::SpeakSound` (37542) stops nothing:** each call plays on the caller's new handle. Saying a line again on an
   actor already voicing it overlaps the two; `NotifyDialogue`'s path stops the current line first. A guest joining
   mid-line replayed the NPC's line over the relayed one (`ReplayGreeting`, now only for a menu its own ask opened).
@@ -333,7 +336,9 @@ Read in IDA (named and commented there), measured on the duo (`dialogue-guest-re
   `StartDialogue` cannot say the greeting and shows the list at once, our check ran, and when the old line ended the
   build listed option 0's choices (Andurs: "What did you lose?" in place of his greeting's three). Asked 6 s later the
   greeting is said first and the list shows only after it, so no build follows the check (3 of 3 kept); one player
-  alone has the menu's fill (4 of 4 kept). `HasOptions` now puts +0x18 back: kept 6 of 6.
+  alone has the menu's fill (4 of 4 kept). `HasOptions` now puts +0x18 back (`DialogueMenuPolicy::AskKeepingPicked`):
+  kept 6 of 6. The fake engine models the cursor and the build's source through the same helper: GameTests "A guest's
+  ask run without the host's menu keeps the greeting's choices..." fails without it.
 - Harness readout: `dialogue` gives `picked` and `last_selected` (info, choices) and `last_speaker`; a debug line names
   each build's source.
 

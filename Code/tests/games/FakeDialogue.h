@@ -100,8 +100,15 @@ struct FakeDialogue final : IDialogueBridge
     void LineEnds()
     {
         AllowProgress = true; // the next line's voice ready (52858) re-arms the SWF
+        // The build takes choices from the picked option first (35287): left on one, its answers.
+        if (!m_next && Picked && *Picked < Options.size())
+            if (const auto it = After.find(Options[*Picked].Topic); it != After.end() && !it->second.empty())
+                return Build(it->second);
         Build(std::exchange(m_next, std::nullopt).value_or(m_source));
     }
+    // The engine's picked option (selectedResponseNode +0x18): cleared by each build (35275), moved to the first by
+    // FirstOption (35267), which a hidden start's "anything left?" check asks (DialogueBridge::EndWhenDone).
+    std::optional<size_t> Picked;
     // This game's player presses through the line (the SWF's SkipText, 51508): the Skip filter hears of it, then this
     // game's engine moves on (35290), a guest's own held conversation too.
     void PlayerSkips()
@@ -229,6 +236,7 @@ struct FakeDialogue final : IDialogueBridge
             if (aResuming)
                 AllowProgress = true;
             Highlight = 0;
+            Centre = 0;
             ListShown = MenuOpen;
             m_pickedShown = false;
             PickedText.clear();
@@ -246,31 +254,46 @@ struct FakeDialogue final : IDialogueBridge
         return true;
     }
     // The menu's highlight: the player moves it (W/S, the mouse), the service sets it.
-    std::optional<uint32_t> Highlight;
-    // The menus' cursor (MenuCursor 403551; shown in dialogue with keyboard and mouse, 82310). W, S and SetHighlight
-    // recentre the list without moving it; a hover moves it and highlights the row (onRollOver). SetHighlight holds the
-    // rows' rollover while it recentres (DialogueBridge), so a row sliding under a resting cursor takes nothing.
+    mutable std::optional<uint32_t> Highlight;
+    // The menus' cursor (MenuCursor 403551) and the row it rests on, counted from where the list is centred (W, S and
+    // SetHighlight recentre it). dialogue.md, "The mouse".
     std::pair<float, float> Cursor{640.f, 360.f};
+    std::optional<int> CursorRow;
+    uint32_t Centre = 0;
+    // W and S scroll with the list's animation: no row takes a rollover meanwhile.
     void PlayerHighlights(uint32_t aIndex)
     {
         if (MenuOpen && ListShown && aIndex < Options.size())
-            Highlight = aIndex;
+            Highlight = Centre = aIndex;
     }
     void PlayerHovers(uint32_t aIndex)
     {
         if (!MenuOpen || !ListShown || aIndex >= Options.size())
             return;
-        Cursor = {900.f, 400.f + 40.f * static_cast<float>(aIndex)};
+        CursorRow = static_cast<int>(aIndex) - static_cast<int>(Centre);
+        Cursor = {900.f, 400.f + 40.f * static_cast<float>(*CursorRow)};
         Highlight = aIndex;
+        m_rollover.reset();
     }
+    // A rollover comes a frame after the list moved (measured), unless the bridge holds them.
     std::optional<uint32_t> GetHighlight() const noexcept override
     {
+        m_hold.Release(Cursor);
+        if (const auto cRow = std::exchange(m_rollover, std::nullopt); cRow && !m_hold.Held)
+            Highlight = cRow;
         return MenuOpen && ListShown && !Options.empty() ? Highlight : std::nullopt;
     }
+    // As DialogueBridge::SetHighlight: recentred without the animation, the rollover held until the cursor moves.
     void SetHighlight(uint32_t aIndex) noexcept override
     {
-        if (MenuOpen && aIndex < Options.size())
-            Highlight = aIndex;
+        if (!MenuOpen || aIndex >= Options.size())
+            return;
+        Highlight = aIndex;
+        m_hold.Recentred(Cursor);
+        if (std::exchange(Centre, aIndex) == aIndex || !CursorRow)
+            return;
+        if (const int cRow = static_cast<int>(aIndex) + *CursorRow; cRow >= 0 && cRow < static_cast<int>(Options.size()) && cRow != static_cast<int>(aIndex))
+            m_rollover = static_cast<uint32_t>(cRow);
     }
     std::optional<std::pair<float, float>> GetCursor() const noexcept override
     {
@@ -345,6 +368,7 @@ struct FakeDialogue final : IDialogueBridge
     // show another in its place.
     void Build(const std::vector<Option>& acOptions)
     {
+        Picked.reset();
         m_source = acOptions;
         std::vector<Option> own = LinesFor(acOptions, 0x14);
         m_judged.clear();
@@ -380,6 +404,13 @@ struct FakeDialogue final : IDialogueBridge
         ListShown = MenuOpen;
         m_pickedShown = false;
         PickedText.clear();
+        // Without its menu, the bridge asks whether anything is left to say (EndWhenDone, HasOptions).
+        if (Speaker && !MenuOpen)
+            DialogueMenuPolicy::AskKeepingPicked(Picked, [this] {
+                if (!Options.empty())
+                    Picked = 0; // FirstOption 35267
+                return !Options.empty();
+            });
     }
 
     Filters m_filters;
@@ -391,4 +422,6 @@ struct FakeDialogue final : IDialogueBridge
     std::vector<Option> m_built;  // the engine's own list a held show left unshown
     std::optional<std::vector<Option>> m_next; // after the line being said (LinesTakeTime)
     std::map<uint32_t, std::vector<Option>> m_judged;
+    mutable DialogueMenuPolicy::RolloverHold m_hold;
+    mutable std::optional<uint32_t> m_rollover; // the row that slid under the resting cursor
 };

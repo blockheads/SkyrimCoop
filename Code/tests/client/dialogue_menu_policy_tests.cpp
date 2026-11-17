@@ -53,3 +53,34 @@ TEST_CASE("W, S and the wheel move the party's highlight; a hover only its own m
     CHECK(OnHighlightMoved(DialogueMenuPolicy::kHoverFrames + 1) == HighlightMove::Send);
     CHECK(OnHighlightMoved(UINT32_MAX) == HighlightMove::Send);  // no cursor moved since the menu opened
 }
+
+TEST_CASE("A list's first highlight is told unless it is the top or the player's hover", "[dialogue]")
+{
+    using DialogueMenuPolicy::HighlightMove;
+    using DialogueMenuPolicy::OnFirstHighlight;
+    CHECK(OnFirstHighlight(0, UINT32_MAX, false) == HighlightMove::Local); // the fill's top
+    CHECK(OnFirstHighlight(2, UINT32_MAX, false) == HighlightMove::Send);  // the fill's last said topic
+    CHECK(OnFirstHighlight(2, 1, false) == HighlightMove::Local);          // hovered on the first sampled frame
+    CHECK(OnFirstHighlight(2, UINT32_MAX, true) == HighlightMove::Local);  // a hover a same-step refresh kept
+}
+
+TEST_CASE("The rows' rollover is held from the recentring until the cursor moves", "[dialogue]")
+{
+    DialogueMenuPolicy::RolloverHold hold;
+    const DialogueMenuPolicy::RolloverHold::Cursor cResting = std::pair{900.f, 480.f};
+    CHECK_FALSE(hold.Release(cResting));
+    hold.Recentred(cResting);
+    CHECK_FALSE(hold.Release(cResting));
+    CHECK(hold.Held);
+    CHECK(hold.Release(std::pair{901.f, 480.f}));
+    CHECK_FALSE(hold.Held);
+}
+
+TEST_CASE("Asking the first-option cursor leaves the picked option where it was", "[dialogue]")
+{
+    // FirstOption (35267) moves the picked option to the first; the build after takes choices from it.
+    int* pPicked = nullptr;
+    int first = 0;
+    CHECK(DialogueMenuPolicy::AskKeepingPicked(pPicked, [&] { pPicked = &first; return true; }));
+    CHECK(pPicked == nullptr);
+}
