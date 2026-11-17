@@ -63,6 +63,7 @@ void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
     if (cCopy && bridge.Start(cCopy, true, m_greeting))
     {
         spdlog::info("Dialogue: conversation {} opens on copy {:X}", acMessage.Conversation, cCopy);
+        m_replayGreeting = true;
         m_dialogue.Opening();
         return;
     }
@@ -77,6 +78,7 @@ void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 void GuestDialogue::OnClosed() noexcept
 {
     m_greeting = 0;
+    m_replayGreeting = false;
     auto& bridge = m_dialogue.Bridge();
     bridge.SetMenuCloseEnds(true);
     if (!bridge.IsMenuOpen() && bridge.GetSpeaker())
@@ -108,8 +110,10 @@ void GuestDialogue::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
     // A menu on a copy opens only for a conversation; one that ended before it opened closes.
     if (aMenuOpen && !m_dialogue.Conversation() && m_dialogue.CopySessionId(aSpeaker))
         m_dialogue.CloseMenu();
-    else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation())
+    else if (aMenuOpen && !m_menuOpen && m_dialogue.Conversation() && m_replayGreeting)
         ReplayGreeting();
+    if (aMenuOpen)
+        m_replayGreeting = false;
     m_menuOpen = aMenuOpen;
 }
 
@@ -133,7 +137,10 @@ void GuestDialogue::ReplayGreeting() noexcept
         return;
     auto& actors = m_world.GetActorBridge();
     if (m_lastLine.SessionId == cNpc && cNow - m_lastLine.At < cRecent)
+    {
+        spdlog::info("Dialogue: the menu opens: the NPC's last line again on copy {:X}", cCopy);
         actors.ActorSpeakSound(cCopy, m_lastLine.Text);
+    }
     if (m_lastSubtitle.SessionId == cNpc && cNow - m_lastSubtitle.At < cRecent)
         actors.ActorShowSubtitle(cCopy, m_lastSubtitle.Text, m_lastSubtitle.TopicInfo, false);
 }

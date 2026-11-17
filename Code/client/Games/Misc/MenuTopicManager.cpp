@@ -49,7 +49,12 @@ bool MenuTopicManager::HasOptions() noexcept
     using TFirstOption = bool(MenuTopicManager*, bool aSkipHidden);
     POINTER_SKYRIMSE(TFirstOption, s_firstOption, 35267);
     ListLock lock(criticalSection);
-    return (s_firstOption.Get())(this, false);
+    // 35267 is a cursor: it leaves selectedResponseNode on the first option, where the next build would take that
+    // option's choices (dialogue.md, "A start during the NPC's last line"). Asked here, it moves nothing.
+    Entry* pPicked = selectedResponseNode;
+    const bool cAny = (s_firstOption.Get())(this, false);
+    selectedResponseNode = pPicked;
+    return cAny;
 }
 
 void MenuTopicManager::Pick(uint32_t aIndex) noexcept

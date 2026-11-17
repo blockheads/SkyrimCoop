@@ -160,6 +160,11 @@ void DialogueService::OnSkip(const NotifyDialogueSkip& acMessage) noexcept
 
 void DialogueService::SyncHighlight() noexcept
 {
+    const auto cCursor = m_bridge.GetCursor();
+    if (std::exchange(m_cursor, cCursor) != cCursor)
+        m_framesSinceCursorMoved = 0;
+    else if (m_framesSinceCursorMoved != UINT32_MAX)
+        ++m_framesSinceCursorMoved;
     if (m_shownStep != m_step)
         return;
     // This menu's own move first: the host echoes every move to every menu, so a crossing one settles in its order.
@@ -167,8 +172,13 @@ void DialogueService::SyncHighlight() noexcept
     {
         const bool cFirst = !m_highlight;
         m_highlight = cHighlight;
-        // A new list's first highlight (the menu's fill, 51515) moved nobody's: told only when it is not the top.
-        if (!cFirst || *cHighlight != 0)
+        // A new list's first highlight (the menu's fill, 51515) moved nobody's: told only when it is not the top. A
+        // hover is this menu's alone.
+        const bool cSend = cFirst ? *cHighlight != 0
+                                  : DialogueMenuPolicy::OnHighlightMoved(m_framesSinceCursorMoved) == DialogueMenuPolicy::HighlightMove::Send;
+        spdlog::debug("Dialogue: the highlight moved to {} ({} frames since the cursor moved): {}", *cHighlight,
+                      m_framesSinceCursorMoved, cSend ? "the party's" : "this menu's");
+        if (cSend)
         {
             m_pendingHighlight.reset();
             SendHighlight(*cHighlight);

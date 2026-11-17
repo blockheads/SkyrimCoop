@@ -6,6 +6,7 @@
 #include <Messages/RelayedMessages.h>
 #include <Messages/Relayed.h>
 #include <SessionIds.h>
+#include <Events/DialogueEvent.h>
 
 namespace
 {
@@ -259,6 +260,52 @@ SCENARIO("A player moving the highlight fast keeps its own place on its menu", "
     party.Until([&] { return hostTalk.Highlight == 3u; }, "the host's menu follows to the last");
 }
 
+// The mouse highlights an option on its own menu only; W and S move the party's, and a menu the mouse moved follows it.
+SCENARIO("A player's mouse moves only its own menu's highlight; W and S move every menu's", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    EveryoneTalks(party, {&party.Guest(), &party.Host()});
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+
+    party.As(party.Host(), [&] { hostTalk.PlayerHovers(2); });
+    Settle(party);
+    INFO("highlights host, guest: " << Highlights({&hostTalk, &guestTalk}));
+    CHECK(hostTalk.Highlight == 2u);
+    CHECK(guestTalk.Highlight == 0u);
+
+    party.As(party.Guest(), [&] { guestTalk.PlayerHighlights(1); });
+    party.Until([&] { return hostTalk.Highlight == 1u; }, "the host's menu follows the guest's W/S",
+                [&] { return Highlights({&hostTalk, &guestTalk}); });
+}
+
+// The party's highlight recentres a menu under its player's resting cursor (dialogue-resting-cursor-keeps-party-highlight):
+// the bridge holds the rows' rollover meanwhile, and the menu follows the party until its player's mouse moves again.
+SCENARIO("A list sliding under a still cursor never moves the party's highlight", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    EveryoneTalks(party, {&party.Guest(), &party.Host()});
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+
+    party.As(party.Host(), [&] { hostTalk.PlayerHovers(2); });
+    Settle(party);
+    for (const uint32_t cIndex : {1u, 0u})
+    {
+        party.As(party.Guest(), [&] { guestTalk.PlayerHighlights(cIndex); });
+        Settle(party);
+    }
+    INFO("highlights host, guest: " << Highlights({&hostTalk, &guestTalk}));
+    CHECK(guestTalk.Highlight == 0u);
+    CHECK(hostTalk.Highlight == 0u);
+
+    // The host's mouse moving again is its own once more.
+    party.As(party.Host(), [&] { hostTalk.PlayerHovers(3); });
+    Settle(party);
+    CHECK(hostTalk.Highlight == 3u);
+    CHECK(guestTalk.Highlight == 0u);
+}
+
 // A player joins a conversation whose highlight another moved (dialogue-joiner-gets-highlight): its menu shows it there.
 SCENARIO("A player joining a conversation sees the party's highlight", "[dialogue][dialogue-race]")
 {
@@ -330,4 +377,29 @@ SCENARIO("A player joining while the NPC answers sees the pick, not the last lis
         party.As(party.Guest(), [&] { guestTalk.PlayerLeaves(); });
         party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the conversation ends");
     }
+}
+
+// A guest talks to the NPC while it answers the host's pick (dialogue-guest-joins-mid-line): its copy goes on saying the
+// line it already says; the joining menu does not start it a second time (Actor::SpeakSound 37542 stops nothing).
+SCENARIO("A player joining while the NPC answers hears its line once", "[dialogue][dialogue-race]")
+{
+    Party party(1, SmokeWorld);
+    auto& hostTalk = Talk(party.Host());
+    auto& guestTalk = Talk(party.Guest());
+    for (FakeDialogue* pTalk : {&hostTalk, &guestTalk})
+        pTalk->After = {{kThird.Topic, {kFourth}}};
+    hostTalk.LinesTakeTime = true;
+    const uint32_t npc = EveryoneTalks(party, {&party.Host()});
+    auto& guest = Party::Engine(party.Guest());
+    const uint32_t cCopy = guest.CopiesOf(kNpc)[0];
+    // The host's engine voices each line it says (Actor::SpeakSound, our hook's DialogueEvent).
+    hostTalk.OnSaid = [&](const IDialogueBridge::Option&) { party.Host().GetDispatcher().trigger(DialogueEvent(npc, "answer.fuz")); };
+    const auto cCopyLines = [&] { return std::ranges::count(guest.Lines, std::pair{cCopy, std::string("answer.fuz")}); };
+
+    party.As(party.Host(), [&] { hostTalk.PlayerPicks(2); });
+    party.Until([&] { return cCopyLines() == 1; }, "the guest's copy says the host's NPC's answer");
+    party.As(party.Guest(), [&] { guestTalk.PlayerTalksTo(cCopy); });
+    party.Until([&] { return guestTalk.MenuOpen && party.Guest().ctx().at<DialogueService>().Joined(); }, "the guest joins mid-line");
+    Settle(party);
+    CHECK(cCopyLines() == 1);
 }

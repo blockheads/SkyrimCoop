@@ -29,6 +29,16 @@ constexpr bool AskTurnForTalker(bool aTurns, bool aTalkingToPlayer, bool aSpeake
     return !aTurns && aTalkingToPlayer && aSpeaker && aTalker && aTarget == aTalker;
 }
 
+// A highlight this game's menu moved (re/systems/dialogue.md, "The mouse"): with the cursor moving it is a hover, this
+// menu's own; else W, S or the wheel moved it, the party's. The cursor and the SWF's rollover may be a frame apart.
+enum class HighlightMove { Send, Local };
+constexpr uint32_t kHoverFrames = 2;
+
+constexpr HighlightMove OnHighlightMoved(uint32_t aFramesSinceCursorMoved) noexcept
+{
+    return aFramesSinceCursorMoved <= kHoverFrames ? HighlightMove::Local : HighlightMove::Send;
+}
+
 constexpr bool CloseEndsConversation(bool aRunsWithoutMenu, bool aBartering, bool aConversation) noexcept
 {
     return !aBartering && (!aRunsWithoutMenu || !aConversation);

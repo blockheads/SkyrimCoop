@@ -1726,6 +1726,17 @@ DialogueState GetDialogue() noexcept
     state.CurrentInfo = pManager->currentTopicInfo ? pManager->currentTopicInfo->formID : 0;
     state.LastInfo = pManager->lastTopicInfo ? pManager->lastTopicInfo->formID : 0;
     state.RootInfo = pManager->rootTopicInfo ? pManager->rootTopicInfo->formID : 0;
+    const auto cInfo = [](const MenuTopicManager::Dialogue* apOption) {
+        return apOption && apOption->parentTopicInfo ? apOption->parentTopicInfo->formID : 0;
+    };
+    const auto cChoices = [](const MenuTopicManager::Dialogue* apOption) { return apOption && apOption->hasChoices && !apOption->notChoices; };
+    const MenuTopicManager::Dialogue* cpPicked = pManager->selectedResponseNode ? pManager->selectedResponseNode->data : nullptr;
+    state.PickedInfo = cInfo(cpPicked);
+    state.PickedChoices = cChoices(cpPicked);
+    state.LastSelectedInfo = cInfo(pManager->lastSelectedDialogue);
+    state.LastSelectedChoices = cChoices(pManager->lastSelectedDialogue);
+    if (TESObjectREFR* pLast = TESObjectREFR::GetByHandle(pManager->lastSpeaker))
+        state.LastSpeaker = pLast->formID;
     state.Flags = {{"greeting_player", pManager->isGreetingPlayer}, {"menu_open", pManager->menuOpen},
                    {"force_goodbye", pManager->forceGoodbye}, {"shut_menu", pManager->shutMenu},
                    {"waiting_to_advance", pManager->waitingToAdvance}, {"advance_requested", pManager->advanceRequested},

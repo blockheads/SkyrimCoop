@@ -4,6 +4,7 @@
 #include <Bridges/IDialogueBridge.h>
 #include <Messages/RelayedMessages.h>
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -95,7 +96,8 @@ private:
     void OnSkip(const NotifyDialogueSkip& acMessage) noexcept;
     // This game's player pressed through the line: every game moves on with it.
     void OnSkipAsked() noexcept;
-    // This game's highlight moved: the others' menus follow; another's move shows here once its list does.
+    // This game's highlight moved: W and S move the others' menus, the mouse only this one; another's move shows here
+    // once its list does.
     void SyncHighlight() noexcept;
     void SendHighlight(uint32_t aIndex) noexcept;
     // A refused click has already hidden the SWF list; restore it on the next update.
@@ -126,8 +128,11 @@ private:
     std::vector<std::vector<uint32_t>> m_listPlayers; // each option's: who can say it (none: everyone)
     bool m_listChoices{};
     uint32_t m_shownStep{};
-    // The highlight this game last sent or showed, and another game's waiting for this menu's list (step, index).
+    // The highlight this game's menu last showed, and another game's waiting for this menu's list (step, index).
     std::optional<uint32_t> m_highlight;
+    // Where the cursor was last frame, and the frames since it last moved (a hover is this menu's own).
+    std::optional<std::pair<float, float>> m_cursor;
+    uint32_t m_framesSinceCursorMoved = UINT32_MAX;
     std::optional<std::pair<uint32_t, uint32_t>> m_pendingHighlight;
     uint32_t m_highlightSeq = 0; // this menu's moves sent
     // The step's pick while the NPC answers it: a menu joining before the next list shows it.

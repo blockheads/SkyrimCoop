@@ -1,0 +1,55 @@
+time	op	id	rva	item
+2026-11-17T03:51:49Z	read	51504	0x92a450	{"name": "sub_14092A450"}
+2026-11-17T03:52:26Z	read	82097	0x116bbf0	{"name": "sub_14116BBF0"}
+2026-11-17T03:53:46Z	read	82307	0x116ee30	{"name": "UnkData1::NextFrame_internal"}
+2026-11-17T03:53:56Z	read	82072	0x1169070	{"name": "sub_141169070"}
+2026-11-17T03:54:00Z	name	51504	0x92a450	{"addr": "0x14092a450", "name": "DialogueMenu::ctor"}
+2026-11-17T03:54:00Z	name	82097	0x116bbf0	{"addr": "0x14116bbf0", "name": "UI::UpdateCursorMenu"}
+2026-11-17T03:54:00Z	name	82072	0x1169070	{"addr": "0x141169070", "name": "UI::ctor"}
+2026-11-17T03:54:03Z	comment	51504	0x92a450	{"addr": "0x14092a450", "comment": "51504 DialogueMenu ctor: menuFlags (+0x1C) 0x4400 = kUpdateUsesCursor|kDontHideCursorWhenTopmost, no kUsesCursor (0x4): the menu never opens the Cursor Menu itself. depth 3, inputContext 1 (MenuMode); pushes DialogueMode."}
+2026-11-17T03:54:03Z	comment	82097	0x116bbf0	{"addr": "0x14116bbf0", "comment": "82097 UI: shows the Cursor Menu (kShow) when the topmost menu (depth < 11, not flag 0x10000) has kUsesCursor (0x4), else hides it (3). Dialogue lacks 0x4, so no visible cursor in dialogue."}
+2026-11-17T03:54:03Z	comment	82072	0x1169070	{"addr": "0x141169070", "comment": "82072 UI ctor; also builds the UIMessageQueue and MenuCursor singletons. Not on the dialogue path."}
+2026-11-17T03:54:06Z	read	82073	0x11693c0	{"name": "sub_1411693C0"}
+2026-11-17T03:54:07Z	read	524278	0x117a740	{"name": "sub_14117A740"}
+2026-11-17T03:54:07Z	read		0x92a1c0	{"name": "MenuEventHandler::CanProcess_0"}
+2026-11-17T03:54:12Z	read		0x92a0b5	{"name": "CursorMenu::sub_51496"}
+2026-11-17T03:54:12Z	read		0x92a1d4	{"name": "MenuEventHandler::ProcessMouseMove"}
+2026-11-17T03:54:16Z	read	82539	0x117a340	{"name": "sub_14117A340"}
+2026-11-17T03:54:20Z	name	82073	0x11693c0	{"addr": "0x1411693C0", "name": "UI::dtor"}
+2026-11-17T03:54:20Z	name	524278	0x117a740	{"addr": "0x14117A740", "name": "MenuCursor::Center"}
+2026-11-17T03:54:20Z	name	82539	0x117a340	{"addr": "0x14117A340", "name": "MenuCursor::ProcessMouseMove"}
+2026-11-17T03:54:23Z	comment	82539	0x117a340	{"addr": "0x14117A340", "comment": "82539 MenuCursor: moves the cursor by the mouse event's deltas (+0x28/+0x2C, scaled, clamped to the safe zone; or the OS cursor) and sends the position to the Cursor Menu's movie only. Reached from MenuEventHandler::ProcessMouseMove, the Cursor Menu's handler (registered only while it is open)."}
+2026-11-17T03:54:23Z	comment	524278	0x117a740	{"addr": "0x14117A740", "comment": "524278 MenuCursor: recenters the cursor in the safe zone, tells the Cursor Menu, hides the OS cursor."}
+2026-11-17T03:54:23Z	comment	82073	0x11693c0	{"addr": "0x1411693C0", "comment": "82073 UI dtor. Not on the dialogue path."}
+2026-11-17T03:54:24Z	read		0x92935f	{"name": "sub_1409292E0"}
+2026-11-17T03:54:27Z	read	51500	0x92a220	{"name": "sub_14092A220"}
+2026-11-17T03:54:29Z	read	82306	0x116ede0	{"name": "UnkData1::ProcessMessage_internal"}
+2026-11-17T03:54:33Z	read	82182	0x116eca0	{"name": "SendScaleformEvent"}
+2026-11-17T03:54:43Z	read	52387	0x96b4e0	{"name": "MenuEventHandler::ProcessMouseMove_2"}
+2026-11-17T03:54:43Z	read	52311	0x965340	{"name": "MenuEventHandler::ProcessMouseMove_1"}
+2026-11-17T03:55:05Z	read		0x116f02c	{"name": "UnkData1::InitMovie_internal"}
+2026-11-17T03:55:29Z	comment	82310	0x116ef00	{"addr": "0x14116ef00", "comment": "82310 IMenu::RefreshPlatform (SKSE InitMovie_internal): _root.SetPlatform(gamepad?, false). A menu with kUpdateUsesCursor (0x400, the Dialogue Menu's) gets kUsesCursor (0x4) on keyboard/mouse and the Cursor Menu shown; on a gamepad (or input context 15) 0x4 cleared and the cursor hidden. So on PC the dialogue menu shows the cursor and hovering an option selects it (BSScrollingList onRollOver)."}
+2026-11-17T04:10:46Z	read		0x67a9d0	{"name": "Actor::Update"}
+2026-11-17T04:11:15Z	comment	37542	0x68d490	{"addr": "0x14068d490", "comment": "From 1.6.1170 (instruction offsets require review): Plays a voice file for the actor (lip data, sound handle, output model), queues the line (soundCallBackSet 3). Callers: DialogueResponse processing (39643 path), Actor::UpdateInDialogue, combat grunts (0x8022B0), console SpeakSound. SkyrimCoop: HookSpeakSoundFunction, and copies' NotifyDialogue lines.\n1.7.104 (2026-11-16): the caller's handle (a3) gets the new sound (GetSoundHandleByFile, SetObjectToFollow, played); nothing here stops a line already playing on the actor, so callers stop it first (ActorStopCurrentDialogue, as NotifyDialogue's path does)."}
+2026-11-17T04:36:41Z	read	35287	0x5f04b0	{"name": "MenuTopicManager::BuildList"}
+2026-11-17T04:37:25Z	comment	35287	0x5f04b0	{"addr": "0x1405f04b0", "comment": "35287 BuildList. Source node: selectedResponseNode (+0x18) else lastSelectedDialogue (+0x38). When that Dialogue has choices (+0x10) and is not +0x48: rootTopicInfo (+0x30) = its info and the list is the info's choices (one AddTopic each, +0x4A for the one already said); else the speaker's own topic (vfunc 0x268) or the top-level topics (35276). So a list rebuilt without the greeting's node shows the top level, not the greeting's choices. Read 2026-11-16 (dialogue-polish)."}
+2026-11-17T04:37:25Z	comment	35282	0x5ef4c0	{"addr": "0x1405ef4c0", "comment": "35282 StartDialogue (manager, speaker, ?, greetingInfo, noAdvance). Ends another speaker's conversation (35294), clears (35274), pushes a new Dialogue for the greeting onto dialogueList (+0x20) and another as lastSelectedDialogue (+0x38); without the info's flag 1 points selectedResponseNode (+0x18) at it and says it (SaySelected 35283 with noAdvance). BuildList, then the menu (52853) and, unless noAdvance, Advance (35285). A start while the speaker still voices a line: SaySelected leaves the line (greetings do not stop it) and the advance waits for Update (35289). Read 2026-11-16 (dialogue-polish)."}
+2026-11-17T13:26:13Z	read	35272	0x5ee850	{"name": "MenuTopicManager::Handle"}
+2026-11-17T13:26:17Z	read	35294	0x5f0ad0	{"name": "MenuTopicManager::EndDialogue"}
+2026-11-17T13:26:44Z	comment	35294	0x5f0ad0	{"addr": "0x1405f0ad0", "comment": "EndDialogue. Reads the speaker through its handle; does nothing without one. Called by UpdateInDialogue's no-process exit, which then faults on the null process at 0x14068d412.\n35294 (read 2026-11-17, dialogue-polish): a speaker still talking with a current info (+0x70) keeps it: its handle to +0x6C and the info to +0x78 (StartDialogue ends that info only for another speaker). Left from a choices list (rootTopicInfo +0x30) without forceGoodbye (+0xB2): the speaker's walkaway topic (35321, ' %s  walkaway topic is running') is said through its AI process (0x1406F4820), outside the menu manager; else Story Manager event 7/78. Then clears the manager (35274)."}
+2026-11-17T13:43:52Z	read	35275	0x5eec80	{"name": "MenuTopicManager::sub_35275"}
+2026-11-17T13:43:52Z	read	35269	0x5ee6d0	{"name": "MenuTopicManager::sub_35269"}
+2026-11-17T13:44:05Z	comment	35275	0x5eec80	{"addr": "0x1405eec80", "comment": "35275 (list, all): clears the conversation's list under the critical section; first sets selectedResponseNode (+0x18) to 0 and +0xB4 to 0 (all: skipHeadResponse +0xB7 too). BuildList 35287 reads its source node before calling it, so after any build nothing is picked. Read 2026-11-17 (dialogue-polish)."}
+2026-11-17T13:44:05Z	comment	35269	0x5ee6d0	{"addr": "0x1405ee6d0", "comment": "35269 SelectDialogue(manager, index): selectedResponseNode (+0x18) = the index-th node of dialogueList (after the head when skipHeadResponse); the speaker's current topic set for it. True when the node holds an option. Read 2026-11-17 (dialogue-polish)."}
+2026-11-17T13:46:20Z	read		0x5ee600	{"name": "sub_1405EE4D0"}
+2026-11-17T13:46:29Z	comment	35266	0x5ee4d0	{"addr": "0x1405ee4d0", "comment": "MenuTopicManager destructor: clears (35274), unregisters its sinks, frees its arrays. Not on the dialogue path (read by mistake, 2026-11-17)."}
+2026-11-17T13:46:29Z	comment	51486	0x9292e0	{"addr": "0x1409292e0", "comment": "CreditsMenu destructor: releases its code object, tells the Cursor Menu. Not on the dialogue path (read via MenuCursor xrefs, 2026-11-16)."}
+2026-11-17T13:46:29Z	comment	51500	0x92a220	{"addr": "0x14092a220", "comment": "51500 CursorMenu: pops every input context, then pushes the Cursor context (9) unless the user event already maps. Not on the dialogue path (read 2026-11-16)."}
+2026-11-17T13:46:30Z	read	35267	0x5ee620	{"name": "MenuTopicManager::sub_35267"}
+2026-11-17T13:46:31Z	read	35268	0x5ee6a0	{"name": "MenuTopicManager::sub_35268"}
+2026-11-17T13:46:54Z	comment	35267	0x5ee620	{"addr": "0x1405ee620", "comment": "35267 FirstOption(manager, skipHidden): a cursor, not a question: sets selectedResponseNode (+0x18) to dialogueList's first node (after the head with skipHeadResponse; skipHidden: past topics of subtype 1); true when it holds an option. The menu's fill (51515) walks it with 35268 to the end, leaving +0x18 null; a caller that stops here leaves +0x18 on the first option, and the next BuildList (35287) lists that option's choices. Read 2026-11-17 (dialogue-polish)."}
+2026-11-17T13:46:54Z	comment	35268	0x5ee6a0	{"addr": "0x1405ee6a0", "comment": "35268 NextOption: selectedResponseNode (+0x18) = its next node; true when that holds an option. Past the last, +0x18 is null. Read 2026-11-17 (dialogue-polish)."}
+2026-11-17T13:46:55Z	name	35267	0x5ee620	{"addr": "0x1405ee620", "name": "MenuTopicManager::FirstOption"}
+2026-11-17T13:46:55Z	name	35268	0x5ee6a0	{"addr": "0x1405ee6a0", "name": "MenuTopicManager::NextOption"}
+2026-11-17T13:46:55Z	name	35269	0x5ee6d0	{"addr": "0x1405ee6d0", "name": "MenuTopicManager::SelectDialogue"}
+2026-11-17T13:46:55Z	name	35275	0x5eec80	{"addr": "0x1405eec80", "name": "MenuTopicManager::ClearList"}

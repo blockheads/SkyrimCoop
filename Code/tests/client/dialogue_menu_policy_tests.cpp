@@ -43,3 +43,13 @@ TEST_CASE("The speaker's body turns to the talker the host names as it would to 
     CHECK_FALSE(AskTurnForTalker(false, true, true, 0x14, 0));            // this game's player talks
     CHECK_FALSE(AskTurnForTalker(false, true, true, 0xFF000900, cGuest)); // looks at someone else
 }
+
+TEST_CASE("W, S and the wheel move the party's highlight; a hover only its own menu's", "[dialogue]")
+{
+    using DialogueMenuPolicy::HighlightMove;
+    using DialogueMenuPolicy::OnHighlightMoved;
+    CHECK(OnHighlightMoved(0) == HighlightMove::Local);           // the cursor moved this frame
+    CHECK(OnHighlightMoved(DialogueMenuPolicy::kHoverFrames) == HighlightMove::Local); // the rollover a frame behind it
+    CHECK(OnHighlightMoved(DialogueMenuPolicy::kHoverFrames + 1) == HighlightMove::Send);
+    CHECK(OnHighlightMoved(UINT32_MAX) == HighlightMove::Send);  // no cursor moved since the menu opened
+}

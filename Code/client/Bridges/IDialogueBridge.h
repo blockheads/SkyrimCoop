@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 /// The player's conversation in the engine (MenuTopicManager, DialogueMenu). No SKSE types.
@@ -107,6 +108,8 @@ public:
 
     /// The highlighted option's place in the list (none: no menu, or no list shown).
     virtual std::optional<uint32_t> GetHighlight() const noexcept = 0;
-    /// Highlights the option at that place, as the keys would.
+    /// Highlights the option at that place, as the keys would: no row under a resting cursor takes it over.
     virtual void SetHighlight(uint32_t aIndex) noexcept = 0;
+    /// Where the menus' cursor is (none: no menu).
+    virtual std::optional<std::pair<float, float>> GetCursor() const noexcept = 0;
 };

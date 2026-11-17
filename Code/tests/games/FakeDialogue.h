@@ -245,13 +245,23 @@ struct FakeDialogue final : IDialogueBridge
         PickedText = acText;
         return true;
     }
-    // The listed option with this line, else that line built (as DialogueBridge::PickOption).
     // The menu's highlight: the player moves it (W/S, the mouse), the service sets it.
     std::optional<uint32_t> Highlight;
+    // The menus' cursor (MenuCursor 403551; shown in dialogue with keyboard and mouse, 82310). W, S and SetHighlight
+    // recentre the list without moving it; a hover moves it and highlights the row (onRollOver). SetHighlight holds the
+    // rows' rollover while it recentres (DialogueBridge), so a row sliding under a resting cursor takes nothing.
+    std::pair<float, float> Cursor{640.f, 360.f};
     void PlayerHighlights(uint32_t aIndex)
     {
         if (MenuOpen && ListShown && aIndex < Options.size())
             Highlight = aIndex;
+    }
+    void PlayerHovers(uint32_t aIndex)
+    {
+        if (!MenuOpen || !ListShown || aIndex >= Options.size())
+            return;
+        Cursor = {900.f, 400.f + 40.f * static_cast<float>(aIndex)};
+        Highlight = aIndex;
     }
     std::optional<uint32_t> GetHighlight() const noexcept override
     {
@@ -261,6 +271,10 @@ struct FakeDialogue final : IDialogueBridge
     {
         if (MenuOpen && aIndex < Options.size())
             Highlight = aIndex;
+    }
+    std::optional<std::pair<float, float>> GetCursor() const noexcept override
+    {
+        return MenuOpen ? std::optional(Cursor) : std::nullopt;
     }
     void SkipLine() noexcept override
     {
