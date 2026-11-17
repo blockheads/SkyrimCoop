@@ -43,6 +43,20 @@ uint32_t DevToolsBridge::KillHostiles() noexcept
     return static_cast<uint32_t>(hostile.size());
 }
 
+bool DevToolsBridge::IsGodMode() noexcept
+{
+    using TIsInGodMode = bool();
+    POINTER_SKYRIMSE(TIsInGodMode, s_isInGodMode, 40501);
+    return s_isInGodMode.Get()();
+}
+
+void DevToolsBridge::SetGodMode(bool aOn) noexcept
+{
+    using TSetGodMode = void(bool);
+    POINTER_SKYRIMSE(TSetGodMode, s_setGodMode, 40500); // PlayerCharacter::SetGodMode
+    s_setGodMode.Get()(aOn);
+}
+
 void DevToolsBridge::SetKillMoveOdds(std::optional<uint8_t> aOdds) noexcept
 {
     KillMoveOdds::Set(aOdds);

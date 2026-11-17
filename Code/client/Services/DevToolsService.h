@@ -35,7 +35,6 @@ struct DevToolsService
     World& m_world;
     TransportService& m_transport;
     IDevToolsBridge& m_bridge;
-    DevCommands::PlayerState m_state;
 
     std::vector<entt::scoped_connection> m_connections;
 };

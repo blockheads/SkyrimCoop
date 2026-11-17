@@ -16,7 +16,8 @@ What the dev chat commands rely on (`docs/design/dev-commands.md`). 1.7.104, rea
 - `GameFunc::native::IsLastHostileActor` (21743): 1.0 when `ProcessLists::AreHostileActorsNear` finds none, or exactly
   one and it is the subject.
 
-`KillMoveOdds` hooks both condition functions and rewrites the result only while odds are set. Measured 2026-11-16: at
+`KillMoveOdds` hooks both condition functions and rewrites the result only while odds are set. The roll is kept per
+attacker and target for a second (`DevCommands::KillMoveRolls`): the idle tree asks the conditions many times a swing. Measured 2026-11-16: at
 100 the guest's idle tree picked `pa_KillMove1HMWolfB`/`A`; at 0 it picked none.
 
 ## Gravity and jump (read)
@@ -24,11 +25,25 @@ What the dev chat commands rely on (`docs/design/dev-commands.md`). 1.7.104, rea
 - `bhkCharacterStateInAir::Simulate` (80098, named here): while falling, the gravity mult is the INI setting
   `fInAirFallingCharGravityMult:Havok` (default 1.35, read live each step); rising it is 1.0. Velocity += world gravity
   (`bhkWorld` 77838) * mult * controller gravity scale (+0x248) * dt.
-- `fJumpHeightMin` (GMST, 76 in Skyrim.esm; 64 in the executable) is read at each jump by `Actor::Jump` and
-  `JumpAnimEventHandler::Handle`.
+- `fJumpHeightMin` (GMST, 76 in Skyrim.esm; 64 in the executable) is read at each jump: `JumpAnimEventHandler::Handle`
+  (42892) passes `fJumpHeightMin * scale` (times another GMST in character state 5) to `bhkCharacterController::Jump`
+  (78262, named here); `Actor::Jump` (37257) does the same for its own jump.
 
 So `/gravity x` scales the fall by x and the jump height by 1/x (rising gravity stays the world's). Measured: `getini`
 0.41 and `getgs` 253.33 after `/gravity 0.3`, in both games.
+
+## Speed (inferred)
+
+`/speed` sets `SpeedMult` and then changes carry weight up and down. The carry-weight step is the community's way to
+make a new `SpeedMult` apply (UESP, "SpeedMult"); it is not read here. What was read: `ActorValueList::InitActorValues`
+gives `SpeedMult` (0x1E) and `CarryWeight` (0x20) no callback, so nothing re-reads `SpeedMult` when it is set.
+Measured: `SpeedMult` read back 200 in both games after `/speed 2`; the walking speed itself was not measured.
+
+## God mode (read)
+
+The console's `tgm` (22814) is `PlayerCharacter::SetGodMode(!IsInGodMode())` (40500, 40501), one byte. `/god` calls
+the two directly: `/god on|off` sets it whatever was on (the console, `profile --load`, a game swapped in) and `/reset`
+clears it.
 
 ## killall (read)
 

@@ -235,7 +235,7 @@ std::optional<std::string> ConsoleName(uint32_t aFormId, uint32_t aPlayerFormId)
     return name[0] >= 'A' && name[0] <= 'F' ? std::optional(std::move(name)) : std::nullopt;
 }
 
-std::vector<std::string> PlayerLines(const Command& acCommand, PlayerState& aState) noexcept
+std::vector<std::string> PlayerLines(const Command& acCommand) noexcept
 {
     std::vector<std::string> lines;
     const auto cSpeed = [&](float aMult) {
@@ -243,27 +243,17 @@ std::vector<std::string> PlayerLines(const Command& acCommand, PlayerState& aSta
         // The engine applies a new speed with the next carry weight change.
         lines.push_back("player.modav carryweight 1");
         lines.push_back("player.modav carryweight -1");
-        aState.Speed = aMult != 1.f;
     };
     const auto cGravity = [&](float aMult) {
         // Falling takes the INI's gravity (80098), rising the world's: the jump reaches the height that gravity gives.
         lines.push_back(std::format("setini \"fInAirFallingCharGravityMult:Havok\" {}", Number(cFallGravity * aMult)));
         lines.push_back(std::format("setgs fJumpHeightMin {}", Number(cJumpHeight / aMult)));
-        aState.Gravity = aMult != 1.f;
     };
     switch (acCommand.What)
     {
     case Kind::Heal:
         for (const char* cpValue : {"health", "magicka", "stamina"})
             lines.push_back(std::format("player.restoreav {} 100000", cpValue));
-        break;
-    case Kind::God:
-        // tgm toggles: only a change sends it.
-        if (acCommand.On.value_or(!aState.God) != aState.God)
-        {
-            lines.push_back("tgm");
-            aState.God = !aState.God;
-        }
         break;
     case Kind::Speed:
         cSpeed(acCommand.Value);
@@ -298,16 +288,11 @@ std::vector<std::string> PlayerLines(const Command& acCommand, PlayerState& aSta
         lines.push_back(std::format("player.additem {:X} {}", cLootBox, acCommand.Count));
         break;
     case Kind::Reset:
-        if (aState.God)
-        {
-            lines.push_back("tgm");
-            aState.God = false;
-        }
-        if (aState.Speed)
-            cSpeed(1.f);
-        if (aState.Gravity)
-            cGravity(1.f);
+        // Whatever set them: a command, the console, or a game since reloaded.
+        cSpeed(1.f);
+        cGravity(1.f);
         break;
+    case Kind::God:
     case Kind::KillMove:
     case Kind::Spawn:
     case Kind::KillAll:
@@ -330,6 +315,15 @@ std::vector<std::string> WorldLines(const Command& acCommand, std::string_view a
     }
 }
 
+std::optional<bool> GodAfter(const Command& acCommand, bool aNow) noexcept
+{
+    if (acCommand.What == Kind::Reset)
+        return false;
+    if (acCommand.What == Kind::God)
+        return acCommand.On.value_or(!aNow);
+    return std::nullopt;
+}
+
 bool ShouldAttackKill(bool aFatal, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept
 {
     return aOdds ? aFatal && aRoll < *aOdds : aFatal;
@@ -339,5 +333,23 @@ bool IsLastHostileActor(bool aLast, std::optional<uint8_t> aOdds) noexcept
 {
     // With odds set a kill move may finish any enemy, not only the last (vanilla's rule).
     return aOdds ? true : aLast;
+}
+} // namespace DevCommands
+
+namespace DevCommands
+{
+uint32_t KillMoveRolls::Roll(uint64_t aAttacker, uint64_t aTarget, uint64_t aNowMs,
+                             const std::function<uint32_t()>& acDraw) noexcept
+{
+    constexpr uint64_t cHoldMs = 1000;
+    constexpr size_t cMaxEntries = 64;
+    std::erase_if(m_entries, [&](const Entry& acEntry) { return aNowMs - acEntry.AtMs >= cHoldMs; });
+    for (const auto& cEntry : m_entries)
+        if (cEntry.Attacker == aAttacker && cEntry.Target == aTarget)
+            return cEntry.Roll;
+    if (m_entries.size() >= cMaxEntries)
+        m_entries.erase(m_entries.begin());
+    m_entries.push_back({aAttacker, aTarget, aNowMs, acDraw()});
+    return m_entries.back().Roll;
 }
 } // namespace DevCommands

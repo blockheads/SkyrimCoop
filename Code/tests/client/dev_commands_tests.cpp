@@ -47,8 +47,7 @@ TEST_CASE("Dev commands: a world command is the host's; every player command run
     CHECK(WorldLines(*Parse("/spawn dragon").Run, "player") == std::vector<std::string>{"player.placeatme 5EACF 1"});
     CHECK(WorldLines(*Parse("/weather storm").Run, "player") == std::vector<std::string>{"fw C8220"});
     CHECK(IsWorld(Parse("/killall").Run->What));
-    PlayerState state;
-    CHECK(PlayerLines(*cSpawn, state).empty());
+    CHECK(PlayerLines(*cSpawn).empty());
 
     for (const char* cpLine :
          {"/heal", "/god", "/speed 2", "/gravity 0.5", "/shouts", "/gear", "/lootbox", "/killmove 50", "/reset"})
@@ -63,53 +62,65 @@ TEST_CASE("Dev commands: a world command is the host's; every player command run
 
 TEST_CASE("Dev commands: each game's console lines on its own player", "[dev-commands]")
 {
-    PlayerState state;
-    const auto cHeal = PlayerLines(*Parse("/heal").Run, state);
+    const auto cHeal = PlayerLines(*Parse("/heal").Run);
     CHECK(cHeal == std::vector<std::string>{"player.restoreav health 100000", "player.restoreav magicka 100000",
                                             "player.restoreav stamina 100000"});
 
-    const auto cSpeed = PlayerLines(*Parse("/speed 2.5").Run, state);
+    const auto cSpeed = PlayerLines(*Parse("/speed 2.5").Run);
     CHECK(cSpeed.front() == "player.setav speedmult 250.000");
     CHECK(Has(cSpeed, "player.modav carryweight 1"));
-    CHECK(state.Speed);
 
     // Gravity scales falling (the INI's 1.35) and the jump to the height that gravity gives (fJumpHeightMin 76).
-    const auto cGravity = PlayerLines(*Parse("/gravity 0.5").Run, state);
+    const auto cGravity = PlayerLines(*Parse("/gravity 0.5").Run);
     CHECK(cGravity == std::vector<std::string>{"setini \"fInAirFallingCharGravityMult:Havok\" 0.675",
                                                "setgs fJumpHeightMin 152.000"});
 
-    const auto cShouts = PlayerLines(*Parse("/shouts").Run, state);
+    const auto cShouts = PlayerLines(*Parse("/shouts").Run);
     CHECK(cShouts.size() == 20 * 7 + 1);
     CHECK(Has(cShouts, "player.addshout 13E07"));
     CHECK(Has(cShouts, "player.teachword 13E22"));
     CHECK(Has(cShouts, "player.unlockword 5FB97"));
     CHECK(cShouts.back() == "player.setav shoutrecoverymult 0");
 
-    const auto cGlass = PlayerLines(*Parse("/gear glass").Run, state);
+    const auto cGlass = PlayerLines(*Parse("/gear glass").Run);
     CHECK(Has(cGlass, "player.additem 139BE 50"));
     CHECK(Has(cGlass, "player.equipitem 139A5"));
-    CHECK(PlayerLines(*Parse("/lootbox 3").Run, state) == std::vector<std::string>{"player.additem E88 3"});
-    CHECK(PlayerLines(*Parse("/killmove 100").Run, state).empty());
+    CHECK(PlayerLines(*Parse("/lootbox 3").Run) == std::vector<std::string>{"player.additem E88 3"});
+    CHECK(PlayerLines(*Parse("/killmove 100").Run).empty());
 }
 
-TEST_CASE("Dev commands: god toggles once per change; reset undoes what is on", "[dev-commands]")
+TEST_CASE("Dev commands: god follows the engine's own; reset turns everything back whatever set it", "[dev-commands]")
 {
-    PlayerState state;
-    CHECK(PlayerLines(*Parse("/god").Run, state) == std::vector<std::string>{"tgm"});
-    CHECK(state.God);
-    CHECK(PlayerLines(*Parse("/god on").Run, state).empty());
-    CHECK(PlayerLines(*Parse("/god off").Run, state) == std::vector<std::string>{"tgm"});
-    CHECK_FALSE(state.God);
-    CHECK(PlayerLines(*Parse("/reset").Run, state).empty());
+    // The engine's god mode may be on already (the console's tgm, a harness, a game swapped in).
+    CHECK(GodAfter(*Parse("/god").Run, false) == true);
+    CHECK(GodAfter(*Parse("/god").Run, true) == false);
+    CHECK(GodAfter(*Parse("/god on").Run, true) == true);
+    CHECK(GodAfter(*Parse("/god off").Run, true) == false);
+    CHECK(GodAfter(*Parse("/god off").Run, false) == false);
+    CHECK(GodAfter(*Parse("/reset").Run, true) == false);
+    CHECK_FALSE(GodAfter(*Parse("/heal").Run, true));
+    CHECK(PlayerLines(*Parse("/god").Run).empty());
 
-    (void)PlayerLines(*Parse("/god on").Run, state);
-    (void)PlayerLines(*Parse("/gravity 0.2").Run, state);
-    const auto cReset = PlayerLines(*Parse("/reset").Run, state);
-    CHECK(cReset == std::vector<std::string>{"tgm", "setini \"fInAirFallingCharGravityMult:Havok\" 1.350",
-                                             "setgs fJumpHeightMin 76.000"});
-    CHECK_FALSE(state.God);
-    CHECK_FALSE(state.Gravity);
-    CHECK(PlayerLines(*Parse("/reset").Run, state).empty());
+    const auto cReset = PlayerLines(*Parse("/reset").Run);
+    CHECK(cReset == std::vector<std::string>{
+                        "player.setav speedmult 100.000", "player.modav carryweight 1", "player.modav carryweight -1",
+                        "setini \"fInAirFallingCharGravityMult:Havok\" 1.350", "setgs fJumpHeightMin 76.000"});
+}
+
+TEST_CASE("Dev commands: one kill move roll per attacker and target a second, whatever is asked between",
+          "[dev-commands][kill-move]")
+{
+    KillMoveRolls rolls;
+    uint32_t draws = 0;
+    const auto cDraw = [&] { return 10 * ++draws; };
+    CHECK(rolls.Roll(1, 2, 0, cDraw) == 10);   // A
+    CHECK(rolls.Roll(3, 4, 100, cDraw) == 20); // B
+    CHECK(rolls.Roll(1, 2, 200, cDraw) == 10); // A again: its own roll
+    CHECK(rolls.Roll(3, 4, 900, cDraw) == 20);
+    CHECK(draws == 2);
+    // A second after its roll, A rolls again.
+    CHECK(rolls.Roll(1, 2, 1000, cDraw) == 30);
+    CHECK(draws == 3);
 }
 
 TEST_CASE("Dev commands: kill move odds answer the two conditions; none leaves the game's own",

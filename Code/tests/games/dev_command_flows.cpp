@@ -79,3 +79,21 @@ SCENARIO("/killmove and /reset reach every game's kill move odds", "[dev-command
     party.Until([&] { return !Tools(party.Host()).KillMoveOdds && !Tools(party.Guest()).KillMoveOdds; },
                 "both games are back to the game's own odds");
 }
+
+SCENARIO("/god follows each game's own god mode: on stays on, a toggle turns it off, reset clears it", "[dev-commands]")
+{
+    Party party(1, SmokeWorld);
+    // The host's player is in god mode already (the console's tgm, as profile --load sets it).
+    party.As(party.Host(), [&] { Tools(party.Host()).God = true; });
+
+    party.As(party.Guest(), [&] { party.Guest().ctx().at<DevToolsService>().Run("/god on"); });
+    party.Until([&] { return Tools(party.Guest()).God; }, "the guest's player is in god mode");
+    CHECK(Tools(party.Host()).God);
+
+    party.As(party.Guest(), [&] { party.Guest().ctx().at<DevToolsService>().Run("/god"); });
+    party.Until([&] { return !Tools(party.Host()).God && !Tools(party.Guest()).God; }, "the toggle turns both off");
+
+    party.As(party.Host(), [&] { Tools(party.Host()).God = true; });
+    party.As(party.Host(), [&] { party.Host().ctx().at<DevToolsService>().Run("/reset"); });
+    party.Until([&] { return !Tools(party.Host()).God; }, "reset turns the host's god mode off");
+}

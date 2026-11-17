@@ -16,3 +16,28 @@ time	op	id	rva	item
 2026-11-17T04:09:49Z	read	173942	0x17b50f0	{"name": "sub_1417B50F0"}
 2026-11-17T04:33:50Z	name	441586	0x34f780	{"addr": "0x14034f780", "name": "ConsoleFunc::KillAllActors"}
 2026-11-17T04:33:51Z	comment	441586	0x34f780	{"addr": "0x14034f780", "comment": "Console command killall (AddressLib ID 441586): queues Actor::QueueKill for every actor in ProcessLists' high actor handles (+0x30, count +0x40), players' copies and followers included; prints \"KillAllActors: Found %i Actors\" in console mode."}
+2026-11-17T05:08:24Z	read		0x675284	{"name": "Actor::Jump"}
+2026-11-17T05:08:24Z	read		0x7cf220	{"name": "JumpAnimEventHandler::Handle"}
+2026-11-17T05:08:32Z	read	42892	0x7cf1e0	{"name": "JumpAnimEventHandler::Handle"}
+2026-11-17T05:08:37Z	name	78262	0x10645e0	{"addr": "0x1410645e0", "name": "bhkCharacterController::Jump"}
+2026-11-17T05:08:40Z	comment	42892	0x7cf1e0	{"addr": "0x1407cf1e0", "comment": "[re]\nAddressLib ID 42892\nJumpAnimEventHandler::Handle: jump height = fJumpHeightMin (read here, 0x1420A8960) * the actor's scale, times the GMST at 0x1420A8978 in character state 5 unless flags2 bit 1; then bhkCharacterController::Jump (78262) with that height. Not on a mount."}
+2026-11-17T05:08:40Z	comment		0x675130	{"addr": "0x140675130", "comment": "[re]\nAddressLib ID 37257\nActor::Jump: the controlling actor's jump action (the player's: the jump control); its own jump height from fJumpHeightMin * scale, as JumpAnimEventHandler::Handle (42892), to bhkCharacterController::Jump (78262)."}
+2026-11-17T05:08:50Z	comment	37257	0x675110	{"addr": "0x140675110", "comment": "[re]\nAddressLib ID 37257\nActor::Jump: the controlling actor's jump action (the player's: the jump control); its own jump height from fJumpHeightMin * scale, as JumpAnimEventHandler::Handle (42892), to bhkCharacterController::Jump (78262)."}
+2026-11-17T05:08:50Z	comment		0x675130	{"addr": "0x140675130", "comment": ""}
+2026-11-17T05:09:08Z	read		0x4439d6	{"name": "sub_140443660"}
+2026-11-17T05:09:14Z	read	37456	0x6860b0	{"name": "sub_1406860B0"}
+2026-11-17T05:09:30Z	read		0x33d02d	{"name": "GameFunc::native::GetMovementSpeed"}
+2026-11-17T05:09:41Z	name	27232	0x443660	{"addr": "0x140443660", "name": "ActorValueList::InitActorValues"}
+2026-11-17T05:09:41Z	name	37456	0x6860b0	{"addr": "0x1406860B0", "name": "ActorValueOwner::InventoryWeightCallback"}
+2026-11-17T05:09:41Z	name	173942	0x17b50f0	{"addr": "0x1417B50F0", "name": "Init_fInAirFallingCharGravityMult"}
+2026-11-17T05:09:44Z	comment	27232	0x443660	{"addr": "0x140443660", "comment": "Registers each actor value (sub_140445550: list, index, name, flags, getter callback): SpeedMult 0x1E and CarryWeight 0x20 have no callback, InventoryWeight 0x1F reads TESObjectREFR::GetWeightInContainer. Read for /speed (docs/re/systems/dev-commands.md): nothing here re-reads SpeedMult when it changes."}
+2026-11-17T05:09:44Z	comment	37456	0x6860b0	{"addr": "0x1406860B0", "comment": "InventoryWeight's actor value callback (ID 37456): the owner's (this - 0xB8) TESObjectREFR::GetWeightInContainer."}
+2026-11-17T05:09:44Z	comment	173942	0x17b50f0	{"addr": "0x1417B50F0", "comment": "Static init (ID 173942) of the INI setting fInAirFallingCharGravityMult:Havok (1.35), registered with the Skyrim.ini collection."}
+2026-11-17T05:09:44Z	comment		0x33cfe0	{"addr": "0x14033cfe0", "comment": "[re]\nAddressLib ID 21710\nGetMovementSpeed: the actor's movement interface (+0xC0) vfunc +0x28, its current speed."}
+2026-11-17T05:09:59Z	read		0x36e325	{"name": "ConsoleFunc::handler::ToggleGodMode"}
+2026-11-17T05:10:04Z	read	22814	0x36e2f0	{"name": "ConsoleFunc::handler::ToggleGodMode"}
+2026-11-17T05:10:19Z	read	40500	0x74a4c0	{"name": "PlayerCharacter::SetGodMode"}
+2026-11-17T05:10:19Z	read	40501	0x74a4d0	{"name": "IsInGodMode"}
+2026-11-17T05:10:31Z	comment	40500	0x74a4c0	{"addr": "0x14074a4c0", "comment": "[re]\nAddressLib ID 40500\nPlayerCharacter::SetGodMode(bool): writes the god mode byte (g_godMode). The console's tgm (22814) sets it to !IsInGodMode (40501). /god calls it directly."}
+2026-11-17T05:10:31Z	comment	40501	0x74a4d0	{"addr": "0x14074a4d0", "comment": "[re]\nAddressLib ID 40501\nIsInGodMode: the god mode byte (g_godMode)."}
+2026-11-17T05:10:31Z	comment	22814	0x36e2f0	{"addr": "0x14036e2f0", "comment": "[re]\nAddressLib ID 22814\nConsole tgm: PlayerCharacter::SetGodMode(!IsInGodMode()), prints God Mode enabled/disabled."}

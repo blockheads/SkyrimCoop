@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3572** distinct engine addresses used; **250** have code in CommonLib or SKSE; **2928** have no community name at all.
+- **3574** distinct engine addresses used; **251** have code in CommonLib or SKSE; **2928** have no community name at all.
 - **254** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -43,8 +43,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 20123 | `0x2fdeb0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `RealUpdateAnimationGraphs` | [Animation.cpp:314](../../Code/client/Games/Animation.cpp#L314) |  |
 | 20232 | `0x301750` | `TESObjectREFR::PickLeveledBase` | IDA meh | hook → `HookPickLeveledBase` | `RealPickLeveledBase` | [TESObjectREFR.cpp:1480](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1480) |  |
 | 21622 | `0x3394e0` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `RealHasPerk` | [MagicTarget.cpp:236](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L236) |  |
-| 21743 | `0x33e840` | `GameFunc::native::IsLastHostileActor` | IDA meh | hook → `HookIsLastHostileActor` | `RealIsLastHostileActor` | [KillMoveOdds.cpp:70](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L70) |  |
-| 21744 | `0x33e920` | `GameFunc::native::ShouldAttackKill` | IDA meh | hook → `HookShouldAttackKill` | `RealShouldAttackKill` | [KillMoveOdds.cpp:69](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L69) |  |
+| 21743 | `0x33e840` | `GameFunc::native::IsLastHostileActor` | IDA meh | hook → `HookIsLastHostileActor` | `RealIsLastHostileActor` | [KillMoveOdds.cpp:62](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L62) |  |
+| 21744 | `0x33e920` | `GameFunc::native::ShouldAttackKill` | IDA meh | hook → `HookShouldAttackKill` | `RealShouldAttackKill` | [KillMoveOdds.cpp:61](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L61) |  |
 | 22053 | `0x3508d0` | `TESObjectREFR::SetPositionOnAxis` | IDA meh | hook → `HookSetPositionOnAxis` | `RealSetPositionOnAxis` | [TESObjectREFR.cpp:1474](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1474) |  |
 | 22054 | `0x350a40` | `TESObjectREFR::SetRotation` | IDA meh | hook → `HookSetAngleOnAxis` | `RealSetAngleOnAxis` | [TESObjectREFR.cpp:1475](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1475) |  |
 | 23329 | `0x386320` | `?` | - | hook → `HookOperation` | `RealOperation` | [GlobalEvents.cpp:88](../../Code/client/Games/Skyrim/GlobalEvents.cpp#L88) | **undocumented** |
@@ -334,6 +334,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 40417 | `0x7415a0` | `PlayerCharacter::StopSleepWait` | IDA meh | call | `s_stop` | [WaitBridge.cpp:99](../../Code/client/Bridges/WaitBridge.cpp#L99) |  |
 | 40485 | `0x749560` | `PlayerCharacter::WaitStep` | IDA CL PL meh | hook → `HookStep` | `RealStep` | [WaitBridge.cpp:131](../../Code/client/Bridges/WaitBridge.cpp#L131) |  |
 | 40496 | `0x749ed0` | `?` | - | hook → `HookTurnToSpeaker` | `RealTurnToSpeaker` | [DialogueBridge.cpp:425](../../Code/client/Bridges/DialogueBridge.cpp#L425) | **undocumented** |
+| 40500 | `0x74a4c0` | `PlayerCharacter::SetGodMode` | IDA CL meh | call | `s_setGodMode` | [DevToolsBridge.cpp:56](../../Code/client/Bridges/DevToolsBridge.cpp#L56) |  |
+| 40501 | `0x74a4d0` | `IsInGodMode` | IDA PL meh | call | `s_isInGodMode` | [DevToolsBridge.cpp:49](../../Code/client/Bridges/DevToolsBridge.cpp#L49) |  |
 | 40641 | `0x7591a0` | `PlayerCharacter::GetCrimeGoldValue` | IDA meh | data | `get` | [CrimeBridge.cpp:331](../../Code/client/Bridges/CrimeBridge.cpp#L331) |  |
 | 40641 | `0x7591a0` | `PlayerCharacter::GetCrimeGoldValue` | IDA meh | data | `get` | [CrimeBridge.cpp:817](../../Code/client/Bridges/CrimeBridge.cpp#L817) |  |
 | 40659 | `0x75a660` | `PlayerCharacter::PayFine` | meh | hook → `HookPayFine` | `RealPayFine` | [CrimeBridge.cpp:611](../../Code/client/Bridges/CrimeBridge.cpp#L611) |  |
@@ -3855,8 +3857,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 21743 | `0x33e840` | `GameFunc::native::IsLastHostileActor` | IDA meh | hook → `HookIsLastHostileActor` | `RealIsLastHostileActor` | [KillMoveOdds.cpp:70](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L70) |  |
-| 21744 | `0x33e920` | `GameFunc::native::ShouldAttackKill` | IDA meh | hook → `HookShouldAttackKill` | `RealShouldAttackKill` | [KillMoveOdds.cpp:69](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L69) |  |
+| 21743 | `0x33e840` | `GameFunc::native::IsLastHostileActor` | IDA meh | hook → `HookIsLastHostileActor` | `RealIsLastHostileActor` | [KillMoveOdds.cpp:62](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L62) |  |
+| 21744 | `0x33e920` | `GameFunc::native::ShouldAttackKill` | IDA meh | hook → `HookShouldAttackKill` | `RealShouldAttackKill` | [KillMoveOdds.cpp:61](../../Code/client/Games/Skyrim/Misc/KillMoveOdds.cpp#L61) |  |
 | 22790 | `0x36dc90` | `BGSStoryEventManager::GetSingleton` | CL | call | `s_get` | [StoryEvents.cpp:23](../../Code/client/Games/Skyrim/Misc/StoryEvents.cpp#L23) |  |
 | 23526 | `0x38cff0` | `ApplyPerkEntries` | CL PL meh | call | `s_applyPerks` | [JudgedFor.cpp:66](../../Code/client/Games/Skyrim/Misc/JudgedFor.cpp#L66) |  |
 | 29871 | `0x4a6660` | `?` | - | data | `s_makeParams` | [BGSStoryManager.cpp:62](../../Code/client/Games/Skyrim/Misc/BGSStoryManager.cpp#L62) | **undocumented** |

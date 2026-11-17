@@ -48,6 +48,8 @@ void DevToolsService::Apply(const DevCommands::Command& acCommand) noexcept
     spdlog::info("DevToolsService: {}", acCommand.Text);
     if (acCommand.What == DevCommands::Kind::KillMove || acCommand.What == DevCommands::Kind::Reset)
         m_bridge.SetKillMoveOdds(acCommand.What == DevCommands::Kind::KillMove ? acCommand.Odds : std::nullopt);
-    for (const auto& cLine : DevCommands::PlayerLines(acCommand, m_state))
+    if (const auto cGod = DevCommands::GodAfter(acCommand, m_bridge.IsGodMode()))
+        m_bridge.SetGodMode(*cGod);
+    for (const auto& cLine : DevCommands::PlayerLines(acCommand))
         m_bridge.RunConsole(cLine);
 }

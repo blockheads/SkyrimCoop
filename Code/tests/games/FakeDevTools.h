@@ -56,6 +56,14 @@ struct FakeDevTools final : IDevToolsBridge
         return static_cast<uint32_t>(killed.size());
     }
 
+    bool IsGodMode() noexcept override
+    {
+        return God;
+    }
+    void SetGodMode(bool aOn) noexcept override
+    {
+        God = aOn;
+    }
     void SetKillMoveOdds(std::optional<uint8_t> aOdds) noexcept override
     {
         KillMoveOdds = aOdds;
@@ -64,4 +72,5 @@ struct FakeDevTools final : IDevToolsBridge
     FakeEngine& Engine;
     std::vector<std::string> Lines;
     std::optional<uint8_t> KillMoveOdds;
+    bool God = false; // the engine's god mode byte (40501)
 };

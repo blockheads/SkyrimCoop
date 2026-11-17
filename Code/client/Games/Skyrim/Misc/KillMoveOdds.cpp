@@ -21,25 +21,17 @@ std::optional<uint8_t> Odds() noexcept
     return cOdds == 0xFF ? std::nullopt : std::optional(cOdds);
 }
 
-// The idle tree asks each candidate's conditions many times a swing: one roll per attacker and target a second.
 uint32_t Roll(const void* apAttacker, const void* apTarget) noexcept
 {
     static std::mutex s_lock;
     static std::mt19937 s_random{std::random_device{}()};
-    static const void* s_attacker = nullptr;
-    static const void* s_target = nullptr;
-    static std::chrono::steady_clock::time_point s_at{};
-    static uint32_t s_roll = 0;
+    static DevCommands::KillMoveRolls s_rolls;
     const std::scoped_lock cLock(s_lock);
-    const auto cNow = std::chrono::steady_clock::now();
-    if (apAttacker != s_attacker || apTarget != s_target || cNow - s_at > std::chrono::seconds(1))
-    {
-        s_attacker = apAttacker;
-        s_target = apTarget;
-        s_at = cNow;
-        s_roll = std::uniform_int_distribution<uint32_t>(0, 99)(s_random);
-    }
-    return s_roll;
+    const auto cNowMs = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+    return s_rolls.Roll(reinterpret_cast<uintptr_t>(apAttacker), reinterpret_cast<uintptr_t>(apTarget), cNowMs,
+                        [] { return std::uniform_int_distribution<uint32_t>(0, 99)(s_random); });
 }
 
 // Condition functions: (subject, param1, param2, result). ShouldAttackKill 21744: param1 the target, 1.0 when

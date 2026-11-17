@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -51,20 +52,14 @@ struct Parsed
 // A world command is the host's alone; the others run on every game, each on its own player.
 [[nodiscard]] bool IsWorld(Kind aKind) noexcept;
 
-// What a game's own player has on from earlier commands: /reset undoes it, /god toggles it.
-struct PlayerState
-{
-    bool God{};
-    bool Speed{};
-    bool Gravity{};
-};
-
 // An actor as the console names it: "player", or its reference id when that starts with a letter (a copy's FF...;
 // docs/re/systems/console.md); none for 0 or an id the console takes as a number.
 [[nodiscard]] std::optional<std::string> ConsoleName(uint32_t aFormId, uint32_t aPlayerFormId) noexcept;
 
-// Each game's console lines on its own player; updates aState.
-[[nodiscard]] std::vector<std::string> PlayerLines(const Command& acCommand, PlayerState& aState) noexcept;
+// Each game's console lines on its own player (/god goes through GodAfter instead).
+[[nodiscard]] std::vector<std::string> PlayerLines(const Command& acCommand) noexcept;
+// God mode after /god or /reset, from the engine's own (IsInGodMode 40501); none for other commands.
+[[nodiscard]] std::optional<bool> GodAfter(const Command& acCommand, bool aNow) noexcept;
 // The host's console lines for a world command; aAt is the typer's character as the console names it.
 [[nodiscard]] std::vector<std::string> WorldLines(const Command& acCommand, std::string_view aAt) noexcept;
 
@@ -72,4 +67,21 @@ struct PlayerState
 // aRoll is 0-99. Without odds the game's own answers stand.
 [[nodiscard]] bool ShouldAttackKill(bool aFatal, std::optional<uint8_t> aOdds, uint32_t aRoll) noexcept;
 [[nodiscard]] bool IsLastHostileActor(bool aLast, std::optional<uint8_t> aOdds) noexcept;
+
+// One roll per attacker and target a second: the idle tree asks each candidate's conditions many times a swing.
+struct KillMoveRolls
+{
+    [[nodiscard]] uint32_t Roll(uint64_t aAttacker, uint64_t aTarget, uint64_t aNowMs,
+                                const std::function<uint32_t()>& acDraw) noexcept;
+
+  private:
+    struct Entry
+    {
+        uint64_t Attacker;
+        uint64_t Target;
+        uint64_t AtMs;
+        uint32_t Roll;
+    };
+    std::vector<Entry> m_entries; // a second's, at most kMaxEntries
+};
 } // namespace DevCommands
