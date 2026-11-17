@@ -1656,9 +1656,8 @@ TEST_CASE("A copy keeps its owner's idle's clip files through a turn its owner's
 
 TEST_CASE("A copy starting mid-idle holds the props its owner's idle drew before its sync point", "[animation][replay-start][props]")
 {
-    // Skyrim (duo, Riverwood, 2026-11-16): Alvor hammered at his anvil with no hammer on the guest. The idle's first
-    // clip loads and draws its prop (AnimObjLoad/AnimObjDraw, 42888/42889) and its loop never again; a copy started
-    // from a later sync point skips them (docs/re/systems/animation-objects.md).
+    // Skyrim (duo, Riverwood, 2026-11-16): Alvor at his forge with no hammer on the guest; the idle's first clip draws
+    // it (42888/42889), a later sync point skips that (docs/re/systems/animation-objects.md).
     Party party(1, SmokeWorld, true);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());

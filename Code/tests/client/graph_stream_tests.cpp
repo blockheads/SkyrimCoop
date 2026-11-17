@@ -1,4 +1,5 @@
 #include <Games/Animation/GraphStream.h>
+#include <Games/Skyrim/AnimationObjects.h>
 
 #include <catch2/catch.hpp>
 
@@ -745,3 +746,12 @@ TEST_CASE("A node's pick is sent once, and again after a sync point", "[graph-st
     CHECK(ops->Runs[0].Ops[2].Picks.empty());
 }
 
+
+TEST_CASE("A prop is drawn when visible, or its attached model is not hidden", "[graph-stream][props]")
+{
+    using AnimationObjects::IsDrawn;
+    CHECK_FALSE(IsDrawn(false, false, 0)); // loaded, not drawn
+    CHECK(IsDrawn(true, false, 0));        // drawn while its model loads (43572 sets +0x20)
+    CHECK(IsDrawn(false, true, 0));        // drawn after its model attached (43572 clears kHidden only)
+    CHECK_FALSE(IsDrawn(false, true, 1));  // attached, still hidden
+}

@@ -2,6 +2,7 @@
 
 #include <Forms/TESForm.h>
 #include <Games/Primitives.h>
+#include <NetImmerse/NiAVObject.h>
 #include <TESObjectREFR.h>
 
 #include <atomic>
@@ -55,7 +56,8 @@ std::vector<Held> Of(const TESObjectREFR& acRef) noexcept
         ;
     for (const Entry& cEntry : pObjects->entries)
         if (cEntry.handle == cHandle && cEntry.object)
-            held.push_back({cEntry.object->formID, cEntry.visible});
+            held.push_back({cEntry.object->formID, IsDrawn(cEntry.visible, cEntry.attached != nullptr,
+                                                           cEntry.attached ? cEntry.attached->flags : 0)});
     lock.store(0, std::memory_order_release);
     return held;
 }

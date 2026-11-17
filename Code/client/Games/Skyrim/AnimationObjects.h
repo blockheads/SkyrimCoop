@@ -18,6 +18,13 @@ struct Held
     bool operator==(const Held&) const noexcept = default;
 };
 
+// Drawn as Save (43579) writes it: the entry's visible (+0x20), or its attached model not hidden (Draw 43572 clears
+// the model's kHidden and leaves +0x20 false once the model is attached).
+[[nodiscard]] constexpr bool IsDrawn(bool aVisible, bool aAttached, uint32_t aModelFlags) noexcept
+{
+    return aVisible || (aAttached && (aModelFlags & 1) == 0);
+}
+
 // What the reference holds now.
 [[nodiscard]] std::vector<Held> Of(const TESObjectREFR& acRef) noexcept;
 

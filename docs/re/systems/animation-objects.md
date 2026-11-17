@@ -18,7 +18,7 @@ idle's first clip starts (a clip generator's triggers in the behaviour, e.g. Idl
           NiAVObject hidden bit (+0xF4 bit 0); still loading: sets visible (+0x20); no entry: nothing
 idle ends: the ANIO's unloadEventName (+0x60) as a graph event
   -> TESObjectREFR::ProcessEvent (20102, its last case) -> AnimationObjects::OnUnloadEvent (43577): detach, remove
-the reference's 3D goes (TESObjectREFR::Release3DRelatedData)
+the reference's 3D goes (TESObjectREFR::Release3DRelatedData, 19302)
   -> AnimationObjects::RemoveAllFor (43573): every entry of that handle removed, no detach
 ```
 
@@ -26,7 +26,9 @@ the reference's 3D goes (TESObjectREFR::Release3DRelatedData)
   `+0x10`, size `+0x18`), `+0x20` a 0/1 spin flag both Load and Draw take. Entry: handle `+0x00`, ANIO `+0x08`,
   attached model `+0x10`, queued load `+0x18`, visible `+0x20` (`Games/Skyrim/AnimationObjects.cpp`). CommonLibSSE-NG
   calls the array `BSTArray<BSTSmartPointer<AnimationObject>>`; Load's stride (`40 * i`) says inline entries.
-- **Saves:** global data 0x3EA. `AnimationObjects::Save` (43579) writes ref, ANIO and visible per entry;
+- **Drawn** is not entry `+0x20` alone: Draw on an attached model clears the model's kHidden and leaves `+0x20` false.
+  Save (43579) writes `visible || (attached && !(attached->flags & 1))`, and `AnimationObjects::IsDrawn` matches it.
+- **Saves:** global data 0x3EA. `AnimationObjects::Save` (43579) writes ref, ANIO and drawn (above) per entry;
   `AnimationObjects::LoadGame` (43580) calls Load, then Draw if visible. A loaded game shows its props without
   replaying any trigger.
 - **When the triggers fire** (measured, duo trace 2026-11-16, Riverwood): the tanning idle fires AnimObjLoad/Draw
