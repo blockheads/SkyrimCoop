@@ -57,7 +57,6 @@ struct BGSSaveLoadManager
     static_assert(offsetof(SaveEntry, lastQuicksave) == 0x40);
     static_assert(sizeof(SaveEntry) == 0x48);
     [[nodiscard]] std::string QuickSaveName() noexcept;
-    [[nodiscard]] std::optional<std::string> PreviousGameplaySave() noexcept;
     // SetCurrentCharacter (35751): current and display character, as a load sets them; the modded flag kept.
     void SetCurrentCharacter(uint32_t aCharacterId) noexcept;
     static BGSSaveLoadManager* Get() noexcept;

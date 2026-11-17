@@ -1,5 +1,5 @@
 // The host's saves and the guests (docs/design/join-flow.md, "Save sync"): each save sent ahead as it is made; a host
-// load or party wipe's save to the guests, then loaded here, and the host's rules made again on the same listener.
+// load's save (a party wipe waits for one) to the guests, then loaded here, and the host's rules made again.
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
 
@@ -23,7 +23,6 @@
 namespace
 {
 constexpr const char* kReloadSave = "SkyrimCoopWipe";
-constexpr const char* kNoSave = "No previous gameplay save could be loaded. Choose a save or return to the menu.";
 constexpr const char* kChosenMissing = "The selected save could not be read. Choose another save.";
 constexpr const char* kLoadFailed = "The save could not be loaded. Choose a save or return to the menu.";
 } // namespace
@@ -85,20 +84,13 @@ void HostService::UpdateReload() noexcept
     {
         m_readCheckpoint = true;
         if (!m_checkpoint)
-        {
-            auto& bridge = m_world.ctx().at<IJoinBridge&>();
-            if (const auto cName = bridge.PreviousSave())
-            {
-                m_checkpoint = bridge.ReadSave(*cName);
-                m_checkpointCharacter = SaveNames::CharacterId(*cName);
-            }
-        }
-        const std::string cSave = m_checkpoint ? m_pSaves->Add(SaveTransfer::MakeImage(*m_checkpoint)) : std::string{};
+            return;
+        const std::string cSave = m_pSaves->Add(SaveTransfer::MakeImage(*m_checkpoint));
         if (cSave.empty())
         {
             m_checkpoint.reset();
-            m_pAuthority->FailReload(kNoSave);
-            m_dispatcher.trigger(SessionNoticeEvent{kNoSave});
+            m_pAuthority->FailReload(kChosenMissing);
+            m_dispatcher.trigger(SessionNoticeEvent{kChosenMissing});
             return;
         }
         m_pAuthority->SendCheckpoint(cSave);
@@ -115,7 +107,7 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
     if (!IsHosting() || !m_reloadRequested)
         return;
-    // The scratch save's name carries no character: the checkpoint's own again, for the next wipe and its saves.
+    // The scratch save's name carries no character: the checkpoint's own again, for its saves.
     m_world.ctx().at<IJoinBridge&>().SetCharacter(m_checkpointCharacter);
     m_pConversation.reset();
     m_pAuthority.reset();

@@ -54,8 +54,6 @@ public:
 
     // An existing save and its co-save, selected by the host.
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
-    // The name of the most recent gameplay save of the engine's current character, excluding internal transfer saves.
-    [[nodiscard]] virtual std::optional<std::string> PreviousSave() noexcept = 0;
     // The engine's current character (its saves are filed and named under it), as a load of that character's save
     // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
     virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;

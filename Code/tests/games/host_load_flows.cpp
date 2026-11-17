@@ -160,7 +160,6 @@ SCENARIO("A host load makes the chosen save's character the engine's, as loading
                 "the host loads the chosen save under the scratch name");
     CHECK(host.Loaded.back() == "SkyrimCoopWipe");
     CHECK(host.CharacterId == 0x0BADF00D);
-    party.As(party.Host(), [&] { CHECK(host.PreviousSave() == cChosen); });
 }
 
 SCENARIO("A guest's own loads are refused with a chat reason, including internal-looking names", "[load]")

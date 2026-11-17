@@ -295,7 +295,6 @@ void HostService::MakeAuthority() noexcept
         if (auto* pRecords = cRecords())
             pRecords->SetPlace(acKey, acWorldSpace, acCell, acPosition);
     };
-    game.PartyWipe = [this] { m_reloadRequested = true; };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));

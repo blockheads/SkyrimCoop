@@ -184,7 +184,7 @@ JOIN            host saves -> image -> encoded against a save the guest holds, e
 HOST SAVES      the engine wrote the file (SaveWrittenEvent) -> image -> encoded -> ahead, a piece an update
 (quick/menu/auto)                                      guest: decoded off thread, stored, SaveHeldRequest{held}
 HOST LOADS      NotifyPartyReload{id}   guest holds it: loads from its store, nothing travels
-(or a wipe)                             else: SaveHeldRequest{held} -> the save against one it holds -> load
+(a wipe waits for one)                  else: SaveHeldRequest{held} -> the save against one it holds -> load
 ```
 
 - **The image** (`SaveTransfer::Plain`, `MakeImage`): the `.ess` with its body raw (compression type 0, which the

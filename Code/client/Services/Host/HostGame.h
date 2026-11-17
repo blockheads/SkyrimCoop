@@ -127,8 +127,6 @@ struct HostGame
     std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
-    // The whole party is down: the host's game loads its previous save (HostService's wipe reload).
-    std::function<void()> PartyWipe;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.
     GameVersions Versions;
     Mods Plugins;
