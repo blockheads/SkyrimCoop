@@ -114,6 +114,9 @@ std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept;
 
 std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept;
 
+// The props its graph shows (AnimationObjects 400328): (ANIO form id, drawn) each.
+std::vector<std::pair<uint32_t, bool>> GetAnimObjects(uint32_t aFormId) noexcept;
+
 // Those it plays at this game's camera on the actor's behalf (a script's VisualEffect attached to the camera).
 std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept;
 
