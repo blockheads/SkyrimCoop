@@ -100,8 +100,10 @@ who simulates what (one game per object, always)
   wheel's whole island with HK_REAL_MAX as every body's fastest speed, so Havok's last sleep test passed for the wheel
   the guest's player carried or had just let go beside it: it hung in the air (the playtest's cheese wheel,
   `docs/re/systems/physics.md`, "When an island sleeps"). The guest skips a row within the send limits (2 units) of
-  the rest it sent, and our island sleeps (`SleepBody`, a free asleep: `DeactivateIsland`) put back each body's
-  fastest speeds, so Havok refuses to sleep an island with a moving body, as vanilla does. Trials `stack_release`
+  the rest it sent, and our island sleeps (`SleepBody`, a free asleep: `DeactivateIsland`) refuse an island with a
+  body not still (60850 skips Havok's stillness counts) and put back each body's fastest speeds, so a moving body
+  keeps its island awake, as in vanilla (ClientTests "An island is put to sleep only when every body in it is dynamic
+  and still": a steady 90 units/s slide). Trials `stack_release`
   (a wheel lifted off a stack, held, let go) and `pile_carry_release` (carried through a pile of wheels first): the
   let go wheel's `fell` is held to vanilla's (20 to 37 units in 40 rounds), and in no game is it put to sleep while it
   moves over 20 units/s (`collision_metrics.slept_moving`: before, 9 of 12 guest rounds; after, 0 of 9, vanilla 0 of

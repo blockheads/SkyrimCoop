@@ -150,3 +150,9 @@ def slept_moving(entries, ref, speed=20.0):
             count += 1
         before = body
     return count
+
+
+def object_name(key, objects):
+    """A trial's metrics key as words: a group, the carried or let go object, or an object by its place in the trial."""
+    named = {"all": "the objects", "carried": "the carried object", "released": "the let go object"}
+    return named.get(key) or (f"object {key} ({objects[int(key)]})" if key.isdigit() else key)

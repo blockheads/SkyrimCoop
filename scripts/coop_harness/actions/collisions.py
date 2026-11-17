@@ -312,7 +312,7 @@ class CollisionActions:
         for game in ("host", "client"):
             for i, r in ranges.items():
                 if off := collision_metrics.compare([run[game].get(i) for run in runs], r, limit):
-                    what = {"all": "the objects", "carried": "the carried object"}.get(i) or f"object {i} ({runs[0]['objects'][int(i)]})"
+                    what = collision_metrics.object_name(i, runs[0]["objects"])
                     wrong.append(f"[{game}] {what}: " + ", ".join(off))
         traces = ", ".join(run["trace"].rsplit("/", 1)[-1] for run in runs)
         log(f"collision {kind}, {walker or 'host'} walks, {rounds} rounds: " + ("as vanilla" if not wrong else "; ".join(wrong)) + f" ({traces})")

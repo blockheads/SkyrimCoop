@@ -101,3 +101,11 @@ class SleptMoving(unittest.TestCase):
 
     def test_havok_sleeping_a_still_body_does_not(self):
         self.assertEqual(metrics.slept_moving(self.frames((True, 40.0), (True, 1.0), (False, 0.0)), 7), 0)
+
+
+class ObjectName(unittest.TestCase):
+    def test_every_key_a_trial_reports_has_words(self):
+        objects = ["64B33 FF000805", "64B33 FF000813"]
+        self.assertEqual(metrics.object_name("released", objects), "the let go object")
+        self.assertEqual(metrics.object_name("1", objects), "object 1 (64B33 FF000813)")
+        self.assertEqual(metrics.object_name("later", objects), "later")
