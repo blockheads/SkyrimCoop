@@ -80,10 +80,10 @@ def envelope(runs, widen=0.25, floors=None, margin=0.10):
     metric's floor, and (how far, how long, how fast) at least a tenth of the bound: Havok is not repeatable, so a
     co-op game is held to the range, not to a number. The tenth: two samples of 20 rounds of one game with no session
     differ from each other by more than that (3 to 13 of 20 rounds of one outside the other's ranges)."""
-    floors = {"moved": 5.0, "path": 5.0, "seconds": 0.3, "peak": 15.0, "jump": 1.0, "turns": 2, **(floors or {})}
+    floors = {"moved": 5.0, "path": 5.0, "seconds": 0.3, "peak": 15.0, "jump": 1.0, "turns": 2, "fell": 5.0, **(floors or {})}
     ranges = {}
     for metric, floor in floors.items():
-        values = [run[metric] for run in runs if run]
+        values = [run[metric] for run in runs if run and metric in run]
         if not values:
             continue
         low, high = min(values), max(values)
@@ -135,3 +135,18 @@ def compare(rounds, ranges, limit):
         if not low <= middle <= high:
             off.append(f"{metric} {middle:.1f} in the middle round of {len(values)} (vanilla {low:.1f} to {high:.1f})")
     return off
+
+
+def slept_moving(entries, ref, speed=20.0):
+    """How often a reference's first body went from awake to asleep while it moved faster than `speed` units/s: our
+    island sleeps once took a carried or falling wheel along (physics.md, "When an island sleeps"); Havok's own never
+    does."""
+    count, before = 0, None
+    for entry in entries:
+        if entry.get("id") != ref or not entry.get("bodies") or not entry["bodies"][0]:
+            continue
+        body = entry["bodies"][0]
+        if before and before["awake"] and not body["awake"] and math.hypot(*before["velocity"]) > speed:
+            count += 1
+        before = body
+    return count

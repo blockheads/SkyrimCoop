@@ -537,3 +537,51 @@ one this game moves, plays or holds; otherwise it waits for Havok (`BodyPredicti
 Sleeping the island regardless froze the guest's own carried object, still for a moment in its hands against the
 pile (it jumped 75 units).
 
+
+## When an island sleeps (read in IDA on 1.7.104, 2026-11-16)
+
+Havok sleeps an island in two steps. Read in IDA (names ours, from Havok 2010's): each function below; measured with
+the harness's `body_trace` (`sleep`: each body's counts, fastest speeds and island size) in a game with no session
+and on the duo.
+
+```text
+each physics step, hkpContinuousSimulation__integrateIslands (61809), every active island:
+  0x140B838A0 (or 0x140B889C0 -> 0x140B860F0 with constraints) integrates its bodies and counts their stillness:
+    motion+0x11 ++; every 4th step reference 0 is checked, every 16th reference 1
+    a check: w of the reference = max(w, |v|^2 + min(r,1)^2 |w|^2)   (entity+0x25C, +0x26C)
+             moved off it (the class's maxDistSqrd / maxRotSqrd)  -> reference reset here, w 0, its count 0
+             else                                                -> its count + 1 (entity+0x162, +0x164, low 7 bits)
+  the island's least max(count0, count1) over 5 -> markIslandInactive (61523): only queued (world+0x60)
+then hkpWorldOperationUtil__cleanupDirtyIslands (61522) drains the queue:
+  hkpWorldOperationUtil__deactivateIslandIfStill (61507)
+    hkRigidMotionUtilCanDeactivateFinal (0x140B869C0): for every body
+      (|v|^2 + min(r,1)^2 |w|^2) / 4 - 0.01  <=  w of its reference with the higher count
+    all pass -> asleep, every velocity zeroed, the deactivation listeners (61778)
+    one fails -> active again
+```
+
+- The last test is what keeps a moving body awake: a falling or carried body goes faster than it went at its last
+  check. Under about 14 units/s it passes whatever its w (the 0.01).
+- `hkpEntity::Activate` (60849) zeroes the counts only when it wakes a sleeping island. The let go
+  (`DestroyMouseSprings` 40557) only activates. Measured in a game with no session: a wheel held still in the hand
+  reaches 6 counts and Havok sleeps it there (an island of one, about 0.5 s); the let go wakes it, its counts start
+  at 0, and it falls (26 and 28 units in two rounds).
+- `hkpEntity::deactivate` (60850) writes HK_REAL_MAX into both w of every body in the island and queues it. That
+  passes the last test whatever the bodies do, and stays until each body moves off its reference. Measured on the duo
+  before 2026-11-16: the guest's wheel put at the host's rest read w 3.4e38, a vanilla one 0.03.
+
+What froze a let go wheel (the playtest of 2026-11-16, then `pile_carry_release` on the duo):
+
+```text
+guest: its player knocks pile wheels (its own); one rests, its rest goes to the host
+host:  puts the rest a step awake (BodyPrediction::PlaceRest), it settles about a unit: a move row back
+guest: GuestWorldState applied the row -> PlaceAtHostRest keyframes the wheel, FreePlaced frees it asleep (60850)
+       -> its whole island asleep, HK_REAL_MAX passing the last test: the wheel the player carried (47 units/s)
+          or had just let go (falling at 90 units/s) beside it stopped dead in the air
+```
+
+Seen in the playtest's logs (a row for 1C0C8 at 02.195, the let go 1C0CA and its neighbour asleep 32 ms later, 25
+units over the pile) and in the duo's traces (each of three sleeps of the carried wheel 30 ms after a pile wheel's
+row). Fixed both ways (`docs/design/physics-sync.md`, "A rest's move row comes back"): our island sleeps
+(`DeactivateIsland` in `bhkCollision.cpp`, for `SleepBody` and a free asleep) put each body's w back after 60850, so
+Havok's own last test decides, and the guest skips the row of its own rest.

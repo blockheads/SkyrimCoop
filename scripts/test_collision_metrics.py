@@ -89,3 +89,15 @@ class Rounds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SleptMoving(unittest.TestCase):
+    @staticmethod
+    def frames(*states):
+        return [{"id": 7, "bodies": [{"awake": awake, "velocity": [speed, 0.0, 0.0]}]} for awake, speed in states]
+
+    def test_a_falling_wheel_put_to_sleep_counts(self):
+        self.assertEqual(metrics.slept_moving(self.frames((True, 0.0), (True, 90.0), (False, 0.0)), 7), 1)
+
+    def test_havok_sleeping_a_still_body_does_not(self):
+        self.assertEqual(metrics.slept_moving(self.frames((True, 40.0), (True, 1.0), (False, 0.0)), 7), 0)

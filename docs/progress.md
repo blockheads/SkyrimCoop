@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-16: a wheel let go beside a pile keeps falling (the playtest's cheese wheel stopped in the air). Our island
+sleeps (`hkpEntity::deactivate` 60850) wrote HK_REAL_MAX into each body's fastest speed, which passes Havok's last
+sleep test for a body that moves, and the host's move row of a guest's own pile rest came back and put one to sleep
+beside the falling wheel ([physics.md](re/systems/physics.md), "When an island sleeps"). Our sleeps now keep those
+speeds and the guest skips its own rest's row ([physics-sync.md](design/physics-sync.md), "A rest's move row comes
+back"). Scenario `guest-pile-release-falls`; GameTests "A guest's player knocks the bucket and it rests: the host's move
+row of that rest does not put it back"; trials `stack_release` and `pile_carry_release` in the vanilla baseline.
+
 2026-11-13: a guest's seen theft is warned, as the host's is ([crime.md](re/systems/crime.md), "The steal warning").
 Read in IDA: the warning's package (37556) and its step (procedure 40, 39673) name `g_thePlayer` throughout, so it
 walked to, faced, warned and took back from the host's player; it is now started for the guest's copy (seven call

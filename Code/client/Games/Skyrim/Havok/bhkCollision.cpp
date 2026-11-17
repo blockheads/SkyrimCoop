@@ -8,6 +8,12 @@
 #include <VersionDb.h>
 #include <TESObjectREFR.h>
 
+#include <algorithm>
+#include <array>
+#include <iterator>
+#include <utility>
+#include <vector>
+
 namespace
 {
 constexpr uint8_t kMaxBodies = 255;
@@ -22,6 +28,26 @@ struct alignas(16) HavokVector
 {
     float Values[4]{};
 };
+
+// hkpEntity::deactivate (60850) on its island, under the world's write lock, each body keeping its fastest speeds: 60850
+// writes HK_REAL_MAX there, which passes Havok's last sleep test (0x140B869C0) for a body that moves (a wheel let go
+// beside it froze in the air). Kept, a moving body keeps the island awake (physics.md, "When an island sleeps").
+void DeactivateIsland(hkpRigidBody& aBody) noexcept
+{
+    using TDeactivate = void(hkpRigidBody*);
+    POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
+    std::vector<std::pair<hkpRigidBody*, std::array<float, 2>>> fastest;
+    if (const hkpSimulationIsland* pIsland = aBody.simulationIsland)
+        for (int32_t i = 0; i < pIsland->entityCount; ++i)
+            if (hkpRigidBody* pOther = pIsland->entities[i])
+                fastest.push_back({pOther, {pOther->deactivationReference[0][3], pOther->deactivationReference[1][3]}});
+    s_deactivate(&aBody);
+    for (auto& [pOther, cFastest] : fastest)
+    {
+        pOther->deactivationReference[0][3] = cFastest[0];
+        pOther->deactivationReference[1][3] = cFastest[1];
+    }
+}
 
 HavokVector ToHavok(const glm::vec3& acPosition) noexcept
 {
@@ -197,8 +223,6 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
     bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
     if (!pWorld || !pBody->IsDynamic())
         return false;
-    using TDeactivate = void(hkpRigidBody*);
-    POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
     BSWriteLockGuard _(pWorld->worldLock);
     if (!pBody->simulationIsland || !pBody->simulationIsland->IsActive())
         return true;
@@ -214,7 +238,7 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
                                           glm::length(cVector(pOther->angularVelocity))))
             return false;
     }
-    s_deactivate(pBody);
+    DeactivateIsland(*pBody);
     return true;
 }
 
@@ -253,10 +277,11 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
             return false;
         if (!pBody->IsDynamic())
             return false;
-        using TDeactivate = void(hkpRigidBody*);
-        POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
         BSWriteLockGuard _(WorldOf(*pBody)->worldLock);
-        s_deactivate(pBody);
+        // Still where it was put, for Havok's sleep test; written on the motion, as 78089 would wake it (lock order).
+        std::fill(std::begin(pBody->linearVelocity), std::end(pBody->linearVelocity), 0.f);
+        std::fill(std::begin(pBody->angularVelocity), std::end(pBody->angularVelocity), 0.f);
+        DeactivateIsland(*pBody);
         return true;
     }
     constexpr size_t cSetMotionType = 0x2E;

@@ -1454,3 +1454,35 @@ SCENARIO("A guest's bucket, played on the host, runs into a plate the guest's ne
         CHECK(!Party::Engine(party.Guest()).Classes.contains(kBucket));
     }
 }
+
+SCENARIO("A guest's player knocks the bucket and it rests: the host's move row of that rest does not put it back", "[physics][mover]")
+{
+    // The duo, 2026-11-16 (the playtest's cheese wheels, pile_carry_release): the host put the guest's rest a step
+    // awake, it settled a unit, and its move row came back. Applied, it keyframed the guest's wheel there and slept its
+    // island (60850), the wheel the guest had just let go falling beside it too: it hung in the air.
+    Party party(1, Plugins);
+    auto& guestBucket = BodyOf(party, party.Guest(), kBucket);
+    guestBucket.Flight.Floor = kTable;
+    party.As(party.Guest(), [&] {
+        auto& engine = Party::Engine(party.Guest());
+        engine.PlayerPushes.push_back({kBucket, {160.f, 0.f, 0.f}, guestBucket.Flight.Body.Position});
+        engine.Knock(kBucket, {160.f, 0.f, 0.f});
+    });
+    auto& service = party.Guest().ctx().at<BodyService>();
+    party.Until([&] { return service.MovedHere(kBucket.Object); }, "the bucket is the guest's");
+    party.Until([&] { return !service.MovedHere(kBucket.Object); }, "the guest's bucket rests and its rest goes out");
+    const glm::vec3 cRest = guestBucket.Flight.Body.Position;
+    NotifyObjectChanges changes;
+    const float cPose[6]{cRest.x + 1.f, cRest.y, cRest.z, 0.f, 0.f, 0.f};
+    ObjectChange change{.Type = ObjectChange::Kind::kMove, .Object = kBucket.Object};
+    change.Data.assign(reinterpret_cast<const char*>(cPose), sizeof(cPose));
+    changes.Changes.push_back(change);
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(changes); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    THEN("the guest's lies where its own physics put it, untouched")
+    {
+        CHECK(guestBucket.MoveRows == 0);
+        CHECK(glm::distance(guestBucket.Flight.Body.Position, cRest) < 0.01f);
+    }
+}

@@ -112,6 +112,12 @@ void BodyTrace::Poll()
                                    {"velocity", {read.LinearVelocity.x, read.LinearVelocity.y, read.LinearVelocity.z}},
                                    {"motion", pBody->referencedObject->motionType},
                                    {"awake", read.Active}};
+            // Havok's sleep test (physics.md, "When an island sleeps"): each reference's stillness count, the
+            // fastest it went since (squared, Havok units), and how many bodies share its island.
+            const hkpRigidBody& cRigid = *pBody->referencedObject;
+            body["sleep"] = {{"counts", {cRigid.deactivationInactiveFrames[0] & 0x7F, cRigid.deactivationInactiveFrames[1] & 0x7F}},
+                             {"fastest", {cRigid.deactivationReference[0][3], cRigid.deactivationReference[1][3]}},
+                             {"island", cRigid.simulationIsland ? cRigid.simulationIsland->entityCount : 0}};
             // The bone it moves: where a person sees that part of the body.
             if (float bone[3]; pActor && EngineCalls::BoneOf(*pBody, bone))
                 body["bone"] = {bone[0], bone[1], bone[2]};
