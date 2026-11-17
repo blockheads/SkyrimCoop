@@ -337,6 +337,31 @@ SCENARIO("A party wipe loads nothing until the host loads the save it chooses", 
     party.Agree("the restored players have their own copies");
 }
 
+SCENARIO("A guest joining a wiped party and dying waits for the host's load too", "[death][join]")
+{
+    Party party(2, Plugins, false);
+    auto& host = Party::Engine(party.Host());
+    auto& first = Party::Engine(party.Guest(0));
+    auto& late = Party::Engine(party.Guest(1));
+    party.Join(party.Guest(0));
+    party.Until([&] { return PlayerCopy(host) && PlayerCopy(first); }, "the host and the first guest see each other");
+    party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
+    party.As(party.Guest(0), [&] { first.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& hostDeath = party.Host().ctx().at<DeathService>();
+    party.Until([&] { return hostDeath.Status() == DeathService::kWipedHost; }, "the party is wiped");
+
+    party.Join(party.Guest(1));
+    party.Agree("the late guest is present");
+    party.As(party.Guest(1), [&] { late.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& lateDeath = party.Guest(1).ctx().at<DeathService>();
+    party.Until([&] { return lateDeath.IsDown() && lateDeath.Status() == DeathService::kWipedGuest; },
+                "the late guest goes down and waits for the host");
+    Frames(party, 900);
+    CHECK(lateDeath.IsDown());
+    CHECK(host.Loaded.empty());
+    CHECK(late.Loaded.empty());
+}
+
 SCENARIO("A standing guest's combat holds a downed host", "[death]")
 {
     Party party(1, Plugins);

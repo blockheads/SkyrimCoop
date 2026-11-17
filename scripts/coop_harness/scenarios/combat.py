@@ -75,17 +75,21 @@ def scenario_death_wipe_host_loads(ctx):
     def wiped():
         return (ctx.death_state("").get("status") == WIPED_HOST and ctx.death_state("client").get("status") == WIPED_GUEST)
     ctx.wait_for("both games say the host chooses the save", wiped, 30)
-    # Nothing loads by itself: still down, still 17:00, still online.
-    deadline = time.time() + 15
-    while time.time() < deadline:
+    # Nothing loads by itself while both games' clocks run on (game time, so a stalled game fails too).
+    start = {instance: ctx.game_state(instance).get("time", {}).get("hour", 0) for instance in ("", "client")}
+    def held_while_time_passes():
+        advanced = True
         for instance in ("", "client"):
             state = ctx.game_state(instance)
-            if not state.get("online") or not state.get("death", {}).get("down") or \
-                    abs(state.get("time", {}).get("hour", 17) - 17) > 0.5:
+            hour = state.get("time", {}).get("hour", 0)
+            if not state.get("online") or not state.get("death", {}).get("down") or hour < start[instance] - 0.01 \
+                    or hour - start[instance] > 1:
                 raise ctx.failure(f"[{instance or 'host'}] the wipe changed the game by itself: online "
-                                  f"{state.get('online')}, down {state.get('death', {}).get('down')}, hour "
-                                  f"{state.get('time', {}).get('hour')}")
-        ctx.wait_for("a second passes", lambda start=time.time(): time.time() - start >= 1, 2)
+                                  f"{state.get('online')}, down {state.get('death', {}).get('down')}, hour {hour:.2f} "
+                                  f"(was {start[instance]:.2f})")
+            advanced &= hour - start[instance] >= 0.05  # 3 game minutes, ~9 s at timescale 20
+        return advanced
+    ctx.wait_for("both games' clocks run on with nothing loaded", held_while_time_passes, 30)
     # The dead host opens the Journal (MenuOpenHandler 52249 lets it) and loads its checkpoint.
     ctx.load_latest_from_menu("")
     def restored_party():

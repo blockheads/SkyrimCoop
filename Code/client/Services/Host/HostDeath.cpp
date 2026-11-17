@@ -58,7 +58,7 @@ void HostDeath::OnAiState(const AiStateRequest& acRequest, ConnectionId_t aSende
 void HostDeath::OnDeath(const PlayerDeathRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const auto it = m_party.find(aSender);
-    if (m_wiped || it == m_party.end() || acRequest.SessionId != m_characters.PlayerCharacterOf(aSender))
+    if (it == m_party.end() || acRequest.SessionId != m_characters.PlayerCharacterOf(aSender))
         return;
     Player& player = it->second;
     // An older fall's message comes late.

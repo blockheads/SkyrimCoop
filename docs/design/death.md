@@ -184,7 +184,8 @@ everyone known is down -> HostDeath: wiped (once); no respawn, nothing loads, th
   (`fPlayerDeathReloadTime`, above), so nothing loads until the host does.
 - Until 2026-11-16 a wipe loaded the host character's newest gameplay save by itself (`PreviousSave`, the
   `BGSSaveLoadManager` catalogue 35760); removed: the host picks the save, which may be older than the newest.
-- A wipe holds until the load: a player who leaves or joins meanwhile changes nothing, and nobody respawns.
+- A wipe holds until the load: a player who leaves or joins meanwhile changes nothing, and nobody respawns. A player
+  who joins dead or dies meanwhile still goes down (its death recorded, the waiting screen shown).
 - Loading rolls back the world and the characters (`join-flow.md`). The guests' joins that come during the reload wait
   and are answered by the new rules. A load that fails: every player is told why, and the host can choose again.
 - **Where each guest stands.** The loaded save's player is the host's, so a guest would arrive on the host's spot and

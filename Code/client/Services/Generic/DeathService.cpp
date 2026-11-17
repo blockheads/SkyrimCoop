@@ -123,7 +123,8 @@ void DeathService::OnPlayerDeath(const ActorDeathChangeEvent& acEvent) noexcept
 
 void DeathService::GoDown(bool aDying) noexcept
 {
-    if (!m_transport.IsOnline() || m_down || m_party.Wiped)
+    // During a wipe too (a player joining or dying meanwhile): down, waiting for the host's load.
+    if (!m_transport.IsOnline() || m_down)
         return;
     m_down = true;
     ++m_generation;

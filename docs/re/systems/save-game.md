@@ -74,9 +74,9 @@ IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.m
 - `MenuOpenHandler::ProcessButton` (52249): `playerDyingOrDead` is ActorState1's life state (Actor `+0xC8` bits
   21-24) dying (1) or dead (2). It gates the Tween menu, Wait, Map and the inventory/magic/skills shortcuts, not the
   Journal/Pause buttons (UserEvents `+96`/`+128`): a dead player opens the Journal and its System -> Load.
-- `QuickSaveLoadHandler::ProcessButton` (52251) queues quickload (`0xD0000000`) once `BGSSaveLoadManager::CanLoadGame`
+- `QuickSaveLoadHandler::ProcessButton` (52251) queues quickload (`0xD0000400`, at `0x140961E6A`) once `BGSSaveLoadManager::CanLoadGame`
   (35736) allows it: false while the player's `Actor::someRefrHandle` (`+0x1F0`) names a live reference, a
-  UI `+0x170` count is nonzero, or 82076 says so. No life-state check. Quicksave's gate is 35734 (not read further).
+  UI `+0x170` count is nonzero, or 82076 (a UI check, not read) says so. No life-state check in what was read. Quicksave's gate is 35734 (not read further).
 
 ## Where a save or load can run (2026-10-24)
 
