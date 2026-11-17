@@ -1126,10 +1126,14 @@ void FakeEngine::StartDismount(uint32_t aRider, uint32_t aFrames) noexcept
     DismountIn[aRider] = aFrames;
 }
 
-void FakeEngine::StopRiding(uint32_t aRider, uint32_t aFrames) noexcept
+void FakeEngine::StopRiding(uint32_t aRider, uint32_t aMode, uint32_t aFrames) noexcept
 {
-    if (Mounts.contains(aRider))
+    if (!Mounts.contains(aRider))
+        return;
+    if (aMode == 0)
         DismountIn[aRider] = aFrames;
+    else
+        EndRide(aRider); // 40352 forced: sit state 0, FinishDismount (38696), Detach
 }
 
 // A copy still seated is off at once (its owner got off with no exit clip); one getting off ends by its clip.
@@ -1157,6 +1161,8 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
     for (const auto& [cRider, cMount] : Mounts)
         if (cMount == aMount)
             return true; // IsMountBeingRidden: nothing
+    if (Actors.at(aActivator).InAir)
+        return true; // CanRide (38706) refuses: no package, no ride, our hook raises nothing
     if (cCopy)
     {
         GettingOnOff.insert(aActivator); // a mount package no copy runs

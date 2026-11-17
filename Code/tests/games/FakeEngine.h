@@ -884,8 +884,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool ActivateMount(uint32_t aActivator, uint32_t aMount);
     // Actor::Dismount (37906) on a rider: its exit clip ends the ride aFrames later (FinishDismount 38696).
     void StartDismount(uint32_t aRider, uint32_t aFrames = 3) noexcept;
-    // StopRidingQuick (38705: jail, a fine, a load, a low-process mount): the same exit clip, no Dismount.
-    void StopRiding(uint32_t aRider, uint32_t aFrames = 3) noexcept;
+    // StopRidingQuick (38705) -> StopRiding (41531), no Dismount. Mode 2 (jail, a fine, a load, a low-process mount,
+    // a refused ride) forces 40352's finish: off at once, the exit clip only shown. Mode 0 (the dismount procedure,
+    // 39670) ends at its exit clip, aFrames later.
+    void StopRiding(uint32_t aRider, uint32_t aMode = 2, uint32_t aFrames = 3) noexcept;
     // RefrInteraction::Detach (41539), every ride's end: off its mount; our hook tells this game's services.
     void EndRide(uint32_t aRider) noexcept;
     std::map<uint32_t, uint32_t> DismountIn; // rider -> frames until its exit clip ends its ride

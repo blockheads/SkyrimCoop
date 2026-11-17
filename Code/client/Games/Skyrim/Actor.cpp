@@ -1538,12 +1538,14 @@ uint64_t HookProcessResponse(void* apThis, DialogueItem* apVoice, Actor* apTalki
     return RealProcessResponse(apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
 }
 
+// A ride started (37905): true for the mount package; false for a refusal (CanRide 38706) and for the low-process
+// at-once attach (40345, 41532), which the rider's ExtraInteraction shows. A refused try reserves no horse.
 bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
 {
-    if (apMount && apThis->GetExtension()->IsLocal())
+    const bool cStarted = RealInitiateMountPackage(apThis, apMount);
+    if (apMount && apThis->GetExtension()->IsLocal() && (cStarted || apThis->extraData.Contains(ExtraDataType::Interaction)))
         World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
-
-    return RealInitiateMountPackage(apThis, apMount);
+    return cStarted;
 }
 
 // Every ride ends here (RefrInteraction::Detach 41539): the dismount clip's end, StopRiding, jail, a fine, a load.

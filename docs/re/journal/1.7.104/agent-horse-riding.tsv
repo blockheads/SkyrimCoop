@@ -95,3 +95,10 @@ time	op	id	rva	item
 2026-11-17T19:28:47Z	comment	39670	0x7170b0	{"addr": "0x1407170b0", "comment": "Dismount procedure step (from UpdateHighProcessAI): a rider whose dismount package runs -> StopRidingQuick(rider, 0) (38705) -> StopRiding -> 40352."}
 2026-11-17T19:28:48Z	name	39670	0x7170b0	{"addr": "0x1407170b0", "name": "AIProcess::DismountProcedureStep"}
 2026-11-17T19:28:48Z	name	40352	0x73cd00	{"addr": "0x14073cd00", "name": "MountInteraction::PlayExitOrFinish"}
+2026-11-17T21:32:59Z	read	38706	0x6d3720	{"name": "Character::sub_38706"}
+2026-11-17T21:33:00Z	read	42868	0x7ce2f0	{"name": "PairedStopHandler::Handle"}
+2026-11-17T21:33:01Z	read	41532	0x78cf30	{"name": "coop_attach"}
+2026-11-17T21:33:01Z	read	40345	0x73ca00	{"name": "coop_construct_0"}
+2026-11-17T21:35:27Z	read	39670	0x7170b0	{"name": "AIProcess::DismountProcedureStep"}
+2026-11-17T21:35:35Z	comment	41531	0x78cce0	{"addr": "0x14078cce0", "comment": "41531 (interaction*, mode) Gets a rider off with no Actor::Dismount (no package, no kGettingOnOffMount, no DismountEvent): rider's sit state to wants-to-stand (4, or 8 for sleep), then the interaction's vfunc 0x78 (PlayExitOrFinish 40352) plays ActionActivate (default object 55) rider->mount (the HorseExit clip). Modes 1 and 2 pass force: 40352 then sets sit state 0 and calls FinishDismount (38696) at once, the ride ending inside this call; mode 0 (DismountProcedureStep 39670) ends at the clip, or at once if refused. Callers: StopRidingQuick 38705, Actor::StopInteractingQuick, MountInteraction 40351/40356."}
+2026-11-17T21:35:35Z	comment		0x6ac010	{"addr": "0x1406ac010", "comment": "37905 Getting on: mount null -> the rider's last horse (extra list handle, then vfunc 0x380 fallback, must be a Character). Character::CanRide (38706) gates: refused -> returns false, nothing attached. Low process (>1): MountInteraction built and attached at once (40345, 41532), no package, returns false. Otherwise mount package (type 41, procedure 21), mount stops, both get flags2 kGettingOnOffMount (8) and a deferred kill, returns true. SkyrimCoop's hook raises MountEvent after it, only for true or an attached interaction."}

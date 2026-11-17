@@ -1,12 +1,13 @@
 # Mounts
 
-How a ride starts and ends in the engine (1.7.104, read in IDA 2026-11-17 unless marked), and where the co-op code
-hooks it. Design: `docs/design/party-travel.md` ("A ridden horse"), `docs/design/copy-contract.md` ("Player mounts").
+How a ride starts and ends in the engine (1.7.104, read in IDA 2026-11-17 unless marked measured or inferred; the
+branch journal `docs/re/journal/1.7.104/agent-horse-riding.tsv` records each read), and where the co-op code hooks it. Design: `docs/design/party-travel.md` ("A ridden horse"), `docs/design/copy-contract.md` ("Player mounts").
 
 ## Getting on
 
 ```
-Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> MountRequest
+Actor::InitiateMountPackage (37905)            hooked: MountEvent (an own rider) -> MountRequest, once started
+  returns false for a refusal and for the at-once attach; true for the package
   mount null -> the rider's ExtraHorse (0x7B, 12033), else FindNearbyFreeHorse (38045)
   Character::CanRide (38706) gates
   low-process rider: MountInteraction (40345) attached at once (41532), no package   <- Actor::PutOnMount does this
@@ -27,11 +28,14 @@ Actor::Dismount (37906)                         the player's activate, Papyrus, 
 the HorseExit clip -> StopMountCameraHandler -> Actor::FinishDismount (38696)
   rider placed beside the mount, flags cleared, EndMountInteraction (41535) -> Detach (41539)
 
-StopRidingQuick (38705, mode 2)                 no Dismount, no package, no kGettingOnOffMount
-  callers: PayFine, GoToPrison, QueueJailSentenceTravel, FinishLoadGame, Main 36581, 40445,
-           AIProcess::UpdateLowMountRider (39174)
-  -> MountInteraction::StopRiding (0x14078CCE0): sit state wants-to-stand, ActionActivate rider->mount
-     (the HorseExit clip, so FinishDismount as above); if refused, Detach at once
+StopRidingQuick (38705, a mode)                 no Dismount, no package, no kGettingOnOffMount
+  mode 2: PayFine (40659), GoToPrison (40655), QueueJailSentenceTravel (40656), FinishLoadGame (40542),
+          Main 36581, 40445, AIProcess::UpdateLowMountRider (39174), our refused ride
+  mode 0: AIProcess::DismountProcedureStep (39670), Dismount's package
+  -> MountInteraction::StopRiding (41531): sit state wants-to-stand, then PlayExitOrFinish (40352):
+     ActionActivate rider->mount (HorseExit + the mount's pa_HorseExit)
+     mode 0: the clip ends it (FinishDismount as above); refused: sit state 0, FinishDismount at once
+     modes 1, 2 force the finish: sit state 0, FinishDismount (38696) -> Detach at once, the clip only shown
 Predestroy, GarbageCollector::Add -> EndMountInteraction (41535) -> Detach
 ```
 
@@ -65,8 +69,8 @@ ActivateHandler (42420) -> PlayerCharacter::ActivatePickRef (40548)
 ## A dismount too soon after getting on
 
 ```
-the dismount package's step (AIProcess::DismountProcedureStep, 0x1407170B0)
-  -> StopRidingQuick(rider, 0) -> StopRiding -> MountInteraction::PlayExitOrFinish (40352)
+the dismount package's step (AIProcess::DismountProcedureStep, 39670)
+  -> StopRidingQuick(rider, 0) -> StopRiding (41531) -> MountInteraction::PlayExitOrFinish (40352)
        ActionActivate rider->mount: HorseExit + the mount's pa_HorseExit
        refused (or forced): sit state 0, FinishDismount (38696) at once
 ```
@@ -95,4 +99,4 @@ high-process rider copy would lose its rider this way, a copy standing while its
 
 Two players getting on one horse within a round trip: `HostCharacters::OnMount` keeps the first rider and sends the
 second game `NotifyMountRefused`; that game's player gets off by `StopRidingQuick` (38705, mode 2, as PayFine).
-Not measured on the duo: whether ActionActivate plays while the getting-on clip still runs, or Detach takes it.
+Read: mode 2 forces 40352's finish, so the ride ends (Detach) inside the call, whatever the exit action did.

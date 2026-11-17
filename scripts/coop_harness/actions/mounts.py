@@ -143,10 +143,8 @@ class MountsActions:
 
 
     def seated_on_mount(ctx, game):
-        """Its player is up on its mount: riding, sit state 3 (PairedStopHandler 42868 ends getting on), no longer
-        getting on (MountDismountEndHandler 42881), and the ridden horse's half of the pair over (its bIsSynced off,
-        ~0.1 s later). Before that the horse refuses pa_HorseExit, and a dismount drops the rider with no exit clip,
-        its body left crouched (vanilla too, 2026-11-17; docs/re/systems/mounts.md)."""
+        """Its player is up on its mount: riding, sit state 3, not getting on, and the horse's half of the pair over
+        (bIsSynced off): sooner, a dismount drops it crouched (docs/re/systems/mounts.md)."""
         state = ctx.actor_state(game, 0x14)
         placement = state.get("placement", {})
         if not (placement.get("riding") and not placement.get("getting_on_off") and state.get("state", {}).get("sit_sleep") == 3):

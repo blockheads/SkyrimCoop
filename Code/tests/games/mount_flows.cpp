@@ -204,6 +204,7 @@ SCENARIO("A guest's horse stays its game's until the ride itself ends, by any pa
     WHEN("a fine gets its player off with no Dismount (StopRidingQuick 38705)")
     {
         party.As(party.Guest(), [&] { rider.StopRiding(FakeEngine::kPlayer); });
+        CHECK_FALSE(rider.IsPlayerMounted()); // mode 2 forces the finish (40352): off at once
         party.Until([&] { return Owns(party.Host(), horse) && !Owns(party.Guest(), cHorse); },
                     "the host owns the horse again");
     }
@@ -325,10 +326,8 @@ TEST_CASE("A horse passes from rider to rider: the host, a guest, the host again
 
 TEST_CASE("A guest gets on the horse the host just got off", "[mounts][ride-end][riders]")
 {
-    // Skyrim (duo, horse-passes-between-riders, 2026-11-17): the guest's Activate did nothing. Its copy of the host's
-    // player was still on the horse (its replayed exit clip ends after its owner's ride), so the horse read ridden
-    // (Character::ActivateMount 37864). And the activation went to the host, whose replay started a mount package on
-    // its copy of the guest's player: kGettingOnOffMount for good.
+    // Skyrim (duo, horse-passes-between-riders, 2026-11-17): the guest's Activate did nothing, and the host's copy of
+    // the guest kept kGettingOnOffMount (docs/re/systems/mounts.md).
     Party party(1, [](FakeEngine& aEngine) {
         aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
         aEngine.LoadCell(kCell);
@@ -352,4 +351,29 @@ TEST_CASE("A guest gets on the horse the host just got off", "[mounts][ride-end]
     party.Until([&] { return Owns(party.Guest(), cHorse) && host.Mounts.size() == 1; }, "the guest rides, the host sees it");
     CHECK(guest.Mounts.at(FakeEngine::kPlayer) == cHorse);
     CHECK(host.GettingOnOff.empty());
+}
+
+TEST_CASE("A ride the engine refuses reserves no horse", "[mounts][one-rider]")
+{
+    // InitiateMountPackage (37905) returns early when CanRide (38706) refuses (in midair): no ride, no MountEvent.
+    Party party(1, [](FakeEngine& aEngine) {
+        aEngine.Actors.at(FakeEngine::kPlayer).Cell = kCell;
+        aEngine.LoadCell(kCell);
+    });
+    party.Agree("the players are present");
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t horse = 0;
+    party.As(party.Host(), [&] { horse = host.LoadNpc(kHorse, kCell); });
+    party.Until([&] { return guest.CopiesOf(kHorse).size() == 1; }, "the guest has the horse");
+    const uint32_t cHorse = guest.CopiesOf(kHorse)[0];
+
+    party.As(party.Host(), [&] {
+        host.Actors.at(FakeEngine::kPlayer).InAir = true;
+        host.Activates(FakeEngine::kPlayer, horse);
+        host.Actors.at(FakeEngine::kPlayer).InAir = false;
+    });
+    CHECK_FALSE(host.IsPlayerMounted());
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, cHorse); });
+    party.Until([&] { return Owns(party.Guest(), cHorse) && host.Mounts.size() == 1; }, "the guest rides it");
 }
