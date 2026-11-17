@@ -102,7 +102,8 @@ struct NotifyPlayerRespawn final : NotifyMessage
     float Heading{};
 };
 
-// The host to every guest: the party wiped, the host's previous save comes next (as a join's does).
+// The host to every guest: the party wiped or the host loads a save. The save comes next (as a join's does), unless
+// the guest's store holds Save already.
 struct NotifyPartyReload final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyPartyReload;
@@ -115,7 +116,9 @@ struct NotifyPartyReload final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPartyReload& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode(); }
+    bool operator==(const NotifyPartyReload& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Save == acRhs.Save; }
+
+    std::string Save; // the image's SHA-256 id
 };
 
 // A player went down: to every game, the player's own too, for its chat.

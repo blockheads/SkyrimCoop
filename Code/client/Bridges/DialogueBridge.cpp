@@ -14,6 +14,7 @@
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
+#include <Interface/MenuCursor.h>
 #include <Interface/MenuOpenCloseEvent.h>
 #include <Interface/UI.h>
 #include <Misc/JudgedFor.h>
@@ -279,6 +280,14 @@ TBuildList* RealBuildList = nullptr;
 
 uint64_t HookBuildList(MenuTopicManager* apThis)
 {
+    // What the build takes choices from (picked, else last selected): docs/re/systems/dialogue.md.
+    const auto cOption = [](const MenuTopicManager::Dialogue* apOption) {
+        return apOption ? std::format("{:X}{}", apOption->parentTopicInfo ? apOption->parentTopicInfo->formID : 0,
+                                      apOption->hasChoices && !apOption->notChoices ? " with choices" : "")
+                        : std::string("none");
+    };
+    spdlog::debug("Dialogue: the list build: picked {}, last selected {}", cOption(apThis->selectedResponseNode ? apThis->selectedResponseNode->data : nullptr),
+                  cOption(apThis->lastSelectedDialogue));
     const std::vector<uint32_t> cCharacters = s_filters.Judged ? s_filters.Judged() : std::vector<uint32_t>{};
     t_judgements.clear();
     t_pJudged = cCharacters.empty() ? nullptr : &cCharacters;
@@ -648,11 +657,32 @@ GFxValue Number(double aValue) noexcept
     value.value.number = aValue;
     return value;
 }
+
+GFxValue Boolean(bool aValue) noexcept
+{
+    GFxValue value{};
+    value.type = GFxValue::kBoolean;
+    value.value.boolean = aValue;
+    return value;
+}
+
+// The list's rows ignore a rollover while it animates (BSScrollingList.as, bListAnimating): held as RolloverHold says.
+DialogueMenuPolicy::RolloverHold s_rolloverHold;
+
+std::optional<std::pair<float, float>> CursorAt() noexcept
+{
+    const MenuCursor* pCursor = MenuCursor::Get();
+    return pCursor ? std::optional(std::pair{pCursor->cursorPosX, pCursor->cursorPosY}) : std::nullopt;
+}
 } // namespace
 
 std::optional<uint32_t> DialogueBridge::GetHighlight() const noexcept
 {
-    const GFxMovie* pMovie = DialogueMovie();
+    GFxMovie* pMovie = DialogueMovie();
+    if (pMovie && s_rolloverHold.Release(CursorAt()))
+    {
+        pMovie->SetVariable("_root.DialogueMenu_mc.TopicList.bListAnimating", Boolean(false), 0);
+    }
     // Only while the list shows: the SWF keeps its last highlight while a line plays.
     if (MenuState(pMovie) != DialogueMenuPolicy::kTopicListShown)
         return std::nullopt;
@@ -695,7 +725,10 @@ void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept
     GFxMovie* pMovie = DialogueMovie();
     if (!pMovie)
         return;
-    // As the keys do: scroll to the entry, select its position first (UpdateList draws with it), then recenter.
+    // As the keys do: scroll to the entry, select its position first (UpdateList draws with it), then recenter; the
+    // keys' animation holds rollovers, so does this.
+    pMovie->SetVariable("_root.DialogueMenu_mc.TopicList.bListAnimating", Boolean(true), 0);
+    s_rolloverHold.Recentred(CursorAt());
     const GFxValue cIndex = Number(aIndex);
     pMovie->Invoke("_root.DialogueMenu_mc.TopicList.SetSelectedTopic", nullptr, &cIndex, 1);
     const auto cPosition = ReadNumber(*pMovie, "_root.DialogueMenu_mc.TopicList.iScrollPosition");
@@ -707,4 +740,9 @@ void DialogueBridge::SetHighlight(uint32_t aIndex) noexcept
     restore[1].value.boolean = true;
     pMovie->Invoke("_root.DialogueMenu_mc.TopicList.RestoreScrollPosition", nullptr, restore, 2);
     pMovie->Invoke("_root.DialogueMenu_mc.TopicList.UpdateList", nullptr, nullptr, 0);
+}
+
+std::optional<std::pair<float, float>> DialogueBridge::GetCursor() const noexcept
+{
+    return DialogueMovie() ? CursorAt() : std::nullopt;
 }

@@ -2,7 +2,8 @@
 
 In a session a player really dies, as in vanilla: `OnDeath` and `TESDeathEvent` fire for mods, its body falls in the
 engine's own death ragdoll. Vanilla's reload is held instead; the dead player watches a standing one, and the host
-brings it back beside the party once the fight is over. If everyone is dead, the party loads the host's last save.
+brings it back beside the party once the fight is over. If everyone is dead, the party waits for the host to load a
+save it chooses (nothing loads by itself).
 
 ```text
 a player's real death (its game)
@@ -14,8 +15,8 @@ its game: controls held, the host told (PlayerDeathRequest, one generation per f
         |                          dying -> dead: spectate the first standing player
         |                          "Spectating Lydia"; arrows / clicks cycle
         v
-host (HostDeath): anyone standing? ---- no ----> WIPE: the host's previous save to every game,
-        | yes                                    loaded everywhere, the party rejoins
+host (HostDeath): anyone standing? ---- no ----> WIPE: everyone stays down; the host loads a save
+        | yes                                    it chooses (a host load), the party rejoins there
         v
 a standing player fighting? (its combat, or a host NPC's against it)
         | yes: no timer        | no: 10 s, started over by any fight
@@ -38,7 +39,7 @@ go_down(dying):
     if not dying: spectate_first_standing()
 
 host on PlayerDeathRequest / AI state / join / leave:
-    if everyone known is down: wipe(); return
+    if everyone known is down: wiped = true; return   # the host's load ends it
     if a standing player fights: cancel the timer
     elif someone is down and no timer: timer = now + 10 s   # game time: a pause stops it
 host on timer: NotifyPlayerRespawn to each downed player, its fall's generation, beside the anchor
@@ -55,7 +56,7 @@ Games/Skyrim     PlayerCharacter::Revive, HoldDeathReload; PlayerCamera::Spectat
 every game       DeathService: this game's player down, spectating, respawn; the death screen (UiService, death.rml)
                  CharacterService: the copies of a revived player made again (PlayerRevivedEvent)
 host             HostDeath: the party's state, combat, the 10 s timer, the respawn, the wipe
-                 HostServiceReload.cpp: the wipe's reload; JoinService (guest): the wipe's save, as a join's
+                 HostServiceReload.cpp: the host's load (host-loads.md); JoinService (guest): its save, as a join's
 messages         DeathMessages.h: PlayerDeathRequest, NotifyPartyDeath, NotifyPlayerRespawn, NotifyPartyReload,
                  NotifyPlayerPerished (the chat line)
 ```
@@ -153,7 +154,8 @@ Party must be out of combat for 10 seconds to respawn
 
 - Three plain lines in the chat's font (`death.rml`, `aol-text.rcss`), shown only while down and no menu blocks it.
   No standing copy loaded: "Waiting for a player to spectate"; while dying: "You have fallen."; a wipe: "The party has
-  fallen. Loading the previous save...", or why it failed.
+  fallen. Load a save to continue." on the host, "... Waiting for the host to load a save." on a guest, or why the
+  load failed.
 - The view (`PlayerCamera::Spectate`): the watched character from behind in third person (SetCameraTarget 50838,
   `TESCamera::SetState` 33026), free look (`ThirdPersonState` +0xD4/+0xDC). The first standing player with a loaded
   copy, in session id order; a left click or the right arrow the next, the others back (`UiInput`). Chosen again when
@@ -166,21 +168,26 @@ Party must be out of combat for 10 seconds to respawn
   held beside the scripts' holds, and given back only as they were (a cutscene keeps its own). A script holding the
   player's movement has the camera: the choice is kept and shown once it gives it back.
 
-## Wipe reload
+## Wipe: the host chooses the save
 
 ```text
-everyone known is down -> HostDeath: wiped (once); only the transfer runs, every request dropped
-    -> HostServiceReload: the newest gameplay save of the host's character (BGSSaveLoadManager 35760's catalogue;
-       not SkyrimCoop's join or wipe saves) with its co-save
-    -> NotifyPartyReload, then the save, to every guest (and any game still joining), as a join's
-    -> each guest loads it (JoinService), its connection closed
-    -> once none is left, the host loads it as "SkyrimCoopWipe", its rules made again on the same listener
-    -> the guests rejoin as the characters the save keeps, each where it stood at that save
+everyone known is down -> HostDeath: wiped (once); no respawn, nothing loads, the session runs on (chat, joins)
+    -> the screen: host "Load a save to continue", guests "Waiting for the host to load a save"
+    -> the host, dead, opens the pause menu (Esc -> System -> Load) or quickloads, as in vanilla
+    -> a host load (host-loads.md): the save to every guest, loaded everywhere, the party rejoins there
 ```
 
+- **Why the dead host can choose** (read in IDA, 2026-11-16): `MenuOpenHandler::ProcessButton` (52249) gates the
+  Tween menu, Wait, Map and the inventory shortcuts on the player's life state (ActorState1 bits 21-24 dying or dead),
+  but opens the Journal/Pause menu regardless; `BGSSaveLoadManager::CanLoadGame` (35736), quickload's gate in
+  `QuickSaveLoadHandler::ProcessButton` (52251), checks no life state. Vanilla's own reload timer stays held
+  (`fPlayerDeathReloadTime`, above), so nothing loads until the host does.
+- Until 2026-11-16 a wipe loaded the host character's newest gameplay save by itself (`PreviousSave`, the
+  `BGSSaveLoadManager` catalogue 35760); removed: the host picks the save, which may be older than the newest.
+- A wipe holds until the load: a player who leaves or joins meanwhile changes nothing, and nobody respawns. A player
+  who joins dead or dies meanwhile still goes down (its death recorded, the waiting screen shown).
 - Loading rolls back the world and the characters (`join-flow.md`). The guests' joins that come during the reload wait
-  and are answered by the new rules. No save, or a load that fails: every player is told why, and nobody is revived in
-  place.
+  and are answered by the new rules. A load that fails: every player is told why, and the host can choose again.
 - **Where each guest stands.** The loaded save's player is the host's, so a guest would arrive on the host's spot and
   the two would push each other along. The host keeps each guest's worldspace, cell and position when it saves
   (`HostRecords::OnSaving`, from `HostCharacters::CharacterPlace`), and `JoinBridge::ApplyPlayer` puts a kept
@@ -192,7 +199,7 @@ everyone known is down -> HostDeath: wiped (once); only the transfer runs, every
 | Rule | Decision |
 |---|---|
 | Death | A real death in a session; the reload held. Timed effects are lost, permanent ones come back. |
-| Whole party down | Load the host's previous gameplay save; the party rolls back together. |
+| Whole party down | Everyone stays down until the host loads a save it chooses; the party rolls back together. |
 | Early revive | None: healing or a teammate cannot bring a dead player back. |
 | Combat | The host decides, from every standing player's combat and host NPCs fighting a standing player. |
 | Recovery | After 10 continuous seconds (game time) without such a fight, each dead player respawns alive beside a standing player, wherever the party is. A fight starts the 10 s over. |
@@ -205,12 +212,14 @@ everyone known is down -> HostDeath: wiped (once); only the transfer runs, every
   real death (copies die with it, spectating once dead, no reload), the chat line, a guest dead through combat then
   respawned beside the host, healing reviving nobody, a standing guest's fight holding the timer, spectating a
   replaced copy, respawn after travel, a cutscene's controls kept through a respawn, a rebuilt copy keeping its owner's
-  magicka, the wipe (world and characters rolled back, each guest where it stood) and a wipe without a save.
+  magicka, the wipe (nothing loads until the host loads its chosen save; then world and characters rolled back, each
+  guest where it stood).
 - HostAuthorityTests: a player going down reaches every game's chat.
 - Encoding: every death message round trips.
 - Scenarios: `death-spectate-host`, `death-spectate-guest` (a wolf kills the player; spectating, cycling, the survivor
   kills the wolf, respawn after 10 s with abilities, hands, draw, swing and sheathe; the host stays unseen by the wolf
-  while it is staged, or it turns on the host), `death-wipe-checkpoint`.
+  while it is staged, or it turns on the host), `death-wipe-host-loads` (both down, nothing loads, the host loads its
+  checkpoint from the Load menu while dead).
 
 ## References inspected
 

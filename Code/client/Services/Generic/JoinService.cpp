@@ -13,6 +13,7 @@
 #include <Messages/JoinMessages.h>
 #include <Services/Host/JoinRefusal.h>
 #include <Services/SaveService.h>
+#include <Services/SaveStore.h>
 #include <Services/SessionService.h>
 #include <Services/SteamService.h>
 #include <Services/TransportService.h>
@@ -53,6 +54,11 @@ std::string JoinService::PlayerKey() const noexcept
     return m_bridge.PlayerId();
 }
 
+std::vector<std::string> JoinService::HeldSaves() const noexcept
+{
+    return m_bridge.HeldSaves();
+}
+
 const JoinStatus& JoinService::GetStatus() const noexcept
 {
     return m_status.Current == JoinStatus::State::kIdle ? m_world.GetTransport().GetJoinStatus() : m_status;
@@ -90,12 +96,8 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
     }
     spdlog::info("JoinService: joining {} as {}, {}", acEndpoint, PlayerKey(),
                  m_brought ? std::format("bringing {} (level {})", m_brought->Name, m_brought->Level) : "from the main menu");
-    const auto cCacheStart = Clock::now();
-    m_cache.Clear();
-    if (const auto cPrevious = m_bridge.ReadSave(kJoinSave))
-        m_cache.Load(*cPrevious);
-    m_metrics.CacheMs = Since(cCacheStart);
-    m_metrics.AdvertisedBlocks = m_cache.Hashes().size();
+    SaveStore::Check(m_bridge);
+    m_metrics.HeldSaves = HeldSaves().size();
     m_endpoint = acEndpoint;
     m_save = {};
     m_reached = false;
@@ -114,7 +116,6 @@ void JoinService::Cancel(const std::string& acReason) noexcept
     m_step = Step::kIdle;
     m_playerKey.clear();
     m_save = {};
-    m_cache.Clear();
     m_brought.reset();
     m_joinedCharacter.reset();
     m_partyReload = false;
@@ -138,7 +139,6 @@ void JoinService::Fail(JoinStatus aStatus) noexcept
 {
     m_metrics.Outcome = aStatus.Reason;
     m_metrics.TotalMs = Since(m_joinStarted);
-    m_cache.Clear();
     m_save = {};
     spdlog::error("JoinService: couldn't join ({}): {}", aStatus.Reason, aStatus.Message);
     m_bridge.CancelCharacterCreation();
@@ -153,6 +153,7 @@ void JoinService::Fail(JoinStatus aStatus) noexcept
 void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     PROFILE_ZONE("JoinService::OnUpdate");
+    m_bridge.FinishWork();
     const auto cCreation = m_bridge.PollCharacterCreation();
     using Creation = IJoinBridge::Creation;
     m_creatingCharacter = cCreation == Creation::kStarting || cCreation == Creation::kCustomizing || cCreation == Creation::kFinalizing;
@@ -229,7 +230,7 @@ void JoinService::OnAuthentication(const AuthenticationResponse& acResponse) noe
         spdlog::info("JoinService: the host's gate passed; receiving its save");
         m_reached = true;
         m_worldRequested = Clock::now();
-        m_metrics.CheckMs = Since(m_joinStarted) - m_metrics.CacheMs - m_metrics.CreationMs;
+        m_metrics.CheckMs = Since(m_joinStarted) - m_metrics.CreationMs;
         To(Step::kReceiving, JoinStatus::State::kReceivingWorld);
         return;
     }
@@ -279,45 +280,59 @@ void JoinService::CreationHostLost() noexcept
 void JoinService::OnSaveChunk(const NotifySaveChunk& acChunk) noexcept
 {
     PROFILE_ZONE("Receive world block");
-    if (m_step != Step::kReceiving)
+    // A save sent ahead is GuestSaves's.
+    if (m_step != Step::kReceiving || acChunk.Ahead)
         return;
     if (m_metrics.Chunks == 0)
     {
         m_metrics.WaitForWorldMs = Since(m_worldRequested);
         m_transferStarted = Clock::now();
     }
-    const auto cDecodeStart = Clock::now();
-    if (!m_save.Add(acChunk, &m_cache))
+    if (!m_save.Add(acChunk))
         return Fail("transfer_failed");
-    m_metrics.DecodeMs += Since(cDecodeStart);
     ++m_metrics.Chunks;
-    m_metrics.WorldBytes = acChunk.Total;
+    m_metrics.WorldBytes = acChunk.Size;
     m_metrics.PayloadBytes += acChunk.Data.size();
-    if (acChunk.Data.empty())
-    {
-        ++m_metrics.CachedChunks;
-        m_metrics.ReusedBytes += acChunk.RawSize;
-    }
+    m_metrics.AgainstHeld = !acChunk.Base.empty();
     m_waited = 0.0;
     m_status.Progress = m_save.Progress();
     if (!m_save.Complete())
         return;
 
-    const auto cUnpackStart = Clock::now();
-    auto files = SaveTransfer::Unpack(m_save.Data());
-    m_metrics.DecodeMs += Since(cUnpackStart);
-    m_metrics.TransferMs = std::max(0.0, Since(m_transferStarted) - m_metrics.DecodeMs);
-    spdlog::info("JoinService: the host's save is here ({} bytes packed, {} and {} unpacked)", m_save.Data().size(),
-                 files ? files->Game.size() : 0, files ? files->CoSave.size() : 0);
-    m_save = {};
-    m_cache.Clear();
-    if (!files)
+    m_metrics.TransferMs = Since(m_transferStarted);
+    const auto cDecodeStart = Clock::now();
+    const auto cStream = std::exchange(m_save, {}).Get();
+    const auto cImage = SaveStore::Decode(m_bridge, cStream);
+    m_metrics.DecodeMs = Since(cDecodeStart);
+    spdlog::info("JoinService: the host's save is here ({} bytes for an image of {}, {})", cStream.Data.size(), cStream.Size,
+                 cStream.Base.empty() ? "whole" : "against a held save");
+    if (!cImage && !cStream.Base.empty() && !SaveStore::Read(m_bridge, cStream.Base))
+    {
+        // Its base went from the store meanwhile: the host sends it against what is held now.
+        spdlog::warn("JoinService: the save came against a held save that is gone: asking again");
+        m_metrics.Chunks = 0;
+        m_metrics.PayloadBytes = 0;
+        SaveHeldRequest held;
+        held.Saves = HeldSaves();
+        m_world.GetTransport().Send(held);
+        return;
+    }
+    if (!cImage)
+        return Fail("transfer_failed");
+    SaveStore::Keep(m_bridge, cStream.Save, *cImage);
+    LoadImage(*cImage);
+}
+
+void JoinService::LoadImage(const std::string& acImage) noexcept
+{
+    const auto cFiles = SaveTransfer::Unpack(acImage);
+    if (!cFiles)
         return Fail("transfer_failed");
     // Our connection goes while the save loads; the join after it is a new one.
     To(Step::kLoading, JoinStatus::State::kLoading);
     m_world.GetTransport().Close();
     m_loadStarted = Clock::now();
-    const bool cWritten = m_bridge.WriteAndLoad(kJoinSave, *files);
+    const bool cWritten = m_bridge.WriteAndLoad(kJoinSave, *cFiles);
     m_metrics.WriteMs = Since(m_loadStarted);
     m_loadStarted = Clock::now();
     if (!cWritten)
@@ -387,10 +402,10 @@ void JoinService::OnConnected(const ConnectedEvent&) noexcept
         return;
     m_metrics.Outcome = "joined";
     m_metrics.TotalMs = Since(m_joinStarted);
-    spdlog::info("JoinService: joined in {:.0f} ms: cache {:.0f}, wait {:.0f}, transfer {:.0f}, decode {:.0f}, write {:.0f}, load {:.0f}, character {:.0f}; {} payload bytes, {} raw bytes reused",
-                 m_metrics.TotalMs, m_metrics.CacheMs, m_metrics.WaitForWorldMs, m_metrics.TransferMs,
-                 m_metrics.DecodeMs, m_metrics.WriteMs, m_metrics.LoadMs, m_metrics.ApplyMs,
-                 m_metrics.PayloadBytes, m_metrics.ReusedBytes);
+    spdlog::info("JoinService: joined in {:.0f} ms: wait {:.0f}, transfer {:.0f}, decode {:.0f}, write {:.0f}, load {:.0f}, character {:.0f}; {} bytes came for an image of {} ({})",
+                 m_metrics.TotalMs, m_metrics.WaitForWorldMs, m_metrics.TransferMs, m_metrics.DecodeMs, m_metrics.WriteMs,
+                 m_metrics.LoadMs, m_metrics.ApplyMs, m_metrics.PayloadBytes, m_metrics.WorldBytes,
+                 m_metrics.FromStore ? "held here" : m_metrics.AgainstHeld ? "against a held save" : "whole");
     m_step = Step::kIdle;
     m_status = {};
 }
@@ -468,7 +483,7 @@ void JoinService::Retry() noexcept
     m_world.GetSessionService().End("lost_connection");
 }
 
-void JoinService::OnPartyReload(const NotifyPartyReload&) noexcept
+void JoinService::OnPartyReload(const NotifyPartyReload& acReload) noexcept
 {
     m_metrics = {};
     m_metrics.Outcome = "party_reload";
@@ -479,7 +494,22 @@ void JoinService::OnPartyReload(const NotifyPartyReload&) noexcept
     if (!m_brought)
         m_brought = m_joinedCharacter;
     m_save = {};
+    SaveStore::Check(m_bridge);
+    m_metrics.HeldSaves = HeldSaves().size();
     To(Step::kReceiving, JoinStatus::State::kReceivingWorld);
+    // A save the host sent ahead: nothing has to come.
+    if (const auto cImage = SaveStore::Read(m_bridge, acReload.Save))
+    {
+        spdlog::info("JoinService: the host loads a save held here");
+        m_metrics.FromStore = true;
+        m_metrics.WorldBytes = cImage->size();
+        SaveStore::Keep(m_bridge, acReload.Save, *cImage);
+        return LoadImage(*cImage);
+    }
+    // The host learns what is held here, should it have counted on that save.
+    SaveHeldRequest held;
+    held.Saves = HeldSaves();
+    m_world.GetTransport().Send(held);
 }
 
 void JoinService::OnGameLoadFailed(const GameLoadFailedEvent& acEvent) noexcept

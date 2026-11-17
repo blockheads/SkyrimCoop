@@ -14,7 +14,6 @@ struct HostAuthority;
 struct HostNetwork;
 struct HostPlayers;
 struct HostCharacters;
-struct HostGame;
 
 /**
  * @brief The party going down and coming back (docs/design/death.md), the host's rules:
@@ -22,8 +21,8 @@ struct HostGame;
  *   down         a player's game says its character went down (PlayerDeathRequest, one generation per fall)
  *   recovery     once kRecoverySeconds pass with no standing player fighting (its own combat, or a host NPC's on it),
  *                every downed player respawns beside the standing player with the lowest session id
- *   wipe         every player down: the host's game loads its previous save (HostGame::PartyWipe) and the party
- *                rolls back together
+ *   wipe         every player down: nobody respawns; the party waits for the host to load a save it chooses
+ *                (HostService::LoadSave)
  *
  * Every player gets the party's state (NotifyPartyDeath) on each change.
  */
@@ -37,8 +36,7 @@ struct HostDeath
     static constexpr float kRespawnDistance = 100.f;
     static constexpr float kRespawnTurn = 1.04719755f; // 60 degrees
 
-    HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters,
-              const HostGame& acGame) noexcept;
+    HostDeath(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostCharacters& acCharacters) noexcept;
 
     // Every frame: the game time it took (seconds), so the recovery timer stands still while the game is paused.
     void Update(double aDelta) noexcept;
@@ -46,7 +44,7 @@ struct HostDeath
     void Entered(ConnectionId_t aPlayer, uint32_t aCharacterId) noexcept;
     void InitialAi(uint32_t aCharacterId, const ActorAiState& acState) noexcept;
     void Left(ConnectionId_t aPlayer) noexcept;
-    // The wipe's reload failed: every player is told why.
+    // A party reload failed: every player is told why.
     void FailReload(const std::string& acError) noexcept;
     [[nodiscard]] bool Standing(ConnectionId_t aPlayer) const noexcept
     {
@@ -68,7 +66,6 @@ private:
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
-    const HostGame& m_game;
 
     struct Player
     {

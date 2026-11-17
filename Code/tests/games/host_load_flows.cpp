@@ -6,6 +6,7 @@
 #include <Events/SessionNoticeEvent.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/SaveTransfer.h>
 
 namespace
 {
@@ -26,6 +27,61 @@ void Save(Party& aParty, const std::string& acName)
     aParty.As(aParty.Host(), [&] { (void)host.SaveNow(acName); });
     aParty.Until([&] { return host.MadeSave.has_value(); }, "the host writes the save and co-save");
     aParty.As(aParty.Host(), [&] { REQUIRE(host.SaveNow(acName).has_value()); });
+}
+
+// Every game has loaded aRound saves and is back in the session.
+void Reloads(Party& aParty, size_t aRound, const std::string& acStep)
+{
+    aParty.Until([&] {
+        for (size_t i = 0; i < aParty.GameCount(); ++i)
+        {
+            auto& game = i ? aParty.Guest(i - 1) : aParty.Host();
+            if (Party::Engine(game).Loaded.size() != aRound || !game.GetTransport().IsOnline() || game.ctx().at<JoinService>().IsJoining())
+                return false;
+        }
+        return true;
+    }, acStep, {}, nullptr, std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
+}
+
+// The id of the image of one of the host's saves, and whether a guest's store holds it.
+std::string ImageOf(Party& aParty, const std::string& acName)
+{
+    return SaveTransfer::MakeImage(Party::Engine(aParty.Host()).SavedFiles.at(acName))->Id;
+}
+
+bool Holds(World& aGuest, const std::string& acImage)
+{
+    const auto cHeld = Party::Engine(aGuest).HeldSaves();
+    return std::ranges::find(cHeld, acImage) != cHeld.end();
+}
+
+// As a quicksave: made now, its file written a frame later; then every guest holds it.
+void Quicksave(Party& aParty, const std::string& acName)
+{
+    auto& host = Party::Engine(aParty.Host());
+    aParty.As(aParty.Host(), [&] { REQUIRE(host.Quicksaves(acName)); });
+    CHECK_FALSE(host.SavedFiles.contains(acName));
+    aParty.Until([&] {
+        if (!host.SavedFiles.contains(acName))
+            return false;
+        for (size_t i = 1; i < aParty.GameCount(); ++i)
+            if (!Holds(aParty.Guest(i - 1), ImageOf(aParty, acName)))
+                return false;
+        return true;
+    }, "the quicksave is written and every guest holds it");
+}
+
+std::string Noise(size_t aSize, uint32_t aSeed)
+{
+    std::string data(aSize, '\0');
+    for (auto& c : data)
+    {
+        aSeed ^= aSeed << 13;
+        aSeed ^= aSeed >> 17;
+        aSeed ^= aSeed << 5;
+        c = static_cast<char>(aSeed);
+    }
+    return data;
 }
 
 struct Notices
@@ -104,7 +160,6 @@ SCENARIO("A host load makes the chosen save's character the engine's, as loading
                 "the host loads the chosen save under the scratch name");
     CHECK(host.Loaded.back() == "SkyrimCoopWipe");
     CHECK(host.CharacterId == 0x0BADF00D);
-    party.As(party.Host(), [&] { CHECK(host.PreviousSave() == cChosen); });
 }
 
 SCENARIO("A guest's own loads are refused with a chat reason, including internal-looking names", "[load]")
@@ -199,4 +254,156 @@ SCENARIO("A guest reconnecting after a failed host load is refused instead of jo
                 "the guest rejoins through the successful save transfer");
     CHECK_FALSE(guest.References.at(0xECA).Locked);
     party.Agree("both games show the party in the successful world");
+}
+
+SCENARIO("A save the host makes goes ahead to the guests, and a load of it sends nothing", "[load][save-sync]")
+{
+    Party party(2, Plugins);
+    auto& host = Party::Engine(party.Host());
+    party.Agree("the party is together");
+    // The save work done at once, or still running when the next update comes.
+    const bool cDeferred = GENERATE(false, true);
+    for (size_t i = 0; i < party.GameCount(); ++i)
+        Party::Engine(i ? party.Guest(i - 1) : party.Host()).DefersWork = cDeferred;
+
+    Quicksave(party, "Quicksave0");
+    party.As(party.Host(), [&] { host.SetLock(0xECA, false, 0); });
+    party.Until([&] { return !Party::Engine(party.Guest()).References.at(0xECA).Locked; }, "the world changes after the save");
+
+    for (size_t round = 1; round <= 2; ++round)
+    {
+        party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("Quicksave0")); });
+        Reloads(party, round, "the whole party loads the save and rejoins");
+        for (size_t i = 0; i < 2; ++i)
+        {
+            const auto& cMetrics = party.Guest(i).ctx().at<JoinService>().GetMetrics();
+            CHECK(cMetrics.FromStore);
+            CHECK(cMetrics.Chunks == 0);
+            CHECK(cMetrics.PayloadBytes == 0);
+            CHECK(cMetrics.WorldBytes > 0);
+            CHECK(Party::Engine(party.Guest(i)).References.at(0xECA).Locked);
+        }
+        CHECK(host.References.at(0xECA).Locked);
+    }
+    party.Agree("every restored character has its copies");
+}
+
+SCENARIO("A load of a save the guest was never sent comes as its difference from one it holds", "[load][save-sync]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = party.Guest();
+    party.Agree("the party is together");
+    Quicksave(party, "Quicksave0");
+
+    // A save from before the session: only on the host's disk, with the lock open.
+    party.As(party.Host(), [&] {
+        host.SetLock(0xECA, false, 0);
+        host.SavedFiles["OldSave"] = host.MakeSave();
+        host.Saves.push_back("OldSave");
+        host.SetLock(0xECA, true, 0);
+    });
+    REQUIRE_FALSE(Holds(guest, ImageOf(party, "OldSave")));
+
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("OldSave")); });
+    Reloads(party, 1, "the party loads the old save");
+    const auto cFirst = guest.ctx().at<JoinService>().GetMetrics();
+    CHECK_FALSE(cFirst.FromStore);
+    CHECK(cFirst.AgainstHeld);
+    CHECK(cFirst.PayloadBytes > 0);
+    CHECK_FALSE(Party::Engine(guest).References.at(0xECA).Locked);
+    CHECK(Holds(guest, ImageOf(party, "OldSave")));
+
+    // Loaded once, it is held: the next load of it sends nothing.
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("OldSave")); });
+    Reloads(party, 2, "the party loads the old save again");
+    CHECK(guest.ctx().at<JoinService>().GetMetrics().FromStore);
+    CHECK(guest.ctx().at<JoinService>().GetMetrics().PayloadBytes == 0);
+}
+
+SCENARIO("A guest told to load a save its store lost gets it sent", "[load][save-sync]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = party.Guest();
+    party.Agree("the party is together");
+    Quicksave(party, "Quicksave0");
+    party.As(party.Host(), [&] { host.SetLock(0xECA, false, 0); });
+    party.Until([&] { return !Party::Engine(guest).References.at(0xECA).Locked; }, "the world changes after the save");
+
+    SECTION("its files are gone") { Party::Engine(guest).HeldSaveFiles.clear(); }
+    SECTION("its file is damaged") { Party::Engine(guest).HeldSaveFiles.front().second = "damaged"; }
+
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("Quicksave0")); });
+    Reloads(party, 1, "the party loads the save, the guest's sent after all");
+    const auto& cMetrics = guest.ctx().at<JoinService>().GetMetrics();
+    CHECK_FALSE(cMetrics.FromStore);
+    CHECK(cMetrics.PayloadBytes > 0);
+    CHECK(Party::Engine(guest).References.at(0xECA).Locked);
+    CHECK(Holds(guest, ImageOf(party, "Quicksave0")));
+}
+
+SCENARIO("A newer save replaces the one still on its way to a guest", "[save-sync]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = party.Guest();
+    party.Agree("the party is together");
+
+    // Saves of many pieces: one goes ahead a piece an update, behind the game's own messages.
+    host.SavePadding = Noise(400 * 1024, 11);
+    party.As(party.Host(), [&] { REQUIRE(host.Quicksaves("Quicksave0")); });
+    for (int i = 0; i < 4; ++i)
+        party.Frame();
+    REQUIRE(host.SavedFiles.contains("Quicksave0"));
+    REQUIRE(Party::Engine(guest).HeldSaves().empty());
+
+    host.SavePadding = Noise(400 * 1024, 12);
+    Quicksave(party, "Autosave1");
+    CHECK_FALSE(Holds(guest, ImageOf(party, "Quicksave0")));
+    CHECK(party.Host().GetTransport().IsOnline());
+    CHECK(guest.GetTransport().IsOnline());
+
+    // The one that never arrived still loads: it comes then.
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("Quicksave0")); });
+    Reloads(party, 1, "the party loads the first save");
+    CHECK_FALSE(guest.ctx().at<JoinService>().GetMetrics().FromStore);
+    CHECK(guest.ctx().at<JoinService>().GetMetrics().AgainstHeld);
+}
+
+SCENARIO("A guest whose held save is damaged still loads a save it was never sent", "[load][save-sync]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = party.Guest();
+    auto& guestEngine = Party::Engine(guest);
+    party.Agree("the party is together");
+    Quicksave(party, "Quicksave0");
+    party.As(party.Host(), [&] {
+        host.SetLock(0xECA, false, 0);
+        host.SavedFiles["OldSave"] = host.MakeSave();
+        host.Saves.push_back("OldSave");
+        host.SetLock(0xECA, true, 0);
+    });
+    REQUIRE(guestEngine.HeldSaveFiles.size() == 1);
+
+    SECTION("damaged before the load") { guestEngine.HeldSaveFiles.front().second = "damaged"; }
+    SECTION("damaged while the save is on its way against it")
+    {
+        // The host still encodes against the base it was told of; the guest loses it after the reload began.
+        guestEngine.DefersWork = true;
+    }
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("OldSave")); });
+    if (guestEngine.DefersWork)
+    {
+        party.Until([&] { return guest.ctx().at<JoinService>().IsJoining(); }, "the guest is told of the load");
+        guestEngine.HeldSaveFiles.front().second = "damaged";
+    }
+    Reloads(party, 1, "the party loads the old save, the guest's sent whole");
+    const auto& cMetrics = guest.ctx().at<JoinService>().GetMetrics();
+    CHECK(cMetrics.Outcome == "joined");
+    CHECK_FALSE(cMetrics.FromStore);
+    CHECK_FALSE(cMetrics.AgainstHeld);
+    CHECK_FALSE(guestEngine.References.at(0xECA).Locked);
+    CHECK(Holds(guest, ImageOf(party, "OldSave")));
 }

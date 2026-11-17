@@ -20,8 +20,11 @@ struct GameSavingEvent;
 struct ActorRenamedEvent;
 struct GameLoadedEvent;
 struct GameLoadFailedEvent;
+struct SaveWrittenEvent;
+struct SaveLibrary;
 
 struct HostAuthority;
+struct HostGame;
 struct HostNetwork;
 class HostEngine;
 struct HostConversation;
@@ -65,6 +68,8 @@ protected:
     void OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept;
     // The host's save is being written: the guests' records take their characters' places first.
     void OnGameSaving(const GameSavingEvent&) const noexcept;
+    // The host's game made a save: its image goes ahead to the guests, for a later load of it (save sync).
+    void OnSaveWritten(const SaveWrittenEvent& acEvent) noexcept;
     void OnActorRenamed(const ActorRenamedEvent& acEvent) const noexcept;
     // That guest's game answered one returning a value: the script waiting on it goes on.
     void OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept;
@@ -73,20 +78,24 @@ protected:
 
 private:
     void MakeAuthority() noexcept;
+    // The host's rules' saves: the library's images and encodings (HostServiceReload.cpp).
+    void BindSaves(HostGame& aGame) noexcept;
     // The listener's front door: a join waits while a party reload runs, everything else goes to the host's rules.
     void InstallFrontDoor() noexcept;
 
-    // A party reload (HostServiceReload.cpp): the selected save (or a wipe's previous save) goes to the guests,
+    // A party reload (HostServiceReload.cpp): the save the host chose goes to the guests,
     // then this game loads it, and its rules are made again on the same listener, taking the joins that waited.
     void UpdateReload() noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
     void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
-    bool m_reloadRequested{}; // a host load or the whole party down
-    bool m_readCheckpoint{};  // the save read (m_checkpoint, or none to load)
+    bool m_reloadRequested{}; // a host load
+    bool m_readCheckpoint{};  // the transfer started (m_checkpoint, or none once its load failed)
     bool m_loadingSave{};     // delivered to the guests, loading here
     std::optional<IJoinBridge::SaveFiles> m_checkpoint;
     uint32_t m_checkpointCharacter{}; // its character's id (in its name), the engine's again once loaded under kReloadSave
     std::map<Net::ConnectionId_t, AuthenticationRequest> m_reloadJoins; // joins (the guests again) that came meanwhile
+    // The images of the saves sent, while hosting: a load remakes the rules, not these.
+    std::unique_ptr<SaveLibrary> m_pSaves;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;

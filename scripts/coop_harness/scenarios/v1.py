@@ -1,7 +1,7 @@
 """Scenarios v1 for the co-op harness."""
 from . import followers
 import functools
-from .combat import scenario_death_wipe_checkpoint
+from .combat import scenario_death_wipe_host_loads
 from ..common import (
     ACTIVATE_KEY,
     CHICKEN,
@@ -418,7 +418,7 @@ def follower_still_follows(ctx, npc, after, timeout=15):
 def save_load_gate(ctx):
     """The reload-freeze gate (v1-playtest-todo.md): with a guest in and the follower it recruited, the host's game
     saves and loads each way a player does (quicksave and quickload, a save loaded from the Load menu, the load door's
-    autosave, a named save loaded by name, a party wipe back to its checkpoint), and after each the party plays on
+    autosave, a named save loaded by name, a party wipe, then the host's load of its checkpoint), and after each the party plays on
     through a fight, checked every ~10 s, with the follower still following its guest."""
     with followers.recruited(ctx) as (npc, _, _):
         followers.follows(ctx, npc, lambda: ctx.player_copy(""))
@@ -426,7 +426,7 @@ def save_load_gate(ctx):
         for how, load in (("quickload", lambda: ctx.host_loads_party(True)),
                           ("Load menu", lambda: ctx.host_loads_party(False, menu=True)),
                           ("named load", lambda: ctx.host_loads_party(False)),
-                          ("party wipe", functools.partial(scenario_death_wipe_checkpoint, ctx)),
+                          ("party wipe", functools.partial(scenario_death_wipe_host_loads, ctx)),
                           ("door autosave", lambda: door_autosave_loads(ctx, npc))):
             log(f"=== gate: {how}")
             load()

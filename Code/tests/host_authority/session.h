@@ -195,6 +195,9 @@ struct Session
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    std::vector<std::string> ConsoleLines;                   // the dev commands' lines the host's console ran
+    std::map<uint32_t, std::string> ConsoleNames;            // a character as the host's console names it
+    uint32_t HostilesKilled = 0;                             // /killall's kills in the host's game
     uint32_t GlobalReads = 0;
     std::vector<HostGlobal> GlobalChanges;
     std::vector<HostGlobal> Globals;                              // the host's global variables
@@ -227,6 +230,11 @@ struct Session
     std::vector<Sent> Outbox;
     // The host's game's recipes (HostService gives its World's).
     RecipeBook Recipes;
+    // The host's saves: the one its game makes for a joining game (none: not made yet), the images it still has, and
+    // how many bytes each encodes to.
+    std::optional<std::string> WorldSave;
+    std::vector<std::string> SaveImages;
+    size_t SaveBytes = 100;
 
 private:
     void Capture(ConnectionId_t aTo, const void* apData, uint32_t aSize)
@@ -239,6 +247,20 @@ private:
     HostGame Game()
     {
         HostGame game;
+        game.SaveWorld = [this] { return WorldSave; };
+        // As SaveLibrary::Encode: against the first held image it still has, else whole.
+        game.EncodeSave = [this](const std::string& acSave, const std::vector<std::string>& acHeld) {
+            auto pStream = std::make_shared<SaveTransfer::Stream>();
+            if (std::ranges::find(SaveImages, acSave) == SaveImages.end())
+                return pStream;
+            pStream->Save = acSave;
+            for (const auto& cHeld : acHeld)
+                if (pStream->Base.empty() && cHeld != acSave && std::ranges::find(SaveImages, cHeld) != SaveImages.end())
+                    pStream->Base = cHeld;
+            pStream->Size = 1000;
+            pStream->Data.assign(SaveBytes, 'd');
+            return pStream;
+        };
         game.ReadFollowers = [this] { return Followers; };
         game.TakeFollowerOrders = [this] { return std::exchange(FollowerOrders, {}); };
         game.FollowerAnchors = [this]() -> Followers::Anchors& { return FollowerBindings; };
@@ -283,6 +305,12 @@ private:
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.RunConsole = [this](const std::string& acLine) { ConsoleLines.push_back(acLine); };
+        game.ConsoleNameOf = [this](uint32_t aSessionId) -> std::optional<std::string> {
+            const auto it = ConsoleNames.find(aSessionId);
+            return it == ConsoleNames.end() ? std::nullopt : std::optional(it->second);
+        };
+        game.KillHostiles = [this] { return ++HostilesKilled; };
         game.ReadGlobals = [this] { ++GlobalReads; return Globals; };
         game.TakeGlobalChanges = [this] { return std::exchange(GlobalChanges, {}); };
         game.ReadQuests = [this] { ++QuestReads; return Quests; };

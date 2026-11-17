@@ -13,8 +13,11 @@
 #include <Structs/TimeModel.h>
 
 #include <Followers/State.h>
+#include <Services/SaveTransfer.h>
 #include <functional>
+#include <memory>
 #include <optional>
+#include <string>
 
 struct ContainerTransferRequest;
 
@@ -61,6 +64,11 @@ struct HostGame
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;
     std::function<void(float aHours)> AdvanceTime;
+    // Dev commands (docs/design/dev-commands.md): a console line run in the host's game; a session's character as the
+    // console names it ("player", or its copy's reference id), none when not loaded; the hostile actors killed.
+    std::function<void(const std::string& acLine)> RunConsole;
+    std::function<std::optional<std::string>(uint32_t aSessionId)> ConsoleNameOf;
+    std::function<uint32_t()> KillHostiles;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.
@@ -112,9 +120,12 @@ struct HostGame
     std::function<bool(const GameId& acObject)> TakeQuestObject;
     // A guest's story event, queued in the host's story manager and judged for the guest's character (HostStory).
     std::function<void(const StoryEvent& acEvent)> RaiseStoryEvent;
-    // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine
-    // refused to save (HostSaveTransfer tries again next update).
-    std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;
+    // Saves the host's game now for a game joining from the main menu: the save's image, by its id; none while the
+    // engine has not made it (HostSaveTransfer asks again next update), an empty id when it cannot be sent.
+    std::function<std::optional<std::string>()> SaveWorld;
+    // A save's image encoded for a guest whose store holds acHeld: against the newest of them the host still has,
+    // else whole. None while it is being encoded (asked again next update); no data when the image is gone.
+    std::function<std::shared_ptr<const SaveTransfer::Stream>(const std::string& acSave, const std::vector<std::string>& acHeld)> EncodeSave;
     // The guests' characters for the host's save (CharacterRecords): a guest's record, and its place at a save.
     std::function<void(const PlayerRecord& acRecord)> StoreRecord;
     std::function<void(const GameId& acSpell, bool aAdded)> StoreStorySpell;
@@ -122,8 +133,6 @@ struct HostGame
     std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
-    // The whole party is down: the host's game loads its previous save (HostService's wipe reload).
-    std::function<void()> PartyWipe;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.
     GameVersions Versions;
     Mods Plugins;

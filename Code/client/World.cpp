@@ -30,6 +30,7 @@
 #include <Services/BodyService.h>
 #include <Bridges/CrimeBridge.h>
 #include <Bridges/BugReportBridge.h>
+#include <Bridges/DevToolsBridge.h>
 #include <Services/BugReportService.h>
 #include <Services/CrimeService.h>
 #include <Services/WaitService.h>
@@ -41,6 +42,7 @@
 #include <MenuEvents.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
+#include <Services/DevToolsService.h>
 #include <Services/TimeScaleService.h>
 #include <Services/PlayerService.h>
 #include <Services/DeathService.h>
@@ -93,6 +95,7 @@ World::World()
     , m_pBodyBridge(std::make_unique<BodyBridge>())
     , m_pCrimeBridge(std::make_unique<CrimeBridge>())
     , m_pBugReportBridge(std::make_unique<BugReportBridge>())
+    , m_pDevToolsBridge(std::make_unique<DevToolsBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -127,6 +130,8 @@ World::World()
     ctx().emplace<BugReportService>(*this, m_dispatcher, m_transport, *m_pBugReportBridge);
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
+    ctx().emplace<IDevToolsBridge&>(*m_pDevToolsBridge);
+    ctx().emplace<DevToolsService>(*this, m_dispatcher, m_transport, *m_pDevToolsBridge);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
@@ -163,6 +168,7 @@ World::~World()
     ctx().erase<CombatService>();
     ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
+    ctx().erase<DevToolsService>();
     ctx().erase<CommandService>();
     ctx().erase<DialogueService>();
     ctx().erase<BugReportService>();

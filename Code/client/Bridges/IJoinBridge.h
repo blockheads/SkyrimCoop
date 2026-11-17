@@ -3,8 +3,10 @@
 #include <Services/SaveTransfer.h>
 #include <Structs/PlayerRecord.h>
 
+#include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 /**
  * @brief The engine as joining a session needs it (docs/design/join-flow.md, "As built"): saves made, written
@@ -37,10 +39,21 @@ public:
     // Writes a save's files under acName; the engine loads it on a main loop frame after (TESLoadGameEvent follows).
     virtual bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept = 0;
 
+    // Work too heavy for a frame (a save imaged, encoded or decoded) runs off the game's threads; what it returns
+    // runs in a later FinishWork, on the thread that calls it (JoinService's update).
+    virtual void OffThread(std::function<std::function<void()>()> aWork) noexcept = 0;
+    virtual void FinishWork() noexcept = 0;
+
+    // The saves this game holds for save sync (docs/design/join-flow.md, "Save sync"), by id, outside the engine's
+    // Saves folder; callable off thread. The ids, the newest first.
+    [[nodiscard]] virtual std::vector<std::string> HeldSaves() noexcept = 0;
+    [[nodiscard]] virtual std::optional<std::string> ReadHeldSave(const std::string& acId) noexcept = 0;
+    // Written, or made the newest when it is there already.
+    virtual bool WriteHeldSave(const std::string& acId, const std::string& acData) noexcept = 0;
+    virtual void DropHeldSave(const std::string& acId) noexcept = 0;
+
     // An existing save and its co-save, selected by the host.
     [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
-    // The name of the most recent gameplay save of the engine's current character, excluding internal transfer saves.
-    [[nodiscard]] virtual std::optional<std::string> PreviousSave() noexcept = 0;
     // The engine's current character (its saves are filed and named under it), as a load of that character's save
     // sets it: a load of a scratch save (SkyrimCoopWipe) sets 0 (docs/re/systems/save-game.md).
     virtual void SetCharacter(uint32_t aCharacterId) noexcept = 0;

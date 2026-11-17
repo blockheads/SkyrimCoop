@@ -27,7 +27,7 @@ struct AuthenticationRequest final : RequestMessage
         return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
             && PlayerTime == achRhs.PlayerTime && PlayerKey == achRhs.PlayerKey && WantsWorld == achRhs.WantsWorld &&
-               HasCharacter == achRhs.HasCharacter && CachedSaveBlocks == achRhs.CachedSaveBlocks;
+               HasCharacter == achRhs.HasCharacter && HeldSaves == achRhs.HeldSaves;
     }
 
     GameVersions Game{};
@@ -44,6 +44,6 @@ struct AuthenticationRequest final : RequestMessage
     bool WantsWorld{};
     // Its game brings a character of its own (joined from a game it plays), for a host's save that has none.
     bool HasCharacter{};
-    // SHA-256 blocks read from the last received save, bounded to a 128 MB basis.
-    std::vector<std::string> CachedSaveBlocks;
+    // The saves its store holds (their SHA-256 ids): the host encodes the next one against the newest it still has.
+    std::vector<std::string> HeldSaves;
 };

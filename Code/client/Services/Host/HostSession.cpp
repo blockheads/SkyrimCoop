@@ -89,6 +89,7 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         return refuse(kSessionFull);
     }
 
+    m_transfer.SetHeld(aSender, acRequest.HeldSaves);
     if (acRequest.WantsWorld)
     {
         const bool cKnown = m_game.HasRecord && m_game.HasRecord(acRequest.PlayerKey);
@@ -102,7 +103,7 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         m_network.NameConnection(aSender, acRequest.Username);
         response.Type = kWorldFollows;
         m_network.Send(aSender, response);
-        m_transfer.Want(aSender, acRequest.CachedSaveBlocks);
+        m_transfer.Want(aSender);
         return;
     }
 

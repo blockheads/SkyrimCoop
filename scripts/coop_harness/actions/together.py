@@ -180,6 +180,75 @@ class TogetherActions:
         ctx.DIALOGUE_MARK = ctx.log_trail("", 1 << 62)[1]
         return {"mark": ctx.DIALOGUE_MARK}
 
+    def talk_again_as_menu_closes(ctx, instance):
+        """That game's player leaves its conversation (Tab) and presses E the moment its dialogue menu is gone, while the
+        NPC's goodbye still plays (it starts after the menu's fade, dialogue.md "A start during the NPC's last line")."""
+        who = f"[{instance or 'host'}]"
+        ctx.tap_key(instance, 0x0F)
+        ctx.wait_for(f"{who} the dialogue menu is gone", lambda: "Dialogue Menu" not in ctx.menus(instance), 5)
+        ctx.tap_key(instance, ACTIVATE_KEY)
+        ctx.wait_for(f"{who} the dialogue menu opens again", lambda: "Dialogue Menu" in ctx.menus(instance), 5)
+        return {"again": True}
+
+    def reask_after_close(ctx, name, seconds=10.0, after=0.0, alone=False):
+        """Both players talk to `name` and wait past its greeting; both leave (Tab) and the guest asks again `after`
+        seconds later (0: at once, during the NPC's walkaway line, dialogue.md "A start during the NPC's last line").
+        `alone`: the host's player only, as a single game would. Every list the asker's menu showed over `seconds`, and the
+        host's builds of the new conversation."""
+        asker = '' if alone else 'client'
+        players = ('',) if alone else ('', 'client')
+        for game in players:
+            ctx.talk(game, name, [])
+        for game in players:
+            ctx.wait_for(f"[{game or 'host'}] its menu takes a pick", lambda g=game: ctx.menu_takes_pick(g), 40)
+        greeting = [text for _, _, text in ctx.options_shown(asker)]
+        ctx.close_dialogues()
+        if after:
+            time.sleep(after)  # the line's length on the duo's silent device: no game state marks its end
+        mark = ctx.log_trail('', 1 << 62)[1]
+        ctx.talk(asker, name, [])
+        lists, deadline = [], time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            shown = [text for _, _, text in ctx.options_shown(asker)]
+            if shown and (not lists or lists[-1] != shown):
+                lists.append(shown)
+            time.sleep(0.1)
+        lines, _ = ctx.log_trail('', mark)
+        builds = [m[1] for row in lines if (m := re.search(r"Dialogue: step \d+ of conversation \d+: (\d+) options", row["text"]))]
+        ctx.close_dialogues()
+        return {"asker_lists": [len(shown) for shown in lists], "host_builds": [int(b) for b in builds],
+                "greeting": greeting, "shown": lists}
+
+    def expect_reask_keeps_choices(ctx, name):
+        """reask_after_close at once: the guest's menu keeps the greeting's choices, never rebuilt as one option's (a
+        hidden start's 'anything left?' check left the engine's cursor on the first option, 35267)."""
+        result = ctx.reask_after_close(name)
+        greeting = result["greeting"]
+        if not greeting or any(shown != greeting for shown in result["shown"]) or not result["shown"]:
+            raise ctx.failure(f"the guest's menu showed {result['shown']}, not the greeting's choices {greeting}")
+        # Two builds: at the start, and when the NPC's last line ends (the one that lost the choices).
+        if len(result["host_builds"]) < 2 or any(count != len(greeting) for count in result["host_builds"]):
+            raise ctx.failure(f"the host built {result['host_builds']} options, not the greeting's {len(greeting)} each time")
+        return result
+
+    def guest_replays_mark(ctx):
+        """Where the guest's log is now: expect_no_line_replayed looks at what its menus replayed after it."""
+        ctx.REPLAY_MARK = ctx.log_trail("client", 1 << 62)[1]
+        return {"mark": ctx.REPLAY_MARK}
+
+    def expect_no_line_replayed(ctx, seconds=3.0):
+        """The guest's menu, opening since guest_replays_mark, never starts the NPC's line again over its copy's (a join
+        mid-line: Actor::SpeakSound 37542 stops nothing, the two overlap). Watched for `seconds`."""
+        deadline = time.monotonic() + seconds
+        while True:
+            lines, _ = ctx.log_trail("client", getattr(ctx, "REPLAY_MARK", 0))
+            replayed = [row["text"] for row in lines if "the NPC's last line again" in row["text"]]
+            if replayed:
+                raise ctx.failure(f"the guest's menu said the NPC's line again over its copy's: {replayed[0]}")
+            if time.monotonic() >= deadline:
+                return {"replayed": 0}
+            time.sleep(0.2)
+
     def lines_said(ctx):
         """The picks the host's game said since dialogue_mark: [{player, topic, info}]."""
         lines, _ = ctx.log_trail("", getattr(ctx, "DIALOGUE_MARK", 0))

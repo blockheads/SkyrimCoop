@@ -34,7 +34,7 @@ checkForMods)`), as CommonLibSSE-NG's `Load(name)`: `Load_Impl(name, -1, 0, true
 (`LoadGameEvents`), after SKSE's co-save load.
 
 `SaveLoadManager.cpp` hooks this entry and quickload requests (35769) for [host loads](../../design/host-loads.md): a guest's own load is refused in
-chat; a host's selected save goes through the party wipe's transfer and rejoin. The bridge's internal `Load` calls
+chat; a host's selected save goes through the party's transfer and rejoin (also how a wipe ends: the host chooses). The bridge's internal `Load` calls
 the original trampoline so authorized party and join loads pass. The five-argument signature was checked against
 CommonLibSSE-NG and the 1.6.1170 disassembly at `0x140610480`.
 
@@ -60,12 +60,23 @@ IDA 1.7.104. The engine keeps no character id inside a save: **the id is in the 
   `currentCharacterID` and `displayCharacterID` (`+0xD8`, copied to `BSWin32SaveDataSystemUtility+0x64`) to
   `{that id, modded}`: `SetCurrentCharacter` (35751) inlined; `SetDisplayCharacter` (35752) is the display half
   (the console's `SetDisplayPlayerID`). The catalogue's entries (`characterID` `+0x6C`) come from the same parse.
-- So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: `PreviousGameplaySave` then took the newest id-0 save
-  (another character's, 2026-11-08), and saves made afterwards are named and filed under 0.
+- So loading `SkyrimCoopWipe` (or `SkyrimCoopJoin`) leaves id 0: saves made afterwards are named and filed under 0
+  (and the wipe's old automatic pick of the newest save, removed 2026-11-16, took another character's, 2026-11-08).
 
 Ours: `SaveNames::CharacterId` is the same parse; after the party's scratch load the host calls `SetCurrentCharacter`
 (35751) with the checkpoint's id (`HostService::OnGameLoaded`, `JoinBridge::SetCharacter`), keeping the load's modded
 flag. A guest's join load still leaves its id 0 (it makes no saves in a session).
+
+## Loading while dead (2026-11-16)
+
+IDA 1.7.104, read for the wipe (the host chooses the save, `../../design/death.md`).
+
+- `MenuOpenHandler::ProcessButton` (52249): `playerDyingOrDead` is ActorState1's life state (Actor `+0xC8` bits
+  21-24) dying (1) or dead (2). It gates the Tween menu, Wait, Map and the inventory/magic/skills shortcuts, not the
+  Journal/Pause buttons (UserEvents `+96`/`+128`): a dead player opens the Journal and its System -> Load.
+- `QuickSaveLoadHandler::ProcessButton` (52251) queues quickload (`0xD0000400`, at `0x140961E6A`) once `BGSSaveLoadManager::CanLoadGame`
+  (35736) allows it: false while the player's `Actor::someRefrHandle` (`+0x1F0`) names a live reference, a
+  UI `+0x170` count is nonzero, or 82076 (a UI check, not read) says so. No life-state check in what was read. Quicksave's gate is 35734 (not read further).
 
 ## Where a save or load can run (2026-10-24)
 
@@ -136,3 +147,32 @@ stays separate; a frozen VM call still counts as a VM tick for that frame.
 `save-does-not-update-frozen-world` exercises this actual engine boundary and fails before the
 guard. The fake engine's save bridge does not simulate Skyrim's VM drain. See the
 [crash investigation](../crashes/2026-10-29-save-vm-reentry.md) for IDA evidence and red/green results.
+
+## The file's compression, and when a save reaches disk (2026-11-16)
+
+IDA 1.7.104, read for save sync (`docs/design/join-flow.md`, the world). Format names from UESP's "Save File Format".
+
+- **Layout.** `TESV_SAVEGAME`, u32 header size, the header (its last u16 is `compressionType`), the screenshot
+  (width × height × 4 from version 10, raw), then the body. `BGSSaveLoadFile__WriteHeader` (35672) writes all of it up
+  to the body and returns the body's offset (`file+0xBC4`); `BGSSaveLoadFile__ReadHeader` (35673) reads it back and
+  copies the type to `file+0xBC8` (`BGSSaveLoadFileEntry__GetCompressionType` 35542, entry `+0x66`).
+- **Saving.** `Save_Impl` (35727) sets `file+0xBC8` from the setting `uiCompression:SaveGame`
+  (`g_uiCompression_SaveGame`, 0 none, 1 zlib, 2 LZ4). `BGSSaveLoadFile__CompressBody` (109333) then replaces the raw
+  body with u32 uncompressed length, u32 compressed length and the compressed bytes; for type 0 it returns and the
+  body stays raw, with no length fields.
+- **Loading.** `BGSSaveLoadFile__DecompressBody` (109334), called by the load (442580) after the header and
+  screenshot: type 0 returns true at once and the body is read as it lies; 1 and 2 read the two lengths and decode;
+  any other type fails the load. **So a file with type 0 and a raw body is a valid save**: what a guest writes
+  from a synced save. The file location table's offsets already count as if the body were raw.
+- **When the `.ess` is on disk.** Device 2 compresses and writes inside `Save_Impl` (35675, 109333, the save-data
+  utility's vfunc `0x68`, `BSWin32SaveDataSystemUtility__WriteSaveFile` 109353). The file is made by
+  `BGSSaveLoadManager__CreateSaveFile` (35724) as `<name>.ess.tmp`; 109353 writes it, then sends its event
+  (`BSWin32SaveDataSystemUtility__SendEvent`) to `BGSSaveLoadManager__OnSaveDataEvent` (35773), which moves the old
+  file to `.bak` and renames the `.tmp` into place, all before 109353 returns. Devices 3, 4 and 5 queue a `bgs::saveload::SaveOperationRequest` (id `0x40000001`, 35791)
+  and the save thread runs the same three calls later in `BGSSaveLoadManager__Thread__RunRequest` (35794). SKSE's
+  `.skse` is written inside `Save_Impl` in every case. A quicksave or autosave is therefore not readable when
+  `Save_Impl` returns: 35794 is where it becomes so.
+- **Measured, six saves of one session (2026-11-16, ~3.0 MB files, 7.9-8.4 MB raw bodies):** the LZ4 files share
+  3-23% of 16 KiB content-defined blocks; the raw bodies, with the earlier save as a zstd prefix (level 9, long
+  window), differ by 0.2 MB in one place and 1.1 MB after a move from an inn to the city. A raw body alone is 1.55 MB
+  in zstd against 2.8 MB in the engine's LZ4.

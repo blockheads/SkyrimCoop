@@ -1,7 +1,10 @@
 #include <Services/SaveTransfer.h>
 #include "../../external/picosha2/picosha2.h"
-#include <snappy.h>
-#include <array>
+#include <lz4.h>
+#include <zlib.h>
+#include <zstd.h>
+#include <algorithm>
+#include <bit>
 #include <cstring>
 #if defined(_WIN32)
 #include <windows.h>
@@ -12,36 +15,17 @@ namespace SaveTransfer
 {
 namespace
 {
-constexpr auto cGear = [] {
-    std::array<uint64_t, 256> table{};
-    for (uint64_t i = 0; i < table.size(); ++i)
-    {
-        uint64_t value = i + 0x9e3779b97f4a7c15ULL;
-        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
-        table[i] = value ^ (value >> 31);
-    }
-    return table;
-}();
+constexpr std::string_view cMagic = "TESV_SAVEGAME";
+// The engine's save version with a compression type in its header (442580 refuses newer ones).
+constexpr uint32_t cVersion = 12;
 
-// Content boundaries resynchronize after inserted bytes; block sizes bound both memory and wire messages.
-template<class T> void Blocks(std::string_view acData, T&& aVisit)
+template <class T> T Read(std::string_view acData, size_t aOffset) noexcept
 {
-    size_t start = 0;
-    uint64_t rolling = 0;
-    for (size_t i = 0; i < acData.size(); ++i)
-    {
-        rolling = (rolling << 1) + cGear[static_cast<uint8_t>(acData[i])];
-        const size_t cSize = i + 1 - start;
-        if (cSize == kMaxBlock || (cSize >= kMinBlock && !(rolling & 0x1fff)) || i + 1 == acData.size())
-        {
-            aVisit(start, acData.substr(start, cSize));
-            start = i + 1;
-            rolling = 0;
-        }
-    }
+    T value{};
+    std::memcpy(&value, acData.data() + aOffset, sizeof(T));
+    return value;
 }
-}
+} // namespace
 
 std::string Pack(const SaveFiles& acFiles) noexcept
 {
@@ -80,85 +64,127 @@ std::string Digest(std::string_view acBytes) noexcept
     return digest;
 }
 
-std::vector<NotifySaveChunk> Split(const std::string& acPacked) noexcept
+std::string Plain(std::string_view acGame) noexcept
 {
-    std::vector<NotifySaveChunk> chunks;
-    if (acPacked.empty() || acPacked.size() > kMaxSave)
-        return chunks;
-    Blocks(acPacked, [&](size_t aOffset, std::string_view acBlock) {
-        auto& chunk = chunks.emplace_back();
-        chunk.Offset = static_cast<uint32_t>(aOffset);
-        chunk.Total = static_cast<uint32_t>(acPacked.size());
-        chunk.RawSize = static_cast<uint32_t>(acBlock.size());
-        chunk.Hash = Digest(acBlock);
-        snappy::Compress(acBlock.data(), acBlock.size(), &chunk.Data);
-    });
-    return chunks;
+    std::string asIs(acGame);
+    // The magic, u32 header size, the header (version first; width, height and u16 compression type last), the
+    // screenshot (4 bytes a pixel), then the body: raw, or u32 raw size, u32 packed size and the packed bytes.
+    const size_t cHeader = cMagic.size() + 4;
+    if (!acGame.starts_with(cMagic) || acGame.size() < cHeader)
+        return asIs;
+    const uint32_t cHeaderSize = Read<uint32_t>(acGame, cMagic.size());
+    if (cHeaderSize < 14 || cHeaderSize > acGame.size() - cHeader || Read<uint32_t>(acGame, cHeader) != cVersion)
+        return asIs;
+    const size_t cHeaderEnd = cHeader + cHeaderSize;
+    const uint64_t cShot = 4ull * Read<uint32_t>(acGame, cHeaderEnd - 10) * Read<uint32_t>(acGame, cHeaderEnd - 6);
+    const uint16_t cType = Read<uint16_t>(acGame, cHeaderEnd - 2);
+    if (cShot > acGame.size() - cHeaderEnd)
+        return asIs;
+    const size_t cBody = cHeaderEnd + static_cast<size_t>(cShot);
+
+    std::string body;
+    if (cType == 0)
+        body = acGame.substr(cBody);
+    else if ((cType == 1 || cType == 2) && acGame.size() - cBody >= 8)
+    {
+        const uint32_t cRaw = Read<uint32_t>(acGame, cBody);
+        const uint32_t cPacked = Read<uint32_t>(acGame, cBody + 4);
+        if (!cRaw || cRaw > kMaxSave || cPacked > acGame.size() - cBody - 8)
+            return asIs;
+        body.resize(cRaw);
+        const char* cpPacked = acGame.data() + cBody + 8;
+        if (cType == 2)
+        {
+            if (LZ4_decompress_safe(cpPacked, body.data(), static_cast<int>(cPacked), static_cast<int>(cRaw)) != static_cast<int>(cRaw))
+                return asIs;
+        }
+        else
+        {
+            uLongf length = cRaw;
+            if (uncompress(reinterpret_cast<Bytef*>(body.data()), &length, reinterpret_cast<const Bytef*>(cpPacked), cPacked) != Z_OK || length != cRaw)
+                return asIs;
+        }
+    }
+    else
+        return asIs;
+
+    std::string plain;
+    plain.reserve(cBody + body.size());
+    plain.append(acGame.substr(0, cHeaderEnd));
+    plain[cHeaderEnd - 2] = plain[cHeaderEnd - 1] = '\0';
+    plain.append(static_cast<size_t>(cShot), '\0');
+    plain += body;
+    return plain;
 }
 
-void Cache::Load(const SaveFiles& acFiles) noexcept
+std::shared_ptr<const Image> MakeImage(const SaveFiles& acFiles) noexcept
 {
-    Clear();
-    m_data = Pack(acFiles);
-    Blocks(m_data, [&](size_t aOffset, std::string_view acBlock) {
-        m_blocks.try_emplace(Digest(acBlock), aOffset, acBlock.size());
-    });
+    auto data = Pack({Plain(acFiles.Game), acFiles.CoSave});
+    if (data.empty())
+        return nullptr;
+    auto pImage = std::make_shared<Image>();
+    pImage->Id = Digest(data);
+    pImage->Data = std::move(data);
+    return pImage;
 }
 
-void Cache::Clear() noexcept
+std::string Encode(std::string_view acTarget, std::string_view acBase) noexcept
 {
-    m_blocks.clear();
-    std::string{}.swap(m_data);
+    if (acTarget.empty() || acTarget.size() > kMaxSave || acBase.size() > kMaxSave)
+        return {};
+    ZSTD_CCtx* pContext = ZSTD_createCCtx();
+    if (!pContext)
+        return {};
+    ZSTD_CCtx_setParameter(pContext, ZSTD_c_compressionLevel, 9);
+    if (!acBase.empty())
+    {
+        // The window spans the base and the target, so a match can reach anywhere in the base.
+        const int cWindow = std::clamp(static_cast<int>(std::bit_width(acBase.size() + acTarget.size())), 20, 30);
+        ZSTD_CCtx_setParameter(pContext, ZSTD_c_windowLog, cWindow);
+        ZSTD_CCtx_setParameter(pContext, ZSTD_c_enableLongDistanceMatching, 1);
+        ZSTD_CCtx_refPrefix(pContext, acBase.data(), acBase.size());
+    }
+    std::string encoded(ZSTD_compressBound(acTarget.size()), '\0');
+    const size_t cSize = ZSTD_compress2(pContext, encoded.data(), encoded.size(), acTarget.data(), acTarget.size());
+    ZSTD_freeCCtx(pContext);
+    if (ZSTD_isError(cSize))
+        return {};
+    encoded.resize(cSize);
+    return encoded;
 }
 
-std::vector<std::string> Cache::Hashes() const
+std::optional<std::string> Decode(std::string_view acEncoded, std::string_view acBase, uint32_t aSize) noexcept
 {
-    std::vector<std::string> hashes;
-    hashes.reserve(m_blocks.size());
-    for (const auto& [hash, range] : m_blocks)
-        hashes.push_back(hash);
-    return hashes;
-}
-
-std::optional<std::string_view> Cache::Find(const std::string& acDigest) const noexcept
-{
-    const auto it = m_blocks.find(acDigest);
-    if (it == m_blocks.end())
+    if (!aSize || aSize > kMaxSave || ZSTD_getFrameContentSize(acEncoded.data(), acEncoded.size()) != aSize)
         return std::nullopt;
-    const auto [cOffset, cSize] = it->second;
-    return std::string_view(m_data).substr(cOffset, cSize);
+    ZSTD_DCtx* pContext = ZSTD_createDCtx();
+    if (!pContext)
+        return std::nullopt;
+    ZSTD_DCtx_setParameter(pContext, ZSTD_d_windowLogMax, 30);
+    if (!acBase.empty())
+        ZSTD_DCtx_refPrefix(pContext, acBase.data(), acBase.size());
+    std::string decoded(aSize, '\0');
+    const size_t cSize = ZSTD_decompressDCtx(pContext, decoded.data(), decoded.size(), acEncoded.data(), acEncoded.size());
+    ZSTD_freeDCtx(pContext);
+    if (ZSTD_isError(cSize) || cSize != aSize)
+        return std::nullopt;
+    return decoded;
 }
 
-bool Assembly::Add(const NotifySaveChunk& acChunk, const Cache* acpCache) noexcept
+bool Assembly::Add(const NotifySaveChunk& acChunk) noexcept
 {
-    if (!acChunk.Total || acChunk.Total > kMaxSave || !acChunk.RawSize || acChunk.RawSize > kMaxBlock ||
-        acChunk.Hash.size() != 32 || acChunk.Data.size() > NotifySaveChunk::kMaxData)
+    if (acChunk.Save.size() != 32 || (!acChunk.Base.empty() && acChunk.Base.size() != 32) || !acChunk.Size || acChunk.Size > kMaxSave ||
+        !acChunk.Total || acChunk.Total > kMaxSave || acChunk.Data.empty() || acChunk.Data.size() > NotifySaveChunk::kMaxData)
         return false;
     if (acChunk.Offset == 0)
     {
-        m_data.clear();
+        m_stream = {acChunk.Save, acChunk.Base, acChunk.Size, {}};
         m_total = acChunk.Total;
     }
-    if (acChunk.Total != m_total || acChunk.Offset != m_data.size() || acChunk.RawSize > m_total - m_data.size())
+    if (acChunk.Save != m_stream.Save || acChunk.Base != m_stream.Base || acChunk.Size != m_stream.Size || acChunk.Total != m_total ||
+        acChunk.Offset != m_stream.Data.size() || acChunk.Data.size() > m_total - m_stream.Data.size())
         return false;
-    std::string raw;
-    if (acChunk.Data.empty())
-    {
-        const auto cCached = acpCache ? acpCache->Find(acChunk.Hash) : std::nullopt;
-        if (!cCached)
-            return false;
-        raw = *cCached;
-    }
-    else
-    {
-        size_t length = 0;
-        if (!snappy::GetUncompressedLength(acChunk.Data.data(), acChunk.Data.size(), &length) || length != acChunk.RawSize ||
-            !snappy::Uncompress(acChunk.Data.data(), acChunk.Data.size(), &raw))
-            return false;
-    }
-    if (raw.size() != acChunk.RawSize || Digest(raw) != acChunk.Hash)
-        return false;
-    m_data += raw;
+    m_stream.Data += acChunk.Data;
     return true;
 }
 } // namespace SaveTransfer
