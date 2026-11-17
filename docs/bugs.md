@@ -679,7 +679,7 @@ Size: small. Needs: duo.
     showed in `party-buys-house-guest`'s audit on the host instead (full run, our code on the stack): `+0x187a10 >
     +0x165490` against `+0x172a5b > +0x187881`. Read in IDA: a package walk over a reference's aliases (12721, the alias
     array's lock for read) asks `TESPackage` 29619, which looks for the package in the reference's run-once packs under
-    the extra-data list's lock (`ExtraDataList::HasRunOncePack`, `0x140165460`, named that day); the other thread is
+    the extra-data list's lock (`ExtraDataList::HasRunOncePack` 11737, `0x140165460`, named that day); the other thread is
     `ExtraDataList::RemoveAliasInstance` (12047: the list's lock for write, then 12719 the array's). So the pair is an
     alias leaving a reference while that reference's packages are judged. Its `[ours]` was wrong: see
     [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
