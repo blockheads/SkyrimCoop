@@ -32,6 +32,7 @@ struct ActorRemovedEvent;
  *              held, the host told (one generation per fall), then it spectates the first standing player (left/right
  *              cycle) once it is dead
  *   party      the host's NotifyPartyDeath: who is down, the party's combat, the recovery countdown, a wipe
+ *              (everyone down: it waits for the host to load a save)
  *   respawn    the host's NotifyPlayerRespawn for this fall: it follows to beside a standing player, then is revived
  *              there, its controls and camera its own again
  *
@@ -45,6 +46,10 @@ struct DeathService
     ~DeathService() noexcept;
 
     NO_COPY_MOVE(DeathService);
+
+    // A wipe waits for the host to load a save it chooses (the pause menu opens while dead, MenuOpenHandler 52249).
+    static constexpr const char* kWipedHost = "The party has fallen. Load a save to continue.";
+    static constexpr const char* kWipedGuest = "The party has fallen. Waiting for the host to load a save.";
 
     [[nodiscard]] bool IsDown() const noexcept { return m_down; }
     [[nodiscard]] uint32_t DownGeneration() const noexcept { return m_generation; }

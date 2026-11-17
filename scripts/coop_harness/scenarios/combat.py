@@ -49,8 +49,12 @@ def scenario_party_travel_dead_guest(ctx):
     """A killed guest follows the living leader through a load and retains its death and spectator state."""
     ctx.death_spectate_respawn("client", travel_down=True)
 
-def scenario_death_wipe_checkpoint(ctx):
-    """Enemy blows down both players; both games load the previous host save and keep their saved characters."""
+WIPED_HOST = "The party has fallen. Load a save to continue."
+WIPED_GUEST = "The party has fallen. Waiting for the host to load a save."
+
+def scenario_death_wipe_host_loads(ctx):
+    """Enemy blows down both players; nothing loads by itself, then the dead host loads its checkpoint from the Load
+    menu and both games return to it with their saved characters (docs/design/death.md, "Wipe")."""
     _game = ctx.game()
     names = {instance: ctx.player_record(instance)["name"] for instance in ("", "client")}
     for instance in ("", "client"):
@@ -68,14 +72,34 @@ def scenario_death_wipe_checkpoint(ctx):
     ctx.console_on("", f"{npc:X}.startcombat player")
     ctx.wait_for("the host is downed by the enemy", lambda: ctx.death_state("").get("down"), 12)
     ctx.console_on("", f"{npc:X}.startcombat {ctx.client_on_host():X}")
+    def wiped():
+        return (ctx.death_state("").get("status") == WIPED_HOST and ctx.death_state("client").get("status") == WIPED_GUEST)
+    ctx.wait_for("both games say the host chooses the save", wiped, 30)
+    # Nothing loads by itself while both games' clocks run on (game time, so a stalled game fails too).
+    start = {instance: ctx.game_state(instance).get("time", {}).get("hour", 0) for instance in ("", "client")}
+    def held_while_time_passes():
+        advanced = True
+        for instance in ("", "client"):
+            state = ctx.game_state(instance)
+            hour = state.get("time", {}).get("hour", 0)
+            if not state.get("online") or not state.get("death", {}).get("down") or hour < start[instance] - 0.01 \
+                    or hour - start[instance] > 1:
+                raise ctx.failure(f"[{instance or 'host'}] the wipe changed the game by itself: online "
+                                  f"{state.get('online')}, down {state.get('death', {}).get('down')}, hour {hour:.2f} "
+                                  f"(was {start[instance]:.2f})")
+            advanced &= hour - start[instance] >= 0.05  # 3 game minutes, ~9 s at timescale 20
+        return advanced
+    ctx.wait_for("both games' clocks run on with nothing loaded", held_while_time_passes, 30)
+    # The dead host opens the Journal (MenuOpenHandler 52249 lets it) and loads its checkpoint.
+    ctx.load_latest_from_menu("")
     def restored_party():
         return all(ctx.game_state(instance).get("online") and not ctx.death_state(instance).get("down")
                    for instance in ("", "client")) and abs(ctx.game_state("").get("time", {}).get("hour", 24) - 12) < 0.3
-    ctx.wait_for("a wipe reloads the checkpoint on both games", restored_party, 120)
+    ctx.wait_for("the host's load restores the checkpoint on both games", restored_party, 120)
     ctx.wait_for("the restored party shows both players", ctx.both_see_each_other, 30)
     for instance in ("", "client"):
         if ctx.player_record(instance)["name"] != names[instance]:
-            raise ctx.failure(f"[{instance or 'host'}] the wipe restored another player's character")
+            raise ctx.failure(f"[{instance or 'host'}] the load restored another player's character")
     if str(npc) in ctx.local_player("").get("local_actors", {}):
         raise ctx.failure("the wolf created after the checkpoint survived the world rollback")
     rested = [ctx.comes_to_rest(lambda instance=instance: ctx.my_position(instance), still=1)
@@ -90,54 +114,6 @@ def scenario_death_wipe_checkpoint(ctx):
         at = {instance or "host": [round(x) for x in ctx.my_position(instance)] for instance in ("", "client")}
         raise ctx.failure(f"{failure} (moved in 10 s, latest action: {moved}; now at {at}, "
                           f"{distance(ctx.my_position(''), ctx.my_position('client')):.0f} units apart)") from None
-
-def scenario_death_wipe_twice_keeps_character(ctx):
-    """Two party wipes in a row: each reloads the host's own character's newest save, not another character's
-    (docs/re/systems/save-game.md, "The character a save belongs to")."""
-    own = 0xC0DE5A1E
-    original = ctx.game_state("").get("character_id", 0)
-    log(f"the host's character id at the start: {original:08X}")
-    def save_name(number, character, name, stamp):
-        return f"Save{number}_{character:08X}_0_{name.encode().hex().upper()}_Tamriel_00000{number}_{stamp}_1_1"
-    # The 2026-11-08 Saves folder: another character's older save filed under id 0, then the host's own.
-    decoy = save_name(1, 0, "Chris", "20261031195031")
-    checkpoint = save_name(2, own, "Scrombonius", "20261108211500")
-    saves = []
-    try:
-        # As loading its own save leaves the engine.
-        ctx.player_command("", {"cmd": "set_character", "id": own})
-        for instance in ("", "client"):
-            ctx.console_on(instance, "player.restoreav health 10000")
-        for hour, name in ((8, decoy), (12, checkpoint)):
-            ctx.console_on("", f"set gamehour to {hour}")
-            saves.append(ctx.save_game("", name))
-            ctx.wait_for(f"the host's save at {hour}:00 is written", ctx.saves_written(saves[-1]), 15)
-        for wipe in (1, 2):
-            ctx.console_on("", "set gamehour to 17")
-            npc, _, copy = ctx.spawn_host_npc(WOLF)
-            for instance in ("", "client"):
-                health = (ctx.player_snapshot(instance).get("values") or {}).get("health", 100)
-                if health > 1:
-                    ctx.console_on(instance, f"player.damageav health {health - 1:.6f}")
-                ctx.place_before(instance, npc if instance == "" else copy, MELEE_GAP)
-            ctx.console_on("", f"{npc:X}.startcombat player")
-            ctx.wait_for(f"wipe {wipe}: the host is downed by the enemy", lambda: ctx.death_state("").get("down"), 12)
-            ctx.console_on("", f"{npc:X}.startcombat {ctx.client_on_host():X}")
-            def reloaded():
-                return all(ctx.game_state(instance).get("online") and not ctx.death_state(instance).get("down")
-                           for instance in ("", "client")) and abs(ctx.game_state("").get("time", {}).get("hour", 17) - 17) > 0.5
-            ctx.wait_for(f"wipe {wipe}: both games load a save and the party rejoins", reloaded, 120)
-            hour = ctx.game_state("").get("time", {}).get("hour", 0)
-            character = ctx.game_state("").get("character_id", 0)
-            if abs(hour - 12) > 0.3 or character != own:
-                raise ctx.failure(f"wipe {wipe} loaded the save of hour {hour:.1f} (the host's checkpoint 12, the other "
-                                  f"character's 8) and left the host's character id {character:08X}, not {own:08X}")
-            ctx.wait_for(f"wipe {wipe}: the restored party shows both players", ctx.both_see_each_other, 30)
-    finally:
-        ctx.player_command("", {"cmd": "set_character", "id": original})
-        for path in saves:
-            for file in (path, path.with_suffix(".skse")):
-                file.unlink(missing_ok=True)
 
 def scenario_death_host_npc(ctx):
     """The host resurrects an NPC; its existing copy draws and swings on a running graph afterward."""

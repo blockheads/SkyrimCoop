@@ -1,7 +1,7 @@
 # Host loads take the party along
 
-Feature 16. A host quickload or chosen save load rolls back every game to that save, using the party wipe's
-reload. Each guest rejoins as the character the save keeps, at that character's saved place. A guest cannot load
+Feature 16. A host quickload or chosen save load rolls back every game to that save. It is also how a party wipe
+ends ([death.md](death.md#wipe-the-host-chooses-the-save)): nothing loads by itself, the dead host chooses the save. Each guest rejoins as the character the save keeps, at that character's saved place. A guest cannot load
 its own save while connected or joining; every attempt explains why in chat:
 
 > Only the host loads saves: your game can't load while you're in a co-op session.
@@ -19,7 +19,7 @@ current character's `SaveEntry::lastQuicksave` (CommonLibSSE-NG, checked offset 
 - Host: read the selected save and its co-save through `IJoinBridge::ReadSave`, then defer to
   `HostService::UpdateReload`. An unreadable save is reported immediately, before the session is held.
 
-The remaining path is shared with [the wipe reload](death.md#wipe-reload):
+The remaining path (`HostServiceReload.cpp`):
 
 1. `HostAuthority::SendCheckpoint` holds gameplay requests and world updates; only the transfer runs.
 2. `NotifyPartyReload` precedes the selected save's chunks for every guest, including games already receiving a
@@ -29,16 +29,15 @@ The remaining path is shared with [the wipe reload](death.md#wipe-reload):
    name. Its authority is rebuilt on the same listener. Authentication requests received during the load wait.
 5. Each guest applies its kept `PlayerRecord`, including worldspace, cell and position, then rejoins.
 
-A wipe still selects `PreviousSave()`. A host-initiated load selects exactly the requested file, even when a newer
-save exists. Repeated input during an active transfer or load does not replace the chosen save. Once the load
+A host load selects exactly the requested file, even when a newer save exists. Repeated input during an active transfer or load does not replace the chosen save. Once the load
 finishes, another host load follows the same path.
 
 `BGSSaveLoadManager::Load` is the internal bridge entry and calls the original `Load_Impl` trampoline directly.
 This permits authorized join and party loads without treating a user-selected filename as permission: a guest's
 own `load SkyrimCoopJoin` is refused too. The gate adds no messages or opcodes.
 
-A missing chosen save leaves the session running and lets the host choose again. An engine load failure uses the
-wipe's failure path: chat on the host and a failed authentication for waiting rejoins, including guests whose
+A missing chosen save leaves the session running and lets the host choose again. An engine load failure tells
+every player why (`NotifyPartyDeath`'s error), with chat on the host and a failed authentication for waiting rejoins, including guests whose
 reconnect arrives after the failure. A later valid choice starts a new reload; refused guests join with its save. Guests absent from an older
 save retain the join flow's existing character fallback.
 
@@ -64,8 +63,7 @@ games look restored. The scenario now changes the guest's level after saving and
 guests restored as distinct saved characters at distinct positions, the same listener retained, two consecutive
 loads, guest refusal (including internal-looking filenames), refusal while joining, authorized join loads,
 offline loading after leaving, recovery from a missing chosen save, and reconnect refusal after an engine load
-failure followed by a successful retry. Existing `[death]` flows cover the shared
-wipe path.
+failure followed by a successful retry. The `[death]` wipe flow ends with the host's chosen load.
 
 Verified 2026-10-26: `scripts/check.sh` passes (all native tests, UI fixtures and the Windows plugin build).
 All five Skyrim scenarios pass in one run: `host-loads-party`, `host-quickloads-party`, `host-menu-loads-party`,

@@ -126,7 +126,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
     , m_story(*this, m_players, m_characters, m_game)
-    , m_death(*this, aNetwork, m_players, m_characters, m_game)
+    , m_death(*this, aNetwork, m_players, m_characters)
     , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
 {
     using enum Delivery;
@@ -211,7 +211,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta, uint64_t aFrameTick) n
 {
     PROFILE_ZONE("HostAuthority::Update");
     // Only the save transfer runs until the host's game loads it.
-    if (m_reloading || m_death.Wiped())
+    if (m_reloading)
     {
         m_transfer.Update(aTick);
         return;
@@ -259,7 +259,7 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    if (m_reloading || m_death.Wiped())
+    if (m_reloading)
         return false;
     // A game that is not a player may only ask to join; anything else from it is dropped.
     if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))

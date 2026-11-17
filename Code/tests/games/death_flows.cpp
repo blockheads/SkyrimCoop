@@ -280,94 +280,86 @@ SCENARIO("Spectating follows a standing player's replacement copy", "[death]")
     CHECK(death.IsDown());
 }
 
-SCENARIO("A party wipe loads the previous host save and saved guest character", "[death][join]")
+SCENARIO("A party wipe loads nothing until the host loads the save it chooses", "[death][join]")
 {
     Party party(1, Plugins);
     auto& host = Party::Engine(party.Host());
     auto& guest = Party::Engine(party.Guest());
     party.Agree("both players are present");
-    // The guest stands away from the host at the checkpoint, where the wipe brings it back.
+    // The guest stands away from the host at the checkpoint, where the host's load brings it back.
     auto& guestPlayer = guest.Actors.at(FakeEngine::kPlayer);
     guestPlayer.Position[0] += 500.f;
     const float cGuestAt = guestPlayer.Position[0];
     party.Until([&] { return std::abs(host.Actors.at(PlayerCopy(host)).Position[0] - cGuestAt) < 1.f; },
                 "the host's copy of the guest walks with it");
-    party.As(party.Host(), [&] { (void)host.SaveNow("BeforeBattle"); });
-    party.Until([&] { return host.MadeSave.has_value(); }, "the host saves its checkpoint");
-    party.As(party.Host(), [&] { (void)host.SaveNow("BeforeBattle"); });
-    const size_t saves = host.Saves.size();
+    const auto cSave = [&](const std::string& acName) {
+        party.As(party.Host(), [&] { (void)host.SaveNow(acName); });
+        party.Until([&] { return host.MadeSave.has_value(); }, "the host writes the save");
+        party.As(party.Host(), [&] { REQUIRE(host.SaveNow(acName).has_value()); });
+    };
+    cSave("BeforeBattle");
     party.As(party.Host(), [&] { host.SetLock(0xECA, false, 0); });
     party.As(party.Guest(), [&] {
         guest.Player.Level = 22;
         party.Guest().GetDispatcher().trigger(MenuEvent{"InventoryMenu", false});
     });
     party.Until([&] { return !guest.References.at(0xECA).Locked; }, "the world changes after the checkpoint");
+    // A newer save the host does not choose.
+    cSave("Newer");
+    const size_t cSaves = host.Saves.size();
     party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
     party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
-    party.Until([&] { return !host.Loaded.empty() && !guest.Loaded.empty(); }, "both games load the previous checkpoint");
-    party.Until([&] { return party.Host().GetTransport().IsOnline() && party.Guest().GetTransport().IsOnline(); }, "the party rejoins in the restored world");
-    CHECK(!party.Host().ctx().at<DeathService>().IsDown());
-    CHECK(!party.Guest().ctx().at<DeathService>().IsDown());
-    CHECK(host.Saves.size() == saves);
-    CHECK(host.Loaded.size() == 1);
-    CHECK(guest.Loaded.size() == 1);
+    auto& hostDeath = party.Host().ctx().at<DeathService>();
+    auto& guestDeath = party.Guest().ctx().at<DeathService>();
+    party.Until([&] { return hostDeath.Status() == DeathService::kWipedHost && guestDeath.Status() == DeathService::kWipedGuest; },
+                "each game says the host chooses the save");
+    Frames(party, 900);
+    CHECK(host.Loaded.empty());
+    CHECK(guest.Loaded.empty());
+    CHECK(hostDeath.IsDown());
+    CHECK(guestDeath.IsDown());
+    CHECK(party.Guest().GetTransport().IsOnline());
+
+    party.As(party.Host(), [&] { CHECK_FALSE(host.PlayerLoads("BeforeBattle")); });
+    party.Until([&] { return host.Loaded.size() == 1 && guest.Loaded.size() == 1; }, "both games load the chosen save");
+    party.Until([&] { return party.Host().GetTransport().IsOnline() && party.Guest().GetTransport().IsOnline() &&
+                             !party.Guest().ctx().at<JoinService>().IsJoining(); },
+                "the party rejoins in the restored world", {}, nullptr,
+                std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
+    CHECK(!hostDeath.IsDown());
+    CHECK(!guestDeath.IsDown());
+    CHECK(host.Saves.size() == cSaves);
     CHECK(guest.Player.Name == "Lydia");
     CHECK(guest.Player.Level == 7);
     CHECK(std::abs(guestPlayer.Position[0] - cGuestAt) < 1.f);
-    CHECK(std::abs(guestPlayer.Position[0] - host.Actors.at(FakeEngine::kPlayer).Position[0]) > 400.f);
     CHECK(host.References.at(0xECA).Locked);
     CHECK(guest.References.at(0xECA).Locked);
     party.Agree("the restored players have their own copies");
 }
 
-SCENARIO("Two party wipes in a row both reload the host's own character", "[death][join]")
+SCENARIO("A guest joining a wiped party and dying waits for the host's load too", "[death][join]")
 {
-    Party party(1, Plugins);
+    Party party(2, Plugins, false);
     auto& host = Party::Engine(party.Host());
-    auto& guest = Party::Engine(party.Guest());
-    party.Agree("both players are present");
-    const auto cSave = [&](const std::string& acName) {
-        party.As(party.Host(), [&] { (void)host.SaveNow(acName); });
-        party.Until([&] { return host.MadeSave.has_value(); }, "the host writes the save");
-        party.As(party.Host(), [&] { REQUIRE(host.SaveNow(acName).has_value()); });
-    };
-    // The 2026-11-08 Saves folder: another character's older save filed under id 0, then the host's own.
-    host.Player.Name = "Chris Cringle";
-    cSave("Save4_00000000_1_4368726973_RiftenWorld_000010_20261031195031_1_1");
-    host.Player.Name = "scrombonius";
-    cSave("Save9_ABC467A6_0_7363726F6D_RiverwoodWorld_000020_20261108211500_1_1");
-    host.CharacterId = 0xABC467A6; // as loading its save left it
+    auto& first = Party::Engine(party.Guest(0));
+    auto& late = Party::Engine(party.Guest(1));
+    party.Join(party.Guest(0));
+    party.Until([&] { return PlayerCopy(host) && PlayerCopy(first); }, "the host and the first guest see each other");
+    party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
+    party.As(party.Guest(0), [&] { first.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& hostDeath = party.Host().ctx().at<DeathService>();
+    party.Until([&] { return hostDeath.Status() == DeathService::kWipedHost; }, "the party is wiped");
 
-    for (size_t wipe = 1; wipe <= 2; ++wipe)
-    {
-        party.As(party.Host(), [&] { host.Hit(FakeEngine::kPlayer, 200.f); });
-        party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
-        party.Until([&] { return host.Loaded.size() == wipe && guest.Loaded.size() == wipe; }, "both games load the checkpoint");
-        party.Until([&] { return party.Host().GetTransport().IsOnline() && party.Guest().GetTransport().IsOnline() &&
-                                 !party.Guest().ctx().at<JoinService>().IsJoining(); },
-                    "the party rejoins in the restored world", {}, nullptr,
-                    std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
-        INFO("wipe " << wipe);
-        CHECK(host.Loaded.back() == "SkyrimCoopWipe");
-        CHECK(host.Player.Name == "scrombonius");
-        CHECK(host.CharacterId == 0xABC467A6);
-        CHECK(guest.Player.Name == "Lydia");
-        party.Agree("both players are present again");
-    }
-}
-
-SCENARIO("A party wipe without a checkpoint reports failure and never revives in place", "[death]")
-{
-    Party party(1, Plugins);
-    party.Agree("both players are present");
-    party.As(party.Host(), [&] { Party::Engine(party.Host()).Hit(FakeEngine::kPlayer, 200.f); });
-    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).Hit(FakeEngine::kPlayer, 200.f); });
-    auto& death = party.Guest().ctx().at<DeathService>();
-    party.Until([&] { return death.Status().starts_with("No previous gameplay save"); }, "the guest sees the checkpoint failure");
+    party.Join(party.Guest(1));
+    party.Agree("the late guest is present");
+    party.As(party.Guest(1), [&] { late.Hit(FakeEngine::kPlayer, 200.f); });
+    auto& lateDeath = party.Guest(1).ctx().at<DeathService>();
+    party.Until([&] { return lateDeath.IsDown() && lateDeath.Status() == DeathService::kWipedGuest; },
+                "the late guest goes down and waits for the host");
     Frames(party, 900);
-    CHECK(death.IsDown());
-    CHECK(Party::Engine(party.Host()).Loaded.empty());
-    CHECK(Party::Engine(party.Guest()).Loaded.empty());
+    CHECK(lateDeath.IsDown());
+    CHECK(host.Loaded.empty());
+    CHECK(late.Loaded.empty());
 }
 
 SCENARIO("A standing guest's combat holds a downed host", "[death]")

@@ -1147,22 +1147,6 @@ Agent task: read where the door script's `Message.Show` runs for a guest's activ
 
 Size: small. Needs: the duo (`relief-takes-client-relics --repeat 4`), then GameTests.
 
-### A party wipe's fight that misfires
-
-`death-wipe-twice-keeps-character`, 2026-11-12: dev's plugin 2 of 12, the branch 3 of 13 (one in the full run). The
-failures differ:
-
-- The wolf never downs the host in 12 s (dev and the full run).
-- Wipe 1 loads a save of hour 17.5, not the checkpoint at 12 (dev, once).
-- The wolf spawned for wipe 2, about 3 s after wipe 1's reload, is gone on the host before `startcombat` ("actor for
-  new entity not found", "Actor removed": branch, once).
-- A ladle near the fight moved 2 units, so the world check fails afterwards (branch, once).
-
-Agent task: the wolf removed after the reload first (what removes a fresh spawn in the seconds after a load), then the
-save of the wrong hour.
-
-Size: medium. Needs: the duo (`death-wipe-twice-keeps-character --repeat 8`).
-
 ### An action sent before its copy exists
 
 Stands alone: a copy's last action.

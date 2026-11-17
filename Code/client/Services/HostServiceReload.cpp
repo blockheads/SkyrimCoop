@@ -1,4 +1,4 @@
-// A host load or party wipe: the chosen save to the guests, then
+// A host load (a party wipe waits for one): the chosen save to the guests, then
 // loaded here, and the host's rules made again on the same listener.
 #include <Services/HostService.h>
 #include <Services/Host/HostAggro.h>
@@ -18,7 +18,6 @@
 namespace
 {
 constexpr const char* kReloadSave = "SkyrimCoopWipe";
-constexpr const char* kNoSave = "No previous gameplay save could be loaded. Choose a save or return to the menu.";
 constexpr const char* kChosenMissing = "The selected save could not be read. Choose another save.";
 constexpr const char* kLoadFailed = "The save could not be loaded. Choose a save or return to the menu.";
 } // namespace
@@ -46,20 +45,7 @@ void HostService::UpdateReload() noexcept
     {
         m_readCheckpoint = true;
         if (!m_checkpoint)
-        {
-            auto& bridge = m_world.ctx().at<IJoinBridge&>();
-            if (const auto cName = bridge.PreviousSave())
-            {
-                m_checkpoint = bridge.ReadSave(*cName);
-                m_checkpointCharacter = SaveNames::CharacterId(*cName);
-            }
-        }
-        if (!m_checkpoint)
-        {
-            m_pAuthority->FailReload(kNoSave);
-            m_dispatcher.trigger(SessionNoticeEvent{kNoSave});
             return;
-        }
         m_pAuthority->SendCheckpoint(SaveTransfer::Split(SaveTransfer::Pack(*m_checkpoint)));
     }
     if (!m_checkpoint || !m_pAuthority->CheckpointDelivered())
@@ -74,7 +60,7 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
     if (!IsHosting() || !m_reloadRequested)
         return;
-    // The scratch save's name carries no character: the checkpoint's own again, for the next wipe and its saves.
+    // The scratch save's name carries no character: the checkpoint's own again, for its saves.
     m_world.ctx().at<IJoinBridge&>().SetCharacter(m_checkpointCharacter);
     m_pConversation.reset();
     m_pAuthority.reset();

@@ -2855,14 +2855,6 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }
 
-std::optional<std::string> FakeEngine::PreviousSave() noexcept
-{
-    for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
-        if (!i->starts_with("SkyrimCoop") && SaveNames::CharacterId(*i) == CharacterId && SavedFiles.contains(*i))
-            return *i;
-    return std::nullopt;
-}
-
 std::optional<IJoinBridge::SaveFiles> FakeEngine::ReadSave(const std::string& acName) noexcept
 {
     const auto it = SavedFiles.find(acName);

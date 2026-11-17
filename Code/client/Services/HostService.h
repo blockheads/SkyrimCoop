@@ -76,13 +76,13 @@ private:
     // The listener's front door: a join waits while a party reload runs, everything else goes to the host's rules.
     void InstallFrontDoor() noexcept;
 
-    // A party reload (HostServiceReload.cpp): the selected save (or a wipe's previous save) goes to the guests,
+    // A party reload (HostServiceReload.cpp): the save the host chose goes to the guests,
     // then this game loads it, and its rules are made again on the same listener, taking the joins that waited.
     void UpdateReload() noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
     void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
-    bool m_reloadRequested{}; // a host load or the whole party down
-    bool m_readCheckpoint{};  // the save read (m_checkpoint, or none to load)
+    bool m_reloadRequested{}; // a host load
+    bool m_readCheckpoint{};  // the transfer started (m_checkpoint, or none once its load failed)
     bool m_loadingSave{};     // delivered to the guests, loading here
     std::optional<IJoinBridge::SaveFiles> m_checkpoint;
     uint32_t m_checkpointCharacter{}; // its character's id (in its name), the engine's again once loaded under kReloadSave

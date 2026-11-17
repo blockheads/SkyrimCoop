@@ -138,7 +138,6 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     // As PreviousGameplaySave: the newest save on disk of CharacterId, not a SkyrimCoop scratch save.
-    std::optional<std::string> PreviousSave() noexcept override;
     void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
     // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
     // SkyrimCoopWipe), the engine's own saves are named with it.
