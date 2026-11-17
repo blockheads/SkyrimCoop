@@ -55,6 +55,8 @@ the guest's copy for a guest's trigger: no crime, so nothing the party shares, a
 crime fights. Now every NPC whose combat target is a player is a party fight (`PartyThreat::State::PartyFights`, nearest
 player first) and every player's body is its enemy in the reaction hooks (`PartyAggroNative::IsPartyFoe`), so its
 combat group can take them ([combat-targets.md](re/systems/combat-targets.md), A fight with one player is the party's).
+A guest's friendly-hit anger is the party's as well (`PartyThreat::AngerCovers`; scenario `guest-angers-ally-party-enemy`;
+MCP: `fight(until_dead=False)`, verb `expect_enemy`, a new duo forgets the last games' scene and staging).
 Tests: GameTests "A guard a script set on the guest turns on the host beside it" (the fake's group takes only targets
 its members can attack, `CombatFriendly`), ClientTests `[party-aggro]`, scenario `guest-trips-platform-guard` (its steps
 pass; its end comparison finds the town's scattering crowd apart, bugs.md "End comparisons in towns").

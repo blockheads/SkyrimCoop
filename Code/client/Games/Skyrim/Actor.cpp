@@ -34,6 +34,7 @@
 #include <Events/HitEvent.h>
 #include <Combat/HitOwnership.h>
 #include <Combat/PartyAggro.h>
+#include <Services/Host/PartyThreat.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -1775,9 +1776,9 @@ void UpdateRemotePlayerAnger() noexcept
         // "angry with player" for its player.
         if (!resolved)
         {
-            if (pActor->GetCombatTarget() == pRemotePlayer)
-                s_angerFought[i] = true;
-            else if (s_angerFought[i] && !pActor->IsInCombat())
+            Actor* pTarget = pActor->GetCombatTarget();
+            s_angerFought[i] = PartyThreat::AngerFought(s_angerFought[i], pTarget && pTarget->GetExtension()->IsPlayer());
+            if (s_angerFought[i] && !pActor->IsInCombat())
                 resolved = true;
         }
         if (resolved)
@@ -1789,13 +1790,14 @@ void UpdateRemotePlayerAnger() noexcept
     }
 }
 
-static bool IsAngryWithRemotePlayer(Actor* apActor, Actor* apOther) noexcept
+// Angry with one player's copy: every player's body is its enemy (PartyThreat::AngerCovers).
+static bool IsAngryWithParty(Actor* apActor, Actor* apOther) noexcept
 {
     if (!apActor || !apOther || s_angerCount.load(std::memory_order_relaxed) == 0)
         return false;
-    const uint64_t cKey = AngerKey(apActor, apOther);
+    const bool cOtherIsPlayer = apOther->GetExtension()->IsPlayer();
     for (const auto& cSlot : s_angerKeys)
-        if (cSlot.load(std::memory_order_acquire) == cKey)
+        if (PartyThreat::AngerCovers(cSlot.load(std::memory_order_acquire), apActor->formID, cOtherIsPlayer))
             return true;
     return false;
 }
@@ -1853,13 +1855,13 @@ void RefreshHangLockWatch() noexcept
 
 bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
+    if (IsAngryWithParty(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return true;
     return RealIsHostileToActor(apThis, apOther);
 }
 
-// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): enemy for an angry
-// actor's remote player and a party foe's players (combat-targets.md, A fight with one player is the party's).
+// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): every player is the enemy
+// of an actor angry with one or fighting one (combat-targets.md, A fight with one player is the party's).
 constexpr int32_t cReactionEnemy = 1;
 
 using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
@@ -1867,7 +1869,7 @@ static TGetFactionReaction* RealGetFactionReaction = nullptr;
 
 int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
+    if (IsAngryWithParty(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return cReactionEnemy;
     return RealGetFactionReaction(apThis, apOther);
 }
@@ -1880,7 +1882,7 @@ static TShouldAttack* RealShouldAttack = nullptr;
 
 bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
+    if (IsAngryWithParty(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return true;
     return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }
@@ -1890,7 +1892,7 @@ static TComputeReaction* RealComputeReaction = nullptr;
 
 int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
+    if (IsAngryWithParty(apThis, apOther) || PartyAggroNative::IsPartyFoe(apThis, apOther))
         return cReactionEnemy;
     return RealComputeReaction(apThis, apOther, aUnk);
 }

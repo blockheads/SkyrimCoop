@@ -38,6 +38,17 @@ struct Perception
     bool LineOfSight{};
     bool ClearPath{};
 };
+// A guest's friendly-hit anger (Actor.cpp, key = actor << 32 | the guest's copy) is the party's: every player's body
+// is the angry actor's enemy (combat-targets.md, A fight with one player is the party's).
+[[nodiscard]] constexpr bool AngerCovers(uint64_t aAngerKey, uint32_t aActor, bool aOtherIsPlayer) noexcept
+{
+    return aOtherIsPlayer && aAngerKey && uint32_t(aAngerKey >> 32) == aActor;
+}
+// The anger ends once its actor has fought a player, any player, and left combat (as kAngryWithPlayer's fight).
+[[nodiscard]] constexpr bool AngerFought(bool aFought, bool aTargetIsPlayer) noexcept
+{
+    return aFought || aTargetIsPlayer;
+}
 struct State
 {
     bool Active{};

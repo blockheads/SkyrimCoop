@@ -186,3 +186,19 @@ TEST_CASE("An NPC fighting one player is every player's foe, and no one else's",
     state.Active = false;
     CHECK_FALSE(state.IsPartyFoe(500, 14));
 }
+
+TEST_CASE("A guest's friendly-hit anger is the whole party's", "[party-aggro]")
+{
+    const uint64_t cAngry = uint64_t(500) << 32 | 0xFF000833; // 500 angry with the guest's copy
+    CHECK(PartyThreat::AngerCovers(cAngry, 500, true));        // any player's body: the copy, the host's player
+    CHECK_FALSE(PartyThreat::AngerCovers(cAngry, 500, false)); // an NPC beside them keeps its reaction
+    CHECK_FALSE(PartyThreat::AngerCovers(cAngry, 501, true));  // another actor is not angry
+    CHECK_FALSE(PartyThreat::AngerCovers(0, 0, true));         // an empty slot
+}
+
+TEST_CASE("The anger ends after a fight with any player", "[party-aggro]")
+{
+    CHECK_FALSE(PartyThreat::AngerFought(false, false)); // not yet fought: it stays angry out of combat
+    CHECK(PartyThreat::AngerFought(false, true));        // fought the host, not the guest who hit it
+    CHECK(PartyThreat::AngerFought(true, false));
+}

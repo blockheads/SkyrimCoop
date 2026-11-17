@@ -217,6 +217,14 @@ The party rule (`party-model.md`, Crime): an NPC whose combat target is a player
   `ShouldAttack` 37534, `ComputeReaction` 37667, the friendly-hit anger's hooks in `Actor.cpp`) answer "enemy" for every
   player's body. Then 39747 and 44704 let the detection listener add the host (above). When the NPC leaves combat it
   is no foe again.
+- A guest's friendly-hit anger (`SkyrimBridge::ReactToAttack`: past the engine's friendly hits, `MarkAngryWithRemotePlayer`)
+  is the party's too (2026-11-17, `PartyThreat::AngerCovers`): the angry NPC reads every player's body as an enemy,
+  as `kAngryWithPlayer` already did for the host's over-hits through `CrimeBridge`, and the anger ends after a fight
+  with any player. Before, it covered the one guest until the NPC's combat target was a player. Measured on the duo
+  (`guest-angers-ally-party-enemy`, Lydia staged as an ally): after the guest's second punch Lydia went into combat on
+  the copy before the anger was marked (the third hit read her no longer an ally), so the party-fight rule made the host
+  her enemy (reaction 1, the host among her candidates). That run did not exercise the anger slot itself;
+  ClientTests `[party-aggro]` hold its rule.
 - Read, not measured: the host's admission through 39359 sets `kAngryWithPlayer` on the NPC, which `CrimeBridge` reads
   as a party grudge (`crime.md`, Who an NPC fights for a party crime). Whether vanilla clears it when the fight ends
   was not read.

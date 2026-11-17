@@ -736,8 +736,9 @@ class PlayerVerbs:
         return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
 
     @goal
-    def fight(ctx, instance, target, hits=30):
-        """The player draws what it holds and hits `target` until it dies, chasing it when it moves off."""
+    def fight(ctx, instance, target, hits=30, until_dead=True):
+        """The player draws what it holds and hits `target` until it dies, chasing it when it moves off; until_dead
+        False: `hits` swings, the target alive or not."""
         ctx.can_play(instance)
         ref = ctx.resolve(target, instance)
         dead = lambda who: (ctx.actor_row(instance, who).get("state") or {}).get("dead")
@@ -774,7 +775,7 @@ class PlayerVerbs:
                 if misses >= 5:
                     raise verb_failure(ctx, "refused", f"[{instance or 'host'}] five swings at {target} in a row never started")
             swings += 1
-        if not dead(ref):
+        if until_dead and not dead(ref):
             raise verb_failure(ctx, "timeout", f"[{instance or 'host'}] {target} still stands after {swings} swings", swings=swings)
         return {"how": "input", "swings": swings}
 
