@@ -135,24 +135,31 @@ SCENARIO("A guard answering a party crime goes for the nearest player", "[party-
     CrimeFightGoesNearest({.Witness = true});
 }
 
-SCENARIO("An NPC fighting the host for other reasons keeps Skyrim's pick", "[party-aggro][crime]")
+SCENARIO("A guard a script set on the guest turns on the host beside it", "[party-aggro][combat]")
 {
+    // Solitude's execution (guest-trips-platform-guard): stage 29 runs StartCombat(Game.GetPlayer()) for the guest's
+    // trigger, so the guard's group holds the guest's copy only; to the guard's own reaction the host is a friend.
     Party party(1, SmokeWorld);
     auto& host = Party::Engine(party.Host());
-    uint32_t enemy = 0;
-    party.As(party.Host(), [&] { enemy = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(0x23ABE, 0x31D2E, {100.f, 0.f, 0.f}); });
     party.Until([&] { return PlayerCopy(host); }, "the host has the guest's copy");
     const uint32_t cGuest = PlayerCopy(host);
     party.As(party.Host(), [&] {
-        host.CombatProposals[enemy] = FakeEngine::kPlayer;
-        host.CombatCandidates[enemy] = {{FakeEngine::kPlayer, 2000.f, true}, {cGuest, 150.f, true}};
-        host.CombatPerception[PartyThreat::State::Key(enemy, cGuest)] = {.Known = true, .Detection = 100, .Stealth = 40};
-        host.Actors.at(enemy).Ai.CombatState = 1;
-        host.Actors.at(enemy).Ai.CombatTargetId = FakeEngine::kPlayer;
+        host.CombatFriendly.insert(PartyThreat::State::Key(guard, FakeEngine::kPlayer));
+        host.CombatProposals[guard] = cGuest;
+        host.CombatCandidates[guard] = {{FakeEngine::kPlayer, 150.f, true}, {cGuest, 2000.f, true}};
+        host.CombatPerception[PartyThreat::State::Key(guard, FakeEngine::kPlayer)] = {.Known = true, .Detection = 100, .Stealth = 40};
+        host.Actors.at(guard).Ai.CombatState = 1;
+        host.Actors.at(guard).Ai.CombatTargetId = cGuest;
+        party.Host().GetRunner().Trigger(AiStateChangeEvent{guard});
     });
-    for (int i = 0; i < 300; ++i)
-        party.Frame();
-    CHECK(host.Actors.at(enemy).Ai.CombatTargetId == FakeEngine::kPlayer);
+    party.Until([&] { return host.PartyThreats.IsPartyFoe(guard, FakeEngine::kPlayer); },
+                "the guard fighting the guest is the whole party's foe");
+    party.Until([&] { return !host.CombatFriendly.contains(PartyThreat::State::Key(guard, FakeEngine::kPlayer)); },
+                "the host joins the guard's combat group");
+    party.Until([&] { return host.Actors.at(guard).Ai.CombatTargetId == FakeEngine::kPlayer; },
+                "the guard turns from the far guest to the host beside it");
 }
 
 SCENARIO("Party threat retires actors and players and stops with the host", "[party-aggro][combat]")

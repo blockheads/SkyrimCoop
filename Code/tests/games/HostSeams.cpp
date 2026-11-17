@@ -85,8 +85,7 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
-        [&engine](const auto& acState) { engine.PartyThreats = acState; },
-        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
+        [&engine](const auto& acState) { engine.PartyThreats = acState; });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;

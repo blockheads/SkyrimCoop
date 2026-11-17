@@ -33,6 +33,7 @@
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
 #include <Combat/HitOwnership.h>
+#include <Combat/PartyAggro.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -1721,84 +1722,6 @@ bool HookIsFleeing(Actor* apThis)
 using TIsHostileToActor = bool(Actor*, Actor* apOther);
 static TIsHostileToActor* RealIsHostileToActor = nullptr;
 
-namespace
-{
-// Who is angry with which remote player's character: key = actor form id << 32 | character form
-// id. The hooks below run on the engine's AI worker threads, often while it holds reference locks,
-// so they must never block: they only read these atomic slots. Only the main thread writes them.
-constexpr size_t cAngerSlots = 32;
-std::atomic<uint64_t> s_angerKeys[cAngerSlots]{};
-bool s_angerFought[cAngerSlots]{}; // main thread only: has fought them since getting angry
-std::atomic<size_t> s_angerCount{0};
-
-uint64_t AngerKey(const Actor* apActor, const Actor* apOther) noexcept
-{
-    return (uint64_t(apActor->formID) << 32) | apOther->formID;
-}
-} // namespace
-
-void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept
-{
-    const uint64_t cKey = AngerKey(apActor, apRemotePlayer);
-    size_t free = cAngerSlots;
-    for (size_t i = 0; i < cAngerSlots; ++i)
-    {
-        const uint64_t cSlot = s_angerKeys[i].load(std::memory_order_relaxed);
-        if (cSlot == cKey)
-            return;
-        if (cSlot == 0 && free == cAngerSlots)
-            free = i;
-    }
-    if (free == cAngerSlots)
-        return;
-    s_angerFought[free] = false;
-    s_angerKeys[free].store(cKey, std::memory_order_release);
-    s_angerCount.fetch_add(1, std::memory_order_relaxed);
-}
-
-void UpdateRemotePlayerAnger() noexcept
-{
-    if (s_angerCount.load(std::memory_order_relaxed) == 0)
-        return;
-
-    for (size_t i = 0; i < cAngerSlots; ++i)
-    {
-        const uint64_t cKey = s_angerKeys[i].load(std::memory_order_relaxed);
-        if (!cKey)
-            continue;
-        auto* pActor = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey >> 32)));
-        auto* pRemotePlayer = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey)));
-        bool resolved = !pActor || !pRemotePlayer || pActor->IsDead() || !pActor->GetNiNode();
-        // Skyrim decides when the fight is over (yield, flee, death, distance...): once the actor
-        // has fought them and is out of combat, the anger is resolved, like the engine's own
-        // "angry with player" for its player.
-        if (!resolved)
-        {
-            if (pActor->GetCombatTarget() == pRemotePlayer)
-                s_angerFought[i] = true;
-            else if (s_angerFought[i] && !pActor->IsInCombat())
-                resolved = true;
-        }
-        if (resolved)
-        {
-            spdlog::info("Anger of {:X} at remote player {:X} resolved", static_cast<uint32_t>(cKey >> 32), static_cast<uint32_t>(cKey));
-            s_angerKeys[i].store(0, std::memory_order_release);
-            s_angerCount.fetch_sub(1, std::memory_order_relaxed);
-        }
-    }
-}
-
-static bool IsAngryWithRemotePlayer(Actor* apActor, Actor* apOther) noexcept
-{
-    if (!apActor || !apOther || s_angerCount.load(std::memory_order_relaxed) == 0)
-        return false;
-    const uint64_t cKey = AngerKey(apActor, apOther);
-    for (const auto& cSlot : s_angerKeys)
-        if (cSlot.load(std::memory_order_acquire) == cKey)
-            return true;
-    return false;
-}
-
 // Hang diagnostics: every loaded actor's reference lock (TESObjectREFR+0x88, BSReadWriteLock
 // {writer thread id, lock word}); held ones are logged from the watchdog thread (read-only peeks
 // of pointers refreshed by the main thread).
@@ -1852,15 +1775,13 @@ void RefreshHangLockWatch() noexcept
 
 bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return true;
     return RealIsHostileToActor(apThis, apOther);
 }
 
-// The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
-// GetFactionReaction (37666) returns the value cached in the actor's knowledge of the other, else
-// computes it (37667); the cache is refreshed from 37667. An angry actor sees the remote player as
-// an enemy in both.
+// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): every player is the enemy
+// of an actor angry with one or fighting one (combat-targets.md, A fight with one player is the party's).
 constexpr int32_t cReactionEnemy = 1;
 
 using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
@@ -1868,7 +1789,7 @@ static TGetFactionReaction* RealGetFactionReaction = nullptr;
 
 int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return cReactionEnemy;
     return RealGetFactionReaction(apThis, apOther);
 }
@@ -1881,7 +1802,7 @@ static TShouldAttack* RealShouldAttack = nullptr;
 
 bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return true;
     return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }
@@ -1891,7 +1812,7 @@ static TComputeReaction* RealComputeReaction = nullptr;
 
 int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return cReactionEnemy;
     return RealComputeReaction(apThis, apOther, aUnk);
 }
