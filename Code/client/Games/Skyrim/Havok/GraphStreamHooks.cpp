@@ -4,6 +4,7 @@
 #include <Games/Animation/GraphStream.h>
 #include <Games/Animation/ReplayState.h>
 #include <Games/Skyrim/ActionClips.h>
+#include <Games/Skyrim/AnimationObjects.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/BSSynchronizedClipGenerator.h>
@@ -291,6 +292,13 @@ struct SkyrimGraphTarget final : IGraphTarget
     }
     // Inline, not through the behaviour job queue (63568's second argument): the same pass.
     void Generate() override { RealGenerate(&Graph, 0); }
+    void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override
+    {
+        if (!Graph.holder)
+            return;
+        for (const auto& [cObject, cDrawn] : aObjects)
+            AnimationObjects::Hold(*Graph.holder, {cObject, cDrawn});
+    }
 };
 
 // coop_BShkbAnimationGraph_UpdateInterpolated (63587): one graph's update, its channels already applied (63590).
@@ -356,6 +364,8 @@ void HookBehaviourUpdate(hkbBehaviorGraph* apBehaviour, hkEventContext* apContex
         point.ActiveNodesChanged = pGraph->behaviorGraph->stateOrTransitionChanged != 0;
         point.Project = Project(*pGraph);
         point.ClipSets = HeldClipSets(*pGraph);
+        for (const auto& cHeld : AnimationObjects::Of(*pGraph->holder))
+            point.AnimObjects.emplace_back(cHeld.AnimObject, cHeld.Drawn);
         streams.AddPoint(cFormId, std::move(point));
     }
     streams.OnUpdate(cFormId, streams.Tick(), aStep, Words(*pGraph), Seed(*pGraph), pGraph);

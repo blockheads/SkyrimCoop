@@ -162,9 +162,12 @@ uint16_t FakeEngine::GraphEventId(const std::string& acEvent) const
     return it == cEvents.end() ? UINT16_MAX : uint16_t(it - cEvents.begin());
 }
 
-// A clip whose files its process does not hold lasts no time (59263): its graph runs on to the next.
+// A clip whose files its process does not hold lasts no time (59263): its graph runs on to the next. A clip with
+// prop triggers holds its props as it starts (AnimationObjects::Load 43571, Draw 43572).
 void FakeEngine::EnterClip(Actor& aActor) const
 {
+    if (const auto cProps = StateProps.find(aActor.GraphState); cProps != StateProps.end())
+        HoldAnimObjects(aActor, cProps->second);
     for (const auto& [cEvent, cState] : ClipFiles)
         if (cState == aActor.GraphState && !aActor.LoadedClips.contains(cEvent))
             if (const auto cNext = SkippedClips.find(aActor.GraphState); cNext != SkippedClips.end())
@@ -172,6 +175,19 @@ void FakeEngine::EnterClip(Actor& aActor) const
                 aActor.GraphState = cNext->second;
                 return;
             }
+}
+
+void FakeEngine::HoldAnimObjects(Actor& aActor, std::span<const std::pair<uint32_t, bool>> aProps)
+{
+    for (const auto& [cObject, cDrawn] : aProps)
+    {
+        // One entry per (reference, ANIO); Draw shows a loaded one (43572).
+        const auto it = std::ranges::find(aActor.AnimObjects, cObject, &std::pair<uint32_t, bool>::first);
+        if (it == aActor.AnimObjects.end())
+            aActor.AnimObjects.emplace_back(cObject, cDrawn);
+        else
+            it->second = it->second || cDrawn;
+    }
 }
 
 bool FakeEngine::TakeGraphEvent(Actor& aActor, const std::string& acEvent)
@@ -395,7 +411,7 @@ void FakeEngine::UpdateGraph(uint32_t aFormId, Actor& aActor)
         streams.AddPoint(aFormId, {.Tick = streams.Tick(), .State = SaveGraphInternalState(aFormId), .Words = GraphWords(aActor),
                                    .Seed = {aActor.GraphRandom, 0}, .ActiveNodesChanged = aActor.Graph.ActiveNodesChanged,
                                    .Project = aActor.GraphProject,
-                                   .ClipSets = std::move(sets)});
+                                   .ClipSets = std::move(sets), .AnimObjects = aActor.AnimObjects});
     }
     if (cRecorded)
         streams.OnUpdate(aFormId, streams.Tick(), cStep, GraphWords(aActor), cSeed, GraphIdentity(aActor));
@@ -440,6 +456,7 @@ struct FakeGraphTarget final : IGraphTarget
     void Picks(std::span<const GraphPick> aPicks) override { Actor.Graph.OwnersPicks.assign(aPicks.begin(), aPicks.end()); }
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
+    void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override { FakeEngine::HoldAnimObjects(Actor, aObjects); }
     std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
     {
         const auto cEvents = Engine.GraphEventTable();
@@ -1044,6 +1061,7 @@ void FakeEngine::RevertSelectedSpells(uint32_t aFormId)
 void FakeEngine::Unload3D(uint32_t aFormId)
 {
     Actors.at(aFormId).Loaded = false;
+    Actors.at(aFormId).AnimObjects.clear(); // Release3DRelatedData drops its props (43573)
     RevertSelectedSpells(aFormId);
     DropHead(aFormId);
 }

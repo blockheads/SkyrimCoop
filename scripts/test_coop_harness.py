@@ -1292,6 +1292,21 @@ class Scenes(unittest.TestCase):
 
 
 class Repro(unittest.TestCase):
+    def test_props_compare_each_copy_with_its_owner(self):
+        from coop_harness.actions.repro import props_differences
+        def row(role, sid, props, has_3d=True, name="Hilde"):
+            return {"role": role, "mod": {"session_id": sid}, "identity": {"name": name},
+                    "placement": {"has_3d": has_3d}, "state": {"anim_objects": props}}
+        host = {"world": {"218420": row("own", 30, [[468903, True]]), "1": row("own", 31, [], name="Hod"),
+                          "2": row("own", 32, [[409857, False]], name="Embry")}}
+        guest = {"world": {"9": row("copy", 30, []), "8": row("copy", 31, []),
+                           "7": row("copy", 32, [], has_3d=False)}}
+        apart, compared = props_differences(host, guest)
+        self.assertEqual(apart, {"Hilde 00035534": ([(468903, True)], [])})  # Embry's copy has no 3D: not compared
+        self.assertEqual(compared, 1)
+        guest["world"]["9"]["state"]["anim_objects"] = [[468903, True]]
+        self.assertEqual(props_differences(host, guest), ({}, 1))
+
     def test_a_recording_exports_as_a_scenario_keeping_its_failing_expect(self):
         from coop_harness.actions import repro
         entries = [

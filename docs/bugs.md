@@ -382,6 +382,8 @@ Size: medium. Needs: duo.
     holds the copy's capsule at that height.
   - `copies_follow_owners_graphs_in_town` (Whiterun, 2026-11-09) ends with the same containers (`0x8000000` on the host
     only), loose food and a door, 45-52 references.
+  - `copy_holds_furniture_prop` (Riverwood, 2026-11-16) passes its steps and ends with the fish (`10C3BA`, `10B035`), the
+    containers (`0x8000000`) and Riverwood's mill log, 47 references.
 
 ### A strafing copy catches for a frame
 

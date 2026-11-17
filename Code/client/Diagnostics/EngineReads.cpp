@@ -57,6 +57,7 @@
 #include <NetImmerse/NiCamera.h>
 #include <NetImmerse/NiNode.h>
 #include <FormIds.h>
+#include <Games/Skyrim/AnimationObjects.h>
 #include <PlayerCharacter.h>
 #include <SaveLoad.h>
 #include <TESObjectREFR.h>
@@ -241,6 +242,15 @@ std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
     return BodyPose{.FloorGap = cFeet.z - cFloorZ, .Root = cRootZ - cFloorZ,
                     .Skeleton = NodePosition(pActor, s_skeleton, true).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
                     .Pelvis = cPelvis->z - cFloorZ, .Head = cHead->z - cFloorZ, .Floor = cFloor->Reference};
+}
+
+std::vector<std::pair<uint32_t, bool>> GetAnimObjects(uint32_t aFormId) noexcept
+{
+    std::vector<std::pair<uint32_t, bool>> held;
+    if (const Actor* pRef = GetActor(aFormId))
+        for (const auto& cHeld : AnimationObjects::Of(*pRef))
+            held.emplace_back(cHeld.AnimObject, cHeld.Drawn);
+    return held;
 }
 
 std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept

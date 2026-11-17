@@ -654,6 +654,12 @@ void GraphSyncPoint::SerializePayload(Wire::Buffer::Writer& aWriter) const noexc
         aWriter.WriteBits(cSet, 8);
         aWriter.WriteBits(cEvent, 16);
     }
+    Serialization::WriteVarInt(aWriter, AnimObjects.size());
+    for (const auto& [cObject, cDrawn] : AnimObjects)
+    {
+        aWriter.WriteBits(cObject, 32);
+        aWriter.WriteBits(cDrawn, 1);
+    }
 }
 void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
@@ -695,6 +701,20 @@ void GraphSyncPoint::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
             return;
         }
         ClipSets.emplace_back(uint8_t(set), uint16_t(event));
+    }
+    uint64_t objects = 0;
+    AnimObjects.clear();
+    if (!Serialization::TryReadVarInt(aReader, objects) || objects > 16)
+        return;
+    for (uint64_t i = 0; i < objects; ++i)
+    {
+        uint64_t object = 0, drawn = 0;
+        if (!aReader.ReadBits(object, 32) || !aReader.ReadBits(drawn, 1))
+        {
+            AnimObjects.clear();
+            return;
+        }
+        AnimObjects.emplace_back(uint32_t(object), drawn != 0);
     }
 }
 } // namespace Payloads

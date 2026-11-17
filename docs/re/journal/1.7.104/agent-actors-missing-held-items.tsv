@@ -1,0 +1,43 @@
+time	op	id	rva	item
+2026-11-17T01:50:00Z	read		0x7cf080	{"name": "AnimationObjectLoadHandler::Handle"}
+2026-11-17T01:50:00Z	read		0x7cf100	{"name": "AnimationObjectDrawHandler::Handle"}
+2026-11-17T01:50:08Z	read	43571	0x7d7dc0	{"name": "sub_1407D7DC0"}
+2026-11-17T01:50:08Z	read	43572	0x7d8080	{"name": "sub_1407D8080"}
+2026-11-17T01:50:23Z	read	42809	0x7c89f0	{"name": "sub_1407C89F0"}
+2026-11-17T01:50:33Z	name	43571	0x7d7dc0	{"addr": "0x1407D7DC0", "name": "AnimationObjects::Load"}
+2026-11-17T01:50:33Z	name	43572	0x7d8080	{"addr": "0x1407D8080", "name": "AnimationObjects::Draw"}
+2026-11-17T01:50:33Z	name	42809	0x7c89f0	{"addr": "0x1407C89F0", "name": "ActorAnimHandlers::RegisterFactoryNames"}
+2026-11-17T01:50:33Z	name	14618	0x1e5910	{"addr": "0x1401E5910", "name": "TESForm::LookupByEditorID"}
+2026-11-17T01:50:37Z	comment	43571	0x7d7dc0	{"addr": "0x1407D7DC0", "comment": "AnimationObjects::Load(handle, ANIO): adds a (handle, anio) entry (visible=false) unless present, queues the ANIO model (QueuedAnimationObject). Called by AnimationObjectLoadHandler (42888), the graph annotation whose payload names the ANIO."}
+2026-11-17T01:50:37Z	comment	43572	0x7d8080	{"addr": "0x1407D8080", "comment": "AnimationObjects::Draw(handle, ANIO): finds the (handle, anio) entry made by Load; ref gone: removes it; model attached: clears its NiAVObject hidden bit (+0xF4 bit 0); still loading: marks visible (+0x20). No entry (Load never ran for this actor): nothing."}
+2026-11-17T01:50:37Z	comment	42809	0x7c89f0	{"addr": "0x1407C89F0", "comment": "Static init: BSFixedStringCI names of the Actor IHandlerFunctor factories (AnimationObjectLoadHandler, AnimationObjectDrawHandler, WeaponRightSwingHandler, ...)."}
+2026-11-17T01:50:37Z	comment	14618	0x1e5910	{"addr": "0x1401E5910", "comment": "Form by editor ID (BSFixedString); the anim-object handlers check formType 0x53 (ANIO)."}
+2026-11-17T01:51:10Z	read		0x2fcf79	{"name": "TESObjectREFR::ProcessEvent"}
+2026-11-17T01:52:23Z	read	43569	0x7d7ce0	{"name": "sub_1407D7CE0"}
+2026-11-17T01:52:23Z	read	43570	0x7d7d40	{"name": "sub_1407D7D40"}
+2026-11-17T01:52:24Z	read	35639	0x61b9a0	{"name": "sub_14061B9A0"}
+2026-11-17T01:52:30Z	name	43569	0x7d7ce0	{"addr": "0x1407D7CE0", "name": "AnimationObjects::ctor"}
+2026-11-17T01:52:30Z	name	43570	0x7d7d40	{"addr": "0x1407D7D40", "name": "AnimationObjects::dtor"}
+2026-11-17T01:52:30Z	name	35639	0x61b9a0	{"addr": "0x14061B9A0", "name": "BGSSaveLoadManager::SaveGlobalData"}
+2026-11-17T01:52:30Z	name	43579	0x7d8c40	{"addr": "0x1407D8C40", "name": "AnimationObjects::Save"}
+2026-11-17T01:52:31Z	read	35650	0x61cfb0	{"name": "sub_14061CFB0"}
+2026-11-17T01:52:35Z	read	35642	0x61c2f0	{"name": "sub_14061C2F0"}
+2026-11-17T01:52:41Z	read	43580	0x7d8da0	{"name": "sub_1407D8DA0"}
+2026-11-17T01:52:54Z	name	35650	0x61cfb0	{"addr": "0x14061CFB0", "name": "BGSSaveLoadManager::RevertGlobalData"}
+2026-11-17T01:52:54Z	name	35642	0x61c2f0	{"addr": "0x14061C2F0", "name": "BGSSaveLoadManager::LoadGlobalData"}
+2026-11-17T01:52:54Z	name	43580	0x7d8da0	{"addr": "0x1407D8DA0", "name": "AnimationObjects::LoadGame"}
+2026-11-17T01:52:54Z	name	43574	0x7d8420	{"addr": "0x1407D8420", "name": "AnimationObjects::Revert"}
+2026-11-17T01:52:54Z	name	43577	0x7d88f0	{"addr": "0x1407D88F0", "name": "AnimationObjects::OnUnloadEvent"}
+2026-11-17T01:52:54Z	read	43577	0x7d88f0	{"name": "AnimationObjects::OnUnloadEvent"}
+2026-11-17T01:53:01Z	comment	43580	0x7d8da0	{"addr": "0x1407D8DA0", "comment": "Save global data 0x3EA (Anim Objects): count, then per entry ref, ANIO, visible byte -> AnimationObjects::Load, and Draw if visible. How vanilla restores a held prop (Alvor's hammer) without replaying the graph's AnimObjLoad/AnimObjDraw triggers."}
+2026-11-17T01:53:01Z	comment	43579	0x7d8c40	{"addr": "0x1407D8C40", "comment": "Writes save global data 0x3EA: each entry's ref, ANIO, visible (+0x20)."}
+2026-11-17T01:53:01Z	comment	43574	0x7d8420	{"addr": "0x1407D8420", "comment": "Revert global data 0x3EA: clears every entry."}
+2026-11-17T01:53:01Z	comment	43577	0x7d88f0	{"addr": "0x1407D88F0", "comment": "A ref's graph event (from TESObjectREFR::ProcessEvent 20102, the last case): every entry of that ref whose ANIO unloadEventName (+0x60) equals the event tag is detached (QueueNodeDetach) and removed."}
+2026-11-17T01:53:01Z	comment	35650	0x61cfb0	{"addr": "0x14061CFB0", "comment": "Revert global data by type; 0x3EA -> AnimationObjects::Revert."}
+2026-11-17T01:53:01Z	comment	35642	0x61c2f0	{"addr": "0x14061C2F0", "comment": "Load global data by type; 0x3EA -> AnimationObjects::LoadGame (43580)."}
+2026-11-17T01:53:05Z	read		0x2ea920	{"name": "TESObjectREFR::Release3DRelatedData"}
+2026-11-17T01:53:09Z	read	43573	0x7d82b0	{"name": "sub_1407D82B0"}
+2026-11-17T01:53:14Z	name	43573	0x7d82b0	{"addr": "0x1407D82B0", "name": "AnimationObjects::RemoveAllFor"}
+2026-11-17T01:53:18Z	comment	43573	0x7d82b0	{"addr": "0x1407D82B0", "comment": "Removes every anim-object entry of a ref handle (no detach call: its 3D is going). Called by TESObjectREFR::Release3DRelatedData (19302): a ref whose 3D reloads has no props until its graph fires AnimObjLoad/AnimObjDraw again."}
+2026-11-17T01:53:18Z	comment		0x7cf080	{"addr": "0x1407CF080", "comment": "AddressLib ID 42888. Actor graph-event handler for AnimObjLoad: payload = ANIO editor ID (TESForm::LookupByEditorID, formType 0x53) -> AnimationObjects::Load(actor handle, anio). The trigger sits on the clip generators that start an idle (BlackSmithAnvilEnter...)."}
+2026-11-17T01:53:18Z	comment		0x7cf100	{"addr": "0x1407CF100", "comment": "AddressLib ID 42889. Actor graph-event handler for AnimObjDraw: payload = ANIO editor ID -> AnimationObjects::Draw (shows the prop Load queued)."}

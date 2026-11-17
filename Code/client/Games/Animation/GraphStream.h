@@ -32,6 +32,8 @@ struct IGraphTarget
     virtual void Picks(std::span<const GraphPick> aPicks) = 0;
     virtual void Update(float aStep) = 0;                                 // 63587, every op at once (interpolation off)
     virtual void Generate() = 0; // the generate pass (63568), where its owner ran one: never on its own
+    // The props its owner's graph showed at the point (ANIO, drawn), held as a save's load does (43580).
+    virtual void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) = 0;
 };
 
 // An op with its frame, before batching.

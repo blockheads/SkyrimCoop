@@ -49,6 +49,13 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
+is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
+starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the
+owner's props and the copy holds them as a save's load does (43580: Load 43571, Draw 43572)
+([animation-objects.md](re/systems/animation-objects.md)). Tests: GameTests `[props]`, ClientTests `[graph-stream]`,
+scenario `copy_holds_furniture_prop`; snapshot readout `state.anim_objects`, MCP `expect(check="props")`.
+
 2026-11-13: a guest's seen theft is warned, as the host's is ([crime.md](re/systems/crime.md), "The steal warning").
 Read in IDA: the warning's package (37556) and its step (procedure 40, 39673) name `g_thePlayer` throughout, so it
 walked to, faced, warned and took back from the host's player; it is now started for the guest's copy (seven call
