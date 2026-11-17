@@ -55,6 +55,7 @@ struct GuestHands final : BodyService::Keeper
     {
         return std::ranges::any_of(m_own, [&acObject](const auto& acOwn) { return acOwn.first.Object == acObject; });
     }
+    [[nodiscard]] bool RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept override;
     // The host's rest placed: the host's again.
     void OnRest(const BodyPose& acRest) noexcept override;
 

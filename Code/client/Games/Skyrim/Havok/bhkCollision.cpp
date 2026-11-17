@@ -8,6 +8,12 @@
 #include <VersionDb.h>
 #include <TESObjectREFR.h>
 
+#include <algorithm>
+#include <array>
+#include <iterator>
+#include <utility>
+#include <vector>
+
 namespace
 {
 constexpr uint8_t kMaxBodies = 255;
@@ -22,6 +28,38 @@ struct alignas(16) HavokVector
 {
     float Values[4]{};
 };
+
+// 60850 on aBody's island (world write lock held) if every other body is still and none kept awake; each body keeps
+// its fastest speeds, not 60850's HK_REAL_MAX (physics.md, "When an island sleeps").
+bool DeactivateIsland(hkpRigidBody& aBody, const std::function<bool(const bhkWorldObject*)>& acKeepsAwake) noexcept
+{
+    using TDeactivate = void(hkpRigidBody*);
+    POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
+    const hkpSimulationIsland* pIsland = aBody.simulationIsland;
+    if (!pIsland || !pIsland->IsActive())
+        return true;
+    const auto cVector = [](const float(&acValues)[4]) { return glm::vec3(acValues[0], acValues[1], acValues[2]); };
+    std::vector<std::pair<hkpRigidBody*, std::array<float, 2>>> fastest;
+    for (int32_t i = 0; i < pIsland->entityCount; ++i)
+    {
+        hkpRigidBody* pOther = pIsland->entities[i];
+        if (!pOther)
+            continue;
+        if (pOther != &aBody &&
+            ((acKeepsAwake && acKeepsAwake(pOther->userData)) ||
+             !BodyPrediction::StillToSleep(pOther->IsDynamic(), glm::length(cVector(pOther->linearVelocity)) * cHavokToGame,
+                                           glm::length(cVector(pOther->angularVelocity)))))
+            return false;
+        fastest.push_back({pOther, {pOther->deactivationReference[0][3], pOther->deactivationReference[1][3]}});
+    }
+    s_deactivate(&aBody);
+    for (auto& [pOther, cFastest] : fastest)
+    {
+        pOther->deactivationReference[0][3] = cFastest[0];
+        pOther->deactivationReference[1][3] = cFastest[1];
+    }
+    return true;
+}
 
 HavokVector ToHavok(const glm::vec3& acPosition) noexcept
 {
@@ -197,25 +235,8 @@ bool SleepBody(bhkWorldObject& aBody, const std::function<bool(const bhkWorldObj
     bhkWorld* pWorld = pBody ? WorldOf(*pBody) : nullptr;
     if (!pWorld || !pBody->IsDynamic())
         return false;
-    using TDeactivate = void(hkpRigidBody*);
-    POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
     BSWriteLockGuard _(pWorld->worldLock);
-    if (!pBody->simulationIsland || !pBody->simulationIsland->IsActive())
-        return true;
-    const hkpSimulationIsland* pIsland = pBody->simulationIsland;
-    const auto cVector = [](const float(&acValues)[4]) { return glm::vec3(acValues[0], acValues[1], acValues[2]); };
-    for (int32_t i = 0; i < pIsland->entityCount; ++i)
-    {
-        const hkpRigidBody* pOther = pIsland->entities[i];
-        if (!pOther || pOther == pBody)
-            continue;
-        if (acKeepsAwake(pOther->userData) ||
-            !BodyPrediction::StillToSleep(pOther->IsDynamic(), glm::length(cVector(pOther->linearVelocity)) * cHavokToGame,
-                                          glm::length(cVector(pOther->angularVelocity))))
-            return false;
-    }
-    s_deactivate(pBody);
-    return true;
+    return DeactivateIsland(*pBody, acKeepsAwake);
 }
 
 std::optional<uint16_t> SetBodyGroup(bhkWorldObject& aBody, uint16_t aGroup) noexcept
@@ -253,10 +274,12 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
             return false;
         if (!pBody->IsDynamic())
             return false;
-        using TDeactivate = void(hkpRigidBody*);
-        POINTER_SKYRIMSE(TDeactivate, s_deactivate, 60850);
         BSWriteLockGuard _(WorldOf(*pBody)->worldLock);
-        s_deactivate(pBody);
+        // Still where it was put, for Havok's sleep test; written on the motion, as 78089 would wake it (lock order).
+        std::fill(std::begin(pBody->linearVelocity), std::end(pBody->linearVelocity), 0.f);
+        std::fill(std::begin(pBody->angularVelocity), std::end(pBody->angularVelocity), 0.f);
+        // Beside a body still moving it is left awake, to settle as Havok has it.
+        DeactivateIsland(*pBody, {});
         return true;
     }
     constexpr size_t cSetMotionType = 0x2E;

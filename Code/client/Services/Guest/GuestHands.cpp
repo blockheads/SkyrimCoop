@@ -74,6 +74,15 @@ bool GuestHands::KeepsRest(const BodyPose& acRest) const noexcept
     return cApart.Distance <= PhysicsBodies::kSameRest && cApart.Angle <= PhysicsBodies::kSameRestAngle;
 }
 
+bool GuestHands::RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept
+{
+    // The host put this rest and its step awake there settled it a little (BodyPrediction::PlaceRest): within the
+    // send limits it is the same rest.
+    return std::ranges::any_of(m_ownRests, [&](const auto& acRest) {
+        return acRest.first.Object == acObject && glm::distance(acRest.second.Position, acPosition) <= BodySendLimits{}.Distance;
+    });
+}
+
 void GuestHands::GiveBack(const BodyKey& acKey) noexcept
 {
     m_world.ctx().at<IBodyBridge&>().SetMoving(acKey, false);

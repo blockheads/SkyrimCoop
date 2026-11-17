@@ -94,6 +94,20 @@ who simulates what (one game per object, always)
   once, so the held object jumped up to 16 units to where it was let go.
 - **Every moved body is asked about together** (`GuestHands::AskHost`): asked one at a time, each of the host's rests
   landed among neighbours still off theirs and was moved again, every second for good.
+- **A rest's move row comes back** (2026-11-16, `GuestHands::RestedHere`, `BodyService::RestedHere`): the host puts a
+  guest's rest a step awake, the body settles up to a unit or two, and the host's game records that as a move: its
+  row reached the guest, which keyframed its own resting wheel there and freed it asleep (60850). That slept the
+  wheel's whole island with HK_REAL_MAX as every body's fastest speed, so Havok's last sleep test passed for the wheel
+  the guest's player carried or had just let go beside it: it hung in the air (the playtest's cheese wheel,
+  `docs/re/systems/physics.md`, "When an island sleeps"). The guest skips a row within the send limits (2 units) of
+  the rest it sent, and our island sleeps (`SleepBody`, a free asleep: `DeactivateIsland`) refuse an island with a
+  body not still (60850 skips Havok's stillness counts) and put back each body's fastest speeds, so a moving body
+  keeps its island awake, as in vanilla (ClientTests "An island is put to sleep only when every body in it is dynamic
+  and still": a steady 90 units/s slide). Trials `stack_release`
+  (a wheel lifted off a stack, held, let go) and `pile_carry_release` (carried through a pile of wheels first): the
+  let go wheel's `fell` is held to vanilla's (20 to 37 units in 40 rounds), and in no game is it put to sleep while it
+  moves over 20 units/s (`collision_metrics.slept_moving`: before, 9 of 12 guest rounds; after, 0 of 9, vanilla 0 of
+  20). Scenario `guest-pile-release-falls`.
 
 Results (duo, 2026-11-16, each trial 3 rounds against 40 vanilla rounds): full runs on the final build (the pile
 sleeps as one) passed 6, 7, 3 and 5 of the 8 trials; in the 7 every trial that ran matched vanilla, and the eighth

@@ -47,6 +47,8 @@ struct BodyService
         [[nodiscard]] virtual bool KeepsRest(const BodyPose& acRest) const noexcept = 0;
         // A body of that reference is this game's player's now (its move row is not the host's to apply).
         [[nodiscard]] virtual bool Moves(const GameId& acObject) const noexcept = 0;
+        // This game's own rest of that reference's body lies there (the host's move row of it only echoes it back).
+        [[nodiscard]] virtual bool RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept = 0;
         // The host's game placed that body itself: no longer this game's own, the host's pose is taken.
         virtual void GiveBack(const BodyKey& acKey) noexcept = 0;
         // Its owner's rest placed here: the owner's again.
@@ -60,6 +62,12 @@ struct BodyService
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
     // This game's player moves a body of that reference: where it goes is this game's (Keeper::Moves).
     [[nodiscard]] bool MovedHere(const GameId& acObject) const noexcept { return m_pKeeper && m_pKeeper->Moves(acObject); }
+    // This game's player's body rested there and its rest went out (Keeper::RestedHere): the host's move row of it is
+    // that rest come back (physics-sync.md, "A rest's move row comes back").
+    [[nodiscard]] bool RestedHere(const GameId& acObject, const glm::vec3& acPosition) const noexcept
+    {
+        return m_pKeeper && m_pKeeper->RestedHere(acObject, acPosition);
+    }
     // The owner's rest of this reference's body is on its way here (played behind the frame clock, or waiting on its
     // body): it puts the body there, a step awake; the move row would keyframe it there at once (a 6 unit snap).
     [[nodiscard]] bool RestComing(const GameId& acObject) const noexcept

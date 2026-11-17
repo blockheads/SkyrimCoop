@@ -41,6 +41,13 @@ TRIALS = {
     "carry_into_pile": {"items": [(BUCKET, 90, 0)] + _grid([CHEESE_WHEEL, NORD_MEAD, CABBAGE, ALTO_WINE, BREAD, KETTLE, APPLE, CAST_IRON_POT,
                                                             NORD_MEAD, POTATO, SWEET_ROLL, TOMATO], columns=4, first=210, spacing=26),
                         "lift": 14, "walk": 3.0, "group": True, "carry": True},
+    # A cheese wheel stacked on another (the fourth number: dropped that much higher), the top one grabbed, held still
+    # for `hold` seconds against the one under it and let go: it falls back (docs/bugs.md, "A released wheel freezes").
+    "stack_release": {"items": [(CHEESE_WHEEL, 100, 0), (CHEESE_WHEEL, 100, 0, 16)], "lift": 8, "walk": 0, "grab": 1, "hold": 1.5},
+    # As the playtest's (2026-11-16): the top wheel of a stack in a pile of wheels, carried forward through the pile and
+    # back (`moves`), lifted, held still over the stack and let go.
+    "pile_carry_release": {"items": [(CHEESE_WHEEL, 100, 0), (CHEESE_WHEEL, 100, 0, 16)] + _grid([CHEESE_WHEEL] * 4, columns=2, first=135, spacing=34),
+                           "lift": 8, "walk": 0, "grab": 1, "moves": [(["forward"], 0.5), (["back"], 0.4)], "hold": 1.5, "group": True},
 }
 
 
@@ -74,7 +81,7 @@ class CollisionActions:
                 ctx.staged().clear()
             made.clear()
         objects = []
-        for base, _, _ in TRIALS[kind]["items"]:
+        for base, *_ in TRIALS[kind]["items"]:
             if base.startswith("ref:"):
                 ref = int(base[4:], 16)
                 ctx.staged().append(("put_back", ctx.where_now([ref])))  # the cell's own: off the lane again after
@@ -97,9 +104,10 @@ class CollisionActions:
         trial, me, away = TRIALS[kind], LANE["from"], LANE["along"]
         across = [-away[1], away[0]]
         spots = []
-        for ids, (_, along, side) in zip(objects, trial["items"]):
+        for ids, (_, along, side, *above) in zip(objects, trial["items"]):
             ref = ids[""]
-            spot = [me[0] + away[0] * along + across[0] * side, me[1] + away[1] * along + across[1] * side, me[2] + trial["lift"]]
+            spot = [me[0] + away[0] * along + across[0] * side, me[1] + away[1] * along + across[1] * side,
+                    me[2] + trial["lift"] + sum(above)]
             spots.append(spot)
             for axis in "xyz":
                 ctx.console_on("", f"{ref:X}.setangle {axis} 0")
@@ -143,7 +151,7 @@ class CollisionActions:
         ctx.place_before(walker, first[mine], trial["items"][0][1], bearing=math.degrees(math.atan2(-away[0], -away[1])) % 360)
         me, at = ctx.my_position(walker), ctx.body_of(walker, first[mine])["position"]
         along = ((at[0] - me[0]) * away[0] + (at[1] - me[1]) * away[1]) / (math.dist(me[:2], at[:2]) or 1.0)
-        if along < 0.9 and not trial.get("carry"):
+        if along < 0.9 and not trial.get("carry") and "grab" not in trial:
             raise ctx.failure(f"[{walker or 'host'}] no clear spot behind the lane's objects: the player stands "
                               f"{math.degrees(math.acos(max(-1.0, min(1.0, along)))):.0f} degrees off it")
         for game in games:
@@ -155,8 +163,21 @@ class CollisionActions:
             if trial.get("carry"):
                 # Looking at it from the placement: held, it hangs before the player and meets the pile first.
                 ctx.grab(walker, first[mine])
-            ctx.act(walker, {"name": f"walks into the {kind} objects", "ready": ["takes_input"] if trial.get("carry") else ["takes_input", "on_ground"],
-                             "buttons": ["forward"], "until": [{"for": trial["walk"]}], "seconds": trial["walk"] + 2})
+            if "grab" in trial:
+                held_id = objects[trial["grab"]][mine]
+                ctx.grab(walker, held_id)
+                for buttons, seconds in trial.get("moves", []):
+                    ctx.carry(walker, held_id, buttons, seconds)
+                # Lifted off the stack by looking up (the hand holds it on the crosshair's line), then held still.
+                pitch = ctx.camera_view(walker)[2]
+                ctx.turn_to(walker, pitch=pitch - trial.get("raise", 12), rate=30, keep=[{"holding": held_id}], name="lifts it")
+                ctx.carry(walker, held_id, [], trial["hold"])
+                let_go = ctx.body_of(walker, held_id)["position"]
+                ctx.tap(walker, "activate")
+                ctx.wait_for(f"[{walker or 'host'}] lets go of it", lambda: not ctx.local_player(walker).get("grabbed"), 4)
+            if trial["walk"]:
+                ctx.act(walker, {"name": f"walks into the {kind} objects", "ready": ["takes_input"] if trial.get("carry") else ["takes_input", "on_ground"],
+                                 "buttons": ["forward"], "until": [{"for": trial["walk"]}], "seconds": trial["walk"] + 2})
             if trial.get("carry"):
                 held = ctx.local_player(walker).get("grabbed") == first[mine]
                 if held:
@@ -183,13 +204,22 @@ class CollisionActions:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "bodies.json").write_text(json.dumps({"objects": objects, "items": trial["items"], "samples": samples}))
         result = {"kind": kind, "walker": walker or "host", "trace": str(folder), "rests": {},
-                  "objects": [f"{base} {o['']:X}" for o, (base, _, _) in zip(objects, trial["items"])]}
+                  "objects": [f"{base} {o['']:X}" for o, (base, *_) in zip(objects, trial["items"])]}
+        if "grab" in trial:
+            # How far the let go one fell: frozen in the air, about nothing.
+            rest = ctx.body_of(walker, objects[trial["grab"]][mine])["position"]
+            result["fell"] = round(let_go[2] - rest[2], 1)
         for game in games:
             each = {str(n): collision_metrics.measure(collision_metrics.path_of(samples[game], o[game])) for n, o in enumerate(objects)}
-            result[game or "host"] = {"all": collision_metrics.measure_group(list(each.values()))} if trial.get("group") else each
+            result[game or "host"] = {"all": collision_metrics.measure_group(list(each.values()))} if trial.get("group") else dict(each)
             if trial.get("carry"):
                 result[game or "host"]["carried"] = {k: v for k, v in each["0"].items() if k != "rest"}
                 result["held_to_the_end"] = held
+            if "grab" in trial and (released := each[str(trial["grab"])]):
+                # Each game's let go object, and how far below where it was let go it rests in that game.
+                result[game or "host"]["released"] = {**{k: v for k, v in released.items() if k != "rest"},
+                                                      "fell": let_go[2] - released["rest"][2]}
+                result.setdefault("slept_moving", {})[game or "host"] = collision_metrics.slept_moving(samples[game], objects[trial["grab"]][game])
             result["rests"][game or "host"] = [m["rest"] if m else None for m in each.values()]
             if not any(m and m["moved"] >= 1 for m in each.values()):
                 raise ctx.failure(f"[{game or 'host'}] the walker moved none of the {kind} objects")
@@ -228,7 +258,7 @@ class CollisionActions:
         units), with both places and whether each is awake: what a pile that will not settle disagrees about."""
         off = []
         for kind, objects in ctx.__dict__.get("COLLISION_OBJECTS", {}).items():
-            for (base, _, _), ids in zip(TRIALS[kind]["items"], objects):
+            for (base, *_), ids in zip(TRIALS[kind]["items"], objects):
                 host, guest = ctx.body_of("", ids[""]), ctx.body_of("client", ids["client"])
                 if host and guest and (gap := math.dist(host["position"], guest["position"])) > apart:
                     where = lambda b: f"({b['position'][0]:.1f}, {b['position'][1]:.1f}, {b['position'][2]:.1f}) {'awake' if b['awake'] else 'asleep'}"
@@ -254,7 +284,7 @@ class CollisionActions:
         samples = {**before.get("runs", {}), sample: runs}
         every = [run for each in samples.values() for run in each]
         ranges = {i: collision_metrics.envelope([run[i] for run in every]) for i in runs[0]}
-        baseline[kind] = {"items": [base for base, _, _ in TRIALS[kind]["items"]], "rounds": len(every),
+        baseline[kind] = {"items": [base for base, *_ in TRIALS[kind]["items"]], "rounds": len(every),
                           "measured": time.strftime("%Y-%m-%d"), "ranges": ranges, "runs": samples}
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(json.dumps(baseline, indent=1, sort_keys=True) + "\n")
@@ -276,10 +306,13 @@ class CollisionActions:
             for i, (host, guest) in enumerate(zip(run["rests"]["host"], run["rests"]["client"])):
                 if host and guest and (apart := math.dist(host, guest)) > REST_APART:
                     wrong.append(f"round {n + 1}: object {i} ({run['objects'][i]}) rests {apart:.1f} units apart on the two games")
+            for game, count in run.get("slept_moving", {}).items():
+                if count:
+                    wrong.append(f"round {n + 1}: [{game}] the let go object was put to sleep {count} times while it moved")
         for game in ("host", "client"):
             for i, r in ranges.items():
                 if off := collision_metrics.compare([run[game].get(i) for run in runs], r, limit):
-                    what = {"all": "the objects", "carried": "the carried object"}.get(i) or f"object {i} ({runs[0]['objects'][int(i)]})"
+                    what = collision_metrics.object_name(i, runs[0]["objects"])
                     wrong.append(f"[{game}] {what}: " + ", ".join(off))
         traces = ", ".join(run["trace"].rsplit("/", 1)[-1] for run in runs)
         log(f"collision {kind}, {walker or 'host'} walks, {rounds} rounds: " + ("as vanilla" if not wrong else "; ".join(wrong)) + f" ({traces})")

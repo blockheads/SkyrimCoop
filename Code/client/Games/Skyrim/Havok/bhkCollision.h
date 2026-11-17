@@ -57,13 +57,20 @@ struct hkpRigidBody
     } motion;
     uint8_t pad158[0x160 - 0x158];
     MotionType motionType;  // 160: motion's type (10)
-    uint8_t pad161[0x1A0 - 0x161];
+    // 161, 162: motion's deactivation counters (11, 12): its integrate count and each reference's stillness count
+    // (low 7 bits; 0x140B838A0 counts, 60849 zeroes them when it wakes a sleeping island)
+    uint8_t deactivationIntegrateCount;
+    uint16_t deactivationInactiveFrames[2];
+    uint8_t pad166[0x1A0 - 0x166];
     float translation[4];   // 1A0: motionState (20), its transform's translation
     uint8_t pad1B0[0x1D0 - 0x1B0];
     float rotations[2][4];  // 1D0: sweptTransform's rotation0 and rotation1 (x, y, z, w): rotation1 is now
     uint8_t pad1F0[0x230 - 0x1F0];
     float linearVelocity[4];  // 230: motion's (E0)
     float angularVelocity[4]; // 240: (F0)
+    // 250: motion's deactivation references (100), high and low frequency: a position, and in w the fastest it went
+    // at a check since (0x140B869C0 tests it; 60850 sets HK_REAL_MAX; physics.md, "When an island sleeps")
+    float deactivationReference[2][4];
 
     // Moved by the simulation, not by its node or keyframes.
     [[nodiscard]] bool IsDynamic() const noexcept
@@ -199,6 +206,9 @@ static_assert(offsetof(hkpRigidBody, translation) == 0x1A0);
 static_assert(offsetof(hkpRigidBody, rotations) == 0x1D0);
 static_assert(offsetof(hkpRigidBody, linearVelocity) == 0x230);
 static_assert(offsetof(hkpRigidBody, angularVelocity) == 0x240);
+static_assert(offsetof(hkpRigidBody, deactivationIntegrateCount) == 0x161);
+static_assert(offsetof(hkpRigidBody, deactivationInactiveFrames) == 0x162);
+static_assert(offsetof(hkpRigidBody, deactivationReference) == 0x250);
 static_assert(offsetof(ahkpWorld, userData) == 0x430);
 static_assert(offsetof(bhkWorld, worldLock) == 0xC598);
 static_assert(offsetof(bhkWorldObject, referencedObject) == 0x10);

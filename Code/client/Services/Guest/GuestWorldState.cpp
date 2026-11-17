@@ -20,6 +20,8 @@
 #include <FormIds.h>
 #include <Diagnostics/Profile.h>
 
+#include <cstring>
+
 GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
@@ -83,6 +85,18 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
             {
                 spdlog::debug("GuestWorldState: {} is its body rest's to place", WorldStateLog::Describe(cChange));
                 continue;
+            }
+            // This game's own rest, placed by the host and sent back as its move row: already there. Applied, it keyframed
+            // the body and slept its island, a wheel falling beside it too (physics.md, "When an island sleeps").
+            if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove && cChange.Data.size() == 6 * sizeof(float))
+            {
+                float pose[6];
+                std::memcpy(pose, cChange.Data.data(), sizeof(pose));
+                if (m_world.ctx().at<BodyService>().RestedHere(cChange.Object, {pose[0], pose[1], pose[2]}))
+                {
+                    spdlog::debug("GuestWorldState: {} is this game's own rest come back", WorldStateLog::Describe(cChange));
+                    continue;
+                }
             }
             // What this game's player moves (its drop included) lands where this game's physics puts it.
             if (message.Cell == GameId{} && cChange.Type == ObjectChange::Kind::kMove &&

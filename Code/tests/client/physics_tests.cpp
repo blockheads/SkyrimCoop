@@ -651,6 +651,9 @@ TEST_CASE("An island is put to sleep only when every body in it is dynamic and s
     CHECK_FALSE(BodyPrediction::StillToSleep(false, 0.f, 0.f)); // keyframed
     CHECK_FALSE(BodyPrediction::StillToSleep(true, 40.f, 0.f)); // falling
     CHECK_FALSE(BodyPrediction::StillToSleep(true, 0.f, 1.f));  // rolling in place
+    // Sliding at a steady 90 units/s passes Havok's own last test against a fastest speed that high (0x140B869C0):
+    // a free asleep beside it (FreeBody) asks this first (physics.md, "When an island sleeps").
+    CHECK_FALSE(BodyPrediction::StillToSleep(true, 90.f, 0.f));
 }
 
 TEST_CASE("A rest among others is done once their island sleeps, two seconds at most", "[physics]")
