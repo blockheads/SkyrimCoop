@@ -148,7 +148,7 @@ every other section needs the duo.
 **Found by the full run of 2026-11-16**
 
 - [A revived guest's abilities](#a-revived-guests-abilities): small
-- [A wolf that never lands the kill](#a-wolf-that-never-lands-the-kill): small
+- [The death scenario's wolf turns on the other player](#the-death-scenarios-wolf-turns-on-the-other-player): small
 - [A guest that never arrives after a fast travel](#a-guest-that-never-arrives-after-a-fast-travel): small
 
 **Test tools**
@@ -677,9 +677,10 @@ Size: small. Needs: duo.
     same addresses (`+0x3cdb45 > +0x182241`).
   - 2026-11-16, dev: `party-loads-overlap` and `party-fast-travels` passed their lock audits 3 of 3. The same lock pair
     showed in `party-buys-house-guest`'s audit on the host instead (full run, our code on the stack): `+0x187a10 >
-    +0x165490` against `+0x172a5b > +0x187881`. Read in IDA: a package walk over a reference's aliases (12721, the alias
-    array's lock for read) asks `TESPackage` 29619, which looks for the package in the reference's run-once packs under
-    the extra-data list's lock (`ExtraDataList::HasRunOncePack` 11737, `0x140165460`, named that day); the other thread is
+    +0x165490` against `+0x172a5b > +0x187881`. Read in IDA, each named that day:
+    `ExtraAliasInstanceArray::FindAliasPackageThatCanRun` (12721, the alias array's lock for read) asks
+    `TESPackage::CanRunFor` (29619) of each alias package, which for a once-per-day package looks in the reference's
+    run-once packs under the extra-data list's lock (`ExtraDataList::HasRunOncePack` 11737, `0x140165460`); the other thread is
     `ExtraDataList::RemoveAliasInstance` (12047: the list's lock for write, then 12719 the array's). So the pair is an
     alias leaving a reference while that reference's packages are judged. Its `[ours]` was wrong: see
     [A pass-through hook counted as ours](#a-pass-through-hook-counted-as-ours).
@@ -1482,14 +1483,17 @@ Agent task: read what `B8782` is and what put it on the player eighteen times, t
 
 Size: small. Needs: the duo (`death-spectate-guest --repeat 6`), then GameTests.
 
-### A wolf that never lands the kill
+### The death scenario's wolf turns on the other player
 
 `death-spectate-host`, 1 of 4 runs (a rerun; `20261116-185958-19a23a`): "the enemy's hit kills the player" timed out
-after 15 s with the host's player at 12 health. The host's wolf targets the host's player and swings
-(`attackStart_Attack1`), and on the victim's game its copy stands 544 units off. Not read: where the wolf's owner
-stood, and whether the swing's hit is judged on the copy that far away.
+after 15 s with the host's player at 12 health. The host's wolf (`FF0014C9`, at x -186) was not fighting the host's
+player (x -726, about 540 units off) but the guest's player's copy (`FF0013E5`, x -43), swinging at it
+(`attackStart_Attack1`). So the wolf switched from the victim the scenario staged to the other player. Not read: what
+switched it (the guest's copy closer, a hit from the guest, or the party's aggro rules), and whether the scenario
+should hold the guest away.
 
-Agent task: read where the wolf and its copy stood through the swing, then why the hit never landed.
+Agent task: read why the wolf's target moved to the guest's copy (`combat_watch` through the fight), then decide
+whether it is the game's choice (the scenario stages wrong) or ours.
 
 Size: small. Needs: the duo (`death-spectate-host --repeat 6`).
 

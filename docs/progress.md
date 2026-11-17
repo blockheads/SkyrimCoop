@@ -1810,11 +1810,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
     whole).
   - Merged: "A rider after a spectated kill move" into "After a kill move the guest's own body floats" (both
     reproduce 2 of 2).
-  - Added: "A revived guest's abilities", "A wolf that never lands the kill", "A guest that never arrives after a
+  - Added: "A revived guest's abilities", "The death scenario's wolf turns on the other player", "A guest that never arrives after a
     fast travel", "A pass-through hook counted as ours" (`HookUpdateAI` past its `IgnoreFrames` size). "Remaining
     validation" became "The Greybeards scene never casts the host's player" (its save boots now; the scenario fails
-    at its first step). Kept entries got the run's evidence (crime, rider, the lock pair named in IDA:
-    `ExtraDataList::HasRunOncePack`; base bytes now naming the factions section).
+    at its first step). Kept entries got the run's evidence (crime, rider, the lock pair's path named in IDA:
+    12721 > 29619 > `ExtraDataList::HasRunOncePack` 11737; base bytes now naming the factions section).
   - progress.md's Loose ends: solved, outdated and news entries removed (about 60), the graph stream's run notes
     moved here.
 ## Loose ends
