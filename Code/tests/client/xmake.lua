@@ -21,11 +21,11 @@ target("ClientTests")
               "../../client/Games/Animation/GraphState.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy")
+    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()
 
--- Compare actual save pairs offline, using the same cache and wire blocks as the game.
+-- Compare actual save pairs offline, with the game's own image and encoding.
 target("SaveTransferBench")
     set_kind("binary")
     set_optimize("fastest")
@@ -34,6 +34,6 @@ target("SaveTransferBench")
     add_files("SaveTransferBench.cpp", "../../client/Services/SaveTransfer.cpp")
     add_includedirs("../../client")
     add_deps("SkyrimEncoding")
-    add_packages("snappy")
+    add_packages("zstd", "lz4", "zlib")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()

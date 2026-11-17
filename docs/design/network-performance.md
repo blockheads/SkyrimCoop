@@ -9,7 +9,7 @@ Type `/perf` in chat for frame/update p95, working memory, network message rates
 named connections' RTT/loss, and the latest world join. `/bug what happened` records each game's own snapshot;
 `/export` bundles those reports. There is no periodic performance-report exchange between players.
 
-The snapshot's `game.join.timings` separates cache preparation, connecting/checking, character creation,
+The snapshot's `game.join.timings` separates connecting/checking, character creation,
 waiting for the host's save, receiving data, decompression/verification, writing, Skyrim loading and applying the
 player's character. Total also includes placement and the final reconnect. Transfer starts on the first chunk;
 waiting includes save creation and time until that first chunk. Host logs include native save duration.
@@ -33,53 +33,13 @@ Detailed CPU zones, memory and hook rates already use [Tracy](https://github.com
 blocks. Player builds include the cheap readings and report snapshots; Tracy remains a developer build option.
 The existing generic counters work in another agent's branch is independent of this change.
 
-## Reusing a received world
+## The save's transfer
 
-Both games already have identical map assets. What travels is the host's current `.ess` save and SKSE `.skse`
-co-save. Skyrim must still load that current world; reusing an older world would lose quests and world changes.
-
-The joining game reads its previous `SkyrimCoopJoin` save and co-save, which the old join flow already left on
-disk. No extra growing cache directory or host-specific path is introduced. The packed pair is split at
-content-dependent boundaries (8 to 24 KiB, average about 16 KiB). SHA-256 identifies each raw block; each missing
-block is compressed independently with Snappy. A small hash list travels with the initial authentication;
-only after the normal build/runtime/mod/character gate passes does the host use it. Matching blocks travel as
-references; changed or absent blocks travel in full. The guest reconstructs and verifies every block, regardless
-of whether it came from the network or disk, before writing/loading the host's exact current save. Different
-hosts cannot reuse differing bytes merely because their save names match. Corrupt cached bytes have different
-fingerprints and are automatically sent again. Missing references, bad hashes, invalid compression, gaps and
-mixed totals fail before loading. Working cache memory is released on completion, failure or cancel.
-
-The packed pair is bounded to 128 MiB, block hashes to 16,384, compressed blocks to 32 KiB, and decompression to
-the declared 24 KiB maximum. Bulk transfers budget 256 KiB/update and at most 64 blocks/update, and wait when ENet
-already has more than 512 reliable send commands queued. Several waiting games share one host snapshot. Party
-reloads send a full fresh snapshot without assuming a cache negotiated on an earlier connection.
-
-Research: [rsync](https://rsync.samba.org/) and [restic's chunker](https://github.com/restic/chunker) demonstrate
-reusing verified content rather than old file names. The small deterministic Gear splitter follows the
-[content-defined chunking approach](https://www.usenix.org/conference/atc16/technical-sessions/presentation/xia),
-without introducing a full backup/sync runtime. Windows uses [CNG SHA-256](https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcrypthash), with the
-unmodified MIT [PicoSHA2](https://github.com/okdshin/PicoSHA2) header as the portable fallback, pinned in
-`Code/external/picosha2/SOURCE.md`; its license is included in player packages. Compression remains [Snappy](https://github.com/google/snappy), and connection
-readings come from our existing [ENet6](https://github.com/SirLynix/enet6) transport.
-
-## Evidence and limits
-
-Baseline: two native kept-character joins passed on 1.7.104. Host sample one created 2,774,916 game bytes plus
-3,830 SKSE bytes and queued 76 old chunks in about 0.14 seconds on loopback. Guest loading/arrival took seconds.
-The two real saves are different. Compressing the entire packed save yielded zero matching 32 KiB chunks.
-Using independent content-defined blocks reused 540,167 raw bytes (32/158 blocks):
-
-| Payload | Bytes |
-| --- | ---: |
-| Old whole-save Snappy | 2,487,486 |
-| New cold blocks | 2,513,992 |
-| New warm blocks | 2,187,608 |
-
-This pair saves about 12% versus the old transfer, plus roughly 5 KiB of advertised hashes and block headers.
-Cold payload is about 1% larger. The production-code offline benchmark ran cache creation, splitting,
-verification and reconstruction in about 44 ms optimized on this machine. Identical snapshots can reuse every
-payload block; large native compressed changes can substantially reduce reuse. These are measurements of this
-pair, not a promised loading-time improvement on Windows or every save.
+Replaced 2026-11-16 by save sync ([join-flow.md](join-flow.md#save-sync-2026-11-16)): the save travels as its
+difference from one the guest holds, and each save the host makes goes ahead of any load of it. The block reuse built
+here on 2026-11-03 (content-defined 16 KiB blocks of the files, SHA-256, Snappy) is gone: on a real session's saves the
+engine's LZ4 left 3-23% of blocks shared. `game.join.timings` now gives `world_bytes` (the image), `payload_bytes`
+(what came), `pieces`, `held_saves`, `against_held` and `from_store`.
 
 Repeat with actual saves (read-only):
 
@@ -88,13 +48,11 @@ scripts/xmake-linux.sh build -j8 SaveTransferBench
 build/linux/x86_64/debug/SaveTransferBench OLD.ess OLD.skse NEW.ess NEW.skse
 ```
 
-The pure tests cover exact reconstruction, inserted data, stale/corrupt cache, missing references, bad SHA,
-compressed expansion, bounds, order, repetition and mixed transfers. The real-service GameTests repeatedly join
-from a retained save, then change the host's lock state and corrupt cached files; the guest must get the current
-world. Native acceptance: `guest-reuses-world-cache` starts two fresh guest processes and checks cold/warm
-transfers, named connection readings and `/perf` through normal game input.
+The bounds: an image of at most 256 MiB, pieces of 32 KiB, a decode to exactly the declared size, the result checked
+against its SHA-256 before it is stored or loaded. A join's or a load's save budgets 256 KiB an update and waits while
+ENet has more than 512 reliable commands queued; a save sent ahead one piece an update while fewer than 32 wait.
 
-## Final native checks
+## Native checks of 2026-11-03 (the block reuse, since replaced)
 
 Steam 1.7.104, 2026-11-03: `guest-reuses-world-cache` passed twice, including two fresh guest processes each time,
 `/perf` through normal chat input in each game, and named connection diagnostics. Cold/warm payload pairs were

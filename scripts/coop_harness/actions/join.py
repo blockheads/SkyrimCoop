@@ -110,12 +110,16 @@ class JoinActions:
         guest_level = ctx.player_record("client")["level"]
         ctx.console_on("", "set gamehour to 12")
         positions = {instance: ctx.my_position(instance) for instance in ("", "client")}
+        # Save sync: each save the host makes goes ahead to the guest's store (My Games/.../SkyrimCoop/worlds).
+        worlds = ctx.game("client").my_games / "SkyrimCoop" / "worlds"
+        held = set(worlds.glob("*.world"))
         if quick or menu:
             ctx.make_host_quicksave()
         else:
             name = f"HostLoadSelected_{int(time.time())}"
             checkpoint = ctx.save_game("", name)
             ctx.wait_for("the chosen save and its co-save are written", ctx.saves_written(checkpoint), 15)
+        ctx.wait_for("the guest holds the host's new save", lambda: set(worlds.glob("*.world")) - held, 30)
         ctx.moves_past_save(guest_level)
         if quick:
             ctx.press_key("", QUICKLOAD_KEY)
@@ -126,6 +130,11 @@ class JoinActions:
             newer = ctx.save_game("", name + "_newer")
             ctx.wait_for("the newer save is written", ctx.saves_written(newer), 15)
             ctx.console_on("", f"load {name}")
+        timing = lambda: ctx.join_status("client").get("timings", {})
+        ctx.wait_for("the guest loads the save from its store and rejoins",
+                     lambda: timing().get("from_store") and timing().get("outcome") == "joined", 120)
+        if timing().get("payload_bytes"):
+            raise ctx.failure(f"the guest held the save, and the load sent it again: {timing()}")
         ctx.party_restored(guest_level)
         for instance in ("", "client"):
             if ctx.player_record(instance)["name"] != names[instance]:

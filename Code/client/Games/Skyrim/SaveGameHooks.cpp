@@ -1,5 +1,6 @@
 #include <HookSwitch.h>
 
+#include <Events/SaveWrittenEvent.h>
 #include <Services/SaveService.h>
 #include <MainLoopTasks.h>
 #include <SaveLoadManager.h>
@@ -34,9 +35,28 @@ static bool HookSaveImpl(BGSSaveLoadManager* apManager, int32_t aDevice, uint32_
     return RealSaveImpl(apManager, aDevice, aOutputStats, apName);
 }
 
+// BSWin32SaveDataSystemUtility's write of a save's file (109353, vfunc 0x68): on the main thread for a menu save, on
+// the save thread for a quicksave or autosave. When it returns the .ess is in place under the save's name.
+using TWriteSaveFile = void*(void* apUtility, BGSSaveLoadFile** appFile, void* apRequest);
+static TWriteSaveFile* RealWriteSaveFile = nullptr;
+
+static void* HookWriteSaveFile(void* apUtility, BGSSaveLoadFile** appFile, void* apRequest)
+{
+    // Read first: the engine frees the file once it is written.
+    std::string name = appFile && *appFile && (*appFile)->fileName ? (*appFile)->fileName : "";
+    void* pResult = RealWriteSaveFile(apUtility, appFile, apRequest);
+    if (!name.empty())
+        MainLoopTasks::Queue([name = std::move(name)] {
+            if (entt::locator<World>::has_value())
+                World::Get().GetRunner().Trigger(SaveWrittenEvent{name});
+        });
+    return pResult;
+}
+
 static Hooks::Initializer s_saveGameHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         HOOK_ID(35727, &RealSaveImpl, HookSaveImpl);
+        HOOK_ID(109353, &RealWriteSaveFile, HookWriteSaveFile);
     });

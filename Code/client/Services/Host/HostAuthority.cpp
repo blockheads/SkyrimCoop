@@ -134,6 +134,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Players
     On(*this, &HostAuthority::OnPlayerLevel);
     On(*this, &HostAuthority::OnPlayerName);
+    On(m_transfer, &HostSaveTransfer::OnSaveHeld);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
@@ -259,7 +260,8 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    if (m_reloading || m_death.Wiped())
+    // Until the host's game loads the save, only what a guest holds of it is heard.
+    if ((m_reloading || m_death.Wiped()) && !(cOpcode == kSaveHeldRequest && m_players.IsPlayer(aSender)))
         return false;
     // A game that is not a player may only ask to join; anything else from it is dropped.
     if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
@@ -443,13 +445,24 @@ std::string ChatText(std::string_view aText) noexcept
     return text;
 }
 
-void HostAuthority::SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept
+std::vector<HostAuthority::ConnectionId_t> HostAuthority::Guests() const noexcept
 {
-    m_reloading = true;
     std::vector<ConnectionId_t> guests;
     m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
         if (!acPlayer.IsHost)
             guests.push_back(aConnection);
     });
-    m_transfer.Checkpoint(std::move(aChunks), guests);
+    return guests;
+}
+
+void HostAuthority::SendCheckpoint(const std::string& acSave) noexcept
+{
+    m_reloading = true;
+    m_transfer.Checkpoint(acSave, Guests());
+}
+
+void HostAuthority::OfferSave(const std::string& acSave) noexcept
+{
+    if (!m_reloading && !m_death.Wiped())
+        m_transfer.Offer(acSave, Guests());
 }

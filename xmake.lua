@@ -89,7 +89,9 @@ add_requires(
     "enet6",
     "libuv v1.48.0",
     "nlohmann_json v3.11.3",
-    "zlib v1.3.1" -- bug report zips (Diagnostics/Zip)
+    "zlib v1.3.1", -- bug report zips (Diagnostics/Zip)
+    "zstd v1.5.6", -- a save sent as its difference from one the guest holds (Services/SaveDelta)
+    "lz4 v1.9.4"   -- reading the engine's compressed saves (Services/SaveImage)
 )
 
 -- The SKSE plugin's (mem is header-only, vendored in Code/external/mem).

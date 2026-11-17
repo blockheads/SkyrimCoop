@@ -78,7 +78,10 @@ struct HostAuthority
     void Update(uint64_t aTick, double aDelta, uint64_t aFrameTick = 0) noexcept;
     // A party reload (HostServiceReload.cpp): the selected save to every guest, delivered once every guest has it and
     // has left to load it; a failed reload's reason to every player.
-    void SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept;
+    void SendCheckpoint(const std::string& acSave) noexcept;
+    // The host's game made a save (its image's id): ahead to every guest, for a later load of it.
+    void OfferSave(const std::string& acSave) noexcept;
+    [[nodiscard]] bool HasGuests() const noexcept { return m_players.Count() > 1; }
     [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
     void FailReload(const std::string& acError) noexcept { m_death.FailReload(acError); }
     // This game's engine renamed an actor (HostService): every guest's actor follows.
@@ -131,6 +134,7 @@ private:
 
     // TRequest passed on as TNotify (the same payload); apActor names the actor Delivery checks.
     template <class TRequest, class TNotify> void Relay(Delivery aDelivery, uint32_t TRequest::*apActor = nullptr) noexcept;
+    [[nodiscard]] std::vector<ConnectionId_t> Guests() const noexcept;
 
     // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
     // applies it like every other copy.

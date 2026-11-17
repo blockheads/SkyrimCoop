@@ -13,7 +13,9 @@
 #include <Structs/TimeModel.h>
 
 #include <Followers/State.h>
+#include <Services/SaveTransfer.h>
 #include <functional>
+#include <memory>
 #include <optional>
 
 struct ContainerTransferRequest;
@@ -112,9 +114,12 @@ struct HostGame
     std::function<bool(const GameId& acObject)> TakeQuestObject;
     // A guest's story event, queued in the host's story manager and judged for the guest's character (HostStory).
     std::function<void(const StoryEvent& acEvent)> RaiseStoryEvent;
-    // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine
-    // refused to save (HostSaveTransfer tries again next update).
-    std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;
+    // Saves the host's game now for a game joining from the main menu: the save's image, by its id; none while the
+    // engine has not made it (HostSaveTransfer asks again next update), an empty id when it cannot be sent.
+    std::function<std::optional<std::string>()> SaveWorld;
+    // A save's image encoded for a guest whose store holds acHeld: against the newest of them the host still has,
+    // else whole. None while it is being encoded (asked again next update); no data when the image is gone.
+    std::function<std::shared_ptr<const SaveTransfer::Stream>(const std::string& acSave, const std::vector<std::string>& acHeld)> EncodeSave;
     // The guests' characters for the host's save (CharacterRecords): a guest's record, and its place at a save.
     std::function<void(const PlayerRecord& acRecord)> StoreRecord;
     std::function<void(const GameId& acSpell, bool aAdded)> StoreStorySpell;

@@ -407,22 +407,22 @@ def scenario_guest_changes_looks_in_session(ctx):
 
 
 def scenario_guest_reuses_world_cache(ctx):
-    """Two fresh game processes join the current host world; the second reuses verified saved blocks."""
-    # This is our internal received-save cache, not a player's own save.
-    cache = ctx.save_file("client", "SkyrimCoopJoin")
-    for path in (cache, cache.with_suffix(".skse")):
+    """Two fresh game processes join the current host world; the second gets it as its difference from the first's."""
+    # The guest's store of received worlds, not a player's own saves.
+    for path in (ctx.game("client").my_games / "SkyrimCoop" / "worlds").glob("*.world"):
         path.unlink(missing_ok=True)
     samples = []
     for attempt in range(2):
         ctx.restart_client_at_main_menu()
         ctx.joins_with_world(f"world cache attempt {attempt + 1}")
         timing = ctx.join_status("client").get("timings", {})
-        if timing.get("outcome") != "joined" or not timing.get("blocks") or not timing.get("payload_bytes"):
+        if timing.get("outcome") != "joined" or not timing.get("pieces") or not timing.get("payload_bytes"):
             raise ctx.failure(f"no completed measured world join: {timing}")
-        if attempt == 0 and timing.get("cached_blocks") != 0:
-            raise ctx.failure(f"the cold join claims cached blocks: {timing}")
-        if attempt == 1 and not (timing.get("advertised_blocks") and timing.get("cached_blocks") and timing.get("reused_bytes")):
-            raise ctx.failure(f"the second process did not reuse its saved world blocks: {timing}")
+        if attempt == 0 and (timing.get("held_saves") or timing.get("against_held")):
+            raise ctx.failure(f"the cold join claims a held world: {timing}")
+        if attempt == 1 and not (timing.get("held_saves") and timing.get("against_held")
+                                 and timing["payload_bytes"] < samples[0]["payload_bytes"] / 2):
+            raise ctx.failure(f"the second process did not get the world against the one it held: {timing} after {samples[0]}")
         samples.append(timing)
     for instance in ("", "client"):
         ctx.say(instance, "/perf")

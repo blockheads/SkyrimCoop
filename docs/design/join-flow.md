@@ -171,9 +171,46 @@ next invite -> load the kept character, without creation
 - Design details are `docs/design/world-state-sync.md` (change forms through save and load); its rule
   "each player's character stays their own" is replaced by stage 4.
 
-**2026-11-03:** transfers now reuse SHA-256-verified blocks from the guest's last received save, with independent
-block compression and join-stage timings. The host still supplies its current world and Skyrim still loads it.
-Implementation, bounds and measurements: [network-performance.md](network-performance.md).
+How the save travels: [Save sync](#save-sync-2026-11-16), below. Join-stage timings and `/perf`:
+[network-performance.md](network-performance.md).
+
+### Save sync (2026-11-16)
+
+A guest's wait at a host load was the save travelling (about 3 MB, at ENet's 64 KiB a round trip); its Skyrim loads as
+fast as the host's. So a save travels as little as possible, and before it is needed:
+
+```
+JOIN            host saves -> image -> encoded against a save the guest holds, else whole -> guest: store, load
+HOST SAVES      the engine wrote the file (SaveWrittenEvent) -> image -> encoded -> ahead, a piece an update
+(quick/menu/auto)                                      guest: decoded off thread, stored, SaveHeldRequest{held}
+HOST LOADS      NotifyPartyReload{id}   guest holds it: loads from its store, nothing travels
+(or a wipe)                             else: SaveHeldRequest{held} -> the save against one it holds -> load
+```
+
+- **The image** (`SaveTransfer::Plain`, `MakeImage`): the `.ess` with its body raw (compression type 0, which the
+  engine loads as it is: `BGSSaveLoadFile__DecompressBody` 109334, read in IDA) and its screenshot blank, packed with
+  the `.skse`; its id is its SHA-256. The engine's LZ4 hides what two saves share: of last session's six saves the
+  files shared 3-23% of 16 KiB blocks (the block reuse of 2026-11-03, now removed), their images nearly everything.
+  A guest writes the image's game file as `SkyrimCoopJoin.ess` and loads it. Anything that is not a version 12 save
+  with a known compression travels unchanged.
+- **The difference** (`SaveTransfer::Encode`/`Decode`): zstd level 9 with the held image as the prefix and a window
+  over both (long-distance matching). The result is checked against the id before it is stored or loaded.
+- **Who holds what.** A guest keeps the newest 3 images (`SaveStore`, files in `My Games/.../SkyrimCoop/worlds`) and
+  names them in every join request and after each change (`SaveHeldRequest`). The host keeps the last 3 images it
+  sent in memory (`SaveLibrary`, in `HostService`: a load remakes its rules, and its own files are overwritten by
+  the next quicksave), and encodes each save once per base on the bridge's work thread (`IJoinBridge::OffThread`).
+- **Ahead** (`HostSaveTransfer::Offer`): one piece (32 KiB) an update while fewer than 32 reliable commands wait, so
+  the game's own messages are not held up; a newer save replaces one still on its way. A join's or a load's save
+  keeps the old budget (256 KiB an update).
+- **A guest that lost a save** it was told to load says what it holds, and the host sends it after all: the only
+  request heard while a reload runs.
+- **When a save is written.** A quicksave or autosave is not on disk when `Save_Impl` returns: the save thread writes
+  it (35794). `BSWin32SaveDataSystemUtility__WriteSaveFile` (109353) is hooked for every device: when it returns the
+  `.ess` is in place (the manager's sink renamed the `.tmp`, 35773). `docs/re/systems/save-game.md`.
+
+Measured with the game's own code on that session's saves (`SaveTransferBench`): files of 3.05 MB; whole 1.55 MB;
+against the save before it 0.16-0.21 MB in one place, 1.07 MB after leaving an inn for the city. Imaging 50 ms,
+encoding 40-85 ms, decoding 1-4 ms.
 
 ### 6. Arrival
 
@@ -224,7 +261,7 @@ guest (in its own game, or at the main menu)   host (in game, hosting)
    receiving_world                               HostSaveTransfer: the host's game saves
                                                    "SkyrimCoopTransfer" (Save_Impl, device 2: written
                                                    at once, its co-save with every player's record)
-                                                   .ess + .skse, snappy, 32 KB chunks, a few per frame
+                                                   .ess + .skse as an image, encoded (Save sync), 32 KB pieces
                          ◄───────────────────── NotifySaveChunk{offset, total, data} x N
    all in: Saves/SkyrimCoopJoin.ess + .skse
    closes the connection, loading

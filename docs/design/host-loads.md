@@ -22,9 +22,10 @@ current character's `SaveEntry::lastQuicksave` (CommonLibSSE-NG, checked offset 
 The remaining path is shared with [the wipe reload](death.md#wipe-reload):
 
 1. `HostAuthority::SendCheckpoint` holds gameplay requests and world updates; only the transfer runs.
-2. `NotifyPartyReload` precedes the selected save's chunks for every guest, including games already receiving a
-   join save.
-3. Guests receive the save through `JoinService`, close their connections and load it.
+2. `NotifyPartyReload` names the selected save for every guest, including games already receiving a join save.
+   A guest that holds it (the host sent it ahead when it was made, or it was loaded before) is sent nothing; the
+   others get it against a save they hold ([join-flow.md](join-flow.md#save-sync-2026-11-16)).
+3. Guests take the save from their store or through `JoinService`, close their connections and load it.
 4. Once every guest has left to load, the host loads the same bytes under the existing `SkyrimCoopWipe` scratch
    name. Its authority is rebuilt on the same listener. Authentication requests received during the load wait.
 5. Each guest applies its kept `PlayerRecord`, including worldspace, cell and position, then rejoins.
