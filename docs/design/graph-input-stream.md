@@ -131,7 +131,7 @@ exception but how it begins.
   - Correction: `host-rides-horse` failing with the rider's skeleton 2100 units off its feet was blamed on recording
     through a mount's pair. It is not this work's: run right after `spectator-watches-kill-move` it fails 4 of 4 on
     the plugin of that morning (`e0f66e3a`) and 5 of 5 on the one before this work (`66c45d59`), and 2 of 4 after it
-    (bugs.md, "A rider after a spectated kill move").
+    (bugs.md, "After a kill move the guest's own body floats").
   - Measured (duo, `host-kill-move`): on the guest both copies took the pair from their streams; KillMoveStart,
     HitFrame and KillActor came 115-190 ms after the host's, the blow and the death 115-120 ms. Five kill-move
     scenarios, four runs each: 18 of 20 (`kill-move-kills-guest` once never at rest, as before; `kill-moves-cross`

@@ -68,3 +68,10 @@ The 2026-11-04 playtest's reports (12 on the host, read in IDA 1.7.104) are all 
 - A reference's extra-data list against its alias array: `CastPermanentMagic`'s alias walk (38846) against
   `ExtraDataList::AddAliasInstance` (12046). Our respawn calls it, as the engine does from `Load3D` and `Set3D`.
 - Quest and alias locks during the wipe's load.
+
+2026-11-16, `party-buys-house-guest` on the host (read in IDA 1.7.104, each named that day):
+`ExtraAliasInstanceArray::FindAliasPackageThatCanRun` 12721 (array lock, read) > `TESPackage::CanRunFor` 29619 (once per
+day, `kOncePerDay` 0x400, then schedule and conditions) > `ExtraDataList::HasRunOncePack` (11737, `0x140165460`, the list
+lock for read, looking for the package in `ExtraRunOncePacks`, type 0x1B) against `ClearRefAlias` > 12047 (list, write) > 12719 (array, write). The engine's own
+pair again, under an AI job and the guest's alias clears. It read `[ours]` only because `HookUpdateAI`'s frame (+0x59)
+lies past its 0x50-byte `IgnoreFrames` size (bugs.md, "A pass-through hook counted as ours").
