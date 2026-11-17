@@ -2345,3 +2345,17 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     REQUIRE(decodedSync->GetOpcode() == kNotifyGraphSync);
     CHECK(static_cast<const NotifyGraphSync&>(*decodedSync) == sync);
 }
+
+TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
+{
+    NotifyMountRefused refused;
+    refused.RiderId = 8;
+    refused.MountId = 9;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    refused.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
+}

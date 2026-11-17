@@ -2,7 +2,6 @@
 player's. Each scenario has a player buy it the way a player does, then checks the owner on both games and that the
 other player uses it as its own: no crime, sleeping in the owned bed, taking from the house's containers, riding."""
 from ..common import (
-    ACTIVATE_KEY,
     BANNERED_MARE,
     ESCAPE_KEY,
     HOME_CELL,
@@ -222,16 +221,11 @@ def buys_house(ctx, buyer):
 def ride(ctx, user, ridden):
     """That game's player gets on the horse and off again, with no bounty."""
     before = bounty(ctx)
-    ctx.place_before(user, ridden, 150)
-    ctx.activate_on(user, ridden)
-    ctx.wait_for(f"[{name(user)}] its player rides the party's horse",
-                 lambda: ctx.actor_state(user, 0x14).get("placement", {}).get("riding"), 15)
-    ctx.wait_for(f"[{name(user)}] its player is seated",
-                 lambda: not ctx.actor_state(user, 0x14).get("placement", {}).get("getting_on_off"), 10)
+    ctx.place_before(user, ridden, 130)
+    ctx.use(user, ridden)  # a player's Activate: the mount clip plays out (the harness's activate skipped it)
+    ctx.wait_seated(user)
     no_crime(ctx, before, f"[{name(user)}] riding the party's horse")
-    ctx.tap_key(user, ACTIVATE_KEY)
-    ctx.wait_for(f"[{name(user)}] its player gets off", lambda: not ctx.actor_state(user, 0x14).get("placement", {}).get("riding")
-                 and not ctx.actor_state(user, 0x14).get("placement", {}).get("getting_on_off"), 15)
+    ctx.get_off(user)
 
 
 def buys_horse(ctx, buyer):

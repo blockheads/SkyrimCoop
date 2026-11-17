@@ -1,0 +1,97 @@
+time	op	id	rva	item
+2026-11-17T13:54:39Z	read	37906	0x6ac260	{"name": "Actor::Dismount"}
+2026-11-17T13:54:40Z	read	37905	0x6abe40	{"name": "Actor::sub_37905"}
+2026-11-17T13:54:58Z	name	37905	0x6abe40	{"addr": "0x1406abe40", "name": "Actor::InitiateMountPackage"}
+2026-11-17T13:54:58Z	local	37905	0x6abe40	{"func_addr": "0x1406abe40", "old": "a1", "new": "rider"}
+2026-11-17T13:54:58Z	local	37905	0x6abe40	{"func_addr": "0x1406abe40", "old": "a2", "new": "mount"}
+2026-11-17T13:54:58Z	local	37905	0x6abe40	{"func_addr": "0x1406abe40", "old": "Package", "new": "mountPackage"}
+2026-11-17T13:54:58Z	local	37906	0x6ac260	{"func_addr": "0x1406ac260", "old": "a1", "new": "rider"}
+2026-11-17T13:54:58Z	local	37906	0x6ac260	{"func_addr": "0x1406ac260", "old": "v41", "new": "mount"}
+2026-11-17T13:54:58Z	local	37906	0x6ac260	{"func_addr": "0x1406ac260", "old": "Package", "new": "dismountPackage"}
+2026-11-17T13:54:58Z	local	37906	0x6ac260	{"func_addr": "0x1406ac260", "old": "v2", "new": "started"}
+2026-11-17T13:55:05Z	comment	37905	0x6abe40	{"addr": "0x1406abe40", "comment": "[re]\nAddressLib ID 37905\nSkyrimCoop: hooked by HookInitiateMountPackage as RealInitiateMountPackage (Code/client/Games/Skyrim/Actor.cpp:1760)\nGetting on: mount null -> the rider's last horse (extra list handle, then vfunc 0x380 fallback, must be a Character). Character::CanRide (38706) gates. Low process (>1): MountInteraction built and attached at once (40345, 41532), no package. Otherwise mount package (type 41, procedure 21), mount stops, both get flags2 kGettingOnOffMount (8) and a deferred kill."}
+2026-11-17T13:55:05Z	comment	37906	0x6ac260	{"addr": "0x1406ac260", "comment": "[re]\nAddressLib ID 37906\nSkyrimCoop: hooked by HookDismount as RealDismount (Code/client/Games/Skyrim/Actor.cpp:1761)\nGetting off: only on a mount and not already kGettingOnOffMount. Low process: unlinks the interaction at once (41535). Not in midair / bInJumpState; the player also needs a clear spot (TryMoveTo, else a menu sound, false). Then dismount package (type 42, procedure 22) on the rider, mount's interrupt package ended and ClearMountPosition package (37907), flags2 kGettingOnOffMount (8) and deferred kill on both. Returns true when started; the interaction itself ends later (sit state 0, ChairFurnitureExitHandler 42835)."}
+2026-11-17T13:55:28Z	read	39174	0x6ea800	{"name": "AIProcess::UpdateLowMountRider"}
+2026-11-17T13:55:28Z	read	39912	0x7246a0	{"name": "sub_1407246A0"}
+2026-11-17T13:55:36Z	read	38045	0x6b5f30	{"name": "sub_1406B5F30"}
+2026-11-17T13:55:36Z	read	12033	0x172130	{"name": "sub_140172130"}
+2026-11-17T13:55:43Z	name	12033	0x172130	{"addr": "0x140172130", "name": "ExtraDataList::GetHorseHandle"}
+2026-11-17T13:55:43Z	name	38045	0x6b5f30	{"addr": "0x1406b5f30", "name": "Actor::FindNearbyFreeHorse"}
+2026-11-17T13:55:43Z	name	39912	0x7246a0	{"addr": "0x1407246a0", "name": "AIProcess::SetSitSleepState"}
+2026-11-17T13:55:46Z	comment	12033	0x172130	{"addr": "0x140172130", "comment": "AddressLib ID 12033. ExtraHorse (0x7B) handle on an extra list, invalid handle if none. InitiateMountPackage reads the rider's: the horse it last rode."}
+2026-11-17T13:55:46Z	comment	38045	0x6b5f30	{"addr": "0x1406b5f30", "comment": "AddressLib ID 38045. (actor, anyOwner) -> first high-process actor with the horse keyword (default object) that nobody rides, within fMax distance, not kGettingOnOffMount, and owned by the actor unless anyOwner. InitiateMountPackage's fallback when the rider has no ExtraHorse."}
+2026-11-17T13:55:56Z	read		0x6abb30	{"name": "Actor::IsOnFlyingMount"}
+2026-11-17T13:55:58Z	read		0x6abcca	{"name": "Actor::sub_37904"}
+2026-11-17T13:56:50Z	read	42881	0x7ced60	{"name": "MountDismountEndHandler::Handle"}
+2026-11-17T13:56:50Z	read	42835	0x7cd1f0	{"name": "ChairFurnitureExitHandler::Handle"}
+2026-11-17T13:56:51Z	read	41535	0x78d0d0	{"name": "TESObjectREFR::sub_41535"}
+2026-11-17T13:56:58Z	read	41539	0x78d610	{"name": "sub_14078D610"}
+2026-11-17T13:56:59Z	read	41540	0x78d720	{"name": "sub_14078D720"}
+2026-11-17T13:57:07Z	read		0x73cbe0	{"name": "MountInteraction::Func14_40351"}
+2026-11-17T13:57:12Z	name	41539	0x78d610	{"addr": "0x14078d610", "name": "RefrInteraction::Detach"}
+2026-11-17T13:57:12Z	name	41540	0x78d720	{"addr": "0x14078d720", "name": "RefrInteraction::AttachTo"}
+2026-11-17T13:57:12Z	name	41535	0x78d0d0	{"addr": "0x14078d0d0", "name": "TESObjectREFR::EndMountInteraction"}
+2026-11-17T13:57:17Z	comment	41539	0x78d610	{"addr": "0x14078d610", "comment": "(interaction, ...) Ends a RefrInteraction: vfunc 0x48, clears the second ref's ExtraInteraction (169), vfunc 0x30 on the first, both handles invalid. Called by EndMountInteraction (41535), AttachTo (a replaced interaction), 0x14078CCE0."}
+2026-11-17T13:57:17Z	comment	41540	0x78d720	{"addr": "0x14078d720", "comment": "(interaction, flag) Puts the interaction in one ref's ExtraInteraction (169), detaching any other one it had; vfunc 0x50(0x80000000) on the ref."}
+2026-11-17T13:57:17Z	comment	41535	0x78d0d0	{"addr": "0x14078d0d0", "comment": "AddressLib ID 41535. (ref) If it has ExtraInteraction (169) and a MountInteraction, detaches it at once: the ride ends with no animation. Dismount's low-process path, Predestroy, GarbageCollector::Add."}
+2026-11-17T13:57:17Z	comment	42881	0x7ced60	{"addr": "0x1407ced60", "comment": "[re]\nAddressLib ID 42881\nThe mount/dismount clip's end event: clears kGettingOnOffMount (37462) on the rider and its mount. The interaction stays linked after getting on; after getting off it ended at the chair exit (42835)."}
+2026-11-17T13:57:17Z	comment	42835	0x7cd1f0	{"addr": "0x1407cd1f0", "comment": "[re]\nAddressLib ID 42835\nA sit-exit clip event: only with sit state 1..4 (state1 bits 0x3C000). Middle-high process: SetSitSleepState(0, no furniture) (39912), which for a rider ends the mount interaction. Low process: vfunc 0xA0 on the actor state."}
+2026-11-17T13:57:54Z	read	38705	0x6d3660	{"name": "Actor::sub_38705"}
+2026-11-17T13:57:54Z	read	41531	0x78cce0	{"name": "sub_14078CCE0"}
+2026-11-17T13:58:07Z	name	41531	0x78cce0	{"addr": "0x14078cce0", "name": "MountInteraction::StopRiding"}
+2026-11-17T13:58:07Z	name	38705	0x6d3660	{"addr": "0x1406d3660", "name": "Actor::StopRidingQuick"}
+2026-11-17T13:58:13Z	comment	41531	0x78cce0	{"addr": "0x14078cce0", "comment": "(interaction*, mode) Gets a rider off with no Actor::Dismount (no package, no kGettingOnOffMount, no DismountEvent): rider's sit state to wants-to-stand (4, or 8 for sleep), then the interaction's vfunc 0x78 plays ActionActivate (default object 55) rider->mount (the HorseExit clip); if that fails, Detach at once. Callers: StopRidingQuick 38705 (UpdateLowMountRider), Actor::StopInteractingQuick, MountInteraction 40351/40356."}
+2026-11-17T13:58:13Z	comment	38705	0x6d3660	{"addr": "0x1406d3660", "comment": "[re]\nAddressLib ID 38705\n(actor, mode) If on a mount: MountInteraction::StopRiding(mode). UpdateLowMountRider (39174) calls it with 2 when a low-process mount carries a rider of a higher process level: the engine gets the rider off by itself."}
+2026-11-17T13:58:13Z	comment	39174	0x6ea800	{"addr": "0x1406ea800", "comment": "[re]\nAddressLib ID 39174\n(process, mount) Only a mount with no middle-high data (low process) that is IS_A_MOUNT and ridden. Rider at process level > 1 (middle-low or low): moved to the mount (vfunc 0x520, 37313). Rider high or middle-high: StopRidingQuick(rider, 2) gets it off, no Actor::Dismount. A copy horse dropped to low process under a high-process rider copy would lose its rider this way (inferred, not measured)."}
+2026-11-17T14:11:19Z	read	41538	0x78d580	{"name": "sub_14078D580"}
+2026-11-17T14:11:20Z	read		0x73cf50	{"name": "MountInteraction::Func15_40352"}
+2026-11-17T14:11:21Z	read	12076	0x173b00	{"name": "sub_140173B00"}
+2026-11-17T14:11:30Z	read	38696	0x6d25c0	{"name": "sub_1406D25C0"}
+2026-11-17T14:11:40Z	name	38696	0x6d25c0	{"addr": "0x1406d25c0", "name": "Actor::FinishDismount"}
+2026-11-17T14:11:40Z	name	41538	0x78d580	{"addr": "0x14078d580", "name": "RefrInteraction::TargetHas3D"}
+2026-11-17T14:11:40Z	name	12076	0x173b00	{"addr": "0x140173b00", "name": "ExtraDataList::DetachInteractionWith"}
+2026-11-17T14:11:46Z	comment	38696	0x6d25c0	{"addr": "0x1406d25c0", "comment": "AddressLib ID 38696. (rider) The end of getting off: rider placed at its root bone's XY (flying mounts: a ray for the ground), clears kGettingOnOffMount on rider and mount, EndMountInteraction (41535: Detach), movement speed updated. Called by StopMountCameraHandler::Handle (the HorseExit clip's event) and MountInteraction 40352."}
+2026-11-17T14:11:46Z	comment	41538	0x78d580	{"addr": "0x14078d580", "comment": "AddressLib ID 41538. (interaction) Whether its target (+0x10, the mount) resolves and has 3D (vfunc 0x380)."}
+2026-11-17T14:11:46Z	comment	12076	0x173b00	{"addr": "0x140173b00", "comment": "AddressLib ID 12076. (extra list, ref) If the list's ExtraInteraction (169) has `ref` as its actor (+0x14), detaches it (thunk 0x14078C880 -> Detach)."}
+2026-11-17T14:11:46Z	comment	41539	0x78d610	{"addr": "0x14078d610", "comment": "AddressLib ID 41539? (interaction, ...) Ends a RefrInteraction: vfunc 0x48, clears the actor's (+0x14, the rider) ExtraInteraction (169), vfunc 0x30, both handles invalid. The funnel every ride's end reaches: EndMountInteraction (41535, from FinishDismount 38696, low-process Dismount, Predestroy, GarbageCollector::Add), StopRiding's fallback, AttachTo (a replaced interaction), ExtraDataList 12076. SkyrimCoop hooks it: a local rider's ride ended."}
+2026-11-17T14:11:46Z	comment		0x73cf50	{"addr": "0x14073cf50", "comment": "[re]\nAddressLib ID 40352\n(interaction, ?, force) The interaction's end for its rider: graph links cleared, mount's movement controller reset, rider looks ahead; force or not handled: rider sit state 0 (39912) and FinishDismount (38696). Clears the mounted-weapon graph variables."}
+2026-11-17T14:12:01Z	comment	41539	0x78d610	{"addr": "0x14078d610", "comment": "AddressLib ID 41539. (interaction, ...) Ends a RefrInteraction: vfunc 0x48, clears the actor's (+0x14, the rider) ExtraInteraction (169), vfunc 0x30, both handles invalid. The funnel every ride's end reaches: EndMountInteraction (41535, from FinishDismount 38696, low-process Dismount, Predestroy, GarbageCollector::Add), StopRiding's fallback, AttachTo (a replaced interaction), ExtraDataList 12076. SkyrimCoop hooks it: a local rider's ride ended."}
+2026-11-17T14:20:15Z	read		0x75a620	{"name": "sub_14075A390"}
+2026-11-17T14:31:34Z	read		0x75a843	{"name": "PlayerCharacter::PayFine"}
+2026-11-17T14:31:42Z	read		0x65a071	{"name": "Main::sub_36581"}
+2026-11-17T14:32:23Z	comment		0x744b57	{"addr": "0x140744b57", "comment": "Fast travel on horseback: the horse comes along when the destination is the rider's worldspace (or the horse's); otherwise StopRidingQuick(rider, 2): off with no Dismount, the horse left behind."}
+2026-11-17T14:32:23Z	comment		0x65a071	{"addr": "0x14065a071", "comment": "UpdatePlayer: the player crossed into another exterior cell while it has an ExtraInteraction but GetMount fails (the mount gone): StopRidingQuick(player, 2)."}
+2026-11-17T14:32:23Z	comment		0x75a843	{"addr": "0x14075a843", "comment": "PayFine with goToJail: StopInteractingQuick, then a mounted player gets off by StopRidingQuick(2): no Dismount."}
+2026-11-17T18:46:24Z	read	40808	0x762c30	{"name": "sub_140762C30"}
+2026-11-17T18:46:25Z	read	40070	0x72b9f0	{"name": "sub_14072B9F0"}
+2026-11-17T18:46:26Z	read	40050	0x728ec0	{"name": "sub_140728EC0"}
+2026-11-17T18:46:26Z	read	38709	0x6d3ad0	{"name": "sub_1406D3AD0"}
+2026-11-17T18:46:27Z	read		0x6d3480	{"name": "Actor::GetMountedBy"}
+2026-11-17T18:46:31Z	read	37462	0x686420	{"name": "sub_140686420"}
+2026-11-17T18:46:31Z	read		0x73cbc0	{"name": "MountInteraction::Func14_40351"}
+2026-11-17T18:47:13Z	read	37864	0x6a77c0	{"name": "Character::sub_37864"}
+2026-11-17T18:47:14Z	read	28193	0x45c650	{"name": "sub_14045C650"}
+2026-11-17T18:47:14Z	read	40810	0x762f00	{"name": "sub_140762F00"}
+2026-11-17T18:47:15Z	read	40816	0x763460	{"name": "sub_140763460"}
+2026-11-17T18:48:58Z	name	37462	0x686420	{"addr": "0x140686420", "name": "Actor::SetGettingOnOffMount"}
+2026-11-17T18:48:58Z	name	37864	0x6a77c0	{"addr": "0x1406a77c0", "name": "Character::ActivateMount"}
+2026-11-17T18:48:58Z	name	28193	0x45c650	{"addr": "0x14045c650", "name": "MountCommand_RideOrDismount"}
+2026-11-17T18:48:58Z	name	40810	0x762f00	{"addr": "0x140762f00", "name": "PlayerDismountFlyingMount"}
+2026-11-17T18:48:58Z	name	40816	0x763460	{"addr": "0x140763460", "name": "PlayerMountMenuChoice"}
+2026-11-17T18:48:58Z	name	40808	0x762c30	{"addr": "0x140762c30", "name": "PlayerMountBarterEnd"}
+2026-11-17T18:48:58Z	name	40070	0x72b9f0	{"addr": "0x14072b9f0", "name": "AIProcess::UpdateMountFlagTimer"}
+2026-11-17T18:48:58Z	name	40050	0x728ec0	{"addr": "0x140728ec0", "name": "AIProcess::UpdateTimers_40050"}
+2026-11-17T18:48:58Z	name	38709	0x6d3ad0	{"addr": "0x1406d3ad0", "name": "Actor::ClearMountFlagsForRunOncePackage"}
+2026-11-17T18:49:04Z	comment	37462	0x686420	{"addr": "0x140686420", "comment": "37462: flags2 kGettingOnOffMount (8) on/off, with the deferred kill. Every direct caller clears it; only InitiateMountPackage (37905) and Dismount (37906) set it, inline."}
+2026-11-17T18:49:04Z	comment	37864	0x6a77c0	{"addr": "0x1406a77c0", "comment": "37864, from TESObjectREFR::ActivateRef: a character activating a mount. Riding it -> Dismount (or ClearMountPosition); not ridden -> InitiateMountPackage(activator, mount); ridden by another -> nothing. A replayed activation by a copy runs this on the copy (co-op: horse-riding)."}
+2026-11-17T18:49:04Z	comment	40070	0x72b9f0	{"addr": "0x14072b9f0", "comment": "40070: middle-high timer at +516 counts down (not while the mount flies) and clears kGettingOnOffMount when it runs out."}
+2026-11-17T18:49:04Z	comment	40808	0x762c30	{"addr": "0x140762c30", "comment": "40808: not on the ride path: after the stable's barter, clears the player's and its new horse's kGettingOnOffMount and places the horse."}
+2026-11-17T18:49:04Z	comment	38709	0x6d3ad0	{"addr": "0x1406d3ad0", "comment": "38709: a mount/dismount run-once package (41/42) whose target is a mount: clears kGettingOnOffMount on both."}
+2026-11-17T18:56:40Z	read	42420	0x7b2660	{"name": "ActivateHandler::ProcessButton"}
+2026-11-17T18:56:46Z	read	40548	0x751580	{"name": "PlayerCharacter::ActivatePickRef"}
+2026-11-17T18:56:55Z	comment	40548	0x751580	{"addr": "0x140751580", "comment": "40548: Activate takes the crosshair's ref; only with none, a rider's own mount (sub_1407588D0) -> ActivateRef -> Character::ActivateMount 37864 -> Dismount. A rider aiming at an NPC or another player activates that instead: it stays on (co-op: horse-riding, party-buys-horse-guest)."}
+2026-11-17T19:18:49Z	read	40352	0x73cd00	{"name": "MountInteraction::Func15_40352"}
+2026-11-17T19:28:47Z	comment	40352	0x73cd00	{"addr": "0x14073cd00", "comment": "40352 (interaction, action, force): plays the exit action (ActionActivate rider->mount, HorseExit + the mount's pa_HorseExit). Refused, or forced: sit state 0 and FinishDismount (38696) at once, no clip: the rider's graph stays in its riding pose (pelvis at its feet). Measured 2026-11-17, vanilla too: a dismount within ~0.1 s of sit state 3, while the mount's own pa_HorseEnter half still runs (its bIsSynced on), is refused this way."}
+2026-11-17T19:28:47Z	comment	39670	0x7170b0	{"addr": "0x1407170b0", "comment": "Dismount procedure step (from UpdateHighProcessAI): a rider whose dismount package runs -> StopRidingQuick(rider, 0) (38705) -> StopRiding -> 40352."}
+2026-11-17T19:28:48Z	name	39670	0x7170b0	{"addr": "0x1407170b0", "name": "AIProcess::DismountProcedureStep"}
+2026-11-17T19:28:48Z	name	40352	0x73cd00	{"addr": "0x14073cd00", "name": "MountInteraction::PlayExitOrFinish"}

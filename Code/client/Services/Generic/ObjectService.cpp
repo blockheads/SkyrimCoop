@@ -36,7 +36,9 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     }
 
     // A world script's door is the host's world: HostWorldState sends the host's (step 5).
-    if (!m_transport.IsConnected() || acEvent.ByReference)
+    // Activating a mount rides it (Character::ActivateMount 37864): the ride goes as a MountRequest. Replayed, it
+    // would start a mount package on the activator's copy, which no copy runs.
+    if (!m_transport.IsConnected() || acEvent.ByReference || m_actorBridge.IsActorMount(acEvent.ObjectFormId))
         return;
 
     // A locked object's activation is a lockpick attempt, not an opening. Its lock level stays set

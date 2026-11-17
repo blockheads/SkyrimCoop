@@ -95,7 +95,8 @@ membership. Changing the flag alone leaves stale cell lists, causing save or lat
 mount cleanup therefore includes a save and subsequent travel. FollowTo carries the owned horse to the
 destination as well as queuing the player move.
 
-Native MoveTo breaks the mount interaction. It does not always call Actor::Dismount. On arrival, the service
+Native MoveTo breaks the mount interaction. It does not always call Actor::Dismount; since 2026-11-17 every ride's
+end is heard at RefrInteraction::Detach (41539, `docs/re/systems/mounts.md`), the arrival check below a fallback. On arrival, the service
 checks the player's actual interaction and returns ownership if native travel dismounted it. The horse arrives
 with the party, unmounted, and belongs to the host again; it is not left behind or kept as a guest-owned orphan.
 

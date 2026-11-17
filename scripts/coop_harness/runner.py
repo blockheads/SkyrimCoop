@@ -105,7 +105,7 @@ class Runner:
             raise ctx.failure("desync afterwards: " + " | ".join(problems))
         if dialogue := ctx.check_dialogue_trace():
             raise ctx.failure("the menus differ in a conversation: " + " | ".join(dialogue[:6]))
-        if world := ctx.check_world(known_world):
+        if world := ctx.check_world(known_world | getattr(ctx, "SCENE_KNOWN_WORLD", set())):
             raise ctx.failure(f"world differs afterwards ({len(world)} references): " +
                               " | ".join(describe_world_differences(world, 20)))
         new_locks = [v for k, v in ctx.lock_order_reports().items() if k not in known_locks]
@@ -148,6 +148,7 @@ class Runner:
         graph_watch = None
         ctx.CURRENT_STEP.update(description=None, time=time.time())
         ctx.FAILING = False
+        ctx.SCENE_KNOWN_WORLD = set()  # a scene() in this flow sets its place's own
         ctx.cleanup_errors = []
         previous_capture = ctx.STATUS_AT_FAILURE
         ctx.STATUS_AT_FAILURE = True

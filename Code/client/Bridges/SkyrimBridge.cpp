@@ -1399,6 +1399,12 @@ bool SkyrimBridge::IsPlayerMounted() const noexcept
     return pPlayer && pPlayer->extraData.Contains(ExtraDataType::Interaction);
 }
 
+void SkyrimBridge::PlayerStopRiding() noexcept
+{
+    if (auto* pPlayer = PlayerCharacter::Get())
+        pPlayer->StopRidingQuick();
+}
+
 void SkyrimBridge::HoldPlayerDeathReload(bool aHold) noexcept
 {
     Breadcrumbs::Record("HoldPlayerDeathReload", static_cast<uint32_t>(aHold));
@@ -2075,6 +2081,14 @@ void SkyrimBridge::ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId)
     Actor* pMount = GetActor(aMountFormId);
     if (pRider && pMount)
         pRider->PutOnMount(pMount);
+}
+
+void SkyrimBridge::ActorEndRide(uint32_t aRiderFormId) noexcept
+{
+    Breadcrumbs::Record("ActorEndRide", aRiderFormId);
+    Actor* pRider = GetActor(aRiderFormId);
+    if (pRider && pRider->actorState.GetSitSleepState() != ReplayState::kSitWantsToStand)
+        pRider->EndRideNow();
 }
 
 uint32_t SkyrimBridge::GetActorParentCellFormId(uint32_t aFormId) const noexcept

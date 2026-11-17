@@ -3,8 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
-// What links an actor to another in both their ExtraInteraction (1.6.1170, CommonLibSSE-NG RefrInteraction); a
-// MountInteraction is 0x38.
+// What links an actor to another in both their ExtraInteraction (CommonLibSSE-NG RefrInteraction); a MountInteraction
+// is 0x38 (40345). Detach (41539) ends it.
 struct RefrInteraction
 {
     virtual ~RefrInteraction(); // 00: the engine's deleting destructor

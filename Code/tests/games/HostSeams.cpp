@@ -125,6 +125,7 @@ void HostService::MakeAuthority() noexcept
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
+    game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
     game.AdvanceTime = [&engine](float aHours) {
         MainLoopTasks::Queue([&engine, aHours] {
             DateTime time(engine.Calendar);

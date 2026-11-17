@@ -255,6 +255,9 @@ public:
     // --- Mounting ---
     // A copy rider on its mount at once (Actor::PutOnMount): copies run no mount package.
     virtual void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept = 0;
+    // A copy rider whose owner's ride ended: one still seated (its owner got off with no exit clip) is off at once; one
+    // getting off already (sit state 4, its owner's HorseExit) ends by its own clip.
+    virtual void ActorEndRide(uint32_t aRiderFormId) noexcept = 0;
 
     // --- World position ---
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;

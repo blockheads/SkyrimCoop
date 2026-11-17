@@ -1772,6 +1772,22 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   copy fades in, the guest gets on, both games agree while riding, gets off; 4 of 4). `HostAuthorityTests`
   "Mounts: ..." (the leaving case fails without the fix). Readouts `riding`, `ridden`, `getting_on_off`,
   `mod.fade_state` (nothing activates an actor fading in, `TESNPC::Activate`), `mod.player_can_ride` (38706).
+- **A ride is a hold** (2026-11-17, `docs/re/systems/mounts.md`): a horse is its rider's game's only while ridden and
+  the host's again once the ride ends, like a held physics body. The hand-back moved from `Actor::Dismount` (37906),
+  which only starts a dismount, to `RefrInteraction::Detach` (41539, `HookDetachInteraction`), the end every ride
+  reaches: the dismount clip's `FinishDismount` (38696), `StopRidingQuick` (38705: jail, fast travel into another
+  worldspace, a load) and Predestroy. The horse went back mid-clip before, and a ride ended without Dismount left it
+  the guest's. A host NPC's ride end is sent too. The host keeps each mount's rider (`HostCharacters::Character::
+  Rider`): a second rider within the round trip is refused (`NotifyMountRefused`, its player off by
+  `StopRidingQuick`), a removed rider's horse goes back, and a joining or arriving player hears who rides what after
+  its spawns (`SendRides`; a guest-ridden horse is spawned from the host's copy, `HostGame::CopySpawn`), linked once
+  both copies exist (`CharacterService::m_pendingRides`). A player's record takes its relayed actions, so a spawn made
+  from it plays the latest. Tests: GameTests `[ride-end]`, `[one-rider]`, `[late-ride]` (the fake's `StartDismount`,
+  `StopRiding`, `EndRide`); HostAuthorityTests "Mounts: ..." (one rider, late joiner, removed rider) and "a player's
+  latest relayed action". A mount's activation is no longer sent as an NPC activation (the host's replay started a
+  mount package on its copy of the player, `kGettingOnOffMount` for good: `Character::ActivateMount` 37864), and a copy
+  rider still seated when its owner's ride ends gets off at once (`IActorBridge::ActorEndRide`, as 40352's forced
+  path). GameTests "A guest gets on the horse the host just got off" (the fake's `ActivateMount`, `GettingOnOff`).
 - A player's active effects go into its record (2026-10-23, `HostCharacters::OnActiveEffects`): spawns
   built later from the record had the effects of its announcement. Test "a player's effects go into its record".
 - The actor comparison's "visuals" are what plays on the body (2026-10-23): the owed Skyrim checks
@@ -1870,9 +1886,7 @@ removed (git history keeps them).
 
 ### Mounts (2026-10-23)
 
-- A copy made while its owner rides (a late join, a rejoin) starts off the horse: the spawn carries no mount. Design:
-  the host keeps each mount's rider (from `OnMount`, cleared by `OnDismount`) and sends `NotifyMount` after a
-  newcomer's spawns; the newcomer links once both copies have loaded.
+- ~~A copy made while its owner rides starts off the horse~~: built 2026-11-17 ("A ride is a hold" above).
 
 ### Mods
 

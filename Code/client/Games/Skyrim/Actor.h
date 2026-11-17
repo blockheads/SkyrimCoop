@@ -288,6 +288,11 @@ struct Actor : TESObjectREFR
     // On its mount at once, with no package or animation, as InitiateMountPackage links a low-process rider. For a
     // copy, which runs no AI: its owner's actions play the rest, the replayed getting off unlinking it too.
     bool PutOnMount(Actor* apMount) noexcept;
+    // Off its mount with no Dismount, as jail and PayFine do (StopRidingQuick 38705, mode 2): the exit clip, else at once.
+    bool StopRidingQuick() noexcept;
+    // Off its mount at once, no exit clip, as MountInteraction 40352 does when the exit pair is refused: sit state 0
+    // (AIProcess::SetSitSleepState 39912), then FinishDismount (38696: beside the mount, flags cleared, Detach).
+    void EndRideNow() noexcept;
     void GenerateMagicCasters() noexcept;
     void DispelAllSpells(bool aNow = false) noexcept;
     void Reset() noexcept;

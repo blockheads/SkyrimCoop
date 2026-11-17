@@ -868,6 +868,27 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The native mount interaction, replayed for copies by CharacterService.
     std::map<uint32_t, uint32_t> Mounts;
     void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
+    void ActorEndRide(uint32_t aRider) noexcept override;
+    // NPC bases that are mounts (flags2 kIsAMount): a horse.
+    std::set<uint32_t> MountBases{0x109E3D};
+    bool IsActorMount(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && MountBases.contains(it->second.Base);
+    }
+    // flags2 kGettingOnOffMount, set by InitiateMountPackage (37905) and Dismount (37906): a copy runs neither
+    // package, so on a copy it stays (in Skyrim until its next ride).
+    std::set<uint32_t> GettingOnOff;
+    // A character activating a mount (Character::ActivateMount 37864): its own mount -> Dismount; free ->
+    // InitiateMountPackage (an own actor rides, our hook raising MountEvent); ridden by another -> nothing.
+    bool ActivateMount(uint32_t aActivator, uint32_t aMount);
+    // Actor::Dismount (37906) on a rider: its exit clip ends the ride aFrames later (FinishDismount 38696).
+    void StartDismount(uint32_t aRider, uint32_t aFrames = 3) noexcept;
+    // StopRidingQuick (38705: jail, a fine, a load, a low-process mount): the same exit clip, no Dismount.
+    void StopRiding(uint32_t aRider, uint32_t aFrames = 3) noexcept;
+    // RefrInteraction::Detach (41539), every ride's end: off its mount; our hook tells this game's services.
+    void EndRide(uint32_t aRider) noexcept;
+    std::map<uint32_t, uint32_t> DismountIn; // rider -> frames until its exit clip ends its ride
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
     size_t Travels = 0;  // the player's teleports, ever
@@ -1030,7 +1051,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
     {
         Activations.emplace_back(aObjectFormId, aActivatorFormId);
-        ToggleDoor(aObjectFormId);
+        if (!ActivateMount(aActivatorFormId, aObjectFormId))
+            ToggleDoor(aObjectFormId);
     }
     // An activated door swings: the host's records it, a guest's opens here only (the host's state follows).
     void ToggleDoor(uint32_t aObject);
@@ -1396,6 +1418,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
+    void PlayerStopRiding() noexcept override { StopRiding(kPlayer); }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
     float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
     void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override

@@ -915,8 +915,8 @@ void Actor::RemoveFromAllFactions() noexcept
 
 using TInitiateMountPackage = bool(Actor*, Actor* apMount);
 static TInitiateMountPackage* RealInitiateMountPackage = nullptr;
-using TDismount = bool(Actor*);
-static TDismount* RealDismount = nullptr;
+using TDetachInteraction = uint64_t(RefrInteraction*, bool);
+static TDetachInteraction* RealDetachInteraction = nullptr;
 
 bool Actor::InitiateMountPackage(Actor* apMount) noexcept
 {
@@ -937,6 +937,27 @@ bool Actor::PutOnMount(Actor* apMount) noexcept
     if (InterlockedDecrement(&pInteraction->refCount) == 0)
         delete pInteraction;
     return true;
+}
+
+bool Actor::StopRidingQuick() noexcept
+{
+    using TStopRidingQuick = bool(Actor*, uint32_t aMode);
+    POINTER_SKYRIMSE(TStopRidingQuick, s_stopRidingQuick, 38705);
+    return s_stopRidingQuick(this, 2);
+}
+
+void Actor::EndRideNow() noexcept
+{
+    using TSetSitSleepState = void(AIProcess*, Actor*, uint32_t aState, uint32_t* apFurniture, int32_t aMarker);
+    using TFinishDismount = void(Actor*);
+    POINTER_SKYRIMSE(TSetSitSleepState, s_setSitSleepState, 39912);
+    POINTER_SKYRIMSE(TFinishDismount, s_finishDismount, 38696);
+    if (currentProcess)
+    {
+        uint32_t noFurniture = 0; // g_invalidRefHandle
+        s_setSitSleepState(currentProcess, this, 0, &noFurniture, -1);
+    }
+    s_finishDismount(this);
 }
 
 void Actor::GenerateMagicCasters() noexcept
@@ -1525,13 +1546,16 @@ bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
     return RealInitiateMountPackage(apThis, apMount);
 }
 
-// Every dismount starts here: the player's activate, Papyrus Dismount, the console, the get-up package.
-bool HookDismount(Actor* apThis)
+// Every ride ends here (RefrInteraction::Detach 41539): the dismount clip's end, StopRiding, jail, a fine, a load.
+uint64_t HookDetachInteraction(RefrInteraction* apThis, bool aUnk)
 {
-    const bool cStarted = RealDismount(apThis);
-    if (cStarted && apThis->GetExtension()->IsLocal())
-        World::Get().GetRunner().Trigger(DismountEvent{apThis->formID});
-    return cStarted;
+    auto* pRider = apThis ? Cast<Actor>(TESObjectREFR::GetByHandle(apThis->actorHandle)) : nullptr;
+    const auto* cpMount = apThis ? TESObjectREFR::GetByHandle(apThis->targetHandle) : nullptr;
+    const uint32_t cMountId = cpMount ? cpMount->formID : 0;
+    const uint64_t cResult = RealDetachInteraction(apThis, aUnk);
+    if (pRider && pRider->GetExtension()->IsLocal())
+        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId});
+    return cResult;
 }
 
 using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
@@ -1942,7 +1966,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
-        HOOK_ID(37906, &RealDismount, HookDismount);
+        HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);
