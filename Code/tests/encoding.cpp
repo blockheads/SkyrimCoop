@@ -2390,3 +2390,23 @@ TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
     REQUIRE(message);
     CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
 }
+
+TEST_CASE("A passenger's boarding and getting off name the horse and the rider", "[encoding.travel]")
+{
+    const auto cRoundTrip = [](auto aMessage, auto aFactory) {
+        using T = decltype(aMessage);
+        aMessage.RiderId = 8;
+        aMessage.MountId = 9;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        aMessage.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto message = aFactory.Extract(reader);
+        REQUIRE(message);
+        CHECK(*CastUnique<T>(std::move(message)) == aMessage);
+    };
+    cRoundTrip(BoardRequest{}, RequestMessageFactory{});
+    cRoundTrip(UnboardRequest{}, RequestMessageFactory{});
+    cRoundTrip(NotifyBoard{}, NotifyMessageFactory{});
+    cRoundTrip(NotifyUnboard{}, NotifyMessageFactory{});
+}

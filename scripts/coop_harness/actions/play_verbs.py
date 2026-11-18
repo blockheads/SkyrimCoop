@@ -530,12 +530,19 @@ class PlayerVerbs:
             ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}", lambda: on() == ref, 2)
         row = ctx.actor_row(instance, ref)
         if on() != ref and row and not (row.get("state") or {}).get("dead"):
-            # A standing actor's root is on the ground: from close by, a ray at it can pass under a horse's belly.
+            # A standing actor's root is on the ground: from close by, a ray at it can pass under a horse's belly. A
+            # ridden horse's rider sits in that line: lower, its flank.
             x, y, z = ctx.place_of(instance, ref)
-            ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": [x, y, z + 100], "rate": 180},
-                               "until": ["aimed"], "seconds": 3})
-            with contextlib.suppress(TestFailure):
-                ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
+            yaw = ((row.get("placement") or {}).get("rotation") or [0, 0, 0])[2]
+            ahead = (math.sin(yaw), math.cos(yaw))  # its chest and rump: clear of a rider's legs
+            for along, height in ((0, 100), (0, 60), (70, 90), (-70, 90)):
+                if on() == ref:
+                    break
+                ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"],
+                                   "turn": {"face": [x + ahead[0] * along, y + ahead[1] * along, z + height], "rate": 180},
+                                   "until": ["aimed"], "seconds": 3})
+                with contextlib.suppress(TestFailure):
+                    ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
         if on() != ref and (row.get("state") or {}).get("dead"):  # a corpse lies below an actor's chest
             body = (ctx.body_of(instance, ref) or {}).get("position") or ctx.place_of(instance, ref)
             ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": list(body), "rate": 180},

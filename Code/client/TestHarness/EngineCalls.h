@@ -433,6 +433,18 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept;
 // A copy takes its own do-nothing package, as when its owner's is one the engine made (SkyrimBridge::SetCopyAiFields).
 bool CopyHoldsDoNothing(uint32_t aFormId) noexcept;
+// Probe: the rider on the mount at once, its own MountInteraction (Actor::PutOnMount), even with another rider on it.
+bool PutOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: the engine's own get-on (InitiateMountPackage 37905, not our hook) onto a horse someone already rides.
+bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: PutOnMount, then seated (sit state 3) as the get-on clip's end leaves a rider, with no clip.
+bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: the horse's slot set to this rider's own interaction (12074), as a new driver would need.
+bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept;
+// Probe: a graph event to the actor's graphs (TESObjectREFR::SendAnimationEvent); true when one took it.
+bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept;
+// The crosshair's prompt for this actor (TESNPC::GetActivateText 24716, our hook's answer too); empty for none.
+std::string GetActivateText(uint32_t aRefId) noexcept;
 // Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
 // not), as MoveTo does (56626).
 bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;

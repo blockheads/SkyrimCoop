@@ -991,6 +991,172 @@ TEST_CASE("Mounts: a rider's character removed gives its horse back", "[HostAuth
     CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
 }
 
+namespace
+{
+// The peer drives the host's horse.
+struct Ride
+{
+    Session session;
+    uint32_t Horse = session.Character(kHost);
+    uint32_t Driver = session.Character(kPeer);
+    uint32_t Passenger = session.Character(kOtherPeer);
+    Ride()
+    {
+        MountRequest mount;
+        mount.RiderId = Driver;
+        mount.MountId = Horse;
+        session.Receive(kPeer, mount);
+        session.Outbox.clear();
+    }
+    void Board()
+    {
+        BoardRequest board;
+        board.RiderId = Passenger;
+        board.MountId = Horse;
+        session.Receive(kOtherPeer, board);
+    }
+};
+} // namespace
+
+TEST_CASE("Mounts: a player boards a horse another player drives, its copy seated on the other games", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    ride.Board();
+    CHECK(ride.session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+    CHECK(ride.session.SentTo<NotifyBoard>(kOtherPeer).empty());
+    for (const auto cTo : {kHost, kPeer})
+    {
+        REQUIRE(ride.session.SentTo<NotifyBoard>(cTo).size() == 1);
+        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->RiderId == ride.Passenger);
+        CHECK(ride.session.SentTo<NotifyBoard>(cTo)[0]->MountId == ride.Horse);
+    }
+    // The driver's game still moves it.
+    ReferencesMoveRequest moved;
+    moved.Updates[ride.Horse] = {};
+    ride.session.Outbox.clear();
+    ride.session.Receive(kOtherPeer, moved);
+    CHECK(ride.session.SentTo<NotifyReferencesMove>(kHost).empty());
+}
+
+TEST_CASE("Mounts: no boarding a horse nobody drives, nor for a rider not the sender's", "[HostAuthority][Characters][passengers]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    BoardRequest board;
+    board.RiderId = cPeerPlayer;
+    board.MountId = cHorse;
+    session.Receive(kPeer, board);
+    CHECK(session.SentTo<NotifyMountRefused>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyBoard>(kHost).empty());
+
+    Ride ride;
+    BoardRequest stranger;
+    stranger.RiderId = ride.Passenger;
+    stranger.MountId = ride.Horse;
+    ride.session.Receive(kPeer, stranger); // not its rider
+    CHECK(ride.session.SentTo<NotifyBoard>(kHost).empty());
+}
+
+TEST_CASE("Mounts: the driver gets off and the first passenger drives, the horse its game's", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    ride.Board();
+    ride.session.Outbox.clear();
+    DismountRequest off;
+    off.RiderId = ride.Driver;
+    off.MountId = ride.Horse;
+    ride.session.Receive(kPeer, off);
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        CHECK(ride.session.SentTo<NotifyDismount>(cTo).empty());
+        REQUIRE(ride.session.SentTo<NotifyMount>(cTo).size() == 1);
+        CHECK(ride.session.SentTo<NotifyMount>(cTo)[0]->RiderId == ride.Passenger);
+    }
+    // The old driver's copies get off, its ride ended maybe with no exit clip (mounts.md).
+    CHECK(ride.session.SentTo<NotifyUnboard>(kPeer).empty());
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        REQUIRE(ride.session.SentTo<NotifyUnboard>(cTo).size() == 1);
+        CHECK(ride.session.SentTo<NotifyUnboard>(cTo)[0]->RiderId == ride.Driver);
+    }
+    ReferencesMoveRequest moved;
+    moved.Updates[ride.Horse] = {};
+    ride.session.Outbox.clear();
+    ride.session.Receive(kOtherPeer, moved);
+    CHECK(ride.session.SentTo<NotifyReferencesMove>(kHost).size() == 1);
+
+    // Its own getting off, no passenger left: the host's again.
+    off.RiderId = ride.Passenger;
+    ride.session.Outbox.clear();
+    ride.session.Receive(kOtherPeer, off);
+    CHECK(ride.session.SentTo<NotifyDismount>(kHost).size() == 1);
+}
+
+TEST_CASE("Mounts: a passenger getting off tells the other games, the horse still ridden", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    ride.Board();
+    ride.session.Outbox.clear();
+    UnboardRequest unboard;
+    unboard.RiderId = ride.Passenger;
+    unboard.MountId = ride.Horse;
+    ride.session.Receive(kOtherPeer, unboard);
+    CHECK(ride.session.SentTo<NotifyUnboard>(kOtherPeer).empty());
+    for (const auto cTo : {kHost, kPeer})
+    {
+        REQUIRE(ride.session.SentTo<NotifyUnboard>(cTo).size() == 1);
+        CHECK(ride.session.SentTo<NotifyUnboard>(cTo)[0]->RiderId == ride.Passenger);
+        CHECK(ride.session.SentTo<NotifyDismount>(cTo).empty());
+    }
+}
+
+TEST_CASE("Mounts: a passenger who got off or left drives nothing", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    ride.Board();
+    DismountRequest off;
+    off.RiderId = ride.Driver;
+    off.MountId = ride.Horse;
+
+    SECTION("it got off")
+    {
+        UnboardRequest unboard;
+        unboard.RiderId = ride.Passenger;
+        unboard.MountId = ride.Horse;
+        ride.session.Receive(kOtherPeer, unboard);
+    }
+    SECTION("it left")
+    {
+        ride.session.Leave(kOtherPeer);
+    }
+    ride.session.Outbox.clear();
+    ride.session.Receive(kPeer, off);
+    CHECK(ride.session.SentTo<NotifyDismount>(kHost).size() == 1);
+    CHECK(ride.session.SentTo<NotifyMount>(kHost).empty());
+}
+
+TEST_CASE("Mounts: the driver leaving hands the horse to its passenger; a late joiner hears both", "[HostAuthority][Characters][passengers]")
+{
+    Ride ride;
+    ride.Board();
+    constexpr ConnectionId_t cLate = 4;
+    ride.session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = ride.session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    ride.session.Receive(cLate, late);
+    REQUIRE(ride.session.SentTo<NotifyMount>(cLate).size() == 1);
+    REQUIRE(ride.session.SentTo<NotifyBoard>(cLate).size() == 1);
+    CHECK(ride.session.SentTo<NotifyBoard>(cLate)[0]->RiderId == ride.Passenger);
+
+    ride.session.Outbox.clear();
+    ride.session.Leave(kPeer);
+    CHECK(ride.session.SentTo<NotifyDismount>(kHost).empty());
+    REQUIRE(ride.session.SentTo<NotifyMount>(kHost).size() == 1);
+    CHECK(ride.session.SentTo<NotifyMount>(kHost)[0]->RiderId == ride.Passenger);
+}
+
 TEST_CASE("Characters: a player's latest relayed action goes into its record, for the spawns made later", "[HostAuthority][Characters]")
 {
     Session session;

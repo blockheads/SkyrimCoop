@@ -79,7 +79,9 @@
     X(GraphSyncRequest)            \
     X(GraphSyncPointRequest)        \
     X(SaveHeldRequest)              \
-    X(DevCommandRequest)
+    X(DevCommandRequest)            \
+    X(BoardRequest)                 \
+    X(UnboardRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -165,7 +167,9 @@
     X(NotifyGraphSyncPoint) \
     X(NotifyDialogueFace)          \
     X(NotifyDevCommand) \
-    X(NotifyMountRefused)
+    X(NotifyMountRefused)          \
+    X(NotifyBoard)                 \
+    X(NotifyUnboard)
 
 #define COOP_OPCODE(aName) k##aName,
 

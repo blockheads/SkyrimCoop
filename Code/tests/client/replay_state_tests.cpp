@@ -106,3 +106,40 @@ TEST_CASE("A pa_Kill action puts both actors in a kill move, as the engine's own
     CHECK_FALSE(ReplayState::EntersKillMove("KillMove1HMWolfA")); // the victim's half
     CHECK_FALSE(ReplayState::EntersKillMove("pa_K"));
 }
+
+TEST_CASE("ReplayState: a seated copy skips its owner's get-on; one not seated plays it", "[replay][passengers]")
+{
+    CHECK(ReplayState::SkipsMountEntry("HorseEnter", ReplayState::kSitSeated));
+    CHECK(ReplayState::SkipsMountEntry("horseEnterInstant", ReplayState::kSitSeated));
+    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseEnter", 0));
+    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseEnter", 2));
+    CHECK_FALSE(ReplayState::SkipsMountEntry("HorseExit", ReplayState::kSitSeated));
+}
+
+TEST_CASE("ReplayState: a passenger's copy on this game's own mount is seated as its hold ends", "[replay][passengers]")
+{
+    CHECK(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, false, false));
+    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, false, true)); // its owner's get-on still plays
+    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitGettingOn, true, false)); // on its stream: its events seat it
+    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(0, false, false));
+    CHECK_FALSE(ReplayState::SeatsAtHoldEnd(ReplayState::kSitWantsToStand, false, false));
+}
+
+TEST_CASE("ReplayState: a copy getting onto a mount collides with nothing until seated", "[replay][passengers]")
+{
+    CHECK(ReplayState::GettingOnMount(true, ReplayState::kSitGettingOn));
+    CHECK_FALSE(ReplayState::GettingOnMount(false, ReplayState::kSitGettingOn)); // a chair's sit
+    CHECK(ReplayState::GettingOnMount(true, 0)); // linked, stepping onto its mark against the horse
+    CHECK_FALSE(ReplayState::GettingOnMount(true, ReplayState::kSitSeated));
+    CHECK_FALSE(ReplayState::GettingOnMount(true, ReplayState::kSitWantsToStand));
+    CHECK_FALSE(ReplayState::GettingOnMount(false, 0));
+}
+
+TEST_CASE("ReplayState: a copy seated on a mount takes the engine's position writes", "[replay][passengers]")
+{
+    CHECK(ReplayState::CopyTakesEnginePlace(true, false, 0));                         // stepped: its controller's place
+    CHECK(ReplayState::CopyTakesEnginePlace(false, true, ReplayState::kSitSeated));   // its seat's sync controller
+    CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, false, 0));                  // placed by the sync alone
+    CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, true, ReplayState::kSitGettingOn)); // its clip, not its seat
+    CHECK_FALSE(ReplayState::CopyTakesEnginePlace(false, false, ReplayState::kSitSeated));  // a chair: no mount
+}

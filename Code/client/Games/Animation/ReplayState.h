@@ -57,6 +57,40 @@ constexpr bool EntersKillMove(std::string_view acEvent) noexcept
     return StartsWithNoCase(acEvent, "pa_kill");
 }
 
+// ActorState1::sitSleepState's seated (PairedStopHandler 42868 at the get-on's end).
+constexpr uint8_t kSitSeated = 3;
+
+// ActorState1::sitSleepState's getting on: from HorseEnter (39004) until its pair's end seats it (42868).
+constexpr uint8_t kSitGettingOn = 2;
+
+// A passenger's copy on a mount this game owns: nothing sends the pair's end that seats it (42868), so it is seated as
+// its get-on's hold ends (player-mount.md). On a copy mount its stream's events seat it.
+constexpr bool SeatsAtHoldEnd(uint8_t aSitState, bool aMountIsCopy, bool aHeld) noexcept
+{
+    return aSitState == kSitGettingOn && !aMountIsCopy && !aHeld;
+}
+
+// A copy takes the engine's position writes (SetPosition 19790) while stepped, or seated on a mount: its
+// REFRSyncController (20318) keeps its reference on the mount (player-mount.md).
+constexpr bool CopyTakesEnginePlace(bool aStepped, bool aLinkedToMount, uint8_t aSitState) noexcept
+{
+    return aStepped || (aLinkedToMount && aSitState == kSitSeated);
+}
+
+// A copy linked to a mount, not seated yet (sit state 0 or 2): its capsule collides with nothing, as the mount
+// package's kGettingOnOffMount does for an owner (player-mount.md).
+constexpr bool GettingOnMount(bool aLinked, uint8_t aSitState) noexcept
+{
+    return aLinked && (aSitState == 0 || aSitState == kSitGettingOn);
+}
+
+// A copy seated at once on a horse another player drives (NotifyBoard) skips its owner's get-on: 39004 would set
+// it back to sit state 2, and no horse half ends its clip (docs/re/systems/player-mount.md).
+constexpr bool SkipsMountEntry(std::string_view acEvent, uint8_t aSitState) noexcept
+{
+    return aSitState == kSitSeated && StartsWithNoCase(acEvent, "horseenter");
+}
+
 // A pair starts once each supporting actor can sweep to its mark (32792), judged on this game's positions.
 // A replayed pair was judged on its owner's game (docs/re/systems/kill-moves.md).
 constexpr bool PairMarkClear(bool aMoved, bool aReplayed) noexcept

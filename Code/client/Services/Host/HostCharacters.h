@@ -78,6 +78,12 @@ private:
     // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
     void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
+    // A player got on a horse another player drives: a passenger, its copy seated on every other game.
+    void OnBoard(const BoardRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnUnboard(const UnboardRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // The driver is gone: the first passenger drives, the horse its game's. False with no passenger.
+    bool HandOver(uint32_t aMountId) noexcept;
+    void SendUnboard(uint32_t aRiderId, uint32_t aMountId, ConnectionId_t aSender) noexcept;
     // Who rides what, to a game that just got the riders' and mounts' spawns.
     void SendRides(ConnectionId_t aPlayer) const noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
@@ -123,6 +129,8 @@ private:
         std::optional<NotifyCharacterSpawn> PlayerRecord;
         // A mount's: who rides it, from OnMount until GiveBack (one rider at a time).
         uint32_t Rider{};
+        // Its passengers, in boarding order: the first drives next.
+        std::vector<uint32_t> Passengers;
     };
 
     HostAuthority& m_authority;
