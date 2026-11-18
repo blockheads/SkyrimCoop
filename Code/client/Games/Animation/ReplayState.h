@@ -165,7 +165,7 @@ struct PairedReplay
 // see the same ticks, so they agree who swung first with no message (docs/re/systems/kill-moves.md).
 constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
 {
-    // This game's own pick refuses such a pair; forced, it would never end (kill-moves.md, "A partner whose graph stops").
+    // Its graph would never reach KillMoveEnd (38614): the pair would hold it (kill-moves.md, "A partner whose graph stops").
     if (!acReplay.PartnerAnimates)
         return PairOutcome::kSkip;
     if (!acReplay.PartnerInKillMove)

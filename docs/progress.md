@@ -54,9 +54,14 @@ on nobody when the target gains its session id after the state naming it (a crea
 appears, a player's copy spawning after an NPC's): when an actor gets its session id, each game reads its own actors again
 and applies again the copies naming it (`AiStateService`, copy-contract.md "AI state"; GameTests `[ai][headtrack]`). And a
 guest's kill move on a host NPC whose AI is off (frozen, or a script's `EnableAI(false)`) no longer holds the NPC in a kill
-move forever: the host plays no replayed pair with a partner whose graph does not run, as its own pick refuses one, and the
+move forever: the host plays no replayed pair with a partner whose graph does not run (it could never end the pair), and the
 guest's blow kills it (kill-moves.md, "A partner whose graph stops"; scenario `frozen-wolf-kill-move`, GameTests
-`[kill-move]`). The other entries of bugs.md's section stay open: rechecked against dev, no later change touched them.
+`[kill-move]`). The other entries of bugs.md's section stay open: rechecked against dev, no later change touched them. Not
+covered by a fast test yet: a copy's side of it (the target's copy spawning in a later frame than the state naming it);
+the fake delivers a join's spawns in one frame, and a two-guest flow with one player away still got that player's copy
+at the join. And `frozen-wolf-kill-move` now requires the guest's kill move to start (traced) before it checks the wolf, so it
+fails when the guest's own engine refuses its pick: `pa_KillMove1HMWolfB` was refused at the staged spot in 3 of 5 runs
+(the player then swings plainly). Open: staging the guest where its pick pairs every time.
 
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
