@@ -65,6 +65,8 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     }
     bool IsPlayerMounted() const noexcept override { return false; }
     void PlayerStopRiding() noexcept override {}
+    bool PlayerBoardMount(uint32_t) noexcept override { return false; }
+    void PlayerTakeReins(uint32_t) noexcept override {}
     bool IsPlayerAlive() const noexcept override
     {
         return {};
@@ -768,6 +770,12 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorEndRide(uint32_t aRiderFormId) noexcept override
     {
     }
+    void ActorSeatOnMount(uint32_t, uint32_t) noexcept override {}
+    uint32_t GetActorMount(uint32_t) const noexcept override { return 0; }
+    void ActorHoldMount(uint32_t, uint32_t) noexcept override {}
+    void ActorEndMountPair(uint32_t) noexcept override {}
+    uint8_t GetActorSitState(uint32_t) const noexcept override { return 0; }
+    void ActorFinishDismount(uint32_t) noexcept override {}
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override
     {
         return {};

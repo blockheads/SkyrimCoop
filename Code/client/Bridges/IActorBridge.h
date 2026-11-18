@@ -258,6 +258,19 @@ public:
     // A copy rider whose owner's ride ended: one still seated (its owner got off with no exit clip) is off at once; one
     // getting off already (sit state 4, its owner's HorseExit) ends by its own clip.
     virtual void ActorEndRide(uint32_t aRiderFormId) noexcept = 0;
+    // A copy passenger: linked and seated at once (PutOnMount, sit state 3, OnInteractionSeated 41533); its replayed
+    // get-on never ends, no horse half playing it.
+    virtual void ActorSeatOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept = 0;
+    // The mount this rider is linked to (its ExtraInteraction), else 0; 0 for a mount, whose slot holds its rider's link.
+    [[nodiscard]] virtual uint32_t GetActorMount(uint32_t aRiderFormId) const noexcept = 0;
+    // The horse names this rider when it names none: any rider's Detach (41539) empties its one slot.
+    virtual void ActorHoldMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept = 0;
+    // ActorState1::sitSleepState: 3 seated, 4 wants to stand (a rider's exit clip).
+    [[nodiscard]] virtual uint8_t GetActorSitState(uint32_t aFormId) const noexcept = 0;
+    // Off its mount now, as its get-off clip's end does (FinishDismount 38696), that clip left to end on its own body.
+    virtual void ActorFinishDismount(uint32_t aRiderFormId) noexcept = 0;
+    // A mount out of a rider's exit pair it was left in: PairEnd, as the pair's instance sends (32797).
+    virtual void ActorEndMountPair(uint32_t aMountFormId) noexcept = 0;
 
     // --- World position ---
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;

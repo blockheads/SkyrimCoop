@@ -22,6 +22,7 @@
 #include <Effects/ReferenceEffect.h>
 #include <Components/TESContainer.h>
 #include <ExtraData/ExtraOwnership.h>
+#include <ExtraData/ExtraInteraction.h>
 #include <ExtraData/ExtraLeveledCreature.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
@@ -829,6 +830,93 @@ bool CopyHoldsDoNothing(uint32_t aFormId) noexcept
     pActor->GetExtension()->OwnerPackageId = 0;
     pActor->InitiateDoNothingPackage();
     return true;
+}
+
+bool PutOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    return pRider && pMount && pRider->PutOnMount(pMount);
+}
+
+bool SeatOnMount(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    using TSeated = void(Actor*);
+    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533); // Actor::OnInteractionSeated, as PairedStopHandler (42868) ends
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    if (!pRider || !pMount || !pRider->PutOnMount(pMount))
+        return false;
+    pRider->actorState.flags1 = (pRider->actorState.flags1 & ~(0xFu << 14)) | (3u << 14); // sit state 3, seated
+    s_onSeated(pRider);
+    return true;
+}
+
+bool BoardRiddenMount(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    using TSetInteraction = void(ExtraDataList*, void** appInteraction);
+    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074); // ExtraDataList::SetInteractionData: null removes it
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    if (!pRider || !pMount)
+        return false;
+    // The horse forgets its rider (CanRide 38706 refuses a ridden one); the rider keeps its own interaction.
+    void* pNone = nullptr;
+    s_setInteraction(&pMount->extraData, &pNone);
+    return pRider->InitiateMountPackage(pMount);
+}
+
+bool TakeReins(uint32_t aRiderId, uint32_t aMountId) noexcept
+{
+    using TSetInteraction = void(ExtraDataList*, RefrInteraction** appInteraction);
+    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074); // adds only when the horse has none
+    Actor* pRider = Cast<Actor>(TESForm::GetById(aRiderId));
+    Actor* pMount = Cast<Actor>(TESForm::GetById(aMountId));
+    auto* pOwn = pRider ? static_cast<ExtraInteraction*>(pRider->extraData.GetByType(ExtraDataType::Interaction)) : nullptr;
+    if (!pMount || !pOwn || !pOwn->interaction)
+        return false;
+    RefrInteraction* pNone = nullptr;
+    s_setInteraction(&pMount->extraData, &pNone);
+    s_setInteraction(&pMount->extraData, &pOwn->interaction);
+    using TOnMountStarted = void(PlayerCharacter*, Actor** appMount);
+    POINTER_SKYRIMSE(TOnMountStarted, s_onMountStarted, 40725); // the camera, controls, EnablePlayerControl (41710)
+    if (pRider == PlayerCharacter::Get())
+    {
+        pMount->EndMountPair();
+        s_onMountStarted(PlayerCharacter::Get(), &pMount);
+        pMount->EvaluatePackageNow();
+    }
+    return true;
+}
+
+std::string GetActivateText(uint32_t aRefId) noexcept
+{
+    using TGetActivateText = bool(TESNPC*, TESObjectREFR*, BSString*);
+    POINTER_SKYRIMSE(TGetActivateText, s_getActivateText, 24716); // TESNPC::GetActivateText, through our hook
+    auto* pRef = Cast<Actor>(TESForm::GetById(aRefId));
+    auto* pBase = pRef ? Cast<TESNPC>(pRef->baseForm) : nullptr;
+    if (!pBase)
+        return {};
+    struct Text // BSString's layout, freed here: its own destructor is the engine's
+    {
+        char* data = nullptr;
+        uint16_t length = 0;
+        uint16_t capacity = 0;
+    } text;
+    static_assert(sizeof(Text) == sizeof(BSString));
+    std::string out;
+    if (s_getActivateText(pBase, pRef, reinterpret_cast<BSString*>(&text)) && text.data)
+        out = text.data;
+    if (text.data)
+        Memory::Free(text.data);
+    return out;
+}
+
+bool SendGraphEvent(uint32_t aFormId, const std::string& acEvent) noexcept
+{
+    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    BSFixedString event(acEvent.c_str());
+    return pActor && pActor->SendAnimationEvent(&event);
 }
 
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept

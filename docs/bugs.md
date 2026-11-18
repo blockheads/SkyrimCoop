@@ -130,6 +130,8 @@ every other section needs the duo.
 - [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
 - [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
+- [Whiterun plains' critters differ](#whiterun-plains-critters-differ): small
+- [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
 - [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
@@ -1258,6 +1260,36 @@ Size: small. Needs: the duo.
   ridden.
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
+
+### A guest crashed loading a copy's idle clips
+
+Stands alone: seen once in Riverwood (2026-11-17, `agent/mount-per-player`'s duo).
+
+Agent task: Find why the engine's clip loader faulted on a guest as a graph-stream copy loaded an idle's clip files.
+
+Size: small. Needs: IDA, then the duo.
+
+- Access violation in a job thread: 63997+0xC1 (`call [rax+0x08]`, the object's vtable read from a freed pointer:
+  0xFFFFFFFFFFFFFFFF) from 63980+0x1A5, `AnimationFileManagerSingleton` in RBP. The guest's last log line: "Graph stream:
+  copy 1348A loads IdleMillLoadStart's clip files into set 4: loading" (the mill worker). The party had just arrived in
+  Riverwood by `coc`, both players still on a horse. Crash log: the guest prefix's
+  `SKSE/crash-2026-11-17-23-28-37.log`.
+  - Start: read 63980/63997 (what the clip load's job holds) against the graph stream's clip-file loads
+    (`GraphStreamHooks.cpp`, `SendClipLoads`).
+
+### Whiterun plains' critters differ
+
+Stands alone: `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`).
+
+Agent task: Find why the critters the plains spawn differ between the games, and make the scenario's end check pass.
+
+Size: small. Needs: the duo.
+
+- 2026-11-17, 2 of 3 runs: every step passes, then the end comparison fails only on created references nobody touched:
+  `ACTI B97AF` / `ACTI 22219` (flag `0x8000000` on the host's alone, graph `fTakeOffDamped` set on the host's, 0 on
+  the guest's) and `STAT C2D47` present on the guest only. The third run passed clean.
+  - Start: read which game spawns these (a critter spawner's script, created references) and whether HostWorldState
+    sends them; `Riverwood's scenery drifts apart` below may share the answer.
 
 ### Riverwood's scenery drifts apart
 

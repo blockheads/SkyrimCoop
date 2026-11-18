@@ -170,6 +170,14 @@ class MountsActions:
             ctx.turn_to(instance, pitch=-20, rate=180, seconds=3, name="looks up, clear of the crosshair's ref")
             ctx.wait_for(f"[{instance or 'host'}] the crosshair on nothing", lambda: not on(), 2,
                          explain=lambda: f"crosshair on {on():X}")
+        # Its horse standing still: a dismount asked for as it slows from a gallop was ignored (the duo, 2026-11-17,
+        # once in several runs; Actor::Dismount 37906 refuses in midair, the rest not read).
+        def still():
+            place = lambda: ctx.my_position(instance)
+            before = place()
+            time.sleep(0.3)  # a measurement: its speed
+            return distance(place(), before) < 2
+        ctx.wait_for(f"[{instance or 'host'}] its horse stands still", still, 10)
         ctx.tap_key(instance, ACTIVATE_KEY)
         ctx.wait_off(instance)
 
@@ -198,6 +206,118 @@ class MountsActions:
         want = {"": "own" if owner in ("", "host") else "copy", "client": "copy" if owner in ("", "host") else "own"}
         ctx.wait_for(f"the horse is the {owner or 'host'}'s", lambda: roles() == want, 10,
                      explain=lambda: f"roles {roles()}")
+
+    def passenger_seated(ctx, instance, horse):
+        """That game's player rides along on the horse and is seated on both games (its copy too, seated at once:
+        docs/re/systems/player-mount.md), else fails with the readout."""
+        other = "" if instance else "client"
+        def seated():
+            copy = ctx.player_copy(other)
+            states = [ctx.actor_state(instance, 0x14), ctx.actor_state(other, copy) if copy else {}]
+            return all((s.get("placement") or {}).get("riding") and (s.get("state") or {}).get("sit_sleep") == 3 for s in states)
+        ctx.wait_for(f"[{instance or 'host'}] its player rides along, seated on both games", seated, 10,
+                     explain=lambda: ctx.mount_readout([(instance, 0x14), (other, ctx.player_copy(other) or 0), (instance, horse), (other, horse)]))
+
+    def prompt_offers(ctx, instance, target, word="Ride"):
+        """That game's crosshair prompt for `target` (TESNPC::GetActivateText 24716) holds `word`: what the player
+        reads before pressing E, else fails with the prompt it shows."""
+        text = lambda: ctx.player_command(instance, {"cmd": "activate_text", "ref": ctx.resolve(target, instance)}).get("text") or ""
+        ctx.wait_for(f"[{instance or 'host'}] the prompt for {target} offers {word}", lambda: word in text(), 5,
+                     explain=lambda: f"prompt {text()!r}")
+
+    def drives(ctx, instance, horse, seconds=2.5, least=300):
+        """That game's player holds forward: the horse goes at least `least` units on both games and every rider
+        stays on it (a horse nobody steers stays put)."""
+        def place(game):
+            return (ctx.actor_state(game, ctx.resolve(horse, game)).get("placement") or {}).get("position") or [0, 0, 0]
+        before = {game: place(game) for game in ("", "client")}
+        ctx.hold_key(instance, "w", seconds)
+        def moved():
+            return all(distance(place(game), before[game]) >= least for game in ("", "client"))
+        ctx.wait_for(f"[{instance or 'host'}] drives the horse {least}+ units on both games", moved, 5,
+                     explain=lambda: f"moved {[round(distance(place(g), before[g])) for g in ('', 'client')]}")
+
+    def riders_with_horse(ctx, horse, within=80.0):
+        """On both games every player's copy riding the horse has its reference at the horse's, not where it got on:
+        its seat's REFRSyncController (20318) carries it (refused, it stayed behind, and its cell could unload under
+        it). Fails naming each copy and how far off."""
+        def apart():
+            far = []
+            for game in ("", "client"):
+                copy = ctx.player_copy(game)
+                state = ctx.actor_state(game, copy) if copy else {}
+                if not (state.get("placement") or {}).get("riding"):
+                    continue
+                at = state["placement"].get("position")
+                mount = (ctx.actor_state(game, ctx.resolve(horse, game)).get("placement") or {}).get("position")
+                if at and mount and distance(at[:2], mount[:2]) > within:
+                    far.append(f"[{game or 'host'} {copy:X}] {distance(at[:2], mount[:2]):.0f} units from its horse")
+            return far
+        ctx.wait_for("each riding copy's reference is at its horse", lambda: not apart(), 5, explain=lambda: "; ".join(apart()))
+
+    def watch_riders(ctx):
+        """Starts tracing, on both games, each game's player and its copy of the other: their bodies every frame
+        (body_trace) and their graphs' clips (anim_trace), for riders_smooth to read."""
+        # Each copy where its owner stands first: a staging move still arriving reads as a jump.
+        def caught_up():
+            for game, other in (("", "client"), ("client", "")):
+                copy = ctx.player_copy(game)
+                placement = (ctx.actor_state(game, copy).get("placement") or {}) if copy else {}
+                if placement.get("riding"):
+                    continue  # its seat carries it: its reference stays where it got on (player-mount.md)
+                at = placement.get("position")
+                if not at or distance(at, ctx.my_position(other)) > 20:
+                    return False
+            return True
+        ctx.wait_for("each player's copy stands where its owner does", caught_up, 10)
+        for game in ("", "client"):
+            refs = [0x14] + ([copy] if (copy := ctx.player_copy(game)) else [])
+            ctx.player_command(game, {"cmd": "body_trace", "refs": refs})
+            ctx.player_command(game, {"cmd": "anim_trace", "actors": refs})
+
+    def riders_smooth(ctx, step, most=40.0, snap=0.0):
+        """Since watch_riders, on both games: no player's pelvis, own or copy, moved more than `most` units in one frame
+        (a warp; more on a slow frame, at up to 1,500 units a second), but once per body up to `snap` (a get-on moves
+        its rider to its mark in one frame, vanilla: 76-83 units measured); and no graph went 0.1 s with a clip not
+        loaded or none playing (the skeleton's rest pose: a T-pose; one frame of it is a clip's file arriving). Fails
+        naming each, per game and actor."""
+        problems = []
+        for game in ("", "client"):
+            name = game or "host"
+            bodies = ctx.player_command(game, {"cmd": "body_trace", "stop": True}).get("entries") or []
+            clips = ctx.player_command(game, {"cmd": "anim_trace", "stop": True}).get("entries") or []
+            last, snapped = {}, set()
+            began = bodies[0]["t"] if bodies else 0
+            for entry in bodies:
+                # Its pelvis bone, what a person sees: the engine snaps a rider's root to the saddle in one frame of a
+                # normal get-on, its clip hiding that.
+                at = entry.get("pelvis") or entry.get("position_3d")
+                if not at:
+                    continue
+                if (before := last.get(entry["id"])) is not None:
+                    seconds = max((entry["t"] - before[0]) / 1e6, 0.0)
+                    moved = distance(at, before[1])
+                    if moved > max(most, 1500.0 * seconds):
+                        if moved <= snap and entry["id"] not in snapped:
+                            snapped.add(entry["id"])
+                            log(f"  [{name} {entry['id']:X}] its one allowed snap: {moved:.0f} units at {(entry['t'] - began) / 1e6:.2f} s")
+                        else:
+                            problems.append(f"[{name} {entry['id']:X}] jumped {moved:.0f} units in {seconds * 1000:.0f} ms "
+                                            f"at {(entry['t'] - began) / 1e6:.2f} s")
+                last[entry["id"]] = (entry["t"], at)
+            bad = {}  # actor -> (since, what)
+            for entry in clips:
+                if entry.get("kind") != "clips":
+                    continue
+                actor = entry["actor"]
+                if (since := bad.pop(actor, None)) and (entry["t"] - since[0]) / 1e6 >= 0.1:
+                    problems.append(f"[{name} {actor:X}] {since[1]} for {(entry['t'] - since[0]) / 1e6:.2f} s")
+                unloaded = [clip for clip, detail in (entry.get("detail") or {}).items() if not detail.get("loaded")]
+                if unloaded or not entry.get("clips"):
+                    bad[actor] = (entry["t"], f"clips not loaded {unloaded}" if unloaded else "no clip playing")
+            problems += [f"[{name} {actor:X}] {what} to the end" for actor, (_, what) in bad.items()]
+        if problems:
+            raise TestFailure(f"{step}: " + "; ".join(sorted(set(problems))[:12]))
 
     def mount_readout(ctx, actors):
         """Each (game, form)'s role, riding/ridden/getting on or off, sit state and process level (a low-process mount

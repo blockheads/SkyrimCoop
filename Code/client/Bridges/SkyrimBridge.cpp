@@ -55,6 +55,7 @@
 #include <Forms/TESPackage.h>
 #include <Forms/TESTopicInfo.h>
 #include <Games/Skyrim/PlayerCollision.h>
+#include <Games/Skyrim/RefrInteraction.h>
 #include <Forms/TESRace.h>
 #include <Forms/BGSEncounterZone.h>
 #include <Forms/MagicItem.h>
@@ -372,7 +373,9 @@ void SkyrimBridge::SetCopyPhysics(uint32_t aFormId, uint8_t aBodiesLayer, bool a
         return;
     if (!aGraphsStep)
         SetGraphsStepPhysics(*pActor, false);
-    pActor->SetBodiesLayer(aBodiesLayer);
+    // Linked to a mount, its bodies take the mount's collision group, as its owner's do (SeatRider 40358): in its own
+    // group the horse climbed onto them and slid 70 units off (player-mount.md).
+    pActor->SetBodiesLayer(aBodiesLayer, GetActor(GetActorMount(aFormId)));
     if (aGraphsStep)
         SetGraphsStepPhysics(*pActor, true);
 }
@@ -1405,6 +1408,30 @@ void SkyrimBridge::PlayerStopRiding() noexcept
         pPlayer->StopRidingQuick();
 }
 
+bool SkyrimBridge::PlayerBoardMount(uint32_t aMountFormId) noexcept
+{
+    Breadcrumbs::Record("PlayerBoardMount", aMountFormId);
+    auto* pPlayer = PlayerCharacter::Get();
+    Actor* pMount = GetActor(aMountFormId);
+    if (!pPlayer || !pMount)
+        return false;
+    pMount->HoldRider(nullptr, true);
+    return pPlayer->InitiateMountPackage(pMount) || pPlayer->extraData.Contains(ExtraDataType::Interaction);
+}
+
+void SkyrimBridge::PlayerTakeReins(uint32_t aMountFormId) noexcept
+{
+    Breadcrumbs::Record("PlayerTakeReins", aMountFormId);
+    auto* pPlayer = PlayerCharacter::Get();
+    Actor* pMount = GetActor(aMountFormId);
+    if (!pPlayer || !pMount)
+        return;
+    pMount->EndMountPair();
+    pMount->HoldRider(pPlayer, true);
+    pPlayer->StartedRiding(pMount);
+    pMount->EvaluatePackageNow();
+}
+
 void SkyrimBridge::HoldPlayerDeathReload(bool aHold) noexcept
 {
     Breadcrumbs::Record("HoldPlayerDeathReload", static_cast<uint32_t>(aHold));
@@ -2089,6 +2116,53 @@ void SkyrimBridge::ActorEndRide(uint32_t aRiderFormId) noexcept
     Actor* pRider = GetActor(aRiderFormId);
     if (pRider && pRider->actorState.GetSitSleepState() != ReplayState::kSitWantsToStand)
         pRider->EndRideNow();
+}
+
+void SkyrimBridge::ActorSeatOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
+{
+    Breadcrumbs::Record("ActorSeatOnMount", aRiderFormId, aMountFormId);
+    Actor* pRider = GetActor(aRiderFormId);
+    Actor* pMount = GetActor(aMountFormId);
+    if (pRider && pMount)
+        pRider->SeatOnMount(pMount);
+}
+
+uint32_t SkyrimBridge::GetActorMount(uint32_t aRiderFormId) const noexcept
+{
+    const Actor* pRider = GetActor(aRiderFormId);
+    const RefrInteraction* pLink = pRider ? pRider->GetOwnInteraction() : nullptr;
+    // A mount holds its rider's link too (its one slot): only the link's rider is on a mount.
+    if (!pLink || TESObjectREFR::GetByHandle(pLink->actorHandle) != pRider)
+        return 0;
+    const TESObjectREFR* pMount = TESObjectREFR::GetByHandle(pLink->targetHandle);
+    return pMount ? pMount->formID : 0;
+}
+
+void SkyrimBridge::ActorHoldMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
+{
+    Actor* pRider = GetActor(aRiderFormId);
+    Actor* pMount = GetActor(aMountFormId);
+    if (pRider && pMount)
+        pMount->HoldRider(pRider, false);
+}
+
+uint8_t SkyrimBridge::GetActorSitState(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->actorState.GetSitSleepState() : 0;
+}
+
+void SkyrimBridge::ActorFinishDismount(uint32_t aRiderFormId) noexcept
+{
+    Breadcrumbs::Record("ActorFinishDismount", aRiderFormId);
+    if (Actor* pRider = GetActor(aRiderFormId))
+        pRider->FinishDismount();
+}
+
+void SkyrimBridge::ActorEndMountPair(uint32_t aMountFormId) noexcept
+{
+    if (Actor* pMount = GetActor(aMountFormId))
+        pMount->EndMountPair();
 }
 
 uint32_t SkyrimBridge::GetActorParentCellFormId(uint32_t aFormId) const noexcept

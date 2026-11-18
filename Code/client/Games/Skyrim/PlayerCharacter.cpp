@@ -436,3 +436,11 @@ static Hooks::Initializer s_playerCharacterHooks(
         HOOK_ID(40536, &RealRemoveWaypoint, HookRemoveWaypoint);
         HOOK_ID(40563, &RealSetDifficulty, HookSetDifficulty);
     });
+
+void PlayerCharacter::StartedRiding(Actor* apMount) noexcept
+{
+    using TOnMountStarted = void(PlayerCharacter*, Actor** appMount);
+    POINTER_SKYRIMSE(TOnMountStarted, s_onMountStarted, 40725);
+    if (apMount)
+        s_onMountStarted(this, &apMount);
+}

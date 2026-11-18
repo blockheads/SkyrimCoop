@@ -7,6 +7,7 @@
 #include "FakeEngine.h"
 
 #include <Events/DismountEvent.h>
+#include <Events/BoardEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/SaveWrittenEvent.h>
 
@@ -581,7 +582,7 @@ void FakeEngine::Frame()
                 if (actor.ExitIn && !--actor.ExitIn)
                 {
                     actor.State1 &= ~(0xFu << kSitShift);
-                    Mounts.erase(cId);
+                    EndRide(cId);
                 }
             }
         }
@@ -1143,6 +1144,26 @@ void FakeEngine::ActorEndRide(uint32_t aRider) noexcept
         EndRide(aRider);
 }
 
+void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
+{
+    if (!Actors.contains(aRider))
+        return;
+    ActorPutOnMount(aRider, aMount);
+    Actors.at(aRider).State1 = (Actors.at(aRider).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
+}
+
+bool FakeEngine::PlayerBoardMount(uint32_t aMount) noexcept
+{
+    if (!Actors.contains(aMount) || Actors.at(kPlayer).InAir)
+        return false;
+    MountSlots.erase(aMount);
+    Mounts[kPlayer] = aMount;
+    MountSlots[aMount] = kPlayer;
+    // Its get-on's end (PairedStopHandler 42868): seated. The fake plays no clip.
+    Actors.at(kPlayer).State1 = (Actors.at(kPlayer).State1 & ~(0xFu << kSitShift)) | 3u << kSitShift;
+    return true;
+}
+
 bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
 {
     if (!IsActorMount(aMount) || !Actors.contains(aActivator) || IsActorMount(aActivator))
@@ -1158,9 +1179,13 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
             StartDismount(aActivator);
         return true;
     }
-    for (const auto& [cRider, cMount] : Mounts)
-        if (cMount == aMount)
-            return true; // IsMountBeingRidden: nothing
+    if (MountSlots.contains(aMount))
+    {
+        // IsMountBeingRidden: nothing. Our hook (37864) offers our player's activation as a boarding.
+        if (aActivator == kPlayer && !cCopy)
+            World::Get().GetRunner().Trigger(BoardEvent{aActivator, aMount});
+        return true;
+    }
     if (Actors.at(aActivator).InAir)
         return true; // CanRide (38706) refuses: no package, no ride, our hook raises nothing
     if (cCopy)
@@ -1171,6 +1196,9 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
     }
     World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
     Mounts[aActivator] = aMount;
+    MountSlots[aMount] = aActivator;
+    if (aActivator == kPlayer)
+        Reins[aMount] = aActivator; // OnMountStarted (40725), its package the player's ride
     return true;
 }
 
@@ -1182,9 +1210,14 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
         return;
     const uint32_t cMountId = cMount->second;
     Mounts.erase(cMount);
-    // HookDetachInteraction: an own rider's ride ended.
-    if (const auto it = Actors.find(aRider); it != Actors.end() && !it->second.Copy)
-        World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId});
+    MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
+    if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
+        Reins.erase(cReins);
+    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId) && !Actors.at(cMountId).Copy)
+        SyncedMounts.insert(cMountId);
+    // HookDetachInteraction: any rider's ride ended.
+    if (const auto it = Actors.find(aRider); it != Actors.end())
+        World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId, it->second.Copy});
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)

@@ -1,0 +1,110 @@
+time	op	id	rva	item
+2026-11-17T19:02:36Z	read	41076	0x76f6f0	{"name": "PlayerCharacter::QLastRiddenMount"}
+2026-11-17T19:03:00Z	read	41131	0x772b20	{"name": "sub_140772B20"}
+2026-11-17T19:03:12Z	read	40445	0x744600	{"name": "Actor::sub_40445"}
+2026-11-17T19:04:22Z	read	40725	0x75ddc0	{"name": "sub_14075DDC0"}
+2026-11-17T19:04:37Z	read	37217	0x673b40	{"name": "Character::sub_37217"}
+2026-11-17T19:04:38Z	read	40359	0x73d930	{"name": "sub_14073D930"}
+2026-11-17T19:04:47Z	name	41131	0x772b20	{"addr": "0x140772B20", "name": "PlayerCharacter::SetLastRiddenMount"}
+2026-11-17T19:04:47Z	name	40725	0x75ddc0	{"addr": "0x14075DDC0", "name": "PlayerCharacter::OnMountStarted"}
+2026-11-17T19:04:47Z	name	40359	0x73d930	{"addr": "0x14073D930", "name": "MountInteraction__OnRiderMounted"}
+2026-11-17T19:04:47Z	name	40538	0x74cec0	{"addr": "0x14074CEC0", "name": "PlayerCharacter::SaveGame"}
+2026-11-17T19:04:47Z	name	40540	0x74e600	{"addr": "0x14074E600", "name": "PlayerCharacter::LoadGame"}
+2026-11-17T19:04:54Z	comment	41131	0x772b20	{"addr": "0x140772B20", "comment": "vfunc 0x113: writes PlayerCharacter+0x924 lastRiddenMount (the one horse slot; saved with the player, read back by QLastRiddenMount 0x114). Only caller: OnMountStarted 40725."}
+2026-11-17T19:04:54Z	comment	40725	0x75ddc0	{"addr": "0x14075DDC0", "comment": "Player got on a mount (from MountInteraction__OnRiderMounted 40359). Mount owned by the player (IsAnOwner 20210) -> demotes the previous lastRiddenMount from dynamic persistence, promotes this one, SetLastRiddenMount. Race flag 0x80 mounts (no owner check) take the other branch. Then the camera and controls for riding."}
+2026-11-17T19:04:54Z	comment	40359	0x73d930	{"addr": "0x14073D930", "comment": "Rider is on: mounted weapon anim vars; a mount the rider does not own (IsAnOwner 20210, no race flag 0x80) raises StealAlarm (horse theft); the player then calls OnMountStarted 40725."}
+2026-11-17T19:04:54Z	comment		0x744a6f	{"addr": "0x140744a6f", "comment": "Fast travel: keeps lastRiddenMount (+0x924) only if the player is an owner (IsAnOwner 20210) and it is alive; else clears it. The kept horse is moved to the destination below (sub_37313 / sub_37909)."}
+2026-11-17T19:04:54Z	comment		0x744dfd	{"addr": "0x140744dfd", "comment": "Fast travel: the last ridden horse placed beside the player's destination."}
+2026-11-17T19:43:40Z	read	41532	0x78cf30	{"name": "coop_attach"}
+2026-11-17T19:43:45Z	read	41540	0x78d720	{"name": "RefrInteraction::AttachTo"}
+2026-11-17T19:45:30Z	read	40345	0x73ca00	{"name": "coop_construct_0"}
+2026-11-17T19:45:38Z	read	40355	0x73d270	{"name": "MountInteraction::Func6_40355"}
+2026-11-17T19:45:39Z	read	41539	0x78d610	{"name": "RefrInteraction::Detach"}
+2026-11-17T19:45:58Z	comment	40355	0x73d270	{"addr": "0x14073d270", "comment": "MountInteraction vfunc 0x30: writes this interaction into the MOUNT's (+0x10 handle) ExtraInteraction (169), overwriting whatever was there without detaching it. AttachTo calls it after the rider's side; Detach calls it with null. So a second rider attached to one horse leaves the first rider's own interaction intact; the horse's slot names only the last."}
+2026-11-17T19:46:41Z	read	6070	0xa29d0	{"name": "sub_1400A29D0"}
+2026-11-17T19:47:02Z	read	39000	0x6e1bd0	{"name": "Actor::sub_39000"}
+2026-11-17T19:47:10Z	name	39000	0x6e1bd0	{"addr": "0x1406e1bd0", "name": "Actor::SetSitSleepStateFromGraph"}
+2026-11-17T19:47:12Z	comment	39000	0x6e1bd0	{"addr": "0x1406e1bd0", "comment": "(actor, state) Sets the sit/sleep state a graph event announces: through AIProcess::SetSitSleepState with the actor's furniture, or the ActorState vfunc 0xA0 when there is no process or it is above middle-high."}
+2026-11-17T19:47:12Z	comment		0x6e2559	{"addr": "0x1406e2559", "comment": "Graph event HorseEnterInstant (and the one at qword_143243F68): sit state 3, seated/riding at once, no get-on animation."}
+2026-11-17T20:10:16Z	read		0x6a78b6	{"name": "Character::ActivateMount"}
+2026-11-17T20:10:26Z	read	37905	0x6abe40	{"name": "Actor::InitiateMountPackage"}
+2026-11-17T20:10:30Z	read		0x6d3784	{"name": "Character::sub_38706"}
+2026-11-17T20:10:41Z	read	38303	0x6be200	{"name": "Actor::IsMountBeingRidden"}
+2026-11-17T20:10:44Z	read	12074	0x1739a0	{"name": "ExtraDataList::SetInteractionData"}
+2026-11-17T20:10:57Z	comment	12074	0x1739a0	{"addr": "0x1401739a0", "comment": "(extra list, &interaction) Null removes ExtraInteraction (169); non-null adds one only when the list has none: an existing interaction is kept, not replaced."}
+2026-11-17T20:10:57Z	comment	40355	0x73d270	{"addr": "0x14073d270", "comment": "MountInteraction vfunc 0x30: SetInteractionData (12074) on the MOUNT (+0x10 handle). That adds only when the mount has none, so a second rider's attach leaves the horse naming the first rider; null (from Detach) removes it whichever rider it names."}
+2026-11-17T20:10:57Z	comment		0x6d3784	{"addr": "0x1406d3784", "comment": "Character::CanRide (38706): refuses a mount in midair, dead, being ridden (IsMountBeingRidden 38303: the mount's ExtraInteraction 169 present), the rider already getting on/off, or out of reach. InitiateMountPackage's gate."}
+2026-11-17T20:13:16Z	read	40356	0x73d300	{"name": "MountInteraction::Func1_40356"}
+2026-11-17T20:13:22Z	read	40358	0x73d5e0	{"name": "sub_14073D5E0"}
+2026-11-17T20:13:30Z	name	40356	0x73d300	{"addr": "0x14073d300", "name": "MountInteraction::Update"}
+2026-11-17T20:13:30Z	name	40358	0x73d5e0	{"addr": "0x14073D5E0", "name": "MountInteraction::SeatRider"}
+2026-11-17T20:13:32Z	comment	40356	0x73d300	{"addr": "0x14073d300", "comment": "MountInteraction vfunc 0x8 (40356): for a rider at process level <= 1 with its mount: sit state not 3 (seated) or 7 -> StopRiding; seated -> SeatRider."}
+2026-11-17T20:13:32Z	comment	40358	0x73d5e0	{"addr": "0x14073D5E0", "comment": "Seats the rider: puts this interaction on the mount (SetInteractionData 12074, only if it has none), rider collision layer 33, attaches the rider to the mount's node (TESObjectREFR::sub_20312) and adds graph channels copying the mount's int/float variables into the rider's graph; then +0x18 = seated. Returns 0 once seated."}
+2026-11-17T20:19:42Z	read	42881	0x7ced60	{"name": "MountDismountEndHandler::Handle"}
+2026-11-17T20:19:55Z	read		0x7ce5d0	{"name": "AddRagdollHandler::Handle"}
+2026-11-17T20:20:00Z	read	42868	0x7ce2f0	{"name": "PairedStopHandler::Handle"}
+2026-11-17T20:21:01Z	read	41533	0x78cf50	{"name": "Actor::sub_41533"}
+2026-11-17T20:21:07Z	name	41533	0x78cf50	{"addr": "0x14078cf50", "name": "Actor::OnInteractionSeated"}
+2026-11-17T20:21:09Z	comment	41533	0x78cf50	{"addr": "0x14078cf50", "comment": "(actor) With an ExtraInteraction (169): its interaction's vfunc 0x40 (MountInteraction 40353). PairedStopHandler 42868 calls it right after sit state 3."}
+2026-11-17T20:21:09Z	comment	42868	0x7ce2f0	{"addr": "0x1407ce2f0", "comment": "PairedStopHandler (42868): the paired clip's end. Sit state 2 -> 3 (AIProcess::SetSitSleepState, or ActorState vfunc 0xA0 above middle-high), then Actor::OnInteractionSeated 41533. A copy rider's get-on reaches it only if its clip plays out; with the horse's half played by nobody (a passenger's horse, driven by another) it stays at 2."}
+2026-11-17T21:23:13Z	read	37864	0x6a77c0	{"name": "Character::ActivateMount"}
+2026-11-17T21:24:02Z	comment	38303	0x6be200	{"addr": "0x1406be200", "comment": "38303: only whether the mount has ExtraInteraction 169. 15 callers (ApplyMovement, UpdateAI, camera, combat, ActivateMount, CanRide): too wide to hook for passengers (co-op: mount-per-player)."}
+2026-11-17T23:12:06Z	read	41710	0x7969f0	{"name": "MovementControllerNPC::Func13_41710"}
+2026-11-17T23:12:06Z	read	41709	0x796940	{"name": "MovementControllerNPC::Func12_41709"}
+2026-11-17T23:12:16Z	name	41710	0x7969f0	{"addr": "0x1407969f0", "name": "MovementControllerNPC::EnablePlayerControl"}
+2026-11-17T23:12:16Z	name	41709	0x796940	{"addr": "0x140796940", "name": "MovementControllerNPC::DisablePlayerControl"}
+2026-11-17T23:12:18Z	comment	41710	0x7969f0	{"addr": "0x1407969f0", "comment": "41710, vfunc 0x68: +0x1C5 = 1, the mount moves by its player rider's input. Called by PlayerCharacter::OnMountStarted (40725) on the mount (co-op: mount-per-player)."}
+2026-11-17T23:12:18Z	comment	41709	0x796940	{"addr": "0x140796940", "comment": "41709, vfunc 0x60: +0x1C5 = 0, the mount moves by its AI. Called by MountInteraction__OnRiderMounted (40359) for a rider that is not the player (co-op: mount-per-player)."}
+2026-11-17T23:12:18Z	comment		0x75dfcb	{"addr": "0x14075dfcb", "comment": "The mount's movement controller: EnablePlayerControl (41710, vfunc 0x68). What lets the player steer it."}
+2026-11-17T23:14:13Z	read		0x67c6d0	{"name": "Actor::ApplyMovement"}
+2026-11-18T00:27:47Z	read		0x54f4a0	{"name": "BGSSynchronizedAnimationInstance::Deactivate"}
+2026-11-18T01:59:24Z	comment		0x54f349	{"addr": "0x14054f349", "comment": "Each participant's graph gets PairEnd (IAnimationGraphManagerHolder vfunc 1); not taken -> PairedStop. The only sender of a mount's PairEnd: HorseBehavior MountBehavior DismountSynced/MountSynced leave on it alone. A horse whose pair ran on another game has no instance here and stays synced (co-op: mount-per-player, Actor::EndMountPair sends it)."}
+2026-11-18T01:59:24Z	comment		0x54f393	{"addr": "0x14054f393", "comment": "Then each actor participant's character controller flags restored (+0x218 bit 0x20000 cleared) and its collision filter re-applied."}
+2026-11-18T01:59:24Z	comment	37864	0x6a77c0	{"addr": "0x1406a77c0", "comment": "37864, from TESObjectREFR::ActivateRef: a character activating a mount. Riding it -> Dismount (or ClearMountPosition); not ridden -> InitiateMountPackage(activator, mount); ridden by another -> nothing. A replayed activation by a copy runs this on the copy (co-op: horse-riding). Hooked (co-op: mount-per-player, HookActivateMount): our player's activation of a ridden horse raises BoardEvent, a passenger if a party player drives it."}
+2026-11-18T02:01:00Z	name	41131	0x772b20	{"addr": "0x140772B20", "name": "PlayerCharacter::SetLastRiddenMount"}
+2026-11-18T02:01:00Z	name	40725	0x75ddc0	{"addr": "0x14075DDC0", "name": "PlayerCharacter::OnMountStarted"}
+2026-11-18T02:01:00Z	name	40359	0x73d930	{"addr": "0x14073D930", "name": "MountInteraction__OnRiderMounted"}
+2026-11-18T02:01:00Z	name	40538	0x74cec0	{"addr": "0x14074CEC0", "name": "PlayerCharacter::SaveGame"}
+2026-11-18T02:01:00Z	name	40540	0x74e600	{"addr": "0x14074E600", "name": "PlayerCharacter::LoadGame"}
+2026-11-18T02:01:00Z	name	39000	0x6e1bd0	{"addr": "0x1406e1bd0", "name": "Actor::SetSitSleepStateFromGraph"}
+2026-11-18T02:01:00Z	name	40356	0x73d300	{"addr": "0x14073d300", "name": "MountInteraction::Update"}
+2026-11-18T02:01:00Z	name	40358	0x73d5e0	{"addr": "0x14073D5E0", "name": "MountInteraction::SeatRider"}
+2026-11-18T02:01:00Z	name	41533	0x78cf50	{"addr": "0x14078cf50", "name": "Actor::OnInteractionSeated"}
+2026-11-18T02:01:00Z	name	41710	0x7969f0	{"addr": "0x1407969f0", "name": "MovementControllerNPC::EnablePlayerControl"}
+2026-11-18T02:01:00Z	name	41709	0x796940	{"addr": "0x140796940", "name": "MovementControllerNPC::DisablePlayerControl"}
+2026-11-18T02:01:11Z	comment	41131	0x772b20	{"addr": "0x140772b20", "comment": "vfunc 0x113: writes PlayerCharacter+0x924 lastRiddenMount (the one horse slot; saved with the player, read back by QLastRiddenMount 0x114). Only caller: OnMountStarted 40725."}
+2026-11-18T02:01:11Z	comment	40725	0x75ddc0	{"addr": "0x14075ddc0", "comment": "Player got on a mount (from MountInteraction__OnRiderMounted 40359). Mount owned by the player (IsAnOwner 20210) -> demotes the previous lastRiddenMount from dynamic persistence, promotes this one, SetLastRiddenMount. Race flag 0x80 mounts (no owner check) take the other branch. Then the camera and controls for riding."}
+2026-11-18T02:01:11Z	comment	40359	0x73d930	{"addr": "0x14073d930", "comment": "Rider is on: mounted weapon anim vars; a mount the rider does not own (IsAnOwner 20210, no race flag 0x80) raises StealAlarm (horse theft); the player then calls OnMountStarted 40725."}
+2026-11-18T02:01:11Z	comment		0x744a6f	{"addr": "0x140744a6f", "comment": "Fast travel: keeps lastRiddenMount (+0x924) only if the player is an owner (IsAnOwner 20210) and it is alive; else clears it. The kept horse is moved to the destination below (sub_37313 / sub_37909)."}
+2026-11-18T02:01:11Z	comment		0x744dfd	{"addr": "0x140744dfd", "comment": "Fast travel: the last ridden horse placed beside the player's destination."}
+2026-11-18T02:01:11Z	comment	40355	0x73d270	{"addr": "0x14073d270", "comment": "MountInteraction vfunc 0x30: SetInteractionData (12074) on the MOUNT (+0x10 handle). That adds only when the mount has none, so a second rider's attach leaves the horse naming the first rider; null (from Detach) removes it whichever rider it names."}
+2026-11-18T02:01:11Z	comment	39000	0x6e1bd0	{"addr": "0x1406e1bd0", "comment": "(actor, state) Sets the sit/sleep state a graph event announces: through AIProcess::SetSitSleepState with the actor's furniture, or the ActorState vfunc 0xA0 when there is no process or it is above middle-high."}
+2026-11-18T02:01:11Z	comment		0x6e2559	{"addr": "0x1406e2559", "comment": "Graph event HorseEnterInstant (and the one at qword_143243F68): sit state 3, seated/riding at once, no get-on animation."}
+2026-11-18T02:01:11Z	comment	12074	0x1739a0	{"addr": "0x1401739a0", "comment": "(extra list, &interaction) Null removes ExtraInteraction (169); non-null adds one only when the list has none: an existing interaction is kept, not replaced."}
+2026-11-18T02:01:11Z	comment		0x6d3784	{"addr": "0x1406d3784", "comment": "Character::CanRide (38706): refuses a mount in midair, dead, being ridden (IsMountBeingRidden 38303: the mount's ExtraInteraction 169 present), the rider already getting on/off, or out of reach. InitiateMountPackage's gate."}
+2026-11-18T02:01:11Z	comment	40356	0x73d300	{"addr": "0x14073d300", "comment": "MountInteraction vfunc 0x8 (40356): for a rider at process level <= 1 with its mount: sit state not 3 (seated) or 7 -> StopRiding; seated -> SeatRider."}
+2026-11-18T02:01:11Z	comment	40358	0x73d5e0	{"addr": "0x14073d5e0", "comment": "Seats the rider: puts this interaction on the mount (SetInteractionData 12074, only if it has none), rider collision layer 33, attaches the rider to the mount's node (TESObjectREFR::sub_20312) and adds graph channels copying the mount's int/float variables into the rider's graph; then +0x18 = seated. Returns 0 once seated."}
+2026-11-18T02:01:11Z	comment	41533	0x78cf50	{"addr": "0x14078cf50", "comment": "(actor) With an ExtraInteraction (169): its interaction's vfunc 0x40 (MountInteraction 40353). PairedStopHandler 42868 calls it right after sit state 3."}
+2026-11-18T02:01:11Z	comment	42868	0x7ce2f0	{"addr": "0x1407ce2f0", "comment": "PairedStopHandler (42868): the paired clip's end. Sit state 2 -> 3 (AIProcess::SetSitSleepState, or ActorState vfunc 0xA0 above middle-high), then Actor::OnInteractionSeated 41533. A copy rider's get-on reaches it only if its clip plays out; with the horse's half played by nobody (a passenger's horse, driven by another) it stays at 2."}
+2026-11-18T02:01:11Z	comment	38303	0x6be200	{"addr": "0x1406be200", "comment": "38303: only whether the mount has ExtraInteraction 169. 15 callers (ApplyMovement, UpdateAI, camera, combat, ActivateMount, CanRide): too wide to hook for passengers (co-op: mount-per-player)."}
+2026-11-18T02:01:11Z	comment	41710	0x7969f0	{"addr": "0x1407969f0", "comment": "41710, vfunc 0x68: +0x1C5 = 1, the mount moves by its player rider's input. Called by PlayerCharacter::OnMountStarted (40725) on the mount (co-op: mount-per-player)."}
+2026-11-18T02:01:11Z	comment	41709	0x796940	{"addr": "0x140796940", "comment": "41709, vfunc 0x60: +0x1C5 = 0, the mount moves by its AI. Called by MountInteraction__OnRiderMounted (40359) for a rider that is not the player (co-op: mount-per-player)."}
+2026-11-18T02:01:11Z	comment		0x75dfcb	{"addr": "0x14075dfcb", "comment": "The mount's movement controller: EnablePlayerControl (41710, vfunc 0x68). What lets the player steer it."}
+2026-11-18T02:05:02Z	read		0x3c1200	{"name": "TESNPC::GetActivateText"}
+2026-11-18T02:05:17Z	comment		0x3c12a0	{"addr": "0x1403c12a0", "comment": "A horse: 'sRide\\nName' only when Character::CanRide(player, horse) (38706), which refuses a ridden one; else no activate text (no E prompt). Co-op: a horse a party player drives shows Ride too (mount-per-player)."}
+2026-11-18T06:14:45Z	read		0x6a8500	{"name": "sub_1406A8490"}
+2026-11-18T06:14:50Z	read	37881	0x6a8620	{"name": "Actor__OnBumpedByActor"}
+2026-11-18T06:21:31Z	comment		0x73d6bc	{"addr": "0x14073d6bc", "comment": "The rider's 3D: layer 33 (kBipedNoCC) AND the mount's collision group (v10, the mount's filter high word): one group, so rider and mount never collide. A copy given layer 33 alone (its own group) was climbed by the horse: kTryStep, support lost, 70 units off (co-op: mount-per-player, duo 2026-11-18)."}
+2026-11-18T06:36:12Z	read		0x73d71d	{"name": "MountInteraction::SeatRider"}
+2026-11-18T06:36:24Z	read	20312	0x304e80	{"name": "TESObjectREFR::sub_20312"}
+2026-11-18T06:36:45Z	read		0x68f5a0	{"name": "Actor::MoveHavok"}
+2026-11-18T06:36:53Z	comment		0x68f6d4	{"addr": "0x14068f6d4", "comment": "A rider: its 3D's bodies on layer 33 with its MOUNT's collision group, as SeatRider (40358): one group, rider and mount never collide (co-op: mount-per-player)."}
+2026-11-18T06:37:11Z	read	20319	0x305550	{"name": "sub_140305550"}
+2026-11-18T06:37:20Z	name	20319	0x305550	{"addr": "0x140305550", "name": "REFRSyncController_Attach"}
+2026-11-18T06:37:22Z	comment	20319	0x305550	{"addr": "0x140305550", "comment": "20319: puts a REFRSyncController (NiTimeController, 152 bytes, NiTimeController::sub_20322) on a reference's 3D, following a node of another reference (a rider's: its mount's), removing any old one. SeatRider (40358) via TESObjectREFR::sub_20312 (co-op: mount-per-player)."}
+2026-11-18T06:37:22Z	comment		0x6a8500	{"addr": "0x1406a8500", "comment": "Not on the mount path: an action's TESActionData run (read for the bump handler, wrong address; co-op: mount-per-player)."}
+2026-11-18T06:37:35Z	read	20322	0x305860	{"name": "NiTimeController::sub_20322"}
+2026-11-18T06:37:51Z	read	20318	0x305230	{"name": "TESObjectREFRSync__REFRSyncController::Update"}
+2026-11-18T06:38:01Z	name	20322	0x305860	{"addr": "0x140305860", "name": "REFRSyncController::REFRSyncController"}
+2026-11-18T06:38:04Z	comment	20318	0x305230	{"addr": "0x140305230", "comment": "20318, vfunc 39 (NiTimeController::Update): the synced reference (+0x48 handle: a rider) put where the followed node is (+0x58, its mount's), times the offset (+0x60): TESObjectREFR::SetPosition + SetRotationZ, every update. How a rider's reference stays on its horse. Co-op: our HookSetPosition refused it on a seated copy (no copy goal), leaving its reference where it got on (mount-per-player)."}
+2026-11-18T06:38:04Z	comment	20322	0x305860	{"addr": "0x140305860", "comment": "20322: REFRSyncController ctor (synced ref handle +0x48, followed ref +0x4C, node +0x50/+0x58, offset +0x60)."}

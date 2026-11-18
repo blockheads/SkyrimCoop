@@ -139,6 +139,9 @@ struct PlayerCharacter : Actor
     static void SetPickUpGate(std::function<bool(TESObjectREFR&)> aGate) noexcept;
     // Picks it up as the player does (PickUpObject 40533, our hook's events), past the gate: a granted pickup.
     void PickUpGranted(TESObjectREFR& aObject, int32_t aCount) noexcept;
+    // PlayerCharacter::OnMountStarted (40725), as a get-on ends: camera, controls, the mount's
+    // MovementControllerNPC::EnablePlayerControl (41710), the last ridden horse.
+    void StartedRiding(Actor* apMount) noexcept;
 
     const GameArray<TintMask*>& GetTints() const noexcept;
     // baseTints again from its race's tint layers for its sex, at their default colours (40696, as the race menu).

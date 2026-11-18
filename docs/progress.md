@@ -49,6 +49,33 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`, "Passengers"). One
+player drives, the others ride along on the same horse: a player's Activate on a horse a party player drives boards it
+(our hook on `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own
+get-on). The host keeps each horse's passengers in boarding order (`HostCharacters::Character::Passengers`,
+`BoardRequest` / `UnboardRequest`); every other game seats the passenger's copy at once (`NotifyBoard`,
+`Actor::SeatOnMount`: sit state 3 and `OnInteractionSeated` 41533), since a copy's replayed get-on never ends with no
+horse half, and its later `HorseEnter` is skipped (`ReplayState::SkipsMountEntry`; it put the copy back at sit state 2
+and the half-seated copy pushed the horse). When the driver gets off or leaves, the first passenger drives
+(`HostCharacters::HandOver`, a `NotifyMount` to it): its game takes the horse and the reins (`PlayerTakeReins`: the
+horse's slot, `PlayerCharacter::OnMountStarted` 40725, `Actor::EvaluatePackage` 37401; without the package the new
+driver steered nothing). Any rider's Detach empties the horse's one slot, so the driver still on holds it again
+(`CharacterService::KeepDriverOn`). Passengers arrive on foot after a party travel. The crosshair offers Ride over a horse a party player drives
+(`HookGetActivateText`, 24716). A copy seated on a mount rides its seat, its goal cleared and its collision left to the
+engine (stepped or given its owner's capsule, it dragged the horse off across Skyrim or shook on the saddle); at its
+get-off it comes off the horse at once (`FinishDismount` 38696), then is placed as any copy (attached, it flew off or
+stood on the horse until its clip's end). A passenger's copy gets on from the ground, linked as a driver's copy is and seated as its owner's get-on
+ends; its bodies take its mount's collision group, as `SeatRider` (40358) does for a rider (in its own group it shoved
+the host's horse 70 units). `party-shares-a-horse` checks every get-on and get-off for jumps on both games. A seated copy's
+reference rides its horse (the engine's `REFRSyncController` 20318, which our position hook used to refuse). The new
+driver's horse gets `PairEnd` (`Actor::EndMountPair`): its exit half from the old driver had no instance on this game,
+and it steered nothing until then. A horse handed to a passenger already off it (both off within a round trip, a horse's death dropping
+every rider, a MoveTo unlinking with no Detach) goes straight back (`CharacterService::OnNotifyMount`: a `NotifyMount`
+this game did not ask for is a handover). Scenario `party-shares-a-horse` passes its steps (2026-11-17, 3 of 3); its
+end check fails on the plains' critters in 2 of 3 (`bugs.md`, "Whiterun plains' critters differ"). Tests: GameTests `[passengers]` (the
+fake's `MountSlots`, `Reins`, `PlayerBoardMount`), HostAuthorityTests "Mounts: ..." `[passengers]`, ClientTests
+`SkipsMountEntry`, encoding round trip.
+
 2026-11-17: a fight with one player is the party's (Solitude playtest, 2026-11-16: the platform guards killed Josh, a
 guest, and never turned on the host). The execution's interrupt trigger runs `PlatformGuard.StartCombat(Game.GetPlayer())`,
 the guest's copy for a guest's trigger: no crime, so nothing the party shares, and `HostAggro` counted only damage and

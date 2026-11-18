@@ -16,6 +16,8 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
+#include <Events/BoardEvent.h>
+#include <Games/Animation/ReplayState.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
 #include <Events/ActorHeadUpdateEvent.h>
@@ -107,6 +109,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
     Listen<NotifyMountRefused, &CharacterService::OnNotifyMountRefused>(m_connections, m_dispatcher, this);
+    Listen<BoardEvent, &CharacterService::OnBoardEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyBoard, &CharacterService::OnNotifyBoard>(m_connections, m_dispatcher, this);
     Listen<NotifyActorName, &CharacterService::OnNotifyActorName>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerName, &CharacterService::OnNotifyPlayerName>(m_connections, m_dispatcher, this);
     Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
@@ -372,6 +376,9 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_riddenMount = 0;
     m_partyMounts.clear();
     m_pendingRides.clear();
+    m_boardedMount = 0;
+    m_drivers.clear();
+    m_pendingBoards.clear();
 }
 
 CharacterService::~CharacterService() noexcept
@@ -590,6 +597,16 @@ void CharacterService::LinkPendingRides(uint32_t aSessionId) noexcept
         }
     for (const auto& cRide : rides)
         OnNotifyMount(cRide);
+    std::vector<NotifyBoard> boards;
+    for (const auto& [cRider, cMount] : m_pendingBoards)
+        if (cMount == aSessionId || cRider == aSessionId)
+        {
+            auto& board = boards.emplace_back();
+            board.RiderId = cRider;
+            board.MountId = cMount;
+        }
+    for (const auto& cBoard : boards)
+        OnNotifyBoard(cBoard);
 }
 
 bool CharacterService::ApplyNpcSnapshot(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
@@ -1114,6 +1131,7 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
     {
         m_riddenMount = request.MountId;
         m_partyMounts.insert(request.MountId);
+        m_drivers[request.MountId] = request.RiderId;
         KeepMount(acEvent.MountID);
     }
     m_transport.Send(request);
@@ -1122,10 +1140,13 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
     m_pendingRides.erase(acMessage.MountId);
+    m_drivers[acMessage.MountId] = acMessage.RiderId;
+    m_pendingBoards.erase(acMessage.RiderId);
     for (const auto cPlayer : m_world.view<PlayerComponent>())
         if (Utils::GetSessionId(cPlayer) == acMessage.RiderId)
             m_partyMounts.insert(acMessage.MountId);
-    // Our player got on it: the host gave the mount to this game.
+    // Our player got on it: the host gave the mount to this game. Not asked for: a handover (HostCharacters::HandOver).
+    const bool cHandedOver = m_riddenMount != acMessage.MountId;
     for (const auto cRider : m_world.view<LocalComponent>())
     {
         if (m_world.get<LocalComponent>(cRider).Id != acMessage.RiderId)
@@ -1136,6 +1157,16 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
             {
                 m_riddenMount = acMessage.MountId;
                 KeepMount(m_world.get<FormIdComponent>(cMount).Id);
+                // A passenger the driver left: ours to steer. Off it already (its ride's end still on its way, or never
+                // heard): handed back at once. Our own ride's answer can come before the get-on links our player.
+                const uint32_t cHorse = m_world.get<FormIdComponent>(cMount).Id;
+                m_boardedMount = 0;
+                if (!cHandedOver)
+                    continue;
+                if (m_actorBridge.GetActorMount(m_playerBridge.GetPlayerFormId()) == cHorse)
+                    m_playerBridge.PlayerTakeReins(cHorse);
+                else
+                    OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId(), cHorse});
             }
         return;
     }
@@ -1182,6 +1213,8 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 
     if (!mountFormId)
         m_pendingRides[acMessage.MountId] = acMessage.RiderId;
+    else if (cRiderFormId && m_actorBridge.GetActorMount(cRiderFormId) == mountFormId)
+        m_actorBridge.ActorHoldMount(cRiderFormId, mountFormId); // a passenger driving now, seated already
     else if (cRiderFormId)
         m_actorBridge.ActorPutOnMount(cRiderFormId, mountFormId);
 }
@@ -1190,18 +1223,112 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 // Another player got on first (HostCharacters::OnMount): ours gets off, and the horse stays a copy here.
 void CharacterService::OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept
 {
-    if (m_riddenMount != acMessage.MountId)
+    if (m_riddenMount == acMessage.MountId)
+        m_riddenMount = 0;
+    else if (m_boardedMount == acMessage.MountId)
+        m_boardedMount = 0;
+    else
         return;
-    m_riddenMount = 0;
     m_playerBridge.PlayerStopRiding();
+}
+
+void CharacterService::OnBoardEvent(const BoardEvent& acEvent) noexcept
+{
+    if (acEvent.RiderId != m_playerBridge.GetPlayerFormId() || m_riddenMount || m_boardedMount || !m_characterId)
+    {
+        spdlog::info("Board {:X}: not now (riding {:X}, aboard {:X})", acEvent.MountId, m_riddenMount, m_boardedMount);
+        return;
+    }
+    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
+    {
+        if (m_world.get<FormIdComponent>(cEntity).Id != acEvent.MountId)
+            continue;
+        const uint32_t cMount = m_world.get<RemoteComponent>(cEntity).Id;
+        // Only a horse a party player drives: an NPC's stays refused, as in Skyrim (37864).
+        if (!m_drivers.contains(cMount) || !m_partyMounts.contains(cMount))
+        {
+            spdlog::info("Board {:X}: no party player drives it", acEvent.MountId);
+            return;
+        }
+        if (!m_playerBridge.PlayerBoardMount(acEvent.MountId))
+        {
+            spdlog::info("Board {:X}: the engine's get-on refused (37905)", acEvent.MountId);
+            return;
+        }
+        spdlog::info("Board {:X}: on as a passenger", acEvent.MountId);
+        m_boardedMount = cMount;
+        BoardRequest request;
+        request.RiderId = m_characterId;
+        request.MountId = cMount;
+        m_transport.Send(request);
+        return;
+    }
+    spdlog::info("Board {:X}: not a copy here", acEvent.MountId);
+}
+
+void CharacterService::OnNotifyBoard(const NotifyBoard& acMessage) noexcept
+{
+    const uint32_t cRider = FormOfSession(acMessage.RiderId);
+    const uint32_t cMount = FormOfSession(acMessage.MountId);
+    if (!cRider || !cMount)
+    {
+        m_pendingBoards[acMessage.RiderId] = acMessage.MountId;
+        return;
+    }
+    m_pendingBoards.erase(acMessage.RiderId);
+    // Linked as a driver's copy is: its owner's get-on plays from the ground and seats it at its end. One whose
+    // owner is seated already (a late joiner's) is seated at once.
+    if (m_actorBridge.GetActorSitState(cRider) == ReplayState::kSitSeated)
+        m_actorBridge.ActorSeatOnMount(cRider, cMount);
+    else if (m_actorBridge.GetActorMount(cRider) != cMount)
+        m_actorBridge.ActorPutOnMount(cRider, cMount);
+}
+
+uint32_t CharacterService::FormOfSession(uint32_t aSessionId) const noexcept
+{
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+        if (Utils::GetSessionId(cEntity) == aSessionId)
+            return m_world.get<FormIdComponent>(cEntity).Id;
+    return 0;
+}
+
+void CharacterService::KeepDriverOn(const DismountEvent& acEvent) noexcept
+{
+    if (!acEvent.MountId)
+        return;
+    uint32_t mount = 0;
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+        if (m_world.get<FormIdComponent>(cEntity).Id == acEvent.MountId)
+            mount = Utils::GetSessionId(cEntity).value_or(0);
+    const auto cDriver = m_drivers.find(mount);
+    if (cDriver == m_drivers.end())
+        return;
+    const uint32_t cDriverForm = FormOfSession(cDriver->second);
+    if (!cDriverForm || cDriverForm == acEvent.RiderId || m_actorBridge.GetActorMount(cDriverForm) != acEvent.MountId)
+        return;
+    m_actorBridge.ActorHoldMount(cDriverForm, acEvent.MountId);
+    // A copy's exit on a horse our player drives now: the horse was left in that pair, which nobody here ends.
+    if (acEvent.Copy && cDriverForm == m_playerBridge.GetPlayerFormId())
+        m_actorBridge.ActorEndMountPair(acEvent.MountId);
 }
 
 // The ride of one of this game's actors ended (any path): the host takes its mount back.
 void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
 {
+    KeepDriverOn(acEvent);
+    if (acEvent.Copy)
+        return;
     DismountRequest request;
     if (acEvent.RiderId == m_playerBridge.GetPlayerFormId())
     {
+        if (m_boardedMount)
+        {
+            UnboardRequest unboard;
+            unboard.RiderId = m_characterId;
+            unboard.MountId = std::exchange(m_boardedMount, 0u);
+            m_transport.Send(unboard);
+            return;
+        }
         if (!m_riddenMount)
             return;
         request.RiderId = m_characterId;
@@ -1230,6 +1357,9 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
 {
     m_partyMounts.erase(acMessage.MountId);
     m_pendingRides.erase(acMessage.MountId);
+    m_drivers.erase(acMessage.MountId);
+    if (m_boardedMount == acMessage.MountId)
+        m_boardedMount = 0;
     // Its owner's ride ended: a copy rider still seated gets off now (its owner's ride ended with no exit clip).
     for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
         if (m_world.get<RemoteComponent>(cEntity).Id == acMessage.RiderId)
@@ -1755,6 +1885,29 @@ void CharacterService::RunRemoteUpdates() noexcept
             guess.emplace(first, second);
         position += correction.At(tick);
         interpolationComponent.Position = position;
+        // A copy on a mount (player-mount.md): seated, its seat carries it and its collision stays the engine's (layer
+        // 33); stepped there, or its capsule given back, it dragged or shook the horse. Getting off it is off the horse
+        // at once (FinishDismount), its clip ending on its own body: attached, a step threw it off; left, it stood on
+        // the horse until its clip's end.
+        const uint32_t cMount = pFormIdComponent ? m_actorBridge.GetActorMount(pFormIdComponent->Id) : 0;
+        if (cMount)
+        {
+            uint8_t cSit = m_actorBridge.GetActorSitState(pFormIdComponent->Id);
+            if (ReplayState::SeatsAtHoldEnd(cSit, m_actorBridge.IsActorCopy(cMount), m_world.GetGraphStreams().Held(pFormIdComponent->Id)))
+            {
+                m_actorBridge.ActorSeatOnMount(pFormIdComponent->Id, cMount);
+                cSit = ReplayState::kSitSeated;
+            }
+            if (cSit == ReplayState::kSitSeated)
+            {
+                static const AnimationVariables s_still;
+                const float cHere[3]{position.x, position.y, position.z};
+                m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cHere, cHere, 0.f, s_still, CopyMove::Leave);
+                continue;
+            }
+            if (cSit == ReplayState::kSitWantsToStand)
+                m_actorBridge.ActorFinishDismount(pFormIdComponent->Id);
+        }
         if (pFormIdComponent)
         {
             // Booleans and integers: the current snapshot's, never older (graphs react to their changes). Floats
@@ -1804,7 +1957,11 @@ void CharacterService::RunRemoteUpdates() noexcept
             glm::vec3 at{};
             m_actorBridge.GetActorPosition(pFormIdComponent->Id, at.x, at.y, at.z);
             const bool cOwnerOnGround = tick >= second.Tick ? second.OnGround : (first.OnGround && second.OnGround);
-            const bool cOwnerCollides = tick >= second.Tick ? second.CapsuleCollides : first.CapsuleCollides;
+            // Getting onto a mount its capsule collides with nothing, as its owner's clip carries it through the horse:
+            // colliding, it shoved this game's own horse 60 units, and its owner's get-on ended beside it (the duo).
+            const bool cGettingOn = ReplayState::GettingOnMount(m_actorBridge.GetActorMount(pFormIdComponent->Id) != 0,
+                                                                m_actorBridge.GetActorSitState(pFormIdComponent->Id));
+            const bool cOwnerCollides = !cGettingOn && (tick >= second.Tick ? second.CapsuleCollides : first.CapsuleCollides);
             const CopyMove cMove = CopyStep::Choose(!cPlace, cOwnerOnGround, cOwnerCollides, at, position);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
@@ -1898,7 +2055,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
     const uint32_t cCellId = acEvent.CellId;
     const uint32_t cWorldSpaceId = acEvent.WorldSpaceId;
     // MoveTo can unlink the mount interaction without calling Actor::Dismount.
-    if (m_riddenMount && !m_playerBridge.IsPlayerMounted())
+    if ((m_riddenMount || m_boardedMount) && !m_playerBridge.IsPlayerMounted())
         OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId()});
 
     // Players and their ridden horses travel with the party; other copies stay with their cell.
