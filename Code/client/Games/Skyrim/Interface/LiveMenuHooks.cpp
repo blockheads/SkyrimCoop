@@ -4,6 +4,7 @@
 #include <Actor.h>
 #include <Interface/IMenu.h>
 #include <Interface/MenuAutoClose.h>
+#include <Events/LidUnposedEvent.h>
 #include <Interface/Menus/MapMenu.h>
 #include <Interface/UI.h>
 #include <PlayerCharacter.h>
@@ -72,9 +73,13 @@ void CheckWatched(AutoClosed& aMenu) noexcept
 {
     if (!aMenu.Watching || !InSession())
         return;
-    if (const auto cWhy = MenuAutoClose::Check(aMenu.Watch, TargetOf(aMenu.TargetHandle())); !cWhy.empty())
+    const auto cTarget = TargetOf(aMenu.TargetHandle());
+    if (const auto cWhy = MenuAutoClose::Check(aMenu.Watch, cTarget); !cWhy.empty())
     {
         spdlog::info("LiveMenus: closing {}: {}", aMenu.Name, cWhy);
+        // A gone chest has no 3D: the menu's close (51125 -> OpenOrClose 14284) only flips its open state.
+        if (const TESObjectREFR* pTarget = cTarget.Gone && std::string_view(aMenu.Name) == "ContainerMenu" ? TESObjectREFR::GetByHandle(aMenu.TargetHandle()) : nullptr)
+            World::Get().GetRunner().Trigger(LidUnposedEvent{pTarget->formID});
         aMenu.Watching = false;
         if (auto* pQueue = UIMessageQueue::Get())
             pQueue->AddMessage(aMenu.Name, UIMessage::kHide, nullptr);

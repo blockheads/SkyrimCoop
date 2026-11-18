@@ -3067,6 +3067,17 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
         LootMenuOf = aObject;
         World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
     }
+    // Only this game's player toggles a chest's lid (TESObjectCONT::Activate 17887, OpenOrClose 14284); a copy's
+    // replayed activation leaves it.
+    if (const auto cChest = References.find(aObject); aActor == kPlayer && cChest != References.end() && cChest->second.Chest)
+    {
+        cChest->second.Open = true;
+        cChest->second.Lid = 1.f;
+        ChestMenuOf = aObject;
+        if (!IsGuest) // the host's open state change, sent as a row
+            Recorded.push_back({.Type = ObjectChange::Kind::kOpenState, .Object = SessionIdOf(aObject), .Value = 1});
+        World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
+    }
     ToggleDoor(aObject);
 }
 

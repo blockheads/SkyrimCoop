@@ -207,6 +207,7 @@ public:
     uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept override;
     void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept override;
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override;
+    bool PoseObjectOpenState(uint32_t aObjectFormId) noexcept override;
     bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept override;
     bool IsLoadDoor(uint32_t aObjectFormId) const noexcept override;
     Inventory GetObjectInventory(uint32_t aObjectFormId) const noexcept override;

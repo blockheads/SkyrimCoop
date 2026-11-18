@@ -62,7 +62,6 @@ every other section needs the duo.
 
 **Physics**
 
-- [A chest lid's pose](#a-chest-lids-pose): small
 - [Physics against vanilla](#physics-against-vanilla): medium
 
 **Dialogue**
@@ -272,7 +271,7 @@ raw slots, `ai.head_track_shut` what shuts the gate):
   same reads as none on both, unless a lower slot of the owner's is what he looks at. Why the copy writes itself: unread.
 - **Not seen again, each on its one flow:**
   - Belethor (`guest-menus-close-when-target-goes`): the copy held the guest's player in slot 1 while alive. The flow
-    fails first on its [chest lid](#a-chest-lids-pose) both runs; no lasting raw difference on him.
+    failed first on its chest lid both runs (fixed 2026-11-18, progress.md); no lasting raw difference on him.
   - Elk (`follower-guest-recruits`): the owner's slots 1 and 5 on the guest, the copy's none. The flow now fails first on
     `vanilla recruitment fills the shared follower alias`, with its watch off too; no lasting raw difference on it.
   - Proventus (`party-buys-house-host`): the owner's dialogue slot on the host's player, the copy's none. Not seen in 15 runs.
@@ -517,26 +516,11 @@ Size: medium. Needs: duo (`RagdollTrace`), then a fast test.
 
 ## Physics
 
-### A chest lid's pose
-
-Stands alone: one node after an interrupted open.
-
-Agent task: Replay the host's final open state so a chest's lid agrees after an interrupted open.
-
-Size: small. Needs: duo, then GameTests.
-
-- **A chest's lid can rest in another pose on the two games after its open is interrupted** (2026-10-28, live menus).
-  The host saving while a guest's chest menu opens, or the chest disabled while open, leaves its `DoorLeft` node turned
-  differently on the two games (the world check after `host-saves-with-guest-menu-open`, sometimes
-  `guest-menus-close-when-target-goes`). The items and the open state agree; only the lid's pose differs.
-  - Still there 2026-11-11: `C2CE8` (CONT `C2CDD`), `DoorLeft` and `DoorLeft:6`, left by
-    `host-saves-with-guest-menu-open` in the full run; it passed alone on both builds.
-  - Start: compare the lid's animation state on both games after the interruption (the chest's `BGSOpenCloseForm`
-    open state, `SetOpenState` 14287 in form-state.md) and replay the host's final open state.
-
 ### Physics against vanilla
 
-What the vanilla baseline still fails on (2026-11-15, `docs/design/physics-sync.md`, "One simulator per pile").
+What the vanilla baseline still fails on (2026-11-15, `docs/design/physics-sync.md`, "One simulator per pile"). Still
+valid 2026-11-18: rerun on `agent/bugs-physics` (dev `2423b5de` plus a chest lid fix that touches no physics), 4 of the 8
+pass; every failure is a shape below.
 
 Agent task: rerun the eight `*-like-vanilla` scenarios (`collision_suite`), then trace whichever item below still shows.
 
@@ -565,19 +549,23 @@ Size: medium. Needs: the duo, then GameTests.
   up onto another rested there, its rest went out, then it slid down in the guest's game and was taken for the host's.
   Claiming its own rest moving again within 3 s as its own ("settles") made the suite worse (4 of 8: piles never
   settled, staging timed out); reverted.
+- **2026-11-18, reruns of the 8:** `guest-push`, `host-push`, `host-push-mixed`, `host-tavern` pass;
+  `guest-push-mixed` once passed, once timed out staging (a cheese wheel not resting on the lane); `guest-tavern` a rest
+  2.2 units apart (round 2, object 64B33); `guest-carries-into-pile` timed out staging both runs (a cabbage still
+  moving, a bucket resting off the lane); `host-carries-into-pile` the carried object moving 18.3 s on the guest in the
+  middle round (vanilla 1.9 to 10.5), a shape not listed before: after the carry, the guest's copy of it keeps
+  moving. Run in batches: the duo's 15-minute cap takes a longer run's games when someone waits.
 - **2026-11-16, dev's full run:** 5 of the 8 passed; `guest-carries-into-pile-like-vanilla` (a rest 3.4 units apart),
   `host-carries-into-pile-like-vanilla` (staging timed out) and `host-push-mixed-like-vanilla` (a pot turning 7 and 11
   times where vanilla turns up to 6), each a shape below.
 - **Staging times out now and then** (`stage_objects`, "[host] ... rests on the lane"): a staged object rests, then
   moves again with nobody near, past the 20 s wait. Seen before and after the pile changes; not traced.
-- **The guest crashed once in the HUD** (`FloatingQuestMarker::Update` 51676 into `GFxValue::GetDisplayInfo`, read
+- **The guest crashed once in the HUD** (not seen in the 2026-11-18 reruns) (`FloatingQuestMarker::Update` 51676 into `GFxValue::GetDisplayInfo`, read
   of 0xFFFFFFFFFFFFFFFF, 2026-11-15 18:54, log in `build/coop-test/kept/`), during a carry trial; not traced,
   maybe not physics. The host crashed the same way at 20:48 (HUD compass update 51668 into GFx 83250/87834, same
   bad read, 28 minutes up; `kept/host-crash-2026-11-15-20-48-12.log`).
-- **The guest's game hung once in the graphics present call** (d3d11/dxgi under `Present`, HangWatchdog, 2026-11-15
-  19:57); not ours as far as the stack shows.
 - **The harness's `world_state` crashed the host once** (access violation in `EngineCalls.cpp` `ReadPose`, walking an
-  object's 3D), on the first call after staging; not seen again.
+  object's 3D), on the first call after staging; not seen again (nor in the 2026-11-18 reruns).
 
 ## Dialogue
 

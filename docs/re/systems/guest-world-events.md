@@ -155,6 +155,47 @@ Opening a chest does not call it. So the host's contents, read at its create row
 what it rolled. The guest's twin rolls nothing at its own creation (16129 skipped, `HookInitLeveledItems`) and holds
 the host's contents, and opening it adds nothing (`created-chest-reaches-guest-empty`, passing since the 2026-11-04 fix).
 
+## A lid after a disable
+
+Read in IDA 1.7.104 (2026-11-18) and measured in the duo the same day (`guest-chest-lid-after-disable`,
+`host-/guest-menus-close-when-target-goes`). Read on this branch (journal `agent-bugs-physics.tsv`): 14284, 14285, 14287,
+14288, 14297, 17887, 19757, 19796, 19800, 19801, 51125; 11802's name and 14284's summary are from earlier reads.
+
+```
+a player opens a chest
+  TESObjectCONT::Activate 17887: the game's own player only -> OpenOrClose 14284 (Open sequence; its event 14285
+  opens the menu). The other game: a host's open goes as its open state row (ApplyOpen, SetOpenState 14287 plays it);
+  a guest's open is replayed by its copy, whose 17887 branch never moves the lid
+the host disables it -> every game: Disable 19801 drops its 3D (has_3d false, measured)
+the open menu: our auto-close (LiveMenuHooks) -> ContainerMenu dtor 51125 -> GetOpenState 14288 == 1
+  -> OpenOrClose with no 3D: the open state only flips (HandleClose); the host's close row reaches the guest the same
+  way (ApplyOpen with no 3D)
+the host enables it -> Enable 19800: TESQueuedHandles::QueueReference, a new 3D
+  the new 3D's lid comes up part open (0.116 of the open 0.128 rad, every run) in each game whose open state flipped
+  while it had no 3D; closed where it never moved
+```
+
+- `GetOpenState` (14288): 2 while the Open sequence is active, 4 while Close is, else the flag (1 open, 3 closed).
+- A 3D load poses the lid at its open state: `InitNonNPCAnimation` (19757) calls `SetOpenState(ref, open, snap=1)`
+  (14287), the open state being the reference's default toggled by its open state change (0x800000). With snap,
+  `PlayAnimation_Impl` (14297) activates the sequence at its end and updates the node at once.
+- Why the new 3D keeps a part-open lid is not read (inferred: the sequence state the flip left, never played; a loose
+  end in `docs/progress.md`). So the fix is the engine's own pose call made again after the load, not a repair of
+  the load. Measured:
+  `SetOpenState(closed, snap)` on the new 3D (harness `door_open`) puts the lid where the other game's is.
+- Vanilla never gets here: its menus pause the game, so nothing disables a chest under an open one. Our live menus'
+  auto-close (Skyrim Souls' AutoCloseManager) is what closes a menu on a disabled chest.
+
+The fix, in every game: a lid whose open state flips with no 3D raises `LidUnposedEvent` (the auto-close on a gone
+chest, `LiveMenuHooks`; a row applied to an unloaded one, `ReferenceStates::ApplyOpen`). `ObjectService` keeps it
+and, each update, puts its lid at its open state once it is enabled and its 3D is loaded
+(`IFormBridge::PoseObjectOpenState`, `ReferenceStates::PoseOpenState`: `SetOpenState` with its snap). Our
+`QueuedReference::Finish` hook (13022) was tried as the load signal and never fired for the chest's job (measured), so
+the update checks for the 3D. The lid's open while a guest's menu is open stays that player's own (the other game's
+copy replays without a lid, as for any NPC). The harness's world state reads a container's open state (`open_state`),
+`door_open` takes containers, and the MCP's `expect agree` runs the world check. GameTests "A chest the host disables
+under a guest's open menu shows one lid once enabled" and "... under its own open menu ...".
+
 ## Script casts: Spell.Cast is delayed
 
 | ID | Engine function | Notes |

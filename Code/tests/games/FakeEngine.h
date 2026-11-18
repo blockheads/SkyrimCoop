@@ -258,7 +258,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::map<uint32_t, int32_t> Items; // a container's count of each item
         std::vector<Inventory::Entry> Stacks; // those of them with extra data (an enchantment, tempering...)
         bool Door = false;
-        bool Open = false; // a door's (BGSOpenCloseForm's open state)
+        bool Open = false; // a door's or chest's (BGSOpenCloseForm's open state)
+        bool Chest = false; // a container with a lid (an Open/Close sequence)
+        bool Disabled = false;
+        bool Has3D = true; // none while disabled; an enable queues its load (Finishes3D)
+        float Lid = 0.f; // a chest's lid: 0 closed, 1 open
+        bool Unposed = false; // its open state changed with no 3D: its next 3D comes up part open (measured)
         glm::vec3 Position{}; // where it stands (a marker MoveTo goes to)
         uint32_t RecordFlags{};
         uint32_t Base = 0; // a created one's (a script's PlaceAtMe)
@@ -311,6 +316,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks = {});
     // The host's game opens or closes a door (its player, a replayed activation): made and recorded.
     void SetOpen(uint32_t aDoor, bool aOpen);
+    // The host's script disables or enables a reference (Disable 19801 / Enable 19800): made and recorded.
+    void ScriptSetsEnabled(uint32_t aReference, bool aEnabled);
     // Each cell's location (BGSLocation), by cell: the player moved into a cell of another location raises CLOC.
     std::map<uint32_t, uint32_t> Locations;
     // The story event types this game registers, by index (BGSStoryEventManager::registeredEvents).
@@ -1105,6 +1112,27 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void Activates(uint32_t aActor, uint32_t aObject);
     std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
     uint32_t LootMenuOf{}; // the dead actor whose loot menu the player opened (TESNPC::Activate -> OpenMenu 51140)
+    uint32_t ChestMenuOf{}; // the chest whose menu the player opened (TESObjectCONT::Activate 17887)
+    // The chest's menu closes (the player, or our auto-close on a disabled chest): the lid's Close plays (ContainerMenu
+    // 51125 -> OpenOrClose 14284); with no 3D only its flag closes.
+    void ClosesChestMenu();
+    // A reference's 3D load, queued by Enable (TESQueuedHandles::QueueReference), finishes: its lid at its open state,
+    // part open if that changed while it had no 3D (measured 2026-11-18: 0.116 of 0.128 rad, every run).
+    void Finishes3D(uint32_t aReference);
+    static constexpr float kPartOpen = 0.9f;
+    // SetOpenState with its snap (14287): the lid at its open flag at once, once enabled and loaded.
+    bool PoseObjectOpenState(uint32_t aObjectFormId) noexcept override
+    {
+        const auto it = References.find(aObjectFormId);
+        if (it == References.end())
+            return true;
+        if (it->second.Disabled || !it->second.Has3D)
+            return false;
+        if (it->second.Chest)
+            it->second.Lid = it->second.Open ? 1.f : 0.f;
+        it->second.Unposed = false;
+        return true;
+    }
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
     {
         const auto it = References.find(aObjectFormId);

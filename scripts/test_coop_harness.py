@@ -1233,12 +1233,28 @@ class Scenes(unittest.TestCase):
         ctx, actions = self.expect_ctx()
         ctx.handles.return_value = {"lydia": {"host": 0xA2C8E}}
         ctx.check_desync.return_value = ["Lydia [host 000A2C8E, sid 3]: health", "Wolf [host 00000999, sid 4]: pose"]
+        ctx.check_world.return_value = {}
         with self.assertRaisesRegex(TestFailure, "Lydia"):
             actions.expect(ctx, "lydia", "agree")
         ctx.handles.return_value = {"bandit": {"host": 0x111}}
         self.assertEqual(actions.expect(ctx, "bandit", "agree"), {"agree": True})
         with self.assertRaisesRegex(TestFailure, "Wolf"):
             actions.expect(ctx, "all", "agree")
+
+    def test_expect_agree_runs_the_world_check_on_the_handle(self):
+        ctx, actions = self.expect_ctx()
+        ctx.check_desync.return_value = []
+        ctx.check_world.return_value = {"C2CE8 (CONT C2CDD)": {"pose": "DoorLeft turned differently"},
+                                        "111 (DOOR 222)": {"open_state": "1 vs 3"}}
+        ctx.handles.return_value = {"chest": {"host": 0xC2CE8, "guest": 0xC2CE8}}
+        with self.assertRaisesRegex(TestFailure, "DoorLeft"):
+            actions.expect(ctx, "chest", "agree")
+        ctx.handles.return_value = {"barrel": {"host": 0xC2CE, "guest": 0xC2CE}}
+        self.assertEqual(actions.expect(ctx, "barrel", "agree"), {"agree": True})
+        ctx.check_world.return_value = {"created CONT C2CDD at (1, 2, 3) (FF000842 on host)": {"pose": "DoorLeft turned differently"}}
+        ctx.handles.return_value = {"placed": {"host": 0xFF000842, "guest": 0xFF000901}}
+        with self.assertRaisesRegex(TestFailure, "DoorLeft"):
+            actions.expect(ctx, "placed", "agree")
 
     def test_expect_actor_waits_up_to_its_seconds(self):
         ctx, actions = self.expect_ctx()
