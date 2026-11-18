@@ -23,6 +23,9 @@ TEST_CASE("A replayed pair plays on a free partner; crossed, the first swing win
     // The same two swings seen from each game: exactly one yields, a tie included.
     CHECK(cSettle("pa_A", 5, true, "B", 5, 10, 10, 2, 1) == PairOutcome::kSkip);
     CHECK(cSettle("pa_B", 7, true, "A", 7, 10, 10, 1, 2) == PairOutcome::kYield);
+    // A partner whose graph does not run (its AI off): no pair, whether it is free or crossed.
+    CHECK(SettlePairedReplay(PairedReplay{"pa_A", 5, false, "", 0, 10, 0, 2, 1, false}) == PairOutcome::kSkip);
+    CHECK(SettlePairedReplay(PairedReplay{"pa_A", 5, true, "B", 5, 10, 20, 2, 1, false}) == PairOutcome::kSkip);
 }
 
 TEST_CASE("A blocked mark refuses an owner's pair, never a replayed one", "[copies][replay-state][kill-move]")

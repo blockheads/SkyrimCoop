@@ -6,6 +6,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Messages/Relayed.h>
@@ -34,12 +35,48 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<&AiStateService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&AiStateService::OnSessionActor<LocalComponent>>(m_connections, m_world.on_construct<LocalComponent>(), this);
+    Listen<&AiStateService::OnSessionActor<LocalComponent>>(m_connections, m_world.on_update<LocalComponent>(), this);
+    Listen<&AiStateService::OnSessionActor<RemoteComponent>>(m_connections, m_world.on_construct<RemoteComponent>(), this);
+    Listen<&AiStateService::OnSessionActor<RemoteComponent>>(m_connections, m_world.on_update<RemoteComponent>(), this);
+}
+
+template <class T> void AiStateService::OnSessionActor(entt::registry& aRegistry, entt::entity aEntity) noexcept
+{
+    m_newSessions.insert(aRegistry.get<T>(aEntity).Id);
+}
+
+void AiStateService::ResolveNewSessions() noexcept
+{
+    // A look or fight at these actors resolved to nothing while they had no session id here: owners send again, copies
+    // take their owner's state again.
+    std::unordered_set<uint32_t> forms;
+    for (const uint32_t cSessionId : m_newSessions)
+        if (const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId))
+            forms.insert(cFormId);
+    auto view = m_world.view<FormIdComponent, LocalComponent>();
+    for (const auto cEntity : view)
+    {
+        const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+        if (!m_actorBridge.ActorExists(cFormId))
+            continue;
+        const auto cFields = m_actorBridge.GetActorAiFields(cFormId);
+        if (forms.contains(cFields.CombatTargetId) || std::ranges::any_of(cFields.HeadTrackIds, [&](uint32_t aId) { return forms.contains(aId); }))
+            SendOwned(cFormId, view.get<LocalComponent>(cEntity).Id);
+    }
+    for (const auto& [cCopy, cState] : m_owners)
+        if (m_newSessions.contains(cState.CombatTarget.SessionId) ||
+            std::ranges::any_of(cState.HeadTrack, [&](const AiTarget& acTarget) { return m_newSessions.contains(acTarget.SessionId); }))
+            ApplyToCopy(cCopy);
+    m_newSessions.clear();
 }
 
 void AiStateService::OnUpdate(const UpdateEvent&) noexcept
 {
     PROFILE_ZONE("AiStateService::OnUpdate");
     if (!m_transport.IsConnected()) return;
+    if (!m_newSessions.empty())
+        ResolveNewSessions();
     // Scene stop (24140) sends its event before clearing the actors.
     const auto changes = SceneRefresh::ReadChanges(m_sent, [this](uint32_t aSessionId) -> std::optional<ActorAiState> {
         const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
@@ -117,6 +154,7 @@ void AiStateService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_sent.clear();
     m_owners.clear();
+    m_newSessions.clear();
     m_actorBridge.SetCopiesFightingPlayer(0);
 }
 

@@ -6,6 +6,8 @@
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
 
+#include <unordered_set>
+
 class IActorBridge;
 struct ActorAiFields;
 
@@ -44,6 +46,10 @@ protected:
 private:
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    // An actor gained its session id here (its copy spawned, or this game took it).
+    template <class T> void OnSessionActor(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    // Owned actors and copies whose target is one of those actors read it again, now resolvable.
+    void ResolveNewSessions() noexcept;
     // One of this game's actors: its state goes out when it differs from the last sent.
     void SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept;
     // The copy of that session id, if this game has it, takes its owner's state.
@@ -64,6 +70,8 @@ private:
     std::unordered_map<uint32_t, ActorAiState> m_sent;
     // Per copy (session id): its owner's state.
     std::unordered_map<uint32_t, ActorAiState> m_owners;
+    // Session ids that gained an actor here since the last update.
+    std::unordered_set<uint32_t> m_newSessions;
 
     std::vector<entt::scoped_connection> m_connections;
 };

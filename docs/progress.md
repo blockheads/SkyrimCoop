@@ -49,6 +49,15 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: two copy-desync follow-ups fixed (`agent/bugs-copy-desync`). A copy's look or fight target no longer stays
+on nobody when the target gains its session id after the state naming it (a created actor looked at in the frame it
+appears, a player's copy spawning after an NPC's): when an actor gets its session id, each game reads its own actors again
+and applies again the copies naming it (`AiStateService`, copy-contract.md "AI state"; GameTests `[ai][headtrack]`). And a
+guest's kill move on a host NPC whose AI is off (frozen, or a script's `EnableAI(false)`) no longer holds the NPC in a kill
+move forever: the host plays no replayed pair with a partner whose graph does not run, as its own pick refuses one, and the
+guest's blow kills it (kill-moves.md, "A partner whose graph stops"; scenario `frozen-wolf-kill-move`, GameTests
+`[kill-move]`). The other entries of bugs.md's section stay open: rechecked against dev, no later change touched them.
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the

@@ -294,7 +294,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             const ActionEvent cPair = pPartner->GetExtension()->LatestPairAction.Read();
             const auto cOutcome = ReplayState::SettlePairedReplay(
                 {first.EventName.c_str(), apActor->formID, pPartner->IsInKillMove(), cPair.TargetEventName.c_str(), cPair.TargetId,
-                 first.Tick, cPair.Tick, Utils::GetSessionIdByFormId(apActor->formID).value_or(0), Utils::GetSessionIdByFormId(pPartner->formID).value_or(0)});
+                 first.Tick, cPair.Tick, Utils::GetSessionIdByFormId(apActor->formID).value_or(0), Utils::GetSessionIdByFormId(pPartner->formID).value_or(0),
+                 (pPartner->flags1 & Actor::kProcessMe) != 0});
             if (cOutcome == ReplayState::PairOutcome::kYield)
             {
                 spdlog::debug("{:X}'s pair yields to {:X}'s '{}', swung first", pPartner->formID, apActor->formID, first.EventName);
@@ -312,7 +313,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             }
             if (cOutcome == ReplayState::PairOutcome::kSkip)
             {
-                spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} was in a kill move", apActor->formID, first.ActionId,
+                spdlog::debug("Copy {:X}: paired action {:X} '{}' not played, {:X} in a kill move or its graph stopped", apActor->formID, first.ActionId,
                               first.EventName, pPartner->formID);
                 aAnimationComponent.LastRanAction = first;
                 apActor->GetExtension()->LatestAnimation.Write(first);

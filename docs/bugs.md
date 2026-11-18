@@ -53,7 +53,6 @@ every other section needs the duo.
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
-- [A frozen NPC a guest's kill move missed](#a-frozen-npc-a-guests-kill-move-missed): small
 
 **Ragdolls and death poses**
 
@@ -182,7 +181,7 @@ Size: small. Needs: IDA, the duo (`party-buys-house-host`, `--repeat`), then Gam
 ### After a guest rejoins
 
 The harness's `rejoin_client` joins again from a running game, keeping that game's world; a player leaves to the main menu and joins
-with the host's save (`joins_with_world`). Two differences follow that path, at Lucan's in Riverwood, 2026-11-07. Whether either
+with the host's save (`joins_with_world`). These differences follow that path, at Lucan's in Riverwood, 2026-11-07. Whether any
 reaches a player: unread.
 
 Agent task: read whether a player can reach this path, then make a scenario for what can.
@@ -191,14 +190,10 @@ Size: small. Needs: the duo (Riverwood), then GameTests.
 
 - **References differ** (4 of 4): 13 to 15 references, containers by the change flag `0x8000000` on the host only (CommonLib
   `kLeveledInventory`, not read here) and loose objects' poses. It does not depend on time away: 1 s did it.
-- **A copy that looks at nobody** (1 of 4): Lucan's owner read `['session 1']`, his copy `[]`, through the check's window. Read, not
-  measured: `AiStateService::ToFields` resolves a target's session id once, as the state arrives (`OnCharacterSpawn`,
-  `OnNotifyAiState`), and nothing applies it again when the target's copy appears; the owner sends again only when its slots
-  change (`AiStateEvents`, `seen`). So the order the spawns arrive in would decide it.
 - **A copy that stays off its owner** (2 of 2, Whiterun, 2026-11-09, `guest_shows_only_hosts_npcs` after its rejoin): a
   Skeleton (`109620`, high process, the same package in both) stood 81 units from its owner and turned 123 degrees from
   it through two reads 5 s apart, neither moving; 130 units and 130 degrees in the next run. Its spawn action is
-  `RagdollInstant`: a body lying in its ragdoll. Also there: a copy looking at nobody, the bullet above. Only after a
+  `RagdollInstant`: a body lying in its ragdoll. Only after a
   rejoin with a guest holding its own NPCs (copy-contract.md, "A guest's own NPCs"), where each NPC is hidden and gets
   its 3D again only after the host's spawn; the same scenario without the rejoin agreed on it. Not read: where a
   ragdolled copy's body settles when its 3D loads after its spawn placed it.
@@ -1494,23 +1489,6 @@ Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset
 load, `SeeGraph`), in the scenario that shows it.
 
 Size: medium. Needs: the duo, GameTests.
-
-## Found with the dev commands (2026-11-16)
-
-### A frozen NPC a guest's kill move missed
-
-The duo, QASmoke, by hand: two wolves staged frozen (`stage`), the guest in daedric gear hits one (`fight`). The guest's
-idle tree picks `pa_KillMove1HMWolfB` on the fatal swing, its engine refuses the pair ("refused by the engine, not
-sent"), and from then on the host refuses every forwarded hit on that wolf ("Forwarded hit on FF00087F by FF000838 not
-applied (gone, or held by a kill move)") for over 50 s; the host's copy of the guest logs "paired action 13005
-'pa_KillMove1HMWolfB' not played, FF00087F was in a kill move". The same at vanilla odds (`/killmove default`) with a
-third wolf. `kill_move_check` on the host: `in_kill_move` false. Unread: what holds the host's wolf (its kill move flag
-or a recorded killer, 38613/38614), and whether an unfrozen NPC does it too.
-
-Agent task: read what `IsHeldByKillMove` answers for the host's wolf after the guest's refused pair, then a GameTests
-flow for it.
-
-Size: small. Needs: the duo (two frozen wolves, the guest's fatal swing), then GameTests.
 
 ## Found by the full run of 2026-11-16
 

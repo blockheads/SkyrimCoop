@@ -185,7 +185,11 @@ get the copy's own answer.
 scene events, a combat target switch (`CombatController::SetTarget` 33235) and the player's in-combat flag
 (`PlayerCharacter::UpdateInCombat` 41238), all in `Games/Skyrim/AiStateEvents.cpp`, mark an owned actor changed; its state is read on the main thread and
 sent (`AiStateRequest`) when it differs from the last sent. A spawn carries it. The host relays it from the owner only
-(`NotifyAiState`). No timed check, no periodic resend. The copy's side, `IActorBridge::SetCopyAiFields` and
+(`NotifyAiState`). No timed check, no periodic resend. A target (a look or a fight) goes by session id for an actor in
+the session; one without a session id yet (a created actor in the frame it appeared, a player's copy still to spawn)
+resolves to nothing. So when an actor gains its session id in a game (its `LocalComponent` or `RemoteComponent`), that
+game reads its owned actors again (sending what now differs) and applies again every copy whose owner's state names
+it (2026-11-18, `[ai][headtrack]`). The copy's side, `IActorBridge::SetCopyAiFields` and
 `Games/Skyrim/CopyAiState.cpp`:
 
 ```

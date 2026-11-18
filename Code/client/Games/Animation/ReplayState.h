@@ -145,7 +145,7 @@ constexpr bool PoseHeld(uint64_t aNow, uint64_t aHeldUntil, bool aDead) noexcept
 enum class PairOutcome
 {
     kPlay,  // the partner here is free
-    kSkip,  // the pair's other half came back, the partner is paired elsewhere, or this game's pair swung first
+    kSkip,  // the pair's other half came back, the partner is paired elsewhere or its graph does not run, or this game's pair swung first
     kYield, // crossed, and the replayed pair swung first: this game ends its own pair, then plays that one
 };
 
@@ -158,12 +158,16 @@ struct PairedReplay
     uint32_t PairTargetId;       // and its target
     uint64_t Tick, PairTick;     // when each pair was swung, on the session's clock
     uint32_t Session, PairSession; // each attacker's session id: same tick, the lower wins
+    bool PartnerAnimates = true;   // its graph runs (kProcessMe, the graph job's gate 41466)
 };
 
 // The engine takes a pair on two actors already paired as the same pair and ends both clips at once (32803). Both games
 // see the same ticks, so they agree who swung first with no message (docs/re/systems/kill-moves.md).
 constexpr PairOutcome SettlePairedReplay(const PairedReplay& acReplay) noexcept
 {
+    // This game's own pick refuses such a pair; forced, it would never end (kill-moves.md, "A partner whose graph stops").
+    if (!acReplay.PartnerAnimates)
+        return PairOutcome::kSkip;
     if (!acReplay.PartnerInKillMove)
         return PairOutcome::kPlay;
     if (acReplay.PairEvent == acReplay.EventName || acReplay.PairTargetId != acReplay.CopyId)
