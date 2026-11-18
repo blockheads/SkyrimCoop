@@ -48,6 +48,7 @@ files = {
     "INSTALL.md": root / "docs/install.md",
     "playtest.md": root / "docs/playtest.md",
     "LICENSE": root / "LICENSE",
+    "NOTICE": root / "NOTICE",
     "licenses/PicoSHA2.txt": root / "Code/external/picosha2/LICENSE",
     "licenses/zstd.txt": root / "Code/external/licenses/zstd.txt",
     "licenses/lz4.txt": root / "Code/external/licenses/lz4.txt",

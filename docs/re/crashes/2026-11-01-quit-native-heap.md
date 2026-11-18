@@ -1,6 +1,6 @@
 # C3: a registered Papyrus native freed through the wrong heap
 
-The 2026-10-31 Fabien playtest's quit crash reproduces on Linux/Proton with dev `c0aa4403`.
+The 2026-10-31 playtest's quit crash reproduces on Linux/Proton with dev `c0aa4403`.
 A fresh solo game at the main menu, selecting Quit and confirming it through native keyboard input,
 crashed at 2026-11-01 10:48:52. No session or partner was needed. The game was stopped and the shared duo
 released before offline regression work.

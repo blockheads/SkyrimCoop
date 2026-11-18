@@ -1,7 +1,7 @@
 # Game-test coverage destinations
 
-The refactor keeps the gameplay coverage from `c755e622`. The [machine-readable ledger](../reports/2026-10-30-game-test-flow-coverage.json)
-records 1,036 source flows, helpers, shared specs and trace objects, with setup/actions, original checks and destinations.
+The refactor keeps the gameplay coverage from `c755e622`. A machine-readable ledger (deleted 2026-11-18; in git history before then)
+recorded 1,036 source flows, helpers, shared specs and trace objects, with setup/actions, original checks and destinations.
 Its `native_flows` table maps every one of the 295 original Skyrim registrations to one of the 292 canonical flows.
 Fake-engine and Skyrim checks remain separate entries.
 

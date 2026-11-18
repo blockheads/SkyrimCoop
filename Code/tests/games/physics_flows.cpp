@@ -886,7 +886,7 @@ SCENARIO("A guest's player holds the plate: the host's player cannot grab it, no
 SCENARIO("A guest's player lowers the plate onto a host NPC's head: its copy stops it, as every other game shows",
          "[physics]")
 {
-    // S1 (playtests/2026-10-31-fabien.md, guest-bucket-on-npc-head): a held object went through heads. The hold is
+    // S1 (the 2026-10-31 playtest, guest-bucket-on-npc-head): a held object went through heads. The hold is
     // the holder's alone (2026-11-02): its own game's physics stops it on her copy (stepped, so its capsule pushes:
     // actor-movement.md, "Copies step"), and every other game shows its frames.
     Party party(2, PluginsWithLydia);

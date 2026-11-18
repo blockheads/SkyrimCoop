@@ -408,7 +408,7 @@ HIDE_ARMOR = 0x00013911
 
 def scenario_guest_swaps_armor_after_join(ctx):
     """The guest joins again wearing iron armor (the host puts its kept character back on), then puts on hide armor
-    from the inventory menu: its game and the host's copy wear the hide armor (playtests/2026-10-31-fabien.md S7: the
+    from the inventory menu: its game and the host's copy wear the hide armor (the 2026-10-31 playtest S7: the
     join force-equipped the kept worn set, so the menu could not replace it)."""
     worn = lambda instance, actor: ctx.actor_state(instance, actor).get("equipment", [])
     host_copy = lambda: ctx.player_copy("")

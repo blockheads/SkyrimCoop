@@ -1,6 +1,6 @@
 # What crash breadcrumbs cost: VirtualQuery on every hook call
 
-Found 2026-11-01 on the Windows duo, after the Fabien playtest lagged (fights halved the host's frame rate).
+Found 2026-11-01 on the Windows duo, after the 2026-10-31 playtest lagged (fights halved the host's frame rate).
 
 ## What breadcrumbs do
 

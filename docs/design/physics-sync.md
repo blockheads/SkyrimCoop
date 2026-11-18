@@ -298,7 +298,7 @@ Still open: a dead body's pose when a guest loads its cell or joins, a small bug
 The update hook runs in the Papyrus VM job. `BodyService` applies playback and rests through a scoped
 `MainLoopTasks` task between frames, with current state and synchronous bridge results. Received object rows
 (`GuestWorldState`) use the same phase. Updating their scene graphs inside the VM job made a watched held
-tankard flash green ([S2 native evidence](../../playtests/2026-11-01-s2-green-flash.md)).
+tankard flash green (S2).
 
 `PhysicsBodies` still reads physics snapshots during the update. Its left-behind node repairs are queued and
 rechecked before writing, preserving contacts if the engine already followed them. A rested reference's move
@@ -474,7 +474,7 @@ guest holds a body -> BodyFramesRequest (as before)
 
 ### Steered holds (2026-11-01, replaced 2026-11-02)
 
-S1 of `playtests/2026-10-31-fabien.md`: a guest's held object went through people's heads on the host. The host
+S1 of the 2026-10-31 playtest: a guest's held object went through people's heads on the host. The host
 keyframed its body onto the holder's frames (`SetPositionAndRotation` each frame), and a keyframed body moved so
 meets nothing: whatever the holder's game let through, the host's did too (scenario `guest-bucket-on-npc-head`,
 first run: the guest's bucket 50 units over Lydia's feet in its own game, 69 on the host, keyframed).

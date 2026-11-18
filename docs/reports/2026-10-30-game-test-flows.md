@@ -28,7 +28,7 @@ organization, production interfaces/behavior, snapshots, transport behavior and 
 
 ## Coverage and measurements
 
-[The ledger](2026-10-30-game-test-flow-coverage.json) maps every original source entry and every original Skyrim
+The ledger (deleted 2026-11-18, in git history) maps every original source entry and every original Skyrim
 registration. It distinguishes fake and native boundaries and records unmeasured native runtimes explicitly; this
 batch did not run the full native suite.
 
@@ -89,7 +89,7 @@ No `net_check.sh` or full native suite was run.
 
 ## Evidence
 
-Compact review artifacts are in [the evidence directory](2026-10-30-test-flows-evidence/validation.json): gate output,
+Compact review artifacts were in an evidence directory (deleted 2026-11-18, in git history): gate output,
 core timing samples/case names, native summaries, assertion audit, discovery and regression-control output. Complete
 logs remain in `.worktrees/test-flows/build/coop-test/` (`native-*.log`, `*-control-*.log`, `check-final.log`,
 `inventory-core-*.xml`, `timing-before.xml`). The coverage ledger retains original source locations and check text.
