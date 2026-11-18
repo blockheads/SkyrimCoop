@@ -52,7 +52,8 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 2026-11-17: a guest no longer freezes when the host's temporary NPCs go. The playtest's "coc whiterun crashed the
 guest" was a freeze: the guest deleted the copies, and the animation file job (63997) spun on a deleted copy's lock.
 A copy's movement idle load (kind 47, a turn-to-walk) named the copy's process lock and was never cancelled. Copies now
-hold those sets with their own lock and cancel a load before letting it go, as the engine's movement controller does
+hold those sets with their own lock and callback, kept until none of their loads is queued (no cancel: 63997 takes a
+finished load's lock before it reads a cancel)
 ([animation-file-loads.md](re/systems/animation-file-loads.md)). Tests: GameTests "A copy deleted while its movement
 idle's clips load...", ClientTests `[held-clip-loads]`, scenario `copy_deleted_while_clips_load` (harness `clip_loads`
 holds the guest's file job and lists each load's lock owner).

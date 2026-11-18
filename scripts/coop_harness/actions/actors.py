@@ -176,10 +176,13 @@ class ActorsActions:
         return ctx.player_command(instance, {"cmd": "clip_loads"})["loads"]
 
 
-    def wait_clip_load(ctx, instance, kind=47, timeout=30):
-        """Waits for a live clip load of that set kind queued in that game (hold_clip_loads first); returns the loads."""
-        return ctx.wait_for(f"[{instance or 'host'}] a queued clip load into set {kind}",
-                            lambda: [load for load in ctx.queued_clip_loads(instance) if load["live"] and load["kind"] == kind], timeout)
+    def wait_clip_load(ctx, instance, kind=47, timeout=30, more_than=0):
+        """Waits for more than `more_than` live clip loads of that set kind queued in that game (hold_clip_loads
+        first); returns them."""
+        def queued():
+            loads = [load for load in ctx.queued_clip_loads(instance) if load["live"] and load["kind"] == kind]
+            return len(loads) > more_than and loads
+        return ctx.wait_for(f"[{instance or 'host'}] a new queued clip load into set {kind}", queued, timeout)
 
 
     def copy_goes_while_turn_loads(ctx, base="000A2C8E"):
@@ -195,8 +198,9 @@ class ActorsActions:
         away = math.degrees(math.atan2(at[0] - player[0], at[1] - player[1])) % 360  # z: 0 north, 90 east
         ctx.console_on("", f"{npc:08X}.setangle z {away:.1f}")  # its back to the host's player
         ctx.console_on("", f"{npc:08X}.setrestrained 0")
+        before = len([load for load in ctx.queued_clip_loads("client") if load["live"] and load["kind"] == 47])
         ctx.force_greet("", npc)
-        ctx.wait_clip_load("client", 47)
+        ctx.wait_clip_load("client", 47, more_than=before)
         ctx.remove_host_npc(npc)
         ctx.wait_for("[client] the copy is gone", lambda: not ctx.actor_place("client", copy), 10)
         return copy

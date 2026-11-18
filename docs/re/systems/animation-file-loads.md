@@ -1,6 +1,6 @@
 # Animation file loads
 
-How an actor's clip files get loaded, and why a load must be cancelled before the lock it names goes away. Read in
+How an actor's clip files get loaded, and why the lock a queued load names must outlive the load. Read in
 IDA on 1.7.104, 2026-11-17, for the guest's freeze in the 2026-11-16 playtest.
 
 ## The queue
@@ -12,7 +12,7 @@ IDA on 1.7.104, 2026-11-17, for the guest's freeze in the 2026-11-16 playtest.
 | Queue a load | 63969 / 63968 | Allocates an entry (0x68): `+0x38` the set's kind, `+0x48`/`+0x50` the callback and its argument, `+0x58` **the requester's lock**, `+0x60` live. Pushes `{priority, entry}` on the pending heap (64045) under the manager's lock (`+0x0C`). Returns the entry: the requester's handle. |
 | The queue | | `+0x68` pending (a BSTArray kept as a max-heap by priority, size `+0x78`), `+0x80` the load under way, `+0x88` the finished loads (size `+0x98`). Typed in `Games/Skyrim/AnimationFileManager.h`. |
 | Its job | 63980 | `Job_Animation_files`' update, every frame in the job list. It ends in 63997. |
-| Callbacks | 63997 | For each finished live entry: **takes its `+0x58` lock** (`BSSpinLock::Lock`), then the manager's lock, runs the callback, releases the locks and drops the finished list. |
+| Callbacks | 63997 | First pass: **takes every finished live entry's `+0x58` lock** (`BSSpinLock::Lock`), with no manager lock held. Then the manager's lock, each live entry's callback, then it unlocks the locks of the entries **still live**, and drops the finished list. |
 | Cancel | 63971 → 63986 | Under the manager's lock: drops the load under way, takes the entry off the pending heap (64014), or clears a finished entry's live byte so 63997 skips it. It compares pointers only, so a stale handle is harmless. |
 
 Callers (`coop_LoadEventClips` 43621 and its variants 43622, 43624) pass their own lock. The engine's own owners
@@ -43,12 +43,20 @@ the copy was deleted.
 
 ## What we do
 
-`HeldClipLoads` (`Games/Animation/HeldClipLoads.h`) holds a copy's movement set the way `MovementControllerNPC` holds
-its own:
+A cancel does not make the lock safe to free (Codex's review of PR #71). 63997's first pass may already have read the
+entry's lock pointer, or taken the lock, before the cancel clears `+0x60`. It still takes the lock, then skips the
+unlock because the entry is no longer live. Freeing the lock after the cancel is a use after free; keeping it leaves it
+held forever. The engine's own cancels share this window. We stay out of it by never cancelling.
 
-- Its own lock, which outlives the copy.
-- The pending handle, cancelled when a new load replaces it.
-- When a copy is gone, its holder is cancelled before it is released (swept at the next request).
+`HeldClipLoads` (`Games/Animation/HeldClipLoads.h`) holds a copy's movement sets:
+
+- **Its own lock**, which outlives the copy.
+- **Each queued load's callback reference.** The queue keeps only the pointer (63968 writes it to `+0x40` without
+  taking a reference), so it is released at the holder's next request, not inside the engine's call.
+- **No cancel.** A newer load leaves the older one queued, and only the newest load's set is kept (each load is
+  numbered).
+- **A gone copy's holder** is freed at a later request, once none of its loads is queued. Its last load's callback ran
+  under its lock, and the sweep takes that lock after 63997's unlock, so the job no longer points at it.
 
 `GameTests`: "A copy deleted while its movement idle's clips load leaves no load on its lock" (the fake's loads check
 their lock, `FakeLoadLock`). `ClientTests`: `[held-clip-loads]`.
@@ -65,5 +73,9 @@ The quarantine (`SKYRIMCOOP_HEAP_QUARANTINE`, verb `heap_quarantine` before `duo
 
 - **Before the fix:** the guest froze. The watchdog's stacks are the playtest's: the main thread at `+0x6568f8`, a job
   thread in `BSSpinLock::Lock` (`+0x1b4e0a`) from 63997 (`+0xbe9858`).
-- **With the fix:** three copies deleted with their turn load queued, no stall. The queued load named no actor's lock,
-  and a second copy's request cancelled the first's pending load (one load left queued, not two).
+- **With the first fix** (a cancel before release): three copies deleted with their turn load queued, no stall; the
+  queued load named no actor's lock. That build still had the cancel race above, which the duo's hold cannot reach
+  (the job is stopped while the copy goes); the no-cancel version is checked by the GameTests flow (a second copy's
+  request while the gone one's load is queued) and a threaded probe of 63997's order under ASan.
+- **With the no-cancel fix,** quarantine on: the scenario passes, and two copies deleted while each had a turn load
+  queued (two loads left, neither cancelled) were released with no stall; the guest's main loop ran on.

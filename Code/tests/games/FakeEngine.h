@@ -853,14 +853,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::shared_ptr<std::atomic<bool>> Done;
         uint64_t Lock = 0;            // the requester's (FakeLoadLock), taken before Loaded (63997)
         std::function<void()> Loaded; // its callback, under that lock; none: the action set's
-        uintptr_t Handle = 0;
-        bool Live = true; // cleared by a cancel (63986)
     };
     std::vector<ClipLoad> ClipLoads;
     uintptr_t m_nextClipLoad = 0;
     // Loads that came to a lock no longer there: Skyrim's animation file job would spin on it forever (63997).
     size_t ClipLoadHangs = 0;
-    void CancelClipLoad(void* apLoad) noexcept; // 63971
     // An owner's movement selector loads an idle's clips into its own set (IMovementSelectIdle 41694, kind 47).
     void LoadMovementClips(uint32_t aFormId, const std::string& acEvent);
     // A copy's movement idle set, loaded as its owner's stream says (ActionClips::Request, kMovement).

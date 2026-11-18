@@ -56,3 +56,6 @@ time	op	id	rva	item
 2026-11-18T01:59:21Z	comment		0xebc248	{"addr": "0x140ebc248", "comment": "Job list runner (not on the hang's path beyond running Job_Animation_files): calls each job's function, sets the list's done event when the last ends."}
 2026-11-18T02:17:07Z	data			{"old": "qword_1431E0B30", "new": "g_AnimationFileManager"}
 2026-11-18T02:37:12Z	read	39798	0x71fec0	{"name": "sub_14071FEC0"}
+2026-11-18T04:26:12Z	read	63998	0xbe99d0	{"name": "sub_140BE99D0"}
+2026-11-18T04:33:56Z	comment	63969	0xbe75d0	{"addr": "0x140be75d0", "comment": "63969 queues a clip-file load: (manager, id, files, priority, callback, callbackArg, lock, flag). Entry (0x68): +0x38 id, +0x40 callback functor (raw pointer, no reference taken: 63968 via 0x140BE99D0), +0x58 the CALLER's lock, +0x60 live. The lock and callback must outlive the load: a cancel (63971) cannot stop 63997's first pass, which may already hold the lock."}
+2026-11-18T04:33:56Z	comment	63971	0xbe7920	{"addr": "0x140be7920", "comment": "63971 cancels a queued load (handle in rdx) under the manager lock (+0xC); a finished one only gets its live byte cleared. Too late if 63997's first pass already read the entry: it still takes the lock and then skips the unlock. Owners call it on teardown anyway: MovementControllerNPC dtor 41692, coop_CancelLoad 39258, 39798."}

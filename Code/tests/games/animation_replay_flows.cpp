@@ -1677,11 +1677,25 @@ TEST_CASE("A copy deleted while its movement idle's clips load leaves no load on
     party.Until([&] { return guest.CopiesOf(0x1A684).size() == 1; }, "the copy appears");
     const uint32_t cCopy = guest.CopiesOf(0x1A684).front();
     party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy starts on its owner's stream");
+    // A second NPC, made first so its copy has an id of its own (a deleted copy's id is the next one made).
+    uint32_t other = 0;
+    party.As(party.Host(), [&] {
+        other = host.LoadNpc(0x1A685, 0x31D2E, {});
+        host.Actors.at(other).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A685).size() == 1; }, "a second copy appears");
+    const uint32_t cOther = guest.CopiesOf(0x1A685).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cOther); }, "the second copy starts on its stream");
     party.As(party.Host(), [&] { host.LoadMovementClips(npc, "TurnToWalk"); });
-    party.Until([&] { return std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy && acLoad.Live; }); },
+    party.Until([&] { return std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy; }); },
                 "the copy loads its owner's movement idle's clips");
     party.As(party.Host(), [&] { host.Actors.erase(npc); });
     party.Until([&] { return !guest.Actors.contains(cCopy); }, "the guest deletes the copy");
+    // Another copy's load while the gone one's is still queued: its holder (lock and callback) stays until that ends.
+    party.As(party.Host(), [&] { host.LoadMovementClips(other, "TurnToWalk"); });
+    party.Until([&] { return std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cOther; }); },
+                "the second copy loads its movement idle's clips");
+    REQUIRE(std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy; }));
     party.Until([&] { return guest.ClipLoads.empty(); }, "the guest's clip loads end");
     CHECK(guest.ClipLoadHangs == 0);
 }

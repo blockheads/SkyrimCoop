@@ -1,7 +1,6 @@
 #include <Games/Skyrim/ActionClips.h>
 
 #include <Games/Animation/HeldClipLoads.h>
-#include <Games/Skyrim/AnimationFileManager.h>
 
 #include <AI/AIProcess.h>
 #include <Actor.h>
@@ -20,7 +19,6 @@ using TAssignCallback = void*(void**, void*);
 struct MovementSet
 {
     AnimationClipSet Set{};
-    void* Callback = nullptr; // the load's, by its count (39731)
 };
 // The engine's spin lock, as the queue takes it (63997).
 struct HeldLock
@@ -34,18 +32,24 @@ HeldClipLoads<MovementSet, HeldLock> s_movement;
 void Release(MovementSet& aHeld)
 {
     POINTER_SKYRIMSE(TReleaseSet, ReleaseSet, 38275);
-    POINTER_SKYRIMSE(TAssignCallback, AssignCallback, 39731);
     if (aHeld.Set.size)
         ReleaseSet(&aHeld.Set, true);
-    AssignCallback(&aHeld.Callback, nullptr);
+}
+
+// A load's callback reference, by its count (39731): the queue keeps only the pointer (63968 +0x40).
+void ReleaseCallback(void* apCallback)
+{
+    POINTER_SKYRIMSE(TAssignCallback, AssignCallback, 39731);
+    AssignCallback(&apCallback, nullptr);
 }
 
 // IAnimationSetCallbackFunctor: the engine holds it by its count and calls Loaded on the loader's side.
 struct ClipsLoaded
 {
-    ClipsLoaded(AIProcess& aProcess, uint32_t aFormId, std::shared_ptr<std::atomic<bool>> aDone) noexcept
+    ClipsLoaded(AIProcess& aProcess, uint32_t aFormId, std::shared_ptr<std::atomic<bool>> aDone, uint32_t aNumber = 0) noexcept
         : m_pProcess(&aProcess)
         , m_formId(aFormId)
+        , m_number(aNumber)
         , m_done(std::move(aDone))
     {
     }
@@ -55,6 +59,7 @@ struct ClipsLoaded
     volatile LONG m_refCount{0}; // 08
     AIProcess* m_pProcess;
     uint32_t m_formId;
+    uint32_t m_number; // a movement set's load, in its holder (HeldClipLoads)
     std::shared_ptr<std::atomic<bool>> m_done;
 };
 
@@ -67,7 +72,7 @@ void ClipsLoaded::Loaded(uint32_t aKind, AnimationClipSet* apSet)
     if (aKind == ActionClips::kMovement)
     {
         // Kept as 40055 keeps a process's: the set's contents swapped in, the old ones released.
-        s_movement.Loaded(m_formId, [apSet](MovementSet& aHeld) {
+        s_movement.Loaded(m_formId, m_number, [apSet](MovementSet& aHeld) {
             std::swap(aHeld.Set.data, apSet->data);
             std::swap(aHeld.Set.capacity, apSet->capacity);
             std::swap(aHeld.Set.size, apSet->size);
@@ -112,22 +117,18 @@ std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, S
     void* pLoad = nullptr;
     if (aSet == kMovement)
     {
-        // Its own lock, not the copy's process's: a queued load takes it before its callback (63997).
+        // Its holder's lock and callback, not the copy's: a queued load takes the lock and calls back (63997).
         pLoad = s_movement.Request(
             aActor.formID, [](uint32_t aFormId) { return !TESForm::GetById(aFormId); },
-            [&](auto& aHolder) {
-                AssignMiddleCallback(&aHolder.Data.Callback, new ClipsLoaded(*pProcess, aActor.formID, done));
-                void* pQueued = LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(aHolder.Data.Callback),
-                                               &aHolder.LoadLock.Lock, true);
-                if (!pQueued)
-                    AssignMiddleCallback(&aHolder.Data.Callback, nullptr);
-                return pQueued;
+            [&](uint32_t aNumber) {
+                void* pCallback = nullptr;
+                AssignMiddleCallback(&pCallback, new ClipsLoaded(*pProcess, aActor.formID, done, aNumber));
+                return pCallback;
             },
-            [](void* apLoad) {
-                if (AnimationFileManager* pManager = AnimationFileManager::Get())
-                    pManager->Cancel(apLoad);
+            [&](auto& aHolder, void* apCallback) {
+                return LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(apCallback), &aHolder.LoadLock.Lock, true);
             },
-            [](MovementSet& aHeld) { Release(aHeld); });
+            &ReleaseCallback, [](MovementSet& aHeld) { Release(aHeld); });
     }
     else
     {

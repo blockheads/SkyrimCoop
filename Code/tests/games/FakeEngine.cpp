@@ -599,15 +599,13 @@ void FakeEngine::Frame()
         }
     for (auto it = ClipLoads.begin(); it != ClipLoads.end();)
     {
-        if (it->Live && it->Frames-- > 0)
+        if (it->Frames-- > 0)
         {
             ++it;
             continue;
         }
         const ClipLoad cLoad = std::move(*it);
         it = ClipLoads.erase(it);
-        if (!cLoad.Live)
-            continue;
         if (cLoad.Lock && !FakeLoadLock::Live(cLoad.Lock))
         {
             ++ClipLoadHangs; // 63997 spins on the freed lock: Skyrim's frame never ends
@@ -1571,13 +1569,6 @@ bool FakeLoadLock::Live(uint64_t aId) noexcept
     return s_liveLoadLocks.contains(aId);
 }
 
-void FakeEngine::CancelClipLoad(void* apLoad) noexcept
-{
-    for (auto& load : ClipLoads)
-        if (load.Handle == reinterpret_cast<uintptr_t>(apLoad))
-            load.Live = false;
-}
-
 void FakeEngine::LoadMovementClips(uint32_t aFormId, const std::string& acEvent)
 {
     if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
@@ -1590,17 +1581,19 @@ std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFo
     if (cActor == Actors.end() || (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent)))
         return nullptr;
     auto done = std::make_shared<std::atomic<bool>>(false);
-    // As ActionClips: the holder's lock, a load under way cancelled before its holder goes.
+    // As ActionClips: the holder's lock and callback; the holder goes once none of its loads is queued.
     void* pLoad = MovementSets.Request(
         aFormId, [this](uint32_t aId) { return !Actors.contains(aId); },
-        [&](auto& aHolder) {
-            const uintptr_t cHandle = ++m_nextClipLoad;
+        [](uint32_t aNumber) { return reinterpret_cast<void*>(uintptr_t(aNumber)); },
+        [&](auto& aHolder, void* apCallback) {
+            const uint32_t cNumber = uint32_t(reinterpret_cast<uintptr_t>(apCallback));
             ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done, aHolder.LoadLock.Id,
-                                 [this, aFormId, acEvent] { MovementSets.Loaded(aFormId, [&](MovementSet& aSet) { aSet.Event = acEvent; }); },
-                                 cHandle});
-            return reinterpret_cast<void*>(cHandle);
+                                 [this, aFormId, acEvent, cNumber] {
+                                     MovementSets.Loaded(aFormId, cNumber, [&](MovementSet& aSet) { aSet.Event = acEvent; });
+                                 }});
+            return reinterpret_cast<void*>(++m_nextClipLoad); // the load, as 43621 returns it
         },
-        [this](void* apLoad) { CancelClipLoad(apLoad); }, [](MovementSet&) {});
+        [](void*) {}, [](MovementSet&) {});
     return pLoad ? done : nullptr;
 }
 

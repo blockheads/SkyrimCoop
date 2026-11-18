@@ -3,7 +3,7 @@
 #include <Games/Primitives.h>
 
 // A queued clip-file load (63969/63968, 0x68): the requester's lock is taken before its callback runs (63997), so it
-// must outlive the load or be cancelled first (63971). docs/re/systems/animation-file-loads.md
+// must outlive the load: a cancel (63971) comes too late once 63997 has taken it. docs/re/systems/animation-file-loads.md
 struct AnimationFileLoad
 {
     volatile LONG refCount; // 00
@@ -35,8 +35,6 @@ struct AnimationFileManager
     GameArray<AnimationFileLoad*> finished; // 88
 
     static AnimationFileManager* Get() noexcept;
-    // 63971: takes the load off the queue, or clears a finished one's live flag; a pointer compare only.
-    void Cancel(void* apLoad) noexcept;
 };
 static_assert(offsetof(AnimationFileManager, lock) == 0x0C);
 static_assert(offsetof(AnimationFileManager, pending) == 0x68);
