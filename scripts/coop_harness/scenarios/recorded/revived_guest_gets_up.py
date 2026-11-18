@@ -41,6 +41,8 @@ def kill_move(ctx):
     ctx.place_before(instance='', target=ctx.player_copy(instance=''), gap=70)
     ctx.draw(instance='')
     ctx.attack(instance='')
+    ctx.wait_for("[host] the kill move pairs the host with the guest's copy",
+                 lambda: ctx.graph_bools('', "bIsSynced")["bIsSynced"], 3)
 
 
 def run(ctx):

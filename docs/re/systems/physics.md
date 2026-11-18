@@ -421,8 +421,8 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   - How it starts and ends (read in IDA 2026-11-18). `BeginGetUp` (40150; actor, send action) sets the graph's
     `iGetUpType` to 1 or 2, plays `kActionGetUp` (default object 108) and sets state 5; the knock update turns 5
     into 6. Only the graph ends it: its `GetUpEnd` event reaches `GetUpEndHandler` (42880), which for `iGetUpType`
-    1 or 2 queues task 14 (`TaskQueueInterface::QueueEndKnockState`, `0x140668310`), and the task runs
-    `AIProcess::EndKnockState` (`0x140723FF0`: ragdoll keyframed or out of the world, knock state 0, the player's
+    1 or 2 queues task 14 (`TaskQueueInterface::QueueEndKnockState`, 36918), and the task runs
+    `AIProcess::EndKnockState` (39897: ragdoll keyframed or out of the world, knock state 0, the player's
     bleedout camera left). A graph that never sends `GetUpEnd` leaves the actor at 6 for good.
 - **A kill move's victim copy keeps its ragdoll** (read in IDA and measured 2026-11-18). The victim state sends the
   graph event `AddRagdollToWorld` at the pair's start (`AddRagdollHandler` 42873: the 3D's collision, its ragdoll's

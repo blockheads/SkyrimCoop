@@ -1475,8 +1475,6 @@ void FakeEngine::EndKillMove(uint32_t aFormId)
     actor.InKillMove = false;
     if (actor.KilledBy)
         KillActor(aFormId);
-    else if (!actor.InFurniture)
-        actor.BodiesLayer = 0; // a living victim's ragdoll out of the world as it stands (inferred, not read)
 }
 
 bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
