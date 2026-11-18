@@ -1654,6 +1654,52 @@ TEST_CASE("A copy keeps its owner's idle's clip files through a turn its owner's
     CHECK(FirstGraphDifference(cOwner.Graph.History, guest.Actors.at(cCopy).Graph.History) == "");
 }
 
+TEST_CASE("A copy deleted while its movement idle's clips load leaves no load on its lock", "[animation][replay-start]")
+{
+    // Skyrim (a guest's game, 2026-11-16): the guest froze as it deleted copies of the host's temporary NPCs. A copy's
+    // movement idle load (ActionClips, kind 47) named its process's lock and was never cancelled; the animation file
+    // job (63997) took the freed lock and spun (docs/re/systems/animation-file-loads.md).
+    Party party(1, SmokeWorld, true);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    for (auto* engine : {&host, &guest})
+    {
+        engine->Graph = FakeGraphRules{.Clips = {{.State = "Walking", .Ms = 500, .Starts = {"Walking"}}}};
+        engine->GraphTransitions = {{{"Standing", "TurnToWalk"}, "Walking"}};
+        engine->OtherSetClips = {"TurnToWalk"};
+    }
+    guest.ClipLoadFrames = 600; // a slow read: still queued when the copy goes
+    uint32_t npc = 0;
+    party.As(party.Host(), [&] {
+        npc = host.LoadNpc(0x1A684, 0x31D2E, {});
+        host.Actors.at(npc).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A684).size() == 1; }, "the copy appears");
+    const uint32_t cCopy = guest.CopiesOf(0x1A684).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cCopy); }, "the copy starts on its owner's stream");
+    // A second NPC, made first so its copy has an id of its own (a deleted copy's id is the next one made).
+    uint32_t other = 0;
+    party.As(party.Host(), [&] {
+        other = host.LoadNpc(0x1A685, 0x31D2E, {});
+        host.Actors.at(other).GraphState = "Standing";
+    });
+    party.Until([&] { return guest.CopiesOf(0x1A685).size() == 1; }, "a second copy appears");
+    const uint32_t cOther = guest.CopiesOf(0x1A685).front();
+    party.Until([&] { return party.Guest().GetGraphStreams().OnStream(cOther); }, "the second copy starts on its stream");
+    party.As(party.Host(), [&] { host.LoadMovementClips(npc, "TurnToWalk"); });
+    party.Until([&] { return std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy; }); },
+                "the copy loads its owner's movement idle's clips");
+    party.As(party.Host(), [&] { host.Actors.erase(npc); });
+    party.Until([&] { return !guest.Actors.contains(cCopy); }, "the guest deletes the copy");
+    // Another copy's load while the gone one's is still queued: its holder (lock and callback) stays until that ends.
+    party.As(party.Host(), [&] { host.LoadMovementClips(other, "TurnToWalk"); });
+    party.Until([&] { return std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cOther; }); },
+                "the second copy loads its movement idle's clips");
+    REQUIRE(std::ranges::any_of(guest.ClipLoads, [&](const auto& acLoad) { return acLoad.FormId == cCopy; }));
+    party.Until([&] { return guest.ClipLoads.empty(); }, "the guest's clip loads end");
+    CHECK(guest.ClipLoadHangs == 0);
+}
+
 TEST_CASE("A copy starting mid-idle holds the props its owner's idle drew before its sync point", "[animation][replay-start][props]")
 {
     // Skyrim (duo, Riverwood, 2026-11-16): Alvor at his forge with no hammer on the guest; the idle's first clip draws

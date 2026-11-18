@@ -462,10 +462,12 @@ struct FakeGraphTarget final : IGraphTarget
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
     void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override { FakeEngine::HoldAnimObjects(Actor, aObjects); }
-    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
         const auto cEvents = Engine.GraphEventTable();
-        return aEventId < cEvents.size() ? Engine.RequestActionClips(FormId, cEvents[aEventId]) : nullptr;
+        if (aEventId >= cEvents.size())
+            return nullptr;
+        return aSet == 47 ? Engine.RequestMovementClips(FormId, cEvents[aEventId]) : Engine.RequestActionClips(FormId, cEvents[aEventId]);
     }
 };
 } // namespace
@@ -603,10 +605,18 @@ void FakeEngine::Frame()
             ++it;
             continue;
         }
-        if (const auto cActor = Actors.find(it->FormId); cActor != Actors.end())
-            cActor->second.LoadedClips = {it->Event};
-        it->Done->store(true);
+        const ClipLoad cLoad = std::move(*it);
         it = ClipLoads.erase(it);
+        if (cLoad.Lock && !FakeLoadLock::Live(cLoad.Lock))
+        {
+            ++ClipLoadHangs; // 63997 spins on the freed lock: Skyrim's frame never ends
+            continue;
+        }
+        if (cLoad.Loaded)
+            cLoad.Loaded();
+        else if (const auto cActor = Actors.find(cLoad.FormId); cActor != Actors.end())
+            cActor->second.LoadedClips = {cLoad.Event};
+        cLoad.Done->store(true);
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
@@ -1568,6 +1578,56 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 uint32_t FakeEngine::DrawGraphRandom(Actor& aActor) noexcept
 {
     return aActor.GraphRandom = aActor.GraphRandom * 1664525 + 1013904223;
+}
+
+namespace
+{
+std::set<uint64_t> s_liveLoadLocks;
+uint64_t s_nextLoadLock = 0;
+} // namespace
+
+FakeLoadLock::FakeLoadLock()
+    : Id(++s_nextLoadLock)
+{
+    s_liveLoadLocks.insert(Id);
+}
+
+FakeLoadLock::~FakeLoadLock()
+{
+    s_liveLoadLocks.erase(Id);
+}
+
+bool FakeLoadLock::Live(uint64_t aId) noexcept
+{
+    return s_liveLoadLocks.contains(aId);
+}
+
+void FakeEngine::LoadMovementClips(uint32_t aFormId, const std::string& acEvent)
+{
+    if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
+        streams.OnClips(aFormId, streams.Tick(), 47, GraphEventId(acEvent));
+}
+
+std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto cActor = Actors.find(aFormId);
+    if (cActor == Actors.end() || (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent)))
+        return nullptr;
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    // As ActionClips: the holder's lock and callback; the holder goes once none of its loads is queued.
+    void* pLoad = MovementSets.Request(
+        aFormId, [this](uint32_t aId) { return !Actors.contains(aId); },
+        [](uint32_t aNumber) { return reinterpret_cast<void*>(uintptr_t(aNumber)); },
+        [&](auto& aHolder, void* apCallback) {
+            const uint32_t cNumber = uint32_t(reinterpret_cast<uintptr_t>(apCallback));
+            ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done, aHolder.LoadLock.Id,
+                                 [this, aFormId, acEvent, cNumber] {
+                                     MovementSets.Loaded(aFormId, cNumber, [&](MovementSet& aSet) { aSet.Event = acEvent; });
+                                 }});
+            return reinterpret_cast<void*>(++m_nextClipLoad); // the load, as 43621 returns it
+        },
+        [](void*) {}, [](MovementSet&) {});
+    return pLoad ? done : nullptr;
 }
 
 std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)

@@ -1274,8 +1274,8 @@ Size: small. Needs: IDA, then the duo.
   copy 1348A loads IdleMillLoadStart's clip files into set 4: loading" (the mill worker). The party had just arrived in
   Riverwood by `coc`, both players still on a horse. Crash log: the guest prefix's
   `SKSE/crash-2026-11-17-23-28-37.log`.
-  - Start: read 63980/63997 (what the clip load's job holds) against the graph stream's clip-file loads
-    (`GraphStreamHooks.cpp`, `SendClipLoads`).
+  - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
+    deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
 
 ### Whiterun plains' critters differ
 
