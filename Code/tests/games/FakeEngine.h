@@ -83,6 +83,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::map<uint32_t, std::vector<PartyThreat::Candidate>> CombatCandidates;
     std::map<uint32_t, uint32_t> CombatProposals; // Periodic native recalculation (47191/47195).
     std::map<uint64_t, PartyThreat::Perception> CombatPerception;
+    // Pairs (State::Key) not yet in the NPC's combat group, its reaction calling them no enemy: admitted (and erased)
+    // once it is (CombatGroup::AddTarget 44704 needs CanAttackActor 37532; combat-targets.md).
+    std::set<uint64_t> CombatFriendly;
     uint32_t CombatSelectionsPerFrame{1};
     void RunNativeCombat() noexcept;
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
@@ -148,17 +151,29 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     std::string PlayerId() noexcept override;
     // As JoinBridge: a save or a load is made on the next main loop frame (RunMainLoop), never inside our update.
     std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
+    SaveFiles MakeSave();
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
     std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     // As PreviousGameplaySave: the newest save on disk of CharacterId, not a SkyrimCoop scratch save.
-    std::optional<std::string> PreviousSave() noexcept override;
     void SetCharacter(uint32_t aCharacterId) noexcept override { CharacterId = aCharacterId; }
     // The engine's currentCharacterID: a load sets it from the save's file name (SaveNames::CharacterId, 0 for
     // SkyrimCoopWipe), the engine's own saves are named with it.
     uint32_t CharacterId = 0;
     std::map<std::string, SaveFiles> SavedFiles;
+    // As JoinBridge's worker thread, but in step: the work runs at once and what it returns right after, or with
+    // DefersWork both wait for the next FinishWork (JoinService's update), as work still running would.
+    bool DefersWork = false;
+    std::vector<std::function<std::function<void()>()>> QueuedWork;
+    void OffThread(std::function<std::function<void()>()> aWork) noexcept override;
+    void FinishWork() noexcept override;
+    // The save sync store's files, the newest first.
+    std::vector<std::pair<std::string, std::string>> HeldSaveFiles;
+    std::vector<std::string> HeldSaves() noexcept override;
+    std::optional<std::string> ReadHeldSave(const std::string& acId) noexcept override;
+    bool WriteHeldSave(const std::string& acId, const std::string& acData) noexcept override;
+    void DropHeldSave(const std::string& acId) noexcept override;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
     PlayerKnowledge Knowledge; // native ingredient/enchantment forms, separate from the actor's state
@@ -179,6 +194,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     bool PlayerLoads(const std::string& acName);
     // The engine's own autosave (a load door, fast travel, waiting), through the same hook.
     bool Autosaves(const std::string& acName);
+    // A quicksave or autosave with its file: made now, written by the save thread after Save_Impl returned (35794),
+    // here on the next main loop frame. SaveWrittenEvent follows every written file, a menu save's at once.
+    bool Quicksaves(const std::string& acName);
+    std::vector<std::pair<std::string, SaveFiles>> SaveThread; // made, not yet written
+    std::string SavePadding;                                   // more bytes in each save's game file (a real one has megabytes)
     std::vector<std::string> Saves;
     std::optional<std::string> PendingSave;            // asked for, made by the next main loop frame
     std::optional<std::optional<SaveFiles>> MadeSave;  // made (or refused), for the next SaveNow
@@ -883,6 +903,29 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     // The native mount interaction, replayed for copies by CharacterService.
     std::map<uint32_t, uint32_t> Mounts;
     void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
+    void ActorEndRide(uint32_t aRider) noexcept override;
+    // NPC bases that are mounts (flags2 kIsAMount): a horse.
+    std::set<uint32_t> MountBases{0x109E3D};
+    bool IsActorMount(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && MountBases.contains(it->second.Base);
+    }
+    // flags2 kGettingOnOffMount, set by InitiateMountPackage (37905) and Dismount (37906): a copy runs neither
+    // package, so on a copy it stays (in Skyrim until its next ride).
+    std::set<uint32_t> GettingOnOff;
+    // A character activating a mount (Character::ActivateMount 37864): its own mount -> Dismount; free ->
+    // InitiateMountPackage (an own actor rides, our hook raising MountEvent); ridden by another -> nothing.
+    bool ActivateMount(uint32_t aActivator, uint32_t aMount);
+    // Actor::Dismount (37906) on a rider: its exit clip ends the ride aFrames later (FinishDismount 38696).
+    void StartDismount(uint32_t aRider, uint32_t aFrames = 3) noexcept;
+    // StopRidingQuick (38705) -> StopRiding (41531), no Dismount. Mode 2 (jail, a fine, a load, a low-process mount,
+    // a refused ride) forces 40352's finish: off at once, the exit clip only shown. Mode 0 (the dismount procedure,
+    // 39670) ends at its exit clip, aFrames later.
+    void StopRiding(uint32_t aRider, uint32_t aMode = 2, uint32_t aFrames = 3) noexcept;
+    // RefrInteraction::Detach (41539), every ride's end: off its mount; our hook tells this game's services.
+    void EndRide(uint32_t aRider) noexcept;
+    std::map<uint32_t, uint32_t> DismountIn; // rider -> frames until its exit clip ends its ride
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
     size_t Travels = 0;  // the player's teleports, ever
@@ -1045,7 +1088,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
     {
         Activations.emplace_back(aObjectFormId, aActivatorFormId);
-        ToggleDoor(aObjectFormId);
+        if (!ActivateMount(aActivatorFormId, aObjectFormId))
+            ToggleDoor(aObjectFormId);
     }
     // An activated door swings: the host's records it, a guest's opens here only (the host's state follows).
     void ToggleDoor(uint32_t aObject);
@@ -1411,6 +1455,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
+    void PlayerStopRiding() noexcept override { StopRiding(kPlayer); }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
     float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
     void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override

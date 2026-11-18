@@ -452,6 +452,17 @@ struct BugReport
     std::string By;          // the player who typed it
     uint64_t SessionTick{};  // the host's clock when it got it
 };
+// A dev chat command (docs/design/dev-commands.md): the line as typed; the host's names who typed it.
+struct DevCommand
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const DevCommand&) const noexcept = default;
+
+    std::string Line;
+    std::string By;
+};
 // A game's player pressed through the NPC's line: the host's game, which says it, moves on.
 struct DialogueSkip
 {

@@ -230,3 +230,8 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
 Decided 2026-11-05 (the user: "when anyone commits a crime in the party, everyone gets flagged equally, so enemies will
 attack whoever is near them"). One bounty and one criminal flag for the party; an NPC hostile for a crime treats every
 player alike and goes for the nearest. Mechanism: `docs/re/systems/crime.md`, What SkyrimCoop does.
+
+The same for any fight (2026-11-17, from the Solitude playtest: "any aggro/crime/guard hostility triggered by anyone
+should affect the whole party"): an NPC fighting one player, for a crime, a quest script's `StartCombat`, a friendly
+hit or anything else, is every player's foe and goes for the nearest it sees
+([combat-targets.md](../re/systems/combat-targets.md), A fight with one player is the party's).

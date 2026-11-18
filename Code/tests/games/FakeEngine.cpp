@@ -6,6 +6,10 @@
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 
+#include <Events/DismountEvent.h>
+#include <Events/MountEvent.h>
+#include <Events/SaveWrittenEvent.h>
+
 #include <Games/Animation/GraphState.h>
 #include <Games/Animation/GraphStream.h>
 #include <bit>
@@ -492,6 +496,15 @@ void FakeEngine::ReloadGraph(uint32_t aFormId, const std::string& aState, uint32
 
 void FakeEngine::Frame()
 {
+    for (auto it = DismountIn.begin(); it != DismountIn.end();)
+        if (--it->second == 0)
+        {
+            const uint32_t cRider = it->first;
+            it = DismountIn.erase(it);
+            EndRide(cRider);
+        }
+        else
+            ++it;
     // A pair's clip runs on its own: its blow lands at HitFrame, a transition can hold off pairedStop until then.
     for (auto& [cId, actor] : Actors)
         if (actor.PairBlowIn && --actor.PairBlowIn == 0 && Actors.contains(actor.PairVictim))
@@ -1116,6 +1129,74 @@ bool FakeEngine::PaintActorFace(uint32_t aFormId, const Tints& acTints) noexcept
         return false;
     Actors.at(aFormId).HeadTints = acTints;
     return true;
+}
+
+void FakeEngine::StartDismount(uint32_t aRider, uint32_t aFrames) noexcept
+{
+    if (!Mounts.contains(aRider))
+        return;
+    DismountIn[aRider] = aFrames;
+}
+
+void FakeEngine::StopRiding(uint32_t aRider, uint32_t aMode, uint32_t aFrames) noexcept
+{
+    if (!Mounts.contains(aRider))
+        return;
+    if (aMode == 0)
+        DismountIn[aRider] = aFrames;
+    else
+        EndRide(aRider); // 40352 forced: sit state 0, FinishDismount (38696), Detach
+}
+
+// A copy still seated is off at once (its owner got off with no exit clip); one getting off ends by its clip.
+void FakeEngine::ActorEndRide(uint32_t aRider) noexcept
+{
+    if (Actors.contains(aRider) && SitState(aRider) != ::ReplayState::kSitWantsToStand)
+        EndRide(aRider);
+}
+
+bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
+{
+    if (!IsActorMount(aMount) || !Actors.contains(aActivator) || IsActorMount(aActivator))
+        return false;
+    const bool cCopy = Actors.at(aActivator).Copy;
+    if (const auto it = Mounts.find(aActivator); it != Mounts.end())
+    {
+        if (it->second != aMount)
+            return true;
+        if (cCopy)
+            GettingOnOff.insert(aActivator); // a dismount package no copy runs
+        else
+            StartDismount(aActivator);
+        return true;
+    }
+    for (const auto& [cRider, cMount] : Mounts)
+        if (cMount == aMount)
+            return true; // IsMountBeingRidden: nothing
+    if (Actors.at(aActivator).InAir)
+        return true; // CanRide (38706) refuses: no package, no ride, our hook raises nothing
+    if (cCopy)
+    {
+        GettingOnOff.insert(aActivator); // a mount package no copy runs
+        GettingOnOff.insert(aMount);
+        return true;
+    }
+    World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
+    Mounts[aActivator] = aMount;
+    return true;
+}
+
+void FakeEngine::EndRide(uint32_t aRider) noexcept
+{
+    DismountIn.erase(aRider);
+    const auto cMount = Mounts.find(aRider);
+    if (cMount == Mounts.end())
+        return;
+    const uint32_t cMountId = cMount->second;
+    Mounts.erase(cMount);
+    // HookDetachInteraction: an own rider's ride ended.
+    if (const auto it = Actors.find(aRider); it != Actors.end() && !it->second.Copy)
+        World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId});
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
@@ -2154,7 +2235,12 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (it == Actors.end())
         return;
     // MoveTo tears down the native mount interaction, including when the moved reference is the horse.
-    std::erase_if(Mounts, [&](const auto& acMount) { return acMount.first == aFormId || acMount.second == aFormId; });
+    std::vector<uint32_t> riders;
+    for (const auto& [cRider, cMount] : Mounts)
+        if (cRider == aFormId || cMount == aFormId)
+            riders.push_back(cRider);
+    for (const uint32_t cRider : riders)
+        EndRide(cRider);
     const uint32_t cFrom = it->second.Cell;
     const bool cHad3D = ActorHas3D(aFormId);
     const auto cExterior = Exteriors.find(aCellId);
@@ -2540,9 +2626,48 @@ std::string FakeEngine::PlayerId() noexcept
     return std::format("id:{:016x}", std::hash<std::string>{}(Name));
 }
 
+IJoinBridge::SaveFiles FakeEngine::MakeSave()
+{
+    Wire::Buffer buffer;
+    Wire::Buffer::Writer writer(&buffer);
+    // The save holds where its player stands.
+    PlayerRecord player = ReadPlayer();
+    player.Knowledge = Knowledge;
+    const Actor& cPlayer = Actors.at(kPlayer);
+    player.Cell = GameId(0, cPlayer.Cell);
+    player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+    player.Serialize(writer);
+    Serialization::WriteVarInt(writer, References.size());
+    for (const auto& [id, r] : References)
+    {
+        Serialization::WriteVarInt(writer, id);
+        Serialization::WriteBool(writer, r.Locked);
+    }
+    // The words' flags (the world's), the player's own factions (its base's, kept with the save).
+    for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
+    {
+        Serialization::WriteVarInt(writer, pWords->size());
+        for (const uint32_t cWord : *pWords)
+            Serialization::WriteVarInt(writer, cWord);
+    }
+    const auto& cFactions = Factions[kPlayer];
+    Serialization::WriteVarInt(writer, cFactions.size());
+    for (const auto& [cFaction, cRank] : cFactions)
+    {
+        Serialization::WriteVarInt(writer, cFaction);
+        Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
+    }
+    return SaveFiles{std::string(reinterpret_cast<const char*>(buffer.GetData()), writer.Size()) + SavePadding, World::Get().ctx().at<SaveService>().WriteCoSave()};
+}
+
 void FakeEngine::RunMainLoop() noexcept
 {
     RunNativeCombat();
+    for (auto& [name, files] : std::exchange(SaveThread, {}))
+    {
+        SavedFiles[name] = std::move(files);
+        World::Get().GetRunner().Trigger(SaveWrittenEvent{name});
+    }
     if (const auto cName = std::exchange(PendingSave, std::nullopt))
     {
         if (RefusesSaves || !World::Get().ctx().at<SaveService>().OnSaveRequested())
@@ -2550,37 +2675,10 @@ void FakeEngine::RunMainLoop() noexcept
         else
         {
             Saves.push_back(*cName);
-            Wire::Buffer buffer;
-            Wire::Buffer::Writer writer(&buffer);
-            // The save holds where its player stands.
-            PlayerRecord player = ReadPlayer();
-            player.Knowledge = Knowledge;
-            const Actor& cPlayer = Actors.at(kPlayer);
-            player.Cell = GameId(0, cPlayer.Cell);
-            player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
-            player.Serialize(writer);
-            Serialization::WriteVarInt(writer, References.size());
-            for (const auto& [id, r] : References)
-            {
-                Serialization::WriteVarInt(writer, id);
-                Serialization::WriteBool(writer, r.Locked);
-            }
-            // The words' flags (the world's), the player's own factions (its base's, kept with the save).
-            for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
-            {
-                Serialization::WriteVarInt(writer, pWords->size());
-                for (const uint32_t cWord : *pWords)
-                    Serialization::WriteVarInt(writer, cWord);
-            }
-            const auto& cFactions = Factions[kPlayer];
-            Serialization::WriteVarInt(writer, cFactions.size());
-            for (const auto& [cFaction, cRank] : cFactions)
-            {
-                Serialization::WriteVarInt(writer, cFaction);
-                Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
-            }
-            MadeSave = SaveFiles{{reinterpret_cast<const char*>(buffer.GetData()), writer.Size()}, World::Get().ctx().at<SaveService>().WriteCoSave()};
+            MadeSave = MakeSave();
             SavedFiles[*cName] = **MadeSave;
+            // A menu or console save's file is written inside Save_Impl.
+            World::Get().GetRunner().Trigger(SaveWrittenEvent{*cName});
         }
     }
     const auto cLoad = std::exchange(PendingLoad, std::nullopt);
@@ -2656,6 +2754,56 @@ bool FakeEngine::Autosaves(const std::string& acName)
         return false;
     Saves.push_back(acName);
     return true;
+}
+
+bool FakeEngine::Quicksaves(const std::string& acName)
+{
+    if (!World::Get().ctx().at<SaveService>().OnSaveRequested())
+        return false;
+    Saves.push_back(acName);
+    SaveThread.emplace_back(acName, MakeSave());
+    return true;
+}
+
+void FakeEngine::OffThread(std::function<std::function<void()>()> aWork) noexcept
+{
+    if (DefersWork)
+        return QueuedWork.push_back(std::move(aWork));
+    if (const auto cDone = aWork())
+        cDone();
+}
+
+void FakeEngine::FinishWork() noexcept
+{
+    for (const auto& cWork : std::exchange(QueuedWork, {}))
+        if (const auto cDone = cWork())
+            cDone();
+}
+
+std::vector<std::string> FakeEngine::HeldSaves() noexcept
+{
+    std::vector<std::string> ids;
+    for (const auto& [cId, cData] : HeldSaveFiles)
+        ids.push_back(cId);
+    return ids;
+}
+
+std::optional<std::string> FakeEngine::ReadHeldSave(const std::string& acId) noexcept
+{
+    const auto it = std::ranges::find(HeldSaveFiles, acId, [](const auto& acFile) { return acFile.first; });
+    return it != HeldSaveFiles.end() ? std::optional(it->second) : std::nullopt;
+}
+
+bool FakeEngine::WriteHeldSave(const std::string& acId, const std::string& acData) noexcept
+{
+    DropHeldSave(acId);
+    HeldSaveFiles.emplace(HeldSaveFiles.begin(), acId, acData);
+    return true;
+}
+
+void FakeEngine::DropHeldSave(const std::string& acId) noexcept
+{
+    std::erase_if(HeldSaveFiles, [&](const auto& acFile) { return acFile.first == acId; });
 }
 
 // As Save_Impl's hook: SaveService decides first.
@@ -2882,6 +3030,8 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
+    if (ActivateMount(aActor, aObject))
+        return;
     // The player activating a corpse opens its loot (TESNPC::Activate -> ContainerMenu::OpenMenu, our hook first).
     if (aActor == kPlayer && Actors.contains(aObject) && IsActorDead(aObject) && !LootMenuOf &&
         !ContainerOpens::Refused(Actors.at(aObject).Copy && Actors.at(aObject).Player))
@@ -2920,14 +3070,6 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
 {
     Globals.at(BeastPerkGlobals[aVampire ? 1 : 0]) += static_cast<float>(aDelta);
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
-}
-
-std::optional<std::string> FakeEngine::PreviousSave() noexcept
-{
-    for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
-        if (!i->starts_with("SkyrimCoop") && SaveNames::CharacterId(*i) == CharacterId && SavedFiles.contains(*i))
-            return *i;
-    return std::nullopt;
 }
 
 std::optional<IJoinBridge::SaveFiles> FakeEngine::ReadSave(const std::string& acName) noexcept

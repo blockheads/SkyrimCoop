@@ -44,6 +44,8 @@ public:
     // --- State ---
     virtual bool IsPlayerAlive() const noexcept = 0;
     virtual bool IsPlayerMounted() const noexcept = 0;
+    // Off its mount, with no Dismount (a ride the host refused).
+    virtual void PlayerStopRiding() noexcept = 0;
     // In a session a dead player waits for the party instead of loading the last save.
     virtual void HoldPlayerDeathReload(bool aHold) noexcept = 0;
     // Back alive from a real death (docs/design/death.md, "Real death").

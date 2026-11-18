@@ -30,7 +30,8 @@ clients this order (`INSTRUCTIONS`, `coop_mcp.py`):
 - **play** (`actions/play_verbs.py`): `go_to`, `talk`, `use`, `take`, `fight`. Each returns or fails with one outcome:
   `{done, how, why, seconds, trace}`. `why`: `no_path`, `stalled`, `moved_off`, `timeout`, `menu_blocked`, `no_line`,
   `refused`, `player_down`. `go_to` is AI-driven: for getting there, not for testing movement (`by_input` for that).
-  `talk` goes on with an open conversation. `walk_to`, `steer_to`, `talk_to` and `pick` are their parts, no longer tools.
+  `talk` goes on with an open conversation. `fight(until_dead=False)` swings `hits` times and leaves the target alive (a friendly
+  hit, a provoked fight); `expect_enemy(npc, of)` checks the host's NPC reads a player as an enemy (reaction 1, hostile). `walk_to`, `steer_to`, `talk_to` and `pick` are their parts, no longer tools.
 - **watch**: `look(game)`; `observe(names)` shows only what changed since the last look, `apart` and `differs`; `why()` is
   the last verb's outcome with its trace summary (speeds, stalls, last events; the raw timeline in a file).
   `terrain(game, toward=)` draws the ground around the player as a walking player meets it: top-down (walkable floor,

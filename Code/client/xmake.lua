@@ -63,7 +63,9 @@ target(name)
         "zydis",
         "nlohmann_json",
         "snappy",
-        "zlib")
+        "zlib",
+        "zstd",
+        "lz4")
 
     -- mem is header-only; vendored copy
     add_includedirs("../external/mem", {public = false})

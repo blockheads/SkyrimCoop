@@ -11,6 +11,8 @@
 #include <Components/PlayerComponent.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Events/SetTimeCommandEvent.h>
+#include <Services/DevCommands.h>
+#include <Services/DevToolsService.h>
 #include <Events/PartySummonCommandEvent.h>
 #include <Games/Skyrim/Interface/MenuCursor.h>
 #include <Games/Skyrim/Interface/UI.h>
@@ -524,14 +526,22 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
                 ShowSystemLine(std::format("{} ({}): {} KiB in 10 s.", cMessage["name"].get<std::string>(),
                     cMessage["way"].get<std::string>(), cMessage["bytes"].get<uint64_t>() / 1024));
         const auto& cJoin = m_world.ctx().at<JoinService>().GetMetrics();
-        if (cJoin.Chunks)
-            ShowSystemLine(std::format("Last world join: {:.1f} s total, {:.1f} s transfer, {:.1f} s load; {} KiB reused.",
-                cJoin.TotalMs / 1000, cJoin.TransferMs / 1000, cJoin.LoadMs / 1000, cJoin.ReusedBytes / 1024));
+        if (cJoin.Chunks || cJoin.FromStore)
+            ShowSystemLine(std::format("Last world join: {:.1f} s total, {:.1f} s transfer, {:.1f} s load; {} KiB came for a {} KiB save.",
+                cJoin.TotalMs / 1000, cJoin.TransferMs / 1000, cJoin.LoadMs / 1000, cJoin.PayloadBytes / 1024, cJoin.WorldBytes / 1024));
         return;
     }
     if (acLine == "/export")
     {
         m_world.ctx().at<BugReportService>().Export();
+        return;
+    }
+    if (DevCommands::IsDevCommand(acLine))
+    {
+        if (acLine == "/dev")
+            ShowSystemLine(DevCommands::Help());
+        else
+            m_world.ctx().at<DevToolsService>().Run(acLine);
         return;
     }
     if (acLine == "/tpa" || acLine == "/teleportall")
@@ -551,7 +561,7 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
     }
-    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>, /tpa (everyone to you)");
+    ShowSystemLine("Commands: /perf, /bug <what happened>, /export, /settime <hours> <minutes>, /tpa (everyone to you), /dev (dev commands)");
 }
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept

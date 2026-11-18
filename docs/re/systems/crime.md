@@ -297,8 +297,8 @@ near it.
 - `CrimeEngine::Player` applies `PlayerShift` (above).
 - A guest's crime is the host's player's in the engine, as Skyrim needs: record, bounty, alarm, arrest and the angry flag.
   `HookCrimeAttack` / `HookCrimeReaction` make every party body equally hostile to an NPC that knows a party crime.
-- Who it attacks: `HostAggro` counts an NPC fighting a player for a party crime (`CrimeBridge::PartyIsCriminalTo`) as a
-  party fight, so `PartyThreat` picks by distance, first pick at once. In such a fight a player the NPC sees is a target
+- Who it attacks: `HostAggro` counts an NPC fighting a player as a party fight, for a crime or any other reason (since
+  2026-11-17, `combat-targets.md`, A fight with one player is the party's; before, only `CrimeBridge::PartyIsCriminalTo`), so `PartyThreat` picks by distance, first pick at once. In such a fight a player the NPC sees is a target
   without having hit it (`CanTarget`): the combat group showed the guest known at detection 60-100 with stealth points
   left, which the damage rule turned away. The 1.2 switch ratio still applies, so a nearly equal distance keeps the target.
 - `CrimeService` holds a guest's theft 0.5 s, asking every witness each frame (41408), then judges: the greeting pass

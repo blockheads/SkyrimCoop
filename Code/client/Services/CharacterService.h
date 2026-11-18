@@ -102,6 +102,7 @@ struct CharacterService
     void OnNotifyPlayerName(const NotifyPlayerName& acMessage) const noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
+    void OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept;
@@ -135,6 +136,8 @@ struct CharacterService
      * aSpawn; its values stay its owner's. False when we have no copy of it.
      */
     bool ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept;
+    // A spawn of our copy of an NPC another game owns, read from the engine as it is now.
+    std::optional<NotifyCharacterSpawn> BuildCopySpawn(uint32_t aSessionId) const noexcept;
 
 private:
     // The host gave this game a copy's actor (a mount its player got on): ours to simulate from here on.
@@ -202,6 +205,8 @@ private:
     uint32_t m_riddenMount{};
     std::unordered_map<uint32_t, bool> m_mountPersistence; // form id -> persistence before this ride
     std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
+    std::unordered_map<uint32_t, uint32_t> m_pendingRides; // mount -> rider session ids, heard before both copies were made
+    void LinkPendingRides(uint32_t aSessionId) noexcept;
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
     // Ours lying in their ragdolls at the last snapshot, and the snapshots since they lay down or got up: the first two
     // are jumps (the engine moves it onto or off its ragdoll in its graph update, within a frame of the state).

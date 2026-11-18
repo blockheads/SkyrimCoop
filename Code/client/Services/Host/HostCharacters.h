@@ -78,6 +78,8 @@ private:
     // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
     void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
+    // Who rides what, to a game that just got the riders' and mounts' spawns.
+    void SendRides(ConnectionId_t aPlayer) const noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
     void OnPerks(const ActorPerksRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
@@ -119,6 +121,8 @@ private:
         ConnectionId_t Owner{};
         // A player's: what is needed to spawn it again, kept current with its movement.
         std::optional<NotifyCharacterSpawn> PlayerRecord;
+        // A mount's: who rides it, from OnMount until GiveBack (one rider at a time).
+        uint32_t Rider{};
     };
 
     HostAuthority& m_authority;

@@ -633,6 +633,13 @@ struct DialogueState
     // MenuTopicManager +0xB0..+0xBB by name, and +0x30 rootTopicInfo (a line's choices): why a conversation waits.
     std::vector<std::pair<const char*, bool>> Flags;
     uint32_t RootInfo = 0;
+    // Where the list build (35287) takes choices from: the picked option (+0x18), else the last selected (+0x38); and
+    // the speaker still talking when its conversation ended (+0x6C). dialogue.md, "A start during the NPC's last line".
+    uint32_t PickedInfo = 0;
+    bool PickedChoices = false;
+    uint32_t LastSelectedInfo = 0;
+    bool LastSelectedChoices = false;
+    uint32_t LastSpeaker = 0;
 };
 DialogueState GetDialogue() noexcept;
 // Says the option at this index as the menu's click does, with the menu open or not (MenuTopicManager::Pick).

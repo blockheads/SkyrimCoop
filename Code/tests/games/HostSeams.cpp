@@ -5,6 +5,8 @@
 // game joining in process), its reads from the fake engine's world and the real CharacterService; and the systems
 // and services CharacterService calls that tier 2 leaves out (animation, face tints, AI state, effects).
 #include "FakeEngine.h"
+#include <Bridges/IDevToolsBridge.h>
+#include <Services/DevCommands.h>
 #include <Services/CrimeService.h>
 #include <Messages/ContainerTransferRequest.h>
 #include <Games/Overrides.h>
@@ -18,6 +20,8 @@
 #include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
+#include <Events/SaveWrittenEvent.h>
+#include <Services/SaveLibrary.h>
 #include <SessionIds.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
@@ -52,6 +56,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
+    Listen<SaveWrittenEvent, &HostService::OnSaveWritten>(m_connections, m_dispatcher, this);
     Listen<ActorRenamedEvent, &HostService::OnActorRenamed>(m_connections, m_dispatcher, this);
 }
 
@@ -80,8 +85,7 @@ void HostService::MakeAuthority() noexcept
     m_pAggro.reset();
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     m_pAggro = std::make_unique<HostAggro>(m_world, m_dispatcher, engine,
-        [&engine](const auto& acState) { engine.PartyThreats = acState; },
-        [this](uint32_t aActor) { return m_world.ctx().at<CrimeService>().PartyIsCriminalTo(aActor); });
+        [&engine](const auto& acState) { engine.PartyThreats = acState; });
     HostGame game;
     game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
         auto followers = engine.PartyFollowers;
@@ -122,6 +126,7 @@ void HostService::MakeAuthority() noexcept
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
+    game.CopySpawn = [this](uint32_t aSessionId) { return m_world.GetCharacterService().BuildCopySpawn(aSessionId); };
     game.AdvanceTime = [&engine](float aHours) {
         MainLoopTasks::Queue([&engine, aHours] {
             DateTime time(engine.Calendar);
@@ -131,6 +136,11 @@ void HostService::MakeAuthority() noexcept
             time.m_timeModel.TimeScale = cScale;
             engine.Calendar = time.m_timeModel;
         });
+    };
+    game.RunConsole = [this](const std::string& acLine) { m_world.ctx().at<IDevToolsBridge&>().RunConsole(acLine); };
+    game.KillHostiles = [this] { return m_world.ctx().at<IDevToolsBridge&>().KillHostiles(); };
+    game.ConsoleNameOf = [](uint32_t aSessionId) {
+        return DevCommands::ConsoleName(Utils::GetFormIdBySessionId(aSessionId), FakeEngine::kPlayer);
     };
     game.ReadTime = [&engine] { return engine.Calendar; };
     game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
@@ -286,18 +296,12 @@ void HostService::MakeAuthority() noexcept
         const auto* pRecords = cRecords();
         return pRecords && pRecords->Find(acKey) != nullptr;
     };
-    game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
-        auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
-        if (!files)
-            return std::nullopt;
-        return SaveTransfer::Split(SaveTransfer::Pack(*files));
-    };
+    BindSaves(game);
     game.StorePlace = [cRecords](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
                                  const std::array<float, 3>& acPosition) {
         if (auto* pRecords = cRecords())
             pRecords->SetPlace(acKey, acWorldSpace, acCell, acPosition);
     };
-    game.PartyWipe = [this] { m_reloadRequested = true; };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
@@ -319,6 +323,7 @@ void HostService::StopHosting() noexcept
     m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();
+    m_pSaves.reset();
 }
 
 void HostService::KickPlayer(uint32_t aPlayerId) noexcept

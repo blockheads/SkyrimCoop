@@ -909,3 +909,105 @@ TEST_CASE("Characters: only the owner updates temporary pool modifiers in later 
     CHECK(cSpawns[0]->InitialActorValues.ActorTemporaryValuesList.at(25) == 30.f);
     CHECK(cSpawns[0]->InitialActorValues.ActorValuesList.at(25) == 205.f);
 }
+
+TEST_CASE("Mounts: a horse has one rider; a second getting on within the round trip is refused", "[HostAuthority][Characters][mounts]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+    MountRequest first;
+    first.RiderId = cPeerPlayer;
+    first.MountId = cHorse;
+    session.Receive(kPeer, first);
+    session.Outbox.clear();
+
+    MountRequest second;
+    second.RiderId = cOtherPlayer;
+    second.MountId = cHorse;
+    session.Receive(kOtherPeer, second);
+    REQUIRE(session.SentTo<NotifyMountRefused>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer)[0]->RiderId == cOtherPlayer);
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+        CHECK(session.SentTo<NotifyMount>(cTo).empty());
+    // Still the first rider's game that moves it.
+    ReferencesMoveRequest moved;
+    moved.Updates[cHorse] = {};
+    session.Receive(kOtherPeer, moved);
+    CHECK(session.SentTo<NotifyReferencesMove>(kHost).empty());
+
+    // Once the first is off, the second may ride it.
+    DismountRequest off;
+    off.RiderId = cPeerPlayer;
+    off.MountId = cHorse;
+    session.Receive(kPeer, off);
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, second);
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
+}
+
+TEST_CASE("Mounts: a player joining later hears who rides what after its spawns", "[HostAuthority][Characters][mounts]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    MountRequest mount;
+    mount.RiderId = cPeerPlayer;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+    session.Outbox.clear();
+
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    const auto cRides = session.SentTo<NotifyMount>(cLate);
+    REQUIRE(cRides.size() == 1);
+    CHECK(cRides[0]->RiderId == cPeerPlayer);
+    CHECK(cRides[0]->MountId == cHorse);
+}
+
+TEST_CASE("Mounts: a rider's character removed gives its horse back", "[HostAuthority][Characters][mounts]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+    MountRequest mount;
+    mount.RiderId = cPeerPlayer;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+
+    // Announced again (a respawn): its old character goes, and the ride with it.
+    session.Character(kPeer);
+    MountRequest other;
+    other.RiderId = cOtherPlayer;
+    other.MountId = cHorse;
+    session.Receive(kOtherPeer, other);
+    CHECK(session.SentTo<NotifyMountRefused>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyMount>(kHost).size() == 1);
+}
+
+TEST_CASE("Characters: a player's latest relayed action goes into its record, for the spawns made later", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    ReferencesMoveRequest movement;
+    ActionEvent fall, swim;
+    fall.EventName = "JumpFall";
+    swim.EventName = "swimStop";
+    movement.Updates[cPeerPlayer].ActionEvents = {fall, swim};
+    session.Receive(kPeer, movement);
+
+    // The host's game lost its copy (a travel) and asks again: the spawn plays the owner's last action.
+    session.Outbox.clear();
+    RequestRespawn again;
+    again.ActorId = cPeerPlayer;
+    session.Receive(kHost, again);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kHost);
+    REQUIRE(cSpawns.size() == 1);
+    CHECK(cSpawns[0]->LatestAction.EventName == "swimStop");
+}

@@ -7,7 +7,7 @@ target("ClientTests")
     add_files("*.cpp|SaveTransferBench.cpp", "../FakeNativeVm.cpp", "../../client/Games/Skyrim/Misc/ScriptFunction.cpp")
     add_files("../../client/Diagnostics/Counters.cpp")
     add_files("../../client/Services/SaveTransfer.cpp", "../../client/MainLoopTasks.cpp", "../../client/TaskQueue.cpp", "../../client/Bridges/PhysicsBodies.cpp",
-              "../../client/Services/Host/PartyThreat.cpp")
+              "../../client/Services/Host/PartyThreat.cpp", "../../client/Services/DevCommands.cpp")
     add_files("../../client/Services/CharacterRecords.cpp", "../../client/RecipeBook.cpp", "../../client/Services/CopyClock.cpp", "../../client/Services/Generic/PartyOptionText.cpp",
               "../../client/Diagnostics/MessageTrail.cpp", "../../client/Diagnostics/Perf.cpp", "../../client/Diagnostics/ReportPaths.cpp", "../../client/Diagnostics/LogRing.cpp",
               "../../client/Diagnostics/Zip.cpp", "../../client/Diagnostics/Export.cpp", "../../client/Diagnostics/CrashReports.cpp")
@@ -21,11 +21,11 @@ target("ClientTests")
               "../../client/Games/Animation/GraphState.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy")
+    add_packages("catch2", "zydis", "glm", "spdlog", "zlib", "snappy", "zstd", "lz4")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()
 
--- Compare actual save pairs offline, using the same cache and wire blocks as the game.
+-- Compare actual save pairs offline, with the game's own image and encoding.
 target("SaveTransferBench")
     set_kind("binary")
     set_optimize("fastest")
@@ -34,6 +34,6 @@ target("SaveTransferBench")
     add_files("SaveTransferBench.cpp", "../../client/Services/SaveTransfer.cpp")
     add_includedirs("../../client")
     add_deps("SkyrimEncoding")
-    add_packages("snappy")
+    add_packages("zstd", "lz4", "zlib")
     if is_plat("windows") then add_syslinks("bcrypt") end
 target_end()

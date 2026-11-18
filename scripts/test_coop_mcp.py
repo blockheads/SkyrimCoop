@@ -318,6 +318,11 @@ class Export(unittest.TestCase):
                          "for _ in range(5):\n    ctx.use('', 'door')\n    ctx.swing(times=1)")
         self.assertIsNone(repro._line("rounds", {"call": "observe", "args": {"names": ["x"]}}))
 
+    def test_a_fight_exports_its_swings_and_whether_it_kills(self):
+        self.assertEqual(repro._line("fight", {"game": "guest", "target": "lydia", "hits": 8, "until_dead": False}),
+                         "ctx.fight('client', 'lydia', 8, False)")
+        self.assertEqual(repro._line("fight", {"game": "host", "target": "wolf"}), "ctx.fight('', 'wolf', 30, True)")
+
     def test_the_scenario_is_stamped_with_its_session_and_loops_are_indented(self):
         entries = [{"tool": "rounds", "args": {"call": "swing", "count": 2}, "ok": True}]
         text = repro.export_scenario(entries, "x", "Doc.", ["recorded"], recorded="20261104-x.jsonl")

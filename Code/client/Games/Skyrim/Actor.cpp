@@ -33,6 +33,7 @@
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
 #include <Combat/HitOwnership.h>
+#include <Combat/PartyAggro.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -915,8 +916,8 @@ void Actor::RemoveFromAllFactions() noexcept
 
 using TInitiateMountPackage = bool(Actor*, Actor* apMount);
 static TInitiateMountPackage* RealInitiateMountPackage = nullptr;
-using TDismount = bool(Actor*);
-static TDismount* RealDismount = nullptr;
+using TDetachInteraction = uint64_t(RefrInteraction*, bool);
+static TDetachInteraction* RealDetachInteraction = nullptr;
 
 bool Actor::InitiateMountPackage(Actor* apMount) noexcept
 {
@@ -937,6 +938,27 @@ bool Actor::PutOnMount(Actor* apMount) noexcept
     if (InterlockedDecrement(&pInteraction->refCount) == 0)
         delete pInteraction;
     return true;
+}
+
+bool Actor::StopRidingQuick() noexcept
+{
+    using TStopRidingQuick = bool(Actor*, uint32_t aMode);
+    POINTER_SKYRIMSE(TStopRidingQuick, s_stopRidingQuick, 38705);
+    return s_stopRidingQuick(this, 2);
+}
+
+void Actor::EndRideNow() noexcept
+{
+    using TSetSitSleepState = void(AIProcess*, Actor*, uint32_t aState, uint32_t* apFurniture, int32_t aMarker);
+    using TFinishDismount = void(Actor*);
+    POINTER_SKYRIMSE(TSetSitSleepState, s_setSitSleepState, 39912);
+    POINTER_SKYRIMSE(TFinishDismount, s_finishDismount, 38696);
+    if (currentProcess)
+    {
+        uint32_t noFurniture = 0; // g_invalidRefHandle
+        s_setSitSleepState(currentProcess, this, 0, &noFurniture, -1);
+    }
+    s_finishDismount(this);
 }
 
 void Actor::GenerateMagicCasters() noexcept
@@ -1517,21 +1539,26 @@ uint64_t HookProcessResponse(void* apThis, DialogueItem* apVoice, Actor* apTalki
     return RealProcessResponse(apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
 }
 
+// A ride started (37905): true for the mount package; false for a refusal (CanRide 38706) and for the low-process
+// at-once attach (40345, 41532), which the rider's ExtraInteraction shows. A refused try reserves no horse.
 bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
 {
-    if (apMount && apThis->GetExtension()->IsLocal())
+    const bool cStarted = RealInitiateMountPackage(apThis, apMount);
+    if (apMount && apThis->GetExtension()->IsLocal() && (cStarted || apThis->extraData.Contains(ExtraDataType::Interaction)))
         World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
-
-    return RealInitiateMountPackage(apThis, apMount);
+    return cStarted;
 }
 
-// Every dismount starts here: the player's activate, Papyrus Dismount, the console, the get-up package.
-bool HookDismount(Actor* apThis)
+// Every ride ends here (RefrInteraction::Detach 41539): the dismount clip's end, StopRiding, jail, a fine, a load.
+uint64_t HookDetachInteraction(RefrInteraction* apThis, bool aUnk)
 {
-    const bool cStarted = RealDismount(apThis);
-    if (cStarted && apThis->GetExtension()->IsLocal())
-        World::Get().GetRunner().Trigger(DismountEvent{apThis->formID});
-    return cStarted;
+    auto* pRider = apThis ? Cast<Actor>(TESObjectREFR::GetByHandle(apThis->actorHandle)) : nullptr;
+    const auto* cpMount = apThis ? TESObjectREFR::GetByHandle(apThis->targetHandle) : nullptr;
+    const uint32_t cMountId = cpMount ? cpMount->formID : 0;
+    const uint64_t cResult = RealDetachInteraction(apThis, aUnk);
+    if (pRider && pRider->GetExtension()->IsLocal())
+        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId});
+    return cResult;
 }
 
 using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
@@ -1721,84 +1748,6 @@ bool HookIsFleeing(Actor* apThis)
 using TIsHostileToActor = bool(Actor*, Actor* apOther);
 static TIsHostileToActor* RealIsHostileToActor = nullptr;
 
-namespace
-{
-// Who is angry with which remote player's character: key = actor form id << 32 | character form
-// id. The hooks below run on the engine's AI worker threads, often while it holds reference locks,
-// so they must never block: they only read these atomic slots. Only the main thread writes them.
-constexpr size_t cAngerSlots = 32;
-std::atomic<uint64_t> s_angerKeys[cAngerSlots]{};
-bool s_angerFought[cAngerSlots]{}; // main thread only: has fought them since getting angry
-std::atomic<size_t> s_angerCount{0};
-
-uint64_t AngerKey(const Actor* apActor, const Actor* apOther) noexcept
-{
-    return (uint64_t(apActor->formID) << 32) | apOther->formID;
-}
-} // namespace
-
-void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept
-{
-    const uint64_t cKey = AngerKey(apActor, apRemotePlayer);
-    size_t free = cAngerSlots;
-    for (size_t i = 0; i < cAngerSlots; ++i)
-    {
-        const uint64_t cSlot = s_angerKeys[i].load(std::memory_order_relaxed);
-        if (cSlot == cKey)
-            return;
-        if (cSlot == 0 && free == cAngerSlots)
-            free = i;
-    }
-    if (free == cAngerSlots)
-        return;
-    s_angerFought[free] = false;
-    s_angerKeys[free].store(cKey, std::memory_order_release);
-    s_angerCount.fetch_add(1, std::memory_order_relaxed);
-}
-
-void UpdateRemotePlayerAnger() noexcept
-{
-    if (s_angerCount.load(std::memory_order_relaxed) == 0)
-        return;
-
-    for (size_t i = 0; i < cAngerSlots; ++i)
-    {
-        const uint64_t cKey = s_angerKeys[i].load(std::memory_order_relaxed);
-        if (!cKey)
-            continue;
-        auto* pActor = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey >> 32)));
-        auto* pRemotePlayer = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey)));
-        bool resolved = !pActor || !pRemotePlayer || pActor->IsDead() || !pActor->GetNiNode();
-        // Skyrim decides when the fight is over (yield, flee, death, distance...): once the actor
-        // has fought them and is out of combat, the anger is resolved, like the engine's own
-        // "angry with player" for its player.
-        if (!resolved)
-        {
-            if (pActor->GetCombatTarget() == pRemotePlayer)
-                s_angerFought[i] = true;
-            else if (s_angerFought[i] && !pActor->IsInCombat())
-                resolved = true;
-        }
-        if (resolved)
-        {
-            spdlog::info("Anger of {:X} at remote player {:X} resolved", static_cast<uint32_t>(cKey >> 32), static_cast<uint32_t>(cKey));
-            s_angerKeys[i].store(0, std::memory_order_release);
-            s_angerCount.fetch_sub(1, std::memory_order_relaxed);
-        }
-    }
-}
-
-static bool IsAngryWithRemotePlayer(Actor* apActor, Actor* apOther) noexcept
-{
-    if (!apActor || !apOther || s_angerCount.load(std::memory_order_relaxed) == 0)
-        return false;
-    const uint64_t cKey = AngerKey(apActor, apOther);
-    for (const auto& cSlot : s_angerKeys)
-        if (cSlot.load(std::memory_order_acquire) == cKey)
-            return true;
-    return false;
-}
-
 // Hang diagnostics: every loaded actor's reference lock (TESObjectREFR+0x88, BSReadWriteLock
 // {writer thread id, lock word}); held ones are logged from the watchdog thread (read-only peeks
 // of pointers refreshed by the main thread).
@@ -1852,15 +1801,13 @@ void RefreshHangLockWatch() noexcept
 
 bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return true;
     return RealIsHostileToActor(apThis, apOther);
 }
 
-// The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
-// GetFactionReaction (37666) returns the value cached in the actor's knowledge of the other, else
-// computes it (37667); the cache is refreshed from 37667. An angry actor sees the remote player as
-// an enemy in both.
+// The reaction (0 neutral, 1 enemy, 2 ally, 3 friend), cached (37666) or computed (37667): every player is the enemy
+// of an actor angry with one or fighting one (combat-targets.md, A fight with one player is the party's).
 constexpr int32_t cReactionEnemy = 1;
 
 using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
@@ -1868,7 +1815,7 @@ static TGetFactionReaction* RealGetFactionReaction = nullptr;
 
 int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return cReactionEnemy;
     return RealGetFactionReaction(apThis, apOther);
 }
@@ -1881,7 +1828,7 @@ static TShouldAttack* RealShouldAttack = nullptr;
 
 bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return true;
     return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }
@@ -1891,7 +1838,7 @@ static TComputeReaction* RealComputeReaction = nullptr;
 
 int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
 {
-    if (IsAngryWithRemotePlayer(apThis, apOther))
+    if (PartyAggroNative::IsPartyEnemy(apThis, apOther))
         return cReactionEnemy;
     return RealComputeReaction(apThis, apOther, aUnk);
 }
@@ -1942,7 +1889,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
-        HOOK_ID(37906, &RealDismount, HookDismount);
+        HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);

@@ -528,7 +528,15 @@ class PlayerVerbs:
         on = lambda: ctx.player_command(instance, {"cmd": "camera"}).get("crosshair") or 0
         with contextlib.suppress(TestFailure):
             ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}", lambda: on() == ref, 2)
-        if on() != ref and (ctx.actor_row(instance, ref).get("state") or {}).get("dead"):  # a corpse lies below an actor's chest
+        row = ctx.actor_row(instance, ref)
+        if on() != ref and row and not (row.get("state") or {}).get("dead"):
+            # A standing actor's root is on the ground: from close by, a ray at it can pass under a horse's belly.
+            x, y, z = ctx.place_of(instance, ref)
+            ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": [x, y, z + 100], "rate": 180},
+                               "until": ["aimed"], "seconds": 3})
+            with contextlib.suppress(TestFailure):
+                ctx.wait_for(f"[{instance or 'host'}] the crosshair on {target}'s body", lambda: on() == ref, 2)
+        if on() != ref and (row.get("state") or {}).get("dead"):  # a corpse lies below an actor's chest
             body = (ctx.body_of(instance, ref) or {}).get("position") or ctx.place_of(instance, ref)
             ctx.act(instance, {"name": f"aims at {target}'s body", "ready": ["takes_input"], "turn": {"face": list(body), "rate": 180},
                                "until": ["aimed"], "seconds": 3})
@@ -736,8 +744,9 @@ class PlayerVerbs:
         return {"how": "input", "took": sum(held.values()) - sum(ctx.container_items(instance, ref).values())}
 
     @goal
-    def fight(ctx, instance, target, hits=30):
-        """The player draws what it holds and hits `target` until it dies, chasing it when it moves off."""
+    def fight(ctx, instance, target, hits=30, until_dead=True):
+        """The player draws what it holds and hits `target` until it dies, chasing it when it moves off; until_dead
+        False: `hits` swings, the target alive or not."""
         ctx.can_play(instance)
         ref = ctx.resolve(target, instance)
         dead = lambda who: (ctx.actor_row(instance, who).get("state") or {}).get("dead")
@@ -774,7 +783,7 @@ class PlayerVerbs:
                 if misses >= 5:
                     raise verb_failure(ctx, "refused", f"[{instance or 'host'}] five swings at {target} in a row never started")
             swings += 1
-        if not dead(ref):
+        if until_dead and not dead(ref):
             raise verb_failure(ctx, "timeout", f"[{instance or 'host'}] {target} still stands after {swings} swings", swings=swings)
         return {"how": "input", "swings": swings}
 

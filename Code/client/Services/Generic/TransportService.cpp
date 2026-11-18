@@ -243,8 +243,7 @@ void TransportService::OnConnected()
         request.PlayerKey = pJoin->PlayerKey();
         request.WantsWorld = pJoin->WantsWorld();
         request.HasCharacter = pJoin->HasCharacter();
-        if (request.WantsWorld)
-            request.CachedSaveBlocks = pJoin->CachedSaveBlocks();
+        request.HeldSaves = pJoin->HeldSaves();
     }
 
     Send(request);

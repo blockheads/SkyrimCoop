@@ -1058,10 +1058,12 @@ class Scenes(unittest.TestCase):
         from coop_harness.actions.repro import ReproActions
         ctx = Mock()
         ctx.scene_start.return_value = {"guard level": "Whiterun Guard: level 1000 vs 1"}
+        ctx.check_world.return_value = {"318D5": {"collision FishControllerRotation": "a vs b"}}
         ctx.name_nearby.return_value = {}
         started = ReproActions.scene(ctx, at="coc Riverwood")
         self.assertEqual(started["disagree"], ["Whiterun Guard: level 1000 vs 1"])
         self.assertEqual(ctx.SCENE_KNOWN, {"guard level"})
+        self.assertEqual(ctx.SCENE_KNOWN_WORLD, {("318D5", "collision FishControllerRotation")})  # the place's own
         ctx.go_far.assert_called_with("", "coc Riverwood")
         ctx.pin_world.assert_called_once()
 
@@ -1076,6 +1078,7 @@ class Scenes(unittest.TestCase):
         from coop_harness.actions.repro import ReproActions
         ctx = Mock()
         ctx.scene_start.return_value = {}
+        ctx.check_world.return_value = {}
         ctx.name_nearby.return_value = {"faendal": 300}
         self.assertEqual(ReproActions.scene(ctx, save="Late", at="coc Riverwood")["named"], {"faendal": 300})
         self.assertEqual(ctx.REPRO_PLACE, {"save": "Late", "at": "coc Riverwood", "pin": True})

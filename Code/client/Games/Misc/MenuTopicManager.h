@@ -17,13 +17,14 @@ struct MenuTopicManager
     struct Dialogue
     {
         BSString topicText;             // 00, the line shown
-        uint8_t unk10[0x8];             // 10
+        bool hasChoices;                // 10, its info has choices: the list build (35287) lists them, not the top level
+        uint8_t unk11[0x7];             // 11
         GameList<void> responses;       // 18, DialogueResponse
         TESQuest* parentQuest;          // 28
         TESTopicInfo* parentTopicInfo;  // 30, the info said when picked
         TESForm* parentTopic;           // 38, a TESTopic
         GameList<void>::Entry* currentResponse; // 40, the response said next (SaySelected 35283 says nothing without one)
-        uint8_t unk48;                  // 48
+        bool notChoices;                // 48, set: the build (35287) does not take its choices
         bool neverSaid;                 // 49
         bool hidden;                    // 4A, not listed by the menu's fill (51515), still counted
         uint8_t unk4B[0x58 - 0x4B];     // 4B
@@ -34,7 +35,7 @@ struct MenuTopicManager
     // The options in menu order, as SelectDialogue (35269) counts them. Valid until the engine rebuilds the list:
     // use them on the main thread (where the engine builds and picks), within the frame.
     [[nodiscard]] std::vector<Dialogue*> Options() noexcept;
-    // Whether there is an option to show (35267, as the menu asks before filling its list).
+    // Whether there is an option to show (35267, as the menu asks before filling its list), the picked node unchanged.
     [[nodiscard]] bool HasOptions() noexcept;
 
     // Selects and says the option at this index, as the menu's TopicClicked does (51509: 35269, then 35283).
@@ -67,9 +68,9 @@ struct MenuTopicManager
     Dialogue* lastSelectedDialogue;                  // 38
     CRITICAL_SECTION criticalSection;                // 40, held around a pick
     uint32_t speaker;                                // 68, handle
-    uint32_t lastSpeaker;                            // 6C
+    uint32_t lastSpeaker;                            // 6C, handle: a speaker still talking when its conversation ended (35294)
     TESTopicInfo* currentTopicInfo;                  // 70
-    TESTopicInfo* lastTopicInfo;                     // 78
+    TESTopicInfo* lastTopicInfo;                     // 78, that speaker's line, ended by the next start with another (35282)
     GameArray<TESForm*> blockingBranches;            // 80, BGSDialogueBranch
     GameArray<TESForm*> topLevelBranches;            // 98
     bool isGreetingPlayer;                           // B0
@@ -99,12 +100,18 @@ private:
 };
 
 static_assert(sizeof(MenuTopicManager::Dialogue) == 0x58);
+static_assert(offsetof(MenuTopicManager::Dialogue, hasChoices) == 0x10);
 static_assert(offsetof(MenuTopicManager::Dialogue, responses) == 0x18);
+static_assert(offsetof(MenuTopicManager::Dialogue, notChoices) == 0x48);
 static_assert(offsetof(MenuTopicManager::Dialogue, parentTopicInfo) == 0x30);
 static_assert(offsetof(MenuTopicManager::Dialogue, currentResponse) == 0x40);
 static_assert(offsetof(MenuTopicManager, dialogueList) == 0x20);
 static_assert(offsetof(MenuTopicManager, criticalSection) == 0x40);
 static_assert(offsetof(MenuTopicManager, speaker) == 0x68);
+static_assert(offsetof(MenuTopicManager, lastSpeaker) == 0x6C);
+static_assert(offsetof(MenuTopicManager, lastTopicInfo) == 0x78);
+static_assert(offsetof(MenuTopicManager, selectedResponseNode) == 0x18);
+static_assert(offsetof(MenuTopicManager, lastSelectedDialogue) == 0x38);
 static_assert(offsetof(MenuTopicManager, blockingBranches) == 0x80);
 static_assert(offsetof(MenuTopicManager, menuOpen) == 0xB1);
 static_assert(offsetof(MenuTopicManager, shutMenu) == 0xB3);

@@ -109,6 +109,7 @@ def duo_start(cell: str = "QASmoke", save: str = "", wait: int = 90, disable_hoo
         return {"ok": True, "booting": True}
     if all(game.read_status() for game in session.games):  # ours, already running: attach
         return {"ok": True, "ready": True, "attached": True}
+    session.forget_scene()  # new games: the last games' scene is not where a recording starts
     duo["log"] = TEST_HOME / "mcp" / f"duo-{time.strftime('%Y%m%d-%H%M%S')}.log"
     duo["log"].parent.mkdir(parents=True, exist_ok=True)
     command = [sys.executable, str(ROOT / "scripts/coop_test.py"), "duo", "--keep-running", "--cell", cell]
@@ -448,9 +449,10 @@ def pickpocket(game: str, target: str, item: str, caught: bool = False) -> dict:
 
 
 @tool
-def fight(game: str, target: str, hits: int = 30) -> dict:
-    """That game's player draws what it holds and hits a handle until it dies; why player_down if the player falls."""
-    return {"ok": True, **session.fight(_game(game), target, hits)}
+def fight(game: str, target: str, hits: int = 30, until_dead: bool = True) -> dict:
+    """That game's player draws what it holds and hits a handle until it dies; why player_down if the player falls.
+    until_dead=False: `hits` swings and done, the target alive or not (a friendly hit, a provoked fight)."""
+    return {"ok": True, **session.fight(_game(game), target, hits, until_dead)}
 
 
 @tool

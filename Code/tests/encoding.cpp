@@ -1482,12 +1482,21 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
     SECTION("A save chunk carries its place and bytes")
     {
         NotifySaveChunk chunk;
+        chunk.Save = std::string(32, 'h');
+        chunk.Base = std::string(32, 'b');
+        chunk.Size = 8'500'000;
+        chunk.Total = 350'000;
         chunk.Offset = 65536;
-        chunk.Total = 3'500'000;
-        chunk.RawSize = 24000;
-        chunk.Hash = std::string(32, 'h');
+        chunk.Ahead = true;
         chunk.Data = std::string(NotifySaveChunk::kMaxData, '\x7F');
         roundTrip(chunk, NotifyMessageFactory{});
+    }
+
+    SECTION("A guest names the saves its store holds")
+    {
+        SaveHeldRequest held;
+        held.Saves = {std::string(32, 'h'), std::string(32, 'i')};
+        roundTrip(held, RequestMessageFactory{});
     }
 
     SECTION("The join request names the player and whether it joins from the main menu")
@@ -1495,7 +1504,7 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         AuthenticationRequest request;
         request.Version = "v";
         request.PlayerKey = "id:0123456789abcdef";
-        request.CachedSaveBlocks = {std::string(32, 'h'), std::string(32, 'i')};
+        request.HeldSaves = {std::string(32, 'h'), std::string(32, 'i')};
         request.WantsWorld = true;
         roundTrip(request, RequestMessageFactory{});
     }
@@ -1538,7 +1547,9 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         respawn.Position = {100.f, -200.f, 50.f};
         respawn.Heading = 1.5f;
         roundTrip(respawn, NotifyMessageFactory{});
-        roundTrip(NotifyPartyReload{}, NotifyMessageFactory{});
+        NotifyPartyReload reload;
+        reload.Save = std::string(32, 's');
+        roundTrip(reload, NotifyMessageFactory{});
     }
 }
 
@@ -2126,6 +2137,37 @@ TEST_CASE("A bug report goes to the host and from it to every game", "[encoding.
     }
 }
 
+TEST_CASE("A dev command goes to the host and from it to every game", "[encoding.dev_command]")
+{
+    Payloads::DevCommand command;
+    command.Line = "/spawn wolf 3";
+    command.By = "Lydia";
+    {
+        DevCommandRequest sent;
+        sent.Line = command.Line;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kDevCommandRequest);
+        CHECK(static_cast<const DevCommandRequest&>(*decoded) == sent);
+    }
+    {
+        NotifyDevCommand sent;
+        static_cast<Payloads::DevCommand&>(sent) = command;
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        sent.Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == kNotifyDevCommand);
+        CHECK(static_cast<const NotifyDevCommand&>(*decoded) == sent);
+    }
+}
+
 TEST_CASE("A pick names who said it; the highlight goes to the others", "[encoding.dialogue]")
 {
     NotifyDialoguePicked sent;
@@ -2333,4 +2375,18 @@ TEST_CASE("The graph stream's messages round trip", "[encoding.graph_ops]")
     REQUIRE(decodedSync);
     REQUIRE(decodedSync->GetOpcode() == kNotifyGraphSync);
     CHECK(static_cast<const NotifyGraphSync&>(*decodedSync) == sync);
+}
+
+TEST_CASE("A refused ride names the horse and the rider", "[encoding.travel]")
+{
+    NotifyMountRefused refused;
+    refused.RiderId = 8;
+    refused.MountId = 9;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    refused.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<NotifyMountRefused>(std::move(message)) == refused);
 }

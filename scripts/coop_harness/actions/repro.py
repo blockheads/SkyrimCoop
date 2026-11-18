@@ -483,9 +483,6 @@ class ReproActions:
         """Sets up a scene: {players: {host|guest: {near, gap, bearing}}, npcs: [{name, base | ref, frozen}],
         objects: [{name, base | ref, by}], items: [{who, item, count, equip}]}. Returns the handles."""
         ctx.name_players()
-        if not hasattr(ctx, "REPRO_SCENE"):
-            ctx.REPRO_SCENE = []
-        ctx.REPRO_SCENE.append(spec)
         for index, npc in enumerate(spec.get("npcs", [])):
             spot = ctx.scene_spot(index)
             if "ref" in npc:
@@ -514,6 +511,9 @@ class ReproActions:
                 ctx.name_handle(thing["name"], {"host": ref, "guest": ref})
                 continue
             ctx.name_handle(thing["name"], ctx.place_object(thing["base"]))
+        if not hasattr(ctx, "REPRO_SCENE"):
+            ctx.REPRO_SCENE = []
+        ctx.REPRO_SCENE.append(spec)  # staged: a recording started later starts from it (a refused spec is not)
         return ctx.handles()
 
     def scene_spot(ctx, index=0, gap=250.0):
@@ -864,13 +864,16 @@ class ReproActions:
             ctx.pin_world()
         differ = ctx.scene_start()
         ctx.SCENE_KNOWN = set(differ)
+        # The place's own world differences too (a river's fish, a mill's logs): only new ones fail the end check.
+        ctx.SCENE_KNOWN_WORLD = {(label, field) for label, fields in ctx.check_world().items() for field in fields}
         ctx.REPRO_PLACE = {"save": save, "at": at, "pin": pin}
         named = ctx.name_nearby()
         return {"cell": ctx.player_cell(""), "time": ctx.calendar("").get("hour"), "named": named, "disagree": list(differ.values())}
 
     def forget_scene(ctx):
         """Back at the blank baseline: a recording starts from there, and nothing is known to differ."""
-        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN = None, set(), {}
+        ctx.REPRO_PLACE, ctx.SCENE_KNOWN, ctx.REPRO_SEEN, ctx.REPRO_SCENE = None, set(), {}, []
+        ctx.SCENE_KNOWN_WORLD = set()
 
     def worlds(ctx):
         return tuple((ctx.game(instance).read_status() or {}).get("world") or {} for instance in ("", "client"))
@@ -887,14 +890,28 @@ class ReproActions:
         return {handle: actor["distance"] for handle, actor in named.items()}
 
     def find(ctx, name, handle=None):
-        """Names the nearest NPC both games show whose name holds `name`: replays by name, as ids differ between runs."""
-        actors = ctx.nearby_shared()
-        match = next((actor for actor in actors if name.lower() in actor["name"].lower()), None)
-        if not match:
-            raise ctx.failure(f"no {name!r} near the host: {sorted({actor['name'] for actor in actors})}")
+        """Names the nearest NPC both games show whose name holds `name`: replays by name, as ids differ between runs.
+        Waits up to 10 s for one: an NPC just placed reaches the guest a moment later."""
+        seen = []
+
+        def shared():
+            seen[:] = ctx.nearby_shared()
+            return next((actor for actor in seen if name.lower() in actor["name"].lower()), None)
+        try:
+            match = ctx.wait_for(f"both games show a {name!r} near the host", shared, 10)
+        except TestFailure:
+            raise ctx.failure(f"no {name!r} near the host: {sorted({actor['name'] for actor in seen})}")
         handle = handle or slug(match["name"])
         ctx.name_handle(handle, match)
         return {"handle": handle, "name": match["name"], "distance": match["distance"]}
+
+    def remove(ctx, handle):
+        """The host deletes a staged NPC it placed (a handle), as `disable` and `markfordelete`; nothing if unnamed."""
+        if handle not in ctx.handles() or "host" not in ctx.handles()[handle]:
+            return
+        form = ctx.resolve(handle, "host")
+        ctx.console_on("", f"{form:08X}.disable")
+        ctx.console_on("", f"{form:08X}.markfordelete")
 
     # --- watch: what is going on, without a throwaway script ---
 
@@ -1334,7 +1351,7 @@ def _line(tool, args):
         case "pickpocket":
             return f"ctx.pickpocket({game}, {args['target']!r}, {args['item']!r}, {args.get('caught', False)!r})"
         case "fight":
-            return f"ctx.fight({game}, {args['target']!r})"
+            return f"ctx.fight({game}, {args['target']!r}, {args.get('hits', 30)!r}, {args.get('until_dead', True)!r})"
         case "world_freeze":
             return f"ctx.freeze_world({args.get('frozen', True)!r})"
         case "step":

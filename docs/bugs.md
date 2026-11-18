@@ -53,6 +53,7 @@ every other section needs the duo.
 - [After a kill move the guest's own body floats](#after-a-kill-move-the-guests-own-body-floats): small
 - [Doors the host's NPCs unlock](#doors-the-hosts-npcs-unlock): medium
 - [The Greybeards scene never casts the host's player](#the-greybeards-scene-never-casts-the-hosts-player): small
+- [A frozen NPC a guest's kill move missed](#a-frozen-npc-a-guests-kill-move-missed): small
 
 **Ragdolls and death poses**
 
@@ -128,6 +129,7 @@ every other section needs the duo.
 - [A refused join shows nothing](#a-refused-join-shows-nothing): small
 - [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
+- [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
 - [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
@@ -141,7 +143,6 @@ every other section needs the duo.
 - [A dead player's copy a little off its owner's body](#a-dead-players-copy-a-little-off-its-owners-body): small
 - [A respawned player's draw that does nothing](#a-respawned-players-draw-that-does-nothing): small
 - [The attacker's copy not in its kill move](#the-attackers-copy-not-in-its-kill-move): small
-- [The guest's ride ends with the horse still the guest's](#the-guests-ride-ends-with-the-horse-still-the-guests): small
 - [A knocked-down copy placed 62 units off](#a-knocked-down-copy-placed-62-units-off): small
 - [Sync points asked for over and over](#sync-points-asked-for-over-and-over): medium
 
@@ -363,6 +364,10 @@ Size: medium. Needs: duo.
     only), loose food and a door, 45-52 references.
   - `copy_holds_furniture_prop` (Riverwood, 2026-11-16) passes its steps and ends with the fish (`10C3BA`, `10B035`), the
     containers (`0x8000000`) and Riverwood's mill log, 47 references.
+  - `guest-trips-platform-guard` (Solitude, 2026-11-17, three runs) passes its steps and ends with townsfolk scattering
+    from the interrupted execution 57-94 units off their owners (Lisette, Greta, Jala; Roggvir 66 off and facing 57 deg
+    apart), and once the guest's player 40 units into the floor, owner and copy alike. Unread: whether the copies lag a
+    run or hold a stale point.
 
 ### A strafing copy catches for a frame
 
@@ -1147,22 +1152,6 @@ Agent task: read where the door script's `Message.Show` runs for a guest's activ
 
 Size: small. Needs: the duo (`relief-takes-client-relics --repeat 4`), then GameTests.
 
-### A party wipe's fight that misfires
-
-`death-wipe-twice-keeps-character`, 2026-11-12: dev's plugin 2 of 12, the branch 3 of 13 (one in the full run). The
-failures differ:
-
-- The wolf never downs the host in 12 s (dev and the full run).
-- Wipe 1 loads a save of hour 17.5, not the checkpoint at 12 (dev, once).
-- The wolf spawned for wipe 2, about 3 s after wipe 1's reload, is gone on the host before `startcombat` ("actor for
-  new entity not found", "Actor removed": branch, once).
-- A ladle near the fight moved 2 units, so the world check fails afterwards (branch, once).
-
-Agent task: the wolf removed after the reload first (what removes a fresh spawn in the seconds after a load), then the
-save of the wrong hour.
-
-Size: medium. Needs: the duo (`death-wipe-twice-keeps-character --repeat 8`).
-
 ### An action sent before its copy exists
 
 Stands alone: a copy's last action.
@@ -1182,7 +1171,11 @@ Size: small. Needs: GameTests.
     (owner `JumpLandEnd`, copy `JumpLand`).
   - 2026-11-16, dev: `party-travel-mounted-guest` 1 of 3 reruns, the guest's owner on `swimStop`, the host's copy on
     `SwimStart` with `state1` 33792 against 32768.
-  - Start: whether the host's record of a character should take the actions it relays, so a spawn carries the last.
+  - 2026-11-17 (`agent/horse-riding`): the host's record of a player now takes the actions it relays
+    (`HostCharacters::OnMovement`), so a spawn built from the record (no host copy, a respawn) plays the latest;
+    HostAuthorityTests "a player's latest relayed action". Not yet seen on the duo whether the travels' copies come
+    from the record or from the host's copy (`ReadCopy`, its own action, the one behind).
+  - Start: which spawn the host's new copy came from after the travel: the record, or an earlier one in flight.
 
 ### The green flash scenarios' grab
 
@@ -1245,28 +1238,43 @@ Size: small. Needs: the duo.
 
 ### A rider at a scenario's end
 
-Two things under one message: riders failing the standing check, and a copy standing while its owner rides.
+Left of it (2026-11-17, `agent/horse-riding`): the horse-buying scenarios at Whiterun's stables. The rest is fixed:
+the crouched rider ("pelvis 0") was the scenario getting off within ~0.1 s of being seated, which the engine answers
+with no exit clip (vanilla too, `docs/re/systems/mounts.md`); a copy left seated by such a ride's end now gets off.
 
-Agent task: Make the end comparison judge a rider as a rider, then find why a copy stands while its owner rides after
-the horse scenarios.
+Agent task: Find why the stables' bought horse can't be got off or aimed at, and make `party-buys-horse-host/guest`
+pass.
 
 Size: small. Needs: the duo.
 
-- **The guest's horse menu lacks the horse** (`party-buys-horse-guest`, 2026-11-16: the full run and 1 of 3 reruns):
-  "[client] its menu does not list 68CBA". The other two reruns failed on the rider's reading below. Not read: which
-  menu, and whether the host sold the horse already.
-- **Owner and copy both read "lies or kneels while it should stand (pelvis 0 above its feet)"** at the end of
-  `party-buys-horse-host` (the guest's player) and `party-buys-horse-guest` (the host's player), 2026-11-11, every run
-  on both builds, and at the end of `party-travel-mounted-guest`; again 2026-11-16 (`party-buys-horse-host` in the full
-  run, `party-buys-horse-guest` 2 of 3 reruns). Both games agree, so this is the check's reading of a
-  mounted player, or the scenario leaving its rider up: which is not checked.
-- **The owner rides, its copy stands** (dev's plugin, 2026-11-11): `party-buys-horse-host` once and
-  `party-travel-mounted-guest` 6 of 10, the latter timing out after 15 s on "[client] its player got off, the horse a
-  copy again": owner `pose.head` 52, pelvis 0; the host's copy 123 and 70. On `agent/copy-idle-graph` the dismount
-  timed out in none of 9 runs. `party-buys-horse-guest` on dev instead stopped on "[client] {'cmd': 'dialogue'}
-  refused: no answer", once.
-  - Start: the first is the harness's (`body:` in the desync check: skip or judge a mounted actor); the second, the
-    guest's dismount on the host: which action the copy got.
+- **The host can't get off the guest's bought horse** (`party-buys-horse-guest`, 3 of 3 runs 2026-11-17): seated
+  (sit state 3, the horse's pair over), Activate pressed with the crosshair clear: no dismount package, no Detach,
+  still riding 15 s later. The same horse unbought, or given the purchase's owner and faction by console, lets the
+  host off at once. Not read: what the purchase (StablesScript, its packages 98454/3EAB9) leaves on the horse;
+  `Character::ActivateMount` (37864) takes a ClearMountPosition package instead of Dismount when the mount lacks
+  flags2 bit 4.
+- **The guest's crosshair misses the host's bought horse** (`party-buys-horse-host`, 4 of 4): "the crosshair is on
+  nothing, not 429428: 123-138 units off", the aim at its body too. The unbought horse, same stall, is aimed at and
+  ridden.
+- **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
+  - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
+
+### Riverwood's scenery drifts apart
+
+Stands alone: every long scenario in Riverwood.
+
+Agent task: Find why Riverwood's fish, mill logs and loose items end up in different places on the two games, and
+make the horse recordings' end check pass there.
+
+Size: small. Needs: the duo.
+
+- The recorded horse scenarios (`horse-passes-between-riders`, `two-players-race-for-horse`,
+  `rejoined-guest-sees-rider`; 2026-11-17) pass every step, then fail the end comparison on one or two of: a
+  FishController's position (ACTI 10C3BA/10B035, the river's fish), the mill's log (FURN 71C47), cabbages or ingots
+  turned differently. With the clock pinned (`scene(pin=True)`) many more drift, the mill and every fish. None was
+  touched by the scenario; the short `mount_roundtrip` scenarios in the same cell pass.
+  - Start: `scene` now baselines the world differences already there; these appear during the run. Read which of
+    them the host sends (HostWorldState) and which each game simulates alone.
 
 ### The host's roll for a guest's loot
 
@@ -1431,17 +1439,6 @@ Agent task: log which branch took the `pa_Kill` action for the attacker's copy, 
 
 Size: small. Needs: the duo.
 
-### The guest's ride ends with the horse still the guest's
-
-`guest-rides-host-horse`: `Timed out after 10s: [host] the horse is its own again, the client's player off it`, once in
-about 20 runs (the committed build and the review build both passed 5 of 5 later); earlier in the day 3 of 4, the miss a
-kneeling copy at cleanup, not read. Two ends of one ride disagreeing on who rides.
-
-Agent task: read what ends a ride for a copy on its mount (`GETTING_ON_OFF_MOUNT`, sit state) against the host's horse
-ownership.
-
-Size: small. Needs: IDA, the duo.
-
 ### A knocked-down copy placed 62 units off
 
 `knockdown-lies-as-host`: `desync before removing FF00099A: Lydia placement.position: host [-987, 2095, 6976] vs client
@@ -1465,6 +1462,23 @@ Agent task: log why `ShouldAsk` fires again for one looping actor (`Asked` reset
 load, `SeeGraph`), in the scenario that shows it.
 
 Size: medium. Needs: the duo, GameTests.
+
+## Found with the dev commands (2026-11-16)
+
+### A frozen NPC a guest's kill move missed
+
+The duo, QASmoke, by hand: two wolves staged frozen (`stage`), the guest in daedric gear hits one (`fight`). The guest's
+idle tree picks `pa_KillMove1HMWolfB` on the fatal swing, its engine refuses the pair ("refused by the engine, not
+sent"), and from then on the host refuses every forwarded hit on that wolf ("Forwarded hit on FF00087F by FF000838 not
+applied (gone, or held by a kill move)") for over 50 s; the host's copy of the guest logs "paired action 13005
+'pa_KillMove1HMWolfB' not played, FF00087F was in a kill move". The same at vanilla odds (`/killmove default`) with a
+third wolf. `kill_move_check` on the host: `in_kill_move` false. Unread: what holds the host's wolf (its kill move flag
+or a recorded killer, 38613/38614), and whether an unfrozen NPC does it too.
+
+Agent task: read what `IsHeldByKillMove` answers for the host's wolf after the guest's refused pair, then a GameTests
+flow for it.
+
+Size: small. Needs: the duo (two frozen wolves, the guest's fatal swing), then GameTests.
 
 ## Found by the full run of 2026-11-16
 

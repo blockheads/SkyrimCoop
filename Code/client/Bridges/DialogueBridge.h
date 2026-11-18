@@ -33,4 +33,5 @@ public:
 
     std::optional<uint32_t> GetHighlight() const noexcept override;
     void SetHighlight(uint32_t aIndex) noexcept override;
+    std::optional<std::pair<float, float>> GetCursor() const noexcept override;
 };

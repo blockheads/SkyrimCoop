@@ -150,6 +150,18 @@ class CrimeActions:
                               f"{player} {wanted}") from None
         return {"target": wanted}
 
+    def expect_enemy(ctx, npc, of="host_player", seconds=10.0):
+        """The host's `npc` reads `of` (a player's handle) as an enemy within `seconds`: its reaction (37666) is 1 and
+        IsHostileToActor (37537) says yes, as the party-foe and anger hooks answer them (combat-targets.md)."""
+        ctx.refresh_handles()
+        actor, other = ctx.resolve(npc, "host"), ctx.resolve(of, "host")
+        read = lambda: ctx.crime_command("", "reaction", actor=actor, target=other)
+        try:
+            ctx.wait_for(f"{npc} is {of}'s enemy", lambda: (lambda r: r["reaction"] == 1 and r["hostile"])(read()), seconds)
+        except Exception:
+            raise ctx.failure(f"{npc} toward {of}: {read()} (reaction 1 and hostile expected)") from None
+        return read()
+
     def stop_scene(ctx, scene):
         """Stops the host's scene `scene` (hex form id, Papyrus Scene.Stop) and waits until it is not playing: a scene
         replaces an actor's created package, the steal warning's too (crime.md)."""
