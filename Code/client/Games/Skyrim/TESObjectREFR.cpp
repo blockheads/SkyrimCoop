@@ -1304,8 +1304,11 @@ void HookRotateZ(TESObjectREFR* apThis, float aAngle)
     if (apThis->formType == Actor::Type)
     {
         const auto pActor = static_cast<Actor*>(apThis);
-        // We don't allow remotes to move, but where we let the engine (a copy lying in its ragdoll: HookTransformDelta)
-        if (pActor->GetExtension()->IsCopy() && !ScopedReferencesOverride::IsOverriden())
+        // We don't allow remotes to move, but where we let the engine (a copy lying in its ragdoll: HookTransformDelta;
+        // seated on a mount: its REFRSyncController 20318)
+        if (pActor->GetExtension()->IsCopy() && !ScopedReferencesOverride::IsOverriden() &&
+            !ReplayState::CopyTakesEnginePlace(false, pActor->extraData.Contains(ExtraDataType::Interaction),
+                                               pActor->actorState.GetSitSleepState()))
             return;
     }
 

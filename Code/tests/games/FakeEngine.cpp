@@ -7,6 +7,7 @@
 #include "FakeEngine.h"
 
 #include <Events/DismountEvent.h>
+#include <Events/BoardEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/SaveWrittenEvent.h>
 
@@ -461,10 +462,12 @@ struct FakeGraphTarget final : IGraphTarget
     void Update(float aStep) override { Engine.StepGraph(Actor, aStep); }
     void Generate() override { Engine.GenerateGraph(Actor); }
     void HoldAnimObjects(std::span<const std::pair<uint32_t, bool>> aObjects) override { FakeEngine::HoldAnimObjects(Actor, aObjects); }
-    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t, uint16_t aEventId) override
+    std::shared_ptr<std::atomic<bool>> RequestClips(uint8_t aSet, uint16_t aEventId) override
     {
         const auto cEvents = Engine.GraphEventTable();
-        return aEventId < cEvents.size() ? Engine.RequestActionClips(FormId, cEvents[aEventId]) : nullptr;
+        if (aEventId >= cEvents.size())
+            return nullptr;
+        return aSet == 47 ? Engine.RequestMovementClips(FormId, cEvents[aEventId]) : Engine.RequestActionClips(FormId, cEvents[aEventId]);
     }
 };
 } // namespace
@@ -581,7 +584,7 @@ void FakeEngine::Frame()
                 if (actor.ExitIn && !--actor.ExitIn)
                 {
                     actor.State1 &= ~(0xFu << kSitShift);
-                    Mounts.erase(cId);
+                    EndRide(cId);
                 }
             }
         }
@@ -602,10 +605,18 @@ void FakeEngine::Frame()
             ++it;
             continue;
         }
-        if (const auto cActor = Actors.find(it->FormId); cActor != Actors.end())
-            cActor->second.LoadedClips = {it->Event};
-        it->Done->store(true);
+        const ClipLoad cLoad = std::move(*it);
         it = ClipLoads.erase(it);
+        if (cLoad.Lock && !FakeLoadLock::Live(cLoad.Lock))
+        {
+            ++ClipLoadHangs; // 63997 spins on the freed lock: Skyrim's frame never ends
+            continue;
+        }
+        if (cLoad.Loaded)
+            cLoad.Loaded();
+        else if (const auto cActor = Actors.find(cLoad.FormId); cActor != Actors.end())
+            cActor->second.LoadedClips = {cLoad.Event};
+        cLoad.Done->store(true);
     }
     if (Actors.contains(kPlayer))
         ShovePlayer();
@@ -1143,6 +1154,28 @@ void FakeEngine::ActorEndRide(uint32_t aRider) noexcept
         EndRide(aRider);
 }
 
+void FakeEngine::ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept
+{
+    if (!Actors.contains(aRider))
+        return;
+    ActorPutOnMount(aRider, aMount);
+    Actors.at(aRider).State1 = (Actors.at(aRider).State1 & ~(0xFu << kSitShift)) | uint32_t(::ReplayState::kSitSeated) << kSitShift;
+}
+
+bool FakeEngine::PlayerBoardMount(uint32_t aMount) noexcept
+{
+    if (!Actors.contains(aMount))
+        return false;
+    MountSlots.erase(aMount); // emptied before 37905's CanRide (38706), which refuses midair too
+    if (Actors.at(kPlayer).InAir)
+        return false;
+    Mounts[kPlayer] = aMount;
+    MountSlots[aMount] = kPlayer;
+    // Its get-on's end (PairedStopHandler 42868): seated. The fake plays no clip.
+    Actors.at(kPlayer).State1 = (Actors.at(kPlayer).State1 & ~(0xFu << kSitShift)) | 3u << kSitShift;
+    return true;
+}
+
 bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
 {
     if (!IsActorMount(aMount) || !Actors.contains(aActivator) || IsActorMount(aActivator))
@@ -1158,9 +1191,13 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
             StartDismount(aActivator);
         return true;
     }
-    for (const auto& [cRider, cMount] : Mounts)
-        if (cMount == aMount)
-            return true; // IsMountBeingRidden: nothing
+    if (MountSlots.contains(aMount))
+    {
+        // IsMountBeingRidden: nothing. Our hook (37864) offers our player's activation as a boarding.
+        if (aActivator == kPlayer && !cCopy)
+            World::Get().GetRunner().Trigger(BoardEvent{aActivator, aMount});
+        return true;
+    }
     if (Actors.at(aActivator).InAir)
         return true; // CanRide (38706) refuses: no package, no ride, our hook raises nothing
     if (cCopy)
@@ -1171,6 +1208,9 @@ bool FakeEngine::ActivateMount(uint32_t aActivator, uint32_t aMount)
     }
     World::Get().GetRunner().Trigger(MountEvent{aActivator, aMount});
     Mounts[aActivator] = aMount;
+    MountSlots[aMount] = aActivator;
+    if (aActivator == kPlayer)
+        Reins[aMount] = aActivator; // OnMountStarted (40725), its package the player's ride
     return true;
 }
 
@@ -1182,9 +1222,14 @@ void FakeEngine::EndRide(uint32_t aRider) noexcept
         return;
     const uint32_t cMountId = cMount->second;
     Mounts.erase(cMount);
-    // HookDetachInteraction: an own rider's ride ended.
-    if (const auto it = Actors.find(aRider); it != Actors.end() && !it->second.Copy)
-        World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId});
+    MountSlots.erase(cMountId); // 40355 with null: whichever rider it named
+    if (const auto cReins = Reins.find(cMountId); cReins != Reins.end() && cReins->second == aRider)
+        Reins.erase(cReins);
+    if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && Actors.contains(cMountId) && !Actors.at(cMountId).Copy)
+        SyncedMounts.insert(cMountId);
+    // HookDetachInteraction: any rider's ride ended.
+    if (const auto it = Actors.find(aRider); it != Actors.end())
+        World::Get().GetRunner().Trigger(DismountEvent{aRider, cMountId, it->second.Copy});
 }
 
 void FakeEngine::PlayerTravels(uint32_t aCell, const glm::vec3& acPosition)
@@ -1535,6 +1580,56 @@ bool FakeEngine::ReplayAnimation(uint32_t aFormId, const ActionEvent& acAction)
 uint32_t FakeEngine::DrawGraphRandom(Actor& aActor) noexcept
 {
     return aActor.GraphRandom = aActor.GraphRandom * 1664525 + 1013904223;
+}
+
+namespace
+{
+std::set<uint64_t> s_liveLoadLocks;
+uint64_t s_nextLoadLock = 0;
+} // namespace
+
+FakeLoadLock::FakeLoadLock()
+    : Id(++s_nextLoadLock)
+{
+    s_liveLoadLocks.insert(Id);
+}
+
+FakeLoadLock::~FakeLoadLock()
+{
+    s_liveLoadLocks.erase(Id);
+}
+
+bool FakeLoadLock::Live(uint64_t aId) noexcept
+{
+    return s_liveLoadLocks.contains(aId);
+}
+
+void FakeEngine::LoadMovementClips(uint32_t aFormId, const std::string& acEvent)
+{
+    if (auto& streams = World::Get().GetGraphStreams(); !Actors.at(aFormId).Copy && streams.Recording(aFormId))
+        streams.OnClips(aFormId, streams.Tick(), 47, GraphEventId(acEvent));
+}
+
+std::shared_ptr<std::atomic<bool>> FakeEngine::RequestMovementClips(uint32_t aFormId, const std::string& acEvent)
+{
+    const auto cActor = Actors.find(aFormId);
+    if (cActor == Actors.end() || (!ClipFiles.contains(acEvent) && !OtherSetClips.contains(acEvent)))
+        return nullptr;
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    // As ActionClips: the holder's lock and callback; the holder goes once none of its loads is queued.
+    void* pLoad = MovementSets.Request(
+        aFormId, [this](uint32_t aId) { return !Actors.contains(aId); },
+        [](uint32_t aNumber) { return reinterpret_cast<void*>(uintptr_t(aNumber)); },
+        [&](auto& aHolder, void* apCallback) {
+            const uint32_t cNumber = uint32_t(reinterpret_cast<uintptr_t>(apCallback));
+            ClipLoads.push_back({aFormId, acEvent, ClipLoadFrames, done, aHolder.LoadLock.Id,
+                                 [this, aFormId, acEvent, cNumber] {
+                                     MovementSets.Loaded(aFormId, cNumber, [&](MovementSet& aSet) { aSet.Event = acEvent; });
+                                 }});
+            return reinterpret_cast<void*>(++m_nextClipLoad); // the load, as 43621 returns it
+        },
+        [](void*) {}, [](MovementSet&) {});
+    return pLoad ? done : nullptr;
 }
 
 std::shared_ptr<std::atomic<bool>> FakeEngine::RequestActionClips(uint32_t aFormId, const std::string& acEvent)

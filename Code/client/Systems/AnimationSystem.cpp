@@ -119,6 +119,13 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         while (!actions.empty() && actions.front().Tick <= aTick)
         {
             ActionEvent action = actions.front();
+            if (ReplayState::SkipsMountEntry(action.EventName, apActor->actorState.GetSitSleepState()))
+            {
+                actions.pop_front();
+                aAnimationComponent.LastRanAction = action;
+                apActor->GetExtension()->LatestAnimation.Write(action);
+                continue;
+            }
             if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying && !apActor->IsDead())
             {
                 spdlog::debug("Copy {:X} dies on its owner's stream at its death action {:X} '{}'", apActor->formID, action.ActionId, action.EventName);
@@ -246,6 +253,15 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             else
                 spdlog::debug("Copy {:X}: its kill did not play the owner's death action {:X} '{}'", apActor->formID,
                               first.ActionId, first.EventName);
+            actions.pop_front();
+            return;
+        }
+        // A passenger seated at once: its owner's get-on would unseat it (player-mount.md).
+        if (ReplayState::SkipsMountEntry(first.EventName, apActor->actorState.GetSitSleepState()))
+        {
+            spdlog::debug("Copy {:X}: seated already, skipped its owner's '{}'", apActor->formID, first.EventName);
+            aAnimationComponent.LastRanAction = first;
+            apActor->GetExtension()->LatestAnimation.Write(first);
             actions.pop_front();
             return;
         }

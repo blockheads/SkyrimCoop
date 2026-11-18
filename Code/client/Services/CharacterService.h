@@ -37,6 +37,7 @@ struct InterruptCastEvent;
 struct AddTargetEvent;
 struct ProjectileLaunchedEvent;
 struct MountEvent;
+struct BoardEvent;
 struct DismountEvent;
 struct NotifyRespawn;
 struct PlayerLooksChangeEvent;
@@ -103,8 +104,13 @@ struct CharacterService
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     void OnNotifyMountRefused(const NotifyMountRefused& acMessage) noexcept;
+    // Our player activated a horse a party player drives: on as a passenger, the host told.
+    void OnBoardEvent(const BoardEvent& acEvent) noexcept;
+    // Another player rides along: its copy seated at once (its replayed get-on never ends).
+    void OnNotifyBoard(const NotifyBoard& acMessage) noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
+    void OnNotifyUnboard(const NotifyUnboard& acMessage) noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept;
     void QueuePendingLooks() noexcept;
     void ApplyPendingLooks() noexcept;
@@ -207,6 +213,12 @@ private:
     std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
     std::unordered_map<uint32_t, uint32_t> m_pendingRides; // mount -> rider session ids, heard before both copies were made
     void LinkPendingRides(uint32_t aSessionId) noexcept;
+    uint32_t m_boardedMount{}; // session id: our player rides along on it
+    std::unordered_map<uint32_t, uint32_t> m_drivers; // mount -> its driver, session ids
+    std::unordered_map<uint32_t, uint32_t> m_pendingBoards; // passenger -> mount, heard before both copies were made
+    // Any rider's Detach empties its mount's one slot: the driver still on holds it again.
+    void KeepDriverOn(const DismountEvent& acEvent) noexcept;
+    [[nodiscard]] uint32_t FormOfSession(uint32_t aSessionId) const noexcept;
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
     // Ours lying in their ragdolls at the last snapshot, and the snapshots since they lay down or got up: the first two
     // are jumps (the engine moves it onto or off its ragdoll in its graph update, within a frame of the state).

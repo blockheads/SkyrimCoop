@@ -22,6 +22,7 @@ struct TESRace;
 struct ExActor;
 struct ExPlayerCharacter;
 struct ActorExtension;
+struct RefrInteraction;
 struct AIProcess;
 struct CombatController;
 struct TESIdleForm;
@@ -244,7 +245,7 @@ struct Actor : TESObjectREFR
     [[nodiscard]] uint8_t BodiesLayer() const noexcept;
     // Its own 3D's bodies put on that layer in the world (keyframed, its capsule's group), or out of it for 0, queued
     // as the engine queues them (TaskQueueInterface 36922 to 36929). False: as wanted already, or no 3D.
-    bool SetBodiesLayer(uint8_t aLayer) noexcept;
+    bool SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf = nullptr) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void ShowWeaponDrawn(bool aDrawn) noexcept;
     void InitiateDoNothingPackage() noexcept;
@@ -293,6 +294,21 @@ struct Actor : TESObjectREFR
     // Off its mount at once, no exit clip, as MountInteraction 40352 does when the exit pair is refused: sit state 0
     // (AIProcess::SetSitSleepState 39912), then FinishDismount (38696: beside the mount, flags cleared, Detach).
     void EndRideNow() noexcept;
+    // Off its mount as a get-off clip ends (Actor::FinishDismount 38696: beside the mount, Detach), its sit state left.
+    void FinishDismount() noexcept;
+    // Onto a mount another rider holds: linked, then seated as a get-on's clip ends (sit state 3, then
+    // Actor::OnInteractionSeated 41533, as PairedStopHandler 42868).
+    void SeatOnMount(Actor* apMount) noexcept;
+    // Its own ExtraInteraction's link (a rider's to its mount), else null.
+    [[nodiscard]] RefrInteraction* GetOwnInteraction() const noexcept;
+    // On a mount: its one slot (ExtraDataList::SetInteractionData 12074, which adds only to an empty one) set to
+    // the rider's link; aReplace empties it first.
+    void HoldRider(Actor* apRider, bool aReplace) noexcept;
+    // Actor::EvaluatePackage (37401): the package chosen again now.
+    void EvaluatePackageNow() noexcept;
+    // A mount's half of a pair (MountBehavior DismountSynced, HorseBehavior.hkx) ends on PairEnd, which only the
+    // pair's instance sends (BGSSynchronizedAnimationInstance::Deactivate 32797): none where the horse changed hands.
+    void EndMountPair() noexcept;
     void GenerateMagicCasters() noexcept;
     void DispelAllSpells(bool aNow = false) noexcept;
     void Reset() noexcept;

@@ -53,6 +53,35 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 Linux only); machine paths from the environment or `~/.config/skyrimcoop/paths.env` (`scripts/local_paths.py`), and the
 duo runs as this user unless `COOP_DUO_USER` is set; `playtests/`, raw report evidence and the imgui examples removed.
 
+2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
+the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
+`Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the
+crosshair offers Ride over it (`HookGetActivateText` 24716). The host keeps each horse's passengers in boarding order
+(`HostCharacters::Character::Passengers`, `BoardRequest` / `NotifyBoard` / `UnboardRequest`). When the driver gets off
+or leaves, the first passenger drives (`HostCharacters::HandOver`, a `NotifyMount` to it): its game takes the horse and
+the reins (`PlayerTakeReins`: the horse's slot, `PlayerCharacter::OnMountStarted` 40725, `Actor::EvaluatePackage`
+37401, and `PairEnd` for the old driver's exit pair, which only a pair's instance sends, 32797); a horse handed to a
+passenger already off it goes straight back. A copy on a mount: linked as a driver's copy is and seated as its owner's
+get-on ends; its bodies in its mount's collision group, as `SeatRider` (40358) sets a rider's (in its own group the
+horse stepped 70 units away); its capsule off while it gets on; seated, no steps and the engine's position writes taken
+(`REFRSyncController` 20318 keeps its reference on the horse; refused, it stayed 1,100 units behind); at its get-off off
+the horse at once (`FinishDismount` 38696); a rider off a horse that stays ridden is told to its copies (`NotifyUnboard`), as a
+ride can end with no exit clip. A refused get-on gives the driver back its slot. Any rider's Detach empties the horse's one slot, so the driver still on
+holds it again. Passengers arrive on foot after a party travel. Scenario `party-shares-a-horse` checks boarding, both
+seated, driving, the handover, every get-on and get-off for jumps on both games and each riding copy at its horse; it
+passes its steps, its end check failing on the plains' critters (`bugs.md`). Tests: GameTests `[passengers]` (the
+fake's `MountSlots`, `Reins`, `SyncedMounts`), HostAuthorityTests `[passengers]`, ClientTests `ReplayState` rules,
+encoding round trip.
+
+2026-11-17: a guest no longer freezes when the host's temporary NPCs go. The playtest's "coc whiterun crashed the
+guest" was a freeze: the guest deleted the copies, and the animation file job (63997) spun on a deleted copy's lock.
+A copy's movement idle load (kind 47, a turn-to-walk) named the copy's process lock and was never cancelled. Copies now
+hold those sets with their own lock and callback, kept until none of their loads is queued (no cancel: 63997 takes a
+finished load's lock before it reads a cancel)
+([animation-file-loads.md](re/systems/animation-file-loads.md)). Tests: GameTests "A copy deleted while its movement
+idle's clips load...", ClientTests `[held-clip-loads]`, scenario `copy_deleted_while_clips_load` (harness `clip_loads`
+holds the guest's file job and lists each load's lock owner).
+
 2026-11-17: a fight with one player is the party's (Solitude playtest, 2026-11-16: the platform guards killed Josh, a
 guest, and never turned on the host). The execution's interrupt trigger runs `PlatformGuard.StartCombat(Game.GetPlayer())`,
 the guest's copy for a guest's trigger: no crime, so nothing the party shares, and `HostAggro` counted only damage and

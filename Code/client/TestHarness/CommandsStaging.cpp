@@ -94,6 +94,42 @@ nlohmann::json CopyDoNothing(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::CopyHoldsDoNothing(acRequest.value("actor", 0u)) ? Ok() : Error("no such copy");
 }
 
+// {"cmd": "put_on_mount", "rider": id, "mount": id}: the rider on the mount at once (EngineCalls::PutOnMount). This game only.
+nlohmann::json PutOnMount(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::PutOnMount(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("no such rider or mount");
+}
+
+// {"cmd": "board_ridden", "rider": id, "mount": id}: the engine's get-on onto a ridden horse (EngineCalls::BoardRiddenMount).
+nlohmann::json BoardRidden(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::BoardRiddenMount(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("refused, or no such rider or mount");
+}
+
+// {"cmd": "activate_text", "ref": id}: the prompt the crosshair shows for it (EngineCalls::GetActivateText).
+nlohmann::json ActivateTextCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"text", EngineCalls::GetActivateText(acRequest.value("ref", 0u))}};
+}
+
+// {"cmd": "graph_event", "actor": id, "event": "PairEnd"}: the event to its graphs (EngineCalls::SendGraphEvent).
+nlohmann::json GraphEventCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return {{"ok", true}, {"taken", EngineCalls::SendGraphEvent(acRequest.value("actor", 0u), acRequest.value("event", std::string{}))}};
+}
+
+// {"cmd": "take_reins", "rider": id, "mount": id}: the horse names this rider (EngineCalls::TakeReins). This game only.
+nlohmann::json TakeReinsCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::TakeReins(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("no rider interaction or mount");
+}
+
+// {"cmd": "seat_on_mount", "rider": id, "mount": id}: linked and seated at once (EngineCalls::SeatOnMount).
+nlohmann::json SeatOnMountCommand(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::SeatOnMount(acRequest.value("rider", 0u), acRequest.value("mount", 0u)) ? Ok() : Error("no such rider or mount");
+}
+
 // {"cmd": "put_package", "actor": id, "package": id}: the actor runs that package (EngineCalls::PutPackage). This game only.
 nlohmann::json PutPackage(Harness&, const nlohmann::json& acRequest)
 {
@@ -192,7 +228,7 @@ nlohmann::json Wake(Harness&, const nlohmann::json& acRequest)
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place}, {"swing_cast", true, &SwingCast}, {"aim_swing", true, &AimSwing}, {"last_swing", false, &LastSwing},
-    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"clear_map_marker", true, &ClearMapMarker},
+    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"copy_do_nothing", true, &CopyDoNothing}, {"put_on_mount", true, &PutOnMount}, {"board_ridden", true, &BoardRidden}, {"seat_on_mount", true, &SeatOnMountCommand}, {"take_reins", true, &TakeReinsCommand}, {"graph_event", true, &GraphEventCommand}, {"activate_text", true, &ActivateTextCommand}, {"clear_map_marker", true, &ClearMapMarker},
     {"wake", true, &Wake},
     {"body_velocity", true, &BodyVelocity},
 };

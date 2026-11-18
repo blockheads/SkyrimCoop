@@ -132,6 +132,12 @@ public:
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;
     void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
     void ActorEndRide(uint32_t aRiderFormId) noexcept override;
+    void ActorSeatOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
+    [[nodiscard]] uint32_t GetActorMount(uint32_t aRiderFormId) const noexcept override;
+    void ActorHoldMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
+    void ActorEndMountPair(uint32_t aMountFormId) noexcept override;
+    [[nodiscard]] uint8_t GetActorSitState(uint32_t aFormId) const noexcept override;
+    void ActorFinishDismount(uint32_t aRiderFormId) noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
@@ -251,6 +257,8 @@ public:
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerMounted() const noexcept override;
     void PlayerStopRiding() noexcept override;
+    bool PlayerBoardMount(uint32_t aMountFormId) noexcept override;
+    void PlayerTakeReins(uint32_t aMountFormId) noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;
     void SetSpectatorTarget(uint32_t aFormId) noexcept override;

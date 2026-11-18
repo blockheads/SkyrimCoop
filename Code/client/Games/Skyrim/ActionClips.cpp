@@ -1,13 +1,13 @@
 #include <Games/Skyrim/ActionClips.h>
 
+#include <Games/Animation/HeldClipLoads.h>
+
 #include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Misc/BSFixedString.h>
 #include <Misc/MiddleProcess.h>
 #include <Forms/TESForm.h>
 #include <memory>
-#include <mutex>
-#include <unordered_map>
 #include <utility>
 
 namespace
@@ -16,29 +16,40 @@ using TReleaseSet = void(AnimationClipSet*, bool);
 using TAssignCallback = void*(void**, void*);
 
 // A copy's movement idle sets (kind 47): its owner's selector holds its own; a copy runs no movement AI.
-struct HeldSet
+struct MovementSet
 {
     AnimationClipSet Set{};
-    void* Callback = nullptr; // the load's, by its count (39731)
 };
-std::mutex s_heldLock; // never held across a load: the loader can call back at once, under the animation lock
-std::unordered_map<uint32_t, std::unique_ptr<HeldSet>> s_held;
+// The engine's spin lock, as the queue takes it (63997).
+struct HeldLock
+{
+    BSRecursiveLock Lock{};
+    void lock() { Lock.Lock(); }
+    void unlock() { Lock.Unlock(); }
+};
+HeldClipLoads<MovementSet, HeldLock> s_movement;
 
-void Release(HeldSet& aHeld)
+void Release(MovementSet& aHeld)
 {
     POINTER_SKYRIMSE(TReleaseSet, ReleaseSet, 38275);
-    POINTER_SKYRIMSE(TAssignCallback, AssignCallback, 39731);
     if (aHeld.Set.size)
         ReleaseSet(&aHeld.Set, true);
-    AssignCallback(&aHeld.Callback, nullptr);
+}
+
+// A load's callback reference, by its count (39731): the queue keeps only the pointer (63968 +0x40).
+void ReleaseCallback(void* apCallback)
+{
+    POINTER_SKYRIMSE(TAssignCallback, AssignCallback, 39731);
+    AssignCallback(&apCallback, nullptr);
 }
 
 // IAnimationSetCallbackFunctor: the engine holds it by its count and calls Loaded on the loader's side.
 struct ClipsLoaded
 {
-    ClipsLoaded(AIProcess& aProcess, uint32_t aFormId, std::shared_ptr<std::atomic<bool>> aDone) noexcept
+    ClipsLoaded(AIProcess& aProcess, uint32_t aFormId, std::shared_ptr<std::atomic<bool>> aDone, uint32_t aNumber = 0) noexcept
         : m_pProcess(&aProcess)
         , m_formId(aFormId)
+        , m_number(aNumber)
         , m_done(std::move(aDone))
     {
     }
@@ -48,6 +59,7 @@ struct ClipsLoaded
     volatile LONG m_refCount{0}; // 08
     AIProcess* m_pProcess;
     uint32_t m_formId;
+    uint32_t m_number; // a movement set's load, in its holder (HeldClipLoads)
     std::shared_ptr<std::atomic<bool>> m_done;
 };
 
@@ -60,14 +72,11 @@ void ClipsLoaded::Loaded(uint32_t aKind, AnimationClipSet* apSet)
     if (aKind == ActionClips::kMovement)
     {
         // Kept as 40055 keeps a process's: the set's contents swapped in, the old ones released.
-        std::scoped_lock _{s_heldLock};
-        auto& pHeld = s_held[m_formId];
-        if (!pHeld)
-            pHeld = std::make_unique<HeldSet>();
-        auto& held = *pHeld;
-        std::swap(held.Set.data, apSet->data);
-        std::swap(held.Set.capacity, apSet->capacity);
-        std::swap(held.Set.size, apSet->size);
+        s_movement.Loaded(m_formId, m_number, [apSet](MovementSet& aHeld) {
+            std::swap(aHeld.Set.data, apSet->data);
+            std::swap(aHeld.Set.capacity, apSet->capacity);
+            std::swap(aHeld.Set.size, apSet->size);
+        });
         if (apSet->size)
             ReleaseSet(apSet, true);
         m_done->store(true, std::memory_order_release);
@@ -108,25 +117,18 @@ std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, S
     void* pLoad = nullptr;
     if (aSet == kMovement)
     {
-        HeldSet* pHeld = nullptr;
-        {
-            std::scoped_lock _{s_heldLock};
-            std::erase_if(s_held, [](auto& aEntry) {
-                if (TESForm::GetById(aEntry.first))
-                    return false;
-                Release(*aEntry.second); // its copy is gone
-                return true;
-            });
-            auto& pEntry = s_held[aActor.formID];
-            if (!pEntry)
-                pEntry = std::make_unique<HeldSet>();
-            pHeld = pEntry.get();
-        }
-        BSScopedLock<BSRecursiveLock> lock{pMiddle->animationLock};
-        AssignMiddleCallback(&pHeld->Callback, new ClipsLoaded(*pProcess, aActor.formID, done));
-        pLoad = LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(pHeld->Callback), &pMiddle->animationLock, true);
-        if (!pLoad)
-            AssignMiddleCallback(&pHeld->Callback, nullptr);
+        // Its holder's lock and callback, not the copy's: a queued load takes the lock and calls back (63997).
+        pLoad = s_movement.Request(
+            aActor.formID, [](uint32_t aFormId) { return !TESForm::GetById(aFormId); },
+            [&](uint32_t aNumber) {
+                void* pCallback = nullptr;
+                AssignMiddleCallback(&pCallback, new ClipsLoaded(*pProcess, aActor.formID, done, aNumber));
+                return pCallback;
+            },
+            [&](auto& aHolder, void* apCallback) {
+                return LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(apCallback), &aHolder.LoadLock.Lock, true);
+            },
+            &ReleaseCallback, [](MovementSet& aHeld) { Release(aHeld); });
     }
     else
     {

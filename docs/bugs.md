@@ -130,6 +130,8 @@ every other section needs the duo.
 - [A player at a chest reads lower than its copy](#a-player-at-a-chest-reads-lower-than-its-copy): small
 - [A rider at a scenario's end](#a-rider-at-a-scenarios-end): small
 - [Riverwood's scenery drifts apart](#riverwoods-scenery-drifts-apart): small
+- [Whiterun plains' critters differ](#whiterun-plains-critters-differ): small
+- [A guest crashed loading a copy's idle clips](#a-guest-crashed-loading-a-copys-idle-clips): small
 - [The host's roll for a guest's loot](#the-hosts-roll-for-a-guests-loot): small
 - [Cover plates after the host leaves](#cover-plates-after-the-host-leaves): small
 - [A follower's party ahead of its copies](#a-followers-party-ahead-of-its-copies): small
@@ -1259,6 +1261,36 @@ Size: small. Needs: the duo.
 - **The guest's horse menu lacks the horse** (2026-11-16, once): not seen again on a clean world.
   - Start: buy through the MCP (`talk`, the topics), then `mount_readout` and the horse's packages before getting on.
 
+### A guest crashed loading a copy's idle clips
+
+Stands alone: seen once in Riverwood (2026-11-17, `agent/mount-per-player`'s duo).
+
+Agent task: Find why the engine's clip loader faulted on a guest as a graph-stream copy loaded an idle's clip files.
+
+Size: small. Needs: IDA, then the duo.
+
+- Access violation in a job thread: 63997+0xC1 (`call [rax+0x08]`, the object's vtable read from a freed pointer:
+  0xFFFFFFFFFFFFFFFF) from 63980+0x1A5, `AnimationFileManagerSingleton` in RBP. The guest's last log line: "Graph stream:
+  copy 1348A loads IdleMillLoadStart's clip files into set 4: loading" (the mill worker). The party had just arrived in
+  Riverwood by `coc`, both players still on a horse. Crash log: the guest prefix's
+  `SKSE/crash-2026-11-17-23-28-37.log`.
+  - Probably fixed by `agent/coc-whiterun-crash` (PR #71, merged 2026-11-17: the same job, 63997, faulting on a
+    deleted copy's held clip load after a `coc`); rerun a `coc` with riders to confirm, then delete this entry.
+
+### Whiterun plains' critters differ
+
+Stands alone: `party-shares-a-horse` (Whiterun plains, `cow Tamriel 0 -4`).
+
+Agent task: Find why the critters the plains spawn differ between the games, and make the scenario's end check pass.
+
+Size: small. Needs: the duo.
+
+- 2026-11-17, 2 of 3 runs: every step passes, then the end comparison fails only on created references nobody touched:
+  `ACTI B97AF` / `ACTI 22219` (flag `0x8000000` on the host's alone, graph `fTakeOffDamped` set on the host's, 0 on
+  the guest's) and `STAT C2D47` present on the guest only. The third run passed clean.
+  - Start: read which game spawns these (a critter spawner's script, created references) and whether HostWorldState
+    sends them; `Riverwood's scenery drifts apart` below may share the answer.
+
 ### Riverwood's scenery drifts apart
 
 Stands alone: every long scenario in Riverwood.
@@ -1577,3 +1609,12 @@ Size: small. Needs: the duo.
   false" (`actions/play_verbs.py`: a frozen speaker never finishes a line). The scenario stages him frozen, so whether a placed speaker deleted mid-conversation is
   handled has no running check.
   - Start: stage him unfrozen and restrained, as `dialogue.py`'s other placed speakers are.
+
+## A passenger jumps 57 units as it takes the reins (duo, 2026-11-18)
+
+- `party-shares-a-horse`, "the host gets off": the guest's own player, seated as a passenger, moved 57 units in one
+  frame (19 ms) 0.84 s into the host's get-off, as the horse was handed to it. 1 of 3 runs; the other two smooth.
+- Not the rider-off message: it reached the guest after the host's copy was already off (`Unboard ...: its copy on 0,
+  sit state 4`) in every logged run.
+- Start: trace the guest's player and horse around `PlayerTakeReins` (`EndMountPair`, `HoldRider`, 40725,
+  `EvaluatePackage` 37401) with `riders_smooth`'s body trace; read what 40725 / the mount package do to a seated rider.

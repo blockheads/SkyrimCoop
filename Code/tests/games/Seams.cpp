@@ -260,6 +260,13 @@ void World::Update() noexcept
             while (!animation.TimePoints.empty() && animation.TimePoints.front().Tick <= cPlayback)
             {
                 const ActionEvent cAction = animation.TimePoints.front();
+                if (::ReplayState::SkipsMountEntry(cAction.EventName, engine.SitState(form.Id))) // as AnimationSystem
+                {
+                    animation.TimePoints.pop_front();
+                    animation.LastRanAction = cAction;
+                    engine.SetActorLatestAnimation(form.Id, cAction);
+                    continue;
+                }
                 // Its death on its stream: the kill beside the graph, its death's clip its stream's (AnimationSystem).
                 if (DeathActions::IsDying(cAction.State1) && !actor.Dead)
                     engine.KillBesideGraph(form.Id, cAction);
@@ -353,6 +360,13 @@ void World::Update() noexcept
         }
         if (actor.GraphState == "dead" || actor.GraphState == "recovering")
         {
+            animation.TimePoints.pop_front();
+            continue;
+        }
+        if (::ReplayState::SkipsMountEntry(action.EventName, engine.SitState(form.Id))) // as AnimationSystem
+        {
+            animation.LastRanAction = action;
+            engine.SetActorLatestAnimation(form.Id, action);
             animation.TimePoints.pop_front();
             continue;
         }

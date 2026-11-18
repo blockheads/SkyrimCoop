@@ -336,6 +336,7 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
     if (const auto cController = EngineCalls::GetController(aFormId))
         entry["controller"] = {{"flags", cController->Flags}, {"filter", cController->Filter}, {"state", cController->State},
                                {"at", cController->Position}, {"step", cController->StepVelocity}};
+    entry["bodies_layer"] = pActor->BodiesLayer(); // its own 3D's bodies' collision layer, 0 out of the world
     // The drawn body: the 3D's root and feet (world), what GaitWatch reads against the actor's place.
     if (NiNode* p3D = pActor->GetNiNode())
     {

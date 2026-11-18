@@ -30,6 +30,7 @@
 #include <Events/LooseItemEvents.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
+#include <Events/BoardEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
 #include <Combat/HitOwnership.h>
@@ -57,6 +58,7 @@
 #include <Games/Skyrim/DetectionRules.h>
 
 #include <ExtraData/ExtraDataList.h>
+#include <ExtraData/ExtraInteraction.h>
 #include <ExtraData/ExtraCharge.h>
 #include <ExtraData/ExtraCount.h>
 #include <ExtraData/ExtraEnchantment.h>
@@ -201,13 +203,21 @@ uint8_t Actor::BodiesLayer() const noexcept
     return LayerOf(FirstBodyOf(*this));
 }
 
-bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
+bool Actor::SetBodiesLayer(uint8_t aLayer, const Actor* apGroupOf) noexcept
 {
     NiNode* pRoot = GetNiNode();
     auto* pProcess = currentProcess;
     auto* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
     const hkpRigidBody* pBody = FirstBodyOf(*this);
-    if (!pRoot || !pController || !parentCell || !pBody || LayerOf(pBody) == aLayer)
+    if (!pRoot || !pController || !parentCell || !pBody)
+        return false;
+    // Its own capsule's group, or its mount's: one group never collides, as SeatRider (40358) sets a rider's.
+    const auto* pGroupProcess = apGroupOf ? apGroupOf->currentProcess : nullptr;
+    auto* pGroupController = pGroupProcess && pGroupProcess->middleProcess ? pGroupProcess->middleProcess->charController : nullptr;
+    uint32_t groupFilter = 0;
+    (pGroupController ? pGroupController : pController)->GetCollisionFilterInfo(groupFilter);
+    const uint32_t cGroup = groupFilter >> 16;
+    if (LayerOf(pBody) == aLayer && (!aLayer || pBody->CollisionFilterInfo() >> 16 == cGroup))
         return false;
     const bool cInWorld = pBody->world != nullptr;
 
@@ -228,12 +238,10 @@ bool Actor::SetBodiesLayer(uint8_t aLayer) noexcept
         s_removeFromWorld.Get()(pQueue, pRoot);
         return true;
     }
-    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group, in its cell's world (39912
-    // changes only the layer of bodies in the world already).
-    uint32_t filter = 0;
-    pController->GetCollisionFilterInfo(filter);
+    // As EnterFurnitureCollision (40063): keyframed, the layer with its capsule's group (a rider's: its mount's), in
+    // its cell's world (39912 changes only the layer of bodies in the world already).
     s_setMotionType.Get()(pQueue, pRoot, hkpRigidBody::kKeyframed, false);
-    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, filter >> 16);
+    s_setLayerAndGroup.Get()(pQueue, pRoot, aLayer, cGroup);
     if (!cInWorld)
         s_addToWorld.Get()(pQueue, pRoot, nullptr, 0);
     return true;
@@ -940,6 +948,49 @@ bool Actor::PutOnMount(Actor* apMount) noexcept
     return true;
 }
 
+void Actor::SeatOnMount(Actor* apMount) noexcept
+{
+    using TSeated = void(Actor*);
+    POINTER_SKYRIMSE(TSeated, s_onSeated, 41533);
+    if (!PutOnMount(apMount))
+        return;
+    actorState.SetSitSleepStateFlags(3);
+    s_onSeated(this);
+}
+
+RefrInteraction* Actor::GetOwnInteraction() const noexcept
+{
+    const auto* pExtra = static_cast<const ExtraInteraction*>(extraData.GetByType(ExtraDataType::Interaction));
+    return pExtra ? pExtra->interaction : nullptr;
+}
+
+void Actor::HoldRider(Actor* apRider, bool aReplace) noexcept
+{
+    using TSetInteraction = void(ExtraDataList*, RefrInteraction** appInteraction);
+    POINTER_SKYRIMSE(TSetInteraction, s_setInteraction, 12074);
+    RefrInteraction* pLink = apRider ? apRider->GetOwnInteraction() : nullptr;
+    if (aReplace || !pLink)
+    {
+        RefrInteraction* pNone = nullptr;
+        s_setInteraction(&extraData, &pNone);
+    }
+    if (pLink)
+        s_setInteraction(&extraData, &pLink);
+}
+
+void Actor::EvaluatePackageNow() noexcept
+{
+    using TEvaluate = void(Actor*, bool aImmediate, bool aResetAI);
+    POINTER_SKYRIMSE(TEvaluate, s_evaluate, 37401);
+    s_evaluate(this, true, false);
+}
+
+void Actor::EndMountPair() noexcept
+{
+    BSFixedString end("PairEnd");
+    SendAnimationEvent(&end);
+}
+
 bool Actor::StopRidingQuick() noexcept
 {
     using TStopRidingQuick = bool(Actor*, uint32_t aMode);
@@ -958,6 +1009,13 @@ void Actor::EndRideNow() noexcept
         uint32_t noFurniture = 0; // g_invalidRefHandle
         s_setSitSleepState(currentProcess, this, 0, &noFurniture, -1);
     }
+    s_finishDismount(this);
+}
+
+void Actor::FinishDismount() noexcept
+{
+    using TFinishDismount = void(Actor*);
+    POINTER_SKYRIMSE(TFinishDismount, s_finishDismount, 38696);
     s_finishDismount(this);
 }
 
@@ -1254,8 +1312,10 @@ char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
     const auto bIsCopy = pExtension && pExtension->IsCopy();
 
     // A copy is placed by the sync, except while its engine steps it (its controller's place written back after
-    // the physics step: HookApplyMovement).
-    if (bIsCopy && !pExtension->HasCopyGoal && !ScopedReferencesOverride::IsOverriden())
+    // the physics step: HookApplyMovement) or its seat carries it (its REFRSyncController, 20318).
+    if (bIsCopy && !ScopedReferencesOverride::IsOverriden() &&
+        !ReplayState::CopyTakesEnginePlace(pExtension->HasCopyGoal, apThis->extraData.Contains(ExtraDataType::Interaction),
+                                           apThis->actorState.GetSitSleepState()))
         return 1;
 
     // A non-actor's move reaches the change funnel (RecordMove).
@@ -1556,9 +1616,59 @@ uint64_t HookDetachInteraction(RefrInteraction* apThis, bool aUnk)
     const auto* cpMount = apThis ? TESObjectREFR::GetByHandle(apThis->targetHandle) : nullptr;
     const uint32_t cMountId = cpMount ? cpMount->formID : 0;
     const uint64_t cResult = RealDetachInteraction(apThis, aUnk);
-    if (pRider && pRider->GetExtension()->IsLocal())
-        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId});
+    if (pRider)
+        World::Get().GetRunner().Trigger(DismountEvent{pRider->formID, cMountId, !pRider->GetExtension()->IsLocal()});
     return cResult;
+}
+
+using TActivateMount = void(Actor*, TESObjectREFR* apTarget, int32_t, int32_t, uint8_t);
+static TActivateMount* RealActivateMount = nullptr;
+
+// A horse a party player drives: our player may board it (CharacterService::OnBoardEvent).
+static bool OffersBoarding(Actor* apMount) noexcept
+{
+    auto* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !apMount || !apMount->IsMount() || apMount->IsDead() || pPlayer->extraData.Contains(ExtraDataType::Interaction))
+        return false;
+    const RefrInteraction* pLink = apMount->GetOwnInteraction();
+    auto* pRider = pLink ? Cast<Actor>(TESObjectREFR::GetByHandle(pLink->actorHandle)) : nullptr;
+    return pRider && pRider != pPlayer && pRider->GetExtension()->IsOtherPlayer();
+}
+
+using TGetActivateText = bool(TESNPC*, TESObjectREFR* apTarget, BSString* apText);
+static TGetActivateText* RealGetActivateText = nullptr;
+
+// The crosshair's prompt (TESNPC::GetActivateText 24716): a horse offers Ride only when CanRide (38706) passes, which
+// refuses a ridden one. A horse a party player drives offers it too.
+bool HookGetActivateText(TESNPC* apThis, TESObjectREFR* apTarget, BSString* apText)
+{
+    if (RealGetActivateText(apThis, apTarget, apText))
+        return true;
+    auto* pMount = Cast<Actor>(apTarget);
+    if (!apText || !OffersBoarding(pMount))
+        return false;
+    using TSetString = void(BSString*, const char*, uint32_t);
+    POINTER_SKYRIMSE(TSetString, s_setString, 439876); // BSString::Set
+    POINTER_SKYRIMSE(Setting, s_ride, 377833); // gGameSetting_sRide
+    const char* cpRide = reinterpret_cast<const char*>(s_ride.Get()->data); // a string setting's text
+    const std::string cText = std::format("{}\n{}", cpRide ? cpRide : "Ride", pMount->GetDisplayFullName());
+    s_setString(apText, cText.c_str(), 0);
+    return true;
+}
+
+// A character activating a mount (37864): ridden by another, nothing; our player's may board it as a passenger.
+void HookActivateMount(Actor* apThis, TESObjectREFR* apTarget, int32_t aUnk1, int32_t aUnk2, uint8_t aUnk3)
+{
+    RealActivateMount(apThis, apTarget, aUnk1, aUnk2, aUnk3);
+    auto* pMount = Cast<Actor>(apTarget);
+    if (!apThis || apThis != PlayerCharacter::Get() || !pMount || !pMount->IsMount())
+        return;
+    if (OffersBoarding(pMount))
+        return World::Get().GetRunner().Trigger(BoardEvent{apThis->formID, pMount->formID});
+    const RefrInteraction* pLink = pMount->GetOwnInteraction();
+    spdlog::info("Activated mount {:X}: no boarding (our player riding {}, its slot {}, its rider {:X})", pMount->formID,
+                 apThis->extraData.Contains(ExtraDataType::Interaction), pLink != nullptr,
+                 pLink ? pLink->actorHandle : 0u);
 }
 
 using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
@@ -1890,6 +2000,8 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
         HOOK_ID(41539, &RealDetachInteraction, HookDetachInteraction);
+        HOOK_ID(37864, &RealActivateMount, HookActivateMount);
+        HOOK_ID(24716, &RealGetActivateText, HookGetActivateText);
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37541, &RealUpdateInDialogue, HookUpdateInDialogue);

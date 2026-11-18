@@ -14,6 +14,7 @@
 #include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
 #include <Bridges/IJoinBridge.h>
@@ -59,6 +60,20 @@ struct FakePackage
 {
     uint32_t packFlags = 0;
     int32_t Procedure = -1;
+};
+
+// A lock a queued clip load names (63969's +0x58): Skyrim takes it before the load's callback (63997), and one in freed
+// memory spins that job forever. Live while it exists; the fake's loads check it.
+struct FakeLoadLock
+{
+    FakeLoadLock();
+    ~FakeLoadLock();
+    FakeLoadLock(const FakeLoadLock&) = delete;
+    FakeLoadLock& operator=(const FakeLoadLock&) = delete;
+    void lock() noexcept {}
+    void unlock() noexcept {}
+    [[nodiscard]] static bool Live(uint64_t aId) noexcept;
+    uint64_t Id;
 };
 
 struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
@@ -836,8 +851,22 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::string Event;
         uint32_t Frames;
         std::shared_ptr<std::atomic<bool>> Done;
+        uint64_t Lock = 0;            // the requester's (FakeLoadLock), taken before Loaded (63997)
+        std::function<void()> Loaded; // its callback, under that lock; none: the action set's
     };
     std::vector<ClipLoad> ClipLoads;
+    uintptr_t m_nextClipLoad = 0;
+    // Loads that came to a lock no longer there: Skyrim's animation file job would spin on it forever (63997).
+    size_t ClipLoadHangs = 0;
+    // An owner's movement selector loads an idle's clips into its own set (IMovementSelectIdle 41694, kind 47).
+    void LoadMovementClips(uint32_t aFormId, const std::string& acEvent);
+    // A copy's movement idle set, loaded as its owner's stream says (ActionClips::Request, kMovement).
+    std::shared_ptr<std::atomic<bool>> RequestMovementClips(uint32_t aFormId, const std::string& acEvent);
+    struct MovementSet
+    {
+        std::string Event;
+    };
+    HeldClipLoads<MovementSet, FakeLoadLock> MovementSets;
     bool NewCopiesGraphReady = true; // a copy's graph ready as it is made (Skyrim: its 3D can come later)
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {
@@ -870,8 +899,41 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void PlayerTravelsUnannounced(uint32_t aCell, const glm::vec3& acPosition);
     // The native mount interaction, replayed for copies by CharacterService.
     std::map<uint32_t, uint32_t> Mounts;
-    void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
+    void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override
+    {
+        Mounts[aRider] = aMount;
+        MountSlots.try_emplace(aMount, aRider); // 12074 adds only to an empty slot
+        // A copy replays its owner's get-on: HorseEnter (39004) sets sit state 2. The fake plays no clip.
+        if (const auto it = Actors.find(aRider); it != Actors.end() && it->second.Copy && SitState(aRider) == 0)
+            it->second.State1 = (it->second.State1 & ~(0xFu << kSitShift)) | 2u << kSitShift;
+    }
     void ActorEndRide(uint32_t aRider) noexcept override;
+    void ActorSeatOnMount(uint32_t aRider, uint32_t aMount) noexcept override;
+    // Riders only: a mount's slot holds its rider's link, which is no mount of its own.
+    uint32_t GetActorMount(uint32_t aRider) const noexcept override
+    {
+        const auto it = Mounts.find(aRider);
+        return it != Mounts.end() ? it->second : 0;
+    }
+    void ActorHoldMount(uint32_t aRider, uint32_t aMount) noexcept override { MountSlots.try_emplace(aMount, aRider); }
+    void ActorEndMountPair(uint32_t aMount) noexcept override { SyncedMounts.erase(aMount); }
+    uint8_t GetActorSitState(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) ? SitState(aFormId) : 0; }
+    void ActorFinishDismount(uint32_t aRider) noexcept override { EndRide(aRider); } // its sit state its clip's
+    // Mounts left in a rider's exit pair (MountBehavior DismountSynced): a copy rider's exit ending on a mount this
+    // game owns, the horse having changed hands mid-pair. Only PairEnd ends it; it steers nothing until then (the
+    // duo, 2026-11-17, player-mount.md).
+    std::set<uint32_t> SyncedMounts;
+    // A mount's one ExtraInteraction (12074): its first rider's; any rider's Detach (41539) empties it, and a ridden
+    // one is what ActivateMount (37864) and CanRide (38706) refuse (player-mount.md).
+    std::map<uint32_t, uint32_t> MountSlots;
+    // Mounts the player steers: its own get-on's, or a passenger's handed the reins (PlayerTakeReins). Skyrim, probe
+    // 4c: the driver's ride ending leaves the horse on the driver's package, the passenger steering nothing.
+    std::map<uint32_t, uint32_t> Reins;
+    [[nodiscard]] bool PlayerSteers(uint32_t aMount) const
+    {
+        return GetActorMount(kPlayer) == aMount && Reins.contains(aMount) && Reins.at(aMount) == kPlayer &&
+               MountSlots.contains(aMount) && MountSlots.at(aMount) == kPlayer && !SyncedMounts.contains(aMount);
+    }
     // NPC bases that are mounts (flags2 kIsAMount): a horse.
     std::set<uint32_t> MountBases{0x109E3D};
     bool IsActorMount(uint32_t aFormId) const noexcept override
@@ -1424,6 +1486,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
     void PlayerStopRiding() noexcept override { StopRiding(kPlayer); }
+    bool PlayerBoardMount(uint32_t aMount) noexcept override;
+    void PlayerTakeReins(uint32_t aMount) noexcept override
+    {
+        SyncedMounts.erase(aMount);
+        MountSlots[aMount] = kPlayer;
+        Reins[aMount] = kPlayer;
+    }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
     float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
     void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override
