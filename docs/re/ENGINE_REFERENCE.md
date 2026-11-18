@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **3577** distinct engine addresses used; **250** have code in CommonLib or SKSE; **2928** have no community name at all.
+- **3579** distinct engine addresses used; **250** have code in CommonLib or SKSE; **2929** have no community name at all.
 - **255** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -615,8 +615,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37975 | `0x6afd40` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `RealUnequipObject` | [Actor.cpp:1893](../../Code/client/Games/Skyrim/Actor.cpp#L1893) |  |
 | 37996 | `0x6b1ab0` | `BSTEventSink_BSTransformDeltaEvent_::Handle` | IDA meh | hook → `HookTransformDelta` | `RealTransformDelta` | [Actor.cpp:1873](../../Code/client/Games/Skyrim/Actor.cpp#L1873) |  |
 | 38009 | `0x6b3f20` | `Actor::ProcessTracking` | IDA meh | hook → `HookProcessTracking` | `RealProcessTracking` | [AiStateEvents.cpp:155](../../Code/client/Games/Skyrim/AiStateEvents.cpp#L155) |  |
-| 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:29](../../Code/client/Games/Skyrim/ActionClips.cpp#L29) | **undocumented** |
-| 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:58](../../Code/client/Games/Skyrim/ActionClips.cpp#L58) | **undocumented** |
+| 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:34](../../Code/client/Games/Skyrim/ActionClips.cpp#L34) | **undocumented** |
+| 38275 | `0x6bd610` | `?` | - | call | `ReleaseSet` | [ActionClips.cpp:70](../../Code/client/Games/Skyrim/ActionClips.cpp#L70) | **undocumented** |
 | 38459 | `0x6c48b0` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `RealRegenerateActorValue` | [Actor.cpp:1880](../../Code/client/Games/Skyrim/Actor.cpp#L1880) |  |
 | 38468 | `0x6c5220` | `Actor::SetActorValueModifiers` | PL meh | data | `s_setActorValueModifiers` | [Actor.cpp:756](../../Code/client/Games/Skyrim/Actor.cpp#L756) |  |
 | 38470 | `0x6c54c0` | `Actor::SendActorValueUpdate` | meh | hook → `HookUpdate` | `RealUpdate` | [ActorValueEvents.cpp:74](../../Code/client/Games/Skyrim/ActorValueEvents.cpp#L74) |  |
@@ -656,15 +656,15 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38953 | `0x6dff90` | `?` | - | call | `PerformComplexAction` | [AnimationExperiments.cpp:287](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L287) | **undocumented** |
 | 39002 | `0x6e1ca0` | `?` | - | call | `sub_14063CAA0` | [AnimationExperiments.cpp:335](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L335) | **undocumented** |
 | 39004 | `0x6e2250` | `coop_ApplyActionGraphEffects` | IDA | call | `ApplyAnimationVariables` | [AnimationExperiments.cpp:30](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L30) |  |
-| 39258 | `0x6f1190` | `?` | IDA | call | `CancelLoad` | [ActionClips.cpp:92](../../Code/client/Games/Skyrim/ActionClips.cpp#L92) |  |
+| 39258 | `0x6f1190` | `?` | IDA | call | `CancelLoad` | [ActionClips.cpp:101](../../Code/client/Games/Skyrim/ActionClips.cpp#L101) |  |
 | 39373 | `0x6f6070` | `AIProcess::GetLipData` | IDA | call | `s_getLipData` | [Actor.cpp:1859](../../Code/client/Games/Skyrim/Actor.cpp#L1859) |  |
 | 39377 | `0x6f6240` | `AIProcess::UpdateLipSyncGraph` | IDA | call | `s_updateLipSyncGraph` | [Actor.cpp:1861](../../Code/client/Games/Skyrim/Actor.cpp#L1861) |  |
 | 39643 | `0x70abf0` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `RealProcessResponse` | [Actor.cpp:1890](../../Code/client/Games/Skyrim/Actor.cpp#L1890) |  |
-| 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignCallback` | [ActionClips.cpp:30](../../Code/client/Games/Skyrim/ActionClips.cpp#L30) |  |
-| 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignMiddleCallback` | [ActionClips.cpp:94](../../Code/client/Games/Skyrim/ActionClips.cpp#L94) |  |
-| 39732 | `0x71cb80` | `?` | - | data | `AssignHighCallback` | [ActionClips.cpp:93](../../Code/client/Games/Skyrim/ActionClips.cpp#L93) | **undocumented** |
+| 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignCallback` | [ActionClips.cpp:42](../../Code/client/Games/Skyrim/ActionClips.cpp#L42) |  |
+| 39731 | `0x71cb30` | `coop_AssignMiddleCallback` | IDA | call | `AssignMiddleCallback` | [ActionClips.cpp:103](../../Code/client/Games/Skyrim/ActionClips.cpp#L103) |  |
+| 39732 | `0x71cb80` | `?` | - | data | `AssignHighCallback` | [ActionClips.cpp:102](../../Code/client/Games/Skyrim/ActionClips.cpp#L102) | **undocumented** |
 | 39912 | `0x7246a0` | `AIProcess::SetSitSleepState` | IDA | call | `s_setSitSleepState` | [Actor.cpp:954](../../Code/client/Games/Skyrim/Actor.cpp#L954) |  |
-| 40055 | `0x72a2c0` | `?` | - | call | `KeepSet` | [ActionClips.cpp:57](../../Code/client/Games/Skyrim/ActionClips.cpp#L57) | **undocumented** |
+| 40055 | `0x72a2c0` | `?` | - | call | `KeepSet` | [ActionClips.cpp:69](../../Code/client/Games/Skyrim/ActionClips.cpp#L69) | **undocumented** |
 | 40245 | `0x739180` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1875](../../Code/client/Games/Skyrim/Actor.cpp#L1875) | **undocumented** |
 | 40246 | `0x739280` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1876](../../Code/client/Games/Skyrim/Actor.cpp#L1876) |  |
 | 40255 | `0x739a40` | `Actor::DoReset3D` | CL SKSE meh | call | `QueueUpdate` | [Actor.cpp:249](../../Code/client/Games/Skyrim/Actor.cpp#L249) |  |
@@ -690,7 +690,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 42824 | `0x7ccac0` | `RightHandWeaponDrawHandler::Process_Origin` | IDA SKSE meh | call | `s_drawn` | [Actor.cpp:374](../../Code/client/Games/Skyrim/Actor.cpp#L374) |  |
 | 43571 | `0x7d7dc0` | `AnimationObjects::Load` | IDA | call | `s_load` | [AnimationObjects.cpp:68](../../Code/client/Games/Skyrim/AnimationObjects.cpp#L68) |  |
 | 43572 | `0x7d8080` | `AnimationObjects::Draw` | IDA | call | `s_draw` | [AnimationObjects.cpp:69](../../Code/client/Games/Skyrim/AnimationObjects.cpp#L69) |  |
-| 43621 | `0x7da170` | `?` | - | call | `LoadEventClips` | [ActionClips.cpp:95](../../Code/client/Games/Skyrim/ActionClips.cpp#L95) | **undocumented** |
+| 43621 | `0x7da170` | `?` | - | call | `LoadEventClips` | [ActionClips.cpp:104](../../Code/client/Games/Skyrim/ActionClips.cpp#L104) | **undocumented** |
 | 51925 | `0x94b8a0` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:49](../../Code/client/Games/Skyrim/LoadingScreen.cpp#L49) | **undocumented** |
 | 51968 | `0x94f0c0` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [TESObjectREFR.cpp:1478](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1478) |  |
 | 52118 | `0x959160` | `NewGame_Enter` | SKSE | hook → `HookNewGameEnter` | `RealNewGameEnter` | [LoadGameEvents.cpp:45](../../Code/client/Games/Skyrim/LoadGameEvents.cpp#L45) |  |
@@ -3539,6 +3539,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `s_manager` | [Actor.cpp:1097](../../Code/client/Games/Skyrim/Actor.cpp#L1097) |  |
 | 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `qword_142EFF990` | [AnimationExperiments.cpp:341](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L341) |  |
 | 401100 | `0x31df410` | `g_BGSSynchronizedAnimationManager` | IDA PL | data | `qword_142EFF990` | [AnimationExperiments.cpp:378](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L378) |  |
+| 401579 | `0x31e0b30` | `?` | - | data | `s_singleton` | [AnimationFileManager.cpp:5](../../Code/client/Games/Skyrim/AnimationFileManager.cpp#L5) | **undocumented** |
 | 403340 | `0x3223e60` | `BGSSaveLoadManager::singleton` | CL SKSE meh | data | `s_singleton` | [SaveLoadManager.cpp:57](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L57) |  |
 | 403449 | `0x3230530` | `Main::singleton` | CL SKSE meh | data | `s_singleton` | [Main.cpp:5](../../Code/client/Games/Skyrim/Main.cpp#L5) |  |
 | 403566 | `0x3230a30` | `gUnknownSingleton` | meh | data | `qword_142F271B8` | [AnimationExperiments.cpp:32](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L32) |  |
@@ -4142,6 +4143,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `RealSendGraphEvent` | [AnimationTrace.cpp:221](../../Code/client/TestHarness/AnimationTrace.cpp#L221) |  |
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `SendEvent` | [EngineCalls.cpp:1660](../../Code/client/TestHarness/EngineCalls.cpp#L1660) |  |
 | 63591 | `0xbcf690` | `BShkbAnimationGraph::SendEvent` | IDA meh | call | `RealSendEvent` | [GraphStreamCheck.cpp:275](../../Code/client/TestHarness/GraphStreamCheck.cpp#L275) |  |
+| 63980 | `0xbe8460` | `AnimationFileManagerSingleton__Update` | IDA meh | data | `update` | [ClipLoads.cpp:39](../../Code/client/TestHarness/ClipLoads.cpp#L39) |  |
 | 68542 | `0xcef3b0` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:2155](../../Code/client/TestHarness/EngineCalls.cpp#L2155) |  |
 | 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2093](../../Code/client/TestHarness/EngineCalls.cpp#L2093) |  |
 | 68655 | `0xcfa650` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:2159](../../Code/client/TestHarness/EngineCalls.cpp#L2159) |  |

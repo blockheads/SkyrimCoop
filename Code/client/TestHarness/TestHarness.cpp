@@ -2,6 +2,7 @@
 #include "TestHarness.h"
 #include "Harness.h"
 #include "ActivateWatch.h"
+#include "ClipLoads.h"
 #include "Commands.h"
 #include "EngineCalls.h"
 #include "Status.h"
@@ -76,6 +77,8 @@ void Poll()
         harness.Bodies.Poll();
     if (ActivateWatch::Watching() && harness.Files.InWorld())
         ActivateWatch::Poll();
+    if (ClipLoads::Watching() && harness.Files.InWorld())
+        ClipLoads::Poll();
     if (harness.Files.InWorld())
     {
         harness.Dialogue.Poll();
