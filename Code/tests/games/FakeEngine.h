@@ -14,6 +14,7 @@
 #include <Games/Skyrim/CopyPackage.h>
 #include "../FakeNativeVm.h"
 #include <Games/Animation/ReplayStep.h>
+#include <Games/Animation/HeldClipLoads.h>
 #include "../FakeFlight.h"
 
 #include <Bridges/IJoinBridge.h>
@@ -59,6 +60,20 @@ struct FakePackage
 {
     uint32_t packFlags = 0;
     int32_t Procedure = -1;
+};
+
+// A lock a queued clip load names (63969's +0x58): Skyrim takes it before the load's callback (63997), and one in freed
+// memory spins that job forever. Live while it exists; the fake's loads check it.
+struct FakeLoadLock
+{
+    FakeLoadLock();
+    ~FakeLoadLock();
+    FakeLoadLock(const FakeLoadLock&) = delete;
+    FakeLoadLock& operator=(const FakeLoadLock&) = delete;
+    void lock() noexcept {}
+    void unlock() noexcept {}
+    [[nodiscard]] static bool Live(uint64_t aId) noexcept;
+    uint64_t Id;
 };
 
 struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
@@ -816,8 +831,25 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge, IBodyReads
         std::string Event;
         uint32_t Frames;
         std::shared_ptr<std::atomic<bool>> Done;
+        uint64_t Lock = 0;            // the requester's (FakeLoadLock), taken before Loaded (63997)
+        std::function<void()> Loaded; // its callback, under that lock; none: the action set's
+        uintptr_t Handle = 0;
+        bool Live = true; // cleared by a cancel (63986)
     };
     std::vector<ClipLoad> ClipLoads;
+    uintptr_t m_nextClipLoad = 0;
+    // Loads that came to a lock no longer there: Skyrim's animation file job would spin on it forever (63997).
+    size_t ClipLoadHangs = 0;
+    void CancelClipLoad(void* apLoad) noexcept; // 63971
+    // An owner's movement selector loads an idle's clips into its own set (IMovementSelectIdle 41694, kind 47).
+    void LoadMovementClips(uint32_t aFormId, const std::string& acEvent);
+    // A copy's movement idle set, loaded as its owner's stream says (ActionClips::Request, kMovement).
+    std::shared_ptr<std::atomic<bool>> RequestMovementClips(uint32_t aFormId, const std::string& acEvent);
+    struct MovementSet
+    {
+        std::string Event;
+    };
+    HeldClipLoads<MovementSet, FakeLoadLock> MovementSets;
     bool NewCopiesGraphReady = true; // a copy's graph ready as it is made (Skyrim: its 3D can come later)
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override
     {

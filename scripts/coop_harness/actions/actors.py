@@ -152,6 +152,66 @@ class ActorsActions:
         ctx.console_on("", f"{npc:08X}.markfordelete")
 
 
+    def hold_clip_loads(ctx, instance, held=True):
+        """Stops (or restarts) that game's animation file job (63980, harness clip_loads): clip loads stay queued and no
+        load's callback runs. unstage restarts it."""
+        ctx.CLIP_LOADS_HELD = getattr(ctx, "CLIP_LOADS_HELD", set())
+        (ctx.CLIP_LOADS_HELD.add if held else ctx.CLIP_LOADS_HELD.discard)(instance)
+        return ctx.player_command(instance, {"cmd": "clip_loads", "hold": held})["held"]
+
+
+    def heap_quarantine(ctx, megabytes=256):
+        """The next duo boot's games poison freed engine memory and hold it back from reuse (SKYRIMCOOP_HEAP_QUARANTINE,
+        HeapHistory.h): a use after free shows at once, and a lock in freed memory reads as held. 0 turns it off."""
+        if megabytes:
+            os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = str(megabytes)
+        else:
+            os.environ.pop("SKYRIMCOOP_HEAP_QUARANTINE", None)
+        return megabytes
+
+
+    def queued_clip_loads(ctx, instance):
+        """That game's queued clip loads: stage (pending, loading, finished), kind (the clip set: 3 action, 4 instant,
+        47 a movement idle's), live, and the actor whose process lock it holds (owner) and whether that one is gone."""
+        return ctx.player_command(instance, {"cmd": "clip_loads"})["loads"]
+
+
+    def wait_clip_load(ctx, instance, kind=47, timeout=30):
+        """Waits for a live clip load of that set kind queued in that game (hold_clip_loads first); returns the loads."""
+        return ctx.wait_for(f"[{instance or 'host'}] a queued clip load into set {kind}",
+                            lambda: [load for load in ctx.queued_clip_loads(instance) if load["live"] and load["kind"] == kind], timeout)
+
+
+    def copy_goes_while_turn_loads(ctx, base="000A2C8E"):
+        """The host's NPC turns to walk (its movement idle's clips, kind 47: NPC_TurnToWalk...) and goes the moment the
+        guest's copy queued that load: spawned facing away from the host's player, force-greeted, then removed once the
+        copy is gone in the guest's game. hold_clip_loads on the guest first. Returns the guest's copy."""
+        npc, _, copy = ctx.spawn_host_npc(base, restrained=True)
+        # Its owner on the graph stream: what the copy replays, the turn's load included.
+        ctx.wait_for(f"[host] {npc:X} recorded on its graph stream", lambda: any(
+            actor["form"] == npc and actor["role"] == "owner"
+            for actor in (ctx.game("").rpc({"cmd": "graph_stream"}, timeout=10) or {}).get("actors", [])), 15)
+        player, at = ctx.local_player("")["position"], ctx.host_npc_state(npc)["position"]
+        away = math.degrees(math.atan2(at[0] - player[0], at[1] - player[1])) % 360  # z: 0 north, 90 east
+        ctx.console_on("", f"{npc:08X}.setangle z {away:.1f}")  # its back to the host's player
+        ctx.console_on("", f"{npc:08X}.setrestrained 0")
+        ctx.force_greet("", npc)
+        ctx.wait_clip_load("client", 47)
+        ctx.remove_host_npc(npc)
+        ctx.wait_for("[client] the copy is gone", lambda: not ctx.actor_place("client", copy), 10)
+        return copy
+
+
+    def expect_clip_loads_hold_live_locks(ctx, instance):
+        """No queued clip load in that game holds a gone actor's lock: the manager takes it before the load's callback
+        (63997), and a lock in freed memory spins its job forever (the guest's freeze of 2026-11-16)."""
+        gone = [load for load in ctx.queued_clip_loads(instance) if load["live"] and load["owner_gone"]]
+        if gone:
+            raise ctx.failure(f"[{instance or 'host'}] queued clip loads hold a gone actor's lock: "
+                              + ", ".join(f"set {load['kind']} of {load['owner']:X} ({load['stage']})" for load in gone))
+        return True
+
+
     def host_npc_health(ctx, npc):
         return ctx.host_npc_state(npc).get("health")
 

@@ -49,6 +49,14 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-17: a guest no longer freezes when the host's temporary NPCs go. The playtest's "coc whiterun crashed the
+guest" was a freeze: the guest deleted the copies, and the animation file job (63997) spun on a deleted copy's lock.
+A copy's movement idle load (kind 47, a turn-to-walk) named the copy's process lock and was never cancelled. Copies now
+hold those sets with their own lock and cancel a load before letting it go, as the engine's movement controller does
+([animation-file-loads.md](re/systems/animation-file-loads.md)). Tests: GameTests "A copy deleted while its movement
+idle's clips load...", ClientTests `[held-clip-loads]`, scenario `copy_deleted_while_clips_load` (harness `clip_loads`
+holds the guest's file job and lists each load's lock owner).
+
 2026-11-16: copies hold their owners' furniture props. Alvor hammered at the forge with no hammer on the guest: a prop
 is an animation object (ANIO) the idle's first clip loads and draws (AnimObjLoad/AnimObjDraw, 42888/42889), and a copy
 starting from a later sync point (its 3D reloaded, a guest arriving) skipped them. The sync point now carries the

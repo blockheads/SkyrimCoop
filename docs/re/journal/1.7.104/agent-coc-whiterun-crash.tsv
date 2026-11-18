@@ -1,0 +1,58 @@
+time	op	id	rva	item
+2026-11-17T03:54:26Z	read	40437	0x742df0	{"name": "PlayerCharacter::CenterOnCell_Impl"}
+2026-11-17T03:54:40Z	local	40437	0x742df0	{"func_addr": "0x140742df0", "old": "a1", "new": "player"}
+2026-11-17T03:54:40Z	local	40437	0x742df0	{"func_addr": "0x140742df0", "old": "a2", "new": "editorID"}
+2026-11-17T03:54:40Z	local	40437	0x742df0	{"func_addr": "0x140742df0", "old": "a3", "new": "cell"}
+2026-11-17T03:54:40Z	local	40437	0x742df0	{"func_addr": "0x140742df0", "old": "v8", "new": "extWorld"}
+2026-11-17T03:54:40Z	local	40437	0x742df0	{"func_addr": "0x140742df0", "old": "v9", "new": "cellWorld"}
+2026-11-17T03:54:41Z	comment		0x742e6a	{"addr": "0x140742e6a", "comment": "No CELL form by that editor ID: reads the exterior cell from the master file (a worldspace's editor ID or an exterior cell's), then the cell at those coordinates."}
+2026-11-17T03:54:41Z	comment		0x742f40	{"addr": "0x140742f40", "comment": "Writes queuedTarget (+0x650) inline: world +0x650, interior +0x658, pos +0x660, angle +0x66C, furniture +0x678, marker +0x67C, flags +0x680..0x682; then carries it out at once (40438)."}
+2026-11-17T04:30:31Z	read	56154	0xa45360	{"name": "papyrus::ObjectReference::Delete"}
+2026-11-17T04:30:45Z	read	12358	0x17fcd0	{"name": "sub_14017FCD0"}
+2026-11-17T04:30:45Z	read	36943	0x668a50	{"name": "sub_140668A50"}
+2026-11-17T04:31:15Z	read	56116	0xa42da0	{"name": "SkyrimScript::DeleteFunctor::Func1_56116"}
+2026-11-17T04:31:28Z	read	36024	0x638b20	{"name": "sub_140638B20"}
+2026-11-17T04:31:30Z	read	36026	0x638cb0	{"name": "sub_140638CB0"}
+2026-11-17T04:31:31Z	read	36031	0x638fe0	{"name": "sub_140638FE0"}
+2026-11-17T04:31:46Z	name	36024	0x638b20	{"addr": "0x140638B20", "name": "BGSSaveLoadGame__ApplyQueuedFormData"}
+2026-11-17T04:31:46Z	name	36026	0x638cb0	{"addr": "0x140638CB0", "name": "BGSSaveLoadGame__ApplyQueuedFormDataList"}
+2026-11-17T04:31:46Z	name	36031	0x638fe0	{"addr": "0x140638FE0", "name": "BGSSaveLoadGame__ApplyQueuedFormDataEntry"}
+2026-11-17T04:31:46Z	name	36943	0x668a50	{"addr": "0x140668A50", "name": "TaskQueueInterface__QueueTask24ForRef"}
+2026-11-17T04:31:46Z	name	12358	0x17fcd0	{"addr": "0x14017FCD0", "name": "TESObjectREFR__CallVfunc108Locked"}
+2026-11-17T04:31:51Z	comment	36024	0x638b20	{"addr": "0x140638B20", "comment": "Load: applies the three queues of per-form data read from the save (0 havok data, 1 char controller, 2 a third kind via TESObjectREFR 19535); entries hold raw form pointers taken earlier in the same load."}
+2026-11-17T04:31:51Z	comment	36026	0x638cb0	{"addr": "0x140638CB0", "comment": "Queue aKind at this+0x28+48*aKind: entries of 24 bytes {form*, buffer, pending}; applies each pending one and clears it."}
+2026-11-17T04:31:51Z	comment	12358	0x17fcd0	{"addr": "0x14017FCD0", "comment": "Takes the reference's recursive lock (+0x90 owner thread, +0x94 count), calls vfunc 0x360 (108) with (a2, a3), releases. ObjectReference.Delete (56154) calls it (0, 0) when no task queue is used."}
+2026-11-17T04:31:51Z	comment	36943	0x668a50	{"addr": "0x140668A50", "comment": "Queues task kind 24 for a reference (its refcount +0x28 taken); ObjectReference.Delete (56154) uses it off the main thread instead of 14017FCD0."}
+2026-11-17T04:31:51Z	comment	56154	0xa45360	{"addr": "0x140a45360", "comment": "ObjectReference.Delete: vfunc 0x118 (true), the disable step (task queue or 14017FCD0), then for a temporary non-persistent reference flags 0x40/0x1 and a DeleteFunctor queued as a post-render call with this stack id. The free itself comes later (DeleteFunctor::Run 56116 -> GarbageCollector::Add)."}
+2026-11-17T04:31:51Z	comment	56116	0xa42da0	{"addr": "0x140a42da0", "comment": "DeleteFunctor::Run: looks the reference up by its handle; if not persistent, GarbageCollector::Add(ref) (the actual free is the collector's, later); returns None to the stack id given to Delete."}
+2026-11-17T04:32:02Z	read	36459	0x64dab0	{"name": "GarbageCollector::Add"}
+2026-11-17T04:33:01Z	comment		0x639011	{"addr": "0x140639011", "comment": "Guest crash 2026-11-08 21:19 (c0000005): rdx's object here had BSLightingShaderMaterial's vtable (a stale form pointer reused), reached from InitAndFinishLoadedForms during a SkyrimCoopJoin load; the same save loaded fine at 21:32. Dump read 2026-11-16: the stale form was 0x226CB03C460, not the copy FF000DC3 deleted 1.4 s before (0x226348D4D60) nor the save's new FF000DC3 (0x226A7FB2DF0); the log never names that address."}
+2026-11-18T01:15:49Z	read		0xbe9858	{"name": "AnimationFileManagerSingleton::sub_63997"}
+2026-11-18T01:15:54Z	read		0x6568f8	{"name": "Main::sub_36555"}
+2026-11-18T01:16:02Z	read		0xbe8605	{"name": "AnimationFileManagerSingleton::sub_63980"}
+2026-11-18T01:16:03Z	read		0xebc248	{"name": "sub_140EBC170"}
+2026-11-18T01:16:28Z	read		0xbe76f5	{"name": "AnimationFileManagerSingleton::sub_63969"}
+2026-11-18T01:17:09Z	read	39258	0x6f1190	{"name": "coop_CancelLoad"}
+2026-11-18T01:17:22Z	read	63971	0xbe7920	{"name": "AnimationFileManagerSingleton::sub_63971"}
+2026-11-18T01:17:23Z	read		0x794f77	{"name": "MovementControllerNPC::sub_41692"}
+2026-11-18T01:17:43Z	name	63969	0xbe75d0	{"addr": "0x140be75d0", "name": "AnimationFileManagerSingleton__QueueLoad"}
+2026-11-18T01:17:43Z	name	63971	0xbe7920	{"addr": "0x140be7920", "name": "AnimationFileManagerSingleton__CancelLoad"}
+2026-11-18T01:17:43Z	name	63997	0xbe9800	{"addr": "0x140be9800", "name": "AnimationFileManagerSingleton__RunLoadedCallbacks"}
+2026-11-18T01:17:43Z	name	63980	0xbe8460	{"addr": "0x140be8460", "name": "AnimationFileManagerSingleton__Update"}
+2026-11-18T01:17:47Z	comment	63969	0xbe75d0	{"addr": "0x140be75d0", "comment": "63969 queues a clip-file load: (manager, id, files, priority, callback, callbackArg, lock, flag). Entry (0x68): +0x38 id, +0x48 callback, +0x50 arg, +0x58 the CALLER's lock, +0x60 live. The caller must cancel (63971) before its lock or callback dies."}
+2026-11-18T01:17:47Z	comment	63971	0xbe7920	{"addr": "0x140be7920", "comment": "63971 cancels a queued load (handle in rdx) under the manager lock (+0xC). Owners call it on teardown: MovementControllerNPC dtor 41692, coop_CancelLoad 39258."}
+2026-11-18T01:17:47Z	comment		0xbe9853	{"addr": "0x140be9853", "comment": "Takes each finished entry's caller lock (+0x58) before its callback. A lock in freed memory spins forever here: the 2026-11-16 guest hang (job thread in BSSpinLock::Lock, main thread waiting on job event 2), a deleted copy's movement-set load never cancelled (ActionClips kMovement)."}
+2026-11-18T01:17:47Z	comment	63980	0xbe8460	{"addr": "0x140be8460", "comment": "64980 Job_Animation_files: the animation file manager's per-frame update; ends in 63997, which runs the finished loads' callbacks under their callers' locks."}
+2026-11-18T01:17:51Z	comment	63980	0xbe8460	{"addr": "0x140be8460", "comment": "63980, called by Job_Animation_files: the animation file manager's per-frame update; ends in 63997, which runs the finished loads' callbacks under their callers' locks."}
+2026-11-18T01:52:42Z	read	43621	0x7da170	{"name": "coop_LoadEventClips"}
+2026-11-18T01:52:49Z	read	63986	0xbe8c20	{"name": "AnimationFileManagerSingleton::sub_63986"}
+2026-11-18T01:52:49Z	read		0x7da5b8	{"name": "coop_LoadEventClipsForManager"}
+2026-11-18T01:59:05Z	read	64045	0xbebaf0	{"name": "sub_140BEBAF0"}
+2026-11-18T01:59:05Z	read	64014	0xbeab90	{"name": "sub_140BEAB90"}
+2026-11-18T01:59:18Z	name	64045	0xbebaf0	{"addr": "0x140bebaf0", "name": "AnimationFileManagerSingleton__PushPending"}
+2026-11-18T01:59:18Z	name	64014	0xbeab90	{"addr": "0x140beab90", "name": "AnimationFileManagerSingleton__RemovePending"}
+2026-11-18T01:59:21Z	comment	64045	0xbebaf0	{"addr": "0x140bebaf0", "comment": "64045 pushes {priority u32, entry*} (16 bytes, entry ref +1) onto the manager's pending loads at +0x68: a BSTArray (data +0x68, size +0x78) kept as a binary max-heap by priority."}
+2026-11-18T01:59:21Z	comment	64014	0xbeab90	{"addr": "0x140beab90", "comment": "64014 removes an entry (by pointer) from the pending heap (+0x68), re-heaping; true if found. Cancel's (63986) first try; then the finished list (+0x88, size +0x98) where it clears the entry's live byte +0x60. The load under way is +0x80."}
+2026-11-18T01:59:21Z	comment		0xebc248	{"addr": "0x140ebc248", "comment": "Job list runner (not on the hang's path beyond running Job_Animation_files): calls each job's function, sets the list's done event when the last ends."}
+2026-11-18T02:17:07Z	data			{"old": "qword_1431E0B30", "new": "g_AnimationFileManager"}
+2026-11-18T02:37:12Z	read	39798	0x71fec0	{"name": "sub_14071FEC0"}

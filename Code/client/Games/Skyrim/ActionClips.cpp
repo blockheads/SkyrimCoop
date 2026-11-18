@@ -1,13 +1,14 @@
 #include <Games/Skyrim/ActionClips.h>
 
+#include <Games/Animation/HeldClipLoads.h>
+#include <Games/Skyrim/AnimationFileManager.h>
+
 #include <AI/AIProcess.h>
 #include <Actor.h>
 #include <Misc/BSFixedString.h>
 #include <Misc/MiddleProcess.h>
 #include <Forms/TESForm.h>
 #include <memory>
-#include <mutex>
-#include <unordered_map>
 #include <utility>
 
 namespace
@@ -16,15 +17,21 @@ using TReleaseSet = void(AnimationClipSet*, bool);
 using TAssignCallback = void*(void**, void*);
 
 // A copy's movement idle sets (kind 47): its owner's selector holds its own; a copy runs no movement AI.
-struct HeldSet
+struct MovementSet
 {
     AnimationClipSet Set{};
     void* Callback = nullptr; // the load's, by its count (39731)
 };
-std::mutex s_heldLock; // never held across a load: the loader can call back at once, under the animation lock
-std::unordered_map<uint32_t, std::unique_ptr<HeldSet>> s_held;
+// The engine's spin lock, as the queue takes it (63997).
+struct HeldLock
+{
+    BSRecursiveLock Lock{};
+    void lock() { Lock.Lock(); }
+    void unlock() { Lock.Unlock(); }
+};
+HeldClipLoads<MovementSet, HeldLock> s_movement;
 
-void Release(HeldSet& aHeld)
+void Release(MovementSet& aHeld)
 {
     POINTER_SKYRIMSE(TReleaseSet, ReleaseSet, 38275);
     POINTER_SKYRIMSE(TAssignCallback, AssignCallback, 39731);
@@ -60,14 +67,11 @@ void ClipsLoaded::Loaded(uint32_t aKind, AnimationClipSet* apSet)
     if (aKind == ActionClips::kMovement)
     {
         // Kept as 40055 keeps a process's: the set's contents swapped in, the old ones released.
-        std::scoped_lock _{s_heldLock};
-        auto& pHeld = s_held[m_formId];
-        if (!pHeld)
-            pHeld = std::make_unique<HeldSet>();
-        auto& held = *pHeld;
-        std::swap(held.Set.data, apSet->data);
-        std::swap(held.Set.capacity, apSet->capacity);
-        std::swap(held.Set.size, apSet->size);
+        s_movement.Loaded(m_formId, [apSet](MovementSet& aHeld) {
+            std::swap(aHeld.Set.data, apSet->data);
+            std::swap(aHeld.Set.capacity, apSet->capacity);
+            std::swap(aHeld.Set.size, apSet->size);
+        });
         if (apSet->size)
             ReleaseSet(apSet, true);
         m_done->store(true, std::memory_order_release);
@@ -108,25 +112,22 @@ std::shared_ptr<std::atomic<bool>> Request(Actor& aActor, const char* acEvent, S
     void* pLoad = nullptr;
     if (aSet == kMovement)
     {
-        HeldSet* pHeld = nullptr;
-        {
-            std::scoped_lock _{s_heldLock};
-            std::erase_if(s_held, [](auto& aEntry) {
-                if (TESForm::GetById(aEntry.first))
-                    return false;
-                Release(*aEntry.second); // its copy is gone
-                return true;
-            });
-            auto& pEntry = s_held[aActor.formID];
-            if (!pEntry)
-                pEntry = std::make_unique<HeldSet>();
-            pHeld = pEntry.get();
-        }
-        BSScopedLock<BSRecursiveLock> lock{pMiddle->animationLock};
-        AssignMiddleCallback(&pHeld->Callback, new ClipsLoaded(*pProcess, aActor.formID, done));
-        pLoad = LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(pHeld->Callback), &pMiddle->animationLock, true);
-        if (!pLoad)
-            AssignMiddleCallback(&pHeld->Callback, nullptr);
+        // Its own lock, not the copy's process's: a queued load takes it before its callback (63997).
+        pLoad = s_movement.Request(
+            aActor.formID, [](uint32_t aFormId) { return !TESForm::GetById(aFormId); },
+            [&](auto& aHolder) {
+                AssignMiddleCallback(&aHolder.Data.Callback, new ClipsLoaded(*pProcess, aActor.formID, done));
+                void* pQueued = LoadEventClips(&event, &aActor, aSet, 1, static_cast<ClipsLoaded*>(aHolder.Data.Callback),
+                                               &aHolder.LoadLock.Lock, true);
+                if (!pQueued)
+                    AssignMiddleCallback(&aHolder.Data.Callback, nullptr);
+                return pQueued;
+            },
+            [](void* apLoad) {
+                if (AnimationFileManager* pManager = AnimationFileManager::Get())
+                    pManager->Cancel(apLoad);
+            },
+            [](MovementSet& aHeld) { Release(aHeld); });
     }
     else
     {

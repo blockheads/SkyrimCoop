@@ -802,6 +802,10 @@ class ReproActions:
             with contextlib.suppress(TestFailure):
                 ctx.line_delay(0)
             ctx.LINE_DELAY = 0
+        held = getattr(ctx, "CLIP_LOADS_HELD", None)
+        for instance in held.copy() if isinstance(held, set) else ():
+            with contextlib.suppress(TestFailure):
+                ctx.hold_clip_loads(instance, False)
         ctx.unpin_world()
         for kind, ref in reversed(ctx.staged()):
             if kind == "put_back":  # clutter a verb moved (moves_and_watches): back where it was
