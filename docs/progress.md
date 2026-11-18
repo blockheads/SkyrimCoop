@@ -1978,6 +1978,11 @@ removed (git history keeps them).
 
 ### World state
 
+- **Why a lid flipped without 3D comes back part open is unread** (2026-11-18, `docs/re/systems/guest-world-events.md`,
+  "A lid after a disable"): `InitNonNPCAnimation` (19757) already calls `SetOpenState` with snap at a 3D load, yet the
+  new 3D shows 0.116 of the open 0.128 rad. The fix poses it afterwards (`ObjectService`, measured to agree); what
+  defeats the load's own pose (the queued load's order, the sequence state the flip leaves) is still to read. Our
+  `QueuedReference::Finish` hook (13022) never fired for the chest's job, so its queued kind is unread too.
 - **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
 - **Step 5 after slice 1** (2026-10-21; superseded the same day by option 1, under "Tests and harness": a guest runs only its own player's and UI's scripts, so the world-script cases below are closed except what bypasses the gate). Of delayed natives only `Spell.Cast` carries the guest whose script called it (`GuestScripts`, `CastFunctor`); the others do not. Not measured: an engine-only hazard (no script) hitting a guest on both games now hurts it twice (the host's goes to its owner), and a host NPC's hostile spell on a guest now reaches it (the PvP rule covers players' casts only; an NPC's arrow hit the guest in `statue-fires-at-client`), no scenario of its own. The host's messages for a guest's action (`BlessingMessage.Show()` for the guest's prayer) show on the host's game: rule 5, not built. Enabled state (2026-10-21): a guest's own timers and loads can still enable or disable references on its game until step 5 covers them; a guest joining later gets no enabled states (save transfer at join will carry them); actors are left to their owner. Locks (2026-10-21): a guest's own world scripts (timers, loads) locking something are proposals too until step 5 covers them; a guest's lockpicking is not checked against the host's lock (it is taken as is).

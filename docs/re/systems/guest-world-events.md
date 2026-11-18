@@ -158,7 +158,8 @@ the host's contents, and opening it adds nothing (`created-chest-reaches-guest-e
 ## A lid after a disable
 
 Read in IDA 1.7.104 (2026-11-18) and measured in the duo the same day (`guest-chest-lid-after-disable`,
-`host-/guest-menus-close-when-target-goes`).
+`host-/guest-menus-close-when-target-goes`). Read on this branch (journal `agent-bugs-physics.tsv`): 14284, 14285, 14287,
+14288, 14297, 17887, 19757, 19796, 19800, 19801, 51125; 11802's name and 14284's summary are from earlier reads.
 
 ```
 a player opens a chest
@@ -178,7 +179,9 @@ the host enables it -> Enable 19800: TESQueuedHandles::QueueReference, a new 3D
 - A 3D load poses the lid at its open state: `InitNonNPCAnimation` (19757) calls `SetOpenState(ref, open, snap=1)`
   (14287), the open state being the reference's default toggled by its open state change (0x800000). With snap,
   `PlayAnimation_Impl` (14297) activates the sequence at its end and updates the node at once.
-- Why the new 3D keeps a part-open lid is not read (inferred: the sequence state the flip left, never played). Measured:
+- Why the new 3D keeps a part-open lid is not read (inferred: the sequence state the flip left, never played; a loose
+  end in `docs/progress.md`). So the fix is the engine's own pose call made again after the load, not a repair of
+  the load. Measured:
   `SetOpenState(closed, snap)` on the new 3D (harness `door_open`) puts the lid where the other game's is.
 - Vanilla never gets here: its menus pause the game, so nothing disables a chest under an open one. Our live menus'
   auto-close (Skyrim Souls' AutoCloseManager) is what closes a menu on a disabled chest.

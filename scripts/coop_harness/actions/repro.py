@@ -1118,9 +1118,13 @@ class ReproActions:
             ids = [f"{ref:08X}" for ref in ctx.handles().get(name, {}).values()]
             problems = [p for p in ctx.check_desync(known=getattr(ctx, "SCENE_KNOWN", ())) if name == "all" or any(ref in p for ref in ids)]
             # The world check too (state, pose, open state), as a scenario's end compares it.
-            labels = tuple(f"{ref:X} " for ref in ctx.handles().get(name, {}).values())
+            # A placed reference's label starts with its id, a created one's names it as "(<id> on <game>)"
+            # (comparisons.reference_label).
+            refs = list(ctx.handles().get(name, {}).values())
+            def named(label):
+                return label.startswith(tuple(f"{ref:X} " for ref in refs)) or any(f"({ref:X} on " in label for ref in refs)
             world = {label: fields for label, fields in ctx.check_world(getattr(ctx, "SCENE_KNOWN_WORLD", set())).items()
-                     if name == "all" or label.startswith(labels)}
+                     if name == "all" or named(label)}
             problems += describe_world_differences(world, 8)
             if problems:
                 raise ctx.failure(f"{name}: the games disagree: " + " | ".join(problems[:8]))
