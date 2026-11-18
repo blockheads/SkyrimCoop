@@ -383,6 +383,14 @@ after setting the highlight plays the SWF's own click (state `TOPIC_CLICKED`, th
 hidden); its `GameDelegate.call("TopicClicked")` comes back synchronously into our `TopicClicked` hook, which skips
 it then. The engine's next list (52857) shows the list again, as after a click.
 
+**Where the picked line is drawn** (2026-11-18, read in `DialogueMenu.as`, skyrimui; measured on the duo):
+`onSelectionClick` scrolls the picked row to the centre (`RestoreScrollPosition`), plays `topicClicked` (the list
+fades), shows `TextCopy_mc` with the row's text and puts its field at
+`6.25 - (TextCopy_mc._y - List_mc._y - Entry4._y)`, over the centre row. Measured: 430, 270 and 160, so 6.25, the
+field's own value, before any click; `ShowPicked`'s copy lands on the centre row without setting it. 52857 only
+queues the menu's show-list message (`abNewList` at +0x20); `DoShowDialogueList` keeps the copy visible while a new
+list slides in after a click.
+
 **Speech checks in Skyrim.esm** (2026-10-19, read from the plugin): persuade lines test `GetActorValue` (14)
 Speech ≥ a global (`SpeechEasy`…`SpeechVeryHard`) on the player, OR'd with `GetEquipped` of the Amulet of
 Articulation list; the Persuasion perk sets a quest stage that lowers the globals. Intimidate lines test

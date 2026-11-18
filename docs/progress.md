@@ -49,6 +49,18 @@ In order. Each bug follows the bug-fix flow (CLAUDE.md).
 
 ## News
 
+2026-11-18: "The picked line overlaps" (bugs.md, Dialogue) is closed as not seen on dev. On the duo (`agent/bugs-dialogue`)
+the party talked to Lucan at MS13's stage 60 and each pick, the first topic and the claw topic's two-line entry, showed
+its line once on both menus, the picker's and the other's (screenshots, not kept). `ShowPicked` was rewritten after the report (b3a43770, 2026-11-01); the SWF's copy
+already sits over the centre row (`docs/re/systems/dialogue.md`, "Where the picked line is drawn"). Its scenario,
+`dialogue-options-are-the-partys`, already covers the pick.
+
+The same day "Leaving a crafting station" (bugs.md, Party scripts) is closed as not seen on dev: the guest's copy got up
+with it from QASmoke's cooking spit after a plain exit and after Tab right after the craft box's Yes (the reported path;
+Tab with the box still up does nothing, the box takes only the mouse). New scenario `guest-leaves-crafting-mid-craft`
+(two mid-craft exits a run) passes 2 of 2; the copy's exit path is in `docs/re/systems/actor-movement.md`, "Getting up".
+MCP: verb `select_makeable_crafting_entry`. `host-beast-form-stays-host` passed 2 of 2 (the werewolf entry stays open).
+
 2026-11-17: the party shares a horse (`agent/mount-per-player`, `docs/re/systems/player-mount.md`). One player drives,
 the others ride along: a player's Activate on a horse a party player drives boards it (our hook on
 `Character::ActivateMount` 37864 raises `BoardEvent`; the horse's slot emptied, then the engine's own get-on), and the
@@ -2305,8 +2317,8 @@ What the first playtest build has besides what works today (the table above):
     engine's type table (generic since 2026-10-28, `.worktrees/story-events`; one naming another game's actor, a kill
     or an assault, is the host's own), and the story manager's visitors judge the guest's character while one of its
     events runs (a copy's kill too); a party arriving together is one arrival. HostAuthorityTests, ClientTests, GameTests; Skyrim
-    `guest-story-starts-no-quest`, `guest-location-change-starts-story`, `guest-craft-raises-story` pass. A copy can
-    stay getting up after its guest leaves the crafting menu (`docs/bugs.md`).
+    `guest-story-starts-no-quest`, `guest-location-change-starts-story`, `guest-craft-raises-story` pass. A copy left getting up after its guest leaves the
+    crafting menu (2026-10-27) was not seen again (2026-11-18, `guest-leaves-crafting-mid-craft`).
 13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); on dev: guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are open bugs in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
 14. **Small visible bugs** (built 2026-10-27, merged into dev): the same resurrected NPC
     copy draws and attacks again; a brought character gets checked placement beside the host; a copy's base level
